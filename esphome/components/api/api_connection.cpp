@@ -331,8 +331,7 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
   std::vector<uint8_t> &shared_buf = conn->parent_->get_shared_buffer_ref();
 
   if (conn->flags_.batch_first_message) {
-    // Single message or first batch message
-    conn->prepare_first_message_buffer(shared_buf, header_padding, total_calculated_size);
+    // First message - buffer already prepared by caller, just clear the flag
     conn->flags_.batch_first_message = false;
   } else {
     // Batch message second or later
@@ -1860,9 +1859,10 @@ void APIConnection::process_batch_() {
   // Fast path for single message - allocate exact size needed
   if (num_items == 1) {
     const auto &item = this->deferred_batch_[0];
+    this->prepare_first_message_buffer(shared_buf, item.estimated_size);
 
     // Let dispatch_message_ calculate size and encode if it fits
-    uint16_t payload_size = this->dispatch_message_(item, std::numeric_limits<uint16_t>::max(), true);
+    uint16_t payload_size = this->dispatch_message_(item, std::numeric_limits<uint16_t>::max());
 
     if (payload_size > 0 && this->send_buffer(ProtoWriteBuffer{&shared_buf}, item.message_type)) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1889,19 +1889,16 @@ void APIConnection::process_batch_() {
   const uint8_t header_padding = this->helper_->frame_header_padding();
   const uint8_t footer_size = this->helper_->frame_footer_size();
 
-  // Initialize buffer and tracking variables
-  shared_buf.clear();
-
-  // Pre-calculate exact buffer size needed based on message types
+  // Calculate total overhead for all messages
+  // Reserve based on estimated size (much more accurate than 24-byte worst-case)
   uint32_t total_estimated_size = num_items * (header_padding + footer_size);
   for (size_t i = 0; i < this->deferred_batch_.size(); i++) {
     const auto &item = this->deferred_batch_[i];
     total_estimated_size += item.estimated_size;
   }
 
-  // Calculate total overhead for all messages
-  // Reserve based on estimated size (much more accurate than 24-byte worst-case)
-  shared_buf.reserve(total_estimated_size);
+  // Initialize buffer with total estimated size and set batch_first_message flag
+  this->prepare_first_message_buffer(shared_buf, header_padding, total_estimated_size);
 
   size_t items_processed = 0;
   uint16_t remaining_size = std::numeric_limits<uint16_t>::max();
@@ -1917,7 +1914,7 @@ void APIConnection::process_batch_() {
     const auto &item = this->deferred_batch_[i];
     // Try to encode message via dispatch
     // The dispatch function calculates overhead to determine if the message fits
-    uint16_t payload_size = this->dispatch_message_(item, remaining_size, i == 0);
+    uint16_t payload_size = this->dispatch_message_(item, remaining_size);
 
     if (payload_size == 0) {
       // Message won't fit, stop processing
@@ -1985,9 +1982,7 @@ void APIConnection::process_batch_() {
 
 // Dispatch message encoding based on message_type
 // Switch assigns function pointer, single call site for smaller code size
-uint16_t APIConnection::dispatch_message_(const DeferredBatch::BatchItem &item, uint32_t remaining_size,
-                                          bool batch_first) {
-  this->flags_.batch_first_message = batch_first;
+uint16_t APIConnection::dispatch_message_(const DeferredBatch::BatchItem &item, uint32_t remaining_size) {
 #ifdef USE_EVENT
   // Events need aux_data_index to look up event type from entity
   if (item.message_type == EventResponse::MESSAGE_TYPE) {

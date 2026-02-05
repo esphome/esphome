@@ -275,6 +275,15 @@ class APIConnection final : public APIServerConnection {
     shared_buf.reserve(total_size);
     // Resize to add header padding so message encoding starts at the correct position
     shared_buf.resize(header_padding);
+    // Mark that the next encode should use fresh buffer positioning
+    this->flags_.batch_first_message = true;
+  }
+
+  // Convenience overload - computes frame overhead internally
+  void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t payload_size) {
+    const uint8_t header_padding = this->helper_->frame_header_padding();
+    const uint8_t footer_size = this->helper_->frame_footer_size();
+    this->prepare_first_message_buffer(shared_buf, header_padding, payload_size + header_padding + footer_size);
   }
 
   bool try_to_clear_buffer(bool log_out_of_space);
@@ -619,12 +628,12 @@ class APIConnection final : public APIServerConnection {
 
   // Dispatch message encoding based on message_type - replaces function pointer storage
   // Switch assigns pointer, single call site for smaller code size
-  uint16_t dispatch_message_(const DeferredBatch::BatchItem &item, uint32_t remaining_size, bool batch_first);
+  uint16_t dispatch_message_(const DeferredBatch::BatchItem &item, uint32_t remaining_size);
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void log_batch_item_(const DeferredBatch::BatchItem &item) {
     this->flags_.log_only_mode = true;
-    this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE, true);
+    this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE);
     this->flags_.log_only_mode = false;
   }
 #endif
@@ -653,9 +662,11 @@ class APIConnection final : public APIServerConnection {
   bool send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
                            uint8_t aux_data_index = DeferredBatch::AUX_DATA_UNUSED) {
     if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
+      auto &shared_buf = this->parent_->get_shared_buffer_ref();
+      this->prepare_first_message_buffer(shared_buf, estimated_size);
       DeferredBatch::BatchItem item{entity, message_type, estimated_size, aux_data_index};
-      if (this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE, true) &&
-          this->send_buffer(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, message_type)) {
+      if (this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE) &&
+          this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type)) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
         this->log_batch_item_(item);
 #endif
