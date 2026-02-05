@@ -120,9 +120,9 @@ void LibreTinyUARTComponent::setup() {
     (void) uart_manager.init_uart(LT_UART_DEFAULT_SERIAL, this->baud_rate_, get_config());
 
     ESP_LOGE(TAG, "  SoftwareSerial is not implemented for this chip. Only hardware pins are supported:");
-    print_pins("UART0", uart_manager.get_tx_pins_for_uart(0), uart_manager.get_tx_pins_for_uart(0));
-    print_pins("UART1", uart_manager.get_tx_pins_for_uart(1), uart_manager.get_tx_pins_for_uart(1));
-    print_pins("UART2", uart_manager.get_tx_pins_for_uart(2), uart_manager.get_tx_pins_for_uart(2));
+    print_pins("UART0", uart_manager.get_tx_pins_for_uart(0), uart_manager.get_rx_pins_for_uart(0));
+    print_pins("UART1", uart_manager.get_tx_pins_for_uart(1), uart_manager.get_rx_pins_for_uart(1));
+    print_pins("UART2", uart_manager.get_tx_pins_for_uart(2), uart_manager.get_rx_pins_for_uart(2));
     this->mark_failed();
     return;
 #endif
