@@ -1768,6 +1768,14 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   }
   return false;
 }
+bool APIConnection::send_message_(const ProtoMessage &msg, uint8_t message_type) {
+  ProtoSize size;
+  msg.calculate_size(size);
+  std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
+  this->prepare_first_message_buffer(shared_buf, size.get_size());
+  msg.encode({&shared_buf});
+  return this->send_buffer({&shared_buf}, message_type);
+}
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   const bool is_log_message = (message_type == SubscribeLogsResponse::MESSAGE_TYPE);
 
