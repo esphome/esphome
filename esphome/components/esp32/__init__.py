@@ -1133,6 +1133,20 @@ async def _write_exclude_components() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
+async def _write_arduino_libs_stub(stubs_dir: Path, idf_ver: cv.Version) -> None:
+    """Write stub package to skip downloading precompiled Arduino libs."""
+    stubs_dir.mkdir(parents=True, exist_ok=True)
+    write_file_if_changed(
+        stubs_dir / "package.json",
+        f'{{"name":"framework-arduinoespressif32-libs","version":"{idf_ver.major}.{idf_ver.minor}.{idf_ver.patch}"}}',
+    )
+    write_file_if_changed(
+        stubs_dir / "tools.json",
+        '{"packages":[{"platforms":[{"toolsDependencies":[]}],"tools":[]}]}',
+    )
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_yaml_idf_components(components: list[ConfigType]):
     """Add IDF components from YAML config with final priority to override code-added components."""
     for component in components:
@@ -1241,6 +1255,15 @@ async def to_code(config):
                     "platform_packages",
                     [_format_framework_espidf_version(idf_ver, None)],
                 )
+                # Use stub package to skip downloading precompiled libs
+                stubs_dir = CORE.relative_build_path("arduino-libs-stub")
+                cg.add_platformio_option(
+                    "platform_packages",
+                    [
+                        f"pioarduino/framework-arduinoespressif32-libs@file://{stubs_dir}"
+                    ],
+                )
+                CORE.add_job(_write_arduino_libs_stub, stubs_dir, idf_ver)
 
             # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
             if get_esp32_variant() == VARIANT_ESP32S2:
