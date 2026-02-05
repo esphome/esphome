@@ -2848,7 +2848,7 @@ static const char *const TAG = "api.service";
     hpp += "    DumpBuffer dump_buf;\n"
     hpp += "    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));\n"
     hpp += "#endif\n"
-    hpp += "    return this->send_message_(msg, message_type);\n"
+    hpp += "    return this->send_message_impl(msg, message_type);\n"
     hpp += "  }\n\n"
 
     # Add logging helper method implementations to cpp
