@@ -137,7 +137,7 @@ class CC1101Select : public select::Select,
         break;
       }
     }
-    if (!value.empty() && value != this->state) {
+    if (!value.empty() && value != this->current_option()) {
       this->publish_state(value);
     }
   }

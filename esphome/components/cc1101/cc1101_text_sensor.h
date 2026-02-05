@@ -65,7 +65,7 @@ class CC1101TextSensor : public text_sensor::TextSensor,
         value = id_buffer;
         break;
     }
-    if (!value.empty() && value != this->state) {
+    if (!value.empty() && value != this->raw_state) {
       this->publish_state(value);
     }
   }
