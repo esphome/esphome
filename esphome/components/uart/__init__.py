@@ -31,7 +31,6 @@ from esphome.const import (
     CONF_TX_PIN,
     CONF_UART_ID,
     PLATFORM_HOST,
-    PLATFORM_LIBRETINY_OLDSTYLE,
     PlatformFramework,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
