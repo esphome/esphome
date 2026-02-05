@@ -3,22 +3,21 @@ from esphome.components import switch
 import esphome.config_validation as cv
 
 from . import (
+    CONF_AGC,
     CONF_CARRIER_SENSE_ABOVE_THRESHOLD,
+    CONF_CC1101_ID,
     CONF_CRC_ENABLE,
     CONF_DC_BLOCKING_FILTER,
     CONF_LNA_PRIORITY,
     CONF_MANCHESTER,
     CONF_PACKET_MODE,
+    CONF_TUNER,
     CONF_WHITENING,
     CC1101Component,
     ns,
 )
 
 CC1101Switch = ns.class_("CC1101Switch", switch.Switch, cg.PollingComponent)
-
-CONF_CC1101_ID = "cc1101_id"
-CONF_TUNER = "tuner"
-CONF_AGC = "agc"
 
 TYPES_ROOT = {
     CONF_DC_BLOCKING_FILTER: "set_dc_blocking_filter",
@@ -85,9 +84,9 @@ async def to_code(config):
 
     # Root
 
-    for type in TYPES_ROOT:
-        if type in config:
-            conf = config[type]
+    for conf_type in TYPES_ROOT:
+        if conf_type in config:
+            conf = config[conf_type]
 
             var = await switch.new_switch(conf)
 
@@ -95,16 +94,18 @@ async def to_code(config):
 
             cg.add(var.set_parent(parent))
 
-            cg.add(var.set_type(cg.RawExpression(f"{CC1101Switch}::{type.upper()}")))
+            cg.add(
+                var.set_type(cg.RawExpression(f"{CC1101Switch}::{conf_type.upper()}"))
+            )
 
     # Tuner
 
     if CONF_TUNER in config:
         tuner_config = config[CONF_TUNER]
 
-        for type in TYPES_TUNER:
-            if type in tuner_config:
-                conf = tuner_config[type]
+        for conf_type in TYPES_TUNER:
+            if conf_type in tuner_config:
+                conf = tuner_config[conf_type]
 
                 var = await switch.new_switch(conf)
 
@@ -113,7 +114,9 @@ async def to_code(config):
                 cg.add(var.set_parent(parent))
 
                 cg.add(
-                    var.set_type(cg.RawExpression(f"{CC1101Switch}::{type.upper()}"))
+                    var.set_type(
+                        cg.RawExpression(f"{CC1101Switch}::{conf_type.upper()}")
+                    )
                 )
 
     # AGC
@@ -121,9 +124,9 @@ async def to_code(config):
     if CONF_AGC in config:
         agc_config = config[CONF_AGC]
 
-        for type in TYPES_AGC:
-            if type in agc_config:
-                conf = agc_config[type]
+        for conf_type in TYPES_AGC:
+            if conf_type in agc_config:
+                conf = agc_config[conf_type]
 
                 var = await switch.new_switch(conf)
 
@@ -132,5 +135,7 @@ async def to_code(config):
                 cg.add(var.set_parent(parent))
 
                 cg.add(
-                    var.set_type(cg.RawExpression(f"{CC1101Switch}::{type.upper()}"))
+                    var.set_type(
+                        cg.RawExpression(f"{CC1101Switch}::{conf_type.upper()}")
+                    )
                 )

@@ -843,7 +843,7 @@ def main():
 
     run_checks(LINT_POST_CHECKS, "POST")
 
-    for f, errs in sorted(errors.items()):
+    for f, errs in sorted(errors.items(), key=lambda x: str(x[0])):
         bold = functools.partial(styled, colorama.Style.BRIGHT)
         bold_red = functools.partial(styled, (colorama.Style.BRIGHT, colorama.Fore.RED))
         err_str = (

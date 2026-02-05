@@ -3,15 +3,20 @@ from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_FREQUENCY, ENTITY_CATEGORY_DIAGNOSTIC
 
-from . import CONF_MODULATION_TYPE, CONF_RX_ATTENUATION, CC1101Component, ns
+from . import (
+    CONF_CC1101_ID,
+    CONF_MODULATION_TYPE,
+    CONF_RX_ATTENUATION,
+    CONF_TUNER,
+    CC1101Component,
+    ns,
+)
 
 CC1101TextSensor = ns.class_(
     "CC1101TextSensor", text_sensor.TextSensor, cg.PollingComponent
 )
 
-CONF_CC1101_ID = "cc1101_id"
 CONF_CHIP_ID = "chip_id"
-CONF_TUNER = "tuner"
 
 CONFIG_SCHEMA = cv.Schema(
     {

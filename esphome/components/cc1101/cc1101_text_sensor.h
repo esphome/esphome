@@ -56,12 +56,12 @@ class CC1101TextSensor : public text_sensor::TextSensor,
         break;
       case FREQUENCY:
         char buffer[32];
-        sprintf(buffer, "%.2f MHz", this->parent_->get_frequency() / 1000000.0f);
+        snprintf(buffer, sizeof(buffer), "%.2f MHz", this->parent_->get_frequency() / 1000000.0f);
         value = buffer;
         break;
       case CHIP_ID:
         char id_buffer[8];
-        sprintf(id_buffer, "0x%04X", this->parent_->get_chip_id());
+        snprintf(id_buffer, sizeof(id_buffer), "0x%04X", this->parent_->get_chip_id());
         value = id_buffer;
         break;
     }

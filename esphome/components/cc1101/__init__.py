@@ -55,6 +55,9 @@ CONF_WHITENING = "whitening"
 CONF_GDO0_PIN = "gdo0_pin"
 CONF_RSSI = "rssi"
 CONF_LQI = "lqi"
+CONF_CC1101_ID = "cc1101_id"
+CONF_TUNER = "tuner"
+CONF_AGC = "agc"
 
 # Enums
 SyncMode = ns.enum("SyncMode", True)

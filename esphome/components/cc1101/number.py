@@ -4,7 +4,9 @@ import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_FREQUENCY
 
 from . import (
+    CONF_AGC,
     CONF_CARRIER_SENSE_ABS_THR,
+    CONF_CC1101_ID,
     CONF_CHANNEL_SPACING,
     CONF_FILTER_BANDWIDTH,
     CONF_FSK_DEVIATION,
@@ -16,15 +18,12 @@ from . import (
     CONF_SYMBOL_RATE,
     CONF_SYNC0,
     CONF_SYNC1,
+    CONF_TUNER,
     CC1101Component,
     ns,
 )
 
 CC1101Number = ns.class_("CC1101Number", number.Number, cg.PollingComponent)
-
-CONF_CC1101_ID = "cc1101_id"
-CONF_TUNER = "tuner"
-CONF_AGC = "agc"
 
 TYPES_ROOT = {
     CONF_OUTPUT_POWER: {
@@ -178,9 +177,9 @@ async def to_code(config):
     parent = await cg.get_variable(config[CONF_CC1101_ID])
 
     # Root
-    for type, data in TYPES_ROOT.items():
-        if type in config:
-            conf = config[type]
+    for conf_type, conf_data in TYPES_ROOT.items():
+        if conf_type in config:
+            conf = config[conf_type]
             var = await number.new_number(
                 conf,
                 min_value=conf["min_value"],
@@ -189,15 +188,17 @@ async def to_code(config):
             )
             await cg.register_component(var, conf)
             cg.add(var.set_parent(parent))
-            cg.add(var.set_type(cg.RawExpression(f"{CC1101Number}::{type.upper()}")))
+            cg.add(
+                var.set_type(cg.RawExpression(f"{CC1101Number}::{conf_type.upper()}"))
+            )
 
     # Tuner
     if CONF_TUNER in config:
         tuner_config = config[CONF_TUNER]
-        for type, data in TYPES_TUNER.items():
-            key = data.get("key_override", type)
-            if key in tuner_config:
-                conf = tuner_config[key]
+        for conf_type, conf_data in TYPES_TUNER.items():
+            conf_key = conf_data.get("key_override", conf_type)
+            if conf_key in tuner_config:
+                conf = tuner_config[conf_key]
                 var = await number.new_number(
                     conf,
                     min_value=conf["min_value"],
@@ -207,15 +208,17 @@ async def to_code(config):
                 await cg.register_component(var, conf)
                 cg.add(var.set_parent(parent))
                 cg.add(
-                    var.set_type(cg.RawExpression(f"{CC1101Number}::{type.upper()}"))
+                    var.set_type(
+                        cg.RawExpression(f"{CC1101Number}::{conf_type.upper()}")
+                    )
                 )
 
     # AGC
     if CONF_AGC in config:
         agc_config = config[CONF_AGC]
-        for type, data in TYPES_AGC.items():
-            if type in agc_config:
-                conf = agc_config[type]
+        for conf_type, conf_data in TYPES_AGC.items():
+            if conf_type in agc_config:
+                conf = agc_config[conf_type]
                 var = await number.new_number(
                     conf,
                     min_value=conf["min_value"],
@@ -225,5 +228,7 @@ async def to_code(config):
                 await cg.register_component(var, conf)
                 cg.add(var.set_parent(parent))
                 cg.add(
-                    var.set_type(cg.RawExpression(f"{CC1101Number}::{type.upper()}"))
+                    var.set_type(
+                        cg.RawExpression(f"{CC1101Number}::{conf_type.upper()}")
+                    )
                 )

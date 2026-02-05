@@ -9,11 +9,9 @@ from esphome.const import (
     UNIT_EMPTY,
 )
 
-from . import CONF_LQI, CONF_RSSI, CC1101Component, ns
+from . import CONF_CC1101_ID, CONF_LQI, CONF_RSSI, CC1101Component, ns
 
 CC1101Sensor = ns.class_("CC1101Sensor", sensor.Sensor, cg.Component)
-
-CONF_CC1101_ID = "cc1101_id"
 
 TYPES = {
     CONF_RSSI: {
@@ -54,10 +52,12 @@ for type, data in TYPES.items():
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_CC1101_ID])
 
-    for type in TYPES:
-        if type in config:
-            conf = config[type]
+    for conf_type in TYPES:
+        if conf_type in config:
+            conf = config[conf_type]
             var = await sensor.new_sensor(conf)
             await cg.register_component(var, conf)
             cg.add(var.set_parent(parent))
-            cg.add(var.set_type(cg.RawExpression(f"{CC1101Sensor}::{type.upper()}")))
+            cg.add(
+                var.set_type(cg.RawExpression(f"{CC1101Sensor}::{conf_type.upper()}"))
+            )
