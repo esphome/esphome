@@ -756,6 +756,28 @@ def lint_no_sprintf(fname, match):
     )
 
 
+@lint_re_check(
+    # Match scanf family functions: scanf, sscanf, fscanf, vscanf, vsscanf, vfscanf
+    # Also match std:: prefixed versions
+    # [^\w] ensures we match function calls, not substrings
+    r"[^\w]((?:std::)?v?[fs]?scanf)\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_scanf(fname, match):
+    func = match.group(1)
+    return (
+        f"{highlight(func + '()')} is not allowed in new ESPHome code. The scanf family "
+        f"pulls in ~7KB flash on ESP8266 and ~9KB on ESP32, and ESPHome doesn't otherwise "
+        f"need this code.\n"
+        f"Please use alternatives:\n"
+        f"  - {highlight('parse_number<T>(str)')} for parsing integers/floats from strings\n"
+        f"  - {highlight('strtol()/strtof()')} for C-style number parsing with error checking\n"
+        f"  - {highlight('parse_hex()')} for hex string parsing\n"
+        f"  - Manual parsing for simple fixed formats\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
 @lint_content_find_check(
     "ESP_LOG",
     include=["*.h", "*.tcc"],

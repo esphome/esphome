@@ -384,7 +384,6 @@ void APDS9960::process_dataset_(int up, int down, int left, int right) {
     }
   }
 }
-float APDS9960::get_setup_priority() const { return setup_priority::DATA; }
 bool APDS9960::is_proximity_enabled_() const {
   return
 #ifdef USE_SENSOR
