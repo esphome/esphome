@@ -298,6 +298,30 @@ esp32:
       use_full_certificate_bundle: false  # Disabled by default, saves ~35 KB flash
 ```
 
+**Arduino Selective Compilation:**
+
+When using the Arduino framework, ESPHome uses selective compilation to only build the Arduino libraries actually needed by your configuration. This significantly reduces flash usage, RAM usage, and build times. Most Arduino libraries (WiFi, Network, BLE, Zigbee, Matter, RainMaker, etc.) are disabled by default since ESPHome uses ESP-IDF APIs directly.
+
+Previously, many Arduino libraries were compiled even though ESPHome never called them. In most Arduino configs, none of these libraries were actually used, yet they bloated the binary by 50% or more and consumed significant RAM.
+
+Components that need specific Arduino libraries automatically enable them. For edge cases where a library isn't auto-detected (e.g., custom lambdas using Arduino APIs), you can explicitly enable libraries using the {{< docref "/components/esphome#libraries" "libraries" >}} configuration option.
+
+```yaml
+# Example: Enabling Arduino libraries for custom lambda code
+esphome:
+  name: my-device
+  libraries:
+    - Preferences  # If using Arduino Preferences API in lambda
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+```
+
+> [!NOTE]
+> If you were already adding libraries via `libraries` config or calling `cg.add_library()`, no action is needed. If you were previously using Arduino library APIs directly in lambdas (e.g. `Preferences`, `Wire`, `SPI`) without adding them to the `libraries` config, you will need to explicitly add them.
+
 {{< anchor "esp32-idf_components" >}}
 
 ## IDF Components
