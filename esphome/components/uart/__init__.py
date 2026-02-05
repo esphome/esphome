@@ -30,11 +30,13 @@ from esphome.const import (
     CONF_TX_PIN,
     CONF_UART_ID,
     PLATFORM_HOST,
+    PLATFORM_LIBRETINY_OLDSTYLE,
     PlatformFramework,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.yaml_util import make_data_base
+from esphome.components.libretiny import LTComponent
 
 _LOGGER = getLogger(__name__)
 
@@ -284,6 +286,7 @@ DEBUG_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
+            cv.OnlyWith(CONF_LIBRETINY, CONF_LIBRETINY): cv.use_id(LTComponent),
             cv.GenerateID(): _uart_declare_type,
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
             cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,

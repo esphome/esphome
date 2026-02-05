@@ -49,6 +49,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_LIBRETINY_OLDSTYLE,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
     PLATFORM_RP2040,
@@ -56,6 +57,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.components.libretiny import LTComponent
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
@@ -220,6 +222,7 @@ CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = "esp8266_store_log_strings_in_flash"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
+            cv.OnlyWith(CONF_LIBRETINY, CONF_LIBRETINY): cv.use_id(LTComponent),
             cv.GenerateID(): cv.declare_id(Logger),
             cv.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.All(
