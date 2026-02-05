@@ -1910,7 +1910,6 @@ void APIConnection::process_batch_() {
   // Stack-allocated array for message info
   alignas(MessageInfo) char message_info_storage[MAX_MESSAGES_PER_BATCH * sizeof(MessageInfo)];
   MessageInfo *message_info = reinterpret_cast<MessageInfo *>(message_info_storage);
-  size_t message_count = 0;
   size_t items_processed = 0;
   uint16_t remaining_size = std::numeric_limits<uint16_t>::max();
   // Track where each message's header padding begins in the buffer
@@ -1938,10 +1937,7 @@ void APIConnection::process_batch_() {
     // This avoids default-constructing all MAX_MESSAGES_PER_BATCH elements
     // Explicit destruction is not needed because MessageInfo is trivially destructible,
     // as ensured by the static_assert in its definition.
-    new (&message_info[message_count++]) MessageInfo(item.message_type, current_offset, proto_payload_size);
-
-    // Update tracking variables
-    items_processed++;
+    new (&message_info[items_processed++]) MessageInfo(item.message_type, current_offset, proto_payload_size);
     // After first message, set remaining size to MAX_BATCH_PACKET_SIZE to avoid fragmentation
     if (items_processed == 1) {
       remaining_size = MAX_BATCH_PACKET_SIZE;
@@ -1964,7 +1960,7 @@ void APIConnection::process_batch_() {
 
   // Send all collected messages
   APIError err = this->helper_->write_protobuf_messages(ProtoWriteBuffer{&shared_buf},
-                                                        std::span<const MessageInfo>(message_info, message_count));
+                                                        std::span<const MessageInfo>(message_info, items_processed));
   if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
     this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
   }
