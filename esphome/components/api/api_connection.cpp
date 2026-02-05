@@ -1035,7 +1035,7 @@ void APIConnection::try_send_camera_image_() {
     msg.device_id = camera::Camera::instance()->get_device_id();
 #endif
 
-    if (!this->send_message_impl_(msg, CameraImageResponse::MESSAGE_TYPE)) {
+    if (!this->send_message_impl(msg, CameraImageResponse::MESSAGE_TYPE)) {
       return;  // Send failed, try again later
     }
     this->image_reader_->consume_data(to_send);
@@ -1443,7 +1443,7 @@ bool APIConnection::try_send_log_message(int level, const char *tag, const char 
   SubscribeLogsResponse msg;
   msg.level = static_cast<enums::LogLevel>(level);
   msg.set_message(reinterpret_cast<const uint8_t *>(line), message_len);
-  return this->send_message_impl_(msg, SubscribeLogsResponse::MESSAGE_TYPE);
+  return this->send_message_impl(msg, SubscribeLogsResponse::MESSAGE_TYPE);
 }
 
 void APIConnection::complete_authentication_() {
@@ -1768,7 +1768,7 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   }
   return false;
 }
-bool APIConnection::send_message_impl_(const ProtoMessage &msg, uint8_t message_type) {
+bool APIConnection::send_message_impl(const ProtoMessage &msg, uint8_t message_type) {
   ProtoSize size;
   msg.calculate_size(size);
   std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
