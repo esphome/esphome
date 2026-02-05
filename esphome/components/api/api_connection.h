@@ -255,7 +255,7 @@ class APIConnection final : public APIServerConnection {
 
   void on_fatal_error() override;
   void on_no_setup_connection() override;
-  bool send_message_(const ProtoMessage &msg, uint8_t message_type) override;
+  bool send_message(const ProtoMessage &msg, uint8_t message_type) override;
 
   void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t header_padding, size_t total_size) {
     shared_buf.clear();

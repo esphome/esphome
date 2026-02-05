@@ -2842,15 +2842,6 @@ static const char *const TAG = "api.service";
     hpp += " public:\n"
     hpp += "#endif\n\n"
 
-    # Add non-template send_message method
-    hpp += "  bool send_message(const ProtoMessage &msg, uint8_t message_type) {\n"
-    hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    hpp += "    DumpBuffer dump_buf;\n"
-    hpp += "    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));\n"
-    hpp += "#endif\n"
-    hpp += "    return this->send_message_(msg, message_type);\n"
-    hpp += "  }\n\n"
-
     # Add logging helper method implementations to cpp
     cpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     cpp += (

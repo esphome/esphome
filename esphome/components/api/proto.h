@@ -965,7 +965,7 @@ class ProtoService {
    * @param message_type The message type identifier.
    * @return True if the message was sent successfully, false otherwise.
    */
-  virtual bool send_message_(const ProtoMessage &msg, uint8_t message_type) = 0;
+  virtual bool send_message(const ProtoMessage &msg, uint8_t message_type) = 0;
 
   // Authentication helper methods
   inline bool check_connection_setup_() {
