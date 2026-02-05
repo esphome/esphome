@@ -16,6 +16,8 @@
 
 #include "bluetooth_connection.h"
 
+#include "sdkconfig.h"
+
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
 #endif

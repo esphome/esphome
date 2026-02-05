@@ -237,18 +237,11 @@ IO_CAPABILITY = {
     "display_yes_no": IoCapability.IO_CAP_IO,
 }
 
-esp_power_level_t = cg.global_ns.enum("esp_power_level_t")
-
-TX_POWER_LEVELS = {
-    -12: esp_power_level_t.ESP_PWR_LVL_N12,
-    -9: esp_power_level_t.ESP_PWR_LVL_N9,
-    -6: esp_power_level_t.ESP_PWR_LVL_N6,
-    -3: esp_power_level_t.ESP_PWR_LVL_N3,
-    0: esp_power_level_t.ESP_PWR_LVL_N0,
-    3: esp_power_level_t.ESP_PWR_LVL_P3,
-    6: esp_power_level_t.ESP_PWR_LVL_P6,
-    9: esp_power_level_t.ESP_PWR_LVL_P9,
-}
+# Valid BLE TX power levels in dBm. These correspond to the esp_power_level_t
+# enum values (0-7) in ESP-IDF. The C++ code converts dBm to the enum at the
+# call site, avoiding references to esp_bt.h types in generated code (required
+# for ESP-Hosted builds where esp_bt.h is unavailable).
+TX_POWER_LEVELS = (-12, -9, -6, -3, 0, 3, 6, 9)
 
 CONFIG_SCHEMA = cv.Schema(
     {

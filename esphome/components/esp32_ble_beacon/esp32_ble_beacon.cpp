@@ -3,6 +3,8 @@
 
 #ifdef USE_ESP32
 
+#include "sdkconfig.h"
+
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
 #endif
@@ -40,7 +42,7 @@ void ESP32BLEBeacon::dump_config() {
                 "  UUID: %s, Major: %u, Minor: %u, Min Interval: %ums, Max Interval: %ums, Measured Power: %d"
                 ", TX Power: %ddBm",
                 uuid, this->major_, this->minor_, this->min_interval_, this->max_interval_, this->measured_power_,
-                (this->tx_power_ * 3) - 12);
+                this->tx_power_);
 }
 
 float ESP32BLEBeacon::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
@@ -74,11 +76,14 @@ void ESP32BLEBeacon::on_advertise_() {
   ibeacon_adv_data.ibeacon_vendor.major = byteswap(this->major_);
   ibeacon_adv_data.ibeacon_vendor.measured_power = static_cast<uint8_t>(this->measured_power_);
 
+  esp_err_t err;
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   ESP_LOGD(TAG, "Setting BLE TX power");
-  esp_err_t err = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, this->tx_power_);
+  err = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, static_cast<esp_power_level_t>((this->tx_power_ + 12) / 3));
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "esp_ble_tx_power_set failed: %s", esp_err_to_name(err));
   }
+#endif
   err = esp_ble_gap_config_adv_data_raw((uint8_t *) &ibeacon_adv_data, sizeof(ibeacon_adv_data));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_config_adv_data_raw failed: %s", esp_err_to_name(err));
