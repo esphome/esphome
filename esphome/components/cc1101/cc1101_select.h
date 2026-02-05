@@ -84,43 +84,43 @@ class CC1101Select : public select::Select,
     std::string value;
     switch (this->type_) {
       case RX_ATTENUATION:
-        value = get_option_name(static_cast<int>(this->parent_->get_rx_attenuation()), RX_ATTENUATION_OPTIONS, 4);
+        value = get_option_name_(static_cast<int>(this->parent_->get_rx_attenuation()), RX_ATTENUATION_OPTIONS, 4);
         break;
       case SYNC_MODE:
-        value = get_option_name(static_cast<int>(this->parent_->get_sync_mode()), SYNC_MODE_OPTIONS, 4);
+        value = get_option_name_(static_cast<int>(this->parent_->get_sync_mode()), SYNC_MODE_OPTIONS, 4);
         break;
       case MODULATION_TYPE:
-        value = get_option_name(static_cast<int>(this->parent_->get_modulation_type()), MODULATION_OPTIONS, 5);
+        value = get_option_name_(static_cast<int>(this->parent_->get_modulation_type()), MODULATION_OPTIONS, 5);
         break;
       case MAGN_TARGET:
-        value = get_option_name(static_cast<int>(this->parent_->get_magn_target()), MAGN_TARGET_OPTIONS, 8);
+        value = get_option_name_(static_cast<int>(this->parent_->get_magn_target()), MAGN_TARGET_OPTIONS, 8);
         break;
       case MAX_LNA_GAIN:
-        value = get_option_name(static_cast<int>(this->parent_->get_max_lna_gain()), MAX_LNA_GAIN_OPTIONS, 8);
+        value = get_option_name_(static_cast<int>(this->parent_->get_max_lna_gain()), MAX_LNA_GAIN_OPTIONS, 8);
         break;
       case MAX_DVGA_GAIN:
-        value = get_option_name(static_cast<int>(this->parent_->get_max_dvga_gain()), MAX_DVGA_GAIN_OPTIONS, 4);
+        value = get_option_name_(static_cast<int>(this->parent_->get_max_dvga_gain()), MAX_DVGA_GAIN_OPTIONS, 4);
         break;
       case CARRIER_SENSE_REL_THR:
-        value = get_option_name(static_cast<int>(this->parent_->get_carrier_sense_rel_thr()),
-                                CARRIER_SENSE_REL_THR_OPTIONS, 4);
+        value = get_option_name_(static_cast<int>(this->parent_->get_carrier_sense_rel_thr()),
+                                 CARRIER_SENSE_REL_THR_OPTIONS, 4);
         break;
       case FILTER_LENGTH_FSK_MSK:
-        value = get_option_name(static_cast<int>(this->parent_->get_filter_length_fsk_msk()),
-                                FILTER_LENGTH_FSK_MSK_OPTIONS, 4);
+        value = get_option_name_(static_cast<int>(this->parent_->get_filter_length_fsk_msk()),
+                                 FILTER_LENGTH_FSK_MSK_OPTIONS, 4);
         break;
       case FILTER_LENGTH_ASK_OOK:
-        value = get_option_name(static_cast<int>(this->parent_->get_filter_length_ask_ook()),
-                                FILTER_LENGTH_ASK_OOK_OPTIONS, 4);
+        value = get_option_name_(static_cast<int>(this->parent_->get_filter_length_ask_ook()),
+                                 FILTER_LENGTH_ASK_OOK_OPTIONS, 4);
         break;
       case FREEZE:
-        value = get_option_name(static_cast<int>(this->parent_->get_freeze()), FREEZE_OPTIONS, 4);
+        value = get_option_name_(static_cast<int>(this->parent_->get_freeze()), FREEZE_OPTIONS, 4);
         break;
       case WAIT_TIME:
-        value = get_option_name(static_cast<int>(this->parent_->get_wait_time()), WAIT_TIME_OPTIONS, 4);
+        value = get_option_name_(static_cast<int>(this->parent_->get_wait_time()), WAIT_TIME_OPTIONS, 4);
         break;
       case HYST_LEVEL:
-        value = get_option_name(static_cast<int>(this->parent_->get_hyst_level()), HYST_LEVEL_OPTIONS, 4);
+        value = get_option_name_(static_cast<int>(this->parent_->get_hyst_level()), HYST_LEVEL_OPTIONS, 4);
         break;
       case FREQUENCY_PRESET: {
         float freq = this->parent_->get_frequency();
@@ -137,8 +137,7 @@ class CC1101Select : public select::Select,
         break;
       }
     }
-    if (!value.empty() && value != this->last_state_) {
-      this->last_state_ = value;
+    if (!value.empty() && value != this->current_option()) {
       this->publish_state(value);
     }
   }
@@ -150,67 +149,67 @@ class CC1101Select : public select::Select,
     int val = 0;
     switch (this->type_) {
       case RX_ATTENUATION:
-        val = get_option_value(value, RX_ATTENUATION_OPTIONS, 4);
+        val = get_option_value_(value, RX_ATTENUATION_OPTIONS, 4);
         if (val != -1)
           this->parent_->set_rx_attenuation(static_cast<RxAttenuation>(val));
         break;
       case SYNC_MODE:
-        val = get_option_value(value, SYNC_MODE_OPTIONS, 4);
+        val = get_option_value_(value, SYNC_MODE_OPTIONS, 4);
         if (val != -1)
           this->parent_->set_sync_mode(static_cast<SyncMode>(val));
         break;
       case MODULATION_TYPE:
-        val = get_option_value(value, MODULATION_OPTIONS, 5);
+        val = get_option_value_(value, MODULATION_OPTIONS, 5);
         if (val != -1)
           this->parent_->set_modulation_type(static_cast<Modulation>(val));
         break;
       case MAGN_TARGET:
-        val = get_option_value(value, MAGN_TARGET_OPTIONS, 8);
+        val = get_option_value_(value, MAGN_TARGET_OPTIONS, 8);
         if (val != -1)
           this->parent_->set_magn_target(static_cast<MagnTarget>(val));
         break;
       case MAX_LNA_GAIN:
-        val = get_option_value(value, MAX_LNA_GAIN_OPTIONS, 8);
+        val = get_option_value_(value, MAX_LNA_GAIN_OPTIONS, 8);
         if (val != -1)
           this->parent_->set_max_lna_gain(static_cast<MaxLnaGain>(val));
         break;
       case MAX_DVGA_GAIN:
-        val = get_option_value(value, MAX_DVGA_GAIN_OPTIONS, 4);
+        val = get_option_value_(value, MAX_DVGA_GAIN_OPTIONS, 4);
         if (val != -1)
           this->parent_->set_max_dvga_gain(static_cast<MaxDvgaGain>(val));
         break;
       case CARRIER_SENSE_REL_THR:
-        val = get_option_value(value, CARRIER_SENSE_REL_THR_OPTIONS, 4);
+        val = get_option_value_(value, CARRIER_SENSE_REL_THR_OPTIONS, 4);
         if (val != -1)
           this->parent_->set_carrier_sense_rel_thr(static_cast<CarrierSenseRelThr>(val));
         break;
       case FILTER_LENGTH_FSK_MSK:
-        val = get_option_value(value, FILTER_LENGTH_FSK_MSK_OPTIONS, 4);
+        val = get_option_value_(value, FILTER_LENGTH_FSK_MSK_OPTIONS, 4);
         if (val != -1)
           this->parent_->set_filter_length_fsk_msk(static_cast<FilterLengthFskMsk>(val));
         break;
       case FILTER_LENGTH_ASK_OOK:
-        val = get_option_value(value, FILTER_LENGTH_ASK_OOK_OPTIONS, 4);
+        val = get_option_value_(value, FILTER_LENGTH_ASK_OOK_OPTIONS, 4);
         if (val != -1)
           this->parent_->set_filter_length_ask_ook(static_cast<FilterLengthAskOok>(val));
         break;
       case FREEZE:
-        val = get_option_value(value, FREEZE_OPTIONS, 4);
+        val = get_option_value_(value, FREEZE_OPTIONS, 4);
         if (val != -1)
           this->parent_->set_freeze(static_cast<Freeze>(val));
         break;
       case WAIT_TIME:
-        val = get_option_value(value, WAIT_TIME_OPTIONS, 4);
+        val = get_option_value_(value, WAIT_TIME_OPTIONS, 4);
         if (val != -1)
           this->parent_->set_wait_time(static_cast<WaitTime>(val));
         break;
       case HYST_LEVEL:
-        val = get_option_value(value, HYST_LEVEL_OPTIONS, 4);
+        val = get_option_value_(value, HYST_LEVEL_OPTIONS, 4);
         if (val != -1)
           this->parent_->set_hyst_level(static_cast<HystLevel>(val));
         break;
       case FREQUENCY_PRESET:
-        val = get_option_value(value, FREQUENCY_PRESET_OPTIONS, 5);
+        val = get_option_value_(value, FREQUENCY_PRESET_OPTIONS, 5);
         if (val != -1 && val != 0) {  // 0 is Manual
           this->parent_->set_frequency(static_cast<float>(val));
         }
@@ -222,7 +221,7 @@ class CC1101Select : public select::Select,
   CC1101SelectType type_;
   std::string last_state_;
 
-  std::string get_option_name(int val, const Option *opts, size_t size) {
+  std::string get_option_name_(int val, const Option *opts, size_t size) {
     for (size_t i = 0; i < size; i++) {
       if (opts[i].value == val)
         return opts[i].name;
@@ -230,7 +229,7 @@ class CC1101Select : public select::Select,
     return "";
   }
 
-  int get_option_value(const std::string &name, const Option *opts, size_t size) {
+  int get_option_value_(const std::string &name, const Option *opts, size_t size) {
     for (size_t i = 0; i < size; i++) {
       if (name == opts[i].name)
         return opts[i].value;

@@ -49,10 +49,10 @@ class CC1101TextSensor : public text_sensor::TextSensor,
     std::string value;
     switch (this->type_) {
       case RX_ATTENUATION:
-        value = get_option_name(static_cast<int>(this->parent_->get_rx_attenuation()), RX_ATTENUATION_OPTIONS, 4);
+        value = get_option_name_(static_cast<int>(this->parent_->get_rx_attenuation()), RX_ATTENUATION_OPTIONS, 4);
         break;
       case MODULATION_TYPE:
-        value = get_option_name(static_cast<int>(this->parent_->get_modulation_type()), MODULATION_OPTIONS, 5);
+        value = get_option_name_(static_cast<int>(this->parent_->get_modulation_type()), MODULATION_OPTIONS, 5);
         break;
       case FREQUENCY:
         char buffer[32];
@@ -65,17 +65,15 @@ class CC1101TextSensor : public text_sensor::TextSensor,
         value = id_buffer;
         break;
     }
-    if (!value.empty() && value != this->last_state_) {
-      this->last_state_ = value;
+    if (!value.empty() && value != this->get_raw_state()) {
       this->publish_state(value);
     }
   }
 
  protected:
   CC1101TextSensorType type_;
-  std::string last_state_;
 
-  std::string get_option_name(int val, const Option *opts, size_t size) {
+  std::string get_option_name_(int val, const Option *opts, size_t size) {
     for (size_t i = 0; i < size; i++) {
       if (opts[i].value == val)
         return opts[i].name;
