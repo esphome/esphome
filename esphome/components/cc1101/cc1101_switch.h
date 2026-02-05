@@ -62,7 +62,9 @@ class CC1101Switch : public switch_::Switch,
         value = this->parent_->get_whitening();
         break;
     }
-    this->publish_state(value);
+    if (!this->has_state() || value != this->state) {
+      this->publish_state(value);
+    }
   }
 
  protected:

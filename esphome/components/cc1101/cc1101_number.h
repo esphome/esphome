@@ -90,7 +90,9 @@ class CC1101Number : public number::Number,
         value = this->parent_->get_packet_length();
         break;
     }
-    this->publish_state(value);
+    if (std::isnan(this->state) || std::abs(value - this->state) > 0.001f) {
+      this->publish_state(value);
+    }
   }
 
  protected:
@@ -141,7 +143,9 @@ class CC1101Number : public number::Number,
         this->parent_->set_packet_length(static_cast<uint8_t>(value));
         break;
     }
-    this->publish_state(value);
+    if (std::isnan(this->state) || std::abs(value - this->state) > 0.001f) {
+      this->publish_state(value);
+    }
   }
 
   CC1101NumberType type_;
