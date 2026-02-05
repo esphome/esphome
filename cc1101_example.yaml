@@ -114,10 +114,12 @@ sensor:
       name: "RSSI"
       filters:
         - throttle: 1s
+        - delta: 1.0
     lqi:
       name: "LQI"
       filters:
         - throttle: 1s
+        - delta: 5.0
 
 text_sensor:
   - platform: cc1101
