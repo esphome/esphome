@@ -203,10 +203,11 @@ class ESP32Preferences : public ESPPreferences {
   }
 };
 
+static ESP32Preferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void setup_preferences() {
-  auto *prefs = new ESP32Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  prefs->open();
-  global_preferences = prefs;
+  s_preferences.open();
+  global_preferences = &s_preferences;
 }
 
 }  // namespace esp32

@@ -45,6 +45,7 @@ service APIConnection {
   rpc time_command (TimeCommandRequest) returns (void) {}
   rpc update_command (UpdateCommandRequest) returns (void) {}
   rpc valve_command (ValveCommandRequest) returns (void) {}
+  rpc water_heater_command (WaterHeaterCommandRequest) returns (void) {}
 
   rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
