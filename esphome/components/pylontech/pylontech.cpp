@@ -192,8 +192,6 @@ void PylontechComponent::process_line_(std::string &buffer) {
   }
 }
 
-float PylontechComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace pylontech
 }  // namespace esphome
 

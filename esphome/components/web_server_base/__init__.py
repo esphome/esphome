@@ -38,11 +38,8 @@ async def to_code(config):
         cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)
         return
 
+    # ESP32 uses IDF web server (early return above), so this is for other Arduino platforms
     if CORE.using_arduino:
-        if CORE.is_esp32:
-            cg.add_library("WiFi", None)
-            cg.add_library("FS", None)
-            cg.add_library("Update", None)
         if CORE.is_esp8266:
             cg.add_library("ESP8266WiFi", None)
         if CORE.is_libretiny:

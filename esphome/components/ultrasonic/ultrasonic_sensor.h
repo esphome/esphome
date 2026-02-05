@@ -29,8 +29,6 @@ class UltrasonicSensorComponent : public sensor::Sensor, public PollingComponent
   void dump_config() override;
   void update() override;
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
   /// Set the maximum time in µs to wait for the echo to return
   void set_timeout_us(uint32_t timeout_us) { this->timeout_us_ = timeout_us; }
   /// Set the time in µs the trigger pin should be enabled for in µs, defaults to 10µs (for HC-SR04)

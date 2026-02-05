@@ -34,8 +34,6 @@ class PylontechComponent : public PollingComponent, public uart::UARTDevice {
   void setup() override;
   void dump_config() override;
 
-  float get_setup_priority() const override;
-
   void register_listener(PylontechListener *listener) { this->listeners_.push_back(listener); }
 
  protected:

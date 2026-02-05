@@ -81,6 +81,10 @@ void Application::register_component_(Component *comp) {
       return;
     }
   }
+  if (this->components_.size() >= ESPHOME_COMPONENT_COUNT) {
+    ESP_LOGE(TAG, "Cannot register component %s - at capacity!", LOG_STR_ARG(comp->get_component_log_str()));
+    return;
+  }
   this->components_.push_back(comp);
 }
 void Application::setup() {

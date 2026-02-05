@@ -79,8 +79,6 @@ void INA2XX::setup() {
   this->state_ = State::IDLE;
 }
 
-float INA2XX::get_setup_priority() const { return setup_priority::DATA; }
-
 void INA2XX::update() {
   ESP_LOGD(TAG, "Updating");
   if (this->is_ready() && this->state_ == State::IDLE) {
