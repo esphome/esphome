@@ -961,11 +961,12 @@ class ProtoService {
   virtual void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) = 0;
   /**
    * Send a protobuf message by calculating its size, allocating a buffer, encoding, and sending.
+   * This is the implementation method - callers should use send_message() which adds logging.
    * @param msg The protobuf message to send.
    * @param message_type The message type identifier.
    * @return True if the message was sent successfully, false otherwise.
    */
-  virtual bool send_message_(const ProtoMessage &msg, uint8_t message_type) = 0;
+  virtual bool send_message_impl(const ProtoMessage &msg, uint8_t message_type) = 0;
 
   // Authentication helper methods
   inline bool check_connection_setup_() {
