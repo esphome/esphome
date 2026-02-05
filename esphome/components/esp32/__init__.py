@@ -1469,8 +1469,7 @@ async def to_code(config):
                 # Use stub package to skip downloading precompiled libs
                 stubs_dir = CORE.relative_build_path("arduino-libs-stub")
                 cg.add_platformio_option(
-                    "platform_packages",
-                    [f"{ARDUINO_LIBS_PKG}@file://{stubs_dir}"],
+                    "platform_packages", [f"{ARDUINO_LIBS_PKG}@file://{stubs_dir}"]
                 )
                 CORE.add_job(_write_arduino_libs_stub, stubs_dir, idf_ver)
 
