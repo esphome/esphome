@@ -60,4 +60,4 @@ async def to_code(config):
             var = await sensor.new_sensor(conf)
             await cg.register_component(var, conf)
             cg.add(var.set_parent(parent))
-            cg.add(var.set_type(getattr(CC1101Sensor, type.upper())))
+            cg.add(var.set_type(cg.RawExpression(f"{CC1101Sensor}::{type.upper()}")))

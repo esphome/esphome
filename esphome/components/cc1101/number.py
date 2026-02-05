@@ -189,7 +189,7 @@ async def to_code(config):
             )
             await cg.register_component(var, conf)
             cg.add(var.set_parent(parent))
-            cg.add(var.set_type(getattr(CC1101Number, type.upper())))
+            cg.add(var.set_type(cg.RawExpression(f"{CC1101Number}::{type.upper()}")))
 
     # Tuner
     if CONF_TUNER in config:
@@ -206,7 +206,9 @@ async def to_code(config):
                 )
                 await cg.register_component(var, conf)
                 cg.add(var.set_parent(parent))
-                cg.add(var.set_type(getattr(CC1101Number, type.upper())))
+                cg.add(
+                    var.set_type(cg.RawExpression(f"{CC1101Number}::{type.upper()}"))
+                )
 
     # AGC
     if CONF_AGC in config:
@@ -222,4 +224,6 @@ async def to_code(config):
                 )
                 await cg.register_component(var, conf)
                 cg.add(var.set_parent(parent))
-                cg.add(var.set_type(getattr(CC1101Number, type.upper())))
+                cg.add(
+                    var.set_type(cg.RawExpression(f"{CC1101Number}::{type.upper()}"))
+                )

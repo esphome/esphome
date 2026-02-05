@@ -120,7 +120,7 @@ async def to_code(config):
         var = await select.new_select(conf, options=FREQUENCY_PRESETS)
         await cg.register_component(var, conf)
         cg.add(var.set_parent(parent))
-        cg.add(var.set_type(getattr(CC1101Select, "FREQUENCY_PRESET")))
+        cg.add(var.set_type(cg.RawExpression(f"{CC1101Select}::FREQUENCY_PRESET")))
 
     # Root
     for type, options in TYPES_ROOT.items():
@@ -130,7 +130,7 @@ async def to_code(config):
             var = await select.new_select(conf, options=opts)
             await cg.register_component(var, conf)
             cg.add(var.set_parent(parent))
-            cg.add(var.set_type(getattr(CC1101Select, type.upper())))
+            cg.add(var.set_type(cg.RawExpression(f"{CC1101Select}::{type.upper()}")))
 
     # Tuner
     if CONF_TUNER in config:
@@ -149,7 +149,9 @@ async def to_code(config):
                 var = await select.new_select(conf, options=opts)
                 await cg.register_component(var, conf)
                 cg.add(var.set_parent(parent))
-                cg.add(var.set_type(getattr(CC1101Select, type.upper())))
+                cg.add(
+                    var.set_type(cg.RawExpression(f"{CC1101Select}::{type.upper()}"))
+                )
 
     # AGC
     if CONF_AGC in config:
@@ -161,4 +163,6 @@ async def to_code(config):
                 var = await select.new_select(conf, options=opts)
                 await cg.register_component(var, conf)
                 cg.add(var.set_parent(parent))
-                cg.add(var.set_type(getattr(CC1101Select, type.upper())))
+                cg.add(
+                    var.set_type(cg.RawExpression(f"{CC1101Select}::{type.upper()}"))
+                )

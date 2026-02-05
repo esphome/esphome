@@ -95,7 +95,7 @@ async def to_code(config):
 
             cg.add(var.set_parent(parent))
 
-            cg.add(var.set_type(getattr(CC1101Switch, type.upper())))
+            cg.add(var.set_type(cg.RawExpression(f"{CC1101Switch}::{type.upper()}")))
 
     # Tuner
 
@@ -112,7 +112,9 @@ async def to_code(config):
 
                 cg.add(var.set_parent(parent))
 
-                cg.add(var.set_type(getattr(CC1101Switch, type.upper())))
+                cg.add(
+                    var.set_type(cg.RawExpression(f"{CC1101Switch}::{type.upper()}"))
+                )
 
     # AGC
 
@@ -129,4 +131,6 @@ async def to_code(config):
 
                 cg.add(var.set_parent(parent))
 
-                cg.add(var.set_type(getattr(CC1101Switch, type.upper())))
+                cg.add(
+                    var.set_type(cg.RawExpression(f"{CC1101Switch}::{type.upper()}"))
+                )

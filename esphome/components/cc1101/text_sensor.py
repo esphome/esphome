@@ -50,14 +50,14 @@ async def to_code(config):
         var = await text_sensor.new_text_sensor(conf)
         await cg.register_component(var, conf)
         cg.add(var.set_parent(parent))
-        cg.add(var.set_type(getattr(CC1101TextSensor, "RX_ATTENUATION")))
+        cg.add(var.set_type(cg.RawExpression(f"{CC1101TextSensor}::RX_ATTENUATION")))
 
     if CONF_CHIP_ID in config:
         conf = config[CONF_CHIP_ID]
         var = await text_sensor.new_text_sensor(conf)
         await cg.register_component(var, conf)
         cg.add(var.set_parent(parent))
-        cg.add(var.set_type(getattr(CC1101TextSensor, "CHIP_ID")))
+        cg.add(var.set_type(cg.RawExpression(f"{CC1101TextSensor}::CHIP_ID")))
 
     if CONF_TUNER in config:
         tuner_config = config[CONF_TUNER]
@@ -68,11 +68,13 @@ async def to_code(config):
             var = await text_sensor.new_text_sensor(conf)
             await cg.register_component(var, conf)
             cg.add(var.set_parent(parent))
-            cg.add(var.set_type(getattr(CC1101TextSensor, "MODULATION_TYPE")))
+            cg.add(
+                var.set_type(cg.RawExpression(f"{CC1101TextSensor}::MODULATION_TYPE"))
+            )
 
         if CONF_FREQUENCY in tuner_config:
             conf = tuner_config[CONF_FREQUENCY]
             var = await text_sensor.new_text_sensor(conf)
             await cg.register_component(var, conf)
             cg.add(var.set_parent(parent))
-            cg.add(var.set_type(getattr(CC1101TextSensor, "FREQUENCY")))
+            cg.add(var.set_type(cg.RawExpression(f"{CC1101TextSensor}::FREQUENCY")))
