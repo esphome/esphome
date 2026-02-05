@@ -155,6 +155,9 @@ async def to_code(config):
         cg.add(var.set_watchdog_timeout(timeout_ms))
 
     if CORE.is_esp32:
+        # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
+        esp32.include_builtin_idf_component("esp_http_client")
+
         cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
         cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))
         cg.add(var.set_verify_ssl(config[CONF_VERIFY_SSL]))

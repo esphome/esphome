@@ -18,11 +18,12 @@ namespace rp2040 {
 
 static const char *const TAG = "rp2040.preferences";
 
-static bool s_prevent_write = false;        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static uint8_t *s_flash_storage = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_flash_dirty = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static constexpr uint32_t RP2040_FLASH_STORAGE_SIZE = 512;
 
-static const uint32_t RP2040_FLASH_STORAGE_SIZE = 512;
+static bool s_prevent_write = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static uint8_t
+    s_flash_storage[RP2040_FLASH_STORAGE_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_flash_dirty = false;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Stack buffer size for preferences - covers virtually all real-world preferences without heap allocation
 static constexpr size_t PREF_BUFFER_SIZE = 64;
@@ -91,7 +92,6 @@ class RP2040Preferences : public ESPPreferences {
 
   RP2040Preferences() : eeprom_sector_(&_EEPROM_start) {}
   void setup() {
-    s_flash_storage = new uint8_t[RP2040_FLASH_STORAGE_SIZE];  // NOLINT
     ESP_LOGVV(TAG, "Loading preferences from flash");
     memcpy(s_flash_storage, this->eeprom_sector_, RP2040_FLASH_STORAGE_SIZE);
   }
@@ -149,10 +149,11 @@ class RP2040Preferences : public ESPPreferences {
   uint8_t *eeprom_sector_;
 };
 
+static RP2040Preferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void setup_preferences() {
-  auto *prefs = new RP2040Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  prefs->setup();
-  global_preferences = prefs;
+  s_preferences.setup();
+  global_preferences = &s_preferences;
 }
 void preferences_prevent_write(bool prevent) { s_prevent_write = prevent; }
 

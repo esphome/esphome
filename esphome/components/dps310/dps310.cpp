@@ -98,8 +98,6 @@ void DPS310Component::dump_config() {
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
 }
 
-float DPS310Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void DPS310Component::update() {
   if (!this->update_in_progress_) {
     this->update_in_progress_ = true;

@@ -137,8 +137,6 @@ bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *respo
   return this->read_array(response, MHZ19_RESPONSE_LENGTH);
 }
 
-float MHZ19Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void MHZ19Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MH-Z19:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
