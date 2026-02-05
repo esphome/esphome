@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 
 from . import (
     CARRIER_SENSE_REL_THR,
-    CONF_AGC,
     CONF_CARRIER_SENSE_REL_THR,
     CONF_CC1101_ID,
     CONF_FILTER_LENGTH_ASK_OOK,
@@ -17,7 +16,6 @@ from . import (
     CONF_MODULATION_TYPE,
     CONF_RX_ATTENUATION,
     CONF_SYNC_MODE,
-    CONF_TUNER,
     CONF_WAIT_TIME,
     FILTER_LENGTH_ASK_OOK,
     FILTER_LENGTH_FSK_MSK,
@@ -80,8 +78,6 @@ for type in TYPES_ROOT:
 
 # Tuner
 
-TUNER_SCHEMA = cv.Schema({})
-
 for type, data in TYPES_TUNER.items():
     if isinstance(data, dict) and "key_override" in data:
         key = data["key_override"]
@@ -89,27 +85,21 @@ for type, data in TYPES_TUNER.items():
     else:
         key = type
 
-    TUNER_SCHEMA = TUNER_SCHEMA.extend(
+    CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
         {
             cv.Optional(key): select.select_schema(CC1101Select),
         }
     )
 
-CONFIG_SCHEMA = CONFIG_SCHEMA.extend({cv.Optional(CONF_TUNER): TUNER_SCHEMA})
-
 
 # AGC
 
-AGC_SCHEMA = cv.Schema({})
-
 for type in TYPES_AGC:
-    AGC_SCHEMA = AGC_SCHEMA.extend(
+    CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
         {
             cv.Optional(type): select.select_schema(CC1101Select),
         }
     )
-
-CONFIG_SCHEMA = CONFIG_SCHEMA.extend({cv.Optional(CONF_AGC): AGC_SCHEMA})
 
 
 async def to_code(config):
@@ -135,40 +125,32 @@ async def to_code(config):
             )
 
     # Tuner
-    if CONF_TUNER in config:
-        tuner_config = config[CONF_TUNER]
-        for conf_type, conf_data in TYPES_TUNER.items():
-            if isinstance(conf_data, dict) and "key_override" in conf_data:
-                conf_key = conf_data["key_override"]
-                conf_options = conf_data["options"]
-            else:
-                conf_key = conf_type
-                conf_options = conf_data
+    for conf_type, conf_data in TYPES_TUNER.items():
+        if isinstance(conf_data, dict) and "key_override" in conf_data:
+            conf_key = conf_data["key_override"]
+            conf_options = conf_data["options"]
+        else:
+            conf_key = conf_type
+            conf_options = conf_data
 
-            if conf_key in tuner_config:
-                conf = tuner_config[conf_key]
-                opts = list(conf_options.keys())
-                var = await select.new_select(conf, options=opts)
-                await cg.register_component(var, conf)
-                cg.add(var.set_parent(parent))
-                cg.add(
-                    var.set_type(
-                        cg.RawExpression(f"{CC1101Select}::{conf_type.upper()}")
-                    )
-                )
+        if conf_key in config:
+            conf = config[conf_key]
+            opts = list(conf_options.keys())
+            var = await select.new_select(conf, options=opts)
+            await cg.register_component(var, conf)
+            cg.add(var.set_parent(parent))
+            cg.add(
+                var.set_type(cg.RawExpression(f"{CC1101Select}::{conf_type.upper()}"))
+            )
 
     # AGC
-    if CONF_AGC in config:
-        agc_config = config[CONF_AGC]
-        for conf_type, conf_options in TYPES_AGC.items():
-            if conf_type in agc_config:
-                conf = agc_config[conf_type]
-                opts = list(conf_options.keys())
-                var = await select.new_select(conf, options=opts)
-                await cg.register_component(var, conf)
-                cg.add(var.set_parent(parent))
-                cg.add(
-                    var.set_type(
-                        cg.RawExpression(f"{CC1101Select}::{conf_type.upper()}")
-                    )
-                )
+    for conf_type, conf_options in TYPES_AGC.items():
+        if conf_type in config:
+            conf = config[conf_type]
+            opts = list(conf_options.keys())
+            var = await select.new_select(conf, options=opts)
+            await cg.register_component(var, conf)
+            cg.add(var.set_parent(parent))
+            cg.add(
+                var.set_type(cg.RawExpression(f"{CC1101Select}::{conf_type.upper()}"))
+            )

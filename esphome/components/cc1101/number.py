@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_FREQUENCY
 
 from . import (
-    CONF_AGC,
     CONF_CARRIER_SENSE_ABS_THR,
     CONF_CC1101_ID,
     CONF_CHANNEL_SPACING,
@@ -18,7 +17,6 @@ from . import (
     CONF_SYMBOL_RATE,
     CONF_SYNC0,
     CONF_SYNC1,
-    CONF_TUNER,
     CC1101Component,
     ns,
 )
@@ -140,10 +138,9 @@ for type, data in TYPES_ROOT.items():
     )
 
 # Tuner
-TUNER_SCHEMA = cv.Schema({})
 for type, data in TYPES_TUNER.items():
     key = data.get("key_override", type)
-    TUNER_SCHEMA = TUNER_SCHEMA.extend(
+    CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
         {
             cv.Optional(key): number.number_schema(CC1101Number).extend(
                 {
@@ -154,12 +151,10 @@ for type, data in TYPES_TUNER.items():
             ),
         }
     )
-CONFIG_SCHEMA = CONFIG_SCHEMA.extend({cv.Optional(CONF_TUNER): TUNER_SCHEMA})
 
 # AGC
-AGC_SCHEMA = cv.Schema({})
 for type, data in TYPES_AGC.items():
-    AGC_SCHEMA = AGC_SCHEMA.extend(
+    CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
         {
             cv.Optional(type): number.number_schema(CC1101Number).extend(
                 {
@@ -170,7 +165,6 @@ for type, data in TYPES_AGC.items():
             ),
         }
     )
-CONFIG_SCHEMA = CONFIG_SCHEMA.extend({cv.Optional(CONF_AGC): AGC_SCHEMA})
 
 
 async def to_code(config):
@@ -193,42 +187,34 @@ async def to_code(config):
             )
 
     # Tuner
-    if CONF_TUNER in config:
-        tuner_config = config[CONF_TUNER]
-        for conf_type, conf_data in TYPES_TUNER.items():
-            conf_key = conf_data.get("key_override", conf_type)
-            if conf_key in tuner_config:
-                conf = tuner_config[conf_key]
-                var = await number.new_number(
-                    conf,
-                    min_value=conf["min_value"],
-                    max_value=conf["max_value"],
-                    step=conf["step"],
-                )
-                await cg.register_component(var, conf)
-                cg.add(var.set_parent(parent))
-                cg.add(
-                    var.set_type(
-                        cg.RawExpression(f"{CC1101Number}::{conf_type.upper()}")
-                    )
-                )
+    for conf_type, conf_data in TYPES_TUNER.items():
+        conf_key = conf_data.get("key_override", conf_type)
+        if conf_key in config:
+            conf = config[conf_key]
+            var = await number.new_number(
+                conf,
+                min_value=conf["min_value"],
+                max_value=conf["max_value"],
+                step=conf["step"],
+            )
+            await cg.register_component(var, conf)
+            cg.add(var.set_parent(parent))
+            cg.add(
+                var.set_type(cg.RawExpression(f"{CC1101Number}::{conf_type.upper()}"))
+            )
 
     # AGC
-    if CONF_AGC in config:
-        agc_config = config[CONF_AGC]
-        for conf_type, conf_data in TYPES_AGC.items():
-            if conf_type in agc_config:
-                conf = agc_config[conf_type]
-                var = await number.new_number(
-                    conf,
-                    min_value=conf["min_value"],
-                    max_value=conf["max_value"],
-                    step=conf["step"],
-                )
-                await cg.register_component(var, conf)
-                cg.add(var.set_parent(parent))
-                cg.add(
-                    var.set_type(
-                        cg.RawExpression(f"{CC1101Number}::{conf_type.upper()}")
-                    )
-                )
+    for conf_type, conf_data in TYPES_AGC.items():
+        if conf_type in config:
+            conf = config[conf_type]
+            var = await number.new_number(
+                conf,
+                min_value=conf["min_value"],
+                max_value=conf["max_value"],
+                step=conf["step"],
+            )
+            await cg.register_component(var, conf)
+            cg.add(var.set_parent(parent))
+            cg.add(
+                var.set_type(cg.RawExpression(f"{CC1101Number}::{conf_type.upper()}"))
+            )

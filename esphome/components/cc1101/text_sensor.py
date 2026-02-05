@@ -7,7 +7,6 @@ from . import (
     CONF_CC1101_ID,
     CONF_MODULATION_TYPE,
     CONF_RX_ATTENUATION,
-    CONF_TUNER,
     CC1101Component,
     ns,
 )
@@ -29,19 +28,15 @@ CONFIG_SCHEMA = cv.Schema(
             CC1101TextSensor,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
-        cv.Optional(CONF_TUNER): cv.Schema(
-            {
-                cv.Optional(
-                    CONF_MODULATION_TYPE.replace("_type", "")
-                ): text_sensor.text_sensor_schema(
-                    CC1101TextSensor,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_FREQUENCY): text_sensor.text_sensor_schema(
-                    CC1101TextSensor,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-            }
+        cv.Optional(
+            CONF_MODULATION_TYPE.replace("_type", "")
+        ): text_sensor.text_sensor_schema(
+            CC1101TextSensor,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
+        cv.Optional(CONF_FREQUENCY): text_sensor.text_sensor_schema(
+            CC1101TextSensor,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
     }
 ).extend(cv.polling_component_schema("60s"))
@@ -64,22 +59,17 @@ async def to_code(config):
         cg.add(var.set_parent(parent))
         cg.add(var.set_type(cg.RawExpression(f"{CC1101TextSensor}::CHIP_ID")))
 
-    if CONF_TUNER in config:
-        tuner_config = config[CONF_TUNER]
+    # Mapping "modulation" to MODULATION_TYPE
+    if "modulation" in config:
+        conf = config["modulation"]
+        var = await text_sensor.new_text_sensor(conf)
+        await cg.register_component(var, conf)
+        cg.add(var.set_parent(parent))
+        cg.add(var.set_type(cg.RawExpression(f"{CC1101TextSensor}::MODULATION_TYPE")))
 
-        # Mapping "modulation" to MODULATION_TYPE
-        if "modulation" in tuner_config:
-            conf = tuner_config["modulation"]
-            var = await text_sensor.new_text_sensor(conf)
-            await cg.register_component(var, conf)
-            cg.add(var.set_parent(parent))
-            cg.add(
-                var.set_type(cg.RawExpression(f"{CC1101TextSensor}::MODULATION_TYPE"))
-            )
-
-        if CONF_FREQUENCY in tuner_config:
-            conf = tuner_config[CONF_FREQUENCY]
-            var = await text_sensor.new_text_sensor(conf)
-            await cg.register_component(var, conf)
-            cg.add(var.set_parent(parent))
-            cg.add(var.set_type(cg.RawExpression(f"{CC1101TextSensor}::FREQUENCY")))
+    if CONF_FREQUENCY in config:
+        conf = config[CONF_FREQUENCY]
+        var = await text_sensor.new_text_sensor(conf)
+        await cg.register_component(var, conf)
+        cg.add(var.set_parent(parent))
+        cg.add(var.set_type(cg.RawExpression(f"{CC1101TextSensor}::FREQUENCY")))
