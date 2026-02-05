@@ -710,6 +710,9 @@ void WiFiComponent::wifi_loop_() {
     delete data;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
+// Events are processed from queue in main loop context, but listener notifications
+// must be deferred until after the state machine transitions (in check_connecting_finished)
+// so that conditions like wifi.connected return correct values in automations.
 void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   esp_err_t err;
   if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_START) {
@@ -743,9 +746,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
     s_sta_connected = true;
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
-    }
+    // Defer listener notification until state machine reaches STA_CONNECTED
+    // This ensures wifi.connected condition returns true in listener automations
+    this->pending_.connect_state = true;
 #endif
     // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
