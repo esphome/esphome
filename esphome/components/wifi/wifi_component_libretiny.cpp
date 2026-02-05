@@ -423,7 +423,10 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
   }
 }
 
-// Process a single event from the queue - runs in main loop context
+// Process a single event from the queue - runs in main loop context.
+// Listener notifications must be deferred until after the state machine transitions
+// (in check_connecting_finished) so that conditions like wifi.connected return
+// correct values in automations.
 void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
   switch (event->event_id) {
     case ESPHOME_EVENT_ID_WIFI_READY: {
@@ -456,9 +459,9 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       // This matches ESP32 IDF behavior where s_sta_connected is set but
       // wifi_sta_connect_status_() also checks got_ipv4_address_
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-      for (auto *listener : this->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
-      }
+      // Defer listener notification until state machine reaches STA_CONNECTED
+      // This ensures wifi.connected condition returns true in listener automations
+      this->pending_.connect_state = true;
 #endif
       // For static IP configurations, GOT_IP event may not fire, so set connected state here
 #ifdef USE_WIFI_MANUAL_IP
@@ -649,6 +652,10 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   if (!this->wifi_mode_(true, {}))
     return false;
 
+  // Reset scan_done_ before starting new scan to prevent stale flag from previous scan
+  // (e.g., roaming scan completed just before unexpected disconnect)
+  this->scan_done_ = false;
+
   // need to use WiFi because of WiFiScanClass allocations :(
   int16_t err = WiFi.scanNetworks(true, true, passive, 200);
   if (err != WIFI_SCAN_RUNNING) {
@@ -666,18 +673,39 @@ void WiFiComponent::wifi_scan_done_callback_() {
   if (num < 0)
     return;
 
-  this->scan_result_.init(static_cast<unsigned int>(num));
-  for (int i = 0; i < num; i++) {
-    String ssid = WiFi.SSID(i);
-    wifi_auth_mode_t authmode = WiFi.encryptionType(i);
-    int32_t rssi = WiFi.RSSI(i);
-    uint8_t *bssid = WiFi.BSSID(i);
-    int32_t channel = WiFi.channel(i);
+  bool needs_full = this->needs_full_scan_results_();
 
-    this->scan_result_.emplace_back(bssid_t{bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]},
-                                    std::string(ssid.c_str()), channel, rssi, authmode != WIFI_AUTH_OPEN,
-                                    ssid.length() == 0);
+  // Access scan results directly via WiFi.scan struct to avoid Arduino String allocations
+  // WiFi.scan is public in LibreTiny for WiFiEvents & WiFiScan static handlers
+  auto *scan = WiFi.scan;
+
+  // First pass: count matching networks
+  size_t count = 0;
+  for (int i = 0; i < num; i++) {
+    const char *ssid_cstr = scan->ap[i].ssid;
+    if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
+      count++;
+    }
   }
+
+  this->scan_result_.init(count);  // Exact allocation
+
+  // Second pass: store matching networks
+  for (int i = 0; i < num; i++) {
+    const char *ssid_cstr = scan->ap[i].ssid;
+    if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
+      auto &ap = scan->ap[i];
+      this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
+                                              ap.bssid.addr[4], ap.bssid.addr[5]},
+                                      std::string(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
+                                      ssid_cstr[0] == '\0');
+    } else {
+      auto &ap = scan->ap[i];
+      this->log_discarded_scan_result_(ssid_cstr, ap.bssid.addr, ap.rssi, ap.channel);
+    }
+  }
+  ESP_LOGV(TAG, "Scan complete: %d found, %zu stored%s", num, this->scan_result_.size(),
+           needs_full ? "" : " (filtered)");
   WiFi.scanDelete();
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
   for (auto *listener : this->scan_results_listeners_) {

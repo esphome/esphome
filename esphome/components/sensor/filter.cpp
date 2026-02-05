@@ -445,22 +445,18 @@ optional<float> CalibratePolynomialFilter::new_value(float value) {
 ClampFilter::ClampFilter(float min, float max, bool ignore_out_of_range)
     : min_(min), max_(max), ignore_out_of_range_(ignore_out_of_range) {}
 optional<float> ClampFilter::new_value(float value) {
-  if (std::isfinite(value)) {
-    if (std::isfinite(this->min_) && value < this->min_) {
-      if (this->ignore_out_of_range_) {
-        return {};
-      } else {
-        return this->min_;
-      }
+  if (std::isfinite(this->min_) && !(value >= this->min_)) {
+    if (this->ignore_out_of_range_) {
+      return {};
     }
+    return this->min_;
+  }
 
-    if (std::isfinite(this->max_) && value > this->max_) {
-      if (this->ignore_out_of_range_) {
-        return {};
-      } else {
-        return this->max_;
-      }
+  if (std::isfinite(this->max_) && !(value <= this->max_)) {
+    if (this->ignore_out_of_range_) {
+      return {};
     }
+    return this->max_;
   }
   return value;
 }

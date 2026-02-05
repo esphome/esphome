@@ -45,8 +45,6 @@ void AbsoluteHumidityComponent::dump_config() {
                 this->temperature_sensor_->get_name().c_str(), this->humidity_sensor_->get_name().c_str());
 }
 
-float AbsoluteHumidityComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 void AbsoluteHumidityComponent::loop() {
   if (!this->next_update_) {
     return;

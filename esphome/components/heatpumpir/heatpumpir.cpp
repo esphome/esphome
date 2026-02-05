@@ -3,12 +3,43 @@
 #if defined(USE_ARDUINO) || defined(USE_ESP32)
 
 #include <map>
-#include "ir_sender_esphome.h"
-#include "HeatpumpIRFactory.h"
+#include <IRSender.h>
+#include <HeatpumpIRFactory.h>
+#include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace heatpumpir {
+
+// IRSenderESPHome - bridge between ESPHome's remote_transmitter and HeatpumpIR library
+// Defined here (not in a header) to isolate HeatpumpIR's headers from the rest of ESPHome,
+// as they define conflicting symbols like millis() in the global namespace.
+class IRSenderESPHome : public IRSender {
+ public:
+  IRSenderESPHome(remote_base::RemoteTransmitterBase *transmitter) : IRSender(0), transmit_(transmitter->transmit()) {}
+
+  void setFrequency(int frequency) override {  // NOLINT(readability-identifier-naming)
+    auto *data = this->transmit_.get_data();
+    data->set_carrier_frequency(1000 * frequency);
+  }
+
+  void space(int space_length) override {
+    if (space_length) {
+      auto *data = this->transmit_.get_data();
+      data->space(space_length);
+    } else {
+      this->transmit_.perform();
+    }
+  }
+
+  void mark(int mark_length) override {
+    auto *data = this->transmit_.get_data();
+    data->mark(mark_length);
+  }
+
+ protected:
+  remote_base::RemoteTransmitterBase::TransmitCall transmit_;
+};
 
 static const char *const TAG = "heatpumpir.climate";
 

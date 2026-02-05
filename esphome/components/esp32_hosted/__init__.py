@@ -12,6 +12,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import add_define
 
 CODEOWNERS = ["@swoboda1337"]
 
@@ -42,6 +43,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    add_define("USE_ESP32_HOSTED")
     if config[CONF_ACTIVE_HIGH]:
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_HOSTED_SDIO_RESET_ACTIVE_HIGH",

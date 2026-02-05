@@ -156,7 +156,7 @@ void CC1101Component::call_listeners_(const std::vector<uint8_t> &packet, float 
   for (auto &listener : this->listeners_) {
     listener->on_packet(packet, freq_offset, rssi, lqi);
   }
-  this->packet_trigger_->trigger(packet, freq_offset, rssi, lqi);
+  this->packet_trigger_.trigger(packet, freq_offset, rssi, lqi);
 }
 
 void CC1101Component::loop() {
