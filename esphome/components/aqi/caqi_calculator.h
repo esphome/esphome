@@ -12,7 +12,7 @@ class CAQICalculator : public AbstractAQICalculator {
     float pm2_5_index = calculate_index(pm2_5_value, PM2_5_GRID);
     float pm10_0_index = calculate_index(pm10_0_value, PM10_0_GRID);
 
-    return static_cast<uint16_t>(std::round((pm2_5_index < pm10_0_index) ? pm10_0_index : pm2_5_index));
+    return static_cast<uint16_t>(std::round(std::max(pm2_5_index, pm10_0_index)));
   }
 
  protected:
