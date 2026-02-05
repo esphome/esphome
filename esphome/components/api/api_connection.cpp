@@ -1873,11 +1873,22 @@ void APIConnection::process_batch_() {
   auto &shared_buf = this->parent_->get_shared_buffer_ref();
   size_t num_items = this->deferred_batch_.size();
 
+  // Cache these values to avoid repeated virtual calls
+  const uint8_t header_padding = this->helper_->frame_header_padding();
+  const uint8_t footer_size = this->helper_->frame_footer_size();
+
+  // Pre-calculate exact buffer size needed based on message types
+  uint32_t total_estimated_size = num_items * (header_padding + footer_size);
+  for (size_t i = 0; i < this->deferred_batch_.size(); i++) {
+    const auto &item = this->deferred_batch_[i];
+    total_estimated_size += item.estimated_size;
+  }
+
+  this->prepare_first_message_buffer(shared_buf, header_padding, total_estimated_size);
+
   // Fast path for single message - allocate exact size needed
   if (num_items == 1) {
     const auto &item = this->deferred_batch_[0];
-    this->prepare_first_message_buffer(shared_buf, item.estimated_size);
-
     // Let dispatch_message_ calculate size and encode if it fits
     uint16_t payload_size = this->dispatch_message_(item, std::numeric_limits<uint16_t>::max(), true);
 
@@ -1901,29 +1912,8 @@ void APIConnection::process_batch_() {
   alignas(MessageInfo) char message_info_storage[MAX_MESSAGES_PER_BATCH * sizeof(MessageInfo)];
   MessageInfo *message_info = reinterpret_cast<MessageInfo *>(message_info_storage);
   size_t message_count = 0;
-
-  // Cache these values to avoid repeated virtual calls
-  const uint8_t header_padding = this->helper_->frame_header_padding();
-  const uint8_t footer_size = this->helper_->frame_footer_size();
-
-  // Initialize buffer and tracking variables
-  shared_buf.clear();
-
-  // Pre-calculate exact buffer size needed based on message types
-  uint32_t total_estimated_size = num_items * (header_padding + footer_size);
-  for (size_t i = 0; i < this->deferred_batch_.size(); i++) {
-    const auto &item = this->deferred_batch_[i];
-    total_estimated_size += item.estimated_size;
-  }
-
-  // Prepare buffer with total estimated size for all messages (already cleared above)
-  shared_buf.reserve(total_estimated_size);
-  shared_buf.resize(header_padding);
-  this->flags_.batch_first_message = true;
-
   size_t items_processed = 0;
   uint16_t remaining_size = std::numeric_limits<uint16_t>::max();
-
   // Track where each message's header padding begins in the buffer
   // For plaintext: this is where the 6-byte header padding starts
   // For noise: this is where the 7-byte header padding starts
