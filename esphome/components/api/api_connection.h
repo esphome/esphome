@@ -277,6 +277,13 @@ class APIConnection final : public APIServerConnection {
     shared_buf.resize(header_padding);
   }
 
+  // Convenience overload - computes frame overhead internally
+  void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t payload_size) {
+    const uint8_t header_padding = this->helper_->frame_header_padding();
+    const uint8_t footer_size = this->helper_->frame_footer_size();
+    this->prepare_first_message_buffer(shared_buf, header_padding, payload_size + header_padding + footer_size);
+  }
+
   bool try_to_clear_buffer(bool log_out_of_space);
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
