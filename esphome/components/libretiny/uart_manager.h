@@ -155,8 +155,6 @@ struct UartManager {
     }
   };
 
-  // note: cannot use FixedVector for this, as it only works with trivially constructible types
-  //       cannot use array, as it's difficult to calculate the total size based on defines from boards
   std::array<std::optional<UartInfo>, s_max_uarts> uarts_ = {
 #if LT_HW_UART0
 #ifndef PINS_SERIAL0_TX
