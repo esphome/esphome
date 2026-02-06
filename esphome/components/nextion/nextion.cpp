@@ -397,11 +397,21 @@ bool Nextion::remove_from_q_(bool report_empty) {
 }
 
 void Nextion::process_serial_() {
-  uint8_t d;
+  int avail = this->available();
+  if (avail == 0) {
+    return;
+  }
 
-  while (this->available()) {
-    read_byte(&d);
-    this->command_data_ += d;
+  // Read all available bytes in batches to reduce UART call overhead.
+  uint8_t buf[64];
+  while (avail > 0) {
+    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+
+    this->command_data_.append(reinterpret_cast<char *>(buf), to_read);
   }
 }
 // nextion.tech/instruction-set/
