@@ -66,15 +66,6 @@ SECTION_MAPPING = {
     ),
 }
 
-# Section to ComponentMemory attribute mapping
-# Maps section names to the attribute name in ComponentMemory dataclass
-SECTION_TO_ATTR = {
-    ".text": "text_size",
-    ".rodata": "rodata_size",
-    ".data": "data_size",
-    ".bss": "bss_size",
-}
-
 # Component identification rules
 # Symbol patterns: patterns found in raw symbol names
 SYMBOL_PATTERNS = {
