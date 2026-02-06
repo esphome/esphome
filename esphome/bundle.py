@@ -422,8 +422,11 @@ def extract_bundle(
 ) -> Path:
     """Extract a bundle archive and return the path to the config YAML.
 
-    Security: validates no path traversal, no symlinks, no absolute paths,
-    and enforces size limits.
+    Sanity checks reject path traversal, symlinks, absolute paths, and
+    oversized archives to prevent accidental file overwrites or extraction
+    outside the target directory.  These are **not** a security boundary —
+    bundles are assumed to come from the user's own machine or a trusted
+    build pipeline.
 
     Args:
         bundle_path: Path to the .tar.gz bundle file.
@@ -535,7 +538,13 @@ def _read_manifest_from_tar(tar: tarfile.TarFile) -> dict[str, Any]:
 
 
 def _validate_tar_members(tar: tarfile.TarFile, target_dir: Path) -> None:
-    """Validate tar members for security issues."""
+    """Sanity-check tar members to prevent mistakes and accidental overwrites.
+
+    This is not a security boundary — bundles are created locally or come
+    from a trusted build pipeline.  The checks catch malformed archives
+    and common mistakes (stray absolute paths, ``..`` components) that
+    could silently overwrite unrelated files.
+    """
 
     total_size = 0
     for member in tar.getmembers():
