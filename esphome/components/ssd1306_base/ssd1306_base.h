@@ -5,9 +5,6 @@
 #include "esphome/components/display/display_buffer.h"
 
 namespace esphome {
-
-struct LogString;
-
 namespace ssd1306_base {
 
 enum SSD1306Model {
@@ -25,6 +22,9 @@ enum SSD1306Model {
   SH1107_MODEL_128_128,
   SSD1305_MODEL_128_32,
   SSD1305_MODEL_128_64,
+  // When adding a new model, add it before SSD1306_MODEL_COUNT and update
+  // MODEL_DIMS and ModelStrings tables in ssd1306_base.cpp
+  SSD1306_MODEL_COUNT,  // must be last
 };
 
 class SSD1306 : public display::DisplayBuffer {
