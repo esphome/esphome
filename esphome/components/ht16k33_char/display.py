@@ -134,6 +134,22 @@ def validate_removed_chars(value_to_validate):
 #                        a digit code from the standard format to whatever
 #                        format the device expects.
 HT16K33_DEVICE_TYPES = {
+    "ADAFRUIT_7_SEG_1.2IN": {
+        "CLASS_NAME": "Adafruit7SegLarge",
+        "FORMAT_FUNCTION": format_none,
+    },
+    "ADAFRUIT_7_SEG_1.2IN_FLIPPED": {
+        "CLASS_NAME": "Adafruit7SegLargeFlip",
+        "FORMAT_FUNCTION": format_7seg_flip,
+    },
+    "ADAFRUIT_7_SEG_.56IN": {
+        "CLASS_NAME": "Adafruit7Seg",
+        "FORMAT_FUNCTION": format_none,
+    },
+    "ADAFRUIT_7_SEG_.56IN_FLIPPED": {
+        "CLASS_NAME": "Adafruit7SegFlip",
+        "FORMAT_FUNCTION": format_7seg_flip,
+    },
     "ADAFRUIT_14_SEG": {
         "CLASS_NAME": "Adafruit14Seg",
         "FORMAT_FUNCTION": format_none,
@@ -141,6 +157,14 @@ HT16K33_DEVICE_TYPES = {
     "ADAFRUIT_14_SEG_FLIPPED": {
         "CLASS_NAME": "Adafruit14SegFlip",
         "FORMAT_FUNCTION": format_14seg_flip,
+    },
+    "SPARKFUN_14_SEG": {
+        "CLASS_NAME": "Sparkfun14Seg",
+        "FORMAT_FUNCTION": format_14seg_sparkfun,
+    },
+    "SPARKFUN_14_SEG_FLIPPED": {
+        "CLASS_NAME": "Sparkfun14SegFlip",
+        "FORMAT_FUNCTION": format_14seg_sparkfun_flip,
     },
 }
 
