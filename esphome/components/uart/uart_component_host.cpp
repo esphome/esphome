@@ -96,8 +96,7 @@ speed_t get_baud(int baud) {
 
 }  // namespace
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart.host";
 
@@ -296,7 +295,5 @@ void HostUartComponent::update_error_(const std::string &error) {
   ESP_LOGE(TAG, "Port error: %s", error.c_str());
 }
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_HOST

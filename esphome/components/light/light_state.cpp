@@ -1,11 +1,11 @@
-#include "esphome/core/log.h"
-
-#include "light_output.h"
 #include "light_state.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
+#include "esphome/core/log.h"
+#include "light_output.h"
 #include "transformers.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 static const char *const TAG = "light";
 
@@ -22,6 +22,9 @@ void LightState::setup() {
   for (auto *effect : this->effects_) {
     effect->init_internal(this);
   }
+
+  // Start with loop disabled if idle - respects any effects/transitions set up during initialization
+  this->disable_loop_if_idle_();
 
   // When supported color temperature range is known, initialize color temperature setting within bounds.
   auto traits = this->get_traits();
@@ -41,7 +44,7 @@ void LightState::setup() {
     case LIGHT_RESTORE_DEFAULT_ON:
     case LIGHT_RESTORE_INVERTED_DEFAULT_OFF:
     case LIGHT_RESTORE_INVERTED_DEFAULT_ON:
-      this->rtc_ = global_preferences->make_preference<LightStateRTCState>(this->get_preference_hash());
+      this->rtc_ = this->make_entity_preference<LightStateRTCState>();
       // Attempt to load from preferences, else fall back to default values
       if (!this->rtc_.load(&recovered)) {
         recovered.state = (this->restore_mode_ == LIGHT_RESTORE_DEFAULT_ON ||
@@ -54,7 +57,7 @@ void LightState::setup() {
       break;
     case LIGHT_RESTORE_AND_OFF:
     case LIGHT_RESTORE_AND_ON:
-      this->rtc_ = global_preferences->make_preference<LightStateRTCState>(this->get_preference_hash());
+      this->rtc_ = this->make_entity_preference<LightStateRTCState>();
       this->rtc_.load(&recovered);
       recovered.state = (this->restore_mode_ == LIGHT_RESTORE_AND_ON);
       break;
@@ -124,7 +127,14 @@ void LightState::loop() {
       this->transformer_->stop();
       this->is_transformer_active_ = false;
       this->transformer_ = nullptr;
-      this->target_state_reached_callback_.call();
+      if (this->target_state_reached_listeners_) {
+        for (auto *listener : *this->target_state_reached_listeners_) {
+          listener->on_light_target_state_reached();
+        }
+      }
+
+      // Disable loop if idle (no transformer and no effect)
+      this->disable_loop_if_idle_();
     }
   }
 
@@ -132,37 +142,46 @@ void LightState::loop() {
   if (this->next_write_) {
     this->next_write_ = false;
     this->output_->write_state(this);
+    // Disable loop if idle (no transformer and no effect)
+    this->disable_loop_if_idle_();
   }
 }
 
 float LightState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 
-void LightState::publish_state() { this->remote_values_callback_.call(); }
+void LightState::publish_state() {
+  if (this->remote_values_listeners_) {
+    for (auto *listener : *this->remote_values_listeners_) {
+      listener->on_light_remote_values_update();
+    }
+  }
+#if defined(USE_LIGHT) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_light_update(this);
+#endif
+}
 
 LightOutput *LightState::get_output() const { return this->output_; }
 
-static constexpr const char *EFFECT_NONE = "None";
 static constexpr auto EFFECT_NONE_REF = StringRef::from_lit("None");
 
-std::string LightState::get_effect_name() {
+StringRef LightState::get_effect_name() {
   if (this->active_effect_index_ > 0) {
     return this->effects_[this->active_effect_index_ - 1]->get_name();
-  }
-  return EFFECT_NONE;
-}
-
-StringRef LightState::get_effect_name_ref() {
-  if (this->active_effect_index_ > 0) {
-    return StringRef(this->effects_[this->active_effect_index_ - 1]->get_name());
   }
   return EFFECT_NONE_REF;
 }
 
-void LightState::add_new_remote_values_callback(std::function<void()> &&send_callback) {
-  this->remote_values_callback_.add(std::move(send_callback));
+void LightState::add_remote_values_listener(LightRemoteValuesListener *listener) {
+  if (!this->remote_values_listeners_) {
+    this->remote_values_listeners_ = make_unique<std::vector<LightRemoteValuesListener *>>();
+  }
+  this->remote_values_listeners_->push_back(listener);
 }
-void LightState::add_new_target_state_reached_callback(std::function<void()> &&send_callback) {
-  this->target_state_reached_callback_.add(std::move(send_callback));
+void LightState::add_target_state_reached_listener(LightTargetStateReachedListener *listener) {
+  if (!this->target_state_reached_listeners_) {
+    this->target_state_reached_listeners_ = make_unique<std::vector<LightTargetStateReachedListener *>>();
+  }
+  this->target_state_reached_listeners_->push_back(listener);
 }
 
 void LightState::set_default_transition_length(uint32_t default_transition_length) {
@@ -222,6 +241,8 @@ void LightState::start_effect_(uint32_t effect_index) {
   this->active_effect_index_ = effect_index;
   auto *effect = this->get_active_effect_();
   effect->start_internal();
+  // Enable loop while effect is active
+  this->enable_loop();
 }
 LightEffect *LightState::get_active_effect_() {
   if (this->active_effect_index_ == 0) {
@@ -236,6 +257,8 @@ void LightState::stop_effect_() {
     effect->stop();
   }
   this->active_effect_index_ = 0;
+  // Disable loop if idle (no effect and no transformer)
+  this->disable_loop_if_idle_();
 }
 
 void LightState::start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values) {
@@ -245,6 +268,8 @@ void LightState::start_transition_(const LightColorValues &target, uint32_t leng
   if (set_remote_values) {
     this->remote_values = target;
   }
+  // Enable loop while transition is active
+  this->enable_loop();
 }
 
 void LightState::start_flash_(const LightColorValues &target, uint32_t length, bool set_remote_values) {
@@ -260,6 +285,8 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length, b
   if (set_remote_values) {
     this->remote_values = target;
   };
+  // Enable loop while flash is active
+  this->enable_loop();
 }
 
 void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {
@@ -270,7 +297,14 @@ void LightState::set_immediately_(const LightColorValues &target, bool set_remot
     this->remote_values = target;
   }
   this->output_->update_state(this);
-  this->next_write_ = true;
+  this->schedule_write_();
+}
+
+void LightState::disable_loop_if_idle_() {
+  // Only disable loop if both transformer and effect are inactive, and no pending writes
+  if (this->transformer_ == nullptr && this->get_active_effect_() == nullptr && !this->next_write_) {
+    this->disable_loop();
+  }
 }
 
 void LightState::save_remote_values_() {
@@ -298,5 +332,4 @@ void LightState::save_remote_values_() {
   this->rtc_.save(&saved);
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

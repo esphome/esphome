@@ -1,0 +1,18 @@
+remote_receiver:
+  id: ir_receiver
+  pin: ${rx_pin}
+
+# Test various hardware types with transmitter/receiver using infrared platform
+infrared:
+  # Infrared receiver
+  - platform: ir_rf_proxy
+    id: ir_rx
+    name: "IR Receiver"
+    remote_receiver_id: ir_receiver
+
+  # RF 900MHz receiver
+  - platform: ir_rf_proxy
+    id: rf_900_rx
+    name: "RF 900 Receiver"
+    frequency: 900 MHz
+    remote_receiver_id: ir_receiver

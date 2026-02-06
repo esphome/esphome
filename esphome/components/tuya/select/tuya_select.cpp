@@ -21,23 +21,17 @@ void TuyaSelect::setup() {
   });
 }
 
-void TuyaSelect::control(const std::string &value) {
+void TuyaSelect::control(size_t index) {
   if (this->optimistic_)
-    this->publish_state(value);
+    this->publish_state(index);
 
-  auto idx = this->index_of(value);
-  if (idx.has_value()) {
-    uint8_t mapping = this->mappings_.at(idx.value());
-    ESP_LOGV(TAG, "Setting %u datapoint value to %u:%s", this->select_id_, mapping, value.c_str());
-    if (this->is_int_) {
-      this->parent_->set_integer_datapoint_value(this->select_id_, mapping);
-    } else {
-      this->parent_->set_enum_datapoint_value(this->select_id_, mapping);
-    }
-    return;
+  uint8_t mapping = this->mappings_.at(index);
+  ESP_LOGV(TAG, "Setting %u datapoint value to %u:%s", this->select_id_, mapping, this->option_at(index));
+  if (this->is_int_) {
+    this->parent_->set_integer_datapoint_value(this->select_id_, mapping);
+  } else {
+    this->parent_->set_enum_datapoint_value(this->select_id_, mapping);
   }
-
-  ESP_LOGW(TAG, "Invalid value %s", value.c_str());
 }
 
 void TuyaSelect::dump_config() {

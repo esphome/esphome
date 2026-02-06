@@ -16,6 +16,18 @@ binary_sensor:
     platform: template
   - id: left_sensor
     platform: template
+  - platform: lvgl
+    id: button_checker
+    name: LVGL button
+    widget: button_button
+    on_state:
+      then:
+        - lvgl.checkbox.update:
+            id: checkbox_id
+            state:
+              checked: !lambda |-
+                  auto y = x; // block inlining of one line return
+                  return y;
 
 lvgl:
   log_level: debug
@@ -76,7 +88,7 @@ lvgl:
       line_width: 8
       line_rounded: true
     - id: date_style
-      text_font: roboto10
+      text_font: !lambda return id(roboto10);
       align: center
       text_color: !lambda return color_id2;
       bg_opa: cover
@@ -185,6 +197,9 @@ lvgl:
         - lvgl.label.update:
             id: msgbox_label
             text: Unloaded
+        - lvgl.label.update:
+            id: msgbox_label
+            text: "" # Empty text
       on_all_events:
         logger.log:
           format: "Event %s"
@@ -267,7 +282,7 @@ lvgl:
               snprintf(buf, sizeof(buf), "Setup: %d", 42);
               return std::string(buf);
             align: top_mid
-            text_font: space16
+            text_font: !lambda return id(space16);
         - label:
             id: chip_info_label
             # Test complex setup lambda (real-world pattern)
@@ -415,6 +430,14 @@ lvgl:
               - buttons:
                   - id: button_e
         - button:
+            id: button_with_text
+            text: Button
+            on_click:
+              lvgl.button.update:
+                id: button_with_text
+                text: Clicked
+
+        - button:
             layout: 2x1
             id: button_button
             width: 20%
@@ -478,19 +501,19 @@ lvgl:
                   id: hello_label
                   text:
                     time_format: "%c"
-                    time: time_id
+                    time: sntp_time
               - lvgl.label.update:
                   id: hello_label
                   text:
                     time_format: "%c"
-                    time: !lambda return id(time_id).now();
+                    time: !lambda return id(sntp_time).now();
               - lvgl.label.update:
                   id: hello_label
                   text:
                     time_format: "%c"
                     time: !lambda |-
                         ESP_LOGD("label", "multi-line lambda");
-                        return id(time_id).now();
+                        return id(sntp_time).now();
             on_value:
               logger.log:
                 format: "state now %d"
@@ -537,6 +560,9 @@ lvgl:
         - tileview:
             id: tileview_id
             scrollbar_mode: active
+            scroll_dir: all
+            scroll_elastic: true
+            scroll_momentum: true
             on_value:
               then:
                 - if:
@@ -546,7 +572,10 @@ lvgl:
                       - logger.log: "tile 1 is now showing"
             tiles:
               - id: tile_1
+                scroll_snap_y: center
+                scroll_snap_x: start
                 layout: vertical
+                pad_all: 6px
                 row: 0
                 column: 0
                 dir: ALL
@@ -700,6 +729,12 @@ lvgl:
             width: 100%
             height: 10%
             align: top_mid
+            on_value:
+              - lvgl.spinbox.update:
+                  id: spinbox_id
+                  value: !lambda |-
+                      static float yyy = 83.0;
+                      return yyy + .8;
         - button:
             styles: spin_button
             id: spin_up
@@ -726,6 +761,12 @@ lvgl:
                 - logger.log:
                     format: "Spinbox value is %f"
                     args: [x]
+                - lvgl.label.update:
+                    id: hello_label
+                    text:
+                      format: "value is %.1f now"
+                      args: [x]
+                      if_nan: "Value unknown"
         - button:
             styles: spin_button
             id: spin_down
@@ -769,6 +810,18 @@ lvgl:
                 arc_color: 0xFFFF00
               focused:
                 arc_color: 0x808080
+            on_click:
+              then:
+                - lvgl.arc.update:
+                    id: lv_arc_1
+                    value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    min_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    max_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    start_angle: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    end_angle: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    rotation: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    change_rate: !lambda return (uint)((float)rand() / RAND_MAX * 100);
+                    mode: NORMAL
         - bar:
             id: bar_id
             align: top_mid
@@ -869,6 +922,7 @@ lvgl:
                   grid_columns: [40, fr(1), fr(1)]
                   pad_row: 6px
                   pad_column: 0
+                  multiple_widgets_per_cell: true
                 widgets:
                   - image:
                       grid_cell_row_pos: 0
@@ -893,6 +947,10 @@ lvgl:
                       grid_cell_row_pos: 1
                       grid_cell_column_pos: 0
                       text: "Grid cell 1/0"
+                  - label:
+                      grid_cell_row_pos: 1
+                      grid_cell_column_pos: 0
+                      text: "Duplicate for 1/0"
                   - label:
                       styles: bdr_style
                       grid_cell_row_pos: 1
@@ -1015,6 +1073,7 @@ lvgl:
                                 opa: 0%
     - id: page3
       layout: Horizontal
+      pad_all: 6px
       widgets:
         - keyboard:
             id: lv_keyboard

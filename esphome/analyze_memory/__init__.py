@@ -15,26 +15,19 @@ from .const import (
     SECTION_TO_ATTR,
     SYMBOL_PATTERNS,
 )
+from .demangle import batch_demangle
 from .helpers import (
     get_component_class_patterns,
     get_esphome_components,
     map_section_name,
     parse_symbol_line,
 )
+from .toolchain import find_tool, resolve_tool_path, run_tool
 
 if TYPE_CHECKING:
     from esphome.platformio_api import IDEData
 
 _LOGGER = logging.getLogger(__name__)
-
-# GCC global constructor/destructor prefix annotations
-_GCC_PREFIX_ANNOTATIONS = {
-    "_GLOBAL__sub_I_": "global constructor for",
-    "_GLOBAL__sub_D_": "global destructor for",
-}
-
-# GCC optimization suffix pattern (e.g., $isra$0, $part$1, $constprop$2)
-_GCC_OPTIMIZATION_SUFFIX_PATTERN = re.compile(r"(\$(?:isra|part|constprop)\$\d+)")
 
 # C++ runtime patterns for categorization
 _CPP_RUNTIME_PATTERNS = frozenset(["vtable", "typeinfo", "thunk"])
@@ -61,6 +54,9 @@ _NAMESPACE_STD = "std::"
 # Type alias for symbol information: (symbol_name, size, component)
 SymbolInfoType = tuple[str, int, str]
 
+# RAM sections - symbols in these sections consume RAM
+RAM_SECTIONS = frozenset([".data", ".bss"])
+
 
 @dataclass
 class MemorySection:
@@ -68,7 +64,20 @@ class MemorySection:
 
     name: str
     symbols: list[SymbolInfoType] = field(default_factory=list)
-    total_size: int = 0
+    total_size: int = 0  # Actual section size from ELF headers
+    symbol_size: int = 0  # Sum of symbol sizes (may be less than total_size)
+
+
+@dataclass
+class SDKSymbol:
+    """Represents a symbol from an SDK library that's not in the ELF symbol table."""
+
+    name: str
+    size: int
+    library: str  # Name of the .a file (e.g., "libpp.a")
+    section: str  # ".bss" or ".data"
+    is_local: bool  # True if static/local symbol (lowercase in nm output)
+    demangled: str = ""  # Demangled name (populated after analysis)
 
 
 @dataclass
@@ -123,9 +132,19 @@ class MemoryAnalyzer:
             readelf_path = readelf_path or idedata.readelf_path
             _LOGGER.debug("Using toolchain paths from PlatformIO idedata")
 
+        # Validate paths exist, fall back to find_tool if they don't
+        # This handles cases like Zephyr where cc_path doesn't include full path
+        # and the toolchain prefix may differ (e.g., arm-zephyr-eabi- vs arm-none-eabi-)
+        objdump_path = resolve_tool_path("objdump", objdump_path, objdump_path)
+        readelf_path = resolve_tool_path("readelf", readelf_path, objdump_path)
+
         self.objdump_path = objdump_path or "objdump"
         self.readelf_path = readelf_path or "readelf"
         self.external_components = external_components or set()
+        self._idedata = idedata
+
+        # Derive nm path from objdump path using shared toolchain utility
+        self.nm_path = find_tool("nm", self.objdump_path)
 
         self.sections: dict[str, MemorySection] = {}
         self.components: dict[str, ComponentMemory] = defaultdict(
@@ -136,15 +155,25 @@ class MemoryAnalyzer:
         self._esphome_core_symbols: list[
             tuple[str, str, int]
         ] = []  # Track core symbols
-        self._component_symbols: dict[str, list[tuple[str, str, int]]] = defaultdict(
+        # Track symbols for all components: (symbol_name, demangled, size, section)
+        self._component_symbols: dict[str, list[tuple[str, str, int, str]]] = (
+            defaultdict(list)
+        )
+        # Track RAM symbols separately for detailed analysis: (symbol_name, demangled, size, section)
+        self._ram_symbols: dict[str, list[tuple[str, str, int, str]]] = defaultdict(
             list
-        )  # Track symbols for all components
+        )
+        # Track ELF symbol names for SDK cross-reference
+        self._elf_symbol_names: set[str] = set()
+        # SDK symbols not in ELF (static/local symbols from closed-source libs)
+        self._sdk_symbols: list[SDKSymbol] = []
 
     def analyze(self) -> dict[str, ComponentMemory]:
         """Analyze the ELF file and return component memory usage."""
         self._parse_sections()
         self._parse_symbols()
         self._categorize_symbols()
+        self._analyze_sdk_libraries()
         return dict(self.components)
 
     def _parse_sections(self) -> None:
@@ -198,6 +227,8 @@ class MemoryAnalyzer:
                 continue
 
             self.sections[section].symbols.append((name, size, ""))
+            self.sections[section].symbol_size += size
+            self._elf_symbol_names.add(name)
             seen_addresses.add(address)
 
     def _categorize_symbols(self) -> None:
@@ -241,8 +272,13 @@ class MemoryAnalyzer:
                 if size > 0:
                     demangled = self._demangle_symbol(symbol_name)
                     self._component_symbols[component].append(
-                        (symbol_name, demangled, size)
+                        (symbol_name, demangled, size, section_name)
                     )
+                    # Track RAM symbols separately for detailed RAM analysis
+                    if section_name in RAM_SECTIONS:
+                        self._ram_symbols[component].append(
+                            (symbol_name, demangled, size, section_name)
+                        )
 
     def _identify_component(self, symbol_name: str) -> str:
         """Identify which component a symbol belongs to."""
@@ -312,168 +348,9 @@ class MemoryAnalyzer:
         if not symbols:
             return
 
-        # Try to find the appropriate c++filt for the platform
-        cppfilt_cmd = "c++filt"
-
         _LOGGER.info("Demangling %d symbols", len(symbols))
-        _LOGGER.debug("objdump_path = %s", self.objdump_path)
-
-        # Check if we have a toolchain-specific c++filt
-        if self.objdump_path and self.objdump_path != "objdump":
-            # Replace objdump with c++filt in the path
-            potential_cppfilt = self.objdump_path.replace("objdump", "c++filt")
-            _LOGGER.info("Checking for toolchain c++filt at: %s", potential_cppfilt)
-            if Path(potential_cppfilt).exists():
-                cppfilt_cmd = potential_cppfilt
-                _LOGGER.info("✓ Using toolchain c++filt: %s", cppfilt_cmd)
-            else:
-                _LOGGER.info(
-                    "✗ Toolchain c++filt not found at %s, using system c++filt",
-                    potential_cppfilt,
-                )
-        else:
-            _LOGGER.info("✗ Using system c++filt (objdump_path=%s)", self.objdump_path)
-
-        # Strip GCC optimization suffixes and prefixes before demangling
-        # Suffixes like $isra$0, $part$0, $constprop$0 confuse c++filt
-        # Prefixes like _GLOBAL__sub_I_ need to be removed and tracked
-        symbols_stripped: list[str] = []
-        symbols_prefixes: list[str] = []  # Track removed prefixes
-        for symbol in symbols:
-            # Remove GCC optimization markers
-            stripped = _GCC_OPTIMIZATION_SUFFIX_PATTERN.sub("", symbol)
-
-            # Handle GCC global constructor/initializer prefixes
-            # _GLOBAL__sub_I_<mangled> -> extract <mangled> for demangling
-            prefix = ""
-            for gcc_prefix in _GCC_PREFIX_ANNOTATIONS:
-                if stripped.startswith(gcc_prefix):
-                    prefix = gcc_prefix
-                    stripped = stripped[len(prefix) :]
-                    break
-
-            symbols_stripped.append(stripped)
-            symbols_prefixes.append(prefix)
-
-        try:
-            # Send all symbols to c++filt at once
-            result = subprocess.run(
-                [cppfilt_cmd],
-                input="\n".join(symbols_stripped),
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        except (subprocess.SubprocessError, OSError, UnicodeDecodeError) as e:
-            # On error, cache originals
-            _LOGGER.warning("Failed to batch demangle symbols: %s", e)
-            for symbol in symbols:
-                self._demangle_cache[symbol] = symbol
-            return
-
-        if result.returncode != 0:
-            _LOGGER.warning(
-                "c++filt exited with code %d: %s",
-                result.returncode,
-                result.stderr[:200] if result.stderr else "(no error output)",
-            )
-            # Cache originals on failure
-            for symbol in symbols:
-                self._demangle_cache[symbol] = symbol
-            return
-
-        # Process demangled output
-        self._process_demangled_output(
-            symbols, symbols_stripped, symbols_prefixes, result.stdout, cppfilt_cmd
-        )
-
-    def _process_demangled_output(
-        self,
-        symbols: list[str],
-        symbols_stripped: list[str],
-        symbols_prefixes: list[str],
-        demangled_output: str,
-        cppfilt_cmd: str,
-    ) -> None:
-        """Process demangled symbol output and populate cache.
-
-        Args:
-            symbols: Original symbol names
-            symbols_stripped: Stripped symbol names sent to c++filt
-            symbols_prefixes: Removed prefixes to restore
-            demangled_output: Output from c++filt
-            cppfilt_cmd: Path to c++filt command (for logging)
-        """
-        demangled_lines = demangled_output.strip().split("\n")
-        failed_count = 0
-
-        for original, stripped, prefix, demangled in zip(
-            symbols, symbols_stripped, symbols_prefixes, demangled_lines
-        ):
-            # Add back any prefix that was removed
-            demangled = self._restore_symbol_prefix(prefix, stripped, demangled)
-
-            # If we stripped a suffix, add it back to the demangled name for clarity
-            if original != stripped and not prefix:
-                demangled = self._restore_symbol_suffix(original, demangled)
-
-            self._demangle_cache[original] = demangled
-
-            # Log symbols that failed to demangle (stayed the same as stripped version)
-            if stripped == demangled and stripped.startswith("_Z"):
-                failed_count += 1
-                if failed_count <= 5:  # Only log first 5 failures
-                    _LOGGER.warning("Failed to demangle: %s", original)
-
-        if failed_count == 0:
-            _LOGGER.info("Successfully demangled all %d symbols", len(symbols))
-            return
-
-        _LOGGER.warning(
-            "Failed to demangle %d/%d symbols using %s",
-            failed_count,
-            len(symbols),
-            cppfilt_cmd,
-        )
-
-    @staticmethod
-    def _restore_symbol_prefix(prefix: str, stripped: str, demangled: str) -> str:
-        """Restore prefix that was removed before demangling.
-
-        Args:
-            prefix: Prefix that was removed (e.g., "_GLOBAL__sub_I_")
-            stripped: Stripped symbol name
-            demangled: Demangled symbol name
-
-        Returns:
-            Demangled name with prefix restored/annotated
-        """
-        if not prefix:
-            return demangled
-
-        # Successfully demangled - add descriptive prefix
-        if demangled != stripped and (
-            annotation := _GCC_PREFIX_ANNOTATIONS.get(prefix)
-        ):
-            return f"[{annotation}: {demangled}]"
-
-        # Failed to demangle - restore original prefix
-        return prefix + demangled
-
-    @staticmethod
-    def _restore_symbol_suffix(original: str, demangled: str) -> str:
-        """Restore GCC optimization suffix that was removed before demangling.
-
-        Args:
-            original: Original symbol name with suffix
-            demangled: Demangled symbol name without suffix
-
-        Returns:
-            Demangled name with suffix annotation
-        """
-        if suffix_match := _GCC_OPTIMIZATION_SUFFIX_PATTERN.search(original):
-            return f"{demangled} [{suffix_match.group(1)}]"
-        return demangled
+        self._demangle_cache = batch_demangle(symbols, objdump_path=self.objdump_path)
+        _LOGGER.info("Successfully demangled %d symbols", len(self._demangle_cache))
 
     def _demangle_symbol(self, symbol: str) -> str:
         """Get demangled C++ symbol name from cache."""
@@ -494,6 +371,247 @@ class MemoryAnalyzer:
                 return category
 
         return "Other Core"
+
+    def get_unattributed_ram(self) -> tuple[int, int, int]:
+        """Get unattributed RAM sizes (SDK/framework overhead).
+
+        Returns:
+            Tuple of (unattributed_bss, unattributed_data, total_unattributed)
+            These are bytes in RAM sections that have no corresponding symbols.
+        """
+        bss_section = self.sections.get(".bss")
+        data_section = self.sections.get(".data")
+
+        unattributed_bss = 0
+        unattributed_data = 0
+
+        if bss_section:
+            unattributed_bss = max(0, bss_section.total_size - bss_section.symbol_size)
+        if data_section:
+            unattributed_data = max(
+                0, data_section.total_size - data_section.symbol_size
+            )
+
+        return unattributed_bss, unattributed_data, unattributed_bss + unattributed_data
+
+    def _find_sdk_library_dirs(self) -> list[Path]:
+        """Find SDK library directories based on platform.
+
+        Returns:
+            List of paths to SDK library directories containing .a files.
+        """
+        sdk_dirs: list[Path] = []
+
+        if self._idedata is None:
+            return sdk_dirs
+
+        # Get the CC path to determine the framework location
+        cc_path = getattr(self._idedata, "cc_path", None)
+        if not cc_path:
+            return sdk_dirs
+
+        cc_path = Path(cc_path)
+
+        # For ESP8266 Arduino framework
+        # CC is like: ~/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-gcc
+        # SDK libs are in: ~/.platformio/packages/framework-arduinoespressif8266/tools/sdk/lib/
+        if "xtensa-lx106" in str(cc_path):
+            platformio_dir = cc_path.parent.parent.parent
+            esp8266_sdk = (
+                platformio_dir
+                / "framework-arduinoespressif8266"
+                / "tools"
+                / "sdk"
+                / "lib"
+            )
+            if esp8266_sdk.exists():
+                sdk_dirs.append(esp8266_sdk)
+                # Also check for NONOSDK subdirectories (closed-source libs)
+                sdk_dirs.extend(
+                    subdir
+                    for subdir in esp8266_sdk.iterdir()
+                    if subdir.is_dir() and subdir.name.startswith("NONOSDK")
+                )
+
+        # For ESP32 IDF framework
+        # CC is like: ~/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32-elf-gcc
+        # or: ~/.platformio/packages/toolchain-riscv32-esp/bin/riscv32-esp-elf-gcc
+        elif "xtensa-esp" in str(cc_path) or "riscv32-esp" in str(cc_path):
+            # Detect ESP32 variant from CC path or defines
+            variant = self._detect_esp32_variant()
+            if variant:
+                platformio_dir = cc_path.parent.parent.parent
+                espidf_dir = platformio_dir / "framework-espidf" / "components"
+                if espidf_dir.exists():
+                    # Find all directories named after the variant that contain .a files
+                    # This handles various ESP-IDF library layouts:
+                    # - components/*/lib/<variant>/
+                    # - components/*/<variant>/
+                    # - components/*/lib/lib/<variant>/
+                    # - components/*/*/lib_*/<variant>/
+                    sdk_dirs.extend(
+                        variant_dir
+                        for variant_dir in espidf_dir.rglob(variant)
+                        if variant_dir.is_dir() and any(variant_dir.glob("*.a"))
+                    )
+
+        return sdk_dirs
+
+    def _detect_esp32_variant(self) -> str | None:
+        """Detect ESP32 variant from idedata defines.
+
+        Returns:
+            Variant string like 'esp32', 'esp32s2', 'esp32c3', etc. or None.
+        """
+        if self._idedata is None:
+            return None
+
+        defines = getattr(self._idedata, "defines", [])
+        if not defines:
+            return None
+
+        # ESPHome always adds USE_ESP32_VARIANT_xxx defines
+        variant_prefix = "USE_ESP32_VARIANT_"
+        for define in defines:
+            if define.startswith(variant_prefix):
+                # Extract variant name and convert to lowercase
+                # USE_ESP32_VARIANT_ESP32 -> esp32
+                # USE_ESP32_VARIANT_ESP32S3 -> esp32s3
+                return define[len(variant_prefix) :].lower()
+
+        return None
+
+    def _parse_sdk_library(
+        self, lib_path: Path
+    ) -> tuple[list[tuple[str, int, str, bool]], set[str]]:
+        """Parse a single SDK library for symbols.
+
+        Args:
+            lib_path: Path to the .a library file
+
+        Returns:
+            Tuple of:
+            - List of BSS/DATA symbols: (symbol_name, size, section, is_local)
+            - Set of global BSS/DATA symbol names (for checking if RAM is linked)
+        """
+        ram_symbols: list[tuple[str, int, str, bool]] = []
+        global_ram_symbols: set[str] = set()
+
+        result = run_tool([self.nm_path, "--size-sort", str(lib_path)], timeout=10)
+        if result is None:
+            return ram_symbols, global_ram_symbols
+
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if len(parts) < 3:
+                continue
+
+            try:
+                size = int(parts[0], 16)
+                sym_type = parts[1]
+                name = parts[2]
+
+                # Only collect BSS (b/B) and DATA (d/D) for RAM analysis
+                if sym_type in ("b", "B"):
+                    section = ".bss"
+                    is_local = sym_type == "b"
+                    ram_symbols.append((name, size, section, is_local))
+                    # Track global RAM symbols (B/D) for linking check
+                    if sym_type == "B":
+                        global_ram_symbols.add(name)
+                elif sym_type in ("d", "D"):
+                    section = ".data"
+                    is_local = sym_type == "d"
+                    ram_symbols.append((name, size, section, is_local))
+                    if sym_type == "D":
+                        global_ram_symbols.add(name)
+            except (ValueError, IndexError):
+                continue
+
+        return ram_symbols, global_ram_symbols
+
+    def _analyze_sdk_libraries(self) -> None:
+        """Analyze SDK libraries to find symbols not in the ELF.
+
+        This finds static/local symbols from closed-source SDK libraries
+        that consume RAM but don't appear in the final ELF symbol table.
+        Only includes symbols from libraries that have RAM actually linked
+        (at least one global BSS/DATA symbol in the ELF).
+        """
+        sdk_dirs = self._find_sdk_library_dirs()
+        if not sdk_dirs:
+            _LOGGER.debug("No SDK library directories found")
+            return
+
+        _LOGGER.debug("Analyzing SDK libraries in %d directories", len(sdk_dirs))
+
+        # Track seen symbols to avoid duplicates from multiple SDK versions
+        seen_symbols: set[str] = set()
+
+        for sdk_dir in sdk_dirs:
+            for lib_path in sorted(sdk_dir.glob("*.a")):
+                lib_name = lib_path.name
+                ram_symbols, global_ram_symbols = self._parse_sdk_library(lib_path)
+
+                # Check if this library's RAM is actually linked by seeing if any
+                # of its global BSS/DATA symbols appear in the ELF
+                if not global_ram_symbols & self._elf_symbol_names:
+                    # No RAM from this library is in the ELF - skip it
+                    continue
+
+                for name, size, section, is_local in ram_symbols:
+                    # Skip if already in ELF or already seen from another lib
+                    if name in self._elf_symbol_names or name in seen_symbols:
+                        continue
+
+                    # Only track symbols with non-zero size
+                    if size > 0:
+                        self._sdk_symbols.append(
+                            SDKSymbol(
+                                name=name,
+                                size=size,
+                                library=lib_name,
+                                section=section,
+                                is_local=is_local,
+                            )
+                        )
+                        seen_symbols.add(name)
+
+        # Demangle SDK symbols for better readability
+        if self._sdk_symbols:
+            sdk_names = [sym.name for sym in self._sdk_symbols]
+            demangled_map = batch_demangle(sdk_names, objdump_path=self.objdump_path)
+            for sym in self._sdk_symbols:
+                sym.demangled = demangled_map.get(sym.name, sym.name)
+
+        # Sort by size descending for reporting
+        self._sdk_symbols.sort(key=lambda s: s.size, reverse=True)
+
+        total_sdk_ram = sum(s.size for s in self._sdk_symbols)
+        _LOGGER.debug(
+            "Found %d SDK symbols not in ELF, totaling %d bytes",
+            len(self._sdk_symbols),
+            total_sdk_ram,
+        )
+
+    def get_sdk_ram_symbols(self) -> list[SDKSymbol]:
+        """Get SDK symbols that consume RAM but aren't in the ELF symbol table.
+
+        Returns:
+            List of SDKSymbol objects sorted by size descending.
+        """
+        return self._sdk_symbols
+
+    def get_sdk_ram_by_library(self) -> dict[str, list[SDKSymbol]]:
+        """Get SDK RAM symbols grouped by library.
+
+        Returns:
+            Dictionary mapping library name to list of symbols.
+        """
+        by_lib: dict[str, list[SDKSymbol]] = defaultdict(list)
+        for sym in self._sdk_symbols:
+            by_lib[sym.library].append(sym)
+        return dict(by_lib)
 
 
 if __name__ == "__main__":

@@ -9,25 +9,31 @@
 #include <driver/rmt_rx.h>
 #endif
 
-namespace esphome {
-namespace remote_receiver {
+namespace esphome::remote_receiver {
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040)
 struct RemoteReceiverComponentStore {
   static void gpio_intr(RemoteReceiverComponentStore *arg);
 
-  /// Stores the time (in micros) that the leading/falling edge happened at
-  ///  * An even index means a falling edge appeared at the time stored at the index
-  ///  * An uneven index means a rising edge appeared at the time stored at the index
-  volatile uint32_t *buffer{nullptr};
+  /// Stores pulse durations in microseconds as signed integers
+  ///  * Positive values indicate high pulses (marks)
+  ///  * Negative values indicate low pulses (spaces)
+  volatile int32_t *buffer{nullptr};
   /// The position last written to
-  volatile uint32_t buffer_write_at;
+  volatile uint32_t buffer_write{0};
+  /// The start position of the last sequence
+  volatile uint32_t buffer_start{0};
   /// The position last read from
-  uint32_t buffer_read_at{0};
-  bool overflow{false};
+  uint32_t buffer_read{0};
+  volatile uint32_t commit_micros{0};
+  volatile uint32_t prev_micros{0};
   uint32_t buffer_size{1000};
   uint32_t filter_us{10};
+  uint32_t idle_us{10000};
   ISRInternalGPIOPin pin;
+  volatile bool commit_level{false};
+  volatile bool prev_level{false};
+  volatile bool overflow{false};
 };
 #elif defined(USE_ESP32)
 struct RemoteReceiverComponentStore {
@@ -84,8 +90,11 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   std::string error_string_{""};
 #endif
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_ESP32)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040) || defined(USE_ESP32)
   RemoteReceiverComponentStore store_;
+#endif
+
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040)
   HighFrequencyLoopRequester high_freq_;
 #endif
 
@@ -94,5 +103,4 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   uint32_t idle_us_{10000};
 };
 
-}  // namespace remote_receiver
-}  // namespace esphome
+}  // namespace esphome::remote_receiver

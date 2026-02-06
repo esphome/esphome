@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "ld2410.h"
 
-namespace esphome {
-namespace ld2410 {
+namespace esphome::ld2410 {
 
 template<typename... Ts> class BluetoothPasswordSetAction : public Action<Ts...> {
  public:
@@ -18,5 +17,4 @@ template<typename... Ts> class BluetoothPasswordSetAction : public Action<Ts...>
   LD2410Component *ld2410_comp_;
 };
 
-}  // namespace ld2410
-}  // namespace esphome
+}  // namespace esphome::ld2410

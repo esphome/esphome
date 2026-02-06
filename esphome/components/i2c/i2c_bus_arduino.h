@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
 #include <Wire.h>
 #include "esphome/core/component.h"
@@ -29,7 +29,7 @@ class ArduinoI2CBus : public InternalI2CBus, public Component {
   void set_frequency(uint32_t frequency) { frequency_ = frequency; }
   void set_timeout(uint32_t timeout) { timeout_ = timeout; }
 
-  int get_port() const override { return this->port_; }
+  int get_port() const override { return 0; }
 
  private:
   void recover_();
@@ -37,7 +37,6 @@ class ArduinoI2CBus : public InternalI2CBus, public Component {
   RecoveryCode recovery_result_;
 
  protected:
-  int8_t port_{-1};
   TwoWire *wire_;
   uint8_t sda_pin_;
   uint8_t scl_pin_;
@@ -49,4 +48,4 @@ class ArduinoI2CBus : public InternalI2CBus, public Component {
 }  // namespace i2c
 }  // namespace esphome
 
-#endif  // USE_ARDUINO
+#endif  // defined(USE_ARDUINO) && !defined(USE_ESP32)

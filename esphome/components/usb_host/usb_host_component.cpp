@@ -1,5 +1,5 @@
 // Should not be needed, but it's required to pass CI clang-tidy checks
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "usb_host.h"
 #include <cinttypes>
 #include "esphome/core/log.h"
@@ -11,7 +11,7 @@ void USBHost::setup() {
   usb_host_config_t config{};
 
   if (usb_host_install(&config) != ESP_OK) {
-    this->status_set_error("usb_host_install failed");
+    this->status_set_error(LOG_STR("usb_host_install failed"));
     this->mark_failed();
     return;
   }
@@ -31,4 +31,4 @@ void USBHost::loop() {
 }  // namespace usb_host
 }  // namespace esphome
 
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

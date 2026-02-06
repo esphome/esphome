@@ -17,8 +17,7 @@ def test_esp32_config(
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
 
-    from esphome.components.esp32 import CONFIG_SCHEMA
-    from esphome.components.esp32.const import VARIANT_ESP32, VARIANT_FRIENDLY
+    from esphome.components.esp32 import CONFIG_SCHEMA, VARIANT_ESP32, VARIANT_FRIENDLY
 
     # Example ESP32 configuration
     config = {

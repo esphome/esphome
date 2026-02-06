@@ -2,6 +2,7 @@
 #ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
 
 #include "esphome/components/display/display_buffer.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -38,6 +39,14 @@ static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, ui
   PngDecoder *decoder = (PngDecoder *) pngle_get_user_data(pngle);
   Color color(rgba[0], rgba[1], rgba[2], rgba[3]);
   decoder->draw(x, y, w, h, color);
+
+  // Feed watchdog periodically to avoid triggering during long decode operations.
+  // Feed every 1024 pixels to balance efficiency and responsiveness.
+  uint32_t pixels = w * h;
+  decoder->increment_pixels_decoded(pixels);
+  if ((decoder->get_pixels_decoded() % 1024) < pixels) {
+    App.feed_wdt();
+  }
 }
 
 PngDecoder::PngDecoder(OnlineImage *image) : ImageDecoder(image) {

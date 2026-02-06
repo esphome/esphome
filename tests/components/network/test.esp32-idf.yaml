@@ -1,1 +1,4 @@
 <<: !include common.yaml
+
+network:
+  enable_high_performance: true

@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace button {
+namespace esphome::button {
 
 template<typename... Ts> class PressAction : public Action<Ts...> {
  public:
@@ -24,5 +23,4 @@ class ButtonPressTrigger : public Trigger<> {
   }
 };
 
-}  // namespace button
-}  // namespace esphome
+}  // namespace esphome::button

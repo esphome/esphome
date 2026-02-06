@@ -70,9 +70,10 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
 #if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
+    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
     case logger::UART_SELECTION_UART2:
-#endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32S2 && !USE_ESP32_VARIANT_ESP32S3
+#endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32C6 && !USE_ESP32_VARIANT_ESP32C61 &&
+        // !USE_ESP32_VARIANT_ESP32S2 && !USE_ESP32_VARIANT_ESP32S3
       if (this->uart_num_ >= 0) {
         size_t available;
         uart_get_buffered_data_len(this->uart_num_, &available);
@@ -137,7 +138,7 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
 #if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
+    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
     case logger::UART_SELECTION_UART2:
 #endif
       uart_write_bytes(this->uart_num_, this->tx_header_, header_tx_len);
@@ -181,15 +182,23 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
 std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
   std::vector<std::string> urls;
 #ifdef USE_IMPROV_SERIAL_NEXT_URL
-  if (!this->next_url_.empty()) {
-    urls.push_back(this->get_formatted_next_url_());
+  {
+    char url_buffer[384];
+    size_t len = this->get_formatted_next_url_(url_buffer, sizeof(url_buffer));
+    if (len > 0) {
+      urls.emplace_back(url_buffer, len);
+    }
   }
 #endif
 #ifdef USE_WEBSERVER
   for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
     if (ip.is_ip4()) {
-      std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
-      urls.push_back(webserver_url);
+      char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+      ip.str_to(ip_buf);
+      // "http://" (7) + IP (40) + ":" (1) + port (5) + null (1) = 54
+      char webserver_url[7 + network::IP_ADDRESS_BUFFER_SIZE + 1 + 5 + 1];
+      snprintf(webserver_url, sizeof(webserver_url), "http://%s:%u", ip_buf, USE_WEBSERVER_PORT);
+      urls.emplace_back(webserver_url);
       break;
     }
   }
@@ -231,7 +240,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       this->connecting_sta_ = sta;
 
       wifi::global_wifi_component->set_sta(sta);
-      wifi::global_wifi_component->start_connecting(sta, false);
+      wifi::global_wifi_component->start_connecting(sta);
       this->set_state_(improv::STATE_PROVISIONING);
       ESP_LOGD(TAG, "Received settings: SSID=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());
@@ -262,8 +271,10 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
         if (std::find(networks.begin(), networks.end(), ssid) != networks.end())
           continue;
         // Send each ssid separately to avoid overflowing the buffer
-        std::vector<uint8_t> data = improv::build_rpc_response(
-            improv::GET_WIFI_NETWORKS, {ssid, str_sprintf("%d", scan.get_rssi()), YESNO(scan.get_with_auth())}, false);
+        char rssi_buf[5];  // int8_t: -128 to 127, max 4 chars + null
+        *int8_to_str(rssi_buf, scan.get_rssi()) = '\0';
+        std::vector<uint8_t> data =
+            improv::build_rpc_response(improv::GET_WIFI_NETWORKS, {ssid, rssi_buf, YESNO(scan.get_with_auth())}, false);
         this->send_response_(data);
         networks.push_back(ssid);
       }

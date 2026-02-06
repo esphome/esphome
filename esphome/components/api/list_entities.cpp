@@ -5,6 +5,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#ifdef USE_API_USER_DEFINED_ACTIONS
+#include "user_services.h"
+#endif
 
 namespace esphome::api {
 
@@ -70,6 +73,12 @@ LIST_ENTITIES_HANDLER(media_player, media_player::MediaPlayer, ListEntitiesMedia
 LIST_ENTITIES_HANDLER(alarm_control_panel, alarm_control_panel::AlarmControlPanel,
                       ListEntitiesAlarmControlPanelResponse)
 #endif
+#ifdef USE_WATER_HEATER
+LIST_ENTITIES_HANDLER(water_heater, water_heater::WaterHeater, ListEntitiesWaterHeaterResponse)
+#endif
+#ifdef USE_INFRARED
+LIST_ENTITIES_HANDLER(infrared, infrared::Infrared, ListEntitiesInfraredResponse)
+#endif
 #ifdef USE_EVENT
 LIST_ENTITIES_HANDLER(event, event::Event, ListEntitiesEventResponse)
 #endif
@@ -82,7 +91,7 @@ bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(
 
 ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}
 
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
   auto resp = service->encode_list_service_response();
   return this->client_->send_message(resp, ListEntitiesServicesResponse::MESSAGE_TYPE);

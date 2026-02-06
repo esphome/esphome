@@ -1,6 +1,8 @@
 #include "media_player.h"
-
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome {
 namespace media_player {
@@ -106,25 +108,25 @@ MediaPlayerCall &MediaPlayerCall::set_command(optional<MediaPlayerCommand> comma
   this->command_ = command;
   return *this;
 }
-MediaPlayerCall &MediaPlayerCall::set_command(const std::string &command) {
-  if (str_equals_case_insensitive(command, "PLAY")) {
+MediaPlayerCall &MediaPlayerCall::set_command(const char *command) {
+  if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("PLAY")) == 0) {
     this->set_command(MEDIA_PLAYER_COMMAND_PLAY);
-  } else if (str_equals_case_insensitive(command, "PAUSE")) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("PAUSE")) == 0) {
     this->set_command(MEDIA_PLAYER_COMMAND_PAUSE);
-  } else if (str_equals_case_insensitive(command, "STOP")) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("STOP")) == 0) {
     this->set_command(MEDIA_PLAYER_COMMAND_STOP);
-  } else if (str_equals_case_insensitive(command, "MUTE")) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("MUTE")) == 0) {
     this->set_command(MEDIA_PLAYER_COMMAND_MUTE);
-  } else if (str_equals_case_insensitive(command, "UNMUTE")) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("UNMUTE")) == 0) {
     this->set_command(MEDIA_PLAYER_COMMAND_UNMUTE);
-  } else if (str_equals_case_insensitive(command, "TOGGLE")) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TOGGLE")) == 0) {
     this->set_command(MEDIA_PLAYER_COMMAND_TOGGLE);
-  } else if (str_equals_case_insensitive(command, "TURN_ON")) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TURN_ON")) == 0) {
     this->set_command(MEDIA_PLAYER_COMMAND_TURN_ON);
-  } else if (str_equals_case_insensitive(command, "TURN_OFF")) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TURN_OFF")) == 0) {
     this->set_command(MEDIA_PLAYER_COMMAND_TURN_OFF);
   } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command.c_str());
+    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
   }
   return *this;
 }
@@ -148,7 +150,12 @@ void MediaPlayer::add_on_state_callback(std::function<void()> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 
-void MediaPlayer::publish_state() { this->state_callback_.call(); }
+void MediaPlayer::publish_state() {
+  this->state_callback_.call();
+#if defined(USE_MEDIA_PLAYER) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_media_player_update(this);
+#endif
+}
 
 }  // namespace media_player
 }  // namespace esphome

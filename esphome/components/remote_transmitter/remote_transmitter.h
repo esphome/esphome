@@ -57,12 +57,12 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   void set_non_blocking(bool non_blocking) { this->non_blocking_ = non_blocking; }
 #endif
 
-  Trigger<> *get_transmit_trigger() const { return this->transmit_trigger_; };
-  Trigger<> *get_complete_trigger() const { return this->complete_trigger_; };
+  Trigger<> *get_transmit_trigger() { return &this->transmit_trigger_; }
+  Trigger<> *get_complete_trigger() { return &this->complete_trigger_; }
 
  protected:
   void send_internal(uint32_t send_times, uint32_t send_wait) override;
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040)
   void calculate_on_off_time_(uint32_t carrier_frequency, uint32_t *on_time_period, uint32_t *off_time_period);
 
   void mark_(uint32_t on_time, uint32_t off_time, uint32_t usec);
@@ -96,8 +96,8 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 #endif
   uint8_t carrier_duty_percent_;
 
-  Trigger<> *transmit_trigger_{new Trigger<>()};
-  Trigger<> *complete_trigger_{new Trigger<>()};
+  Trigger<> transmit_trigger_;
+  Trigger<> complete_trigger_;
 };
 
 }  // namespace remote_transmitter

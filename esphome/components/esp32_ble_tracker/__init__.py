@@ -5,7 +5,7 @@ import logging
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import esp32_ble
+from esphome.components import esp32_ble, ota
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.esp32_ble import (
     IDF_MAX_CONNECTIONS,
@@ -328,7 +328,7 @@ async def to_code(config):
     # Note: CONFIG_BT_ACL_CONNECTIONS and CONFIG_BTDM_CTRL_BLE_MAX_CONN are now
     # configured in esp32_ble component based on max_connections setting
 
-    cg.add_define("USE_OTA_STATE_CALLBACK")  # To be notified when an OTA update starts
+    ota.request_ota_state_listeners()  # To be notified when an OTA update starts
     cg.add_define("USE_ESP32_BLE_CLIENT")
 
     CORE.add_job(_add_ble_features)

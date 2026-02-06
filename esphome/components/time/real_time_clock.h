@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 
-namespace esphome {
-namespace time {
+namespace esphome::time {
 
 /// The RealTimeClock class exposes common timekeeping functions via the device's local real-time clock.
 ///
@@ -52,6 +51,8 @@ class RealTimeClock : public PollingComponent {
     this->time_sync_callback_.add(std::move(callback));
   };
 
+  void dump_config() override;
+
  protected:
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
@@ -61,7 +62,7 @@ class RealTimeClock : public PollingComponent {
   void apply_timezone_();
 #endif
 
-  CallbackManager<void()> time_sync_callback_;
+  LazyCallbackManager<void()> time_sync_callback_;
 };
 
 template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
@@ -73,5 +74,4 @@ template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
   RealTimeClock *parent_;
 };
 
-}  // namespace time
-}  // namespace esphome
+}  // namespace esphome::time

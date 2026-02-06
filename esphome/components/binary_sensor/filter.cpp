@@ -2,9 +2,7 @@
 
 #include "binary_sensor.h"
 
-namespace esphome {
-
-namespace binary_sensor {
+namespace esphome::binary_sensor {
 
 static const char *const TAG = "sensor.filter";
 
@@ -132,6 +130,4 @@ optional<bool> SettleFilter::new_value(bool value) {
 
 float SettleFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace binary_sensor
-
-}  // namespace esphome
+}  // namespace esphome::binary_sensor

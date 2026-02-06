@@ -63,6 +63,7 @@ from helpers import (
     get_components_from_integration_fixtures,
     get_components_with_dependencies,
     get_cpp_changed_components,
+    get_target_branch,
     git_ls_files,
     parse_test_filename,
     root_path,
@@ -88,11 +89,17 @@ class Platform(StrEnum):
     ESP32_C6_IDF = "esp32-c6-idf"
     ESP32_S2_IDF = "esp32-s2-idf"
     ESP32_S3_IDF = "esp32-s3-idf"
+    BK72XX_ARD = "bk72xx-ard"  # LibreTiny BK7231N
+    RTL87XX_ARD = "rtl87xx-ard"  # LibreTiny RTL8720x
+    LN882X_ARD = "ln882x-ard"  # LibreTiny LN882x
+    RP2040_ARD = "rp2040-ard"  # Raspberry Pi Pico
+    NRF52_ZEPHYR = "nrf52-adafruit"  # Nordic nRF52 (Zephyr)
 
 
 # Memory impact analysis constants
 MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core changes
 MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative platform
+MEMORY_IMPACT_MAX_COMPONENTS = 40  # Max components before results become nonsensical
 
 # Platform-specific components that can only be built on their respective platforms
 # These components contain platform-specific code and cannot be cross-compiled
@@ -106,7 +113,7 @@ PLATFORM_SPECIFIC_COMPONENTS = frozenset(
         "rtl87xx",  # Realtek RTL87xx platform implementation (uses LibreTiny)
         "ln882x",  # Winner Micro LN882x platform implementation (uses LibreTiny)
         "host",  # Host platform (for testing on development machine)
-        "nrf52",  # Nordic nRF52 platform implementation
+        "nrf52",  # Nordic nRF52 platform implementation (uses Zephyr)
     }
 )
 
@@ -118,6 +125,9 @@ PLATFORM_SPECIFIC_COMPONENTS = frozenset(
 #                      fastest build times, most sensitive to code size changes
 # 3. ESP32 IDF - Primary ESP32 platform, most representative of modern ESPHome
 # 4-6. Other ESP32 variants - Less commonly used but still supported
+# 7-9. LibreTiny platforms (BK72XX, RTL87XX, LN882X) - good for detecting LibreTiny-specific changes
+# 10. RP2040 - Raspberry Pi Pico platform
+# 11. nRF52 - Nordic nRF52 with Zephyr (good for detecting Zephyr-specific changes)
 MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_C6_IDF,  # ESP32-C6 IDF (newest, supports Thread/Zigbee)
     Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained, fastest builds)
@@ -125,6 +135,11 @@ MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_C3_IDF,  # ESP32-C3 IDF
     Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
     Platform.ESP32_S3_IDF,  # ESP32-S3 IDF
+    Platform.BK72XX_ARD,  # LibreTiny BK7231N
+    Platform.RTL87XX_ARD,  # LibreTiny RTL8720x
+    Platform.LN882X_ARD,  # LibreTiny LN882x
+    Platform.RP2040_ARD,  # Raspberry Pi Pico
+    Platform.NRF52_ZEPHYR,  # Nordic nRF52 (Zephyr)
 ]
 
 
@@ -402,8 +417,10 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     - wifi_component_esp_idf.cpp, *_idf.h -> ESP32 IDF variants
     - wifi_component_esp8266.cpp, *_esp8266.h -> ESP8266_ARD
     - *_esp32*.cpp -> ESP32 IDF (generic)
-    - *_libretiny.cpp, *_retiny.* -> LibreTiny (not in preference list)
-    - *_pico.cpp, *_rp2040.* -> RP2040 (not in preference list)
+    - *_libretiny.cpp, *_bk72*.* -> BK72XX (LibreTiny)
+    - *_rtl87*.* -> RTL87XX (LibreTiny Realtek)
+    - *_ln882*.* -> LN882X (LibreTiny Lightning)
+    - *_pico.cpp, *_rp2040.* -> RP2040_ARD
 
     Args:
         filename: File path to check
@@ -436,12 +453,22 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     if "esp32" in filename_lower:
         return Platform.ESP32_IDF
 
-    # LibreTiny and RP2040 are not in MEMORY_IMPACT_PLATFORM_PREFERENCE
-    # so we don't return them as hints
-    # if "retiny" in filename_lower or "libretiny" in filename_lower:
-    #     return None  # No specific LibreTiny platform preference
-    # if "pico" in filename_lower or "rp2040" in filename_lower:
-    #     return None  # No RP2040 platform preference
+    # LibreTiny platforms (check specific variants before generic libretiny)
+    # Check specific variants first to handle paths like libretiny/wifi_rtl87xx.cpp
+    if "rtl87" in filename_lower:
+        return Platform.RTL87XX_ARD
+    if "ln882" in filename_lower:
+        return Platform.LN882X_ARD
+    if "libretiny" in filename_lower or "bk72" in filename_lower:
+        return Platform.BK72XX_ARD
+
+    # RP2040 / Raspberry Pi Pico
+    if "pico" in filename_lower or "rp2040" in filename_lower:
+        return Platform.RP2040_ARD
+
+    # nRF52 / Zephyr
+    if "nrf52" in filename_lower or "zephyr" in filename_lower:
+        return Platform.NRF52_ZEPHYR
 
     return None
 
@@ -471,6 +498,20 @@ def detect_memory_impact_config(
         - platform: platform name for the merged build
         - use_merged_config: "true" (always use merged config)
     """
+    # Skip memory impact analysis for release* or beta* branches
+    # These branches typically contain many merged changes from dev, and building
+    # all components at once would produce nonsensical memory impact results.
+    # Memory impact analysis is most useful for focused PRs targeting dev.
+    target_branch = get_target_branch()
+    if target_branch and (
+        target_branch.startswith("release") or target_branch.startswith("beta")
+    ):
+        print(
+            f"Memory impact: Skipping analysis for target branch {target_branch} "
+            f"(would try to build all components at once, giving nonsensical results)",
+            file=sys.stderr,
+        )
+        return {"should_run": "false"}
 
     # Get actually changed files (not dependencies)
     files = changed_files(branch)
@@ -538,6 +579,17 @@ def detect_memory_impact_config(
 
     # If no components have tests, don't run memory impact
     if not components_with_tests:
+        return {"should_run": "false"}
+
+    # Skip memory impact analysis if too many components changed
+    # Building 40+ components at once produces nonsensical memory impact results
+    # This typically happens with large refactorings or batch updates
+    if len(components_with_tests) > MEMORY_IMPACT_MAX_COMPONENTS:
+        print(
+            f"Memory impact: Skipping analysis for {len(components_with_tests)} components "
+            f"(limit is {MEMORY_IMPACT_MAX_COMPONENTS}, would give nonsensical results)",
+            file=sys.stderr,
+        )
         return {"should_run": "false"}
 
     # Find common platforms supported by ALL components
@@ -729,11 +781,27 @@ def main() -> None:
     component_test_batches: list[str]
     if changed_components_with_tests:
         tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
+
+        # For beta/release branches, group all components for faster CI
+        # (no isolation, all components are groupable)
+        target_branch = get_target_branch()
+        is_release_branch = target_branch and (
+            target_branch.startswith("release") or target_branch.startswith("beta")
+        )
+
+        if is_release_branch:
+            # For beta/release: Don't isolate any components - group everything
+            # This allows components to be merged into single builds
+            batch_directly_changed = set()  # Empty set - no isolation
+        else:
+            # Normal PR: only directly changed components are isolated
+            batch_directly_changed = directly_changed_with_tests
+
         batches, _ = create_intelligent_batches(
             components=changed_components_with_tests,
             tests_dir=tests_dir,
             batch_size=COMPONENT_TEST_BATCH_SIZE,
-            directly_changed=directly_changed_with_tests,
+            directly_changed=batch_directly_changed,
         )
         # Convert batches to space-separated strings for CI matrix
         component_test_batches = [" ".join(batch) for batch in batches]

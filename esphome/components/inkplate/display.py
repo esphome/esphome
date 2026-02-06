@@ -6,10 +6,12 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FULL_UPDATE_EVERY,
     CONF_ID,
+    CONF_IGNORE_STRAPPING_WARNING,
     CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_MODEL,
+    CONF_NUMBER,
     CONF_OE_PIN,
     CONF_PAGES,
     CONF_TRANSFORM,
@@ -101,14 +103,21 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_SPV_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_VCOM_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_WAKEUP_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_CL_PIN, default=0): pins.internal_gpio_output_pin_schema,
-            cv.Optional(CONF_LE_PIN, default=2): pins.internal_gpio_output_pin_schema,
+            cv.Optional(
+                CONF_CL_PIN,
+                default={CONF_NUMBER: 0, CONF_IGNORE_STRAPPING_WARNING: True},
+            ): pins.internal_gpio_output_pin_schema,
+            cv.Optional(
+                CONF_LE_PIN,
+                default={CONF_NUMBER: 2, CONF_IGNORE_STRAPPING_WARNING: True},
+            ): pins.internal_gpio_output_pin_schema,
             # Data pins
             cv.Optional(
                 CONF_DISPLAY_DATA_0_PIN, default=4
             ): pins.internal_gpio_output_pin_schema,
             cv.Optional(
-                CONF_DISPLAY_DATA_1_PIN, default=5
+                CONF_DISPLAY_DATA_1_PIN,
+                default={CONF_NUMBER: 5, CONF_IGNORE_STRAPPING_WARNING: True},
             ): pins.internal_gpio_output_pin_schema,
             cv.Optional(
                 CONF_DISPLAY_DATA_2_PIN, default=18

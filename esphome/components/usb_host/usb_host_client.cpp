@@ -1,5 +1,5 @@
 // Should not be needed, but it's required to pass CI clang-tidy checks
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "usb_host.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -39,37 +39,46 @@ static void print_ep_desc(const usb_ep_desc_t *ep_desc) {
       break;
   }
 
-  ESP_LOGV(TAG, "\t\t*** Endpoint descriptor ***");
-  ESP_LOGV(TAG, "\t\tbLength %d", ep_desc->bLength);
-  ESP_LOGV(TAG, "\t\tbDescriptorType %d", ep_desc->bDescriptorType);
-  ESP_LOGV(TAG, "\t\tbEndpointAddress 0x%x\tEP %d %s", ep_desc->bEndpointAddress, USB_EP_DESC_GET_EP_NUM(ep_desc),
-           USB_EP_DESC_GET_EP_DIR(ep_desc) ? "IN" : "OUT");
-  ESP_LOGV(TAG, "\t\tbmAttributes 0x%x\t%s", ep_desc->bmAttributes, ep_type_str);
-  ESP_LOGV(TAG, "\t\twMaxPacketSize %d", ep_desc->wMaxPacketSize);
-  ESP_LOGV(TAG, "\t\tbInterval %d", ep_desc->bInterval);
+  ESP_LOGV(TAG,
+           "\t\t*** Endpoint descriptor ***\n"
+           "\t\tbLength %d\n"
+           "\t\tbDescriptorType %d\n"
+           "\t\tbEndpointAddress 0x%x\tEP %d %s\n"
+           "\t\tbmAttributes 0x%x\t%s\n"
+           "\t\twMaxPacketSize %d\n"
+           "\t\tbInterval %d",
+           ep_desc->bLength, ep_desc->bDescriptorType, ep_desc->bEndpointAddress, USB_EP_DESC_GET_EP_NUM(ep_desc),
+           USB_EP_DESC_GET_EP_DIR(ep_desc) ? "IN" : "OUT", ep_desc->bmAttributes, ep_type_str, ep_desc->wMaxPacketSize,
+           ep_desc->bInterval);
 }
 
 static void usbh_print_intf_desc(const usb_intf_desc_t *intf_desc) {
-  ESP_LOGV(TAG, "\t*** Interface descriptor ***");
-  ESP_LOGV(TAG, "\tbLength %d", intf_desc->bLength);
-  ESP_LOGV(TAG, "\tbDescriptorType %d", intf_desc->bDescriptorType);
-  ESP_LOGV(TAG, "\tbInterfaceNumber %d", intf_desc->bInterfaceNumber);
-  ESP_LOGV(TAG, "\tbAlternateSetting %d", intf_desc->bAlternateSetting);
-  ESP_LOGV(TAG, "\tbNumEndpoints %d", intf_desc->bNumEndpoints);
-  ESP_LOGV(TAG, "\tbInterfaceClass 0x%x", intf_desc->bInterfaceProtocol);
-  ESP_LOGV(TAG, "\tiInterface %d", intf_desc->iInterface);
+  ESP_LOGV(TAG,
+           "\t*** Interface descriptor ***\n"
+           "\tbLength %d\n"
+           "\tbDescriptorType %d\n"
+           "\tbInterfaceNumber %d\n"
+           "\tbAlternateSetting %d\n"
+           "\tbNumEndpoints %d\n"
+           "\tbInterfaceClass 0x%x\n"
+           "\tiInterface %d",
+           intf_desc->bLength, intf_desc->bDescriptorType, intf_desc->bInterfaceNumber, intf_desc->bAlternateSetting,
+           intf_desc->bNumEndpoints, intf_desc->bInterfaceProtocol, intf_desc->iInterface);
 }
 
 static void usbh_print_cfg_desc(const usb_config_desc_t *cfg_desc) {
-  ESP_LOGV(TAG, "*** Configuration descriptor ***");
-  ESP_LOGV(TAG, "bLength %d", cfg_desc->bLength);
-  ESP_LOGV(TAG, "bDescriptorType %d", cfg_desc->bDescriptorType);
-  ESP_LOGV(TAG, "wTotalLength %d", cfg_desc->wTotalLength);
-  ESP_LOGV(TAG, "bNumInterfaces %d", cfg_desc->bNumInterfaces);
-  ESP_LOGV(TAG, "bConfigurationValue %d", cfg_desc->bConfigurationValue);
-  ESP_LOGV(TAG, "iConfiguration %d", cfg_desc->iConfiguration);
-  ESP_LOGV(TAG, "bmAttributes 0x%x", cfg_desc->bmAttributes);
-  ESP_LOGV(TAG, "bMaxPower %dmA", cfg_desc->bMaxPower * 2);
+  ESP_LOGV(TAG,
+           "*** Configuration descriptor ***\n"
+           "bLength %d\n"
+           "bDescriptorType %d\n"
+           "wTotalLength %d\n"
+           "bNumInterfaces %d\n"
+           "bConfigurationValue %d\n"
+           "iConfiguration %d\n"
+           "bmAttributes 0x%x\n"
+           "bMaxPower %dmA",
+           cfg_desc->bLength, cfg_desc->bDescriptorType, cfg_desc->wTotalLength, cfg_desc->bNumInterfaces,
+           cfg_desc->bConfigurationValue, cfg_desc->iConfiguration, cfg_desc->bmAttributes, cfg_desc->bMaxPower * 2);
 }
 
 static void usb_client_print_device_descriptor(const usb_device_desc_t *devc_desc) {
@@ -77,21 +86,27 @@ static void usb_client_print_device_descriptor(const usb_device_desc_t *devc_des
     return;
   }
 
-  ESP_LOGV(TAG, "*** Device descriptor ***");
-  ESP_LOGV(TAG, "bLength %d", devc_desc->bLength);
-  ESP_LOGV(TAG, "bDescriptorType %d", devc_desc->bDescriptorType);
-  ESP_LOGV(TAG, "bcdUSB %d.%d0", ((devc_desc->bcdUSB >> 8) & 0xF), ((devc_desc->bcdUSB >> 4) & 0xF));
-  ESP_LOGV(TAG, "bDeviceClass 0x%x", devc_desc->bDeviceClass);
-  ESP_LOGV(TAG, "bDeviceSubClass 0x%x", devc_desc->bDeviceSubClass);
-  ESP_LOGV(TAG, "bDeviceProtocol 0x%x", devc_desc->bDeviceProtocol);
-  ESP_LOGV(TAG, "bMaxPacketSize0 %d", devc_desc->bMaxPacketSize0);
-  ESP_LOGV(TAG, "idVendor 0x%x", devc_desc->idVendor);
-  ESP_LOGV(TAG, "idProduct 0x%x", devc_desc->idProduct);
-  ESP_LOGV(TAG, "bcdDevice %d.%d0", ((devc_desc->bcdDevice >> 8) & 0xF), ((devc_desc->bcdDevice >> 4) & 0xF));
-  ESP_LOGV(TAG, "iManufacturer %d", devc_desc->iManufacturer);
-  ESP_LOGV(TAG, "iProduct %d", devc_desc->iProduct);
-  ESP_LOGV(TAG, "iSerialNumber %d", devc_desc->iSerialNumber);
-  ESP_LOGV(TAG, "bNumConfigurations %d", devc_desc->bNumConfigurations);
+  ESP_LOGV(TAG,
+           "*** Device descriptor ***\n"
+           "bLength %d\n"
+           "bDescriptorType %d\n"
+           "bcdUSB %d.%d0\n"
+           "bDeviceClass 0x%x\n"
+           "bDeviceSubClass 0x%x\n"
+           "bDeviceProtocol 0x%x\n"
+           "bMaxPacketSize0 %d\n"
+           "idVendor 0x%x\n"
+           "idProduct 0x%x\n"
+           "bcdDevice %d.%d0\n"
+           "iManufacturer %d\n"
+           "iProduct %d\n"
+           "iSerialNumber %d\n"
+           "bNumConfigurations %d",
+           devc_desc->bLength, devc_desc->bDescriptorType, ((devc_desc->bcdUSB >> 8) & 0xF),
+           ((devc_desc->bcdUSB >> 4) & 0xF), devc_desc->bDeviceClass, devc_desc->bDeviceSubClass,
+           devc_desc->bDeviceProtocol, devc_desc->bMaxPacketSize0, devc_desc->idVendor, devc_desc->idProduct,
+           ((devc_desc->bcdDevice >> 8) & 0xF), ((devc_desc->bcdDevice >> 4) & 0xF), devc_desc->iManufacturer,
+           devc_desc->iProduct, devc_desc->iSerialNumber, devc_desc->bNumConfigurations);
 }
 
 static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc,
@@ -188,7 +203,7 @@ void USBClient::setup() {
   auto err = usb_host_client_register(&config, &this->handle_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "client register failed: %s", esp_err_to_name(err));
-    this->status_set_error("Client register failed");
+    this->status_set_error(LOG_STR("Client register failed"));
     this->mark_failed();
     return;
   }
@@ -531,4 +546,4 @@ void USBClient::release_trq(TransferRequest *trq) {
 
 }  // namespace usb_host
 }  // namespace esphome
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

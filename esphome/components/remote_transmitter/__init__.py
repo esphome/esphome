@@ -55,20 +55,20 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_EOT_LEVEL): cv.All(cv.only_on_esp32, cv.boolean),
         cv.Optional(CONF_USE_DMA): cv.All(
             esp32.only_on_variant(
-                supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
+                supported=[esp32.VARIANT_ESP32P4, esp32.VARIANT_ESP32S3]
             ),
             cv.boolean,
         ),
         cv.SplitDefault(
             CONF_RMT_SYMBOLS,
             esp32=64,
-            esp32_s2=64,
-            esp32_s3=48,
-            esp32_p4=48,
             esp32_c3=48,
             esp32_c5=48,
             esp32_c6=48,
             esp32_h2=48,
+            esp32_p4=48,
+            esp32_s2=64,
+            esp32_s3=48,
         ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
         cv.Optional(CONF_NON_BLOCKING): cv.All(cv.only_on_esp32, cv.boolean),
         cv.Optional(CONF_ON_TRANSMIT): automation.validate_automation(single=True),
@@ -112,6 +112,9 @@ async def digital_write_action_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     if CORE.is_esp32:
+        # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
+        esp32.include_builtin_idf_component("esp_driver_rmt")
+
         var = cg.new_Pvariable(config[CONF_ID], pin)
         cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
         cg.add(var.set_non_blocking(config[CONF_NON_BLOCKING]))
@@ -156,6 +159,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
+            PlatformFramework.RP2040_ARDUINO,
         },
     }
 )

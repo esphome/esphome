@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#if defined(USE_LIBRETINY) || defined(USE_ESP8266)
+#if defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2040)
 
 namespace esphome {
 namespace remote_transmitter {
@@ -40,13 +40,10 @@ void RemoteTransmitterComponent::await_target_time_() {
   if (this->target_time_ == 0) {
     this->target_time_ = current_time;
   } else if ((int32_t) (this->target_time_ - current_time) > 0) {
-#if defined(USE_LIBRETINY)
-    // busy loop for libretiny is required (see the comment inside micros() in wiring.c)
+    // busy loop is required as interrupts are disabled and delayMicroseconds()
+    // may not work correctly in interrupt-disabled contexts on all platforms
     while ((int32_t) (this->target_time_ - micros()) > 0)
       ;
-#else
-    delayMicroseconds(this->target_time_ - current_time);
-#endif
   }
 }
 
@@ -86,7 +83,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   uint32_t on_time, off_time;
   this->calculate_on_off_time_(this->temp_.get_carrier_frequency(), &on_time, &off_time);
   this->target_time_ = 0;
-  this->transmit_trigger_->trigger();
+  this->transmit_trigger_.trigger();
   for (uint32_t i = 0; i < send_times; i++) {
     InterruptLock lock;
     for (int32_t item : this->temp_.get_data()) {
@@ -105,7 +102,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (i + 1 < send_times)
       this->target_time_ += send_wait;
   }
-  this->complete_trigger_->trigger();
+  this->complete_trigger_.trigger();
 }
 
 }  // namespace remote_transmitter

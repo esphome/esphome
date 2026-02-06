@@ -7,10 +7,13 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/components/ble_client/ble_client.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ble_client {
+// Maximum bytes to log in hex format for BLE writes (many logging buffers are 256 chars)
+static constexpr size_t BLE_WRITE_MAX_LOG_BYTES = 64;
+
+namespace esphome::ble_client {
 
 // placeholder class for static TAG .
 class Automation {
@@ -96,10 +99,7 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   BLEClientWriteAction(BLEClient *ble_client) {
     ble_client->register_ble_node(this);
     ble_client_ = ble_client;
-    this->construct_simple_value_();
   }
-
-  ~BLEClientWriteAction() { this->destroy_simple_value_(); }
 
   void set_service_uuid16(uint16_t uuid) { this->service_uuid_ = espbt::ESPBTUUID::from_uint16(uuid); }
   void set_service_uuid32(uint32_t uuid) { this->service_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
@@ -110,17 +110,14 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   void set_char_uuid128(uint8_t *uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
 
   void set_value_template(std::vector<uint8_t> (*func)(Ts...)) {
-    this->destroy_simple_value_();
-    this->value_.template_func = func;
-    this->has_simple_value_ = false;
+    this->value_.func = func;
+    this->len_ = -1;  // Sentinel value indicates template mode
   }
 
-  void set_value_simple(const std::vector<uint8_t> &value) {
-    if (!this->has_simple_value_) {
-      this->construct_simple_value_();
-    }
-    this->value_.simple = value;
-    this->has_simple_value_ = true;
+  // Store pointer to static data in flash (no RAM copy)
+  void set_value_simple(const uint8_t *data, size_t len) {
+    this->value_.data = data;
+    this->len_ = len;  // Length >= 0 indicates static mode
   }
 
   void play(const Ts &...x) override {}
@@ -128,9 +125,19 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   void play_complex(const Ts &...x) override {
     this->num_running_++;
     this->var_ = std::make_tuple(x...);
-    auto value = this->has_simple_value_ ? this->value_.simple : this->value_.template_func(x...);
+
+    bool result;
+    if (this->len_ >= 0) {
+      // Static mode: write directly from flash pointer
+      result = this->write(this->value_.data, this->len_);
+    } else {
+      // Template mode: call function and write the vector
+      std::vector<uint8_t> value = this->value_.func(x...);
+      result = this->write(value);
+    }
+
     // on write failure, continue the automation chain rather than stopping so that e.g. disconnect can work.
-    if (!write(value))
+    if (!result)
       this->play_next_(x...);
   }
 
@@ -143,21 +150,26 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
    * errors.
    */
   // initiate the write. Return true if all went well, will be followed by a WRITE_CHAR event.
-  bool write(const std::vector<uint8_t> &value) {
+  bool write(const uint8_t *data, size_t len) {
     if (this->node_state != espbt::ClientState::ESTABLISHED) {
       esph_log_w(Automation::TAG, "Cannot write to BLE characteristic - not connected");
       return false;
     }
-    esph_log_vv(Automation::TAG, "Will write %d bytes: %s", value.size(), format_hex_pretty(value).c_str());
-    esp_err_t err = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
-                                             this->char_handle_, value.size(), const_cast<uint8_t *>(value.data()),
-                                             this->write_type_, ESP_GATT_AUTH_REQ_NONE);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+    char hex_buf[format_hex_pretty_size(BLE_WRITE_MAX_LOG_BYTES)];
+    esph_log_vv(Automation::TAG, "Will write %d bytes: %s", len, format_hex_pretty_to(hex_buf, data, len));
+#endif
+    esp_err_t err =
+        esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_, len,
+                                 const_cast<uint8_t *>(data), this->write_type_, ESP_GATT_AUTH_REQ_NONE);
     if (err != ESP_OK) {
       esph_log_e(Automation::TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
       return false;
     }
     return true;
   }
+
+  bool write(const std::vector<uint8_t> &value) { return this->write(value.data(), value.size()); }
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override {
@@ -174,8 +186,10 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
       case ESP_GATTC_SEARCH_CMPL_EVT: {
         auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
         if (chr == nullptr) {
+          char char_buf[esp32_ble::UUID_STR_LEN];
+          char service_buf[esp32_ble::UUID_STR_LEN];
           esph_log_w("ble_write_action", "Characteristic %s was not found in service %s",
-                     this->char_uuid_.to_string().c_str(), this->service_uuid_.to_string().c_str());
+                     this->char_uuid_.to_str(char_buf), this->service_uuid_.to_str(service_buf));
           break;
         }
         this->char_handle_ = chr->handle;
@@ -187,12 +201,14 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
           this->write_type_ = ESP_GATT_WRITE_TYPE_NO_RSP;
           esph_log_d(Automation::TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
         } else {
-          esph_log_e(Automation::TAG, "Characteristic %s does not allow writing", this->char_uuid_.to_string().c_str());
+          char char_buf[esp32_ble::UUID_STR_LEN];
+          esph_log_e(Automation::TAG, "Characteristic %s does not allow writing", this->char_uuid_.to_str(char_buf));
           break;
         }
         this->node_state = espbt::ClientState::ESTABLISHED;
-        esph_log_d(Automation::TAG, "Found characteristic %s on device %s", this->char_uuid_.to_string().c_str(),
-                   ble_client_->address_str().c_str());
+        char char_buf[esp32_ble::UUID_STR_LEN];
+        esph_log_d(Automation::TAG, "Found characteristic %s on device %s", this->char_uuid_.to_str(char_buf),
+                   ble_client_->address_str());
         break;
       }
       default:
@@ -201,21 +217,11 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   }
 
  private:
-  void construct_simple_value_() { new (&this->value_.simple) std::vector<uint8_t>(); }
-
-  void destroy_simple_value_() {
-    if (this->has_simple_value_) {
-      this->value_.simple.~vector();
-    }
-  }
-
   BLEClient *ble_client_;
-  bool has_simple_value_ = true;
+  ssize_t len_{-1};  // -1 = template mode, >=0 = static mode with length
   union Value {
-    std::vector<uint8_t> simple;
-    std::vector<uint8_t> (*template_func)(Ts...);
-    Value() {}   // trivial constructor
-    ~Value() {}  // trivial destructor - we manage lifetime via discriminator
+    std::vector<uint8_t> (*func)(Ts...);  // Function pointer (stateless lambdas)
+    const uint8_t *data;                  // Pointer to static data in flash
   } value_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
@@ -395,7 +401,6 @@ template<typename... Ts> class BLEClientDisconnectAction : public Action<Ts...>,
   BLEClient *ble_client_;
   std::tuple<Ts...> var_{};
 };
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 
 #endif

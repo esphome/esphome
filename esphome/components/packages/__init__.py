@@ -1,7 +1,13 @@
+from collections import UserDict
+from collections.abc import Callable
+from functools import reduce
+import logging
 from pathlib import Path
+from typing import Any
 
 from esphome import git, yaml_util
-from esphome.config_helpers import merge_config
+from esphome.components.substitutions.jinja import has_jinja
+from esphome.config_helpers import Remove, merge_config
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
@@ -13,6 +19,7 @@ from esphome.const import (
     CONF_PATH,
     CONF_REF,
     CONF_REFRESH,
+    CONF_SUBSTITUTIONS,
     CONF_URL,
     CONF_USERNAME,
     CONF_VARS,
@@ -20,18 +27,57 @@ from esphome.const import (
 )
 from esphome.core import EsphomeError
 
+_LOGGER = logging.getLogger(__name__)
+
 DOMAIN = CONF_PACKAGES
 
 
-def validate_git_package(config: dict):
-    if CONF_URL not in config:
-        return config
-    config = BASE_SCHEMA(config)
-    new_config = config
+def validate_has_jinja(value: Any):
+    if not isinstance(value, str) or not has_jinja(value):
+        raise cv.Invalid("string does not contain Jinja syntax")
+    return value
+
+
+def valid_package_contents(allow_jinja: bool = True) -> Callable[[Any], dict]:
+    """Returns a validator that checks if a package_config that will be merged looks as
+    much as possible to a valid config to fail early on obvious mistakes."""
+
+    def validator(package_config: dict) -> dict:
+        if isinstance(package_config, dict):
+            if CONF_URL in package_config:
+                # If a URL key is found, then make sure the config conforms to a remote package schema:
+                return REMOTE_PACKAGE_SCHEMA(package_config)
+
+            # Validate manually since Voluptuous would regenerate dicts and lose metadata
+            # such as ESPHomeDataBase
+            for k, v in package_config.items():
+                if not isinstance(k, str):
+                    raise cv.Invalid("Package content keys must be strings")
+                if isinstance(v, (dict, list, Remove)):
+                    continue  # e.g. script: [], psram: !remove, logger: {level: debug}
+                if v is None:
+                    continue  # e.g. web_server:
+                if allow_jinja and isinstance(v, str) and has_jinja(v):
+                    # e.g: remote package shorthand:
+                    # package_name: github://esphome/repo/file.yaml@${ branch }, or:
+                    # switch: ${ expression that evals to a switch }
+                    continue
+
+                raise cv.Invalid("Invalid component content in package definition")
+            return package_config
+
+        raise cv.Invalid("Package contents must be a dict")
+
+    return validator
+
+
+def expand_file_to_files(config: dict):
     if CONF_FILE in config:
+        new_config = config
         new_config[CONF_FILES] = [config[CONF_FILE]]
         del new_config[CONF_FILE]
-    return new_config
+        return new_config
+    return config
 
 
 def validate_yaml_filename(value):
@@ -45,7 +91,7 @@ def validate_yaml_filename(value):
 
 def validate_source_shorthand(value):
     if not isinstance(value, str):
-        raise cv.Invalid("Shorthand only for strings")
+        raise cv.Invalid("Git URL shorthand only for strings")
 
     git_file = git.GitFile.from_shorthand(value)
 
@@ -56,10 +102,26 @@ def validate_source_shorthand(value):
     if git_file.ref:
         conf[CONF_REF] = git_file.ref
 
-    return BASE_SCHEMA(conf)
+    return REMOTE_PACKAGE_SCHEMA(conf)
 
 
-BASE_SCHEMA = cv.All(
+def deprecate_single_package(config):
+    _LOGGER.warning(
+        """
+        Including a single package under `packages:`, i.e., `packages: !include mypackage.yaml` is deprecated.
+        This method for including packages will go away in 2026.7.0
+        Please use a list instead:
+
+        packages:
+          - !include mypackage.yaml
+
+        See https://github.com/esphome/esphome/pull/12116
+        """
+    )
+    return config
+
+
+REMOTE_PACKAGE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_URL): cv.url,
@@ -90,23 +152,33 @@ BASE_SCHEMA = cv.All(
         }
     ),
     cv.has_at_least_one_key(CONF_FILE, CONF_FILES),
+    expand_file_to_files,
 )
 
-PACKAGE_SCHEMA = cv.All(
-    cv.Any(validate_source_shorthand, BASE_SCHEMA, dict), validate_git_package
+PACKAGE_SCHEMA = cv.Any(  # A package definition is either:
+    validate_source_shorthand,  # A git URL shorthand string that expands to a remote package schema, or
+    REMOTE_PACKAGE_SCHEMA,  # a valid remote package schema, or
+    validate_has_jinja,  # a Jinja string that may resolve to a package, or
+    valid_package_contents(
+        allow_jinja=True
+    ),  # Something that at least looks like an actual package, e.g. {wifi:{ssid: xxx}}
+    # which will have to be fully validated later as per each component's schema.
 )
 
-CONFIG_SCHEMA = cv.Any(
+CONFIG_SCHEMA = cv.Any(  # under `packages:` we can have either:
     cv.Schema(
         {
-            str: PACKAGE_SCHEMA,
+            str: PACKAGE_SCHEMA,  # a named dict of package definitions, or
         }
     ),
-    [PACKAGE_SCHEMA],
+    [PACKAGE_SCHEMA],  # a list of package definitions, or
+    cv.All(  # a single package definition (deprecated)
+        cv.ensure_list(PACKAGE_SCHEMA), deprecate_single_package
+    ),
 )
 
 
-def _process_base_package(config: dict, skip_update: bool = False) -> dict:
+def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     # When skip_update is True, use NEVER_REFRESH to prevent updates
     actual_refresh = git.NEVER_REFRESH if skip_update else config[CONF_REFRESH]
     repo_dir, revert = git.clone_or_update(
@@ -182,32 +254,84 @@ def _process_base_package(config: dict, skip_update: bool = False) -> dict:
     return {"packages": packages}
 
 
-def _process_package(package_config, config, skip_update: bool = False):
-    recursive_package = package_config
-    if CONF_URL in package_config:
-        package_config = _process_base_package(package_config, skip_update)
-    if isinstance(package_config, dict):
-        recursive_package = do_packages_pass(package_config, skip_update)
-    return merge_config(recursive_package, config)
-
-
-def do_packages_pass(config: dict, skip_update: bool = False):
+def _walk_packages(
+    config: dict, callback: Callable[[dict], dict], validate_deprecated: bool = True
+) -> dict:
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
-    with cv.prepend_path(CONF_PACKAGES):
+
+    # The following block and `validate_deprecated` parameter can be safely removed
+    #  once single-package deprecation is effective
+    if validate_deprecated:
         packages = CONFIG_SCHEMA(packages)
+
+    with cv.prepend_path(CONF_PACKAGES):
         if isinstance(packages, dict):
             for package_name, package_config in reversed(packages.items()):
                 with cv.prepend_path(package_name):
-                    config = _process_package(package_config, config, skip_update)
+                    package_config = callback(package_config)
+                    packages[package_name] = _walk_packages(package_config, callback)
         elif isinstance(packages, list):
-            for package_config in reversed(packages):
-                config = _process_package(package_config, config, skip_update)
+            for idx in reversed(range(len(packages))):
+                with cv.prepend_path(idx):
+                    package_config = callback(packages[idx])
+                    packages[idx] = _walk_packages(package_config, callback)
         else:
             raise cv.Invalid(
                 f"Packages must be a key to value mapping or list, got {type(packages)} instead"
             )
+    config[CONF_PACKAGES] = packages
+    return config
 
-        del config[CONF_PACKAGES]
+
+def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
+    """Processes, downloads and validates all packages in the config.
+    Also extracts and merges all substitutions found in packages into the main config substitutions.
+    """
+    if CONF_PACKAGES not in config:
+        return config
+
+    substitutions = UserDict(config.pop(CONF_SUBSTITUTIONS, {}))
+
+    def process_package_callback(package_config: dict) -> dict:
+        """This will be called for each package found in the config."""
+        package_config = PACKAGE_SCHEMA(package_config)
+        if isinstance(package_config, str):
+            return package_config  # Jinja string, skip processing
+        if CONF_URL in package_config:
+            package_config = _process_remote_package(package_config, skip_update)
+        # Extract substitutions from the package and merge them into the main substitutions:
+        substitutions.data = merge_config(
+            package_config.pop(CONF_SUBSTITUTIONS, {}), substitutions.data
+        )
+        return package_config
+
+    _walk_packages(config, process_package_callback)
+
+    if substitutions:
+        config[CONF_SUBSTITUTIONS] = substitutions.data
+
+    return config
+
+
+def merge_packages(config: dict) -> dict:
+    """Merges all packages into the main config and removes the `packages:` key."""
+    if CONF_PACKAGES not in config:
+        return config
+
+    # Build flat list of all package configs to merge in priority order:
+    merge_list: list[dict] = []
+
+    validate_package = valid_package_contents(allow_jinja=False)
+
+    def process_package_callback(package_config: dict) -> dict:
+        """This will be called for each package found in the config."""
+        merge_list.append(validate_package(package_config))
+        return package_config
+
+    _walk_packages(config, process_package_callback, validate_deprecated=False)
+    # Merge all packages into the main config:
+    config = reduce(lambda new, old: merge_config(old, new), merge_list, config)
+    del config[CONF_PACKAGES]
     return config

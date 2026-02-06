@@ -162,11 +162,13 @@ void ADE7880::update() {
 }
 
 void ADE7880::dump_config() {
-  ESP_LOGCONFIG(TAG, "ADE7880:");
+  ESP_LOGCONFIG(TAG,
+                "ADE7880:\n"
+                "  Frequency: %.0f Hz",
+                this->frequency_);
   LOG_PIN("  IRQ0  Pin: ", this->irq0_pin_);
   LOG_PIN("  IRQ1  Pin: ", this->irq1_pin_);
   LOG_PIN("  RESET Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  Frequency: %.0f Hz", this->frequency_);
 
   if (this->channel_a_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Phase A:");

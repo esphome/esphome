@@ -67,12 +67,14 @@ void CameraWebServer::setup() {
 
   httpd_register_uri_handler(this->httpd_, &uri);
 
-  camera::Camera::instance()->add_image_callback([this](std::shared_ptr<camera::CameraImage> image) {
-    if (this->running_ && image->was_requested_by(camera::WEB_REQUESTER)) {
-      this->image_ = std::move(image);
-      xSemaphoreGive(this->semaphore_);
-    }
-  });
+  camera::Camera::instance()->add_listener(this);
+}
+
+void CameraWebServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
+  if (this->running_ && image->was_requested_by(camera::WEB_REQUESTER)) {
+    this->image_ = image;
+    xSemaphoreGive(this->semaphore_);
+  }
 }
 
 void CameraWebServer::on_shutdown() {

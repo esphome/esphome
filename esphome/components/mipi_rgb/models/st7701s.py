@@ -24,6 +24,8 @@ class ST7701S(DriverChip):
         sdir = 0
         if transform.get(CONF_MIRROR_X):
             sdir |= 0x04
+            # XFLIP doesn't do anything in the ST7701S,
+            # it's set in the madctl byte just so it can be reported at runtime by logconfig
             madctl |= MADCTL_XFLIP
         sequence.append((SDIR_CMD, sdir))
         return madctl
@@ -53,6 +55,7 @@ st7701s = ST7701S(
     pclk_frequency="16MHz",
     pclk_inverted=True,
     initsequence=(
+        (0x01,),  # Software Reset
         (0xFF, 0x77, 0x01, 0x00, 0x00, 0x10),  # Page 0
         (0xC0, 0x3B, 0x00), (0xC1, 0x0D, 0x02), (0xC2, 0x31, 0x05),
         (0xB0, 0x00, 0x11, 0x18, 0x0E, 0x11, 0x06, 0x07, 0x08, 0x07, 0x22, 0x04, 0x12, 0x0F, 0xAA, 0x31, 0x18,),
@@ -80,7 +83,6 @@ st7701s.extend(
     "MAKERFABS-4",
     width=480,
     height=480,
-    color_order="RGB",
     invert_colors=True,
     pixel_mode="18bit",
     cs_pin=1,

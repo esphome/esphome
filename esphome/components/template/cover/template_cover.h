@@ -5,8 +5,7 @@
 #include "esphome/core/template_lambda.h"
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 enum TemplateCoverRestoreMode {
   COVER_NO_RESTORE,
@@ -14,18 +13,18 @@ enum TemplateCoverRestoreMode {
   COVER_RESTORE_AND_CALL,
 };
 
-class TemplateCover : public cover::Cover, public Component {
+class TemplateCover final : public cover::Cover, public Component {
  public:
   TemplateCover();
 
   template<typename F> void set_state_lambda(F &&f) { this->state_f_.set(std::forward<F>(f)); }
   template<typename F> void set_tilt_lambda(F &&f) { this->tilt_f_.set(std::forward<F>(f)); }
-  Trigger<> *get_open_trigger() const;
-  Trigger<> *get_close_trigger() const;
-  Trigger<> *get_stop_trigger() const;
-  Trigger<> *get_toggle_trigger() const;
-  Trigger<float> *get_position_trigger() const;
-  Trigger<float> *get_tilt_trigger() const;
+  Trigger<> *get_open_trigger();
+  Trigger<> *get_close_trigger();
+  Trigger<> *get_stop_trigger();
+  Trigger<> *get_toggle_trigger();
+  Trigger<float> *get_position_trigger();
+  Trigger<float> *get_tilt_trigger();
   void set_optimistic(bool optimistic);
   void set_assumed_state(bool assumed_state);
   void set_has_stop(bool has_stop);
@@ -50,18 +49,17 @@ class TemplateCover : public cover::Cover, public Component {
   TemplateLambda<float> tilt_f_;
   bool assumed_state_{false};
   bool optimistic_{false};
-  Trigger<> *open_trigger_;
-  Trigger<> *close_trigger_;
+  Trigger<> open_trigger_;
+  Trigger<> close_trigger_;
   bool has_stop_{false};
   bool has_toggle_{false};
-  Trigger<> *stop_trigger_;
-  Trigger<> *toggle_trigger_;
+  Trigger<> stop_trigger_;
+  Trigger<> toggle_trigger_;
   Trigger<> *prev_command_trigger_{nullptr};
-  Trigger<float> *position_trigger_;
+  Trigger<float> position_trigger_;
   bool has_position_{false};
-  Trigger<float> *tilt_trigger_;
+  Trigger<float> tilt_trigger_;
   bool has_tilt_{false};
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

@@ -49,7 +49,7 @@ def test_calculate_clang_tidy_hash_with_sdkconfig(tmp_path: Path) -> None:
     clang_tidy_content = b"Checks: '-*,readability-*'\n"
     requirements_version = "clang-tidy==18.1.5"
     platformio_content = b"[env:esp32]\nplatform = espressif32\n"
-    sdkconfig_content = b"CONFIG_AUTOSTART_ARDUINO=y\n"
+    sdkconfig_content = b""
     requirements_content = "clang-tidy==18.1.5\n"
 
     # Create temporary files

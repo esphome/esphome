@@ -52,3 +52,25 @@ sensor:
     name: "BLE Sensor without Lambda"
     service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
     characteristic_uuid: "abcd1237-abcd-1234-abcd-abcd12345678"
+
+number:
+  - platform: template
+    name: "Test Number"
+    id: test_number
+    optimistic: true
+    min_value: 0
+    max_value: 255
+    step: 1
+
+button:
+  # Test ble_write with lambda that references a component (function pointer)
+  - platform: template
+    name: "BLE Write Lambda Test"
+    on_press:
+      - ble_client.ble_write:
+          id: test_blec
+          service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
+          characteristic_uuid: "abcd1235-abcd-1234-abcd-abcd12345678"
+          value: !lambda |-
+            uint8_t val = (uint8_t)id(test_number).state;
+            return std::vector<uint8_t>{0xAA, val, 0xBB};

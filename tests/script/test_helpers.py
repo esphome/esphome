@@ -31,6 +31,13 @@ print_file_list = helpers.print_file_list
 get_all_dependencies = helpers.get_all_dependencies
 
 
+@pytest.fixture(autouse=True)
+def clear_helpers_cache() -> None:
+    """Clear cached functions before each test."""
+    helpers._get_github_event_data.cache_clear()
+    helpers._get_changed_files_github_actions.cache_clear()
+
+
 @pytest.mark.parametrize(
     ("github_ref", "expected_pr_number"),
     [
@@ -1004,8 +1011,8 @@ def test_get_all_dependencies_handles_missing_components() -> None:
         comp.dependencies = ["missing_comp"]
         comp.auto_load = []
 
-        mock_get_component.side_effect = (
-            lambda name: comp if name == "existing" else None
+        mock_get_component.side_effect = lambda name: (
+            comp if name == "existing" else None
         )
 
         result = helpers.get_all_dependencies({"existing", "nonexistent"})
