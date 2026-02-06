@@ -33,6 +33,13 @@ update:
 
 - All other options from [Update](/components/update#config-update).
 
+> [!WARNING]
+> GitHub releases URLs (e.g., `https://github.com/<user>/<repo>/releases/latest/download/manifest.json`) redirect
+> to very long URLs that may exceed the default 512-byte buffer limit of the [HTTP Request](/components/http_request)
+> component, causing update checks to fail with an "Out of buffer" error.
+>
+> Use GitHub Pages URLs instead (e.g., `https://<user>.github.io/<repo>/firmware/manifest.json`) which do not redirect, or increase the buffer size.
+
 {{< anchor "update_http_request-manifest_format" >}}
 
 ## Update Manifest Format
