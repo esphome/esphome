@@ -14,7 +14,6 @@
 namespace esphome {
 namespace modem {
 
-std::map<std::string, std::string> get_gnssinfo_tokens(const std::string &line);
 class ModemTextSensor : public PollingComponent {
  public:
   void set_network_type_text_sensor(text_sensor::TextSensor *network_type_text_sensor) {

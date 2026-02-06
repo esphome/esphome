@@ -377,6 +377,7 @@ void ModemComponent::handle_state_init_network_() {
     return;
   }
 
+  this->modem_handler->dce->config_network_registration_urc(5);
   this->modem_handler->dce->set_radio_state(1);
   this->modem_handler->prepare_sim();
   this->modem_handler->dce->set_network_attachment_state(1);

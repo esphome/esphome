@@ -19,21 +19,6 @@ static const char *const TAG = "modem_handler";
   }
 
 // Define a static free function for URC handling
-esp_modem::DTE::UrcConsumeInfo static_urc_handler(const esp_modem::DTE::UrcBufferInfo &buffer_info) {
-  if (!buffer_info.is_command_active) {
-    std::string line(reinterpret_cast<const char *>(buffer_info.new_data_start), buffer_info.new_data_size);
-    ESP_LOGD(TAG, "Modem URC: %s", line.c_str());
-    // Handle URC lines here if needed
-    // Note: This static function does not have access to `this` (ModemHandler instance).
-    // If `this` is required, a different approach (e.g., passing a pointer via user_data if API allows)
-    // would be necessary, or reconsidering the use of std::bind with a member function.
-    // return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_ALL, SIZE_MAX};
-    // return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_PARTIAL,
-    // buffer_info.new_data_size};
-  }
-  return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_NONE, 0};
-}
-
 void ModemHandler::modem_create_dte_dce(int baud_rate) {
   this->current_baud_rate = baud_rate;
 
@@ -83,7 +68,16 @@ void ModemHandler::modem_create_dte_dce(int baud_rate) {
     ESP_LOGE(TAG, "Invalid model %s. DCE not created.", this->model.c_str());
     return;
   }
-  this->dce->set_enhanced_urc(static_urc_handler);
+
+  auto urc_handler = [this](const esp_modem::DTE::UrcBufferInfo &buffer_info) {
+    if (!buffer_info.is_command_active) {
+      std::string line(reinterpret_cast<const char *>(buffer_info.new_data_start), buffer_info.new_data_size);
+      ESP_LOGI(TAG, "Modem URC: %s", line.c_str());
+    }
+    return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_NONE, 0};
+  };
+  this->dce->set_enhanced_urc(urc_handler);
+
   ESP_LOGV(TAG, "DTE/DCE created.");
 }
 
