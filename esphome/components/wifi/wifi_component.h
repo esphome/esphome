@@ -743,9 +743,7 @@ class WiFiComponent : public Component {
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
-  // 0 = no error, non-zero = disconnect reason code from callback
-  // This serves as both the error flag and stores the reason for deferred logging
-  uint8_t error_from_callback_{0};
+  bool error_from_callback_{false};
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)

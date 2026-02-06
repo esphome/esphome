@@ -43,10 +43,6 @@ namespace esphome::wifi {
 
 static const char *const TAG = "wifi_esp8266";
 
-/// Special disconnect reason for authmode downgrade (CVE-2020-12638 mitigation)
-/// Not a real WiFi reason code - used internally for deferred logging
-static constexpr uint8_t WIFI_DISCONNECT_REASON_AUTHMODE_DOWNGRADE = 254;
-
 static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_got_ip = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -518,8 +514,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       }
       s_sta_connected = false;
       s_sta_connecting = false;
-      // Store reason as error flag; defer listener callbacks to main loop
-      global_wifi_component->error_from_callback_ = it.reason;
+      global_wifi_component->error_from_callback_ = true;
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
       global_wifi_component->pending_.disconnect = true;
 #endif
@@ -534,7 +529,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
         ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
         wifi_station_disconnect();
-        global_wifi_component->error_from_callback_ = WIFI_DISCONNECT_REASON_AUTHMODE_DOWNGRADE;
+        global_wifi_component->error_from_callback_ = true;
       }
       break;
     }

@@ -8,8 +8,8 @@ namespace gpio {
 static const char *const TAG = "gpio.binary_sensor";
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-// Interrupt type strings indexed by InterruptType enum (1-3): RISING_EDGE, FALLING_EDGE, ANY_EDGE
-// Index 0 is a placeholder (no enum value 0), also used as fallback for out-of-range
+// Interrupt type strings indexed by edge-triggered InterruptType values:
+// indices 1-3: RISING_EDGE, FALLING_EDGE, ANY_EDGE; other values (e.g. level-triggered) map to UNKNOWN (index 0).
 PROGMEM_STRING_TABLE(InterruptTypeStrings, "UNKNOWN", "RISING_EDGE", "FALLING_EDGE", "ANY_EDGE");
 
 static const LogString *interrupt_type_to_string(gpio::InterruptType type) {
