@@ -98,6 +98,10 @@ _KNOWN_FILE_EXTENSIONS = frozenset(
 )
 
 
+# Matches !secret references in YAML text.  This is intentionally a simple
+# regex scan rather than a YAML parse — it may match inside comments or
+# multi-line strings, which is the conservative direction (include more
+# secrets rather than fewer).
 _SECRET_RE = re.compile(r"!secret\s+(\S+)")
 
 
@@ -238,7 +242,7 @@ class ConfigBundleCreator:
             _LOGGER.warning("Bundle: skipping missing directory %s", abs_path)
             return
         for child in sorted(abs_path.rglob("*")):
-            if child.is_file():
+            if child.is_file() and "__pycache__" not in child.parts:
                 self._add_file(child)
 
     def _relative_to_config_dir(self, abs_path: Path) -> str | None:
