@@ -641,8 +641,9 @@ class WiFiComponent : public Component {
   /// Free scan results memory unless a component needs them
   void release_scan_results_();
 
-#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+#if defined(USE_WIFI_CONNECT_STATE_LISTENERS) && !defined(USE_ESP8266)
   /// Notify connect state listeners (called after state machine reaches STA_CONNECTED)
+  /// On ESP8266, this is handled by process_pending_callbacks_() instead.
   void notify_connect_state_listeners_();
 #endif
 
@@ -726,18 +727,22 @@ class WiFiComponent : public Component {
   // This serves as both the error flag and stores the reason for deferred logging
   uint8_t error_from_callback_{0};
 
-#ifdef USE_ESP8266
-  // Pending listener callbacks from system context (ESP8266 only)
-  // ESP8266 callbacks run in SDK system context with ~2KB stack where
-  // calling arbitrary listener callbacks is unsafe. These flags defer
-  // listener notifications to wifi_loop_() which runs with full stack.
+  // Pending listener callbacks deferred from platform callbacks to main loop.
   struct {
+#ifdef USE_ESP8266
+    // ESP8266 callbacks run in SDK system context with ~2KB stack where
+    // calling arbitrary listener callbacks is unsafe. These flags defer
+    // listener notifications to wifi_loop_() which runs with full stack.
     bool connect : 1;        // STA connected, notify listeners
     bool disconnect : 1;     // STA disconnected, notify listeners
     bool got_ip : 1;         // Got IP, notify listeners
     bool scan_complete : 1;  // Scan complete, notify listeners
-  } pending_{};
+#elif defined(USE_WIFI_CONNECT_STATE_LISTENERS)
+    // Non-ESP8266 platforms: deferred until state machine reaches STA_CONNECTED
+    // so wifi.connected condition returns true in listener automations.
+    bool connect_state : 1;
 #endif
+  } pending_{};
 
   // Group all boolean values together
   bool has_ap_{false};
@@ -767,16 +772,6 @@ class WiFiComponent : public Component {
   bool is_high_performance_mode_{false};
 
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
-#endif
-
-#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-  // Pending listener notifications deferred until state machine reaches appropriate state.
-  // Listeners are notified after state transitions complete so conditions like
-  // wifi.connected return correct values in automations.
-  // Uses bitfields to minimize memory; more flags may be added as needed.
-  struct {
-    bool connect_state : 1;  // Notify connect state listeners after STA_CONNECTED
-  } pending_{};
 #endif
 
 #ifdef USE_WIFI_CONNECT_TRIGGER

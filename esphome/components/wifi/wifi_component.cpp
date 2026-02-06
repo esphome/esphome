@@ -1464,9 +1464,10 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 
     this->release_scan_results_();
 
-#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+#if defined(USE_WIFI_CONNECT_STATE_LISTENERS) && !defined(USE_ESP8266)
     // Notify listeners now that state machine has reached STA_CONNECTED
     // This ensures wifi.connected condition returns true in listener automations
+    // On ESP8266, this is handled by process_pending_callbacks_() instead.
     this->notify_connect_state_listeners_();
 #endif
 
@@ -2193,7 +2194,7 @@ void WiFiComponent::release_scan_results_() {
   }
 }
 
-#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+#if defined(USE_WIFI_CONNECT_STATE_LISTENERS) && !defined(USE_ESP8266)
 void WiFiComponent::notify_connect_state_listeners_() {
   if (!this->pending_.connect_state)
     return;
@@ -2206,7 +2207,7 @@ void WiFiComponent::notify_connect_state_listeners_() {
     listener->on_wifi_connect_state(StringRef(ssid, strlen(ssid)), bssid);
   }
 }
-#endif  // USE_WIFI_CONNECT_STATE_LISTENERS
+#endif  // USE_WIFI_CONNECT_STATE_LISTENERS && !USE_ESP8266
 
 void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: not for hidden networks (may not appear in scan)
