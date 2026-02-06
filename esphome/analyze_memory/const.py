@@ -513,7 +513,9 @@ SYMBOL_PATTERNS = {
         "__FUNCTION__$",
         "DAYS_IN_MONTH",
         "_DAYS_BEFORE_MONTH",
-        "CSWTCH$",
+        # Note: CSWTCH$ symbols are GCC switch table lookup tables.
+        # They are attributed to their source object files via _analyze_cswtch_symbols()
+        # rather than being lumped into libc.
         "dst$",
         "sulp",
         "_strtol_l",  # String to long with locale
