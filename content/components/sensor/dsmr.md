@@ -316,10 +316,6 @@ sensor:
       name: "Max Import Demand This Month (Active). OBIS: 1-0:1.6.0"
     active_energy_import_maximum_demand_last_13_months:
       name: "Average of Monthly Max Import (Active, 13 months). OBIS: 0-0:98.1.0"
-    fw_core_version:
-      name: "Meter FW Core Version. OBIS: 1-0:0.2.0"
-    fw_module_version:
-      name: "Meter FW Module Version. OBIS: 1-1:0.2.0"
 
 text_sensor:
   - platform: dsmr
@@ -355,8 +351,12 @@ text_sensor:
       name: "Unformatted gas data. OBIS: 0-gas_mbus_id:24.3.0"
     fw_core_checksum:
       name: "FW Core Checksum. OBIS: 1-0:0.2.8"
+    fw_core_version:
+      name: "Meter FW Core Version. OBIS: 1-0:0.2.0"
     fw_module_checksum:
       name: "FW Module Checksum. OBIS: 1-1:0.2.8"
+    fw_module_version:
+      name: "Meter FW Module Version. OBIS: 1-1:0.2.0"
 
     # The (decrypted) unparsed telegram, marked as an internal sensor.
     # Can also be used to trigger an action based on the last values.
