@@ -19,16 +19,27 @@ void Modbus::setup() {
 void Modbus::loop() {
   const uint32_t now = App.get_loop_component_start_time();
 
-  while (this->available()) {
-    uint8_t byte;
-    this->read_byte(&byte);
-    if (this->parse_modbus_byte_(byte)) {
-      this->last_modbus_byte_ = now;
-    } else {
-      size_t at = this->rx_buffer_.size();
-      if (at > 0) {
-        ESP_LOGV(TAG, "Clearing buffer of %d bytes - parse failed", at);
-        this->rx_buffer_.clear();
+  int avail = this->available();
+  if (avail > 0) {
+    // Read all available bytes in batches to reduce UART call overhead.
+    uint8_t buf[64];
+    while (avail > 0) {
+      size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+      if (!this->read_array(buf, to_read)) {
+        break;
+      }
+      avail -= to_read;
+
+      for (size_t i = 0; i < to_read; i++) {
+        if (this->parse_modbus_byte_(buf[i])) {
+          this->last_modbus_byte_ = now;
+        } else {
+          size_t at = this->rx_buffer_.size();
+          if (at > 0) {
+            ESP_LOGV(TAG, "Clearing buffer of %d bytes - parse failed", at);
+            this->rx_buffer_.clear();
+          }
+        }
       }
     }
   }
