@@ -1,4 +1,14 @@
 sensor:
   - platform: pm1003
+    id: pm1003_uart
     pm_2_5:
-      name: Particulate Matter 2.5µm Concentration
+      name: PM1003 UART PM2.5
+
+  - platform: pm1003
+    id: pm1003_pwm
+    pm_2_5:
+      name: PM1003 PWM PM2.5
+    pwm:
+      pin:
+        number: ${pwm_pin}
+        inverted: true
