@@ -191,7 +191,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
 
         total_size = sum(size for _, size, _, _ in self._cswtch_symbols)
         lines.append(
-            f"Total: {len(self._cswtch_symbols)} switch tables, {total_size:,} B"
+            f"Total: {len(self._cswtch_symbols)} switch table(s), {total_size:,} B"
         )
         lines.append("")
 
