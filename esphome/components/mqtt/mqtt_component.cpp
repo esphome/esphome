@@ -34,10 +34,7 @@ inline char *append_char(char *p, char c) {
 // MQTT_COMPONENT_TYPE_MAX_LEN, MQTT_SUFFIX_MAX_LEN, and MQTT_DEFAULT_TOPIC_MAX_LEN are in mqtt_component.h.
 // ESPHOME_DEVICE_NAME_MAX_LEN and OBJECT_ID_MAX_LEN are defined in entity_base.h.
 // This ensures the stack buffers below are always large enough.
-static constexpr size_t DISCOVERY_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
-// Format: prefix + "/" + type + "/" + name + "/" + object_id + "/config" + null
-static constexpr size_t DISCOVERY_TOPIC_MAX_LEN = DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 +
-                                                  ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
+// MQTT_DISCOVERY_PREFIX_MAX_LEN and MQTT_DISCOVERY_TOPIC_MAX_LEN are defined in mqtt_component.h
 
 // Function implementation of LOG_MQTT_COMPONENT macro to reduce code size
 void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic) {
@@ -54,15 +51,15 @@ void MQTTComponent::set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos;
 
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
-std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
+StringRef MQTTComponent::get_discovery_topic_to_(std::span<char, MQTT_DISCOVERY_TOPIC_MAX_LEN> buf,
+                                                 const MQTTDiscoveryInfo &discovery_info) const {
   char sanitized_name[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
   str_sanitize_to(sanitized_name, App.get_name().c_str());
   const char *comp_type = this->component_type();
   char object_id_buf[OBJECT_ID_MAX_LEN];
   StringRef object_id = this->get_default_object_id_to_(object_id_buf);
 
-  char buf[DISCOVERY_TOPIC_MAX_LEN];
-  char *p = buf;
+  char *p = buf.data();
 
   p = append_str(p, discovery_info.prefix.data(), discovery_info.prefix.size());
   p = append_char(p, '/');
@@ -72,8 +69,9 @@ std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discove
   p = append_char(p, '/');
   p = append_str(p, object_id.c_str(), object_id.size());
   p = append_str(p, "/config", 7);
+  *p = '\0';
 
-  return std::string(buf, p - buf);
+  return StringRef(buf.data(), p - buf.data());
 }
 
 StringRef MQTTComponent::get_default_topic_for_to_(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf, const char *suffix,
@@ -182,16 +180,19 @@ bool MQTTComponent::publish_json(const char *topic, const json::json_build_t &f)
 bool MQTTComponent::send_discovery_() {
   const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
 
+  char discovery_topic_buf[MQTT_DISCOVERY_TOPIC_MAX_LEN];
+  StringRef discovery_topic = this->get_discovery_topic_to_(discovery_topic_buf, discovery_info);
+
   if (discovery_info.clean) {
     ESP_LOGV(TAG, "'%s': Cleaning discovery", this->friendly_name_().c_str());
-    return global_mqtt_client->publish(this->get_discovery_topic_(discovery_info), "", 0, this->qos_, true);
+    return global_mqtt_client->publish(discovery_topic.c_str(), "", 0, this->qos_, true);
   }
 
   ESP_LOGV(TAG, "'%s': Sending discovery", this->friendly_name_().c_str());
 
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return global_mqtt_client->publish_json(
-      this->get_discovery_topic_(discovery_info),
+      discovery_topic.c_str(),
       [this](JsonObject root) {
         SendDiscoveryConfig config;
         config.state_topic = true;
