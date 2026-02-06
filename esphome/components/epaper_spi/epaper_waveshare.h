@@ -18,7 +18,7 @@ class EpaperWaveshare : public EPaperMono {
         partial_lut_length_(partial_lut_length) {}
 
  protected:
-  void initialise(bool partial) override;
+  bool initialise(bool partial) override;
   void set_window() override;
   void refresh_screen(bool partial) override;
   void deep_sleep() override;

@@ -193,7 +193,6 @@ void Nextion::dump_config() {
 #endif
 }
 
-float Nextion::get_setup_priority() const { return setup_priority::DATA; }
 void Nextion::update() {
   if (!this->is_setup()) {
     return;

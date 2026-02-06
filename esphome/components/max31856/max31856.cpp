@@ -197,7 +197,5 @@ uint32_t MAX31856Sensor::read_register24_(uint8_t reg) {
   return value;
 }
 
-float MAX31856Sensor::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace max31856
 }  // namespace esphome
