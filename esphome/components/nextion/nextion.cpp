@@ -411,7 +411,7 @@ void Nextion::process_serial_() {
     }
     avail -= to_read;
 
-    this->command_data_.append(reinterpret_cast<char *>(buf), to_read);
+    this->command_data_.append(reinterpret_cast<const char *>(buf), to_read);
   }
 }
 // nextion.tech/instruction-set/
