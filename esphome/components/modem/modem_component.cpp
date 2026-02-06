@@ -87,7 +87,7 @@ void ModemComponent::setup() {
 
   if (this->modem_handler->power_pin) {
     this->modem_handler->power_pin->setup();
-    this->modem_handler->power_pin->digital_write(true);
+    this->modem_handler->power_pin->digital_write(!this->modem_handler->power_pin_inverted);
   }
   if (this->modem_handler->status_pin) {
     this->modem_handler->status_pin->setup();
@@ -302,9 +302,9 @@ void ModemComponent::handle_state_enabling_() {
 }
 
 void ModemComponent::handle_state_powering_on_() {
-  this->modem_handler->power_pin->digital_write(false);
+  this->modem_handler->power_pin->digital_write(this->modem_handler->power_pin_inverted);
   delay(this->modem_handler->power_ton_pulse_delay);
-  this->modem_handler->power_pin->digital_write(true);
+  this->modem_handler->power_pin->digital_write(!this->modem_handler->power_pin_inverted);
   uint32_t loop_delay = this->modem_handler->power_ton_delay;
   this->loop_delay_(loop_delay);
   ESP_LOGD(TAG, "Modem ON in %.1fs...", float(loop_delay) / 1000);
@@ -313,9 +313,9 @@ void ModemComponent::handle_state_powering_on_() {
 }
 
 void ModemComponent::handle_state_powering_off_() {
-  this->modem_handler->power_pin->digital_write(false);
+  this->modem_handler->power_pin->digital_write(this->modem_handler->power_pin_inverted);
   delay(this->modem_handler->power_toff_pulse_delay);
-  this->modem_handler->power_pin->digital_write(true);
+  this->modem_handler->power_pin->digital_write(!this->modem_handler->power_pin_inverted);
   this->loop_delay_(this->modem_handler->power_toff_delay);
   ESP_LOGD(TAG, "Modem should be OFF in %.1fs...", float(this->modem_handler->power_toff_delay) / 1000);
 
