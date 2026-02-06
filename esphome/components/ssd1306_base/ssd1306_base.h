@@ -5,6 +5,9 @@
 #include "esphome/components/display/display_buffer.h"
 
 namespace esphome {
+
+struct LogString;
+
 namespace ssd1306_base {
 
 enum SSD1306Model {
@@ -70,7 +73,7 @@ class SSD1306 : public display::DisplayBuffer {
   int get_height_internal() override;
   int get_width_internal() override;
   size_t get_buffer_length_();
-  const char *model_str_();
+  const LogString *model_str_();
 
   SSD1306Model model_{SSD1306_MODEL_128_64};
   GPIOPin *reset_pin_{nullptr};

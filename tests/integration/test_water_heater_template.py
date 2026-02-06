@@ -85,6 +85,9 @@ async def test_water_heater_template(
         assert initial_state.current_temperature == 45.0, (
             f"Expected current temp 45.0, got {initial_state.current_temperature}"
         )
+        assert initial_state.target_temperature == 60.0, (
+            f"Expected target temp 60.0, got {initial_state.target_temperature}"
+        )
 
         # Test changing to GAS mode
         client.water_heater_command(test_water_heater.key, mode=WaterHeaterMode.GAS)
