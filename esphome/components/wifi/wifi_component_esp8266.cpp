@@ -42,6 +42,10 @@ namespace esphome::wifi {
 
 static const char *const TAG = "wifi_esp8266";
 
+/// Special disconnect reason for authmode downgrade (CVE-2020-12638 mitigation)
+/// Not a real WiFi reason code - used internally for deferred logging
+static constexpr uint8_t WIFI_DISCONNECT_REASON_AUTHMODE_DOWNGRADE = 254;
+
 static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_got_ip = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

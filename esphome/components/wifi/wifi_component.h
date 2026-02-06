@@ -58,12 +58,6 @@ static constexpr int8_t WIFI_RSSI_DISCONNECTED = -127;
 /// Buffer size for SSID (IEEE 802.11 max 32 bytes + null terminator)
 static constexpr size_t SSID_BUFFER_SIZE = 33;
 
-#ifdef USE_ESP8266
-/// Special disconnect reason for authmode downgrade (CVE-2020-12638 mitigation)
-/// Not a real WiFi reason code - used internally for deferred logging
-static constexpr uint8_t WIFI_DISCONNECT_REASON_AUTHMODE_DOWNGRADE = 254;
-#endif
-
 struct SavedWifiSettings {
   char ssid[33];
   char password[65];
