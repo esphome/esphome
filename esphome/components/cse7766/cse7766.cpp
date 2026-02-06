@@ -27,7 +27,9 @@ void CSE7766Component::loop() {
   uint8_t buf[CSE7766_RAW_DATA_SIZE];
   while (avail > 0) {
     size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
-    this->read_array(buf, to_read);
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
     avail -= to_read;
 
     for (size_t i = 0; i < to_read; i++) {
