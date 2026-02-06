@@ -41,21 +41,8 @@ static const uint8_t SSD1305_COMMAND_SET_AREA_COLOR = 0xD8;
 static const uint8_t SH1107_COMMAND_SET_START_LINE = 0xDC;
 static const uint8_t SH1107_COMMAND_CHARGE_PUMP = 0xAD;
 
-// Verify SSD1306Model enum is sequential 0-13 so we can use it as a table index
-static_assert(SSD1306_MODEL_128_32 == 0, "SSD1306Model enum values must match table indices");
-static_assert(SSD1306_MODEL_128_64 == 1, "SSD1306Model enum values must match table indices");
-static_assert(SSD1306_MODEL_96_16 == 2, "SSD1306Model enum values must match table indices");
-static_assert(SSD1306_MODEL_64_48 == 3, "SSD1306Model enum values must match table indices");
-static_assert(SSD1306_MODEL_64_32 == 4, "SSD1306Model enum values must match table indices");
-static_assert(SSD1306_MODEL_72_40 == 5, "SSD1306Model enum values must match table indices");
-static_assert(SH1106_MODEL_128_32 == 6, "SSD1306Model enum values must match table indices");
-static_assert(SH1106_MODEL_128_64 == 7, "SSD1306Model enum values must match table indices");
-static_assert(SH1106_MODEL_96_16 == 8, "SSD1306Model enum values must match table indices");
-static_assert(SH1106_MODEL_64_48 == 9, "SSD1306Model enum values must match table indices");
-static_assert(SH1107_MODEL_128_64 == 10, "SSD1306Model enum values must match table indices");
-static_assert(SH1107_MODEL_128_128 == 11, "SSD1306Model enum values must match table indices");
-static_assert(SSD1305_MODEL_128_32 == 12, "SSD1306Model enum values must match table indices");
-static_assert(SSD1305_MODEL_128_64 == 13, "SSD1306Model enum values must match table indices");
+// Verify first enum value and table sizes match SSD1306_MODEL_COUNT
+static_assert(SSD1306_MODEL_128_32 == 0, "SSD1306Model enum must start at 0");
 
 // PROGMEM lookup table indexed by SSD1306Model enum (width, height per model)
 struct ModelDimensions {
@@ -98,6 +85,10 @@ PROGMEM_STRING_TABLE(ModelStrings,
     "Unknown"          // fallback
 );
 // clang-format on
+static_assert(sizeof(MODEL_DIMS) / sizeof(MODEL_DIMS[0]) == SSD1306_MODEL_COUNT,
+              "MODEL_DIMS must have one entry per SSD1306Model");
+static_assert(ModelStrings::COUNT == SSD1306_MODEL_COUNT + 1,
+              "ModelStrings must have one entry per SSD1306Model plus fallback");
 
 void SSD1306::setup() {
   this->init_internal_(this->get_buffer_length_());
@@ -205,6 +196,7 @@ void SSD1306::setup() {
         break;
       case SH1107_MODEL_128_64:
       case SH1107_MODEL_128_128:
+      case SSD1306_MODEL_COUNT:
         // Not used, but prevents build warning
         break;
     }
@@ -332,8 +324,16 @@ void SSD1306::turn_off() {
   this->command(SSD1306_COMMAND_DISPLAY_OFF);
   this->is_on_ = false;
 }
-int SSD1306::get_height_internal() { return progmem_read_byte(&MODEL_DIMS[this->model_].height); }
-int SSD1306::get_width_internal() { return progmem_read_byte(&MODEL_DIMS[this->model_].width); }
+int SSD1306::get_height_internal() {
+  if (this->model_ >= SSD1306_MODEL_COUNT)
+    return 0;
+  return progmem_read_byte(&MODEL_DIMS[this->model_].height);
+}
+int SSD1306::get_width_internal() {
+  if (this->model_ >= SSD1306_MODEL_COUNT)
+    return 0;
+  return progmem_read_byte(&MODEL_DIMS[this->model_].width);
+}
 size_t SSD1306::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
 }
