@@ -26,7 +26,7 @@ def validate_logger(config):
     logger_conf = fv.full_config.get()[CONF_LOGGER]
     if logger_conf[CONF_BAUD_RATE] == 0:
         raise cv.Invalid("improv_serial requires the logger baud_rate to be not 0")
-    if CORE.using_esp_idf and (
+    if CORE.is_esp32 and (
         logger_conf[CONF_HARDWARE_UART] == USB_CDC
         and get_esp32_variant() == VARIANT_ESP32S3
     ):

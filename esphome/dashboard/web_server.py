@@ -164,8 +164,24 @@ def websocket_method(name):
     return wrap
 
 
+class CheckOriginMixin:
+    """Mixin to handle WebSocket origin checks for reverse proxy setups."""
+
+    def check_origin(self, origin: str) -> bool:
+        if "ESPHOME_TRUSTED_DOMAINS" not in os.environ:
+            return super().check_origin(origin)
+        trusted_domains = [
+            s.strip() for s in os.environ["ESPHOME_TRUSTED_DOMAINS"].split(",")
+        ]
+        url = urlparse(origin)
+        if url.hostname in trusted_domains:
+            return True
+        _LOGGER.info("check_origin %s, domain is not trusted", origin)
+        return False
+
+
 @websocket_class
-class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
+class EsphomeCommandWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHandler):
     """Base class for ESPHome websocket commands."""
 
     def __init__(
@@ -182,18 +198,6 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         # Windows doesn't support non-blocking pipes,
         # use Popen() with a reading thread instead
         self._use_popen = os.name == "nt"
-
-    def check_origin(self, origin):
-        if "ESPHOME_TRUSTED_DOMAINS" not in os.environ:
-            return super().check_origin(origin)
-        trusted_domains = [
-            s.strip() for s in os.environ["ESPHOME_TRUSTED_DOMAINS"].split(",")
-        ]
-        url = urlparse(origin)
-        if url.hostname in trusted_domains:
-            return True
-        _LOGGER.info("check_origin %s, domain is not trusted", origin)
-        return False
 
     def open(self, *args: str, **kwargs: str) -> None:
         """Handle new WebSocket connection."""
@@ -601,7 +605,7 @@ DASHBOARD_SUBSCRIBER = DashboardSubscriber()
 
 
 @websocket_class
-class DashboardEventsWebSocket(tornado.websocket.WebSocketHandler):
+class DashboardEventsWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHandler):
     """WebSocket handler for real-time dashboard events."""
 
     _event_listeners: list[Callable[[], None]] | None = None

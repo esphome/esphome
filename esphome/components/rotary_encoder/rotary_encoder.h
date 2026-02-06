@@ -82,8 +82,6 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
   void dump_config() override;
   void loop() override;
 
-  float get_setup_priority() const override;
-
   void add_on_clockwise_callback(std::function<void()> callback) {
     this->on_clockwise_callback_.add(std::move(callback));
   }

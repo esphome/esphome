@@ -104,8 +104,6 @@ void DalyBmsComponent::loop() {
   }
 }
 
-float DalyBmsComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 void DalyBmsComponent::request_data_(uint8_t data_id) {
   uint8_t request_message[DALY_FRAME_SIZE];
 

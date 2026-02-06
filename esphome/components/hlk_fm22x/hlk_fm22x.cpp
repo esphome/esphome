@@ -8,6 +8,9 @@ namespace esphome::hlk_fm22x {
 
 static const char *const TAG = "hlk_fm22x";
 
+// Maximum response size is 36 bytes (VERIFY reply: face_id + 32-byte name)
+static constexpr size_t HLK_FM22X_MAX_RESPONSE_SIZE = 36;
+
 void HlkFm22xComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-FM22X...");
   this->set_enrolling_(false);
@@ -142,7 +145,10 @@ void HlkFm22xComponent::recv_command_() {
     data.push_back(byte);
   }
 
-  ESP_LOGV(TAG, "Recv type: 0x%.2X, data: %s", response_type, format_hex_pretty(data).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(HLK_FM22X_MAX_RESPONSE_SIZE)];
+  ESP_LOGV(TAG, "Recv type: 0x%.2X, data: %s", response_type, format_hex_pretty_to(hex_buf, data.data(), data.size()));
+#endif
 
   byte = this->read();
   if (byte != checksum) {

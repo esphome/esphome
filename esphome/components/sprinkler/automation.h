@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sprinkler/sprinkler.h"
 
-namespace esphome {
-namespace sprinkler {
+namespace esphome::sprinkler {
 
 template<typename... Ts> class SetDividerAction : public Action<Ts...> {
  public:
@@ -181,5 +180,4 @@ template<typename... Ts> class ResumeOrStartAction : public Action<Ts...> {
   Sprinkler *sprinkler_;
 };
 
-}  // namespace sprinkler
-}  // namespace esphome
+}  // namespace esphome::sprinkler

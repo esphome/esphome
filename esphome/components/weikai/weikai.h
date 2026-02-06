@@ -8,7 +8,6 @@
 ///                 wk2132_i2c, wk2168_i2c, wk2204_i2c, wk2212_i2c
 
 #pragma once
-#include <bitset>
 #include <memory>
 #include <cinttypes>
 #include "esphome/core/component.h"
@@ -278,7 +277,7 @@ class WeikaiGPIOPin : public GPIOPin {
   gpio::Flags get_flags() const override { return this->flags_; }
 
   void setup() override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
   void pin_mode(gpio::Flags flags) override { this->parent_->set_pin_direction_(this->pin_, flags); }
   bool digital_read() override { return this->parent_->read_pin_val_(this->pin_) != this->inverted_; }
   void digital_write(bool value) override { this->parent_->write_pin_val_(this->pin_, value != this->inverted_); }

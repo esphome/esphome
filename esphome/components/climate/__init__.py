@@ -117,9 +117,7 @@ CONF_MIN_HUMIDITY = "min_humidity"
 CONF_MAX_HUMIDITY = "max_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
 
-visual_temperature = cv.float_with_unit(
-    "visual_temperature", "(°C|° C|°|C|°K|° K|K|°F|° F|F)?"
-)
+visual_temperature = cv.float_with_unit("visual_temperature", "(°|(° ?)?[CKF])?")
 
 
 VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Schema(
@@ -275,10 +273,13 @@ async def setup_climate_core_(var, config):
 
     visual = config[CONF_VISUAL]
     if (min_temp := visual.get(CONF_MIN_TEMPERATURE)) is not None:
+        cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_min_temperature_override(min_temp))
     if (max_temp := visual.get(CONF_MAX_TEMPERATURE)) is not None:
+        cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_max_temperature_override(max_temp))
     if (temp_step := visual.get(CONF_TEMPERATURE_STEP)) is not None:
+        cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(
             var.set_visual_temperature_step_override(
                 temp_step[CONF_TARGET_TEMPERATURE],
@@ -286,8 +287,10 @@ async def setup_climate_core_(var, config):
             )
         )
     if (min_humidity := visual.get(CONF_MIN_HUMIDITY)) is not None:
+        cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_min_humidity_override(min_humidity))
     if (max_humidity := visual.get(CONF_MAX_HUMIDITY)) is not None:
+        cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_max_humidity_override(max_humidity))
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:

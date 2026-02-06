@@ -120,8 +120,10 @@ void LibreTinyUARTComponent::setup() {
 
 void LibreTinyUARTComponent::dump_config() {
   bool is_software = this->hardware_idx_ == -1;
-  ESP_LOGCONFIG(TAG, "UART Bus:");
-  ESP_LOGCONFIG(TAG, "  Type: %s", UART_TYPE[is_software]);
+  ESP_LOGCONFIG(TAG,
+                "UART Bus:\n"
+                "  Type: %s",
+                UART_TYPE[is_software]);
   if (!is_software) {
     ESP_LOGCONFIG(TAG, "  Port number: %d", this->hardware_idx_);
   }

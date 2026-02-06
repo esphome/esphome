@@ -27,8 +27,10 @@ void GLR01I2CComponent::setup() {
 }
 
 void GLR01I2CComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "GL-R01 I2C:");
-  ESP_LOGCONFIG(TAG, " Firmware Version: 0x%04X", this->version_);
+  ESP_LOGCONFIG(TAG,
+                "GL-R01 I2C:\n"
+                "  Firmware Version: 0x%04X",
+                this->version_);
   LOG_I2C_DEVICE(this);
   LOG_SENSOR(" ", "Distance", this);
 }

@@ -133,7 +133,7 @@ async def to_code(config):
         value_type,
     )
     var = MockObj(varid, ".")
-    decl = VariableDeclarationExpression(varid.type, "", varid)
+    decl = VariableDeclarationExpression(varid.type, "", varid, static=True)
     add_global(decl)
     CORE.register_variable(varid, var)
 

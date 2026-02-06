@@ -276,12 +276,12 @@ This document provides essential context for AI models interacting with this pro
 ## 7. Specific Instructions for AI Collaboration
 
 *   **Contribution Workflow (Pull Request Process):**
-    1.  **Fork & Branch:** Create a new branch in your fork.
+    1.  **Fork & Branch:** Create a new branch based on the `dev` branch (always use `git checkout -b <branch-name> dev` to ensure you're branching from `dev`, not the currently checked out branch).
     2.  **Make Changes:** Adhere to all coding conventions and patterns.
     3.  **Test:** Create component tests for all supported platforms and run the full test suite locally.
     4.  **Lint:** Run `pre-commit` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
-    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title should have a prefix of the component being worked on (e.g., `[display] Fix bug`, `[abc123] Add new component`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made with the PULL_REQUEST_TEMPLATE.md template filled out correctly.
+    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title should have a prefix of the component being worked on (e.g., `[display] Fix bug`, `[abc123] Add new component`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
 
 *   **Documentation Contributions:**
     *   Documentation is hosted in the separate `esphome/esphome-docs` repository.
@@ -292,6 +292,12 @@ This document provides essential context for AI models interacting with this pro
     *   **Code Generation:** Generate minimal and efficient C++ code. Validate all user inputs thoroughly. Support multiple platform variations.
     *   **Configuration Design:** Aim for simplicity with sensible defaults, while allowing for advanced customization.
     *   **Embedded Systems Optimization:** ESPHome targets resource-constrained microcontrollers. Be mindful of flash size and RAM usage.
+
+        **Why Heap Allocation Matters:**
+
+        ESP devices run for months with small heaps shared between Wi-Fi, BLE, LWIP, and application code. Over time, repeated allocations of different sizes fragment the heap. Failures happen when the largest contiguous block shrinks, even if total free heap is still large. We have seen field crashes caused by this.
+
+        **Heap allocation after `setup()` should be avoided unless absolutely unavoidable.** Every allocation/deallocation cycle contributes to fragmentation. ESPHome treats runtime heap allocation as a long-term reliability bug, not a performance issue. Helpers that hide allocation (`std::string`, `std::to_string`, string-returning helpers) are being deprecated and replaced with buffer and view based APIs.
 
         **STL Container Guidelines:**
 
@@ -322,15 +328,15 @@ This document provides essential context for AI models interacting with this pro
            std::array<uint8_t, 256> buffer;
            ```
 
-        2. **Compile-time-known fixed sizes with vector-like API:** Use `StaticVector` from `esphome/core/helpers.h` for fixed-size stack allocation with `push_back()` interface.
+        2. **Compile-time-known fixed sizes with vector-like API:** Use `StaticVector` from `esphome/core/helpers.h` for compile-time fixed size with `push_back()` interface (no dynamic allocation).
            ```cpp
            // Bad - generates STL realloc code (_M_realloc_insert)
            std::vector<ServiceRecord> services;
            services.reserve(5);  // Still includes reallocation machinery
 
-           // Good - compile-time fixed size, stack allocated, no reallocation machinery
-           StaticVector<ServiceRecord, MAX_SERVICES> services;  // Allocates all MAX_SERVICES on stack
-           services.push_back(record1);  // Tracks count but all slots allocated
+           // Good - compile-time fixed size, no dynamic allocation
+           StaticVector<ServiceRecord, MAX_SERVICES> services;
+           services.push_back(record1);
            ```
            Use `cg.add_define("MAX_SERVICES", count)` to set the size from Python configuration.
            Like `std::array` but with vector-like API (`push_back()`, `size()`) and no STL reallocation code.
@@ -372,22 +378,21 @@ This document provides essential context for AI models interacting with this pro
            ```
            Linear search on small datasets (1-16 elements) is often faster than hashing/tree overhead, but this depends on lookup frequency and access patterns. For frequent lookups in hot code paths, the O(1) vs O(n) complexity difference may still matter even for small datasets. `std::vector` with simple structs is usually fine—it's the heavy containers (`map`, `set`, `unordered_map`) that should be avoided for small datasets unless profiling shows otherwise.
 
-        5. **Detection:** Look for these patterns in compiler output:
+        5. **Avoid `std::deque`:** It allocates in 512-byte blocks regardless of element size, guaranteeing at least 512 bytes of RAM usage immediately. This is a major source of crashes on memory-constrained devices.
+
+        6. **Detection:** Look for these patterns in compiler output:
            - Large code sections with STL symbols (vector, map, set)
            - `alloc`, `realloc`, `dealloc` in symbol names
            - `_M_realloc_insert`, `_M_default_append` (vector reallocation)
            - Red-black tree code (`rb_tree`, `_Rb_tree`)
            - Hash table infrastructure (`unordered_map`, `hash`)
 
-        **When to optimize:**
+        **Prioritize optimization effort for:**
         - Core components (API, network, logger)
         - Widely-used components (mdns, wifi, ble)
         - Components causing flash size complaints
 
-        **When not to optimize:**
-        - Single-use niche components
-        - Code where readability matters more than bytes
-        - Already using appropriate containers
+        Note: Avoiding heap allocation after `setup()` is always required regardless of component type. The prioritization above is about the effort spent on container optimization (e.g., migrating from `std::vector` to `StaticVector`).
 
     *   **State Management:** Use `CORE.data` for component state that needs to persist during configuration generation. Avoid module-level mutable globals.
 
