@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MODEL,
     CONF_NAME,
     CONF_PIN,
     CONF_PM_1_0,
@@ -28,7 +29,6 @@ CODEOWNERS = ["@tuct"]
 AUTO_LOAD = ["duty_cycle", "uart"]
 
 CONF_PWM = "pwm"
-CONF_MODEL = "model"
 
 pm100x_ns = cg.esphome_ns.namespace("pm100x")
 PM100XComponent = pm100x_ns.class_(
