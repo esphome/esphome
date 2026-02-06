@@ -36,6 +36,7 @@ extern "C" {
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/util.h"
 
 namespace esphome::wifi {
@@ -398,36 +399,22 @@ class WiFiMockClass : public ESP8266WiFiGenericClass {
   static void _event_callback(void *event) { ESP8266WiFiGenericClass::_eventCallback(event); }  // NOLINT
 };
 
+// Auth mode strings indexed by AUTH_* constants (0-4), with UNKNOWN at last index
+// Static asserts verify the SDK constants are contiguous as expected
+static_assert(AUTH_OPEN == 0 && AUTH_WEP == 1 && AUTH_WPA_PSK == 2 && AUTH_WPA2_PSK == 3 && AUTH_WPA_WPA2_PSK == 4,
+              "AUTH_* constants are not contiguous");
+PROGMEM_STRING_TABLE(AuthModeStrings, "OPEN", "WEP", "WPA PSK", "WPA2 PSK", "WPA/WPA2 PSK", "UNKNOWN");
+
 const LogString *get_auth_mode_str(uint8_t mode) {
-  switch (mode) {
-    case AUTH_OPEN:
-      return LOG_STR("OPEN");
-    case AUTH_WEP:
-      return LOG_STR("WEP");
-    case AUTH_WPA_PSK:
-      return LOG_STR("WPA PSK");
-    case AUTH_WPA2_PSK:
-      return LOG_STR("WPA2 PSK");
-    case AUTH_WPA_WPA2_PSK:
-      return LOG_STR("WPA/WPA2 PSK");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return AuthModeStrings::get_log_str(mode, AuthModeStrings::LAST_INDEX);
 }
-const LogString *get_op_mode_str(uint8_t mode) {
-  switch (mode) {
-    case WIFI_OFF:
-      return LOG_STR("OFF");
-    case WIFI_STA:
-      return LOG_STR("STA");
-    case WIFI_AP:
-      return LOG_STR("AP");
-    case WIFI_AP_STA:
-      return LOG_STR("AP+STA");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-}
+
+// WiFi op mode strings indexed by WIFI_* constants (0-3), with UNKNOWN at last index
+static_assert(WIFI_OFF == 0 && WIFI_STA == 1 && WIFI_AP == 2 && WIFI_AP_STA == 3,
+              "WIFI_* op mode constants are not contiguous");
+PROGMEM_STRING_TABLE(OpModeStrings, "OFF", "STA", "AP", "AP+STA", "UNKNOWN");
+
+const LogString *get_op_mode_str(uint8_t mode) { return OpModeStrings::get_log_str(mode, OpModeStrings::LAST_INDEX); }
 
 const LogString *get_disconnect_reason_str(uint8_t reason) {
   /* If this were one big switch statement, GCC would generate a lookup table for it. However, the values of the
