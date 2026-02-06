@@ -252,6 +252,10 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   return network::IPAddress(dns_ip);
 }
 
+// Pico W uses polling for connection state detection.
+// Connect state listener notifications are deferred until after the state machine
+// transitions (in check_connecting_finished) so that conditions like wifi.connected
+// return correct values in automations.
 void WiFiComponent::wifi_loop_() {
   // Handle scan completion
   if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
@@ -278,11 +282,9 @@ void WiFiComponent::wifi_loop_() {
     s_sta_was_connected = true;
     ESP_LOGV(TAG, "Connected");
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    String ssid = WiFi.SSID();
-    bssid_t bssid = this->wifi_bssid();
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(ssid.c_str(), ssid.length()), bssid);
-    }
+    // Defer listener notification until state machine reaches STA_CONNECTED
+    // This ensures wifi.connected condition returns true in listener automations
+    this->pending_.connect_state = true;
 #endif
     // For static IP configurations, notify IP listeners immediately as the IP is already configured
 #if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)

@@ -269,6 +269,8 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     # Re-enable ESP-IDF's touch sensor driver (excluded by default to save compile time)
     include_builtin_idf_component("esp_driver_touch_sens")
+    # Legacy driver component provides driver/touch_sensor.h header
+    include_builtin_idf_component("driver")
 
     touch = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(touch, config)

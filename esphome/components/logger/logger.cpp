@@ -36,9 +36,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 
   // Fast path: main thread, no recursion (99.9% of all logs)
   if (is_main_task && !this->main_task_recursion_guard_) [[likely]] {
-    RecursionGuard guard(this->main_task_recursion_guard_);
-    // Format and send to both console and callbacks
-    this->log_message_to_buffer_and_send_(level, tag, line, format, args);
+    this->log_message_to_buffer_and_send_(this->main_task_recursion_guard_, level, tag, line, format, args);
     return;
   }
 
@@ -101,12 +99,9 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
     static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 144;
 #endif
     char console_buffer[MAX_CONSOLE_LOG_MSG_SIZE];  // MUST be stack allocated for thread safety
-    uint16_t buffer_at = 0;                         // Initialize buffer position
-    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, console_buffer, &buffer_at,
-                                                MAX_CONSOLE_LOG_MSG_SIZE);
-    // Add newline before writing to console
-    this->add_newline_to_buffer_(console_buffer, &buffer_at, MAX_CONSOLE_LOG_MSG_SIZE);
-    this->write_msg_(console_buffer, buffer_at);
+    LogBuffer buf{console_buffer, MAX_CONSOLE_LOG_MSG_SIZE};
+    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf);
+    this->write_to_console_(buf);
   }
 
   // RAII guard automatically resets on return
@@ -117,9 +112,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
-  RecursionGuard guard(global_recursion_guard_);
-  // Format and send to both console and callbacks
-  this->log_message_to_buffer_and_send_(level, tag, line, format, args);
+  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args);
 }
 #endif  // USE_ESP32 / USE_HOST / USE_LIBRETINY
 
@@ -128,60 +121,14 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 // Note: USE_STORE_LOG_STR_IN_FLASH is only defined for ESP8266.
 //
 // This function handles format strings stored in flash memory (PROGMEM) to save RAM.
-// The buffer is used in a special way to avoid allocating extra memory:
-//
-// Memory layout during execution:
-// Step 1: Copy format string from flash to buffer
-//         tx_buffer_: [format_string][null][.....................]
-//         tx_buffer_at_: ------------------^
-//         msg_start: saved here -----------^
-//
-// Step 2: format_log_to_buffer_with_terminator_ reads format string from beginning
-//         and writes formatted output starting at msg_start position
-//         tx_buffer_: [format_string][null][formatted_message][null]
-//         tx_buffer_at_: -------------------------------------^
-//
-// Step 3: Output the formatted message (starting at msg_start)
-//         write_msg_ and callbacks receive: this->tx_buffer_ + msg_start
-//         which points to: [formatted_message][null]
+// Uses vsnprintf_P to read the format string directly from flash without copying to RAM.
 //
 void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format,
                           va_list args) {  // NOLINT
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
-  RecursionGuard guard(global_recursion_guard_);
-  this->tx_buffer_at_ = 0;
-
-  // Copy format string from progmem
-  auto *format_pgm_p = reinterpret_cast<const uint8_t *>(format);
-  char ch = '.';
-  while (this->tx_buffer_at_ < this->tx_buffer_size_ && ch != '\0') {
-    this->tx_buffer_[this->tx_buffer_at_++] = ch = (char) progmem_read_byte(format_pgm_p++);
-  }
-
-  // Buffer full from copying format - RAII guard handles cleanup on return
-  if (this->tx_buffer_at_ >= this->tx_buffer_size_) {
-    return;
-  }
-
-  // Save the offset before calling format_log_to_buffer_with_terminator_
-  // since it will increment tx_buffer_at_ to the end of the formatted string
-  uint16_t msg_start = this->tx_buffer_at_;
-  this->format_log_to_buffer_with_terminator_(level, tag, line, this->tx_buffer_, args, this->tx_buffer_,
-                                              &this->tx_buffer_at_, this->tx_buffer_size_);
-
-  uint16_t msg_length =
-      this->tx_buffer_at_ - msg_start;  // Don't subtract 1 - tx_buffer_at_ is already at the null terminator position
-
-  // Listeners get message first (before console write)
-#ifdef USE_LOG_LISTENERS
-  for (auto *listener : this->log_listeners_)
-    listener->on_log(level, tag, this->tx_buffer_ + msg_start, msg_length);
-#endif
-
-  // Write to console starting at the msg_start
-  this->write_tx_buffer_to_console_(msg_start, &msg_length);
+  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args);
 }
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 
@@ -240,10 +187,11 @@ void Logger::process_messages_() {
     logger::TaskLogBufferHost::LogMessage *message;
     while (this->log_buffer_->get_message_main_loop(&message)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
+      LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, message->text,
-                                                message->text_length);
+                                                message->text_length, buf);
       this->log_buffer_->release_message_main_loop();
-      this->write_tx_buffer_to_console_();
+      this->write_log_buffer_to_console_(buf);
     }
 #elif defined(USE_ESP32)
     logger::TaskLogBuffer::LogMessage *message;
@@ -251,22 +199,24 @@ void Logger::process_messages_() {
     void *received_token;
     while (this->log_buffer_->borrow_message_main_loop(&message, &text, &received_token)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
+      LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
-                                                message->text_length);
+                                                message->text_length, buf);
       // Release the message to allow other tasks to use it as soon as possible
       this->log_buffer_->release_message_main_loop(received_token);
-      this->write_tx_buffer_to_console_();
+      this->write_log_buffer_to_console_(buf);
     }
 #elif defined(USE_LIBRETINY)
     logger::TaskLogBufferLibreTiny::LogMessage *message;
     const char *text;
     while (this->log_buffer_->borrow_message_main_loop(&message, &text)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
+      LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
-                                                message->text_length);
+                                                message->text_length, buf);
       // Release the message to allow other tasks to use it as soon as possible
       this->log_buffer_->release_message_main_loop();
-      this->write_tx_buffer_to_console_();
+      this->write_log_buffer_to_console_(buf);
     }
 #endif
   }

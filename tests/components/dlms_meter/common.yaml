@@ -1,0 +1,27 @@
+sensor:
+  - platform: dlms_meter
+    voltage_l1:
+      name: "Voltage L1"
+    voltage_l2:
+      name: "Voltage L2"
+    voltage_l3:
+      name: "Voltage L3"
+    current_l1:
+      name: "Current L1"
+    current_l2:
+      name: "Current L2"
+    current_l3:
+      name: "Current L3"
+    active_power_plus:
+      name: "Active power taken from grid"
+    active_power_minus:
+      name: "Active power put into grid"
+    active_energy_plus:
+      name: "Active energy taken from grid"
+    active_energy_minus:
+      name: "Active energy put into grid"
+
+text_sensor:
+  - platform: dlms_meter
+    timestamp:
+      name: "timestamp"
