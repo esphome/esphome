@@ -34,6 +34,7 @@ from esphome.core import CORE, EsphomeError
 
 _LOGGER = logging.getLogger(__name__)
 
+BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
 MANIFEST_FILENAME = "manifest.json"
 CURRENT_MANIFEST_VERSION = 1
 MAX_DECOMPRESSED_SIZE = 500 * 1024 * 1024  # 500 MB
@@ -205,7 +206,14 @@ class ConfigBundleCreator:
         used_secret_keys = _find_used_secret_keys(yaml_sources)
         filtered_secrets = self._build_filtered_secrets(used_secret_keys)
 
-        manifest = self._build_manifest(files, has_secrets=bool(filtered_secrets))
+        has_secrets = bool(filtered_secrets)
+        if has_secrets:
+            _LOGGER.warning(
+                "Bundle contains secrets (e.g. Wi-Fi passwords). "
+                "Do not share it with untrusted parties."
+            )
+
+        manifest = self._build_manifest(files, has_secrets=has_secrets)
 
         buf = io.BytesIO()
         with tarfile.open(fileobj=buf, mode="w:gz") as tar:
@@ -570,9 +578,6 @@ def _validate_tar_members(tar: tarfile.TarFile, target_dir: Path) -> None:
                 f"Invalid bundle: decompressed size exceeds "
                 f"{MAX_DECOMPRESSED_SIZE // (1024 * 1024)}MB limit"
             )
-
-
-BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
 
 
 def is_bundle_path(path: Path) -> bool:
