@@ -146,7 +146,10 @@ void AXS5106Touchscreen::continue_setup_() {
 }
 
 void AXS5106Touchscreen::update_touches() {
-  GesturePacket gp{{0}};
+  // Don't bother if setup is not complete
+  if (!this->setup_complete_) {
+    return;
+  }
 
   /* This bit is a little stupid.  You can't use `read_register` here
    * because the micro needs a little rest before actually having
@@ -162,7 +165,11 @@ void AXS5106Touchscreen::update_touches() {
     ESP_LOGE(TAG, "Read failed");
     return;
   }
+
   delayMicroseconds(45);
+
+  // late init of this var in-case we don't get this far
+  GesturePacket gp{{0}};
   this->read_bytes_raw(gp.raw, sizeof gp.raw);
 
   this->status_clear_warning();
