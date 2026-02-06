@@ -36,6 +36,7 @@ extern "C" {
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/util.h"
 
 namespace esphome::wifi {
@@ -398,36 +399,22 @@ class WiFiMockClass : public ESP8266WiFiGenericClass {
   static void _event_callback(void *event) { ESP8266WiFiGenericClass::_eventCallback(event); }  // NOLINT
 };
 
+// Auth mode strings indexed by AUTH_* constants (0-4), with UNKNOWN at last index
+// Static asserts verify the SDK constants are contiguous as expected
+static_assert(AUTH_OPEN == 0 && AUTH_WEP == 1 && AUTH_WPA_PSK == 2 && AUTH_WPA2_PSK == 3 && AUTH_WPA_WPA2_PSK == 4,
+              "AUTH_* constants are not contiguous");
+PROGMEM_STRING_TABLE(AuthModeStrings, "OPEN", "WEP", "WPA PSK", "WPA2 PSK", "WPA/WPA2 PSK", "UNKNOWN");
+
 const LogString *get_auth_mode_str(uint8_t mode) {
-  switch (mode) {
-    case AUTH_OPEN:
-      return LOG_STR("OPEN");
-    case AUTH_WEP:
-      return LOG_STR("WEP");
-    case AUTH_WPA_PSK:
-      return LOG_STR("WPA PSK");
-    case AUTH_WPA2_PSK:
-      return LOG_STR("WPA2 PSK");
-    case AUTH_WPA_WPA2_PSK:
-      return LOG_STR("WPA/WPA2 PSK");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return AuthModeStrings::get_log_str(mode, AuthModeStrings::LAST_INDEX);
 }
-const LogString *get_op_mode_str(uint8_t mode) {
-  switch (mode) {
-    case WIFI_OFF:
-      return LOG_STR("OFF");
-    case WIFI_STA:
-      return LOG_STR("STA");
-    case WIFI_AP:
-      return LOG_STR("AP");
-    case WIFI_AP_STA:
-      return LOG_STR("AP+STA");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-}
+
+// WiFi op mode strings indexed by WIFI_* constants (0-3), with UNKNOWN at last index
+static_assert(WIFI_OFF == 0 && WIFI_STA == 1 && WIFI_AP == 2 && WIFI_AP_STA == 3,
+              "WIFI_* op mode constants are not contiguous");
+PROGMEM_STRING_TABLE(OpModeStrings, "OFF", "STA", "AP", "AP+STA", "UNKNOWN");
+
+const LogString *get_op_mode_str(uint8_t mode) { return OpModeStrings::get_log_str(mode, OpModeStrings::LAST_INDEX); }
 
 const LogString *get_disconnect_reason_str(uint8_t reason) {
   /* If this were one big switch statement, GCC would generate a lookup table for it. However, the values of the
@@ -520,16 +507,6 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       // This ensures wifi.connected condition returns true in listener automations
       global_wifi_component->pending_.connect_state = true;
 #endif
-      // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
-#if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
-      if (const WiFiAP *config = global_wifi_component->get_selected_sta_();
-          config && config->get_manual_ip().has_value()) {
-        for (auto *listener : global_wifi_component->ip_state_listeners_) {
-          listener->on_ip_state(global_wifi_component->wifi_sta_ip_addresses(),
-                                global_wifi_component->get_dns_address(0), global_wifi_component->get_dns_address(1));
-        }
-      }
-#endif
       break;
     }
     case EVENT_STAMODE_DISCONNECTED: {
@@ -547,16 +524,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       }
       s_sta_connected = false;
       s_sta_connecting = false;
-      // IMPORTANT: Set error flag BEFORE notifying listeners.
-      // This ensures is_connected() returns false during listener callbacks,
-      // which is critical for proper reconnection logic (e.g., roaming).
       global_wifi_component->error_from_callback_ = true;
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-      // Notify listeners AFTER setting error flag so they see correct state
-      static constexpr uint8_t EMPTY_BSSID[6] = {};
-      for (auto *listener : global_wifi_component->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
-      }
+      global_wifi_component->pending_.disconnect = true;
 #endif
       break;
     }
@@ -568,8 +538,6 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
       if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
         ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
-        // we can't call retry_connect() from this context, so disconnect immediately
-        // and notify main thread with error_from_callback_
         wifi_station_disconnect();
         global_wifi_component->error_from_callback_ = true;
       }
@@ -583,10 +551,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
                network::IPAddress(&it.gw).str_to(gw_buf), network::IPAddress(&it.mask).str_to(mask_buf));
       s_sta_got_ip = true;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-      for (auto *listener : global_wifi_component->ip_state_listeners_) {
-        listener->on_ip_state(global_wifi_component->wifi_sta_ip_addresses(), global_wifi_component->get_dns_address(0),
-                              global_wifi_component->get_dns_address(1));
-      }
+      // Defer listener callbacks to main loop - system context has limited stack
+      global_wifi_component->pending_.got_ip = true;
 #endif
       break;
     }
@@ -798,9 +764,7 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
            needs_full ? "" : " (filtered)");
   this->scan_done_ = true;
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
-  for (auto *listener : global_wifi_component->scan_results_listeners_) {
-    listener->on_wifi_scan_results(global_wifi_component->scan_result_);
-  }
+  this->pending_.scan_complete = true;  // Defer listener callbacks to main loop
 #endif
 }
 
@@ -987,7 +951,34 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() {
   return network::IPAddress(&ip.gw);
 }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddress(dns_getserver(num)); }
-void WiFiComponent::wifi_loop_() {}
+void WiFiComponent::wifi_loop_() { this->process_pending_callbacks_(); }
+
+void WiFiComponent::process_pending_callbacks_() {
+  // Process callbacks deferred from ESP8266 SDK system context (~2KB stack)
+  // to main loop context (full stack). Connect state listeners are handled
+  // by notify_connect_state_listeners_() in the shared state machine code.
+
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+  if (this->pending_.disconnect) {
+    this->pending_.disconnect = false;
+    this->notify_disconnect_state_listeners_();
+  }
+#endif
+
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+  if (this->pending_.got_ip) {
+    this->pending_.got_ip = false;
+    this->notify_ip_state_listeners_();
+  }
+#endif
+
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
+  if (this->pending_.scan_complete) {
+    this->pending_.scan_complete = false;
+    this->notify_scan_results_listeners_();
+  }
+#endif
+}
 
 }  // namespace esphome::wifi
 #endif
