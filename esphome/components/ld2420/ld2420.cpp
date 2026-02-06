@@ -335,9 +335,10 @@ void LD2420Component::revert_config_action() {
 
 void LD2420Component::loop() {
   // If there is a active send command do not process it here, the send command call will handle it.
-  while (!this->cmd_active_ && this->available()) {
-    this->readline_(this->read(), this->buffer_data_, MAX_LINE_LENGTH);
+  if (this->cmd_active_) {
+    return;
   }
+  this->read_batch_(this->buffer_data_);
 }
 
 void LD2420Component::update_radar_data(uint16_t const *gate_energy, uint8_t sample_number) {
@@ -539,6 +540,27 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
   }
 }
 
+void LD2420Component::read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer) {
+  int avail = this->available();
+  if (avail == 0) {
+    return;
+  }
+
+  // Read all available bytes in batches to reduce UART call overhead.
+  uint8_t buf[MAX_LINE_LENGTH];
+  while (avail > 0) {
+    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+
+    for (size_t i = 0; i < to_read; i++) {
+      this->readline_(buf[i], buffer.data(), buffer.size());
+    }
+  }
+}
+
 void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
   this->cmd_reply_.command = buffer[CMD_FRAME_COMMAND];
   this->cmd_reply_.length = buffer[CMD_FRAME_DATA_LENGTH];
@@ -645,9 +667,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
     }
 
     while (!this->cmd_reply_.ack) {
-      while (this->available()) {
-        this->readline_(this->read(), ack_buffer, sizeof(ack_buffer));
-      }
+      this->read_batch_(ack_buffer);
       delay_microseconds_safe(1450);
       // Wait on an Rx from the LD2420 for up to 3 1 second loops, otherwise it could trigger a WDT.
       if ((millis() - start_millis) > 1000) {
