@@ -23,7 +23,7 @@ class APIServerConnectionBase : public ProtoService {
     DumpBuffer dump_buf;
     this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));
 #endif
-    return this->send_message_(msg, message_type);
+    return this->send_message_impl(msg, message_type);
   }
 
   virtual void on_hello_request(const HelloRequest &value){};
