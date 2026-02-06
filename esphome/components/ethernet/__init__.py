@@ -431,9 +431,6 @@ async def to_code(config):
         # Add LAN867x 10BASE-T1S PHY support component
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
 
-    if CORE.using_arduino:
-        cg.add_library("WiFi", None)
-
     if on_connect_config := config.get(CONF_ON_CONNECT):
         cg.add_define("USE_ETHERNET_CONNECT_TRIGGER")
         await automation.build_automation(
