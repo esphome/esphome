@@ -25,7 +25,8 @@ enum class ChunkedState : uint8_t {
   CHUNK_HEADER_EXT,  ///< Skipping chunk extensions until \n
   CHUNK_DATA,        ///< Reading chunk data bytes
   CHUNK_DATA_TRAIL,  ///< Skipping \r\n after chunk data
-  COMPLETE,          ///< Received final 0-size chunk
+  CHUNK_TRAILER,     ///< Consuming trailer headers after final 0-size chunk
+  COMPLETE,          ///< Finished: final chunk and trailers consumed
 };
 
 class HttpContainerArduino : public HttpContainer {
@@ -39,6 +40,8 @@ class HttpContainerArduino : public HttpContainer {
 
   /// Decode chunked transfer encoding from the raw stream
   int read_chunked_(uint8_t *buf, size_t max_len, WiFiClient *stream);
+  /// Transition from chunk header to data or trailer based on parsed size
+  void chunk_header_complete_();
   ChunkedState chunk_state_{ChunkedState::CHUNK_HEADER};
   size_t chunk_remaining_{0};  ///< Bytes remaining in current chunk
 };
