@@ -12,7 +12,6 @@ from .const import (
     CORE_SUBCATEGORY_PATTERNS,
     DEMANGLED_PATTERNS,
     ESPHOME_COMPONENT_PATTERN,
-    SECTION_TO_ATTR,
     SYMBOL_PATTERNS,
 )
 from .demangle import batch_demangle
@@ -90,6 +89,17 @@ class ComponentMemory:
     data_size: int = 0  # Initialized data (flash + ram)
     bss_size: int = 0  # Uninitialized data (ram only)
     symbol_count: int = 0
+
+    def add_section_size(self, section_name: str, size: int) -> None:
+        """Add size to the appropriate attribute for a section."""
+        if section_name == ".text":
+            self.text_size += size
+        elif section_name == ".rodata":
+            self.rodata_size += size
+        elif section_name == ".data":
+            self.data_size += size
+        elif section_name == ".bss":
+            self.bss_size += size
 
     @property
     def flash_total(self) -> int:
@@ -258,8 +268,7 @@ class MemoryAnalyzer:
                 comp_mem.symbol_count += 1
 
                 # Update the appropriate size attribute based on section
-                if attr_name := SECTION_TO_ATTR.get(section_name):
-                    setattr(comp_mem, attr_name, getattr(comp_mem, attr_name) + size)
+                comp_mem.add_section_size(section_name, size)
 
                 # Track uncategorized symbols
                 if component == "other" and size > 0:
@@ -407,8 +416,8 @@ class MemoryAnalyzer:
         if not self.nm_path:
             return cswtch_map
 
-        # Find all .o files recursively
-        obj_files = list(obj_dir.rglob("*.o"))
+        # Find all .o files recursively, sorted for deterministic output
+        obj_files = sorted(obj_dir.rglob("*.o"))
         if not obj_files:
             return cswtch_map
 
@@ -511,9 +520,10 @@ class MemoryAnalyzer:
             return
 
         # Collect CSWTCH symbols from the ELF (already parsed in sections)
+        # Include section_name for re-attribution of component totals
         elf_cswtch = [
-            (symbol_name, size)
-            for section in self.sections.values()
+            (symbol_name, size, section_name)
+            for section_name, section in self.sections.items()
             for symbol_name, size, _ in section.symbols
             if symbol_name.startswith("CSWTCH$")
         ]
@@ -524,8 +534,13 @@ class MemoryAnalyzer:
             len(cswtch_map),
         )
 
-        # Match ELF CSWTCH symbols to source files
-        for sym_name, size in elf_cswtch:
+        # Match ELF CSWTCH symbols to source files and re-attribute component totals.
+        # _categorize_symbols() already ran and put these into "other" since CSWTCH$
+        # names don't match any component pattern. We move the bytes to the correct
+        # component based on the object file mapping.
+        other_mem = self.components.get("other")
+
+        for sym_name, size, section_name in elf_cswtch:
             key = f"{sym_name}:{size}"
             sources = cswtch_map.get(key, [])
 
@@ -534,20 +549,30 @@ class MemoryAnalyzer:
                 component = self._source_file_to_component(source_file)
             elif len(sources) > 1:
                 # Ambiguous - multiple object files have same CSWTCH name+size
-                source_file = sources[0][0]  # Use first match
-                component = self._source_file_to_component(source_file)
+                source_file = "ambiguous"
+                component = "ambiguous"
                 _LOGGER.debug(
-                    "Ambiguous CSWTCH %s (%d B) found in %d files, using %s",
+                    "Ambiguous CSWTCH %s (%d B) found in %d files: %s",
                     sym_name,
                     size,
                     len(sources),
-                    source_file,
+                    ", ".join(src for src, _ in sources),
                 )
             else:
                 source_file = "unknown"
                 component = "unknown"
 
             self._cswtch_symbols.append((sym_name, size, source_file, component))
+
+            # Re-attribute from "other" to the correct component
+            if (
+                component not in ("other", "unknown", "ambiguous")
+                and other_mem is not None
+            ):
+                other_mem.add_section_size(section_name, -size)
+                if component not in self.components:
+                    self.components[component] = ComponentMemory(component)
+                self.components[component].add_section_size(section_name, size)
 
         # Sort by size descending
         self._cswtch_symbols.sort(key=lambda x: x[1], reverse=True)
