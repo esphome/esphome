@@ -4,6 +4,7 @@
 #include "light_state.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::light {
 
@@ -51,26 +52,13 @@ static void log_invalid_parameter(const char *name, const LogString *message) {
     return *this; \
   }
 
+// Color mode human-readable strings indexed by ColorModeBitPolicy::to_bit() (0-9)
+// Index 0 is Unknown (for ColorMode::UNKNOWN), also used as fallback for out-of-range
+PROGMEM_STRING_TABLE(ColorModeHumanStrings, "Unknown", "On/Off", "Brightness", "White", "Color temperature",
+                     "Cold/warm white", "RGB", "RGBW", "RGB + color temperature", "RGB + cold/warm white");
+
 static const LogString *color_mode_to_human(ColorMode color_mode) {
-  if (color_mode == ColorMode::ON_OFF)
-    return LOG_STR("On/Off");
-  if (color_mode == ColorMode::BRIGHTNESS)
-    return LOG_STR("Brightness");
-  if (color_mode == ColorMode::WHITE)
-    return LOG_STR("White");
-  if (color_mode == ColorMode::COLOR_TEMPERATURE)
-    return LOG_STR("Color temperature");
-  if (color_mode == ColorMode::COLD_WARM_WHITE)
-    return LOG_STR("Cold/warm white");
-  if (color_mode == ColorMode::RGB)
-    return LOG_STR("RGB");
-  if (color_mode == ColorMode::RGB_WHITE)
-    return LOG_STR("RGBW");
-  if (color_mode == ColorMode::RGB_COLD_WARM_WHITE)
-    return LOG_STR("RGB + cold/warm white");
-  if (color_mode == ColorMode::RGB_COLOR_TEMPERATURE)
-    return LOG_STR("RGB + color temperature");
-  return LOG_STR("Unknown");
+  return ColorModeHumanStrings::get_log_str(ColorModeBitPolicy::to_bit(color_mode), 0);
 }
 
 // Helper to log percentage values
