@@ -1,6 +1,7 @@
 #include "homeassistant_switch.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome {
 namespace homeassistant {
@@ -10,7 +11,7 @@ static const char *const TAG = "homeassistant.switch";
 using namespace esphome::switch_;
 
 void HomeassistantSwitch::setup() {
-  api::global_api_server->subscribe_home_assistant_state(this->entity_id_, nullptr, [this](const std::string &state) {
+  api::global_api_server->subscribe_home_assistant_state(this->entity_id_, nullptr, [this](StringRef state) {
     auto val = parse_on_off(state.c_str());
     switch (val) {
       case PARSE_NONE:
@@ -46,15 +47,15 @@ void HomeassistantSwitch::write_state(bool state) {
 
   api::HomeassistantActionRequest resp;
   if (state) {
-    resp.set_service(SERVICE_ON);
+    resp.service = SERVICE_ON;
   } else {
-    resp.set_service(SERVICE_OFF);
+    resp.service = SERVICE_OFF;
   }
 
   resp.data.init(1);
   auto &entity_id_kv = resp.data.emplace_back();
-  entity_id_kv.set_key(ENTITY_ID_KEY);
-  entity_id_kv.value = this->entity_id_;
+  entity_id_kv.key = ENTITY_ID_KEY;
+  entity_id_kv.value = StringRef(this->entity_id_);
 
   api::global_api_server->send_homeassistant_action(resp);
 }

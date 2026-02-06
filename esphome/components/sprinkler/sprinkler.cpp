@@ -16,7 +16,7 @@ void SprinklerControllerNumber::setup() {
   if (!this->restore_value_) {
     value = this->initial_value_;
   } else {
-    this->pref_ = global_preferences->make_preference<float>(this->get_preference_hash());
+    this->pref_ = this->make_entity_preference<float>();
     if (!this->pref_.load(&value)) {
       if (!std::isnan(this->initial_value_)) {
         value = this->initial_value_;
@@ -29,7 +29,7 @@ void SprinklerControllerNumber::setup() {
 }
 
 void SprinklerControllerNumber::control(float value) {
-  this->set_trigger_->trigger(value);
+  this->set_trigger_.trigger(value);
 
   this->publish_state(value);
 
@@ -39,17 +39,14 @@ void SprinklerControllerNumber::control(float value) {
 
 void SprinklerControllerNumber::dump_config() { LOG_NUMBER("", "Sprinkler Controller Number", this); }
 
-SprinklerControllerSwitch::SprinklerControllerSwitch()
-    : turn_on_trigger_(new Trigger<>()), turn_off_trigger_(new Trigger<>()) {}
+SprinklerControllerSwitch::SprinklerControllerSwitch() = default;
 
 void SprinklerControllerSwitch::loop() {
-  if (!this->f_.has_value())
-    return;
+  // Loop is only enabled when f_ has a value (see setup())
   auto s = (*this->f_)();
-  if (!s.has_value())
-    return;
-
-  this->publish_state(*s);
+  if (s.has_value()) {
+    this->publish_state(*s);
+  }
 }
 
 void SprinklerControllerSwitch::write_state(bool state) {
@@ -58,11 +55,11 @@ void SprinklerControllerSwitch::write_state(bool state) {
   }
 
   if (state) {
-    this->prev_trigger_ = this->turn_on_trigger_;
-    this->turn_on_trigger_->trigger();
+    this->prev_trigger_ = &this->turn_on_trigger_;
+    this->turn_on_trigger_.trigger();
   } else {
-    this->prev_trigger_ = this->turn_off_trigger_;
-    this->turn_off_trigger_->trigger();
+    this->prev_trigger_ = &this->turn_off_trigger_;
+    this->turn_off_trigger_.trigger();
   }
 
   this->publish_state(state);
@@ -71,10 +68,13 @@ void SprinklerControllerSwitch::write_state(bool state) {
 void SprinklerControllerSwitch::set_state_lambda(std::function<optional<bool>()> &&f) { this->f_ = f; }
 float SprinklerControllerSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-Trigger<> *SprinklerControllerSwitch::get_turn_on_trigger() const { return this->turn_on_trigger_; }
-Trigger<> *SprinklerControllerSwitch::get_turn_off_trigger() const { return this->turn_off_trigger_; }
-
-void SprinklerControllerSwitch::setup() { this->state = this->get_initial_state_with_restore_mode().value_or(false); }
+void SprinklerControllerSwitch::setup() {
+  this->state = this->get_initial_state_with_restore_mode().value_or(false);
+  // Disable loop if no state lambda is set - nothing to poll
+  if (!this->f_.has_value()) {
+    this->disable_loop();
+  }
+}
 
 void SprinklerControllerSwitch::dump_config() { LOG_SWITCH("", "Sprinkler Switch", this); }
 
@@ -327,24 +327,32 @@ SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this
 
 SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
 
-Sprinkler::Sprinkler() {}
-Sprinkler::Sprinkler(const std::string &name) {
-  // The `name` is needed to set timers up, hence non-default constructor
-  // replaces `set_name()` method previously existed
-  this->name_ = name;
-  this->timer_.push_back({this->name_ + "sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)});
-  this->timer_.push_back({this->name_ + "vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
+Sprinkler::Sprinkler() : Sprinkler("") {}
+Sprinkler::Sprinkler(const char *name) : name_(name) {
+  // The `name` is stored for dump_config logging
+  this->timer_.init(2);
+  // Timer names only need to be unique within this component instance
+  this->timer_.push_back({"sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)});
+  this->timer_.push_back({"vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
 }
 
-void Sprinkler::setup() { this->all_valves_off_(true); }
+void Sprinkler::setup() {
+  this->all_valves_off_(true);
+  // Start with loop disabled - nothing to do when idle
+  this->disable_loop();
+}
 
 void Sprinkler::loop() {
   for (auto &vo : this->valve_op_) {
     vo.loop();
   }
-  if (this->prev_req_.has_request() && this->prev_req_.has_valve_operator() &&
-      this->prev_req_.valve_operator()->state() == IDLE) {
-    this->prev_req_.reset();
+  if (this->prev_req_.has_request()) {
+    if (this->prev_req_.has_valve_operator() && this->prev_req_.valve_operator()->state() == IDLE) {
+      this->prev_req_.reset();
+    }
+  } else if (this->state_ == IDLE) {
+    // Nothing more to do - disable loop until next activation
+    this->disable_loop();
   }
 }
 
@@ -1332,6 +1340,8 @@ void Sprinkler::start_valve_(SprinklerValveRunRequest *req) {
   if (!this->is_a_valid_valve(req->valve())) {
     return;  // we can't do anything if the valve number isn't valid
   }
+  // Enable loop to monitor valve operator states
+  this->enable_loop();
   for (auto &vo : this->valve_op_) {  // find the first available SprinklerValveOperator, load it and start it up
     if (vo.state() == IDLE) {
       auto run_duration = req->run_duration() ? req->run_duration() : this->valve_run_duration_adjusted(req->valve());
@@ -1616,7 +1626,7 @@ void Sprinkler::sm_timer_callback_() {
 }
 
 void Sprinkler::dump_config() {
-  ESP_LOGCONFIG(TAG, "Sprinkler Controller -- %s", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Sprinkler Controller -- %s", this->name_);
   if (this->manual_selection_delay_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Manual Selection Delay: %" PRIu32 " seconds", this->manual_selection_delay_.value_or(0));
   }

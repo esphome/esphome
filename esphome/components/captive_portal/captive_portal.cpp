@@ -54,8 +54,13 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
            "  SSID='%s'\n"
            "  Password=" LOG_SECRET("'%s'"),
            ssid.c_str(), psk.c_str());
+#ifdef USE_ESP8266
+  // ESP8266 is single-threaded, call directly
+  wifi::global_wifi_component->save_wifi_sta(ssid, psk);
+#else
   // Defer save to main loop thread to avoid NVS operations from HTTP thread
   this->defer([ssid, psk]() { wifi::global_wifi_component->save_wifi_sta(ssid, psk); });
+#endif
   request->redirect(ESPHOME_F("/?save"));
 }
 
@@ -91,10 +96,16 @@ void CaptivePortal::start() {
 }
 
 void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
-  if (req->url() == ESPHOME_F("/config.json")) {
+#ifdef USE_ESP32
+  char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  StringRef url = req->url_to(url_buf);
+#else
+  const auto &url = req->url();
+#endif
+  if (url == ESPHOME_F("/config.json")) {
     this->handle_config(req);
     return;
-  } else if (req->url() == ESPHOME_F("/wifisave")) {
+  } else if (url == ESPHOME_F("/wifisave")) {
     this->handle_wifisave(req);
     return;
   }
@@ -107,7 +118,11 @@ void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
 #else
   auto *response = req->beginResponse_P(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
 #endif
+#ifdef USE_CAPTIVE_PORTAL_GZIP
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
+#else
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("br"));
+#endif
   req->send(response);
 }
 

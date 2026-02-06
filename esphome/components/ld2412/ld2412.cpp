@@ -128,6 +128,8 @@ constexpr Uint8ToString OUT_PIN_LEVELS_BY_UINT[] = {
     {OUT_PIN_LEVEL_HIGH, "high"},
 };
 
+constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
+
 // Helper functions for lookups
 template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const char *str) {
   for (const auto &entry : arr) {
@@ -293,9 +295,10 @@ void LD2412Component::read_all_info() {
 #endif
   this->set_config_mode_(false);
 #ifdef USE_SELECT
-  const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
   if (this->baud_rate_select_ != nullptr) {
-    this->baud_rate_select_->publish_state(baud_rate);
+    if (auto index = ld24xx::find_index(BAUD_RATES, this->parent_->get_baud_rate())) {
+      this->baud_rate_select_->publish_state(*index);
+    }
   }
 #endif
 }
@@ -483,7 +486,8 @@ bool LD2412Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Baud rate change");
 #ifdef USE_SELECT
       if (this->baud_rate_select_ != nullptr) {
-        ESP_LOGW(TAG, "Change baud rate to %s and reinstall", this->baud_rate_select_->current_option());
+        auto baud = this->baud_rate_select_->current_option();
+        ESP_LOGW(TAG, "Change baud rate to %.*s and reinstall", (int) baud.size(), baud.c_str());
       }
 #endif
       break;
@@ -787,7 +791,7 @@ void LD2412Component::set_basic_config() {
       1,    TOTAL_GATES, DEFAULT_PRESENCE_TIMEOUT, 0,
 #endif
 #ifdef USE_SELECT
-      find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option()),
+      find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().c_str()),
 #else
       0x01,  // Default value if not using select
 #endif
@@ -841,7 +845,7 @@ void LD2412Component::set_light_out_control() {
 #endif
 #ifdef USE_SELECT
   if (this->light_function_select_ != nullptr && this->light_function_select_->has_state()) {
-    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->current_option());
+    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->current_option().c_str());
   }
 #endif
   uint8_t value[2] = {this->light_function_, this->light_threshold_};

@@ -1825,8 +1825,10 @@ void WaveshareEPaper2P9InV2R2::write_lut_(const uint8_t *lut, const uint8_t size
 
 void WaveshareEPaper2P9InV2R2::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
-  ESP_LOGCONFIG(TAG, "  Model: 2.9inV2R2");
-  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
+  ESP_LOGCONFIG(TAG,
+                "  Model: 2.9inV2R2\n"
+                "  Full Update Every: %" PRIu32,
+                this->full_update_every_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
@@ -2528,8 +2530,10 @@ int GDEY042T81::get_height_internal() { return 300; }
 uint32_t GDEY042T81::idle_timeout_() { return 5000; }
 void GDEY042T81::dump_config() {
   LOG_DISPLAY("", "GoodDisplay E-Paper", this);
-  ESP_LOGCONFIG(TAG, "  Model: 4.2in B/W GDEY042T81");
-  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
+  ESP_LOGCONFIG(TAG,
+                "  Model: 4.2in B/W GDEY042T81\n"
+                "  Full Update Every: %" PRIu32,
+                this->full_update_every_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
@@ -3159,8 +3163,10 @@ int GDEY0583T81::get_height_internal() { return 480; }
 uint32_t GDEY0583T81::idle_timeout_() { return 5000; }
 void GDEY0583T81::dump_config() {
   LOG_DISPLAY("", "GoodDisplay E-Paper", this);
-  ESP_LOGCONFIG(TAG, "  Model: 5.83in B/W GDEY0583T81");
-  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
+  ESP_LOGCONFIG(TAG,
+                "  Model: 5.83in B/W GDEY0583T81\n"
+                "  Full Update Every: %" PRIu32,
+                this->full_update_every_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
@@ -4340,8 +4346,10 @@ int WaveshareEPaper7P5InV2P::get_height_internal() { return 480; }
 uint32_t WaveshareEPaper7P5InV2P::idle_timeout_() { return 10000; }
 void WaveshareEPaper7P5InV2P::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
-  ESP_LOGCONFIG(TAG, "  Model: 7.50inv2p");
-  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
+  ESP_LOGCONFIG(TAG,
+                "  Model: 7.50inv2p\n"
+                "  Full Update Every: %" PRIu32,
+                this->full_update_every_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);

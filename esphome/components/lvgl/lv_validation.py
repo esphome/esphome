@@ -413,6 +413,7 @@ class TextValidator(LValidator):
                 str_args = [str(x) for x in value[CONF_ARGS]]
                 arg_expr = cg.RawExpression(",".join(str_args))
                 format_str = cpp_string_escape(format_str)
+                # str_sprintf justified: user-defined format, can't optimize without permanent RAM cost
                 sprintf_str = f"str_sprintf({format_str}, {arg_expr}).c_str()"
                 if nanval := value.get(CONF_IF_NAN):
                     nanval = cpp_string_escape(nanval)

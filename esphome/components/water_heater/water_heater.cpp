@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/controller_registry.h"
+#include "esphome/core/progmem.h"
 
 #include <cmath>
 
@@ -22,23 +23,23 @@ WaterHeaterCall &WaterHeaterCall::set_mode(WaterHeaterMode mode) {
   return *this;
 }
 
-WaterHeaterCall &WaterHeaterCall::set_mode(const std::string &mode) {
-  if (str_equals_case_insensitive(mode, "OFF")) {
+WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode) {
+  if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("OFF")) == 0) {
     this->set_mode(WATER_HEATER_MODE_OFF);
-  } else if (str_equals_case_insensitive(mode, "ECO")) {
+  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("ECO")) == 0) {
     this->set_mode(WATER_HEATER_MODE_ECO);
-  } else if (str_equals_case_insensitive(mode, "ELECTRIC")) {
+  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("ELECTRIC")) == 0) {
     this->set_mode(WATER_HEATER_MODE_ELECTRIC);
-  } else if (str_equals_case_insensitive(mode, "PERFORMANCE")) {
+  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("PERFORMANCE")) == 0) {
     this->set_mode(WATER_HEATER_MODE_PERFORMANCE);
-  } else if (str_equals_case_insensitive(mode, "HIGH_DEMAND")) {
+  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("HIGH_DEMAND")) == 0) {
     this->set_mode(WATER_HEATER_MODE_HIGH_DEMAND);
-  } else if (str_equals_case_insensitive(mode, "HEAT_PUMP")) {
+  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("HEAT_PUMP")) == 0) {
     this->set_mode(WATER_HEATER_MODE_HEAT_PUMP);
-  } else if (str_equals_case_insensitive(mode, "GAS")) {
+  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("GAS")) == 0) {
     this->set_mode(WATER_HEATER_MODE_GAS);
   } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized mode %s", this->parent_->get_name().c_str(), mode.c_str());
+    ESP_LOGW(TAG, "'%s' - Unrecognized mode %s", this->parent_->get_name().c_str(), mode);
   }
   return *this;
 }
@@ -146,14 +147,10 @@ void WaterHeaterCall::validate_() {
   }
 }
 
-void WaterHeater::setup() {
-  this->pref_ = global_preferences->make_preference<SavedWaterHeaterState>(this->get_preference_hash());
-}
-
 void WaterHeater::publish_state() {
   auto traits = this->get_traits();
   ESP_LOGD(TAG,
-           "'%s' - Sending state:\n"
+           "'%s' >>\n"
            "  Mode: %s",
            this->name_.c_str(), LOG_STR_ARG(water_heater_mode_to_string(this->mode_)));
   if (!std::isnan(this->current_temperature_)) {
@@ -188,7 +185,8 @@ void WaterHeater::publish_state() {
   this->pref_.save(&saved);
 }
 
-optional<WaterHeaterCall> WaterHeater::restore_state() {
+optional<WaterHeaterCall> WaterHeater::restore_state_() {
+  this->pref_ = this->make_entity_preference<SavedWaterHeaterState>();
   SavedWaterHeaterState recovered{};
   if (!this->pref_.load(&recovered))
     return {};

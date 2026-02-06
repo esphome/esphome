@@ -105,7 +105,7 @@ bool WiFiComponent::wifi_apply_power_save_() {
   }
   wifi_fpm_auto_sleep_set_in_null_mode(1);
   bool success = wifi_set_sleep_type(power_save);
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_POWER_SAVE_LISTENERS
   if (success) {
     for (auto *listener : this->power_save_listeners_) {
       listener->on_wifi_power_save(this->power_save_);
@@ -371,7 +371,8 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   while (!connected) {
     uint8_t ipv6_addr_count = 0;
     for (auto addr : addrList) {
-      ESP_LOGV(TAG, "Address %s", addr.toString().c_str());
+      char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+      ESP_LOGV(TAG, "Address %s", network::IPAddress(addr.ipFromNetifNum()).str_to(ip_buf));
       if (addr.isV6()) {
         ipv6_addr_count++;
       }
@@ -413,21 +414,6 @@ const LogString *get_auth_mode_str(uint8_t mode) {
       return LOG_STR("UNKNOWN");
   }
 }
-#ifdef ipv4_addr
-std::string format_ip_addr(struct ipv4_addr ip) {
-  char buf[20];
-  sprintf(buf, "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
-          uint8_t(ip.addr >> 24));
-  return buf;
-}
-#else
-std::string format_ip_addr(struct ip_addr ip) {
-  char buf[20];
-  sprintf(buf, "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
-          uint8_t(ip.addr >> 24));
-  return buf;
-}
-#endif
 const LogString *get_op_mode_str(uint8_t mode) {
   switch (mode) {
     case WIFI_OFF:
@@ -514,6 +500,10 @@ const LogString *get_disconnect_reason_str(uint8_t reason) {
   }
 }
 
+// TODO: This callback runs in ESP8266 system context with limited stack (~2KB).
+// All listener notifications should be deferred to wifi_loop_() via pending_ flags
+// to avoid stack overflow. Currently only connect_state is deferred; disconnect,
+// IP, and scan listeners still run in this context and should be migrated.
 void WiFiComponent::wifi_event_callback(System_Event_t *event) {
   switch (event->event) {
     case EVENT_STAMODE_CONNECTED: {
@@ -525,12 +515,13 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
                it.channel);
 #endif
       s_sta_connected = true;
-#ifdef USE_WIFI_LISTENERS
-      for (auto *listener : global_wifi_component->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
-      }
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+      // Defer listener notification until state machine reaches STA_CONNECTED
+      // This ensures wifi.connected condition returns true in listener automations
+      global_wifi_component->pending_.connect_state = true;
+#endif
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
-#ifdef USE_WIFI_MANUAL_IP
+#if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
       if (const WiFiAP *config = global_wifi_component->get_selected_sta_();
           config && config->get_manual_ip().has_value()) {
         for (auto *listener : global_wifi_component->ip_state_listeners_) {
@@ -538,7 +529,6 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
                                 global_wifi_component->get_dns_address(0), global_wifi_component->get_dns_address(1));
         }
       }
-#endif
 #endif
       break;
     }
@@ -557,7 +547,12 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       }
       s_sta_connected = false;
       s_sta_connecting = false;
-#ifdef USE_WIFI_LISTENERS
+      // IMPORTANT: Set error flag BEFORE notifying listeners.
+      // This ensures is_connected() returns false during listener callbacks,
+      // which is critical for proper reconnection logic (e.g., roaming).
+      global_wifi_component->error_from_callback_ = true;
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+      // Notify listeners AFTER setting error flag so they see correct state
       static constexpr uint8_t EMPTY_BSSID[6] = {};
       for (auto *listener : global_wifi_component->connect_state_listeners_) {
         listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
@@ -582,10 +577,12 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_STAMODE_GOT_IP: {
       auto it = event->event_info.got_ip;
-      ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", format_ip_addr(it.ip).c_str(), format_ip_addr(it.gw).c_str(),
-               format_ip_addr(it.mask).c_str());
+      char ip_buf[network::IP_ADDRESS_BUFFER_SIZE], gw_buf[network::IP_ADDRESS_BUFFER_SIZE],
+          mask_buf[network::IP_ADDRESS_BUFFER_SIZE];
+      ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", network::IPAddress(&it.ip).str_to(ip_buf),
+               network::IPAddress(&it.gw).str_to(gw_buf), network::IPAddress(&it.mask).str_to(mask_buf));
       s_sta_got_ip = true;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_IP_STATE_LISTENERS
       for (auto *listener : global_wifi_component->ip_state_listeners_) {
         listener->on_ip_state(global_wifi_component->wifi_sta_ip_addresses(), global_wifi_component->get_dns_address(0),
                               global_wifi_component->get_dns_address(1));
@@ -635,18 +632,16 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.distribute_sta_ip;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
       format_mac_addr_upper(it.mac, mac_buf);
-      ESP_LOGV(TAG, "AP Distribute Station IP MAC=%s IP=%s aid=%u", mac_buf, format_ip_addr(it.ip).c_str(), it.aid);
+      ESP_LOGV(TAG, "AP Distribute Station IP MAC=%s IP=%s aid=%u", mac_buf, network::IPAddress(&it.ip).str_to(ip_buf),
+               it.aid);
 #endif
       break;
     }
 #endif
     default:
       break;
-  }
-
-  if (event->event == EVENT_STAMODE_DISCONNECTED) {
-    global_wifi_component->error_from_callback_ = true;
   }
 
   WiFiMockClass::_event_callback(event);
@@ -707,6 +702,10 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   if (!this->wifi_mode_(true, {}))
     return false;
 
+  // Reset scan_done_ before starting new scan to prevent stale flag from previous scan
+  // (e.g., roaming scan completed just before unexpected disconnect)
+  this->scan_done_ = false;
+
   struct scan_config config {};
   memset(&config, 0, sizeof(config));
   config.ssid = nullptr;
@@ -761,26 +760,44 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
 
   if (status != OK) {
     ESP_LOGV(TAG, "Scan failed: %d", status);
-    this->retry_connect();
+    // Don't call retry_connect() here - this callback runs in SDK system context
+    // where yield() cannot be called. Instead, just set scan_done_ and let
+    // check_scanning_finished() handle the empty scan_result_ from loop context.
+    this->scan_done_ = true;
     return;
   }
 
-  // Count the number of results first
   auto *head = reinterpret_cast<bss_info *>(arg);
+  bool needs_full = this->needs_full_scan_results_();
+
+  // First pass: count matching networks (linked list is non-destructive)
+  size_t total = 0;
   size_t count = 0;
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
-    count++;
+    total++;
+    const char *ssid_cstr = reinterpret_cast<const char *>(it->ssid);
+    if (needs_full || this->matches_configured_network_(ssid_cstr, it->bssid)) {
+      count++;
+    }
   }
 
-  this->scan_result_.init(count);
+  this->scan_result_.init(count);  // Exact allocation
+
+  // Second pass: store matching networks
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
-    this->scan_result_.emplace_back(
-        bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
-        std::string(reinterpret_cast<char *>(it->ssid), it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN,
-        it->is_hidden != 0);
+    const char *ssid_cstr = reinterpret_cast<const char *>(it->ssid);
+    if (needs_full || this->matches_configured_network_(ssid_cstr, it->bssid)) {
+      this->scan_result_.emplace_back(
+          bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
+          std::string(ssid_cstr, it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN, it->is_hidden != 0);
+    } else {
+      this->log_discarded_scan_result_(ssid_cstr, it->bssid, it->rssi, it->channel);
+    }
   }
+  ESP_LOGV(TAG, "Scan complete: %zu found, %zu stored%s", total, this->scan_result_.size(),
+           needs_full ? "" : " (filtered)");
   this->scan_done_ = true;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
   for (auto *listener : global_wifi_component->scan_results_listeners_) {
     listener->on_wifi_scan_results(global_wifi_component->scan_result_);
   }
@@ -929,7 +946,16 @@ bssid_t WiFiComponent::wifi_bssid() {
   }
   return bssid;
 }
-std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
+std::string WiFiComponent::wifi_ssid() {
+  struct station_config conf {};
+  if (!wifi_station_get_config(&conf)) {
+    return "";
+  }
+  // conf.ssid is uint8[32], not null-terminated if full
+  auto *ssid_s = reinterpret_cast<const char *>(conf.ssid);
+  size_t len = strnlen(ssid_s, sizeof(conf.ssid));
+  return {ssid_s, len};
+}
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
   struct station_config conf {};
   if (!wifi_station_get_config(&conf)) {
@@ -943,16 +969,24 @@ const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer
   return buffer.data();
 }
 int8_t WiFiComponent::wifi_rssi() {
-  if (WiFi.status() != WL_CONNECTED)
+  if (wifi_station_get_connect_status() != STATION_GOT_IP)
     return WIFI_RSSI_DISCONNECTED;
-  int8_t rssi = WiFi.RSSI();
+  sint8 rssi = wifi_station_get_rssi();
   // Values >= 31 are error codes per NONOS SDK API, not valid RSSI readings
   return rssi >= 31 ? WIFI_RSSI_DISCONNECTED : rssi;
 }
-int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
-network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {(const ip_addr_t *) WiFi.subnetMask()}; }
-network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t *) WiFi.gatewayIP()}; }
-network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {(const ip_addr_t *) WiFi.dnsIP(num)}; }
+int32_t WiFiComponent::get_wifi_channel() { return wifi_get_channel(); }
+network::IPAddress WiFiComponent::wifi_subnet_mask_() {
+  struct ip_info ip {};
+  wifi_get_ip_info(STATION_IF, &ip);
+  return network::IPAddress(&ip.netmask);
+}
+network::IPAddress WiFiComponent::wifi_gateway_ip_() {
+  struct ip_info ip {};
+  wifi_get_ip_info(STATION_IF, &ip);
+  return network::IPAddress(&ip.gw);
+}
+network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddress(dns_getserver(num)); }
 void WiFiComponent::wifi_loop_() {}
 
 }  // namespace esphome::wifi

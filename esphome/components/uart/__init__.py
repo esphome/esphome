@@ -378,6 +378,28 @@ async def to_code(config):
     if CONF_DEBUG in config:
         await debug_to_code(config[CONF_DEBUG], var)
 
+    # ESP8266: Enable the Arduino Serial objects that might be used based on pin config
+    # The C++ code selects hardware serial at runtime based on these pin combinations:
+    # - Serial (UART0): TX=1 or null, RX=3 or null
+    # - Serial (UART0 swap): TX=15 or null, RX=13 or null
+    # - Serial1: TX=2 or null, RX=8 or null
+    if CORE.is_esp8266:
+        from esphome.components.esp8266.const import enable_serial, enable_serial1
+
+        tx_num = config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None
+        rx_num = config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None
+
+        # Check if this config could use Serial (UART0 regular or swap)
+        if (tx_num is None or tx_num in (1, 15)) and (
+            rx_num is None or rx_num in (3, 13)
+        ):
+            enable_serial()
+            cg.add_define("USE_ESP8266_UART_SERIAL")
+        # Check if this config could use Serial1
+        if (tx_num is None or tx_num == 2) and (rx_num is None or rx_num == 8):
+            enable_serial1()
+            cg.add_define("USE_ESP8266_UART_SERIAL1")
+
     CORE.add_job(final_step)
 
 

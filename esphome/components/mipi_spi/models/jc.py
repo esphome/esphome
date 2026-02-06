@@ -588,5 +588,3 @@ DriverChip(
         (0x29, 0x00),
     ),
 )
-
-models = {}

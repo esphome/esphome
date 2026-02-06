@@ -264,6 +264,7 @@ async def to_code(config):
             var.get_packet_trigger(),
             [
                 (cg.std_vector.template(cg.uint8), "x"),
+                (cg.float_, "freq_offset"),
                 (cg.float_, "rssi"),
                 (cg.uint8, "lqi"),
             ],

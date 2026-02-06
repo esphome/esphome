@@ -42,6 +42,8 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   const std::string &get_raw_state() const;
 
   void publish_state(const std::string &state);
+  void publish_state(const char *state);
+  void publish_state(const char *state, size_t len);
 
   /// Add a filter to the filter chain. Will be appended to the back.
   void add_filter(Filter *filter);
@@ -63,8 +65,11 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   // (In most use cases you won't need these)
 
   void internal_send_state_to_frontend(const std::string &state);
+  void internal_send_state_to_frontend(const char *state, size_t len);
 
  protected:
+  /// Notify frontend that state has changed (assumes this->state is already set)
+  void notify_frontend_();
   LazyCallbackManager<void(const std::string &)> raw_callback_;  ///< Storage for raw state callbacks.
   LazyCallbackManager<void(const std::string &)> callback_;      ///< Storage for filtered state callbacks.
 

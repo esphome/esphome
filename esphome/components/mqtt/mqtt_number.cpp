@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_NUMBER
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.number";
 
@@ -31,10 +30,10 @@ void MQTTNumberComponent::setup() {
 
 void MQTTNumberComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Number '%s':", this->number_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, false)
+  LOG_MQTT_COMPONENT(true, false);
 }
 
-std::string MQTTNumberComponent::component_type() const { return "number"; }
+MQTT_COMPONENT_TYPE(MQTTNumberComponent, "number")
 const EntityBase *MQTTNumberComponent::get_entity() const { return this->number_; }
 
 void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
@@ -75,13 +74,13 @@ bool MQTTNumberComponent::send_initial_state() {
   }
 }
 bool MQTTNumberComponent::publish_state(float value) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   char buffer[64];
-  snprintf(buffer, sizeof(buffer), "%f", value);
-  return this->publish(this->get_state_topic_(), buffer);
+  size_t len = buf_append_printf(buffer, sizeof(buffer), 0, "%f", value);
+  return this->publish(this->get_state_topic_to_(topic_buf), buffer, len);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
