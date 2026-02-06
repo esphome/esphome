@@ -122,7 +122,9 @@ void Dsmr::drain_rx_buffer_() {
   uint8_t buf[64];
   int avail;
   while ((avail = this->available()) > 0) {
-    this->read_array(buf, std::min(static_cast<size_t>(avail), sizeof(buf)));
+    if (!this->read_array(buf, std::min(static_cast<size_t>(avail), sizeof(buf)))) {
+      break;
+    }
   }
 }
 
