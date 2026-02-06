@@ -376,7 +376,7 @@ void Rtttl::loop() {
 }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-// RTTTL state strings indexed by State enum (0-4): STOPPED, INIT, STARTING, RUNNING, STOPPING
+// RTTTL state strings indexed by State enum (0-4): STOPPED, INIT, STARTING, RUNNING, STOPPING, plus UNKNOWN fallback
 PROGMEM_STRING_TABLE(RtttlStateStrings, "STATE_STOPPED", "STATE_INIT", "STATE_STARTING", "STATE_RUNNING",
                      "STATE_STOPPING", "UNKNOWN");
 
