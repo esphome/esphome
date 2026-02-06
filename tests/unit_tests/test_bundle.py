@@ -631,6 +631,21 @@ def test_discover_files_external_components_local(tmp_path: Path) -> None:
     assert "components/my_comp/sensor.py" in paths
 
 
+def test_discover_files_external_components_non_dict_source(tmp_path: Path) -> None:
+    """external_components with string source (e.g. github shorthand) is skipped."""
+    _setup_config_dir(tmp_path)
+
+    config: dict[str, Any] = {
+        "external_components": [{"source": "github://user/repo@main"}],
+    }
+    creator = ConfigBundleCreator(config)
+    files = creator.discover_files()
+
+    # Only the config file itself - no crash from non-dict source
+    assert len(files) == 1
+    assert files[0].path == "test.yaml"
+
+
 def test_discover_files_nested_config_values(tmp_path: Path) -> None:
     """Deeply nested Path objects in lists/dicts are found."""
     config_dir = _setup_config_dir(
@@ -650,16 +665,19 @@ def test_discover_files_nested_config_values(tmp_path: Path) -> None:
 
 def test_discover_files_idempotent_secrets(tmp_path: Path) -> None:
     """Calling discover_files twice does not accumulate secrets paths."""
-    _setup_config_dir(tmp_path)
-    (tmp_path / "secrets.yaml").write_text("k: v\n")
-    (tmp_path / "test.yaml").write_text("a: !secret k\n")
+    config_dir = _setup_config_dir(tmp_path)
+    (config_dir / "secrets.yaml").write_text("k: v\n")
+    (config_dir / "test.yaml").write_text("a: !secret k\n")
 
     creator = ConfigBundleCreator({})
     files1 = creator.discover_files()
     files2 = creator.discover_files()
 
-    # Both calls should return the same result
-    assert [f.path for f in files1] == [f.path for f in files2]
+    # Both calls should return the same result (secrets not accumulated)
+    paths1 = [f.path for f in files1]
+    paths2 = [f.path for f in files2]
+    assert "secrets.yaml" in paths1
+    assert paths1 == paths2
 
 
 # ---------------------------------------------------------------------------

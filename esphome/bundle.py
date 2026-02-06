@@ -340,13 +340,15 @@ class ConfigBundleCreator:
             source = ext_conf.get(CONF_SOURCE, {})
             if not isinstance(source, dict):
                 continue
-            if source.get(CONF_TYPE) == "local":
-                path = source.get(CONF_PATH)
-                if path:
-                    p = Path(path)
-                    if not p.is_absolute():
-                        p = CORE.relative_config_path(p)
-                    self._add_directory(p)
+            if source.get(CONF_TYPE) != "local":
+                continue
+            path = source.get(CONF_PATH)
+            if not path:
+                continue
+            p = Path(path)
+            if not p.is_absolute():
+                p = CORE.relative_config_path(p)
+            self._add_directory(p)
 
     def _walk_config_for_files(self, obj: Any) -> None:
         """Recursively walk the config dict looking for file path references."""
