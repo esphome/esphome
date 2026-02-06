@@ -2,12 +2,11 @@
 
 A bundle is a self-contained .tar.gz archive containing a YAML config
 and every local file it depends on. Bundles can be created from a config
-and compiled directly: ``esphome compile my_device.bundle.tar.gz``
+and compiled directly: ``esphome compile my_device.esphomebundle.tar.gz``
 """
 
 from __future__ import annotations
 
-import contextlib
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import StrEnum
@@ -121,6 +120,10 @@ def _track_yaml_loads():
 
     Yields a list that is populated with resolved Path objects
     for every file loaded through _load_yaml_internal.
+
+    Not thread-safe: monkey-patches a module-level function.
+    Only safe for CLI use (single-threaded). Do not use from
+    the dashboard or other concurrent contexts.
     """
     loaded_files: list[Path] = []
     # pylint: disable=protected-access
@@ -175,12 +178,13 @@ class ConfigBundleCreator:
         self._config_path = CORE.config_path
         self._files: list[BundleFile] = []
         self._seen_paths: set[Path] = set()
-        self._secrets_paths: list[Path] = []
+        self._secrets_paths: set[Path] = set()
 
     def discover_files(self) -> list[BundleFile]:
         """Discover all files needed for the bundle."""
         self._files = []
         self._seen_paths = set()
+        self._secrets_paths = set()
 
         # The main config file
         self._add_file(self._config_path)
@@ -227,9 +231,8 @@ class ConfigBundleCreator:
 
             # Add files in sorted order for determinism, skipping secrets
             # files which were already added above with filtered content
-            secrets_resolved = {p.resolve() for p in self._secrets_paths}
             for bf in sorted(files, key=lambda f: f.path):
-                if bf.source in secrets_resolved:
+                if bf.source in self._secrets_paths:
                     continue
                 self._add_to_tar(tar, bf)
 
@@ -282,14 +285,20 @@ class ConfigBundleCreator:
         Secrets files are tracked separately so we can filter them to
         only include the keys this config actually references.
         """
-        with _track_yaml_loads() as loaded_files, contextlib.suppress(Exception):
-            yaml_util.load_yaml(self._config_path)
+        with _track_yaml_loads() as loaded_files:
+            try:
+                yaml_util.load_yaml(self._config_path)
+            except EsphomeError:
+                _LOGGER.debug(
+                    "Bundle: re-loading YAML for include discovery failed, "
+                    "proceeding with partial file list"
+                )
 
         for fpath in loaded_files:
             if fpath == self._config_path.resolve():
                 continue  # Already added as config
             if fpath.name in const.SECRETS_FILES:
-                self._secrets_paths.append(fpath)
+                self._secrets_paths.add(fpath)
             self._add_file(fpath)
 
     def _discover_component_files(self) -> None:
@@ -329,6 +338,8 @@ class ConfigBundleCreator:
         # external_components with source: local - directories
         for ext_conf in config.get(CONF_EXTERNAL_COMPONENTS, []):
             source = ext_conf.get(CONF_SOURCE, {})
+            if not isinstance(source, dict):
+                continue
             if source.get(CONF_TYPE) == "local":
                 path = source.get(CONF_PATH)
                 if path:
@@ -353,10 +364,13 @@ class ConfigBundleCreator:
 
     def _check_string_path(self, value: str) -> None:
         """Check if a string value is a local file reference."""
+        # Fast exits for strings that cannot be file paths
+        if len(value) < 2 or "\n" in value:
+            return
         if value.startswith(_NON_PATH_PREFIXES):
             return
-        # Skip multi-line strings (lambdas, templates)
-        if "\n" in value or len(value) < 2:
+        # File paths must contain a path separator or a dot (for extension)
+        if "/" not in value and "\\" not in value and "." not in value:
             return
 
         p = Path(value)
@@ -546,16 +560,18 @@ def _read_manifest_from_tar(tar: tarfile.TarFile) -> dict[str, Any]:
 def _validate_tar_members(tar: tarfile.TarFile, target_dir: Path) -> None:
     """Validate tar members for security issues."""
 
+    target_dir_str = str(target_dir) + "/"
     total_size = 0
     for member in tar.getmembers():
-        # Reject absolute paths
-        if member.name.startswith("/") or member.name.startswith("\\"):
+        # Reject absolute paths (Unix and Windows)
+        if member.name.startswith(("/", "\\")):
             raise EsphomeError(
                 f"Invalid bundle: absolute path in archive: {member.name}"
             )
 
-        # Reject path traversal
-        if ".." in member.name.split("/"):
+        # Reject path traversal (split on both / and \ for cross-platform)
+        parts = re.split(r"[/\\]", member.name)
+        if ".." in parts:
             raise EsphomeError(
                 f"Invalid bundle: path traversal in archive: {member.name}"
             )
@@ -566,7 +582,9 @@ def _validate_tar_members(tar: tarfile.TarFile, target_dir: Path) -> None:
 
         # Ensure extraction stays within target_dir
         target_path = (target_dir / member.name).resolve()
-        if not str(target_path).startswith(str(target_dir)):
+        if not (
+            target_path == target_dir or str(target_path).startswith(target_dir_str)
+        ):
             raise EsphomeError(
                 f"Invalid bundle: file would extract outside target: {member.name}"
             )
@@ -673,12 +691,8 @@ def prepare_bundle_for_compile(
                 item.unlink()
 
         config_path = extract_bundle(bundle_path, target_dir)
-    except Exception:
-        # On extraction failure, restore preserved dirs
-        _restore_preserved_dirs(preserved, target_dir)
-        raise
     finally:
-        # Restore preserved dirs and clean staging
+        # Restore preserved dirs (idempotent) and clean staging
         _restore_preserved_dirs(preserved, target_dir)
         if staging.is_dir():
             shutil.rmtree(staging)
