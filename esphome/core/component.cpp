@@ -359,6 +359,10 @@ void Component::defer(const std::string &name, std::function<void()> &&f) {  // 
 void Component::defer(const char *name, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, name, 0, std::move(f));
 }
+void Component::defer(uint32_t id, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_timeout(this, id, 0, std::move(f));
+}
+bool Component::cancel_defer(uint32_t id) { return App.scheduler.cancel_timeout(this, id); }
 void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, static_cast<const char *>(nullptr), timeout, std::move(f));
 }

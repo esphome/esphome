@@ -9,6 +9,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 #include "mqtt_client.h"
 
@@ -157,6 +158,15 @@ class MQTTComponent : public Component {
    */
   bool publish(const std::string &topic, const char *payload, size_t payload_length);
 
+  /** Send a MQTT message.
+   *
+   * @param topic The topic.
+   * @param payload The null-terminated payload.
+   */
+  bool publish(const std::string &topic, const char *payload) {
+    return this->publish(topic.c_str(), payload, strlen(payload));
+  }
+
   /** Send a MQTT message (no heap allocation for topic).
    *
    * @param topic The topic as C string.
@@ -188,6 +198,29 @@ class MQTTComponent : public Component {
    * @param payload The null-terminated payload.
    */
   bool publish(StringRef topic, const char *payload) { return this->publish(topic.c_str(), payload); }
+
+#ifdef USE_ESP8266
+  /** Send a MQTT message with a PROGMEM string payload.
+   *
+   * @param topic The topic.
+   * @param payload The payload (ProgmemStr - stored in flash on ESP8266).
+   */
+  bool publish(const std::string &topic, ProgmemStr payload);
+
+  /** Send a MQTT message with a PROGMEM string payload (no heap allocation for topic).
+   *
+   * @param topic The topic as C string.
+   * @param payload The payload (ProgmemStr - stored in flash on ESP8266).
+   */
+  bool publish(const char *topic, ProgmemStr payload);
+
+  /** Send a MQTT message with a PROGMEM string payload (no heap allocation for topic).
+   *
+   * @param topic The topic as StringRef (for use with get_state_topic_to_()).
+   * @param payload The payload (ProgmemStr - stored in flash on ESP8266).
+   */
+  bool publish(StringRef topic, ProgmemStr payload) { return this->publish(topic.c_str(), payload); }
+#endif
 
   /** Construct and send a JSON MQTT message.
    *
