@@ -777,10 +777,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connecting = false;
     error_from_callback_ = 1;
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    static constexpr uint8_t EMPTY_BSSID[6] = {};
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
-    }
+    this->notify_disconnect_state_listeners_();
 #endif
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
@@ -877,9 +874,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),
              needs_full ? "" : " (filtered)");
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
-    for (auto *listener : this->scan_results_listeners_) {
-      listener->on_wifi_scan_results(this->scan_result_);
-    }
+    this->notify_scan_results_listeners_();
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_START) {

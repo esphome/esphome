@@ -264,9 +264,7 @@ void WiFiComponent::wifi_loop_() {
     ESP_LOGV(TAG, "Scan complete: %zu found, %zu stored%s", s_scan_result_count, this->scan_result_.size(),
              needs_full ? "" : " (filtered)");
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
-    for (auto *listener : this->scan_results_listeners_) {
-      listener->on_wifi_scan_results(this->scan_result_);
-    }
+    this->notify_scan_results_listeners_();
 #endif
   }
 
@@ -299,10 +297,7 @@ void WiFiComponent::wifi_loop_() {
     s_sta_had_ip = false;
     ESP_LOGV(TAG, "Disconnected");
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    static constexpr uint8_t EMPTY_BSSID[6] = {};
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
-    }
+    this->notify_disconnect_state_listeners_();
 #endif
   }
 

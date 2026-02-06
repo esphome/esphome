@@ -2214,6 +2214,13 @@ void WiFiComponent::notify_connect_state_listeners_() {
     listener->on_wifi_connect_state(StringRef(ssid, strlen(ssid)), bssid);
   }
 }
+
+void WiFiComponent::notify_disconnect_state_listeners_() {
+  static constexpr uint8_t EMPTY_BSSID[6] = {};
+  for (auto *listener : this->connect_state_listeners_) {
+    listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
+  }
+}
 #endif  // USE_WIFI_CONNECT_STATE_LISTENERS
 
 #ifdef USE_WIFI_IP_STATE_LISTENERS
@@ -2223,6 +2230,14 @@ void WiFiComponent::notify_ip_state_listeners_() {
   }
 }
 #endif  // USE_WIFI_IP_STATE_LISTENERS
+
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
+void WiFiComponent::notify_scan_results_listeners_() {
+  for (auto *listener : this->scan_results_listeners_) {
+    listener->on_wifi_scan_results(this->scan_result_);
+  }
+}
+#endif  // USE_WIFI_SCAN_RESULTS_LISTENERS
 
 void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: not for hidden networks (may not appear in scan)

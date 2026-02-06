@@ -525,10 +525,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       }
 
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-      static constexpr uint8_t EMPTY_BSSID[6] = {};
-      for (auto *listener : this->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
-      }
+      this->notify_disconnect_state_listeners_();
 #endif
       break;
     }
@@ -702,9 +699,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
            needs_full ? "" : " (filtered)");
   WiFi.scanDelete();
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
-  for (auto *listener : this->scan_results_listeners_) {
-    listener->on_wifi_scan_results(this->scan_result_);
-  }
+  this->notify_scan_results_listeners_();
 #endif
 }
 

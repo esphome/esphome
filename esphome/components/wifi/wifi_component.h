@@ -644,10 +644,16 @@ class WiFiComponent : public Component {
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
   /// Notify connect state listeners (called after state machine reaches STA_CONNECTED)
   void notify_connect_state_listeners_();
+  /// Notify connect state listeners of disconnection
+  void notify_disconnect_state_listeners_();
 #endif
 #ifdef USE_WIFI_IP_STATE_LISTENERS
   /// Notify IP state listeners with current addresses
   void notify_ip_state_listeners_();
+#endif
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
+  /// Notify scan results listeners with current scan results
+  void notify_scan_results_listeners_();
 #endif
 
 #ifdef USE_ESP8266
