@@ -3,8 +3,6 @@
 
 #ifdef USE_ESP32
 
-#include "sdkconfig.h"
-
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
 #endif
