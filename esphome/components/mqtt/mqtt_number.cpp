@@ -54,7 +54,8 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   }
   const auto mode = this->number_->traits.get_mode();
   if (mode != NUMBER_MODE_AUTO) {
-    root[MQTT_MODE] = NumberMqttModeStrings::get_progmem_str(static_cast<uint8_t>(mode), 1);
+    root[MQTT_MODE] = NumberMqttModeStrings::get_progmem_str(
+        static_cast<uint8_t>(mode), static_cast<uint8_t>(NUMBER_MODE_BOX));
   }
   const auto device_class = this->number_->traits.get_device_class_ref();
   if (!device_class.empty()) {
