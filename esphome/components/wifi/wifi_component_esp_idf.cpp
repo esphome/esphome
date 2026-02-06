@@ -52,7 +52,6 @@ static QueueHandle_t s_event_queue;            // NOLINT(cppcoreguidelines-avoid
 static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #ifdef USE_WIFI_AP
 static esp_netif_t *s_ap_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static esp_netif_t *s_gw_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif                                        // USE_WIFI_AP
 static bool s_sta_started = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -142,20 +141,9 @@ void WiFiComponent::wifi_pre_setup_() {
   }
 
   esp_err_t err;
-#ifdef USE_WIFI_AP
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 2)
-  s_gw_netif = esp_netif_next_unsafe(nullptr);
-#else
-  s_gw_netif = esp_netif_next(nullptr);
-#endif
-  if (s_gw_netif && this->has_sta()) {
-    ESP_LOGE(TAG, "Only WiFi AP can be used when a network interface (%s) already exists",
-             esp_netif_get_ifkey(s_gw_netif));
-    return;
-  }
-  if (!s_gw_netif) {
-#else
-  if (true) {
+
+  if (!esp_netif_next_unsafe(nullptr)) {
+    // Only initialize network stack if no network interface already exists.
     err = esp_netif_init();
     if (err != ERR_OK) {
       ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));
@@ -167,7 +155,6 @@ void WiFiComponent::wifi_pre_setup_() {
       ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
       return;
     }
-#endif  // USE_WIFI_AP
   }
 
   s_wifi_event_group = xEventGroupCreate();
@@ -1043,28 +1030,6 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
     return false;
   }
 
-  if (s_gw_netif) {
-    const char *if_key = esp_netif_get_ifkey(s_gw_netif);
-
-    ESP_LOGI(TAG, "AP will use exiting netif '%s' to setup NAT", if_key);
-
-    esp_netif_dns_info_t dns_gw;
-    esp_netif_get_dns_info(s_gw_netif, ESP_NETIF_DNS_MAIN, &dns_gw);
-
-    if (dns_gw.ip.u_addr.ip4.addr != 0) {
-      dhcps_offer_t dhcps_dns_value = OFFER_DNS;
-      ESP_LOGD(TAG, "Reusing DNS " IPSTR " from netif '%s' for DHCP server", IP2STR(&dns_gw.ip.u_addr.ip4), if_key);
-      ESP_ERROR_CHECK(esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER,
-                                             &dhcps_dns_value, sizeof(dhcps_dns_value)));
-      err = esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &dns_gw);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_netif_dhcps_option dns failed! %d", err);
-        return false;
-      }
-    }
-
-    ip_napt_enable(info.ip.addr, 1);
-  }
 #if defined(USE_CAPTIVE_PORTAL) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
   // Configure DHCP Option 114 (Captive Portal URI) if captive portal is enabled
   // This provides a standards-compliant way for clients to discover the captive portal
@@ -1151,6 +1116,64 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   esp_netif_get_ip_info(s_ap_netif, &ip);
   return network::IPAddress(&ip.ip);
 }
+
+bool WiFiComponent::wifi_ap_nat(esp_netif_t *gateway_netif) {
+  if (!s_ap_netif) {
+    ESP_LOGE(TAG, "AP interface not initialized. Cannot set up NAT.");
+    return false;
+  }
+  if (!gateway_netif) {
+    ESP_LOGE(TAG, "Gateway netif not provided. Cannot set up NAT.");
+    return false;
+  }
+
+  esp_netif_ip_info_t ap_info;
+  esp_err_t err = esp_netif_get_ip_info(s_ap_netif, &ap_info);
+
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to get AP IP info for NAT setup: %s", esp_err_to_name(err));
+    return false;
+  }
+
+  const char *gw_if_key = esp_netif_get_ifkey(gateway_netif);
+  ESP_LOGI(TAG, "Setting up AP NAT and DNS using gateway netif \'%s\'", gw_if_key);
+
+  esp_netif_dns_info_t dns_gw;
+  esp_netif_get_dns_info(gateway_netif, ESP_NETIF_DNS_MAIN, &dns_gw);
+
+  if (dns_gw.ip.u_addr.ip4.addr != 0) {
+    // Stop DHCP server to apply new options
+    err = esp_netif_dhcps_stop(s_ap_netif);
+    if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+      ESP_LOGE(TAG, "Failed to stop AP DHCP server before updating DNS: %s", esp_err_to_name(err));
+      // Log error but continue to try to restart DHCP server
+    }
+
+    dhcps_offer_t dhcps_dns_value = OFFER_DNS;
+    ESP_LOGD(TAG, "Reusing DNS " IPSTR " from netif \'%s\' for DHCP server", IP2STR(&dns_gw.ip.u_addr.ip4), gw_if_key);
+    ESP_ERROR_CHECK(esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dhcps_dns_value,
+                                           sizeof(dhcps_dns_value)));
+    err = esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &dns_gw);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_netif_set_dns_info for AP failed! %d", err);
+    }
+
+    // Restart DHCP server
+    err = esp_netif_dhcps_start(s_ap_netif);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to restart AP DHCP server after updating DNS: %s", esp_err_to_name(err));
+      return false;
+    }
+
+    ip_napt_enable(ap_info.ip.addr, 1);
+    ESP_LOGI(TAG, "AP DNS and NAT configured from gateway netif \'%s\'", gw_if_key);
+  } else {
+    ESP_LOGW(TAG, "Gateway netif \'%s\' has no valid DNS info. NAT and DNS not applied.", gw_if_key);
+    // It's up to the calling component to retry or ensure DNS is available.
+  }
+  return true;
+}
+
 #endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }

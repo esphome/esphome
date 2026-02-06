@@ -351,6 +351,9 @@ class WiFiComponent : public Component {
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
+#if defined(USE_ESP32)
+  bool wifi_ap_nat(esp_netif_t *gateway_netif);
+#endif
 #endif  // USE_WIFI_AP
 
   void enable();
