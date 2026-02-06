@@ -12,7 +12,6 @@ from .const import (
     CORE_SUBCATEGORY_PATTERNS,
     DEMANGLED_PATTERNS,
     ESPHOME_COMPONENT_PATTERN,
-    SECTION_TO_ATTR,
     SYMBOL_PATTERNS,
 )
 from .demangle import batch_demangle
@@ -90,6 +89,17 @@ class ComponentMemory:
     data_size: int = 0  # Initialized data (flash + ram)
     bss_size: int = 0  # Uninitialized data (ram only)
     symbol_count: int = 0
+
+    def add_section_size(self, section_name: str, size: int) -> None:
+        """Add size to the appropriate attribute for a section."""
+        if section_name == ".text":
+            self.text_size += size
+        elif section_name == ".rodata":
+            self.rodata_size += size
+        elif section_name == ".data":
+            self.data_size += size
+        elif section_name == ".bss":
+            self.bss_size += size
 
     @property
     def flash_total(self) -> int:
@@ -258,8 +268,7 @@ class MemoryAnalyzer:
                 comp_mem.symbol_count += 1
 
                 # Update the appropriate size attribute based on section
-                if attr_name := SECTION_TO_ATTR.get(section_name):
-                    setattr(comp_mem, attr_name, getattr(comp_mem, attr_name) + size)
+                comp_mem.add_section_size(section_name, size)
 
                 # Track uncategorized symbols
                 if component == "other" and size > 0:
@@ -407,8 +416,8 @@ class MemoryAnalyzer:
         if not self.nm_path:
             return cswtch_map
 
-        # Find all .o files recursively
-        obj_files = list(obj_dir.rglob("*.o"))
+        # Find all .o files recursively, sorted for deterministic output
+        obj_files = sorted(obj_dir.rglob("*.o"))
         if not obj_files:
             return cswtch_map
 
@@ -421,8 +430,6 @@ class MemoryAnalyzer:
         )
         if result is None or result.returncode != 0:
             return cswtch_map
-
-        obj_dir_str = str(obj_dir)
 
         for line in result.stdout.splitlines():
             if "CSWTCH$" not in line:
@@ -451,9 +458,9 @@ class MemoryAnalyzer:
                 continue
 
             # Get relative path from obj_dir for readability
-            if file_path.startswith(obj_dir_str):
-                rel_path = file_path[len(obj_dir_str) :].lstrip("/")
-            else:
+            try:
+                rel_path = str(Path(file_path).relative_to(obj_dir))
+            except ValueError:
                 rel_path = file_path
 
             key = f"{sym_name}:{size}"
@@ -470,27 +477,28 @@ class MemoryAnalyzer:
         Returns:
             Component name like '[esphome]wifi' or the source file if unknown.
         """
+        parts = Path(source_file).parts
+
         # ESPHome component: src/esphome/components/<name>/...
-        if "esphome/components/" in source_file:
-            parts = source_file.split("esphome/components/")
-            if len(parts) > 1:
-                component_name = parts[1].split("/")[0]
+        if "components" in parts:
+            idx = parts.index("components")
+            if idx + 1 < len(parts):
+                component_name = parts[idx + 1]
                 if component_name in get_esphome_components():
                     return f"{_COMPONENT_PREFIX_ESPHOME}{component_name}"
                 if component_name in self.external_components:
                     return f"{_COMPONENT_PREFIX_EXTERNAL}{component_name}"
 
         # ESPHome core: src/esphome/core/... or src/esphome/...
-        if "esphome/core/" in source_file or (
-            "src/esphome/" in source_file and "esphome/components/" not in source_file
-        ):
+        if "core" in parts and "esphome" in parts:
+            return _COMPONENT_CORE
+        if "esphome" in parts and "components" not in parts:
             return _COMPONENT_CORE
 
-        # Framework/library files - return the lib directory name
-        # e.g., lib65b/ESPAsyncTCP/... -> ESPAsyncTCP
+        # Framework/library files - return the first path component
+        # e.g., lib65b/ESPAsyncTCP/... -> lib65b
         #        FrameworkArduino/... -> FrameworkArduino
-        #        libe9c/ESPAsyncWebServer/... -> ESPAsyncWebServer
-        return source_file.split("/", maxsplit=1)[0]
+        return parts[0] if parts else source_file
 
     def _analyze_cswtch_symbols(self) -> None:
         """Analyze CSWTCH (GCC switch table) symbols by tracing to source objects.
@@ -511,9 +519,10 @@ class MemoryAnalyzer:
             return
 
         # Collect CSWTCH symbols from the ELF (already parsed in sections)
+        # Include section_name for re-attribution of component totals
         elf_cswtch = [
-            (symbol_name, size)
-            for section in self.sections.values()
+            (symbol_name, size, section_name)
+            for section_name, section in self.sections.items()
             for symbol_name, size, _ in section.symbols
             if symbol_name.startswith("CSWTCH$")
         ]
@@ -524,8 +533,13 @@ class MemoryAnalyzer:
             len(cswtch_map),
         )
 
-        # Match ELF CSWTCH symbols to source files
-        for sym_name, size in elf_cswtch:
+        # Match ELF CSWTCH symbols to source files and re-attribute component totals.
+        # _categorize_symbols() already ran and put these into "other" since CSWTCH$
+        # names don't match any component pattern. We move the bytes to the correct
+        # component based on the object file mapping.
+        other_mem = self.components.get("other")
+
+        for sym_name, size, section_name in elf_cswtch:
             key = f"{sym_name}:{size}"
             sources = cswtch_map.get(key, [])
 
@@ -534,20 +548,30 @@ class MemoryAnalyzer:
                 component = self._source_file_to_component(source_file)
             elif len(sources) > 1:
                 # Ambiguous - multiple object files have same CSWTCH name+size
-                source_file = sources[0][0]  # Use first match
-                component = self._source_file_to_component(source_file)
+                source_file = "ambiguous"
+                component = "ambiguous"
                 _LOGGER.debug(
-                    "Ambiguous CSWTCH %s (%d B) found in %d files, using %s",
+                    "Ambiguous CSWTCH %s (%d B) found in %d files: %s",
                     sym_name,
                     size,
                     len(sources),
-                    source_file,
+                    ", ".join(src for src, _ in sources),
                 )
             else:
                 source_file = "unknown"
                 component = "unknown"
 
             self._cswtch_symbols.append((sym_name, size, source_file, component))
+
+            # Re-attribute from "other" to the correct component
+            if (
+                component not in ("other", "unknown", "ambiguous")
+                and other_mem is not None
+            ):
+                other_mem.add_section_size(section_name, -size)
+                if component not in self.components:
+                    self.components[component] = ComponentMemory(component)
+                self.components[component].add_section_size(section_name, size)
 
         # Sort by size descending
         self._cswtch_symbols.sort(key=lambda x: x[1], reverse=True)
