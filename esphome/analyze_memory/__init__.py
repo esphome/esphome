@@ -431,8 +431,6 @@ class MemoryAnalyzer:
         if result is None or result.returncode != 0:
             return cswtch_map
 
-        obj_dir_str = str(obj_dir)
-
         for line in result.stdout.splitlines():
             if "CSWTCH$" not in line:
                 continue
@@ -460,9 +458,9 @@ class MemoryAnalyzer:
                 continue
 
             # Get relative path from obj_dir for readability
-            if file_path.startswith(obj_dir_str):
-                rel_path = file_path[len(obj_dir_str) :].lstrip("/")
-            else:
+            try:
+                rel_path = str(Path(file_path).relative_to(obj_dir))
+            except ValueError:
                 rel_path = file_path
 
             key = f"{sym_name}:{size}"
