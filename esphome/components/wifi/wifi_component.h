@@ -677,13 +677,13 @@ class WiFiComponent : public Component {
   void wifi_scan_done_callback_();
 #endif
 
+  // Large/pointer-aligned members first
   FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
 #ifdef USE_WIFI_AP
   WiFiAP ap_;
 #endif
-  float output_power_{NAN};
 #ifdef USE_WIFI_IP_STATE_LISTENERS
   StaticVector<WiFiIPStateListener *, ESPHOME_WIFI_IP_STATE_LISTENERS> ip_state_listeners_;
 #endif
@@ -700,6 +700,15 @@ class WiFiComponent : public Component {
 #ifdef USE_WIFI_FAST_CONNECT
   ESPPreferenceObject fast_connect_pref_;
 #endif
+#ifdef USE_WIFI_CONNECT_TRIGGER
+  Trigger<> connect_trigger_;
+#endif
+#ifdef USE_WIFI_DISCONNECT_TRIGGER
+  Trigger<> disconnect_trigger_;
+#endif
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+  SemaphoreHandle_t high_performance_semaphore_{nullptr};
+#endif
 
   // Post-connect roaming constants
   static constexpr uint32_t ROAMING_CHECK_INTERVAL = 5 * 60 * 1000;  // 5 minutes
@@ -707,7 +716,8 @@ class WiFiComponent : public Component {
   static constexpr int8_t ROAMING_GOOD_RSSI = -49;                   // Skip scan if signal is excellent
   static constexpr uint8_t ROAMING_MAX_ATTEMPTS = 3;
 
-  // Group all 32-bit integers together
+  // 4-byte members
+  float output_power_{NAN};
   uint32_t action_started_;
   uint32_t last_connected_{0};
   uint32_t reboot_timeout_{};
@@ -716,7 +726,7 @@ class WiFiComponent : public Component {
   uint32_t ap_timeout_{};
 #endif
 
-  // Group all 8-bit values together
+  // 1-byte enums and integers
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
   WifiMinAuthMode min_auth_mode_{WIFI_MIN_AUTH_MODE_WPA2};
@@ -727,15 +737,19 @@ class WiFiComponent : public Component {
   // int8_t limits to 127 APs (enforced in __init__.py via MAX_WIFI_NETWORKS)
   int8_t selected_sta_index_{-1};
   uint8_t roaming_attempts_{0};
-
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
-
   // 0 = no error, non-zero = disconnect reason code from callback
   // This serves as both the error flag and stores the reason for deferred logging
   uint8_t error_from_callback_{0};
+  RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
+  RoamingState roaming_state_{RoamingState::IDLE};
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+  WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
+#endif
 
+  // Bools and bitfields
 #if defined(USE_WIFI_CONNECT_STATE_LISTENERS) || defined(USE_ESP8266)
   // Pending listener callbacks deferred from platform callbacks to main loop.
   struct {
@@ -754,8 +768,6 @@ class WiFiComponent : public Component {
 #endif
   } pending_{};
 #endif
-
-  // Group all boolean values together
   bool has_ap_{false};
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
   bool handled_connected_state_{false};
@@ -774,22 +786,10 @@ class WiFiComponent : public Component {
   bool keep_scan_results_{false};
   bool has_completed_scan_after_captive_portal_start_{
       false};  // Tracks if we've completed a scan after captive portal started
-  RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   bool skip_cooldown_next_cycle_{false};
   bool post_connect_roaming_{true};  // Enabled by default
-  RoamingState roaming_state_{RoamingState::IDLE};
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
-  WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
   bool is_high_performance_mode_{false};
-
-  SemaphoreHandle_t high_performance_semaphore_{nullptr};
-#endif
-
-#ifdef USE_WIFI_CONNECT_TRIGGER
-  Trigger<> connect_trigger_;
-#endif
-#ifdef USE_WIFI_DISCONNECT_TRIGGER
-  Trigger<> disconnect_trigger_;
 #endif
 
  private:
