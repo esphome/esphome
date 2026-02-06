@@ -317,6 +317,15 @@ def test_extract_bundle_rejects_path_traversal(tmp_path: Path) -> None:
         extract_bundle(bundle_path, tmp_path / "out")
 
 
+def test_extract_bundle_rejects_backslash_path_traversal(tmp_path: Path) -> None:
+    info = tarfile.TarInfo(name="foo\\..\\..\\etc\\passwd")
+    info.size = 0
+    bundle_path = _make_bundle(tmp_path, raw_members=[info])
+
+    with pytest.raises(EsphomeError, match="path traversal"):
+        extract_bundle(bundle_path, tmp_path / "out")
+
+
 def test_extract_bundle_rejects_symlink(tmp_path: Path) -> None:
     info = tarfile.TarInfo(name="evil_link")
     info.type = tarfile.SYMTYPE
