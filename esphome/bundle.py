@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 from contextlib import contextmanager
 from dataclasses import dataclass
+from enum import StrEnum
 import io
 import json
 import logging
@@ -20,6 +21,15 @@ import tarfile
 from typing import Any
 
 from esphome import const, yaml_util
+from esphome.const import (
+    CONF_ESPHOME,
+    CONF_EXTERNAL_COMPONENTS,
+    CONF_INCLUDES,
+    CONF_INCLUDES_C,
+    CONF_PATH,
+    CONF_SOURCE,
+    CONF_TYPE,
+)
 from esphome.core import CORE, EsphomeError
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,6 +41,17 @@ MAX_DECOMPRESSED_SIZE = 500 * 1024 * 1024  # 500 MB
 # Directories preserved across bundle extractions (build caches)
 _PRESERVE_DIRS = (".esphome", ".pioenvs", ".pio")
 _BUNDLE_STAGING_DIR = ".bundle_staging"
+
+
+class ManifestKey(StrEnum):
+    """Keys used in bundle manifest.json."""
+
+    MANIFEST_VERSION = "manifest_version"
+    ESPHOME_VERSION = "esphome_version"
+    CONFIG_FILENAME = "config_filename"
+    FILES = "files"
+    HAS_SECRETS = "has_secrets"
+
 
 # String prefixes that are never local file paths
 _NON_PATH_PREFIXES = ("http://", "https://", "ftp://", "mdi:", "<")
@@ -283,8 +304,8 @@ class ConfigBundleCreator:
         # --- Core ESPHome concepts needing explicit handling ---
 
         # esphome.includes / includes_c - can be relative paths and directories
-        esphome_conf = config.get(const.CONF_ESPHOME, {})
-        for include_path in esphome_conf.get("includes", []):
+        esphome_conf = config.get(CONF_ESPHOME, {})
+        for include_path in esphome_conf.get(CONF_INCLUDES, []):
             resolved = _resolve_include_path(include_path)
             if resolved is None:
                 continue
@@ -292,26 +313,21 @@ class ConfigBundleCreator:
                 self._add_directory(resolved)
             else:
                 self._add_file(resolved)
-        for include_path in esphome_conf.get("includes_c", []):
+        for include_path in esphome_conf.get(CONF_INCLUDES_C, []):
             resolved = _resolve_include_path(include_path)
             if resolved is not None:
                 self._add_file(resolved)
 
         # external_components with source: local - directories
-        for ext_conf in config.get("external_components", []):
-            source = ext_conf.get("source", {})
-            if source.get("type") == "local":
-                path = source.get("path")
+        for ext_conf in config.get(CONF_EXTERNAL_COMPONENTS, []):
+            source = ext_conf.get(CONF_SOURCE, {})
+            if source.get(CONF_TYPE) == "local":
+                path = source.get(CONF_PATH)
                 if path:
                     p = Path(path)
                     if not p.is_absolute():
                         p = CORE.relative_config_path(p)
                     self._add_directory(p)
-
-        # custom_components/ directory if present (deprecated but still supported)
-        custom_dir = self._config_dir / "custom_components"
-        if custom_dir.is_dir():
-            self._add_directory(custom_dir)
 
     def _walk_config_for_files(self, obj: Any) -> None:
         """Recursively walk the config dict looking for file path references."""
@@ -387,11 +403,11 @@ class ConfigBundleCreator:
     ) -> dict[str, Any]:
         """Build the manifest.json content."""
         return {
-            "manifest_version": CURRENT_MANIFEST_VERSION,
-            "esphome_version": const.__version__,
-            "config_filename": self._config_path.name,
-            "files": [f.path for f in files],
-            "has_secrets": has_secrets,
+            ManifestKey.MANIFEST_VERSION: CURRENT_MANIFEST_VERSION,
+            ManifestKey.ESPHOME_VERSION: const.__version__,
+            ManifestKey.CONFIG_FILENAME: self._config_path.name,
+            ManifestKey.FILES: [f.path for f in files],
+            ManifestKey.HAS_SECRETS: has_secrets,
         }
 
     @staticmethod
@@ -441,7 +457,7 @@ def extract_bundle(
     except tarfile.TarError as err:
         raise EsphomeError(f"Failed to extract bundle: {err}") from err
 
-    config_filename = manifest["config_filename"]
+    config_filename = manifest[ManifestKey.CONFIG_FILENAME]
     config_path = target_dir / config_filename
     if not config_path.is_file():
         raise EsphomeError(
@@ -472,11 +488,11 @@ def read_bundle_manifest(bundle_path: Path) -> BundleManifest:
         raise EsphomeError(f"Failed to read bundle: {err}") from err
 
     return BundleManifest(
-        manifest_version=manifest["manifest_version"],
-        esphome_version=manifest.get("esphome_version", "unknown"),
-        config_filename=manifest["config_filename"],
-        files=manifest.get("files", []),
-        has_secrets=manifest.get("has_secrets", False),
+        manifest_version=manifest[ManifestKey.MANIFEST_VERSION],
+        esphome_version=manifest.get(ManifestKey.ESPHOME_VERSION, "unknown"),
+        config_filename=manifest[ManifestKey.CONFIG_FILENAME],
+        files=manifest.get(ManifestKey.FILES, []),
+        has_secrets=manifest.get(ManifestKey.HAS_SECRETS, False),
     )
 
 
@@ -498,7 +514,7 @@ def _read_manifest_from_tar(tar: tarfile.TarFile) -> dict[str, Any]:
         raise EsphomeError(f"Invalid bundle: malformed manifest.json: {err}") from err
 
     # Version check
-    version = manifest.get("manifest_version")
+    version = manifest.get(ManifestKey.MANIFEST_VERSION)
     if version is None:
         raise EsphomeError("Invalid bundle: manifest.json missing 'manifest_version'")
     if not isinstance(version, int) or version < 1:
@@ -513,7 +529,7 @@ def _read_manifest_from_tar(tar: tarfile.TarFile) -> dict[str, Any]:
         )
 
     # Required fields
-    if "config_filename" not in manifest:
+    if ManifestKey.CONFIG_FILENAME not in manifest:
         raise EsphomeError("Invalid bundle: manifest.json missing 'config_filename'")
 
     return manifest
