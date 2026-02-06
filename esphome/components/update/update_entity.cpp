@@ -13,7 +13,8 @@ static const char *const TAG = "update";
 PROGMEM_STRING_TABLE(UpdateStateStrings, "UNKNOWN", "NO UPDATE", "UPDATE AVAILABLE", "INSTALLING");
 
 const LogString *update_state_to_string(UpdateState state) {
-  return UpdateStateStrings::get_log_str(static_cast<uint8_t>(state), 0);
+  return UpdateStateStrings::get_log_str(static_cast<uint8_t>(state),
+                                         static_cast<uint8_t>(UpdateState::UPDATE_STATE_UNKNOWN));
 }
 
 void UpdateEntity::publish_state() {
