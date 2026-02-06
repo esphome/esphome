@@ -85,18 +85,18 @@ def validate_pwm_requires_pm25(config):
 
 
 def select_schema(config):
+    if CONF_PWM in config and CONF_UART_ID in config:
+        return UART_SCHEMA(config)
     if CONF_PWM in config:
         return PWM_ONLY_SCHEMA(config)
-    if CONF_UART_ID in config:
-        return UART_SCHEMA(config)
-    raise cv.Invalid("Either 'pwm' or 'uart' must be configured for pm1003")
+    return UART_SCHEMA(config)
 
 
 CONFIG_SCHEMA = cv.All(select_schema, validate_pwm_requires_pm25)
 
 
 def validate_interval_uart(config):
-    if CONF_UART_ID not in config:
+    if CONF_PWM in config and CONF_UART_ID not in config:
         return config
     interval = config.get(CONF_UPDATE_INTERVAL)
     uart.final_validate_device_schema(
@@ -119,7 +119,7 @@ PM1003_ACTION_SCHEMA = automation.maybe_simple_id(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    if CONF_UART_ID in config:
+    if CONF_UART_ID in config or CONF_PWM not in config:
         await uart.register_uart_device(var, config)
 
     if CONF_PM_2_5 in config:
