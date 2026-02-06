@@ -35,7 +35,7 @@ PM100XComponent = pm100x_ns.class_(
     "PM100XComponent", uart.UARTDevice, cg.PollingComponent
 )
 
-PM100XModel = pm100x_ns.enum("PM100XModel")
+PM100XModel = pm100x_ns.enum("PM100XModel", True)
 MODEL_OPTIONS = {
     "pm1003": PM100XModel.PM1003,
     "pm1006": PM100XModel.PM1006,
