@@ -775,7 +775,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
     s_sta_connected = false;
     s_sta_connecting = false;
-    error_from_callback_ = 1;
+    error_from_callback_ = true;
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     this->notify_disconnect_state_listeners_();
 #endif

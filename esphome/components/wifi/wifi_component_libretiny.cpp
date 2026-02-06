@@ -495,7 +495,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
                    s_ignored_disconnect_count, get_disconnect_reason_str(it.reason));
           s_sta_state = LTWiFiSTAState::ERROR_FAILED;
           WiFi.disconnect();
-          this->error_from_callback_ = 1;
+          this->error_from_callback_ = true;
           // Don't break - fall through to notify listeners
         } else {
           ESP_LOGV(TAG, "Ignoring disconnect event with empty ssid while connecting (reason=%s, count=%u)",
@@ -521,7 +521,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
           reason == WIFI_REASON_NO_AP_FOUND || reason == WIFI_REASON_ASSOC_FAIL ||
           reason == WIFI_REASON_HANDSHAKE_TIMEOUT) {
         WiFi.disconnect();
-        this->error_from_callback_ = 1;
+        this->error_from_callback_ = true;
       }
 
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
@@ -537,7 +537,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       if (it.old_mode != WIFI_AUTH_OPEN && it.new_mode == WIFI_AUTH_OPEN) {
         ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
         WiFi.disconnect();
-        this->error_from_callback_ = 1;
+        this->error_from_callback_ = true;
         s_sta_state = LTWiFiSTAState::ERROR_FAILED;
       }
       break;
