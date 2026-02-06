@@ -12,19 +12,8 @@
 
 #include <esp_gap_ble_api.h>
 #include <esp_gatts_api.h>
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#include <esp_bt.h>
-#endif
 
 namespace esphome::esp32_ble {
-
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-using raw_adv_data_t = struct {
-  uint8_t *data;
-  size_t length;
-  esp_power_level_t power_level;
-};
-#endif
 
 class ESPBTUUID;
 
