@@ -539,7 +539,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       s_sta_connecting = false;
       // Store reason as error flag; defer listener callbacks to main loop
       global_wifi_component->error_from_callback_ = it.reason;
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
       global_wifi_component->pending_.disconnect = true;
+#endif
       break;
     }
     case EVENT_STAMODE_AUTHMODE_CHANGE: {
@@ -562,8 +564,10 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", network::IPAddress(&it.ip).str_to(ip_buf),
                network::IPAddress(&it.gw).str_to(gw_buf), network::IPAddress(&it.mask).str_to(mask_buf));
       s_sta_got_ip = true;
+#ifdef USE_WIFI_IP_STATE_LISTENERS
       // Defer listener callbacks to main loop - system context has limited stack
       global_wifi_component->pending_.got_ip = true;
+#endif
       break;
     }
     case EVENT_STAMODE_DHCP_TIMEOUT: {
@@ -773,7 +777,9 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
   ESP_LOGV(TAG, "Scan complete: %zu found, %zu stored%s", total, this->scan_result_.size(),
            needs_full ? "" : " (filtered)");
   this->scan_done_ = true;
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
   this->pending_.scan_complete = true;  // Defer listener callbacks to main loop
+#endif
 }
 
 #ifdef USE_WIFI_AP
@@ -966,29 +972,26 @@ void WiFiComponent::process_pending_callbacks_() {
   // to main loop context (full stack). Connect state listeners are handled
   // by notify_connect_state_listeners_() in the shared state machine code.
 
-  // Notify listeners for disconnect event (logging already done in callback)
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
   if (this->pending_.disconnect) {
     this->pending_.disconnect = false;
-#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     this->notify_disconnect_state_listeners_();
-#endif
   }
+#endif
 
-  // Notify listeners for got IP event (logging already done in callback)
+#ifdef USE_WIFI_IP_STATE_LISTENERS
   if (this->pending_.got_ip) {
     this->pending_.got_ip = false;
-#ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
-#endif
   }
+#endif
 
-  // Notify listeners for scan complete (logging already done in callback)
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
   if (this->pending_.scan_complete) {
     this->pending_.scan_complete = false;
-#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
     this->notify_scan_results_listeners_();
-#endif
   }
+#endif
 }
 
 }  // namespace esphome::wifi

@@ -750,24 +750,24 @@ class WiFiComponent : public Component {
 #endif
 
   // Bools and bitfields
-#if defined(USE_WIFI_CONNECT_STATE_LISTENERS) || defined(USE_ESP8266)
   // Pending listener callbacks deferred from platform callbacks to main loop.
   struct {
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     // Deferred until state machine reaches STA_CONNECTED so wifi.connected
     // condition returns true in listener automations.
     bool connect_state : 1;
-#endif
 #ifdef USE_ESP8266
-    // ESP8266 callbacks run in SDK system context with ~2KB stack where
-    // calling arbitrary listener callbacks is unsafe. These flags defer
-    // listener notifications to wifi_loop_() which runs with full stack.
-    bool disconnect : 1;     // STA disconnected, notify listeners
-    bool got_ip : 1;         // Got IP, notify listeners
-    bool scan_complete : 1;  // Scan complete, notify listeners
+    // ESP8266: also defer disconnect notification to main loop
+    bool disconnect : 1;
+#endif
+#endif
+#if defined(USE_ESP8266) && defined(USE_WIFI_IP_STATE_LISTENERS)
+    bool got_ip : 1;
+#endif
+#if defined(USE_ESP8266) && defined(USE_WIFI_SCAN_RESULTS_LISTENERS)
+    bool scan_complete : 1;
 #endif
   } pending_{};
-#endif
   bool has_ap_{false};
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
   bool handled_connected_state_{false};
