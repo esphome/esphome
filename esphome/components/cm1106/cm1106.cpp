@@ -46,8 +46,7 @@ void CM1106Component::update() {
   }
 
   if (response[0] != 0x16 || response[1] != 0x05 || response[2] != 0x01) {
-    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2],
-             response[3]);
+    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2], response[3]);
     this->status_set_warning();
     return;
   }
@@ -96,8 +95,7 @@ void CM1106Component::calibrate_zero(uint16_t ppm) {
 
   // check if correct response received
   if (memcmp(response, C_M1106_CMD_SET_CO2_CALIB_RESPONSE, sizeof(response)) != 0) {
-    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2],
-             response[3]);
+    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2], response[3]);
     this->status_set_warning();
     return;
   }
@@ -120,8 +118,7 @@ void CM1106Component::send_abc_command_(uint8_t flag) {
 
   // check if correct response received
   if (memcmp(response, C_M1106_CMD_SET_ABC_STATUS_RESPONSE, sizeof(response)) != 0) {
-    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2],
-             response[3]);
+    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2], response[3]);
     this->status_set_warning();
     return;
   }
