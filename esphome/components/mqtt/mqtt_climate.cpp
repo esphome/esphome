@@ -345,7 +345,7 @@ bool MQTTClimateComponent::publish_state_() {
 
   if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
     if (this->device_->has_custom_preset()) {
-      if (!this->publish(this->get_preset_state_topic_to(topic_buf), this->device_->get_custom_preset()))
+      if (!this->publish(this->get_preset_state_topic_to(topic_buf), this->device_->get_custom_preset().c_str()))
         success = false;
     } else if (this->device_->preset.has_value()) {
       if (!this->publish(this->get_preset_state_topic_to(topic_buf),
@@ -363,7 +363,7 @@ bool MQTTClimateComponent::publish_state_() {
 
   if (traits.get_supports_fan_modes()) {
     if (this->device_->has_custom_fan_mode()) {
-      if (!this->publish(this->get_fan_mode_state_topic_to(topic_buf), this->device_->get_custom_fan_mode()))
+      if (!this->publish(this->get_fan_mode_state_topic_to(topic_buf), this->device_->get_custom_fan_mode().c_str()))
         success = false;
     } else if (this->device_->fan_mode.has_value()) {
       if (!this->publish(this->get_fan_mode_state_topic_to(topic_buf),
