@@ -20,6 +20,9 @@ water_heater:
     # Lambda to read the current temperature (e.g. from a sensor)
     current_temperature: !lambda 'return id(my_sensor).state;'
 
+    # Lambda to read the target temperature (optional)
+    target_temperature: !lambda 'return id(my_target_temp_sensor).state;'
+
     # Lambda to read the current operation mode (optional)
     mode: !lambda 'return water_heater::WATER_HEATER_MODE_ECO;'
     optimistic: true
@@ -43,12 +46,16 @@ water_heater:
 Possible return values for the lambdas:
 
 - `current_temperature`: Returns a `float` (e.g. `42.5`).
+- `target_temperature`: Returns a `float` (e.g. `60.0`).
 - `mode`: Returns a `WaterHeaterMode` enum (e.g. `water_heater::WATER_HEATER_MODE_ECO`).
 
 ## Configuration variables
 
 - **current_temperature** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda to be evaluated repeatedly to get the current temperature of the water. Expects a float return value.
+
+- **target_temperature** (*Optional*, [lambda](/automations/templates#config-lambda)):
+  Lambda to be evaluated repeatedly to get the target temperature of the water. Expects a float return value.
 
 - **mode** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda to be evaluated repeatedly to get the current operation mode. Expects a `WaterHeaterMode` enum return value.
