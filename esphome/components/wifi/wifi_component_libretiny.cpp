@@ -468,9 +468,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
         s_sta_state = LTWiFiSTAState::CONNECTED;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-        for (auto *listener : this->ip_state_listeners_) {
-          listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-        }
+        this->notify_ip_state_listeners_();
 #endif
       }
 #endif
@@ -497,7 +495,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
                    s_ignored_disconnect_count, get_disconnect_reason_str(it.reason));
           s_sta_state = LTWiFiSTAState::ERROR_FAILED;
           WiFi.disconnect();
-          this->error_from_callback_ = true;
+          this->error_from_callback_ = 1;
           // Don't break - fall through to notify listeners
         } else {
           ESP_LOGV(TAG, "Ignoring disconnect event with empty ssid while connecting (reason=%s, count=%u)",
@@ -523,14 +521,11 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
           reason == WIFI_REASON_NO_AP_FOUND || reason == WIFI_REASON_ASSOC_FAIL ||
           reason == WIFI_REASON_HANDSHAKE_TIMEOUT) {
         WiFi.disconnect();
-        this->error_from_callback_ = true;
+        this->error_from_callback_ = 1;
       }
 
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-      static constexpr uint8_t EMPTY_BSSID[6] = {};
-      for (auto *listener : this->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
-      }
+      this->notify_disconnect_state_listeners_();
 #endif
       break;
     }
@@ -542,7 +537,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       if (it.old_mode != WIFI_AUTH_OPEN && it.new_mode == WIFI_AUTH_OPEN) {
         ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
         WiFi.disconnect();
-        this->error_from_callback_ = true;
+        this->error_from_callback_ = 1;
         s_sta_state = LTWiFiSTAState::ERROR_FAILED;
       }
       break;
@@ -553,18 +548,14 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
                network::IPAddress(WiFi.gatewayIP()).str_to(gw_buf));
       s_sta_state = LTWiFiSTAState::CONNECTED;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
+      this->notify_ip_state_listeners_();
 #endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
       ESP_LOGV(TAG, "Got IPv6");
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
+      this->notify_ip_state_listeners_();
 #endif
       break;
     }
@@ -708,9 +699,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
            needs_full ? "" : " (filtered)");
   WiFi.scanDelete();
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
-  for (auto *listener : this->scan_results_listeners_) {
-    listener->on_wifi_scan_results(this->scan_result_);
-  }
+  this->notify_scan_results_listeners_();
 #endif
 }
 

@@ -643,7 +643,7 @@ void WiFiComponent::restart_adapter() {
   // through start_connecting() first. Without this clear, stale errors would
   // trigger spurious "failed (callback)" logs. The canonical clear location
   // is in start_connecting(); this is the only exception to that pattern.
-  this->error_from_callback_ = false;
+  this->error_from_callback_ = 0;
 }
 
 void WiFiComponent::loop() {
@@ -1073,7 +1073,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   // This is the canonical location for clearing the flag since all connection
   // attempts go through start_connecting(). The only other clear is in
   // restart_adapter() which enters COOLDOWN without calling start_connecting().
-  this->error_from_callback_ = false;
+  this->error_from_callback_ = 0;
 
   if (!this->wifi_sta_connect_(ap)) {
     ESP_LOGE(TAG, "wifi_sta_connect_ failed");
@@ -1473,6 +1473,14 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->notify_connect_state_listeners_();
 #endif
 
+#if defined(USE_ESP8266) && defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
+    // On ESP8266, GOT_IP event may not fire for static IP configurations,
+    // so notify IP state listeners here as a fallback.
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      this->notify_ip_state_listeners_();
+    }
+#endif
+
     return;
   }
 
@@ -1484,7 +1492,11 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
   }
 
   if (this->error_from_callback_) {
+    // ESP8266: logging done in callback, listeners deferred via pending_.disconnect
+    // Other platforms: just log generic failure message
+#ifndef USE_ESP8266
     ESP_LOGW(TAG, "Connecting to network failed (callback)");
+#endif
     this->retry_connect();
     return;
   }
@@ -2207,7 +2219,30 @@ void WiFiComponent::notify_connect_state_listeners_() {
     listener->on_wifi_connect_state(StringRef(ssid, strlen(ssid)), bssid);
   }
 }
+
+void WiFiComponent::notify_disconnect_state_listeners_() {
+  constexpr uint8_t empty_bssid[6] = {};
+  for (auto *listener : this->connect_state_listeners_) {
+    listener->on_wifi_connect_state(StringRef(), empty_bssid);
+  }
+}
 #endif  // USE_WIFI_CONNECT_STATE_LISTENERS
+
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+void WiFiComponent::notify_ip_state_listeners_() {
+  for (auto *listener : this->ip_state_listeners_) {
+    listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+  }
+}
+#endif  // USE_WIFI_IP_STATE_LISTENERS
+
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
+void WiFiComponent::notify_scan_results_listeners_() {
+  for (auto *listener : this->scan_results_listeners_) {
+    listener->on_wifi_scan_results(this->scan_result_);
+  }
+}
+#endif  // USE_WIFI_SCAN_RESULTS_LISTENERS
 
 void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: not for hidden networks (may not appear in scan)
