@@ -682,7 +682,7 @@ def only_with_framework(
     def validator_(obj):
         if CORE.target_framework not in frameworks:
             err_str = f"This feature is only available with framework(s) {', '.join([framework.value for framework in frameworks])}"
-            if suggestion := suggestions.get(CORE.target_framework, None):
+            if suggestion := suggestions.get(CORE.target_framework):
                 (component, docs_path) = suggestion
                 err_str += f"\nPlease use '{component}'"
                 if docs_path:
@@ -1398,6 +1398,17 @@ def requires_component(comp):
     def validator(value):
         if comp not in CORE.loaded_integrations:
             raise Invalid(f"This option requires component {comp}")
+        return value
+
+    return validator
+
+
+def conflicts_with_component(comp):
+    """Validate that this option cannot be specified when the component `comp` is loaded."""
+
+    def validator(value):
+        if comp in CORE.loaded_integrations:
+            raise Invalid(f"This option is not compatible with component {comp}")
         return value
 
     return validator

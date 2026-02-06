@@ -12,7 +12,6 @@ from .const import (
     CORE_SUBCATEGORY_PATTERNS,
     DEMANGLED_PATTERNS,
     ESPHOME_COMPONENT_PATTERN,
-    SECTION_TO_ATTR,
     SYMBOL_PATTERNS,
 )
 from .demangle import batch_demangle
@@ -91,6 +90,17 @@ class ComponentMemory:
     bss_size: int = 0  # Uninitialized data (ram only)
     symbol_count: int = 0
 
+    def add_section_size(self, section_name: str, size: int) -> None:
+        """Add size to the appropriate attribute for a section."""
+        if section_name == ".text":
+            self.text_size += size
+        elif section_name == ".rodata":
+            self.rodata_size += size
+        elif section_name == ".data":
+            self.data_size += size
+        elif section_name == ".bss":
+            self.bss_size += size
+
     @property
     def flash_total(self) -> int:
         """Total flash usage (text + rodata + data)."""
@@ -167,12 +177,15 @@ class MemoryAnalyzer:
         self._elf_symbol_names: set[str] = set()
         # SDK symbols not in ELF (static/local symbols from closed-source libs)
         self._sdk_symbols: list[SDKSymbol] = []
+        # CSWTCH symbols: list of (name, size, source_file, component)
+        self._cswtch_symbols: list[tuple[str, int, str, str]] = []
 
     def analyze(self) -> dict[str, ComponentMemory]:
         """Analyze the ELF file and return component memory usage."""
         self._parse_sections()
         self._parse_symbols()
         self._categorize_symbols()
+        self._analyze_cswtch_symbols()
         self._analyze_sdk_libraries()
         return dict(self.components)
 
@@ -255,8 +268,7 @@ class MemoryAnalyzer:
                 comp_mem.symbol_count += 1
 
                 # Update the appropriate size attribute based on section
-                if attr_name := SECTION_TO_ATTR.get(section_name):
-                    setattr(comp_mem, attr_name, getattr(comp_mem, attr_name) + size)
+                comp_mem.add_section_size(section_name, size)
 
                 # Track uncategorized symbols
                 if component == "other" and size > 0:
@@ -371,6 +383,205 @@ class MemoryAnalyzer:
                 return category
 
         return "Other Core"
+
+    def _find_object_files_dir(self) -> Path | None:
+        """Find the directory containing object files for this build.
+
+        Returns:
+            Path to the directory containing .o files, or None if not found.
+        """
+        # The ELF is typically at .pioenvs/<env>/firmware.elf
+        # Object files are in .pioenvs/<env>/src/ and .pioenvs/<env>/lib*/
+        pioenvs_dir = self.elf_path.parent
+        if pioenvs_dir.exists() and any(pioenvs_dir.glob("src/*.o")):
+            return pioenvs_dir
+        return None
+
+    def _scan_cswtch_in_objects(
+        self, obj_dir: Path
+    ) -> dict[str, list[tuple[str, int]]]:
+        """Scan object files for CSWTCH symbols using a single nm invocation.
+
+        Uses ``nm --print-file-name -S`` on all ``.o`` files at once.
+        Output format: ``/path/to/file.o:address size type name``
+
+        Args:
+            obj_dir: Directory containing object files (.pioenvs/<env>/)
+
+        Returns:
+            Dict mapping "CSWTCH$NNN:size" to list of (source_file, size) tuples.
+        """
+        cswtch_map: dict[str, list[tuple[str, int]]] = defaultdict(list)
+
+        if not self.nm_path:
+            return cswtch_map
+
+        # Find all .o files recursively, sorted for deterministic output
+        obj_files = sorted(obj_dir.rglob("*.o"))
+        if not obj_files:
+            return cswtch_map
+
+        _LOGGER.debug("Scanning %d object files for CSWTCH symbols", len(obj_files))
+
+        # Single nm call with --print-file-name for all object files
+        result = run_tool(
+            [self.nm_path, "--print-file-name", "-S"] + [str(f) for f in obj_files],
+            timeout=30,
+        )
+        if result is None or result.returncode != 0:
+            return cswtch_map
+
+        for line in result.stdout.splitlines():
+            if "CSWTCH$" not in line:
+                continue
+
+            # Split on last ":" that precedes a hex address.
+            # nm --print-file-name format: filepath:hex_addr hex_size type name
+            # We split from the right: find the last colon followed by hex digits.
+            parts_after_colon = line.rsplit(":", 1)
+            if len(parts_after_colon) != 2:
+                continue
+
+            file_path = parts_after_colon[0]
+            fields = parts_after_colon[1].split()
+            # fields: [address, size, type, name]
+            if len(fields) < 4:
+                continue
+
+            sym_name = fields[3]
+            if not sym_name.startswith("CSWTCH$"):
+                continue
+
+            try:
+                size = int(fields[1], 16)
+            except ValueError:
+                continue
+
+            # Get relative path from obj_dir for readability
+            try:
+                rel_path = str(Path(file_path).relative_to(obj_dir))
+            except ValueError:
+                rel_path = file_path
+
+            key = f"{sym_name}:{size}"
+            cswtch_map[key].append((rel_path, size))
+
+        return cswtch_map
+
+    def _source_file_to_component(self, source_file: str) -> str:
+        """Map a source object file path to its component name.
+
+        Args:
+            source_file: Relative path like 'src/esphome/components/wifi/wifi_component.cpp.o'
+
+        Returns:
+            Component name like '[esphome]wifi' or the source file if unknown.
+        """
+        parts = Path(source_file).parts
+
+        # ESPHome component: src/esphome/components/<name>/...
+        if "components" in parts:
+            idx = parts.index("components")
+            if idx + 1 < len(parts):
+                component_name = parts[idx + 1]
+                if component_name in get_esphome_components():
+                    return f"{_COMPONENT_PREFIX_ESPHOME}{component_name}"
+                if component_name in self.external_components:
+                    return f"{_COMPONENT_PREFIX_EXTERNAL}{component_name}"
+
+        # ESPHome core: src/esphome/core/... or src/esphome/...
+        if "core" in parts and "esphome" in parts:
+            return _COMPONENT_CORE
+        if "esphome" in parts and "components" not in parts:
+            return _COMPONENT_CORE
+
+        # Framework/library files - return the first path component
+        # e.g., lib65b/ESPAsyncTCP/... -> lib65b
+        #        FrameworkArduino/... -> FrameworkArduino
+        return parts[0] if parts else source_file
+
+    def _analyze_cswtch_symbols(self) -> None:
+        """Analyze CSWTCH (GCC switch table) symbols by tracing to source objects.
+
+        CSWTCH symbols are compiler-generated lookup tables for switch statements.
+        They are local symbols, so the same name can appear in different object files.
+        This method scans .o files to attribute them to their source components.
+        """
+        obj_dir = self._find_object_files_dir()
+        if obj_dir is None:
+            _LOGGER.debug("No object files directory found, skipping CSWTCH analysis")
+            return
+
+        # Scan object files for CSWTCH symbols
+        cswtch_map = self._scan_cswtch_in_objects(obj_dir)
+        if not cswtch_map:
+            _LOGGER.debug("No CSWTCH symbols found in object files")
+            return
+
+        # Collect CSWTCH symbols from the ELF (already parsed in sections)
+        # Include section_name for re-attribution of component totals
+        elf_cswtch = [
+            (symbol_name, size, section_name)
+            for section_name, section in self.sections.items()
+            for symbol_name, size, _ in section.symbols
+            if symbol_name.startswith("CSWTCH$")
+        ]
+
+        _LOGGER.debug(
+            "Found %d CSWTCH symbols in ELF, %d unique in object files",
+            len(elf_cswtch),
+            len(cswtch_map),
+        )
+
+        # Match ELF CSWTCH symbols to source files and re-attribute component totals.
+        # _categorize_symbols() already ran and put these into "other" since CSWTCH$
+        # names don't match any component pattern. We move the bytes to the correct
+        # component based on the object file mapping.
+        other_mem = self.components.get("other")
+
+        for sym_name, size, section_name in elf_cswtch:
+            key = f"{sym_name}:{size}"
+            sources = cswtch_map.get(key, [])
+
+            if len(sources) == 1:
+                source_file = sources[0][0]
+                component = self._source_file_to_component(source_file)
+            elif len(sources) > 1:
+                # Ambiguous - multiple object files have same CSWTCH name+size
+                source_file = "ambiguous"
+                component = "ambiguous"
+                _LOGGER.debug(
+                    "Ambiguous CSWTCH %s (%d B) found in %d files: %s",
+                    sym_name,
+                    size,
+                    len(sources),
+                    ", ".join(src for src, _ in sources),
+                )
+            else:
+                source_file = "unknown"
+                component = "unknown"
+
+            self._cswtch_symbols.append((sym_name, size, source_file, component))
+
+            # Re-attribute from "other" to the correct component
+            if (
+                component not in ("other", "unknown", "ambiguous")
+                and other_mem is not None
+            ):
+                other_mem.add_section_size(section_name, -size)
+                if component not in self.components:
+                    self.components[component] = ComponentMemory(component)
+                self.components[component].add_section_size(section_name, size)
+
+        # Sort by size descending
+        self._cswtch_symbols.sort(key=lambda x: x[1], reverse=True)
+
+        total_size = sum(size for _, size, _, _ in self._cswtch_symbols)
+        _LOGGER.debug(
+            "CSWTCH analysis: %d symbols, %d bytes total",
+            len(self._cswtch_symbols),
+            total_size,
+        )
 
     def get_unattributed_ram(self) -> tuple[int, int, int]:
         """Get unattributed RAM sizes (SDK/framework overhead).
