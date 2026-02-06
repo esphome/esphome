@@ -272,10 +272,11 @@ int HttpContainerArduino::read_chunked_(uint8_t *buf, size_t max_len, WiFiClient
           this->chunk_state_ = this->chunk_remaining_ == 0 ? ChunkedState::COMPLETE : ChunkedState::CHUNK_DATA;
         } else {
           uint8_t hex = parse_hex_char(c);
-          if (hex != INVALID_HEX_CHAR)
+          if (hex != INVALID_HEX_CHAR) {
             this->chunk_remaining_ = (this->chunk_remaining_ << 4) | hex;
-          else if (c != '\r')
+          } else if (c != '\r') {
             this->chunk_state_ = ChunkedState::CHUNK_HEADER_EXT;  // ';' starts extension, skip to \n
+          }
         }
         break;
 
