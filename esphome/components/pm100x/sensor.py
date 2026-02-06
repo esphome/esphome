@@ -7,10 +7,14 @@ from esphome.const import (
     CONF_INTERNAL,
     CONF_NAME,
     CONF_PIN,
+    CONF_PM_1_0,
     CONF_PM_2_5,
+    CONF_PM_10_0,
     CONF_STARTUP_DELAY,
     CONF_UART_ID,
     CONF_UPDATE_INTERVAL,
+    DEVICE_CLASS_PM1,
+    DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
     ICON_BLUR,
     ICON_PERCENT,
@@ -24,11 +28,19 @@ CODEOWNERS = ["@tuct"]
 AUTO_LOAD = ["duty_cycle", "uart"]
 
 CONF_PWM = "pwm"
+CONF_MODEL = "model"
 
-pm1003_ns = cg.esphome_ns.namespace("pm1003")
-PM1003Component = pm1003_ns.class_(
-    "PM1003Component", uart.UARTDevice, cg.PollingComponent
+pm100x_ns = cg.esphome_ns.namespace("pm100x")
+PM100XComponent = pm100x_ns.class_(
+    "PM100XComponent", uart.UARTDevice, cg.PollingComponent
 )
+
+PM100XModel = pm100x_ns.enum("PM100XModel")
+MODEL_OPTIONS = {
+    "pm1003": PM100XModel.PM1003,
+    "pm1006": PM100XModel.PM1006,
+    "pm1006k": PM100XModel.PM1006K,
+}
 
 duty_cycle_ns = cg.esphome_ns.namespace("duty_cycle")
 DutyCycleSensor = duty_cycle_ns.class_(
@@ -52,12 +64,29 @@ PWM_SCHEMA = (
 
 BASE_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(PM1003Component),
+        cv.GenerateID(): cv.declare_id(PM100XComponent),
+        cv.Optional(CONF_MODEL, default="pm1003"): cv.one_of(
+            "pm1003", "pm1006", "pm1006k", lower=True
+        ),
         cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
             unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
             icon=ICON_BLUR,
             accuracy_decimals=0,
             device_class=DEVICE_CLASS_PM25,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
+            unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+            icon=ICON_BLUR,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_PM1,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
+            unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+            icon=ICON_BLUR,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_PM10,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_STARTUP_DELAY, default="15s"): cv.positive_time_period,
@@ -81,6 +110,14 @@ PWM_ONLY_SCHEMA = (
 def validate_pwm_requires_pm25(config):
     if CONF_PWM in config and CONF_PM_2_5 not in config:
         raise cv.Invalid("pm_2_5 is required when pwm is configured", path=[CONF_PWM])
+    if CONF_PWM in config and (CONF_PM_1_0 in config or CONF_PM_10_0 in config):
+        raise cv.Invalid("pm_1_0 and pm_10_0 require UART (pwm only supports pm_2_5)")
+    if (CONF_PM_1_0 in config or CONF_PM_10_0 in config) and config.get(
+        CONF_MODEL
+    ) != "pm1006k":
+        raise cv.Invalid("pm_1_0 and pm_10_0 are only supported on pm1006k")
+    if config.get(CONF_MODEL) == "pm1006" and CONF_PWM in config:
+        raise cv.Invalid("pwm is not supported on pm1006", path=[CONF_PWM])
     return config
 
 
@@ -100,7 +137,7 @@ def validate_interval_uart(config):
         return config
     interval = config.get(CONF_UPDATE_INTERVAL)
     uart.final_validate_device_schema(
-        "pm1003",
+        "pm100x",
         baud_rate=9600,
         require_rx=True,
         require_tx=interval.total_milliseconds != SCHEDULER_DONT_RUN,
@@ -111,20 +148,29 @@ def validate_interval_uart(config):
 FINAL_VALIDATE_SCHEMA = validate_interval_uart
 
 
-PM1003_ACTION_SCHEMA = automation.maybe_simple_id(
-    {cv.GenerateID(): cv.use_id(PM1003Component)}
+PM100X_ACTION_SCHEMA = automation.maybe_simple_id(
+    {cv.GenerateID(): cv.use_id(PM100XComponent)}
 )
 
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    cg.add(var.set_model(MODEL_OPTIONS[config[CONF_MODEL]]))
     if CONF_UART_ID in config or CONF_PWM not in config:
         await uart.register_uart_device(var, config)
 
     if CONF_PM_2_5 in config:
         sens = await sensor.new_sensor(config[CONF_PM_2_5])
         cg.add(var.set_pm_2_5_sensor(sens))
+
+    if CONF_PM_1_0 in config:
+        sens = await sensor.new_sensor(config[CONF_PM_1_0])
+        cg.add(var.set_pm_1_0_sensor(sens))
+
+    if CONF_PM_10_0 in config:
+        sens = await sensor.new_sensor(config[CONF_PM_10_0])
+        cg.add(var.set_pm_10_0_sensor(sens))
 
     if CONF_PWM in config:
         pwm = await sensor.new_sensor(config[CONF_PWM])
