@@ -9,10 +9,11 @@ namespace esphome::lock {
 static const char *const TAG = "lock";
 
 // Lock state strings indexed by LockState enum (0-5): NONE(UNKNOWN), LOCKED, UNLOCKED, JAMMED, LOCKING, UNLOCKING
-PROGMEM_STRING_TABLE(LockStateStrings, "UNKNOWN", "LOCKED", "UNLOCKED", "JAMMED", "LOCKING", "UNLOCKING", "UNKNOWN");
+// Index 0 is UNKNOWN (for LOCK_STATE_NONE), also used as fallback for out-of-range
+PROGMEM_STRING_TABLE(LockStateStrings, "UNKNOWN", "LOCKED", "UNLOCKED", "JAMMED", "LOCKING", "UNLOCKING");
 
 const LogString *lock_state_to_string(LockState state) {
-  return LockStateStrings::get_log_str(static_cast<uint8_t>(state), LockStateStrings::LAST_INDEX);
+  return LockStateStrings::get_log_str(static_cast<uint8_t>(state), 0);
 }
 
 Lock::Lock() : state(LOCK_STATE_NONE) {}
