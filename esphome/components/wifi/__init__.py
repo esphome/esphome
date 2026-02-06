@@ -471,7 +471,7 @@ async def to_code(config):
         )
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
         cg.add_define("USE_WIFI_AP")
-        if CORE.is_esp32 and CORE.using_esp_idf and not wifi_has_sta(config):
+        if CORE.is_esp32 and not wifi_has_sta(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
     elif CORE.is_esp32 and not CORE.using_arduino:
