@@ -36,6 +36,7 @@ BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
 MANIFEST_FILENAME = "manifest.json"
 CURRENT_MANIFEST_VERSION = 1
 MAX_DECOMPRESSED_SIZE = 500 * 1024 * 1024  # 500 MB
+MAX_MANIFEST_SIZE = 1024 * 1024  # 1 MB
 
 # Directories preserved across bundle extractions (build caches)
 _PRESERVE_DIRS = (".esphome", ".pioenvs", ".pio")
@@ -510,6 +511,12 @@ def _read_manifest_from_tar(tar: tarfile.TarFile) -> dict[str, Any]:
     if f is None:
         raise EsphomeError("Invalid bundle: manifest.json is not a regular file")
 
+    if member.size > MAX_MANIFEST_SIZE:
+        raise EsphomeError(
+            f"Invalid bundle: manifest.json too large "
+            f"({member.size} bytes, max {MAX_MANIFEST_SIZE})"
+        )
+
     try:
         manifest = json.loads(f.read())
     except (json.JSONDecodeError, UnicodeDecodeError) as err:
@@ -616,11 +623,16 @@ def _default_target_dir(bundle_path: Path) -> Path:
 
 
 def _restore_preserved_dirs(preserved: dict[str, Path], target_dir: Path) -> None:
-    """Move preserved build cache directories back into target_dir."""
+    """Move preserved build cache directories back into target_dir.
+
+    If the bundle contained entries under a preserved directory name,
+    the extracted copy is removed so the original cache always wins.
+    """
     for dirname, src in preserved.items():
         dst = target_dir / dirname
-        if not dst.exists():
-            shutil.move(str(src), str(dst))
+        if dst.exists():
+            shutil.rmtree(dst)
+        shutil.move(str(src), str(dst))
 
 
 def prepare_bundle_for_compile(

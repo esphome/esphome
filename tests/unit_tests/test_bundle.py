@@ -411,6 +411,18 @@ def test_extract_bundle_manifest_version_zero(tmp_path: Path) -> None:
         extract_bundle(bundle_path, tmp_path / "out")
 
 
+def test_extract_bundle_manifest_too_large(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Oversized manifest.json is rejected."""
+    monkeypatch.setattr("esphome.bundle.MAX_MANIFEST_SIZE", 50)
+
+    bundle_path = _make_bundle(tmp_path)
+
+    with pytest.raises(EsphomeError, match="manifest.json too large"):
+        extract_bundle(bundle_path, tmp_path / "out")
+
+
 def test_extract_bundle_manifest_not_regular_file(tmp_path: Path) -> None:
     """manifest.json that is a directory entry raises EsphomeError."""
     bundle_path = tmp_path / f"dirmanifest{BUNDLE_EXTENSION}"
@@ -528,6 +540,29 @@ def test_prepare_bundle_missing_file(tmp_path: Path) -> None:
     missing = tmp_path / f"missing{BUNDLE_EXTENSION}"
     with pytest.raises(EsphomeError, match="Bundle file not found"):
         prepare_bundle_for_compile(missing)
+
+
+def test_prepare_bundle_cache_wins_over_bundle_content(tmp_path: Path) -> None:
+    """Pre-existing build cache is restored even if the bundle contains those dirs."""
+    bundle_path = _make_bundle(
+        tmp_path,
+        extra_files={
+            ".esphome/from_bundle.json": b'{"from": "bundle"}',
+        },
+    )
+    target = tmp_path / "work"
+    target.mkdir()
+
+    # Pre-existing build cache
+    esphome_dir = target / ".esphome"
+    esphome_dir.mkdir()
+    (esphome_dir / "local_cache.json").write_text('{"from": "local"}')
+
+    prepare_bundle_for_compile(bundle_path, target)
+
+    # Local cache should win over bundle content
+    assert (target / ".esphome" / "local_cache.json").read_text() == '{"from": "local"}'
+    assert not (target / ".esphome" / "from_bundle.json").exists()
 
 
 def test_prepare_bundle_default_target_dir(tmp_path: Path) -> None:
