@@ -353,9 +353,93 @@ def test_extract_bundle_rejects_oversized(
         extract_bundle(bundle_path, tmp_path / "out")
 
 
+def test_extract_bundle_corrupted_tar(tmp_path: Path) -> None:
+    """Corrupted tar file raises EsphomeError."""
+    bundle_path = tmp_path / f"bad{BUNDLE_EXTENSION}"
+    bundle_path.write_bytes(b"not a tar file at all")
+
+    with pytest.raises(EsphomeError, match="Failed to extract bundle"):
+        extract_bundle(bundle_path, tmp_path / "out")
+
+
+def test_extract_bundle_malformed_manifest_json(tmp_path: Path) -> None:
+    """Invalid JSON in manifest.json raises EsphomeError."""
+    bundle_path = tmp_path / f"badjson{BUNDLE_EXTENSION}"
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        _add_bytes_to_tar(tar, MANIFEST_FILENAME, b"{invalid json")
+        _add_bytes_to_tar(tar, "test.yaml", b"esphome:\n  name: test\n")
+    bundle_path.write_bytes(buf.getvalue())
+
+    with pytest.raises(EsphomeError, match="malformed manifest.json"):
+        extract_bundle(bundle_path, tmp_path / "out")
+
+
+def test_extract_bundle_missing_manifest_version(tmp_path: Path) -> None:
+    """Manifest without manifest_version raises EsphomeError."""
+    bundle_path = tmp_path / f"nover{BUNDLE_EXTENSION}"
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        manifest = {ManifestKey.CONFIG_FILENAME: "test.yaml"}
+        _add_bytes_to_tar(tar, MANIFEST_FILENAME, json.dumps(manifest).encode())
+        _add_bytes_to_tar(tar, "test.yaml", b"esphome:\n  name: test\n")
+    bundle_path.write_bytes(buf.getvalue())
+
+    with pytest.raises(EsphomeError, match="missing 'manifest_version'"):
+        extract_bundle(bundle_path, tmp_path / "out")
+
+
+def test_extract_bundle_invalid_manifest_version_type(tmp_path: Path) -> None:
+    """Non-integer manifest_version raises EsphomeError."""
+    bundle_path = _make_bundle(
+        tmp_path,
+        manifest_overrides={ManifestKey.MANIFEST_VERSION: "not_an_int"},
+    )
+
+    with pytest.raises(EsphomeError, match="must be a positive integer"):
+        extract_bundle(bundle_path, tmp_path / "out")
+
+
+def test_extract_bundle_manifest_version_zero(tmp_path: Path) -> None:
+    """manifest_version of 0 is rejected."""
+    bundle_path = _make_bundle(
+        tmp_path,
+        manifest_overrides={ManifestKey.MANIFEST_VERSION: 0},
+    )
+
+    with pytest.raises(EsphomeError, match="must be a positive integer"):
+        extract_bundle(bundle_path, tmp_path / "out")
+
+
+def test_extract_bundle_manifest_not_regular_file(tmp_path: Path) -> None:
+    """manifest.json that is a directory entry raises EsphomeError."""
+    bundle_path = tmp_path / f"dirmanifest{BUNDLE_EXTENSION}"
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        # Add manifest.json as a directory instead of a file
+        dir_info = tarfile.TarInfo(name=MANIFEST_FILENAME)
+        dir_info.type = tarfile.DIRTYPE
+        dir_info.size = 0
+        tar.addfile(dir_info)
+        _add_bytes_to_tar(tar, "test.yaml", b"esphome:\n  name: test\n")
+    bundle_path.write_bytes(buf.getvalue())
+
+    with pytest.raises(EsphomeError, match="not a regular file"):
+        extract_bundle(bundle_path, tmp_path / "out")
+
+
 # ---------------------------------------------------------------------------
 # read_bundle_manifest
 # ---------------------------------------------------------------------------
+
+
+def test_read_bundle_manifest_corrupted_tar(tmp_path: Path) -> None:
+    """Corrupted tar file raises EsphomeError via read_bundle_manifest."""
+    bundle_path = tmp_path / f"bad{BUNDLE_EXTENSION}"
+    bundle_path.write_bytes(b"not a tar file")
+
+    with pytest.raises(EsphomeError, match="Failed to read bundle"):
+        read_bundle_manifest(bundle_path)
 
 
 def test_read_bundle_manifest(tmp_path: Path) -> None:
@@ -444,6 +528,17 @@ def test_prepare_bundle_missing_file(tmp_path: Path) -> None:
     missing = tmp_path / f"missing{BUNDLE_EXTENSION}"
     with pytest.raises(EsphomeError, match="Bundle file not found"):
         prepare_bundle_for_compile(missing)
+
+
+def test_prepare_bundle_default_target_dir(tmp_path: Path) -> None:
+    """prepare_bundle_for_compile uses default dir when target_dir is None."""
+    bundle_path = _make_bundle(tmp_path)
+
+    config_path = prepare_bundle_for_compile(bundle_path)
+
+    expected_dir = tmp_path / "device"
+    assert config_path.parent == expected_dir
+    assert config_path.is_file()
 
 
 # ---------------------------------------------------------------------------
@@ -680,6 +775,183 @@ def test_discover_files_idempotent_secrets(tmp_path: Path) -> None:
     assert paths1 == paths2
 
 
+def test_discover_files_skips_missing_file(tmp_path: Path) -> None:
+    """_add_file logs warning for non-existent files via includes."""
+    _setup_config_dir(tmp_path)
+
+    # Include references a file that doesn't exist on disk
+    config: dict[str, Any] = {
+        "esphome": {"includes": ["nonexistent.h"]},
+    }
+    creator = ConfigBundleCreator(config)
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "nonexistent.h" not in paths
+
+
+def test_discover_files_skips_missing_directory(tmp_path: Path) -> None:
+    """_add_directory logs warning for non-existent directories."""
+    _setup_config_dir(tmp_path)
+
+    config: dict[str, Any] = {
+        "external_components": [
+            {"source": {"type": "local", "path": "nonexistent_dir"}}
+        ],
+    }
+    creator = ConfigBundleCreator(config)
+    files = creator.discover_files()
+
+    # Only the config file
+    assert len(files) == 1
+
+
+def test_discover_files_yaml_reload_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """YAML reload failure during include discovery is handled gracefully."""
+    _setup_config_dir(tmp_path)
+
+    def _raise_error(*args, **kwargs):
+        raise EsphomeError("parse error")
+
+    monkeypatch.setattr("esphome.yaml_util.load_yaml", _raise_error)
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    # Should still have the config file at minimum
+    paths = [f.path for f in files]
+    assert "test.yaml" in paths
+
+
+def test_discover_files_esphome_includes_c(tmp_path: Path) -> None:
+    """Paths listed in esphome.includes_c are discovered."""
+    _setup_config_dir(
+        tmp_path,
+        files={"my_code.c": "// c code"},
+    )
+
+    config: dict[str, Any] = {
+        "esphome": {"includes_c": ["my_code.c"]},
+    }
+    creator = ConfigBundleCreator(config)
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "my_code.c" in paths
+
+
+def test_discover_files_external_components_non_local_type(tmp_path: Path) -> None:
+    """external_components with type != 'local' are skipped."""
+    _setup_config_dir(tmp_path)
+
+    config: dict[str, Any] = {
+        "external_components": [
+            {"source": {"type": "git", "url": "https://github.com/user/repo"}}
+        ],
+    }
+    creator = ConfigBundleCreator(config)
+    files = creator.discover_files()
+
+    assert len(files) == 1
+
+
+def test_discover_files_external_components_no_path(tmp_path: Path) -> None:
+    """external_components with local type but missing path are skipped."""
+    _setup_config_dir(tmp_path)
+
+    config: dict[str, Any] = {
+        "external_components": [{"source": {"type": "local"}}],
+    }
+    creator = ConfigBundleCreator(config)
+    files = creator.discover_files()
+
+    assert len(files) == 1
+
+
+def test_discover_files_external_components_absolute_path(tmp_path: Path) -> None:
+    """external_components with absolute path are resolved correctly."""
+    config_dir = _setup_config_dir(
+        tmp_path,
+        files={"ext/comp/__init__.py": "# comp"},
+    )
+
+    abs_path = str(config_dir / "ext")
+    config: dict[str, Any] = {
+        "external_components": [{"source": {"type": "local", "path": abs_path}}],
+    }
+    creator = ConfigBundleCreator(config)
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "ext/comp/__init__.py" in paths
+
+
+def test_discover_files_relative_string_with_known_extension(tmp_path: Path) -> None:
+    """Relative strings with known extensions are resolved and warned."""
+    _setup_config_dir(
+        tmp_path,
+        files={"my_cert.pem": "cert data"},
+    )
+
+    config: dict[str, Any] = {
+        "component": {"cert": "my_cert.pem"},
+    }
+    creator = ConfigBundleCreator(config)
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "my_cert.pem" in paths
+
+
+def test_discover_files_relative_string_missing_file(tmp_path: Path) -> None:
+    """Relative strings with known extensions that don't exist are skipped."""
+    _setup_config_dir(tmp_path)
+
+    config: dict[str, Any] = {
+        "component": {"cert": "nonexistent.pem"},
+    }
+    creator = ConfigBundleCreator(config)
+    files = creator.discover_files()
+
+    assert len(files) == 1
+
+
+def test_discover_files_esphome_includes_absolute_path(tmp_path: Path) -> None:
+    """esphome.includes with absolute path is handled."""
+    config_dir = _setup_config_dir(
+        tmp_path,
+        files={"my_code.h": "#pragma once"},
+    )
+
+    config: dict[str, Any] = {
+        "esphome": {"includes": [str(config_dir / "my_code.h")]},
+    }
+    creator = ConfigBundleCreator(config)
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "my_code.h" in paths
+
+
+def test_discover_files_walk_tuple_values(tmp_path: Path) -> None:
+    """Tuples in config are walked like lists."""
+    config_dir = _setup_config_dir(
+        tmp_path,
+        files={"a.pem": "cert"},
+    )
+
+    config: dict[str, Any] = {
+        "items": (config_dir / "a.pem",),
+    }
+    creator = ConfigBundleCreator(config)
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "a.pem" in paths
+
+
 # ---------------------------------------------------------------------------
 # ConfigBundleCreator - create_bundle
 # ---------------------------------------------------------------------------
@@ -743,6 +1015,57 @@ def test_create_bundle_filters_secrets(tmp_path: Path) -> None:
 
 def test_create_bundle_no_secrets(tmp_path: Path) -> None:
     _setup_config_dir(tmp_path)
+
+    creator = ConfigBundleCreator({})
+    result = creator.create_bundle()
+
+    assert result.manifest[ManifestKey.HAS_SECRETS] is False
+
+
+def test_create_bundle_secrets_load_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Secrets file that fails to load during filtering is skipped gracefully."""
+    config_dir = _setup_config_dir(tmp_path)
+    (config_dir / "secrets.yaml").write_text("k: v\n")
+    (config_dir / "test.yaml").write_text("a: !secret k\n")
+
+    from esphome import yaml_util as yu
+
+    original_load = yu.load_yaml
+
+    def _failing_on_filter(fname, *args, clear_secrets=True, **kwargs):
+        # Fail only when _build_filtered_secrets calls with clear_secrets=False
+        if not clear_secrets and "secrets" in str(fname):
+            raise EsphomeError("corrupt secrets")
+        return original_load(fname, *args, clear_secrets=clear_secrets, **kwargs)
+
+    monkeypatch.setattr(yu, "load_yaml", _failing_on_filter)
+
+    creator = ConfigBundleCreator({})
+    result = creator.create_bundle()
+
+    # Should succeed without secrets since the filtered load failed
+    assert result.manifest[ManifestKey.HAS_SECRETS] is False
+
+
+def test_create_bundle_secrets_non_dict(tmp_path: Path) -> None:
+    """Secrets file that parses to non-dict is skipped."""
+    config_dir = _setup_config_dir(tmp_path)
+    (config_dir / "secrets.yaml").write_text("- item1\n- item2\n")
+    (config_dir / "test.yaml").write_text("a: !secret k\n")
+
+    creator = ConfigBundleCreator({})
+    result = creator.create_bundle()
+
+    assert result.manifest[ManifestKey.HAS_SECRETS] is False
+
+
+def test_create_bundle_secrets_no_matching_keys(tmp_path: Path) -> None:
+    """Secrets with no matching keys produces empty filtered result."""
+    config_dir = _setup_config_dir(tmp_path)
+    (config_dir / "secrets.yaml").write_text("other_key: value\n")
+    (config_dir / "test.yaml").write_text("a: !secret nonexistent\n")
 
     creator = ConfigBundleCreator({})
     result = creator.create_bundle()
