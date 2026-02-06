@@ -236,25 +236,23 @@ static const char *const TAG = "wifi";
 /// │  - Roaming fail (RECONNECTING→IDLE): counter preserved (ping-pong)   │
 /// └──────────────────────────────────────────────────────────────────────┘
 
+// Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
-  switch (phase) {
-    case WiFiRetryPhase::INITIAL_CONNECT:
-      return LOG_STR("INITIAL_CONNECT");
+  if (phase == WiFiRetryPhase::INITIAL_CONNECT)
+    return LOG_STR("INITIAL_CONNECT");
 #ifdef USE_WIFI_FAST_CONNECT
-    case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
-      return LOG_STR("FAST_CONNECT_CYCLING");
+  if (phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS)
+    return LOG_STR("FAST_CONNECT_CYCLING");
 #endif
-    case WiFiRetryPhase::EXPLICIT_HIDDEN:
-      return LOG_STR("EXPLICIT_HIDDEN");
-    case WiFiRetryPhase::SCAN_CONNECTING:
-      return LOG_STR("SCAN_CONNECTING");
-    case WiFiRetryPhase::RETRY_HIDDEN:
-      return LOG_STR("RETRY_HIDDEN");
-    case WiFiRetryPhase::RESTARTING_ADAPTER:
-      return LOG_STR("RESTARTING");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  if (phase == WiFiRetryPhase::EXPLICIT_HIDDEN)
+    return LOG_STR("EXPLICIT_HIDDEN");
+  if (phase == WiFiRetryPhase::SCAN_CONNECTING)
+    return LOG_STR("SCAN_CONNECTING");
+  if (phase == WiFiRetryPhase::RETRY_HIDDEN)
+    return LOG_STR("RETRY_HIDDEN");
+  if (phase == WiFiRetryPhase::RESTARTING_ADAPTER)
+    return LOG_STR("RESTARTING");
+  return LOG_STR("UNKNOWN");
 }
 
 bool WiFiComponent::went_through_explicit_hidden_phase_() const {
