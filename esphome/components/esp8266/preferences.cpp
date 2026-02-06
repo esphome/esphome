@@ -17,10 +17,6 @@ namespace esphome::esp8266 {
 
 static const char *const TAG = "esp8266.preferences";
 
-static uint32_t *s_flash_storage = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_prevent_write = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_flash_dirty = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 static constexpr uint32_t ESP_RTC_USER_MEM_START = 0x60001200;
 static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = 128;
 static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WORDS * 4;
@@ -42,6 +38,11 @@ static constexpr uint32_t ESP8266_FLASH_STORAGE_SIZE = 128;
 #else
 static constexpr uint32_t ESP8266_FLASH_STORAGE_SIZE = 64;
 #endif
+
+static uint32_t
+    s_flash_storage[ESP8266_FLASH_STORAGE_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_prevent_write = false;              // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_flash_dirty = false;                // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static inline bool esp_rtc_user_mem_read(uint32_t index, uint32_t *dest) {
   if (index >= ESP_RTC_USER_MEM_SIZE_WORDS) {
@@ -180,7 +181,6 @@ class ESP8266Preferences : public ESPPreferences {
   uint32_t current_flash_offset = 0;  // in words
 
   void setup() {
-    s_flash_storage = new uint32_t[ESP8266_FLASH_STORAGE_SIZE];  // NOLINT
     ESP_LOGVV(TAG, "Loading preferences from flash");
 
     {
@@ -283,10 +283,11 @@ class ESP8266Preferences : public ESPPreferences {
   }
 };
 
+static ESP8266Preferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void setup_preferences() {
-  auto *pref = new ESP8266Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  pref->setup();
-  global_preferences = pref;
+  s_preferences.setup();
+  global_preferences = &s_preferences;
 }
 void preferences_prevent_write(bool prevent) { s_prevent_write = prevent; }
 

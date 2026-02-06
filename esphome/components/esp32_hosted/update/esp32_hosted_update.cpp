@@ -34,14 +34,29 @@ static const char *const ESP_HOSTED_VERSION_STR = STRINGIFY(ESP_HOSTED_VERSION_M
     ESP_HOSTED_VERSION_MINOR_1) "." STRINGIFY(ESP_HOSTED_VERSION_PATCH_1);
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+// Parse an integer from str, advancing ptr past the number
+// Returns false if no digits were parsed
+static bool parse_int(const char *&ptr, int &value) {
+  char *end;
+  value = static_cast<int>(strtol(ptr, &end, 10));
+  if (end == ptr)
+    return false;
+  ptr = end;
+  return true;
+}
+
 // Parse version string "major.minor.patch" into components
-// Returns true if parsing succeeded
+// Returns true if at least major.minor was parsed
 static bool parse_version(const std::string &version_str, int &major, int &minor, int &patch) {
   major = minor = patch = 0;
-  if (sscanf(version_str.c_str(), "%d.%d.%d", &major, &minor, &patch) >= 2) {
-    return true;
-  }
-  return false;
+  const char *ptr = version_str.c_str();
+
+  if (!parse_int(ptr, major) || *ptr++ != '.' || !parse_int(ptr, minor))
+    return false;
+  if (*ptr == '.')
+    parse_int(++ptr, patch);
+
+  return true;
 }
 
 // Compare two versions, returns:
@@ -196,11 +211,14 @@ bool Esp32HostedUpdate::fetch_manifest_() {
     int read_or_error = container->read(buf, sizeof(buf));
     App.feed_wdt();
     yield();
-    auto result = http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout);
+    auto result =
+        http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout, container->is_read_complete());
     if (result == http_request::HttpReadLoopResult::RETRY)
       continue;
+    // Note: COMPLETE is currently unreachable since the loop condition checks bytes_read < content_length,
+    // but this is defensive code in case chunked transfer encoding support is added in the future.
     if (result != http_request::HttpReadLoopResult::DATA)
-      break;  // ERROR or TIMEOUT
+      break;  // COMPLETE, ERROR, or TIMEOUT
     json_str.append(reinterpret_cast<char *>(buf), read_or_error);
   }
   container->end();
@@ -321,9 +339,14 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
     App.feed_wdt();
     yield();
 
-    auto result = http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout);
+    auto result =
+        http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout, container->is_read_complete());
     if (result == http_request::HttpReadLoopResult::RETRY)
       continue;
+    // Note: COMPLETE is currently unreachable since the loop condition checks bytes_read < content_length,
+    // but this is defensive code in case chunked transfer encoding support is added in the future.
+    if (result == http_request::HttpReadLoopResult::COMPLETE)
+      break;
     if (result != http_request::HttpReadLoopResult::DATA) {
       if (result == http_request::HttpReadLoopResult::TIMEOUT) {
         ESP_LOGE(TAG, "Timeout reading firmware data");

@@ -37,7 +37,6 @@ void MICS4514Component::dump_config() {
   LOG_SENSOR("  ", "Hydrogen", this->hydrogen_sensor_);
   LOG_SENSOR("  ", "Ammonia", this->ammonia_sensor_);
 }
-float MICS4514Component::get_setup_priority() const { return setup_priority::DATA; }
 void MICS4514Component::update() {
   if (!this->warmed_up_) {
     return;
