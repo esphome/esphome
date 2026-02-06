@@ -1464,11 +1464,20 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 
     this->release_scan_results_();
 
-#if defined(USE_WIFI_CONNECT_STATE_LISTENERS) && !defined(USE_ESP8266)
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     // Notify listeners now that state machine has reached STA_CONNECTED
     // This ensures wifi.connected condition returns true in listener automations
-    // On ESP8266, this is handled by process_pending_callbacks_() instead.
     this->notify_connect_state_listeners_();
+#endif
+
+#if defined(USE_ESP8266) && defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
+    // On ESP8266, GOT_IP event may not fire for static IP configurations,
+    // so notify IP state listeners here as a fallback.
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      for (auto *listener : this->ip_state_listeners_) {
+        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+      }
+    }
 #endif
 
     return;
@@ -2194,7 +2203,7 @@ void WiFiComponent::release_scan_results_() {
   }
 }
 
-#if defined(USE_WIFI_CONNECT_STATE_LISTENERS) && !defined(USE_ESP8266)
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
 void WiFiComponent::notify_connect_state_listeners_() {
   if (!this->pending_.connect_state)
     return;
@@ -2207,7 +2216,7 @@ void WiFiComponent::notify_connect_state_listeners_() {
     listener->on_wifi_connect_state(StringRef(ssid, strlen(ssid)), bssid);
   }
 }
-#endif  // USE_WIFI_CONNECT_STATE_LISTENERS && !USE_ESP8266
+#endif  // USE_WIFI_CONNECT_STATE_LISTENERS
 
 void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: not for hidden networks (may not appear in scan)

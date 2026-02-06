@@ -641,9 +641,8 @@ class WiFiComponent : public Component {
   /// Free scan results memory unless a component needs them
   void release_scan_results_();
 
-#if defined(USE_WIFI_CONNECT_STATE_LISTENERS) && !defined(USE_ESP8266)
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
   /// Notify connect state listeners (called after state machine reaches STA_CONNECTED)
-  /// On ESP8266, this is handled by process_pending_callbacks_() instead.
   void notify_connect_state_listeners_();
 #endif
 
@@ -729,18 +728,18 @@ class WiFiComponent : public Component {
 
   // Pending listener callbacks deferred from platform callbacks to main loop.
   struct {
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+    // Deferred until state machine reaches STA_CONNECTED so wifi.connected
+    // condition returns true in listener automations.
+    bool connect_state : 1;
+#endif
 #ifdef USE_ESP8266
     // ESP8266 callbacks run in SDK system context with ~2KB stack where
     // calling arbitrary listener callbacks is unsafe. These flags defer
     // listener notifications to wifi_loop_() which runs with full stack.
-    bool connect : 1;        // STA connected, notify listeners
     bool disconnect : 1;     // STA disconnected, notify listeners
     bool got_ip : 1;         // Got IP, notify listeners
     bool scan_complete : 1;  // Scan complete, notify listeners
-#elif defined(USE_WIFI_CONNECT_STATE_LISTENERS)
-    // Non-ESP8266 platforms: deferred until state machine reaches STA_CONNECTED
-    // so wifi.connected condition returns true in listener automations.
-    bool connect_state : 1;
 #endif
   } pending_{};
 

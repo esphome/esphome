@@ -515,8 +515,11 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
                it.channel);
 #endif
       s_sta_connected = true;
-      // Defer listener callbacks to main loop - system context has limited stack
-      global_wifi_component->pending_.connect = true;
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+      // Defer listener notification until state machine reaches STA_CONNECTED
+      // This ensures wifi.connected condition returns true in listener automations
+      global_wifi_component->pending_.connect_state = true;
+#endif
       break;
     }
     case EVENT_STAMODE_DISCONNECTED: {
@@ -959,24 +962,9 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddr
 void WiFiComponent::wifi_loop_() { this->process_pending_callbacks_(); }
 
 void WiFiComponent::process_pending_callbacks_() {
-  // Notify listeners for connect event (logging already done in callback)
-  if (this->pending_.connect) {
-    this->pending_.connect = false;
-#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    bssid_t bssid = this->wifi_bssid();
-    char ssid_buf[SSID_BUFFER_SIZE];
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(this->wifi_ssid_to(ssid_buf)), bssid);
-    }
-#endif
-#if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
-    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
-    }
-#endif
-  }
+  // Process callbacks deferred from ESP8266 SDK system context (~2KB stack)
+  // to main loop context (full stack). Connect state listeners are handled
+  // by notify_connect_state_listeners_() in the shared state machine code.
 
   // Notify listeners for disconnect event (logging already done in callback)
   if (this->pending_.disconnect) {
