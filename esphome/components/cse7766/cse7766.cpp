@@ -22,26 +22,29 @@ void CSE7766Component::loop() {
 
   this->last_transmission_ = now;
 
-  // Read all available bytes at once to reduce UART call overhead.
+  // Read all available bytes in batches to reduce UART call overhead.
   // At 4800 baud (~480 bytes/sec) with ~122 Hz loop rate, typically ~4 bytes per call.
   uint8_t buf[CSE7766_RAW_DATA_SIZE];
-  size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
-  this->read_array(buf, to_read);
+  while (avail > 0) {
+    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    this->read_array(buf, to_read);
+    avail -= to_read;
 
-  for (size_t i = 0; i < to_read; i++) {
-    this->raw_data_[this->raw_data_index_] = buf[i];
-    if (!this->check_byte_()) {
-      this->raw_data_index_ = 0;
-      this->status_set_warning();
-      continue;
+    for (size_t i = 0; i < to_read; i++) {
+      this->raw_data_[this->raw_data_index_] = buf[i];
+      if (!this->check_byte_()) {
+        this->raw_data_index_ = 0;
+        this->status_set_warning();
+        continue;
+      }
+
+      if (this->raw_data_index_ == CSE7766_RAW_DATA_SIZE - 1) {
+        this->parse_data_();
+        this->status_clear_warning();
+      }
+
+      this->raw_data_index_ = (this->raw_data_index_ + 1) % CSE7766_RAW_DATA_SIZE;
     }
-
-    if (this->raw_data_index_ == CSE7766_RAW_DATA_SIZE - 1) {
-      this->parse_data_();
-      this->status_clear_warning();
-    }
-
-    this->raw_data_index_ = (this->raw_data_index_ + 1) % CSE7766_RAW_DATA_SIZE;
   }
 }
 
