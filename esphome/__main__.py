@@ -965,6 +965,38 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
     return 0
 
 
+def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome.bundle import ConfigBundleCreator
+
+    creator = ConfigBundleCreator(config)
+
+    if args.list_only:
+        files = creator.discover_files()
+        for bf in sorted(files, key=lambda f: f.path):
+            safe_print(f"  {bf.path}")
+        _LOGGER.info("Found %d files", len(files))
+        return 0
+
+    result = creator.create_bundle()
+
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        stem = CORE.config_path.stem
+        output_path = CORE.config_dir / f"{stem}.bundle.tar.gz"
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(result.data)
+
+    _LOGGER.info(
+        "Bundle created: %s (%d files, %.1f KB)",
+        output_path,
+        len(result.files),
+        len(result.data) / 1024,
+    )
+    return 0
+
+
 def command_dashboard(args: ArgsProtocol) -> int | None:
     from esphome.dashboard import dashboard
 
@@ -1242,6 +1274,7 @@ POST_CONFIG_ACTIONS = {
     "rename": command_rename,
     "discover": command_discover,
     "analyze-memory": command_analyze_memory,
+    "bundle": command_bundle,
 }
 
 SIMPLE_CONFIG_ACTIONS = [
@@ -1545,6 +1578,24 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
+    parser_bundle = subparsers.add_parser(
+        "bundle",
+        help="Create a self-contained config bundle for remote compilation.",
+    )
+    parser_bundle.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
+    parser_bundle.add_argument(
+        "-o",
+        "--output",
+        help="Output path for the bundle archive.",
+    )
+    parser_bundle.add_argument(
+        "--list-only",
+        help="List discovered files without creating the archive.",
+        action="store_true",
+    )
+
     # Keep backward compatibility with the old command line format of
     # esphome <config> <command>.
     #
@@ -1622,6 +1673,16 @@ def run_esphome(argv):
     if any(conf_path.name == x for x in SECRETS_FILES):
         _LOGGER.warning("Skipping secrets file %s", conf_path)
         return 0
+
+    # Bundle support: if the configuration is a .tar.gz bundle, extract it
+    # and rewrite conf_path to the extracted YAML config.
+    from esphome.bundle import is_bundle_path, prepare_bundle_for_compile
+
+    if is_bundle_path(conf_path):
+        _LOGGER.info("Extracting config bundle %s...", conf_path)
+        conf_path = prepare_bundle_for_compile(conf_path)
+        # Update the argument so downstream code sees the extracted path
+        args.configuration[0] = str(conf_path)
 
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard

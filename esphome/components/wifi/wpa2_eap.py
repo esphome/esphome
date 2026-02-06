@@ -72,8 +72,8 @@ def _validate_load_certificate(value):
 
 def validate_certificate(value):
     _validate_load_certificate(value)
-    # Validation result should be the path, not the loaded certificate
-    return value
+    # Return the resolved absolute path, not the loaded certificate
+    return str(cv.file_(value))
 
 
 def _validate_load_private_key(key, cert_pw):
