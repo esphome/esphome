@@ -2216,7 +2216,7 @@ void WiFiComponent::notify_connect_state_listeners_() {
 }
 
 void WiFiComponent::notify_disconnect_state_listeners_() {
-  static constexpr uint8_t EMPTY_BSSID[6] = {};
+  constexpr uint8_t EMPTY_BSSID[6] = {};
   for (auto *listener : this->connect_state_listeners_) {
     listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
   }
