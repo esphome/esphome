@@ -648,6 +648,20 @@ def test_discover_files_nested_config_values(tmp_path: Path) -> None:
     assert "deep/file.pem" in paths
 
 
+def test_discover_files_idempotent_secrets(tmp_path: Path) -> None:
+    """Calling discover_files twice does not accumulate secrets paths."""
+    _setup_config_dir(tmp_path)
+    (tmp_path / "secrets.yaml").write_text("k: v\n")
+    (tmp_path / "test.yaml").write_text("a: !secret k\n")
+
+    creator = ConfigBundleCreator({})
+    files1 = creator.discover_files()
+    files2 = creator.discover_files()
+
+    # Both calls should return the same result
+    assert [f.path for f in files1] == [f.path for f in files2]
+
+
 # ---------------------------------------------------------------------------
 # ConfigBundleCreator - create_bundle
 # ---------------------------------------------------------------------------
