@@ -477,27 +477,28 @@ class MemoryAnalyzer:
         Returns:
             Component name like '[esphome]wifi' or the source file if unknown.
         """
+        parts = Path(source_file).parts
+
         # ESPHome component: src/esphome/components/<name>/...
-        if "esphome/components/" in source_file:
-            parts = source_file.split("esphome/components/")
-            if len(parts) > 1:
-                component_name = parts[1].split("/")[0]
+        if "components" in parts:
+            idx = parts.index("components")
+            if idx + 1 < len(parts):
+                component_name = parts[idx + 1]
                 if component_name in get_esphome_components():
                     return f"{_COMPONENT_PREFIX_ESPHOME}{component_name}"
                 if component_name in self.external_components:
                     return f"{_COMPONENT_PREFIX_EXTERNAL}{component_name}"
 
         # ESPHome core: src/esphome/core/... or src/esphome/...
-        if "esphome/core/" in source_file or (
-            "src/esphome/" in source_file and "esphome/components/" not in source_file
-        ):
+        if "core" in parts and "esphome" in parts:
+            return _COMPONENT_CORE
+        if "esphome" in parts and "components" not in parts:
             return _COMPONENT_CORE
 
-        # Framework/library files - return the lib directory name
-        # e.g., lib65b/ESPAsyncTCP/... -> ESPAsyncTCP
+        # Framework/library files - return the first path component
+        # e.g., lib65b/ESPAsyncTCP/... -> lib65b
         #        FrameworkArduino/... -> FrameworkArduino
-        #        libe9c/ESPAsyncWebServer/... -> ESPAsyncWebServer
-        return source_file.split("/", maxsplit=1)[0]
+        return parts[0] if parts else source_file
 
     def _analyze_cswtch_symbols(self) -> None:
         """Analyze CSWTCH (GCC switch table) symbols by tracing to source objects.
