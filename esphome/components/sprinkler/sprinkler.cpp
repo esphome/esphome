@@ -4,6 +4,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <cinttypes>
 #include <utility>
 
@@ -1544,42 +1545,19 @@ void Sprinkler::log_multiplier_zero_warning_(const LogString *method_name) {
   ESP_LOGW(TAG, "%s called but multiplier is set to zero; no action taken", LOG_STR_ARG(method_name));
 }
 
+// Request origin strings indexed by SprinklerValveRunRequestOrigin enum (0-2): USER, CYCLE, QUEUE
+PROGMEM_STRING_TABLE(SprinklerRequestOriginStrings, "USER", "CYCLE", "QUEUE", "UNKNOWN");
+
 const LogString *Sprinkler::req_as_str_(SprinklerValveRunRequestOrigin origin) {
-  switch (origin) {
-    case USER:
-      return LOG_STR("USER");
-
-    case CYCLE:
-      return LOG_STR("CYCLE");
-
-    case QUEUE:
-      return LOG_STR("QUEUE");
-
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return SprinklerRequestOriginStrings::get_log_str(static_cast<uint8_t>(origin),
+                                                    SprinklerRequestOriginStrings::LAST_INDEX);
 }
 
+// Sprinkler state strings indexed by SprinklerState enum (0-4): IDLE, STARTING, ACTIVE, STOPPING, BYPASS
+PROGMEM_STRING_TABLE(SprinklerStateStrings, "IDLE", "STARTING", "ACTIVE", "STOPPING", "BYPASS", "UNKNOWN");
+
 const LogString *Sprinkler::state_as_str_(SprinklerState state) {
-  switch (state) {
-    case IDLE:
-      return LOG_STR("IDLE");
-
-    case STARTING:
-      return LOG_STR("STARTING");
-
-    case ACTIVE:
-      return LOG_STR("ACTIVE");
-
-    case STOPPING:
-      return LOG_STR("STOPPING");
-
-    case BYPASS:
-      return LOG_STR("BYPASS");
-
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return SprinklerStateStrings::get_log_str(static_cast<uint8_t>(state), SprinklerStateStrings::LAST_INDEX);
 }
 
 void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
