@@ -28,7 +28,7 @@ class PM1003Component : public PollingComponent, public uart::UARTDevice {
  protected:
   optional<bool> check_byte_() const;
   void parse_data_();
-  void handle_pwm_state_(float pulse_width_s);
+  void handle_pwm_state_(float duty_percent);
   uint8_t pm1003_checksum_(const uint8_t *command_data, uint8_t length) const;
   uint16_t get_16_bit_uint_(uint8_t start_index) const {
     return encode_uint16(this->data_[start_index], this->data_[start_index + 1]);

@@ -117,8 +117,8 @@ void PM1003Component::parse_data_() {
   std::string hex;
   hex.reserve(sizeof(this->data_) * 3);
   char buf[4];
-  for (size_t i = 0; i < sizeof(this->data_); i++) {
-    snprintf(buf, sizeof(buf), "%02X ", this->data_[i]);
+  for (unsigned char i : this->data_) {
+    snprintf(buf, sizeof(buf), "%02X ", i);
     hex.append(buf);
   }
   ESP_LOGI(TAG, "received frame bytes: %s", hex.c_str());
