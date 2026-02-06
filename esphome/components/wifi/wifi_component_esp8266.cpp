@@ -640,21 +640,15 @@ void WiFiComponent::wifi_pre_setup_() {
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   station_status_t status = wifi_station_get_connect_status();
-  switch (status) {
-    case STATION_GOT_IP:
-      return WiFiSTAConnectStatus::CONNECTED;
-    case STATION_NO_AP_FOUND:
-      return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
-      ;
-    case STATION_CONNECT_FAIL:
-    case STATION_WRONG_PASSWORD:
-      return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
-    case STATION_CONNECTING:
-      return WiFiSTAConnectStatus::CONNECTING;
-    case STATION_IDLE:
-    default:
-      return WiFiSTAConnectStatus::IDLE;
-  }
+  if (status == STATION_GOT_IP)
+    return WiFiSTAConnectStatus::CONNECTED;
+  if (status == STATION_NO_AP_FOUND)
+    return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
+  if (status == STATION_CONNECT_FAIL || status == STATION_WRONG_PASSWORD)
+    return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
+  if (status == STATION_CONNECTING)
+    return WiFiSTAConnectStatus::CONNECTING;
+  return WiFiSTAConnectStatus::IDLE;
 }
 bool WiFiComponent::wifi_scan_start_(bool passive) {
   static bool first_scan = false;
