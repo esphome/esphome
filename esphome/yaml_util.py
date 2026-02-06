@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from contextlib import suppress
+from collections.abc import Callable, Generator
+from contextlib import contextmanager, suppress
 import functools
 import inspect
 from io import BytesIO, TextIOBase, TextIOWrapper
@@ -43,6 +43,26 @@ _LOGGER = logging.getLogger(__name__)
 SECRET_YAML = "secrets.yaml"
 _SECRET_CACHE = {}
 _SECRET_VALUES = {}
+_load_listeners: list[Callable[[Path], None]] = []
+
+
+@contextmanager
+def track_yaml_loads() -> Generator[list[Path]]:
+    """Context manager that records every file loaded by the YAML loader.
+
+    Yields a list that is populated with resolved Path objects for every
+    file loaded through ``_load_yaml_internal`` while the context is active.
+    """
+    loaded: list[Path] = []
+
+    def _on_load(fname: Path) -> None:
+        loaded.append(Path(fname).resolve())
+
+    _load_listeners.append(_on_load)
+    try:
+        yield loaded
+    finally:
+        _load_listeners.remove(_on_load)
 
 
 class ESPHomeDataBase:
@@ -428,6 +448,8 @@ def load_yaml(fname: Path, clear_secrets: bool = True) -> Any:
 
 def _load_yaml_internal(fname: Path) -> Any:
     """Load a YAML file."""
+    for listener in _load_listeners:
+        listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
             return parse_yaml(fname, f_handle)

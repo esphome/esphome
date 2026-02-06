@@ -7,7 +7,6 @@ and compiled directly: ``esphome compile my_device.esphomebundle.tar.gz``
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import StrEnum
 import io
@@ -112,33 +111,6 @@ def _find_used_secret_keys(yaml_files: list[Path]) -> set[str]:
         for match in _SECRET_RE.finditer(text):
             keys.add(match.group(1))
     return keys
-
-
-@contextmanager
-def _track_yaml_loads():
-    """Context manager that tracks all files loaded by yaml_util.
-
-    Yields a list that is populated with resolved Path objects
-    for every file loaded through _load_yaml_internal.
-
-    Not thread-safe: monkey-patches a module-level function.
-    Only safe for CLI use (single-threaded). Do not use from
-    the dashboard or other concurrent contexts.
-    """
-    loaded_files: list[Path] = []
-    # pylint: disable=protected-access
-    original_loader = yaml_util._load_yaml_internal
-
-    def tracking_loader(fname: Path) -> Any:
-        loaded_files.append(Path(fname).resolve())
-        return original_loader(fname)
-
-    yaml_util._load_yaml_internal = tracking_loader
-    try:
-        yield loaded_files
-    finally:
-        yaml_util._load_yaml_internal = original_loader
-    # pylint: enable=protected-access
 
 
 @dataclass
@@ -285,7 +257,7 @@ class ConfigBundleCreator:
         Secrets files are tracked separately so we can filter them to
         only include the keys this config actually references.
         """
-        with _track_yaml_loads() as loaded_files:
+        with yaml_util.track_yaml_loads() as loaded_files:
             try:
                 yaml_util.load_yaml(self._config_path)
             except EsphomeError:
