@@ -1,11 +1,13 @@
 sensor:
   - platform: pm100x
     id: pm100x_uart
+    model: PM1003
     pm_2_5:
       name: PM100X UART PM2.5
 
   - platform: pm100x
     id: pm100x_pwm
+    model: PM1003
     pm_2_5:
       name: PM100X PWM PM2.5
     pwm:
