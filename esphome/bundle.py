@@ -241,9 +241,12 @@ class ConfigBundleCreator:
                 self._add_file(child)
 
     def _relative_to_config_dir(self, abs_path: Path) -> str | None:
-        """Get a path relative to the config directory. Returns None if outside."""
+        """Get a path relative to the config directory. Returns None if outside.
+
+        Always uses forward slashes for consistency in tar archives.
+        """
         try:
-            return str(abs_path.relative_to(self._config_dir))
+            return abs_path.relative_to(self._config_dir).as_posix()
         except ValueError:
             return None
 
@@ -534,7 +537,6 @@ def _read_manifest_from_tar(tar: tarfile.TarFile) -> dict[str, Any]:
 def _validate_tar_members(tar: tarfile.TarFile, target_dir: Path) -> None:
     """Validate tar members for security issues."""
 
-    target_dir_str = str(target_dir) + "/"
     total_size = 0
     for member in tar.getmembers():
         # Reject absolute paths (Unix and Windows)
@@ -556,9 +558,7 @@ def _validate_tar_members(tar: tarfile.TarFile, target_dir: Path) -> None:
 
         # Ensure extraction stays within target_dir
         target_path = (target_dir / member.name).resolve()
-        if not (
-            target_path == target_dir or str(target_path).startswith(target_dir_str)
-        ):
+        if not target_path.is_relative_to(target_dir):
             raise EsphomeError(
                 f"Invalid bundle: file would extract outside target: {member.name}"
             )
