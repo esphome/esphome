@@ -204,7 +204,7 @@ bool MQTTComponent::send_discovery_() {
         }
 
         // Fields from EntityBase
-        root[MQTT_NAME] = this->get_entity()->has_own_name() ? this->friendly_name_() : "";
+        root[MQTT_NAME] = this->get_entity()->has_own_name() ? this->friendly_name_() : StringRef();
 
         if (this->is_disabled_by_default_())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
@@ -248,7 +248,7 @@ bool MQTTComponent::send_discovery_() {
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
           char friendly_name_hash[9];
           buf_append_printf(friendly_name_hash, sizeof(friendly_name_hash), 0, "%08" PRIx32,
-                            fnv1_hash(this->friendly_name_()));
+                            fnv1_hash(this->friendly_name_().c_str()));
           // Format: mac-component_type-hash (e.g. "aabbccddeeff-sensor-12345678")
           // MAC (12) + "-" (1) + domain (max 20) + "-" (1) + hash (8) + null (1) = 43
           char unique_id[MAC_ADDRESS_BUFFER_SIZE + ESPHOME_DOMAIN_MAX_LEN + 11];
@@ -414,7 +414,7 @@ void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
 // Pull these properties from EntityBase if not overridden
-std::string MQTTComponent::friendly_name_() const { return this->get_entity()->get_name(); }
+const StringRef &MQTTComponent::friendly_name_() const { return this->get_entity()->get_name(); }
 StringRef MQTTComponent::get_default_object_id_to_(std::span<char, OBJECT_ID_MAX_LEN> buf) const {
   return this->get_entity()->get_object_id_to(buf);
 }
