@@ -40,13 +40,13 @@ void CM1106Component::setup() {
 void CM1106Component::update() {
   uint8_t response[8] = {0};
   if (!this->cm1106_write_command_(C_M1106_CMD_GET_CO2, sizeof(C_M1106_CMD_GET_CO2), response, sizeof(response))) {
-    ESP_LOGW(TAG, "Reading data from CM1106 failed!");
+    ESP_LOGW(TAG, "Reading data failed!");
     this->status_set_warning();
     return;
   }
 
   if (response[0] != 0x16 || response[1] != 0x05 || response[2] != 0x01) {
-    ESP_LOGW(TAG, "Got wrong UART response from CM1106: %02X %02X %02X %02X", response[0], response[1], response[2],
+    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2],
              response[3]);
     this->status_set_warning();
     return;
@@ -54,7 +54,7 @@ void CM1106Component::update() {
 
   uint8_t checksum = cm1106_checksum(response, sizeof(response));
   if (response[7] != checksum) {
-    ESP_LOGW(TAG, "CM1106 Checksum doesn't match: 0x%02X!=0x%02X", response[7], checksum);
+    ESP_LOGW(TAG, "Checksum doesn't match: 0x%02X!=0x%02X", response[7], checksum);
     this->status_set_warning();
     return;
   }
@@ -64,18 +64,19 @@ void CM1106Component::update() {
   const uint16_t ppm = response[3] << 8 | response[4];
   const uint8_t status = response[5];
 
+  // status should be empty for success
   if (status) {
     const bool preheating = status & 0x1;
     if (preheating) {
-      ESP_LOGW(TAG, "CM1106 warming up, CO₂=%uppm", ppm);
+      ESP_LOGW(TAG, "Preheating; CO₂=%uppm", ppm);
     } else {
-      ESP_LOGW(TAG, "CM1106 returned error, status=%02X", status);
+      ESP_LOGW(TAG, "returned error, status=%02X", status);
     }
     this->status_set_warning();
     return;
   }
 
-  ESP_LOGD(TAG, "CM1106 Received CO₂=%uppm status=%02X DF4=%02X", ppm, status, response[6]);
+  ESP_LOGD(TAG, "CO₂=%uppm status=%02X DF4=%02X", ppm, status, response[6]);
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(ppm);
 }
@@ -88,21 +89,21 @@ void CM1106Component::calibrate_zero(uint16_t ppm) {
   uint8_t response[4] = {0};
 
   if (!this->cm1106_write_command_(cmd, sizeof(cmd), response, sizeof(response))) {
-    ESP_LOGW(TAG, "Send calibrate zero command to CM1106 failed!");
+    ESP_LOGW(TAG, "Calibrate to zero failed");
     this->status_set_warning();
     return;
   }
 
   // check if correct response received
   if (memcmp(response, C_M1106_CMD_SET_CO2_CALIB_RESPONSE, sizeof(response)) != 0) {
-    ESP_LOGW(TAG, "Got wrong UART response from CM1106: %02X %02X %02X %02X", response[0], response[1], response[2],
+    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2],
              response[3]);
     this->status_set_warning();
     return;
   }
 
   this->status_clear_warning();
-  ESP_LOGD(TAG, "CM1106 Successfully calibrated sensor to %uppm", ppm);
+  ESP_LOGD(TAG, "Successfully calibrated sensor to %uppm", ppm);
 }
 
 void CM1106Component::send_abc_command_(uint8_t flag) {
@@ -112,21 +113,21 @@ void CM1106Component::send_abc_command_(uint8_t flag) {
   uint8_t response[4] = {0};
 
   if (!this->cm1106_write_command_(cmd, sizeof(cmd), response, sizeof(response))) {
-    ESP_LOGW(TAG, "Send ABC command to CM1106 failed!");
+    ESP_LOGW(TAG, "ABC command failed");
     this->status_set_warning();
     return;
   }
 
   // check if correct response received
   if (memcmp(response, C_M1106_CMD_SET_ABC_STATUS_RESPONSE, sizeof(response)) != 0) {
-    ESP_LOGW(TAG, "Got wrong UART response from CM1106: %02X %02X %02X %02X", response[0], response[1], response[2],
+    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2],
              response[3]);
     this->status_set_warning();
     return;
   }
 
   this->status_clear_warning();
-  ESP_LOGD(TAG, "CM1106 Successfully set ABC status");
+  ESP_LOGD(TAG, "Successfully set ABC status");
 }
 
 void CM1106Component::abc_set_(CM1106ABCLogic abc_logic) {
@@ -136,7 +137,7 @@ void CM1106Component::abc_set_(CM1106ABCLogic abc_logic) {
   }
   const bool abc_enabled = (abc_logic == CM1106_ABC_ENABLED);
   const char *abc_operation = abc_enabled ? "En" : "Dis";
-  ESP_LOGD(TAG, "CM1106 %sabling automatic baseline calibration", abc_operation);
+  ESP_LOGD(TAG, "%sabling automatic baseline calibration", abc_operation);
   const uint8_t flag = abc_enabled ? CM1106_ABC_FLAG_ENABLE : CM1106_ABC_FLAG_DISABLE;
   this->send_abc_command_(flag);
 }
