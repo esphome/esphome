@@ -55,7 +55,7 @@ void SpeakerMediaPlayer::setup() {
 
   this->media_control_command_queue_ = xQueueCreate(MEDIA_CONTROLS_QUEUE_LENGTH, sizeof(MediaCallCommand));
 
-  this->pref_ = global_preferences->make_preference<VolumeRestoreState>(this->get_preference_hash());
+  this->pref_ = this->make_entity_preference<VolumeRestoreState>();
 
   VolumeRestoreState volume_restore_state;
   if (this->pref_.load(&volume_restore_state)) {
@@ -519,9 +519,9 @@ void SpeakerMediaPlayer::set_mute_state_(bool mute_state) {
 
   if (old_mute_state != mute_state) {
     if (mute_state) {
-      this->defer([this]() { this->mute_trigger_->trigger(); });
+      this->defer([this]() { this->mute_trigger_.trigger(); });
     } else {
-      this->defer([this]() { this->unmute_trigger_->trigger(); });
+      this->defer([this]() { this->unmute_trigger_.trigger(); });
     }
   }
 }
@@ -550,7 +550,7 @@ void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
     this->set_mute_state_(false);
   }
 
-  this->defer([this, volume]() { this->volume_trigger_->trigger(volume); });
+  this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
 }
 
 }  // namespace speaker

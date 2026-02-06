@@ -92,6 +92,48 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
 
 uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }
 
+// Migrate preference data from old_key to new_key if they differ.
+// This helper is exposed so callers with custom key computation (like TextPrefs)
+// can use it for manual migration. See: https://github.com/esphome/backlog/issues/85
+//
+// FUTURE IMPLEMENTATION:
+// This will require raw load/save methods on ESPPreferenceObject that take uint8_t* and size.
+//   void EntityBase::migrate_entity_preference_(size_t size, uint32_t old_key, uint32_t new_key) {
+//     if (old_key == new_key)
+//       return;
+//     auto old_pref = global_preferences->make_preference(size, old_key);
+//     auto new_pref = global_preferences->make_preference(size, new_key);
+//     SmallBufferWithHeapFallback<64> buffer(size);
+//     if (old_pref.load(buffer.data(), size)) {
+//       new_pref.save(buffer.data(), size);
+//     }
+//   }
+
+ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
+  // This helper centralizes preference creation to enable fixing hash collisions.
+  // See: https://github.com/esphome/backlog/issues/85
+  //
+  // COLLISION PROBLEM: get_preference_hash() uses fnv1_hash on sanitized object_id.
+  // Multiple entity names can sanitize to the same object_id:
+  //   - "Living Room" and "living_room" both become "living_room"
+  //   - UTF-8 names like "温度" and "湿度" both become "__" (underscores)
+  // This causes entities to overwrite each other's stored preferences.
+  //
+  // FUTURE MIGRATION: When implementing get_preference_hash_v2() that hashes
+  // the original entity name (not sanitized object_id):
+  //
+  //   uint32_t old_key = this->get_preference_hash() ^ version;
+  //   uint32_t new_key = this->get_preference_hash_v2() ^ version;
+  //   this->migrate_entity_preference_(size, old_key, new_key);
+  //   return global_preferences->make_preference(size, new_key);
+  //
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  uint32_t key = this->get_preference_hash() ^ version;
+#pragma GCC diagnostic pop
+  return global_preferences->make_preference(size, key);
+}
+
 std::string EntityBase_DeviceClass::get_device_class() {
   if (this->device_class_ == nullptr) {
     return "";
@@ -108,6 +150,24 @@ std::string EntityBase_UnitOfMeasurement::get_unit_of_measurement() {
 }
 void EntityBase_UnitOfMeasurement::set_unit_of_measurement(const char *unit_of_measurement) {
   this->unit_of_measurement_ = unit_of_measurement;
+}
+
+void log_entity_icon(const char *tag, const char *prefix, const EntityBase &obj) {
+  if (!obj.get_icon_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj.get_icon_ref().c_str());
+  }
+}
+
+void log_entity_device_class(const char *tag, const char *prefix, const EntityBase_DeviceClass &obj) {
+  if (!obj.get_device_class_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj.get_device_class_ref().c_str());
+  }
+}
+
+void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase_UnitOfMeasurement &obj) {
+  if (!obj.get_unit_of_measurement_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Unit of Measurement: '%s'", prefix, obj.get_unit_of_measurement_ref().c_str());
+  }
 }
 
 }  // namespace esphome

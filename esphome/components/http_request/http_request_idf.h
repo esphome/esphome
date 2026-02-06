@@ -35,6 +35,7 @@ class HttpRequestIDF : public HttpRequestComponent {
   void set_buffer_size_rx(uint16_t buffer_size_rx) { this->buffer_size_rx_ = buffer_size_rx; }
   void set_buffer_size_tx(uint16_t buffer_size_tx) { this->buffer_size_tx_ = buffer_size_tx; }
   void set_verify_ssl(bool verify_ssl) { this->verify_ssl_ = verify_ssl; }
+  void set_ca_certificate(const char *ca_certificate) { this->ca_certificate_ = ca_certificate; }
 
  protected:
   std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method, const std::string &body,
@@ -44,6 +45,7 @@ class HttpRequestIDF : public HttpRequestComponent {
   uint16_t buffer_size_rx_{};
   uint16_t buffer_size_tx_{};
   bool verify_ssl_{true};
+  const char *ca_certificate_{nullptr};
 
   /// @brief Monitors the http client events to gather response headers
   static esp_err_t http_event_handler(esp_http_client_event_t *evt);

@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::template_ {
 
@@ -28,18 +29,11 @@ void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, 
   this->sensor_data_.push_back(sd);
 };
 
+// Alarm sensor type strings indexed by AlarmSensorType enum (0-3): DELAYED, INSTANT, DELAYED_FOLLOWER, INSTANT_ALWAYS
+PROGMEM_STRING_TABLE(AlarmSensorTypeStrings, "delayed", "instant", "delayed_follower", "instant_always");
+
 static const LogString *sensor_type_to_string(AlarmSensorType type) {
-  switch (type) {
-    case ALARM_SENSOR_TYPE_INSTANT:
-      return LOG_STR("instant");
-    case ALARM_SENSOR_TYPE_DELAYED_FOLLOWER:
-      return LOG_STR("delayed_follower");
-    case ALARM_SENSOR_TYPE_INSTANT_ALWAYS:
-      return LOG_STR("instant_always");
-    case ALARM_SENSOR_TYPE_DELAYED:
-    default:
-      return LOG_STR("delayed");
-  }
+  return AlarmSensorTypeStrings::get_log_str(static_cast<uint8_t>(type), 0);
 }
 #endif
 
@@ -82,7 +76,7 @@ void TemplateAlarmControlPanel::setup() {
   this->current_state_ = ACP_STATE_DISARMED;
   if (this->restore_mode_ == ALARM_CONTROL_PANEL_RESTORE_DEFAULT_DISARMED) {
     uint8_t value;
-    this->pref_ = global_preferences->make_preference<uint8_t>(this->get_preference_hash());
+    this->pref_ = this->make_entity_preference<uint8_t>();
     if (this->pref_.load(&value)) {
       this->current_state_ = static_cast<alarm_control_panel::AlarmControlPanelState>(value);
     }

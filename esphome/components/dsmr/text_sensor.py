@@ -26,7 +26,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("sub_equipment_id"): text_sensor.text_sensor_schema(),
         cv.Optional("gas_delivered_text"): text_sensor.text_sensor_schema(),
         cv.Optional("fw_core_checksum"): text_sensor.text_sensor_schema(),
+        cv.Optional("fw_core_version"): text_sensor.text_sensor_schema(),
         cv.Optional("fw_module_checksum"): text_sensor.text_sensor_schema(),
+        cv.Optional("fw_module_version"): text_sensor.text_sensor_schema(),
         cv.Optional("telegram"): text_sensor.text_sensor_schema().extend(
             {cv.Optional(CONF_INTERNAL, default=True): cv.boolean}
         ),

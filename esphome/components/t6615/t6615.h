@@ -22,8 +22,6 @@ enum class T6615Command : uint8_t {
 
 class T6615Component : public PollingComponent, public uart::UARTDevice {
  public:
-  float get_setup_priority() const override;
-
   void loop() override;
   void update() override;
   void dump_config() override;

@@ -14,8 +14,6 @@ enum SensorType {
 
 class PM2005Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  float get_setup_priority() const override { return esphome::setup_priority::DATA; }
-
   void set_sensor_type(SensorType sensor_type) { this->sensor_type_ = sensor_type; }
 
   void set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor) { this->pm_1_0_sensor_ = pm_1_0_sensor; }
