@@ -18,11 +18,13 @@
 
 namespace esphome::esp32_ble {
 
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 using raw_adv_data_t = struct {
   uint8_t *data;
   size_t length;
-  int8_t power_level;
+  esp_power_level_t power_level;
 };
+#endif
 
 class ESPBTUUID;
 
