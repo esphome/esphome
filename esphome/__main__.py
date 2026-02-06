@@ -966,7 +966,7 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
-    from esphome.bundle import ConfigBundleCreator
+    from esphome.bundle import BUNDLE_EXTENSION, ConfigBundleCreator
 
     creator = ConfigBundleCreator(config)
 
@@ -983,7 +983,7 @@ def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
         output_path = Path(args.output)
     else:
         stem = CORE.config_path.stem
-        output_path = CORE.config_dir / f"{stem}.bundle.tar.gz"
+        output_path = CORE.config_dir / f"{stem}{BUNDLE_EXTENSION}"
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(result.data)
@@ -1674,7 +1674,7 @@ def run_esphome(argv):
         _LOGGER.warning("Skipping secrets file %s", conf_path)
         return 0
 
-    # Bundle support: if the configuration is a .tar.gz bundle, extract it
+    # Bundle support: if the configuration is a .esphomebundle, extract it
     # and rewrite conf_path to the extracted YAML config.
     from esphome.bundle import is_bundle_path, prepare_bundle_for_compile
 

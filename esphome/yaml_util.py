@@ -435,10 +435,10 @@ def _load_yaml_internal(fname: Path) -> Any:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
 
 
-def parse_yaml(
-    file_name: Path, file_handle: TextIOWrapper, yaml_loader=_load_yaml_internal
-) -> Any:
+def parse_yaml(file_name: Path, file_handle: TextIOWrapper, yaml_loader=None) -> Any:
     """Parse a YAML file."""
+    if yaml_loader is None:
+        yaml_loader = _load_yaml_internal
     try:
         return _load_yaml_internal_with_type(
             ESPHomeLoader, file_name, file_handle, yaml_loader

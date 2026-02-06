@@ -28,6 +28,10 @@ MANIFEST_FILENAME = "manifest.json"
 CURRENT_MANIFEST_VERSION = 1
 MAX_DECOMPRESSED_SIZE = 500 * 1024 * 1024  # 500 MB
 
+# Directories preserved across bundle extractions (build caches)
+_PRESERVE_DIRS = (".esphome", ".pioenvs", ".pio")
+_BUNDLE_STAGING_DIR = ".bundle_staging"
+
 # String prefixes that are never local file paths
 _NON_PATH_PREFIXES = ("http://", "https://", "ftp://", "mdi:", "<")
 
@@ -374,7 +378,7 @@ class ConfigBundleCreator:
                 continue
             filtered = {k: v for k, v in all_secrets.items() if k in used_keys}
             if filtered:
-                data = yaml_util.dump(filtered).encode("utf-8")
+                data = yaml_util.dump(filtered, show_secrets=True).encode("utf-8")
                 result[rel_path] = data
         return result
 
@@ -552,10 +556,12 @@ def _validate_tar_members(tar: tarfile.TarFile, target_dir: Path) -> None:
             )
 
 
+BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
+
+
 def is_bundle_path(path: Path) -> bool:
     """Check if a path looks like a bundle file."""
-    name = path.name.lower()
-    return name.endswith(".tar.gz") or name.endswith(".tgz")
+    return path.name.lower().endswith(BUNDLE_EXTENSION)
 
 
 def _add_bytes_to_tar(tar: tarfile.TarFile, name: str, data: bytes) -> None:
@@ -581,9 +587,10 @@ def _resolve_include_path(include_path: Any) -> Path | None:
 
 def _default_target_dir(bundle_path: Path) -> Path:
     """Compute the default extraction directory for a bundle."""
-    return bundle_path.parent / bundle_path.name.removesuffix(".tar.gz").removesuffix(
-        ".gz"
-    )
+    name = bundle_path.name
+    if name.lower().endswith(BUNDLE_EXTENSION):
+        name = name[: -len(BUNDLE_EXTENSION)]
+    return bundle_path.parent / name
 
 
 def _restore_preserved_dirs(preserved: dict[str, Path], target_dir: Path) -> None:
@@ -622,13 +629,11 @@ def prepare_bundle_for_compile(
     target_dir = target_dir.resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    # Identify directories to preserve (build caches)
-    preserve_dirs = [".esphome", ".pioenvs", ".pio"]
     preserved: dict[str, Path] = {}
 
     # Temporarily move preserved dirs out of the way
-    staging = target_dir / ".bundle_staging"
-    for dirname in preserve_dirs:
+    staging = target_dir / _BUNDLE_STAGING_DIR
+    for dirname in _PRESERVE_DIRS:
         src = target_dir / dirname
         if src.is_dir():
             dst = staging / dirname
@@ -639,7 +644,7 @@ def prepare_bundle_for_compile(
     try:
         # Clean non-preserved content and extract fresh
         for item in target_dir.iterdir():
-            if item.name == ".bundle_staging":
+            if item.name == _BUNDLE_STAGING_DIR:
                 continue
             if item.is_dir():
                 shutil.rmtree(item)
