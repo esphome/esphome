@@ -38,7 +38,9 @@ const EntityBase *MQTTTextComponent::get_entity() const { return this->text_; }
 
 void MQTTTextComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  root[MQTT_MODE] = TextMqttModeStrings::get_progmem_str(static_cast<uint8_t>(this->text_->traits.get_mode()), 0);
+  root[MQTT_MODE] = TextMqttModeStrings::get_progmem_str(
+      static_cast<uint8_t>(this->text_->traits.get_mode()),
+      static_cast<uint8_t>(TEXT_MODE_TEXT));
 
   config.command_topic = true;
 }
