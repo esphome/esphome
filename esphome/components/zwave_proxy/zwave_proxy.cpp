@@ -1,4 +1,7 @@
 #include "zwave_proxy.h"
+
+#ifdef USE_API
+
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -8,6 +11,9 @@
 namespace esphome::zwave_proxy {
 
 static const char *const TAG = "zwave_proxy";
+
+// Maximum bytes to log in very verbose hex output (168 * 3 = 504, under TX buffer size of 512)
+static constexpr size_t ZWAVE_MAX_LOG_BYTES = 168;
 
 static constexpr uint8_t ZWAVE_COMMAND_GET_NETWORK_IDS = 0x20;
 // GET_NETWORK_IDS response: [SOF][LENGTH][TYPE][CMD][HOME_ID(4)][NODE_ID][...]
@@ -99,7 +105,7 @@ void ZWaveProxy::process_uart_() {
           this->buffer_[1] >= ZWAVE_MIN_GET_NETWORK_IDS_LENGTH && this->buffer_[0] == ZWAVE_FRAME_TYPE_START) {
         // Store the 4-byte Home ID, which starts at offset 4, and notify connected clients if it changed
         // The frame parser has already validated the checksum and ensured all bytes are present
-        if (this->set_home_id(&this->buffer_[4])) {
+        if (this->set_home_id_(&this->buffer_[4])) {
           this->send_homeid_changed_msg_();
         }
       }
@@ -120,10 +126,11 @@ void ZWaveProxy::process_uart_() {
 }
 
 void ZWaveProxy::dump_config() {
+  char hex_buf[format_hex_pretty_size(ZWAVE_HOME_ID_SIZE)];
   ESP_LOGCONFIG(TAG,
                 "Z-Wave Proxy:\n"
                 "  Home ID: %s",
-                format_hex_pretty(this->home_id_.data(), this->home_id_.size(), ':', false).c_str());
+                format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size()));
 }
 
 void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
@@ -158,23 +165,40 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
   }
 }
 
-bool ZWaveProxy::set_home_id(const uint8_t *new_home_id) {
+bool ZWaveProxy::set_home_id_(const uint8_t *new_home_id) {
   if (std::memcmp(this->home_id_.data(), new_home_id, this->home_id_.size()) == 0) {
     ESP_LOGV(TAG, "Home ID unchanged");
     return false;  // No change
   }
   std::memcpy(this->home_id_.data(), new_home_id, this->home_id_.size());
-  ESP_LOGI(TAG, "Home ID: %s", format_hex_pretty(this->home_id_.data(), this->home_id_.size(), ':', false).c_str());
+  char hex_buf[format_hex_pretty_size(ZWAVE_HOME_ID_SIZE)];
+  ESP_LOGI(TAG, "Home ID: %s", format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size()));
   this->home_id_ready_ = true;
   return true;  // Home ID was changed
 }
 
 void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
-  if (length == 1 && data[0] == this->last_response_) {
-    ESP_LOGV(TAG, "Skipping sending duplicate response: 0x%02X", data[0]);
+  // Safety: validate pointer before any access
+  if (data == nullptr) {
+    ESP_LOGE(TAG, "Null data pointer");
     return;
   }
-  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty(data, length).c_str());
+  if (length == 0) {
+    ESP_LOGE(TAG, "Length 0");
+    return;
+  }
+
+  // Skip duplicate single-byte responses (ACK/NAK/CAN)
+  if (length == 1 && data[0] == this->last_response_) {
+    ESP_LOGV(TAG, "Response already sent: 0x%02X", data[0]);
+    return;
+  }
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty_to(hex_buf, data, length));
+
   this->write_array(data, length);
 }
 
@@ -247,7 +271,10 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_NAK;
       } else {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_ACK;
-        ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(this->buffer_.data(), this->buffer_index_).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+        char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
+#endif
+        ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty_to(hex_buf, this->buffer_.data(), this->buffer_index_));
         frame_completed = true;
       }
       this->response_handler_();
@@ -344,3 +371,5 @@ bool ZWaveProxy::response_handler_() {
 ZWaveProxy *global_zwave_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::zwave_proxy
+
+#endif  // USE_API

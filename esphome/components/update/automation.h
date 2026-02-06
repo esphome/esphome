@@ -14,6 +14,11 @@ template<typename... Ts> class PerformAction : public Action<Ts...>, public Pare
   void play(const Ts &...x) override { this->parent_->perform(this->force_.value(x...)); }
 };
 
+template<typename... Ts> class CheckAction : public Action<Ts...>, public Parented<UpdateEntity> {
+ public:
+  void play(const Ts &...x) override { this->parent_->check(); }
+};
+
 template<typename... Ts> class IsAvailableCondition : public Condition<Ts...>, public Parented<UpdateEntity> {
  public:
   bool check(const Ts &...x) override { return this->parent_->state == UPDATE_STATE_AVAILABLE; }

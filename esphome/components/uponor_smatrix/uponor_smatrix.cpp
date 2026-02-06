@@ -8,6 +8,9 @@ namespace uponor_smatrix {
 
 static const char *const TAG = "uponor_smatrix";
 
+// Maximum bytes to log in verbose hex output
+static constexpr size_t UPONOR_MAX_LOG_BYTES = 36;
+
 void UponorSmatrixComponent::setup() {
 #ifdef USE_TIME
   if (this->time_id_ != nullptr) {
@@ -97,8 +100,11 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
     return false;
   }
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_size(UPONOR_MAX_LOG_BYTES)];
+#endif
   ESP_LOGV(TAG, "Received packet: addr=%08X, data=%s, crc=%04X", device_address,
-           format_hex(&packet[4], packet_len - 6).c_str(), crc);
+           format_hex_to(hex_buf, &packet[4], packet_len - 6), crc);
 
   // Handle packet
   size_t data_len = (packet_len - 6) / 3;

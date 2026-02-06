@@ -72,7 +72,8 @@ uint8_t PN7150::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_b
     }
   }
 
-  ESP_LOGVV(TAG, "Data read: %s", nfc::format_bytes(data).c_str());
+  char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+  ESP_LOGVV(TAG, "Data read: %s", nfc::format_bytes_to(buf, data));
 
   return nfc::STATUS_OK;
 }
@@ -114,8 +115,7 @@ uint8_t PN7150::find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_
   return nfc::STATUS_FAILED;
 }
 
-uint8_t PN7150::write_mifare_ultralight_tag_(std::vector<uint8_t> &uid,
-                                             const std::shared_ptr<nfc::NdefMessage> &message) {
+uint8_t PN7150::write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, const std::shared_ptr<nfc::NdefMessage> &message) {
   uint32_t capacity = this->read_mifare_ultralight_capacity_();
 
   auto encoded = message->encode();

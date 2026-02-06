@@ -41,7 +41,7 @@ class ATCMiThermometer : public Component, public esp32_ble_tracker::ESPBTDevice
 
   optional<ParseResult> parse_header_(const esp32_ble_tracker::ServiceData &service_data);
   bool parse_message_(const std::vector<uint8_t> &message, ParseResult &result);
-  bool report_results_(const optional<ParseResult> &result, const std::string &address);
+  bool report_results_(const optional<ParseResult> &result, const char *address);
 };
 
 }  // namespace atc_mithermometer

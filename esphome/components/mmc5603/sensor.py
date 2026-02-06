@@ -16,6 +16,8 @@ from esphome.const import (
     UNIT_MICROTESLA,
 )
 
+CONF_AUTO_SET_RESET = "auto_set_reset"
+
 DEPENDENCIES = ["i2c"]
 
 mmc5603_ns = cg.esphome_ns.namespace("mmc5603")
@@ -54,6 +56,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_FIELD_STRENGTH_Y): field_strength_schema,
             cv.Optional(CONF_FIELD_STRENGTH_Z): field_strength_schema,
             cv.Optional(CONF_HEADING): heading_schema,
+            cv.Optional(CONF_AUTO_SET_RESET, default=True): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -88,3 +91,5 @@ async def to_code(config):
     if CONF_HEADING in config:
         sens = await sensor.new_sensor(config[CONF_HEADING])
         cg.add(var.set_heading_sensor(sens))
+    if CONF_AUTO_SET_RESET in config:
+        cg.add(var.set_auto_set_reset(config[CONF_AUTO_SET_RESET]))
