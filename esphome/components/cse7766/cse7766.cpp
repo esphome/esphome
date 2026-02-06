@@ -37,7 +37,6 @@ void CSE7766Component::loop() {
     this->raw_data_index_ = (this->raw_data_index_ + 1) % 24;
   }
 }
-float CSE7766Component::get_setup_priority() const { return setup_priority::DATA; }
 
 bool CSE7766Component::check_byte_() {
   uint8_t index = this->raw_data_index_;
@@ -152,6 +151,10 @@ void CSE7766Component::parse_data_() {
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
     }
+  } else if (this->power_sensor_ != nullptr) {
+    // No valid power measurement from chip - publish 0W to avoid stale readings
+    // This typically happens when current is below the measurable threshold (~50mA)
+    this->power_sensor_->publish_state(0.0f);
   }
 
   float current = 0.0f;

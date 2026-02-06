@@ -159,7 +159,6 @@ class ESP32Camera : public camera::Camera {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   /* public API (specific) */
   void start_stream(camera::CameraRequester requester) override;
   void stop_stream(camera::CameraRequester requester) override;

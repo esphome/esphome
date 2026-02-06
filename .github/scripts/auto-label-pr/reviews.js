@@ -2,11 +2,28 @@ const {
   BOT_COMMENT_MARKER,
   CODEOWNERS_MARKER,
   TOO_BIG_MARKER,
+  DEPRECATED_COMPONENT_MARKER
 } = require('./constants');
 
 // Generate review messages
-function generateReviewMessages(finalLabels, originalLabelCount, prFiles, totalAdditions, totalDeletions, prAuthor, MAX_LABELS, TOO_BIG_THRESHOLD) {
+function generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo, prFiles, totalAdditions, totalDeletions, prAuthor, MAX_LABELS, TOO_BIG_THRESHOLD) {
   const messages = [];
+
+  // Deprecated component message
+  if (finalLabels.includes('deprecated-component') && deprecatedInfo && deprecatedInfo.length > 0) {
+    let message = `${DEPRECATED_COMPONENT_MARKER}\n### ⚠️ Deprecated Component\n\n`;
+    message += `Hey there @${prAuthor},\n`;
+    message += `This PR modifies one or more deprecated components. Please be aware:\n\n`;
+
+    for (const info of deprecatedInfo) {
+      message += `#### Component: \`${info.component}\`\n`;
+      message += `${info.message}\n\n`;
+    }
+
+    message += `Consider migrating to the recommended alternative if applicable.`;
+
+    messages.push(message);
+  }
 
   // Too big message
   if (finalLabels.includes('too-big')) {
@@ -54,14 +71,14 @@ function generateReviewMessages(finalLabels, originalLabelCount, prFiles, totalA
 }
 
 // Handle reviews
-async function handleReviews(github, context, finalLabels, originalLabelCount, prFiles, totalAdditions, totalDeletions, MAX_LABELS, TOO_BIG_THRESHOLD) {
+async function handleReviews(github, context, finalLabels, originalLabelCount, deprecatedInfo, prFiles, totalAdditions, totalDeletions, MAX_LABELS, TOO_BIG_THRESHOLD) {
   const { owner, repo } = context.repo;
   const pr_number = context.issue.number;
   const prAuthor = context.payload.pull_request.user.login;
 
-  const reviewMessages = generateReviewMessages(finalLabels, originalLabelCount, prFiles, totalAdditions, totalDeletions, prAuthor, MAX_LABELS, TOO_BIG_THRESHOLD);
+  const reviewMessages = generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo, prFiles, totalAdditions, totalDeletions, prAuthor, MAX_LABELS, TOO_BIG_THRESHOLD);
   const hasReviewableLabels = finalLabels.some(label =>
-    ['too-big', 'needs-codeowners'].includes(label)
+    ['too-big', 'needs-codeowners', 'deprecated-component'].includes(label)
   );
 
   const { data: reviews } = await github.rest.pulls.listReviews({
