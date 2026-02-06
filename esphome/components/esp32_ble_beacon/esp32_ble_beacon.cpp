@@ -38,11 +38,16 @@ void ESP32BLEBeacon::dump_config() {
     }
   }
   *bpos = '\0';
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   ESP_LOGCONFIG(TAG,
                 "  UUID: %s, Major: %u, Minor: %u, Min Interval: %ums, Max Interval: %ums, Measured Power: %d"
                 ", TX Power: %ddBm",
                 uuid, this->major_, this->minor_, this->min_interval_, this->max_interval_, this->measured_power_,
-                this->tx_power_);
+                (this->tx_power_ * 3) - 12);
+#else
+  ESP_LOGCONFIG(TAG, "  UUID: %s, Major: %u, Minor: %u, Min Interval: %ums, Max Interval: %ums, Measured Power: %d",
+                uuid, this->major_, this->minor_, this->min_interval_, this->max_interval_, this->measured_power_);
+#endif
 }
 
 float ESP32BLEBeacon::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
@@ -79,7 +84,7 @@ void ESP32BLEBeacon::on_advertise_() {
   esp_err_t err;
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   ESP_LOGD(TAG, "Setting BLE TX power");
-  err = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, static_cast<esp_power_level_t>((this->tx_power_ + 12) / 3));
+  err = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, this->tx_power_);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "esp_ble_tx_power_set failed: %s", esp_err_to_name(err));
   }
