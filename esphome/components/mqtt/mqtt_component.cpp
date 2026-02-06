@@ -218,7 +218,9 @@ bool MQTTComponent::send_discovery_() {
         const auto entity_category = this->get_entity()->get_entity_category();
         if (entity_category != ENTITY_CATEGORY_NONE) {
           root[MQTT_ENTITY_CATEGORY] =
-              EntityCategoryMqttStrings::get_progmem_str(static_cast<uint8_t>(entity_category), 1);
+              EntityCategoryMqttStrings::get_progmem_str(
+                  static_cast<uint8_t>(entity_category),
+                  static_cast<uint8_t>(ENTITY_CATEGORY_CONFIG));
         }
 
         if (config.state_topic) {
