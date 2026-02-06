@@ -16,22 +16,19 @@ class ColorUtil {
     uint8_t second_bits = 0;
     uint8_t third_bits = 0;
 
-    switch (color_bitness) {
-      case COLOR_BITNESS_888:
-        first_bits = 8;
-        second_bits = 8;
-        third_bits = 8;
-        break;
-      case COLOR_BITNESS_565:
-        first_bits = 5;
-        second_bits = 6;
-        third_bits = 5;
-        break;
-      case COLOR_BITNESS_332:
-        first_bits = 3;
-        second_bits = 3;
-        third_bits = 2;
-        break;
+    // Avoid switch to prevent compiler-generated lookup table in RAM on ESP8266
+    if (color_bitness == COLOR_BITNESS_888) {
+      first_bits = 8;
+      second_bits = 8;
+      third_bits = 8;
+    } else if (color_bitness == COLOR_BITNESS_565) {
+      first_bits = 5;
+      second_bits = 6;
+      third_bits = 5;
+    } else {
+      first_bits = 3;
+      second_bits = 3;
+      third_bits = 2;
     }
 
     first_color = right_bit_aligned ? esp_scale(((colorcode >> (second_bits + third_bits)) & ((1 << first_bits) - 1)),
