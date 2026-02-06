@@ -459,8 +459,7 @@ async def to_code(config):
     if power_pin := config.get(CONF_POWER_PIN, None):
         pin = await cg.gpio_pin_expression(power_pin[CONF_PIN])
         cg.add(var.set_power_pin(pin))
-        if power_pin.get(CONF_INVERTED, False):
-            cg.add(var.set_power_pin_inverted(True))
+        cg.add(var.set_power_pin_inverted(power_pin.get(CONF_INVERTED)))
 
     if rx_buffer_size := config.get(CONF_RX_BUFFER_SIZE, None):
         cg.add(var.set_rx_buffer_size(rx_buffer_size))
