@@ -1474,9 +1474,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     // On ESP8266, GOT_IP event may not fire for static IP configurations,
     // so notify IP state listeners here as a fallback.
     if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
+      this->notify_ip_state_listeners_();
     }
 #endif
 
@@ -2217,6 +2215,14 @@ void WiFiComponent::notify_connect_state_listeners_() {
   }
 }
 #endif  // USE_WIFI_CONNECT_STATE_LISTENERS
+
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+void WiFiComponent::notify_ip_state_listeners_() {
+  for (auto *listener : this->ip_state_listeners_) {
+    listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+  }
+}
+#endif  // USE_WIFI_IP_STATE_LISTENERS
 
 void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: not for hidden networks (may not appear in scan)

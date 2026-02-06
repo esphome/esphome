@@ -981,9 +981,7 @@ void WiFiComponent::process_pending_callbacks_() {
   if (this->pending_.got_ip) {
     this->pending_.got_ip = false;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-    for (auto *listener : this->ip_state_listeners_) {
-      listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-    }
+    this->notify_ip_state_listeners_();
 #endif
   }
 

@@ -753,9 +753,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
     if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
+      this->notify_ip_state_listeners_();
     }
 #endif
 
@@ -793,9 +791,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-    for (auto *listener : this->ip_state_listeners_) {
-      listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-    }
+    this->notify_ip_state_listeners_();
 #endif
 
 #if USE_NETWORK_IPV6
@@ -804,9 +800,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
     this->num_ipv6_addresses_++;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-    for (auto *listener : this->ip_state_listeners_) {
-      listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-    }
+    this->notify_ip_state_listeners_();
 #endif
 #endif /* USE_NETWORK_IPV6 */
 

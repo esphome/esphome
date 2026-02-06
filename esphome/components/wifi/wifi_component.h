@@ -645,6 +645,10 @@ class WiFiComponent : public Component {
   /// Notify connect state listeners (called after state machine reaches STA_CONNECTED)
   void notify_connect_state_listeners_();
 #endif
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+  /// Notify IP state listeners with current addresses
+  void notify_ip_state_listeners_();
+#endif
 
 #ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
@@ -726,6 +730,7 @@ class WiFiComponent : public Component {
   // This serves as both the error flag and stores the reason for deferred logging
   uint8_t error_from_callback_{0};
 
+#if defined(USE_WIFI_CONNECT_STATE_LISTENERS) || defined(USE_ESP8266)
   // Pending listener callbacks deferred from platform callbacks to main loop.
   struct {
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
@@ -742,6 +747,7 @@ class WiFiComponent : public Component {
     bool scan_complete : 1;  // Scan complete, notify listeners
 #endif
   } pending_{};
+#endif
 
   // Group all boolean values together
   bool has_ap_{false};
