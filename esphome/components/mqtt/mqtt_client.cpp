@@ -170,10 +170,8 @@ void MQTTClientComponent::send_device_info_() {
 void MQTTClientComponent::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) tag;
   if (level <= this->log_level_ && this->is_connected()) {
-    this->publish({.topic = this->log_message_.topic,
-                   .payload = std::string(message, message_len),
-                   .qos = this->log_message_.qos,
-                   .retain = this->log_message_.retain});
+    this->publish(this->log_message_.topic.c_str(), message, message_len, this->log_message_.qos,
+                  this->log_message_.retain);
   }
 }
 #endif
