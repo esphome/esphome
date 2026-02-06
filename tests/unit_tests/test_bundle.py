@@ -761,6 +761,27 @@ def test_discover_files_external_components_local(tmp_path: Path) -> None:
     assert "components/my_comp/sensor.py" in paths
 
 
+def test_discover_files_external_components_skips_pycache(tmp_path: Path) -> None:
+    """__pycache__ directories inside local external_components are excluded."""
+    _setup_config_dir(
+        tmp_path,
+        files={
+            "components/my_comp/__init__.py": "# comp",
+            "components/my_comp/__pycache__/module.cpython-313.pyc": "bytecode",
+        },
+    )
+
+    config: dict[str, Any] = {
+        "external_components": [{"source": {"type": "local", "path": "components"}}],
+    }
+    creator = ConfigBundleCreator(config)
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "components/my_comp/__init__.py" in paths
+    assert not any("__pycache__" in p for p in paths)
+
+
 def test_discover_files_external_components_non_dict_source(tmp_path: Path) -> None:
     """external_components with string source (e.g. github shorthand) is skipped."""
     _setup_config_dir(tmp_path)

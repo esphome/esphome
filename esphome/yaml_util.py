@@ -43,6 +43,7 @@ _LOGGER = logging.getLogger(__name__)
 SECRET_YAML = "secrets.yaml"
 _SECRET_CACHE = {}
 _SECRET_VALUES = {}
+# Not thread-safe — config processing is single-threaded today.
 _load_listeners: list[Callable[[Path], None]] = []
 
 
