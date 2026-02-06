@@ -227,6 +227,15 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   return read_len;
 }
 
+void HttpContainerArduino::chunk_header_complete_() {
+  if (this->chunk_remaining_ == 0) {
+    this->chunk_state_ = ChunkedState::CHUNK_TRAILER;
+    this->chunk_remaining_ = 1;  // repurpose as at-start-of-line flag
+  } else {
+    this->chunk_state_ = ChunkedState::CHUNK_DATA;
+  }
+}
+
 // Chunked transfer encoding decoder
 //
 // On Arduino, getStreamPtr() returns raw TCP data. For chunked responses, this includes
@@ -238,6 +247,7 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
 //   <data bytes>\r\n
 //   ...
 //   0\r\n
+//   [trailer-field\r\n]*
 //   \r\n
 //
 // Non-blocking: only processes bytes already in the TCP receive buffer.
@@ -260,63 +270,83 @@ int HttpContainerArduino::read_chunked_(uint8_t *buf, size_t max_len, WiFiClient
     if (stream->available() == 0)
       break;
 
-    int c;
+    // CHUNK_DATA reads multiple bytes; handle before the single-byte switch
+    if (this->chunk_state_ == ChunkedState::CHUNK_DATA) {
+      // Only read what's available, what fits in buf, and what remains in this chunk
+      size_t to_read =
+          std::min({max_len - (size_t) total_decoded, this->chunk_remaining_, (size_t) stream->available()});
+      if (to_read == 0)
+        break;
+      App.feed_wdt();
+      int read_len = stream->readBytes(buf + total_decoded, to_read);
+      if (read_len <= 0)
+        return total_decoded > 0 ? total_decoded : HTTP_ERROR_CONNECTION_CLOSED;
+      total_decoded += read_len;
+      this->chunk_remaining_ -= read_len;
+      this->bytes_read_ += read_len;
+      if (this->chunk_remaining_ == 0)
+        this->chunk_state_ = ChunkedState::CHUNK_DATA_TRAIL;
+      continue;
+    }
+
+    // All other states consume a single byte
+    int c = stream->read();
+    if (c < 0)
+      return total_decoded > 0 ? total_decoded : HTTP_ERROR_CONNECTION_CLOSED;
+
     switch (this->chunk_state_) {
       // Parse hex chunk size, one byte at a time: "<hex>[;ext]\r\n"
+      // Note: if no hex digits are parsed (e.g., bare \r\n), chunk_remaining_ stays 0
+      // and is treated as the final chunk. This is intentionally lenient — on embedded
+      // devices, rejecting malformed framing is less useful than terminating cleanly.
+      // Overflow of chunk_remaining_ from extremely long hex strings (>8 digits on
+      // 32-bit) is not checked; >4GB chunks are unrealistic on embedded targets and
+      // would simply cause fewer bytes to be read from that chunk.
       case ChunkedState::CHUNK_HEADER:
-        c = stream->read();
-        if (c < 0)
-          return total_decoded > 0 ? total_decoded : HTTP_ERROR_CONNECTION_CLOSED;
         if (c == '\n') {
           // \n terminates the size line; chunk_remaining_ == 0 means last chunk
-          this->chunk_state_ = this->chunk_remaining_ == 0 ? ChunkedState::COMPLETE : ChunkedState::CHUNK_DATA;
+          this->chunk_header_complete_();
         } else {
           uint8_t hex = parse_hex_char(c);
-          if (hex != INVALID_HEX_CHAR)
+          if (hex != INVALID_HEX_CHAR) {
             this->chunk_remaining_ = (this->chunk_remaining_ << 4) | hex;
-          else if (c != '\r')
+          } else if (c != '\r') {
             this->chunk_state_ = ChunkedState::CHUNK_HEADER_EXT;  // ';' starts extension, skip to \n
+          }
         }
         break;
 
       // Skip chunk extension bytes until \n (e.g., ";name=value\r\n")
       case ChunkedState::CHUNK_HEADER_EXT:
-        c = stream->read();
-        if (c < 0)
-          return total_decoded > 0 ? total_decoded : HTTP_ERROR_CONNECTION_CLOSED;
-        if (c == '\n')
-          this->chunk_state_ = this->chunk_remaining_ == 0 ? ChunkedState::COMPLETE : ChunkedState::CHUNK_DATA;
+        if (c == '\n') {
+          this->chunk_header_complete_();
+        }
         break;
-
-      // Read decoded payload bytes into caller's buffer
-      case ChunkedState::CHUNK_DATA: {
-        // Only read what's available, what fits in buf, and what remains in this chunk
-        size_t to_read =
-            std::min({max_len - (size_t) total_decoded, this->chunk_remaining_, (size_t) stream->available()});
-        if (to_read == 0)
-          break;
-        App.feed_wdt();
-        int read_len = stream->readBytes(buf + total_decoded, to_read);
-        if (read_len <= 0)
-          return total_decoded > 0 ? total_decoded : HTTP_ERROR_CONNECTION_CLOSED;
-        total_decoded += read_len;
-        this->chunk_remaining_ -= read_len;
-        this->bytes_read_ += read_len;
-        if (this->chunk_remaining_ == 0)
-          this->chunk_state_ = ChunkedState::CHUNK_DATA_TRAIL;
-        break;
-      }
 
       // Consume \r\n trailing each chunk's data
       case ChunkedState::CHUNK_DATA_TRAIL:
-        c = stream->read();
-        if (c < 0)
-          return total_decoded > 0 ? total_decoded : HTTP_ERROR_CONNECTION_CLOSED;
         if (c == '\n') {
           this->chunk_state_ = ChunkedState::CHUNK_HEADER;
           this->chunk_remaining_ = 0;  // reset for next chunk's hex accumulation
         }
         // else: \r is consumed silently, next iteration gets \n
+        break;
+
+      // Consume optional trailer headers and terminating empty line after final chunk.
+      // Per RFC 9112 Section 7.1: "0\r\n" is followed by optional "field\r\n" lines
+      // and a final "\r\n". chunk_remaining_ is repurposed as a flag: 1 = at start
+      // of line (may be the empty terminator), 0 = mid-line (reading a trailer field).
+      case ChunkedState::CHUNK_TRAILER:
+        if (c == '\n') {
+          if (this->chunk_remaining_ != 0) {
+            this->chunk_state_ = ChunkedState::COMPLETE;  // Empty line terminates trailers
+          } else {
+            this->chunk_remaining_ = 1;  // End of trailer field, at start of next line
+          }
+        } else if (c != '\r') {
+          this->chunk_remaining_ = 0;  // Non-CRLF char: reading a trailer field
+        }
+        // \r doesn't change the flag — it's part of \r\n line endings
         break;
 
       default:
