@@ -1,3 +1,3 @@
 // Dummy custom sensor header for bundle testing
 #pragma once
-#include "esphome.h"
+#include "esphome/core/component.h"
