@@ -72,18 +72,30 @@ class Scheduler {
   bool cancel_interval(Component *component, const char *name);
   bool cancel_interval(Component *component, uint32_t id);
 
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
                  std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(Component *component, const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
                  std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
-  /// Set a retry with a numeric ID (zero heap allocation)
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(Component *component, uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
                  std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
 
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
   bool cancel_retry(Component *component, const std::string &name);
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
   bool cancel_retry(Component *component, const char *name);
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
   bool cancel_retry(Component *component, uint32_t id);
 
   // Calculate when the next scheduled item should run
@@ -231,11 +243,14 @@ class Scheduler {
                          uint32_t hash_or_id, uint32_t delay, std::function<void()> func, bool is_retry = false,
                          bool skip_cancel = false);
 
-  // Common implementation for retry
+  // Common implementation for retry - Remove before 2026.8.0
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   void set_retry_common_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
                          uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> func,
                          float backoff_increase_factor);
+#pragma GCC diagnostic pop
   // Common implementation for cancel_retry
   bool cancel_retry_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
 

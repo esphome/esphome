@@ -252,6 +252,11 @@ bool HOT Scheduler::cancel_interval(Component *component, uint32_t id) {
   return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::INTERVAL);
 }
 
+// Suppress deprecation warnings for RetryResult usage in the still-present (but deprecated) retry implementation.
+// Remove before 2026.8.0 along with all retry code.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 struct RetryArgs {
   // Ordered to minimize padding on 32-bit systems
   std::function<RetryResult(uint8_t)> func;
@@ -363,6 +368,8 @@ void HOT Scheduler::set_retry(Component *component, uint32_t id, uint32_t initia
 bool HOT Scheduler::cancel_retry(Component *component, uint32_t id) {
   return this->cancel_retry_(component, NameType::NUMERIC_ID, nullptr, id);
 }
+
+#pragma GCC diagnostic pop  // End suppression of deprecated RetryResult warnings
 
 optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // IMPORTANT: This method should only be called from the main thread (loop task).
