@@ -31,10 +31,11 @@ display:
 These are the supported controller chips. Using just the chip name as the model will require full configuration with
 pins and dimensions specified.
 
-| Chip name              | Manufacturer | Product Description                                |
-|------------------------|--------------|----------------------------------------------------|
-| Spectra-E6             | Eink         | <https://www.eink.com/brand/detail/Spectra6>       |
-| SSD1677                | Solomon      | <https://www.solomon-systech.com/product/ssd1677/> |
+| Chip name              | Manufacturer | Product Description                                      |
+|------------------------|--------------|----------------------------------------------------------|
+| JD79660                | Jadard       | <https://www.tdytech.com/en/> (B2B, see vendors instead) |
+| Spectra-E6             | Eink         | <https://www.eink.com/brand/detail/Spectra6>             |
+| SSD1677                | Solomon      | <https://www.solomon-systech.com/product/ssd1677/>       |
 
 ## Supported display panels
 
@@ -43,6 +44,7 @@ the pins used to interface to the display to be specified.
 
 | Display name        | Manufacturer | Product Description                                |
 |---------------------|--------------|----------------------------------------------------|
+| Waveshare-1.54in-G  | Waveshare    | <https://www.waveshare.com/1.54inch-e-paper-g.htm> |
 | Waveshare-2.13in-v3 | Waveshare    | <https://www.waveshare.com/pico-epaper-2.13.htm>   |
 | Waveshare-4.26in    | Waveshare    | <https://www.waveshare.com/4.26inch-e-paper.htm>   |
 
