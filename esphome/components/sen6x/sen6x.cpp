@@ -8,8 +8,7 @@
 #include <memory>
 #include <vector>
 
-namespace esphome {
-namespace sen6x {
+namespace esphome::sen6x {
 
 static const char *const TAG = "sen6x";
 
@@ -967,5 +966,4 @@ bool SEN6XComponent::get_sht_heater_measurements() {
   return true;
 }
 
-}  // namespace sen6x
-}  // namespace esphome
+}  // namespace esphome::sen6x

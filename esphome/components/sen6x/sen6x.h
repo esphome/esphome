@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace sen6x {
+namespace esphome::sen6x {
 
 enum ERRORCODE {
   COMMUNICATION_FAILED,
@@ -206,5 +205,4 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   float last_co2_{NAN};
 };
 
-}  // namespace sen6x
-}  // namespace esphome
+}  // namespace esphome::sen6x
