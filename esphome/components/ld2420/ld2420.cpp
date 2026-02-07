@@ -667,7 +667,9 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
     }
 
     while (!this->cmd_reply_.ack) {
-      this->read_batch_(ack_buffer);
+      while (this->available()) {
+        this->readline_(this->read(), ack_buffer, sizeof(ack_buffer));
+      }
       delay_microseconds_safe(1450);
       // Wait on an Rx from the LD2420 for up to 3 1 second loops, otherwise it could trigger a WDT.
       if ((millis() - start_millis) > 1000) {
