@@ -25,7 +25,10 @@ class MockUARTComponent : public UARTComponent {
   // consider using StaticVector or FixedVector from esphome/core/helpers.h instead.
   std::vector<uint8_t> written_data;
 
-  void write_array(const uint8_t *data, size_t len) override { written_data.assign(data, data + len); }
+  void write_array(const uint8_t *data, size_t len) override {
+    written_data.insert(written_data.end(), data, data + len);
+  }
+  void clear() { written_data.clear(); }
 
   MOCK_METHOD(bool, read_array, (uint8_t * data, size_t len), (override));
   MOCK_METHOD(bool, peek_byte, (uint8_t * data), (override));

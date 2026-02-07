@@ -197,8 +197,8 @@ async def register_packet_transport(var, config):
     return providers
 
 
-async def new_packet_transport(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_packet_transport(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     cg.add(var.set_platform_name(config[CONF_PLATFORM]))
     providers = await register_packet_transport(var, config)
     return var, providers

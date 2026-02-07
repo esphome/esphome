@@ -16,9 +16,6 @@ namespace esphome::uart {
  * Any occurrence of FLAG_BYTE or CONTROL_BYTE in the data is escaped by emitting CONTROL_BYTE followed by the byte
  * XORed with 0x20.
  */
-static const uint16_t MAX_PACKET_SIZE = 508;
-static const uint8_t FLAG_BYTE = 0x7E;
-static const uint8_t CONTROL_BYTE = 0x7D;
 
 class UARTTransport : public packet_transport::PacketTransport, public UARTDevice {
  public:
@@ -29,7 +26,7 @@ class UARTTransport : public packet_transport::PacketTransport, public UARTDevic
   void write_byte_(uint8_t byte) const;
   void send_packet(const std::vector<uint8_t> &buf) const override;
   bool should_send() override { return true; };
-  size_t get_max_packet_size() override { return MAX_PACKET_SIZE; }
+  size_t get_max_packet_size() override;
   std::vector<uint8_t> receive_buffer_{};
   bool rx_started_{};
   bool rx_control_{};

@@ -522,9 +522,11 @@ void PacketTransport::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Packet Transport:\n"
                 "  Platform: %s\n"
+                "  Max Packet Size: %zu\n"
                 "  Encrypted: %s\n"
                 "  Ping-pong: %s",
-                this->platform_name_, YESNO(this->is_encrypted_()), YESNO(this->ping_pong_enable_));
+                this->platform_name_, this->get_max_packet_size(), YESNO(this->is_encrypted_()),
+                YESNO(this->ping_pong_enable_));
 #ifdef USE_SENSOR
   for (auto sensor : this->sensors_)
     ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor.id);
