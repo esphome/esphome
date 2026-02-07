@@ -4,8 +4,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace esphome {
-namespace runtime_image {
+namespace esphome::runtime_image {
 
 static const char *const TAG = "image_decoder";
 
@@ -26,5 +25,4 @@ void ImageDecoder::draw(int x, int y, int w, int h, const Color &color) {
   }
 }
 
-}  // namespace runtime_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image

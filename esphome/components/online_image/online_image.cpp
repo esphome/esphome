@@ -8,8 +8,7 @@ static const char *const IF_NONE_MATCH_HEADER_NAME = "if-none-match";
 static const char *const LAST_MODIFIED_HEADER_NAME = "last-modified";
 static const char *const IF_MODIFIED_SINCE_HEADER_NAME = "if-modified-since";
 
-namespace esphome {
-namespace online_image {
+namespace esphome::online_image {
 
 OnlineImage::OnlineImage(const std::string &url, int width, int height, runtime_image::ImageFormat format,
                          image::ImageType type, image::Transparency transparency, image::Image *placeholder,
@@ -200,5 +199,4 @@ void OnlineImage::release() {
   RuntimeImage::release();
 }
 
-}  // namespace online_image
-}  // namespace esphome
+}  // namespace esphome::online_image

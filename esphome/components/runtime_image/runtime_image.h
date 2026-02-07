@@ -3,8 +3,7 @@
 #include "esphome/components/image/image.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace runtime_image {
+namespace esphome::runtime_image {
 
 // Forward declaration
 class ImageDecoder;
@@ -195,5 +194,4 @@ class RuntimeImage : public image::Image {
   image::Image *placeholder_{nullptr};
 };
 
-}  // namespace runtime_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image

@@ -6,8 +6,7 @@
 #ifdef USE_RUNTIME_IMAGE_JPEG
 #include <JPEGDEC.h>
 
-namespace esphome {
-namespace runtime_image {
+namespace esphome::runtime_image {
 
 /**
  * @brief Image decoder specialization for JPEG images.
@@ -29,7 +28,6 @@ class JpegDecoder : public ImageDecoder {
   JPEGDEC jpeg_{};
 };
 
-}  // namespace runtime_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image
 
 #endif  // USE_RUNTIME_IMAGE_JPEG

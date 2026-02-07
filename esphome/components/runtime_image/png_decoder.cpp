@@ -8,8 +8,7 @@
 
 static const char *const TAG = "image_decoder.png";
 
-namespace esphome {
-namespace runtime_image {
+namespace esphome::runtime_image {
 
 /**
  * @brief Callback method that will be called by the PNGLE engine when the basic
@@ -100,7 +99,6 @@ int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
   return fed;
 }
 
-}  // namespace runtime_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image
 
 #endif  // USE_RUNTIME_IMAGE_PNG

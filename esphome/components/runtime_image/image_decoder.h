@@ -1,8 +1,7 @@
 #pragma once
 #include "esphome/core/color.h"
 
-namespace esphome {
-namespace runtime_image {
+namespace esphome::runtime_image {
 
 enum DecodeError : int {
   DECODE_ERROR_INVALID_TYPE = -1,
@@ -95,5 +94,4 @@ class ImageDecoder {
   double y_scale_ = 1.0;
 };
 
-}  // namespace runtime_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image

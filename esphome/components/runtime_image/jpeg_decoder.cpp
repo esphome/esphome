@@ -13,8 +13,7 @@
 
 static const char *const TAG = "image_decoder.jpeg";
 
-namespace esphome {
-namespace runtime_image {
+namespace esphome::runtime_image {
 
 /**
  * @brief Callback method that will be called by the JPEGDEC engine when a chunk
@@ -99,7 +98,6 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   return size;
 }
 
-}  // namespace runtime_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image
 
 #endif  // USE_RUNTIME_IMAGE_JPEG

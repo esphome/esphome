@@ -6,8 +6,7 @@
 #include "image_decoder.h"
 #include "runtime_image.h"
 
-namespace esphome {
-namespace runtime_image {
+namespace esphome::runtime_image {
 
 /**
  * @brief Image decoder specialization for BMP images.
@@ -42,7 +41,6 @@ class BmpDecoder : public ImageDecoder {
   uint8_t padding_bytes_{0};
 };
 
-}  // namespace runtime_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image
 
 #endif  // USE_RUNTIME_IMAGE_BMP

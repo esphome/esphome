@@ -6,8 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace runtime_image {
+namespace esphome::runtime_image {
 
 static const char *const TAG = "image_decoder.bmp";
 
@@ -137,7 +136,6 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
   return size;
 };
 
-}  // namespace runtime_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image
 
 #endif  // USE_RUNTIME_IMAGE_BMP

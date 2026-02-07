@@ -4,8 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace esphome {
-namespace online_image {
+namespace esphome::online_image {
 
 /**
  * @brief Buffer for managing downloaded data.
@@ -42,5 +41,4 @@ class DownloadBuffer {
   size_t unread_;
 };
 
-}  // namespace online_image
-}  // namespace esphome
+}  // namespace esphome::online_image

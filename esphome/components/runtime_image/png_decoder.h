@@ -7,8 +7,7 @@
 #ifdef USE_RUNTIME_IMAGE_PNG
 #include <pngle.h>
 
-namespace esphome {
-namespace runtime_image {
+namespace esphome::runtime_image {
 
 /**
  * @brief Image decoder specialization for PNG images.
@@ -35,7 +34,6 @@ class PngDecoder : public ImageDecoder {
   uint32_t pixels_decoded_{0};
 };
 
-}  // namespace runtime_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image
 
 #endif  // USE_RUNTIME_IMAGE_PNG

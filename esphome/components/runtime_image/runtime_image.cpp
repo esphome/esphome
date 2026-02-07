@@ -13,8 +13,7 @@
 #include "png_decoder.h"
 #endif
 
-namespace esphome {
-namespace runtime_image {
+namespace esphome::runtime_image {
 
 static const char *const TAG = "runtime_image";
 
@@ -246,5 +245,4 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_() {
   }
 }
 
-}  // namespace runtime_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image

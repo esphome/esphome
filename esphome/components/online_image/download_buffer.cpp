@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <cstring>
 
-namespace esphome {
-namespace online_image {
+namespace esphome::online_image {
 
 static const char *const TAG = "online_image.download_buffer";
 
@@ -51,5 +50,4 @@ size_t DownloadBuffer::resize(size_t size) {
   }
 }
 
-}  // namespace online_image
-}  // namespace esphome
+}  // namespace esphome::online_image
