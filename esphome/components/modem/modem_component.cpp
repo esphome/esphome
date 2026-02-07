@@ -277,7 +277,7 @@ void ModemComponent::handle_state_enabling_() {
       continue;
     }
     ESP_LOGV(TAG, "Modem ON. Autodetect mode: %s, baud: %d",
-              modem_mode_to_string(this->modem_handler->dce->get_mode()).c_str(), b);
+             modem_mode_to_string(this->modem_handler->dce->get_mode()).c_str(), b);
     auto mode = this->modem_handler->dce->get_mode();
     if (mode == modem_mode::CMUX_MANUAL_MODE || mode == modem_mode::DATA_MODE) {
       if (b != this->modem_handler->baud_rate) {

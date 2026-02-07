@@ -183,7 +183,7 @@ void ModemHandler::send_init_at() {
   if (this->rts_pin != nullptr && this->cts_pin != nullptr) {
     // Send AT command to setup flow control
     App.feed_wdt();
-    if (this->dce->set_flow_control(2,2) != command_result::OK) {
+    if (this->dce->set_flow_control(2, 2) != command_result::OK) {
       ESP_LOGE(TAG, "Failed to set modem flow control to RTS/CTS.");
       return;
     }

@@ -181,9 +181,13 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
                     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-                    cv.Optional(CONF_TON_PULSE_DELAY): cv.positive_time_period_milliseconds,
+                    cv.Optional(
+                        CONF_TON_PULSE_DELAY
+                    ): cv.positive_time_period_milliseconds,
                     cv.Optional(CONF_TON_DELAY): cv.positive_time_period_milliseconds,
-                    cv.Optional(CONF_TOFF_PULSE_DELAY): cv.positive_time_period_milliseconds,
+                    cv.Optional(
+                        CONF_TOFF_PULSE_DELAY
+                    ): cv.positive_time_period_milliseconds,
                     cv.Optional(CONF_TOFF_DELAY): cv.positive_time_period_milliseconds,
                 },
                 key=CONF_PIN,
