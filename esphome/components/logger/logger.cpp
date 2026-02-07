@@ -4,6 +4,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::logger {
 
@@ -241,34 +242,20 @@ UARTSelection Logger::get_uart() const { return this->uart_; }
 
 float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-// ESP8266: PSTR() cannot be used in array initializers, so we need to declare
-// each string separately as a global constant first
-static const char LOG_LEVEL_NONE[] PROGMEM = "NONE";
-static const char LOG_LEVEL_ERROR[] PROGMEM = "ERROR";
-static const char LOG_LEVEL_WARN[] PROGMEM = "WARN";
-static const char LOG_LEVEL_INFO[] PROGMEM = "INFO";
-static const char LOG_LEVEL_CONFIG[] PROGMEM = "CONFIG";
-static const char LOG_LEVEL_DEBUG[] PROGMEM = "DEBUG";
-static const char LOG_LEVEL_VERBOSE[] PROGMEM = "VERBOSE";
-static const char LOG_LEVEL_VERY_VERBOSE[] PROGMEM = "VERY_VERBOSE";
+// Log level strings - packed into flash on ESP8266, indexed by log level (0-7)
+PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE");
 
-static const LogString *const LOG_LEVELS[] = {
-    reinterpret_cast<const LogString *>(LOG_LEVEL_NONE),    reinterpret_cast<const LogString *>(LOG_LEVEL_ERROR),
-    reinterpret_cast<const LogString *>(LOG_LEVEL_WARN),    reinterpret_cast<const LogString *>(LOG_LEVEL_INFO),
-    reinterpret_cast<const LogString *>(LOG_LEVEL_CONFIG),  reinterpret_cast<const LogString *>(LOG_LEVEL_DEBUG),
-    reinterpret_cast<const LogString *>(LOG_LEVEL_VERBOSE), reinterpret_cast<const LogString *>(LOG_LEVEL_VERY_VERBOSE),
-};
-#else
-static const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
-#endif
+static const LogString *get_log_level_str(uint8_t level) {
+  return LogLevelStrings::get_log_str(level, LogLevelStrings::LAST_INDEX);
+}
 
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Logger:\n"
                 "  Max Level: %s\n"
                 "  Initial Level: %s",
-                LOG_STR_ARG(LOG_LEVELS[ESPHOME_LOG_LEVEL]), LOG_STR_ARG(LOG_LEVELS[this->current_level_]));
+                LOG_STR_ARG(get_log_level_str(ESPHOME_LOG_LEVEL)),
+                LOG_STR_ARG(get_log_level_str(this->current_level_)));
 #ifndef USE_HOST
   ESP_LOGCONFIG(TAG,
                 "  Log Baud Rate: %" PRIu32 "\n"
@@ -287,7 +274,7 @@ void Logger::dump_config() {
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   for (auto &it : this->log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(LOG_LEVELS[it.second]));
+    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
   }
 #endif
 }
@@ -295,7 +282,8 @@ void Logger::dump_config() {
 void Logger::set_log_level(uint8_t level) {
   if (level > ESPHOME_LOG_LEVEL) {
     level = ESPHOME_LOG_LEVEL;
-    ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s", LOG_STR_ARG(LOG_LEVELS[ESPHOME_LOG_LEVEL]));
+    ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s",
+             LOG_STR_ARG(get_log_level_str(ESPHOME_LOG_LEVEL)));
   }
   this->current_level_ = level;
 #ifdef USE_LOGGER_LEVEL_LISTENERS
