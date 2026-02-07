@@ -115,7 +115,8 @@ class EPaperBase : public Display,
   bool is_idle_() const;
   void setup_pins_() const;
   virtual bool reset();
-  virtual void initialise(bool partial);
+  virtual bool initialise(bool partial);
+  void send_init_sequence_(const uint8_t *sequence, size_t length);
   void wait_for_idle_(bool should_wait);
   bool init_buffer_(size_t buffer_length);
   bool rotate_coordinates_(int &x, int &y);
