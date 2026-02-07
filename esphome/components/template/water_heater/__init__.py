@@ -46,6 +46,7 @@ CONFIG_SCHEMA = (
                 RESTORE_MODES, upper=True
             ),
             cv.Optional(CONF_CURRENT_TEMPERATURE): cv.returning_lambda,
+            cv.Optional(CONF_TARGET_TEMPERATURE): cv.returning_lambda,
             cv.Optional(CONF_MODE): cv.returning_lambda,
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
                 water_heater.validate_water_heater_mode
@@ -77,6 +78,14 @@ async def to_code(config: ConfigType) -> None:
             return_type=cg.optional.template(cg.float_),
         )
         cg.add(var.set_current_temperature_lambda(template_))
+
+    if CONF_TARGET_TEMPERATURE in config:
+        template_ = await cg.process_lambda(
+            config[CONF_TARGET_TEMPERATURE],
+            [],
+            return_type=cg.optional.template(cg.float_),
+        )
+        cg.add(var.set_target_temperature_lambda(template_))
 
     if CONF_MODE in config:
         template_ = await cg.process_lambda(

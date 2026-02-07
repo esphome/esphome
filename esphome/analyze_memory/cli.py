@@ -184,6 +184,52 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 f"{i + 1:>2}. {size:>7,} B {section_label:<8} {demangled_display:<{self.COL_TOP_SYMBOL_NAME}} {component}"
             )
 
+    def _add_cswtch_analysis(self, lines: list[str]) -> None:
+        """Add CSWTCH (GCC switch table lookup) analysis section."""
+        self._add_section_header(lines, "CSWTCH Analysis (GCC Switch Table Lookups)")
+
+        total_size = sum(size for _, size, _, _ in self._cswtch_symbols)
+        lines.append(
+            f"Total: {len(self._cswtch_symbols)} switch table(s), {total_size:,} B"
+        )
+        lines.append("")
+
+        # Group by component
+        by_component: dict[str, list[tuple[str, int, str]]] = defaultdict(list)
+        for sym_name, size, source_file, component in self._cswtch_symbols:
+            by_component[component].append((sym_name, size, source_file))
+
+        # Sort components by total size descending
+        sorted_components = sorted(
+            by_component.items(),
+            key=lambda x: sum(s[1] for s in x[1]),
+            reverse=True,
+        )
+
+        for component, symbols in sorted_components:
+            comp_total = sum(s[1] for s in symbols)
+            lines.append(f"{component} ({comp_total:,} B, {len(symbols)} tables):")
+
+            # Group by source file within component
+            by_file: dict[str, list[tuple[str, int]]] = defaultdict(list)
+            for sym_name, size, source_file in symbols:
+                by_file[source_file].append((sym_name, size))
+
+            for source_file, file_symbols in sorted(
+                by_file.items(),
+                key=lambda x: sum(s[1] for s in x[1]),
+                reverse=True,
+            ):
+                file_total = sum(s[1] for s in file_symbols)
+                lines.append(
+                    f"  {source_file} ({file_total:,} B, {len(file_symbols)} tables)"
+                )
+                for sym_name, size in sorted(
+                    file_symbols, key=lambda x: x[1], reverse=True
+                ):
+                    lines.append(f"    {size:>6,} B  {sym_name}")
+            lines.append("")
+
     def generate_report(self, detailed: bool = False) -> str:
         """Generate a formatted memory report."""
         components = sorted(
@@ -470,6 +516,10 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 if len(large_ram_syms) > 10:
                     lines.append(f"    ... and {len(large_ram_syms) - 10} more")
             lines.append("")
+
+        # CSWTCH (GCC switch table) analysis
+        if self._cswtch_symbols:
+            self._add_cswtch_analysis(lines)
 
         lines.append(
             "Note: This analysis covers symbols in the ELF file. Some runtime allocations may not be included."
