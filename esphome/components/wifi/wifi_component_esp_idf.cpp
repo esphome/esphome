@@ -1117,14 +1117,16 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   return network::IPAddress(&ip.ip);
 }
 
-bool WiFiComponent::wifi_ap_nat(esp_netif_t *gateway_netif) {
+int wifi_ap_nat_lwip_task(void *arg) {
+  esp_netif_t *gateway_netif = static_cast<esp_netif_t *>(arg);
+
   if (!s_ap_netif) {
     ESP_LOGE(TAG, "AP interface not initialized. Cannot set up NAT.");
-    return false;
+    return -1;
   }
   if (!gateway_netif) {
     ESP_LOGE(TAG, "Gateway netif not provided. Cannot set up NAT.");
-    return false;
+    return -1;
   }
 
   esp_netif_ip_info_t ap_info;
@@ -1132,7 +1134,7 @@ bool WiFiComponent::wifi_ap_nat(esp_netif_t *gateway_netif) {
 
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to get AP IP info for NAT setup: %s", esp_err_to_name(err));
-    return false;
+    return -1;
   }
 
   const char *gw_if_key = esp_netif_get_ifkey(gateway_netif);
@@ -1142,11 +1144,9 @@ bool WiFiComponent::wifi_ap_nat(esp_netif_t *gateway_netif) {
   esp_netif_get_dns_info(gateway_netif, ESP_NETIF_DNS_MAIN, &dns_gw);
 
   if (dns_gw.ip.u_addr.ip4.addr != 0) {
-    // Stop DHCP server to apply new options
     err = esp_netif_dhcps_stop(s_ap_netif);
     if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
       ESP_LOGE(TAG, "Failed to stop AP DHCP server before updating DNS: %s", esp_err_to_name(err));
-      // Log error but continue to try to restart DHCP server
     }
 
     dhcps_offer_t dhcps_dns_value = OFFER_DNS;
@@ -1158,22 +1158,28 @@ bool WiFiComponent::wifi_ap_nat(esp_netif_t *gateway_netif) {
       ESP_LOGE(TAG, "esp_netif_set_dns_info for AP failed! %d", err);
     }
 
-    // Restart DHCP server
     err = esp_netif_dhcps_start(s_ap_netif);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to restart AP DHCP server after updating DNS: %s", esp_err_to_name(err));
-      return false;
+      return -1;
     }
 
     ip_napt_enable(ap_info.ip.addr, 1);
     ESP_LOGI(TAG, "AP DNS and NAT configured from gateway netif \'%s\'", gw_if_key);
   } else {
     ESP_LOGW(TAG, "Gateway netif \'%s\' has no valid DNS info. NAT and DNS not applied.", gw_if_key);
-    // It's up to the calling component to retry or ensure DNS is available.
+  }
+  return 0;
+}
+
+bool WiFiComponent::wifi_ap_nat(esp_netif_t *gateway_netif) {
+  esp_err_t err = esp_netif_tcpip_exec(wifi_ap_nat_lwip_task, static_cast<void *>(gateway_netif));
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to schedule NAT setup: %s", esp_err_to_name(err));
+    return false;
   }
   return true;
 }
-
 #endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
