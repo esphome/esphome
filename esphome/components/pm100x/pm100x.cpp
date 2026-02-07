@@ -182,6 +182,7 @@ float PM100XComponent::duty_to_pm25_(float duty_percent) const {
     duty_percent = 100.0f;
 
   switch (this->model_) {
+    case PM100XModel::PM1006:
     case PM100XModel::PM1006K: {
       // PWM low-level ms maps to concentration (cycle 1000ms)
       float pm_2_5_concentration = (duty_percent * 10.0f) - 4.0f;
@@ -192,7 +193,6 @@ float PM100XComponent::duty_to_pm25_(float duty_percent) const {
       return pm_2_5_concentration;
     }
     case PM100XModel::PM1003:
-    case PM100XModel::PM1006:
     default: {
       float pm_2_5_concentration = (duty_percent / 100.0f) * 500.0f;
       if (pm_2_5_concentration < 0.0f)

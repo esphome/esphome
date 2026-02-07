@@ -25,7 +25,7 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
-CODEOWNERS = ["@tuct"]
+CODEOWNERS = ["@tuct", "@habbie"]
 AUTO_LOAD = ["duty_cycle", "uart"]
 
 CONF_PWM = "pwm"
