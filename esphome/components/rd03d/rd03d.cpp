@@ -132,7 +132,7 @@ void RD03DComponent::process_frame_() {
     // Header is 4 bytes, each target is 8 bytes
     uint8_t offset = FRAME_HEADER_SIZE + (i * TARGET_DATA_SIZE);
 
-    // Extract raw bytes for this target
+    // Extract raw bytes for this target (per datasheet Table 5-2: X, Y, Speed, Resolution)
     uint8_t x_low = this->buffer_[offset + 0];
     uint8_t x_high = this->buffer_[offset + 1];
     uint8_t y_low = this->buffer_[offset + 2];

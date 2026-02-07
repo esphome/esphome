@@ -2,21 +2,18 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome {
 namespace fan {
 
 static const char *const TAG = "fan";
 
+// Fan direction strings indexed by FanDirection enum (0-1): FORWARD, REVERSE, plus UNKNOWN
+PROGMEM_STRING_TABLE(FanDirectionStrings, "FORWARD", "REVERSE", "UNKNOWN");
+
 const LogString *fan_direction_to_string(FanDirection direction) {
-  switch (direction) {
-    case FanDirection::FORWARD:
-      return LOG_STR("FORWARD");
-    case FanDirection::REVERSE:
-      return LOG_STR("REVERSE");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return FanDirectionStrings::get_log_str(static_cast<uint8_t>(direction), FanDirectionStrings::LAST_INDEX);
 }
 
 FanCall &FanCall::set_preset_mode(const std::string &preset_mode) {
@@ -227,8 +224,7 @@ void Fan::publish_state() {
 constexpr uint32_t RESTORE_STATE_VERSION = 0x71700ABA;
 optional<FanRestoreState> Fan::restore_state_() {
   FanRestoreState recovered{};
-  this->rtc_ =
-      global_preferences->make_preference<FanRestoreState>(this->get_preference_hash() ^ RESTORE_STATE_VERSION);
+  this->rtc_ = this->make_entity_preference<FanRestoreState>(RESTORE_STATE_VERSION);
   bool restored = this->rtc_.load(&recovered);
 
   switch (this->restore_mode_) {

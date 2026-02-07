@@ -1,5 +1,6 @@
 #include "gpio_binary_sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome {
 namespace gpio {
@@ -7,17 +8,12 @@ namespace gpio {
 static const char *const TAG = "gpio.binary_sensor";
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+// Interrupt type strings indexed by edge-triggered InterruptType values:
+// indices 1-3: RISING_EDGE, FALLING_EDGE, ANY_EDGE; other values (e.g. level-triggered) map to UNKNOWN (index 0).
+PROGMEM_STRING_TABLE(InterruptTypeStrings, "UNKNOWN", "RISING_EDGE", "FALLING_EDGE", "ANY_EDGE");
+
 static const LogString *interrupt_type_to_string(gpio::InterruptType type) {
-  switch (type) {
-    case gpio::INTERRUPT_RISING_EDGE:
-      return LOG_STR("RISING_EDGE");
-    case gpio::INTERRUPT_FALLING_EDGE:
-      return LOG_STR("FALLING_EDGE");
-    case gpio::INTERRUPT_ANY_EDGE:
-      return LOG_STR("ANY_EDGE");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return InterruptTypeStrings::get_log_str(static_cast<uint8_t>(type), 0);
 }
 
 static const LogString *gpio_mode_to_string(bool use_interrupt) {

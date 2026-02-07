@@ -14,7 +14,6 @@ class AS5600Sensor : public PollingComponent, public Parented<AS5600Component>, 
  public:
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
   void set_angle_sensor(sensor::Sensor *angle_sensor) { this->angle_sensor_ = angle_sensor; }
   void set_raw_angle_sensor(sensor::Sensor *raw_angle_sensor) { this->raw_angle_sensor_ = raw_angle_sensor; }

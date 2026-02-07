@@ -692,6 +692,8 @@ HEAP_ALLOCATING_HELPERS = {
     "str_truncate": "removal (function is unused)",
     "str_upper_case": "removal (function is unused)",
     "str_snake_case": "removal (function is unused)",
+    "str_sprintf": "snprintf() with a stack buffer",
+    "str_snprintf": "snprintf() with a stack buffer",
 }
 
 
@@ -710,7 +712,9 @@ HEAP_ALLOCATING_HELPERS = {
     r"str_sanitize(?!_)|"
     r"str_truncate|"
     r"str_upper_case|"
-    r"str_snake_case"
+    r"str_snake_case|"
+    r"str_sprintf|"
+    r"str_snprintf"
     r")\s*\(" + CPP_RE_EOL,
     include=cpp_include,
     exclude=[
@@ -728,6 +732,48 @@ def lint_no_heap_allocating_helpers(fname, match):
         f"become time bombs - the heap eventually cannot satisfy requests even with free "
         f"memory available.\n"
         f"Please use {replacement} instead.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    # Match sprintf/vsprintf but not snprintf/vsnprintf
+    # [^\w] ensures we don't match the safe variants
+    r"[^\w](v?sprintf)\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_sprintf(fname, match):
+    func = match.group(1)
+    safe_func = func.replace("sprintf", "snprintf")
+    return (
+        f"{highlight(func + '()')} is not allowed in ESPHome. It has no buffer size limit "
+        f"and can cause buffer overflows.\n"
+        f"Please use one of these alternatives:\n"
+        f"  - {highlight(safe_func + '(buf, sizeof(buf), fmt, ...)')} for general formatting\n"
+        f"  - {highlight('buf_append_printf(buf, sizeof(buf), pos, fmt, ...)')} for "
+        f"offset-based formatting (also stores format strings in flash on ESP8266)\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    # Match scanf family functions: scanf, sscanf, fscanf, vscanf, vsscanf, vfscanf
+    # Also match std:: prefixed versions
+    # [^\w] ensures we match function calls, not substrings
+    r"[^\w]((?:std::)?v?[fs]?scanf)\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_scanf(fname, match):
+    func = match.group(1)
+    return (
+        f"{highlight(func + '()')} is not allowed in new ESPHome code. The scanf family "
+        f"pulls in ~7KB flash on ESP8266 and ~9KB on ESP32, and ESPHome doesn't otherwise "
+        f"need this code.\n"
+        f"Please use alternatives:\n"
+        f"  - {highlight('parse_number<T>(str)')} for parsing integers/floats from strings\n"
+        f"  - {highlight('strtol()/strtof()')} for C-style number parsing with error checking\n"
+        f"  - {highlight('parse_hex()')} for hex string parsing\n"
+        f"  - Manual parsing for simple fixed formats\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
 

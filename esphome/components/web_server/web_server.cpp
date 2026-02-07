@@ -29,6 +29,10 @@
 #include "esphome/components/climate/climate.h"
 #endif
 
+#ifdef USE_UPDATE
+#include "esphome/components/update/update_entity.h"
+#endif
+
 #ifdef USE_WATER_HEATER
 #include "esphome/components/water_heater/water_heater.h"
 #endif
@@ -454,7 +458,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
-  AsyncWebServerResponse *response = request->beginResponse(200, "");
+  AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F(""));
   response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
   response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
   char mac_s[18];
@@ -531,7 +535,19 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
   memcpy(p, name.c_str(), name_len);
   p[name_len] = '\0';
 
-  root[ESPHOME_F("id")] = id_buf;
+  // name_id: new format {prefix}/{device?}/{name} - frontend should prefer this
+  // Remove in 2026.8.0 when id switches to new format permanently
+  root[ESPHOME_F("name_id")] = id_buf;
+
+  // id: old format {prefix}-{object_id} for backward compatibility
+  // Will switch to new format in 2026.8.0
+  char legacy_buf[ESPHOME_DOMAIN_MAX_LEN + 1 + OBJECT_ID_MAX_LEN];
+  char *lp = legacy_buf;
+  memcpy(lp, prefix, prefix_len);
+  lp += prefix_len;
+  *lp++ = '-';
+  obj->write_object_id_to(lp, sizeof(legacy_buf) - (lp - legacy_buf));
+  root[ESPHOME_F("id")] = legacy_buf;
 
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("domain")] = prefix;
@@ -709,11 +725,7 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
     }
 
     if (action != SWITCH_ACTION_NONE) {
-#ifdef USE_ESP8266
-      execute_switch_action(obj, action);
-#else
       this->defer([obj, action]() { execute_switch_action(obj, action); });
-#endif
       request->send(200);
     } else {
       request->send(404);
@@ -1633,11 +1645,7 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
     }
 
     if (action != LOCK_ACTION_NONE) {
-#ifdef USE_ESP8266
-      execute_lock_action(obj, action);
-#else
       this->defer([obj, action]() { execute_lock_action(obj, action); });
-#endif
       request->send(200);
     } else {
       request->send(404);
@@ -1963,7 +1971,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
 
     // Only allow transmit if the device supports it
     if (!obj->has_transmitter()) {
-      request->send(400, ESPHOME_F("text/plain"), "Device does not support transmission");
+      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Device does not support transmission"));
       return;
     }
 
@@ -1989,7 +1997,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
     // Parse base64url-encoded raw timings (required)
     // Base64url is URL-safe: uses A-Za-z0-9-_ (no special characters needing escaping)
     if (!request->hasParam(ESPHOME_F("data"))) {
-      request->send(400, ESPHOME_F("text/plain"), "Missing 'data' parameter");
+      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Missing 'data' parameter"));
       return;
     }
 
@@ -1999,23 +2007,18 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
 
     // Validate base64url is not empty
     if (encoded.empty()) {
-      request->send(400, ESPHOME_F("text/plain"), "Empty 'data' parameter");
+      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Empty 'data' parameter"));
       return;
     }
 
-#ifdef USE_ESP8266
-    // ESP8266 is single-threaded, call directly
-    call.set_raw_timings_base64url(encoded);
-    call.perform();
-#else
     // Defer to main loop for thread safety. Move encoded string into lambda to ensure
     // it outlives the call - set_raw_timings_base64url stores a pointer, so the string
     // must remain valid until perform() completes.
+    // ESP8266 also needs this because ESPAsyncWebServer callbacks run in "sys" context.
     this->defer([call, encoded = std::move(encoded)]() mutable {
       call.set_raw_timings_base64url(encoded);
       call.perform();
     });
-#endif
 
     request->send(200);
     return;
@@ -2105,19 +2108,6 @@ std::string WebServer::event_json_(event::Event *obj, StringRef event_type, Json
 #endif
 
 #ifdef USE_UPDATE
-static const LogString *update_state_to_string(update::UpdateState state) {
-  switch (state) {
-    case update::UPDATE_STATE_NO_UPDATE:
-      return LOG_STR("NO UPDATE");
-    case update::UPDATE_STATE_AVAILABLE:
-      return LOG_STR("UPDATE AVAILABLE");
-    case update::UPDATE_STATE_INSTALLING:
-      return LOG_STR("INSTALLING");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-}
-
 void WebServer::on_update(update::UpdateEntity *obj) {
   this->events_.deferrable_send_state(obj, "state", update_state_json_generator);
 }
@@ -2159,7 +2149,7 @@ std::string WebServer::update_json_(update::UpdateEntity *obj, JsonDetail start_
   JsonObject root = builder.root();
 
   char buf[PSTR_LOCAL_SIZE];
-  set_json_icon_state_value(root, obj, "update", PSTR_LOCAL(update_state_to_string(obj->state)),
+  set_json_icon_state_value(root, obj, "update", PSTR_LOCAL(update::update_state_to_string(obj->state)),
                             obj->update_info.latest_version, start_config);
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("current_version")] = obj->update_info.current_version;
@@ -2175,7 +2165,12 @@ std::string WebServer::update_json_(update::UpdateEntity *obj, JsonDetail start_
 #endif
 
 bool WebServer::canHandle(AsyncWebServerRequest *request) const {
+#ifdef USE_ESP32
+  char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  StringRef url = request->url_to(url_buf);
+#else
   const auto &url = request->url();
+#endif
   const auto method = request->method();
 
   // Static URL checks - use ESPHOME_F to keep strings in flash on ESP8266
@@ -2311,30 +2306,35 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   return false;
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
+#ifdef USE_ESP32
+  char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  StringRef url = request->url_to(url_buf);
+#else
   const auto &url = request->url();
+#endif
 
   // Handle static routes first
-  if (url == "/") {
+  if (url == ESPHOME_F("/")) {
     this->handle_index_request(request);
     return;
   }
 
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
-  if (url == "/events") {
+  if (url == ESPHOME_F("/events")) {
     this->events_.add_new_client(this, request);
     return;
   }
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-  if (url == "/0.css") {
+  if (url == ESPHOME_F("/0.css")) {
     this->handle_css_request(request);
     return;
   }
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
-  if (url == "/0.js") {
+  if (url == ESPHOME_F("/0.js")) {
     this->handle_js_request(request);
     return;
   }
@@ -2463,7 +2463,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   else {
     // No matching handler found - send 404
     ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
-    request->send(404, "text/plain", "Not Found");
+    request->send(404, ESPHOME_F("text/plain"), ESPHOME_F("Not Found"));
   }
 }
 
