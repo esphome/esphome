@@ -92,6 +92,21 @@ class WaterHeaterCall {
   const optional<bool> &get_away() const { return this->away_; }
   const optional<bool> &get_on() const { return this->on_; }
 
+  ESPDEPRECATED("set_state() is deprecated, use set_on() and set_away() instead. (Removed in 2026.8.0)", "2026.2.0")
+  void set_state(uint32_t state) {
+    this->set_away((state & WATER_HEATER_STATE_AWAY) != 0);
+    this->set_on((state & WATER_HEATER_STATE_ON) != 0);
+  }
+  ESPDEPRECATED("get_state() is deprecated, use is_on() and is_away() instead. (Removed in 2026.8.0)", "2026.2.0")
+  uint32_t get_state() const {
+    uint32_t state = 0;
+    if (this->away_.value_or(false))
+      state |= WATER_HEATER_STATE_AWAY;
+    if (this->on_.value_or(false))
+      state |= WATER_HEATER_STATE_ON;
+    return state;
+  }
+
  protected:
   void validate_();
   WaterHeater *parent_;
