@@ -6,6 +6,5 @@ power_management:
   idle_time_before_sleep: 3
   esphome_locks: true
   power_down_flash: true
-  power_down_peripherals: true
   profiling: true
   trace: true

@@ -1,0 +1,4 @@
+<<: !include common.yaml
+
+power_management:
+  power_down_peripherals: true
