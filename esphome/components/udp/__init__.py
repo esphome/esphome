@@ -124,8 +124,8 @@ async def to_code(config):
         trigger_lambda = await cg.process_lambda(
             trigger.trigger(
                 cg.std_vector.template(cg.uint8)(
-                    literal(f"{trigger_argname}.begin()"),
-                    literal(f"{trigger_argname}.end()"),
+                    literal(trigger_argname).begin(),
+                    literal(trigger_argname).end(),
                 )
             ),
             listener_argtype,
