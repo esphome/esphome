@@ -26,8 +26,6 @@ void PCF8563Component::dump_config() {
   RealTimeClock::dump_config();
 }
 
-float PCF8563Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void PCF8563Component::read_time() {
   if (!this->read_rtc_()) {
     return;

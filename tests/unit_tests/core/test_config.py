@@ -453,11 +453,14 @@ def test_preload_core_config_no_platform(setup_core: Path) -> None:
     # Mock _is_target_platform to avoid expensive component loading
     with patch("esphome.core.config._is_target_platform") as mock_is_platform:
         # Return True for known platforms
-        mock_is_platform.side_effect = lambda name: name in [
-            "esp32",
-            "esp8266",
-            "rp2040",
-        ]
+        mock_is_platform.side_effect = lambda name: (
+            name
+            in [
+                "esp32",
+                "esp8266",
+                "rp2040",
+            ]
+        )
 
         with pytest.raises(cv.Invalid, match="Platform missing"):
             preload_core_config(config, result)
@@ -477,11 +480,14 @@ def test_preload_core_config_multiple_platforms(setup_core: Path) -> None:
     # Mock _is_target_platform to avoid expensive component loading
     with patch("esphome.core.config._is_target_platform") as mock_is_platform:
         # Return True for known platforms
-        mock_is_platform.side_effect = lambda name: name in [
-            "esp32",
-            "esp8266",
-            "rp2040",
-        ]
+        mock_is_platform.side_effect = lambda name: (
+            name
+            in [
+                "esp32",
+                "esp8266",
+                "rp2040",
+            ]
+        )
 
         with pytest.raises(cv.Invalid, match="Found multiple target platform blocks"):
             preload_core_config(config, result)

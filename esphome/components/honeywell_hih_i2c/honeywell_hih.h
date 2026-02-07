@@ -11,7 +11,6 @@ namespace honeywell_hih_i2c {
 class HoneywellHIComponent : public PollingComponent, public i2c::I2CDevice {
  public:
   void dump_config() override;
-  float get_setup_priority() const override;
   void loop() override;
   void update() override;
 
