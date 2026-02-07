@@ -190,21 +190,10 @@ void I2SAudioSpeaker::dump_config() {
   }
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
   if (this->spdif_mode_) {
-    const char *timeout_str;
-    char timeout_buf[16];
-    if (this->spdif_timeout_ms_ == 0) {
-      timeout_str = "disabled";
-    } else if (this->spdif_timeout_ms_ == UINT32_MAX) {
-      timeout_str = "never";
-    } else {
-      snprintf(timeout_buf, sizeof(timeout_buf), "%" PRIu32 " ms", this->spdif_timeout_ms_);
-      timeout_str = timeout_buf;
-    }
     ESP_LOGCONFIG(TAG,
                   "  SPDIF Mode: %s\n"
-                  "  SPDIF Timeout: %s\n"
                   "  Sample Rate: %" PRIu32 " Hz",
-                  YESNO(this->spdif_mode_), timeout_str, this->sample_rate_);
+                  YESNO(this->spdif_mode_), this->sample_rate_);
   } else
 #endif  // USE_I2S_AUDIO_SPDIF_MODE
   {
@@ -482,9 +471,9 @@ void I2SAudioSpeaker::speaker_task(void *params) {
     // - SPDIF continuous mode (never timeout, always output valid stream), OR
     // - Timeout hasn't elapsed since last data
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
-    // SPDIF continuous mode is enabled when spdif_mode is true AND spdif_timeout is configured
-    // (spdif_timeout_ms_ != 0 means it was set via config)
-    const bool spdif_continuous_mode = this_speaker->spdif_mode_ && (this_speaker->spdif_timeout_ms_ != 0);
+    // SPDIF continuous mode outputs silence when no audio data to keep receiver synced.
+    // The timeout_ controls how long to output silence before stopping.
+    const bool spdif_continuous_mode = this_speaker->spdif_mode_;
 #else
     const bool spdif_continuous_mode = false;
 #endif
@@ -534,7 +523,6 @@ void I2SAudioSpeaker::speaker_task(void *params) {
           tx_dma_underflow = true;
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
           // Fill with silence when buffer underflows to prevent receiver from detecting source change
-          // Only if SPDIF continuous mode is enabled (spdif_timeout is configured)
           if (spdif_continuous_mode) {
             this_speaker->spdif_encoder_->reset();
             this_speaker->spdif_encoder_->write(reinterpret_cast<const uint8_t *>(SPDIF_SILENCE_BUFFER),
@@ -678,7 +666,6 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
         // SPDIF Continuous Silence Mode: always output valid SPDIF stream
         // When no audio data, write silence-encoded blocks to keep receiver happy
-        // Only enter this path if continuous mode is enabled (spdif_timeout configured)
         if (spdif_continuous_mode && this_speaker->spdif_encoder_ != nullptr) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
           // Verbose: Track silence path entry (rate limited)
@@ -727,12 +714,12 @@ void I2SAudioSpeaker::speaker_task(void *params) {
               this_speaker->spdif_preload_ended_ = 0;     // Reset grace period
             }
 
-            // Check if SPDIF timeout has been exceeded (if not set to "never")
-            // spdif_timeout_ms_ == UINT32_MAX means "never" timeout (keep filling silence forever)
-            // spdif_timeout_ms_ != UINT32_MAX means stop after that duration
-            if (this_speaker->spdif_timeout_ms_ != UINT32_MAX) {
+            // Check if timeout has been exceeded (if not set to "never")
+            // timeout_.has_value() == false means "never" timeout (keep filling silence forever)
+            // timeout_.has_value() == true means stop after that duration of silence
+            if (this_speaker->timeout_.has_value()) {
               uint32_t silence_duration = millis() - this_speaker->spdif_silence_start_;
-              if (silence_duration >= this_speaker->spdif_timeout_ms_) {
+              if (silence_duration >= this_speaker->timeout_.value()) {
                 ESP_LOGV(TAG, "SPDIF: Silence timeout reached (%" PRIu32 "ms) - stopping speaker", silence_duration);
                 // Clear fake-stopped since we're actually stopping
                 this_speaker->spdif_fake_stopped_ = false;
@@ -1001,12 +988,12 @@ void I2SAudioSpeaker::speaker_task(void *params) {
     // If we reach here, the while loop exited - either via break or condition became false
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
     // In SPDIF mode, loop exit is expected when:
-    // 1. SPDIF timeout reached (user configured spdif_timeout)
+    // 1. Timeout reached (user configured timeout)
     // 2. COMMAND_STOP received (non-continuous mode)
     // 3. Stream info changed
-    // Only warn if spdif_timeout is "never" (UINT32_MAX) since that should never exit
-    if (this_speaker->spdif_mode_ && this_speaker->spdif_timeout_ms_ == UINT32_MAX) {
-      ESP_LOGW(TAG, "SPDIF: Unexpected loop exit! spdif_timeout=never should prevent this");
+    // Only warn if timeout is "never" since that should never exit
+    if (this_speaker->spdif_mode_ && !this_speaker->timeout_.has_value()) {
+      ESP_LOGW(TAG, "SPDIF: Unexpected loop exit; set 'timeout: never' to prevent this");
     }
 #endif
   }
@@ -1137,19 +1124,19 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
              (unsigned long) dma_buffer_length);
 
     i2s_driver_config_t config = {
-      .mode = static_cast<i2s_mode_t>(I2S_MODE_MASTER | I2S_MODE_TX),
+      .mode = (i2s_mode_t) (this->i2s_mode_ | I2S_MODE_TX),
       .sample_rate = this->sample_rate_ * 2,  // Double rate for BMC encoding
       .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
       .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
-      .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+      .communication_format = this->i2s_comm_fmt_,
       .intr_alloc_flags = 0,
       .dma_buf_count = SPDIF_DMA_BUFFERS_COUNT,  // Use increased buffer count for SPDIF
       .dma_buf_len = (int) dma_buffer_length,
-      .use_apll = true,
+      .use_apll = this->use_apll_,
       .tx_desc_auto_clear = true,
       .fixed_mclk = 0,
-      .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-      .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
+      .mclk_multiple = this->mclk_multiple_,
+      .bits_per_chan = this->bits_per_channel_,
 #if SOC_I2S_SUPPORTS_TDM
       .chan_mask = (i2s_channel_t) (I2S_TDM_ACTIVE_CH0 | I2S_TDM_ACTIVE_CH1),
       .total_chan = 2,
@@ -1267,19 +1254,14 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
     // SPDIF mode: fixed configuration for BMC encoding
     // For new driver, dma_frame_num is in I2S frames (8 bytes each for 32-bit stereo)
     dma_buffer_length = SPDIF_BLOCK_I2S_FRAMES;  // One SPDIF block = 384 I2S frames = 3072 bytes
-    i2s_role = I2S_ROLE_MASTER;
-#ifdef I2S_CLK_SRC_APLL
-    clk_src = I2S_CLK_SRC_APLL;  // APLL provides better clock accuracy for SPDIF
-#endif  // I2S_CLK_SRC_APLL
-  } else
-#endif  // USE_I2S_AUDIO_SPDIF_MODE
-  {
-#ifdef I2S_CLK_SRC_APLL
-    if (this->use_apll_) {
-      clk_src = I2S_CLK_SRC_APLL;
-    }
-#endif  // I2S_CLK_SRC_APLL
   }
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
+
+#ifdef I2S_CLK_SRC_APLL
+  if (this->use_apll_) {
+    clk_src = I2S_CLK_SRC_APLL;
+  }
+#endif  // I2S_CLK_SRC_APLL
 
   // Allocate I2S channel (shared between SPDIF and standard modes)
   // SPDIF uses more DMA buffers to compensate for smaller buffer size (~4ms vs ~15ms)
@@ -1321,7 +1303,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
     clk_cfg = {
         .sample_rate_hz = this->sample_rate_ * 2,
         .clk_src = clk_src,
-        .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+        .mclk_multiple = this->mclk_multiple_,
     };
 
     slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO);

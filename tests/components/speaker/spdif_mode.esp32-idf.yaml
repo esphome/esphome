@@ -17,6 +17,7 @@ speaker:
     dac_type: external
     i2s_dout_pin: ${spdif_data_pin}
     spdif_mode: true
+    use_apll: true
     spdif_timeout: 2000ms
     sample_rate: 48000
     bits_per_sample: 16bit
