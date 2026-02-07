@@ -127,15 +127,18 @@ void Esp32HostedUpdate::setup() {
   this->status_clear_error();
   this->publish_state();
 #else
-  // HTTP mode: retry initial check every 10s until network is ready (max 6 attempts)
+  // HTTP mode: check every 10s until network is ready (max 6 attempts)
   // Only if update interval is > 1 minute to avoid redundant checks
   if (this->get_update_interval() > 60000) {
-    this->set_retry("initial_check", 10000, 6, [this](uint8_t) {
-      if (!network::is_connected()) {
-        return RetryResult::RETRY;
+    this->initial_check_remaining_ = 6;
+    this->set_interval("initial_check", 10000, [this]() {
+      bool connected = network::is_connected();
+      if (--this->initial_check_remaining_ == 0 || connected) {
+        this->cancel_interval("initial_check");
+        if (connected) {
+          this->check();
+        }
       }
-      this->check();
-      return RetryResult::DONE;
     });
   }
 #endif
