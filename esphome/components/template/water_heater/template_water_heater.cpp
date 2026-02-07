@@ -16,7 +16,8 @@ void TemplateWaterHeater::setup() {
       restore->perform();
     }
   }
-  if (!this->current_temperature_f_.has_value() && !this->mode_f_.has_value())
+  if (!this->current_temperature_f_.has_value() && !this->target_temperature_f_.has_value() &&
+      !this->mode_f_.has_value())
     this->disable_loop();
 }
 
@@ -28,6 +29,9 @@ water_heater::WaterHeaterTraits TemplateWaterHeater::traits() {
   }
 
   traits.set_supports_current_temperature(true);
+  if (this->target_temperature_f_.has_value()) {
+    traits.add_feature_flags(water_heater::WATER_HEATER_SUPPORTS_TARGET_TEMPERATURE);
+  }
   return traits;
 }
 
@@ -38,6 +42,14 @@ void TemplateWaterHeater::loop() {
   if (curr_temp.has_value()) {
     if (*curr_temp != this->current_temperature_) {
       this->current_temperature_ = *curr_temp;
+      changed = true;
+    }
+  }
+
+  auto target_temp = this->target_temperature_f_.call();
+  if (target_temp.has_value()) {
+    if (*target_temp != this->target_temperature_) {
+      this->target_temperature_ = *target_temp;
       changed = true;
     }
   }

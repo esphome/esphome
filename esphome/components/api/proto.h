@@ -957,32 +957,16 @@ class ProtoService {
   virtual bool is_connection_setup() = 0;
   virtual void on_fatal_error() = 0;
   virtual void on_no_setup_connection() = 0;
-  /**
-   * Create a buffer with a reserved size.
-   * @param reserve_size The number of bytes to pre-allocate in the buffer. This is a hint
-   *                     to optimize memory usage and avoid reallocations during encoding.
-   *                     Implementations should aim to allocate at least this size.
-   * @return A ProtoWriteBuffer object with the reserved size.
-   */
-  virtual ProtoWriteBuffer create_buffer(uint32_t reserve_size) = 0;
   virtual bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) = 0;
   virtual void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) = 0;
-
-  // Optimized method that pre-allocates buffer based on message size
-  bool send_message_(const ProtoMessage &msg, uint8_t message_type) {
-    ProtoSize size;
-    msg.calculate_size(size);
-    uint32_t msg_size = size.get_size();
-
-    // Create a pre-sized buffer
-    auto buffer = this->create_buffer(msg_size);
-
-    // Encode message into the buffer
-    msg.encode(buffer);
-
-    // Send the buffer
-    return this->send_buffer(buffer, message_type);
-  }
+  /**
+   * Send a protobuf message by calculating its size, allocating a buffer, encoding, and sending.
+   * This is the implementation method - callers should use send_message() which adds logging.
+   * @param msg The protobuf message to send.
+   * @param message_type The message type identifier.
+   * @return True if the message was sent successfully, false otherwise.
+   */
+  virtual bool send_message_impl(const ProtoMessage &msg, uint8_t message_type) = 0;
 
   // Authentication helper methods
   inline bool check_connection_setup_() {
