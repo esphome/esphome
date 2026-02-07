@@ -9,32 +9,19 @@ namespace esphome::light {
 
 // See https://www.home-assistant.io/integrations/light.mqtt/#json-schema for documentation on the schema
 
-// Get JSON string for color mode.
-// ColorMode enum values are sparse bitmasks (0, 1, 3, 7, 11, 19, 35, 39, 47, 51) which would
-// generate a large jump table. Converting to bit index (0-9) allows a compact switch.
+// Color mode JSON strings - packed into flash with compile-time generated offsets.
+// Indexed by ColorModeBitPolicy bit index (1-9), so index 0 maps to bit 1 ("onoff").
+PROGMEM_STRING_TABLE(ColorModeStrings, "onoff", "brightness", "white", "color_temp", "cwww", "rgb", "rgbw", "rgbct",
+                     "rgbww");
+
+// Get JSON string for color mode. Returns nullptr for UNKNOWN (bit 0).
+// Returns ProgmemStr so ArduinoJson knows to handle PROGMEM strings on ESP8266.
 static ProgmemStr get_color_mode_json_str(ColorMode mode) {
-  switch (ColorModeBitPolicy::to_bit(mode)) {
-    case 1:
-      return ESPHOME_F("onoff");
-    case 2:
-      return ESPHOME_F("brightness");
-    case 3:
-      return ESPHOME_F("white");
-    case 4:
-      return ESPHOME_F("color_temp");
-    case 5:
-      return ESPHOME_F("cwww");
-    case 6:
-      return ESPHOME_F("rgb");
-    case 7:
-      return ESPHOME_F("rgbw");
-    case 8:
-      return ESPHOME_F("rgbct");
-    case 9:
-      return ESPHOME_F("rgbww");
-    default:
-      return nullptr;
-  }
+  unsigned bit = ColorModeBitPolicy::to_bit(mode);
+  if (bit == 0)
+    return nullptr;
+  // bit is 1-9 for valid modes, so bit-1 is always valid (0-8). LAST_INDEX fallback never used.
+  return ColorModeStrings::get_progmem_str(bit - 1, ColorModeStrings::LAST_INDEX);
 }
 
 void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
