@@ -55,7 +55,7 @@ AtCommandResult ModemComponent::send_at(const std::string &cmd, uint32_t timeout
 void ModemComponent::enable() {
   if (this->component_state_ == ModemComponentState::DISABLED) {
     ESP_LOGI(TAG, "Enabling modem");
-    set_timeout("modem timeout", this->timeout_, [this]() { this->abort_("Modem was not able to connect (timeout)"); });
+    set_timeout("modem_timeout", this->timeout_, [this]() { this->abort_("Modem was not able to connect (timeout)"); });
     // this->enable_loop();
     this->component_state_ = ModemComponentState::ENABLING;
   }
@@ -227,7 +227,7 @@ void ModemComponent::loop() {
 void ModemComponent::handle_state_disabled_() {
   // Just wait 'enable()'
   if (this->disable_wanted_) {
-    cancel_timeout("modem timeout");
+    cancel_timeout("modem_timeout");
     // this->disable_loop();
   } else {
     // Disable state was temporary (reset wanted)
@@ -303,25 +303,31 @@ void ModemComponent::handle_state_enabling_() {
 
 void ModemComponent::handle_state_powering_on_() {
   this->modem_handler->power_pin->digital_write(this->modem_handler->power_pin_inverted);
-  delay(this->modem_handler->power_ton_pulse_delay);
-  this->modem_handler->power_pin->digital_write(!this->modem_handler->power_pin_inverted);
-  uint32_t loop_delay = this->modem_handler->power_ton_delay;
-  this->loop_delay_(loop_delay);
-  ESP_LOGD(TAG, "Modem ON in %.1fs...", float(loop_delay) / 1000);
-
-  this->component_state_ = ModemComponentState::ENABLING;
+  // Use timeout to prevent blocking the main loop
+  set_timeout("modem_power_on", this->modem_handler->power_ton_pulse_delay, [this]() {
+    this->modem_handler->power_pin->digital_write(!this->modem_handler->power_pin_inverted);
+    uint32_t loop_delay = this->modem_handler->power_ton_delay;
+    this->enable_loop();
+    this->loop_delay_(loop_delay);
+    ESP_LOGD(TAG, "Modem ON in %.1fs...", float(this->modem_handler->power_ton_delay) / 1000);
+    this->component_state_ = ModemComponentState::ENABLING;
+  });
+  this->disable_loop();
 }
 
 void ModemComponent::handle_state_powering_off_() {
   this->modem_handler->power_pin->digital_write(this->modem_handler->power_pin_inverted);
-  delay(this->modem_handler->power_toff_pulse_delay);
-  this->modem_handler->power_pin->digital_write(!this->modem_handler->power_pin_inverted);
-  this->loop_delay_(this->modem_handler->power_toff_delay);
-  ESP_LOGD(TAG, "Modem should be OFF in %.1fs...", float(this->modem_handler->power_toff_delay) / 1000);
-
-  this->component_state_ = ModemComponentState::DISABLED;
-  this->modem_restore_state_.baud_rate = 0;
-  this->pref_.save(&this->modem_restore_state_);
+  // Use timeout to prevent blocking the main loop
+  set_timeout("modem_power_off", this->modem_handler->power_toff_pulse_delay, [this]() {
+    this->modem_handler->power_pin->digital_write(!this->modem_handler->power_pin_inverted);
+    this->enable_loop();
+    this->loop_delay_(this->modem_handler->power_toff_delay);
+    ESP_LOGD(TAG, "Modem should be OFF in %.1fs...", float(this->modem_handler->power_toff_delay) / 1000);
+    this->component_state_ = ModemComponentState::DISABLED;
+    this->modem_restore_state_.baud_rate = 0;
+    this->pref_.save(&this->modem_restore_state_);
+  });
+  this->disable_loop();
 }
 
 void ModemComponent::handle_state_syncing_() {
@@ -438,7 +444,7 @@ void ModemComponent::handle_state_wait_ip_() {
 }
 
 void ModemComponent::handle_state_connected_() {
-  cancel_timeout("modem timeout");
+  cancel_timeout("modem_timeout");
   if (!this->modem_handler->network_infos.got_ip) {
     ESP_LOGW(TAG, "Lost IP");
     this->component_state_ = ModemComponentState::DISCONNECTED;
