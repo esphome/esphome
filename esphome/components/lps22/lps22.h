@@ -17,10 +17,11 @@ class LPS22Component : public sensor::Sensor, public PollingComponent, public i2
   void dump_config() override;
 
  protected:
+  void try_read_();
+
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
-
-  RetryResult try_read_();
+  uint8_t read_attempts_remaining_{0};
 };
 
 }  // namespace lps22
