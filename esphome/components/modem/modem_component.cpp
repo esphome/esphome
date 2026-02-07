@@ -252,6 +252,13 @@ void ModemComponent::handle_state_enabling_() {
     this->modem_handler->modem_create_dte_dce(baud);
     this->modem_handler->dce->set_mode(esp_modem::modem_mode::AUTODETECT);
     bool success = this->modem_handler->dce->get_mode() != esp_modem::modem_mode::UNDEF;
+    // Sometimes the modem does not answer autobaud commands,
+    // so try sending an AT command to confirm it's responsive at this baud rate.
+    if (!success) {
+      App.feed_wdt();
+      auto result = this->modem_handler->send_at("AT");
+      success = result.esp_modem_command_result == command_result::OK;
+    }
     if (success) {
       this->modem_handler->current_baud_rate = baud;
       this->modem_restore_state_.baud_rate = baud;
