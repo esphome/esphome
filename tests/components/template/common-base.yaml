@@ -412,6 +412,7 @@ water_heater:
     name: "Template Water Heater"
     optimistic: true
     current_temperature: !lambda "return 42.0f;"
+    target_temperature: !lambda "return 60.0f;"
     mode: !lambda "return water_heater::WATER_HEATER_MODE_ECO;"
     supported_modes:
       - "OFF"
