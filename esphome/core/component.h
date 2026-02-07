@@ -69,12 +69,7 @@ extern const uint8_t STATUS_LED_WARNING;
 extern const uint8_t STATUS_LED_ERROR;
 
 // Remove before 2026.8.0
-enum class ESPDEPRECATED("RetryResult is deprecated along with set_retry and will be removed in 2026.8.0. Use "
-                         "set_timeout or set_interval instead.",
-                         "2026.2.0") RetryResult {
-  DONE,
-  RETRY
-};
+enum class RetryResult { DONE, RETRY };
 
 extern const uint16_t WARN_IF_BLOCKING_OVER_MS;
 
