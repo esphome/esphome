@@ -3,7 +3,7 @@
 import esphome.codegen as cg
 from esphome.components import media_source
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_SAMPLE_RATE
+from esphome.const import CONF_ID, CONF_SAMPLE_RATE, CONF_TASK_STACK_IN_PSRAM
 
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["media_source", "audio"]
@@ -13,7 +13,6 @@ ColorNoiseMediaSource = color_noise_ns.class_(
     "ColorNoiseMediaSource", cg.Component, media_source.MediaSource
 )
 
-CONF_TASK_STACK_IN_PSRAM = "task_stack_in_psram"
 CONF_DEFAULT_SEED = "default_seed"
 
 CONFIG_SCHEMA = cv.Schema(

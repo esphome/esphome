@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ID,
     CONF_NUM_CHANNELS,
     CONF_SAMPLE_RATE,
+    CONF_TASK_STACK_IN_PSRAM,
 )
 from esphome.core.entity_helpers import inherit_property_from
 
@@ -23,7 +24,6 @@ CONF_ON_VOLUME = "on_volume"
 CONF_PIPELINE = "pipeline"
 CONF_PLAYLIST_DELAY = "playlist_delay"
 CONF_SOURCES = "sources"
-CONF_TASK_STACK_IN_PSRAM = "task_stack_in_psram"
 CONF_VOLUME_INCREMENT = "volume_increment"
 CONF_VOLUME_INITIAL = "volume_initial"
 CONF_VOLUME_MAX = "volume_max"

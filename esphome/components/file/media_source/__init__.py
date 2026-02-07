@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_ID,
     CONF_PATH,
     CONF_RAW_DATA_ID,
+    CONF_TASK_STACK_IN_PSRAM,
     CONF_TYPE,
     CONF_URL,
 )
@@ -31,8 +32,6 @@ file_ns = cg.esphome_ns.namespace("file")
 FileMediaSource = file_ns.class_(
     "FileMediaSource", cg.Component, media_source.MediaSource
 )
-
-CONF_TASK_STACK_IN_PSRAM = "task_stack_in_psram"
 
 
 def _compute_local_file_path(value: dict) -> Path:

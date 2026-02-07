@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import media_source
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_TASK_STACK_IN_PSRAM
 from esphome.types import ConfigType
 
 from .. import CONF_HTTP_REQUEST_ID, HttpRequestComponent, http_request_ns
@@ -12,9 +12,6 @@ DEPENDENCIES = ["http_request", "media_source", "audio"]
 HTTPMediaSource = http_request_ns.class_(
     "HTTPMediaSource", cg.Component, media_source.MediaSource
 )
-
-CONF_BUFFER_SIZE = "buffer_size"
-CONF_TASK_STACK_IN_PSRAM = "task_stack_in_psram"
 
 
 def _consume_http_source_sockets(config: ConfigType) -> ConfigType:

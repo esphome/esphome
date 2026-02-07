@@ -54,7 +54,7 @@ class FileMediaSource : public Component, public media_source::MediaSource {
   void handle_command(media_source::MediaSourceCommand command, size_t pipeline) override;
   media_source::MediaSourceCapabilities get_capabilities() override;
 
-  void add_file(audio::AudioFile *media_file, std::string file_id) {
+  void add_file(audio::AudioFile *media_file, const std::string &file_id) {
     this->files_.push_back(NamedAudioFile{media_file, std::move(file_id)});
   }
 
