@@ -1,6 +1,16 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components import esp32
+from esphome.components.esp32 import (
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32H2,
+    # VARIANT_ESP32H21,
+    # VARIANT_ESP32H4,
+    VARIANT_ESP32P4,
+    add_idf_sdkconfig_option,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 import esphome.final_validate as fv
@@ -146,6 +156,21 @@ def _pm_final_validate(config):
             raise cv.Invalid(
                 f"{CONF_POWER_DOWN_FLASH}: True not allowed when {CONF_ENABLE_LIGHT_SLEEP} not set to True"
             )
+
+    # c5,c6,c61,h2,h21,h4,p4
+    if pdp := config.get(CONF_POWER_DOWN_PERIPHERALS):
+        esp32.only_on_variant(
+            supported=[
+                VARIANT_ESP32C5,
+                VARIANT_ESP32C6,
+                VARIANT_ESP32C61,
+                VARIANT_ESP32H2,
+                # VARIANT_ESP32H21,
+                # VARIANT_ESP32H4,
+                VARIANT_ESP32P4,
+            ],
+            msg_prefix="Power Down Peripherials",
+        )(pdp)
 
     if not (
         (pm_conf := full_config.get(CONF_POWER_MANAGEMENT))
