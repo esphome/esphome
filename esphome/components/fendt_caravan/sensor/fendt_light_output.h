@@ -2,7 +2,7 @@
 
 #ifdef USE_ESP32
 #include "esphome/components/light/light_output.h"
-#include "fendt_component.h"
+#include "esphome/components/fendt_caravan/fendt_component.h"
 
 namespace esphome::fendt_caravan {
 

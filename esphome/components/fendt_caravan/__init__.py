@@ -14,9 +14,16 @@ fendt_caravan_ns = cg.esphome_ns.namespace("fendt_caravan")
 FendtCaravan = fendt_caravan_ns.class_(
     "FendtCaravan", ble_client.BLEClientNode, cg.Component
 )
+CaravanDeviceComponent = fendt_caravan_ns.class_("CaravanDeviceComponent", cg.Component)
+
+CONF_PARENT_ID = "parent_id"
+
+DeviceType = fendt_caravan_ns.enum("DeviceType")
+DEVICE_TYPE = {
+    "mcu": DeviceType.MCU,
+}
 
 FendtTextSensor = fendt_caravan_ns.class_("FendtTextSensor", cg.Component)
-FendtSwitch = fendt_caravan_ns.class_("FendtSwitch", cg.Component)
 FendtNumber = fendt_caravan_ns.class_("FendtNumber", cg.Component)
 FendtSelect = fendt_caravan_ns.class_("FendtSelect", cg.Component)
 FendtSensor = fendt_caravan_ns.class_("FendtSensor", cg.Component)
@@ -27,9 +34,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(FendtCaravan),
             cv.Required(ble_client.CONF_BLE_CLIENT_ID): cv.use_id(ble_client.BLEClient),
         }
-    )
-    .extend(cv.polling_component_schema("60s"))
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
+    ).extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
 )
 
 CONF_FENDT_CARAVAN_ID = "fendt_caravan_id"

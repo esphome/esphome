@@ -8,12 +8,12 @@ namespace esphome::fendt_caravan {
 namespace espbt = esphome::esp32_ble_tracker;
 
 using namespace std;
-const uint8_t WIAT_COMMAND = 200;
-static const char *const TAG = "FC";
+const uint8_t WAIT_COMMAND = 200;
+static const char *const TAG = "fendt_caravan";
 
 void FendtCaravan::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "Fend Caravan Log\n"
+                "Fend Caravan\n"
                 "  Fendt Address: %s",
                 this->parent()->address_str());
 }
@@ -26,7 +26,7 @@ void FendtCaravan::loop() {
     return;
 
   uint32_t time_stamp = App.get_loop_component_start_time();
-  if (!this->commands_.empty() && (time_stamp - this->last_command_time_) >= WIAT_COMMAND && !this->wait_buffer_) {
+  if (!this->commands_.empty() && (time_stamp - this->last_command_time_) >= WAIT_COMMAND && !this->wait_buffer_) {
     std::string cmd = this->commands_.at(0);
 
     uint8_t buffer[cmd.length() + 1];
@@ -36,7 +36,7 @@ void FendtCaravan::loop() {
         esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_,
                                  cmd.length(), buffer, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
     if (status) {
-      ESP_LOGE(TAG, "Error writing command to device, error = %d", status);
+      ESP_LOGE(TAG, "Writing command failed (%d)", status);
     }
 
     ESP_LOGD(TAG, "Command sent: %s, %d", buffer, cmd.length());
@@ -57,7 +57,7 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       }
       auto *chr = service->get_characteristic(characteristic_uuid_);
       if (chr == nullptr) {
-        ESP_LOGW(TAG, "control characteristic not found at device, not a Fendt Caravan..?");
+        ESP_LOGW(TAG, "Control characteristic not found");
         break;
       }
       this->char_handle_ = chr->handle;
@@ -78,7 +78,6 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       if (status) {
         ESP_LOGW(TAG, "Error sending CCC descriptor write request, status=%d", status);
         break;
-        ;
       }
 
       this->add_command_("net-BT_ID-c0:ee:fb:90:b0:a7");
@@ -103,7 +102,7 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         }
         this->wait_buffer_ = false;
         ESP_LOGD(TAG, "Notified value: %s", result.c_str());
-        on_data_received_(result);
+        this->on_data_received_(result);
       }
       break;
     default:

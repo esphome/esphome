@@ -61,13 +61,9 @@ void ControlUnitDeviceSensor::setup() {
   auto *time = new Variable<time_t>("TIME", DeviceDecoders::decode_time);
   this->add_variable(time);
 
-  if (this->floor_heater_switch_) {
-    auto *sw = this->floor_heater_switch_->create_variable("FLOOR_HEATER_ON", DeviceDecoders::decode_bool,
-                                                           Commands::update_toggle<bool>);
-    this->add_variable(sw);
-    this->floor_heater_switch_->set_state_change_callback(std::bind(
-        &ControlUnitDeviceSensor::on_switch_state_change_, this, std::placeholders::_1, std::placeholders::_2));
-  }
+  auto *floor_heater =
+      new Variable<bool>("FLOOR_HEATER_ON", DeviceDecoders::decode_bool, Commands::update_toggle<bool>);
+  this->add_variable(floor_heater);
 
   auto *temp_in_offset = new Variable<int>("TEMP_IN_OFFSET", DeviceDecoders::decode_int);
   this->add_variable(temp_in_offset);
@@ -102,15 +98,6 @@ void ControlUnitDeviceSensor::setup() {
 
   auto *radio_config = new Variable<bool>("RADIO_CONFIG", DeviceDecoders::decode_bool);
   this->add_variable(radio_config);
-
-  if (this->main_switch_switch_) {
-    this->main_switch_switch_->set_state_change_callback(std::bind(&ControlUnitDeviceSensor::on_switch_state_change_,
-                                                                   this, std::placeholders::_1, std::placeholders::_2));
-  }
-  if (this->light_status_switch_) {
-    this->light_status_switch_->set_state_change_callback(std::bind(
-        &ControlUnitDeviceSensor::on_switch_state_change_, this, std::placeholders::_1, std::placeholders::_2));
-  }
 }
 
 void ControlUnitDeviceSensor::dump_config() {
@@ -124,8 +111,8 @@ void ControlUnitDeviceSensor::dump_config() {
   LOG_SWITCH(TAG, "  Floor Heater", this->floor_heater_switch_);
 }
 
-void ControlUnitDeviceSensor::decode(const std::string &name, const std::string &value) {
-  CaravanDevice::decode(name, value);
+bool ControlUnitDeviceSensor::decode(const std::string &name, const std::string &value) {
+  bool ret_val = CaravanDeviceComponent::decode(name, value);
   auto *variable = this->get_variable_(name);
   if (this->main_switch_switch_ && name == "HS_KEY_STATE") {
     auto *hs_key_state = static_cast<Variable<int> *>(variable);
@@ -136,9 +123,10 @@ void ControlUnitDeviceSensor::decode(const std::string &name, const std::string 
         this->light_status_switch_->publish_state(hs_key_state->get_value() == 2);
     }
   }
+  return ret_val;
 }
 
-void ControlUnitDeviceSensor::on_switch_state_change_(FendtSwitch *sw, bool state) {
+void ControlUnitDeviceSensor::on_switch_state_change_(switch_::Switch *sw, bool state) {
   std::string command = "";
   ESP_LOGV(TAG, "on_switch_state_change_ called");
   if (sw == this->main_switch_switch_) {
@@ -175,7 +163,9 @@ void ControlUnitDeviceSensor::on_switch_state_change_(FendtSwitch *sw, bool stat
     ESP_LOGV(TAG, "Floor switch state changed. cs: %d, state:%d", this->floor_heater_switch_->state, state);
     if (state == this->floor_heater_switch_->state)
       return;
-    command = this->floor_heater_switch_->get_variable()->get_command();
+    Variable<bool> *variable = GET_VARIABLE(bool, "FLOOR_HEATER_CONFIG");
+    if (variable)
+      command = variable->get_command();
   }
   if (!command.empty()) {
     ESP_LOGV(TAG, "Switch state changed command:%s", command.c_str());

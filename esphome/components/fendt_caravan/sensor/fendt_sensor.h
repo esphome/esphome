@@ -3,8 +3,8 @@
 #ifdef USE_ESP32
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/log.h"
-#include "fendt_component.h"
-#include "variable.h"
+#include "esphome/components/fendt_caravan/fendt_component.h"
+#include "esphome/components/fendt_caravan/variable.h"
 
 namespace esphome::fendt_caravan {
 

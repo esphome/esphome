@@ -4,8 +4,8 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/log.h"
-#include "fendt_component.h"
-#include "variable.h"
+#include "esphome/components/fendt_caravan/fendt_component.h"
+#include "esphome/components/fendt_caravan/variable.h"
 
 namespace esphome::fendt_caravan {
 
