@@ -23,8 +23,12 @@ MULTI_CONF = True
 udp_ns = cg.esphome_ns.namespace("udp")
 UDPComponent = udp_ns.class_("UDPComponent", cg.Component)
 UDPWriteAction = udp_ns.class_("UDPWriteAction", automation.Action)
-trigger_args = cg.std_vector.template(cg.uint8)
 trigger_argname = "data"
+# Listener callback type (non-owning span from UDP component)
+listener_args = cg.std_span.template(cg.uint8.operator("const"))
+listener_argtype = [(listener_args, trigger_argname)]
+# Automation/trigger type (owned vector, safe for deferred actions like delay)
+trigger_args = cg.std_vector.template(cg.uint8)
 trigger_argtype = [(trigger_args, trigger_argname)]
 
 CONF_ADDRESSES = "addresses"
@@ -118,7 +122,13 @@ async def to_code(config):
             trigger_id, trigger_argtype, on_receive
         )
         trigger_lambda = await cg.process_lambda(
-            trigger.trigger(literal(trigger_argname)), trigger_argtype
+            trigger.trigger(
+                cg.std_vector.template(cg.uint8)(
+                    literal(f"{trigger_argname}.begin()"),
+                    literal(f"{trigger_argname}.end()"),
+                )
+            ),
+            listener_argtype,
         )
         cg.add(var.add_listener(trigger_lambda))
         cg.add(var.set_should_listen())
