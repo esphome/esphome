@@ -402,7 +402,7 @@ void Scheduler::full_cleanup_removed_items_() {
       this->recycle_item_main_loop_(std::move(this->items_[read]));
     }
   }
-  this->items_.resize(write);
+  this->items_.erase(this->items_.begin() + write, this->items_.end());
   // Rebuild the heap structure since items are no longer in heap order
   std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   this->to_remove_ = 0;
