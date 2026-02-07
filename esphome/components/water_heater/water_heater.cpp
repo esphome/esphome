@@ -60,20 +60,12 @@ WaterHeaterCall &WaterHeaterCall::set_target_temperature_high(float temperature)
 }
 
 WaterHeaterCall &WaterHeaterCall::set_away(bool away) {
-  if (away) {
-    this->state_ |= WATER_HEATER_STATE_AWAY;
-  } else {
-    this->state_ &= ~WATER_HEATER_STATE_AWAY;
-  }
+  this->away_ = away;
   return *this;
 }
 
 WaterHeaterCall &WaterHeaterCall::set_on(bool on) {
-  if (on) {
-    this->state_ |= WATER_HEATER_STATE_ON;
-  } else {
-    this->state_ &= ~WATER_HEATER_STATE_ON;
-  }
+  this->on_ = on;
   return *this;
 }
 
@@ -92,11 +84,11 @@ void WaterHeaterCall::perform() {
   if (!std::isnan(this->target_temperature_high_)) {
     ESP_LOGD(TAG, "  Target Temperature High: %.2f", this->target_temperature_high_);
   }
-  if (this->state_ & WATER_HEATER_STATE_AWAY) {
-    ESP_LOGD(TAG, "  Away: YES");
+  if (this->away_.has_value()) {
+    ESP_LOGD(TAG, "  Away: %s", YESNO(*this->away_));
   }
-  if (this->state_ & WATER_HEATER_STATE_ON) {
-    ESP_LOGD(TAG, "  On: YES");
+  if (this->on_.has_value()) {
+    ESP_LOGD(TAG, "  On: %s", YESNO(*this->on_));
   }
   this->parent_->control(*this);
 }
@@ -137,13 +129,13 @@ void WaterHeaterCall::validate_() {
       this->target_temperature_high_ = NAN;
     }
   }
-  if ((this->state_ & WATER_HEATER_STATE_AWAY) && !traits.get_supports_away_mode()) {
+  if (this->away_.has_value() && *this->away_ && !traits.get_supports_away_mode()) {
     ESP_LOGW(TAG, "'%s' - Away mode not supported", this->parent_->get_name().c_str());
-    this->state_ &= ~WATER_HEATER_STATE_AWAY;
+    this->away_.reset();
   }
   // If ON/OFF not supported, device is always on - clear the flag silently
-  if (!traits.has_feature_flags(WATER_HEATER_SUPPORTS_ON_OFF)) {
-    this->state_ &= ~WATER_HEATER_STATE_ON;
+  if (this->on_.has_value() && !traits.has_feature_flags(WATER_HEATER_SUPPORTS_ON_OFF)) {
+    this->on_.reset();
   }
 }
 

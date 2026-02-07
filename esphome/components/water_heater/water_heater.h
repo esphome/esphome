@@ -89,8 +89,8 @@ class WaterHeaterCall {
   float get_target_temperature() const { return this->target_temperature_; }
   float get_target_temperature_low() const { return this->target_temperature_low_; }
   float get_target_temperature_high() const { return this->target_temperature_high_; }
-  /// Get state flags value
-  uint32_t get_state() const { return this->state_; }
+  const optional<bool> &get_away() const { return this->away_; }
+  const optional<bool> &get_on() const { return this->on_; }
 
  protected:
   void validate_();
@@ -99,7 +99,8 @@ class WaterHeaterCall {
   float target_temperature_{NAN};
   float target_temperature_low_{NAN};
   float target_temperature_high_{NAN};
-  uint32_t state_{0};
+  optional<bool> away_;
+  optional<bool> on_;
 };
 
 struct WaterHeaterCallInternal : public WaterHeaterCall {
@@ -110,7 +111,8 @@ struct WaterHeaterCallInternal : public WaterHeaterCall {
     this->target_temperature_ = restore.target_temperature_;
     this->target_temperature_low_ = restore.target_temperature_low_;
     this->target_temperature_high_ = restore.target_temperature_high_;
-    this->state_ = restore.state_;
+    this->away_ = restore.away_;
+    this->on_ = restore.on_;
     return *this;
   }
 };

@@ -3,8 +3,10 @@ import esphome.codegen as cg
 from esphome.components import water_heater
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AWAY,
     CONF_ID,
     CONF_MODE,
+    CONF_ON,
     CONF_OPTIMISTIC,
     CONF_RESTORE_MODE,
     CONF_SET_ACTION,
@@ -48,6 +50,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CURRENT_TEMPERATURE): cv.returning_lambda,
             cv.Optional(CONF_TARGET_TEMPERATURE): cv.returning_lambda,
             cv.Optional(CONF_MODE): cv.returning_lambda,
+            cv.Optional(CONF_ON): cv.returning_lambda,
+            cv.Optional(CONF_AWAY): cv.returning_lambda,
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
                 water_heater.validate_water_heater_mode
             ),
@@ -95,6 +99,22 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(var.set_mode_lambda(template_))
 
+    if CONF_ON in config:
+        template_ = await cg.process_lambda(
+            config[CONF_ON],
+            [],
+            return_type=cg.optional.template(cg.bool_),
+        )
+        cg.add(var.set_on_lambda(template_))
+
+    if CONF_AWAY in config:
+        template_ = await cg.process_lambda(
+            config[CONF_AWAY],
+            [],
+            return_type=cg.optional.template(cg.bool_),
+        )
+        cg.add(var.set_away_lambda(template_))
+
     if CONF_SUPPORTED_MODES in config:
         cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
 
@@ -110,6 +130,8 @@ async def to_code(config: ConfigType) -> None:
             cv.Optional(CONF_MODE): cv.templatable(
                 water_heater.validate_water_heater_mode
             ),
+            cv.Optional(CONF_ON): cv.templatable(cv.boolean),
+            cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
         }
     ),
 )
@@ -133,5 +155,13 @@ async def water_heater_template_publish_to_code(
     if mode := config.get(CONF_MODE):
         template_ = await cg.templatable(mode, args, water_heater.WaterHeaterMode)
         cg.add(var.set_mode(template_))
+
+    if on := config.get(CONF_ON):
+        template_ = await cg.templatable(on, args, bool)
+        cg.add(var.set_on(template_))
+
+    if away := config.get(CONF_AWAY):
+        template_ = await cg.templatable(away, args, bool)
+        cg.add(var.set_away(template_))
 
     return var

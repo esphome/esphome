@@ -414,6 +414,8 @@ water_heater:
     current_temperature: !lambda "return 42.0f;"
     target_temperature: !lambda "return 60.0f;"
     mode: !lambda "return water_heater::WATER_HEATER_MODE_ECO;"
+    on: !lambda "return true;"
+    away: !lambda "return false;"
     supported_modes:
       - "OFF"
       - ECO
@@ -424,6 +426,14 @@ water_heater:
       - PERFORMANCE
     set_action:
       - logger.log: "set_action"
+      - water_heater.template.publish:
+          id: template_water_heater
+          on: false
+          away: true
+      - water_heater.template.publish:
+          id: template_water_heater
+          on: !lambda "return true;"
+          away: !lambda "return false;"
 
 datetime:
   - platform: template
