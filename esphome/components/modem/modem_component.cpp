@@ -8,6 +8,10 @@
 #include "esphome/core/defines.h"
 #include "esphome/components/network/util.h"
 
+#ifdef USE_WIFI_AP
+#include "esphome/components/wifi/wifi_component.h"
+#endif
+
 #include <esp_netif.h>
 #include <esp_netif_ppp.h>
 #include <esp_event.h>
@@ -424,6 +428,9 @@ void ModemComponent::handle_state_wait_ip_() {
     this->component_state_ = ModemComponentState::CONNECTED;
     this->status_clear_warning();
     this->dump_connect_params_();
+#ifdef USE_WIFI_AP
+    esphome::wifi::global_wifi_component->wifi_ap_nat(this->modem_handler->ppp_netif);
+#endif
     retry = 10;
     return;
   } else {
