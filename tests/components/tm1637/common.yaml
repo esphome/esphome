@@ -5,3 +5,4 @@ display:
     intensity: 3
     lambda: |-
       it.print("1234");
+      it.set_buffer(0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D);
