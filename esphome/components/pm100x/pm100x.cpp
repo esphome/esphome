@@ -209,7 +209,6 @@ void PM100XComponent::parse_data_() {
   const uint8_t *header = this->get_response_header_(header_length);
   if (header == nullptr || header_length == 0)
     return;
-  const size_t data_length = this->get_frame_data_length_();
 
   switch (this->model_) {
     case PM100XModel::PM1003: {
