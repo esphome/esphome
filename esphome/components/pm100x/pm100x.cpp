@@ -1,8 +1,8 @@
 #include "pm100x.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 #include <cmath>
-#include <string>
 
 namespace esphome {
 namespace pm100x {
@@ -32,7 +32,7 @@ static const char *model_to_string(PM100XModel model) {
 }
 
 void PM100XComponent::setup() {
-  this->start_time_ = millis();
+  this->start_time_ = App.get_loop_component_start_time();
   this->initial_delay_done_ = false;
   if (this->pwm_sensor_ != nullptr) {
     this->pwm_sensor_->add_on_state_callback([this](float duty_percent) { this->handle_pwm_state_(duty_percent); });
@@ -55,8 +55,11 @@ void PM100XComponent::dump_config() {
 void PM100XComponent::update() {
   if (this->parent_ == nullptr || this->pwm_sensor_ != nullptr)
     return;
+  if (this->get_update_interval() == 0)
+    return;
   if (!this->initial_delay_done_) {
-    if (millis() - this->start_time_ < this->startup_delay_ms_) {
+    const uint32_t now = App.get_loop_component_start_time();
+    if (now - this->start_time_ < this->startup_delay_ms_) {
       return;
     }
     this->initial_delay_done_ = true;
@@ -66,14 +69,6 @@ void PM100XComponent::update() {
   if (command == nullptr || command_length == 0)
     return;
   ESP_LOGV(TAG, "sending measurement request");
-  std::string hex;
-  hex.reserve(command_length * 3);
-  char buf[4];
-  for (size_t i = 0; i < command_length; i++) {
-    snprintf(buf, sizeof(buf), "%02X ", command[i]);
-    hex.append(buf);
-  }
-  ESP_LOGI(TAG, "command payload bytes: %s", hex.c_str());
   this->write_array(command, command_length);
 }
 
@@ -91,14 +86,6 @@ void PM100XComponent::loop() {
     } else if (!*check) {
       // wrong data
       ESP_LOGV(TAG, "Byte %i of received data frame is invalid.", this->data_index_);
-      std::string hex;
-      hex.reserve((this->data_index_ + 1) * 3);
-      char buf[4];
-      for (size_t i = 0; i <= this->data_index_; i++) {
-        snprintf(buf, sizeof(buf), "%02X ", this->data_[i]);
-        hex.append(buf);
-      }
-      ESP_LOGI(TAG, "invalid frame bytes: %s", hex.c_str());
       this->data_index_ = 0;
     } else {
       // next byte
@@ -149,13 +136,11 @@ optional<bool> PM100XComponent::check_byte_() const {
 
 size_t PM100XComponent::get_frame_data_length_() const {
   switch (this->model_) {
-    case PM100XModel::PM1003:
-    case PM100XModel::PM1006:
-      return 16;
     case PM100XModel::PM1006K:
       return 12;
+    default:
+      return 16;
   }
-  return 16;
 }
 
 const uint8_t *PM100XComponent::get_response_header_(size_t &length) const {
@@ -225,16 +210,6 @@ void PM100XComponent::parse_data_() {
   if (header == nullptr || header_length == 0)
     return;
   const size_t data_length = this->get_frame_data_length_();
-  const size_t frame_length = header_length + data_length + 1;
-
-  std::string hex;
-  hex.reserve(frame_length * 3);
-  char buf[4];
-  for (size_t i = 0; i < frame_length; i++) {
-    snprintf(buf, sizeof(buf), "%02X ", this->data_[i]);
-    hex.append(buf);
-  }
-  ESP_LOGI(TAG, "received frame bytes: %s", hex.c_str());
 
   switch (this->model_) {
     case PM100XModel::PM1003: {
@@ -279,7 +254,8 @@ void PM100XComponent::parse_data_() {
 
 void PM100XComponent::handle_pwm_state_(float duty_percent) {
   if (!this->initial_delay_done_) {
-    if (millis() - this->start_time_ < this->startup_delay_ms_) {
+    const uint32_t now = App.get_loop_component_start_time();
+    if (now - this->start_time_ < this->startup_delay_ms_) {
       return;
     }
     this->initial_delay_done_ = true;
