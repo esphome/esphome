@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANGE_MODE_EVERY,
@@ -25,6 +26,7 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.core import CORE
 
 AUTO_LOAD = ["pulse_counter"]
 
@@ -91,6 +93,12 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
+    if CORE.is_esp32:
+        # Re-enable ESP-IDF's legacy driver component (excluded by default to save compile time)
+        # HLW8012 uses pulse_counter's PCNT storage which requires driver/pcnt.h
+        # TODO: Remove this once pulse_counter migrates to new PCNT API (driver/pulse_cnt.h)
+        include_builtin_idf_component("driver")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

@@ -494,11 +494,15 @@ class Component {
   /// Defer a callback to the next loop() call.
   void defer(std::function<void()> &&f);  // NOLINT
 
+  /// Defer a callback with a numeric ID (zero heap allocation)
+  void defer(uint32_t id, std::function<void()> &&f);  // NOLINT
+
   /// Cancel a defer callback using the specified name, name must not be empty.
   // Remove before 2026.7.0
   ESPDEPRECATED("Use const char* overload instead. Removed in 2026.7.0", "2026.1.0")
   bool cancel_defer(const std::string &name);  // NOLINT
   bool cancel_defer(const char *name);         // NOLINT
+  bool cancel_defer(uint32_t id);              // NOLINT
 
   // Ordered for optimal packing on 32-bit systems
   const LogString *component_source_{nullptr};

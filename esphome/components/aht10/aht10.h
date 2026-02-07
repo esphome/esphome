@@ -16,7 +16,6 @@ class AHT10Component : public PollingComponent, public i2c::I2CDevice {
   void setup() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void set_variant(AHT10Variant variant) { this->variant_ = variant; }
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }

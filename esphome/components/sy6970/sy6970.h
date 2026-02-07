@@ -87,7 +87,6 @@ class SY6970Component : public PollingComponent, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Listener registration
   void add_listener(SY6970Listener *listener) { this->listeners_.push_back(listener); }

@@ -26,8 +26,6 @@ void DS1307Component::dump_config() {
   RealTimeClock::dump_config();
 }
 
-float DS1307Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void DS1307Component::read_time() {
   if (!this->read_rtc_()) {
     return;
