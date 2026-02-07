@@ -122,7 +122,7 @@ DriverChip(
 )
 
 DriverChip(
-    "WAVESHARE-P4-WIFI6-TOUCH-LCD-3.4C",
+    "WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-3.4C",
     height=800,
     width=800,
     hsync_back_porch=20,
@@ -171,7 +171,7 @@ DriverChip(
 )
 
 DriverChip(
-    "WAVESHARE-P4-WIFI6-TOUCH-LCD-4C",
+    "WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-4C",
     height=720,
     width=720,
     hsync_back_porch=20,
