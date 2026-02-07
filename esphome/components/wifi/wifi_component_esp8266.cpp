@@ -416,75 +416,65 @@ PROGMEM_STRING_TABLE(OpModeStrings, "OFF", "STA", "AP", "AP+STA", "UNKNOWN");
 
 const LogString *get_op_mode_str(uint8_t mode) { return OpModeStrings::get_log_str(mode, OpModeStrings::LAST_INDEX); }
 
+// Use if-chain instead of switch to avoid jump tables in RODATA (wastes RAM on ESP8266).
+// A single switch would generate a sparse lookup table with ~175 default entries, wasting 700 bytes of RAM.
+// Even split switches still generate smaller jump tables in RODATA.
 const LogString *get_disconnect_reason_str(uint8_t reason) {
-  /* If this were one big switch statement, GCC would generate a lookup table for it. However, the values of the
-   * REASON_* constants aren't continuous, and GCC will fill in the gap with the default value -- wasting 4 bytes of RAM
-   * per entry. As there's ~175 default entries, this wastes 700 bytes of RAM.
-   */
-  if (reason <= REASON_CIPHER_SUITE_REJECTED) {  // This must be the last constant with a value <200
-    switch (reason) {
-      case REASON_AUTH_EXPIRE:
-        return LOG_STR("Auth Expired");
-      case REASON_AUTH_LEAVE:
-        return LOG_STR("Auth Leave");
-      case REASON_ASSOC_EXPIRE:
-        return LOG_STR("Association Expired");
-      case REASON_ASSOC_TOOMANY:
-        return LOG_STR("Too Many Associations");
-      case REASON_NOT_AUTHED:
-        return LOG_STR("Not Authenticated");
-      case REASON_NOT_ASSOCED:
-        return LOG_STR("Not Associated");
-      case REASON_ASSOC_LEAVE:
-        return LOG_STR("Association Leave");
-      case REASON_ASSOC_NOT_AUTHED:
-        return LOG_STR("Association not Authenticated");
-      case REASON_DISASSOC_PWRCAP_BAD:
-        return LOG_STR("Disassociate Power Cap Bad");
-      case REASON_DISASSOC_SUPCHAN_BAD:
-        return LOG_STR("Disassociate Supported Channel Bad");
-      case REASON_IE_INVALID:
-        return LOG_STR("IE Invalid");
-      case REASON_MIC_FAILURE:
-        return LOG_STR("Mic Failure");
-      case REASON_4WAY_HANDSHAKE_TIMEOUT:
-        return LOG_STR("4-Way Handshake Timeout");
-      case REASON_GROUP_KEY_UPDATE_TIMEOUT:
-        return LOG_STR("Group Key Update Timeout");
-      case REASON_IE_IN_4WAY_DIFFERS:
-        return LOG_STR("IE In 4-Way Handshake Differs");
-      case REASON_GROUP_CIPHER_INVALID:
-        return LOG_STR("Group Cipher Invalid");
-      case REASON_PAIRWISE_CIPHER_INVALID:
-        return LOG_STR("Pairwise Cipher Invalid");
-      case REASON_AKMP_INVALID:
-        return LOG_STR("AKMP Invalid");
-      case REASON_UNSUPP_RSN_IE_VERSION:
-        return LOG_STR("Unsupported RSN IE version");
-      case REASON_INVALID_RSN_IE_CAP:
-        return LOG_STR("Invalid RSN IE Cap");
-      case REASON_802_1X_AUTH_FAILED:
-        return LOG_STR("802.1x Authentication Failed");
-      case REASON_CIPHER_SUITE_REJECTED:
-        return LOG_STR("Cipher Suite Rejected");
-    }
-  }
-
-  switch (reason) {
-    case REASON_BEACON_TIMEOUT:
-      return LOG_STR("Beacon Timeout");
-    case REASON_NO_AP_FOUND:
-      return LOG_STR("AP Not Found");
-    case REASON_AUTH_FAIL:
-      return LOG_STR("Authentication Failed");
-    case REASON_ASSOC_FAIL:
-      return LOG_STR("Association Failed");
-    case REASON_HANDSHAKE_TIMEOUT:
-      return LOG_STR("Handshake Failed");
-    case REASON_UNSPECIFIED:
-    default:
-      return LOG_STR("Unspecified");
-  }
+  if (reason == REASON_AUTH_EXPIRE)
+    return LOG_STR("Auth Expired");
+  if (reason == REASON_AUTH_LEAVE)
+    return LOG_STR("Auth Leave");
+  if (reason == REASON_ASSOC_EXPIRE)
+    return LOG_STR("Association Expired");
+  if (reason == REASON_ASSOC_TOOMANY)
+    return LOG_STR("Too Many Associations");
+  if (reason == REASON_NOT_AUTHED)
+    return LOG_STR("Not Authenticated");
+  if (reason == REASON_NOT_ASSOCED)
+    return LOG_STR("Not Associated");
+  if (reason == REASON_ASSOC_LEAVE)
+    return LOG_STR("Association Leave");
+  if (reason == REASON_ASSOC_NOT_AUTHED)
+    return LOG_STR("Association not Authenticated");
+  if (reason == REASON_DISASSOC_PWRCAP_BAD)
+    return LOG_STR("Disassociate Power Cap Bad");
+  if (reason == REASON_DISASSOC_SUPCHAN_BAD)
+    return LOG_STR("Disassociate Supported Channel Bad");
+  if (reason == REASON_IE_INVALID)
+    return LOG_STR("IE Invalid");
+  if (reason == REASON_MIC_FAILURE)
+    return LOG_STR("Mic Failure");
+  if (reason == REASON_4WAY_HANDSHAKE_TIMEOUT)
+    return LOG_STR("4-Way Handshake Timeout");
+  if (reason == REASON_GROUP_KEY_UPDATE_TIMEOUT)
+    return LOG_STR("Group Key Update Timeout");
+  if (reason == REASON_IE_IN_4WAY_DIFFERS)
+    return LOG_STR("IE In 4-Way Handshake Differs");
+  if (reason == REASON_GROUP_CIPHER_INVALID)
+    return LOG_STR("Group Cipher Invalid");
+  if (reason == REASON_PAIRWISE_CIPHER_INVALID)
+    return LOG_STR("Pairwise Cipher Invalid");
+  if (reason == REASON_AKMP_INVALID)
+    return LOG_STR("AKMP Invalid");
+  if (reason == REASON_UNSUPP_RSN_IE_VERSION)
+    return LOG_STR("Unsupported RSN IE version");
+  if (reason == REASON_INVALID_RSN_IE_CAP)
+    return LOG_STR("Invalid RSN IE Cap");
+  if (reason == REASON_802_1X_AUTH_FAILED)
+    return LOG_STR("802.1x Authentication Failed");
+  if (reason == REASON_CIPHER_SUITE_REJECTED)
+    return LOG_STR("Cipher Suite Rejected");
+  if (reason == REASON_BEACON_TIMEOUT)
+    return LOG_STR("Beacon Timeout");
+  if (reason == REASON_NO_AP_FOUND)
+    return LOG_STR("AP Not Found");
+  if (reason == REASON_AUTH_FAIL)
+    return LOG_STR("Authentication Failed");
+  if (reason == REASON_ASSOC_FAIL)
+    return LOG_STR("Association Failed");
+  if (reason == REASON_HANDSHAKE_TIMEOUT)
+    return LOG_STR("Handshake Failed");
+  return LOG_STR("Unspecified");
 }
 
 // TODO: This callback runs in ESP8266 system context with limited stack (~2KB).
@@ -645,21 +635,15 @@ void WiFiComponent::wifi_pre_setup_() {
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   station_status_t status = wifi_station_get_connect_status();
-  switch (status) {
-    case STATION_GOT_IP:
-      return WiFiSTAConnectStatus::CONNECTED;
-    case STATION_NO_AP_FOUND:
-      return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
-      ;
-    case STATION_CONNECT_FAIL:
-    case STATION_WRONG_PASSWORD:
-      return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
-    case STATION_CONNECTING:
-      return WiFiSTAConnectStatus::CONNECTING;
-    case STATION_IDLE:
-    default:
-      return WiFiSTAConnectStatus::IDLE;
-  }
+  if (status == STATION_GOT_IP)
+    return WiFiSTAConnectStatus::CONNECTED;
+  if (status == STATION_NO_AP_FOUND)
+    return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
+  if (status == STATION_CONNECT_FAIL || status == STATION_WRONG_PASSWORD)
+    return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
+  if (status == STATION_CONNECTING)
+    return WiFiSTAConnectStatus::CONNECTING;
+  return WiFiSTAConnectStatus::IDLE;
 }
 bool WiFiComponent::wifi_scan_start_(bool passive) {
   static bool first_scan = false;
