@@ -5,7 +5,12 @@ from __future__ import annotations
 import asyncio
 
 import aioesphomeapi
-from aioesphomeapi import WaterHeaterInfo, WaterHeaterMode, WaterHeaterState
+from aioesphomeapi import (
+    WaterHeaterInfo,
+    WaterHeaterMode,
+    WaterHeaterState,
+    WaterHeaterStateFlag,
+)
 import pytest
 
 from .state_utils import InitialStateHelper
@@ -95,8 +100,12 @@ async def test_water_heater_template(
             f"Expected target temp 60.0, got {initial_state.target_temperature}"
         )
         # Verify On/Away (from lambdas in fixture)
-        assert initial_state.is_on is True
-        assert initial_state.away is False
+        assert (initial_state.state & WaterHeaterStateFlag.ON) != 0, (
+            "Expected state ON (bit 1 set)"
+        )
+        assert (initial_state.state & WaterHeaterStateFlag.AWAY) == 0, (
+            "Expected state NOT AWAY (bit 0 unset)"
+        )
 
         # Test changing to GAS mode
         client.water_heater_command(test_water_heater.key, mode=WaterHeaterMode.GAS)
@@ -118,9 +127,13 @@ async def test_water_heater_template(
                 isinstance(state, WaterHeaterState)
                 and state.key == test_water_heater.key
             ):
-                if state.away is True and not away_future.done():
+                if (
+                    state.state & WaterHeaterStateFlag.AWAY
+                ) != 0 and not away_future.done():
                     away_future.set_result(state)
-                if state.is_on is False and not off_future.done():
+                if (
+                    state.state & WaterHeaterStateFlag.ON
+                ) == 0 and not off_future.done():
                     off_future.set_result(state)
 
         client.subscribe_states(on_state_update)
@@ -131,7 +144,7 @@ async def test_water_heater_template(
             away_state = await asyncio.wait_for(away_future, timeout=5.0)
         except TimeoutError:
             pytest.fail("Away mode change not received within 5 seconds")
-        assert away_state.away is True
+        assert (away_state.state & WaterHeaterStateFlag.AWAY) != 0
 
         # Change power
         client.water_heater_command(test_water_heater.key, is_on=False)
@@ -139,7 +152,7 @@ async def test_water_heater_template(
             off_state = await asyncio.wait_for(off_future, timeout=5.0)
         except TimeoutError:
             pytest.fail("Power off change not received within 5 seconds")
-        assert off_state.is_on is False
+        assert (off_state.state & WaterHeaterStateFlag.ON) == 0
 
         # Test changing to ECO mode (from GAS)
         client.water_heater_command(test_water_heater.key, mode=WaterHeaterMode.ECO)
