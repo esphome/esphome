@@ -15,7 +15,7 @@ enum JD79660Color : uint8_t {
 };
 
 /** Map RGB color to JD79660 BWYR hex color keys */
-static constexpr JD79660Color HOT color_to_hex(Color color) {
+static JD79660Color HOT color_to_hex(Color color) {
   return color_to_bwyr(color, JD79660Color::BLACK, JD79660Color::WHITE, JD79660Color::YELLOW, JD79660Color::RED);
 }
 

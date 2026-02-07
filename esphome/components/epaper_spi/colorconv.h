@@ -6,7 +6,7 @@
 
 /* Utility for converting internal \a Color RGB representation to supported IC hardware color keys
  *
- * Focus in driver layer is on efficiency. Primarily, the supported color keys shall be retained.
+ * Focus in driver layer is on efficiency.
  * For optimum output quality on RGB inputs consider offline color keying/dithering.
  * Also see e.g. Image component.
  */
@@ -18,14 +18,14 @@ static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
 
 /** Map RGB color to discrete BWYR hex 4 color key
  *
- * \tparam NATIVE_COLOR  Type of native hardware color values
- * \param color     RGB color to convert from
- * \param hw_black  Native value for black
- * \param hw_white  Native value for white
- * \param hw_yellow Native value for yellow
- * \param hw_red    Native value for red
- * \return          Converted native hardware color value
- * \internal Constexpr. Does not depend on side effects ("pure").
+ * @tparam NATIVE_COLOR  Type of native hardware color values
+ * @param color     RGB color to convert from
+ * @param hw_black  Native value for black
+ * @param hw_white  Native value for white
+ * @param hw_yellow Native value for yellow
+ * @param hw_red    Native value for red
+ * @return          Converted native hardware color value
+ * @internal Constexpr. Does not depend on side effects ("pure").
  */
 template<typename NATIVE_COLOR>
 constexpr NATIVE_COLOR color_to_bwyr(Color color, NATIVE_COLOR hw_black, NATIVE_COLOR hw_white, NATIVE_COLOR hw_yellow,
