@@ -36,7 +36,8 @@ AUTO_LOAD = ["network"]
 
 # Wi-fi / Bluetooth / Thread coexistence isn't implemented at this time
 # TODO: Doesn't conflict with wifi if you're using another ESP as an RCP (radio coprocessor), but this isn't implemented yet
-CONFLICTS_WITH = ["wifi"]
+# OpenThread and Zigbee cannot coexist on nRF52 devices
+CONFLICTS_WITH = ["wifi", "zigbee"]
 DEPENDENCIES = ["esp32"]
 
 CONF_DEVICE_TYPES = [
