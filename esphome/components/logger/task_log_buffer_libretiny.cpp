@@ -101,7 +101,7 @@ void TaskLogBufferLibreTiny::release_message_main_loop() {
 }
 
 bool TaskLogBufferLibreTiny::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line,
-                                                      TaskHandle_t task_handle, const char *format, va_list args) {
+                                                      const char *thread_name, const char *format, va_list args) {
   // First, calculate the exact length needed using a null buffer (no actual writing)
   va_list args_copy;
   va_copy(args_copy, args);
@@ -162,7 +162,6 @@ bool TaskLogBufferLibreTiny::send_message_thread_safe(uint8_t level, const char 
   msg->line = line;
 
   // Store the thread name now to avoid crashes if task is deleted before processing
-  const char *thread_name = pcTaskGetTaskName(task_handle);
   if (thread_name != nullptr) {
     strncpy(msg->thread_name, thread_name, sizeof(msg->thread_name) - 1);
     msg->thread_name[sizeof(msg->thread_name) - 1] = '\0';
