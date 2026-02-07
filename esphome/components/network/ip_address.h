@@ -69,9 +69,19 @@ struct IPAddress {
  public:
 #ifdef USE_ZEPHYR
   // Zephyr networking IPv6-only implementation
-  IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
-  IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
-  IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
+  IPAddress() {
+    memset(&ip_addr_, 0, sizeof(ip_addr_));
+    this->parse_ok_ = true;
+  }
+  IPAddress(const std::string &in_address) {
+    // Keep as unspecified address if parsing fails.
+    memset(&ip_addr_, 0, sizeof(ip_addr_));
+    this->parse_ok_ = ipaddr_aton(in_address.c_str(), &ip_addr_) != 0;
+  }
+  IPAddress(const ip_addr_t *other_ip) {
+    ip_addr_ = *other_ip;
+    this->parse_ok_ = true;
+  }
 
   operator ip_addr_t() const { return ip_addr_; }
 
@@ -79,10 +89,14 @@ struct IPAddress {
   bool is_ip4() const { return false; }
   bool is_ip6() const { return this->is_set(); }
   bool is_multicast() const { return net_ipv6_is_addr_mcast(&ip_addr_); }
+  bool is_valid() const { return this->parse_ok_; }
   std::string str() const {
     char buffer[INET6_ADDRSTRLEN];
-    inet_ntop(AF_INET6, &ip_addr_, buffer, sizeof(buffer));
-    return str_lower_case(buffer);
+    if (inet_ntop(AF_INET6, &ip_addr_, buffer, sizeof(buffer)) == nullptr) {
+      return "";  // Return empty string on error.
+    }
+    lowercase_ip_str(buffer);
+    return std::string(buffer);
   }
   bool operator==(const IPAddress &other) const { return net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
@@ -219,6 +233,9 @@ struct IPAddress {
 
  protected:
   ip_addr_t ip_addr_;
+#ifdef USE_ZEPHYR
+  bool parse_ok_{true};
+#endif
 };
 
 using IPAddresses = std::array<IPAddress, 5>;
