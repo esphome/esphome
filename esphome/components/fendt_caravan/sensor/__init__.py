@@ -7,7 +7,10 @@ from esphome.cpp_generator import MockObjClass
 from .. import CONF_PARENT_ID, CaravanDeviceComponent, FendtCaravan, fendt_caravan_ns
 
 ControlUnitDeviceSensor = fendt_caravan_ns.class_(
-    "ControlUnitDeviceSensor", CaravanDeviceComponent, sensor.Sensor
+    "ControlUnitDeviceSensor",
+    CaravanDeviceComponent,
+    sensor.Sensor,
+    cg.Parented.template(FendtCaravan),
 )
 
 
@@ -25,7 +28,7 @@ CONFIG_SCHEMA = cv.typed_schema({"mcu": _device_schema(ControlUnitDeviceSensor)}
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_PARENT_ID])
-    var = cg.new_Pvariable(config)
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, parent)
     cg.add(getattr(parent, f"set_{config[CONF_TYPE]}_device")(var))

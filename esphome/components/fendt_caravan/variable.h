@@ -7,8 +7,7 @@
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace fendt_caravan {
+namespace esphome::fendt_caravan {
 
 using namespace std;
 
@@ -79,5 +78,4 @@ template<class T> class Variable : public IVariable {
   T value_;
 };
 
-}  // namespace fendt_caravan
-}  // namespace esphome
+}  // namespace esphome::fendt_caravan

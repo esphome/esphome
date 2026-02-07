@@ -8,10 +8,11 @@ static const char *const TAG = "FC.CU";
 
 void ControlUnitDeviceSensor::setup() {
   if (this->power_status_text_sensor_) {
-    auto *network = this->power_status_text_sensor_->create_variable("LINE_EN", [](const std::string &value) {
-      const char *tmp[] = {"Connected", "Disconnected"};
-      return DeviceDecoders::decode_bool_str(value, tmp);
-    });
+    auto *network = GET_SENSOR_BASE(std::string, (void *) this->power_status_text_sensor_)
+                        ->create_variable("LINE_EN", [](const std::string &value) {
+                          const char *tmp[] = {"Connected", "Disconnected"};
+                          return DeviceDecoders::decode_bool_str(value, tmp);
+                        });
     this->add_variable(network);
   }
 
@@ -40,12 +41,14 @@ void ControlUnitDeviceSensor::setup() {
   this->add_variable(alarm_clock_active);
 
   if (this->temperature_in_sensor_) {
-    auto *temp_in = this->temperature_in_sensor_->create_variable("TEMP_IN", DeviceDecoders::decode_temperature);
+    auto *temp_in = GET_SENSOR_BASE(float, (void *) this->temperature_in_sensor_)
+                        ->create_variable("TEMP_IN", DeviceDecoders::decode_temperature);
     this->add_variable(temp_in);
   }
 
   if (this->temperature_out_sensor_) {
-    auto *temp_out = this->temperature_out_sensor_->create_variable("TEMP_OUT", DeviceDecoders::decode_temperature);
+    auto *temp_out = GET_SENSOR_BASE(float, (void *) this->temperature_out_sensor_)
+                         ->create_variable("TEMP_OUT", DeviceDecoders::decode_temperature);
     this->add_variable(temp_out);
   }
 
@@ -61,9 +64,11 @@ void ControlUnitDeviceSensor::setup() {
   auto *time = new Variable<time_t>("TIME", DeviceDecoders::decode_time);
   this->add_variable(time);
 
-  auto *floor_heater =
-      new Variable<bool>("FLOOR_HEATER_ON", DeviceDecoders::decode_bool, Commands::update_toggle<bool>);
-  this->add_variable(floor_heater);
+  if (this->floor_heater_switch_) {
+    auto *sw = GET_SENSOR_BASE(bool, (void *) this->floor_heater_switch_)
+                   ->create_variable("FLOOR_HEATER_ON", DeviceDecoders::decode_bool, Commands::update_toggle<bool>);
+    this->add_variable(sw);
+  }
 
   auto *temp_in_offset = new Variable<int>("TEMP_IN_OFFSET", DeviceDecoders::decode_int);
   this->add_variable(temp_in_offset);
@@ -72,8 +77,8 @@ void ControlUnitDeviceSensor::setup() {
   this->add_variable(temp_out_offset);
 
   if (this->software_version_text_sensor_) {
-    auto *software_version =
-        this->software_version_text_sensor_->create_variable("SOFTWARE_VERSION", DeviceDecoders::decode_str);
+    auto *software_version = GET_SENSOR_BASE(std::string, (void *) this->software_version_text_sensor_)
+                                 ->create_variable("SOFTWARE_VERSION", DeviceDecoders::decode_str);
     this->add_variable(software_version);
   }
 
@@ -103,7 +108,7 @@ void ControlUnitDeviceSensor::setup() {
 void ControlUnitDeviceSensor::dump_config() {
   ESP_LOGCONFIG(TAG, " Fendt Control Unit");
   LOG_SWITCH(TAG, "  Main Switch", this->main_switch_switch_);
-  LOG_SWITCH(TAG, "  Lights Status", this->light_status_switch_);
+  LOG_SWITCH(TAG, "  All Lights Status", this->all_lights_switch_);
   LOG_SENSOR(TAG, "  Temp In", this->temperature_in_sensor_);
   LOG_SENSOR(TAG, "  Temp Out", this->temperature_out_sensor_);
   LOG_TEXT_SENSOR(TAG, "  Power Status", this->power_status_text_sensor_);
@@ -119,8 +124,8 @@ bool ControlUnitDeviceSensor::decode(const std::string &name, const std::string 
     if (hs_key_state->is_active()) {
       if (this->main_switch_switch_)
         this->main_switch_switch_->publish_state(hs_key_state->get_value() > 0);
-      if (this->light_status_switch_)
-        this->light_status_switch_->publish_state(hs_key_state->get_value() == 2);
+      if (this->all_lights_switch_)
+        this->all_lights_switch_->publish_state(hs_key_state->get_value() == 2);
     }
   }
   return ret_val;
@@ -149,7 +154,7 @@ void ControlUnitDeviceSensor::on_switch_state_change_(switch_::Switch *sw, bool 
       hs_key->set_value(true);
       command = hs_key->get_command();
     }
-  } else if (sw == this->light_status_switch_) {
+  } else if (sw == this->all_lights_switch_) {
     auto *hs_key = GET_VARIABLE(bool, "HS_KEY");
     auto *hs_key_state = GET_VARIABLE(int, "HS_KEY_STATE");
     bool current_state = hs_key_state->get_value() == 2;

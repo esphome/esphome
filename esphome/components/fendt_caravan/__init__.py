@@ -5,7 +5,7 @@ from esphome.const import CONF_ID
 
 CODEOWNERS = ["@rawsludge"]
 DEPENDENCIES = ["ble_client", "esp32_ble_tracker"]
-AUTO_LOAD = ["text_sensor", "switch", "number", "select", "light"]
+AUTO_LOAD = ["text_sensor", "number", "select", "light"]
 PLATFORMS = ["esp32"]
 
 MULTI_CONF = True
@@ -23,7 +23,6 @@ DEVICE_TYPE = {
     "mcu": DeviceType.MCU,
 }
 
-FendtTextSensor = fendt_caravan_ns.class_("FendtTextSensor", cg.Component)
 FendtNumber = fendt_caravan_ns.class_("FendtNumber", cg.Component)
 FendtSelect = fendt_caravan_ns.class_("FendtSelect", cg.Component)
 FendtSensor = fendt_caravan_ns.class_("FendtSensor", cg.Component)

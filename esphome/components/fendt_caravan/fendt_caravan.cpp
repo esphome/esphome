@@ -138,6 +138,11 @@ void FendtCaravan::on_data_received_(const std::string &data) {
   size_t end = data.find(':');
   key = data.substr(start, end);
   value = data.substr(end + 1);
+  if (this->mcu_device_) {
+    bool result = this->mcu_device_->decode(key, value);
+    if (result)
+      return;
+  }
 }
 
 void FendtCaravan::on_command_send(const std::string &command) {

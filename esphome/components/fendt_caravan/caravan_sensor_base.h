@@ -3,14 +3,17 @@
 #ifdef USE_ESP32
 #include "variable.h"
 #include "esphome/core/component.h"
+#include "caravan_device_component.h"
 
 namespace esphome::fendt_caravan {
 
-template<typename T> class FendtComponent : public Component {
+#define GET_SENSOR_BASE(T, S) (static_cast<CaravanSensorBase<T> *>(S))
+
+template<typename T> class CaravanSensorBase : public Component, public Parented<CaravanDeviceComponent> {
  public:
   void set_variable(Variable<T> *variable) {
     this->variable_ = variable;
-    this->variable_->set_on_decode_callback(std::bind(&FendtComponent::on_decoded, this, std::placeholders::_1));
+    this->variable_->set_on_decode_callback(std::bind(&CaravanSensorBase::on_decoded, this, std::placeholders::_1));
   }
   Variable<T> *get_variable() { return this->variable_; }
 

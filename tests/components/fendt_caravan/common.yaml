@@ -12,26 +12,36 @@ fendt_caravan:
 
 sensor:
   - platform: fendt_caravan
-    fendt_caravan_id: my_caravan
-    control_unit_device:
-      id: control_unit
-      main_switch:
-        name: "Main Switch"
-      temperature_in:
-        name: "In Temperature"
-        filters:
-          - median:
-              window_size: 5
-      temperature_out:
-        name: "Out Temperature"
-        filters:
-          - median:
-              window_size: 5
-      power_status:
-        name: "AC Status"
-      light_status:
-        name: "Main Light"
-      software_version:
-        name: "Software Version"
-      floor_heater:
-        name: "Floot Heater"
+    parent_id: my_caravan
+    type: mcu
+    id: main_unit_device
+
+switch:
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: main_switch
+    name: Main Switch
+    restore_mode: ALWAYS_OFF
+
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: all_lights
+    name: All Lights Switch
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: floor_heater
+    name: Floor Heater
+    restore_mode: RESTORE_DEFAULT_OFF
+
+text_sensor:
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: power_status
+    name: Power Status
+
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: software_version
+    name: Software Version

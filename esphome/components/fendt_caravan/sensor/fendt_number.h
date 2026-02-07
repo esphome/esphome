@@ -4,19 +4,12 @@
 #include "esphome/components/number/number.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/log.h"
-#include "esphome/components/fendt_caravan/fendt_component.h"
+#include "esphome/components/fendt_caravan/caravan_sensor_base.h"
 #include "esphome/components/fendt_caravan/variable.h"
 
 namespace esphome::fendt_caravan {
 
-#define FENDT_NUMBER(name) \
- protected: \
-  FendtNumber *name##_number_{nullptr}; \
-\
- public: \
-  void set_##name##_number(FendtNumber *number) { this->name##_number_ = number; }
-
-class FendtNumber : public FendtComponent<float>, public number::Number {
+class FendtNumber : public CaravanSensorBase<float>, public number::Number {
  public:
   void set_state_change_callback(std::function<void(FendtNumber *, float state)> &&callback) {
     this->on_state_change_.add(std::move(callback));

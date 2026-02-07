@@ -2,7 +2,7 @@
 
 #ifdef USE_ESP32
 #include "esphome/components/light/light_output.h"
-#include "esphome/components/fendt_caravan/fendt_component.h"
+#include "esphome/components/fendt_caravan/caravan_sensor_base.h"
 
 namespace esphome::fendt_caravan {
 
@@ -18,7 +18,7 @@ struct LampStateT {
   float state;
 };
 
-class FendtLightOutput : public FendtComponent<LampStateT>, public light::LightOutput {
+class FendtLightOutput : public CaravanSensorBase<LampStateT>, public light::LightOutput {
  public:
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();

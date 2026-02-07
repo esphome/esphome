@@ -12,38 +12,17 @@ FendtSwitch = fendt_caravan_ns.class_(
     cg.Parented.template(CaravanDeviceComponent),
 )
 
-# CONF_MAIN = "main"
-# CONF_ALL_LIGHT = "all_light"
-# CONF_FLOOR_HEATER = "floor_heater"
-#
-# SWITCH_UNITS = {
-#    CONF_MAIN,
-#    CONF_ALL_LIGHT,
-#    CONF_FLOOR_HEATER
-# }
-
-SwitchType = fendt_caravan_ns.enum("SwitchType")
-SWITCH_TYPE = {
-    "main_switch": SwitchType.MAIN,
-}
-
-
-# SWITCH_TYPES = {
-#    CONF_MAIN: switch.switch_schema(
-#        FendtSwitch, default_restore_mode="ALWAYS_OFF", icon="mdi:switch"
-#    ),
-#    CONF_ALL_LIGHT: switch.switch_schema(
-#        FendtSwitch, default_restore_mode="RESTORE_DEFAULT_OFF", icon="mdi:lamp"
-#    ),
-#    CONF_FLOOR_HEATER: switch.switch_schema(
-#        FendtSwitch, default_restore_mode="RESTORE_DEFAULT_OFF", icon="mdi:heat-wave"
-#    ),
-# }
-
-CONFIG_SCHEMA = switch.switch_schema(FendtSwitch).extend(
+FENDT_SWITCH_SCHEMA = switch.switch_schema(FendtSwitch).extend(
     {
-        cv.Required(CONF_TYPE): cv.enum(SWITCH_TYPE, string=True),
         cv.Required(CONF_PARENT_ID): cv.use_id(CaravanDeviceComponent),
+    }
+)
+
+CONFIG_SCHEMA = cv.typed_schema(
+    {
+        "main_switch": FENDT_SWITCH_SCHEMA,
+        "all_lights": FENDT_SWITCH_SCHEMA,
+        "floor_heater": FENDT_SWITCH_SCHEMA,
     }
 )
 
