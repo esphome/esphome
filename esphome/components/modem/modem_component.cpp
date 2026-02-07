@@ -273,30 +273,28 @@ void ModemComponent::handle_state_enabling_() {
   bauds.erase(std::unique(bauds.begin(), bauds.end()), bauds.end());
 
   for (int b : bauds) {
-    if (try_autobaud(b)) {
-      ESP_LOGV(TAG, "Modem ON. Autodetect mode: %s, baud: %d",
-               modem_mode_to_string(this->modem_handler->dce->get_mode()).c_str(), b);
-      auto mode = this->modem_handler->dce->get_mode();
-      if (mode == modem_mode::CMUX_MANUAL_MODE || mode == modem_mode::DATA_MODE) {
-        if (b != this->modem_handler->baud_rate) {
-          ESP_LOGI(TAG, "Modem connected, but baud rate has changed");
-          if (mode == modem_mode::CMUX_MANUAL_MODE) {
-            this->modem_handler->dce->set_mode(modem_mode::CMUX_MANUAL_EXIT);
-          } else {
-            this->modem_handler->dce->set_mode(modem_mode::COMMAND_MODE);
-          }
-          this->component_state_ = ModemComponentState::SYNCING;
-          return;
+    if (!try_autobaud(b)) {
+      continue;
+    }
+    ESP_LOGV(TAG, "Modem ON. Autodetect mode: %s, baud: %d",
+              modem_mode_to_string(this->modem_handler->dce->get_mode()).c_str(), b);
+    auto mode = this->modem_handler->dce->get_mode();
+    if (mode == modem_mode::CMUX_MANUAL_MODE || mode == modem_mode::DATA_MODE) {
+      if (b != this->modem_handler->baud_rate) {
+        ESP_LOGI(TAG, "Modem connected, but baud rate has changed");
+        if (mode == modem_mode::CMUX_MANUAL_MODE) {
+          this->modem_handler->dce->set_mode(modem_mode::CMUX_MANUAL_EXIT);
+        } else {
+          this->modem_handler->dce->set_mode(modem_mode::COMMAND_MODE);
         }
+      } else {
         // this->component_state_ = ModemComponentState::WAIT_IP;
         this->modem_handler->dce->set_mode(modem_mode::CMUX_MANUAL_EXIT);
         this->modem_handler->dce->set_mode(modem_mode::COMMAND_MODE);
-        this->component_state_ = ModemComponentState::SYNCING;
-        return;
       }
-      this->component_state_ = ModemComponentState::SYNCING;
-      return;
     }
+    this->component_state_ = ModemComponentState::SYNCING;
+    return;
   }
 
   if (this->modem_handler->power_pin) {
