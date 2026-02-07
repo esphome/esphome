@@ -80,7 +80,7 @@ ISOLATED_COMPONENTS = {
     "gps": "TinyGPSPlus library declares millis() function that creates ambiguity with ESPHome millis() macro when merged with components using millis() in lambdas",
     "lvgl": "Defines multiple SDL displays on host platform that conflict when merged with other display configs",
     "mapping": "Uses dict format for image/display sections incompatible with standard list format - ESPHome merge_config cannot handle",
-    "openthread": "Conflicts with wifi: used by most components",
+    "openthread": "Conflicts with wifi: used by most components and zigbee",
     "openthread_info": "Conflicts with wifi: used by most components",
     "matrix_keypad": "Needs isolation due to keypad",
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
@@ -88,6 +88,7 @@ ISOLATED_COMPONENTS = {
     "packages": "cannot merge packages",
     "tinyusb": "Conflicts with usb_host component - cannot be used together",
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
+    "zigbee": "Conflicts with openthread: both use IEEE 802.15.4 and cannot coexist",
 }
 
 
