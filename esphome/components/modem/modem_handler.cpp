@@ -185,7 +185,6 @@ void ModemHandler::send_init_at() {
     App.feed_wdt();
     if (this->dce->set_flow_control(2, 2) != command_result::OK) {
       ESP_LOGE(TAG, "Failed to set modem flow control to RTS/CTS.");
-      return;
     }
   }
 
