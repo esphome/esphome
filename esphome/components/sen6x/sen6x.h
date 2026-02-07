@@ -132,6 +132,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
     temp_accel.t2 = t2 * 10;
     temperature_acceleration_ = temp_accel;
   }
+  void set_type(const std::string &type) { sen6x_type_ = infer_type_from_product_name_(type); }
   bool start_fan_cleaning();
   bool perform_forced_co2_recalibration(uint16_t reference_ppm);
   bool co2_sensor_factory_reset();
@@ -146,6 +147,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
   bool write_temperature_acceleration_(const TemperatureAcceleration &acceleration);
+  Sen6xType infer_type_from_product_name_(const std::string &product_name);
   void schedule_post_setup_commands_();
   void finish_setup_();
 

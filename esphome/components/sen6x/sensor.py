@@ -134,6 +134,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SEN6XComponent),
+            cv.Optional(CONF_TYPE): cv.one_of(
+                "SEN62", "SEN63C", "SEN65", "SEN66", "SEN68", "SEN69C", upper=True
+            ),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_CHEMICAL_WEAPON,

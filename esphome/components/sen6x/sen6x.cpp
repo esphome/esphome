@@ -157,24 +157,24 @@ void SEN6XComponent::setup() {
         current_int++;
       } while (current_char && --max);
 
-      this->sen6x_type_ = UNKNOWN;
-      if (this->product_name_ == "SEN62") {
-        this->sen6x_type_ = SEN62;
-      } else if (this->product_name_ == "SEN63C") {
-        this->sen6x_type_ = SEN63C;
-      } else if (this->product_name_ == "SEN65") {
-        this->sen6x_type_ = SEN65;
-      } else if (this->product_name_ == "SEN66") {
-        this->sen6x_type_ = SEN66;
-      } else if (this->product_name_ == "SEN68") {
-        this->sen6x_type_ = SEN68;
-      } else if (this->product_name_ == "SEN69C") {
-        this->sen6x_type_ = SEN69C;
-      } else if (this->product_name_ == "") {  // empty name
-        ESP_LOGD(TAG, "Productname empty, falling back to SEN66");
-        this->sen6x_type_ = SEN66;
+      Sen6xType inferred_type = this->infer_type_from_product_name_(this->product_name_);
+      if (this->sen6x_type_ == UNKNOWN) {
+        this->sen6x_type_ = inferred_type;
+        if (inferred_type == UNKNOWN) {
+          ESP_LOGE(TAG, "Unable to infer sensor type from product name '%s'. Please specify 'type' in configuration.",
+                   this->product_name_.c_str());
+          this->error_code_ = PRODUCT_NAME_FAILED;
+          this->mark_failed();
+          return;
+        }
+        ESP_LOGD(TAG, "Sensor type inferred from product name: %s", this->product_name_.c_str());
+      } else if (this->sen6x_type_ != inferred_type && inferred_type != UNKNOWN) {
+        ESP_LOGW(TAG,
+                 "Configured sensor type does not match product name '%s'. "
+                 "Using configured type, but this may cause issues.",
+                 this->product_name_.c_str());
       }
-      ESP_LOGD(TAG, "Productname %s", this->product_name_.c_str());
+      ESP_LOGD(TAG, "Product name: %s", this->product_name_.c_str());
 
       uint16_t raw_firmware_version = 0;
       if (!this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, raw_firmware_version, 20)) {
@@ -964,6 +964,22 @@ bool SEN6XComponent::get_sht_heater_measurements() {
     ESP_LOGD(TAG, "SHT heater measurements: RH=%.2f%% T=%.2fC", humidity, temperature);
   });
   return true;
+}
+
+SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const std::string &product_name) {
+  if (product_name == "SEN62")
+    return SEN62;
+  if (product_name == "SEN63C")
+    return SEN63C;
+  if (product_name == "SEN65")
+    return SEN65;
+  if (product_name == "SEN66")
+    return SEN66;
+  if (product_name == "SEN68")
+    return SEN68;
+  if (product_name == "SEN69C")
+    return SEN69C;
+  return UNKNOWN;
 }
 
 }  // namespace esphome::sen6x
