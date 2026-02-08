@@ -538,6 +538,10 @@ async def test_download_binary_handler_subdirectory_file_url_encoded(
         pytest.param("//etc/passwd", 403, id="double_slash_absolute"),
         pytest.param(
             "....//secrets.yaml",
+            # On Windows, Path.resolve() treats "..." and "...." as parent
+            # traversal (like ".."), so the path escapes base_dir -> 403.
+            # On Unix, "...." is a literal directory name that stays inside
+            # base_dir but doesn't exist -> 404.
             403 if sys.platform == "win32" else 404,
             id="multiple_dots",
         ),
