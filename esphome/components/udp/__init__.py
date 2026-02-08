@@ -13,7 +13,7 @@ from esphome.components.packet_transport import (
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
 from esphome.core import ID
-from esphome.cpp_generator import literal
+from esphome.cpp_generator import MockObj
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["network"]
@@ -124,8 +124,8 @@ async def to_code(config):
         trigger_lambda = await cg.process_lambda(
             trigger.trigger(
                 cg.std_vector.template(cg.uint8)(
-                    literal(f"{trigger_argname}.begin()"),
-                    literal(f"{trigger_argname}.end()"),
+                    MockObj(trigger_argname).begin(),
+                    MockObj(trigger_argname).end(),
                 )
             ),
             listener_argtype,
