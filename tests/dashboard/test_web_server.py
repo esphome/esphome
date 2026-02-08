@@ -616,7 +616,7 @@ async def test_download_binary_handler_no_firmware_bin_path(
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_ext_storage_path")
-@pytest.mark.parametrize("file_value", ["", "  ", "%20"])
+@pytest.mark.parametrize("file_value", ["", "%20%20", "%20"])
 async def test_download_binary_handler_empty_file_name(
     dashboard: DashboardTestHelper,
     mock_storage_json: MagicMock,
