@@ -113,7 +113,6 @@ async def _smpmgr_upload(config: ConfigType, device: str, firmware: Path) -> Non
     if not already_uploaded:
         with open(firmware, "rb") as file:
             image = file.read()
-            file.close()
             upload_size = len(image)
             progress = ProgressBar()
             progress.update(0)
