@@ -264,9 +264,7 @@ void WiFiComponent::wifi_loop_() {
     ESP_LOGV(TAG, "Scan complete: %zu found, %zu stored%s", s_scan_result_count, this->scan_result_.size(),
              needs_full ? "" : " (filtered)");
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
-    for (auto *listener : this->scan_results_listeners_) {
-      listener->on_wifi_scan_results(this->scan_result_);
-    }
+    this->notify_scan_results_listeners_();
 #endif
   }
 
@@ -290,9 +288,7 @@ void WiFiComponent::wifi_loop_() {
 #if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
     if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
       s_sta_had_ip = true;
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
+      this->notify_ip_state_listeners_();
     }
 #endif
   } else if (!is_connected && s_sta_was_connected) {
@@ -301,10 +297,7 @@ void WiFiComponent::wifi_loop_() {
     s_sta_had_ip = false;
     ESP_LOGV(TAG, "Disconnected");
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    static constexpr uint8_t EMPTY_BSSID[6] = {};
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
-    }
+    this->notify_disconnect_state_listeners_();
 #endif
   }
 
@@ -322,9 +315,7 @@ void WiFiComponent::wifi_loop_() {
       s_sta_had_ip = true;
       ESP_LOGV(TAG, "Got IP address");
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
+      this->notify_ip_state_listeners_();
 #endif
     }
   }
