@@ -14,6 +14,7 @@ class APIServerConnectionBase : public ProtoService {
  protected:
   void log_send_message_(const char *name, const char *dump);
   void log_receive_message_(const LogString *name, const ProtoMessage &msg);
+  void log_receive_message_(const LogString *name);
 
  public:
 #endif

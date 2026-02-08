@@ -2530,8 +2530,7 @@ def build_service_message_type(
             case = ""
             if log:
                 case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-                case += f"{mt.name} msg;\n"
-                case += f'this->log_receive_message_(LOG_STR("{func}"), msg);\n'
+                case += f'this->log_receive_message_(LOG_STR("{func}"));\n'
                 case += "#endif\n"
             case += f"this->{func}();\n"
             case += "break;"
@@ -2851,6 +2850,7 @@ static const char *const TAG = "api.service";
     hpp += (
         "  void log_receive_message_(const LogString *name, const ProtoMessage &msg);\n"
     )
+    hpp += "  void log_receive_message_(const LogString *name);\n"
     hpp += " public:\n"
     hpp += "#endif\n\n"
 
@@ -2873,6 +2873,9 @@ static const char *const TAG = "api.service";
     cpp += f"void {class_name}::log_receive_message_(const LogString *name, const ProtoMessage &msg) {{\n"
     cpp += "  DumpBuffer dump_buf;\n"
     cpp += '  ESP_LOGVV(TAG, "%s: %s", LOG_STR_ARG(name), msg.dump_to(dump_buf));\n'
+    cpp += "}\n"
+    cpp += f"void {class_name}::log_receive_message_(const LogString *name) {{\n"
+    cpp += '  ESP_LOGVV(TAG, "%s", LOG_STR_ARG(name));\n'
     cpp += "}\n"
     cpp += "#endif\n\n"
 

@@ -15,6 +15,7 @@ void APIServerConnectionBase::log_receive_message_(const LogString *name, const 
   DumpBuffer dump_buf;
   ESP_LOGVV(TAG, "%s: %s", LOG_STR_ARG(name), msg.dump_to(dump_buf));
 }
+void APIServerConnectionBase::log_receive_message_(const LogString *name) { ESP_LOGVV(TAG, "%s", LOG_STR_ARG(name)); }
 #endif
 
 void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {
@@ -30,56 +31,49 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
     case DisconnectRequest::MESSAGE_TYPE: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      DisconnectRequest msg;
-      this->log_receive_message_(LOG_STR("on_disconnect_request"), msg);
+      this->log_receive_message_(LOG_STR("on_disconnect_request"));
 #endif
       this->on_disconnect_request();
       break;
     }
     case DisconnectResponse::MESSAGE_TYPE: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      DisconnectResponse msg;
-      this->log_receive_message_(LOG_STR("on_disconnect_response"), msg);
+      this->log_receive_message_(LOG_STR("on_disconnect_response"));
 #endif
       this->on_disconnect_response();
       break;
     }
     case PingRequest::MESSAGE_TYPE: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      PingRequest msg;
-      this->log_receive_message_(LOG_STR("on_ping_request"), msg);
+      this->log_receive_message_(LOG_STR("on_ping_request"));
 #endif
       this->on_ping_request();
       break;
     }
     case PingResponse::MESSAGE_TYPE: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      PingResponse msg;
-      this->log_receive_message_(LOG_STR("on_ping_response"), msg);
+      this->log_receive_message_(LOG_STR("on_ping_response"));
 #endif
       this->on_ping_response();
       break;
     }
     case DeviceInfoRequest::MESSAGE_TYPE: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      DeviceInfoRequest msg;
-      this->log_receive_message_(LOG_STR("on_device_info_request"), msg);
+      this->log_receive_message_(LOG_STR("on_device_info_request"));
 #endif
       this->on_device_info_request();
       break;
     }
     case ListEntitiesRequest::MESSAGE_TYPE: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ListEntitiesRequest msg;
-      this->log_receive_message_(LOG_STR("on_list_entities_request"), msg);
+      this->log_receive_message_(LOG_STR("on_list_entities_request"));
 #endif
       this->on_list_entities_request();
       break;
     }
     case SubscribeStatesRequest::MESSAGE_TYPE: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      SubscribeStatesRequest msg;
-      this->log_receive_message_(LOG_STR("on_subscribe_states_request"), msg);
+      this->log_receive_message_(LOG_STR("on_subscribe_states_request"));
 #endif
       this->on_subscribe_states_request();
       break;
@@ -140,8 +134,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #ifdef USE_API_HOMEASSISTANT_SERVICES
     case SubscribeHomeassistantServicesRequest::MESSAGE_TYPE: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      SubscribeHomeassistantServicesRequest msg;
-      this->log_receive_message_(LOG_STR("on_subscribe_homeassistant_services_request"), msg);
+      this->log_receive_message_(LOG_STR("on_subscribe_homeassistant_services_request"));
 #endif
       this->on_subscribe_homeassistant_services_request();
       break;
@@ -159,8 +152,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #ifdef USE_API_HOMEASSISTANT_STATES
     case SubscribeHomeAssistantStatesRequest::MESSAGE_TYPE: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      SubscribeHomeAssistantStatesRequest msg;
-      this->log_receive_message_(LOG_STR("on_subscribe_home_assistant_states_request"), msg);
+      this->log_receive_message_(LOG_STR("on_subscribe_home_assistant_states_request"));
 #endif
       this->on_subscribe_home_assistant_states_request();
       break;
@@ -367,8 +359,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #ifdef USE_BLUETOOTH_PROXY
     case SubscribeBluetoothConnectionsFreeRequest::MESSAGE_TYPE: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      SubscribeBluetoothConnectionsFreeRequest msg;
-      this->log_receive_message_(LOG_STR("on_subscribe_bluetooth_connections_free_request"), msg);
+      this->log_receive_message_(LOG_STR("on_subscribe_bluetooth_connections_free_request"));
 #endif
       this->on_subscribe_bluetooth_connections_free_request();
       break;
@@ -377,8 +368,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #ifdef USE_BLUETOOTH_PROXY
     case UnsubscribeBluetoothLEAdvertisementsRequest::MESSAGE_TYPE: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      UnsubscribeBluetoothLEAdvertisementsRequest msg;
-      this->log_receive_message_(LOG_STR("on_unsubscribe_bluetooth_le_advertisements_request"), msg);
+      this->log_receive_message_(LOG_STR("on_unsubscribe_bluetooth_le_advertisements_request"));
 #endif
       this->on_unsubscribe_bluetooth_le_advertisements_request();
       break;
