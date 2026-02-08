@@ -90,32 +90,38 @@ void OTAComponent::dump_config() {
 }
 
 void OTAComponent::update_chunk(const img_mgmt_upload_check &upload) {
-  percentage_ = (upload.req->off * 100.0f) / upload.action->size;
+  this->defer([this, upload]() { this->percentage_ = (upload.req->off * 100.0f) / upload.action->size; });
 }
 
 void OTAComponent::update_started() {
-  ESP_LOGD(TAG, "Starting OTA Update from %s...", "ble");
+  this->defer([this]() {
+    ESP_LOGD(TAG, "Starting OTA Update from %s...", "ble");
 #ifdef USE_OTA_STATE_LISTENER
-  this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
+    this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
 #endif
+  });
 }
 
 void OTAComponent::update_chunk_wrote() {
   uint32_t now = millis();
-  if (now - last_progress_ > 1000) {
-    last_progress_ = now;
-    ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage_);
+  if (now - this->last_progress_ > 1000) {
+    this->last_progress_ = now;
+    this->defer([this]() {
+      ESP_LOGD(TAG, "OTA in progress: %0.1f%%", this->percentage_);
 #ifdef USE_OTA_STATE_LISTENER
-    this->notify_state_(ota::OTA_IN_PROGRESS, percentage_, 0);
+      this->notify_state_(ota::OTA_IN_PROGRESS, this->percentage_, 0);
 #endif
+    });
   }
 }
 
 void OTAComponent::update_pending() {
-  ESP_LOGD(TAG, "OTA pending");
+  this->defer([this]() {
+    ESP_LOGD(TAG, "OTA pending");
 #ifdef USE_OTA_STATE_LISTENER
-  this->notify_state_(ota::OTA_COMPLETED, 100.0f, 0);
+    this->notify_state_(ota::OTA_COMPLETED, 100.0f, 0);
 #endif
+  });
 }
 
 }  // namespace esphome::zephyr_mcumgr
