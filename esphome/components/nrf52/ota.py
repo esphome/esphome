@@ -1,10 +1,11 @@
 import asyncio
+from dataclasses import asdict
+import json
 import logging
 from pathlib import Path
 
 from bleak import BleakScanner
 from bleak.exc import BleakDeviceNotFoundError
-from rich.pretty import pprint
 from smp.exceptions import SMPBadStartDelimiter
 from smpclient import SMPClient
 from smpclient.generics import error, success
@@ -50,7 +51,9 @@ def _get_image_tlv_sha256(file: Path) -> str:
     _LOGGER.info("Checking image: %s", str(file))
     try:
         image_info = ImageInfo.load_file(str(file))
-        pprint(image_info.header)
+        _LOGGER.info(
+            "Image header:\n%s", json.dumps(asdict(image_info.header), indent=2)
+        )
         _LOGGER.debug(str(image_info))
     except MCUBootImageError as exc:
         raise EsphomeError("Inspection of FW image failed") from exc
@@ -61,7 +64,7 @@ def _get_image_tlv_sha256(file: Path) -> str:
 
     try:
         image_tlv_sha256 = image_info.get_tlv(IMAGE_TLV.SHA256)
-        _LOGGER.debug("IMAGE_TLV_SHA256: %s", image_tlv_sha256)
+        _LOGGER.info("Image tlv sha256: %s", image_tlv_sha256)
     except TLVNotFound as exc:
         raise EsphomeError("Could not find IMAGE_TLV_SHA256 in image.") from exc
     return image_tlv_sha256.value
@@ -98,7 +101,20 @@ async def _smpmgr_upload(device: str, firmware: Path) -> None:
         if len(image_state.images) == 0:
             _LOGGER.warning("No images on device!")
         for image in image_state.images:
-            pprint(image)
+
+            def json_state(o):
+                if isinstance(o, (bytes, bytearray)):
+                    return o.hex()
+                if hasattr(o, "hex"):
+                    return o.hex()
+                if hasattr(o, "__dict__"):
+                    return vars(o)
+                return str(o)
+
+            _LOGGER.info(
+                "Image state:\n%s",
+                json.dumps(image, indent=2, default=json_state),
+            )
             if image.active and not image.confirmed:
                 raise EsphomeError("No free slot. Testing mode but not confirmed yet.")
             if image.hash == image_tlv_sha256:
