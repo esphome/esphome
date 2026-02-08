@@ -583,10 +583,20 @@ class MemoryAnalyzer:
 
         for category in all_categories:
             base = category.removesuffix("_lib").replace("_", "")
-            for lib_name in library_names:
-                if base in lib_name:
-                    mapping[category] = f"{_COMPONENT_PREFIX_LIB}{lib_name}"
-                    break
+            # Collect all libraries whose name contains the base string
+            candidates = [lib_name for lib_name in library_names if base in lib_name]
+            if not candidates:
+                continue
+
+            # Choose a deterministic "best" match:
+            #   1. Prefer exact name matches over substring matches.
+            #   2. Among non-exact matches, prefer the shortest library name.
+            #   3. Break remaining ties lexicographically.
+            best_lib = min(
+                candidates,
+                key=lambda lib_name: (lib_name != base, len(lib_name), lib_name),
+            )
+            mapping[category] = f"{_COMPONENT_PREFIX_LIB}{best_lib}"
 
         if mapping:
             _LOGGER.debug(
@@ -619,11 +629,17 @@ class MemoryAnalyzer:
 
         _LOGGER.info("Parsing linker map file: %s", map_path.name)
 
+        try:
+            map_text = map_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as err:
+            _LOGGER.warning("Failed to read map file: %s", err)
+            return None
+
         symbol_map: dict[str, str] = {}
         current_symbol: str | None = None
         section_prefixes = (".text.", ".rodata.", ".data.", ".bss.", ".literal.")
 
-        for line in map_path.read_text(encoding="utf-8").splitlines():
+        for line in map_text.splitlines():
             # Match section.symbol line: " .text.symbol_name"
             # Single space indent, starts with dot
             if len(line) > 2 and line[0] == " " and line[1] == ".":
