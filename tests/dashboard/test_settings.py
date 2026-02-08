@@ -260,3 +260,18 @@ def test_check_password_both_wrong(auth_settings: DashboardSettings) -> None:
 def test_check_password_no_auth(dashboard_settings: DashboardSettings) -> None:
     """Test check_password returns True when auth is not configured."""
     assert dashboard_settings.check_password("anyone", "anything") is True
+
+
+def test_check_password_ha_addon_no_password(
+    dashboard_settings: DashboardSettings,
+) -> None:
+    """Test check_password doesn't crash in HA add-on mode without a password.
+
+    In HA add-on mode, using_ha_addon_auth can be True while using_password
+    is False, leaving password_hash as b"". This must not raise TypeError
+    in hmac.compare_digest.
+    """
+    dashboard_settings.on_ha_addon = True
+    dashboard_settings.using_password = False
+    # password_hash stays as default b""
+    assert dashboard_settings.check_password("anyone", "anything") is False

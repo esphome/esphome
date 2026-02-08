@@ -32,7 +32,7 @@ class DashboardSettings:
     def __init__(self) -> None:
         """Initialize the dashboard settings."""
         self.config_dir: Path = None
-        self.password_hash: str = ""
+        self.password_hash: bytes = b""
         self.username: str = ""
         self.using_password: bool = False
         self.on_ha_addon: bool = False
@@ -84,7 +84,7 @@ class DashboardSettings:
     def check_password(self, username: str, password: str) -> bool:
         if not self.using_auth:
             return True
-        # Compare both in constant running time (to prevent timing attacks)
+        # Compare in constant running time (to prevent timing attacks)
         username_matches = hmac.compare_digest(username, self.username)
         password_matches = hmac.compare_digest(
             self.password_hash, password_hash(password)
