@@ -422,7 +422,7 @@ async def test_download_binary_handler_idedata_fallback(
 
     # Mock idedata response
     mock_image = Mock()
-    mock_image.path = str(bootloader_file)
+    mock_image.path = bootloader_file
     mock_idedata_instance = Mock()
     mock_idedata_instance.extra_flash_images = [mock_image]
     mock_idedata.return_value = mock_idedata_instance
