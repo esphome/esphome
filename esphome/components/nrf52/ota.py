@@ -86,9 +86,7 @@ async def _smpmgr_upload(config: ConfigType, device: str, firmware: Path) -> Non
 
     try:
         image_state = await smp_client.request(ImageStatesRead(), 2.5)
-    except SMPBadStartDelimiter as exc:
-        raise EsphomeError(f"mcumgr is not supported by device ({device})") from exc
-    except TimeoutError as exc:
+    except (SMPBadStartDelimiter, TimeoutError) as exc:
         raise EsphomeError(f"mcumgr is not supported by device ({device})") from exc
 
     already_uploaded = False
