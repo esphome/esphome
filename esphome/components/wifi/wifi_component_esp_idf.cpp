@@ -710,6 +710,9 @@ void WiFiComponent::wifi_loop_() {
     delete data;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
+// Events are processed from queue in main loop context, but listener notifications
+// must be deferred until after the state machine transitions (in check_connecting_finished)
+// so that conditions like wifi.connected return correct values in automations.
 void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   esp_err_t err;
   if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_START) {
@@ -743,16 +746,14 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
     s_sta_connected = true;
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
-    }
+    // Defer listener notification until state machine reaches STA_CONNECTED
+    // This ensures wifi.connected condition returns true in listener automations
+    this->pending_.connect_state = true;
 #endif
     // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
     if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
+      this->notify_ip_state_listeners_();
     }
 #endif
 
@@ -776,10 +777,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connecting = false;
     error_from_callback_ = true;
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    static constexpr uint8_t EMPTY_BSSID[6] = {};
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
-    }
+    this->notify_disconnect_state_listeners_();
 #endif
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
@@ -790,9 +788,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-    for (auto *listener : this->ip_state_listeners_) {
-      listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-    }
+    this->notify_ip_state_listeners_();
 #endif
 
 #if USE_NETWORK_IPV6
@@ -801,9 +797,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
     this->num_ipv6_addresses_++;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-    for (auto *listener : this->ip_state_listeners_) {
-      listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-    }
+    this->notify_ip_state_listeners_();
 #endif
 #endif /* USE_NETWORK_IPV6 */
 
@@ -880,9 +874,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),
              needs_full ? "" : " (filtered)");
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
-    for (auto *listener : this->scan_results_listeners_) {
-      listener->on_wifi_scan_results(this->scan_result_);
-    }
+    this->notify_scan_results_listeners_();
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_START) {
