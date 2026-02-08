@@ -11,6 +11,8 @@ namespace esphome::logger {
 // "0x" + 2 hex digits per byte + '\0'
 static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
 
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+
 extern __thread bool non_main_task_recursion_guard_;
 
 class TaskLogBufferZephyr {
@@ -58,6 +60,8 @@ class TaskLogBufferZephyr {
   mpsc_pbuf_buffer log_buffer_{};
   const mpsc_pbuf_generic *current_token_{};
 };
+
+#endif
 
 }  // namespace esphome::logger
 

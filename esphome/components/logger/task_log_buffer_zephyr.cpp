@@ -2,6 +2,8 @@
 
 #include "task_log_buffer_zephyr.h"
 
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+
 namespace esphome::logger {
 
 __thread bool non_main_task_recursion_guard_;
@@ -112,4 +114,5 @@ void TaskLogBufferZephyr::release_message_main_loop() {
 }
 }  // namespace esphome::logger
 
+#endif
 #endif

@@ -12,17 +12,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-#ifdef USE_HOST
+// all those headers are ifdef inside
 #include "task_log_buffer_host.h"
-#elif defined(USE_ESP32)
 #include "task_log_buffer_esp32.h"
-#elif defined(USE_LIBRETINY)
 #include "task_log_buffer_libretiny.h"
-#elif defined(USE_ZEPHYR)
 #include "task_log_buffer_zephyr.h"
-#endif
-#endif
 
 #ifdef USE_ARDUINO
 #if defined(USE_ESP8266)
