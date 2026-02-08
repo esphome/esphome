@@ -42,6 +42,7 @@ DEPENDENCIES = ["spi"]
 
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
+CONF_CS1_PIN = "cs1_pin"
 
 epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
@@ -98,6 +99,10 @@ def model_schema(config):
             cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
             model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(
+                CONF_CS1_PIN,
+                default=model.get_default(CONF_CS1_PIN, cv.UNDEFINED),
+            ): pins.gpio_output_pin_schema,
             model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
             model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.GenerateID(): cv.declare_id(class_name),
@@ -138,6 +143,15 @@ def _final_validate(config):
     spi.final_validate_device_schema(
         "epaper_spi", require_miso=False, require_mosi=True
     )(config)
+
+    model = MODELS[config[CONF_MODEL]]
+    supports_cs1 = model.class_name == "EPaperT133A01"
+    if CONF_CS1_PIN in config and not supports_cs1:
+        raise cv.Invalid(
+            "'cs1_pin' is only supported by T133A01-based epaper_spi models"
+        )
+    if supports_cs1 and CONF_CS1_PIN not in config:
+        raise cv.Invalid("'cs1_pin' is required for this epaper_spi model")
 
     global_config = full_config.get()
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
@@ -186,6 +200,17 @@ async def to_code(config):
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
+
+    if cs1_pin := config.get(CONF_CS1_PIN):
+        cs1 = await cg.gpio_pin_expression(cs1_pin)
+        cg.add(var.set_cs1_pin(cs1))
+
+    if model.class_name == "EPaperT133A01" and (
+        enable_pins := config.get(CONF_ENABLE_PIN)
+    ):
+        for pin in enable_pins:
+            enable = await cg.gpio_pin_expression(pin)
+            cg.add(var.add_enable_pin(enable))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(

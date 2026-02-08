@@ -96,7 +96,11 @@ def test_all_predefined_models(
     # Test all models, providing default values where necessary
     for name, model in MODELS.items():
         # SEEED models are designed for ESP32-S3 hardware
-        if name in ("SEEED-EE04-MONO-4.26", "SEEED-RETERMINAL-E1002"):
+        if name in (
+            "SEEED-EE04-MONO-4.26",
+            "SEEED-RETERMINAL-E1002",
+            "SEEED-XIAO-EPAPER-13.3IN",
+        ):
             set_core_config(
                 PlatformFramework.ESP32_IDF,
                 platform_data={
@@ -155,7 +159,11 @@ def test_individual_models(
 ) -> None:
     """Test each epaper model individually to ensure it validates correctly."""
     # SEEED models are designed for ESP32-S3 hardware
-    if model_name in ("SEEED-EE04-MONO-4.26", "SEEED-RETERMINAL-E1002"):
+    if model_name in (
+        "SEEED-EE04-MONO-4.26",
+        "SEEED-RETERMINAL-E1002",
+        "SEEED-XIAO-EPAPER-13.3IN",
+    ):
         set_core_config(
             PlatformFramework.ESP32_IDF,
             platform_data={

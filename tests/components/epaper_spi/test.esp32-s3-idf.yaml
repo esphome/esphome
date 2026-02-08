@@ -64,3 +64,17 @@ display:
     # Override pins to avoid conflict with other display configs
     busy_pin: 43
     dc_pin: 42
+
+  - platform: epaper_spi
+    model: t133a01
+    dimensions:
+      width: 1200
+      height: 1600
+    cs_pin: GPIO15
+    cs1_pin: GPIO18
+    dc_pin: GPIO19
+    reset_pin: GPIO20
+    busy_pin:
+      number: GPIO21
+      inverted: true
+    enable_pin: GPIO14
