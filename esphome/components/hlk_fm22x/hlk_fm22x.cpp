@@ -135,7 +135,8 @@ void HlkFm22xComponent::recv_command_() {
 
   if (length > HLK_FM22X_MAX_RESPONSE_SIZE) {
     ESP_LOGE(TAG, "Response too large: %u bytes", length);
-    while (this->available())
+    // Discard exactly the remaining payload and checksum for this frame
+    for (uint16_t i = 0; i < length + 1 && this->available(); ++i)
       this->read();
     return;
   }
