@@ -57,10 +57,9 @@ IS_TARGET_PLATFORM = True
 # called unconditionally by the SDK. ESPHome doesn't use BLE on LibreTiny.
 #
 # This only works on BK7231N (BLE 5.x). Other BK72XX chips using BLE 4.2
-# (BK7231T, BK7231Q, BK7251) cannot disable BLE via custom_options because
-# the LibreTiny builder reads CFG_SUPPORT_BLE from the sys_config file at
-# build-script time to decide which sources to compile - the custom_options
-# override only affects C preprocessor defines, not the builder's Python logic.
+# (BK7231T, BK7231Q, BK7251; BK7252 boards use the BK7251 family) have a bug
+# where the BLE library still links and references undefined symbols when
+# CFG_SUPPORT_BLE=0.
 #
 # Other options like CFG_TX_EVM_TEST, CFG_RX_SENSITIVITY_TEST, CFG_SUPPORT_BKREG,
 # CFG_SUPPORT_OTA_HTTP, and CFG_USE_SPI_SLAVE were evaluated but provide no  # NOLINT
@@ -193,16 +192,15 @@ def _notify_old_style(config):
 
 # The dev and latest branches will be at *least* this version, which is what matters.
 # Use GitHub releases directly to avoid PlatformIO moderation delays.
-# TODO: Revert to v1.12.0 tag once https://github.com/libretiny-eu/libretiny/pull/361 is released
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(1, 12, 0), "https://github.com/libretiny-eu/libretiny.git"),
+    "dev": (cv.Version(1, 12, 1), "https://github.com/libretiny-eu/libretiny.git"),
     "latest": (
-        cv.Version(1, 12, 0),
-        "https://github.com/bdraco/libretiny.git#39f407a",
+        cv.Version(1, 12, 1),
+        "https://github.com/libretiny-eu/libretiny.git#v1.12.1",
     ),
     "recommended": (
-        cv.Version(1, 12, 0),
-        "https://github.com/bdraco/libretiny.git#39f407a",
+        cv.Version(1, 12, 1),
+        "https://github.com/libretiny-eu/libretiny.git#v1.12.1",
     ),
 }
 
