@@ -623,7 +623,7 @@ class MemoryAnalyzer:
         current_symbol: str | None = None
         section_prefixes = (".text.", ".rodata.", ".data.", ".bss.", ".literal.")
 
-        for line in map_path.read_text().splitlines():
+        for line in map_path.read_text(encoding="utf-8").splitlines():
             # Match section.symbol line: " .text.symbol_name"
             # Single space indent, starts with dot
             if len(line) > 2 and line[0] == " " and line[1] == ".":
