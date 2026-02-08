@@ -1699,25 +1699,22 @@ def mock_auth_settings(mock_dashboard_settings: MagicMock) -> MagicMock:
     return mock_dashboard_settings
 
 
-def test_is_authenticated_malformed_base64(
-    mock_auth_settings: MagicMock,
-) -> None:
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_malformed_base64() -> None:
     """Test that invalid base64 in Authorization header returns False."""
     handler = _make_auth_handler("Basic !!!not-valid-base64!!!")
     assert web_server.is_authenticated(handler) is False
 
 
-def test_is_authenticated_bad_base64_padding(
-    mock_auth_settings: MagicMock,
-) -> None:
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_bad_base64_padding() -> None:
     """Test that incorrect base64 padding (binascii.Error) returns False."""
     handler = _make_auth_handler("Basic abc")
     assert web_server.is_authenticated(handler) is False
 
 
-def test_is_authenticated_invalid_utf8(
-    mock_auth_settings: MagicMock,
-) -> None:
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_invalid_utf8() -> None:
     """Test that base64 decoding to invalid UTF-8 returns False."""
     # \xff\xfe is invalid UTF-8
     bad_payload = base64.b64encode(b"\xff\xfe").decode("ascii")
@@ -1725,9 +1722,8 @@ def test_is_authenticated_invalid_utf8(
     assert web_server.is_authenticated(handler) is False
 
 
-def test_is_authenticated_no_colon(
-    mock_auth_settings: MagicMock,
-) -> None:
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_no_colon() -> None:
     """Test that base64 payload without ':' separator returns False."""
     no_colon = base64.b64encode(b"nocolonhere").decode("ascii")
     handler = _make_auth_handler(f"Basic {no_colon}")
