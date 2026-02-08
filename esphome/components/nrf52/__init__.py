@@ -374,9 +374,9 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         mcumgr_device = host
 
     if mcumgr_device:
-        firmware = os.path.abspath(
+        firmware = Path(
             CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
-        )
+        ).resolve()
         asyncio.run(smpmgr_upload(mcumgr_device, firmware))
         handled = True
 
