@@ -20,7 +20,7 @@ class FendtSensor : public CaravanSensorBase<float>, public sensor::Sensor {
   }
 
  protected:
-  void on_decoded_(const float value) override;
+  void on_decoded(float value) override;
 
  private:
 };

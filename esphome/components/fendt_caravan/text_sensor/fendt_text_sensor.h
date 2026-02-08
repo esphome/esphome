@@ -24,7 +24,7 @@ class FendtTextSensor : public CaravanSensorBase<std::string>, public text_senso
   }
 
  protected:
-  void on_decoded_(const std::string value) override;
+  void on_decoded(std::string value) override;
 };
 }  // namespace esphome::fendt_caravan
 #endif

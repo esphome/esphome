@@ -33,7 +33,7 @@ class FendtLightOutput : public CaravanSensorBase<LampStateT>, public light::Lig
   void setup_state(light::LightState *state) override { this->light_state_ = state; }
 
  protected:
-  void on_decoded_(const LampStateT state) override;
+  void on_decoded(LampStateT state) override;
 
  private:
   CallbackManager<void(FendtLightOutput *, LampStateT state)> on_state_change_{};

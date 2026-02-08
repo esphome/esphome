@@ -28,7 +28,7 @@ class FendtSelect : public CaravanSensorBase<std::string>, public select::Select
       this->variable_->set_value(value);
     this->on_state_change_.call(this, value);
   }
-  void on_decoded_(const std::string value) override { this->publish_state(value); }
+  void on_decoded(std::string value) override { this->publish_state(value); }
 
  private:
   CallbackManager<void(FendtSelect *, std::string state)> on_state_change_{};

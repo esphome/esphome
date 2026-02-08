@@ -11,7 +11,7 @@ template<typename T> class CaravanSensorBase : public Component, public Parented
  public:
   void set_variable(Variable<T> *variable) {
     this->variable_ = variable;
-    this->variable_->set_on_decode_callback(std::bind(&CaravanSensorBase::on_decoded_, this, std::placeholders::_1));
+    this->variable_->set_on_decode_callback(std::bind(&CaravanSensorBase::on_decoded, this, std::placeholders::_1));
   }
 
   Variable<T> *get_variable() { return this->variable_; }
@@ -29,7 +29,7 @@ template<typename T> class CaravanSensorBase : public Component, public Parented
   void setup() override = 0;
 
  protected:
-  virtual void on_decoded_(const T value) {}
+  virtual void on_decoded(T value) {}
   Variable<T> *variable_{nullptr};
   std::string key_name_{""};
 };
