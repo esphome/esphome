@@ -28,7 +28,7 @@ def _validate_transport(conf):
     if transport[CONF_BLE] or CONF_HARDWARE_UART in transport:
         return conf
     raise cv.Invalid(
-        f"At least one trasnport protocol has to be enabled. Set '{CONF_BLE}' or '{CONF_HARDWARE_UART}'"
+        f"At least one transport protocol has to be enabled. Set '{CONF_BLE}' or '{CONF_HARDWARE_UART}'"
     )
 
 
