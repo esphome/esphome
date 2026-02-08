@@ -2930,8 +2930,8 @@ static const char *const TAG = "api.service";
     out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {{\n"
 
     # Auth check block before dispatch switch
+    out += "  // Check authentication/connection requirements\n"
     if no_conn_ids or conn_only_ids:
-        out += "  // Check authentication/connection requirements\n"
         out += "  switch (msg_type) {\n"
 
         if no_conn_ids:
@@ -2950,6 +2950,10 @@ static const char *const TAG = "api.service";
         out += "        return;\n"
         out += "      }\n"
         out += "      break;\n"
+        out += "  }\n"
+    else:
+        out += "  if (!this->check_authenticated_()) {\n"
+        out += "    return;\n"
         out += "  }\n"
 
     # Dispatch switch
