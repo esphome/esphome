@@ -1,9 +1,0 @@
-substitutions:
-  dc_pin: GPIO15
-  cs_pin: GPIO5
-
-packages:
-  spi: !include ../../test_build_components/common/spi/esp32-ard.yaml
-  i2c: !include ../../test_build_components/common/i2c/esp32-ard.yaml
-
-<<: !include common.yaml

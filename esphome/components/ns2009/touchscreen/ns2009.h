@@ -5,13 +5,12 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ns2009 {
+namespace esphome::ns2009 {
 
 class NS2009Component : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
   /// Set the threshold for the touch detection.
-  void set_threshold(int8_t threshold) { this->threshold_ = threshold; }
+  void set_threshold(uint8_t threshold) { this->threshold_ = threshold; }
 
   /// @brief Initialize the NS2009 touchscreen.
   ///
@@ -21,7 +20,6 @@ class NS2009Component : public touchscreen::Touchscreen, public i2c::I2CDevice {
   /// On failure, calls @ref mark_failed() with an appropriate error message.
   void setup() override;
   void dump_config() override;
-  bool can_proceed() override { return this->setup_done_; }
 
  protected:
   void update_touches() override;
@@ -33,5 +31,4 @@ class NS2009Component : public touchscreen::Touchscreen, public i2c::I2CDevice {
   uint8_t threshold_{40};
 };
 
-}  // namespace ns2009
-}  // namespace esphome
+}  // namespace esphome::ns2009

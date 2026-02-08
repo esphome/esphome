@@ -19,7 +19,7 @@ CONFIG_SCHEMA = cv.All(
         cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(NS2009Component),
-                cv.Optional(CONF_THRESHOLD, default=40): cv.int_range(min=0, max=255),
+                cv.Optional(CONF_THRESHOLD, default=40): cv.uint8_t,
             }
         )
     )
