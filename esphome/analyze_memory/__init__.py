@@ -449,7 +449,9 @@ class MemoryAnalyzer:
                 continue
 
             # Determine readable source path
-            if ":" in file_path:
+            # Use ".a:" to detect archive format (not bare ":" which matches
+            # Windows drive letters like "C:\...\file.o").
+            if ".a:" in file_path:
                 # Archive format: "archive.a:member.o" → "archive_stem/member.o"
                 archive_part, member = file_path.rsplit(":", 1)
                 archive_name = Path(archive_part).stem
@@ -489,6 +491,10 @@ class MemoryAnalyzer:
             timeout=30,
         )
         if result is None or result.returncode != 0:
+            _LOGGER.debug(
+                "nm failed or timed out scanning %d files for CSWTCH symbols",
+                len(files),
+            )
             return
 
         self._parse_nm_cswtch_output(result.stdout, base_dir, cswtch_map)
