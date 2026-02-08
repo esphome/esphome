@@ -397,18 +397,22 @@ class MemoryAnalyzer:
 
         return "Other Core"
 
-    def _discover_pio_libraries(self) -> dict[str, Path]:
+    def _discover_pio_libraries(
+        self,
+        libraries: dict[str, Path],
+        hash_to_name: dict[str, str],
+    ) -> None:
         """Discover PlatformIO third-party libraries from the build directory.
 
         Scans ``lib<hex>/`` directories under ``.pioenvs/<env>/`` to find
         library names and their ``.a`` archive paths.
 
-        Returns:
-            Dictionary mapping lowercase library name to ``.a`` file path.
+        Args:
+            libraries: Dict to populate with library name -> ``.a`` path mappings.
+            hash_to_name: Dict to populate with dir name -> library name mappings
+                for CSWTCH attribution (e.g., ``lib641`` -> ``espsoftwareserial``).
         """
-        # The ELF is typically at .pioenvs/<env>/firmware.elf
         build_dir = self.elf_path.parent
-        libraries: dict[str, Path] = {}
 
         for entry in build_dir.iterdir():
             if not entry.is_dir() or not entry.name.startswith("lib"):
@@ -427,6 +431,7 @@ class MemoryAnalyzer:
             for lib_subdir in entry.iterdir():
                 if not lib_subdir.is_dir():
                     continue
+                lib_name = lib_subdir.name.lower()
                 # The .a file is named lib<LibraryName>.a (case-insensitive match)
                 # e.g., lib72a/ESPAsyncTCP/... has lib72a/libESPAsyncTCP.a
                 archive = entry / f"lib{lib_subdir.name}.a"
@@ -435,14 +440,57 @@ class MemoryAnalyzer:
                     archives = list(entry.glob("*.a"))
                     archive = archives[0] if archives else None
                 if archive and archive.exists():
-                    libraries[lib_subdir.name.lower()] = archive
+                    libraries[lib_name] = archive
+                    hash_to_name[entry.name] = lib_name
                     _LOGGER.debug(
                         "Discovered PlatformIO library: %s -> %s",
                         lib_subdir.name,
                         archive,
                     )
 
-        return libraries
+    def _discover_idf_managed_components(
+        self,
+        libraries: dict[str, Path],
+        hash_to_name: dict[str, str],
+    ) -> None:
+        """Discover ESP-IDF managed component libraries from the build directory.
+
+        ESP-IDF managed components (from the IDF component registry) use a
+        ``<vendor>__<name>`` naming convention. Source files live under
+        ``managed_components/<vendor>__<name>/`` and the compiled archives are at
+        ``esp-idf/<vendor>__<name>/lib<vendor>__<name>.a``.
+
+        Args:
+            libraries: Dict to populate with library name -> ``.a`` path mappings.
+            hash_to_name: Dict to populate with dir name -> library name mappings
+                for CSWTCH attribution (e.g., ``espressif__mdns`` -> ``mdns``).
+        """
+        build_dir = self.elf_path.parent
+
+        managed_dir = build_dir / "managed_components"
+        if not managed_dir.is_dir():
+            return
+
+        espidf_dir = build_dir / "esp-idf"
+
+        for entry in managed_dir.iterdir():
+            if not entry.is_dir() or "__" not in entry.name:
+                continue
+
+            # Extract the short name: espressif__mdns -> mdns
+            full_name = entry.name  # e.g., espressif__mdns
+            short_name = full_name.split("__", 1)[1].lower()
+
+            # Find the .a archive under esp-idf/<vendor>__<name>/
+            archive = espidf_dir / full_name / f"lib{full_name}.a"
+            if archive.exists():
+                libraries[short_name] = archive
+                hash_to_name[full_name] = short_name
+                _LOGGER.debug(
+                    "Discovered IDF managed component: %s -> %s",
+                    short_name,
+                    archive,
+                )
 
     def _build_library_symbol_map(self, libraries: dict[str, Path]) -> dict[str, str]:
         """Build a symbol-to-library mapping from library archives.
@@ -484,41 +532,28 @@ class MemoryAnalyzer:
         return symbol_map
 
     def _scan_pio_libraries(self) -> None:
-        """Discover PlatformIO libraries and build symbol mapping.
+        """Discover third-party libraries and build symbol mapping.
 
-        Orchestrates library discovery, symbol map construction, and
-        hash-to-name mapping for CSWTCH attribution.
+        Scans both PlatformIO ``lib<hex>/`` directories (Arduino builds) and
+        ESP-IDF ``managed_components/`` (IDF builds) to find library archives.
+        Orchestrates symbol map construction and hash-to-name mapping for
+        CSWTCH attribution.
         """
-        libraries = self._discover_pio_libraries()
+        libraries: dict[str, Path] = {}
+        self._discover_pio_libraries(libraries, self._lib_hash_to_name)
+        self._discover_idf_managed_components(libraries, self._lib_hash_to_name)
+
         if not libraries:
-            _LOGGER.debug("No PlatformIO third-party libraries found")
+            _LOGGER.debug("No third-party libraries found")
             return
 
         _LOGGER.info(
-            "Scanning %d PlatformIO libraries: %s",
+            "Scanning %d libraries: %s",
             len(libraries),
             ", ".join(sorted(libraries)),
         )
 
         self._lib_symbol_map = self._build_library_symbol_map(libraries)
-
-        # Build hash-to-name mapping for CSWTCH attribution
-        # e.g., lib641 -> espsoftwareserial
-        build_dir = self.elf_path.parent
-        for entry in build_dir.iterdir():
-            if not entry.is_dir() or not entry.name.startswith("lib"):
-                continue
-            hex_part = entry.name[3:]
-            if not hex_part:
-                continue
-            try:
-                int(hex_part, 16)
-            except ValueError:
-                continue
-            for lib_subdir in entry.iterdir():
-                if lib_subdir.is_dir():
-                    self._lib_hash_to_name[entry.name] = lib_subdir.name.lower()
-                    break
 
         _LOGGER.info(
             "Built library symbol map: %d symbols from %d libraries",
@@ -705,6 +740,14 @@ class MemoryAnalyzer:
         # e.g., lib65b/ESPAsyncTCP/... -> [lib]espasynctcp
         if parts and parts[0] in self._lib_hash_to_name:
             return f"{_COMPONENT_PREFIX_LIB}{self._lib_hash_to_name[parts[0]]}"
+
+        # ESP-IDF managed components: managed_components/espressif__mdns/... -> [lib]mdns
+        if (
+            len(parts) >= 2
+            and parts[0] == "managed_components"
+            and parts[1] in self._lib_hash_to_name
+        ):
+            return f"{_COMPONENT_PREFIX_LIB}{self._lib_hash_to_name[parts[1]]}"
 
         # Other framework/library files - return the first path component
         # e.g., FrameworkArduino/... -> FrameworkArduino
