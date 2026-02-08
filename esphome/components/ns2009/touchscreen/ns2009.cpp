@@ -57,6 +57,10 @@ void NS2009Component::update_touches() {
         ESP_LOGW(TAG, "Failed to read Y position, skipping touch update");
         return;
       }
+      uint16_t y = encode_uint16((*data_y)[0], (*data_y)[1]) >> 4;  // 12 bit followed by 4 0's
+
+      ESP_LOGV(TAG, "X %4d   Y %4d   Z %3d", x, y, z);
+      this->add_raw_touch_position_(0, x, y, z);
     }
   } else {
     ESP_LOGW(TAG, "Failed to read Z position, skipping touch update");
