@@ -137,8 +137,7 @@ CONFIG_SCHEMA = cv.Schema(
 @coroutine_with_priority(CoroPriority.NETWORK)
 async def to_code(config):
     cg.add_define("USE_NETWORK")
-    if CORE.using_arduino and CORE.is_esp32:
-        cg.add_library("Networking", None)
+    # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
 
     # Apply high performance networking settings
     # Config can explicitly enable/disable, or default to component-driven behavior
@@ -156,7 +155,7 @@ async def to_code(config):
             "High performance networking disabled by user configuration (overriding component request)"
         )
 
-    if CORE.is_esp32 and CORE.using_esp_idf and should_enable:
+    if CORE.is_esp32 and should_enable:
         # Check if PSRAM is guaranteed (set by psram component during final validation)
         psram_guaranteed = psram_is_guaranteed()
 
@@ -210,12 +209,12 @@ async def to_code(config):
                 "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
             )
         if CORE.is_esp32:
-            if CORE.using_esp_idf:
-                add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
-                add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
-            else:
+            if CORE.using_arduino:
                 add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", True)
                 add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", True)
+            else:
+                add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
+                add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
         elif enable_ipv6:
             cg.add_build_flag("-DCONFIG_LWIP_IPV6")
             cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")

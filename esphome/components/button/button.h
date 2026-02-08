@@ -41,7 +41,7 @@ class Button : public EntityBase, public EntityBase_DeviceClass {
    */
   virtual void press_action() = 0;
 
-  CallbackManager<void()> press_callback_{};
+  LazyCallbackManager<void()> press_callback_{};
 };
 
 }  // namespace esphome::button

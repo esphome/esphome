@@ -21,9 +21,11 @@ void EspLdo::setup() {
   }
 }
 void EspLdo::dump_config() {
-  ESP_LOGCONFIG(TAG, "ESP LDO Channel %d:", this->channel_);
-  ESP_LOGCONFIG(TAG, "  Voltage: %fV", this->voltage_);
-  ESP_LOGCONFIG(TAG, "  Adjustable: %s", YESNO(this->adjustable_));
+  ESP_LOGCONFIG(TAG,
+                "ESP LDO Channel %d:\n"
+                "  Voltage: %fV\n"
+                "  Adjustable: %s",
+                this->channel_, this->voltage_, YESNO(this->adjustable_));
 }
 
 void EspLdo::adjust_voltage(float voltage) {

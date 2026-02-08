@@ -11,22 +11,6 @@
 namespace esphome {
 namespace i2c {
 
-/// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
-template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
- public:
-  uint8_t *get(size_t size) {
-    if (size <= STACK_SIZE) {
-      return this->stack_buffer_;
-    }
-    this->heap_buffer_ = std::unique_ptr<uint8_t[]>(new uint8_t[size]);
-    return this->heap_buffer_.get();
-  }
-
- private:
-  uint8_t stack_buffer_[STACK_SIZE];
-  std::unique_ptr<uint8_t[]> heap_buffer_;
-};
-
 /// @brief Error codes returned by I2CBus and I2CDevice methods
 enum ErrorCode {
   NO_ERROR = 0,                ///< No error found during execution of method
@@ -92,8 +76,8 @@ class I2CBus {
       total_len += read_buffers[i].len;
     }
 
-    SmallBufferWithHeapFallback<128> buffer_alloc;  // Most I2C reads are small
-    uint8_t *buffer = buffer_alloc.get(total_len);
+    SmallBufferWithHeapFallback<128> buffer_alloc(total_len);  // Most I2C reads are small
+    uint8_t *buffer = buffer_alloc.get();
 
     auto err = this->write_readv(address, nullptr, 0, buffer, total_len);
     if (err != ERROR_OK)
@@ -116,8 +100,8 @@ class I2CBus {
       total_len += write_buffers[i].len;
     }
 
-    SmallBufferWithHeapFallback<128> buffer_alloc;  // Most I2C writes are small
-    uint8_t *buffer = buffer_alloc.get(total_len);
+    SmallBufferWithHeapFallback<128> buffer_alloc(total_len);  // Most I2C writes are small
+    uint8_t *buffer = buffer_alloc.get();
 
     size_t pos = 0;
     for (size_t i = 0; i != count; i++) {

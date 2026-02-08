@@ -1,4 +1,5 @@
 #include "fingerprint_grow.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -532,14 +533,21 @@ void FingerprintGrowComponent::sensor_sleep_() {
 }
 
 void FingerprintGrowComponent::dump_config() {
+  char sensing_pin_buf[GPIO_SUMMARY_MAX_LEN];
+  char power_pin_buf[GPIO_SUMMARY_MAX_LEN];
+  if (this->has_sensing_pin_) {
+    this->sensing_pin_->dump_summary(sensing_pin_buf, sizeof(sensing_pin_buf));
+  }
+  if (this->has_power_pin_) {
+    this->sensor_power_pin_->dump_summary(power_pin_buf, sizeof(power_pin_buf));
+  }
   ESP_LOGCONFIG(TAG,
                 "GROW_FINGERPRINT_READER:\n"
                 "  System Identifier Code: 0x%.4X\n"
                 "  Touch Sensing Pin: %s\n"
                 "  Sensor Power Pin: %s",
-                this->system_identifier_code_,
-                this->has_sensing_pin_ ? this->sensing_pin_->dump_summary().c_str() : "None",
-                this->has_power_pin_ ? this->sensor_power_pin_->dump_summary().c_str() : "None");
+                this->system_identifier_code_, this->has_sensing_pin_ ? sensing_pin_buf : "None",
+                this->has_power_pin_ ? power_pin_buf : "None");
   if (this->idle_period_to_sleep_ms_ < UINT32_MAX) {
     ESP_LOGCONFIG(TAG, "  Idle Period to Sleep: %" PRIu32 " ms", this->idle_period_to_sleep_ms_);
   } else {

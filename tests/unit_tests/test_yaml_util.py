@@ -278,3 +278,31 @@ def test_secret_values_tracking(fixture_path: Path) -> None:
     assert yaml_util._SECRET_VALUES["super_secret_wifi"] == "wifi_password"
     assert "0123456789abcdef" in yaml_util._SECRET_VALUES
     assert yaml_util._SECRET_VALUES["0123456789abcdef"] == "api_key"
+
+
+def test_dump_sort_keys() -> None:
+    """Test that dump with sort_keys=True produces sorted output."""
+    # Create a dict with unsorted keys
+    data = {
+        "zebra": 1,
+        "alpha": 2,
+        "nested": {
+            "z_key": "z_value",
+            "a_key": "a_value",
+        },
+    }
+
+    # Without sort_keys, keys are in insertion order
+    unsorted = yaml_util.dump(data, sort_keys=False)
+    lines_unsorted = unsorted.strip().split("\n")
+    # First key should be "zebra" (insertion order)
+    assert lines_unsorted[0].startswith("zebra:")
+
+    # With sort_keys, keys are alphabetically sorted
+    sorted_dump = yaml_util.dump(data, sort_keys=True)
+    lines_sorted = sorted_dump.strip().split("\n")
+    # First key should be "alpha" (alphabetical order)
+    assert lines_sorted[0].startswith("alpha:")
+    # nested keys should also be sorted
+    assert "a_key:" in sorted_dump
+    assert sorted_dump.index("a_key:") < sorted_dump.index("z_key:")

@@ -9,6 +9,7 @@ display:
     cs_pin: 20
     dc_pin: 21
     reset_pin: 22
+    data_rate: 20MHz
     invert_colors: true
 
 <<: !include common.yaml

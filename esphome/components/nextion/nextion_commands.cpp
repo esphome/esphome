@@ -143,12 +143,12 @@ void Nextion::set_component_pressed_font_color(const char *component, Color colo
 }
 
 // Set picture
-void Nextion::set_component_pic(const char *component, uint8_t pic_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.pic=%" PRIu8, component, pic_id);
+void Nextion::set_component_pic(const char *component, uint16_t pic_id) {
+  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.pic=%" PRIu16, component, pic_id);
 }
 
-void Nextion::set_component_picc(const char *component, uint8_t pic_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_picc", "%s.picc=%" PRIu8, component, pic_id);
+void Nextion::set_component_picc(const char *component, uint16_t pic_id) {
+  this->add_no_result_to_queue_with_printf_("set_component_picc", "%s.picc=%" PRIu16, component, pic_id);
 }
 
 // Set video
@@ -215,10 +215,6 @@ void Nextion::enable_component_touch(const char *component) {
 
 void Nextion::disable_component_touch(const char *component) {
   this->add_no_result_to_queue_with_printf_("disable_component_touch", "tsw %s,0", component);
-}
-
-void Nextion::set_component_picture(const char *component, uint8_t picture_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_picture", "%s.pic=%" PRIu8, component, picture_id);
 }
 
 void Nextion::set_component_text(const char *component, const char *text) {
@@ -330,14 +326,14 @@ void Nextion::filled_circle(uint16_t center_x, uint16_t center_y, uint16_t radiu
 }
 
 void Nextion::qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size, uint16_t background_color,
-                     uint16_t foreground_color, uint8_t logo_pic, uint8_t border_width) {
+                     uint16_t foreground_color, int32_t logo_pic, uint8_t border_width) {
   this->add_no_result_to_queue_with_printf_(
       "qrcode", "qrcode %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu8 ",%" PRIu8 ",\"%s\"", x1,
       y1, size, background_color, foreground_color, logo_pic, border_width, content);
 }
 
 void Nextion::qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size, Color background_color,
-                     Color foreground_color, uint8_t logo_pic, uint8_t border_width) {
+                     Color foreground_color, int32_t logo_pic, uint8_t border_width) {
   this->add_no_result_to_queue_with_printf_(
       "qrcode", "qrcode %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu8 ",%" PRIu8 ",\"%s\"", x1,
       y1, size, display::ColorUtil::color_to_565(background_color), display::ColorUtil::color_to_565(foreground_color),

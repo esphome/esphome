@@ -1,0 +1,4 @@
+packages:
+  uart_2400: !include ../../test_build_components/common/uart_2400/esp8266-ard.yaml
+
+<<: !include common-generic.yaml

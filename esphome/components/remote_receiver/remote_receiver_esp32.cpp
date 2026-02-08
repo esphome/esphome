@@ -117,9 +117,8 @@ void RemoteReceiverComponent::setup() {
 }
 
 void RemoteReceiverComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Remote Receiver:");
-  LOG_PIN("  Pin: ", this->pin_);
   ESP_LOGCONFIG(TAG,
+                "Remote Receiver:\n"
                 "  Clock resolution: %" PRIu32 " hz\n"
                 "  RMT symbols: %" PRIu32 "\n"
                 "  Filter symbols: %" PRIu32 "\n"
@@ -132,6 +131,7 @@ void RemoteReceiverComponent::dump_config() {
                 this->clock_resolution_, this->rmt_symbols_, this->filter_symbols_, this->receive_symbols_,
                 this->tolerance_, (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? " us" : "%",
                 this->carrier_frequency_, this->carrier_duty_percent_, this->filter_us_, this->idle_us_);
+  LOG_PIN("  Pin: ", this->pin_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Configuring RMT driver failed: %s (%s)", esp_err_to_name(this->error_code_),
              this->error_string_.c_str());

@@ -7,20 +7,63 @@ ESPHOME_COMPONENT_PATTERN = re.compile(r"esphome::([a-zA-Z0-9_]+)::")
 
 # Section mapping for ELF file sections
 # Maps standard section names to their various platform-specific variants
+# Note: Order matters! More specific patterns (.bss) must come before general ones (.dram)
+# because ESP-IDF uses names like ".dram0.bss" which would match ".dram" otherwise
+#
+# Platform-specific sections:
+# - ESP8266/ESP32: .iram*, .dram*
+# - LibreTiny RTL87xx: .xip.code_* (flash), .ram.code_* (RAM)
+# - LibreTiny BK7231: .itcm.code (fast RAM), .vectors (interrupt vectors)
+# - LibreTiny LN882X: .flash_text, .flash_copy* (flash code)
+# - Zephyr/nRF52: text, rodata, datas, bss (no leading dots)
 SECTION_MAPPING = {
-    ".text": frozenset([".text", ".iram"]),
-    ".rodata": frozenset([".rodata"]),
-    ".data": frozenset([".data", ".dram"]),
-    ".bss": frozenset([".bss"]),
-}
-
-# Section to ComponentMemory attribute mapping
-# Maps section names to the attribute name in ComponentMemory dataclass
-SECTION_TO_ATTR = {
-    ".text": "text_size",
-    ".rodata": "rodata_size",
-    ".data": "data_size",
-    ".bss": "bss_size",
+    ".text": frozenset(
+        [
+            ".text",
+            ".iram",
+            # LibreTiny RTL87xx XIP (eXecute In Place) flash code
+            ".xip.code",
+            # LibreTiny RTL87xx RAM code
+            ".ram.code_text",
+            # LibreTiny BK7231 fast RAM code and vectors
+            ".itcm.code",
+            ".vectors",
+            # LibreTiny LN882X flash code
+            ".flash_text",
+            ".flash_copy",
+            # Zephyr/nRF52 sections (no leading dots)
+            "text",
+            "rom_start",
+        ]
+    ),
+    ".rodata": frozenset(
+        [
+            ".rodata",
+            # LibreTiny RTL87xx read-only data in RAM
+            ".ram.code_rodata",
+            # Zephyr/nRF52 sections (no leading dots)
+            "rodata",
+        ]
+    ),
+    # .bss patterns - must be before .data to catch ".dram0.bss"
+    ".bss": frozenset(
+        [
+            ".bss",
+            # LibreTiny LN882X BSS
+            ".bss_ram",
+            # Zephyr/nRF52 sections (no leading dots)
+            "bss",
+            "noinit",
+        ]
+    ),
+    ".data": frozenset(
+        [
+            ".data",
+            ".dram",
+            # Zephyr/nRF52 sections (no leading dots)
+            "datas",
+        ]
+    ),
 }
 
 # Component identification rules
@@ -87,6 +130,77 @@ SYMBOL_PATTERNS = {
         "sys_init",
         "sys_mbox_new",
         "sys_arch_mbox_tryfetch",
+    ],
+    # LibreTiny/Beken BK7231 radio calibration
+    "bk_radio_cal": [
+        "bk7011_",
+        "calibration_main",
+        "gcali_",
+        "rwnx_cal",
+    ],
+    # LibreTiny/Beken WiFi MAC layer
+    "bk_wifi_mac": [
+        "rxu_",  # RX upper layer
+        "txu_",  # TX upper layer
+        "txl_",  # TX lower layer
+        "rxl_",  # RX lower layer
+        "scanu_",  # Scan unit
+        "mm_hw_",  # MAC management hardware
+        "mm_bcn",  # MAC management beacon
+        "mm_tim",  # MAC management TIM
+        "mm_check",  # MAC management checks
+        "sm_connect",  # Station management
+        "me_beacon",  # Management entity beacon
+        "me_build",  # Management entity build
+        "hapd_",  # Host AP daemon
+        "chan_pre_",  # Channel management
+        "handle_probe_",  # Probe handling
+    ],
+    # LibreTiny/Beken system control
+    "bk_system": [
+        "sctrl_",  # System control
+        "icu_ctrl",  # Interrupt control unit
+        "gdma_ctrl",  # DMA control
+        "mpb_ctrl",  # MPB control
+        "uf2_",  # UF2 OTA
+        "bkreg_",  # Beken registers
+    ],
+    # LibreTiny/Beken BLE stack
+    "bk_ble": [
+        "gapc_",  # GAP client
+        "gattc_",  # GATT client
+        "attc_",  # ATT client
+        "attmdb_",  # ATT database
+        "atts_",  # ATT server
+        "l2cc_",  # L2CAP
+        "prf_env",  # Profile environment
+    ],
+    # LibreTiny/Beken scheduler
+    "bk_scheduler": [
+        "sch_plan_",  # Scheduler plan
+        "sch_prog_",  # Scheduler program
+        "sch_arb_",  # Scheduler arbiter
+    ],
+    # LibreTiny/Beken DMA descriptors
+    "bk_dma": [
+        "rx_payload_desc",
+        "rx_dma_hdrdesc",
+        "tx_hw_desc",
+        "host_event_data",
+        "host_cmd_data",
+    ],
+    # ARM EABI compiler runtime (LibreTiny uses ARM Cortex-M)
+    "arm_runtime": [
+        "__aeabi_",
+        "__adddf3",
+        "__subdf3",
+        "__muldf3",
+        "__divdf3",
+        "__addsf3",
+        "__subsf3",
+        "__mulsf3",
+        "__divsf3",
+        "__gnu_unwind",
     ],
     "xtensa": ["xt_", "_xt_", "xPortEnterCriticalTimeout"],
     "heap": ["heap_", "multi_heap"],
@@ -390,7 +504,9 @@ SYMBOL_PATTERNS = {
         "__FUNCTION__$",
         "DAYS_IN_MONTH",
         "_DAYS_BEFORE_MONTH",
-        "CSWTCH$",
+        # Note: CSWTCH$ symbols are GCC switch table lookup tables.
+        # They are attributed to their source object files via _analyze_cswtch_symbols()
+        # rather than being lumped into libc.
         "dst$",
         "sulp",
         "_strtol_l",  # String to long with locale
@@ -782,7 +898,22 @@ SYMBOL_PATTERNS = {
     "math_internal": ["__mdiff", "__lshift", "__mprec_tens", "quorem"],
     "character_class": ["__chclass"],
     "camellia": ["camellia_", "camellia_feistel"],
-    "crypto_tables": ["FSb", "FSb2", "FSb3", "FSb4"],
+    "crypto_tables": [
+        "FSb",
+        "FSb2",
+        "FSb3",
+        "FSb4",
+        "Te0",  # AES encryption table
+        "Td0",  # AES decryption table
+        "crc32_table",  # CRC32 lookup table
+        "crc_tab",  # CRC lookup table
+    ],
+    "crypto_hash": [
+        "SHA1Transform",  # SHA1 hash function
+        "MD5Transform",  # MD5 hash function
+        "SHA256",
+        "SHA512",
+    ],
     "event_buffer": ["g_eb_list_desc", "eb_space"],
     "base_node": ["base_node_", "base_node_add_handler"],
     "file_descriptor": ["s_fd_table"],

@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace time {
+namespace esphome::time {
 
 class CronTrigger : public Trigger<>, public Component {
  public:
@@ -48,5 +47,4 @@ class SyncTrigger : public Trigger<>, public Component {
  protected:
   RealTimeClock *rtc_;
 };
-}  // namespace time
-}  // namespace esphome
+}  // namespace esphome::time

@@ -220,12 +220,12 @@ class PN7160 : public nfc::Nfcc, public Component {
   void select_endpoint_();
 
   uint8_t read_endpoint_data_(nfc::NfcTag &tag);
-  uint8_t clean_endpoint_(std::vector<uint8_t> &uid);
-  uint8_t format_endpoint_(std::vector<uint8_t> &uid);
-  uint8_t write_endpoint_(std::vector<uint8_t> &uid, std::shared_ptr<nfc::NdefMessage> &message);
+  uint8_t clean_endpoint_(nfc::NfcTagUid &uid);
+  uint8_t format_endpoint_(nfc::NfcTagUid &uid);
+  uint8_t write_endpoint_(nfc::NfcTagUid &uid, std::shared_ptr<nfc::NdefMessage> &message);
 
   std::unique_ptr<nfc::NfcTag> build_tag_(uint8_t mode_tech, const std::vector<uint8_t> &data);
-  optional<size_t> find_tag_uid_(const std::vector<uint8_t> &uid);
+  optional<size_t> find_tag_uid_(const nfc::NfcTagUid &uid);
   void purge_old_tags_();
   void erase_tag_(uint8_t tag_index);
 
@@ -268,7 +268,7 @@ class PN7160 : public nfc::Nfcc, public Component {
   uint8_t find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
                                        uint8_t &message_start_index);
   uint8_t write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &write_data);
-  uint8_t write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, const std::shared_ptr<nfc::NdefMessage> &message);
+  uint8_t write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, const std::shared_ptr<nfc::NdefMessage> &message);
   uint8_t clean_mifare_ultralight_();
 
   enum NfcTask : uint8_t {

@@ -5,8 +5,7 @@
 #include "esphome/core/template_lambda.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 class TemplateSwitch final : public switch_::Switch, public Component {
  public:
@@ -16,8 +15,8 @@ class TemplateSwitch final : public switch_::Switch, public Component {
   void dump_config() override;
 
   template<typename F> void set_state_lambda(F &&f) { this->f_.set(std::forward<F>(f)); }
-  Trigger<> *get_turn_on_trigger() const;
-  Trigger<> *get_turn_off_trigger() const;
+  Trigger<> *get_turn_on_trigger();
+  Trigger<> *get_turn_off_trigger();
   void set_optimistic(bool optimistic);
   void set_assumed_state(bool assumed_state);
   void loop() override;
@@ -32,10 +31,9 @@ class TemplateSwitch final : public switch_::Switch, public Component {
   TemplateLambda<bool> f_;
   bool optimistic_{false};
   bool assumed_state_{false};
-  Trigger<> *turn_on_trigger_;
-  Trigger<> *turn_off_trigger_;
-  Trigger<> *prev_trigger_{nullptr};
+  Trigger<> turn_on_trigger_;
+  Trigger<> turn_off_trigger_;
+  Trigger<> *prev_trigger_{nullptr};  // Points to one of the above
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
