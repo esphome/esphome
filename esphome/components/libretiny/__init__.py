@@ -192,16 +192,15 @@ def _notify_old_style(config):
 
 # The dev and latest branches will be at *least* this version, which is what matters.
 # Use GitHub releases directly to avoid PlatformIO moderation delays.
-# TODO: Revert to v1.12.0 tag once https://github.com/libretiny-eu/libretiny/pull/361 is released
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(1, 12, 0), "https://github.com/libretiny-eu/libretiny.git"),
+    "dev": (cv.Version(1, 12, 1), "https://github.com/libretiny-eu/libretiny.git"),
     "latest": (
-        cv.Version(1, 12, 0),
-        "https://github.com/bdraco/libretiny.git#7f52d41",
+        cv.Version(1, 12, 1),
+        "https://github.com/libretiny-eu/libretiny.git#v1.12.1",
     ),
     "recommended": (
-        cv.Version(1, 12, 0),
-        "https://github.com/bdraco/libretiny.git#7f52d41",
+        cv.Version(1, 12, 1),
+        "https://github.com/libretiny-eu/libretiny.git#v1.12.1",
     ),
 }
 
