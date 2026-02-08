@@ -197,11 +197,11 @@ ARDUINO_VERSIONS = {
     "dev": (cv.Version(1, 12, 0), "https://github.com/libretiny-eu/libretiny.git"),
     "latest": (
         cv.Version(1, 12, 0),
-        "https://github.com/bdraco/libretiny.git#93de794",
+        "https://github.com/bdraco/libretiny.git#7f52d41",
     ),
     "recommended": (
         cv.Version(1, 12, 0),
-        "https://github.com/bdraco/libretiny.git#93de794",
+        "https://github.com/bdraco/libretiny.git#7f52d41",
     ),
 }
 
