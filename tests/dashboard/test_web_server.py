@@ -29,7 +29,7 @@ from esphome.dashboard.entries import (
     bool_to_entry_state,
 )
 from esphome.dashboard.models import build_importable_device_dict
-from esphome.dashboard.web_server import DashboardSubscriber
+from esphome.dashboard.web_server import DashboardSubscriber, EsphomeCommandWebSocket
 from esphome.zeroconf import DiscoveredImport
 
 from .common import get_fixture_path
@@ -1904,3 +1904,23 @@ async def test_edit_request_handler_post_without_mtime(
     assert test_file.read_text() == new_content
     # Verify response includes new mtime
     assert "X-File-Mtime" in response.headers
+def test_proc_on_exit_calls_close() -> None:
+    """Test _proc_on_exit sends exit event and closes the WebSocket."""
+    handler = Mock(spec=EsphomeCommandWebSocket)
+    handler._is_closed = False
+
+    EsphomeCommandWebSocket._proc_on_exit(handler, 0)
+
+    handler.write_message.assert_called_once_with({"event": "exit", "code": 0})
+    handler.close.assert_called_once()
+
+
+def test_proc_on_exit_skips_when_already_closed() -> None:
+    """Test _proc_on_exit does nothing when WebSocket is already closed."""
+    handler = Mock(spec=EsphomeCommandWebSocket)
+    handler._is_closed = True
+
+    EsphomeCommandWebSocket._proc_on_exit(handler, 0)
+
+    handler.write_message.assert_not_called()
+    handler.close.assert_not_called()

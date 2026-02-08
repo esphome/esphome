@@ -585,11 +585,13 @@ async def to_code(config):
     await cg.past_safe_mode()
 
     if on_connect_config := config.get(CONF_ON_CONNECT):
+        cg.add_define("USE_WIFI_CONNECT_TRIGGER")
         await automation.build_automation(
             var.get_connect_trigger(), [], on_connect_config
         )
 
     if on_disconnect_config := config.get(CONF_ON_DISCONNECT):
+        cg.add_define("USE_WIFI_DISCONNECT_TRIGGER")
         await automation.build_automation(
             var.get_disconnect_trigger(), [], on_disconnect_config
         )
