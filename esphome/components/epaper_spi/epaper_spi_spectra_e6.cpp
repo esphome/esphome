@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
@@ -123,6 +124,7 @@ void HOT EPaperSpectraE6::draw_pixel_at(int x, int y, Color color) {
   } else {
     this->buffer_[byte_position] = (original & 0x0F) | (pixel_bits << 4);
   }
+  App.feed_wdt();
 }
 
 bool HOT EPaperSpectraE6::transfer_data() {

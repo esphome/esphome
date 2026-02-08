@@ -313,6 +313,7 @@ void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
   } else {
     this->buffer_[byte_position] = original | pixel_bit;
   }
+  App.feed_wdt();
 }
 
 void EPaperBase::dump_config() {

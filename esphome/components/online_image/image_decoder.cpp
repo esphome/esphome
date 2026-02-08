@@ -1,7 +1,6 @@
 #include "image_decoder.h"
 #include "online_image.h"
 
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -19,14 +18,9 @@ bool ImageDecoder::set_size(int width, int height) {
 void ImageDecoder::draw(int x, int y, int w, int h, const Color &color) {
   auto width = std::min(this->image_->buffer_width_, static_cast<int>(std::ceil((x + w) * this->x_scale_)));
   auto height = std::min(this->image_->buffer_height_, static_cast<int>(std::ceil((y + h) * this->y_scale_)));
-  uint32_t pixel_counter = 0;
   for (int i = x * this->x_scale_; i < width; i++) {
     for (int j = y * this->y_scale_; j < height; j++) {
       this->image_->draw_pixel_(i, j, color);
-      // Feed watchdog every 1024 pixels to avoid long blocking decode sections.
-      if ((pixel_counter++ & 0x3FF) == 0) {
-        App.feed_wdt();
-      }
     }
   }
 }
