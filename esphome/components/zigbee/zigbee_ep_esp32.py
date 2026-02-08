@@ -60,15 +60,6 @@ def create_ep(ep_list: list[dict[str, Any]], router: bool) -> list[dict[str, Any
                 DEVICE_TYPE: ep_type,
             }
         ]
-    # second dummy endpoint if only one sensor exists
-    elif len(ep_list) == 1:
-        ep_list.extend(
-            [
-                {
-                    DEVICE_TYPE: "CUSTOM_ATTR",
-                }
-            ]
-        )
     # enumerate endpoints
     for i, ep in enumerate(ep_list, 1):
         ep[CONF_NUM] = i
