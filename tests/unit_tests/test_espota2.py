@@ -18,8 +18,7 @@ from esphome import espota2
 from esphome.core import EsphomeError
 
 # Test constants
-MOCK_RANDOM_VALUE = 0.123456
-MOCK_RANDOM_BYTES = b"0.123456"
+MOCK_CNONCE = "a" * 64  # Mock 64-char hex string from secrets.token_hex(32)
 MOCK_MD5_NONCE = b"12345678901234567890123456789012"  # 32 char nonce for MD5
 MOCK_SHA256_NONCE = b"1234567890123456789012345678901234567890123456789012345678901234"  # 64 char nonce for SHA256
 
@@ -56,8 +55,10 @@ def mock_time() -> Generator[None]:
 
 @pytest.fixture
 def mock_random() -> Generator[Mock]:
-    """Mock random for predictable test values."""
-    with patch("random.random", return_value=MOCK_RANDOM_VALUE) as mock_rand:
+    """Mock secrets.token_hex for predictable test values."""
+    with patch(
+        "esphome.espota2.secrets.token_hex", return_value=MOCK_CNONCE
+    ) as mock_rand:
         yield mock_rand
 
 
@@ -272,8 +273,8 @@ def test_perform_ota_successful_md5_auth(
         )
     )
 
-    # Verify cnonce was sent (MD5 of random.random())
-    cnonce = hashlib.md5(MOCK_RANDOM_BYTES).hexdigest()
+    # Verify cnonce was sent
+    cnonce = MOCK_CNONCE
     assert mock_socket.sendall.call_args_list[2] == call(cnonce.encode())
 
     # Verify auth result was computed correctly
@@ -639,8 +640,8 @@ def test_perform_ota_successful_sha256_auth(
         )
     )
 
-    # Verify cnonce was sent (SHA256 of random.random())
-    cnonce = hashlib.sha256(MOCK_RANDOM_BYTES).hexdigest()
+    # Verify cnonce was sent
+    cnonce = MOCK_CNONCE
     assert mock_socket.sendall.call_args_list[2] == call(cnonce.encode())
 
     # Verify auth result was computed correctly with SHA256
@@ -692,7 +693,7 @@ def test_perform_ota_sha256_fallback_to_md5(
     )
 
     # But authentication was done with MD5
-    cnonce = hashlib.md5(MOCK_RANDOM_BYTES).hexdigest()
+    cnonce = MOCK_CNONCE
     expected_hash = hashlib.md5()
     expected_hash.update(b"testpass")
     expected_hash.update(MOCK_MD5_NONCE)
