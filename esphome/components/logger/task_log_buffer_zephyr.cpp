@@ -6,7 +6,7 @@
 
 namespace esphome::logger {
 
-__thread bool non_main_task_recursion_guard_;
+__thread bool non_main_task_recursion_guard_;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static inline uint32_t get_wlen(const mpsc_pbuf_generic *item) {
   auto *msg = reinterpret_cast<const TaskLogBufferZephyr::LogMessage *>(item);
@@ -68,7 +68,7 @@ bool TaskLogBufferZephyr::send_message_thread_safe(uint8_t level, const char *ta
     // this shall not happened vsnprintf was called already once
     // fill with '\n' to not call mpsc_pbuf_free from producer
     // it will be trimmed anyway
-    for (uint16_t i = 0; i < text_length; ++i) {
+    for (size_t i = 0; i < text_length; ++i) {
       text_area[i] = '\n';
     }
     text_area[text_length] = 0;

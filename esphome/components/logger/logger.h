@@ -623,6 +623,7 @@ class Logger : public Component {
   // - Recursion from logging within logging is the main concern
   // - Cross-task "recursion" is prevented by the buffer mutex anyway
   // - Missing a recursive call from another task is acceptable (falls back to direct output)
+  //
   // Zephyr use __thread as TLS
 
   // Check if non-main task is already in recursion
