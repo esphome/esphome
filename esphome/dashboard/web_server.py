@@ -1057,14 +1057,19 @@ class DownloadBinaryRequestHandler(BaseHandler):
         if file_name is None:
             self.send_error(400)
             return
-        file_name = file_name.replace("..", "").lstrip("/")
         # get requested download name, or build it based on filename
         download_name = self.get_argument(
             "download",
             f"{storage_json.name}-{file_name}",
         )
 
-        path = storage_json.firmware_bin_path.parent.joinpath(file_name)
+        base_dir = storage_json.firmware_bin_path.parent.resolve()
+        path = base_dir.joinpath(file_name).resolve()
+        try:
+            path.relative_to(base_dir)
+        except ValueError:
+            self.send_error(403)
+            return
 
         if not path.is_file():
             args = ["esphome", "idedata", settings.rel_path(configuration)]
