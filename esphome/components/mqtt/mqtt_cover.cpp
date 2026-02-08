@@ -1,5 +1,6 @@
 #include "mqtt_cover.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -11,6 +12,20 @@ namespace esphome::mqtt {
 static const char *const TAG = "mqtt.cover";
 
 using namespace esphome::cover;
+
+static ProgmemStr cover_state_to_mqtt_str(CoverOperation operation, float position, bool supports_position) {
+  if (operation == COVER_OPERATION_OPENING)
+    return ESPHOME_F("opening");
+  if (operation == COVER_OPERATION_CLOSING)
+    return ESPHOME_F("closing");
+  if (position == COVER_CLOSED)
+    return ESPHOME_F("closed");
+  if (position == COVER_OPEN)
+    return ESPHOME_F("open");
+  if (supports_position)
+    return ESPHOME_F("open");
+  return ESPHOME_F("unknown");
+}
 
 MQTTCoverComponent::MQTTCoverComponent(Cover *cover) : cover_(cover) {}
 void MQTTCoverComponent::setup() {
@@ -109,14 +124,10 @@ bool MQTTCoverComponent::publish_state() {
     if (!this->publish(this->get_tilt_state_topic(), pos, len))
       success = false;
   }
-  const char *state_s = this->cover_->current_operation == COVER_OPERATION_OPENING   ? "opening"
-                        : this->cover_->current_operation == COVER_OPERATION_CLOSING ? "closing"
-                        : this->cover_->position == COVER_CLOSED                     ? "closed"
-                        : this->cover_->position == COVER_OPEN                       ? "open"
-                        : traits.get_supports_position()                             ? "open"
-                                                                                     : "unknown";
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-  if (!this->publish(this->get_state_topic_to_(topic_buf), state_s))
+  if (!this->publish(this->get_state_topic_to_(topic_buf),
+                     cover_state_to_mqtt_str(this->cover_->current_operation, this->cover_->position,
+                                             traits.get_supports_position())))
     success = false;
   return success;
 }

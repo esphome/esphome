@@ -60,6 +60,12 @@ struct AnalogAttrs {
   zb_uchar_t description[ZB_ZCL_MAX_STRING_SIZE];
 };
 
+struct AnalogAttrsOutput : AnalogAttrs {
+  float max_present_value;
+  float min_present_value;
+  float resolution;
+};
+
 class ZigbeeComponent : public Component {
  public:
   void setup() override;

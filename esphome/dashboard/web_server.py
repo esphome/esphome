@@ -317,6 +317,7 @@ class EsphomeCommandWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHandl
             # Check if the proc was not forcibly closed
             _LOGGER.info("Process exited with return code %s", returncode)
             self.write_message({"event": "exit", "code": returncode})
+            self.close()
 
     def on_close(self) -> None:
         # Check if proc exists (if 'start' has been run)
