@@ -23,6 +23,7 @@ void ImageDecoder::draw(int x, int y, int w, int h, const Color &color) {
   for (int i = x * this->x_scale_; i < width; i++) {
     for (int j = y * this->y_scale_; j < height; j++) {
       this->image_->draw_pixel_(i, j, color);
+      // Feed watchdog every 1024 pixels to avoid long blocking decode sections.
       if ((pixel_counter++ & 0x3FF) == 0) {
         App.feed_wdt();
       }
