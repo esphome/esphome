@@ -7,8 +7,6 @@
 
 namespace esphome::fendt_caravan {
 
-#define GET_SENSOR_BASE(T, S) ((CaravanSensorBase<T> *) S)
-
 template<typename T> class CaravanSensorBase : public Component, public Parented<CaravanDeviceComponent> {
  public:
   void set_variable(Variable<T> *variable) {

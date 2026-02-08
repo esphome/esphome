@@ -21,7 +21,7 @@ class ControlUnitDeviceSensor : public CaravanDeviceComponent, public sensor::Se
  public:
   void setup() override;
   void dump_config() override;
-  void on_switch_state_change_(switch_::Switch *sw, bool state, const std::string &command) override;
+  void on_switch_state_change(switch_::Switch *sw, bool state, const std::string &command) override;
   SUB_SWITCH(main_switch);
   SUB_SENSOR(temp_in);
   SUB_SENSOR(temp_out);

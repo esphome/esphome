@@ -19,7 +19,7 @@ class CaravanDeviceComponent : public Component {
     }
     return variable != nullptr;
   }
-  virtual void on_switch_state_change_(switch_::Switch *sw, bool state, const std::string &command) = 0;
+  virtual void on_switch_state_change(switch_::Switch *sw, bool state, const std::string &command) = 0;
   void add_variable(IVariable *variable) { this->variables_.push_back(variable); }
   void set_command_send_callback(std::function<void(const std::string &)> &&callback) {
     this->command_callback_.add(std::move(callback));
@@ -43,7 +43,6 @@ class CaravanDeviceComponent : public Component {
   std::vector<IVariable *> get_variables_() { return this->variables_; }
 
  private:
-  bool log_variables_ = true;
 };
 
 }  // namespace esphome::fendt_caravan

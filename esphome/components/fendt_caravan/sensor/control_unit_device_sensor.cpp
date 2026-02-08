@@ -113,7 +113,7 @@ void ControlUnitDeviceSensor::on_data_decoded_(IVariable *variable) {
   }
 }
 
-void ControlUnitDeviceSensor::on_switch_state_change_(switch_::Switch *sw, bool state, const std::string &command) {
+void ControlUnitDeviceSensor::on_switch_state_change(switch_::Switch *sw, bool state, const std::string &command) {
   std::string cmd = "";
   if (sw == this->main_switch_switch_) {
     auto *hs_key_long = GET_VARIABLE(bool, "HS_KEY_LONG");
