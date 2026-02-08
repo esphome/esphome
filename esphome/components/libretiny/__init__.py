@@ -33,6 +33,9 @@ from .const import (
     CONF_UART_PORT,
     FAMILIES,
     FAMILY_BK7231N,
+    FAMILY_BK7231Q,
+    FAMILY_BK7231T,
+    FAMILY_BK7251,
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
     FAMILY_RTL8710B,
@@ -52,19 +55,14 @@ CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
 
-# BK7231N SDK options to disable unused features.
+# BK72XX SDK options to disable unused features.
 # Disabling BLE saves ~21KB RAM and ~200KB Flash because BLE init code is
 # called unconditionally by the SDK. ESPHome doesn't use BLE on LibreTiny.
-#
-# This only works on BK7231N (BLE 5.x). Other BK72XX chips using BLE 4.2
-# (BK7231T, BK7231Q, BK7251; BK7252 boards use the BK7251 family) have a bug
-# where the BLE library still links and references undefined symbols when
-# CFG_SUPPORT_BLE=0.
 #
 # Other options like CFG_TX_EVM_TEST, CFG_RX_SENSITIVITY_TEST, CFG_SUPPORT_BKREG,
 # CFG_SUPPORT_OTA_HTTP, and CFG_USE_SPI_SLAVE were evaluated but provide no  # NOLINT
 # measurable benefit - the linker already strips unreferenced code via -gc-sections.
-_BK7231N_SYS_CONFIG_OPTIONS = [
+_BK72XX_SYS_CONFIG_OPTIONS = [
     "CFG_SUPPORT_BLE=0",
 ]
 
@@ -197,11 +195,11 @@ ARDUINO_VERSIONS = {
     "dev": (cv.Version(1, 12, 0), "https://github.com/libretiny-eu/libretiny.git"),
     "latest": (
         cv.Version(1, 12, 0),
-        "https://github.com/bdraco/libretiny.git#7f52d41",
+        "https://github.com/bdraco/libretiny.git#39f407a",
     ),
     "recommended": (
         cv.Version(1, 12, 0),
-        "https://github.com/bdraco/libretiny.git#7f52d41",
+        "https://github.com/bdraco/libretiny.git#39f407a",
     ),
 }
 
@@ -385,9 +383,14 @@ async def component_to_code(config):
         cg.add_platformio_option("custom_fw_version", __version__)
 
     # Apply chip-specific SDK options to save RAM/Flash
-    if config[CONF_FAMILY] == FAMILY_BK7231N:
+    if config[CONF_FAMILY] in (
+        FAMILY_BK7231N,
+        FAMILY_BK7231Q,
+        FAMILY_BK7231T,
+        FAMILY_BK7251,
+    ):
         cg.add_platformio_option(
-            "custom_options.sys_config#h", _BK7231N_SYS_CONFIG_OPTIONS
+            "custom_options.sys_config#h", _BK72XX_SYS_CONFIG_OPTIONS
         )
 
     # Disable LWIP statistics to save RAM - not needed in production
