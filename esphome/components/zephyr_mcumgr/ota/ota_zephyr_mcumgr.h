@@ -24,7 +24,7 @@ class OTAComponent : public ota::OTAComponent {
  protected:
   uint32_t last_progress_ = 0;
   float percentage_ = 0;
-  mgmt_callback img_mgmt_callback_;
+  mgmt_callback img_mgmt_callback_{};
 #ifdef CONFIG_USB_DEVICE_STACK
   bool cdc_uart_ = false;
 #endif
