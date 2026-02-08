@@ -1063,6 +1063,10 @@ class DownloadBinaryRequestHandler(BaseHandler):
             f"{storage_json.name}-{file_name}",
         )
 
+        if storage_json.firmware_bin_path is None:
+            self.send_error(404)
+            return
+
         base_dir = storage_json.firmware_bin_path.parent.resolve()
         path = base_dir.joinpath(file_name).resolve()
         try:

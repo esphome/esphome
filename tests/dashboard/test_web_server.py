@@ -573,13 +573,45 @@ async def test_download_binary_handler_path_traversal_protection(
     mock_storage.firmware_bin_path = firmware_file
     mock_storage_json.load.return_value = mock_storage
 
-    # Attempt path traversal attack - should be blocked
-    with pytest.raises(HTTPClientError) as exc_info:
+    # Mock async_run_system_command so paths that pass validation but don't exist
+    # return 404 deterministically without spawning a real subprocess.
+    with (
+        patch(
+            "esphome.dashboard.web_server.async_run_system_command",
+            new_callable=AsyncMock,
+            return_value=(2, "", ""),
+        ),
+        pytest.raises(HTTPClientError) as exc_info,
+    ):
         await dashboard.fetch(
             f"/download.bin?configuration=test.yaml&file={attack_path}",
             method="GET",
         )
     assert exc_info.value.code == expected_code
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_no_firmware_bin_path(
+    dashboard: DashboardTestHelper,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test that download returns 404 when firmware_bin_path is None.
+
+    This covers configs created by StorageJSON.from_wizard() where no
+    firmware has been compiled yet.
+    """
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = None
+    mock_storage_json.load.return_value = mock_storage
+
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch(
+            "/download.bin?configuration=test.yaml&file=firmware.bin",
+            method="GET",
+        )
+    assert exc_info.value.code == 404
 
 
 @pytest.mark.asyncio
