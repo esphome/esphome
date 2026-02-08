@@ -106,51 +106,54 @@ def has_high_performance_networking() -> bool:
     return CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
 
 
-def _validate_nrf52(value):
-    if CORE.is_nrf52 and not value:
-        raise cv.Invalid("nRF52 requires IPv6 to be enabled.")
-    return value
-
-
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.SplitDefault(
-            CONF_ENABLE_IPV6,
-            esp8266=False,
-            esp32=False,
-            rp2040=False,
-            bk72xx=False,
-            host=False,
-            nrf52=True,
-        ): cv.All(
-            cv.boolean,
-            cv.Any(
-                cv.require_framework_version(
-                    esp_idf=cv.Version(0, 0, 0),
-                    esp32_arduino=cv.Version(0, 0, 0),
-                    esp8266_arduino=cv.Version(0, 0, 0),
-                    rp2040_arduino=cv.Version(0, 0, 0),
-                    bk72xx_arduino=cv.Version(1, 7, 0),
-                    host=cv.Version(0, 0, 0),
-                    nrf52_zephyr=cv.Version(0, 0, 0),
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.SplitDefault(
+                CONF_ENABLE_IPV6,
+                esp8266=False,
+                esp32=False,
+                rp2040=False,
+                bk72xx=False,
+                host=False,
+                nrf52=True,
+            ): cv.All(
+                cv.boolean,
+                cv.Any(
+                    cv.require_framework_version(
+                        esp_idf=cv.Version(0, 0, 0),
+                        esp32_arduino=cv.Version(0, 0, 0),
+                        esp8266_arduino=cv.Version(0, 0, 0),
+                        rp2040_arduino=cv.Version(0, 0, 0),
+                        bk72xx_arduino=cv.Version(1, 7, 0),
+                        host=cv.Version(0, 0, 0),
+                        nrf52_zephyr=cv.Version(0, 0, 0),
+                    ),
+                    cv.boolean_false,
                 ),
-                cv.boolean_false,
             ),
-            _validate_nrf52,
-        ),
-        cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
-        cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(cv.boolean, cv.only_on_esp32),
-    }
+            cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
+            cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(
+                cv.boolean, cv.only_on_esp32
+            ),
+        }
+    ),
 )
 
 
 @coroutine_with_priority(CoroPriority.NETWORK)
 async def to_code(config):
     cg.add_define("USE_NETWORK")
-    # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
-    if CORE.using_zephyr:
-        zephyr_add_prj_conf("NETWORKING", True)
-        zephyr_add_prj_conf("NET_TCP", True)
+
+    # Zigbee explicitly disables IPv6 in firmware (nRF52 resource constraints)
+    # If Zigbee is loaded, defer to its configuration
+    enable_ipv6_from_config = config.get(CONF_ENABLE_IPV6, None)
+    if "zigbee" in CORE.loaded_integrations and enable_ipv6_from_config:
+        _LOGGER.warning(
+            "IPv6 not configured due to Zigbee component (requires IPv6 disabled for resource management). "
+            "Zigbee uses a separate protocol stack."
+        )
+        enable_ipv6_from_config = None
         zephyr_add_prj_conf("NET_UDP", True)
 
     # Apply high performance networking settings
@@ -216,7 +219,7 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
 
-    if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
+    if (enable_ipv6 := enable_ipv6_from_config) is not None:
         cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
         if enable_ipv6:
             cg.add_define(
