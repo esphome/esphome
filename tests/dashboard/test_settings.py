@@ -10,6 +10,7 @@ import pytest
 
 from esphome.core import CORE
 from esphome.dashboard.settings import DashboardSettings
+from esphome.dashboard.util.password import password_hash
 
 
 @pytest.fixture
@@ -221,3 +222,41 @@ def test_config_path_parent_resolves_to_config_dir(tmp_path: Path) -> None:
     # Verify that CORE.config_path itself uses the sentinel file
     assert CORE.config_path.name == "___DASHBOARD_SENTINEL___.yaml"
     assert not CORE.config_path.exists()  # Sentinel file doesn't actually exist
+
+
+@pytest.fixture
+def auth_settings(tmp_path: Path) -> DashboardSettings:
+    """Create DashboardSettings with auth configured."""
+    settings = DashboardSettings()
+    resolved_dir = tmp_path.resolve()
+    settings.config_dir = resolved_dir
+    settings.absolute_config_dir = resolved_dir
+    settings.username = "admin"
+    settings.using_password = True
+    settings.password_hash = password_hash("correctpassword")
+    return settings
+
+
+def test_check_password_correct_credentials(auth_settings: DashboardSettings) -> None:
+    """Test check_password returns True for correct username and password."""
+    assert auth_settings.check_password("admin", "correctpassword") is True
+
+
+def test_check_password_wrong_password(auth_settings: DashboardSettings) -> None:
+    """Test check_password returns False for wrong password."""
+    assert auth_settings.check_password("admin", "wrongpassword") is False
+
+
+def test_check_password_wrong_username(auth_settings: DashboardSettings) -> None:
+    """Test check_password returns False for wrong username."""
+    assert auth_settings.check_password("notadmin", "correctpassword") is False
+
+
+def test_check_password_both_wrong(auth_settings: DashboardSettings) -> None:
+    """Test check_password returns False when both are wrong."""
+    assert auth_settings.check_password("notadmin", "wrongpassword") is False
+
+
+def test_check_password_no_auth(dashboard_settings: DashboardSettings) -> None:
+    """Test check_password returns True when auth is not configured."""
+    assert dashboard_settings.check_password("anyone", "anything") is True
