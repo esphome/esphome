@@ -594,7 +594,11 @@ class MemoryAnalyzer:
             #   3. Break remaining ties lexicographically.
             best_lib = min(
                 candidates,
-                key=lambda lib_name: (lib_name != base, len(lib_name), lib_name),
+                key=lambda lib_name, _base=base: (
+                    lib_name != _base,
+                    len(lib_name),
+                    lib_name,
+                ),
             )
             mapping[category] = f"{_COMPONENT_PREFIX_LIB}{best_lib}"
 
