@@ -76,9 +76,8 @@ void RemoteReceiverComponent::setup() {
 }
 
 void RemoteReceiverComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Remote Receiver:");
-  LOG_PIN("  Pin: ", this->pin_);
   ESP_LOGCONFIG(TAG,
+                "Remote Receiver:\n"
                 "  Buffer Size: %u\n"
                 "  Tolerance: %u%s\n"
                 "  Filter out pulses shorter than: %u us\n"
@@ -86,6 +85,7 @@ void RemoteReceiverComponent::dump_config() {
                 this->buffer_size_, this->tolerance_,
                 (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? " us" : "%", this->filter_us_,
                 this->idle_us_);
+  LOG_PIN("  Pin: ", this->pin_);
 }
 
 void RemoteReceiverComponent::loop() {

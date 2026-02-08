@@ -59,9 +59,11 @@ async def to_code(config):
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
 
-        for conf in config.get(CONF_ON_SAFE_MODE, []):
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(trigger, [], conf)
+        if on_safe_mode_config := config.get(CONF_ON_SAFE_MODE):
+            cg.add_define("USE_SAFE_MODE_CALLBACK")
+            for conf in on_safe_mode_config:
+                trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+                await automation.build_automation(trigger, [], conf)
 
         condition = var.should_enter_safe_mode(
             config[CONF_NUM_ATTEMPTS],

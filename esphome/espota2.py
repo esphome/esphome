@@ -154,6 +154,12 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     """
     if not expect:
         return
+    if not data:
+        raise OTAError(
+            "Error: Device closed connection without responding. "
+            "This may indicate the device ran out of memory, "
+            "a network issue, or the connection was interrupted."
+        )
     dat = data[0]
     if dat == RESPONSE_ERROR_MAGIC:
         raise OTAError("Error: Invalid magic byte")
@@ -322,8 +328,8 @@ def perform_ota(
         hash_func, nonce_size, hash_name = _AUTH_METHODS[auth]
         perform_auth(sock, password, hash_func, nonce_size, hash_name)
 
-    # Set higher timeout during upload
-    sock.settimeout(30.0)
+    # Timeout must match device-side OTA_SOCKET_TIMEOUT_DATA to prevent premature failures
+    sock.settimeout(90.0)
 
     upload_size = len(upload_contents)
     upload_size_encoded = [
@@ -400,9 +406,11 @@ def run_ota_impl_(
             "Error resolving IP address of %s. Is it connected to WiFi?",
             remote_host,
         )
+        if not CORE.dashboard:
+            _LOGGER.error("(If you know the IP, try --device <IP>)")
         _LOGGER.error(
             "(If this error persists, please set a static IP address: "
-            "https://esphome.io/components/wifi.html#manual-ips)"
+            "https://esphome.io/components/wifi/#manual-ips)"
         )
         raise OTAError(err) from err
 

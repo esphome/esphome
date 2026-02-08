@@ -146,7 +146,6 @@ void ATM90E26Component::dump_config() {
   LOG_SENSOR("  ", "Active Reverse Energy A", this->reverse_active_energy_sensor_);
   LOG_SENSOR("  ", "Frequency", this->freq_sensor_);
 }
-float ATM90E26Component::get_setup_priority() const { return setup_priority::DATA; }
 
 uint16_t ATM90E26Component::read16_(uint8_t a_register) {
   uint8_t data[2];

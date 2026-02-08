@@ -258,8 +258,9 @@ bool DaikinArcClimate::parse_state_frame_(const uint8_t frame[]) {
   }
 
   char buf[DAIKIN_STATE_FRAME_SIZE * 3 + 1] = {0};
+  size_t pos = 0;
   for (size_t i = 0; i < DAIKIN_STATE_FRAME_SIZE; i++) {
-    sprintf(buf, "%s%02x ", buf, frame[i]);
+    pos = buf_append_printf(buf, sizeof(buf), pos, "%02x ", frame[i]);
   }
   ESP_LOGD(TAG, "FRAME %s", buf);
 
@@ -349,8 +350,9 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (data.expect_item(DAIKIN_HEADER_MARK, DAIKIN_HEADER_SPACE)) {
     valid_daikin_frame = true;
     size_t bytes_count = data.size() / 2 / 8;
-    std::unique_ptr<char[]> buf(new char[bytes_count * 3 + 1]);
-    buf[0] = '\0';
+    size_t buf_size = bytes_count * 3 + 1;
+    std::unique_ptr<char[]> buf(new char[buf_size]());  // value-initialize (zero-fill)
+    size_t buf_pos = 0;
     for (size_t i = 0; i < bytes_count; i++) {
       uint8_t byte = 0;
       for (int8_t bit = 0; bit < 8; bit++) {
@@ -361,19 +363,19 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
           break;
         }
       }
-      sprintf(buf.get(), "%s%02x ", buf.get(), byte);
+      buf_pos = buf_append_printf(buf.get(), buf_size, buf_pos, "%02x ", byte);
     }
     ESP_LOGD(TAG, "WHOLE FRAME %s  size: %d", buf.get(), data.size());
   }
   if (!valid_daikin_frame) {
-    char sbuf[16 * 10 + 1];
-    sbuf[0] = '\0';
+    char sbuf[16 * 10 + 1] = {0};
+    size_t sbuf_pos = 0;
     for (size_t j = 0; j < static_cast<size_t>(data.size()); j++) {
       if ((j - 2) % 16 == 0) {
         if (j > 0) {
           ESP_LOGD(TAG, "DATA %04x: %s", (j - 16 > 0xffff ? 0 : j - 16), sbuf);
         }
-        sbuf[0] = '\0';
+        sbuf_pos = 0;
       }
       char type_ch = ' ';
       // debug_tolerance = 25%
@@ -401,9 +403,10 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
         type_ch = '0';
 
       if (abs(data[j]) > 100000) {
-        sprintf(sbuf, "%s%-5d[%c] ", sbuf, data[j] > 0 ? 99999 : -99999, type_ch);
+        sbuf_pos = buf_append_printf(sbuf, sizeof(sbuf), sbuf_pos, "%-5d[%c] ", data[j] > 0 ? 99999 : -99999, type_ch);
       } else {
-        sprintf(sbuf, "%s%-5d[%c] ", sbuf, (int) (round(data[j] / 10.) * 10), type_ch);
+        sbuf_pos =
+            buf_append_printf(sbuf, sizeof(sbuf), sbuf_pos, "%-5d[%c] ", (int) (round(data[j] / 10.) * 10), type_ch);
       }
       if (j + 1 == static_cast<size_t>(data.size())) {
         ESP_LOGD(TAG, "DATA %04x: %s", (j - 8 > 0xffff ? 0 : j - 8), sbuf);

@@ -35,8 +35,10 @@ uint8_t HONEYWELLABPSensor::readsensor_() {
     pressure_count_ = ((uint16_t) (buf_[0]) << 8 & 0x3F00) | ((uint16_t) (buf_[1]) & 0xFF);
     // 11 - bit temperature is all of byte 2 (lowest 8 bits) and the first three bits of byte 3
     temperature_count_ = (((uint16_t) (buf_[2]) << 3) & 0x7F8) | (((uint16_t) (buf_[3]) >> 5) & 0x7);
-    ESP_LOGV(TAG, "Sensor pressure_count_ %d", pressure_count_);
-    ESP_LOGV(TAG, "Sensor temperature_count_ %d", temperature_count_);
+    ESP_LOGV(TAG,
+             "Sensor pressure_count_ %d\n"
+             "Sensor temperature_count_ %d",
+             pressure_count_, temperature_count_);
   }
   return status_;
 }

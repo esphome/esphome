@@ -4,8 +4,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
-#ifdef USE_OTA_STATE_CALLBACK
-#include "esphome/core/automation.h"
+#ifdef USE_OTA_STATE_LISTENER
+#include <vector>
 #endif
 
 namespace esphome {
@@ -60,62 +60,75 @@ class OTABackend {
   virtual bool supports_compression() = 0;
 };
 
-class OTAComponent : public Component {
-#ifdef USE_OTA_STATE_CALLBACK
+/** Listener interface for OTA state changes.
+ *
+ * Components can implement this interface to receive OTA state updates
+ * without the overhead of std::function callbacks.
+ */
+class OTAStateListener {
  public:
-  void add_on_state_callback(std::function<void(ota::OTAState, float, uint8_t)> &&callback) {
-    this->state_callback_.add(std::move(callback));
-  }
+  virtual ~OTAStateListener() = default;
+  virtual void on_ota_state(OTAState state, float progress, uint8_t error) = 0;
+};
+
+class OTAComponent : public Component {
+#ifdef USE_OTA_STATE_LISTENER
+ public:
+  void add_state_listener(OTAStateListener *listener) { this->state_listeners_.push_back(listener); }
 
  protected:
-  /** Extended callback manager with deferred call support.
+  void notify_state_(OTAState state, float progress, uint8_t error);
+
+  /** Notify state with deferral to main loop (for thread safety).
    *
-   * This adds a call_deferred() method for thread-safe execution from other tasks.
+   * This should be used by OTA implementations that run in separate tasks
+   * (like web_server OTA) to ensure listeners execute in the main loop.
    */
-  class StateCallbackManager : public CallbackManager<void(OTAState, float, uint8_t)> {
-   public:
-    StateCallbackManager(OTAComponent *component) : component_(component) {}
+  void notify_state_deferred_(OTAState state, float progress, uint8_t error) {
+    this->defer([this, state, progress, error]() { this->notify_state_(state, progress, error); });
+  }
 
-    /** Call callbacks with deferral to main loop (for thread safety).
-     *
-     * This should be used by OTA implementations that run in separate tasks
-     * (like web_server OTA) to ensure callbacks execute in the main loop.
-     */
-    void call_deferred(ota::OTAState state, float progress, uint8_t error) {
-      component_->defer([this, state, progress, error]() { this->call(state, progress, error); });
-    }
-
-   private:
-    OTAComponent *component_;
-  };
-
-  StateCallbackManager state_callback_{this};
+  std::vector<OTAStateListener *> state_listeners_;
 #endif
 };
 
-#ifdef USE_OTA_STATE_CALLBACK
+#ifdef USE_OTA_STATE_LISTENER
+
+/** Listener interface for global OTA state changes (includes OTA component pointer).
+ *
+ * Used by OTAGlobalCallback to aggregate state from multiple OTA components.
+ */
+class OTAGlobalStateListener {
+ public:
+  virtual ~OTAGlobalStateListener() = default;
+  virtual void on_ota_global_state(OTAState state, float progress, uint8_t error, OTAComponent *component) = 0;
+};
+
+/** Global callback that aggregates OTA state from all OTA components.
+ *
+ * OTA components call notify_ota_state() directly with their pointer,
+ * which forwards the event to all registered global listeners.
+ */
 class OTAGlobalCallback {
  public:
-  void register_ota(OTAComponent *ota_caller) {
-    ota_caller->add_on_state_callback([this, ota_caller](OTAState state, float progress, uint8_t error) {
-      this->state_callback_.call(state, progress, error, ota_caller);
-    });
-  }
-  void add_on_state_callback(std::function<void(OTAState, float, uint8_t, OTAComponent *)> &&callback) {
-    this->state_callback_.add(std::move(callback));
+  void add_global_state_listener(OTAGlobalStateListener *listener) { this->global_listeners_.push_back(listener); }
+
+  void notify_ota_state(OTAState state, float progress, uint8_t error, OTAComponent *component) {
+    for (auto *listener : this->global_listeners_) {
+      listener->on_ota_global_state(state, progress, error, component);
+    }
   }
 
  protected:
-  CallbackManager<void(OTAState, float, uint8_t, OTAComponent *)> state_callback_{};
+  std::vector<OTAGlobalStateListener *> global_listeners_;
 };
 
 OTAGlobalCallback *get_global_ota_callback();
-void register_ota_platform(OTAComponent *ota_caller);
 
 // OTA implementations should use:
-// - state_callback_.call() when already in main loop (e.g., esphome OTA)
-// - state_callback_.call_deferred() when in separate task (e.g., web_server OTA)
-// This ensures proper callback execution in all contexts.
+// - notify_state_() when already in main loop (e.g., esphome OTA)
+// - notify_state_deferred_() when in separate task (e.g., web_server OTA)
+// This ensures proper listener execution in all contexts.
 #endif
 std::unique_ptr<ota::OTABackend> make_ota_backend();
 

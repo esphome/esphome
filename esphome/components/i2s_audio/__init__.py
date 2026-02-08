@@ -1,6 +1,11 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
+    include_builtin_idf_component,
+)
+from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
@@ -10,8 +15,6 @@ from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
-    add_idf_sdkconfig_option,
-    get_esp32_variant,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_BITS_PER_SAMPLE, CONF_CHANNEL, CONF_ID, CONF_SAMPLE_RATE
@@ -232,6 +235,8 @@ def validate_use_legacy(value):
         if (not value[CONF_USE_LEGACY]) and (CORE.using_arduino):
             raise cv.Invalid("Arduino supports only the legacy i2s driver")
         _set_use_legacy_driver(value[CONF_USE_LEGACY])
+    elif CORE.using_arduino:
+        _set_use_legacy_driver(True)
     return value
 
 
@@ -261,8 +266,7 @@ def _final_validate(_):
 
 
 def use_legacy():
-    legacy_driver = _get_use_legacy_driver()
-    return not (CORE.using_esp_idf and not legacy_driver)
+    return _get_use_legacy_driver()
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -271,6 +275,10 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # Re-enable ESP-IDF's I2S driver (excluded by default to save compile time)
+    include_builtin_idf_component("esp_driver_i2s")
+
     if use_legacy():
         cg.add_define("USE_I2S_LEGACY")
 

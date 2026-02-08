@@ -29,7 +29,7 @@ from esphome.dashboard.entries import (
     bool_to_entry_state,
 )
 from esphome.dashboard.models import build_importable_device_dict
-from esphome.dashboard.web_server import DashboardSubscriber
+from esphome.dashboard.web_server import DashboardSubscriber, EsphomeCommandWebSocket
 from esphome.zeroconf import DiscoveredImport
 
 from .common import get_fixture_path
@@ -1567,3 +1567,112 @@ async def test_dashboard_yaml_loading_with_packages_and_secrets(
     # If we get here, secret resolution worked!
     assert "esphome" in config
     assert config["esphome"]["name"] == "test-download-secrets"
+
+
+@pytest.mark.asyncio
+async def test_websocket_check_origin_default_same_origin(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket uses default same-origin check when ESPHOME_TRUSTED_DOMAINS not set."""
+    # Ensure ESPHOME_TRUSTED_DOMAINS is not set
+    env = os.environ.copy()
+    env.pop("ESPHOME_TRUSTED_DOMAINS", None)
+    with patch.dict(os.environ, env, clear=True):
+        from tornado.httpclient import HTTPRequest
+
+        url = f"ws://127.0.0.1:{dashboard.port}/events"
+        # Same origin should work (default Tornado behavior)
+        request = HTTPRequest(
+            url, headers={"Origin": f"http://127.0.0.1:{dashboard.port}"}
+        )
+        ws = await websocket_connect(request)
+        try:
+            msg = await ws.read_message()
+            assert msg is not None
+            data = json.loads(msg)
+            assert data["event"] == "initial_state"
+        finally:
+            ws.close()
+
+
+@pytest.mark.asyncio
+async def test_websocket_check_origin_trusted_domain(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket accepts connections from trusted domains."""
+    with patch.dict(os.environ, {"ESPHOME_TRUSTED_DOMAINS": "trusted.example.com"}):
+        from tornado.httpclient import HTTPRequest
+
+        url = f"ws://127.0.0.1:{dashboard.port}/events"
+        request = HTTPRequest(url, headers={"Origin": "https://trusted.example.com"})
+        ws = await websocket_connect(request)
+        try:
+            # Should receive initial state
+            msg = await ws.read_message()
+            assert msg is not None
+            data = json.loads(msg)
+            assert data["event"] == "initial_state"
+        finally:
+            ws.close()
+
+
+@pytest.mark.asyncio
+async def test_websocket_check_origin_untrusted_domain(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket rejects connections from untrusted domains."""
+    with patch.dict(os.environ, {"ESPHOME_TRUSTED_DOMAINS": "trusted.example.com"}):
+        from tornado.httpclient import HTTPRequest
+
+        url = f"ws://127.0.0.1:{dashboard.port}/events"
+        request = HTTPRequest(url, headers={"Origin": "https://untrusted.example.com"})
+        with pytest.raises(HTTPClientError) as exc_info:
+            await websocket_connect(request)
+        # Should get HTTP 403 Forbidden due to origin check failure
+        assert exc_info.value.code == 403
+
+
+@pytest.mark.asyncio
+async def test_websocket_check_origin_multiple_trusted_domains(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket accepts connections from multiple trusted domains."""
+    with patch.dict(
+        os.environ,
+        {"ESPHOME_TRUSTED_DOMAINS": "first.example.com, second.example.com"},
+    ):
+        from tornado.httpclient import HTTPRequest
+
+        url = f"ws://127.0.0.1:{dashboard.port}/events"
+        # Test second domain in list (with space after comma)
+        request = HTTPRequest(url, headers={"Origin": "https://second.example.com"})
+        ws = await websocket_connect(request)
+        try:
+            msg = await ws.read_message()
+            assert msg is not None
+            data = json.loads(msg)
+            assert data["event"] == "initial_state"
+        finally:
+            ws.close()
+
+
+def test_proc_on_exit_calls_close() -> None:
+    """Test _proc_on_exit sends exit event and closes the WebSocket."""
+    handler = Mock(spec=EsphomeCommandWebSocket)
+    handler._is_closed = False
+
+    EsphomeCommandWebSocket._proc_on_exit(handler, 0)
+
+    handler.write_message.assert_called_once_with({"event": "exit", "code": 0})
+    handler.close.assert_called_once()
+
+
+def test_proc_on_exit_skips_when_already_closed() -> None:
+    """Test _proc_on_exit does nothing when WebSocket is already closed."""
+    handler = Mock(spec=EsphomeCommandWebSocket)
+    handler._is_closed = True
+
+    EsphomeCommandWebSocket._proc_on_exit(handler, 0)
+
+    handler.write_message.assert_not_called()
+    handler.close.assert_not_called()

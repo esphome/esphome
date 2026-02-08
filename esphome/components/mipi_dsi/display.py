@@ -165,8 +165,8 @@ def model_schema(config):
     )
     return cv.All(
         schema,
+        cv.only_on_esp32,
         only_on_variant(supported=[VARIANT_ESP32P4]),
-        cv.only_with_esp_idf,
     )
 
 

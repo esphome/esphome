@@ -16,12 +16,20 @@ void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   while ((items_left > 0) && index < data.size()) {
     uint8_t b = data[index];
     switch (this->encode_) {
-      case RawEncoding::HEXBYTES:
-        output_str += str_snprintf("%02x", 2, b);
+      case RawEncoding::HEXBYTES: {
+        // max 3: 2 hex digits + null
+        char hex_buf[3];
+        snprintf(hex_buf, sizeof(hex_buf), "%02x", b);
+        output_str += hex_buf;
         break;
-      case RawEncoding::COMMA:
-        output_str += str_sprintf(index != this->offset ? ",%d" : "%d", b);
+      }
+      case RawEncoding::COMMA: {
+        // max 5: optional ','(1) + uint8(3) + null, for both ",%d" and "%d"
+        char dec_buf[5];
+        snprintf(dec_buf, sizeof(dec_buf), index != this->offset ? ",%d" : "%d", b);
+        output_str += dec_buf;
         break;
+      }
       case RawEncoding::ANSI:
         if (b < 0x20)
           break;

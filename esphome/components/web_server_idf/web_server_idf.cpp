@@ -117,18 +117,6 @@ void AsyncWebServer::end() {
   }
 }
 
-void AsyncWebServer::set_lru_purge_enable(bool enable) {
-  if (this->lru_purge_enable_ == enable) {
-    return;  // No change needed
-  }
-  this->lru_purge_enable_ = enable;
-  // If server is already running, restart it with new config
-  if (this->server_) {
-    this->end();
-    this->begin();
-  }
-}
-
 void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
@@ -136,8 +124,11 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
-  // Enable LRU purging if requested (e.g., by captive portal to handle probe bursts)
-  config.lru_purge_enable = this->lru_purge_enable_;
+  // Always enable LRU purging to handle socket exhaustion gracefully.
+  // When max sockets is reached, the oldest connection is closed to make room for new ones.
+  // This prevents "httpd_accept_conn: error in accept (23)" errors.
+  // See: https://github.com/esphome/esphome/issues/12464
+  config.lru_purge_enable = true;
   // Use custom close function that shuts down before closing to prevent lwIP race conditions
   config.close_fn = AsyncWebServer::safe_close_with_shutdown;
   if (httpd_start(&this->server_, &config) == ESP_OK) {
@@ -255,12 +246,16 @@ optional<std::string> AsyncWebServerRequest::get_header(const char *name) const 
   return request_get_header(*this, name);
 }
 
-std::string AsyncWebServerRequest::url() const {
-  auto *str = strchr(this->req_->uri, '?');
-  if (str == nullptr) {
-    return this->req_->uri;
-  }
-  return std::string(this->req_->uri, str - this->req_->uri);
+StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) const {
+  const char *uri = this->req_->uri;
+  const char *query_start = strchr(uri, '?');
+  size_t uri_len = query_start ? static_cast<size_t>(query_start - uri) : strlen(uri);
+  size_t copy_len = std::min(uri_len, URL_BUF_SIZE - 1);
+  memcpy(buffer.data(), uri, copy_len);
+  buffer[copy_len] = '\0';
+  // Decode URL-encoded characters in-place (e.g., %20 -> space)
+  size_t decoded_len = url_decode(buffer.data());
+  return StringRef(buffer.data(), decoded_len);
 }
 
 std::string AsyncWebServerRequest::host() const { return this->get_header("Host").value(); }
@@ -309,8 +304,8 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
   }
   httpd_resp_set_hdr(*this, "Accept-Ranges", "none");
 
-  for (const auto &pair : DefaultHeaders::Instance().headers_) {
-    httpd_resp_set_hdr(*this, pair.first.c_str(), pair.second.c_str());
+  for (const auto &header : DefaultHeaders::Instance().headers_) {
+    httpd_resp_set_hdr(*this, header.name, header.value);
   }
 
   delete this->rsp_;
@@ -335,30 +330,43 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
     return false;
   }
 
-  std::string user_info;
-  user_info += username;
-  user_info += ':';
-  user_info += password;
+  // Build user:pass in stack buffer to avoid heap allocation
+  constexpr size_t max_user_info_len = 256;
+  char user_info[max_user_info_len];
+  size_t user_len = strlen(username);
+  size_t pass_len = strlen(password);
+  size_t user_info_len = user_len + 1 + pass_len;
+
+  if (user_info_len >= max_user_info_len) {
+    ESP_LOGW(TAG, "Credentials too long for authentication");
+    return false;
+  }
+
+  memcpy(user_info, username, user_len);
+  user_info[user_len] = ':';
+  memcpy(user_info + user_len + 1, password, pass_len);
+  user_info[user_info_len] = '\0';
 
   size_t n = 0, out;
-  esp_crypto_base64_encode(nullptr, 0, &n, reinterpret_cast<const uint8_t *>(user_info.c_str()), user_info.size());
+  esp_crypto_base64_encode(nullptr, 0, &n, reinterpret_cast<const uint8_t *>(user_info), user_info_len);
 
   auto digest = std::unique_ptr<char[]>(new char[n + 1]);
   esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest.get()), n, &out,
-                           reinterpret_cast<const uint8_t *>(user_info.c_str()), user_info.size());
+                           reinterpret_cast<const uint8_t *>(user_info), user_info_len);
 
   return strcmp(digest.get(), auth_str + auth_prefix_len) == 0;
 }
 
 void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
   httpd_resp_set_hdr(*this, "Connection", "keep-alive");
-  auto auth_val = str_sprintf("Basic realm=\"%s\"", realm ? realm : "Login Required");
-  httpd_resp_set_hdr(*this, "WWW-Authenticate", auth_val.c_str());
+  // Note: realm is never configured in ESPHome, always nullptr -> "Login Required"
+  (void) realm;  // Unused - always use default
+  httpd_resp_set_hdr(*this, "WWW-Authenticate", "Basic realm=\"Login Required\"");
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
 #endif
 
-AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
+AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
   // Check cache first - only successful lookups are cached
   for (auto *param : this->params_) {
     if (param->name() == name) {
@@ -367,11 +375,11 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
   }
 
   // Look up value from query strings
-  optional<std::string> val = query_key_value(this->post_query_, name);
+  optional<std::string> val = query_key_value(this->post_query_.c_str(), this->post_query_.size(), name);
   if (!val.has_value()) {
     auto url_query = request_get_url_query(*this);
     if (url_query.has_value()) {
-      val = query_key_value(url_query.value(), name);
+      val = query_key_value(url_query.value().c_str(), url_query.value().size(), name);
     }
   }
 
@@ -474,7 +482,7 @@ void AsyncEventSource::deferrable_send_state(void *source, const char *event_typ
 AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *request,
                                                    esphome::web_server_idf::AsyncEventSource *server,
                                                    esphome::web_server::WebServer *ws)
-    : server_(server), web_server_(ws), entities_iterator_(new esphome::web_server::ListEntitiesIterator(ws, server)) {
+    : server_(server), web_server_(ws), entities_iterator_(ws, server) {
   httpd_req_t *req = *request;
 
   httpd_resp_set_status(req, HTTPD_200);
@@ -482,8 +490,8 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
   httpd_resp_set_hdr(req, "Connection", "keep-alive");
 
-  for (const auto &pair : DefaultHeaders::Instance().headers_) {
-    httpd_resp_set_hdr(req, pair.first.c_str(), pair.second.c_str());
+  for (const auto &header : DefaultHeaders::Instance().headers_) {
+    httpd_resp_set_hdr(req, header.name, header.value);
   }
 
   httpd_resp_send_chunk(req, CRLF_STR, CRLF_LEN);
@@ -518,12 +526,12 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   }
 #endif
 
-  this->entities_iterator_->begin(ws->include_internal_);
+  this->entities_iterator_.begin(ws->include_internal_);
 
   // just dump them all up-front and take advantage of the deferred queue
   //     on second thought that takes too long, but leaving the commented code here for debug purposes
-  // while(!this->entities_iterator_->completed()) {
-  //  this->entities_iterator_->advance();
+  // while(!this->entities_iterator_.completed()) {
+  //  this->entities_iterator_.advance();
   //}
 }
 
@@ -621,8 +629,8 @@ void AsyncEventSourceResponse::process_buffer_() {
 void AsyncEventSourceResponse::loop() {
   process_buffer_();
   process_deferred_queue_();
-  if (!this->entities_iterator_->completed())
-    this->entities_iterator_->advance();
+  if (!this->entities_iterator_.completed())
+    this->entities_iterator_.advance();
 }
 
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char *event, uint32_t id,
@@ -768,7 +776,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
                                                      message_generator_t *message_generator) {
   // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
   // up in the web GUI and reduces event load during initial connect
-  if (!entities_iterator_->completed() && 0 != strcmp(event_type, "state_detail_all"))
+  if (!this->entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
     return;
 
   if (source == nullptr)

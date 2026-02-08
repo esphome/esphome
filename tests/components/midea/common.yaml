@@ -12,6 +12,25 @@ climate:
           x.set_mode(CLIMATE_MODE_FAN_ONLY);
     on_state:
       - logger.log: State changed!
+      - lambda: |-
+          // Test get_custom_fan_mode() returns StringRef
+          if (id(midea_unit).has_custom_fan_mode()) {
+            auto fan_mode = id(midea_unit).get_custom_fan_mode();
+            // Compare with string literal using ==
+            if (fan_mode == "SILENT") {
+              ESP_LOGD("test", "Fan mode is SILENT");
+            }
+            // Log using %.*s format for StringRef
+            ESP_LOGD("test", "Custom fan mode: %.*s", (int) fan_mode.size(), fan_mode.c_str());
+          }
+          // Test get_custom_preset() returns StringRef
+          if (id(midea_unit).has_custom_preset()) {
+            auto preset = id(midea_unit).get_custom_preset();
+            // Check if empty
+            if (!preset.empty()) {
+              ESP_LOGD("test", "Custom preset: %.*s", (int) preset.size(), preset.c_str());
+            }
+          }
     transmitter_id: xmitr
     period: 1s
     num_attempts: 5

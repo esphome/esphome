@@ -20,9 +20,7 @@ const extern float VALVE_CLOSED;
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
-    if (!(obj)->get_device_class_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class_ref().c_str()); \
-    } \
+    LOG_ENTITY_DEVICE_CLASS(TAG, prefix, *(obj)); \
   }
 
 class Valve;
@@ -144,7 +142,7 @@ class Valve : public EntityBase, public EntityBase_DeviceClass {
 
   optional<ValveRestoreState> restore_state_();
 
-  CallbackManager<void()> state_callback_{};
+  LazyCallbackManager<void()> state_callback_{};
 
   ESPPreferenceObject rtc_;
 };

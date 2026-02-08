@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include <memory>
 #include "esphome/core/helpers.h"
@@ -24,4 +24,4 @@ class DNSServer {
 
 }  // namespace esphome::captive_portal
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

@@ -51,7 +51,8 @@ void ABBWelcomeProtocol::encode(RemoteTransmitData *dst, const ABBWelcomeData &s
   dst->reserve(reserve_count);
   for (size_t i = 0; i < src.size(); i++)
     this->encode_byte_(dst, src[i]);
-  ESP_LOGD(TAG, "Transmitting: %s", src.to_string().c_str());
+  char buf[ABBWelcomeData::FORMAT_BUFFER_SIZE];
+  ESP_LOGD(TAG, "Transmitting: %s", src.format_to(buf));
 }
 
 bool ABBWelcomeProtocol::decode_byte_(RemoteReceiveData &src, bool &done, uint8_t &data) {
@@ -94,7 +95,8 @@ optional<ABBWelcomeData> ABBWelcomeProtocol::decode(RemoteReceiveData src) {
     for (; (received_bytes < length) && !done; received_bytes++) {
       uint8_t data = 0;
       if (!this->decode_byte_(src, done, data)) {
-        ESP_LOGW(TAG, "Received incomplete packet: %s", out.to_string(received_bytes).c_str());
+        char buf[ABBWelcomeData::FORMAT_BUFFER_SIZE];
+        ESP_LOGW(TAG, "Received incomplete packet: %s", out.format_to(buf, received_bytes));
         return {};
       }
       if (received_bytes == 2) {
@@ -106,17 +108,19 @@ optional<ABBWelcomeData> ABBWelcomeProtocol::decode(RemoteReceiveData src) {
       ESP_LOGVV(TAG, "Received Byte: 0x%02X", data);
       out[received_bytes] = data;
     }
+    char buf[ABBWelcomeData::FORMAT_BUFFER_SIZE];
     if (out.is_valid()) {
-      ESP_LOGI(TAG, "Received: %s", out.to_string().c_str());
+      ESP_LOGI(TAG, "Received: %s", out.format_to(buf));
       return out;
     }
-    ESP_LOGW(TAG, "Received malformed packet: %s", out.to_string(received_bytes).c_str());
+    ESP_LOGW(TAG, "Received malformed packet: %s", out.format_to(buf, received_bytes));
   }
   return {};
 }
 
 void ABBWelcomeProtocol::dump(const ABBWelcomeData &data) {
-  ESP_LOGD(TAG, "Received ABBWelcome: %s", data.to_string().c_str());
+  char buf[ABBWelcomeData::FORMAT_BUFFER_SIZE];
+  ESP_LOGD(TAG, "Received ABBWelcome: %s", data.format_to(buf));
 }
 
 }  // namespace remote_base

@@ -1,6 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.core import coroutine_with_priority
+from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -16,6 +18,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+@coroutine_with_priority(CoroPriority.PREFERENCES)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_write_interval(config[CONF_FLASH_WRITE_INTERVAL]))

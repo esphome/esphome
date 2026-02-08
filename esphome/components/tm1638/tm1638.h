@@ -70,7 +70,7 @@ class TM1638Component : public PollingComponent {
   GPIOPin *clk_pin_;
   GPIOPin *stb_pin_;
   GPIOPin *dio_pin_;
-  uint8_t *buffer_ = new uint8_t[8];
+  uint8_t buffer_[8]{};
   tm1638_writer_t writer_{};
   std::vector<KeyListener *> listeners_{};
 };
