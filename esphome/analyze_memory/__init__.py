@@ -62,6 +62,11 @@ RAM_SECTIONS = frozenset([".data", ".bss"])
 # can have name collisions across compilation units
 _NM_DEFINED_GLOBAL_TYPES = frozenset({"T", "D", "B", "R", "W", "V"})
 
+# Pattern matching compiler-generated local names that can collide across compilation
+# units (e.g., packet$19, buf$20, flag$5261). These are unsafe for name-based lookup.
+# Does NOT match mangled C++ names with optimization suffixes (e.g., func$isra$0).
+_COMPILER_LOCAL_PATTERN = re.compile(r"^[a-zA-Z_]\w*\$\d+$")
+
 
 @dataclass
 class MemorySection:
@@ -591,13 +596,78 @@ class MemoryAnalyzer:
 
         return mapping
 
+    def _parse_map_file(self) -> dict[str, str] | None:
+        """Parse linker map file to build authoritative symbol-to-library mapping.
+
+        The linker map file contains the definitive source attribution for every
+        symbol, including local/static ones that ``nm`` cannot safely export.
+
+        Map file format (GNU ld)::
+
+            .text._mdns_service_task
+                        0x400e9fdc      0x65c  .pioenvs/env/esp-idf/espressif__mdns/libespressif__mdns.a(mdns.c.o)
+
+        Each section entry has a ``.section.symbol_name`` line followed by an
+        indented line with address, size, and source path.
+
+        Returns:
+            Symbol-to-library dict, or ``None`` if no usable map file exists.
+        """
+        map_path = self.elf_path.with_suffix(".map")
+        if not map_path.exists() or map_path.stat().st_size < 10000:
+            return None
+
+        _LOGGER.info("Parsing linker map file: %s", map_path.name)
+
+        symbol_map: dict[str, str] = {}
+        current_symbol: str | None = None
+        section_prefixes = (".text.", ".rodata.", ".data.", ".bss.", ".literal.")
+
+        for line in map_path.read_text().splitlines():
+            # Match section.symbol line: " .text.symbol_name"
+            # Single space indent, starts with dot
+            if len(line) > 2 and line[0] == " " and line[1] == ".":
+                stripped = line.strip()
+                for prefix in section_prefixes:
+                    if stripped.startswith(prefix):
+                        current_symbol = stripped[len(prefix) :]
+                        break
+                else:
+                    current_symbol = None
+                continue
+
+            # Match source attribution line: "        0xADDR  0xSIZE  source_path"
+            if current_symbol is None:
+                continue
+
+            fields = line.split()
+            # Skip compiler-generated local names (e.g., packet$19, buf$20)
+            # that can collide across compilation units
+            if (
+                len(fields) >= 3
+                and fields[0].startswith("0x")
+                and fields[1].startswith("0x")
+                and not _COMPILER_LOCAL_PATTERN.match(current_symbol)
+            ):
+                source_path = fields[2]
+                # Check if source path contains a known library directory
+                for dir_key, lib_name in self._lib_hash_to_name.items():
+                    if dir_key in source_path:
+                        symbol_map[current_symbol] = lib_name
+                        break
+
+            current_symbol = None
+
+        return symbol_map or None
+
     def _scan_libraries(self) -> None:
         """Discover third-party libraries and build symbol mapping.
 
         Scans both PlatformIO ``lib<hex>/`` directories (Arduino builds) and
         ESP-IDF ``managed_components/`` (IDF builds) to find library archives.
-        Orchestrates symbol map construction and hash-to-name mapping for
-        CSWTCH attribution.
+
+        Uses the linker map file for authoritative symbol attribution when
+        available, falling back to ``nm`` scanning with heuristic redirects.
         """
         libraries: dict[str, list[Path]] = {}
         self._discover_pio_libraries(libraries, self._lib_hash_to_name)
@@ -613,13 +683,27 @@ class MemoryAnalyzer:
             ", ".join(sorted(libraries)),
         )
 
-        self._lib_symbol_map = self._build_library_symbol_map(libraries)
+        # Heuristic redirect catches local symbols (e.g., mdns_task_buffer$14)
+        # that can't be safely added to the symbol map due to name collisions
         self._heuristic_to_lib = self._build_heuristic_to_lib_mapping(
             set(libraries.keys())
         )
 
+        # Try linker map file first (authoritative, includes local symbols)
+        map_symbols = self._parse_map_file()
+        if map_symbols is not None:
+            self._lib_symbol_map = map_symbols
+            _LOGGER.info(
+                "Built library symbol map from linker map: %d symbols",
+                len(self._lib_symbol_map),
+            )
+            return
+
+        # Fall back to nm scanning (global symbols only)
+        self._lib_symbol_map = self._build_library_symbol_map(libraries)
+
         _LOGGER.info(
-            "Built library symbol map: %d symbols from %d libraries",
+            "Built library symbol map from nm: %d symbols from %d libraries",
             len(self._lib_symbol_map),
             len(libraries),
         )
