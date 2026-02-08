@@ -98,7 +98,7 @@ bool TaskLogBufferZephyr::borrow_message_main_loop(LogMessage **message, const c
   *text = (*message)->text_data();
 
   // Remove trailing newlines
-  while ((*message)->text_length > 0 && *text[(*message)->text_length - 1] == '\n') {
+  while ((*message)->text_length > 0 && (*text)[(*message)->text_length - 1] == '\n') {
     (*message)->text_length--;
   }
 
