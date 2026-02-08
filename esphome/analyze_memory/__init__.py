@@ -57,9 +57,10 @@ SymbolInfoType = tuple[str, int, str]
 # RAM sections - symbols in these sections consume RAM
 RAM_SECTIONS = frozenset([".data", ".bss"])
 
-# nm symbol types for defined symbols (used for library symbol mapping)
-# Uppercase = global, lowercase = local/static, W/V = weak
-_NM_DEFINED_SYMBOL_TYPES = frozenset({"T", "t", "D", "d", "B", "b", "R", "r", "W", "V"})
+# nm symbol types for global/weak defined symbols (used for library symbol mapping)
+# Only global (uppercase) and weak symbols are safe to use - local symbols (lowercase)
+# can have name collisions across compilation units
+_NM_DEFINED_GLOBAL_TYPES = frozenset({"T", "D", "B", "R", "W", "V"})
 
 
 @dataclass
@@ -526,8 +527,8 @@ class MemoryAnalyzer:
                 sym_type = parts[-2]
                 sym_name = parts[-1]
 
-                # Include all defined symbols (global, local, and weak)
-                if sym_type in _NM_DEFINED_SYMBOL_TYPES:
+                # Include global defined symbols (uppercase) and weak symbols (W/V)
+                if sym_type in _NM_DEFINED_GLOBAL_TYPES:
                     symbol_map[sym_name] = lib_name
 
         return symbol_map
