@@ -616,6 +616,28 @@ async def test_download_binary_handler_no_firmware_bin_path(
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_ext_storage_path")
+@pytest.mark.parametrize("file_value", ["", "  ", "%20"])
+async def test_download_binary_handler_empty_file_name(
+    dashboard: DashboardTestHelper,
+    mock_storage_json: MagicMock,
+    file_value: str,
+) -> None:
+    """Test that download returns 400 for empty or whitespace-only file names."""
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = Path("/fake/firmware.bin")
+    mock_storage_json.load.return_value = mock_storage
+
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch(
+            f"/download.bin?configuration=test.yaml&file={file_value}",
+            method="GET",
+        )
+    assert exc_info.value.code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
 async def test_download_binary_handler_multiple_subdirectory_levels(
     dashboard: DashboardTestHelper,
     tmp_path: Path,

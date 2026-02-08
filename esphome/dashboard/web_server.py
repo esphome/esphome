@@ -1054,7 +1054,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
         # fallback to type=, but prioritize file=
         file_name = self.get_argument("type", None)
         file_name = self.get_argument("file", file_name)
-        if file_name is None:
+        if file_name is None or not file_name.strip():
             self.send_error(400)
             return
         # get requested download name, or build it based on filename
@@ -1087,7 +1087,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
             found = False
             for image in idedata.extra_flash_images:
-                if image.path.endswith(file_name):
+                if image.path.as_posix().endswith(file_name):
                     path = image.path
                     download_name = file_name
                     found = True
