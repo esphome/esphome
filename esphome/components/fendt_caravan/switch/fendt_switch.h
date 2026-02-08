@@ -11,7 +11,7 @@ namespace esphome::fendt_caravan {
 
 class FendtSwitch : public CaravanSensorBase<bool>, public switch_::Switch {
  public:
-  void setup() {
+  void setup() override {
     if (this->key_name_.empty())
       return;
     auto *variable = static_cast<Variable<bool> *>(this->get_parent()->get_variable(this->key_name_));
