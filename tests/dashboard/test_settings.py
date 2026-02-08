@@ -225,16 +225,12 @@ def test_config_path_parent_resolves_to_config_dir(tmp_path: Path) -> None:
 
 
 @pytest.fixture
-def auth_settings(tmp_path: Path) -> DashboardSettings:
-    """Create DashboardSettings with auth configured."""
-    settings = DashboardSettings()
-    resolved_dir = tmp_path.resolve()
-    settings.config_dir = resolved_dir
-    settings.absolute_config_dir = resolved_dir
-    settings.username = "admin"
-    settings.using_password = True
-    settings.password_hash = password_hash("correctpassword")
-    return settings
+def auth_settings(dashboard_settings: DashboardSettings) -> DashboardSettings:
+    """Create DashboardSettings with auth configured, based on dashboard_settings."""
+    dashboard_settings.username = "admin"
+    dashboard_settings.using_password = True
+    dashboard_settings.password_hash = password_hash("correctpassword")
+    return dashboard_settings
 
 
 def test_check_password_correct_credentials(auth_settings: DashboardSettings) -> None:
@@ -264,6 +260,7 @@ def test_check_password_no_auth(dashboard_settings: DashboardSettings) -> None:
 
 def test_check_password_ha_addon_no_password(
     dashboard_settings: DashboardSettings,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test check_password doesn't crash in HA add-on mode without a password.
 
@@ -271,6 +268,7 @@ def test_check_password_ha_addon_no_password(
     is False, leaving password_hash as b"". This must not raise TypeError
     in hmac.compare_digest.
     """
+    monkeypatch.delenv("DISABLE_HA_AUTHENTICATION", raising=False)
     dashboard_settings.on_ha_addon = True
     dashboard_settings.using_password = False
     # password_hash stays as default b""
