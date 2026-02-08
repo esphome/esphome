@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from pathlib import Path
 
 from esphome import pins
@@ -353,10 +352,10 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
     mcumgr_device = None
 
     if get_port_type(host) == "SERIAL":
+        check_permissions(host)
         if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
         else:
-            check_permissions(host)
             result = _upload_using_platformio(config, host, ["-t", "upload"])
             handled = True
 

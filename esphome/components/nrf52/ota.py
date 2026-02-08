@@ -55,7 +55,9 @@ def _get_image_tlv_sha256(file: Path) -> str:
     except MCUBootImageError as exc:
         raise EsphomeError("Inspection of FW image failed") from exc
     except FileNotFoundError as exc:
-        raise EsphomeError("Build with zephyr_mcumgr enabled") from exc
+        raise EsphomeError(
+            f"Firmware image file not found: {file}. Build with zephyr_mcumgr enabled"
+        ) from exc
 
     try:
         image_tlv_sha256 = image_info.get_tlv(IMAGE_TLV.SHA256)
