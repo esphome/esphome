@@ -2906,7 +2906,6 @@ static const char *const TAG = "api.service";
     class_name = "APIServerConnection"
     hpp += "\n"
     hpp += f"class {class_name} : public {class_name}Base {{\n"
-    hpp += " public:\n"
     hpp_protected = ""
     cpp += "\n"
 
@@ -2914,53 +2913,14 @@ static const char *const TAG = "api.service";
     message_auth_map: dict[str, bool] = {}
     message_conn_map: dict[str, bool] = {}
 
-    m = serv.method[0]
     for m in serv.method:
-        func = m.name
         inp = m.input_type[1:]
-        ret = m.output_type[1:]
-        is_void = ret == "void"
-        snake = camel_to_snake(inp)
-        on_func = f"on_{snake}"
         needs_conn = get_opt(m, pb.needs_setup_connection, True)
         needs_auth = get_opt(m, pb.needs_authentication, True)
 
         # Store authentication requirements for message types
         message_auth_map[inp] = needs_auth
         message_conn_map[inp] = needs_conn
-
-        ifdef = message_ifdef_map.get(inp, ifdefs.get(inp))
-
-        if ifdef is not None:
-            hpp += f"#ifdef {ifdef}\n"
-            hpp_protected += f"#ifdef {ifdef}\n"
-            cpp += f"#ifdef {ifdef}\n"
-
-        is_empty = inp in EMPTY_MESSAGES
-        param = "" if is_empty else f"const {inp} &msg"
-        arg = "" if is_empty else "msg"
-
-        hpp_protected += f"  void {on_func}({param}) override;\n"
-        if is_void:
-            hpp += f"  virtual void {func}({param}) = 0;\n"
-        else:
-            hpp += f"  virtual bool send_{func}_response({param}) = 0;\n"
-
-        cpp += f"void {class_name}::{on_func}({param}) {{\n"
-        body = ""
-        if is_void:
-            body += f"this->{func}({arg});\n"
-        else:
-            body += f"if (!this->send_{func}_response({arg})) {{\n"
-            body += "  this->on_fatal_error();\n"
-            body += "}\n"
-
-        cpp += indent(body) + "\n" + "}\n"
-
-        if ifdef is not None:
-            hpp += "#endif\n"
-            hpp_protected += "#endif\n"
-            cpp += "#endif\n"
 
     # Generate optimized read_message with authentication checking
     # Categorize messages by their authentication requirements
