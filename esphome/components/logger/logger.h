@@ -19,6 +19,8 @@
 #include "task_log_buffer_esp32.h"
 #elif defined(USE_LIBRETINY)
 #include "task_log_buffer_libretiny.h"
+#elif defined(USE_ZEPHYR)
+#include "task_log_buffer_zephyr.h"
 #endif
 #endif
 
@@ -120,9 +122,6 @@ static constexpr char LOG_LEVEL_LETTER_CHARS[] = {
 
 // Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
 static constexpr uint16_t MAX_HEADER_SIZE = 128;
-
-// "0x" + 2 hex digits per byte + '\0'
-static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
 
 // Buffer wrapper for log formatting functions
 struct LogBuffer {
@@ -406,17 +405,18 @@ class Logger : public Component {
     bool &flag_;
   };
 
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   // Handles non-main thread logging only (~0.1% of calls)
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   // ESP32/LibreTiny: Pass task handle to avoid calling xTaskGetCurrentTaskHandle() twice
   void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
-                                    TaskHandle_t current_task);
+                                    void *current_task);
 #else  // USE_HOST
   // Host: No task handle parameter needed (not used in send_message_thread_safe)
   void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args);
 #endif
 #endif
+  void cdc_loop_();
   void process_messages_();
   void write_msg_(const char *msg, uint16_t len);
 
@@ -544,6 +544,8 @@ class Logger : public Component {
   logger::TaskLogBuffer *log_buffer_{nullptr};  // Allocated once, never freed
 #elif defined(USE_LIBRETINY)
   logger::TaskLogBufferLibreTiny *log_buffer_{nullptr};  // Allocated once, never freed
+#elif defined(USE_ZEPHYR)
+  logger::TaskLogBufferZephyr *log_buffer_{nullptr};  // Allocated once, never freed
 #endif
 #endif
 
@@ -556,7 +558,7 @@ class Logger : public Component {
 #ifdef USE_LIBRETINY
   UARTSelection uart_{UART_SELECTION_DEFAULT};
 #endif
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || USE_ZEPHYR
   bool main_task_recursion_guard_{false};
 #ifdef USE_LIBRETINY
   bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
@@ -619,7 +621,7 @@ class Logger : public Component {
   // Create RAII guard for non-main task recursion
   inline NonMainTaskRecursionGuard make_non_main_task_guard_() { return NonMainTaskRecursionGuard(log_recursion_key_); }
 
-#elif defined(USE_LIBRETINY)
+#elif defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   // LibreTiny doesn't have FreeRTOS TLS, so use a simple approach:
   // - Main task uses dedicated boolean (same as ESP32)
   // - Non-main tasks share a single recursion guard
@@ -627,6 +629,7 @@ class Logger : public Component {
   // - Recursion from logging within logging is the main concern
   // - Cross-task "recursion" is prevented by the buffer mutex anyway
   // - Missing a recursive call from another task is acceptable (falls back to direct output)
+  // Zephyr use __thread as TLS
 
   // Check if non-main task is already in recursion
   inline bool HOT is_non_main_task_recursive_() const { return non_main_task_recursion_guard_; }
@@ -651,7 +654,7 @@ class Logger : public Component {
   }
 #endif
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || (defined(USE_ZEPHYR) && !defined(USE_LOGGER_USB_CDC))
   // Disable loop when task buffer is empty (with USB CDC check on ESP32)
   inline void disable_loop_when_buffer_empty_() {
     // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()

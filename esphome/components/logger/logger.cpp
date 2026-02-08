@@ -10,7 +10,7 @@ namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 // Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads, LibreTiny with FreeRTOS)
 // Main thread/task always uses direct buffer access for console output and callbacks
 //
@@ -31,6 +31,9 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   // Get task handle once - used for both main task check and passing to non-main thread handler
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
   const bool is_main_task = (current_task == this->main_task_);
+#elif (USE_ZEPHYR)
+  k_tid_t current_task = k_current_get();
+  const bool is_main_task = (current_task == this->main_task_);
 #else  // USE_HOST
   const bool is_main_task = pthread_equal(pthread_self(), this->main_thread_);
 #endif
@@ -47,7 +50,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   }
 
   // Non-main thread handling (~0.1% of logs)
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   this->log_vprintf_non_main_thread_(level, tag, line, format, args, current_task);
 #else  // USE_HOST
   this->log_vprintf_non_main_thread_(level, tag, line, format, args);
@@ -56,12 +59,13 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 
 // Handles non-main thread logging only
 // Kept separate from hot path to improve instruction cache performance
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
-                                          TaskHandle_t current_task) {
+                                          void *current_task)
 #else  // USE_HOST
-void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args) {
+void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args)
 #endif
+{
   // Check if already in recursion for this non-main thread/task
   if (this->is_non_main_task_recursive_()) {
     return;
@@ -73,7 +77,7 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
   bool message_sent = false;
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // For non-main threads/tasks, queue the message for callbacks
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   message_sent =
       this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), current_task, format, args);
 #else  // USE_HOST
@@ -91,11 +95,15 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
   // Note: This may cause interleaved/corrupted console output if multiple threads
   // log simultaneously, but it's better than losing important messages entirely
 #ifdef USE_HOST
-  if (!message_sent) {
+  if (!message_sent)
+#else
+  if (!message_sent && this->baud_rate_ > 0)  // If logging is enabled, write to console
+#endif
+  {
+#ifdef USE_HOST
     // Host always has console output - no baud_rate check needed
     static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 512;
 #else
-  if (!message_sent && this->baud_rate_ > 0) {  // If logging is enabled, write to console
     // Maximum size for console log messages (includes null terminator)
     static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 144;
 #endif
@@ -166,9 +174,12 @@ void Logger::init_log_buffer(size_t total_buffer_size) {
 #elif defined(USE_LIBRETINY)
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
   this->log_buffer_ = new logger::TaskLogBufferLibreTiny(total_buffer_size);
+#elif defined(USE_ZEPHYR)
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
+  this->log_buffer_ = new logger::TaskLogBufferZephyr(total_buffer_size);
 #endif
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || (defined(USE_ZEPHYR) && !defined(USE_LOGGER_USB_CDC))
   // Start with loop disabled when using task buffer (unless using USB CDC on ESP32)
   // The loop will be enabled automatically when messages arrive
   this->disable_loop_when_buffer_empty_();
@@ -176,8 +187,13 @@ void Logger::init_log_buffer(size_t total_buffer_size) {
 }
 #endif
 
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-void Logger::loop() { this->process_messages_(); }
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC))
+void Logger::loop() {
+  this->process_messages_();
+#if defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC)
+  this->cdc_loop_();
+#endif
+}
 #endif
 
 void Logger::process_messages_() {
@@ -194,21 +210,14 @@ void Logger::process_messages_() {
       this->log_buffer_->release_message_main_loop();
       this->write_log_buffer_to_console_(buf);
     }
-#elif defined(USE_ESP32)
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+#ifdef USE_ESP32
     logger::TaskLogBuffer::LogMessage *message;
-    const char *text;
-    void *received_token;
-    while (this->log_buffer_->borrow_message_main_loop(&message, &text, &received_token)) {
-      const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
-      LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
-      this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
-                                                message->text_length, buf);
-      // Release the message to allow other tasks to use it as soon as possible
-      this->log_buffer_->release_message_main_loop(received_token);
-      this->write_log_buffer_to_console_(buf);
-    }
 #elif defined(USE_LIBRETINY)
     logger::TaskLogBufferLibreTiny::LogMessage *message;
+#else
+    logger::TaskLogBufferZephyr::LogMessage *message;
+#endif
     const char *text;
     while (this->log_buffer_->borrow_message_main_loop(&message, &text)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
@@ -221,7 +230,7 @@ void Logger::process_messages_() {
     }
 #endif
   }
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || (defined(USE_ZEPHYR) && !defined(USE_LOGGER_USB_CDC))
   else {
     // No messages to process, disable loop if appropriate
     // This reduces overhead when there's no async logging activity

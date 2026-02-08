@@ -31,8 +31,8 @@ TaskLogBuffer::~TaskLogBuffer() {
   }
 }
 
-bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **text, void **received_token) {
-  if (message == nullptr || text == nullptr || received_token == nullptr) {
+bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **text) {
+  if (message == nullptr || text == nullptr || this->current_token_) {
     return false;
   }
 
@@ -45,16 +45,17 @@ bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **
   LogMessage *msg = static_cast<LogMessage *>(received_item);
   *message = msg;
   *text = msg->text_data();
-  *received_token = received_item;
+  this->current_token_ = received_item;
 
   return true;
 }
 
-void TaskLogBuffer::release_message_main_loop(void *token) {
-  if (token == nullptr) {
+void TaskLogBuffer::release_message_main_loop() {
+  if (this->current_token_ == nullptr) {
     return;
   }
-  vRingbufferReturnItem(ring_buffer_, token);
+  vRingbufferReturnItem(ring_buffer_, this->current_token_);
+  this->current_token_ = nullptr;
   // Update counter to mark all messages as processed
   last_processed_counter_ = message_counter_.load(std::memory_order_relaxed);
 }
