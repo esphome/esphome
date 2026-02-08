@@ -2274,6 +2274,9 @@ RECEIVE_CASES: dict[int, tuple[str, str | None]] = {}
 
 ifdefs: dict[str, str] = {}
 
+# Track messages with no fields (empty messages) for parameter elision
+EMPTY_MESSAGES: set[str] = set()
+
 
 def get_opt(
     desc: descriptor.DescriptorProto,
@@ -2506,23 +2509,32 @@ def build_service_message_type(
             hout += f"#ifdef {ifdef}\n"
         # Generate receive
         func = f"on_{snake}"
-        hout += f"virtual void {func}(const {mt.name} &value){{}};\n"
-        case = ""
-        case += f"{mt.name} msg;\n"
         # Check if this message has any fields (excluding deprecated ones)
         has_fields = any(not field.options.deprecated for field in mt.field)
         if has_fields:
+            hout += f"virtual void {func}(const {mt.name} &value){{}};\n"
+            case = ""
+            case += f"{mt.name} msg;\n"
             # Normal case: decode the message
             case += "msg.decode(msg_data, msg_size);\n"
+            if log:
+                case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+                case += f'this->log_receive_message_(LOG_STR("{func}"), msg);\n'
+                case += "#endif\n"
+            case += f"this->{func}(msg);\n"
+            case += "break;"
         else:
-            # Empty message optimization: skip decode since there are no fields
-            case += "// Empty message: no decode needed\n"
-        if log:
-            case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-            case += f'this->log_receive_message_(LOG_STR("{func}"), msg);\n'
-            case += "#endif\n"
-        case += f"this->{func}(msg);\n"
-        case += "break;"
+            # Empty message: elide parameter from handler since it carries no data
+            EMPTY_MESSAGES.add(mt.name)
+            hout += f"virtual void {func}(){{}};\n"
+            case = ""
+            if log:
+                case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+                case += f"{mt.name} msg;\n"
+                case += f'this->log_receive_message_(LOG_STR("{func}"), msg);\n'
+                case += "#endif\n"
+            case += f"this->{func}();\n"
+            case += "break;"
         # Store the message name and ifdef with the case for later use
         RECEIVE_CASES[id_] = (case, ifdef, mt.name)
 
@@ -2929,24 +2941,45 @@ static const char *const TAG = "api.service";
             hpp_protected += f"#ifdef {ifdef}\n"
             cpp += f"#ifdef {ifdef}\n"
 
-        hpp_protected += f"  void {on_func}(const {inp} &msg) override;\n"
+        is_empty = inp in EMPTY_MESSAGES
 
-        # For non-void methods, generate a send_ method instead of return-by-value
-        if is_void:
-            hpp += f"  virtual void {func}(const {inp} &msg) = 0;\n"
+        if is_empty:
+            # Empty message: elide parameter since it carries no data
+            hpp_protected += f"  void {on_func}() override;\n"
+
+            if is_void:
+                hpp += f"  virtual void {func}() = 0;\n"
+            else:
+                hpp += f"  virtual bool send_{func}_response() = 0;\n"
+
+            cpp += f"void {class_name}::{on_func}() {{\n"
+
+            body = ""
+            if is_void:
+                body += f"this->{func}();\n"
+            else:
+                body += f"if (!this->send_{func}_response()) {{\n"
+                body += "  this->on_fatal_error();\n"
+                body += "}\n"
         else:
-            hpp += f"  virtual bool send_{func}_response(const {inp} &msg) = 0;\n"
+            hpp_protected += f"  void {on_func}(const {inp} &msg) override;\n"
 
-        cpp += f"void {class_name}::{on_func}(const {inp} &msg) {{\n"
+            # For non-void methods, generate a send_ method instead of return-by-value
+            if is_void:
+                hpp += f"  virtual void {func}(const {inp} &msg) = 0;\n"
+            else:
+                hpp += f"  virtual bool send_{func}_response(const {inp} &msg) = 0;\n"
 
-        # No authentication check here - it's done in read_message
-        body = ""
-        if is_void:
-            body += f"this->{func}(msg);\n"
-        else:
-            body += f"if (!this->send_{func}_response(msg)) {{\n"
-            body += "  this->on_fatal_error();\n"
-            body += "}\n"
+            cpp += f"void {class_name}::{on_func}(const {inp} &msg) {{\n"
+
+            # No authentication check here - it's done in read_message
+            body = ""
+            if is_void:
+                body += f"this->{func}(msg);\n"
+            else:
+                body += f"if (!this->send_{func}_response(msg)) {{\n"
+                body += "  this->on_fatal_error();\n"
+                body += "}\n"
 
         cpp += indent(body) + "\n" + "}\n"
 

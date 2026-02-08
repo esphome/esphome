@@ -29,66 +29,59 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case DisconnectRequest::MESSAGE_TYPE: {
-      DisconnectRequest msg;
-      // Empty message: no decode needed
 #ifdef HAS_PROTO_MESSAGE_DUMP
+      DisconnectRequest msg;
       this->log_receive_message_(LOG_STR("on_disconnect_request"), msg);
 #endif
-      this->on_disconnect_request(msg);
+      this->on_disconnect_request();
       break;
     }
     case DisconnectResponse::MESSAGE_TYPE: {
-      DisconnectResponse msg;
-      // Empty message: no decode needed
 #ifdef HAS_PROTO_MESSAGE_DUMP
+      DisconnectResponse msg;
       this->log_receive_message_(LOG_STR("on_disconnect_response"), msg);
 #endif
-      this->on_disconnect_response(msg);
+      this->on_disconnect_response();
       break;
     }
     case PingRequest::MESSAGE_TYPE: {
-      PingRequest msg;
-      // Empty message: no decode needed
 #ifdef HAS_PROTO_MESSAGE_DUMP
+      PingRequest msg;
       this->log_receive_message_(LOG_STR("on_ping_request"), msg);
 #endif
-      this->on_ping_request(msg);
+      this->on_ping_request();
       break;
     }
     case PingResponse::MESSAGE_TYPE: {
-      PingResponse msg;
-      // Empty message: no decode needed
 #ifdef HAS_PROTO_MESSAGE_DUMP
+      PingResponse msg;
       this->log_receive_message_(LOG_STR("on_ping_response"), msg);
 #endif
-      this->on_ping_response(msg);
+      this->on_ping_response();
       break;
     }
     case DeviceInfoRequest::MESSAGE_TYPE: {
-      DeviceInfoRequest msg;
-      // Empty message: no decode needed
 #ifdef HAS_PROTO_MESSAGE_DUMP
+      DeviceInfoRequest msg;
       this->log_receive_message_(LOG_STR("on_device_info_request"), msg);
 #endif
-      this->on_device_info_request(msg);
+      this->on_device_info_request();
       break;
     }
     case ListEntitiesRequest::MESSAGE_TYPE: {
-      ListEntitiesRequest msg;
-      // Empty message: no decode needed
 #ifdef HAS_PROTO_MESSAGE_DUMP
+      ListEntitiesRequest msg;
       this->log_receive_message_(LOG_STR("on_list_entities_request"), msg);
 #endif
-      this->on_list_entities_request(msg);
+      this->on_list_entities_request();
       break;
     }
     case SubscribeStatesRequest::MESSAGE_TYPE: {
-      SubscribeStatesRequest msg;
-      // Empty message: no decode needed
 #ifdef HAS_PROTO_MESSAGE_DUMP
+      SubscribeStatesRequest msg;
       this->log_receive_message_(LOG_STR("on_subscribe_states_request"), msg);
 #endif
-      this->on_subscribe_states_request(msg);
+      this->on_subscribe_states_request();
       break;
     }
     case SubscribeLogsRequest::MESSAGE_TYPE: {
@@ -146,12 +139,11 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
     case SubscribeHomeassistantServicesRequest::MESSAGE_TYPE: {
-      SubscribeHomeassistantServicesRequest msg;
-      // Empty message: no decode needed
 #ifdef HAS_PROTO_MESSAGE_DUMP
+      SubscribeHomeassistantServicesRequest msg;
       this->log_receive_message_(LOG_STR("on_subscribe_homeassistant_services_request"), msg);
 #endif
-      this->on_subscribe_homeassistant_services_request(msg);
+      this->on_subscribe_homeassistant_services_request();
       break;
     }
 #endif
@@ -166,12 +158,11 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #ifdef USE_API_HOMEASSISTANT_STATES
     case SubscribeHomeAssistantStatesRequest::MESSAGE_TYPE: {
-      SubscribeHomeAssistantStatesRequest msg;
-      // Empty message: no decode needed
 #ifdef HAS_PROTO_MESSAGE_DUMP
+      SubscribeHomeAssistantStatesRequest msg;
       this->log_receive_message_(LOG_STR("on_subscribe_home_assistant_states_request"), msg);
 #endif
-      this->on_subscribe_home_assistant_states_request(msg);
+      this->on_subscribe_home_assistant_states_request();
       break;
     }
 #endif
@@ -375,23 +366,21 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
 #ifdef USE_BLUETOOTH_PROXY
     case SubscribeBluetoothConnectionsFreeRequest::MESSAGE_TYPE: {
-      SubscribeBluetoothConnectionsFreeRequest msg;
-      // Empty message: no decode needed
 #ifdef HAS_PROTO_MESSAGE_DUMP
+      SubscribeBluetoothConnectionsFreeRequest msg;
       this->log_receive_message_(LOG_STR("on_subscribe_bluetooth_connections_free_request"), msg);
 #endif
-      this->on_subscribe_bluetooth_connections_free_request(msg);
+      this->on_subscribe_bluetooth_connections_free_request();
       break;
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
     case UnsubscribeBluetoothLEAdvertisementsRequest::MESSAGE_TYPE: {
-      UnsubscribeBluetoothLEAdvertisementsRequest msg;
-      // Empty message: no decode needed
 #ifdef HAS_PROTO_MESSAGE_DUMP
+      UnsubscribeBluetoothLEAdvertisementsRequest msg;
       this->log_receive_message_(LOG_STR("on_unsubscribe_bluetooth_le_advertisements_request"), msg);
 #endif
-      this->on_unsubscribe_bluetooth_le_advertisements_request(msg);
+      this->on_unsubscribe_bluetooth_le_advertisements_request();
       break;
     }
 #endif
@@ -647,36 +636,29 @@ void APIServerConnection::on_hello_request(const HelloRequest &msg) {
     this->on_fatal_error();
   }
 }
-void APIServerConnection::on_disconnect_request(const DisconnectRequest &msg) {
-  if (!this->send_disconnect_response(msg)) {
+void APIServerConnection::on_disconnect_request() {
+  if (!this->send_disconnect_response()) {
     this->on_fatal_error();
   }
 }
-void APIServerConnection::on_ping_request(const PingRequest &msg) {
-  if (!this->send_ping_response(msg)) {
+void APIServerConnection::on_ping_request() {
+  if (!this->send_ping_response()) {
     this->on_fatal_error();
   }
 }
-void APIServerConnection::on_device_info_request(const DeviceInfoRequest &msg) {
-  if (!this->send_device_info_response(msg)) {
+void APIServerConnection::on_device_info_request() {
+  if (!this->send_device_info_response()) {
     this->on_fatal_error();
   }
 }
-void APIServerConnection::on_list_entities_request(const ListEntitiesRequest &msg) { this->list_entities(msg); }
-void APIServerConnection::on_subscribe_states_request(const SubscribeStatesRequest &msg) {
-  this->subscribe_states(msg);
-}
+void APIServerConnection::on_list_entities_request() { this->list_entities(); }
+void APIServerConnection::on_subscribe_states_request() { this->subscribe_states(); }
 void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &msg) { this->subscribe_logs(msg); }
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-void APIServerConnection::on_subscribe_homeassistant_services_request(
-    const SubscribeHomeassistantServicesRequest &msg) {
-  this->subscribe_homeassistant_services(msg);
-}
+void APIServerConnection::on_subscribe_homeassistant_services_request() { this->subscribe_homeassistant_services(); }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-void APIServerConnection::on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) {
-  this->subscribe_home_assistant_states(msg);
-}
+void APIServerConnection::on_subscribe_home_assistant_states_request() { this->subscribe_home_assistant_states(); }
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
 void APIServerConnection::on_execute_service_request(const ExecuteServiceRequest &msg) { this->execute_service(msg); }
@@ -793,17 +775,15 @@ void APIServerConnection::on_bluetooth_gatt_notify_request(const BluetoothGATTNo
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
-    const SubscribeBluetoothConnectionsFreeRequest &msg) {
-  if (!this->send_subscribe_bluetooth_connections_free_response(msg)) {
+void APIServerConnection::on_subscribe_bluetooth_connections_free_request() {
+  if (!this->send_subscribe_bluetooth_connections_free_response()) {
     this->on_fatal_error();
   }
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-void APIServerConnection::on_unsubscribe_bluetooth_le_advertisements_request(
-    const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
-  this->unsubscribe_bluetooth_le_advertisements(msg);
+void APIServerConnection::on_unsubscribe_bluetooth_le_advertisements_request() {
+  this->unsubscribe_bluetooth_le_advertisements();
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
