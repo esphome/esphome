@@ -391,6 +391,8 @@ bool HOT EPaperT133A01::transfer_data() {
   uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
 
   while (true) {
+    // Feed the watchdog while streaming to avoid WDT resets on long transfers.
+    App.feed_wdt(millis());
     // Important: the manufacturer driver keeps CS asserted for the entire (half) frame transfer.
     // Toggling CS between the 0x10 (DTM) command and subsequent data can result in the controller
     // ignoring the data stream and leaving the screen blank.
@@ -442,6 +444,8 @@ bool HOT EPaperT133A01::transfer_data() {
       } else {
         this->cs1_device_.write_array(bytes_to_send, out_idx);
       }
+      // Feed the watchdog periodically during long frame transfers to avoid WDT resets.
+      App.feed_wdt(millis());
     }
 
     if (this->transfer_index_ >= half_frame_len) {

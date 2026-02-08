@@ -62,7 +62,7 @@ t133a01 = T133A01(
 
 
 t133a01.extend(
-    "Seeed-ee02-color-13.3",
+    "SEEED-EE02-COLOR-13.3",
     cs_pin=44,
     cs1_pin=41,
     dc_pin=10,
