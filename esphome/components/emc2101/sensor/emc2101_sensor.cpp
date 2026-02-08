@@ -7,8 +7,6 @@ namespace emc2101 {
 
 static const char *const TAG = "EMC2101.sensor";
 
-float EMC2101Sensor::get_setup_priority() const { return setup_priority::DATA; }
-
 void EMC2101Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Emc2101 sensor:");
   LOG_SENSOR("  ", "Internal temperature", this->internal_temperature_sensor_);
