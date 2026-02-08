@@ -342,7 +342,7 @@ class MemoryAnalyzer:
             # If no component match found, it's core
             return _COMPONENT_CORE
 
-        # Check PlatformIO library symbol map (more accurate than heuristic patterns)
+        # Check library symbol map (more accurate than heuristic patterns)
         if lib_name := self._lib_symbol_map.get(symbol_name):
             return f"{_COMPONENT_PREFIX_LIB}{lib_name}"
 
