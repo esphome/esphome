@@ -2,7 +2,6 @@
 
 #ifdef USE_ESP32
 #include "esphome/components/fendt_caravan/caravan_device_component.h"
-#include "esphome/components/fendt_caravan/caravan_sensor_base.h"
 #include "esphome/components/fendt_caravan/fendt_caravan.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/fendt_caravan/variable.h"
@@ -23,7 +22,7 @@ class ControlUnitDeviceSensor : public CaravanDeviceComponent, public sensor::Se
  public:
   void setup() override;
   void dump_config() override;
-  bool decode(const std::string &name, const std::string &value) override;
+  void on_switch_state_change_(switch_::Switch *sw, bool state, const std::string &command) override;
   SUB_SWITCH(main_switch);
   SUB_SENSOR(temperature_in);
   SUB_SENSOR(temperature_out);
@@ -33,12 +32,7 @@ class ControlUnitDeviceSensor : public CaravanDeviceComponent, public sensor::Se
   SUB_SWITCH(floor_heater);
 
  protected:
-  DeviceType get_device_type_() override { return DeviceType::DEVICE_TYPE_MCU; };
-
- private:
-  void on_switch_state_change_(switch_::Switch *sw, bool state) override;
+  void on_data_decoded_(IVariable *variable) override;
 };
-
 }  // namespace esphome::fendt_caravan
-
 #endif

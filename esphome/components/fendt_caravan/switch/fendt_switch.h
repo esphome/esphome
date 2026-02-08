@@ -11,11 +11,23 @@ namespace esphome::fendt_caravan {
 
 class FendtSwitch : public CaravanSensorBase<bool>, public switch_::Switch {
  public:
+  void setup() {
+    if (this->key_name_.empty())
+      return;
+    auto *variable = static_cast<Variable<bool> *>(this->get_parent()->get_variable(this->key_name_));
+    if (variable != nullptr) {
+      this->set_variable(variable);
+    }
+  }
+
  protected:
   void write_state(bool state) override {
-    if (this->variable_)
+    std::string command = "";
+    if (this->variable_) {
       this->variable_->set_value(state);
-    this->parent_->on_switch_state_change_(this, state);
+      command = this->variable_->get_command();
+    }
+    this->parent_->on_switch_state_change_(this, state, command);
   }
   void on_decoded(const bool value) override { this->publish_state(value); }
 

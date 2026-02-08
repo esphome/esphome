@@ -11,6 +11,8 @@ namespace esphome::fendt_caravan {
 
 using namespace std;
 
+#define GET_VARIABLE(T, name) (static_cast<Variable<T> *>(this->get_variable(name)))
+
 class IVariable {
  public:
   std::string get_name() { return this->name_; }

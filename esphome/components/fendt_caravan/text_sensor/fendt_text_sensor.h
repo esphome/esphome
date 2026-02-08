@@ -12,12 +12,24 @@ namespace esphome::fendt_caravan {
 
 using namespace std;
 
+static const char *const TAG = "FC.TS";
+
 class FendtTextSensor : public CaravanSensorBase<std::string>, public text_sensor::TextSensor {
  public:
- protected:
-  void on_decoded(const std::string value) override { this->publish_state(value); }
+  void setup() override {
+    if (this->key_name_.empty())
+      return;
+    auto *variable = static_cast<Variable<std::string> *>(this->get_parent()->get_variable(this->key_name_));
+    if (variable != nullptr) {
+      this->set_variable(variable);
+    }
+  }
 
- private:
+ protected:
+  void on_decoded(const std::string value) override {
+    ESP_LOGD(TAG, "Decoded data for:%s value:%s", this->key_name_.c_str(), value.c_str());
+    this->publish_state(value);
+  }
 };
 }  // namespace esphome::fendt_caravan
 #endif

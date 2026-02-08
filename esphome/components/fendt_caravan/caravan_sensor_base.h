@@ -7,7 +7,7 @@
 
 namespace esphome::fendt_caravan {
 
-#define GET_SENSOR_BASE(T, S) (static_cast<CaravanSensorBase<T> *>(S))
+#define GET_SENSOR_BASE(T, S) ((CaravanSensorBase<T> *) S)
 
 template<typename T> class CaravanSensorBase : public Component, public Parented<CaravanDeviceComponent> {
  public:
@@ -15,6 +15,7 @@ template<typename T> class CaravanSensorBase : public Component, public Parented
     this->variable_ = variable;
     this->variable_->set_on_decode_callback(std::bind(&CaravanSensorBase::on_decoded, this, std::placeholders::_1));
   }
+
   Variable<T> *get_variable() { return this->variable_; }
 
   Variable<T> *create_variable(
@@ -25,12 +26,14 @@ template<typename T> class CaravanSensorBase : public Component, public Parented
     this->set_variable(variable);
     return variable;
   }
+  void set_key_name(std::string key_name) { this->key_name_ = key_name; }
+
+  void setup() override = 0;
 
  protected:
   virtual void on_decoded(const T value) {}
   Variable<T> *variable_{nullptr};
-
- private:
+  std::string key_name_{""};
 };
 
 }  // namespace esphome::fendt_caravan

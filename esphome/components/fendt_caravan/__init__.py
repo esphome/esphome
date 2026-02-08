@@ -5,7 +5,7 @@ from esphome.const import CONF_ID
 
 CODEOWNERS = ["@rawsludge"]
 DEPENDENCIES = ["ble_client", "esp32_ble_tracker"]
-AUTO_LOAD = ["text_sensor", "number", "select", "light"]
+AUTO_LOAD = ["number", "select", "light"]
 PLATFORMS = ["esp32"]
 
 MULTI_CONF = True
@@ -17,11 +17,7 @@ FendtCaravan = fendt_caravan_ns.class_(
 CaravanDeviceComponent = fendt_caravan_ns.class_("CaravanDeviceComponent", cg.Component)
 
 CONF_PARENT_ID = "parent_id"
-
-DeviceType = fendt_caravan_ns.enum("DeviceType")
-DEVICE_TYPE = {
-    "mcu": DeviceType.MCU,
-}
+CONF_KEY_NAME = "key_name"
 
 FendtNumber = fendt_caravan_ns.class_("FendtNumber", cg.Component)
 FendtSelect = fendt_caravan_ns.class_("FendtSelect", cg.Component)
@@ -34,13 +30,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(ble_client.CONF_BLE_CLIENT_ID): cv.use_id(ble_client.BLEClient),
         }
     ).extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
-)
-
-CONF_FENDT_CARAVAN_ID = "fendt_caravan_id"
-CONFIG_FENDT_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_FENDT_CARAVAN_ID): cv.use_id(FendtCaravan),
-    }
 )
 
 

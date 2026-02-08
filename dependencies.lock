@@ -1,0 +1,144 @@
+dependencies:
+  bblanchon/arduinojson:
+    component_hash: b1c2f0b0bc26969af19809cee80b220fb882481d59cc75f8e79ebceecdc69f06
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 7.4.2
+  esp32async/asynctcp:
+    component_hash: 8144c96a27b593d1781e6e060f5e2e509989c28c013ad75d9c3087f6462ecaac
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 3.4.91
+  esphome/esp-audio-libs:
+    component_hash: 0ee2b8c9f687e5f8d67c72f1430ab37ddb7a128cf5f8da201a6a21694b48bdfe
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 2.0.3
+  esphome/esp-hub75:
+    component_hash: cc36921a06b2d011e19aac08e68f0bd8741190f5cec37e657dff234a3e12fbdb
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32
+    - esp32s2
+    - esp32s3
+    - esp32c6
+    - esp32p4
+    version: 0.3.2
+  espressif/esp-nn:
+    component_hash: f4633a02f05fef53b80de65ade1f733ebdef637e4c8b8be4eb11f5e27f6d9f3e
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.2'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.1.2
+  espressif/esp-tflite-micro:
+    component_hash: 78502e833b227ec15b917222ed046df1a46f2e5d3593d2a77a162012fa9a1aa0
+    dependencies:
+    - name: espressif/esp-nn
+      registry_url: https://components.espressif.com
+      require: private
+      version: ^1.1.0
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.3.3~1
+  espressif/esp32-camera:
+    component_hash: cb1c945f3d2ed1de3c8ddf76d38278a12a52a79fbe3437f60652f8279464ab0a
+    dependencies:
+    - name: espressif/esp_jpeg
+      registry_url: https://components.espressif.com
+      require: public
+      version: ^1.3.0
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 2.1.1
+  espressif/esp_jpeg:
+    component_hash: defb83669293cbf86d0fa86b475ba5517aceed04ed70db435388c151ab37b5d7
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.3.1
+  espressif/lan867x:
+    component_hash: 651c9d6e3d96acb08bd5066144b12a12e94df0a6241127a0538d8680689de2c4
+    dependencies:
+    - name: espressif/lan86xx_common
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    - name: idf
+      require: private
+      version: '>=5.3'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32
+    - esp32p4
+    version: 2.0.0
+  espressif/lan86xx_common:
+    component_hash: 6dcb1be9f43ae940979bd628fa5bee278949b66c545e1fe2321e486102e81026
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.2'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.0.0
+  espressif/mdns:
+    component_hash: 29e47564b1a7ee778135e17fbbf2a2773f71c97ebabfe626c8eda7c958a7ad16
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.9.1
+  idf:
+    source:
+      type: idf
+    version: 5.5.2
+  zorxx/multipart-parser:
+    component_hash: a80b98bbdd530829b5a4df54cd8332a265ef4d310392562cf37d4cac548c5fd2
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.1
+direct_dependencies:
+- bblanchon/arduinojson
+- esp32async/asynctcp
+- esphome/esp-audio-libs
+- esphome/esp-hub75
+- espressif/esp-tflite-micro
+- espressif/esp32-camera
+- espressif/lan867x
+- espressif/mdns
+- zorxx/multipart-parser
+manifest_hash: 6a8b68720984c0a32101f020e8666bcdc61d0ed86914dd3297b414597fa5eade
+target: esp32
+version: 2.0.0
