@@ -185,9 +185,10 @@ class MemoryAnalyzer:
         self._sdk_symbols: list[SDKSymbol] = []
         # CSWTCH symbols: list of (name, size, source_file, component)
         self._cswtch_symbols: list[tuple[str, int, str, str]] = []
-        # PlatformIO library symbol mapping: symbol_name -> library_name
+        # Library symbol mapping: symbol_name -> library_name
         self._lib_symbol_map: dict[str, str] = {}
-        # PlatformIO library hash to name mapping: "lib641" -> "espsoftwareserial"
+        # Library dir to name mapping: "lib641" -> "espsoftwareserial",
+        # "espressif__mdns" -> "mdns"
         self._lib_hash_to_name: dict[str, str] = {}
         # Heuristic category to library redirect: "mdns_lib" -> "[lib]mdns"
         self._heuristic_to_lib: dict[str, str] = {}
@@ -196,7 +197,7 @@ class MemoryAnalyzer:
         """Analyze the ELF file and return component memory usage."""
         self._parse_sections()
         self._parse_symbols()
-        self._scan_pio_libraries()
+        self._scan_libraries()
         self._categorize_symbols()
         self._analyze_cswtch_symbols()
         self._analyze_sdk_libraries()
@@ -433,37 +434,31 @@ class MemoryAnalyzer:
                 continue
 
             # Each lib<hex>/ directory contains a subdirectory named after the library
-            # and a .a archive named lib<LibraryName>.a
             for lib_subdir in entry.iterdir():
                 if not lib_subdir.is_dir():
                     continue
                 lib_name = lib_subdir.name.lower()
-                # The .a file is named lib<LibraryName>.a (case-insensitive match)
+
+                # Prefer .a archive (lib<LibraryName>.a), fall back to .o files
                 # e.g., lib72a/ESPAsyncTCP/... has lib72a/libESPAsyncTCP.a
                 archive = entry / f"lib{lib_subdir.name}.a"
-                if not archive.exists():
-                    # Try case-insensitive: scan for any .a file
-                    archives = list(entry.glob("*.a"))
-                    archive = archives[0] if archives else None
-                if archive and archive.exists():
-                    libraries[lib_name] = [archive]
+                if archive.exists():
+                    file_paths = [archive]
+                elif archives := list(entry.glob("*.a")):
+                    # Case-insensitive fallback
+                    file_paths = [archives[0]]
+                else:
+                    # No .a archive (e.g., pioarduino CMake builds) - use .o files
+                    file_paths = sorted(lib_subdir.rglob("*.o"))
+
+                if file_paths:
+                    libraries[lib_name] = file_paths
                     hash_to_name[entry.name] = lib_name
                     _LOGGER.debug(
                         "Discovered PlatformIO library: %s -> %s",
                         lib_subdir.name,
-                        archive,
+                        file_paths[0],
                     )
-                else:
-                    # No .a archive (e.g., pioarduino CMake builds) - use .o files
-                    obj_files = sorted(lib_subdir.rglob("*.o"))
-                    if obj_files:
-                        libraries[lib_name] = obj_files
-                        hash_to_name[entry.name] = lib_name
-                        _LOGGER.debug(
-                            "Discovered PlatformIO library (objects): %s -> %d .o files",
-                            lib_subdir.name,
-                            len(obj_files),
-                        )
 
     def _discover_idf_managed_components(
         self,
@@ -596,7 +591,7 @@ class MemoryAnalyzer:
 
         return mapping
 
-    def _scan_pio_libraries(self) -> None:
+    def _scan_libraries(self) -> None:
         """Discover third-party libraries and build symbol mapping.
 
         Scans both PlatformIO ``lib<hex>/`` directories (Arduino builds) and
