@@ -448,9 +448,6 @@ async def to_code(config):
     # The inference task queues detection events that need immediate processing
     socket.require_wake_loop_threadsafe()
 
-    # Keep ring buffer functions in IRAM for audio performance
-    esp32.enable_ringbuf_in_iram()
-
     mic_source = await microphone.microphone_source_to_code(config[CONF_MICROPHONE])
     cg.add(var.set_microphone_source(mic_source))
 
