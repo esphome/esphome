@@ -12,7 +12,7 @@ void FendtLightOutput::write_state(light::LightState *state) {
   this->on_state_change_.call(this, ls);
 }
 
-void FendtLightOutput::on_decoded(const LampStateT state) {
+void FendtLightOutput::on_decoded_(const LampStateT state) {
   ESP_LOGV(TAG, "on_decoded called. Sate: %d, brightness: %f", state.status, state.state);
   this->light_state_->remote_values.set_state(state.status);
   this->light_state_->remote_values.set_brightness(state.state);
