@@ -32,7 +32,7 @@ ST7789V.extend(
     height=240,
     width=135,
     offset_height=40,
-    offset_width=53,
+    offset_width=52,
     cs_pin=42,
     dc_pin=40,
     reset_pin=41,
