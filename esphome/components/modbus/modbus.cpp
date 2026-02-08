@@ -219,39 +219,50 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
     return;
   }
 
-  std::vector<uint8_t> data;
-  data.push_back(address);
-  data.push_back(function_code);
+  static constexpr size_t ADDR_SIZE = 1;
+  static constexpr size_t FC_SIZE = 1;
+  static constexpr size_t START_ADDR_SIZE = 2;
+  static constexpr size_t NUM_ENTITIES_SIZE = 2;
+  static constexpr size_t BYTE_COUNT_SIZE = 1;
+  static constexpr size_t MAX_PAYLOAD_SIZE = std::numeric_limits<uint8_t>::max();
+  static constexpr size_t CRC_SIZE = 2;
+  static constexpr size_t MAX_FRAME_SIZE =
+      ADDR_SIZE + FC_SIZE + START_ADDR_SIZE + NUM_ENTITIES_SIZE + BYTE_COUNT_SIZE + MAX_PAYLOAD_SIZE + CRC_SIZE;
+  uint8_t data[MAX_FRAME_SIZE];
+  size_t pos = 0;
+
+  data[pos++] = address;
+  data[pos++] = function_code;
   if (this->role == ModbusRole::CLIENT) {
-    data.push_back(start_address >> 8);
-    data.push_back(start_address >> 0);
+    data[pos++] = start_address >> 8;
+    data[pos++] = start_address >> 0;
     if (function_code != ModbusFunctionCode::WRITE_SINGLE_COIL &&
         function_code != ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
-      data.push_back(number_of_entities >> 8);
-      data.push_back(number_of_entities >> 0);
+      data[pos++] = number_of_entities >> 8;
+      data[pos++] = number_of_entities >> 0;
     }
   }
 
   if (payload != nullptr) {
     if (this->role == ModbusRole::SERVER || function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
         function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {  // Write multiple
-      data.push_back(payload_len);                                        // Byte count is required for write
+      data[pos++] = payload_len;                                          // Byte count is required for write
     } else {
       payload_len = 2;  // Write single register or coil
     }
     for (int i = 0; i < payload_len; i++) {
-      data.push_back(payload[i]);
+      data[pos++] = payload[i];
     }
   }
 
-  auto crc = crc16(data.data(), data.size());
-  data.push_back(crc >> 0);
-  data.push_back(crc >> 8);
+  auto crc = crc16(data, pos);
+  data[pos++] = crc >> 0;
+  data[pos++] = crc >> 8;
 
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->digital_write(true);
 
-  this->write_array(data);
+  this->write_array(data, pos);
   this->flush();
 
   if (this->flow_control_pin_ != nullptr)
@@ -261,7 +272,7 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-  ESP_LOGV(TAG, "Modbus write: %s", format_hex_pretty_to(hex_buf, data.data(), data.size()));
+  ESP_LOGV(TAG, "Modbus write: %s", format_hex_pretty_to(hex_buf, data, pos));
 }
 
 // Helper function for lambdas
