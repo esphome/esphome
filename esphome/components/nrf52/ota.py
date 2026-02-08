@@ -1,6 +1,6 @@
+import asyncio
 import logging
 from pathlib import Path
-import time
 
 from bleak import BleakScanner
 from bleak.exc import BleakDeviceNotFoundError
@@ -125,8 +125,8 @@ async def _smpmgr_upload(device: str, firmware: Path) -> None:
     if error(r):
         raise EsphomeError(r)
 
-    # give a chance to execute completion callback
-    time.sleep(1)
+    # wait before calling ResetWrite to let chance to execute `on_end` action
+    await asyncio.sleep(2)
     _LOGGER.info("Reset")
     r = await smp_client.request(ResetWrite(), 1.0)
 
