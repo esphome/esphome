@@ -8,7 +8,7 @@ from esphome.components.zephyr import (
 )
 from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
 import esphome.config_validation as cv
-from esphome.const import CONF_HARDWARE_UART, CONF_ID, CONF_OTA, Framework
+from esphome.const import CONF_HARDWARE_UART, CONF_ID, Framework
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 
