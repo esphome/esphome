@@ -1,4 +1,4 @@
-"""Tests for dashboard settings Path-related functionality."""
+"""Tests for DashboardSettings (path resolution and authentication)."""
 
 from __future__ import annotations
 
