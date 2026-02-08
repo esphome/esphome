@@ -528,14 +528,14 @@ async def test_download_binary_handler_subdirectory_file_url_encoded(
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_ext_storage_path")
 @pytest.mark.parametrize(
-    "attack_path",
+    ("attack_path", "expected_code"),
     [
-        pytest.param("../../../secrets.yaml", id="basic_traversal"),
-        pytest.param("..%2F..%2F..%2Fsecrets.yaml", id="url_encoded"),
-        pytest.param("zephyr/../../../secrets.yaml", id="traversal_with_prefix"),
-        pytest.param("/etc/passwd", id="absolute_path"),
-        pytest.param("//etc/passwd", id="double_slash_absolute"),
-        pytest.param("....//secrets.yaml", id="multiple_dots"),
+        pytest.param("../../../secrets.yaml", 403, id="basic_traversal"),
+        pytest.param("..%2F..%2F..%2Fsecrets.yaml", 403, id="url_encoded"),
+        pytest.param("zephyr/../../../secrets.yaml", 403, id="traversal_with_prefix"),
+        pytest.param("/etc/passwd", 403, id="absolute_path"),
+        pytest.param("//etc/passwd", 403, id="double_slash_absolute"),
+        pytest.param("....//secrets.yaml", 404, id="multiple_dots"),
     ],
 )
 async def test_download_binary_handler_path_traversal_protection(
@@ -543,11 +543,14 @@ async def test_download_binary_handler_path_traversal_protection(
     tmp_path: Path,
     mock_storage_json: MagicMock,
     attack_path: str,
+    expected_code: int,
 ) -> None:
     """Test that DownloadBinaryRequestHandler prevents path traversal attacks.
 
     Verifies that attempts to use '..' in file paths are sanitized to prevent
     accessing files outside the build directory. Tests multiple attack vectors.
+    Real traversals that escape the base directory get 403. Paths like '....'
+    that resolve inside the base directory but don't exist get 404.
     """
     # Create build structure
     build_dir = get_build_path(tmp_path, "test")
@@ -571,8 +574,7 @@ async def test_download_binary_handler_path_traversal_protection(
             f"/download.bin?configuration=test.yaml&file={attack_path}",
             method="GET",
         )
-    # Should get 404 (file not found after sanitization) or 500 (idedata fails)
-    assert exc_info.value.code in (404, 500)
+    assert exc_info.value.code == expected_code
 
 
 @pytest.mark.asyncio
