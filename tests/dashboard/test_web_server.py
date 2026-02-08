@@ -1707,6 +1707,14 @@ def test_is_authenticated_malformed_base64(
     assert web_server.is_authenticated(handler) is False
 
 
+def test_is_authenticated_bad_base64_padding(
+    mock_auth_settings: MagicMock,
+) -> None:
+    """Test that incorrect base64 padding (binascii.Error) returns False."""
+    handler = _make_auth_handler("Basic abc")
+    assert web_server.is_authenticated(handler) is False
+
+
 def test_is_authenticated_invalid_utf8(
     mock_auth_settings: MagicMock,
 ) -> None:

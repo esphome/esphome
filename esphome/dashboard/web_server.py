@@ -123,7 +123,7 @@ def is_authenticated(handler: BaseHandler) -> bool:
                 try:
                     auth_decoded = base64.b64decode(auth_header[6:]).decode()
                     username, password = auth_decoded.split(":", 1)
-                except (ValueError, UnicodeDecodeError):
+                except (binascii.Error, ValueError, UnicodeDecodeError):
                     return False
                 return settings.check_password(username, password)
         return handler.get_secure_cookie(AUTH_COOKIE_NAME) == COOKIE_AUTHENTICATED_YES
