@@ -88,8 +88,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
 async def to_code(config):
-    CORE.data[CONF_OTA] = {}
-
     var = cg.new_Pvariable(config[CONF_ID])
     await ota_to_code(var, config)
     cg.add_define("USE_OTA")
