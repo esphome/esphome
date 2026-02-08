@@ -127,7 +127,7 @@ class APIConnection final : public APIServerConnection {
 #endif  // USE_API_HOMEASSISTANT_SERVICES
 #ifdef USE_BLUETOOTH_PROXY
   void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
-  void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
+  void unsubscribe_bluetooth_le_advertisements() override;
 
   void bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
   void bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) override;
@@ -136,7 +136,7 @@ class APIConnection final : public APIServerConnection {
   void bluetooth_gatt_write_descriptor(const BluetoothGATTWriteDescriptorRequest &msg) override;
   void bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) override;
   void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) override;
-  bool send_subscribe_bluetooth_connections_free_response(const SubscribeBluetoothConnectionsFreeRequest &msg) override;
+  bool send_subscribe_bluetooth_connections_free_response() override;
   void bluetooth_scanner_set_mode(const BluetoothScannerSetModeRequest &msg) override;
 
 #endif
@@ -187,8 +187,8 @@ class APIConnection final : public APIServerConnection {
   void update_command(const UpdateCommandRequest &msg) override;
 #endif
 
-  void on_disconnect_response(const DisconnectResponse &value) override;
-  void on_ping_response(const PingResponse &value) override {
+  void on_disconnect_response() override;
+  void on_ping_response() override {
     // we initiated ping
     this->flags_.sent_ping = false;
   }
@@ -199,11 +199,11 @@ class APIConnection final : public APIServerConnection {
   void on_get_time_response(const GetTimeResponse &value) override;
 #endif
   bool send_hello_response(const HelloRequest &msg) override;
-  bool send_disconnect_response(const DisconnectRequest &msg) override;
-  bool send_ping_response(const PingRequest &msg) override;
-  bool send_device_info_response(const DeviceInfoRequest &msg) override;
-  void list_entities(const ListEntitiesRequest &msg) override { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
-  void subscribe_states(const SubscribeStatesRequest &msg) override {
+  bool send_disconnect_response() override;
+  bool send_ping_response() override;
+  bool send_device_info_response() override;
+  void list_entities() override { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
+  void subscribe_states() override {
     this->flags_.state_subscription = true;
     // Start initial state iterator only if no iterator is active
     // If list_entities is running, we'll start initial_state when it completes
@@ -217,12 +217,10 @@ class APIConnection final : public APIServerConnection {
       App.schedule_dump_config();
   }
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-  void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) override {
-    this->flags_.service_call_subscription = true;
-  }
+  void subscribe_homeassistant_services() override { this->flags_.service_call_subscription = true; }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-  void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) override;
+  void subscribe_home_assistant_states() override;
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   void execute_service(const ExecuteServiceRequest &msg) override;
