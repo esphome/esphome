@@ -7,6 +7,7 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.epaper_spi.display import (
+    CONF_CS1_PIN,
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
     MODELS,
@@ -99,7 +100,7 @@ def test_all_predefined_models(
         if name in (
             "SEEED-EE04-MONO-4.26",
             "SEEED-RETERMINAL-E1002",
-            "SEEED-XIAO-EPAPER-13.3IN",
+            "SEEED-EE02-COLOR-13.3",
         ):
             set_core_config(
                 PlatformFramework.ESP32_IDF,
@@ -145,6 +146,9 @@ def test_all_predefined_models(
         if not model.get_default(CONF_CS_PIN):
             config[CONF_CS_PIN] = 5
 
+        if model.class_name == "EPaperT133A01" and not model.get_default(CONF_CS1_PIN):
+            config[CONF_CS1_PIN] = 18
+
         run_schema_validation(config)
 
 
@@ -162,7 +166,7 @@ def test_individual_models(
     if model_name in (
         "SEEED-EE04-MONO-4.26",
         "SEEED-RETERMINAL-E1002",
-        "SEEED-XIAO-EPAPER-13.3IN",
+        "SEEED-EE02-COLOR-13.3",
     ):
         set_core_config(
             PlatformFramework.ESP32_IDF,
@@ -202,6 +206,9 @@ def test_individual_models(
 
     if not model.get_default(CONF_CS_PIN):
         config[CONF_CS_PIN] = 5
+
+    if model.class_name == "EPaperT133A01" and not model.get_default(CONF_CS1_PIN):
+        config[CONF_CS1_PIN] = 18
 
     # This should not raise any exceptions
     run_schema_validation(config)

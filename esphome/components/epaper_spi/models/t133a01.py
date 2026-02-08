@@ -60,12 +60,9 @@ t133a01 = T133A01(
     reset_duration="20ms",
 )
 
-# Pin defaults for Seeed Studio XIAO ePaper Display Board (EE02) + 13.3" six-color panel (T133A01)
-# See manufacturer library: EPaper_Board_Pins_Setups.h (USE_XIAO_EPAPER_DISPLAY_BOARD_EE02)
-# Note: BUSY is active-low on this board, so we invert it to match epaper_spi busy semantics.
 
 t133a01.extend(
-    "Seeed-XIAO-EPaper-13.3in",
+    "Seeed-ee02-color-13.3",
     cs_pin=44,
     cs1_pin=41,
     dc_pin=10,
