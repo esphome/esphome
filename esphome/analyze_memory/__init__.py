@@ -189,6 +189,8 @@ class MemoryAnalyzer:
         self._lib_symbol_map: dict[str, str] = {}
         # PlatformIO library hash to name mapping: "lib641" -> "espsoftwareserial"
         self._lib_hash_to_name: dict[str, str] = {}
+        # Heuristic category to library redirect: "mdns_lib" -> "[lib]mdns"
+        self._heuristic_to_lib: dict[str, str] = {}
 
     def analyze(self) -> dict[str, ComponentMemory]:
         """Analyze the ELF file and return component memory usage."""
@@ -346,12 +348,12 @@ class MemoryAnalyzer:
         # Check against symbol patterns
         for component, patterns in SYMBOL_PATTERNS.items():
             if any(pattern in symbol_name for pattern in patterns):
-                return component
+                return self._heuristic_to_lib.get(component, component)
 
         # Check against demangled patterns
         for component, patterns in DEMANGLED_PATTERNS.items():
             if any(pattern in demangled for pattern in patterns):
-                return component
+                return self._heuristic_to_lib.get(component, component)
 
         # Special cases that need more complex logic
 
@@ -401,16 +403,18 @@ class MemoryAnalyzer:
 
     def _discover_pio_libraries(
         self,
-        libraries: dict[str, Path],
+        libraries: dict[str, list[Path]],
         hash_to_name: dict[str, str],
     ) -> None:
         """Discover PlatformIO third-party libraries from the build directory.
 
         Scans ``lib<hex>/`` directories under ``.pioenvs/<env>/`` to find
-        library names and their ``.a`` archive paths.
+        library names and their ``.a`` archive or ``.o`` file paths.
 
         Args:
-            libraries: Dict to populate with library name -> ``.a`` path mappings.
+            libraries: Dict to populate with library name -> file path list mappings.
+                Prefers ``.a`` archives when available, falls back to ``.o`` files
+                (e.g., pioarduino ESP32 Arduino builds only produce ``.o`` files).
             hash_to_name: Dict to populate with dir name -> library name mappings
                 for CSWTCH attribution (e.g., ``lib641`` -> ``espsoftwareserial``).
         """
@@ -442,17 +446,28 @@ class MemoryAnalyzer:
                     archives = list(entry.glob("*.a"))
                     archive = archives[0] if archives else None
                 if archive and archive.exists():
-                    libraries[lib_name] = archive
+                    libraries[lib_name] = [archive]
                     hash_to_name[entry.name] = lib_name
                     _LOGGER.debug(
                         "Discovered PlatformIO library: %s -> %s",
                         lib_subdir.name,
                         archive,
                     )
+                else:
+                    # No .a archive (e.g., pioarduino CMake builds) - use .o files
+                    obj_files = sorted(lib_subdir.rglob("*.o"))
+                    if obj_files:
+                        libraries[lib_name] = obj_files
+                        hash_to_name[entry.name] = lib_name
+                        _LOGGER.debug(
+                            "Discovered PlatformIO library (objects): %s -> %d .o files",
+                            lib_subdir.name,
+                            len(obj_files),
+                        )
 
     def _discover_idf_managed_components(
         self,
-        libraries: dict[str, Path],
+        libraries: dict[str, list[Path]],
         hash_to_name: dict[str, str],
     ) -> None:
         """Discover ESP-IDF managed component libraries from the build directory.
@@ -463,7 +478,7 @@ class MemoryAnalyzer:
         ``esp-idf/<vendor>__<name>/lib<vendor>__<name>.a``.
 
         Args:
-            libraries: Dict to populate with library name -> ``.a`` path mappings.
+            libraries: Dict to populate with library name -> file path list mappings.
             hash_to_name: Dict to populate with dir name -> library name mappings
                 for CSWTCH attribution (e.g., ``espressif__mdns`` -> ``mdns``).
         """
@@ -486,7 +501,7 @@ class MemoryAnalyzer:
             # Find the .a archive under esp-idf/<vendor>__<name>/
             archive = espidf_dir / full_name / f"lib{full_name}.a"
             if archive.exists():
-                libraries[short_name] = archive
+                libraries[short_name] = [archive]
                 hash_to_name[full_name] = short_name
                 _LOGGER.debug(
                     "Discovered IDF managed component: %s -> %s",
@@ -494,14 +509,17 @@ class MemoryAnalyzer:
                     archive,
                 )
 
-    def _build_library_symbol_map(self, libraries: dict[str, Path]) -> dict[str, str]:
-        """Build a symbol-to-library mapping from library archives.
+    def _build_library_symbol_map(
+        self, libraries: dict[str, list[Path]]
+    ) -> dict[str, str]:
+        """Build a symbol-to-library mapping from library archives or object files.
 
-        Runs ``nm --defined-only`` on each ``.a`` file to collect global and
-        weak defined symbols.
+        Runs ``nm --defined-only`` on each ``.a`` or ``.o`` file to collect
+        global and weak defined symbols.
 
         Args:
-            libraries: Dictionary mapping library name to ``.a`` file path.
+            libraries: Dictionary mapping library name to list of file paths
+                (``.a`` archives or ``.o`` object files).
 
         Returns:
             Dictionary mapping symbol name to library name.
@@ -511,9 +529,9 @@ class MemoryAnalyzer:
         if not self.nm_path:
             return symbol_map
 
-        for lib_name, archive_path in libraries.items():
+        for lib_name, file_paths in libraries.items():
             result = run_tool(
-                [self.nm_path, "--defined-only", str(archive_path)],
+                [self.nm_path, "--defined-only", *(str(p) for p in file_paths)],
                 timeout=10,
             )
             if result is None or result.returncode != 0:
@@ -533,6 +551,51 @@ class MemoryAnalyzer:
 
         return symbol_map
 
+    @staticmethod
+    def _build_heuristic_to_lib_mapping(
+        library_names: set[str],
+    ) -> dict[str, str]:
+        """Build mapping from heuristic pattern categories to discovered libraries.
+
+        Heuristic categories like ``mdns_lib``, ``web_server_lib``, ``async_tcp``
+        exist as approximations for library attribution.  When we discover the
+        actual library, symbols matching those heuristics should be redirected
+        to the ``[lib]`` category instead.
+
+        The mapping is built by checking if the normalized category name
+        (stripped of ``_lib`` suffix and underscores) appears as a substring
+        of any discovered library name.
+
+        Examples::
+
+            mdns_lib -> mdns -> in "mdns" or "esp8266mdns" -> [lib]mdns
+            web_server_lib -> webserver -> in "espasyncwebserver" -> [lib]espasyncwebserver
+            async_tcp -> asynctcp -> in "espasynctcp" -> [lib]espasynctcp
+
+        Args:
+            library_names: Set of discovered library names (lowercase).
+
+        Returns:
+            Dictionary mapping heuristic category to ``[lib]<name>`` string.
+        """
+        mapping: dict[str, str] = {}
+        all_categories = set(SYMBOL_PATTERNS) | set(DEMANGLED_PATTERNS)
+
+        for category in all_categories:
+            base = category.removesuffix("_lib").replace("_", "")
+            for lib_name in library_names:
+                if base in lib_name:
+                    mapping[category] = f"{_COMPONENT_PREFIX_LIB}{lib_name}"
+                    break
+
+        if mapping:
+            _LOGGER.debug(
+                "Heuristic-to-library redirects: %s",
+                ", ".join(f"{k} -> {v}" for k, v in sorted(mapping.items())),
+            )
+
+        return mapping
+
     def _scan_pio_libraries(self) -> None:
         """Discover third-party libraries and build symbol mapping.
 
@@ -541,7 +604,7 @@ class MemoryAnalyzer:
         Orchestrates symbol map construction and hash-to-name mapping for
         CSWTCH attribution.
         """
-        libraries: dict[str, Path] = {}
+        libraries: dict[str, list[Path]] = {}
         self._discover_pio_libraries(libraries, self._lib_hash_to_name)
         self._discover_idf_managed_components(libraries, self._lib_hash_to_name)
 
@@ -556,6 +619,9 @@ class MemoryAnalyzer:
         )
 
         self._lib_symbol_map = self._build_library_symbol_map(libraries)
+        self._heuristic_to_lib = self._build_heuristic_to_lib_mapping(
+            set(libraries.keys())
+        )
 
         _LOGGER.info(
             "Built library symbol map: %d symbols from %d libraries",
