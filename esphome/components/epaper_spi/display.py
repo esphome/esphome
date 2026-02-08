@@ -153,6 +153,11 @@ def _final_validate(config):
     if supports_cs1 and CONF_CS1_PIN not in config:
         raise cv.Invalid("'cs1_pin' is required for this epaper_spi model")
 
+    if model.class_name == "EPaperT133A01":
+        width, _ = model.get_dimensions(config)
+        if width % 4 != 0:
+            raise cv.Invalid("T133A01 requires the display width to be divisible by 4")
+
     global_config = full_config.get()
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
 
@@ -208,7 +213,8 @@ async def to_code(config):
     if model.class_name == "EPaperT133A01" and (
         enable_pins := config.get(CONF_ENABLE_PIN)
     ):
-        for pin in enable_pins:
+        pins_list = enable_pins if isinstance(enable_pins, list) else [enable_pins]
+        for pin in pins_list:
             enable = await cg.gpio_pin_expression(pin)
             cg.add(var.add_enable_pin(enable))
 

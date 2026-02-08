@@ -309,6 +309,7 @@ void EPaperT133A01::power_off() {
 void EPaperT133A01::deep_sleep() {
   ESP_LOGV(TAG, "Deep sleep");
   this->cmd_data(0x07, SLEEP_V, sizeof(SLEEP_V));
+  this->cs1_cmd_data_(0x07, SLEEP_V, sizeof(SLEEP_V));
 }
 
 void EPaperT133A01::fill(Color color) {
