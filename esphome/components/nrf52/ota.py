@@ -21,7 +21,6 @@ from smpclient.transport.serial import SMPSerialTransport
 
 from esphome.core import EsphomeError
 from esphome.espota2 import ProgressBar
-from esphome.types import ConfigType
 
 from .ble_logger import is_mac_address
 
@@ -38,9 +37,9 @@ async def smpmgr_scan(name: str) -> str:
     raise EsphomeError(f"BLE device {name} with OTA service not found")
 
 
-async def smpmgr_upload(config: ConfigType, device: str, firmware: Path) -> None:
+async def smpmgr_upload(device: str, firmware: Path) -> None:
     try:
-        await _smpmgr_upload(config, device, firmware)
+        await _smpmgr_upload(device, firmware)
     except SMPTransportDisconnected as exc:
         raise EsphomeError(f"{device} was disconnected.") from exc
     except SMPBLETransportDeviceNotFound as exc:
@@ -66,7 +65,7 @@ def _get_image_tlv_sha256(file: Path) -> str:
     return image_tlv_sha256.value
 
 
-async def _smpmgr_upload(config: ConfigType, device: str, firmware: Path) -> None:
+async def _smpmgr_upload(device: str, firmware: Path) -> None:
     image_tlv_sha256 = _get_image_tlv_sha256(firmware)
 
     if is_mac_address(device):
