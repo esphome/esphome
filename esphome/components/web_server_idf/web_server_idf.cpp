@@ -356,19 +356,21 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
 
   // Constant-time comparison to avoid timing side channels.
   // No early return on length mismatch — the length difference is folded
-  // into the accumulator so the loop always runs over the full digest.
+  // into the accumulator and the loop runs over the longer of the two
+  // strings so extra trailing bytes are also compared.
   const char *provided = auth_str + auth_prefix_len;
   size_t digest_len = out;  // length from esp_crypto_base64_encode
   size_t provided_len = strlen(provided);
-  volatile uint8_t result = 0;
-  // Non-zero if lengths differ; XOR of two size_t values truncated to 8 bits
-  // catches differences in the low byte, and any length mismatch also causes
-  // the byte-wise loop below to accumulate non-zero XOR values.
-  result |= static_cast<uint8_t>(digest_len ^ provided_len);
-  for (size_t i = 0; i < digest_len; i++) {
-    // Bounds-safe: use 0 for bytes beyond provided_len
+  // Use full-width XOR so any bit difference in the lengths is preserved
+  // (uint8_t truncation would miss differences in higher bytes, e.g.
+  // digest_len vs digest_len + 256).
+  volatile size_t result = digest_len ^ provided_len;
+  size_t max_len = (digest_len > provided_len) ? digest_len : provided_len;
+  for (size_t i = 0; i < max_len; i++) {
+    // Bounds-safe: substitute 0 for bytes beyond each string's length
+    char digest_ch = (i < digest_len) ? digest.get()[i] : 0;
     char provided_ch = (i < provided_len) ? provided[i] : 0;
-    result |= static_cast<uint8_t>(digest.get()[i] ^ provided_ch);
+    result |= static_cast<uint8_t>(digest_ch ^ provided_ch);
   }
   return result == 0;
 }
