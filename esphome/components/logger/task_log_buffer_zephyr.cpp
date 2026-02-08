@@ -6,13 +6,19 @@ namespace esphome::logger {
 
 __thread bool non_main_task_recursion_guard_;
 
+static inline uint32_t get_wlen(const mpsc_pbuf_generic *item) {
+  auto *msg = reinterpret_cast<const TaskLogBufferZephyr::LogMessage *>(item);
+  // Calculate total size in 32-bit words needed (header + text length + null terminator + 3(4 bytes alignment)
+  return (sizeof(TaskLogBufferZephyr::LogMessage) + msg->text_length + 1 + 3) / sizeof(uint32_t);
+}
+
 TaskLogBufferZephyr::TaskLogBufferZephyr(size_t total_buffer_size) {
   // alignment to 4 bytes
   total_buffer_size = (total_buffer_size + 3) / sizeof(uint32_t);
   this->mpsc_config_.buf = new uint32_t[total_buffer_size];
   this->mpsc_config_.size = total_buffer_size;
   this->mpsc_config_.flags = MPSC_PBUF_MODE_OVERWRITE;
-  // .get_wlen = log_msg_generic_get_wlen,
+  this->mpsc_config_.get_wlen = get_wlen,
 
   mpsc_pbuf_init(&this->log_buffer_, &this->mpsc_config_);
 }
@@ -36,7 +42,7 @@ bool TaskLogBufferZephyr::send_message_thread_safe(uint8_t level, const char *ta
   size_t text_length = (static_cast<size_t>(ret) > MAX_TEXT_SIZE) ? MAX_TEXT_SIZE : ret;
   // Calculate total size in 32-bit words needed (header + text length + null terminator + 3(4 bytes alignment)
   size_t total_size = (sizeof(LogMessage) + text_length + 1 + 3) / sizeof(uint32_t);
-  auto msg = reinterpret_cast<LogMessage *>(mpsc_pbuf_alloc(&this->log_buffer_, total_size, K_NO_WAIT));
+  auto *msg = reinterpret_cast<LogMessage *>(mpsc_pbuf_alloc(&this->log_buffer_, total_size, K_NO_WAIT));
   if (nullptr == msg) {
     return false;
   }
@@ -47,7 +53,7 @@ bool TaskLogBufferZephyr::send_message_thread_safe(uint8_t level, const char *ta
   if (thread_name) {
     strncpy(msg->thread_name, thread_name, sizeof(msg->thread_name) - 1);
   } else {
-    std::snprintf(msg->thread_name, MAX_POINTER_REPRESENTATION, "%p", task_handle);
+    std::snprintf(msg->thread_name, sizeof(msg->thread_name), "%p", task_handle);
   }
 
   // Format the message text directly into the acquired memory
@@ -64,6 +70,7 @@ bool TaskLogBufferZephyr::send_message_thread_safe(uint8_t level, const char *ta
       text_area[i] = '\n';
     }
     text_area[text_length] = 0;
+    // do not return false to free the buffer from main thread
   }
 
   msg->text_length = text_length;
