@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_TYPE, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.const import (
+    CONF_TYPE,
+    DEVICE_CLASS_TEMPERATURE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+)
 from esphome.cpp_generator import MockObjClass
 
 from .. import (
@@ -40,9 +46,22 @@ def _device_schema(class_: MockObjClass, key_name_=cv.UNDEFINED) -> cv.Schema:
     ).extend(cv.COMPONENT_SCHEMA)
 
 
-def _sensor_schema(class_: MockObjClass, key_name_=cv.UNDEFINED) -> cv.Schema:
+def _sensor_schema(
+    class_: MockObjClass,
+    unit_of_measurement: str = cv.UNDEFINED,
+    accuracy_decimals: int = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
+    state_class: str = cv.UNDEFINED,
+    key_name_: str = cv.UNDEFINED,
+) -> cv.Schema:
     return (
-        sensor.sensor_schema(class_).extend(
+        sensor.sensor_schema(
+            class_,
+            unit_of_measurement=unit_of_measurement,
+            accuracy_decimals=accuracy_decimals,
+            device_class=device_class,
+            state_class=state_class,
+        ).extend(
             {
                 cv.Required(CONF_PARENT_ID): cv.use_id(CaravanDeviceComponent),
                 cv.Optional(CONF_KEY_NAME, default=key_name_): cv.string,
@@ -54,8 +73,22 @@ def _sensor_schema(class_: MockObjClass, key_name_=cv.UNDEFINED) -> cv.Schema:
 CONFIG_SCHEMA = cv.typed_schema(
     {
         "mcu_device": _device_schema(ControlUnitDeviceSensor),
-        "temp_in": _sensor_schema(FendtSensor, "TEMP_IN"),
-        "temp_out": _sensor_schema(FendtSensor, "TEMP_OUT"),
+        "temp_in": _sensor_schema(
+            FendtSensor,
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=1,
+            state_class=STATE_CLASS_MEASUREMENT,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            key_name_="TEMP_IN",
+        ),
+        "temp_out": _sensor_schema(
+            FendtSensor,
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=1,
+            state_class=STATE_CLASS_MEASUREMENT,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            key_name_="TEMP_OUT",
+        ),
     }
 )
 
