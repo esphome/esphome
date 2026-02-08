@@ -1904,6 +1904,8 @@ async def test_edit_request_handler_post_without_mtime(
     assert test_file.read_text() == new_content
     # Verify response includes new mtime
     assert "X-File-Mtime" in response.headers
+
+
 def test_proc_on_exit_calls_close() -> None:
     """Test _proc_on_exit sends exit event and closes the WebSocket."""
     handler = Mock(spec=EsphomeCommandWebSocket)
