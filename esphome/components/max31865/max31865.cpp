@@ -90,8 +90,6 @@ void MAX31865Sensor::dump_config() {
                 (filter_ == FILTER_60HZ ? "60 Hz" : (filter_ == FILTER_50HZ ? "50 Hz" : "Unknown!")));
 }
 
-float MAX31865Sensor::get_setup_priority() const { return setup_priority::DATA; }
-
 void MAX31865Sensor::read_data_() {
   // Read temperature, disable V_BIAS (save power)
   const uint16_t rtd_resistance_register = this->read_register_16_(RTD_RESISTANCE_MSB_REG);

@@ -62,7 +62,7 @@ void TemplateTime::control(const datetime::TimeCall &call) {
   if (has_second)
     value.second = *call.get_second();
 
-  this->set_trigger_->trigger(value);
+  this->set_trigger_.trigger(value);
 
   if (this->optimistic_) {
     if (has_hour)

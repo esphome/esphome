@@ -152,10 +152,11 @@ class ZephyrPreferences : public ESPPreferences {
   }
 };
 
+static ZephyrPreferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void setup_preferences() {
-  auto *prefs = new ZephyrPreferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  global_preferences = prefs;
-  prefs->open();
+  global_preferences = &s_preferences;
+  s_preferences.open();
 }
 
 }  // namespace zephyr

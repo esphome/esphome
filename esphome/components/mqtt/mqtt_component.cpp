@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/version.h"
 
 #include "mqtt_const.h"
@@ -12,6 +13,9 @@
 namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.component";
+
+// Entity category MQTT strings indexed by EntityCategory enum: NONE(0) is skipped, CONFIG(1), DIAGNOSTIC(2)
+PROGMEM_STRING_TABLE(EntityCategoryMqttStrings, "", "config", "diagnostic");
 
 // Helper functions for building topic strings on stack
 inline char *append_str(char *p, const char *s, size_t len) {
@@ -149,6 +153,22 @@ bool MQTTComponent::publish(const char *topic, const char *payload) {
   return this->publish(topic, payload, strlen(payload));
 }
 
+#ifdef USE_ESP8266
+bool MQTTComponent::publish(const std::string &topic, ProgmemStr payload) {
+  return this->publish(topic.c_str(), payload);
+}
+
+bool MQTTComponent::publish(const char *topic, ProgmemStr payload) {
+  if (topic[0] == '\0')
+    return false;
+  // On ESP8266, ProgmemStr is __FlashStringHelper* - need to copy from flash
+  char buf[64];
+  strncpy_P(buf, reinterpret_cast<const char *>(payload), sizeof(buf) - 1);
+  buf[sizeof(buf) - 1] = '\0';
+  return global_mqtt_client->publish(topic, buf, strlen(buf), this->qos_, this->retain_);
+}
+#endif
+
 bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
   return this->publish_json(topic.c_str(), f);
 }
@@ -196,13 +216,9 @@ bool MQTTComponent::send_discovery_() {
         // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
         const auto entity_category = this->get_entity()->get_entity_category();
-        switch (entity_category) {
-          case ENTITY_CATEGORY_NONE:
-            break;
-          case ENTITY_CATEGORY_CONFIG:
-          case ENTITY_CATEGORY_DIAGNOSTIC:
-            root[MQTT_ENTITY_CATEGORY] = entity_category == ENTITY_CATEGORY_CONFIG ? "config" : "diagnostic";
-            break;
+        if (entity_category != ENTITY_CATEGORY_NONE) {
+          root[MQTT_ENTITY_CATEGORY] = EntityCategoryMqttStrings::get_progmem_str(
+              static_cast<uint8_t>(entity_category), static_cast<uint8_t>(ENTITY_CATEGORY_CONFIG));
         }
 
         if (config.state_topic) {

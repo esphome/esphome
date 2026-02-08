@@ -48,7 +48,7 @@ template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, publi
     char ssid_buf[SSID_BUFFER_SIZE];
     if (strcmp(global_wifi_component->wifi_ssid_to(ssid_buf), ssid.c_str()) == 0) {
       // Callback to notify the user that the connection was successful
-      this->connect_trigger_->trigger();
+      this->connect_trigger_.trigger();
       return;
     }
     // Create a new WiFiAP object with the new SSID and password
@@ -79,13 +79,13 @@ template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, publi
       // Start a timeout for the fallback if the connection to the old AP fails
       this->set_timeout("wifi-fallback-timeout", this->connection_timeout_.value(x...), [this]() {
         this->connecting_ = false;
-        this->error_trigger_->trigger();
+        this->error_trigger_.trigger();
       });
     });
   }
 
-  Trigger<> *get_connect_trigger() const { return this->connect_trigger_; }
-  Trigger<> *get_error_trigger() const { return this->error_trigger_; }
+  Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
+  Trigger<> *get_error_trigger() { return &this->error_trigger_; }
 
   void loop() override {
     if (!this->connecting_)
@@ -98,10 +98,10 @@ template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, publi
       char ssid_buf[SSID_BUFFER_SIZE];
       if (strcmp(global_wifi_component->wifi_ssid_to(ssid_buf), this->new_sta_.get_ssid().c_str()) == 0) {
         // Callback to notify the user that the connection was successful
-        this->connect_trigger_->trigger();
+        this->connect_trigger_.trigger();
       } else {
         // Callback to notify the user that the connection failed
-        this->error_trigger_->trigger();
+        this->error_trigger_.trigger();
       }
     }
   }
@@ -110,8 +110,8 @@ template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, publi
   bool connecting_{false};
   WiFiAP new_sta_;
   WiFiAP old_sta_;
-  Trigger<> *connect_trigger_{new Trigger<>()};
-  Trigger<> *error_trigger_{new Trigger<>()};
+  Trigger<> connect_trigger_;
+  Trigger<> error_trigger_;
 };
 
 }  // namespace esphome::wifi
