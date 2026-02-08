@@ -8,6 +8,7 @@ import gzip
 import json
 import os
 from pathlib import Path
+import sys
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -535,7 +536,11 @@ async def test_download_binary_handler_subdirectory_file_url_encoded(
         pytest.param("zephyr/../../../secrets.yaml", 403, id="traversal_with_prefix"),
         pytest.param("/etc/passwd", 403, id="absolute_path"),
         pytest.param("//etc/passwd", 403, id="double_slash_absolute"),
-        pytest.param("....//secrets.yaml", 404, id="multiple_dots"),
+        pytest.param(
+            "....//secrets.yaml",
+            403 if sys.platform == "win32" else 404,
+            id="multiple_dots",
+        ),
     ],
 )
 async def test_download_binary_handler_path_traversal_protection(
