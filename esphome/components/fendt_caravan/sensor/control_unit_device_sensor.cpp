@@ -101,7 +101,7 @@ void ControlUnitDeviceSensor::dump_config() {
   LOG_SWITCH(TAG, "  Floor Heater", this->floor_heater_switch_);
 }
 
-void ControlUnitDeviceSensor::on_data_decoded_(IVariable *variable) {
+void ControlUnitDeviceSensor::on_data_decoded(IVariable *variable) {
   if (this->main_switch_switch_ && variable->get_name() == "HS_KEY_STATE") {
     auto *hs_key_state = static_cast<Variable<int> *>(variable);
     if (hs_key_state->is_active()) {

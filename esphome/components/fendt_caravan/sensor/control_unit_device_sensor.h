@@ -31,7 +31,7 @@ class ControlUnitDeviceSensor : public CaravanDeviceComponent, public sensor::Se
   SUB_SWITCH(floor_heater);
 
  protected:
-  void on_data_decoded_(IVariable *variable) override;
+  void on_data_decoded(IVariable *variable) override;
 };
 }  // namespace esphome::fendt_caravan
 #endif

@@ -21,7 +21,7 @@ class FendtNumber : public CaravanSensorBase<float>, public number::Number {
       this->variable_->set_value(value);
     this->on_state_change_.call(this, value);
   }
-  void on_decoded(const float value) override { this->publish_state(value); }
+  void on_decoded_(const float value) override { this->publish_state(value); }
 
  private:
   CallbackManager<void(FendtNumber *, float state)> on_state_change_{};

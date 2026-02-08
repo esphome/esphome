@@ -15,7 +15,7 @@ class CaravanDeviceComponent : public Component {
     auto *variable = this->get_variable(name);
     if (variable) {
       variable->decode(value);
-      on_data_decoded_(variable);
+      on_data_decoded(variable);
     }
     return variable != nullptr;
   }
@@ -37,7 +37,7 @@ class CaravanDeviceComponent : public Component {
   }
 
  protected:
-  virtual void on_data_decoded_(IVariable *variable) = 0;
+  virtual void on_data_decoded(IVariable *variable) = 0;
   std::vector<IVariable *> variables_{};
   CallbackManager<void(const std::string &)> command_callback_{};
   std::vector<IVariable *> get_variables_() { return this->variables_; }
