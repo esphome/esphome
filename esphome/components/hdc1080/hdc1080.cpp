@@ -11,6 +11,10 @@ static const uint8_t HDC1080_CMD_CONFIGURATION = 0x02;
 static const uint8_t HDC1080_CMD_TEMPERATURE = 0x00;
 static const uint8_t HDC1080_CMD_HUMIDITY = 0x01;
 
+// Retry configuration to reduce log spam
+static const uint8_t HDC1080_MAX_RETRIES = 3;
+static const uint8_t HDC1080_RETRY_DELAY = 20;
+
 void HDC1080Component::setup() {
   const uint8_t config[2] = {0x00, 0x00};  // resolution 14bit for both humidity and temperature
 
@@ -39,7 +43,23 @@ void HDC1080Component::update() {
 
   this->status_clear_warning();
 
-  if (this->write(&HDC1080_CMD_TEMPERATURE, 1) != i2c::ERROR_OK) {
+  uint8_t retry_count = 0;
+  i2c::ErrorCode error;
+
+  // Retry temperature reading
+  do {
+    error = this->write(&HDC1080_CMD_TEMPERATURE, 1);
+    if (error != i2c::ERROR_OK) {
+      retry_count++;
+      if (retry_count < HDC1080_MAX_RETRIES) {
+        ESP_LOGD(TAG, "Temperature read failed, retry %d/%d", retry_count, HDC1080_MAX_RETRIES);
+        delay(HDC1080_RETRY_DELAY);
+      }
+    }
+  } while (error != i2c::ERROR_OK && retry_count < HDC1080_MAX_RETRIES);
+
+  if (error != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "Failed to read temperature after %d attempts", HDC1080_MAX_RETRIES);
     this->status_set_warning();
     return;
   }
@@ -57,7 +77,23 @@ void HDC1080Component::update() {
       this->temperature_->publish_state(temperature);
     }
 
-    if (this->write(&HDC1080_CMD_HUMIDITY, 1) != i2c::ERROR_OK) {
+    // Read humidity with retry
+    uint8_t humidity_retry_count = 0;
+    i2c::ErrorCode humidity_error;
+
+    do {
+      humidity_error = this->write(&HDC1080_CMD_HUMIDITY, 1);
+      if (humidity_error != i2c::ERROR_OK) {
+        humidity_retry_count++;
+        if (humidity_retry_count < HDC1080_MAX_RETRIES) {
+          ESP_LOGD(TAG, "Humidity write failed, retry %d/%d", humidity_retry_count, HDC1080_MAX_RETRIES);
+          delay(HDC1080_RETRY_DELAY);
+        }
+      }
+    } while (humidity_error != i2c::ERROR_OK && humidity_retry_count < HDC1080_MAX_RETRIES);
+
+    if (humidity_error != i2c::ERROR_OK) {
+      ESP_LOGW(TAG, "Failed to read humidity after %d attempts", HDC1080_MAX_RETRIES);
       this->status_set_warning();
       return;
     }
