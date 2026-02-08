@@ -15,7 +15,9 @@ void APIServerConnectionBase::log_receive_message_(const LogString *name, const 
   DumpBuffer dump_buf;
   ESP_LOGVV(TAG, "%s: %s", LOG_STR_ARG(name), msg.dump_to(dump_buf));
 }
-void APIServerConnectionBase::log_receive_message_(const LogString *name) { ESP_LOGVV(TAG, "%s", LOG_STR_ARG(name)); }
+void APIServerConnectionBase::log_receive_message_(const LogString *name) {
+  ESP_LOGVV(TAG, "%s: {}", LOG_STR_ARG(name));
+}
 #endif
 
 void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {
