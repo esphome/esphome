@@ -14,7 +14,7 @@ namespace esphome::hlk_fm22x {
 
 static const uint16_t START_CODE = 0xEFAA;
 static constexpr size_t HLK_FM22X_NAME_SIZE = 32;
-// Maximum response size is 36 bytes (VERIFY reply: face_id + 32-byte name)
+// Maximum response payload: 1-byte command + 1-byte result + 2-byte face_id + 32-byte name = 36
 static constexpr size_t HLK_FM22X_MAX_RESPONSE_SIZE = 36;
 enum HlkFm22xCommand {
   NONE = 0x00,

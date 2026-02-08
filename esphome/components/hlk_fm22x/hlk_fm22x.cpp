@@ -135,6 +135,8 @@ void HlkFm22xComponent::recv_command_() {
 
   if (length > HLK_FM22X_MAX_RESPONSE_SIZE) {
     ESP_LOGE(TAG, "Response too large: %u bytes", length);
+    while (this->available())
+      this->read();
     return;
   }
 
@@ -169,10 +171,14 @@ void HlkFm22xComponent::recv_command_() {
 }
 
 void HlkFm22xComponent::handle_note_(const uint8_t *data, size_t length) {
+  if (length < 1) {
+    ESP_LOGE(TAG, "Empty note data");
+    return;
+  }
   switch (data[0]) {
     case HlkFm22xNoteType::FACE_STATE:
       if (length < 17) {
-        ESP_LOGE(TAG, "Invalid face note data size: %u", length);
+        ESP_LOGE(TAG, "Invalid face note data size: %zu", length);
         break;
       }
       {
@@ -212,6 +218,10 @@ void HlkFm22xComponent::handle_note_(const uint8_t *data, size_t length) {
 void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
   auto expected = this->active_command_;
   this->active_command_ = HlkFm22xCommand::NONE;
+  if (length < 2) {
+    ESP_LOGE(TAG, "Reply too short: %zu bytes", length);
+    return;
+  }
   if (data[0] != (uint8_t) expected) {
     ESP_LOGE(TAG, "Unexpected response command. Expected: 0x%.2X, Received: 0x%.2X", expected, data[0]);
     return;
@@ -238,9 +248,13 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
   }
   switch (expected) {
     case HlkFm22xCommand::VERIFY: {
+      if (length < 4 + HLK_FM22X_NAME_SIZE) {
+        ESP_LOGE(TAG, "VERIFY response too short: %zu bytes", length);
+        break;
+      }
       int16_t face_id = ((int16_t) data[2] << 8) | data[3];
       const char *name_ptr = reinterpret_cast<const char *>(data + 4);
-      ESP_LOGD(TAG, "Face verified. ID: %d, name: %.*s", face_id, HLK_FM22X_NAME_SIZE, name_ptr);
+      ESP_LOGD(TAG, "Face verified. ID: %d, name: %.*s", face_id, (int) HLK_FM22X_NAME_SIZE, name_ptr);
       if (this->last_face_id_sensor_ != nullptr) {
         this->last_face_id_sensor_->publish_state(face_id);
       }
@@ -266,7 +280,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
       this->defer([this]() { this->send_command_(HlkFm22xCommand::GET_VERSION); });
       break;
     case HlkFm22xCommand::GET_VERSION:
-      if (this->version_text_sensor_ != nullptr) {
+      if (this->version_text_sensor_ != nullptr && length > 2) {
         this->version_text_sensor_->publish_state(reinterpret_cast<const char *>(data + 2), length - 2);
       }
       this->defer([this]() { this->get_face_count_(); });
