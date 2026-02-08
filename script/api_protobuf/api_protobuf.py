@@ -2507,34 +2507,26 @@ def build_service_message_type(
         # Only add ifdef when we're actually generating content
         if ifdef is not None:
             hout += f"#ifdef {ifdef}\n"
-        # Generate receive
+        # Generate receive handler and switch case
         func = f"on_{snake}"
-        # Check if this message has any fields (excluding deprecated ones)
         has_fields = any(not field.options.deprecated for field in mt.field)
-        if has_fields:
-            hout += f"virtual void {func}(const {mt.name} &value){{}};\n"
-            case = ""
-            case += f"{mt.name} msg;\n"
-            # Normal case: decode the message
-            case += "msg.decode(msg_data, msg_size);\n"
-            if log:
-                case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-                case += f'this->log_receive_message_(LOG_STR("{func}"), msg);\n'
-                case += "#endif\n"
-            case += f"this->{func}(msg);\n"
-            case += "break;"
-        else:
-            # Empty message: elide parameter from handler since it carries no data
+        is_empty = not has_fields
+        if is_empty:
             EMPTY_MESSAGES.add(mt.name)
-            hout += f"virtual void {func}(){{}};\n"
-            case = ""
-            if log:
-                case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+        hout += f"virtual void {func}({'' if is_empty else f'const {mt.name} &value'}){{}};\n"
+        case = ""
+        if not is_empty:
+            case += f"{mt.name} msg;\n"
+            case += "msg.decode(msg_data, msg_size);\n"
+        if log:
+            case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+            if is_empty:
                 case += f'this->log_receive_message_(LOG_STR("{func}"));\n'
-                case += "#endif\n"
-            case += f"this->{func}();\n"
-            case += "break;"
-        # Store the message name and ifdef with the case for later use
+            else:
+                case += f'this->log_receive_message_(LOG_STR("{func}"), msg);\n'
+            case += "#endif\n"
+        case += f"this->{func}({'msg' if not is_empty else ''});\n"
+        case += "break;"
         RECEIVE_CASES[id_] = (case, ifdef, mt.name)
 
         # Only close ifdef if we opened it
