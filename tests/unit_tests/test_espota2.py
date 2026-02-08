@@ -61,7 +61,9 @@ def mock_token_hex() -> Generator[Mock]:
     def _token_hex(nbytes: int) -> str:
         if nbytes == 16:
             return MOCK_MD5_CNONCE
-        return MOCK_SHA256_CNONCE
+        if nbytes == 32:
+            return MOCK_SHA256_CNONCE
+        raise ValueError(f"Unexpected nbytes for token_hex mock: {nbytes}")
 
     with patch("esphome.espota2.secrets.token_hex", side_effect=_token_hex) as mock:
         yield mock
