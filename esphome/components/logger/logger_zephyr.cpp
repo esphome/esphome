@@ -73,9 +73,7 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   if (this->uart_dev_ == nullptr) {
     return;
   }
-  for (uint16_t i = 0; i < len; ++i) {
-    uart_poll_out(this->uart_dev_, msg[i]);
-  }
+  uart_fifo_fill(this->uart_dev_, reinterpret_cast<const uint8_t *>(msg), len);
 }
 
 const LogString *Logger::get_uart_selection_() {
