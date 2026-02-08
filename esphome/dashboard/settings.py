@@ -85,7 +85,9 @@ class DashboardSettings:
         if not self.using_auth:
             return True
         # Compare in constant running time (to prevent timing attacks)
-        username_matches = hmac.compare_digest(username, self.username)
+        username_matches = hmac.compare_digest(
+            username.encode("utf-8"), self.username.encode("utf-8")
+        )
         password_matches = hmac.compare_digest(
             self.password_hash, password_hash(password)
         )

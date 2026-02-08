@@ -258,6 +258,18 @@ def test_check_password_no_auth(dashboard_settings: DashboardSettings) -> None:
     assert dashboard_settings.check_password("anyone", "anything") is True
 
 
+def test_check_password_non_ascii_username(
+    dashboard_settings: DashboardSettings,
+) -> None:
+    """Test check_password handles non-ASCII usernames without TypeError."""
+    dashboard_settings.username = "\u00e9l\u00e8ve"
+    dashboard_settings.using_password = True
+    dashboard_settings.password_hash = password_hash("pass")
+    assert dashboard_settings.check_password("\u00e9l\u00e8ve", "pass") is True
+    assert dashboard_settings.check_password("\u00e9l\u00e8ve", "wrong") is False
+    assert dashboard_settings.check_password("other", "pass") is False
+
+
 def test_check_password_ha_addon_no_password(
     dashboard_settings: DashboardSettings,
     monkeypatch: pytest.MonkeyPatch,
