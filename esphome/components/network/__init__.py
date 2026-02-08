@@ -141,19 +141,26 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _final_validate(config):
+    # Zigbee cannot coexist with IPv6 on nRF52 (disabled in firmware for resource efficiency)
+    if "zigbee" in CORE.loaded_integrations and config.get(CONF_ENABLE_IPV6, False):
+        raise cv.Invalid(
+            "Zigbee is not compatible with IPv6 on nRF52. "
+            "Zigbee requires IPv6 to be disabled due to resource constraints. "
+            "Remove `enable_ipv6: true` from the network configuration."
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 @coroutine_with_priority(CoroPriority.NETWORK)
 async def to_code(config):
     cg.add_define("USE_NETWORK")
-
-    # Zigbee explicitly disables IPv6 in firmware (nRF52 resource constraints)
-    # If Zigbee is loaded, defer to its configuration
-    enable_ipv6_from_config = config.get(CONF_ENABLE_IPV6, None)
-    if "zigbee" in CORE.loaded_integrations and enable_ipv6_from_config:
-        _LOGGER.warning(
-            "IPv6 not configured due to Zigbee component (requires IPv6 disabled for resource management). "
-            "Zigbee uses a separate protocol stack."
-        )
-        enable_ipv6_from_config = None
+    # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
+    if CORE.using_zephyr:
+        zephyr_add_prj_conf("NETWORKING", True)
+        zephyr_add_prj_conf("NET_TCP", True)
         zephyr_add_prj_conf("NET_UDP", True)
 
     # Apply high performance networking settings
@@ -219,7 +226,7 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
 
-    if (enable_ipv6 := enable_ipv6_from_config) is not None:
+    if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
         cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
         if enable_ipv6:
             cg.add_define(
