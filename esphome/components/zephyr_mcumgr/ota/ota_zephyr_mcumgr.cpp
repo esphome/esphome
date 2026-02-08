@@ -44,12 +44,7 @@ static enum mgmt_cb_return mcumgr_img_mgmt_cb(uint32_t event, enum mgmt_cb_retur
   return MGMT_CB_OK;
 }
 
-OTAComponent::OTAComponent() {
-  global_ota_component = this;
-#ifdef USE_OTA_STATE_CALLBACK
-  ota::register_ota_platform(this);
-#endif
-}
+OTAComponent::OTAComponent() { global_ota_component = this; }
 
 void OTAComponent::setup() {
   img_mgmt_callback_.callback = mcumgr_img_mgmt_cb;
@@ -100,8 +95,8 @@ void OTAComponent::update_chunk(const img_mgmt_upload_check &upload) {
 
 void OTAComponent::update_started() {
   ESP_LOGD(TAG, "Starting OTA Update from %s...", "ble");
-#ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);
+#ifdef USE_OTA_STATE_LISTENER
+  this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
 #endif
 }
 
@@ -110,16 +105,16 @@ void OTAComponent::update_chunk_wrote() {
   if (now - last_progress_ > 1000) {
     last_progress_ = now;
     ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage_);
-#ifdef USE_OTA_STATE_CALLBACK
-    this->state_callback_.call(ota::OTA_IN_PROGRESS, percentage_, 0);
+#ifdef USE_OTA_STATE_LISTENER
+    this->notify_state_(ota::OTA_IN_PROGRESS, percentage_, 0);
 #endif
   }
 }
 
 void OTAComponent::update_pending() {
   ESP_LOGD(TAG, "OTA pending");
-#ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(ota::OTA_COMPLETED, 100.0f, 0);
+#ifdef USE_OTA_STATE_LISTENER
+  this->notify_state_(ota::OTA_COMPLETED, 100.0f, 0);
 #endif
 }
 
