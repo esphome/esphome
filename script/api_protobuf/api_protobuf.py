@@ -2937,44 +2937,23 @@ static const char *const TAG = "api.service";
             cpp += f"#ifdef {ifdef}\n"
 
         is_empty = inp in EMPTY_MESSAGES
+        param = "" if is_empty else f"const {inp} &msg"
+        arg = "" if is_empty else "msg"
 
-        if is_empty:
-            # Empty message: elide parameter since it carries no data
-            hpp_protected += f"  void {on_func}() override;\n"
-
-            if is_void:
-                hpp += f"  virtual void {func}() = 0;\n"
-            else:
-                hpp += f"  virtual bool send_{func}_response() = 0;\n"
-
-            cpp += f"void {class_name}::{on_func}() {{\n"
-
-            body = ""
-            if is_void:
-                body += f"this->{func}();\n"
-            else:
-                body += f"if (!this->send_{func}_response()) {{\n"
-                body += "  this->on_fatal_error();\n"
-                body += "}\n"
+        hpp_protected += f"  void {on_func}({param}) override;\n"
+        if is_void:
+            hpp += f"  virtual void {func}({param}) = 0;\n"
         else:
-            hpp_protected += f"  void {on_func}(const {inp} &msg) override;\n"
+            hpp += f"  virtual bool send_{func}_response({param}) = 0;\n"
 
-            # For non-void methods, generate a send_ method instead of return-by-value
-            if is_void:
-                hpp += f"  virtual void {func}(const {inp} &msg) = 0;\n"
-            else:
-                hpp += f"  virtual bool send_{func}_response(const {inp} &msg) = 0;\n"
-
-            cpp += f"void {class_name}::{on_func}(const {inp} &msg) {{\n"
-
-            # No authentication check here - it's done in read_message
-            body = ""
-            if is_void:
-                body += f"this->{func}(msg);\n"
-            else:
-                body += f"if (!this->send_{func}_response(msg)) {{\n"
-                body += "  this->on_fatal_error();\n"
-                body += "}\n"
+        cpp += f"void {class_name}::{on_func}({param}) {{\n"
+        body = ""
+        if is_void:
+            body += f"this->{func}({arg});\n"
+        else:
+            body += f"if (!this->send_{func}_response({arg})) {{\n"
+            body += "  this->on_fatal_error();\n"
+            body += "}\n"
 
         cpp += indent(body) + "\n" + "}\n"
 
