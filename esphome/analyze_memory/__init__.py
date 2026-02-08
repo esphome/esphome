@@ -43,6 +43,7 @@ _READELF_SECTION_PATTERN = re.compile(
 # Component category prefixes
 _COMPONENT_PREFIX_ESPHOME = "[esphome]"
 _COMPONENT_PREFIX_EXTERNAL = "[external]"
+_COMPONENT_PREFIX_LIB = "[lib]"
 _COMPONENT_CORE = f"{_COMPONENT_PREFIX_ESPHOME}core"
 _COMPONENT_API = f"{_COMPONENT_PREFIX_ESPHOME}api"
 
@@ -55,6 +56,9 @@ SymbolInfoType = tuple[str, int, str]
 
 # RAM sections - symbols in these sections consume RAM
 RAM_SECTIONS = frozenset([".data", ".bss"])
+
+# nm symbol types for global/weak defined symbols (used for library symbol mapping)
+_NM_DEFINED_GLOBAL_TYPES = frozenset({"T", "D", "B", "R", "W", "V"})
 
 
 @dataclass
@@ -179,11 +183,16 @@ class MemoryAnalyzer:
         self._sdk_symbols: list[SDKSymbol] = []
         # CSWTCH symbols: list of (name, size, source_file, component)
         self._cswtch_symbols: list[tuple[str, int, str, str]] = []
+        # PlatformIO library symbol mapping: symbol_name -> library_name
+        self._lib_symbol_map: dict[str, str] = {}
+        # PlatformIO library hash to name mapping: "lib641" -> "espsoftwareserial"
+        self._lib_hash_to_name: dict[str, str] = {}
 
     def analyze(self) -> dict[str, ComponentMemory]:
         """Analyze the ELF file and return component memory usage."""
         self._parse_sections()
         self._parse_symbols()
+        self._scan_pio_libraries()
         self._categorize_symbols()
         self._analyze_cswtch_symbols()
         self._analyze_sdk_libraries()
@@ -328,6 +337,10 @@ class MemoryAnalyzer:
             # If no component match found, it's core
             return _COMPONENT_CORE
 
+        # Check PlatformIO library symbol map (more accurate than heuristic patterns)
+        if lib_name := self._lib_symbol_map.get(symbol_name):
+            return f"{_COMPONENT_PREFIX_LIB}{lib_name}"
+
         # Check against symbol patterns
         for component, patterns in SYMBOL_PATTERNS.items():
             if any(pattern in symbol_name for pattern in patterns):
@@ -383,6 +396,135 @@ class MemoryAnalyzer:
                 return category
 
         return "Other Core"
+
+    def _discover_pio_libraries(self) -> dict[str, Path]:
+        """Discover PlatformIO third-party libraries from the build directory.
+
+        Scans ``lib<hex>/`` directories under ``.pioenvs/<env>/`` to find
+        library names and their ``.a`` archive paths.
+
+        Returns:
+            Dictionary mapping lowercase library name to ``.a`` file path.
+        """
+        # The ELF is typically at .pioenvs/<env>/firmware.elf
+        build_dir = self.elf_path.parent
+        libraries: dict[str, Path] = {}
+
+        for entry in build_dir.iterdir():
+            if not entry.is_dir() or not entry.name.startswith("lib"):
+                continue
+            # Validate that the suffix after "lib" is a hex hash
+            hex_part = entry.name[3:]
+            if not hex_part:
+                continue
+            try:
+                int(hex_part, 16)
+            except ValueError:
+                continue
+
+            # Each lib<hex>/ directory contains a subdirectory named after the library
+            # and a .a archive named lib<LibraryName>.a
+            for lib_subdir in entry.iterdir():
+                if not lib_subdir.is_dir():
+                    continue
+                # The .a file is named lib<LibraryName>.a (case-insensitive match)
+                # e.g., lib72a/ESPAsyncTCP/... has lib72a/libESPAsyncTCP.a
+                archive = entry / f"lib{lib_subdir.name}.a"
+                if not archive.exists():
+                    # Try case-insensitive: scan for any .a file
+                    archives = list(entry.glob("*.a"))
+                    archive = archives[0] if archives else None
+                if archive and archive.exists():
+                    libraries[lib_subdir.name.lower()] = archive
+                    _LOGGER.debug(
+                        "Discovered PlatformIO library: %s -> %s",
+                        lib_subdir.name,
+                        archive,
+                    )
+
+        return libraries
+
+    def _build_library_symbol_map(self, libraries: dict[str, Path]) -> dict[str, str]:
+        """Build a symbol-to-library mapping from library archives.
+
+        Runs ``nm --defined-only`` on each ``.a`` file to collect global and
+        weak defined symbols.
+
+        Args:
+            libraries: Dictionary mapping library name to ``.a`` file path.
+
+        Returns:
+            Dictionary mapping symbol name to library name.
+        """
+        symbol_map: dict[str, str] = {}
+
+        if not self.nm_path:
+            return symbol_map
+
+        for lib_name, archive_path in libraries.items():
+            result = run_tool(
+                [self.nm_path, "--defined-only", str(archive_path)],
+                timeout=10,
+            )
+            if result is None or result.returncode != 0:
+                continue
+
+            for line in result.stdout.splitlines():
+                parts = line.split()
+                if len(parts) < 3:
+                    continue
+
+                sym_type = parts[-2]
+                sym_name = parts[-1]
+
+                # Include global defined symbols (uppercase) and weak symbols (W/V)
+                if sym_type in _NM_DEFINED_GLOBAL_TYPES:
+                    symbol_map[sym_name] = lib_name
+
+        return symbol_map
+
+    def _scan_pio_libraries(self) -> None:
+        """Discover PlatformIO libraries and build symbol mapping.
+
+        Orchestrates library discovery, symbol map construction, and
+        hash-to-name mapping for CSWTCH attribution.
+        """
+        libraries = self._discover_pio_libraries()
+        if not libraries:
+            _LOGGER.debug("No PlatformIO third-party libraries found")
+            return
+
+        _LOGGER.info(
+            "Scanning %d PlatformIO libraries: %s",
+            len(libraries),
+            ", ".join(sorted(libraries)),
+        )
+
+        self._lib_symbol_map = self._build_library_symbol_map(libraries)
+
+        # Build hash-to-name mapping for CSWTCH attribution
+        # e.g., lib641 -> espsoftwareserial
+        build_dir = self.elf_path.parent
+        for entry in build_dir.iterdir():
+            if not entry.is_dir() or not entry.name.startswith("lib"):
+                continue
+            hex_part = entry.name[3:]
+            if not hex_part:
+                continue
+            try:
+                int(hex_part, 16)
+            except ValueError:
+                continue
+            for lib_subdir in entry.iterdir():
+                if lib_subdir.is_dir():
+                    self._lib_hash_to_name[entry.name] = lib_subdir.name.lower()
+                    break
+
+        _LOGGER.info(
+            "Built library symbol map: %d symbols from %d libraries",
+            len(self._lib_symbol_map),
+            len(libraries),
+        )
 
     def _find_object_files_dir(self) -> Path | None:
         """Find the directory containing object files for this build.
@@ -559,9 +701,13 @@ class MemoryAnalyzer:
         if "esphome" in parts and "components" not in parts:
             return _COMPONENT_CORE
 
-        # Framework/library files - return the first path component
-        # e.g., lib65b/ESPAsyncTCP/... -> lib65b
-        #        FrameworkArduino/... -> FrameworkArduino
+        # Framework/library files - check for PlatformIO library hash dirs
+        # e.g., lib65b/ESPAsyncTCP/... -> [lib]espasynctcp
+        if parts and parts[0] in self._lib_hash_to_name:
+            return f"{_COMPONENT_PREFIX_LIB}{self._lib_hash_to_name[parts[0]]}"
+
+        # Other framework/library files - return the first path component
+        # e.g., FrameworkArduino/... -> FrameworkArduino
         return parts[0] if parts else source_file
 
     def _analyze_cswtch_symbols(self) -> None:
