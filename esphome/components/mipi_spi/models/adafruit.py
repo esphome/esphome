@@ -29,10 +29,10 @@ ST7789V.extend(
 
 ST7789V.extend(
     "ADAFRUIT-S3-REVERSE-TFT-FEATHER",
-    height=135,
-    width=240,
-    offset_height=53,
-    offset_width=40,
+    height=240,
+    width=135,
+    offset_height=40,
+    offset_width=53,
     cs_pin=42,
     dc_pin=40,
     reset_pin=41,
