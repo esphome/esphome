@@ -6,7 +6,7 @@ import hashlib
 import io
 import logging
 from pathlib import Path
-import random
+import secrets
 import socket
 import sys
 import time
@@ -301,7 +301,7 @@ def perform_ota(
         _LOGGER.debug("Auth: %s Nonce is %s", hash_name, nonce)
 
         # Generate cnonce
-        cnonce = hash_func(str(random.random()).encode()).hexdigest()
+        cnonce = secrets.token_hex(32)
         _LOGGER.debug("Auth: %s CNonce is %s", hash_name, cnonce)
 
         send_check(sock, cnonce, "auth cnonce")
