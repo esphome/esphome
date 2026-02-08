@@ -2881,9 +2881,78 @@ static const char *const TAG = "api.service";
 
     cases = list(RECEIVE_CASES.items())
     cases.sort()
+
+    serv = file.service[0]
+
+    # Build a mapping of message input types to their authentication requirements
+    message_auth_map: dict[str, bool] = {}
+    message_conn_map: dict[str, bool] = {}
+
+    for m in serv.method:
+        inp = m.input_type[1:]
+        needs_conn = get_opt(m, pb.needs_setup_connection, True)
+        needs_auth = get_opt(m, pb.needs_authentication, True)
+
+        # Store authentication requirements for message types
+        message_auth_map[inp] = needs_auth
+        message_conn_map[inp] = needs_conn
+
+    # Categorize messages by their authentication requirements
+    no_conn_ids: set[int] = set()
+    conn_only_ids: set[int] = set()
+
+    for id_, (_, _, case_msg_name) in cases:
+        if case_msg_name in message_auth_map:
+            needs_auth = message_auth_map[case_msg_name]
+            needs_conn = message_conn_map[case_msg_name]
+
+            if not needs_conn:
+                no_conn_ids.add(id_)
+            elif not needs_auth:
+                conn_only_ids.add(id_)
+
+    # Helper to generate case statements with ifdefs
+    def generate_cases(ids: set[int], comment: str) -> str:
+        result = ""
+        for id_ in sorted(ids):
+            _, ifdef, msg_name = RECEIVE_CASES[id_]
+            if ifdef:
+                result += f"#ifdef {ifdef}\n"
+            result += f"    case {msg_name}::MESSAGE_TYPE:  {comment}\n"
+            if ifdef:
+                result += "#endif\n"
+        return result
+
+    # Generate read_message with auth check before dispatch
     hpp += " protected:\n"
     hpp += "  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;\n"
+
     out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {{\n"
+
+    # Auth check block before dispatch switch
+    if no_conn_ids or conn_only_ids:
+        out += "  // Check authentication/connection requirements\n"
+        out += "  switch (msg_type) {\n"
+
+        if no_conn_ids:
+            out += generate_cases(no_conn_ids, "// No setup required")
+            out += "      break;\n"
+
+        if conn_only_ids:
+            out += generate_cases(conn_only_ids, "// Connection setup only")
+            out += "      if (!this->check_connection_setup_()) {\n"
+            out += "        return;\n"
+            out += "      }\n"
+            out += "      break;\n"
+
+        out += "    default:\n"
+        out += "      if (!this->check_authenticated_()) {\n"
+        out += "        return;\n"
+        out += "      }\n"
+        out += "      break;\n"
+        out += "  }\n"
+
+    # Dispatch switch
     out += "  switch (msg_type) {\n"
     for i, (case, ifdef, message_name) in cases:
         if ifdef is not None:
@@ -2900,129 +2969,6 @@ static const char *const TAG = "api.service";
     out += "  }\n"
     out += "}\n"
     cpp += out
-    hpp += "};\n"
-
-    serv = file.service[0]
-    class_name = "APIServerConnection"
-    hpp += "\n"
-    hpp += f"class {class_name} : public {class_name}Base {{\n"
-    hpp += " public:\n"
-    hpp_protected = ""
-    cpp += "\n"
-
-    # Build a mapping of message input types to their authentication requirements
-    message_auth_map: dict[str, bool] = {}
-    message_conn_map: dict[str, bool] = {}
-
-    m = serv.method[0]
-    for m in serv.method:
-        func = m.name
-        inp = m.input_type[1:]
-        ret = m.output_type[1:]
-        is_void = ret == "void"
-        snake = camel_to_snake(inp)
-        on_func = f"on_{snake}"
-        needs_conn = get_opt(m, pb.needs_setup_connection, True)
-        needs_auth = get_opt(m, pb.needs_authentication, True)
-
-        # Store authentication requirements for message types
-        message_auth_map[inp] = needs_auth
-        message_conn_map[inp] = needs_conn
-
-        ifdef = message_ifdef_map.get(inp, ifdefs.get(inp))
-
-        if ifdef is not None:
-            hpp += f"#ifdef {ifdef}\n"
-            hpp_protected += f"#ifdef {ifdef}\n"
-            cpp += f"#ifdef {ifdef}\n"
-
-        is_empty = inp in EMPTY_MESSAGES
-        param = "" if is_empty else f"const {inp} &msg"
-        arg = "" if is_empty else "msg"
-
-        hpp_protected += f"  void {on_func}({param}) override;\n"
-        if is_void:
-            hpp += f"  virtual void {func}({param}) = 0;\n"
-        else:
-            hpp += f"  virtual bool send_{func}_response({param}) = 0;\n"
-
-        cpp += f"void {class_name}::{on_func}({param}) {{\n"
-        body = ""
-        if is_void:
-            body += f"this->{func}({arg});\n"
-        else:
-            body += f"if (!this->send_{func}_response({arg})) {{\n"
-            body += "  this->on_fatal_error();\n"
-            body += "}\n"
-
-        cpp += indent(body) + "\n" + "}\n"
-
-        if ifdef is not None:
-            hpp += "#endif\n"
-            hpp_protected += "#endif\n"
-            cpp += "#endif\n"
-
-    # Generate optimized read_message with authentication checking
-    # Categorize messages by their authentication requirements
-    no_conn_ids: set[int] = set()
-    conn_only_ids: set[int] = set()
-
-    for id_, (_, _, case_msg_name) in cases:
-        if case_msg_name in message_auth_map:
-            needs_auth = message_auth_map[case_msg_name]
-            needs_conn = message_conn_map[case_msg_name]
-
-            if not needs_conn:
-                no_conn_ids.add(id_)
-            elif not needs_auth:
-                conn_only_ids.add(id_)
-
-    # Generate override if we have messages that skip checks
-    if no_conn_ids or conn_only_ids:
-        # Helper to generate case statements with ifdefs
-        def generate_cases(ids: set[int], comment: str) -> str:
-            result = ""
-            for id_ in sorted(ids):
-                _, ifdef, msg_name = RECEIVE_CASES[id_]
-                if ifdef:
-                    result += f"#ifdef {ifdef}\n"
-                result += f"    case {msg_name}::MESSAGE_TYPE:  {comment}\n"
-                if ifdef:
-                    result += "#endif\n"
-            return result
-
-        hpp_protected += "  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;\n"
-
-        cpp += f"\nvoid {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {{\n"
-        cpp += "  // Check authentication/connection requirements for messages\n"
-        cpp += "  switch (msg_type) {\n"
-
-        # Messages that don't need any checks
-        if no_conn_ids:
-            cpp += generate_cases(no_conn_ids, "// No setup required")
-            cpp += "      break;  // Skip all checks for these messages\n"
-
-        # Messages that only need connection setup
-        if conn_only_ids:
-            cpp += generate_cases(conn_only_ids, "// Connection setup only")
-            cpp += "      if (!this->check_connection_setup_()) {\n"
-            cpp += "        return;  // Connection not setup\n"
-            cpp += "      }\n"
-            cpp += "      break;\n"
-
-        cpp += "    default:\n"
-        cpp += "      // All other messages require authentication (which includes connection check)\n"
-        cpp += "      if (!this->check_authenticated_()) {\n"
-        cpp += "        return;  // Authentication failed\n"
-        cpp += "      }\n"
-        cpp += "      break;\n"
-        cpp += "  }\n\n"
-        cpp += "  // Call base implementation to process the message\n"
-        cpp += f"  {class_name}Base::read_message(msg_size, msg_type, msg_data);\n"
-        cpp += "}\n"
-
-    hpp += " protected:\n"
-    hpp += hpp_protected
     hpp += "};\n"
 
     hpp += """\
