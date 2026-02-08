@@ -356,14 +356,13 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
 
   // Constant-time comparison to avoid timing side channels
   const char *provided = auth_str + auth_prefix_len;
-  size_t digest_len = strlen(digest.get());
+  size_t digest_len = out;
   size_t provided_len = strlen(provided);
-  if (digest_len != provided_len) {
-    return false;
-  }
   volatile uint8_t result = 0;
+  result |= static_cast<uint8_t>(digest_len ^ provided_len);
   for (size_t i = 0; i < digest_len; i++) {
-    result |= digest.get()[i] ^ provided[i];
+    char provided_ch = (i < provided_len) ? provided[i] : 0;
+    result |= static_cast<uint8_t>(digest.get()[i] ^ provided_ch);
   }
   return result == 0;
 }
