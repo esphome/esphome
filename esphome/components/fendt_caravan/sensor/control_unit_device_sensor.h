@@ -12,7 +12,6 @@
 #include "esphome/core/log.h"
 #include "device_decoders.h"
 #include "device_commands.h"
-#include "fendt_sensor.h"
 #include <functional>
 
 namespace esphome::fendt_caravan {
@@ -24,8 +23,8 @@ class ControlUnitDeviceSensor : public CaravanDeviceComponent, public sensor::Se
   void dump_config() override;
   void on_switch_state_change_(switch_::Switch *sw, bool state, const std::string &command) override;
   SUB_SWITCH(main_switch);
-  SUB_SENSOR(temperature_in);
-  SUB_SENSOR(temperature_out);
+  SUB_SENSOR(temp_in);
+  SUB_SENSOR(temp_out);
   SUB_TEXT_SENSOR(power_status);
   SUB_TEXT_SENSOR(software_version);
   SUB_SWITCH(all_lights);

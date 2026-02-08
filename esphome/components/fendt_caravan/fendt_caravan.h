@@ -23,8 +23,8 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
                            esp_ble_gattc_cb_param_t *param) override;
 
   void set_address(uint64_t address) { address_ = address; };
-  void set_mcu_device(CaravanDeviceComponent *mcu_device) {
-    this->mcu_device_ = mcu_device;
+  void set_mcu_device_sensor(CaravanDeviceComponent *mcu_device_sensor) {
+    this->mcu_device_ = mcu_device_sensor;
     this->mcu_device_->set_command_send_callback([this](const std::string &cmd) { this->on_command_send(cmd); });
   }
   void dump_config() override;

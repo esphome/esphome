@@ -13,8 +13,20 @@ fendt_caravan:
 sensor:
   - platform: fendt_caravan
     parent_id: my_caravan
-    type: mcu
+    type: mcu_device
     id: main_unit_device
+
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: temp_in
+    name: Temperature In
+    id: temp_in
+
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: temp_out
+    name: Temperature Out
+    id: temp_out
 
 switch:
   - platform: fendt_caravan

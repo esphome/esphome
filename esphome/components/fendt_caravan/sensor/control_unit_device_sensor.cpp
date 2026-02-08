@@ -36,17 +36,11 @@ void ControlUnitDeviceSensor::setup() {
   auto *alarm_clock_active = new Variable<bool>("WAKE_EN", DeviceDecoders::decode_bool);
   this->add_variable(alarm_clock_active);
 
-  if (this->temperature_in_sensor_) {
-    auto *temp_in = GET_SENSOR_BASE(float, this->temperature_in_sensor_)
-                        ->create_variable("TEMP_IN", DeviceDecoders::decode_temperature);
-    this->add_variable(temp_in);
-  }
+  auto *temp_in = new Variable<float>("TEMP_IN", DeviceDecoders::decode_temperature);
+  this->add_variable(temp_in);
 
-  if (this->temperature_out_sensor_) {
-    auto *temp_out = GET_SENSOR_BASE(float, this->temperature_out_sensor_)
-                         ->create_variable("TEMP_OUT", DeviceDecoders::decode_temperature);
-    this->add_variable(temp_out);
-  }
+  auto *temp_out = new Variable<float>("TEMP_OUT", DeviceDecoders::decode_temperature);
+  this->add_variable(temp_out);
 
   auto *battery_voltage = new Variable<float>("UBAT", DeviceDecoders::decode_voltage);
   this->add_variable(battery_voltage);
@@ -100,8 +94,8 @@ void ControlUnitDeviceSensor::dump_config() {
   ESP_LOGCONFIG(TAG, " Fendt Control Unit");
   LOG_SWITCH(TAG, "  Main Switch", this->main_switch_switch_);
   LOG_SWITCH(TAG, "  All Lights Status", this->all_lights_switch_);
-  LOG_SENSOR(TAG, "  Temp In", this->temperature_in_sensor_);
-  LOG_SENSOR(TAG, "  Temp Out", this->temperature_out_sensor_);
+  LOG_SENSOR(TAG, "  Temp In", this->temp_in_sensor_);
+  LOG_SENSOR(TAG, "  Temp Out", this->temp_out_sensor_);
   LOG_TEXT_SENSOR(TAG, "  Power Status", this->power_status_text_sensor_);
   LOG_TEXT_SENSOR(TAG, "  Software Version", this->software_version_text_sensor_);
   LOG_SWITCH(TAG, "  Floor Heater", this->floor_heater_switch_);
@@ -121,13 +115,12 @@ void ControlUnitDeviceSensor::on_data_decoded_(IVariable *variable) {
 
 void ControlUnitDeviceSensor::on_switch_state_change_(switch_::Switch *sw, bool state, const std::string &command) {
   std::string cmd = "";
-  ESP_LOGD(TAG, "on_switch_state_change_ called");
   if (sw == this->main_switch_switch_) {
     auto *hs_key_long = GET_VARIABLE(bool, "HS_KEY_LONG");
     auto *hs_key_state = GET_VARIABLE(int, "HS_KEY_STATE");
     bool current_state = hs_key_state->get_value() > 0;
 
-    ESP_LOGD(TAG, "Main switch state changed. cs: %d, state:%d", current_state, state);
+    ESP_LOGV(TAG, "Main switch state changed. cs: %d, state:%d", current_state, state);
     if (!(hs_key_long && hs_key_state))
       return;
     if (state == current_state)
@@ -144,14 +137,14 @@ void ControlUnitDeviceSensor::on_switch_state_change_(switch_::Switch *sw, bool 
     auto *hs_key = GET_VARIABLE(bool, "HS_KEY");
     auto *hs_key_state = GET_VARIABLE(int, "HS_KEY_STATE");
     bool current_state = hs_key_state->get_value() == 2;
-    ESP_LOGD(TAG, "Light switch state changed. cs: %d, state:%d", current_state, state);
+    ESP_LOGV(TAG, "Light switch state changed. cs: %d, state:%d", current_state, state);
     if (hs_key && hs_key_state) {
       if (current_state == state)
         return;
       cmd = hs_key->get_command();
     }
   } else if (sw == this->floor_heater_switch_) {
-    ESP_LOGD(TAG, "Floor switch state changed. cs: %d, state:%d", this->floor_heater_switch_->state, state);
+    ESP_LOGV(TAG, "Floor switch state changed. cs: %d, state:%d", this->floor_heater_switch_->state, state);
     if (state == this->floor_heater_switch_->state)
       return;
     // Variable<bool> *variable = GET_VARIABLE(bool, "FLOOR_HEATER_CONFIG");
@@ -163,7 +156,5 @@ void ControlUnitDeviceSensor::on_switch_state_change_(switch_::Switch *sw, bool 
     this->command_callback_.call(cmd);
   }
 }
-
 }  // namespace esphome::fendt_caravan
-
 #endif

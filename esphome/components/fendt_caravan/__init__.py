@@ -21,7 +21,6 @@ CONF_KEY_NAME = "key_name"
 
 FendtNumber = fendt_caravan_ns.class_("FendtNumber", cg.Component)
 FendtSelect = fendt_caravan_ns.class_("FendtSelect", cg.Component)
-FendtSensor = fendt_caravan_ns.class_("FendtSensor", cg.Component)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
