@@ -354,7 +354,18 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest.get()), n, &out,
                            reinterpret_cast<const uint8_t *>(user_info), user_info_len);
 
-  return strcmp(digest.get(), auth_str + auth_prefix_len) == 0;
+  // Constant-time comparison to avoid timing side channels
+  const char *provided = auth_str + auth_prefix_len;
+  size_t digest_len = strlen(digest.get());
+  size_t provided_len = strlen(provided);
+  if (digest_len != provided_len) {
+    return false;
+  }
+  volatile uint8_t result = 0;
+  for (size_t i = 0; i < digest_len; i++) {
+    result |= digest.get()[i] ^ provided[i];
+  }
+  return result == 0;
 }
 
 void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
