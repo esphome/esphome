@@ -84,11 +84,12 @@ class DashboardSettings:
     def check_password(self, username: str, password: str) -> bool:
         if not self.using_auth:
             return True
-        if username != self.username:
-            return False
-
-        # Compare password in constant running time (to prevent timing attacks)
-        return hmac.compare_digest(self.password_hash, password_hash(password))
+        # Compare both in constant running time (to prevent timing attacks)
+        username_matches = hmac.compare_digest(username, self.username)
+        password_matches = hmac.compare_digest(
+            self.password_hash, password_hash(password)
+        )
+        return username_matches and password_matches
 
     def rel_path(self, *args: Any) -> Path:
         """Return a path relative to the ESPHome config folder."""
