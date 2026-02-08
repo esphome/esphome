@@ -552,8 +552,8 @@ async def test_download_binary_handler_path_traversal_protection(
 ) -> None:
     """Test that DownloadBinaryRequestHandler prevents path traversal attacks.
 
-    Verifies that attempts to use '..' in file paths are sanitized to prevent
-    accessing files outside the build directory. Tests multiple attack vectors.
+    Verifies that attempts to escape the build directory via '..' are rejected
+    using resolve()/relative_to() validation. Tests multiple attack vectors.
     Real traversals that escape the base directory get 403. Paths like '....'
     that resolve inside the base directory but don't exist get 404.
     """
