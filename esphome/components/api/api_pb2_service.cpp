@@ -27,7 +27,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     case DisconnectRequest::MESSAGE_TYPE:  // No setup required
     case PingRequest::MESSAGE_TYPE:        // No setup required
       break;
-    case DeviceInfoRequest::MESSAGE_TYPE:  // Connection setup only
+    case 9 /* DeviceInfoRequest is empty */:  // Connection setup only
       if (!this->check_connection_setup_()) {
         return;
       }
@@ -76,21 +76,21 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_ping_response();
       break;
     }
-    case DeviceInfoRequest::MESSAGE_TYPE: {
+    case 9 /* DeviceInfoRequest is empty */: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_receive_message_(LOG_STR("on_device_info_request"));
 #endif
       this->on_device_info_request();
       break;
     }
-    case ListEntitiesRequest::MESSAGE_TYPE: {
+    case 11 /* ListEntitiesRequest is empty */: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_receive_message_(LOG_STR("on_list_entities_request"));
 #endif
       this->on_list_entities_request();
       break;
     }
-    case SubscribeStatesRequest::MESSAGE_TYPE: {
+    case 20 /* SubscribeStatesRequest is empty */: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_receive_message_(LOG_STR("on_subscribe_states_request"));
 #endif
@@ -151,7 +151,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-    case SubscribeHomeassistantServicesRequest::MESSAGE_TYPE: {
+    case 34 /* SubscribeHomeassistantServicesRequest is empty */: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_receive_message_(LOG_STR("on_subscribe_homeassistant_services_request"));
 #endif
@@ -169,7 +169,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #ifdef USE_API_HOMEASSISTANT_STATES
-    case SubscribeHomeAssistantStatesRequest::MESSAGE_TYPE: {
+    case 38 /* SubscribeHomeAssistantStatesRequest is empty */: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_receive_message_(LOG_STR("on_subscribe_home_assistant_states_request"));
 #endif
@@ -376,7 +376,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-    case SubscribeBluetoothConnectionsFreeRequest::MESSAGE_TYPE: {
+    case 80 /* SubscribeBluetoothConnectionsFreeRequest is empty */: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_receive_message_(LOG_STR("on_subscribe_bluetooth_connections_free_request"));
 #endif
@@ -385,7 +385,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-    case UnsubscribeBluetoothLEAdvertisementsRequest::MESSAGE_TYPE: {
+    case 87 /* UnsubscribeBluetoothLEAdvertisementsRequest is empty */: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_receive_message_(LOG_STR("on_unsubscribe_bluetooth_le_advertisements_request"));
 #endif
