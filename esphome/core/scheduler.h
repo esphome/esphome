@@ -118,7 +118,7 @@ class Scheduler {
   void process_to_add();
 
   // Name storage type discriminator for SchedulerItem
-  // Used to distinguish between static strings, hashed strings, and numeric IDs
+  // Used to distinguish between static strings, hashed strings, numeric IDs, and internal numeric IDs
   enum class NameType : uint8_t {
     STATIC_STRING = 0,       // const char* pointer to static/flash storage
     HASHED_STRING = 1,       // uint32_t FNV-1a hash of a runtime string
