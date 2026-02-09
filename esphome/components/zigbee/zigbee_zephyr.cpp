@@ -249,21 +249,17 @@ void ZigbeeComponent::factory_reset() {
 void ZigbeeComponent::dump_reporting_() {
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   auto now = millis();
-  bool first = true;
   for (zb_uint8_t j = 0; j < ZCL_CTX().device_ctx->ep_count; j++) {
     if (ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info) {
       zb_zcl_reporting_info_t *rep_info = ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info;
       for (zb_uint8_t i = 0; i < ZCL_CTX().device_ctx->ep_desc_list[j]->rep_info_count; i++) {
-        if (!first) {
-          ESP_LOGV(TAG, "");
-        }
-        first = false;
-        ESP_LOGV(TAG, "Endpoint: %d, cluster_id %d, attr_id %d, flags %d, report in %ums", rep_info->ep,
-                 rep_info->cluster_id, rep_info->attr_id, rep_info->flags,
+        ESP_LOGV(TAG,
+                 "Endpoint: %d, cluster_id %d, attr_id %d, flags %d, report in %ums\n"
+                 "  Min_interval %ds, max_interval %ds, def_min_interval %ds, def_max_interval %ds",
+                 rep_info->ep, rep_info->cluster_id, rep_info->attr_id, rep_info->flags,
                  ZB_ZCL_GET_REPORTING_FLAG(rep_info, ZB_ZCL_REPORT_TIMER_STARTED)
                      ? ZB_TIME_BEACON_INTERVAL_TO_MSEC(rep_info->run_time) - now
-                     : 0);
-        ESP_LOGV(TAG, "Min_interval %ds, max_interval %ds, def_min_interval %ds, def_max_interval %ds",
+                     : 0,
                  rep_info->u.send_info.min_interval, rep_info->u.send_info.max_interval,
                  rep_info->u.send_info.def_min_interval, rep_info->u.send_info.def_max_interval);
         rep_info++;
@@ -273,9 +269,43 @@ void ZigbeeComponent::dump_reporting_() {
 #endif
 }
 
+void ZigbeeComponent::before_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req,
+                                            zb_zcl_attr_addr_info_t *attr_addr_info) {}
+
+void ZigbeeComponent::after_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req,
+                                           zb_zcl_attr_addr_info_t *attr_addr_info) {
+  auto *rep_info =
+      zb_zcl_find_reporting_info_manuf(attr_addr_info->src_ep, attr_addr_info->cluster_id, attr_addr_info->cluster_role,
+                                       config_rep_req->attr_id, attr_addr_info->manuf_code);
+  if (rep_info == nullptr) {
+    ESP_LOGE(TAG, "rep_info is null");
+    return;
+  }
+  auto now = millis();
+  ESP_LOGD(TAG,
+           "Endpoint: %d, cluster_id %d, attr_id %d, flags %d, report in %ums\n"
+           "  Min_interval %ds, max_interval %ds, def_min_interval %ds, def_max_interval %ds",
+           rep_info->ep, rep_info->cluster_id, rep_info->attr_id, rep_info->flags,
+           ZB_ZCL_GET_REPORTING_FLAG(rep_info, ZB_ZCL_REPORT_TIMER_STARTED)
+               ? ZB_TIME_BEACON_INTERVAL_TO_MSEC(rep_info->run_time) - now
+               : 0,
+           rep_info->u.send_info.min_interval, rep_info->u.send_info.max_interval,
+           rep_info->u.send_info.def_min_interval, rep_info->u.send_info.def_max_interval);
+}
+
 }  // namespace esphome::zigbee
 
-extern "C" void zboss_signal_handler(zb_uint8_t param) {
-  esphome::zigbee::global_zigbee->zboss_signal_handler_esphome(param);
+extern "C" {
+void zboss_signal_handler(zb_uint8_t param) { esphome::zigbee::global_zigbee->zboss_signal_handler_esphome(param); }
+extern zb_ret_t __real_zb_zcl_put_reporting_info_from_req(zb_zcl_configure_reporting_req_t *config_rep_req,
+                                                          zb_zcl_attr_addr_info_t *attr_addr_info);
+
+zb_ret_t __wrap_zb_zcl_put_reporting_info_from_req(zb_zcl_configure_reporting_req_t *config_rep_req,
+                                                   zb_zcl_attr_addr_info_t *attr_addr_info) {
+  esphome::zigbee::global_zigbee->before_reporting_info(config_rep_req, attr_addr_info);
+  zb_ret_t ret = __real_zb_zcl_put_reporting_info_from_req(config_rep_req, attr_addr_info);
+  esphome::zigbee::global_zigbee->after_reporting_info(config_rep_req, attr_addr_info);
+  return ret;
+}
 }
 #endif
