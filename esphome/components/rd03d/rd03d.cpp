@@ -81,8 +81,6 @@ void RD03DComponent::dump_config() {
 }
 
 void RD03DComponent::loop() {
-  // All current UART available() implementations return >= 0,
-  // use <= 0 to future-proof against any that may return negative on error.
   int avail = this->available();
   if (avail <= 0)
     return;
