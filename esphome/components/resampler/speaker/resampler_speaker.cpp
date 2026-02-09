@@ -4,6 +4,7 @@
 
 #include "esphome/components/audio/audio_resampler.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -18,8 +19,9 @@ static const UBaseType_t RESAMPLER_TASK_PRIORITY = 1;
 
 static const uint32_t TRANSFER_BUFFER_DURATION_MS = 50;
 
-static const uint32_t TASK_DELAY_MS = 20;
 static const uint32_t TASK_STACK_SIZE = 3072;
+
+static const uint32_t STOPPING_TIMEOUT_MS = 5000;
 
 static const char *const TAG = "resampler_speaker";
 
@@ -38,11 +40,18 @@ enum ResamplingEventGroupBits : uint32_t {
   ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
 };
 
+void ResamplerSpeaker::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "Resampler Speaker:\n"
+                "  Target Bits Per Sample: %u\n"
+                "  Target Sample Rate: %" PRIu32 " Hz",
+                this->target_bits_per_sample_, this->target_sample_rate_);
+}
+
 void ResamplerSpeaker::setup() {
   this->event_group_ = xEventGroupCreate();
-
   if (this->event_group_ == nullptr) {
-    ESP_LOGE(TAG, "Event group failed");
+    ESP_LOGE(TAG, "Failed to create event group");
     this->mark_failed();
     return;
   }
@@ -67,44 +76,41 @@ void ResamplerSpeaker::setup() {
 void ResamplerSpeaker::loop() {
   uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
 
-  // Handle COMMAND_START
-  if (event_group_bits & ResamplingEventGroupBits::COMMAND_START) {
-    if (this->state_ == speaker::STATE_STOPPED) {
-      this->state_ = speaker::STATE_STARTING;
-      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_START);
-    } else if (this->state_ == speaker::STATE_RUNNING) {
-      // Already running, discard
-      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_START);
-    }
-    // Leave bit set if transitioning - will process after transition completes
-  }
-
-  // Handle COMMAND_STOP
+  // Process commands with priority: STOP > FINISH > START
+  // This ensures stop commands take precedence over conflicting start commands
   if (event_group_bits & ResamplingEventGroupBits::COMMAND_STOP) {
     if (this->state_ == speaker::STATE_RUNNING) {
-      this->stop_();
-      this->state_ = speaker::STATE_STOPPING;
-      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_STOP);
+      // Clear both STOP and START bits - stop takes precedence
+      xEventGroupClearBits(this->event_group_,
+                           ResamplingEventGroupBits::COMMAND_STOP | ResamplingEventGroupBits::COMMAND_START);
+      this->enter_stopping_state_();
     } else if (this->state_ == speaker::STATE_STOPPED) {
-      // Already stopped, discard
-      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_STOP);
+      // Already stopped, just clear the command bits
+      xEventGroupClearBits(this->event_group_,
+                           ResamplingEventGroupBits::COMMAND_STOP | ResamplingEventGroupBits::COMMAND_START);
     }
-    // Leave bit set if transitioning
-  }
-
-  // Handle COMMAND_FINISH
-  if (event_group_bits & ResamplingEventGroupBits::COMMAND_FINISH) {
+    // Leave bits set if transitioning states - will be processed once state allows
+  } else if (event_group_bits & ResamplingEventGroupBits::COMMAND_FINISH) {
     if (this->state_ == speaker::STATE_RUNNING) {
-      this->output_speaker_->finish();
       xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_FINISH);
+      this->output_speaker_->finish();
     } else if (this->state_ == speaker::STATE_STOPPED) {
-      // Already stopped, discard
+      // Already stopped, just clear the command bit
       xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_FINISH);
     }
-    // Leave bit set if transitioning
+    // Leave bit set if transitioning states - will be processed once state allows
+  } else if (event_group_bits & ResamplingEventGroupBits::COMMAND_START) {
+    if (this->state_ == speaker::STATE_STOPPED) {
+      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_START);
+      this->state_ = speaker::STATE_STARTING;
+    } else if (this->state_ == speaker::STATE_RUNNING) {
+      // Already running, just clear the command bit
+      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_START);
+    }
+    // Leave bit set if transitioning states - will be processed once state allows
   }
 
-  // Re-read bits after command processing (may have been modified)
+  // Re-read bits after command processing (enter_stopping_state_ may have set task bits)
   event_group_bits = xEventGroupGetBits(this->event_group_);
 
   if (event_group_bits & ResamplingEventGroupBits::STATE_STARTING) {
@@ -115,17 +121,17 @@ void ResamplerSpeaker::loop() {
   if (event_group_bits & ResamplingEventGroupBits::ERR_ESP_NO_MEM) {
     this->status_set_error(LOG_STR("Not enough memory"));
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::ERR_ESP_NO_MEM);
-    this->state_ = speaker::STATE_STOPPING;
+    this->enter_stopping_state_();
   }
   if (event_group_bits & ResamplingEventGroupBits::ERR_ESP_NOT_SUPPORTED) {
     this->status_set_error(LOG_STR("Unsupported stream"));
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::ERR_ESP_NOT_SUPPORTED);
-    this->state_ = speaker::STATE_STOPPING;
+    this->enter_stopping_state_();
   }
   if (event_group_bits & ResamplingEventGroupBits::ERR_ESP_FAIL) {
     this->status_set_error(LOG_STR("Resampler failure"));
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::ERR_ESP_FAIL);
-    this->state_ = speaker::STATE_STOPPING;
+    this->enter_stopping_state_();
   }
 
   if (event_group_bits & ResamplingEventGroupBits::STATE_RUNNING) {
@@ -146,13 +152,13 @@ void ResamplerSpeaker::loop() {
 
   switch (this->state_) {
     case speaker::STATE_STARTING: {
-      if (!this->intialized_) {
+      if (!this->waiting_for_output_) {
         esp_err_t err = this->start_();
         if (err == ESP_OK) {
           this->callback_remainder_ = 0;  // reset callback remainder
           this->status_clear_error();
-          // this->state_ = speaker::STATE_RUNNING;
-          this->intialized_ = true;
+          this->waiting_for_output_ = true;
+          this->state_start_ms_ = millis();
         } else {
           switch (err) {
             case ESP_ERR_INVALID_STATE:
@@ -160,35 +166,45 @@ void ResamplerSpeaker::loop() {
               break;
             case ESP_ERR_NO_MEM:
               this->status_set_error(LOG_STR("Not enough memory"));
+              break;
             default:
               this->status_set_error(LOG_STR("Failed to start"));
               break;
           }
 
-          this->intialized_ = false;
-          this->state_ = speaker::STATE_STOPPING;
+          this->waiting_for_output_ = false;
+          this->enter_stopping_state_();
         }
       } else {
         if (this->output_speaker_->is_running()) {
           this->state_ = speaker::STATE_RUNNING;
-          this->intialized_ = false;
+          this->waiting_for_output_ = false;
+        } else if ((millis() - this->state_start_ms_) > STOPPING_TIMEOUT_MS) {
+          // Timed out waiting for the output speaker to start
+          this->waiting_for_output_ = false;
+          this->enter_stopping_state_();
         }
       }
       break;
     }
     case speaker::STATE_RUNNING:
       if (this->output_speaker_->is_stopped()) {
-        this->state_ = speaker::STATE_STOPPING;
+        this->enter_stopping_state_();
+      }
+      break;
+    case speaker::STATE_STOPPING: {
+      if ((this->output_speaker_->get_pause_state()) || ((millis() - this->state_start_ms_) > STOPPING_TIMEOUT_MS)) {
+        // If output speaker is paused or stopping timeout exceeded, force stop
+        this->output_speaker_->stop();
       }
 
-      break;
-    case speaker::STATE_STOPPING:
       if (this->output_speaker_->is_stopped() && (this->task_handle_ == nullptr)) {
         // Only transition to stopped state once the output speaker and resampler task are fully stopped
+        this->waiting_for_output_ = false;
         this->state_ = speaker::STATE_STOPPED;
-        this->intialized_ = false;
       }
       break;
+    }
     case speaker::STATE_STOPPED:
       event_group_bits = xEventGroupGetBits(this->event_group_);
       if (event_group_bits == 0) {
@@ -221,18 +237,20 @@ size_t ResamplerSpeaker::play(const uint8_t *data, size_t length, TickType_t tic
   return bytes_written;
 }
 
-void ResamplerSpeaker::start() {
+void ResamplerSpeaker::send_command_(uint32_t command_bit, bool wake_loop) {
   this->enable_loop_soon_any_context();
-
   uint32_t event_bits = xEventGroupGetBits(this->event_group_);
-  if (!(event_bits & ResamplingEventGroupBits::COMMAND_START)) {
-    // Set COMMAND_START bit if not already set, and then immediately wake for low latency
-    xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::COMMAND_START);
+  if (!(event_bits & command_bit)) {
+    xEventGroupSetBits(this->event_group_, command_bit);
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-    App.wake_loop_threadsafe();
+    if (wake_loop) {
+      App.wake_loop_threadsafe();
+    }
 #endif
   }
 }
+
+void ResamplerSpeaker::start() { this->send_command_(ResamplingEventGroupBits::COMMAND_START, true); }
 
 esp_err_t ResamplerSpeaker::start_() {
   this->target_stream_info_ = audio::AudioStreamInfo(
@@ -276,12 +294,11 @@ esp_err_t ResamplerSpeaker::start_task_() {
   return ESP_OK;
 }
 
-void ResamplerSpeaker::stop() {
-  this->enable_loop_soon_any_context();  // ensure loop processes command
-  xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::COMMAND_STOP);
-}
+void ResamplerSpeaker::stop() { this->send_command_(ResamplingEventGroupBits::COMMAND_STOP); }
 
-void ResamplerSpeaker::stop_() {
+void ResamplerSpeaker::enter_stopping_state_() {
+  this->state_ = speaker::STATE_STOPPING;
+  this->state_start_ms_ = millis();
   if (this->task_handle_ != nullptr) {
     xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::TASK_COMMAND_STOP);
   }
@@ -289,31 +306,33 @@ void ResamplerSpeaker::stop_() {
 }
 
 esp_err_t ResamplerSpeaker::delete_task_() {
-  if (!this->task_created_) {
+  if (this->task_handle_ != nullptr) {
+    // Delete the suspended task
+    vTaskDelete(this->task_handle_);
     this->task_handle_ = nullptr;
-
-    if (this->task_stack_buffer_ != nullptr) {
-      if (this->task_stack_in_psram_) {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-        stack_allocator.deallocate(this->task_stack_buffer_, TASK_STACK_SIZE);
-      } else {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-        stack_allocator.deallocate(this->task_stack_buffer_, TASK_STACK_SIZE);
-      }
-
-      this->task_stack_buffer_ = nullptr;
-    }
-
-    return ESP_OK;
   }
 
-  return ESP_ERR_INVALID_STATE;
+  if ((this->task_handle_ == nullptr) && (this->task_stack_buffer_ != nullptr)) {
+    // Deallocate the task stack buffer
+    if (this->task_stack_in_psram_) {
+      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
+      stack_allocator.deallocate(this->task_stack_buffer_, TASK_STACK_SIZE);
+    } else {
+      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
+      stack_allocator.deallocate(this->task_stack_buffer_, TASK_STACK_SIZE);
+    }
+
+    this->task_stack_buffer_ = nullptr;
+  }
+
+  if ((this->task_handle_ != nullptr) || (this->task_stack_buffer_ != nullptr)) {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  return ESP_OK;
 }
 
-void ResamplerSpeaker::finish() {
-  this->enable_loop_soon_any_context();  // ensure loop processes command
-  xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::COMMAND_FINISH);
-}
+void ResamplerSpeaker::finish() { this->send_command_(ResamplingEventGroupBits::COMMAND_FINISH); }
 
 bool ResamplerSpeaker::has_buffered_data() const {
   bool has_ring_buffer_data = false;
@@ -339,9 +358,8 @@ bool ResamplerSpeaker::requires_resampling_() const {
 }
 
 void ResamplerSpeaker::resample_task(void *params) {
-  ResamplerSpeaker *this_resampler = (ResamplerSpeaker *) params;
+  ResamplerSpeaker *this_resampler = static_cast<ResamplerSpeaker *>(params);
 
-  this_resampler->task_created_ = true;
   xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::STATE_STARTING);
 
   std::unique_ptr<audio::AudioResampler> resampler =
@@ -396,8 +414,8 @@ void ResamplerSpeaker::resample_task(void *params) {
   xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::STATE_STOPPING);
   resampler.reset();
   xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::STATE_STOPPED);
-  this_resampler->task_created_ = false;
-  vTaskDelete(nullptr);
+
+  vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
 }
 
 }  // namespace resampler

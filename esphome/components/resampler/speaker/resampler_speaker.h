@@ -8,15 +8,16 @@
 
 #include "esphome/core/component.h"
 
-#include <freertos/event_groups.h>
 #include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
+#include <freertos/event_groups.h>
 
 namespace esphome {
 namespace resampler {
 
 class ResamplerSpeaker : public Component, public speaker::Speaker {
  public:
+  float get_setup_priority() const override { return esphome::setup_priority::DATA; }
+  void dump_config() override;
   void setup() override;
   void loop() override;
 
@@ -66,27 +67,29 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
   ///         ESP_ERR_INVALID_STATE if the task wasn't created
   esp_err_t start_task_();
 
-  /// @brief Stops the output speaker. If the resampling task is running, it sends the stop command.
-  void stop_();
+  /// @brief Transitions to STATE_STOPPING, records the stopping timestamp, sends the task stop command if the task is
+  /// running, and stops the output speaker.
+  void enter_stopping_state_();
 
   /// @brief Deallocates the task stack and resets the pointers.
   /// @return ESP_OK if successful
   ///         ESP_ERR_INVALID_STATE if the task hasn't stopped itself
   esp_err_t delete_task_();
 
+  /// @brief Sends a command via event group bits, enables the loop, and optionally wakes the main loop.
+  void send_command_(uint32_t command_bit, bool wake_loop = false);
+
   inline bool requires_resampling_() const;
   static void resample_task(void *params);
 
   EventGroupHandle_t event_group_{nullptr};
-  QueueHandle_t controls_queue_{nullptr};
 
   std::weak_ptr<RingBuffer> ring_buffer_;
 
   speaker::Speaker *output_speaker_{nullptr};
 
   bool task_stack_in_psram_{false};
-  bool task_created_{false};
-  bool intialized_{false};
+  bool waiting_for_output_{false};
 
   TaskHandle_t task_handle_{nullptr};
   StaticTask_t task_stack_;
@@ -101,6 +104,7 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
   uint32_t target_sample_rate_;
 
   uint32_t buffer_duration_ms_;
+  uint32_t state_start_ms_{0};
 
   uint64_t callback_remainder_{0};
 };
