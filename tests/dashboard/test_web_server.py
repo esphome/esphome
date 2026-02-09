@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from argparse import Namespace
 import asyncio
+import base64
 from collections.abc import Generator
 from contextlib import asynccontextmanager
 import gzip
@@ -1741,3 +1742,85 @@ def test_proc_on_exit_skips_when_already_closed() -> None:
 
     handler.write_message.assert_not_called()
     handler.close.assert_not_called()
+
+
+def _make_auth_handler(auth_header: str | None = None) -> Mock:
+    """Create a mock handler with the given Authorization header."""
+    handler = Mock()
+    handler.request = Mock()
+    if auth_header is not None:
+        handler.request.headers = {"Authorization": auth_header}
+    else:
+        handler.request.headers = {}
+    handler.get_secure_cookie = Mock(return_value=None)
+    return handler
+
+
+@pytest.fixture
+def mock_auth_settings(mock_dashboard_settings: MagicMock) -> MagicMock:
+    """Fixture to configure mock dashboard settings with auth enabled."""
+    mock_dashboard_settings.using_auth = True
+    mock_dashboard_settings.on_ha_addon = False
+    return mock_dashboard_settings
+
+
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_malformed_base64() -> None:
+    """Test that invalid base64 in Authorization header returns False."""
+    handler = _make_auth_handler("Basic !!!not-valid-base64!!!")
+    assert web_server.is_authenticated(handler) is False
+
+
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_bad_base64_padding() -> None:
+    """Test that incorrect base64 padding (binascii.Error) returns False."""
+    handler = _make_auth_handler("Basic abc")
+    assert web_server.is_authenticated(handler) is False
+
+
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_invalid_utf8() -> None:
+    """Test that base64 decoding to invalid UTF-8 returns False."""
+    # \xff\xfe is invalid UTF-8
+    bad_payload = base64.b64encode(b"\xff\xfe").decode("ascii")
+    handler = _make_auth_handler(f"Basic {bad_payload}")
+    assert web_server.is_authenticated(handler) is False
+
+
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_no_colon() -> None:
+    """Test that base64 payload without ':' separator returns False."""
+    no_colon = base64.b64encode(b"nocolonhere").decode("ascii")
+    handler = _make_auth_handler(f"Basic {no_colon}")
+    assert web_server.is_authenticated(handler) is False
+
+
+def test_is_authenticated_valid_credentials(
+    mock_auth_settings: MagicMock,
+) -> None:
+    """Test that valid Basic auth credentials are checked."""
+    creds = base64.b64encode(b"admin:secret").decode("ascii")
+    mock_auth_settings.check_password.return_value = True
+    handler = _make_auth_handler(f"Basic {creds}")
+    assert web_server.is_authenticated(handler) is True
+    mock_auth_settings.check_password.assert_called_once_with("admin", "secret")
+
+
+def test_is_authenticated_wrong_credentials(
+    mock_auth_settings: MagicMock,
+) -> None:
+    """Test that valid Basic auth with wrong credentials returns False."""
+    creds = base64.b64encode(b"admin:wrong").decode("ascii")
+    mock_auth_settings.check_password.return_value = False
+    handler = _make_auth_handler(f"Basic {creds}")
+    assert web_server.is_authenticated(handler) is False
+
+
+def test_is_authenticated_no_auth_configured(
+    mock_dashboard_settings: MagicMock,
+) -> None:
+    """Test that requests pass when auth is not configured."""
+    mock_dashboard_settings.using_auth = False
+    mock_dashboard_settings.on_ha_addon = False
+    handler = _make_auth_handler()
+    assert web_server.is_authenticated(handler) is True

@@ -390,20 +390,19 @@ void Scheduler::full_cleanup_removed_items_() {
   // 4. No operations inside can block or take other locks, so no deadlock risk
   LockGuard guard{this->lock_};
 
-  std::vector<std::unique_ptr<SchedulerItem>> valid_items;
-
-  // Move all non-removed items to valid_items, recycle removed ones
-  for (auto &item : this->items_) {
-    if (!is_item_removed_(item.get())) {
-      valid_items.push_back(std::move(item));
+  // Compact in-place: move valid items forward, recycle removed ones
+  size_t write = 0;
+  for (size_t read = 0; read < this->items_.size(); ++read) {
+    if (!is_item_removed_(this->items_[read].get())) {
+      if (write != read) {
+        this->items_[write] = std::move(this->items_[read]);
+      }
+      ++write;
     } else {
-      // Recycle removed items
-      this->recycle_item_main_loop_(std::move(item));
+      this->recycle_item_main_loop_(std::move(this->items_[read]));
     }
   }
-
-  // Replace items_ with the filtered list
-  this->items_ = std::move(valid_items);
+  this->items_.erase(this->items_.begin() + write, this->items_.end());
   // Rebuild the heap structure since items are no longer in heap order
   std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   this->to_remove_ = 0;
