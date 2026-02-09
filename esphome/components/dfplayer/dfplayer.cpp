@@ -1,4 +1,5 @@
 #include "dfplayer.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -131,140 +132,149 @@ void DFPlayer::send_cmd_(uint8_t cmd, uint16_t argument) {
 }
 
 void DFPlayer::loop() {
-  // Read message
-  while (this->available()) {
-    uint8_t byte;
-    this->read_byte(&byte);
-
-    if (this->read_pos_ == DFPLAYER_READ_BUFFER_LENGTH)
-      this->read_pos_ = 0;
-
-    switch (this->read_pos_) {
-      case 0:  // Start mark
-        if (byte != 0x7E)
-          continue;
-        break;
-      case 1:  // Version
-        if (byte != 0xFF) {
-          ESP_LOGW(TAG, "Expected Version 0xFF, got %#02x", byte);
-          this->read_pos_ = 0;
-          continue;
-        }
-        break;
-      case 2:  // Buffer length
-        if (byte != 0x06) {
-          ESP_LOGW(TAG, "Expected Buffer length 0x06, got %#02x", byte);
-          this->read_pos_ = 0;
-          continue;
-        }
-        break;
-      case 9:  // End byte
-#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-        char byte_sequence[100];
-        byte_sequence[0] = '\0';
-        for (size_t i = 0; i < this->read_pos_ + 1; ++i) {
-          snprintf(byte_sequence + strlen(byte_sequence), sizeof(byte_sequence) - strlen(byte_sequence), "%02X ",
-                   this->read_buffer_[i]);
-        }
-        ESP_LOGVV(TAG, "Received byte sequence: %s", byte_sequence);
-#endif
-        if (byte != 0xEF) {
-          ESP_LOGW(TAG, "Expected end byte 0xEF, got %#02x", byte);
-          this->read_pos_ = 0;
-          continue;
-        }
-        // Parse valid received command
-        uint8_t cmd = this->read_buffer_[3];
-        uint16_t argument = (this->read_buffer_[5] << 8) | this->read_buffer_[6];
-
-        ESP_LOGV(TAG, "Received message cmd: %#02x arg %#04x", cmd, argument);
-
-        switch (cmd) {
-          case 0x3A:
-            if (argument == 1) {
-              ESP_LOGI(TAG, "USB loaded");
-            } else if (argument == 2) {
-              ESP_LOGI(TAG, "TF Card loaded");
-            }
-            break;
-          case 0x3B:
-            if (argument == 1) {
-              ESP_LOGI(TAG, "USB unloaded");
-            } else if (argument == 2) {
-              ESP_LOGI(TAG, "TF Card unloaded");
-            }
-            break;
-          case 0x3F:
-            if (argument == 1) {
-              ESP_LOGI(TAG, "USB available");
-            } else if (argument == 2) {
-              ESP_LOGI(TAG, "TF Card available");
-            } else if (argument == 3) {
-              ESP_LOGI(TAG, "USB, TF Card available");
-            }
-            break;
-          case 0x40:
-            ESP_LOGV(TAG, "Nack");
-            this->ack_set_is_playing_ = false;
-            this->ack_reset_is_playing_ = false;
-            switch (argument) {
-              case 0x01:
-                ESP_LOGE(TAG, "Module is busy or uninitialized");
-                break;
-              case 0x02:
-                ESP_LOGE(TAG, "Module is in sleep mode");
-                break;
-              case 0x03:
-                ESP_LOGE(TAG, "Serial receive error");
-                break;
-              case 0x04:
-                ESP_LOGE(TAG, "Checksum incorrect");
-                break;
-              case 0x05:
-                ESP_LOGE(TAG, "Specified track is out of current track scope");
-                this->is_playing_ = false;
-                break;
-              case 0x06:
-                ESP_LOGE(TAG, "Specified track is not found");
-                this->is_playing_ = false;
-                break;
-              case 0x07:
-                ESP_LOGE(TAG, "Insertion error (an inserting operation only can be done when a track is being played)");
-                break;
-              case 0x08:
-                ESP_LOGE(TAG, "SD card reading failed (SD card pulled out or damaged)");
-                break;
-              case 0x09:
-                ESP_LOGE(TAG, "Entered into sleep mode");
-                this->is_playing_ = false;
-                break;
-            }
-            break;
-          case 0x41:
-            ESP_LOGV(TAG, "Ack ok");
-            this->is_playing_ |= this->ack_set_is_playing_;
-            this->is_playing_ &= !this->ack_reset_is_playing_;
-            this->ack_set_is_playing_ = false;
-            this->ack_reset_is_playing_ = false;
-            break;
-          case 0x3C:
-            ESP_LOGV(TAG, "Playback finished (USB drive)");
-            this->is_playing_ = false;
-            this->on_finished_playback_callback_.call();
-          case 0x3D:
-            ESP_LOGV(TAG, "Playback finished (SD card)");
-            this->is_playing_ = false;
-            this->on_finished_playback_callback_.call();
-            break;
-          default:
-            ESP_LOGE(TAG, "Received unknown cmd %#02x arg %#04x", cmd, argument);
-        }
-        this->sent_cmd_ = 0;
-        this->read_pos_ = 0;
-        continue;
+  // Read all available bytes in batches to reduce UART call overhead.
+  int avail = this->available();
+  uint8_t buf[64];
+  while (avail > 0) {
+    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
     }
-    this->read_buffer_[this->read_pos_] = byte;
-    this->read_pos_++;
+    avail -= to_read;
+    for (size_t bi = 0; bi < to_read; bi++) {
+      uint8_t byte = buf[bi];
+
+      if (this->read_pos_ == DFPLAYER_READ_BUFFER_LENGTH)
+        this->read_pos_ = 0;
+
+      switch (this->read_pos_) {
+        case 0:  // Start mark
+          if (byte != 0x7E)
+            continue;
+          break;
+        case 1:  // Version
+          if (byte != 0xFF) {
+            ESP_LOGW(TAG, "Expected Version 0xFF, got %#02x", byte);
+            this->read_pos_ = 0;
+            continue;
+          }
+          break;
+        case 2:  // Buffer length
+          if (byte != 0x06) {
+            ESP_LOGW(TAG, "Expected Buffer length 0x06, got %#02x", byte);
+            this->read_pos_ = 0;
+            continue;
+          }
+          break;
+        case 9:  // End byte
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+          char byte_sequence[100];
+          byte_sequence[0] = '\0';
+          for (size_t i = 0; i < this->read_pos_ + 1; ++i) {
+            snprintf(byte_sequence + strlen(byte_sequence), sizeof(byte_sequence) - strlen(byte_sequence), "%02X ",
+                     this->read_buffer_[i]);
+          }
+          ESP_LOGVV(TAG, "Received byte sequence: %s", byte_sequence);
+#endif
+          if (byte != 0xEF) {
+            ESP_LOGW(TAG, "Expected end byte 0xEF, got %#02x", byte);
+            this->read_pos_ = 0;
+            continue;
+          }
+          // Parse valid received command
+          uint8_t cmd = this->read_buffer_[3];
+          uint16_t argument = (this->read_buffer_[5] << 8) | this->read_buffer_[6];
+
+          ESP_LOGV(TAG, "Received message cmd: %#02x arg %#04x", cmd, argument);
+
+          switch (cmd) {
+            case 0x3A:
+              if (argument == 1) {
+                ESP_LOGI(TAG, "USB loaded");
+              } else if (argument == 2) {
+                ESP_LOGI(TAG, "TF Card loaded");
+              }
+              break;
+            case 0x3B:
+              if (argument == 1) {
+                ESP_LOGI(TAG, "USB unloaded");
+              } else if (argument == 2) {
+                ESP_LOGI(TAG, "TF Card unloaded");
+              }
+              break;
+            case 0x3F:
+              if (argument == 1) {
+                ESP_LOGI(TAG, "USB available");
+              } else if (argument == 2) {
+                ESP_LOGI(TAG, "TF Card available");
+              } else if (argument == 3) {
+                ESP_LOGI(TAG, "USB, TF Card available");
+              }
+              break;
+            case 0x40:
+              ESP_LOGV(TAG, "Nack");
+              this->ack_set_is_playing_ = false;
+              this->ack_reset_is_playing_ = false;
+              switch (argument) {
+                case 0x01:
+                  ESP_LOGE(TAG, "Module is busy or uninitialized");
+                  break;
+                case 0x02:
+                  ESP_LOGE(TAG, "Module is in sleep mode");
+                  break;
+                case 0x03:
+                  ESP_LOGE(TAG, "Serial receive error");
+                  break;
+                case 0x04:
+                  ESP_LOGE(TAG, "Checksum incorrect");
+                  break;
+                case 0x05:
+                  ESP_LOGE(TAG, "Specified track is out of current track scope");
+                  this->is_playing_ = false;
+                  break;
+                case 0x06:
+                  ESP_LOGE(TAG, "Specified track is not found");
+                  this->is_playing_ = false;
+                  break;
+                case 0x07:
+                  ESP_LOGE(TAG,
+                           "Insertion error (an inserting operation only can be done when a track is being played)");
+                  break;
+                case 0x08:
+                  ESP_LOGE(TAG, "SD card reading failed (SD card pulled out or damaged)");
+                  break;
+                case 0x09:
+                  ESP_LOGE(TAG, "Entered into sleep mode");
+                  this->is_playing_ = false;
+                  break;
+              }
+              break;
+            case 0x41:
+              ESP_LOGV(TAG, "Ack ok");
+              this->is_playing_ |= this->ack_set_is_playing_;
+              this->is_playing_ &= !this->ack_reset_is_playing_;
+              this->ack_set_is_playing_ = false;
+              this->ack_reset_is_playing_ = false;
+              break;
+            case 0x3C:
+              ESP_LOGV(TAG, "Playback finished (USB drive)");
+              this->is_playing_ = false;
+              this->on_finished_playback_callback_.call();
+            case 0x3D:
+              ESP_LOGV(TAG, "Playback finished (SD card)");
+              this->is_playing_ = false;
+              this->on_finished_playback_callback_.call();
+              break;
+            default:
+              ESP_LOGE(TAG, "Received unknown cmd %#02x arg %#04x", cmd, argument);
+          }
+          this->sent_cmd_ = 0;
+          this->read_pos_ = 0;
+          continue;
+      }
+      this->read_buffer_[this->read_pos_] = byte;
+      this->read_pos_++;
+    }
   }
 }
 void DFPlayer::dump_config() {
