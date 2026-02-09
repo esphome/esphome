@@ -47,72 +47,72 @@ class APIConnection final : public APIServerConnection {
 #endif
 #ifdef USE_COVER
   bool send_cover_state(cover::Cover *cover);
-  void cover_command(const CoverCommandRequest &msg) override;
+  void on_cover_command_request(const CoverCommandRequest &msg) override;
 #endif
 #ifdef USE_FAN
   bool send_fan_state(fan::Fan *fan);
-  void fan_command(const FanCommandRequest &msg) override;
+  void on_fan_command_request(const FanCommandRequest &msg) override;
 #endif
 #ifdef USE_LIGHT
   bool send_light_state(light::LightState *light);
-  void light_command(const LightCommandRequest &msg) override;
+  void on_light_command_request(const LightCommandRequest &msg) override;
 #endif
 #ifdef USE_SENSOR
   bool send_sensor_state(sensor::Sensor *sensor);
 #endif
 #ifdef USE_SWITCH
   bool send_switch_state(switch_::Switch *a_switch);
-  void switch_command(const SwitchCommandRequest &msg) override;
+  void on_switch_command_request(const SwitchCommandRequest &msg) override;
 #endif
 #ifdef USE_TEXT_SENSOR
   bool send_text_sensor_state(text_sensor::TextSensor *text_sensor);
 #endif
 #ifdef USE_CAMERA
   void set_camera_state(std::shared_ptr<camera::CameraImage> image);
-  void camera_image(const CameraImageRequest &msg) override;
+  void on_camera_image_request(const CameraImageRequest &msg) override;
 #endif
 #ifdef USE_CLIMATE
   bool send_climate_state(climate::Climate *climate);
-  void climate_command(const ClimateCommandRequest &msg) override;
+  void on_climate_command_request(const ClimateCommandRequest &msg) override;
 #endif
 #ifdef USE_NUMBER
   bool send_number_state(number::Number *number);
-  void number_command(const NumberCommandRequest &msg) override;
+  void on_number_command_request(const NumberCommandRequest &msg) override;
 #endif
 #ifdef USE_DATETIME_DATE
   bool send_date_state(datetime::DateEntity *date);
-  void date_command(const DateCommandRequest &msg) override;
+  void on_date_command_request(const DateCommandRequest &msg) override;
 #endif
 #ifdef USE_DATETIME_TIME
   bool send_time_state(datetime::TimeEntity *time);
-  void time_command(const TimeCommandRequest &msg) override;
+  void on_time_command_request(const TimeCommandRequest &msg) override;
 #endif
 #ifdef USE_DATETIME_DATETIME
   bool send_datetime_state(datetime::DateTimeEntity *datetime);
-  void datetime_command(const DateTimeCommandRequest &msg) override;
+  void on_date_time_command_request(const DateTimeCommandRequest &msg) override;
 #endif
 #ifdef USE_TEXT
   bool send_text_state(text::Text *text);
-  void text_command(const TextCommandRequest &msg) override;
+  void on_text_command_request(const TextCommandRequest &msg) override;
 #endif
 #ifdef USE_SELECT
   bool send_select_state(select::Select *select);
-  void select_command(const SelectCommandRequest &msg) override;
+  void on_select_command_request(const SelectCommandRequest &msg) override;
 #endif
 #ifdef USE_BUTTON
-  void button_command(const ButtonCommandRequest &msg) override;
+  void on_button_command_request(const ButtonCommandRequest &msg) override;
 #endif
 #ifdef USE_LOCK
   bool send_lock_state(lock::Lock *a_lock);
-  void lock_command(const LockCommandRequest &msg) override;
+  void on_lock_command_request(const LockCommandRequest &msg) override;
 #endif
 #ifdef USE_VALVE
   bool send_valve_state(valve::Valve *valve);
-  void valve_command(const ValveCommandRequest &msg) override;
+  void on_valve_command_request(const ValveCommandRequest &msg) override;
 #endif
 #ifdef USE_MEDIA_PLAYER
   bool send_media_player_state(media_player::MediaPlayer *media_player);
-  void media_player_command(const MediaPlayerCommandRequest &msg) override;
+  void on_media_player_command_request(const MediaPlayerCommandRequest &msg) override;
 #endif
   bool try_send_log_message(int level, const char *tag, const char *line, size_t message_len);
 #ifdef USE_API_HOMEASSISTANT_SERVICES
@@ -126,18 +126,18 @@ class APIConnection final : public APIServerConnection {
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #endif  // USE_API_HOMEASSISTANT_SERVICES
 #ifdef USE_BLUETOOTH_PROXY
-  void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
-  void unsubscribe_bluetooth_le_advertisements() override;
+  void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
+  void on_unsubscribe_bluetooth_le_advertisements_request() override;
 
-  void bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
-  void bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) override;
-  void bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) override;
-  void bluetooth_gatt_read_descriptor(const BluetoothGATTReadDescriptorRequest &msg) override;
-  void bluetooth_gatt_write_descriptor(const BluetoothGATTWriteDescriptorRequest &msg) override;
-  void bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) override;
-  void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) override;
-  bool send_subscribe_bluetooth_connections_free_response() override;
-  void bluetooth_scanner_set_mode(const BluetoothScannerSetModeRequest &msg) override;
+  void on_bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
+  void on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &msg) override;
+  void on_bluetooth_gatt_write_request(const BluetoothGATTWriteRequest &msg) override;
+  void on_bluetooth_gatt_read_descriptor_request(const BluetoothGATTReadDescriptorRequest &msg) override;
+  void on_bluetooth_gatt_write_descriptor_request(const BluetoothGATTWriteDescriptorRequest &msg) override;
+  void on_bluetooth_gatt_get_services_request(const BluetoothGATTGetServicesRequest &msg) override;
+  void on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &msg) override;
+  void on_subscribe_bluetooth_connections_free_request() override;
+  void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) override;
 
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
@@ -148,33 +148,33 @@ class APIConnection final : public APIServerConnection {
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
-  void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override;
+  void on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &msg) override;
   void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
   void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
   void on_voice_assistant_audio(const VoiceAssistantAudio &msg) override;
   void on_voice_assistant_timer_event_response(const VoiceAssistantTimerEventResponse &msg) override;
   void on_voice_assistant_announce_request(const VoiceAssistantAnnounceRequest &msg) override;
-  bool send_voice_assistant_get_configuration_response(const VoiceAssistantConfigurationRequest &msg) override;
-  void voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) override;
+  void on_voice_assistant_configuration_request(const VoiceAssistantConfigurationRequest &msg) override;
+  void on_voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) override;
 #endif
 
 #ifdef USE_ZWAVE_PROXY
-  void zwave_proxy_frame(const ZWaveProxyFrame &msg) override;
-  void zwave_proxy_request(const ZWaveProxyRequest &msg) override;
+  void on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) override;
+  void on_z_wave_proxy_request(const ZWaveProxyRequest &msg) override;
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
-  void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;
+  void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) override;
 #endif
 
 #ifdef USE_WATER_HEATER
   bool send_water_heater_state(water_heater::WaterHeater *water_heater);
-  void water_heater_command(const WaterHeaterCommandRequest &msg) override;
+  void on_water_heater_command_request(const WaterHeaterCommandRequest &msg) override;
 #endif
 
 #ifdef USE_IR_RF
-  void infrared_rf_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) override;
+  void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) override;
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
 #endif
 
@@ -184,7 +184,7 @@ class APIConnection final : public APIServerConnection {
 
 #ifdef USE_UPDATE
   bool send_update_state(update::UpdateEntity *update);
-  void update_command(const UpdateCommandRequest &msg) override;
+  void on_update_command_request(const UpdateCommandRequest &msg) override;
 #endif
 
   void on_disconnect_response() override;
@@ -198,12 +198,12 @@ class APIConnection final : public APIServerConnection {
 #ifdef USE_HOMEASSISTANT_TIME
   void on_get_time_response(const GetTimeResponse &value) override;
 #endif
-  bool send_hello_response(const HelloRequest &msg) override;
-  bool send_disconnect_response() override;
-  bool send_ping_response() override;
-  bool send_device_info_response() override;
-  void list_entities() override { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
-  void subscribe_states() override {
+  void on_hello_request(const HelloRequest &msg) override;
+  void on_disconnect_request() override;
+  void on_ping_request() override;
+  void on_device_info_request() override;
+  void on_list_entities_request() override { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
+  void on_subscribe_states_request() override {
     this->flags_.state_subscription = true;
     // Start initial state iterator only if no iterator is active
     // If list_entities is running, we'll start initial_state when it completes
@@ -211,19 +211,19 @@ class APIConnection final : public APIServerConnection {
       this->begin_iterator_(ActiveIterator::INITIAL_STATE);
     }
   }
-  void subscribe_logs(const SubscribeLogsRequest &msg) override {
+  void on_subscribe_logs_request(const SubscribeLogsRequest &msg) override {
     this->flags_.log_subscription = msg.level;
     if (msg.dump_config)
       App.schedule_dump_config();
   }
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-  void subscribe_homeassistant_services() override { this->flags_.service_call_subscription = true; }
+  void on_subscribe_homeassistant_services_request() override { this->flags_.service_call_subscription = true; }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-  void subscribe_home_assistant_states() override;
+  void on_subscribe_home_assistant_states_request() override;
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
-  void execute_service(const ExecuteServiceRequest &msg) override;
+  void on_execute_service_request(const ExecuteServiceRequest &msg) override;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
   void send_execute_service_response(uint32_t call_id, bool success, StringRef error_message);
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
@@ -233,7 +233,7 @@ class APIConnection final : public APIServerConnection {
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
 #ifdef USE_API_NOISE
-  bool send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) override;
+  void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg) override;
 #endif
 
   bool is_authenticated() override {
@@ -282,6 +282,21 @@ class APIConnection final : public APIServerConnection {
  protected:
   // Helper function to handle authentication completion
   void complete_authentication_();
+
+  // Pattern B helpers: send response and return success/failure
+  bool send_hello_response_(const HelloRequest &msg);
+  bool send_disconnect_response_();
+  bool send_ping_response_();
+  bool send_device_info_response_();
+#ifdef USE_API_NOISE
+  bool send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_subscribe_bluetooth_connections_free_response_();
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  bool send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg);
+#endif
 
 #ifdef USE_CAMERA
   void try_send_camera_image_();
