@@ -30,14 +30,8 @@ void MR60BHA2Component::dump_config() {
 
 // main loop
 void MR60BHA2Component::loop() {
-  // Early return avoids stack adjustment for the batch buffer below.
-  // loop() runs ~7000/min so most calls have nothing to read.
-  int avail = this->available();
-  if (avail <= 0) {
-    return;
-  }
-
   // Read all available bytes in batches to reduce UART call overhead.
+  int avail = this->available();
   uint8_t buf[64];
   while (avail > 0) {
     size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
