@@ -50,7 +50,6 @@ class ModemComponent : public Component {
   void set_baud_rate(int baud_rate) { this->modem_handler->baud_rate = baud_rate; }
   void set_model(const std::string &model) { this->modem_handler->model = model; }
   void set_power_pin(GPIOPin *power_pin) { this->modem_handler->power_pin = power_pin; }
-  void set_power_pin_inverted(bool inverted) { this->modem_handler->power_pin_inverted = inverted; }
   void set_power_ton_pulse_delay(uint32_t ton_pulse_delay) {
     this->modem_handler->power_ton_pulse_delay = ton_pulse_delay;
   }
