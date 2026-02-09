@@ -15,9 +15,7 @@ void CSE7766Component::loop() {
     this->raw_data_index_ = 0;
   }
 
-  // Early return avoids stack adjustment for the batch buffer below
-  // and prevents updating last_transmission_ when no data is available.
-  // loop() runs ~7000/min so most calls have nothing to read.
+  // Early return prevents updating last_transmission_ when no data is available.
   int avail = this->available();
   if (avail <= 0) {
     return;
