@@ -16,14 +16,16 @@ enum ERRORCODE {
   MEASUREMENT_INIT_FAILED,
   PRODUCT_NAME_FAILED,
   FIRMWARE_FAILED,
-  UNKNOWN
+  UNKNOWN_ERROR
 };
 
 // Shortest time interval of 3H for storing baseline values.
 // Prevents wear of the flash because of too many write operations
-const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 10800;
+static constexpr uint32_t SHORTEST_BASELINE_STORE_INTERVAL_MS = 10800 * 1000UL;
 // Store anyway if the baseline difference exceeds the max storage diff value
-const uint32_t MAXIMUM_STORAGE_DIFF = 50;
+static constexpr uint32_t MAXIMUM_STORAGE_DIFF = 50;
+// Default NOx std_initial value per Sensirion specification
+static constexpr uint16_t NOX_DEFAULT_STD_INITIAL = 50;
 
 struct Sen6xBaselines {
   int32_t state0;
@@ -63,25 +65,25 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
 
   enum Sen6xType { SEN62, SEN63C, SEN65, SEN66, SEN68, SEN69C, UNKNOWN };
 
-  void set_pm_1_0_sensor(sensor::Sensor *pm_1_0) { pm_1_0_sensor_ = pm_1_0; }
-  void set_pm_2_5_sensor(sensor::Sensor *pm_2_5) { pm_2_5_sensor_ = pm_2_5; }
-  void set_pm_4_0_sensor(sensor::Sensor *pm_4_0) { pm_4_0_sensor_ = pm_4_0; }
-  void set_pm_10_0_sensor(sensor::Sensor *pm_10_0) { pm_10_0_sensor_ = pm_10_0; }
+  void set_pm_1_0_sensor(sensor::Sensor *pm_1_0) { this->pm_1_0_sensor_ = pm_1_0; }
+  void set_pm_2_5_sensor(sensor::Sensor *pm_2_5) { this->pm_2_5_sensor_ = pm_2_5; }
+  void set_pm_4_0_sensor(sensor::Sensor *pm_4_0) { this->pm_4_0_sensor_ = pm_4_0; }
+  void set_pm_10_0_sensor(sensor::Sensor *pm_10_0) { this->pm_10_0_sensor_ = pm_10_0; }
 
-  void set_voc_sensor(sensor::Sensor *voc_sensor) { voc_sensor_ = voc_sensor; }
-  void set_nox_sensor(sensor::Sensor *nox_sensor) { nox_sensor_ = nox_sensor; }
-  void set_hcho_sensor(sensor::Sensor *hcho_sensor) { hcho_sensor_ = hcho_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_co2_sensor(sensor::Sensor *co2) { co2_sensor_ = co2; }
-  void set_ambient_pressure(uint16_t ambient_pressure) { ambient_pressure_ = ambient_pressure; }
-  void set_ambient_pressure_source(sensor::Sensor *pressure) { ambient_pressure_source_ = pressure; }
-  void set_sensor_altitude(uint16_t sensor_altitude) { sensor_altitude_ = sensor_altitude; }
-  void set_co2_automatic_self_calibration(bool enabled) { co2_asc_ = enabled; }
-  void set_startup_delay(uint32_t delay_ms) { startup_delay_ms_ = delay_ms; }
+  void set_voc_sensor(sensor::Sensor *voc_sensor) { this->voc_sensor_ = voc_sensor; }
+  void set_nox_sensor(sensor::Sensor *nox_sensor) { this->nox_sensor_ = nox_sensor; }
+  void set_hcho_sensor(sensor::Sensor *hcho_sensor) { this->hcho_sensor_ = hcho_sensor; }
+  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
+  void set_co2_sensor(sensor::Sensor *co2) { this->co2_sensor_ = co2; }
+  void set_ambient_pressure(uint16_t ambient_pressure) { this->ambient_pressure_ = ambient_pressure; }
+  void set_ambient_pressure_source(sensor::Sensor *pressure) { this->ambient_pressure_source_ = pressure; }
+  void set_sensor_altitude(uint16_t sensor_altitude) { this->sensor_altitude_ = sensor_altitude; }
+  void set_co2_automatic_self_calibration(bool enabled) { this->co2_asc_ = enabled; }
+  void set_startup_delay(uint32_t delay_ms) { this->startup_delay_ms_ = delay_ms; }
   void set_auto_cleaning(bool enabled, uint32_t interval_s) {
-    auto_cleaning_enabled_ = enabled;
-    auto_cleaning_interval_s_ = interval_s;
+    this->auto_cleaning_enabled_ = enabled;
+    this->auto_cleaning_interval_s_ = interval_s;
   }
   bool is_measurement_running() const;
   const std::string &get_product_name() const { return this->product_name_; }
@@ -89,7 +91,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   uint8_t get_firmware_version_major() const { return this->firmware_version_major_; }
   uint8_t get_firmware_version_minor() const { return this->firmware_version_minor_; }
   bool get_state() const { return this->measurement_started_; }
-  void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
+  void set_store_baseline(bool store_baseline) { this->store_baseline_ = store_baseline; }
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t std_initial, uint16_t gain_factor) {
@@ -100,7 +102,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
     tuning_params.gating_max_duration_minutes = gating_max_duration_minutes;
     tuning_params.std_initial = std_initial;
     tuning_params.gain_factor = gain_factor;
-    voc_tuning_params_ = tuning_params;
+    this->voc_tuning_params_ = tuning_params;
   }
   void set_nox_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
@@ -110,9 +112,9 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
     tuning_params.learning_time_offset_hours = learning_time_offset_hours;
     tuning_params.learning_time_gain_hours = learning_time_gain_hours;
     tuning_params.gating_max_duration_minutes = gating_max_duration_minutes;
-    tuning_params.std_initial = 50;
+    tuning_params.std_initial = NOX_DEFAULT_STD_INITIAL;
     tuning_params.gain_factor = gain_factor;
-    nox_tuning_params_ = tuning_params;
+    this->nox_tuning_params_ = tuning_params;
   }
   void set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
                                     uint16_t slot) {
@@ -121,7 +123,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
     temp_comp.normalized_offset_slope = normalized_offset_slope * 10000;
     temp_comp.time_constant = time_constant;
     temp_comp.slot = slot;
-    temperature_compensation_ = temp_comp;
+    this->temperature_compensation_ = temp_comp;
   }
   bool apply_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
                                       uint16_t slot);
@@ -131,9 +133,9 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
     temp_accel.p = p * 10;
     temp_accel.t1 = t1 * 10;
     temp_accel.t2 = t2 * 10;
-    temperature_acceleration_ = temp_accel;
+    this->temperature_acceleration_ = temp_accel;
   }
-  void set_type(const std::string &type) { sen6x_type_ = infer_type_from_product_name_(type); }
+  void set_type(const std::string &type) { this->sen6x_type_ = infer_type_from_product_name_(type); }
   bool start_fan_cleaning();
   bool perform_forced_co2_recalibration(uint16_t reference_ppm);
   bool co2_sensor_factory_reset();
@@ -152,17 +154,15 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   void schedule_post_setup_commands_();
   void finish_setup_();
 
-  ERRORCODE error_code_;
+  ERRORCODE error_code_{COMMUNICATION_FAILED};
   bool initialized_{false};
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
   sensor::Sensor *pm_4_0_sensor_{nullptr};
   sensor::Sensor *pm_10_0_sensor_{nullptr};
-  // SEN54 and SEN55 only
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
   sensor::Sensor *voc_sensor_{nullptr};
-  // SEN55 only
   sensor::Sensor *nox_sensor_{nullptr};
   sensor::Sensor *hcho_sensor_{nullptr};
   sensor::Sensor *co2_sensor_{nullptr};
@@ -172,9 +172,9 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   std::string serial_number_;
   uint8_t firmware_version_major_{0};
   uint8_t firmware_version_minor_{0};
-  Sen6xBaselines voc_baselines_storage_;
-  bool store_baseline_;
-  uint32_t seconds_since_last_store_;
+  Sen6xBaselines voc_baselines_storage_{};
+  bool store_baseline_{false};
+  uint32_t last_baseline_store_ms_{0};
   ESPPreferenceObject pref_;
 
   optional<GasTuning> voc_tuning_params_;

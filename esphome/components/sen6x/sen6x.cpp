@@ -205,8 +205,8 @@ void SEN6XComponent::setup() {
         }
         this->voc_baselines_storage_.config_hash = current_config_hash;
 
-        // Initialize storage
-        this->seconds_since_last_store_ = 0;
+        // Initialize baseline store timestamp
+        this->last_baseline_store_ms_ = millis();
 
         if (this->voc_baselines_storage_.state0 > 0 && this->voc_baselines_storage_.state1 > 0) {
           ESP_LOGI(TAG, "Setting VOC baseline from save state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
@@ -469,7 +469,7 @@ void SEN6XComponent::update() {
   }
   // Store baselines after defined interval or if the difference between current and stored baseline becomes too
   // much
-  if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
+  if (this->store_baseline_ && (millis() - this->last_baseline_store_ms_) > SHORTEST_BASELINE_STORE_INTERVAL_MS) {
     if (this->write_command(SEN6X_CMD_VOC_ALGORITHM_STATE)) {
       // run it a bit later to avoid adding a delay here
       this->set_timeout(550, [this]() {
@@ -481,7 +481,7 @@ void SEN6XComponent::update() {
                   MAXIMUM_STORAGE_DIFF ||
               (uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state1 - state1)) >
                   MAXIMUM_STORAGE_DIFF) {
-            this->seconds_since_last_store_ = 0;
+            this->last_baseline_store_ms_ = millis();
             this->voc_baselines_storage_.state0 = state0;
             this->voc_baselines_storage_.state1 = state1;
 
@@ -722,7 +722,7 @@ bool SEN6XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTun
   params[5] = tuning.gain_factor;
   auto result = this->write_command(i2c_command, params, 6);
   if (!result) {
-    ESP_LOGE(TAG, "Set tuning parameters failed (command=%0xX, err=%d)", i2c_command, this->last_error_);
+    ESP_LOGE(TAG, "Set tuning parameters failed (command=0x%04X, err=%d)", i2c_command, this->last_error_);
   }
   return result;
 }
