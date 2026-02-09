@@ -24,7 +24,6 @@
 #include "esphome/components/socket/socket.h"
 
 #include <span>
-#include <unordered_map>
 #include <vector>
 
 namespace esphome {
@@ -226,9 +225,9 @@ class VoiceAssistant : public Component {
   Trigger<Timer> *get_timer_updated_trigger() { return &this->timer_updated_trigger_; }
   Trigger<Timer> *get_timer_cancelled_trigger() { return &this->timer_cancelled_trigger_; }
   Trigger<Timer> *get_timer_finished_trigger() { return &this->timer_finished_trigger_; }
-  Trigger<std::vector<Timer>> *get_timer_tick_trigger() { return &this->timer_tick_trigger_; }
+  Trigger<const std::vector<Timer> &> *get_timer_tick_trigger() { return &this->timer_tick_trigger_; }
   void set_has_timers(bool has_timers) { this->has_timers_ = has_timers; }
-  const std::unordered_map<std::string, Timer> &get_timers() const { return this->timers_; }
+  const std::vector<Timer> &get_timers() const { return this->timers_; }
 
  protected:
   bool allocate_buffers_();
@@ -267,13 +266,13 @@ class VoiceAssistant : public Component {
 
   api::APIConnection *api_client_{nullptr};
 
-  std::unordered_map<std::string, Timer> timers_;
+  std::vector<Timer> timers_;
   void timer_tick_();
   Trigger<Timer> timer_started_trigger_;
   Trigger<Timer> timer_finished_trigger_;
   Trigger<Timer> timer_updated_trigger_;
   Trigger<Timer> timer_cancelled_trigger_;
-  Trigger<std::vector<Timer>> timer_tick_trigger_;
+  Trigger<const std::vector<Timer> &> timer_tick_trigger_;
   bool has_timers_{false};
   bool timer_tick_running_{false};
 
