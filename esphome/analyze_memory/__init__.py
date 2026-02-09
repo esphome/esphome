@@ -397,47 +397,38 @@ class MemoryAnalyzer:
             return pioenvs_dir
         return None
 
-    def _scan_cswtch_in_objects(
-        self, obj_dir: Path
-    ) -> dict[str, list[tuple[str, int]]]:
-        """Scan object files for CSWTCH symbols using a single nm invocation.
+    @staticmethod
+    def _parse_nm_cswtch_output(
+        output: str,
+        base_dir: Path | None,
+        cswtch_map: dict[str, list[tuple[str, int]]],
+    ) -> None:
+        """Parse nm output for CSWTCH symbols and add to cswtch_map.
 
-        Uses ``nm --print-file-name -S`` on all ``.o`` files at once.
-        Output format: ``/path/to/file.o:address size type name``
+        Handles both ``.o`` files and ``.a`` archives.
+
+        nm output formats::
+
+            .o files:  /path/file.o:hex_addr hex_size type name
+            .a files:  /path/lib.a:member.o:hex_addr hex_size type name
+
+        For ``.o`` files, paths are made relative to *base_dir* when possible.
+        For ``.a`` archives (detected by ``:`` in the file portion), paths are
+        formatted as ``archive_stem/member.o`` (e.g. ``liblwip2-536-feat/lwip-esp.o``).
 
         Args:
-            obj_dir: Directory containing object files (.pioenvs/<env>/)
-
-        Returns:
-            Dict mapping "CSWTCH$NNN:size" to list of (source_file, size) tuples.
+            output: Raw stdout from ``nm --print-file-name -S``.
+            base_dir: Base directory for computing relative paths of ``.o`` files.
+                      Pass ``None`` when scanning archives outside the build tree.
+            cswtch_map: Dict to populate, mapping ``"CSWTCH$N:size"`` to source list.
         """
-        cswtch_map: dict[str, list[tuple[str, int]]] = defaultdict(list)
-
-        if not self.nm_path:
-            return cswtch_map
-
-        # Find all .o files recursively, sorted for deterministic output
-        obj_files = sorted(obj_dir.rglob("*.o"))
-        if not obj_files:
-            return cswtch_map
-
-        _LOGGER.debug("Scanning %d object files for CSWTCH symbols", len(obj_files))
-
-        # Single nm call with --print-file-name for all object files
-        result = run_tool(
-            [self.nm_path, "--print-file-name", "-S"] + [str(f) for f in obj_files],
-            timeout=30,
-        )
-        if result is None or result.returncode != 0:
-            return cswtch_map
-
-        for line in result.stdout.splitlines():
+        for line in output.splitlines():
             if "CSWTCH$" not in line:
                 continue
 
             # Split on last ":" that precedes a hex address.
-            # nm --print-file-name format: filepath:hex_addr hex_size type name
-            # We split from the right: find the last colon followed by hex digits.
+            # For .o:  "filepath.o" : "hex_addr hex_size type name"
+            # For .a:  "filepath.a:member.o" : "hex_addr hex_size type name"
             parts_after_colon = line.rsplit(":", 1)
             if len(parts_after_colon) != 2:
                 continue
@@ -457,16 +448,89 @@ class MemoryAnalyzer:
             except ValueError:
                 continue
 
-            # Get relative path from obj_dir for readability
-            try:
-                rel_path = str(Path(file_path).relative_to(obj_dir))
-            except ValueError:
+            # Determine readable source path
+            # Use ".a:" to detect archive format (not bare ":" which matches
+            # Windows drive letters like "C:\...\file.o").
+            if ".a:" in file_path:
+                # Archive format: "archive.a:member.o" → "archive_stem/member.o"
+                archive_part, member = file_path.rsplit(":", 1)
+                archive_name = Path(archive_part).stem
+                rel_path = f"{archive_name}/{member}"
+            elif base_dir is not None:
+                try:
+                    rel_path = str(Path(file_path).relative_to(base_dir))
+                except ValueError:
+                    rel_path = file_path
+            else:
                 rel_path = file_path
 
             key = f"{sym_name}:{size}"
             cswtch_map[key].append((rel_path, size))
 
-        return cswtch_map
+    def _run_nm_cswtch_scan(
+        self,
+        files: list[Path],
+        base_dir: Path | None,
+        cswtch_map: dict[str, list[tuple[str, int]]],
+    ) -> None:
+        """Run nm on *files* and add any CSWTCH symbols to *cswtch_map*.
+
+        Args:
+            files: Object (``.o``) or archive (``.a``) files to scan.
+            base_dir: Base directory for relative path computation (see
+                      :meth:`_parse_nm_cswtch_output`).
+            cswtch_map: Dict to populate with results.
+        """
+        if not self.nm_path or not files:
+            return
+
+        _LOGGER.debug("Scanning %d files for CSWTCH symbols", len(files))
+
+        result = run_tool(
+            [self.nm_path, "--print-file-name", "-S"] + [str(f) for f in files],
+            timeout=30,
+        )
+        if result is None or result.returncode != 0:
+            _LOGGER.debug(
+                "nm failed or timed out scanning %d files for CSWTCH symbols",
+                len(files),
+            )
+            return
+
+        self._parse_nm_cswtch_output(result.stdout, base_dir, cswtch_map)
+
+    def _scan_cswtch_in_sdk_archives(
+        self, cswtch_map: dict[str, list[tuple[str, int]]]
+    ) -> None:
+        """Scan SDK library archives (.a) for CSWTCH symbols.
+
+        Prebuilt SDK libraries (e.g. lwip, bearssl) are not compiled from source,
+        so their CSWTCH symbols only exist inside ``.a`` archives.  Results are
+        merged into *cswtch_map* for keys not already found in ``.o`` files.
+
+        The same source file (e.g. ``lwip-esp.o``) often appears in multiple
+        library variants (``liblwip2-536.a``, ``liblwip2-1460-feat.a``, etc.),
+        so results are deduplicated by member name.
+        """
+        sdk_dirs = self._find_sdk_library_dirs()
+        if not sdk_dirs:
+            return
+
+        sdk_archives = sorted(a for sdk_dir in sdk_dirs for a in sdk_dir.glob("*.a"))
+
+        sdk_map: dict[str, list[tuple[str, int]]] = defaultdict(list)
+        self._run_nm_cswtch_scan(sdk_archives, None, sdk_map)
+
+        # Merge SDK results, deduplicating by member name.
+        for key, sources in sdk_map.items():
+            if key in cswtch_map:
+                continue
+            seen: dict[str, tuple[str, int]] = {}
+            for path, sz in sources:
+                member = Path(path).name
+                if member not in seen:
+                    seen[member] = (path, sz)
+            cswtch_map[key] = list(seen.values())
 
     def _source_file_to_component(self, source_file: str) -> str:
         """Map a source object file path to its component name.
@@ -505,17 +569,25 @@ class MemoryAnalyzer:
 
         CSWTCH symbols are compiler-generated lookup tables for switch statements.
         They are local symbols, so the same name can appear in different object files.
-        This method scans .o files to attribute them to their source components.
+        This method scans .o files and SDK archives to attribute them to their
+        source components.
         """
         obj_dir = self._find_object_files_dir()
         if obj_dir is None:
             _LOGGER.debug("No object files directory found, skipping CSWTCH analysis")
             return
 
-        # Scan object files for CSWTCH symbols
-        cswtch_map = self._scan_cswtch_in_objects(obj_dir)
+        # Scan build-dir object files for CSWTCH symbols
+        cswtch_map: dict[str, list[tuple[str, int]]] = defaultdict(list)
+        self._run_nm_cswtch_scan(sorted(obj_dir.rglob("*.o")), obj_dir, cswtch_map)
+
+        # Also scan SDK library archives (.a) for CSWTCH symbols.
+        # Prebuilt SDK libraries (e.g. lwip, bearssl) are not compiled from source
+        # so their symbols only exist inside .a archives, not as loose .o files.
+        self._scan_cswtch_in_sdk_archives(cswtch_map)
+
         if not cswtch_map:
-            _LOGGER.debug("No CSWTCH symbols found in object files")
+            _LOGGER.debug("No CSWTCH symbols found in object files or SDK archives")
             return
 
         # Collect CSWTCH symbols from the ELF (already parsed in sections)
