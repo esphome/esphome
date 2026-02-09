@@ -689,6 +689,9 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "latest": cv.Version(5, 5, 2),
     "dev": cv.Version(5, 5, 2),
 }
+ESP_IDF_RELEASE_LOOKUP: dict[cv.Version, str] = {
+    cv.Version(5, 5, 2): "260206",
+}
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(5, 5, 2): cv.Version(55, 3, 36),
     cv.Version(5, 5, 1): cv.Version(55, 3, 31, "2"),
@@ -750,9 +753,10 @@ def _check_versions(config):
             raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
         recommended_version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
         platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
+        release = value.get(CONF_RELEASE, ESP_IDF_RELEASE_LOOKUP.get(version))
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE,
-            _format_framework_espidf_version(version, value.get(CONF_RELEASE, None)),
+            _format_framework_espidf_version(version, release),
         )
         if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = f"pioarduino/framework-espidf@{value[CONF_SOURCE]}"
