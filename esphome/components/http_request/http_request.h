@@ -103,18 +103,23 @@ inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && st
  *   - ESP-IDF: blocking reads, 0 only returned when all content read
  *   - Arduino: non-blocking, 0 means "no data yet" or "all content read"
  *
+ * Chunked responses that complete in a reasonable time work correctly on both
+ * platforms. The limitation below applies only to *streaming* chunked
+ * responses where data arrives slowly over a long period.
+ *
  * Streaming chunked responses are NOT supported (all platforms):
  *   The read helpers (http_read_loop_result, http_read_fully) block the main
  *   event loop until all response data is received. For streaming responses
- *   where data arrives slowly over a long period, this starves the event loop
- *   on both ESP-IDF and Arduino. If data trickles in just often enough to
- *   avoid the caller's timeout, the loop runs indefinitely. If data stops
- *   entirely, ESP-IDF fails with -ESP_ERR_HTTP_EAGAIN (transport timeout)
- *   while Arduino spins with delay(1) until the caller's timeout fires.
- *   Supporting streaming requires a non-blocking incremental read pattern
- *   that yields back to the event loop between chunks. Components that need
- *   streaming should use esp_http_client directly on a separate FreeRTOS task
- *   with esp_http_client_is_complete_data_received() for completion detection
+ *   where data trickles in slowly (e.g., TTS streaming via ffmpeg proxy),
+ *   this starves the event loop on both ESP-IDF and Arduino. If data arrives
+ *   just often enough to avoid the caller's timeout, the loop runs
+ *   indefinitely. If data stops entirely, ESP-IDF fails with
+ *   -ESP_ERR_HTTP_EAGAIN (transport timeout) while Arduino spins with
+ *   delay(1) until the caller's timeout fires. Supporting streaming requires
+ *   a non-blocking incremental read pattern that yields back to the event
+ *   loop between chunks. Components that need streaming should use
+ *   esp_http_client directly on a separate FreeRTOS task with
+ *   esp_http_client_is_complete_data_received() for completion detection
  *   (see audio_reader.cpp for an example).
  *
  * Chunked transfer encoding - platform differences:
