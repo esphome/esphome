@@ -1,4 +1,4 @@
-# Common SPI configuration for ESP32-S3 IDF tests
+# Common SPI configuration for ESP32-P4 IDF tests
 
 substitutions:
   clk_pin: GPIO36
