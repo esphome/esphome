@@ -257,9 +257,11 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
-  // Check if we've already read all expected content (non-chunked only)
-  // For chunked responses (content_length == 0), esp_http_client_read() handles EOF
-  if (this->is_read_complete()) {
+  // Check if we've already read all expected content (non-chunked and no-body only).
+  // Use the base class check here, NOT the override: esp_http_client_is_complete_data_received()
+  // returns true as soon as all data arrives from the network, but data may still be in
+  // the client's internal buffer waiting to be consumed by esp_http_client_read().
+  if (HttpContainer::is_read_complete()) {
     return 0;  // All content read successfully
   }
 
