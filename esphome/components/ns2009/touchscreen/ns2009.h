@@ -2,8 +2,6 @@
 
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/touchscreen/touchscreen.h"
-#include "esphome/core/component.h"
-#include "esphome/core/hal.h"
 
 namespace esphome::ns2009 {
 
