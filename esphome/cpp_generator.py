@@ -247,6 +247,23 @@ class LogStringLiteral(Literal):
         return f"LOG_STR({cpp_string_escape(self.string)})"
 
 
+class FlashStringLiteral(Literal):
+    """A string literal wrapped in ESPHOME_F() for PROGMEM storage on ESP8266.
+
+    On ESP8266, ESPHOME_F(s) expands to F(s) which stores the string in flash (PROGMEM).
+    On other platforms, ESPHOME_F(s) expands to plain s (no-op).
+    """
+
+    __slots__ = ("string",)
+
+    def __init__(self, string: str) -> None:
+        super().__init__()
+        self.string = string
+
+    def __str__(self) -> str:
+        return f"ESPHOME_F({cpp_string_escape(self.string)})"
+
+
 class IntLiteral(Literal):
     __slots__ = ("i",)
 
