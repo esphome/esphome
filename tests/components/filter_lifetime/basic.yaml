@@ -1,0 +1,5 @@
+filter_lifetime:
+  id: filter_lifetime_1
+  max_lifetime: 12
+  is_on: !lambda 'return true;'
+  current_speed: !lambda 'return 50.0;'
