@@ -232,10 +232,11 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
     dest.init(source.size());
 
 #ifdef USE_ESP8266
-    // On ESP8266, keys may be in PROGMEM (from ESPHOME_F in codegen) and
-    // FLASH_STRING values need copying via _P functions.
-    // Allocate storage for all keys + all values (2 entries per source item).
-    // strlen_P/memcpy_P handle both RAM and PROGMEM pointers safely.
+    // On ESP8266, all static strings from codegen are FLASH_STRING (PROGMEM),
+    // so is_static_string() is always false — the zero-copy STATIC_STRING fast
+    // path from the non-ESP8266 branch cannot trigger. We copy all keys and
+    // values unconditionally: keys via _P functions (may be in PROGMEM), values
+    // via value() which handles FLASH_STRING internally.
     value_storage.init(source.size() * 2);
 
     for (auto &it : source) {

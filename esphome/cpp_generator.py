@@ -780,8 +780,13 @@ async def templatable(
     if to_exp is None:
         # Automatically wrap static strings in ESPHOME_F() for PROGMEM storage on ESP8266.
         # On other platforms ESPHOME_F() is a no-op returning const char*.
-        if isinstance(value, str) and str(output_type) == "std::string":
-            return FlashStringLiteral(value)
+        # Lazy import to avoid circular dependency (cpp_generator <-> cpp_types).
+        # Identity check (is) avoids brittle string comparison.
+        if isinstance(value, str) and output_type is not None:
+            from esphome.cpp_types import std_string
+
+            if output_type is std_string:
+                return FlashStringLiteral(value)
         return value
     if isinstance(to_exp, dict):
         return to_exp[value]
