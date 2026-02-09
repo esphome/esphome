@@ -540,7 +540,8 @@ async def homeassistant_service_to_code(
 
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
-        templ = await cg.templatable(value, args, cg.std_string)
+        # Variables can return any type (float, int, etc.), not just strings
+        templ = await cg.templatable(value, args, None)
         cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     if on_error := config.get(CONF_ON_ERROR):
@@ -625,7 +626,8 @@ async def homeassistant_event_to_code(config, action_id, template_arg, args):
 
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
-        templ = await cg.templatable(value, args, cg.std_string)
+        # Variables can return any type (float, int, etc.), not just strings
+        templ = await cg.templatable(value, args, None)
         cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     return var
