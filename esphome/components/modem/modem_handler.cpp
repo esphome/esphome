@@ -35,7 +35,7 @@ void ModemHandler::modem_create_dte_dce(int baud_rate) {
     dte_config.uart_config.baud_rate = baud_rate;
   }
   if (this->rts_pin != nullptr && this->cts_pin != nullptr) {
-    ESP_LOGD(TAG, "Using RTS/CTS flow control");
+    ESP_LOGD(TAG, "Using RTS/CTS hardware flow control");
     dte_config.uart_config.rts_io_num = this->rts_pin->get_pin();
     dte_config.uart_config.cts_io_num = this->cts_pin->get_pin();
     dte_config.uart_config.flow_control = ESP_MODEM_FLOW_CONTROL_HW;
@@ -174,6 +174,14 @@ void ModemHandler::modem_log_status() {
 }
 
 void ModemHandler::send_init_at() {
+  if (this->rts_pin != nullptr && this->cts_pin != nullptr) {
+    // Send AT command to setup flow control
+    App.feed_wdt();
+    if (this->dce->set_flow_control(2, 2) != command_result::OK) {
+      ESP_LOGE(TAG, "Failed to set modem flow control to RTS/CTS.");
+    }
+  }
+
   for (const auto &cmd : this->init_at_commands) {
     App.feed_wdt();
     AtCommandResult result = this->send_at(cmd);

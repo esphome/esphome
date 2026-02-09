@@ -13,10 +13,12 @@ from esphome.const import (
     CONF_DISABLED,
     CONF_ENABLE_ON_BOOT,
     CONF_ID,
+    CONF_INVERTED,
     CONF_MODEL,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_PASSWORD,
+    CONF_PIN,
     CONF_REBOOT_TIMEOUT,
     CONF_RX_BUFFER_SIZE,
     CONF_RX_PIN,
@@ -175,11 +177,21 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MODEL): cv.one_of(*MODEM_MODELS, upper=True),
             cv.Required(CONF_APN): cv.string,
             cv.Optional(CONF_STATUS_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_TON_PULSE_DELAY): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_TON_DELAY): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_TOFF_PULSE_DELAY): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_TOFF_DELAY): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_POWER_PIN): cv.maybe_simple_value(
+                {
+                    cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
+                    cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+                    cv.Optional(
+                        CONF_TON_PULSE_DELAY
+                    ): cv.positive_time_period_milliseconds,
+                    cv.Optional(CONF_TON_DELAY): cv.positive_time_period_milliseconds,
+                    cv.Optional(
+                        CONF_TOFF_PULSE_DELAY
+                    ): cv.positive_time_period_milliseconds,
+                    cv.Optional(CONF_TOFF_DELAY): cv.positive_time_period_milliseconds,
+                },
+                key=CONF_PIN,
+            ),
             cv.Optional(CONF_PIN_CODE): cv.string_strict,
             cv.Optional(CONF_USE_ADDRESS): cv.string,
             cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
@@ -246,26 +258,27 @@ def _final_validate(config):
     # if wifi_config := full_config.get(CONF_WIFI, None):
     #     if wifi_has_sta(wifi_config):
     #         raise cv.Invalid("Wi-Fi must be in AP-only mode when using a modem")
-    if config.get(CONF_POWER_PIN, None):
+    power_pin_config = config.get(CONF_POWER_PIN, None)
+    if power_pin_config:
         # if ton/off pulse delay options are defined, they overrides MODEM_MODELS_POWER
-        if ton_pulse_delay := config.get(CONF_TON_PULSE_DELAY, None):
+        if ton_pulse_delay := power_pin_config.get(CONF_TON_PULSE_DELAY, None):
             MODEM_MODELS_POWER[config[CONF_MODEL]][CONF_TON_PULSE_DELAY] = (
                 ton_pulse_delay
             )
-        if ton_delay := config.get(CONF_TON_DELAY, None):
+        if ton_delay := power_pin_config.get(CONF_TON_DELAY, None):
             MODEM_MODELS_POWER[config[CONF_MODEL]][CONF_TON_DELAY] = ton_delay
-        if toff_pulse_delay := config.get(CONF_TOFF_PULSE_DELAY, None):
+        if toff_pulse_delay := power_pin_config.get(CONF_TOFF_PULSE_DELAY, None):
             MODEM_MODELS_POWER[config[CONF_MODEL]][CONF_TOFF_PULSE_DELAY] = (
                 toff_pulse_delay
             )
-        if toff_delay := config.get(CONF_TOFF_DELAY, None):
+        if toff_delay := power_pin_config.get(CONF_TOFF_DELAY, None):
             MODEM_MODELS_POWER[config[CONF_MODEL]][CONF_TOFF_DELAY] = toff_delay
 
         if config[CONF_MODEL] not in MODEM_MODELS_POWER and not (
-            config.get(CONF_TON_PULSE_DELAY, None)
-            and config.get(CONF_TON_DELAY, None)
-            and config.get(CONF_TOFF_PULSE_DELAY, None)
-            and config.get(CONF_TOFF_DELAY, None)
+            power_pin_config.get(CONF_TON_PULSE_DELAY, None)
+            and power_pin_config.get(CONF_TON_DELAY, None)
+            and power_pin_config.get(CONF_TOFF_PULSE_DELAY, None)
+            and power_pin_config.get(CONF_TOFF_DELAY, None)
         ):
             raise cv.Invalid(
                 f"Modem model '{config[CONF_MODEL]}' has no known power specs. If using a power pin, '{CONF_TON_PULSE_DELAY}', '{CONF_TON_DELAY}', '{CONF_TOFF_PULSE_DELAY}', '{CONF_TOFF_DELAY}' options a required"
@@ -448,8 +461,9 @@ async def to_code(config):
         cg.add(var.set_status_pin(pin))
 
     if power_pin := config.get(CONF_POWER_PIN, None):
-        pin = await cg.gpio_pin_expression(power_pin)
+        pin = await cg.gpio_pin_expression(power_pin[CONF_PIN])
         cg.add(var.set_power_pin(pin))
+        cg.add(var.set_power_pin_inverted(power_pin.get(CONF_INVERTED)))
 
     if rx_buffer_size := config.get(CONF_RX_BUFFER_SIZE, None):
         cg.add(var.set_rx_buffer_size(rx_buffer_size))

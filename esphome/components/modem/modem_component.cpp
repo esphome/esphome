@@ -59,7 +59,7 @@ AtCommandResult ModemComponent::send_at(const std::string &cmd, uint32_t timeout
 void ModemComponent::enable() {
   if (this->component_state_ == ModemComponentState::DISABLED) {
     ESP_LOGI(TAG, "Enabling modem");
-    set_timeout("modem timeout", this->timeout_, [this]() { this->abort_("Modem was not able to connect (timeout)"); });
+    set_timeout("modem_timeout", this->timeout_, [this]() { this->abort_("Modem was not able to connect (timeout)"); });
     // this->enable_loop();
     this->component_state_ = ModemComponentState::ENABLING;
   }
@@ -91,7 +91,7 @@ void ModemComponent::setup() {
 
   if (this->modem_handler->power_pin) {
     this->modem_handler->power_pin->setup();
-    this->modem_handler->power_pin->digital_write(true);
+    this->modem_handler->power_pin->digital_write(!this->modem_handler->power_pin_inverted);
   }
   if (this->modem_handler->status_pin) {
     this->modem_handler->status_pin->setup();
@@ -231,7 +231,7 @@ void ModemComponent::loop() {
 void ModemComponent::handle_state_disabled_() {
   // Just wait 'enable()'
   if (this->disable_wanted_) {
-    cancel_timeout("modem timeout");
+    cancel_timeout("modem_timeout");
     // this->disable_loop();
   } else {
     // Disable state was temporary (reset wanted)
@@ -256,6 +256,13 @@ void ModemComponent::handle_state_enabling_() {
     this->modem_handler->modem_create_dte_dce(baud);
     this->modem_handler->dce->set_mode(esp_modem::modem_mode::AUTODETECT);
     bool success = this->modem_handler->dce->get_mode() != esp_modem::modem_mode::UNDEF;
+    // Sometimes the modem does not answer autobaud commands,
+    // so try sending an AT command to confirm it's responsive at this baud rate.
+    if (!success) {
+      App.feed_wdt();
+      auto result = this->modem_handler->send_at("AT", 100);
+      success = result.esp_modem_command_result == command_result::OK;
+    }
     if (success) {
       this->modem_handler->current_baud_rate = baud;
       this->modem_restore_state_.baud_rate = baud;
@@ -270,30 +277,28 @@ void ModemComponent::handle_state_enabling_() {
   bauds.erase(std::unique(bauds.begin(), bauds.end()), bauds.end());
 
   for (int b : bauds) {
-    if (try_autobaud(b)) {
-      ESP_LOGV(TAG, "Modem ON. Autodetect mode: %s, baud: %d",
-               modem_mode_to_string(this->modem_handler->dce->get_mode()).c_str(), b);
-      auto mode = this->modem_handler->dce->get_mode();
-      if (mode == modem_mode::CMUX_MANUAL_MODE || mode == modem_mode::DATA_MODE) {
-        if (b != this->modem_handler->baud_rate) {
-          ESP_LOGI(TAG, "Modem connected, but baud rate has changed");
-          if (mode == modem_mode::CMUX_MANUAL_MODE) {
-            this->modem_handler->dce->set_mode(modem_mode::CMUX_MANUAL_EXIT);
-          } else {
-            this->modem_handler->dce->set_mode(modem_mode::COMMAND_MODE);
-          }
-          this->component_state_ = ModemComponentState::SYNCING;
-          return;
+    if (!try_autobaud(b)) {
+      continue;
+    }
+    ESP_LOGV(TAG, "Modem ON. Autodetect mode: %s, baud: %d",
+             modem_mode_to_string(this->modem_handler->dce->get_mode()).c_str(), b);
+    auto mode = this->modem_handler->dce->get_mode();
+    if (mode == modem_mode::CMUX_MANUAL_MODE || mode == modem_mode::DATA_MODE) {
+      if (b != this->modem_handler->baud_rate) {
+        ESP_LOGI(TAG, "Modem connected, but baud rate has changed");
+        if (mode == modem_mode::CMUX_MANUAL_MODE) {
+          this->modem_handler->dce->set_mode(modem_mode::CMUX_MANUAL_EXIT);
+        } else {
+          this->modem_handler->dce->set_mode(modem_mode::COMMAND_MODE);
         }
+      } else {
         // this->component_state_ = ModemComponentState::WAIT_IP;
         this->modem_handler->dce->set_mode(modem_mode::CMUX_MANUAL_EXIT);
         this->modem_handler->dce->set_mode(modem_mode::COMMAND_MODE);
-        this->component_state_ = ModemComponentState::SYNCING;
-        return;
       }
-      this->component_state_ = ModemComponentState::SYNCING;
-      return;
     }
+    this->component_state_ = ModemComponentState::SYNCING;
+    return;
   }
 
   if (this->modem_handler->power_pin) {
@@ -306,26 +311,32 @@ void ModemComponent::handle_state_enabling_() {
 }
 
 void ModemComponent::handle_state_powering_on_() {
-  this->modem_handler->power_pin->digital_write(false);
-  delay(this->modem_handler->power_ton_pulse_delay);
-  this->modem_handler->power_pin->digital_write(true);
-  uint32_t loop_delay = this->modem_handler->power_ton_delay;
-  this->loop_delay_(loop_delay);
-  ESP_LOGD(TAG, "Modem ON in %.1fs...", float(loop_delay) / 1000);
-
-  this->component_state_ = ModemComponentState::ENABLING;
+  this->modem_handler->power_pin->digital_write(this->modem_handler->power_pin_inverted);
+  // Use timeout to prevent blocking the main loop
+  set_timeout("modem_power_on", this->modem_handler->power_ton_pulse_delay, [this]() {
+    this->modem_handler->power_pin->digital_write(!this->modem_handler->power_pin_inverted);
+    uint32_t loop_delay = this->modem_handler->power_ton_delay;
+    this->enable_loop();
+    this->loop_delay_(loop_delay);
+    ESP_LOGD(TAG, "Modem ON in %.1fs...", float(this->modem_handler->power_ton_delay) / 1000);
+    this->component_state_ = ModemComponentState::ENABLING;
+  });
+  this->disable_loop();
 }
 
 void ModemComponent::handle_state_powering_off_() {
-  this->modem_handler->power_pin->digital_write(false);
-  delay(this->modem_handler->power_toff_pulse_delay);
-  this->modem_handler->power_pin->digital_write(true);
-  this->loop_delay_(this->modem_handler->power_toff_delay);
-  ESP_LOGD(TAG, "Modem should be OFF in %.1fs...", float(this->modem_handler->power_toff_delay) / 1000);
-
-  this->component_state_ = ModemComponentState::DISABLED;
-  this->modem_restore_state_.baud_rate = 0;
-  this->pref_.save(&this->modem_restore_state_);
+  this->modem_handler->power_pin->digital_write(this->modem_handler->power_pin_inverted);
+  // Use timeout to prevent blocking the main loop
+  set_timeout("modem_power_off", this->modem_handler->power_toff_pulse_delay, [this]() {
+    this->modem_handler->power_pin->digital_write(!this->modem_handler->power_pin_inverted);
+    this->enable_loop();
+    this->loop_delay_(this->modem_handler->power_toff_delay);
+    ESP_LOGD(TAG, "Modem should be OFF in %.1fs...", float(this->modem_handler->power_toff_delay) / 1000);
+    this->component_state_ = ModemComponentState::DISABLED;
+    this->modem_restore_state_.baud_rate = 0;
+    this->pref_.save(&this->modem_restore_state_);
+  });
+  this->disable_loop();
 }
 
 void ModemComponent::handle_state_syncing_() {
@@ -446,7 +457,7 @@ void ModemComponent::handle_state_wait_ip_() {
 }
 
 void ModemComponent::handle_state_connected_() {
-  cancel_timeout("modem timeout");
+  cancel_timeout("modem_timeout");
   if (!this->modem_handler->network_infos.got_ip) {
     ESP_LOGW(TAG, "Lost IP");
     this->component_state_ = ModemComponentState::DISCONNECTED;

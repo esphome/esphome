@@ -43,6 +43,7 @@ class ModemHandler {
   uint32_t power_toff_pulse_delay;
   uint32_t power_toff_delay;
   GPIOPin *power_pin{nullptr};
+  bool power_pin_inverted{false};
   uint16_t tx_buffer_size = 512;
   uint16_t rx_buffer_size = 512;
   uint16_t dte_buffer_size = 512;
