@@ -219,18 +219,12 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 }
 
 bool HttpContainerIDF::is_read_complete() const {
-  // Per RFC 9112, these responses have no body:
-  // - 1xx (Informational), 204 No Content, 205 Reset Content, 304 Not Modified
-  if ((this->status_code >= 100 && this->status_code < 200) || this->status_code == HTTP_STATUS_NO_CONTENT ||
-      this->status_code == HTTP_STATUS_RESET_CONTENT || this->status_code == HTTP_STATUS_NOT_MODIFIED) {
+  // Base class handles no-body status codes and non-chunked content_length completion
+  if (HttpContainer::is_read_complete()) {
     return true;
   }
-  // For non-chunked responses, complete when bytes_read >= content_length
-  if (!this->is_chunked_) {
-    return this->bytes_read_ >= this->content_length;
-  }
   // For chunked responses, use the authoritative ESP-IDF completion check
-  return esp_http_client_is_complete_data_received(this->client_);
+  return this->is_chunked_ && esp_http_client_is_complete_data_received(this->client_);
 }
 
 // ESP-IDF HTTP read implementation (blocking mode)
