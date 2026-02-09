@@ -13,14 +13,14 @@ static const uint16_t SHTCX_COMMAND_READ_ID_REGISTER = 0xEFC8;
 static const uint16_t SHTCX_COMMAND_SOFT_RESET = 0x805D;
 static const uint16_t SHTCX_COMMAND_POLLING_H = 0x7866;
 
-inline const char *to_string(SHTCXType type) {
+static const LogString *shtcx_type_to_string(SHTCXType type) {
   switch (type) {
     case SHTCX_TYPE_SHTC3:
-      return "SHTC3";
+      return LOG_STR("SHTC3");
     case SHTCX_TYPE_SHTC1:
-      return "SHTC1";
+      return LOG_STR("SHTC1");
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN");
   }
 }
 
@@ -52,7 +52,7 @@ void SHTCXComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "SHTCx:\n"
                 "  Model: %s (%04x)",
-                to_string(this->type_), this->sensor_id_);
+                LOG_STR_ARG(shtcx_type_to_string(this->type_)), this->sensor_id_);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -62,8 +62,6 @@ void SHTCXComponent::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
-
-float SHTCXComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void SHTCXComponent::update() {
   if (this->status_has_warning()) {

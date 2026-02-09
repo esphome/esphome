@@ -26,20 +26,22 @@ CONFIG_SCHEMA = cv.Schema({})
 
 @coroutine_with_priority(CoroPriority.NETWORK_TRANSPORT)
 async def to_code(config):
-    if CORE.using_esp_idf:
-        # ESP-IDF needs the IDF component
+    if CORE.is_esp32:
+        # https://github.com/ESP32Async/AsyncTCP
         from esphome.components.esp32 import add_idf_component
 
         add_idf_component(name="esp32async/asynctcp", ref="3.4.91")
-    elif CORE.is_esp32 or CORE.is_libretiny:
+    elif CORE.is_libretiny:
         # https://github.com/ESP32Async/AsyncTCP
         cg.add_library("ESP32Async/AsyncTCP", "3.4.5")
     elif CORE.is_esp8266:
         # https://github.com/ESP32Async/ESPAsyncTCP
         cg.add_library("ESP32Async/ESPAsyncTCP", "2.0.0")
     elif CORE.is_rp2040:
-        # https://github.com/khoih-prog/AsyncTCP_RP2040W
-        cg.add_library("khoih-prog/AsyncTCP_RP2040W", "1.2.0")
+        # https://github.com/ayushsharma82/RPAsyncTCP
+        # RPAsyncTCP is a drop-in replacement for AsyncTCP_RP2040W with better
+        # ESPAsyncWebServer compatibility
+        cg.add_library("ayushsharma82/RPAsyncTCP", "1.3.2")
     # Other platforms (host, etc) use socket-based implementation
 
 

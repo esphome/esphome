@@ -510,10 +510,23 @@ def test_string_no_slash__valid(value: str) -> None:
     assert actual == value
 
 
-@pytest.mark.parametrize("value", ("has/slash", "a/b/c", "/leading", "trailing/"))
-def test_string_no_slash__slash_rejected(value: str) -> None:
-    with pytest.raises(Invalid, match="cannot contain '/' character"):
-        config_validation.string_no_slash(value)
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ("has/slash", "has⁄slash"),
+        ("a/b/c", "a⁄b⁄c"),
+        ("/leading", "⁄leading"),
+        ("trailing/", "trailing⁄"),
+    ),
+)
+def test_string_no_slash__slash_replaced_with_warning(
+    value: str, expected: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that '/' is auto-replaced with fraction slash and warning is logged."""
+    actual = config_validation.string_no_slash(value)
+    assert actual == expected
+    assert "reserved as a URL path separator" in caplog.text
+    assert "will become an error in ESPHome 2026.7.0" in caplog.text
 
 
 def test_string_no_slash__long_string_allowed() -> None:
@@ -532,9 +545,13 @@ def test_validate_entity_name__valid(value: str) -> None:
     assert actual == value
 
 
-def test_validate_entity_name__slash_rejected() -> None:
-    with pytest.raises(Invalid, match="cannot contain '/' character"):
-        config_validation._validate_entity_name("has/slash")
+def test_validate_entity_name__slash_replaced_with_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that '/' in entity names is auto-replaced with fraction slash."""
+    actual = config_validation._validate_entity_name("has/slash")
+    assert actual == "has⁄slash"
+    assert "reserved as a URL path separator" in caplog.text
 
 
 def test_validate_entity_name__max_length() -> None:

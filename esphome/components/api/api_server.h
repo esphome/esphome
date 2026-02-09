@@ -185,6 +185,9 @@ class APIServer : public Component,
 #ifdef USE_ZWAVE_PROXY
   void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
 #endif
+#ifdef USE_IR_RF
+  void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
+#endif
 
   bool is_connected(bool state_subscription_only = false) const;
 
@@ -224,12 +227,10 @@ class APIServer : public Component,
 #endif
 
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
+  Trigger<std::string, std::string> *get_client_connected_trigger() { return &this->client_connected_trigger_; }
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_disconnected_trigger() const {
-    return this->client_disconnected_trigger_;
-  }
+  Trigger<std::string, std::string> *get_client_disconnected_trigger() { return &this->client_disconnected_trigger_; }
 #endif
 
  protected:
@@ -250,10 +251,10 @@ class APIServer : public Component,
   // Pointers and pointer-like types first (4 bytes each)
   std::unique_ptr<socket::Socket> socket_ = nullptr;
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<std::string, std::string> client_connected_trigger_;
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> *client_disconnected_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<std::string, std::string> client_disconnected_trigger_;
 #endif
 
   // 4-byte aligned types

@@ -1,6 +1,7 @@
 #include "async_tcp_socket.h"
 
-#if defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
+#if !defined(USE_ESP32) && !defined(USE_ESP8266) && !defined(USE_RP2040) && !defined(USE_LIBRETINY) && \
+    (defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS))
 
 #include "esphome/components/network/util.h"
 #include "esphome/core/log.h"
@@ -158,4 +159,4 @@ void AsyncClient::loop() {
 
 }  // namespace esphome::async_tcp
 
-#endif  // defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
+#endif

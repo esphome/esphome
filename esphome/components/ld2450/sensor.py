@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ANGLE,
     CONF_DISTANCE,
+    CONF_ID,
     CONF_RESOLUTION,
     CONF_SPEED,
     CONF_X,
@@ -40,6 +41,7 @@ UNIT_MILLIMETER_PER_SECOND = "mm/s"
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
         cv.Optional(CONF_TARGET_COUNT): sensor.sensor_schema(
             accuracy_decimals=0,
@@ -141,6 +143,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
                     ],
                     icon=ICON_FORMAT_TEXT_ROTATION_ANGLE_UP,
                     unit_of_measurement=UNIT_DEGREES,
+                    accuracy_decimals=1,
                 ),
                 cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
                     device_class=DEVICE_CLASS_DISTANCE,

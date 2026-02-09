@@ -15,7 +15,7 @@ void HomeassistantTextSensor::setup() {
     } else {
       ESP_LOGD(TAG, "'%s': Got state '%s'", this->entity_id_, state.c_str());
     }
-    this->publish_state(state.str());
+    this->publish_state(state.c_str(), state.size());
   });
 }
 void HomeassistantTextSensor::dump_config() {

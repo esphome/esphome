@@ -86,6 +86,14 @@ enum class LTWiFiSTAState : uint8_t {
 
 static LTWiFiSTAState s_sta_state = LTWiFiSTAState::IDLE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// Count of ignored disconnect events during connection - too many indicates real failure
+static uint8_t s_ignored_disconnect_count = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// Threshold for ignored disconnect events before treating as connection failure
+// LibreTiny sends spurious "Association Leave" events, but more than this many
+// indicates the connection is failing repeatedly. Value of 3 balances fast failure
+// detection with tolerance for occasional spurious events on successful connections.
+static constexpr uint8_t IGNORED_DISCONNECT_THRESHOLD = 3;
+
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFi.getMode();
   bool current_sta = current_mode & 0b01;
@@ -136,7 +144,7 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
 }
 bool WiFiComponent::wifi_apply_power_save_() {
   bool success = WiFi.setSleep(this->power_save_ != WIFI_POWER_SAVE_NONE);
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_POWER_SAVE_LISTENERS
   if (success) {
     for (auto *listener : this->power_save_listeners_) {
       listener->on_wifi_power_save(this->power_save_);
@@ -201,8 +209,9 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   this->wifi_apply_hostname_();
 
-  // Reset state machine before connecting
+  // Reset state machine and disconnect counter before connecting
   s_sta_state = LTWiFiSTAState::CONNECTING;
+  s_ignored_disconnect_count = 0;
 
   WiFiStatus status = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
                                  ap.get_channel(),  // 0 = auto
@@ -231,14 +240,6 @@ const char *get_auth_mode_str(uint8_t mode) {
   }
 }
 
-using esphome_ip4_addr_t = IPAddress;
-
-std::string format_ip4_addr(const esphome_ip4_addr_t &ip) {
-  char buf[20];
-  uint32_t addr = ip;
-  sprintf(buf, "%u.%u.%u.%u", uint8_t(addr >> 0), uint8_t(addr >> 8), uint8_t(addr >> 16), uint8_t(addr >> 24));
-  return buf;
-}
 const char *get_op_mode_str(uint8_t mode) {
   switch (mode) {
     case WIFI_OFF:
@@ -422,7 +423,10 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
   }
 }
 
-// Process a single event from the queue - runs in main loop context
+// Process a single event from the queue - runs in main loop context.
+// Listener notifications must be deferred until after the state machine transitions
+// (in check_connecting_finished) so that conditions like wifi.connected return
+// correct values in automations.
 void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
   switch (event->event_id) {
     case ESPHOME_EVENT_ID_WIFI_READY: {
@@ -454,19 +458,19 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       // Note: We don't set CONNECTED state here yet - wait for GOT_IP
       // This matches ESP32 IDF behavior where s_sta_connected is set but
       // wifi_sta_connect_status_() also checks got_ipv4_address_
-#ifdef USE_WIFI_LISTENERS
-      for (auto *listener : this->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
-      }
-      // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+      // Defer listener notification until state machine reaches STA_CONNECTED
+      // This ensures wifi.connected condition returns true in listener automations
+      this->pending_.connect_state = true;
+#endif
+      // For static IP configurations, GOT_IP event may not fire, so set connected state here
 #ifdef USE_WIFI_MANUAL_IP
       if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
         s_sta_state = LTWiFiSTAState::CONNECTED;
-        for (auto *listener : this->ip_state_listeners_) {
-          listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-        }
-      }
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+        this->notify_ip_state_listeners_();
 #endif
+      }
 #endif
       break;
     }
@@ -482,10 +486,22 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       // causing wifi_sta_connect_status_() to return an error. The main loop would then
       // call retry_connect(), aborting a connection that may succeed moments later.
       // Only ignore benign reasons - real failures like NO_AP_FOUND should still be processed.
+      // However, if we get too many of these events (IGNORED_DISCONNECT_THRESHOLD), treat it
+      // as a real connection failure to avoid waiting the full timeout for a failing connection.
       if (it.ssid_len == 0 && s_sta_state == LTWiFiSTAState::CONNECTING && it.reason != WIFI_REASON_NO_AP_FOUND) {
-        ESP_LOGV(TAG, "Ignoring disconnect event with empty ssid while connecting (reason=%s)",
-                 get_disconnect_reason_str(it.reason));
-        break;
+        s_ignored_disconnect_count++;
+        if (s_ignored_disconnect_count >= IGNORED_DISCONNECT_THRESHOLD) {
+          ESP_LOGW(TAG, "Too many disconnect events (%u) while connecting, treating as failure (reason=%s)",
+                   s_ignored_disconnect_count, get_disconnect_reason_str(it.reason));
+          s_sta_state = LTWiFiSTAState::ERROR_FAILED;
+          WiFi.disconnect();
+          this->error_from_callback_ = true;
+          // Don't break - fall through to notify listeners
+        } else {
+          ESP_LOGV(TAG, "Ignoring disconnect event with empty ssid while connecting (reason=%s, count=%u)",
+                   get_disconnect_reason_str(it.reason), s_ignored_disconnect_count);
+          break;
+        }
       }
 
       if (it.reason == WIFI_REASON_NO_AP_FOUND) {
@@ -508,11 +524,8 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
         this->error_from_callback_ = true;
       }
 
-#ifdef USE_WIFI_LISTENERS
-      static constexpr uint8_t EMPTY_BSSID[6] = {};
-      for (auto *listener : this->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
-      }
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+      this->notify_disconnect_state_listeners_();
 #endif
       break;
     }
@@ -530,22 +543,19 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP: {
-      ESP_LOGV(TAG, "static_ip=%s gateway=%s", format_ip4_addr(WiFi.localIP()).c_str(),
-               format_ip4_addr(WiFi.gatewayIP()).c_str());
+      char ip_buf[network::IP_ADDRESS_BUFFER_SIZE], gw_buf[network::IP_ADDRESS_BUFFER_SIZE];
+      ESP_LOGV(TAG, "static_ip=%s gateway=%s", network::IPAddress(WiFi.localIP()).str_to(ip_buf),
+               network::IPAddress(WiFi.gatewayIP()).str_to(gw_buf));
       s_sta_state = LTWiFiSTAState::CONNECTED;
-#ifdef USE_WIFI_LISTENERS
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+      this->notify_ip_state_listeners_();
 #endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
       ESP_LOGV(TAG, "Got IPv6");
-#ifdef USE_WIFI_LISTENERS
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+      this->notify_ip_state_listeners_();
 #endif
       break;
     }
@@ -633,6 +643,10 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   if (!this->wifi_mode_(true, {}))
     return false;
 
+  // Reset scan_done_ before starting new scan to prevent stale flag from previous scan
+  // (e.g., roaming scan completed just before unexpected disconnect)
+  this->scan_done_ = false;
+
   // need to use WiFi because of WiFiScanClass allocations :(
   int16_t err = WiFi.scanNetworks(true, true, passive, 200);
   if (err != WIFI_SCAN_RUNNING) {
@@ -650,23 +664,42 @@ void WiFiComponent::wifi_scan_done_callback_() {
   if (num < 0)
     return;
 
-  this->scan_result_.init(static_cast<unsigned int>(num));
-  for (int i = 0; i < num; i++) {
-    String ssid = WiFi.SSID(i);
-    wifi_auth_mode_t authmode = WiFi.encryptionType(i);
-    int32_t rssi = WiFi.RSSI(i);
-    uint8_t *bssid = WiFi.BSSID(i);
-    int32_t channel = WiFi.channel(i);
+  bool needs_full = this->needs_full_scan_results_();
 
-    this->scan_result_.emplace_back(bssid_t{bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]},
-                                    std::string(ssid.c_str()), channel, rssi, authmode != WIFI_AUTH_OPEN,
-                                    ssid.length() == 0);
+  // Access scan results directly via WiFi.scan struct to avoid Arduino String allocations
+  // WiFi.scan is public in LibreTiny for WiFiEvents & WiFiScan static handlers
+  auto *scan = WiFi.scan;
+
+  // First pass: count matching networks
+  size_t count = 0;
+  for (int i = 0; i < num; i++) {
+    const char *ssid_cstr = scan->ap[i].ssid;
+    if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
+      count++;
+    }
   }
+
+  this->scan_result_.init(count);  // Exact allocation
+
+  // Second pass: store matching networks
+  for (int i = 0; i < num; i++) {
+    const char *ssid_cstr = scan->ap[i].ssid;
+    if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
+      auto &ap = scan->ap[i];
+      this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
+                                              ap.bssid.addr[4], ap.bssid.addr[5]},
+                                      std::string(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
+                                      ssid_cstr[0] == '\0');
+    } else {
+      auto &ap = scan->ap[i];
+      this->log_discarded_scan_result_(ssid_cstr, ap.bssid.addr, ap.rssi, ap.channel);
+    }
+  }
+  ESP_LOGV(TAG, "Scan complete: %d found, %zu stored%s", num, this->scan_result_.size(),
+           needs_full ? "" : " (filtered)");
   WiFi.scanDelete();
-#ifdef USE_WIFI_LISTENERS
-  for (auto *listener : this->scan_results_listeners_) {
-    listener->on_wifi_scan_results(this->scan_result_);
-  }
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
+  this->notify_scan_results_listeners_();
 #endif
 }
 
