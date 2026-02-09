@@ -524,30 +524,23 @@ async def homeassistant_service_to_code(
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
-    templ = await cg.templatable(config[CONF_ACTION], args, None)
-    # Wrap static strings in ESPHOME_F() for PROGMEM on ESP8266
-    if isinstance(templ, str):
-        templ = cg.FlashStringLiteral(templ)
+    templ = await cg.templatable(config[CONF_ACTION], args, cg.std_string)
     cg.add(var.set_service(templ))
 
     # Initialize FixedVectors with exact sizes from config
     cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
-        templ = await cg.templatable(value, args, None)
-        if isinstance(templ, str):
-            templ = cg.FlashStringLiteral(templ)
+        templ = await cg.templatable(value, args, cg.std_string)
         cg.add(var.add_data(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
-        templ = await cg.templatable(value, args, None)
-        if isinstance(templ, str):
-            templ = cg.FlashStringLiteral(templ)
+        templ = await cg.templatable(value, args, cg.std_string)
         cg.add(var.add_data_template(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
-        templ = await cg.templatable(value, args, None)
+        templ = await cg.templatable(value, args, cg.std_string)
         cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     if on_error := config.get(CONF_ON_ERROR):
@@ -616,29 +609,23 @@ async def homeassistant_event_to_code(config, action_id, template_arg, args):
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
-    templ = await cg.templatable(config[CONF_EVENT], args, None)
-    if isinstance(templ, str):
-        templ = cg.FlashStringLiteral(templ)
+    templ = await cg.templatable(config[CONF_EVENT], args, cg.std_string)
     cg.add(var.set_service(templ))
 
     # Initialize FixedVectors with exact sizes from config
     cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
-        templ = await cg.templatable(value, args, None)
-        if isinstance(templ, str):
-            templ = cg.FlashStringLiteral(templ)
+        templ = await cg.templatable(value, args, cg.std_string)
         cg.add(var.add_data(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
-        templ = await cg.templatable(value, args, None)
-        if isinstance(templ, str):
-            templ = cg.FlashStringLiteral(templ)
+        templ = await cg.templatable(value, args, cg.std_string)
         cg.add(var.add_data_template(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
-        templ = await cg.templatable(value, args, None)
+        templ = await cg.templatable(value, args, cg.std_string)
         cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     return var
@@ -666,8 +653,6 @@ async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, arg
     # Initialize FixedVector with exact size (1 data field)
     cg.add(var.init_data(1))
     templ = await cg.templatable(config[CONF_TAG], args, cg.std_string)
-    if isinstance(templ, str):
-        templ = cg.FlashStringLiteral(templ)
     cg.add(var.add_data(cg.FlashStringLiteral("tag_id"), templ))
     return var
 

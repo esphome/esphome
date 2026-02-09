@@ -778,6 +778,10 @@ async def templatable(
     if is_template(value):
         return await process_lambda(value, args, return_type=output_type)
     if to_exp is None:
+        # Automatically wrap static strings in ESPHOME_F() for PROGMEM storage on ESP8266.
+        # On other platforms ESPHOME_F() is a no-op returning const char*.
+        if isinstance(value, str) and str(output_type) == "std::string":
+            return FlashStringLiteral(value)
         return value
     if isinstance(to_exp, dict):
         return to_exp[value]
