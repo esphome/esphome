@@ -51,6 +51,7 @@ Transform = epaper_spi_ns.enum("Transform")
 
 EPaperSpectraE6 = epaper_spi_ns.class_("EPaperSpectraE6", EPaperBase)
 EPaper7p3InSpectraE6 = epaper_spi_ns.class_("EPaper7p3InSpectraE6", EPaperSpectraE6)
+EPaperWeAct3C = epaper_spi_ns.class_("EPaperWeAct3C", EPaperBase)
 
 
 # Import all models dynamically from the models package
