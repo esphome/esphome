@@ -30,8 +30,7 @@
 #include <cerrno>
 #include <sys/socket.h>
 
-namespace esphome {
-namespace web_server_idf {
+namespace esphome::web_server_idf {
 
 #ifndef HTTPD_409
 #define HTTPD_409 "409 Conflict"
@@ -895,7 +894,6 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
 }
 #endif  // USE_WEBSERVER_OTA
 
-}  // namespace web_server_idf
-}  // namespace esphome
+}  // namespace esphome::web_server_idf
 
 #endif  // !defined(USE_ESP32)
