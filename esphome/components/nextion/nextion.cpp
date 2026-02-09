@@ -397,8 +397,10 @@ bool Nextion::remove_from_q_(bool report_empty) {
 }
 
 void Nextion::process_serial_() {
+  // All current UART available() implementations return >= 0,
+  // use <= 0 to future-proof against any that may return negative on error.
   int avail = this->available();
-  if (avail == 0) {
+  if (avail <= 0) {
     return;
   }
 
