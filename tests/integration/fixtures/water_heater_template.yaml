@@ -10,6 +10,7 @@ water_heater:
     name: Test Boiler
     optimistic: true
     current_temperature: !lambda "return 45.0f;"
+    target_temperature: !lambda "return 60.0f;"
     # Note: No mode lambda - we want optimistic mode changes to stick
     # A mode lambda would override mode changes in loop()
     supported_modes:
