@@ -15,8 +15,7 @@ void CSE7766Component::loop() {
     this->raw_data_index_ = 0;
   }
 
-  // All current UART available() implementations return >= 0,
-  // use <= 0 to future-proof against any that may return negative on error.
+  // Early return prevents updating last_transmission_ when no data is available.
   int avail = this->available();
   if (avail <= 0) {
     return;
