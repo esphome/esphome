@@ -188,19 +188,23 @@ void SEN6XComponent::setup() {
       ESP_LOGD(TAG, "Firmware version %u.%u", this->firmware_version_major_, this->firmware_version_minor_);
 
       if (this->voc_sensor_ && this->store_baseline_) {
-        // Hash with compilation time and serial number
-        // This ensures the baseline storage is cleared after OTA
-        // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
-        char build_time[App.BUILD_TIME_STR_SIZE] = {0};
-
-        App.get_build_time_string(build_time);
-        uint32_t hash = fnv1_hash(std::string(build_time) + this->serial_number_);
+        // Use a stable hash based only on serial number to avoid NVS accumulation
+        // Config version is stored inside the struct to detect when to invalidate
+        uint32_t hash = fnv1a_hash_extend(fnv1a_hash("sen6x_voc_baseline"), this->serial_number_.c_str());
         this->pref_ = global_preferences->make_preference<Sen6xBaselines>(hash, true);
 
+        uint32_t current_config_hash = App.get_config_version_hash();
         if (this->pref_.load(&this->voc_baselines_storage_)) {
-          ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-                   this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
+          if (this->voc_baselines_storage_.config_hash != current_config_hash) {
+            // Config or ESPHome version changed - discard old baseline
+            ESP_LOGI(TAG, "Config changed, discarding old VOC baseline");
+            this->voc_baselines_storage_ = {};
+          } else {
+            ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
+                     this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
+          }
         }
+        this->voc_baselines_storage_.config_hash = current_config_hash;
 
         // Initialize storage
         this->seconds_since_last_store_ = 0;
