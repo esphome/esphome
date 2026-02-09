@@ -96,9 +96,10 @@ void AutorepeatFilter::next_timing_() {
   // 1st time: starts waiting the first delay
   // 2nd time: starts waiting the second delay and starts toggling with the first time_off / _on
   // last time: no delay to start but have to bump the index to reflect the last
-  if (this->active_timing_ < this->timings_.size())
+  if (this->active_timing_ < this->timings_.size()) {
     this->set_timeout(AUTOREPEAT_TIMING_ID, this->timings_[this->active_timing_].delay,
                       [this]() { this->next_timing_(); });
+  }
 
   if (this->active_timing_ <= this->timings_.size()) {
     this->active_timing_++;
