@@ -133,6 +133,8 @@ void DFPlayer::send_cmd_(uint8_t cmd, uint16_t argument) {
 
 void DFPlayer::loop() {
   // Read message
+  // All current UART available() implementations return >= 0,
+  // use <= 0 to future-proof against any that may return negative on error.
   int avail = this->available();
   if (avail <= 0)
     return;
