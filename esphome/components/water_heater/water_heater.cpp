@@ -60,12 +60,22 @@ WaterHeaterCall &WaterHeaterCall::set_target_temperature_high(float temperature)
 }
 
 WaterHeaterCall &WaterHeaterCall::set_away(bool away) {
-  this->away_ = away;
+  if (away) {
+    this->state_ |= WATER_HEATER_STATE_AWAY;
+  } else {
+    this->state_ &= ~WATER_HEATER_STATE_AWAY;
+  }
+  this->state_mask_ |= WATER_HEATER_STATE_AWAY;
   return *this;
 }
 
 WaterHeaterCall &WaterHeaterCall::set_on(bool on) {
-  this->on_ = on;
+  if (on) {
+    this->state_ |= WATER_HEATER_STATE_ON;
+  } else {
+    this->state_ &= ~WATER_HEATER_STATE_ON;
+  }
+  this->state_mask_ |= WATER_HEATER_STATE_ON;
   return *this;
 }
 
@@ -84,11 +94,11 @@ void WaterHeaterCall::perform() {
   if (!std::isnan(this->target_temperature_high_)) {
     ESP_LOGD(TAG, "  Target Temperature High: %.2f", this->target_temperature_high_);
   }
-  if (this->away_.has_value()) {
-    ESP_LOGD(TAG, "  Away: %s", YESNO(*this->away_));
+  if (this->state_mask_ & WATER_HEATER_STATE_AWAY) {
+    ESP_LOGD(TAG, "  Away: %s", (this->state_ & WATER_HEATER_STATE_AWAY) ? "YES" : "NO");
   }
-  if (this->on_.has_value()) {
-    ESP_LOGD(TAG, "  On: %s", YESNO(*this->on_));
+  if (this->state_mask_ & WATER_HEATER_STATE_ON) {
+    ESP_LOGD(TAG, "  On: %s", (this->state_ & WATER_HEATER_STATE_ON) ? "YES" : "NO");
   }
   this->parent_->control(*this);
 }
@@ -129,13 +139,17 @@ void WaterHeaterCall::validate_() {
       this->target_temperature_high_ = NAN;
     }
   }
-  if (this->away_.has_value() && *this->away_ && !traits.get_supports_away_mode()) {
-    ESP_LOGW(TAG, "'%s' - Away mode not supported", this->parent_->get_name().c_str());
-    this->away_.reset();
+  if (!traits.get_supports_away_mode()) {
+    if (this->state_ & WATER_HEATER_STATE_AWAY) {
+      ESP_LOGW(TAG, "'%s' - Away mode not supported", this->parent_->get_name().c_str());
+    }
+    this->state_ &= ~WATER_HEATER_STATE_AWAY;
+    this->state_mask_ &= ~WATER_HEATER_STATE_AWAY;
   }
   // If ON/OFF not supported, device is always on - clear the flag silently
-  if (this->on_.has_value() && !traits.has_feature_flags(WATER_HEATER_SUPPORTS_ON_OFF)) {
-    this->on_.reset();
+  if (!traits.has_feature_flags(WATER_HEATER_SUPPORTS_ON_OFF)) {
+    this->state_ &= ~WATER_HEATER_STATE_ON;
+    this->state_mask_ &= ~WATER_HEATER_STATE_ON;
   }
 }
 
