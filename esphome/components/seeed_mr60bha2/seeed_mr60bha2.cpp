@@ -30,14 +30,27 @@ void MR60BHA2Component::dump_config() {
 
 // main loop
 void MR60BHA2Component::loop() {
-  uint8_t byte;
+  // All current UART available() implementations return >= 0,
+  // use <= 0 to future-proof against any that may return negative on error.
+  int avail = this->available();
+  if (avail <= 0) {
+    return;
+  }
 
-  // Is there data on the serial port
-  while (this->available()) {
-    this->read_byte(&byte);
-    this->rx_message_.push_back(byte);
-    if (!this->validate_message_()) {
-      this->rx_message_.clear();
+  // Read all available bytes in batches to reduce UART call overhead.
+  uint8_t buf[64];
+  while (avail > 0) {
+    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+
+    for (size_t i = 0; i < to_read; i++) {
+      this->rx_message_.push_back(buf[i]);
+      if (!this->validate_message_()) {
+        this->rx_message_.clear();
+      }
     }
   }
 }
