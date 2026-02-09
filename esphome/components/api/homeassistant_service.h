@@ -128,6 +128,20 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
     this->add_kv_(this->variables_, key, std::forward<V>(value));
   }
 
+#ifdef USE_ESP8266
+  // On ESP8266, ESPHOME_F() returns __FlashStringHelper* (PROGMEM pointer).
+  // Store as const char* — populate_service_map copies from PROGMEM at play() time.
+  template<typename V> void add_data(const __FlashStringHelper *key, V &&value) {
+    this->add_kv_(this->data_, reinterpret_cast<const char *>(key), std::forward<V>(value));
+  }
+  template<typename V> void add_data_template(const __FlashStringHelper *key, V &&value) {
+    this->add_kv_(this->data_template_, reinterpret_cast<const char *>(key), std::forward<V>(value));
+  }
+  template<typename V> void add_variable(const __FlashStringHelper *key, V &&value) {
+    this->add_kv_(this->variables_, reinterpret_cast<const char *>(key), std::forward<V>(value));
+  }
+#endif
+
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   template<typename T> void set_response_template(T response_template) {
     this->response_template_ = response_template;
@@ -219,7 +233,31 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
                                    Ts... x) {
     dest.init(source.size());
 
-    // Count non-static strings to allocate exact storage needed
+#ifdef USE_ESP8266
+    // On ESP8266, keys may be in PROGMEM (from ESPHOME_F in codegen) and
+    // FLASH_STRING values need copying via _P functions.
+    // Allocate storage for all keys + all values (2 entries per source item).
+    // strlen_P/memcpy_P handle both RAM and PROGMEM pointers safely.
+    value_storage.init(source.size() * 2);
+
+    for (auto &it : source) {
+      auto &kv = dest.emplace_back();
+
+      // Key: copy from possible PROGMEM
+      {
+        size_t key_len = strlen_P(it.key);
+        value_storage.push_back(std::string(key_len, '\0'));
+        memcpy_P(value_storage.back().data(), it.key, key_len);
+        kv.key = StringRef(value_storage.back());
+      }
+
+      // Value: value() handles FLASH_STRING via _P functions internally
+      value_storage.push_back(it.value.value(x...));
+      kv.value = StringRef(value_storage.back());
+    }
+#else
+    // On non-ESP8266, strings are directly readable from flash-mapped memory.
+    // Count non-static strings to allocate exact storage needed.
     size_t lambda_count = 0;
     for (const auto &it : source) {
       if (!it.value.is_static_string()) {
@@ -233,14 +271,15 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
       kv.key = StringRef(it.key);
 
       if (it.value.is_static_string()) {
-        // Static string from YAML - zero allocation
+        // Static string — pointer directly readable, zero allocation
         kv.value = StringRef(it.value.get_static_string());
       } else {
-        // Lambda evaluation - store result, reference it
+        // Lambda — evaluate and store result
         value_storage.push_back(it.value.value(x...));
         kv.value = StringRef(value_storage.back());
       }
     }
+#endif
   }
 
   APIServer *parent_;
