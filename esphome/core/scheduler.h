@@ -48,8 +48,8 @@ class Scheduler {
   void set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> func);
   /// Set a timeout with an internal scheduler ID (separate namespace from component NUMERIC_ID)
   void set_timeout(Component *component, InternalSchedulerID id, uint32_t timeout, std::function<void()> func) {
-    this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID_INTERNAL, nullptr, id.id, timeout,
-                            std::move(func));
+    this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID_INTERNAL, nullptr,
+                            static_cast<uint32_t>(id), timeout, std::move(func));
   }
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
@@ -57,7 +57,8 @@ class Scheduler {
   bool cancel_timeout(Component *component, const char *name);
   bool cancel_timeout(Component *component, uint32_t id);
   bool cancel_timeout(Component *component, InternalSchedulerID id) {
-    return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, id.id, SchedulerItem::TIMEOUT);
+    return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, static_cast<uint32_t>(id),
+                              SchedulerItem::TIMEOUT);
   }
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
@@ -76,8 +77,8 @@ class Scheduler {
   void set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> func);
   /// Set an interval with an internal scheduler ID (separate namespace from component NUMERIC_ID)
   void set_interval(Component *component, InternalSchedulerID id, uint32_t interval, std::function<void()> func) {
-    this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID_INTERNAL, nullptr, id.id, interval,
-                            std::move(func));
+    this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID_INTERNAL, nullptr,
+                            static_cast<uint32_t>(id), interval, std::move(func));
   }
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
@@ -85,7 +86,8 @@ class Scheduler {
   bool cancel_interval(Component *component, const char *name);
   bool cancel_interval(Component *component, uint32_t id);
   bool cancel_interval(Component *component, InternalSchedulerID id) {
-    return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, id.id, SchedulerItem::INTERVAL);
+    return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, static_cast<uint32_t>(id),
+                              SchedulerItem::INTERVAL);
   }
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")

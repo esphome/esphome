@@ -49,20 +49,13 @@ extern const float LATE;
 
 static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 
-/// Type-safe wrapper for internal scheduler IDs used by core base classes.
+/// Type-safe scheduler IDs for core base classes.
 /// Uses a separate NameType (NUMERIC_ID_INTERNAL) so IDs can never collide
 /// with component-level NUMERIC_ID values, even if the uint32_t values overlap.
-struct InternalSchedulerID {
-  uint32_t id;
+enum class InternalSchedulerID : uint32_t {
+  POLLING_UPDATE = 0,  // PollingComponent interval
+  DELAY_ACTION = 1,    // DelayAction timeout
 };
-
-/// Reserved scheduler IDs for core base classes.
-/// These use InternalSchedulerID which routes through NUMERIC_ID_INTERNAL,
-/// a separate matching namespace from the NUMERIC_ID used by components.
-namespace scheduler_internal_id {
-constexpr InternalSchedulerID POLLING_UPDATE{0};  // PollingComponent interval
-constexpr InternalSchedulerID DELAY_ACTION{1};    // DelayAction timeout
-}  // namespace scheduler_internal_id
 
 // Forward declaration
 class PollingComponent;

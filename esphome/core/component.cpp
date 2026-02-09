@@ -528,12 +528,12 @@ void PollingComponent::call_setup() {
 
 void PollingComponent::start_poller() {
   // Register interval.
-  this->set_interval(scheduler_internal_id::POLLING_UPDATE, this->get_update_interval(), [this]() { this->update(); });
+  this->set_interval(InternalSchedulerID::POLLING_UPDATE, this->get_update_interval(), [this]() { this->update(); });
 }
 
 void PollingComponent::stop_poller() {
   // Clear the interval to suspend component
-  this->cancel_interval(scheduler_internal_id::POLLING_UPDATE);
+  this->cancel_interval(InternalSchedulerID::POLLING_UPDATE);
 }
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
