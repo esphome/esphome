@@ -1,6 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COUNT_MODE,
@@ -126,7 +127,14 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = await sensor.new_sensor(config, config.get(CONF_USE_PCNT))
+    use_pcnt = config.get(CONF_USE_PCNT)
+    if CORE.is_esp32 and use_pcnt:
+        # Re-enable ESP-IDF's legacy driver component (excluded by default to save compile time)
+        # Provides driver/pcnt.h header for hardware pulse counter API
+        # TODO: Remove this once pulse_counter migrates to new PCNT API (driver/pulse_cnt.h)
+        include_builtin_idf_component("driver")
+
+    var = await sensor.new_sensor(config, use_pcnt)
     await cg.register_component(var, config)
 
     pin = await cg.gpio_pin_expression(config[CONF_PIN])

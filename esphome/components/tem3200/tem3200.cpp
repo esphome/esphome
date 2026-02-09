@@ -51,8 +51,6 @@ void TEM3200Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
 
-float TEM3200Component::get_setup_priority() const { return setup_priority::DATA; }
-
 i2c::ErrorCode TEM3200Component::read_(uint8_t &status, uint16_t &raw_temperature, uint16_t &raw_pressure) {
   uint8_t response[4] = {0x00, 0x00, 0x00, 0x00};
 

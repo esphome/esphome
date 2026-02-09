@@ -280,7 +280,7 @@ class TypeInfo(ABC):
         """
         field_id_size = self.calculate_field_id_size()
         method = f"{base_method}_force" if force else base_method
-        value = value_expr if value_expr else name
+        value = value_expr or name
         return f"size.{method}({field_id_size}, {value});"
 
     @abstractmethod
@@ -2270,9 +2270,12 @@ SOURCE_NAMES = {
     SOURCE_CLIENT: "SOURCE_CLIENT",
 }
 
-RECEIVE_CASES: dict[int, tuple[str, str | None]] = {}
+RECEIVE_CASES: dict[int, tuple[str, str | None, str]] = {}
 
 ifdefs: dict[str, str] = {}
+
+# Track messages with no fields (empty messages) for parameter elision
+EMPTY_MESSAGES: set[str] = set()
 
 
 def get_opt(
@@ -2504,26 +2507,26 @@ def build_service_message_type(
         # Only add ifdef when we're actually generating content
         if ifdef is not None:
             hout += f"#ifdef {ifdef}\n"
-        # Generate receive
+        # Generate receive handler and switch case
         func = f"on_{snake}"
-        hout += f"virtual void {func}(const {mt.name} &value){{}};\n"
-        case = ""
-        case += f"{mt.name} msg;\n"
-        # Check if this message has any fields (excluding deprecated ones)
         has_fields = any(not field.options.deprecated for field in mt.field)
-        if has_fields:
-            # Normal case: decode the message
+        is_empty = not has_fields
+        if is_empty:
+            EMPTY_MESSAGES.add(mt.name)
+        hout += f"virtual void {func}({'' if is_empty else f'const {mt.name} &value'}){{}};\n"
+        case = ""
+        if not is_empty:
+            case += f"{mt.name} msg;\n"
             case += "msg.decode(msg_data, msg_size);\n"
-        else:
-            # Empty message optimization: skip decode since there are no fields
-            case += "// Empty message: no decode needed\n"
         if log:
             case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-            case += f'this->log_receive_message_(LOG_STR("{func}"), msg);\n'
+            if is_empty:
+                case += f'this->log_receive_message_(LOG_STR("{func}"));\n'
+            else:
+                case += f'this->log_receive_message_(LOG_STR("{func}"), msg);\n'
             case += "#endif\n"
-        case += f"this->{func}(msg);\n"
+        case += f"this->{func}({'msg' if not is_empty else ''});\n"
         case += "break;"
-        # Store the message name and ifdef with the case for later use
         RECEIVE_CASES[id_] = (case, ifdef, mt.name)
 
         # Only close ifdef if we opened it
@@ -2599,15 +2602,8 @@ static inline void append_field_prefix(DumpBuffer &out, const char *field_name, 
   out.append(indent, ' ').append(field_name).append(": ");
 }
 
-static inline void append_with_newline(DumpBuffer &out, const char *str) {
-  out.append(str);
-  out.append("\\n");
-}
-
 static inline void append_uint(DumpBuffer &out, uint32_t value) {
-  char buf[16];
-  snprintf(buf, sizeof(buf), "%" PRIu32, value);
-  out.append(buf);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu32, value));
 }
 
 // RAII helper for message dump formatting
@@ -2625,31 +2621,23 @@ class MessageDumpHelper {
 
 // Helper functions to reduce code duplication in dump methods
 static void dump_field(DumpBuffer &out, const char *field_name, int32_t value, int indent = 2) {
-  char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%" PRId32, value);
-  append_with_newline(out, buffer);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRId32 "\\n", value));
 }
 
 static void dump_field(DumpBuffer &out, const char *field_name, uint32_t value, int indent = 2) {
-  char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%" PRIu32, value);
-  append_with_newline(out, buffer);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu32 "\\n", value));
 }
 
 static void dump_field(DumpBuffer &out, const char *field_name, float value, int indent = 2) {
-  char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%g", value);
-  append_with_newline(out, buffer);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%g\\n", value));
 }
 
 static void dump_field(DumpBuffer &out, const char *field_name, uint64_t value, int indent = 2) {
-  char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%" PRIu64, value);
-  append_with_newline(out, buffer);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu64 "\\n", value));
 }
 
 static void dump_field(DumpBuffer &out, const char *field_name, bool value, int indent = 2) {
@@ -2689,7 +2677,7 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
   char hex_buf[format_hex_pretty_size(160)];
   append_field_prefix(out, field_name, indent);
   format_hex_pretty_to(hex_buf, data, len);
-  append_with_newline(out, hex_buf);
+  out.append(hex_buf).append("\\n");
 }
 
 """
@@ -2854,6 +2842,7 @@ static const char *const TAG = "api.service";
     hpp += (
         "  void log_receive_message_(const LogString *name, const ProtoMessage &msg);\n"
     )
+    hpp += "  void log_receive_message_(const LogString *name);\n"
     hpp += " public:\n"
     hpp += "#endif\n\n"
 
@@ -2863,7 +2852,7 @@ static const char *const TAG = "api.service";
     hpp += "    DumpBuffer dump_buf;\n"
     hpp += "    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));\n"
     hpp += "#endif\n"
-    hpp += "    return this->send_message_(msg, message_type);\n"
+    hpp += "    return this->send_message_impl(msg, message_type);\n"
     hpp += "  }\n\n"
 
     # Add logging helper method implementations to cpp
@@ -2876,6 +2865,9 @@ static const char *const TAG = "api.service";
     cpp += f"void {class_name}::log_receive_message_(const LogString *name, const ProtoMessage &msg) {{\n"
     cpp += "  DumpBuffer dump_buf;\n"
     cpp += '  ESP_LOGVV(TAG, "%s: %s", LOG_STR_ARG(name), msg.dump_to(dump_buf));\n'
+    cpp += "}\n"
+    cpp += f"void {class_name}::log_receive_message_(const LogString *name) {{\n"
+    cpp += '  ESP_LOGVV(TAG, "%s: {}", LOG_STR_ARG(name));\n'
     cpp += "}\n"
     cpp += "#endif\n\n"
 
@@ -2914,7 +2906,6 @@ static const char *const TAG = "api.service";
     class_name = "APIServerConnection"
     hpp += "\n"
     hpp += f"class {class_name} : public {class_name}Base {{\n"
-    hpp += " public:\n"
     hpp_protected = ""
     cpp += "\n"
 
@@ -2922,53 +2913,14 @@ static const char *const TAG = "api.service";
     message_auth_map: dict[str, bool] = {}
     message_conn_map: dict[str, bool] = {}
 
-    m = serv.method[0]
     for m in serv.method:
-        func = m.name
         inp = m.input_type[1:]
-        ret = m.output_type[1:]
-        is_void = ret == "void"
-        snake = camel_to_snake(inp)
-        on_func = f"on_{snake}"
         needs_conn = get_opt(m, pb.needs_setup_connection, True)
         needs_auth = get_opt(m, pb.needs_authentication, True)
 
         # Store authentication requirements for message types
         message_auth_map[inp] = needs_auth
         message_conn_map[inp] = needs_conn
-
-        ifdef = message_ifdef_map.get(inp, ifdefs.get(inp))
-
-        if ifdef is not None:
-            hpp += f"#ifdef {ifdef}\n"
-            hpp_protected += f"#ifdef {ifdef}\n"
-            cpp += f"#ifdef {ifdef}\n"
-
-        hpp_protected += f"  void {on_func}(const {inp} &msg) override;\n"
-
-        # For non-void methods, generate a send_ method instead of return-by-value
-        if is_void:
-            hpp += f"  virtual void {func}(const {inp} &msg) = 0;\n"
-        else:
-            hpp += f"  virtual bool send_{func}_response(const {inp} &msg) = 0;\n"
-
-        cpp += f"void {class_name}::{on_func}(const {inp} &msg) {{\n"
-
-        # No authentication check here - it's done in read_message
-        body = ""
-        if is_void:
-            body += f"this->{func}(msg);\n"
-        else:
-            body += f"if (!this->send_{func}_response(msg)) {{\n"
-            body += "  this->on_fatal_error();\n"
-            body += "}\n"
-
-        cpp += indent(body) + "\n" + "}\n"
-
-        if ifdef is not None:
-            hpp += "#endif\n"
-            hpp_protected += "#endif\n"
-            cpp += "#endif\n"
 
     # Generate optimized read_message with authentication checking
     # Categorize messages by their authentication requirements

@@ -38,7 +38,7 @@ class E131Component : public esphome::Component {
   void set_method(E131ListenMethod listen_method) { this->listen_method_ = listen_method; }
 
  protected:
-  bool packet_(const std::vector<uint8_t> &data, int &universe, E131Packet &packet);
+  bool packet_(const uint8_t *data, size_t len, int &universe, E131Packet &packet);
   bool process_(int universe, const E131Packet &packet);
   bool join_igmp_groups_();
   void join_(int universe);

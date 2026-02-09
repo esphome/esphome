@@ -121,7 +121,6 @@ class AsyncWebServerRequest {
     char buffer[URL_BUF_SIZE];
     return std::string(this->url_to(buffer));
   }
-  std::string host() const;
   // NOLINTNEXTLINE(readability-identifier-naming)
   size_t contentLength() const { return this->req_->content_len; }
 
@@ -162,19 +161,24 @@ class AsyncWebServerRequest {
   }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  bool hasParam(const std::string &name) { return this->getParam(name) != nullptr; }
+  bool hasParam(const char *name) { return this->getParam(name) != nullptr; }
   // NOLINTNEXTLINE(readability-identifier-naming)
-  AsyncWebParameter *getParam(const std::string &name);
+  bool hasParam(const std::string &name) { return this->getParam(name.c_str()) != nullptr; }
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  AsyncWebParameter *getParam(const char *name);
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  AsyncWebParameter *getParam(const std::string &name) { return this->getParam(name.c_str()); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   bool hasArg(const char *name) { return this->hasParam(name); }
-  std::string arg(const std::string &name) {
+  std::string arg(const char *name) {
     auto *param = this->getParam(name);
     if (param) {
       return param->value();
     }
     return {};
   }
+  std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
