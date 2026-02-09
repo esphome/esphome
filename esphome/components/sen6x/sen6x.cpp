@@ -190,37 +190,23 @@ void SEN6XComponent::setup() {
         // Use a stable hash based only on serial number to avoid NVS accumulation
         // Config version is stored inside the struct to detect when to invalidate
         uint32_t hash = fnv1a_hash_extend(fnv1a_hash("sen6x_voc_baseline"), this->serial_number_.c_str());
-        this->pref_ = global_preferences->make_preference<Sen6xBaselines>(hash, true);
+        this->pref_ = global_preferences->make_preference<Sen6xVocBaseline>(hash, true);
+        this->voc_baseline_time_ = App.get_loop_component_start_time();
 
         uint32_t current_config_hash = App.get_config_version_hash();
         if (this->pref_.load(&this->voc_baselines_storage_)) {
           if (this->voc_baselines_storage_.config_hash != current_config_hash) {
-            // Config or ESPHome version changed - discard old baseline
             ESP_LOGI(TAG, "Config changed, discarding old VOC baseline");
             this->voc_baselines_storage_ = {};
-          } else {
-            ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-                     this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
           }
         }
         this->voc_baselines_storage_.config_hash = current_config_hash;
 
-        // Initialize baseline store timestamp
-        this->last_baseline_store_ms_ = millis();
-
-        if (this->voc_baselines_storage_.state0 > 0 && this->voc_baselines_storage_.state1 > 0) {
-          ESP_LOGI(TAG, "Setting VOC baseline from save state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-                   this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
-          uint16_t states[4];
-
-          states[0] = this->voc_baselines_storage_.state0 >> 16;
-          states[1] = this->voc_baselines_storage_.state0 & 0xFFFF;
-          states[2] = this->voc_baselines_storage_.state1 >> 16;
-          states[3] = this->voc_baselines_storage_.state1 & 0xFFFF;
-
-          if (!this->write_command(SEN6X_CMD_VOC_ALGORITHM_STATE, states, 4)) {
-            ESP_LOGE(TAG, "Failed to set VOC baseline from saved state");
-          }
+        if (!this->write_command(SEN6X_CMD_VOC_ALGORITHM_STATE, this->voc_baselines_storage_.state, 4)) {
+          ESP_LOGE(TAG, "VOC Baseline State write to sensor failed");
+        } else {
+          ESP_LOGV(TAG, "VOC Baseline State loaded");
+          delay(20);
         }
       }
       this->schedule_post_setup_commands_();
@@ -401,6 +387,9 @@ void SEN6XComponent::dump_config() {
                   this->auto_cleaning_enabled_.value() ? "enabled" : "disabled",
                   this->auto_cleaning_interval_s_.value());
   }
+  if (this->voc_sensor_) {
+    ESP_LOGCONFIG(TAG, "  Store Baseline: %s", TRUEFALSE(this->store_baseline_));
+  }
   ESP_LOGCONFIG(TAG, "  Startup delay: %u ms", this->startup_delay_ms_);
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
@@ -467,36 +456,6 @@ void SEN6XComponent::update() {
     }
     return;
   }
-  // Store baselines after defined interval or if the difference between current and stored baseline becomes too
-  // much
-  if (this->store_baseline_ && (millis() - this->last_baseline_store_ms_) > SHORTEST_BASELINE_STORE_INTERVAL_MS) {
-    if (this->write_command(SEN6X_CMD_VOC_ALGORITHM_STATE)) {
-      // run it a bit later to avoid adding a delay here
-      this->set_timeout(550, [this]() {
-        uint16_t states[4];
-        if (this->read_data(states, 4)) {
-          uint32_t state0 = states[0] << 16 | states[1];
-          uint32_t state1 = states[2] << 16 | states[3];
-          if ((uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state0 - state0)) >
-                  MAXIMUM_STORAGE_DIFF ||
-              (uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state1 - state1)) >
-                  MAXIMUM_STORAGE_DIFF) {
-            this->last_baseline_store_ms_ = millis();
-            this->voc_baselines_storage_.state0 = state0;
-            this->voc_baselines_storage_.state1 = state1;
-
-            if (this->pref_.save(&this->voc_baselines_storage_)) {
-              ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 " ,state1: 0x%04" PRIX32,
-                       this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
-            } else {
-              ESP_LOGW(TAG, "Could not store VOC baselines");
-            }
-          }
-        }
-      });
-    }
-  }
-
   uint16_t read_cmd;
   uint8_t read_words;
   set_read_command_and_words(this->sen6x_type_, read_cmd, read_words);
@@ -673,7 +632,29 @@ void SEN6XComponent::update() {
       if (this->co2_sensor_ != nullptr && co2_index >= 0)
         this->co2_sensor_->publish_state(co2);
 
-      this->status_clear_warning();
+      // Store VOC baseline periodically to flash (after measurement reads to avoid I2C conflicts)
+      if (!this->voc_sensor_ || !this->store_baseline_ ||
+          (App.get_loop_component_start_time() - this->voc_baseline_time_) < SHORTEST_BASELINE_STORE_INTERVAL_MS) {
+        this->status_clear_warning();
+      } else {
+        this->voc_baseline_time_ = App.get_loop_component_start_time();
+        if (!this->write_command(SEN6X_CMD_VOC_ALGORITHM_STATE)) {
+          this->status_set_warning();
+          ESP_LOGW(TAG, "VOC baseline state read command failed");
+        } else {
+          this->set_timeout(20, [this]() {
+            if (!this->read_data(this->voc_baselines_storage_.state, 4)) {
+              this->status_set_warning();
+              ESP_LOGW(TAG, "VOC baseline state read failed");
+            } else {
+              if (this->pref_.save(&this->voc_baselines_storage_)) {
+                ESP_LOGD(TAG, "VOC Baseline State saved");
+              }
+              this->status_clear_warning();
+            }
+          });
+        }
+      }
     });
   };
 

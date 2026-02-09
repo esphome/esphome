@@ -19,19 +19,16 @@ enum ERRORCODE {
   UNKNOWN_ERROR
 };
 
-// Shortest time interval of 3H for storing baseline values.
+// Shortest time interval of 2H (in milliseconds) for storing baseline values.
 // Prevents wear of the flash because of too many write operations
-static constexpr uint32_t SHORTEST_BASELINE_STORE_INTERVAL_MS = 10800 * 1000UL;
-// Store anyway if the baseline difference exceeds the max storage diff value
-static constexpr uint32_t MAXIMUM_STORAGE_DIFF = 50;
+static constexpr uint32_t SHORTEST_BASELINE_STORE_INTERVAL_MS = 2 * 60 * 60 * 1000UL;
 // Default NOx std_initial value per Sensirion specification
 static constexpr uint16_t NOX_DEFAULT_STD_INITIAL = 50;
 
-struct Sen6xBaselines {
-  int32_t state0;
-  int32_t state1;
+struct Sen6xVocBaseline {
+  uint16_t state[4];
   uint32_t config_hash;  // Used to detect config/version changes and invalidate old baselines
-} PACKED;                // NOLINT
+};
 
 struct GasTuning {
   uint16_t index_offset;
@@ -162,9 +159,9 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   std::string serial_number_;
   uint8_t firmware_version_major_{0};
   uint8_t firmware_version_minor_{0};
-  Sen6xBaselines voc_baselines_storage_{};
+  Sen6xVocBaseline voc_baselines_storage_{};
   bool store_baseline_{false};
-  uint32_t last_baseline_store_ms_{0};
+  uint32_t voc_baseline_time_{0};
   ESPPreferenceObject pref_;
 
   optional<GasTuning> voc_tuning_params_;
