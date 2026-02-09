@@ -227,9 +227,8 @@ size_t SourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_
   }
   size_t bytes_written = 0;
   std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
-  if (temp_ring_buffer.use_count() == 2) {
-    // Defensive programming check. Only writes to the ring buffer if both the speaker and the caller own a reference to
-    // it. Doesn't fully protect against multiple writers, but that shouldn't ever be configured to be possible.
+  if (temp_ring_buffer.use_count() > 0) {
+    // Only write to the ring buffer if the reference is valid
     bytes_written = temp_ring_buffer->write_without_replacement(data, length, ticks_to_wait);
     if (bytes_written > 0) {
       this->last_seen_data_ms_ = millis();
