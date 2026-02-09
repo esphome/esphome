@@ -201,11 +201,23 @@ void Component::set_timeout(uint32_t id, uint32_t timeout, std::function<void()>
 
 bool Component::cancel_timeout(uint32_t id) { return App.scheduler.cancel_timeout(this, id); }
 
+void Component::set_timeout(InternalSchedulerID id, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_timeout(this, id, timeout, std::move(f));
+}
+
+bool Component::cancel_timeout(InternalSchedulerID id) { return App.scheduler.cancel_timeout(this, id); }
+
 void Component::set_interval(uint32_t id, uint32_t interval, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_interval(this, id, interval, std::move(f));
 }
 
 bool Component::cancel_interval(uint32_t id) { return App.scheduler.cancel_interval(this, id); }
+
+void Component::set_interval(InternalSchedulerID id, uint32_t interval, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_interval(this, id, interval, std::move(f));
+}
+
+bool Component::cancel_interval(InternalSchedulerID id) { return App.scheduler.cancel_interval(this, id); }
 
 void Component::set_retry(uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
                           std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
@@ -533,12 +545,12 @@ void PollingComponent::call_setup() {
 
 void PollingComponent::start_poller() {
   // Register interval.
-  this->set_interval("update", this->get_update_interval(), [this]() { this->update(); });
+  this->set_interval(InternalSchedulerID::POLLING_UPDATE, this->get_update_interval(), [this]() { this->update(); });
 }
 
 void PollingComponent::stop_poller() {
   // Clear the interval to suspend component
-  this->cancel_interval("update");
+  this->cancel_interval(InternalSchedulerID::POLLING_UPDATE);
 }
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
