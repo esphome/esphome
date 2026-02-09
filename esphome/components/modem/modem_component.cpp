@@ -159,7 +159,12 @@ void ModemComponent::setup() {
   err = esp_netif_init();
   ESPHL_ERROR_CHECK(err, "PPP netif init failed");
   err = esp_event_loop_create_default();
-  ESPHL_ERROR_CHECK(err, "PPP event loop init failed");
+  // ESP_ERR_INVALID_STATE is returned if the default loop already exists, which is fine since we just want to make sure it exists
+  if (err != ERR_OK && err != ESP_ERR_INVALID_STATE) {
+    ESP_LOGE(TAG, "PPP event loop init failed: (%d) %s", err, esp_err_to_name(err));
+    this->mark_failed(); \
+    return;
+  }
 
   esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
   this->modem_handler->ppp_netif = esp_netif_new(&netif_ppp_config);

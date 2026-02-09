@@ -155,7 +155,8 @@ void WiFiComponent::wifi_pre_setup_() {
     return;
   }
   err = esp_event_loop_create_default();
-  if (err != ERR_OK) {
+  // ESP_ERR_INVALID_STATE is returned if the default loop already exists, which is fine since we just want to make sure it exists
+  if (err != ERR_OK && err != ESP_ERR_INVALID_STATE) {
     ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
     return;
   }

@@ -35,7 +35,13 @@ void OpenThreadComponent::setup() {
       .max_fds = 3,
   };
   ESP_ERROR_CHECK(nvs_flash_init());
-  ESP_ERROR_CHECK(esp_event_loop_create_default());
+  err = esp_event_loop_create_default();
+  // ESP_ERR_INVALID_STATE is returned if the default loop already exists, which is fine since we just want to make sure it exists
+  if (err != ERR_OK && err != ESP_ERR_INVALID_STATE) {
+    ESP_LOGE(TAG, "OPENTHREAD event loop init failed: (%d) %s", err, esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
 
