@@ -541,14 +541,8 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
 }
 
 void LD2420Component::read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer) {
-  // Early return avoids stack adjustment for the batch buffer below.
-  // loop() runs ~7000/min so most calls have nothing to read.
-  int avail = this->available();
-  if (avail <= 0) {
-    return;
-  }
-
   // Read all available bytes in batches to reduce UART call overhead.
+  int avail = this->available();
   uint8_t buf[MAX_LINE_LENGTH];
   while (avail > 0) {
     size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
