@@ -541,8 +541,10 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
 }
 
 void LD2420Component::read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer) {
+  // All current UART available() implementations return >= 0,
+  // use <= 0 to future-proof against any that may return negative on error.
   int avail = this->available();
-  if (avail == 0) {
+  if (avail <= 0) {
     return;
   }
 
