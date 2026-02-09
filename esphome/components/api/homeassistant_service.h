@@ -25,7 +25,9 @@ template<typename... X> class TemplatableStringValue : public TemplatableValue<s
 
  private:
   // Helper to convert value to string - handles the case where value is already a string
-  template<typename T> static std::string value_to_string(T &&val) { return to_string(std::forward<T>(val)); }
+  template<typename T> static std::string value_to_string(T &&val) {
+    return to_string(std::forward<T>(val));  // NOLINT
+  }
 
   // Overloads for string types - needed because std::to_string doesn't support them
   static std::string value_to_string(char *val) {

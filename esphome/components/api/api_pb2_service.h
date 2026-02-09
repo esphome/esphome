@@ -228,9 +228,4 @@ class APIServerConnectionBase : public ProtoService {
   void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
 };
 
-class APIServerConnection : public APIServerConnectionBase {
- protected:
-  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
-};
-
 }  // namespace esphome::api

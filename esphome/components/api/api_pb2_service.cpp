@@ -21,6 +21,23 @@ void APIServerConnectionBase::log_receive_message_(const LogString *name) {
 #endif
 
 void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {
+  // Check authentication/connection requirements
+  switch (msg_type) {
+    case HelloRequest::MESSAGE_TYPE:       // No setup required
+    case DisconnectRequest::MESSAGE_TYPE:  // No setup required
+    case PingRequest::MESSAGE_TYPE:        // No setup required
+      break;
+    case DeviceInfoRequest::MESSAGE_TYPE:  // Connection setup only
+      if (!this->check_connection_setup_()) {
+        return;
+      }
+      break;
+    default:
+      if (!this->check_authenticated_()) {
+        return;
+      }
+      break;
+  }
   switch (msg_type) {
     case HelloRequest::MESSAGE_TYPE: {
       HelloRequest msg;
@@ -621,30 +638,6 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     default:
       break;
   }
-}
-
-void APIServerConnection::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {
-  // Check authentication/connection requirements for messages
-  switch (msg_type) {
-    case HelloRequest::MESSAGE_TYPE:       // No setup required
-    case DisconnectRequest::MESSAGE_TYPE:  // No setup required
-    case PingRequest::MESSAGE_TYPE:        // No setup required
-      break;                               // Skip all checks for these messages
-    case DeviceInfoRequest::MESSAGE_TYPE:  // Connection setup only
-      if (!this->check_connection_setup_()) {
-        return;  // Connection not setup
-      }
-      break;
-    default:
-      // All other messages require authentication (which includes connection check)
-      if (!this->check_authenticated_()) {
-        return;  // Authentication failed
-      }
-      break;
-  }
-
-  // Call base implementation to process the message
-  APIServerConnectionBase::read_message(msg_size, msg_type, msg_data);
 }
 
 }  // namespace esphome::api

@@ -152,7 +152,10 @@ void Component::set_retry(const std::string &name, uint32_t initial_wait_time, u
 
 void Component::set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
                           std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+#pragma GCC diagnostic pop
 }
 
 bool Component::cancel_retry(const std::string &name) {  // NOLINT
@@ -163,7 +166,10 @@ bool Component::cancel_retry(const std::string &name) {  // NOLINT
 }
 
 bool Component::cancel_retry(const char *name) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return App.scheduler.cancel_retry(this, name);
+#pragma GCC diagnostic pop
 }
 
 void Component::set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
@@ -203,10 +209,18 @@ bool Component::cancel_interval(uint32_t id) { return App.scheduler.cancel_inter
 
 void Component::set_retry(uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
                           std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   App.scheduler.set_retry(this, id, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+#pragma GCC diagnostic pop
 }
 
-bool Component::cancel_retry(uint32_t id) { return App.scheduler.cancel_retry(this, id); }
+bool Component::cancel_retry(uint32_t id) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  return App.scheduler.cancel_retry(this, id);
+#pragma GCC diagnostic pop
+}
 
 void Component::call_loop() { this->loop(); }
 void Component::call_setup() { this->setup(); }
@@ -371,7 +385,10 @@ void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  //
 }
 void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,
                           float backoff_increase_factor) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   App.scheduler.set_retry(this, "", initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+#pragma GCC diagnostic pop
 }
 bool Component::is_failed() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 bool Component::is_ready() const {

@@ -68,6 +68,7 @@ extern const uint8_t STATUS_LED_OK;
 extern const uint8_t STATUS_LED_WARNING;
 extern const uint8_t STATUS_LED_ERROR;
 
+// Remove before 2026.8.0
 enum class RetryResult { DONE, RETRY };
 
 extern const uint16_t WARN_IF_BLOCKING_OVER_MS;
@@ -347,68 +348,40 @@ class Component {
   bool cancel_interval(const char *name);         // NOLINT
   bool cancel_interval(uint32_t id);              // NOLINT
 
-  /** Set an retry function with a unique name. Empty name means no cancelling possible.
-   *
-   * This will call the retry function f on the next scheduler loop. f should return RetryResult::DONE if
-   * it is successful and no repeat is required. Otherwise, returning RetryResult::RETRY will call f
-   * again in the future.
-   *
-   * The first retry of f happens after `initial_wait_time` milliseconds. The delay between retries is
-   * increased by multiplying by `backoff_increase_factor` each time. If no backoff_increase_factor is
-   * supplied (default = 1.0), the wait time will stay constant.
-   *
-   * The retry function f needs to accept a single argument: the number of attempts remaining. On the
-   * final retry of f, this value will be 0.
-   *
-   * This retry function can also be cancelled by name via cancel_retry().
-   *
-   * IMPORTANT: Do not rely on this having correct timing. This is only called from
-   * loop() and therefore can be significantly delayed.
-   *
-   * REMARK: It is an error to supply a negative or zero `backoff_increase_factor`, and 1.0 will be used instead.
-   *
-   * REMARK: The interval between retries is stored into a `uint32_t`, so this doesn't behave correctly
-   * if `initial_wait_time * (backoff_increase_factor ** (max_attempts - 2))` overflows.
-   *
-   * @param name The identifier for this retry function.
-   * @param initial_wait_time The time in ms before f is called again
-   * @param max_attempts The maximum number of executions
-   * @param f The function (or lambda) that should be called
-   * @param backoff_increase_factor time between retries is multiplied by this factor on every retry after the first
-   * @see cancel_retry()
-   */
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
+  /// @deprecated set_retry is deprecated. Use set_timeout or set_interval instead. Removed in 2026.8.0.
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,       // NOLINT
                  std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
 
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,              // NOLINT
                  std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
 
-  /** Set a retry function with a numeric ID (zero heap allocation).
-   *
-   * @param id The numeric identifier for this retry function
-   * @param initial_wait_time The wait time after the first execution
-   * @param max_attempts The max number of attempts
-   * @param f The function to call
-   * @param backoff_increase_factor The factor to increase the retry interval by
-   */
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,                   // NOLINT
                  std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
 
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,  // NOLINT
                  float backoff_increase_factor = 1.0f);                                                      // NOLINT
 
-  /** Cancel a retry function.
-   *
-   * @param name The identifier for this retry function.
-   * @return Whether a retry function was deleted.
-   */
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
   bool cancel_retry(const std::string &name);  // NOLINT
-  bool cancel_retry(const char *name);         // NOLINT
-  bool cancel_retry(uint32_t id);              // NOLINT
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
+  bool cancel_retry(const char *name);  // NOLINT
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
+  bool cancel_retry(uint32_t id);  // NOLINT
 
   /** Set a timeout function with a unique name.
    *
