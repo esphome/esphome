@@ -91,6 +91,8 @@ class WaterHeaterCall {
   float get_target_temperature_high() const { return this->target_temperature_high_; }
   /// Get state flags value
   uint32_t get_state() const { return this->state_; }
+  /// Get mask of state flags that are being changed
+  uint32_t get_state_mask() const { return this->state_mask_; }
 
  protected:
   void validate_();
@@ -100,6 +102,7 @@ class WaterHeaterCall {
   float target_temperature_low_{NAN};
   float target_temperature_high_{NAN};
   uint32_t state_{0};
+  uint32_t state_mask_{0};
 };
 
 struct WaterHeaterCallInternal : public WaterHeaterCall {
@@ -111,6 +114,7 @@ struct WaterHeaterCallInternal : public WaterHeaterCall {
     this->target_temperature_low_ = restore.target_temperature_low_;
     this->target_temperature_high_ = restore.target_temperature_high_;
     this->state_ = restore.state_;
+    this->state_mask_ = restore.state_mask_;
     return *this;
   }
 };
