@@ -28,7 +28,7 @@ static constexpr size_t MAX_INITIAL_PER_BATCH = 34;         // For clients >= AP
 static_assert(MAX_MESSAGES_PER_BATCH >= MAX_INITIAL_PER_BATCH,
               "MAX_MESSAGES_PER_BATCH must be >= MAX_INITIAL_PER_BATCH");
 
-class APIConnection final : public APIServerConnection {
+class APIConnection final : public APIServerConnectionBase {
  public:
   friend class APIServer;
   friend class ListEntitiesIterator;
