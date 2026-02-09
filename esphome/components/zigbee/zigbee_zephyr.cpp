@@ -247,14 +247,16 @@ void ZigbeeComponent::factory_reset() {
 }
 
 void ZigbeeComponent::dump_reporting_() {
-  ESP_LOGD(TAG, "Uptime %ums", millis());
+  auto now = millis();
   for (zb_uint8_t j = 0; j < ZCL_CTX().device_ctx->ep_count; j++) {
     if (ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info) {
       zb_zcl_reporting_info_t *rep_info = ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info;
       for (zb_uint8_t i = 0; i < ZCL_CTX().device_ctx->ep_desc_list[j]->rep_info_count; i++) {
-        ESP_LOGD(TAG, "Endpoint: %d, cluster_id %d, attr_id %d, flags %d, run_time %ums", rep_info->ep,
+        ESP_LOGD(TAG, "Endpoint: %d, cluster_id %d, attr_id %d, flags %d, report in %ums", rep_info->ep,
                  rep_info->cluster_id, rep_info->attr_id, rep_info->flags,
-                 ZB_TIME_BEACON_INTERVAL_TO_MSEC(rep_info->run_time));
+                 ZB_ZCL_GET_REPORTING_FLAG(rep_info, ZB_ZCL_REPORT_TIMER_STARTED)
+                     ? ZB_TIME_BEACON_INTERVAL_TO_MSEC(rep_info->run_time) - now
+                     : 0);
         ESP_LOGD(TAG, "Min_interval %ds, max_interval %ds, def_min_interval %ds, def_max_interval %ds",
                  rep_info->u.send_info.min_interval, rep_info->u.send_info.max_interval,
                  rep_info->u.send_info.def_min_interval, rep_info->u.send_info.def_max_interval);
