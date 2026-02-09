@@ -306,6 +306,7 @@ void ZigbeeComponent::after_reporting_info(zb_zcl_configure_reporting_req_t *con
 extern "C" {
 void zboss_signal_handler(zb_uint8_t param) { esphome::zigbee::global_zigbee->zboss_signal_handler_esphome(param); }
 
+// NOLINTBEGIN(readability-identifier-naming,bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 extern zb_ret_t __real_zb_zcl_put_reporting_info_from_req(zb_zcl_configure_reporting_req_t *config_rep_req,
                                                           zb_zcl_attr_addr_info_t *attr_addr_info);
 
@@ -316,5 +317,6 @@ zb_ret_t __wrap_zb_zcl_put_reporting_info_from_req(zb_zcl_configure_reporting_re
   esphome::zigbee::global_zigbee->after_reporting_info(config_rep_req, attr_addr_info);
   return ret;
 }
+// NOLINTEND(readability-identifier-naming,bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 }
 #endif
