@@ -103,6 +103,20 @@ inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && st
  *   - ESP-IDF: blocking reads, 0 only returned when all content read
  *   - Arduino: non-blocking, 0 means "no data yet" or "all content read"
  *
+ * Chunked transfer encoding limitations:
+ *   is_read_complete() only tracks content_length-based completion and always
+ *   returns false for chunked responses. Chunked EOF is signaled by read()
+ *   returning a negative value (HTTP_ERROR_CONNECTION_CLOSED), so callers
+ *   cannot distinguish successful chunked EOF from a connection error.
+ *
+ *   Streaming chunked responses (where data arrives slowly over time) are NOT
+ *   supported. The read helpers below block the main event loop until all data
+ *   is received. On ESP-IDF, slow chunked transfers cause transport timeouts
+ *   (-ESP_ERR_HTTP_EAGAIN) which are treated as errors. Components that need
+ *   streaming should use esp_http_client directly on a separate task with
+ *   esp_http_client_is_complete_data_received() for completion detection
+ *   (see audio_reader.cpp for an example).
+ *
  * Use the helper functions below instead of checking return values directly:
  *   - http_read_loop_result(): for manual loops with per-chunk processing
  *   - http_read_fully(): for simple "read N bytes into buffer" operations
@@ -204,8 +218,9 @@ class HttpContainer : public Parented<HttpRequestComponent> {
 
   size_t get_bytes_read() const { return this->bytes_read_; }
 
-  /// Check if all expected content has been read
-  /// For chunked responses, returns false (completion detected via read() returning error/EOF)
+  /// Check if all expected content has been read (non-chunked only).
+  /// For chunked responses, always returns false since content_length is unknown.
+  /// Chunked completion is instead detected when read() returns HTTP_ERROR_CONNECTION_CLOSED.
   bool is_read_complete() const {
     // Per RFC 9112, these responses have no body:
     // - 1xx (Informational), 204 No Content, 205 Reset Content, 304 Not Modified

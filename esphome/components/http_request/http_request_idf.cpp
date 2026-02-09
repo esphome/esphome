@@ -224,7 +224,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 //
 // esp_http_client_read() in blocking mode returns:
 //   > 0: bytes read
-//   0: connection closed (end of stream)
+//   0: all chunked data received (is_chunk_complete true) or connection closed
+//   -ESP_ERR_HTTP_EAGAIN (-0x7007): transport timeout, no data available yet
 //   < 0: error
 //
 // We normalize to HttpContainer::read() contract:
@@ -237,6 +238,17 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 //   We handle this by skipping the content_length check when content_length is 0,
 //   allowing esp_http_client_read() to handle chunked decoding internally and signal EOF
 //   by returning 0.
+//
+// Limitation - streaming chunked responses are not supported:
+//   This read() implementation blocks the main event loop until all data is received.
+//   For chunked responses where data arrives slowly (e.g., TTS streaming via ffmpeg proxy),
+//   esp_http_client_read() returns -ESP_ERR_HTTP_EAGAIN when its internal transport timeout
+//   (configured via timeout_ms) expires before data arrives. This is mapped to a negative
+//   return value, which callers treat as an error. Supporting streaming chunked transfers
+//   would require a non-blocking incremental read pattern that yields back to the event loop
+//   between chunks. Components that need streaming (e.g., audio_reader) use esp_http_client
+//   directly on a separate FreeRTOS task with esp_http_client_is_complete_data_received()
+//   as the authoritative completion check.
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
@@ -258,13 +270,18 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
     return read_len_or_error;
   }
 
-  // esp_http_client_read() returns 0 in two cases:
-  // 1. Known content_length: connection closed before all data received (error)
-  // 2. Chunked encoding (content_length == 0): end of stream reached (EOF)
-  // For case 1, returning HTTP_ERROR_CONNECTION_CLOSED is correct.
-  // For case 2, 0 indicates that all chunked data has already been delivered
-  // in previous successful read() calls, so treating this as a closed
-  // connection does not cause any loss of response data.
+  // esp_http_client_read() returns 0 when:
+  // - Known content_length: connection closed before all data received (error)
+  // - Chunked encoding: all chunks received (is_chunk_complete true, genuine EOF)
+  // In both cases, returning HTTP_ERROR_CONNECTION_CLOSED is acceptable:
+  // for the chunked case, all data has already been delivered in previous
+  // successful read() calls, so no response data is lost.
+  //
+  // Note: for chunked responses, is_read_complete() always returns false
+  // (it only tracks content_length-based completion), so chunked transfers
+  // always terminate via this error path rather than the COMPLETE path in
+  // http_read_loop_result(). This works for complete-response use cases
+  // but means callers cannot distinguish chunked EOF from connection errors.
   if (read_len_or_error == 0) {
     return HTTP_ERROR_CONNECTION_CLOSED;
   }
