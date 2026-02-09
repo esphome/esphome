@@ -2,8 +2,7 @@
 
 namespace esphome::libretiny {
 
-void UartManager::deinit_all()
-{
+void UartManager::deinit_all() {
   lt_log_disable();
   for (auto &uart_opt : uarts_) {
     if (uart_opt.has_value()) {
@@ -12,7 +11,7 @@ void UartManager::deinit_all()
   }
 }
 
-const FixedVector<pin_size_t>& UartManager::get_tx_pins_for_uart(const uint8_t uart_number) const {
+const FixedVector<pin_size_t> &UartManager::get_tx_pins_for_uart(const uint8_t uart_number) const {
   auto *uart = get_uart_by_number_(uart_number);
   if (!uart) {
     return get_empty_pins();
@@ -20,7 +19,7 @@ const FixedVector<pin_size_t>& UartManager::get_tx_pins_for_uart(const uint8_t u
   return uart->tx_pins;
 }
 
-const FixedVector<pin_size_t>& UartManager::get_rx_pins_for_uart(const uint8_t uart_number) const {
+const FixedVector<pin_size_t> &UartManager::get_rx_pins_for_uart(const uint8_t uart_number) const {
   auto *uart = get_uart_by_number_(uart_number);
   if (!uart) {
     return get_empty_pins();
@@ -28,7 +27,7 @@ const FixedVector<pin_size_t>& UartManager::get_rx_pins_for_uart(const uint8_t u
   return uart->rx_pins;
 }
 
-HardwareSerial* UartManager::get_hw_serial_by_number(const uint8_t uart_number) {
+HardwareSerial *UartManager::get_hw_serial_by_number(const uint8_t uart_number) {
   auto *uart = get_uart_by_number_(uart_number);
   if (!uart) {
     return nullptr;
@@ -45,13 +44,13 @@ bool UartManager::validate_pins(const uint8_t uart_number, const uint8_t rx_pin,
 }
 
 /**
-  * @brief Initialize UART without changing pins
-  *
-  * @param uart_number Hardware UART number (0-2)
-  * @param baud_rate Baud rate to use
-  * @param config Configuration (data bits, parity, stop bits)
-  * @return true on success
-  */
+ * @brief Initialize UART without changing pins
+ *
+ * @param uart_number Hardware UART number (0-2)
+ * @param baud_rate Baud rate to use
+ * @param config Configuration (data bits, parity, stop bits)
+ * @return true on success
+ */
 bool UartManager::init_uart(const uint8_t uart_number, uint32_t baud_rate, const uint16_t config) {
   auto *uart = get_uart_by_number_(uart_number);
   if (!uart) {
@@ -63,17 +62,17 @@ bool UartManager::init_uart(const uint8_t uart_number, uint32_t baud_rate, const
 }
 
 /**
-  * @brief
-  *
-  * @param uart_number Hardware UART number (0-2)
-  * @param baud_rate Baud rate to use
-  * @param config Configuration (data bits, parity, stop bits)
-  * @param rx_pin pin number to use for RX
-  * @param tx_pin pin number to use for TX
-  * @return true on success
-  */
+ * @brief
+ *
+ * @param uart_number Hardware UART number (0-2)
+ * @param baud_rate Baud rate to use
+ * @param config Configuration (data bits, parity, stop bits)
+ * @param rx_pin pin number to use for RX
+ * @param tx_pin pin number to use for TX
+ * @return true on success
+ */
 bool UartManager::init_uart(const uint8_t uart_number, uint32_t baud_rate, const uint16_t config, const uint8_t rx_pin,
-                const uint8_t tx_pin) {
+                            const uint8_t tx_pin) {
   auto *uart = get_uart_by_number_(uart_number);
   if (!uart) {
     return false;
@@ -107,14 +106,14 @@ void UartManager::deinit_uart(const uint8_t uart_number) {
   uart->hw_serial.end();
 }
 
-UartManager::UartInfo* UartManager::get_uart_by_number_(const uint8_t uart_number) {
+UartManager::UartInfo *UartManager::get_uart_by_number_(const uint8_t uart_number) {
   if ((uart_number >= s_max_uarts) || (!uarts_[uart_number].has_value())) {
     return nullptr;
   }
   return &uarts_[uart_number].value();
 }
 
-const UartManager::UartInfo* UartManager::get_uart_by_number_(const uint8_t uart_number) const {
+const UartManager::UartInfo *UartManager::get_uart_by_number_(const uint8_t uart_number) const {
   if ((uart_number >= s_max_uarts) || (!uarts_[uart_number].has_value())) {
     return nullptr;
   }

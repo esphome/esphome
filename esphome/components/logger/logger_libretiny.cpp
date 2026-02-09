@@ -45,10 +45,9 @@ void Logger::pre_setup() {
         global_logger = this;
         return;
       } else {
-        LT_E(
-                 "  The chosen logger UART port is not available on this board."
-                 "The default port (%u) will be used instead.",
-                 LT_UART_DEFAULT_SERIAL);
+        LT_E("  The chosen logger UART port is not available on this board."
+             "The default port (%u) will be used instead.",
+             LT_UART_DEFAULT_SERIAL);
       }
     }
     this->uart_ = lt_uart_number_2_esphome(lt_uart);

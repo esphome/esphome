@@ -29,10 +29,7 @@ void LTComponent::dump_config() {
 
 float LTComponent::get_setup_priority() const { return setup_priority::BUS + 500.0f; }  // must be before Logger & UART
 
-void LTComponent::on_powerdown()
-{
-  this->uart_manager_.deinit_all();
-}
+void LTComponent::on_powerdown() { this->uart_manager_.deinit_all(); }
 
 }  // namespace libretiny
 }  // namespace esphome
