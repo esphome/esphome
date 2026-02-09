@@ -247,7 +247,7 @@ void ZigbeeComponent::factory_reset() {
 }
 
 void ZigbeeComponent::dump_reporting_() {
-  ESP_LOGD(TAG, "uptime %ums", millis());
+  ESP_LOGD(TAG, "Uptime %ums", millis());
   for (zb_uint8_t j = 0; j < ZCL_CTX().device_ctx->ep_count; j++) {
     if (ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info) {
       zb_zcl_reporting_info_t *rep_info = ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info;
