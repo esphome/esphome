@@ -270,7 +270,13 @@ void ZigbeeComponent::dump_reporting_() {
 }
 
 void ZigbeeComponent::before_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req,
-                                            zb_zcl_attr_addr_info_t *attr_addr_info) {}
+                                            zb_zcl_attr_addr_info_t *attr_addr_info) {
+  if (config_rep_req->direction == ZB_ZCL_CONFIGURE_REPORTING_SEND_REPORT) {
+    // force reporting on zha
+    // later on it can be set from configuration
+    config_rep_req->u.clnt.min_interval = 0;
+  }
+}
 
 void ZigbeeComponent::after_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req,
                                            zb_zcl_attr_addr_info_t *attr_addr_info) {
