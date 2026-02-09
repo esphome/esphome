@@ -11,6 +11,7 @@
 #include <esp_ota_ops.h>
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+#include "esphome/components/http_request/http_request.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
 #endif
@@ -26,6 +27,11 @@ static const char *const TAG = "esp32_hosted.update";
 // Older coprocessor firmware versions have a 1500-byte limit per RPC call
 constexpr size_t CHUNK_SIZE = 1500;
 
+#ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+// Interval/timeout IDs (uint32_t to avoid string comparison)
+constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
+#endif
+
 // Compile-time version string from esp_hosted_host_fw_ver.h macros
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
@@ -33,14 +39,29 @@ static const char *const ESP_HOSTED_VERSION_STR = STRINGIFY(ESP_HOSTED_VERSION_M
     ESP_HOSTED_VERSION_MINOR_1) "." STRINGIFY(ESP_HOSTED_VERSION_PATCH_1);
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+// Parse an integer from str, advancing ptr past the number
+// Returns false if no digits were parsed
+static bool parse_int(const char *&ptr, int &value) {
+  char *end;
+  value = static_cast<int>(strtol(ptr, &end, 10));
+  if (end == ptr)
+    return false;
+  ptr = end;
+  return true;
+}
+
 // Parse version string "major.minor.patch" into components
-// Returns true if parsing succeeded
+// Returns true if at least major.minor was parsed
 static bool parse_version(const std::string &version_str, int &major, int &minor, int &patch) {
   major = minor = patch = 0;
-  if (sscanf(version_str.c_str(), "%d.%d.%d", &major, &minor, &patch) >= 2) {
-    return true;
-  }
-  return false;
+  const char *ptr = version_str.c_str();
+
+  if (!parse_int(ptr, major) || *ptr++ != '.' || !parse_int(ptr, minor))
+    return false;
+  if (*ptr == '.')
+    parse_int(++ptr, patch);
+
+  return true;
 }
 
 // Compare two versions, returns:
@@ -111,15 +132,18 @@ void Esp32HostedUpdate::setup() {
   this->status_clear_error();
   this->publish_state();
 #else
-  // HTTP mode: retry initial check every 10s until network is ready (max 6 attempts)
+  // HTTP mode: check every 10s until network is ready (max 6 attempts)
   // Only if update interval is > 1 minute to avoid redundant checks
   if (this->get_update_interval() > 60000) {
-    this->set_retry("initial_check", 10000, 6, [this](uint8_t) {
-      if (!network::is_connected()) {
-        return RetryResult::RETRY;
+    this->initial_check_remaining_ = 6;
+    this->set_interval(INITIAL_CHECK_INTERVAL_ID, 10000, [this]() {
+      bool connected = network::is_connected();
+      if (--this->initial_check_remaining_ == 0 || connected) {
+        this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
+        if (connected) {
+          this->check();
+        }
       }
-      this->check();
-      return RetryResult::DONE;
     });
   }
 #endif
@@ -184,15 +208,26 @@ bool Esp32HostedUpdate::fetch_manifest_() {
   }
 
   // Read manifest JSON into string (manifest is small, ~1KB max)
+  // NOTE: HttpContainer::read() has non-BSD socket semantics - see http_request.h
+  // Use http_read_loop_result() helper instead of checking return values directly
   std::string json_str;
   json_str.reserve(container->content_length);
   uint8_t buf[256];
+  uint32_t last_data_time = millis();
+  const uint32_t read_timeout = this->http_request_parent_->get_timeout();
   while (container->get_bytes_read() < container->content_length) {
-    int read = container->read(buf, sizeof(buf));
-    if (read > 0) {
-      json_str.append(reinterpret_cast<char *>(buf), read);
-    }
+    int read_or_error = container->read(buf, sizeof(buf));
+    App.feed_wdt();
     yield();
+    auto result =
+        http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout, container->is_read_complete());
+    if (result == http_request::HttpReadLoopResult::RETRY)
+      continue;
+    // Note: COMPLETE is currently unreachable since the loop condition checks bytes_read < content_length,
+    // but this is defensive code in case chunked transfer encoding support is added in the future.
+    if (result != http_request::HttpReadLoopResult::DATA)
+      break;  // COMPLETE, ERROR, or TIMEOUT
+    json_str.append(reinterpret_cast<char *>(buf), read_or_error);
   }
   container->end();
 
@@ -297,32 +332,43 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   }
 
   // Stream firmware to coprocessor while computing SHA256
+  // NOTE: HttpContainer::read() has non-BSD socket semantics - see http_request.h
+  // Use http_read_loop_result() helper instead of checking return values directly
   sha256::SHA256 hasher;
   hasher.init();
 
   uint8_t buffer[CHUNK_SIZE];
+  uint32_t last_data_time = millis();
+  const uint32_t read_timeout = this->http_request_parent_->get_timeout();
   while (container->get_bytes_read() < total_size) {
-    int read = container->read(buffer, sizeof(buffer));
+    int read_or_error = container->read(buffer, sizeof(buffer));
 
     // Feed watchdog and give other tasks a chance to run
     App.feed_wdt();
     yield();
 
-    // Exit loop if no data available (stream closed or end of data)
-    if (read <= 0) {
-      if (read < 0) {
-        ESP_LOGE(TAG, "Stream closed with error");
-        esp_hosted_slave_ota_end();  // NOLINT
-        container->end();
-        this->status_set_error(LOG_STR("Download failed"));
-        return false;
-      }
-      // read == 0: no more data available, exit loop
+    auto result =
+        http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout, container->is_read_complete());
+    if (result == http_request::HttpReadLoopResult::RETRY)
+      continue;
+    // Note: COMPLETE is currently unreachable since the loop condition checks bytes_read < content_length,
+    // but this is defensive code in case chunked transfer encoding support is added in the future.
+    if (result == http_request::HttpReadLoopResult::COMPLETE)
       break;
+    if (result != http_request::HttpReadLoopResult::DATA) {
+      if (result == http_request::HttpReadLoopResult::TIMEOUT) {
+        ESP_LOGE(TAG, "Timeout reading firmware data");
+      } else {
+        ESP_LOGE(TAG, "Error reading firmware data: %d", read_or_error);
+      }
+      esp_hosted_slave_ota_end();  // NOLINT
+      container->end();
+      this->status_set_error(LOG_STR("Download failed"));
+      return false;
     }
 
-    hasher.add(buffer, read);
-    err = esp_hosted_slave_ota_write(buffer, read);  // NOLINT
+    hasher.add(buffer, read_or_error);
+    err = esp_hosted_slave_ota_write(buffer, read_or_error);  // NOLINT
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
       esp_hosted_slave_ota_end();  // NOLINT

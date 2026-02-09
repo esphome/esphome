@@ -287,7 +287,6 @@ void MSA3xxComponent::update() {
   this->status_.never_published = false;
   this->status_clear_warning();
 }
-float MSA3xxComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void MSA3xxComponent::set_offset(float offset_x, float offset_y, float offset_z) {
   this->offset_x_ = offset_x;

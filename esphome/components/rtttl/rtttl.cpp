@@ -290,25 +290,26 @@ void Rtttl::loop() {
     this->position_++;
   }
 
-  // now, get optional '.' dotted note
-  if (this->rtttl_[this->position_] == '.') {
-    this->note_duration_ += this->note_duration_ / 2;
-    this->position_++;
-  }
-
   // now, get scale
   uint8_t scale = get_integer_();
-  if (scale == 0)
+  if (scale == 0) {
     scale = this->default_octave_;
+  }
 
   if (scale < 4 || scale > 7) {
     ESP_LOGE(TAG, "Octave must be between 4 and 7 (it is %d)", scale);
     this->finish_();
     return;
   }
-  bool need_note_gap = false;
+
+  // now, get optional '.' dotted note
+  if (this->rtttl_[this->position_] == '.') {
+    this->note_duration_ += this->note_duration_ / 2;
+    this->position_++;
+  }
 
   // Now play the note
+  bool need_note_gap = false;
   if (note) {
     auto note_index = (scale - 4) * 12 + note;
     if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {

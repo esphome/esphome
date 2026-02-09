@@ -30,8 +30,7 @@
 #include <cerrno>
 #include <sys/socket.h>
 
-namespace esphome {
-namespace web_server_idf {
+namespace esphome::web_server_idf {
 
 #ifndef HTTPD_409
 #define HTTPD_409 "409 Conflict"
@@ -246,24 +245,17 @@ optional<std::string> AsyncWebServerRequest::get_header(const char *name) const 
   return request_get_header(*this, name);
 }
 
-std::string AsyncWebServerRequest::url() const {
-  auto *query_start = strchr(this->req_->uri, '?');
-  std::string result;
-  if (query_start == nullptr) {
-    result = this->req_->uri;
-  } else {
-    result = std::string(this->req_->uri, query_start - this->req_->uri);
-  }
+StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) const {
+  const char *uri = this->req_->uri;
+  const char *query_start = strchr(uri, '?');
+  size_t uri_len = query_start ? static_cast<size_t>(query_start - uri) : strlen(uri);
+  size_t copy_len = std::min(uri_len, URL_BUF_SIZE - 1);
+  memcpy(buffer.data(), uri, copy_len);
+  buffer[copy_len] = '\0';
   // Decode URL-encoded characters in-place (e.g., %20 -> space)
-  // This matches AsyncWebServer behavior on Arduino
-  if (!result.empty()) {
-    size_t new_len = url_decode(&result[0]);
-    result.resize(new_len);
-  }
-  return result;
+  size_t decoded_len = url_decode(buffer.data());
+  return StringRef(buffer.data(), decoded_len);
 }
-
-std::string AsyncWebServerRequest::host() const { return this->get_header("Host").value(); }
 
 void AsyncWebServerRequest::send(AsyncWebServerResponse *response) {
   httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
@@ -371,7 +363,7 @@ void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
 }
 #endif
 
-AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
+AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
   // Check cache first - only successful lookups are cached
   for (auto *param : this->params_) {
     if (param->name() == name) {
@@ -380,11 +372,11 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
   }
 
   // Look up value from query strings
-  optional<std::string> val = query_key_value(this->post_query_, name);
+  optional<std::string> val = query_key_value(this->post_query_.c_str(), this->post_query_.size(), name);
   if (!val.has_value()) {
     auto url_query = request_get_url_query(*this);
     if (url_query.has_value()) {
-      val = query_key_value(url_query.value(), name);
+      val = query_key_value(url_query.value().c_str(), url_query.value().size(), name);
     }
   }
 
@@ -902,7 +894,6 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
 }
 #endif  // USE_WEBSERVER_OTA
 
-}  // namespace web_server_idf
-}  // namespace esphome
+}  // namespace esphome::web_server_idf
 
 #endif  // !defined(USE_ESP32)

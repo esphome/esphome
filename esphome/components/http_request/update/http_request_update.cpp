@@ -11,7 +11,12 @@ namespace http_request {
 
 // The update function runs in a task only on ESP32s.
 #ifdef USE_ESP32
-#define UPDATE_RETURN vTaskDelete(nullptr)  // Delete the current update task
+// vTaskDelete doesn't return, but clang-tidy doesn't know that
+#define UPDATE_RETURN \
+  do { \
+    vTaskDelete(nullptr); \
+    __builtin_unreachable(); \
+  } while (0)
 #else
 #define UPDATE_RETURN return
 #endif
@@ -70,19 +75,21 @@ void HttpRequestUpdate::update_task(void *params) {
     UPDATE_RETURN;
   }
 
-  size_t read_index = 0;
-  while (container->get_bytes_read() < container->content_length) {
-    int read_bytes = container->read(data + read_index, MAX_READ_SIZE);
-
-    yield();
-
-    if (read_bytes <= 0) {
-      // Network error or connection closed - break to avoid infinite loop
-      break;
+  auto read_result = http_read_fully(container.get(), data, container->content_length, MAX_READ_SIZE,
+                                     this_update->request_parent_->get_timeout());
+  if (read_result.status != HttpReadStatus::OK) {
+    if (read_result.status == HttpReadStatus::TIMEOUT) {
+      ESP_LOGE(TAG, "Timeout reading manifest");
+    } else {
+      ESP_LOGE(TAG, "Error reading manifest: %d", read_result.error_code);
     }
-
-    read_index += read_bytes;
+    // Defer to main loop to avoid race condition on component_state_ read-modify-write
+    this_update->defer([this_update]() { this_update->status_set_error(LOG_STR("Failed to read manifest")); });
+    allocator.deallocate(data, container->content_length);
+    container->end();
+    UPDATE_RETURN;
   }
+  size_t read_index = container->get_bytes_read();
 
   bool valid = false;
   {  // Ensures the response string falls out of scope and deallocates before the task ends

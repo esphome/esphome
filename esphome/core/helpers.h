@@ -16,6 +16,7 @@
 #include <type_traits>
 #include <vector>
 #include <concepts>
+#include <strings.h>
 
 #include "esphome/core/optional.h"
 
@@ -146,10 +147,40 @@ template<typename T, size_t N> class StaticVector {
   size_t count_{0};
 
  public:
+  // Default constructor
+  StaticVector() = default;
+
+  // Iterator range constructor
+  template<typename InputIt> StaticVector(InputIt first, InputIt last) {
+    while (first != last && count_ < N) {
+      data_[count_++] = *first++;
+    }
+  }
+
+  // Initializer list constructor
+  StaticVector(std::initializer_list<T> init) {
+    for (const auto &val : init) {
+      if (count_ >= N)
+        break;
+      data_[count_++] = val;
+    }
+  }
+
   // Minimal vector-compatible interface - only what we actually use
   void push_back(const T &value) {
     if (count_ < N) {
       data_[count_++] = value;
+    }
+  }
+
+  // Clear all elements
+  void clear() { count_ = 0; }
+
+  // Assign from iterator range
+  template<typename InputIt> void assign(InputIt first, InputIt last) {
+    count_ = 0;
+    while (first != last && count_ < N) {
+      data_[count_++] = *first++;
     }
   }
 
@@ -184,6 +215,10 @@ template<typename T, size_t N> class StaticVector {
   reverse_iterator rend() { return reverse_iterator(begin()); }
   const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
   const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
+
+  // Conversion to std::span for compatibility with span-based APIs
+  operator std::span<T>() { return std::span<T>(data_.data(), count_); }
+  operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
 };
 
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
@@ -572,6 +607,10 @@ template<typename T> constexpr T convert_little_endian(T val) {
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 /// Compare StringRefs for equality in case-insensitive manner.
 bool str_equals_case_insensitive(StringRef a, StringRef b);
+/// Compare C strings for equality in case-insensitive manner (no heap allocation).
+inline bool str_equals_case_insensitive(const char *a, const char *b) { return strcasecmp(a, b) == 0; }
+inline bool str_equals_case_insensitive(const std::string &a, const char *b) { return strcasecmp(a.c_str(), b) == 0; }
+inline bool str_equals_case_insensitive(const char *a, const std::string &b) { return strcasecmp(a, b.c_str()) == 0; }
 
 /// Check whether a string starts with a value.
 bool str_startswith(const std::string &str, const std::string &start);
@@ -649,9 +688,11 @@ inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
 }
 
 /// snprintf-like function returning std::string of maximum length \p len (excluding null terminator).
+/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
 std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t len, ...);
 
 /// sprintf-like function returning std::string.
+/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
 #ifdef USE_ESP8266
@@ -833,6 +874,9 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
 }
 
 /// Parse a hex character to its nibble value (0-15), returns 255 on invalid input
+/// Returned by parse_hex_char() for non-hex characters.
+static constexpr uint8_t INVALID_HEX_CHAR = 255;
+
 constexpr uint8_t parse_hex_char(char c) {
   if (c >= '0' && c <= '9')
     return c - '0';
@@ -840,7 +884,7 @@ constexpr uint8_t parse_hex_char(char c) {
     return c - 'A' + 10;
   if (c >= 'a' && c <= 'f')
     return c - 'a' + 10;
-  return 255;
+  return INVALID_HEX_CHAR;
 }
 
 /// Convert a nibble (0-15) to hex char with specified base ('a' for lowercase, 'A' for uppercase)

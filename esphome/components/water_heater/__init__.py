@@ -18,7 +18,7 @@ CODEOWNERS = ["@dhoeben"]
 IS_PLATFORM_COMPONENT = True
 
 water_heater_ns = cg.esphome_ns.namespace("water_heater")
-WaterHeater = water_heater_ns.class_("WaterHeater", cg.EntityBase, cg.Component)
+WaterHeater = water_heater_ns.class_("WaterHeater", cg.EntityBase)
 WaterHeaterCall = water_heater_ns.class_("WaterHeaterCall")
 WaterHeaterTraits = water_heater_ns.class_("WaterHeaterTraits")
 
@@ -46,7 +46,7 @@ _WATER_HEATER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
             }
         ),
     }
-).extend(cv.COMPONENT_SCHEMA)
+)
 
 _WATER_HEATER_SCHEMA.add_extra(entity_duplicate_validator("water_heater"))
 
@@ -90,8 +90,6 @@ async def register_water_heater(var: cg.Pvariable, config: ConfigType) -> cg.Pva
         var = cg.Pvariable(config[CONF_ID], var)
 
     cg.add_define("USE_WATER_HEATER")
-
-    await cg.register_component(var, config)
 
     cg.add(cg.App.register_water_heater(var))
 
