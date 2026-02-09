@@ -234,7 +234,7 @@ bool HttpContainerIDF::is_read_complete() const {
 // esp_http_client_read() in blocking mode returns:
 //   > 0: bytes read
 //   0: all chunked data received (is_chunk_complete true) or connection closed
-//   -ESP_ERR_HTTP_EAGAIN (-0x7007): transport timeout, no data available yet
+//   -ESP_ERR_HTTP_EAGAIN: transport timeout, no data available yet
 //   < 0: error
 //
 // We normalize to HttpContainer::read() contract:
