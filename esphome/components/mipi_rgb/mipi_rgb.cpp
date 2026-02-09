@@ -401,4 +401,4 @@ void MipiRgb::dump_config() {
 
 }  // namespace mipi_rgb
 }  // namespace esphome
-#endif  // USE_ESP32_VARIANT_ESP32S3
+#endif  // defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
