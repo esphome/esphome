@@ -94,34 +94,46 @@ SetTemperatureCompensationAction = sen6x_ns.class_(
 CONF_REFERENCE_CO2 = "reference_co2"
 
 
-GAS_SENSOR = cv.Schema(
-    {
-        cv.Optional(CONF_ALGORITHM_TUNING): cv.Schema(
-            {
-                cv.Optional(CONF_INDEX_OFFSET, default=100): cv.int_range(1, 250),
-                cv.Optional(CONF_LEARNING_TIME_OFFSET_HOURS, default=12): cv.int_range(
-                    1, 1000
-                ),
-                cv.Optional(CONF_LEARNING_TIME_GAIN_HOURS, default=12): cv.int_range(
-                    1, 1000
-                ),
-                cv.Optional(
-                    CONF_GATING_MAX_DURATION_MINUTES, default=720
-                ): cv.int_range(0, 3000),
-                cv.Optional(CONF_STD_INITIAL, default=50): cv.int_,
-                cv.Optional(CONF_GAIN_FACTOR, default=230): cv.int_range(1, 1000),
-            }
-        )
-    }
-)
-
-
-def float_previously_pct(value):
-    if isinstance(value, str) and "%" in value:
-        raise cv.Invalid(
-            f"The value '{value}' is a percentage. Suggested value: {float(value.strip('%')) / 100}"
-        )
-    return value
+def _gas_sensor(
+    *,
+    index_offset,
+    learning_time_offset,
+    learning_time_gain,
+    gating_max_duration,
+    std_initial,
+    gain_factor,
+):
+    return sensor.sensor_schema(
+        icon=ICON_RADIATOR,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_AQI,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ).extend(
+        {
+            cv.Optional(CONF_ALGORITHM_TUNING): cv.Schema(
+                {
+                    cv.Optional(CONF_INDEX_OFFSET, default=index_offset): cv.int_range(
+                        min=1, max=250
+                    ),
+                    cv.Optional(
+                        CONF_LEARNING_TIME_OFFSET_HOURS, default=learning_time_offset
+                    ): cv.int_range(min=1, max=1000),
+                    cv.Optional(
+                        CONF_LEARNING_TIME_GAIN_HOURS, default=learning_time_gain
+                    ): cv.int_range(min=1, max=1000),
+                    cv.Optional(
+                        CONF_GATING_MAX_DURATION_MINUTES, default=gating_max_duration
+                    ): cv.int_range(min=0, max=3000),
+                    cv.Optional(CONF_STD_INITIAL, default=std_initial): cv.int_range(
+                        min=10, max=5000
+                    ),
+                    cv.Optional(CONF_GAIN_FACTOR, default=gain_factor): cv.int_range(
+                        min=1, max=1000
+                    ),
+                }
+            )
+        }
+    )
 
 
 CONFIG_SCHEMA = (
@@ -158,35 +170,46 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_PM10,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_VOC): sensor.sensor_schema(
-                icon=ICON_RADIATOR,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_AQI,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(GAS_SENSOR),
-            cv.Optional(CONF_NOX): sensor.sensor_schema(
-                icon=ICON_RADIATOR,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_AQI,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(GAS_SENSOR),
+            cv.Optional(CONF_VOC): _gas_sensor(
+                index_offset=100,
+                learning_time_offset=12,
+                learning_time_gain=12,
+                gating_max_duration=180,
+                std_initial=50,
+                gain_factor=230,
+            ),
+            cv.Optional(CONF_NOX): _gas_sensor(
+                index_offset=1,
+                learning_time_offset=12,
+                learning_time_gain=12,
+                gating_max_duration=720,
+                std_initial=50,
+                gain_factor=230,
+            ),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                cv.Schema(
+                    {
+                        cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.int_range(
+                            700, 1200
+                        ),
+                        cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.int_range(0, 3000),
+                        cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION): cv.boolean,
+                        cv.Optional(
+                            CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE
+                        ): cv.use_id(sensor.Sensor),
+                    }
+                )
             ),
             cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
                 unit_of_measurement="ppb",
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.int_range(700, 1200),
-            cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.int_range(0, 3000),
-            cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION): cv.boolean,
-            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
-                sensor.Sensor
             ),
             cv.Optional(
                 CONF_STARTUP_DELAY, default="60s"
@@ -219,11 +242,10 @@ CONFIG_SCHEMA = (
                     cv.Optional(CONF_OFFSET, default=0): cv.float_range(
                         -163.84, 163.835
                     ),
-                    cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.All(
-                        float_previously_pct, cv.float_range(-3.2768, 3.2767)
-                    ),
+                    cv.Optional(
+                        CONF_NORMALIZED_OFFSET_SLOPE, default=0
+                    ): cv.float_range(-3.2768, 3.2767),
                     cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_range(0, 65535),
-                    cv.Optional(CONF_SLOT): cv.int_range(0, 4),
                 }
             ),
             cv.Optional(CONF_TEMPERATURE_ACCELERATION): cv.Schema(
@@ -309,19 +331,24 @@ async def to_code(config):
                 cfg[CONF_T2],
             )
         )
-    if CONF_AMBIENT_PRESSURE_COMPENSATION in config:
-        cg.add(var.set_ambient_pressure(config[CONF_AMBIENT_PRESSURE_COMPENSATION]))
-    if CONF_ALTITUDE_COMPENSATION in config:
-        cg.add(var.set_sensor_altitude(config[CONF_ALTITUDE_COMPENSATION]))
-    if CONF_AUTOMATIC_SELF_CALIBRATION in config:
-        cg.add(
-            var.set_co2_automatic_self_calibration(
-                config[CONF_AUTOMATIC_SELF_CALIBRATION]
+    if co2_cfg := config.get(CONF_CO2):
+        if CONF_AMBIENT_PRESSURE_COMPENSATION in co2_cfg:
+            cg.add(
+                var.set_ambient_pressure(co2_cfg[CONF_AMBIENT_PRESSURE_COMPENSATION])
             )
-        )
-    if CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE in config:
-        sens = await cg.get_variable(config[CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE])
-        cg.add(var.set_ambient_pressure_source(sens))
+        if CONF_ALTITUDE_COMPENSATION in co2_cfg:
+            cg.add(var.set_sensor_altitude(co2_cfg[CONF_ALTITUDE_COMPENSATION]))
+        if CONF_AUTOMATIC_SELF_CALIBRATION in co2_cfg:
+            cg.add(
+                var.set_co2_automatic_self_calibration(
+                    co2_cfg[CONF_AUTOMATIC_SELF_CALIBRATION]
+                )
+            )
+        if CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE in co2_cfg:
+            sens = await cg.get_variable(
+                co2_cfg[CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE]
+            )
+            cg.add(var.set_ambient_pressure_source(sens))
     if CONF_STORE_BASELINE in config:
         cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))
     if cfg := config.get(CONF_AUTO_CLEANING):
@@ -341,7 +368,7 @@ SEN6X_TEMPERATURE_COMPENSATION_ACTION_SCHEMA = cv.Schema(
             cv.float_range(-163.84, 163.835)
         ),
         cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.templatable(
-            cv.All(float_previously_pct, cv.float_range(-3.2768, 3.2767))
+            cv.float_range(-3.2768, 3.2767)
         ),
         cv.Optional(CONF_TIME_CONSTANT, default=0): cv.templatable(
             cv.int_range(0, 65535)
