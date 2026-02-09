@@ -2928,15 +2928,15 @@ static const char *const TAG = "api.service";
     no_conn_ids: set[int] = set()
     conn_only_ids: set[int] = set()
 
-    # Build a reverse lookup from case_label to message name for auth lookups
-    case_label_to_msg: dict[int, str] = {}
+    # Build a reverse lookup from message id to message name for auth lookups
+    id_to_msg_name: dict[int, str] = {}
     for mt in file.message_type:
         id_ = get_opt(mt, pb.id)
         if id_ is not None and not mt.options.deprecated:
-            case_label_to_msg[id_] = mt.name
+            id_to_msg_name[id_] = mt.name
 
     for id_, (_, _, case_label) in cases:
-        msg_name = case_label_to_msg.get(id_, "")
+        msg_name = id_to_msg_name.get(id_, "")
         if msg_name in message_auth_map:
             needs_auth = message_auth_map[msg_name]
             needs_conn = message_conn_map[msg_name]
