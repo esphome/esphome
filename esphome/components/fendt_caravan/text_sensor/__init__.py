@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_TYPE, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.const import CONF_TYPE
 
 from .. import CONF_KEY_NAME, CONF_PARENT_ID, CaravanDeviceComponent, fendt_caravan_ns
 
@@ -13,9 +13,17 @@ FendtTextSensor = fendt_caravan_ns.class_(
 )
 
 
-def _text_schema(key_name=cv.UNDEFINED) -> cv.Schema:
+def _text_schema(
+    device_class: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+    key_name=cv.UNDEFINED,
+) -> cv.Schema:
     return text_sensor.text_sensor_schema(
-        FendtTextSensor, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        FendtTextSensor,
+        device_class=device_class,
+        entity_category=entity_category,
+        icon=icon,
     ).extend(
         {
             cv.Required(CONF_PARENT_ID): cv.use_id(CaravanDeviceComponent),
@@ -26,8 +34,10 @@ def _text_schema(key_name=cv.UNDEFINED) -> cv.Schema:
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        "power_status": _text_schema("LINE_EN"),
-        "software_version": _text_schema("SOFTWARE_VERSION"),
+        "power_status": _text_schema(icon="mdi:power-plug", key_name="LINE_EN"),
+        "software_version": _text_schema(
+            icon="mdi:application-braces-outline", key_name="SOFTWARE_VERSION"
+        ),
     }
 )
 

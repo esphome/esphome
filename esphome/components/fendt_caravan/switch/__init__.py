@@ -13,7 +13,7 @@ FendtSwitch = fendt_caravan_ns.class_(
 )
 
 
-def _switch_schema(key_name_=cv.UNDEFINED) -> cv.Schema:
+def _switch_schema(icon: str = cv.UNDEFINED, key_name_=cv.UNDEFINED) -> cv.Schema:
     return switch.switch_schema(FendtSwitch).extend(
         {
             cv.Required(CONF_PARENT_ID): cv.use_id(CaravanDeviceComponent),
@@ -24,9 +24,11 @@ def _switch_schema(key_name_=cv.UNDEFINED) -> cv.Schema:
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        "main_switch": _switch_schema(),
-        "all_lights": _switch_schema(),
-        "floor_heater": _switch_schema("FLOOR_HEATER_ON"),
+        "main_switch": _switch_schema(icon="mdi:switch"),
+        "all_lights": _switch_schema(icon="mdi:lamp"),
+        "floor_heater": _switch_schema(
+            icon="mdi:heat-wave", key_name_="FLOOR_HEATER_ON"
+        ),
     }
 )
 
