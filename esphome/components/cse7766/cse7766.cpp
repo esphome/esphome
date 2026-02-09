@@ -7,7 +7,6 @@ namespace esphome {
 namespace cse7766 {
 
 static const char *const TAG = "cse7766";
-static constexpr size_t CSE7766_RAW_DATA_SIZE = 24;
 
 void CSE7766Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -16,25 +15,39 @@ void CSE7766Component::loop() {
     this->raw_data_index_ = 0;
   }
 
-  if (this->available() == 0) {
+  // Early return prevents updating last_transmission_ when no data is available.
+  int avail = this->available();
+  if (avail <= 0) {
     return;
   }
 
   this->last_transmission_ = now;
-  while (this->available() != 0) {
-    this->read_byte(&this->raw_data_[this->raw_data_index_]);
-    if (!this->check_byte_()) {
-      this->raw_data_index_ = 0;
-      this->status_set_warning();
-      continue;
-    }
 
-    if (this->raw_data_index_ == 23) {
-      this->parse_data_();
-      this->status_clear_warning();
+  // Read all available bytes in batches to reduce UART call overhead.
+  // At 4800 baud (~480 bytes/sec) with ~122 Hz loop rate, typically ~4 bytes per call.
+  uint8_t buf[CSE7766_RAW_DATA_SIZE];
+  while (avail > 0) {
+    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
     }
+    avail -= to_read;
 
-    this->raw_data_index_ = (this->raw_data_index_ + 1) % 24;
+    for (size_t i = 0; i < to_read; i++) {
+      this->raw_data_[this->raw_data_index_] = buf[i];
+      if (!this->check_byte_()) {
+        this->raw_data_index_ = 0;
+        this->status_set_warning();
+        continue;
+      }
+
+      if (this->raw_data_index_ == CSE7766_RAW_DATA_SIZE - 1) {
+        this->parse_data_();
+        this->status_clear_warning();
+      }
+
+      this->raw_data_index_ = (this->raw_data_index_ + 1) % CSE7766_RAW_DATA_SIZE;
+    }
   }
 }
 
@@ -53,14 +66,15 @@ bool CSE7766Component::check_byte_() {
     return true;
   }
 
-  if (index == 23) {
+  if (index == CSE7766_RAW_DATA_SIZE - 1) {
     uint8_t checksum = 0;
-    for (uint8_t i = 2; i < 23; i++) {
+    for (uint8_t i = 2; i < CSE7766_RAW_DATA_SIZE - 1; i++) {
       checksum += this->raw_data_[i];
     }
 
-    if (checksum != this->raw_data_[23]) {
-      ESP_LOGW(TAG, "Invalid checksum from CSE7766: 0x%02X != 0x%02X", checksum, this->raw_data_[23]);
+    if (checksum != this->raw_data_[CSE7766_RAW_DATA_SIZE - 1]) {
+      ESP_LOGW(TAG, "Invalid checksum from CSE7766: 0x%02X != 0x%02X", checksum,
+               this->raw_data_[CSE7766_RAW_DATA_SIZE - 1]);
       return false;
     }
     return true;
