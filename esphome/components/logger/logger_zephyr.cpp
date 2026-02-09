@@ -68,7 +68,7 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
 #ifdef CONFIG_PRINTK
   // Requires the debug component and an active SWD connection.
   // It is used for pyocd rtt -t nrf52840
-  k_str_out(const_cast<char *>(msg), len);
+  printk("%.*s", static_cast<int>(len), msg);
 #endif
   if (this->uart_dev_ == nullptr) {
     return;
