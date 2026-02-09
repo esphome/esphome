@@ -5,10 +5,10 @@ from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
-    CONF_ALTITUDE,
     CONF_ALTITUDE_COMPENSATION,
     CONF_AMBIENT_PRESSURE_COMPENSATION,
     CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
+    CONF_AUTOMATIC_SELF_CALIBRATION,
     CONF_CO2,
     CONF_FORMALDEHYDE,
     CONF_GAIN_FACTOR,
@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_ID,
     CONF_INDEX_OFFSET,
+    CONF_INTERVAL,
     CONF_LEARNING_TIME_GAIN_HOURS,
     CONF_LEARNING_TIME_OFFSET_HOURS,
     CONF_NORMALIZED_OFFSET_SLOPE,
@@ -25,7 +26,7 @@ from esphome.const import (
     CONF_PM_2_5,
     CONF_PM_4_0,
     CONF_PM_10_0,
-    CONF_PRESSURE,
+    CONF_STARTUP_DELAY,
     CONF_STD_INITIAL,
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE,
@@ -33,6 +34,7 @@ from esphome.const import (
     CONF_TIME_CONSTANT,
     CONF_TYPE,
     CONF_VOC,
+    CONF_VOC_BASELINE,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
@@ -63,16 +65,9 @@ SEN6XComponent = sen6x_ns.class_(
 
 CONF_SLOT = "slot"
 
-# Additional configuration constants needed for GitHub version
+# Local configuration constants not in esphome.const
 CONF_ENABLED = "enabled"
-CONF_INTERVAL = "interval"
-CONF_AMBIENT_PRESSURE = "ambient_pressure"
-CONF_SENSOR_ALTITUDE = "sensor_altitude"
-CONF_CO2_ASC = "co2_automatic_self_calibration"
-CONF_STARTUP_DELAY = "startup_delay"
 CONF_AUTO_CLEANING = "auto_cleaning"
-CONF_HCHO = "hcho"
-CONF_VOC_BASELINE = "voc_baseline"
 CONF_TEMPERATURE_ACCELERATION = "temperature_acceleration"
 CONF_K = "k"
 CONF_P = "p"
@@ -183,14 +178,14 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_HCHO): sensor.sensor_schema(
+            cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
                 unit_of_measurement="ppb",
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_AMBIENT_PRESSURE): cv.int_range(700, 1200),
-            cv.Optional(CONF_SENSOR_ALTITUDE): cv.int_range(0, 3000),
-            cv.Optional(CONF_CO2_ASC): cv.boolean,
+            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.int_range(700, 1200),
+            cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.int_range(0, 3000),
+            cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION): cv.boolean,
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
                 sensor.Sensor
             ),
@@ -307,22 +302,32 @@ async def to_code(config):
                 cfg.get(CONF_SLOT, 0),
             )
         )
-    if cfg := config.get(CONF_CO2, {}).get(CONF_AMBIENT_PRESSURE_COMPENSATION):
+    if cfg := config.get(CONF_TEMPERATURE_ACCELERATION):
         cg.add(
-            var.set_pressure_compensation(
-                cfg[CONF_PRESSURE],
+            var.set_temperature_acceleration(
+                cfg[CONF_K],
+                cfg[CONF_P],
+                cfg[CONF_T1],
+                cfg[CONF_T2],
             )
         )
-    if cfg := config.get(CONF_CO2, {}).get(CONF_ALTITUDE_COMPENSATION):
+    if CONF_AMBIENT_PRESSURE_COMPENSATION in config:
+        cg.add(var.set_ambient_pressure(config[CONF_AMBIENT_PRESSURE_COMPENSATION]))
+    if CONF_ALTITUDE_COMPENSATION in config:
+        cg.add(var.set_sensor_altitude(config[CONF_ALTITUDE_COMPENSATION]))
+    if CONF_AUTOMATIC_SELF_CALIBRATION in config:
         cg.add(
-            var.set_altitude_compensation(
-                cfg[CONF_ALTITUDE],
+            var.set_co2_automatic_self_calibration(
+                config[CONF_AUTOMATIC_SELF_CALIBRATION]
             )
         )
-
     if CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE in config:
         sens = await cg.get_variable(config[CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE])
         cg.add(var.set_ambient_pressure_source(sens))
+    if CONF_STORE_BASELINE in config:
+        cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))
+    if cfg := config.get(CONF_AUTO_CLEANING):
+        cg.add(var.set_auto_cleaning(cfg[CONF_ENABLED], cfg[CONF_INTERVAL]))
 
 
 SEN6X_ACTION_SCHEMA = maybe_simple_id(

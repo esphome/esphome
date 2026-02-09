@@ -39,12 +39,10 @@ sensor:
         gain_factor: 230
     co2:
       name: Carbon Dioxide
-      ambient_pressure_compensation:
-        pressure: 1013
-      altitude_compensation:
-        altitude: 0
     formaldehyde:
       name: Formaldehyde
+    ambient_pressure_compensation: 1013
+    altitude_compensation: 0
     temperature_compensation:
       offset: 0
       normalized_offset_slope: 0
