@@ -33,7 +33,10 @@ class Scheduler {
   // std::string overload - deprecated, use const char* or uint32_t instead
   // Remove before 2026.7.0
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func) {
+    this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::HASHED_STRING, nullptr, fnv1a_hash(name),
+                            timeout, std::move(func));
+  }
 
   /** Set a timeout with a const char* name.
    *
@@ -43,9 +46,15 @@ class Scheduler {
    *   - A static const char* variable
    *   - A pointer with lifetime >= the scheduled task
    */
-  void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func) {
+    this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::STATIC_STRING, name, 0, timeout,
+                            std::move(func));
+  }
   /// Set a timeout with a numeric ID (zero heap allocation)
-  void set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> func) {
+    this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID, nullptr, id, timeout,
+                            std::move(func));
+  }
   /// Set a timeout with an internal scheduler ID (separate namespace from component NUMERIC_ID)
   void set_timeout(Component *component, InternalSchedulerID id, uint32_t timeout, std::function<void()> func) {
     this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID_INTERNAL, nullptr, id.id, timeout,
@@ -53,15 +62,24 @@ class Scheduler {
   }
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_timeout(Component *component, const std::string &name);
-  bool cancel_timeout(Component *component, const char *name);
-  bool cancel_timeout(Component *component, uint32_t id);
+  bool cancel_timeout(Component *component, const std::string &name) {
+    return this->cancel_item_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name), SchedulerItem::TIMEOUT);
+  }
+  bool cancel_timeout(Component *component, const char *name) {
+    return this->cancel_item_(component, NameType::STATIC_STRING, name, 0, SchedulerItem::TIMEOUT);
+  }
+  bool cancel_timeout(Component *component, uint32_t id) {
+    return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::TIMEOUT);
+  }
   bool cancel_timeout(Component *component, InternalSchedulerID id) {
     return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, id.id, SchedulerItem::TIMEOUT);
   }
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func) {
+    this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::HASHED_STRING, nullptr, fnv1a_hash(name),
+                            interval, std::move(func));
+  }
 
   /** Set an interval with a const char* name.
    *
@@ -71,9 +89,15 @@ class Scheduler {
    *   - A static const char* variable
    *   - A pointer with lifetime >= the scheduled task
    */
-  void set_interval(Component *component, const char *name, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, const char *name, uint32_t interval, std::function<void()> func) {
+    this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::STATIC_STRING, name, 0, interval,
+                            std::move(func));
+  }
   /// Set an interval with a numeric ID (zero heap allocation)
-  void set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> func) {
+    this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID, nullptr, id, interval,
+                            std::move(func));
+  }
   /// Set an interval with an internal scheduler ID (separate namespace from component NUMERIC_ID)
   void set_interval(Component *component, InternalSchedulerID id, uint32_t interval, std::function<void()> func) {
     this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID_INTERNAL, nullptr, id.id, interval,
@@ -81,9 +105,15 @@ class Scheduler {
   }
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_interval(Component *component, const std::string &name);
-  bool cancel_interval(Component *component, const char *name);
-  bool cancel_interval(Component *component, uint32_t id);
+  bool cancel_interval(Component *component, const std::string &name) {
+    return this->cancel_item_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name), SchedulerItem::INTERVAL);
+  }
+  bool cancel_interval(Component *component, const char *name) {
+    return this->cancel_item_(component, NameType::STATIC_STRING, name, 0, SchedulerItem::INTERVAL);
+  }
+  bool cancel_interval(Component *component, uint32_t id) {
+    return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::INTERVAL);
+  }
   bool cancel_interval(Component *component, InternalSchedulerID id) {
     return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, id.id, SchedulerItem::INTERVAL);
   }
