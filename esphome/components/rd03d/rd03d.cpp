@@ -81,12 +81,8 @@ void RD03DComponent::dump_config() {
 }
 
 void RD03DComponent::loop() {
-  // All current UART available() implementations return >= 0,
-  // use <= 0 to future-proof against any that may return negative on error.
+  // Read all available bytes in batches to reduce UART call overhead.
   int avail = this->available();
-  if (avail <= 0)
-    return;
-
   uint8_t buf[64];
   while (avail > 0) {
     size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
