@@ -248,6 +248,12 @@ class TestLiterals:
             (cg.FloatLiteral(4.2), "4.2f"),
             (cg.FloatLiteral(1.23456789), "1.23456789f"),
             (cg.FloatLiteral(math.nan), "NAN"),
+            (cg.FlashStringLiteral("hello"), 'ESPHOME_F("hello")'),
+            (cg.FlashStringLiteral(""), 'ESPHOME_F("")'),
+            (
+                cg.FlashStringLiteral('quote"here'),
+                'ESPHOME_F("quote\\042here")',
+            ),
         ),
     )
     def test_str__simple(self, target: cg.Literal, expected: str):
