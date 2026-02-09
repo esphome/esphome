@@ -310,8 +310,12 @@ void LD2412Component::restart_and_read_all_info() {
 }
 
 void LD2412Component::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
   int avail = this->available();
+  if (avail <= 0) {
+    return;
+  }
+
+  // Read all available bytes in batches to reduce UART call overhead.
   uint8_t buf[MAX_LINE_LENGTH];
   while (avail > 0) {
     size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
