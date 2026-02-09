@@ -224,11 +224,6 @@ void HOT Scheduler::set_timeout(Component *component, uint32_t id, uint32_t time
   this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID, nullptr, id, timeout,
                           std::move(func));
 }
-void HOT Scheduler::set_timeout(Component *component, InternalSchedulerID id, uint32_t timeout,
-                                std::function<void()> func) {
-  this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID_INTERNAL, nullptr, id.id, timeout,
-                          std::move(func));
-}
 bool HOT Scheduler::cancel_timeout(Component *component, const std::string &name) {
   return this->cancel_item_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name), SchedulerItem::TIMEOUT);
 }
@@ -237,9 +232,6 @@ bool HOT Scheduler::cancel_timeout(Component *component, const char *name) {
 }
 bool HOT Scheduler::cancel_timeout(Component *component, uint32_t id) {
   return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::TIMEOUT);
-}
-bool HOT Scheduler::cancel_timeout(Component *component, InternalSchedulerID id) {
-  return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, id.id, SchedulerItem::TIMEOUT);
 }
 void HOT Scheduler::set_interval(Component *component, const std::string &name, uint32_t interval,
                                  std::function<void()> func) {
@@ -256,11 +248,6 @@ void HOT Scheduler::set_interval(Component *component, uint32_t id, uint32_t int
   this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID, nullptr, id, interval,
                           std::move(func));
 }
-void HOT Scheduler::set_interval(Component *component, InternalSchedulerID id, uint32_t interval,
-                                 std::function<void()> func) {
-  this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID_INTERNAL, nullptr, id.id, interval,
-                          std::move(func));
-}
 bool HOT Scheduler::cancel_interval(Component *component, const std::string &name) {
   return this->cancel_item_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name), SchedulerItem::INTERVAL);
 }
@@ -269,9 +256,6 @@ bool HOT Scheduler::cancel_interval(Component *component, const char *name) {
 }
 bool HOT Scheduler::cancel_interval(Component *component, uint32_t id) {
   return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::INTERVAL);
-}
-bool HOT Scheduler::cancel_interval(Component *component, InternalSchedulerID id) {
-  return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, id.id, SchedulerItem::INTERVAL);
 }
 
 struct RetryArgs {
