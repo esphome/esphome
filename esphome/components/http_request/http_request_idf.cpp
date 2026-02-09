@@ -239,16 +239,10 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 //   allowing esp_http_client_read() to handle chunked decoding internally and signal EOF
 //   by returning 0.
 //
-// Limitation - streaming chunked responses are not supported:
-//   This read() implementation blocks the main event loop until all data is received.
-//   For chunked responses where data arrives slowly (e.g., TTS streaming via ffmpeg proxy),
-//   esp_http_client_read() returns -ESP_ERR_HTTP_EAGAIN when its internal transport timeout
-//   (configured via timeout_ms) expires before data arrives. This is mapped to a negative
-//   return value, which callers treat as an error. Supporting streaming chunked transfers
-//   would require a non-blocking incremental read pattern that yields back to the event loop
-//   between chunks. Components that need streaming (e.g., audio_reader) use esp_http_client
-//   directly on a separate FreeRTOS task with esp_http_client_is_complete_data_received()
-//   as the authoritative completion check.
+// Streaming chunked responses are not supported (see http_request.h for details).
+// When data stops arriving, esp_http_client_read() returns -ESP_ERR_HTTP_EAGAIN
+// after its internal transport timeout (configured via timeout_ms) expires.
+// This is passed through as a negative return value, which callers treat as an error.
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());

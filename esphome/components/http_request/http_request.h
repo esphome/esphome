@@ -103,7 +103,21 @@ inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && st
  *   - ESP-IDF: blocking reads, 0 only returned when all content read
  *   - Arduino: non-blocking, 0 means "no data yet" or "all content read"
  *
- * Chunked transfer encoding behavior & limitations:
+ * Streaming chunked responses are NOT supported (all platforms):
+ *   The read helpers (http_read_loop_result, http_read_fully) block the main
+ *   event loop until all response data is received. For streaming responses
+ *   where data arrives slowly over a long period, this starves the event loop
+ *   on both ESP-IDF and Arduino. If data trickles in just often enough to
+ *   avoid the caller's timeout, the loop runs indefinitely. If data stops
+ *   entirely, ESP-IDF fails with -ESP_ERR_HTTP_EAGAIN (transport timeout)
+ *   while Arduino spins with delay(1) until the caller's timeout fires.
+ *   Supporting streaming requires a non-blocking incremental read pattern
+ *   that yields back to the event loop between chunks. Components that need
+ *   streaming should use esp_http_client directly on a separate FreeRTOS task
+ *   with esp_http_client_is_complete_data_received() for completion detection
+ *   (see audio_reader.cpp for an example).
+ *
+ * Chunked transfer encoding - platform differences:
  *   - ESP-IDF HttpContainer:
  *       is_read_complete() only tracks content_length-based completion and
  *       always returns false for chunked responses. For chunked responses,
@@ -111,15 +125,6 @@ inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && st
  *       (HTTP_ERROR_CONNECTION_CLOSED), so callers cannot distinguish a
  *       successful end-of-chunks from a transport error based on the return
  *       code alone.
- *
- *       Streaming chunked responses (where data arrives slowly over time) are
- *       NOT supported. The read helpers below block the main event loop until
- *       all data is received. On ESP-IDF, slow chunked transfers cause
- *       transport timeouts (-ESP_ERR_HTTP_EAGAIN) which are treated as
- *       errors. Components that need streaming should use esp_http_client
- *       directly on a separate task with
- *       esp_http_client_is_complete_data_received() for completion detection
- *       (see audio_reader.cpp for an example).
  *
  *   - Arduino HttpContainer:
  *       Chunked responses are decoded internally (see
