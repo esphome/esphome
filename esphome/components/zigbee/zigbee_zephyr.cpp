@@ -274,6 +274,7 @@ void ZigbeeComponent::before_reporting_info(zb_zcl_configure_reporting_req_t *co
 
 void ZigbeeComponent::after_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req,
                                            zb_zcl_attr_addr_info_t *attr_addr_info) {
+#ifdef ESPHOME_LOG_HAS_DEBUG
   auto *rep_info =
       zb_zcl_find_reporting_info_manuf(attr_addr_info->src_ep, attr_addr_info->cluster_id, attr_addr_info->cluster_role,
                                        config_rep_req->attr_id, attr_addr_info->manuf_code);
@@ -291,6 +292,7 @@ void ZigbeeComponent::after_reporting_info(zb_zcl_configure_reporting_req_t *con
                : 0,
            rep_info->u.send_info.min_interval, rep_info->u.send_info.max_interval,
            rep_info->u.send_info.def_min_interval, rep_info->u.send_info.def_max_interval);
+#endif
 }
 
 }  // namespace esphome::zigbee
