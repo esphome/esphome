@@ -330,6 +330,9 @@ void ESP8266SoftwareSerial::flush() {
   // Flush is a NO-OP with software serial, all bytes are written immediately.
 }
 size_t ESP8266SoftwareSerial::available() {
+  // Read volatile rx_in_pos_ once to avoid TOCTOU race with ISR.
+  // When in >= out, data is contiguous: [out..in).
+  // When in < out, data wraps: [out..buf_size) + [0..in).
   size_t in = this->rx_in_pos_;
   if (in >= this->rx_out_pos_)
     return in - this->rx_out_pos_;
