@@ -76,12 +76,16 @@ void Seesaw::dump_config() {
 
 void Seesaw::enable_encoder(uint8_t number) { this->write8_(SEESAW_ENCODER, SEESAW_ENCODER_INTENSET + number, 0x01); }
 
-int32_t Seesaw::get_encoder_position(uint8_t number) {
+bool Seesaw::get_encoder_position(uint8_t number, int32_t *position) {
+  if (position == nullptr)
+    return false;
+
   uint8_t buf[4];
   if (this->readbuf_(SEESAW_ENCODER, SEESAW_ENCODER_POSITION + number, buf, 4, 1000) != i2c::ERROR_OK)
-    return 0;
+    return false;
   int32_t value = (buf[0] << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
-  return -value;  // make clockwise positive
+  *position = -value;  // make clockwise positive
+  return true;
 }
 
 int16_t Seesaw::get_touch_value(uint8_t channel) {

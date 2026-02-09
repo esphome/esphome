@@ -12,7 +12,9 @@ void SeesawEncoder::setup() {
 }
 
 void SeesawEncoder::loop() {
-  int32_t new_value = this->parent_->get_encoder_position(this->number_);
+  int32_t new_value;
+  if (!this->parent_->get_encoder_position(this->number_, &new_value))
+    return;
   if (new_value < this->min_value_)
     new_value = this->min_value_;
   if (new_value > this->max_value_)
