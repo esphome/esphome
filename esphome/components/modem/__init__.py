@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_DISABLED,
     CONF_ENABLE_ON_BOOT,
     CONF_ID,
-    CONF_INVERTED,
     CONF_MODEL,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
