@@ -53,7 +53,7 @@ void MicroNova::request_update_listeners_() {
 
 void MicroNova::loop() {
   // Check if we're processing a command and waiting for reply
-  if (this->transmission_time_ != 0) {
+  if (this->reply_pending_) {
     // Check if all reply bytes have arrived
     if (this->available() >= STOVE_REPLY_SIZE) {
 #ifdef MICRONOVA_LISTENER_COUNT
@@ -71,12 +71,12 @@ void MicroNova::loop() {
 #else
       this->read_stove_reply_();
 #endif
-      this->transmission_time_ = 0;
+      this->reply_pending_ = false;
     } else if (millis() - this->transmission_time_ > STOVE_REPLY_TIMEOUT) {
       // Timeout - no reply received (buffer cleared before next command)
       ESP_LOGW(TAG, "Timeout waiting for reply from [0x%02X:0x%02X], available: %d",
                this->current_command_.memory_location, this->current_command_.memory_address, this->available());
-      this->transmission_time_ = 0;
+      this->reply_pending_ = false;
     }
     return;
   }
@@ -149,6 +149,7 @@ void MicroNova::send_current_command_() {
   this->enable_rx_pin_->digital_write(false);
 
   this->transmission_time_ = millis();
+  this->reply_pending_ = true;
 }
 
 int MicroNova::read_stove_reply_() {

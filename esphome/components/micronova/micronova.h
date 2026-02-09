@@ -11,7 +11,10 @@ namespace esphome::micronova {
 static const char *const TAG = "micronova";
 static constexpr uint8_t WRITE_QUEUE_SIZE = 10;
 
-/// Fixed-size circular buffer with FIFO semantics and iteration support
+/// Fixed-size circular buffer with FIFO semantics and iteration support.
+///
+/// We use a tiny fixed-size ring buffer here to avoid dynamic allocations from std::deque/std::queue
+/// (which can be wasteful on MCUs), while still being able to iterate for de-duplication.
 template<typename T, uint8_t N> class CommandRingBuffer {
  public:
   class Iterator {
@@ -151,7 +154,8 @@ class MicroNova : public Component, public uart::UARTDevice {
   CommandRingBuffer<MicroNovaCommand, MICRONOVA_LISTENER_COUNT> read_queue_;
 #endif
   MicroNovaCommand current_command_;
-  uint32_t transmission_time_{0};  ///< Time when current command was sent (0 = no command pending)
+  uint32_t transmission_time_{0};  ///< Time when current command was sent
+  bool reply_pending_{false};      ///< True if we are waiting for a reply from the stove
 
 #ifdef MICRONOVA_LISTENER_COUNT
   StaticVector<MicroNovaListener *, MICRONOVA_LISTENER_COUNT> listeners_;
