@@ -81,12 +81,8 @@ void RD03DComponent::dump_config() {
 }
 
 void RD03DComponent::loop() {
-  // Early return avoids stack adjustment for the batch buffer below.
-  // loop() runs ~7000/min so most calls have nothing to read.
+  // Read all available bytes in batches to reduce UART call overhead.
   int avail = this->available();
-  if (avail <= 0)
-    return;
-
   uint8_t buf[64];
   while (avail > 0) {
     size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
