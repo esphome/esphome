@@ -248,10 +248,15 @@ void ZigbeeComponent::factory_reset() {
 
 void ZigbeeComponent::dump_reporting_() {
   auto now = millis();
+  bool first = true;
   for (zb_uint8_t j = 0; j < ZCL_CTX().device_ctx->ep_count; j++) {
     if (ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info) {
       zb_zcl_reporting_info_t *rep_info = ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info;
       for (zb_uint8_t i = 0; i < ZCL_CTX().device_ctx->ep_desc_list[j]->rep_info_count; i++) {
+        if (!first) {
+          ESP_LOGD(TAG, "");
+        }
+        first = false;
         ESP_LOGD(TAG, "Endpoint: %d, cluster_id %d, attr_id %d, flags %d, report in %ums", rep_info->ep,
                  rep_info->cluster_id, rep_info->attr_id, rep_info->flags,
                  ZB_ZCL_GET_REPORTING_FLAG(rep_info, ZB_ZCL_REPORT_TIMER_STARTED)
