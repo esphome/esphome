@@ -49,6 +49,21 @@ extern const float LATE;
 
 static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 
+/// Type-safe wrapper for internal scheduler IDs used by core base classes.
+/// Uses a separate NameType (NUMERIC_ID_INTERNAL) so IDs can never collide
+/// with component-level NUMERIC_ID values, even if the uint32_t values overlap.
+struct InternalSchedulerID {
+  uint32_t id;
+};
+
+/// Reserved scheduler IDs for core base classes.
+/// These use InternalSchedulerID which routes through NUMERIC_ID_INTERNAL,
+/// a separate matching namespace from the NUMERIC_ID used by components.
+namespace scheduler_internal_id {
+constexpr InternalSchedulerID POLLING_UPDATE{0};  // PollingComponent interval
+constexpr InternalSchedulerID DELAY_ACTION{1};    // DelayAction timeout
+}  // namespace scheduler_internal_id
+
 // Forward declaration
 class PollingComponent;
 
@@ -334,6 +349,8 @@ class Component {
    */
   void set_interval(uint32_t id, uint32_t interval, std::function<void()> &&f);  // NOLINT
 
+  void set_interval(InternalSchedulerID id, uint32_t interval, std::function<void()> &&f);  // NOLINT
+
   void set_interval(uint32_t interval, std::function<void()> &&f);  // NOLINT
 
   /** Cancel an interval function.
@@ -346,6 +363,7 @@ class Component {
   bool cancel_interval(const std::string &name);  // NOLINT
   bool cancel_interval(const char *name);         // NOLINT
   bool cancel_interval(uint32_t id);              // NOLINT
+  bool cancel_interval(InternalSchedulerID id);   // NOLINT
 
   /** Set an retry function with a unique name. Empty name means no cancelling possible.
    *
@@ -452,6 +470,8 @@ class Component {
    */
   void set_timeout(uint32_t id, uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
+  void set_timeout(InternalSchedulerID id, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+
   void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
   /** Cancel a timeout function.
@@ -464,6 +484,7 @@ class Component {
   bool cancel_timeout(const std::string &name);  // NOLINT
   bool cancel_timeout(const char *name);         // NOLINT
   bool cancel_timeout(uint32_t id);              // NOLINT
+  bool cancel_timeout(InternalSchedulerID id);   // NOLINT
 
   /** Defer a callback to the next loop() call.
    *

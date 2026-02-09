@@ -46,11 +46,14 @@ class Scheduler {
   void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func);
   /// Set a timeout with a numeric ID (zero heap allocation)
   void set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> func);
+  /// Set a timeout with an internal scheduler ID (separate namespace from component NUMERIC_ID)
+  void set_timeout(Component *component, InternalSchedulerID id, uint32_t timeout, std::function<void()> func);
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   bool cancel_timeout(Component *component, const std::string &name);
   bool cancel_timeout(Component *component, const char *name);
   bool cancel_timeout(Component *component, uint32_t id);
+  bool cancel_timeout(Component *component, InternalSchedulerID id);
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);
@@ -66,11 +69,14 @@ class Scheduler {
   void set_interval(Component *component, const char *name, uint32_t interval, std::function<void()> func);
   /// Set an interval with a numeric ID (zero heap allocation)
   void set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> func);
+  /// Set an interval with an internal scheduler ID (separate namespace from component NUMERIC_ID)
+  void set_interval(Component *component, InternalSchedulerID id, uint32_t interval, std::function<void()> func);
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   bool cancel_interval(Component *component, const std::string &name);
   bool cancel_interval(Component *component, const char *name);
   bool cancel_interval(Component *component, uint32_t id);
+  bool cancel_interval(Component *component, InternalSchedulerID id);
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
@@ -102,9 +108,10 @@ class Scheduler {
   // Name storage type discriminator for SchedulerItem
   // Used to distinguish between static strings, hashed strings, and numeric IDs
   enum class NameType : uint8_t {
-    STATIC_STRING = 0,  // const char* pointer to static/flash storage
-    HASHED_STRING = 1,  // uint32_t FNV-1a hash of a runtime string
-    NUMERIC_ID = 2      // uint32_t numeric identifier
+    STATIC_STRING = 0,       // const char* pointer to static/flash storage
+    HASHED_STRING = 1,       // uint32_t FNV-1a hash of a runtime string
+    NUMERIC_ID = 2,          // uint32_t numeric identifier (component-level)
+    NUMERIC_ID_INTERNAL = 3  // uint32_t numeric identifier (core/internal, separate namespace)
   };
 
  protected:
@@ -204,6 +211,12 @@ class Scheduler {
     void set_numeric_id(uint32_t id) {
       name_.hash_or_id = id;
       name_type_ = NameType::NUMERIC_ID;
+    }
+
+    // Helper to set an internal numeric ID (separate namespace from NUMERIC_ID)
+    void set_internal_id(uint32_t id) {
+      name_.hash_or_id = id;
+      name_type_ = NameType::NUMERIC_ID_INTERNAL;
     }
 
     static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
