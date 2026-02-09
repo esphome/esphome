@@ -18,7 +18,6 @@ DEPENDENCIES = ["network"]
 
 CONF_ON_SERVER_SETTINGS = "on_server_settings"
 
-
 CONF_KALMAN_PROCESS_ERROR = "kalman_process_error"
 CONF_KALMAN_FORGET_FACTOR = "kalman_forget_factor"
 
@@ -52,10 +51,12 @@ def _request_high_performance_networking(config):
     from background threads (WebSocket handler, image decoder).
     """
     network.require_high_performance_networking()
-    # Sendspin needs 1 listening socket and up to 2 client connections
-    socket.consume_sockets(3, "sendspin_websocket_server")(
-        config
-    )  # Currently only supports one connection
+    # Socket consumption varies by mode:
+    # - Server mode: 1 listening socket + 2 client connections (for handoff)
+    # - Client mode: 1 outbound connection
+    socket.consume_sockets(3, "sendspin_websocket_server")(config)
+    socket.consume_sockets(1, "sendspin_websocket_client")(config)
+
     wifi.enable_runtime_power_save_control()  # TODO: Is this safe if wifi isn't configured?
     return config
 
@@ -90,7 +91,9 @@ async def to_code(config):
         ref="v0.3.0",
     )
 
-    # Enable WebSocket support for the Sendspin HTTP server
+    # Client mode - enable ESP-IDF WebSocket client
+    esp32.add_idf_component(name="espressif/esp_websocket_client", ref="1.6.1")
+    # Server mode - enable HTTP server with WebSocket support
     esp32.add_idf_sdkconfig_option("CONFIG_HTTPD_WS_SUPPORT", True)
 
     var = cg.new_Pvariable(config[CONF_ID])

@@ -121,6 +121,13 @@ bool SendspinMediaSource::play_uri(const std::string &uri, size_t pipeline) {
   // Strip "sendspin://" prefix and find the file
   std::string sendspin_id = uri.substr(11);  // "sendspin://" is 11 characters
 
+  ESP_LOGD(TAG, "sendspin_id: %s", sendspin_id.c_str());
+  if (sendspin_id != "current") {
+    // This is now a new server we need to connect to as a websocket client
+    printf("connecting as websocket client");
+    this->parent_->connect_to_server("ws://" + sendspin_id);
+  }
+
   if (!this->is_ready() || this->is_failed()) {
     return false;
   }
@@ -143,7 +150,7 @@ void SendspinMediaSource::setup() {
       case SendspinControls::START:  // Intentional fallthrough
         // TODO: This should be pipeline specific, not hardcoded to pipelone 0
         this->sendspin_pipelines_[0].pending_start = true;
-        this->play_uri_request_callback_("sendspin://test", 0);
+        this->play_uri_request_callback_("sendspin://current", 0);
         break;
       case SendspinControls::STOP: {
         // TODO: Is there really a distinction here btween STOP and CLEAR? I guess clear assumes it will resume again

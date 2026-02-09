@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#include "esphome/components/json/json_util.h"
+
 // TODO: don't always enable
 #define USE_SENDSPIN_CONTROLLER
 
@@ -618,20 +620,20 @@ struct TimeTransmittedReplacement {
   int64_t actual_transmit_time = 0;
 };
 
-SendspinServerToClientMessageType determine_message_type(const std::string &message);
+SendspinServerToClientMessageType determine_message_type(JsonObject root);
 
-bool process_server_hello_message(const std::string &message, ServerHelloMessage *hello_msg);
-bool process_server_time_message(const std::string &message, int64_t timestamp,
-                                 TimeTransmittedReplacement time_replacement, int64_t *offset, int64_t *max_error);
-bool process_group_update_message(const std::string &message, GroupUpdateMessage *group_msg);
+bool process_server_hello_message(JsonObject root, ServerHelloMessage *hello_msg);
+bool process_server_time_message(JsonObject root, int64_t timestamp, TimeTransmittedReplacement time_replacement,
+                                 int64_t *offset, int64_t *max_error);
+bool process_group_update_message(JsonObject root, GroupUpdateMessage *group_msg);
 void apply_group_update_deltas(GroupUpdateObject *current, const GroupUpdateObject &updates);
 
-bool process_server_command_message(const std::string &message, ServerCommandMessage *cmd_msg);
-bool process_server_state_message(const std::string &message, ServerStateMessage *state_msg);
+bool process_server_command_message(JsonObject root, ServerCommandMessage *cmd_msg);
+bool process_server_state_message(JsonObject root, ServerStateMessage *state_msg);
 
-bool process_stream_start_message(const std::string &message, StreamStartMessage *stream_msg);
-bool process_stream_end_message(const std::string &message, StreamEndMessage *end_msg);
-bool process_stream_clear_message(const std::string &message, StreamClearMessage *clear_msg);
+bool process_stream_start_message(JsonObject root, StreamStartMessage *stream_msg);
+bool process_stream_end_message(JsonObject root, StreamEndMessage *end_msg);
+bool process_stream_clear_message(JsonObject root, StreamClearMessage *clear_msg);
 
 #ifdef USE_SENDSPIN_METADATA
 void apply_metadata_state_deltas(ServerMetadataStateObject *current, const ServerMetadataStateObject &updates);

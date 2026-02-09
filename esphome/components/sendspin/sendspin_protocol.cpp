@@ -10,149 +10,134 @@ namespace sendspin {
 
 static const char *const TAG = "sendspin.protocol";
 
-SendspinServerToClientMessageType determine_message_type(const std::string &message) {
-  SendspinServerToClientMessageType type = SendspinServerToClientMessageType::UNKNOWN;
-  if (json::parse_json(message, [&type](JsonObject root) -> bool {
-        if (root["type"].is<JsonVariant>()) {
-          if (root["type"].as<std::string>() == "server/hello") {
-            type = SendspinServerToClientMessageType::SERVER_HELLO;
-          } else if (root["type"].as<std::string>() == "server/time") {
-            type = SendspinServerToClientMessageType::SERVER_TIME;
-          } else if (root["type"].as<std::string>() == "server/state") {
-            type = SendspinServerToClientMessageType::SERVER_STATE;
-          } else if (root["type"].as<std::string>() == "server/command") {
-            type = SendspinServerToClientMessageType::SERVER_COMMAND;
-          } else if (root["type"].as<std::string>() == "stream/start") {
-            type = SendspinServerToClientMessageType::STREAM_START;
-          } else if (root["type"].as<std::string>() == "stream/end") {
-            type = SendspinServerToClientMessageType::STREAM_END;
-          } else if (root["type"].as<std::string>() == "stream/clear") {
-            type = SendspinServerToClientMessageType::STREAM_CLEAR;
-          } else if (root["type"].as<std::string>() == "group/update") {
-            type = SendspinServerToClientMessageType::GROUP_UPDATE;
-          }
+SendspinServerToClientMessageType determine_message_type(JsonObject root) {
+  if (!root["type"].is<const char *>()) {
+    return SendspinServerToClientMessageType::UNKNOWN;
+  }
 
-          return true;
-        }
-        return false;
-      })) {
-    return type;
+  const std::string type_str = root["type"].as<std::string>();
+  if (type_str == "server/hello") {
+    return SendspinServerToClientMessageType::SERVER_HELLO;
+  } else if (type_str == "server/time") {
+    return SendspinServerToClientMessageType::SERVER_TIME;
+  } else if (type_str == "server/state") {
+    return SendspinServerToClientMessageType::SERVER_STATE;
+  } else if (type_str == "server/command") {
+    return SendspinServerToClientMessageType::SERVER_COMMAND;
+  } else if (type_str == "stream/start") {
+    return SendspinServerToClientMessageType::STREAM_START;
+  } else if (type_str == "stream/end") {
+    return SendspinServerToClientMessageType::STREAM_END;
+  } else if (type_str == "stream/clear") {
+    return SendspinServerToClientMessageType::STREAM_CLEAR;
+  } else if (type_str == "group/update") {
+    return SendspinServerToClientMessageType::GROUP_UPDATE;
   }
 
   return SendspinServerToClientMessageType::UNKNOWN;
 }
 
-bool process_server_hello_message(const std::string &message, ServerHelloMessage *hello_msg) {
-  return (json::parse_json(message, [&hello_msg, message](JsonObject root) -> bool {
-    if ((root["type"].as<std::string>() != "server/hello") || !root["payload"]["server_id"].is<JsonVariant>() ||
-        !root["payload"]["name"].is<JsonVariant>() || !root["payload"]["version"].is<JsonVariant>() ||
-        !root["payload"]["active_roles"].is<JsonVariant>() ||
-        !root["payload"]["connection_reason"].is<const char *>()) {
-      ESP_LOGE(TAG, "Invalid server/hello message: %s", message.c_str());
+bool process_server_hello_message(JsonObject root, ServerHelloMessage *hello_msg) {
+  if (!root["payload"]["server_id"].is<JsonVariant>() || !root["payload"]["name"].is<JsonVariant>() ||
+      !root["payload"]["version"].is<JsonVariant>() || !root["payload"]["active_roles"].is<JsonVariant>() ||
+      !root["payload"]["connection_reason"].is<const char *>()) {
+    ESP_LOGE(TAG, "Invalid server/hello message");
+    return false;
+  }
+
+  if (hello_msg != nullptr) {
+    hello_msg->server.server_id = root["payload"]["server_id"].as<std::string>();
+    hello_msg->server.name = root["payload"]["name"].as<std::string>();
+    hello_msg->version = root["payload"]["version"].as<uint16_t>();
+
+    // Parse active_roles array
+    hello_msg->active_roles.clear();
+    JsonArrayConst active_roles_array = root["payload"]["active_roles"].as<JsonArrayConst>();
+    for (JsonVariantConst role_var : active_roles_array) {
+      if (role_var.is<const char *>()) {
+        hello_msg->active_roles.push_back(role_var.as<std::string>());
+      }
+    }
+
+    auto reason = connection_reason_from_string(root["payload"]["connection_reason"].as<std::string>());
+    if (!reason.has_value()) {
+      ESP_LOGE(TAG, "Invalid connection_reason in server/hello message: %s",
+               root["payload"]["connection_reason"].as<const char *>());
       return false;
     }
+    hello_msg->connection_reason = reason.value();
+  }
 
-    if (hello_msg != nullptr) {
-      hello_msg->server.server_id = root["payload"]["server_id"].as<std::string>();
-      hello_msg->server.name = root["payload"]["name"].as<std::string>();
-      hello_msg->version = root["payload"]["version"].as<uint16_t>();
-
-      // Parse active_roles array
-      hello_msg->active_roles.clear();
-      JsonArrayConst active_roles_array = root["payload"]["active_roles"].as<JsonArrayConst>();
-      for (JsonVariantConst role_var : active_roles_array) {
-        if (role_var.is<const char *>()) {
-          hello_msg->active_roles.push_back(role_var.as<std::string>());
-        }
-      }
-
-      auto reason = connection_reason_from_string(root["payload"]["connection_reason"].as<std::string>());
-      if (!reason.has_value()) {
-        ESP_LOGE(TAG, "Invalid connection_reason in server/hello message: %s",
-                 root["payload"]["connection_reason"].as<const char *>());
-        return false;
-      }
-      hello_msg->connection_reason = reason.value();
-    }
-
-    return true;
-  }));
+  return true;
 }
 
-bool process_server_time_message(const std::string &message, int64_t timestamp,
-                                 TimeTransmittedReplacement time_replacement, int64_t *offset, int64_t *max_error) {
-  return (json::parse_json(message, [timestamp, time_replacement, offset, max_error](JsonObject root) -> bool {
-    if ((root["type"].as<std::string>() != "server/time") || !root["payload"]["client_transmitted"].is<JsonVariant>() ||
-        !root["payload"]["server_received"].is<JsonVariant>() ||
-        !root["payload"]["server_transmitted"].is<JsonVariant>()) {
-      ESP_LOGE(TAG, "Invalid server/time message");
-      return false;
-    }
+bool process_server_time_message(JsonObject root, int64_t timestamp, TimeTransmittedReplacement time_replacement,
+                                 int64_t *offset, int64_t *max_error) {
+  if (!root["payload"]["client_transmitted"].is<JsonVariant>() ||
+      !root["payload"]["server_received"].is<JsonVariant>() ||
+      !root["payload"]["server_transmitted"].is<JsonVariant>()) {
+    ESP_LOGE(TAG, "Invalid server/time message");
+    return false;
+  }
 
-    int64_t client_transmitted = root["payload"]["client_transmitted"];
+  int64_t client_transmitted = root["payload"]["client_transmitted"];
 
-    if (client_transmitted == time_replacement.transmitted_time) {
-      client_transmitted = time_replacement.actual_transmit_time;
-    } else {
-      ESP_LOGW(TAG, "Mismatched time message history");
-    }
+  if (client_transmitted == time_replacement.transmitted_time) {
+    client_transmitted = time_replacement.actual_transmit_time;
+  } else {
+    ESP_LOGW(TAG, "Mismatched time message history");
+  }
 
-    const int64_t server_received = root["payload"]["server_received"];
-    const int64_t server_transmitted = root["payload"]["server_transmitted"];
-    const int64_t client_received = timestamp;
+  const int64_t server_received = root["payload"]["server_received"];
+  const int64_t server_transmitted = root["payload"]["server_transmitted"];
+  const int64_t client_received = timestamp;
 
-    if (offset != nullptr) {
-      *offset = ((server_received - client_transmitted) + (server_transmitted - client_received)) / 2;
-    }
+  if (offset != nullptr) {
+    *offset = ((server_received - client_transmitted) + (server_transmitted - client_received)) / 2;
+  }
 
-    if (max_error != nullptr) {
-      const int64_t delay = (client_received - client_transmitted) - (server_transmitted - server_received);
-      *max_error = delay / 2;
-    }
+  if (max_error != nullptr) {
+    const int64_t delay = (client_received - client_transmitted) - (server_transmitted - server_received);
+    *max_error = delay / 2;
+  }
 
-    return true;
-  }));
+  return true;
 }
 
-bool process_group_update_message(const std::string &message, GroupUpdateMessage *group_msg) {
-  return (json::parse_json(message, [group_msg](JsonObject root) -> bool {
-    if (root["type"].as<std::string>() != "group/update") {
-      ESP_LOGE(TAG, "Invalid group/update message");
-      return false;
-    }
-
-    if (group_msg != nullptr) {
-      // Parse optional playback_state
-      JsonVariantConst playback_state_var = root["payload"]["playback_state"];
-      if (playback_state_var.is<const char *>()) {
-        std::string state_str = playback_state_var.as<std::string>();
-        group_msg->group.playback_state = playback_state_from_string(state_str);
-      } else if (!playback_state_var.isUnbound() && playback_state_var.isNull()) {
-        // Field set to null - clear from state
-        group_msg->group.playback_state = std::nullopt;
-      }
-
-      // Parse optional group_id - use empty string to signal clearing
-      JsonVariantConst group_id_var = root["payload"]["group_id"];
-      if (group_id_var.is<const char *>()) {
-        group_msg->group.group_id = group_id_var.as<std::string>();
-      } else if (!group_id_var.isUnbound() && group_id_var.isNull()) {
-        // Field set to null - use empty string to clear
-        group_msg->group.group_id = "";
-      }
-
-      // Parse optional group_name - use empty string to signal clearing
-      JsonVariantConst group_name_var = root["payload"]["group_name"];
-      if (group_name_var.is<const char *>()) {
-        group_msg->group.group_name = group_name_var.as<std::string>();
-      } else if (!group_name_var.isUnbound() && group_name_var.isNull()) {
-        // Field set to null - use empty string to clear
-        group_msg->group.group_name = "";
-      }
-    }
-
+bool process_group_update_message(JsonObject root, GroupUpdateMessage *group_msg) {
+  if (group_msg == nullptr) {
     return true;
-  }));
+  }
+
+  // Parse optional playback_state
+  JsonVariantConst playback_state_var = root["payload"]["playback_state"];
+  if (playback_state_var.is<const char *>()) {
+    std::string state_str = playback_state_var.as<std::string>();
+    group_msg->group.playback_state = playback_state_from_string(state_str);
+  } else if (!playback_state_var.isUnbound() && playback_state_var.isNull()) {
+    // Field set to null - clear from state
+    group_msg->group.playback_state = std::nullopt;
+  }
+
+  // Parse optional group_id - use empty string to signal clearing
+  JsonVariantConst group_id_var = root["payload"]["group_id"];
+  if (group_id_var.is<const char *>()) {
+    group_msg->group.group_id = group_id_var.as<std::string>();
+  } else if (!group_id_var.isUnbound() && group_id_var.isNull()) {
+    // Field set to null - use empty string to clear
+    group_msg->group.group_id = "";
+  }
+
+  // Parse optional group_name - use empty string to signal clearing
+  JsonVariantConst group_name_var = root["payload"]["group_name"];
+  if (group_name_var.is<const char *>()) {
+    group_msg->group.group_name = group_name_var.as<std::string>();
+  } else if (!group_name_var.isUnbound() && group_name_var.isNull()) {
+    // Field set to null - use empty string to clear
+    group_msg->group.group_name = "";
+  }
+
+  return true;
 }
 
 void apply_group_update_deltas(GroupUpdateObject *current, const GroupUpdateObject &updates) {
@@ -261,103 +246,87 @@ static bool process_artwork_channel_object(const JsonObject channel_object, Serv
 }
 #endif
 
-bool process_stream_start_message(const std::string &message, StreamStartMessage *stream_msg) {
-  return (json::parse_json(message, [stream_msg](JsonObject root) -> bool {
-    if (stream_msg == nullptr) {
-      return true;
-    }
+bool process_stream_start_message(JsonObject root, StreamStartMessage *stream_msg) {
+  if (stream_msg == nullptr) {
+    return true;
+  }
 
 #ifdef USE_SENDSPIN_PLAYER
-    if (root["payload"]["player"].is<JsonObject>()) {
-      ServerPlayerStreamObject player_obj;
-      if (process_player_stream_object(root["payload"]["player"], &player_obj, true)) {
-        if (!player_obj.is_complete()) {
-          ESP_LOGE(TAG, "Invalid stream/start message: incomplete player object");
+  if (root["payload"]["player"].is<JsonObject>()) {
+    ServerPlayerStreamObject player_obj;
+    if (process_player_stream_object(root["payload"]["player"], &player_obj, true)) {
+      if (!player_obj.is_complete()) {
+        ESP_LOGE(TAG, "Invalid stream/start message: incomplete player object");
+        return false;
+      }
+      stream_msg->player = player_obj;
+    } else {
+      return false;
+    }
+  }
+#endif
+
+#ifdef USE_SENDSPIN_ARTWORK
+  if (root["payload"]["artwork"]["channels"].is<JsonArray>()) {
+    ServerArtworkStreamObject artwork_obj;
+    std::vector<ServerArtworkChannelObject> channels;
+
+    for (JsonObject channel_json : root["payload"]["artwork"]["channels"].as<JsonArray>()) {
+      ServerArtworkChannelObject channel;
+      if (process_artwork_channel_object(channel_json, &channel, true)) {
+        if (!channel.is_complete()) {
+          ESP_LOGE(TAG, "Invalid stream/start message: incomplete artwork channel");
           return false;
         }
-        stream_msg->player = player_obj;
+        channels.push_back(channel);
       } else {
         return false;
       }
     }
+    artwork_obj.channels = channels;
+    stream_msg->artwork = artwork_obj;
+  }
 #endif
 
-#ifdef USE_SENDSPIN_ARTWORK
-    if (root["payload"]["artwork"]["channels"].is<JsonArray>()) {
-      ServerArtworkStreamObject artwork_obj;
-      std::vector<ServerArtworkChannelObject> channels;
-
-      for (JsonObject channel_json : root["payload"]["artwork"]["channels"].as<JsonArray>()) {
-        ServerArtworkChannelObject channel;
-        if (process_artwork_channel_object(channel_json, &channel, true)) {
-          if (!channel.is_complete()) {
-            ESP_LOGE(TAG, "Invalid stream/start message: incomplete artwork channel");
-            return false;
-          }
-          channels.push_back(channel);
-        } else {
-          return false;
-        }
-      }
-      artwork_obj.channels = channels;
-      stream_msg->artwork = artwork_obj;
-    }
-#endif
-
-    return true;
-  }));
+  return true;
 }
 
-bool process_stream_end_message(const std::string &message, StreamEndMessage *end_msg) {
-  return (json::parse_json(message, [end_msg](JsonObject root) -> bool {
-    if (root["type"].as<std::string>() != "stream/end") {
-      ESP_LOGE(TAG, "Invalid stream/end message");
-      return false;
-    }
-
-    if (end_msg == nullptr) {
-      return true;
-    }
-
-    // Parse optional roles array
-    if (root["payload"]["roles"].is<JsonArray>()) {
-      std::vector<std::string> roles;
-      for (JsonVariant role_var : root["payload"]["roles"].as<JsonArray>()) {
-        if (role_var.is<const char *>()) {
-          roles.push_back(role_var.as<std::string>());
-        }
-      }
-      end_msg->roles = roles;
-    }
-
+bool process_stream_end_message(JsonObject root, StreamEndMessage *end_msg) {
+  if (end_msg == nullptr) {
     return true;
-  }));
+  }
+
+  // Parse optional roles array
+  if (root["payload"]["roles"].is<JsonArray>()) {
+    std::vector<std::string> roles;
+    for (JsonVariant role_var : root["payload"]["roles"].as<JsonArray>()) {
+      if (role_var.is<const char *>()) {
+        roles.push_back(role_var.as<std::string>());
+      }
+    }
+    end_msg->roles = roles;
+  }
+
+  return true;
 }
 
-bool process_stream_clear_message(const std::string &message, StreamClearMessage *clear_msg) {
-  return (json::parse_json(message, [clear_msg](JsonObject root) -> bool {
-    if (root["type"].as<std::string>() != "stream/clear") {
-      ESP_LOGE(TAG, "Invalid stream/clear message");
-      return false;
-    }
-
-    if (clear_msg == nullptr) {
-      return true;
-    }
-
-    // Parse optional roles array
-    if (root["payload"]["roles"].is<JsonArray>()) {
-      std::vector<std::string> roles;
-      for (JsonVariant role_var : root["payload"]["roles"].as<JsonArray>()) {
-        if (role_var.is<const char *>()) {
-          roles.push_back(role_var.as<std::string>());
-        }
-      }
-      clear_msg->roles = roles;
-    }
-
+bool process_stream_clear_message(JsonObject root, StreamClearMessage *clear_msg) {
+  if (clear_msg == nullptr) {
     return true;
-  }));
+  }
+
+  // Parse optional roles array
+  if (root["payload"]["roles"].is<JsonArray>()) {
+    std::vector<std::string> roles;
+    for (JsonVariant role_var : root["payload"]["roles"].as<JsonArray>()) {
+      if (role_var.is<const char *>()) {
+        roles.push_back(role_var.as<std::string>());
+      }
+    }
+    clear_msg->roles = roles;
+  }
+
+  return true;
 }
 
 #ifdef USE_SENDSPIN_PLAYER
@@ -391,25 +360,18 @@ static bool process_server_player_command_object(const JsonObject player_object,
 }
 #endif
 
-bool process_server_command_message(const std::string &message, ServerCommandMessage *cmd_msg) {
-  return (json::parse_json(message, [cmd_msg](JsonObject root) -> bool {
-    if (root["type"].as<std::string>() != "server/command") {
-      ESP_LOGE(TAG, "Invalid server/command message");
-      return false;
-    }
-
+bool process_server_command_message(JsonObject root, ServerCommandMessage *cmd_msg) {
 #ifdef USE_SENDSPIN_PLAYER
-    if (cmd_msg != nullptr && root["payload"]["player"].is<JsonObject>()) {
-      ServerPlayerCommandObject player_cmd;
-      if (process_server_player_command_object(root["payload"]["player"], &player_cmd)) {
-        cmd_msg->player = player_cmd;
-        return true;
-      }
-      return false;
+  if (cmd_msg != nullptr && root["payload"]["player"].is<JsonObject>()) {
+    ServerPlayerCommandObject player_cmd;
+    if (process_server_player_command_object(root["payload"]["player"], &player_cmd)) {
+      cmd_msg->player = player_cmd;
+      return true;
     }
+    return false;
+  }
 #endif
-    return true;
-  }));
+  return true;
 }
 
 #ifdef USE_SENDSPIN_METADATA
@@ -554,62 +516,55 @@ void apply_metadata_state_deltas(ServerMetadataStateObject *current, const Serve
 }
 #endif
 
-bool process_server_state_message(const std::string &message, ServerStateMessage *state_msg) {
-  return (json::parse_json(message, [state_msg](JsonObject root) -> bool {
-    if (root["type"].as<std::string>() != "server/state") {
-      ESP_LOGE(TAG, "Invalid server/state message");
-      return false;
-    }
+bool process_server_state_message(JsonObject root, ServerStateMessage *state_msg) {
+  if (state_msg == nullptr) {
+    return true;
+  }
 
-    if (state_msg != nullptr) {
 #ifdef USE_SENDSPIN_METADATA
-      // Parse optional metadata object
-      if (root["payload"]["metadata"].is<JsonObject>()) {
-        ServerMetadataStateObject metadata_state;
-        if (process_server_metadata_state_object(root["payload"]["metadata"], &metadata_state)) {
-          state_msg->metadata = metadata_state;
-        }
-      }
+  // Parse optional metadata object
+  if (root["payload"]["metadata"].is<JsonObject>()) {
+    ServerMetadataStateObject metadata_state;
+    if (process_server_metadata_state_object(root["payload"]["metadata"], &metadata_state)) {
+      state_msg->metadata = metadata_state;
+    }
+  }
 #endif
 #ifdef USE_SENDSPIN_CONTROLLER
-      if (root["payload"]["controller"].is<JsonObject>()) {
-        ServerStateControllerObject controller_state;
-        JsonObject controller_object = root["payload"]["controller"];
+  if (root["payload"]["controller"].is<JsonObject>()) {
+    ServerStateControllerObject controller_state;
+    JsonObject controller_object = root["payload"]["controller"];
 
-        // Parse supported_commands array
-        if (controller_object["supported_commands"].is<JsonArray>()) {
-          std::vector<SendspinCommandType> commands;
-          for (JsonVariant command_var : controller_object["supported_commands"].as<JsonArray>()) {
-            if (command_var.is<const char *>()) {
-              std::string command_str = command_var.as<std::string>();
-              auto command = command_type_from_string(command_str);
-              if (command.has_value()) {
-                commands.push_back(command.value());
-              }
-            }
+    // Parse supported_commands array
+    if (controller_object["supported_commands"].is<JsonArray>()) {
+      std::vector<SendspinCommandType> commands;
+      for (JsonVariant command_var : controller_object["supported_commands"].as<JsonArray>()) {
+        if (command_var.is<const char *>()) {
+          std::string command_str = command_var.as<std::string>();
+          auto command = command_type_from_string(command_str);
+          if (command.has_value()) {
+            commands.push_back(command.value());
           }
-          controller_state.supported_commands = commands;
         }
-
-        // Parse volume
-        if (controller_object["volume"].is<JsonVariant>()) {
-          controller_state.volume = controller_object["volume"].as<uint8_t>();
-        }
-
-        // Parse muted
-        if (controller_object["muted"].is<JsonVariant>()) {
-          controller_state.muted = controller_object["muted"].as<bool>();
-        }
-
-        state_msg->controller = controller_state;
       }
-#endif
-      // Parse optional controller object (for future use)
-      // TODO: Implement controller state parsing when needed
+      controller_state.supported_commands = commands;
     }
 
-    return true;
-  }));
+    // Parse volume
+    if (controller_object["volume"].is<JsonVariant>()) {
+      controller_state.volume = controller_object["volume"].as<uint8_t>();
+    }
+
+    // Parse muted
+    if (controller_object["muted"].is<JsonVariant>()) {
+      controller_state.muted = controller_object["muted"].as<bool>();
+    }
+
+    state_msg->controller = controller_state;
+  }
+#endif
+
+  return true;
 }
 
 std::string format_client_hello_message(const ClientHelloMessage *msg) {
