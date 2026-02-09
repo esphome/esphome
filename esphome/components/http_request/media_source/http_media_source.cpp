@@ -459,7 +459,7 @@ void HTTPMediaSource::read_task(void *params) {
     // Signal that reader is ready
     xEventGroupSetBits(ctx.event_group, EventGroupBits::READER_READY);
 
-    uint32_t last_data_read_ms = millis();
+    uint32_t last_data_time = millis();
 
     // Main read loop
     while (true) {
@@ -472,41 +472,32 @@ void HTTPMediaSource::read_task(void *params) {
       // Transfer any buffered data to the ring buffer
       transfer_buffer->transfer_data_to_sink(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
 
-      // Check if all data has been received (works for both chunked and content-length responses)
-      if (container->is_complete_data_received()) {
-        if (transfer_buffer->available() == 0) {
-          ESP_LOGD(TAG, "Pipeline %zu: Reader finished", pipeline);
-          break;
-        }
-      } else if (transfer_buffer->free() > 0) {
-        // Read more data from HTTP container
+      if (transfer_buffer->free() > 0) {
         int received_len = container->read(transfer_buffer->get_buffer_end(), transfer_buffer->free());
 
-        if (received_len > 0) {
+        auto result =
+            http_read_loop_result(received_len, last_data_time, CONNECTION_TIMEOUT_MS, container->is_read_complete());
+
+        if (result == HttpReadLoopResult::DATA) {
           transfer_buffer->increase_buffer_length(received_len);
-          last_data_read_ms = millis();
-        } else if (received_len < 0) {
-          if (received_len == -1) {
-            // A true connection error occurred, no chance at recovery
-            ESP_LOGE(TAG, "Pipeline %zu: Reader failed with connection error", pipeline);
-            xEventGroupSetBits(ctx.event_group, EventGroupBits::READER_ERROR | EventGroupBits::COMMAND_STOP);
-            break;
+        } else if (result == HttpReadLoopResult::COMPLETE) {
+          // Flush remaining buffered data to the ring buffer, retrying until empty
+          while (transfer_buffer->available() > 0) {
+            if (xEventGroupGetBits(ctx.event_group) & EventGroupBits::COMMAND_STOP) {
+              break;
+            }
+            transfer_buffer->transfer_data_to_sink(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
           }
-          // Other negative values (e.g., EAGAIN) - check timeout and retry
-          if ((millis() - last_data_read_ms) > CONNECTION_TIMEOUT_MS) {
-            ESP_LOGE(TAG, "Pipeline %zu: Reader timed out", pipeline);
-            xEventGroupSetBits(ctx.event_group, EventGroupBits::READER_ERROR | EventGroupBits::COMMAND_STOP);
-            break;
-          }
-          vTaskDelay(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS));
+          ESP_LOGD(TAG, "Pipeline %zu: Reader finished", pipeline);
+          break;
+        } else if (result == HttpReadLoopResult::RETRY) {
+          continue;
         } else {
-          // No data available (received_len == 0), check for timeout
-          if ((millis() - last_data_read_ms) > CONNECTION_TIMEOUT_MS) {
-            ESP_LOGE(TAG, "Pipeline %zu: Reader timed out", pipeline);
-            xEventGroupSetBits(ctx.event_group, EventGroupBits::READER_ERROR | EventGroupBits::COMMAND_STOP);
-            break;
-          }
-          vTaskDelay(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS));
+          // ERROR or TIMEOUT
+          ESP_LOGE(TAG, "Pipeline %zu: Reader %s", pipeline,
+                   result == HttpReadLoopResult::TIMEOUT ? "timed out" : "failed");
+          xEventGroupSetBits(ctx.event_group, EventGroupBits::READER_ERROR | EventGroupBits::COMMAND_STOP);
+          break;
         }
       }
     }

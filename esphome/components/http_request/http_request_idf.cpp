@@ -18,9 +18,6 @@ namespace esphome::http_request {
 
 static const char *const TAG = "http_request.idf";
 
-// Maximum attempts to fetch headers when server returns EAGAIN (e.g., during TTS generation)
-static const uint8_t MAX_HEADER_FETCH_RETRIES = 6;
-
 struct UserData {
   const std::vector<std::string> &lower_case_collect_headers;
   std::vector<Header> &response_headers;
@@ -307,8 +304,6 @@ void HttpContainerIDF::end() {
   esp_http_client_cleanup(this->client_);
   this->client_ = nullptr;
 }
-
-bool HttpContainerIDF::is_complete_data_received() { return esp_http_client_is_complete_data_received(this->client_); }
 
 void HttpContainerIDF::feed_wdt() {
   // Tests to see if the executing task has a watchdog timer attached

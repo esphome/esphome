@@ -18,6 +18,8 @@ class HttpContainerIDF : public HttpContainer {
   void end() override;
   bool is_read_complete() const override;
 
+  bool is_read_complete() const override { return esp_http_client_is_complete_data_received(this->client_); }
+
   /// @brief Feeds the watchdog timer if the executing task has one attached
   void feed_wdt();
 
