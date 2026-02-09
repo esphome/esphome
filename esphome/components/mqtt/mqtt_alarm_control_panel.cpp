@@ -13,31 +13,12 @@ static const char *const TAG = "mqtt.alarm_control_panel";
 
 using namespace esphome::alarm_control_panel;
 
+// Alarm state MQTT strings indexed by AlarmControlPanelState enum (0-9)
+PROGMEM_STRING_TABLE(AlarmMqttStateStrings, "disarmed", "armed_home", "armed_away", "armed_night", "armed_vacation",
+                     "armed_custom_bypass", "pending", "arming", "disarming", "triggered", "unknown");
+
 static ProgmemStr alarm_state_to_mqtt_str(AlarmControlPanelState state) {
-  switch (state) {
-    case ACP_STATE_DISARMED:
-      return ESPHOME_F("disarmed");
-    case ACP_STATE_ARMED_HOME:
-      return ESPHOME_F("armed_home");
-    case ACP_STATE_ARMED_AWAY:
-      return ESPHOME_F("armed_away");
-    case ACP_STATE_ARMED_NIGHT:
-      return ESPHOME_F("armed_night");
-    case ACP_STATE_ARMED_VACATION:
-      return ESPHOME_F("armed_vacation");
-    case ACP_STATE_ARMED_CUSTOM_BYPASS:
-      return ESPHOME_F("armed_custom_bypass");
-    case ACP_STATE_PENDING:
-      return ESPHOME_F("pending");
-    case ACP_STATE_ARMING:
-      return ESPHOME_F("arming");
-    case ACP_STATE_DISARMING:
-      return ESPHOME_F("disarming");
-    case ACP_STATE_TRIGGERED:
-      return ESPHOME_F("triggered");
-    default:
-      return ESPHOME_F("unknown");
-  }
+  return AlarmMqttStateStrings::get_progmem_str(static_cast<uint8_t>(state), AlarmMqttStateStrings::LAST_INDEX);
 }
 
 MQTTAlarmControlPanelComponent::MQTTAlarmControlPanelComponent(AlarmControlPanel *alarm_control_panel)

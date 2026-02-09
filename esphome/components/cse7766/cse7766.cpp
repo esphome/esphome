@@ -37,7 +37,6 @@ void CSE7766Component::loop() {
     this->raw_data_index_ = (this->raw_data_index_ + 1) % 24;
   }
 }
-float CSE7766Component::get_setup_priority() const { return setup_priority::DATA; }
 
 bool CSE7766Component::check_byte_() {
   uint8_t index = this->raw_data_index_;

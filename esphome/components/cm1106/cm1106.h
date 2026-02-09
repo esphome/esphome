@@ -10,8 +10,6 @@ namespace cm1106 {
 
 class CM1106Component : public PollingComponent, public uart::UARTDevice {
  public:
-  float get_setup_priority() const override { return esphome::setup_priority::DATA; }
-
   void setup() override;
   void update() override;
   void dump_config() override;

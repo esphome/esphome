@@ -426,8 +426,6 @@ bool PN532::write_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message) {
   return false;
 }
 
-float PN532::get_setup_priority() const { return setup_priority::DATA; }
-
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");
   switch (this->error_code_) {
