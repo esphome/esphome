@@ -17,7 +17,6 @@ class SHTCXComponent : public PollingComponent, public sensirion_common::Sensiri
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
   void soft_reset();
   void sleep();

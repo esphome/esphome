@@ -13,6 +13,14 @@ static const char *const TAG = "mqtt.alarm_control_panel";
 
 using namespace esphome::alarm_control_panel;
 
+// Alarm state MQTT strings indexed by AlarmControlPanelState enum (0-9)
+PROGMEM_STRING_TABLE(AlarmMqttStateStrings, "disarmed", "armed_home", "armed_away", "armed_night", "armed_vacation",
+                     "armed_custom_bypass", "pending", "arming", "disarming", "triggered", "unknown");
+
+static ProgmemStr alarm_state_to_mqtt_str(AlarmControlPanelState state) {
+  return AlarmMqttStateStrings::get_progmem_str(static_cast<uint8_t>(state), AlarmMqttStateStrings::LAST_INDEX);
+}
+
 MQTTAlarmControlPanelComponent::MQTTAlarmControlPanelComponent(AlarmControlPanel *alarm_control_panel)
     : alarm_control_panel_(alarm_control_panel) {}
 void MQTTAlarmControlPanelComponent::setup() {
@@ -85,43 +93,9 @@ const EntityBase *MQTTAlarmControlPanelComponent::get_entity() const { return th
 
 bool MQTTAlarmControlPanelComponent::send_initial_state() { return this->publish_state(); }
 bool MQTTAlarmControlPanelComponent::publish_state() {
-  const char *state_s;
-  switch (this->alarm_control_panel_->get_state()) {
-    case ACP_STATE_DISARMED:
-      state_s = "disarmed";
-      break;
-    case ACP_STATE_ARMED_HOME:
-      state_s = "armed_home";
-      break;
-    case ACP_STATE_ARMED_AWAY:
-      state_s = "armed_away";
-      break;
-    case ACP_STATE_ARMED_NIGHT:
-      state_s = "armed_night";
-      break;
-    case ACP_STATE_ARMED_VACATION:
-      state_s = "armed_vacation";
-      break;
-    case ACP_STATE_ARMED_CUSTOM_BYPASS:
-      state_s = "armed_custom_bypass";
-      break;
-    case ACP_STATE_PENDING:
-      state_s = "pending";
-      break;
-    case ACP_STATE_ARMING:
-      state_s = "arming";
-      break;
-    case ACP_STATE_DISARMING:
-      state_s = "disarming";
-      break;
-    case ACP_STATE_TRIGGERED:
-      state_s = "triggered";
-      break;
-    default:
-      state_s = "unknown";
-  }
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-  return this->publish(this->get_state_topic_to_(topic_buf), state_s);
+  return this->publish(this->get_state_topic_to_(topic_buf),
+                       alarm_state_to_mqtt_str(this->alarm_control_panel_->get_state()));
 }
 
 }  // namespace esphome::mqtt

@@ -13,7 +13,6 @@ class EndstopCover : public cover::Cover, public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
   Trigger<> *get_open_trigger() { return &this->open_trigger_; }
   Trigger<> *get_close_trigger() { return &this->close_trigger_; }

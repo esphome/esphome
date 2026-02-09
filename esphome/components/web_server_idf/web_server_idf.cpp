@@ -30,8 +30,7 @@
 #include <cerrno>
 #include <sys/socket.h>
 
-namespace esphome {
-namespace web_server_idf {
+namespace esphome::web_server_idf {
 
 #ifndef HTTPD_409
 #define HTTPD_409 "409 Conflict"
@@ -258,8 +257,6 @@ StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) co
   return StringRef(buffer.data(), decoded_len);
 }
 
-std::string AsyncWebServerRequest::host() const { return this->get_header("Host").value(); }
-
 void AsyncWebServerRequest::send(AsyncWebServerResponse *response) {
   httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
 }
@@ -366,7 +363,7 @@ void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
 }
 #endif
 
-AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
+AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
   // Check cache first - only successful lookups are cached
   for (auto *param : this->params_) {
     if (param->name() == name) {
@@ -375,11 +372,11 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
   }
 
   // Look up value from query strings
-  optional<std::string> val = query_key_value(this->post_query_, name);
+  optional<std::string> val = query_key_value(this->post_query_.c_str(), this->post_query_.size(), name);
   if (!val.has_value()) {
     auto url_query = request_get_url_query(*this);
     if (url_query.has_value()) {
-      val = query_key_value(url_query.value(), name);
+      val = query_key_value(url_query.value().c_str(), url_query.value().size(), name);
     }
   }
 
@@ -897,7 +894,6 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
 }
 #endif  // USE_WEBSERVER_OTA
 
-}  // namespace web_server_idf
-}  // namespace esphome
+}  // namespace esphome::web_server_idf
 
 #endif  // !defined(USE_ESP32)

@@ -111,7 +111,7 @@ void EndstopCover::dump_config() {
   LOG_BINARY_SENSOR("  ", "Open Endstop", this->open_endstop_);
   LOG_BINARY_SENSOR("  ", "Close Endstop", this->close_endstop_);
 }
-float EndstopCover::get_setup_priority() const { return setup_priority::DATA; }
+
 void EndstopCover::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {
     this->prev_command_trigger_->stop_action();

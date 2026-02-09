@@ -12,7 +12,6 @@ from .const import (
     CORE_SUBCATEGORY_PATTERNS,
     DEMANGLED_PATTERNS,
     ESPHOME_COMPONENT_PATTERN,
-    SECTION_TO_ATTR,
     SYMBOL_PATTERNS,
 )
 from .demangle import batch_demangle
@@ -91,6 +90,17 @@ class ComponentMemory:
     bss_size: int = 0  # Uninitialized data (ram only)
     symbol_count: int = 0
 
+    def add_section_size(self, section_name: str, size: int) -> None:
+        """Add size to the appropriate attribute for a section."""
+        if section_name == ".text":
+            self.text_size += size
+        elif section_name == ".rodata":
+            self.rodata_size += size
+        elif section_name == ".data":
+            self.data_size += size
+        elif section_name == ".bss":
+            self.bss_size += size
+
     @property
     def flash_total(self) -> int:
         """Total flash usage (text + rodata + data)."""
@@ -167,12 +177,15 @@ class MemoryAnalyzer:
         self._elf_symbol_names: set[str] = set()
         # SDK symbols not in ELF (static/local symbols from closed-source libs)
         self._sdk_symbols: list[SDKSymbol] = []
+        # CSWTCH symbols: list of (name, size, source_file, component)
+        self._cswtch_symbols: list[tuple[str, int, str, str]] = []
 
     def analyze(self) -> dict[str, ComponentMemory]:
         """Analyze the ELF file and return component memory usage."""
         self._parse_sections()
         self._parse_symbols()
         self._categorize_symbols()
+        self._analyze_cswtch_symbols()
         self._analyze_sdk_libraries()
         return dict(self.components)
 
@@ -255,8 +268,7 @@ class MemoryAnalyzer:
                 comp_mem.symbol_count += 1
 
                 # Update the appropriate size attribute based on section
-                if attr_name := SECTION_TO_ATTR.get(section_name):
-                    setattr(comp_mem, attr_name, getattr(comp_mem, attr_name) + size)
+                comp_mem.add_section_size(section_name, size)
 
                 # Track uncategorized symbols
                 if component == "other" and size > 0:
@@ -371,6 +383,277 @@ class MemoryAnalyzer:
                 return category
 
         return "Other Core"
+
+    def _find_object_files_dir(self) -> Path | None:
+        """Find the directory containing object files for this build.
+
+        Returns:
+            Path to the directory containing .o files, or None if not found.
+        """
+        # The ELF is typically at .pioenvs/<env>/firmware.elf
+        # Object files are in .pioenvs/<env>/src/ and .pioenvs/<env>/lib*/
+        pioenvs_dir = self.elf_path.parent
+        if pioenvs_dir.exists() and any(pioenvs_dir.glob("src/*.o")):
+            return pioenvs_dir
+        return None
+
+    @staticmethod
+    def _parse_nm_cswtch_output(
+        output: str,
+        base_dir: Path | None,
+        cswtch_map: dict[str, list[tuple[str, int]]],
+    ) -> None:
+        """Parse nm output for CSWTCH symbols and add to cswtch_map.
+
+        Handles both ``.o`` files and ``.a`` archives.
+
+        nm output formats::
+
+            .o files:  /path/file.o:hex_addr hex_size type name
+            .a files:  /path/lib.a:member.o:hex_addr hex_size type name
+
+        For ``.o`` files, paths are made relative to *base_dir* when possible.
+        For ``.a`` archives (detected by ``:`` in the file portion), paths are
+        formatted as ``archive_stem/member.o`` (e.g. ``liblwip2-536-feat/lwip-esp.o``).
+
+        Args:
+            output: Raw stdout from ``nm --print-file-name -S``.
+            base_dir: Base directory for computing relative paths of ``.o`` files.
+                      Pass ``None`` when scanning archives outside the build tree.
+            cswtch_map: Dict to populate, mapping ``"CSWTCH$N:size"`` to source list.
+        """
+        for line in output.splitlines():
+            if "CSWTCH$" not in line:
+                continue
+
+            # Split on last ":" that precedes a hex address.
+            # For .o:  "filepath.o" : "hex_addr hex_size type name"
+            # For .a:  "filepath.a:member.o" : "hex_addr hex_size type name"
+            parts_after_colon = line.rsplit(":", 1)
+            if len(parts_after_colon) != 2:
+                continue
+
+            file_path = parts_after_colon[0]
+            fields = parts_after_colon[1].split()
+            # fields: [address, size, type, name]
+            if len(fields) < 4:
+                continue
+
+            sym_name = fields[3]
+            if not sym_name.startswith("CSWTCH$"):
+                continue
+
+            try:
+                size = int(fields[1], 16)
+            except ValueError:
+                continue
+
+            # Determine readable source path
+            # Use ".a:" to detect archive format (not bare ":" which matches
+            # Windows drive letters like "C:\...\file.o").
+            if ".a:" in file_path:
+                # Archive format: "archive.a:member.o" → "archive_stem/member.o"
+                archive_part, member = file_path.rsplit(":", 1)
+                archive_name = Path(archive_part).stem
+                rel_path = f"{archive_name}/{member}"
+            elif base_dir is not None:
+                try:
+                    rel_path = str(Path(file_path).relative_to(base_dir))
+                except ValueError:
+                    rel_path = file_path
+            else:
+                rel_path = file_path
+
+            key = f"{sym_name}:{size}"
+            cswtch_map[key].append((rel_path, size))
+
+    def _run_nm_cswtch_scan(
+        self,
+        files: list[Path],
+        base_dir: Path | None,
+        cswtch_map: dict[str, list[tuple[str, int]]],
+    ) -> None:
+        """Run nm on *files* and add any CSWTCH symbols to *cswtch_map*.
+
+        Args:
+            files: Object (``.o``) or archive (``.a``) files to scan.
+            base_dir: Base directory for relative path computation (see
+                      :meth:`_parse_nm_cswtch_output`).
+            cswtch_map: Dict to populate with results.
+        """
+        if not self.nm_path or not files:
+            return
+
+        _LOGGER.debug("Scanning %d files for CSWTCH symbols", len(files))
+
+        result = run_tool(
+            [self.nm_path, "--print-file-name", "-S"] + [str(f) for f in files],
+            timeout=30,
+        )
+        if result is None or result.returncode != 0:
+            _LOGGER.debug(
+                "nm failed or timed out scanning %d files for CSWTCH symbols",
+                len(files),
+            )
+            return
+
+        self._parse_nm_cswtch_output(result.stdout, base_dir, cswtch_map)
+
+    def _scan_cswtch_in_sdk_archives(
+        self, cswtch_map: dict[str, list[tuple[str, int]]]
+    ) -> None:
+        """Scan SDK library archives (.a) for CSWTCH symbols.
+
+        Prebuilt SDK libraries (e.g. lwip, bearssl) are not compiled from source,
+        so their CSWTCH symbols only exist inside ``.a`` archives.  Results are
+        merged into *cswtch_map* for keys not already found in ``.o`` files.
+
+        The same source file (e.g. ``lwip-esp.o``) often appears in multiple
+        library variants (``liblwip2-536.a``, ``liblwip2-1460-feat.a``, etc.),
+        so results are deduplicated by member name.
+        """
+        sdk_dirs = self._find_sdk_library_dirs()
+        if not sdk_dirs:
+            return
+
+        sdk_archives = sorted(a for sdk_dir in sdk_dirs for a in sdk_dir.glob("*.a"))
+
+        sdk_map: dict[str, list[tuple[str, int]]] = defaultdict(list)
+        self._run_nm_cswtch_scan(sdk_archives, None, sdk_map)
+
+        # Merge SDK results, deduplicating by member name.
+        for key, sources in sdk_map.items():
+            if key in cswtch_map:
+                continue
+            seen: dict[str, tuple[str, int]] = {}
+            for path, sz in sources:
+                member = Path(path).name
+                if member not in seen:
+                    seen[member] = (path, sz)
+            cswtch_map[key] = list(seen.values())
+
+    def _source_file_to_component(self, source_file: str) -> str:
+        """Map a source object file path to its component name.
+
+        Args:
+            source_file: Relative path like 'src/esphome/components/wifi/wifi_component.cpp.o'
+
+        Returns:
+            Component name like '[esphome]wifi' or the source file if unknown.
+        """
+        parts = Path(source_file).parts
+
+        # ESPHome component: src/esphome/components/<name>/...
+        if "components" in parts:
+            idx = parts.index("components")
+            if idx + 1 < len(parts):
+                component_name = parts[idx + 1]
+                if component_name in get_esphome_components():
+                    return f"{_COMPONENT_PREFIX_ESPHOME}{component_name}"
+                if component_name in self.external_components:
+                    return f"{_COMPONENT_PREFIX_EXTERNAL}{component_name}"
+
+        # ESPHome core: src/esphome/core/... or src/esphome/...
+        if "core" in parts and "esphome" in parts:
+            return _COMPONENT_CORE
+        if "esphome" in parts and "components" not in parts:
+            return _COMPONENT_CORE
+
+        # Framework/library files - return the first path component
+        # e.g., lib65b/ESPAsyncTCP/... -> lib65b
+        #        FrameworkArduino/... -> FrameworkArduino
+        return parts[0] if parts else source_file
+
+    def _analyze_cswtch_symbols(self) -> None:
+        """Analyze CSWTCH (GCC switch table) symbols by tracing to source objects.
+
+        CSWTCH symbols are compiler-generated lookup tables for switch statements.
+        They are local symbols, so the same name can appear in different object files.
+        This method scans .o files and SDK archives to attribute them to their
+        source components.
+        """
+        obj_dir = self._find_object_files_dir()
+        if obj_dir is None:
+            _LOGGER.debug("No object files directory found, skipping CSWTCH analysis")
+            return
+
+        # Scan build-dir object files for CSWTCH symbols
+        cswtch_map: dict[str, list[tuple[str, int]]] = defaultdict(list)
+        self._run_nm_cswtch_scan(sorted(obj_dir.rglob("*.o")), obj_dir, cswtch_map)
+
+        # Also scan SDK library archives (.a) for CSWTCH symbols.
+        # Prebuilt SDK libraries (e.g. lwip, bearssl) are not compiled from source
+        # so their symbols only exist inside .a archives, not as loose .o files.
+        self._scan_cswtch_in_sdk_archives(cswtch_map)
+
+        if not cswtch_map:
+            _LOGGER.debug("No CSWTCH symbols found in object files or SDK archives")
+            return
+
+        # Collect CSWTCH symbols from the ELF (already parsed in sections)
+        # Include section_name for re-attribution of component totals
+        elf_cswtch = [
+            (symbol_name, size, section_name)
+            for section_name, section in self.sections.items()
+            for symbol_name, size, _ in section.symbols
+            if symbol_name.startswith("CSWTCH$")
+        ]
+
+        _LOGGER.debug(
+            "Found %d CSWTCH symbols in ELF, %d unique in object files",
+            len(elf_cswtch),
+            len(cswtch_map),
+        )
+
+        # Match ELF CSWTCH symbols to source files and re-attribute component totals.
+        # _categorize_symbols() already ran and put these into "other" since CSWTCH$
+        # names don't match any component pattern. We move the bytes to the correct
+        # component based on the object file mapping.
+        other_mem = self.components.get("other")
+
+        for sym_name, size, section_name in elf_cswtch:
+            key = f"{sym_name}:{size}"
+            sources = cswtch_map.get(key, [])
+
+            if len(sources) == 1:
+                source_file = sources[0][0]
+                component = self._source_file_to_component(source_file)
+            elif len(sources) > 1:
+                # Ambiguous - multiple object files have same CSWTCH name+size
+                source_file = "ambiguous"
+                component = "ambiguous"
+                _LOGGER.debug(
+                    "Ambiguous CSWTCH %s (%d B) found in %d files: %s",
+                    sym_name,
+                    size,
+                    len(sources),
+                    ", ".join(src for src, _ in sources),
+                )
+            else:
+                source_file = "unknown"
+                component = "unknown"
+
+            self._cswtch_symbols.append((sym_name, size, source_file, component))
+
+            # Re-attribute from "other" to the correct component
+            if (
+                component not in ("other", "unknown", "ambiguous")
+                and other_mem is not None
+            ):
+                other_mem.add_section_size(section_name, -size)
+                if component not in self.components:
+                    self.components[component] = ComponentMemory(component)
+                self.components[component].add_section_size(section_name, size)
+
+        # Sort by size descending
+        self._cswtch_symbols.sort(key=lambda x: x[1], reverse=True)
+
+        total_size = sum(size for _, size, _, _ in self._cswtch_symbols)
+        _LOGGER.debug(
+            "CSWTCH analysis: %d symbols, %d bytes total",
+            len(self._cswtch_symbols),
+            total_size,
+        )
 
     def get_unattributed_ram(self) -> tuple[int, int, int]:
         """Get unattributed RAM sizes (SDK/framework overhead).
