@@ -78,7 +78,7 @@ void Seesaw::enable_encoder(uint8_t number) { this->write8_(SEESAW_ENCODER, SEES
 
 int32_t Seesaw::get_encoder_position(uint8_t number) {
   uint8_t buf[4];
-  if (this->readbuf_(SEESAW_ENCODER, SEESAW_ENCODER_POSITION + number, buf, 4, 1) != i2c::ERROR_OK)
+  if (this->readbuf_(SEESAW_ENCODER, SEESAW_ENCODER_POSITION + number, buf, 4, 1000) != i2c::ERROR_OK)
     return 0;
   int32_t value = (buf[0] << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
   return -value;  // make clockwise positive
@@ -86,14 +86,14 @@ int32_t Seesaw::get_encoder_position(uint8_t number) {
 
 int16_t Seesaw::get_touch_value(uint8_t channel) {
   uint8_t buf[2];
-  if (this->readbuf_(SEESAW_TOUCH, SEESAW_TOUCH_CHANNEL_OFFSET + channel, buf, 2, 3) != i2c::ERROR_OK)
+  if (this->readbuf_(SEESAW_TOUCH, SEESAW_TOUCH_CHANNEL_OFFSET + channel, buf, 2, 3000) != i2c::ERROR_OK)
     return -1;
   return ((uint16_t) buf[0] << 8) | buf[1];
 }
 
 float Seesaw::get_temperature() {
   uint8_t buf[4];
-  if (this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_TEMP, buf, 4, 1) != i2c::ERROR_OK)
+  if (this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_TEMP, buf, 4, 1000) != i2c::ERROR_OK)
     return NAN;
   uint32_t value = (buf[0] << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
   if (value == 0xffffffff) {
@@ -132,7 +132,7 @@ void Seesaw::set_gpio_interrupt(uint32_t pin, bool enabled) {
 
 uint16_t Seesaw::analog_read(uint8_t pin) {
   uint8_t buf[2];
-  i2c::ErrorCode err = this->readbuf_(SEESAW_ADC, SEESAW_ADC_CHANNEL_OFFSET + pin, buf, 2, 1);
+  i2c::ErrorCode err = this->readbuf_(SEESAW_ADC, SEESAW_ADC_CHANNEL_OFFSET + pin, buf, 2, 1000);
   if (err == i2c::ERROR_OK)
     return (buf[0] << 8) + buf[1];
   return 0xffff;
@@ -191,14 +191,13 @@ i2c::ErrorCode Seesaw::write32_(SeesawModule mod, uint8_t reg, uint32_t value) {
   return this->write(buf, 6);
 }
 
-i2c::ErrorCode Seesaw::readbuf_(SeesawModule mod, uint8_t reg, uint8_t *buf, uint8_t len, int wait) {
+i2c::ErrorCode Seesaw::readbuf_(SeesawModule mod, uint8_t reg, uint8_t *buf, uint8_t len, int wait_us) {
   uint8_t sendbuf[2] = {mod, reg};
   i2c::ErrorCode err = this->write(sendbuf, 2);
   if (err != i2c::ERROR_OK)
     return err;
-  delayMicroseconds(250);
-  if (wait)
-    delay(wait);
+  if (wait_us)
+    delayMicroseconds(wait_us);
   return this->read(buf, len);
 }
 

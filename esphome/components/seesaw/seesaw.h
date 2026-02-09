@@ -109,7 +109,7 @@ class Seesaw : public i2c::I2CDevice, public Component {
   i2c::ErrorCode write8_(SeesawModule mod, uint8_t reg, uint8_t value);
   i2c::ErrorCode write16_(SeesawModule mod, uint8_t reg, uint16_t value);
   i2c::ErrorCode write32_(SeesawModule mod, uint8_t reg, uint32_t value);
-  i2c::ErrorCode readbuf_(SeesawModule mod, uint8_t reg, uint8_t *buf, uint8_t len, int wait = 0);
+  i2c::ErrorCode readbuf_(SeesawModule mod, uint8_t reg, uint8_t *buf, uint8_t len, int wait_us = 250);
 
   uint8_t cpuid_;
   uint32_t version_;
