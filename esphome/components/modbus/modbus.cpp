@@ -19,6 +19,8 @@ void Modbus::setup() {
 void Modbus::loop() {
   const uint32_t now = App.get_loop_component_start_time();
 
+  // Early return avoids stack adjustment for the batch buffer below.
+  // loop() runs ~7000/min so most calls have nothing to read.
   int avail = this->available();
   if (avail > 0) {
     // Read all available bytes in batches to reduce UART call overhead.
