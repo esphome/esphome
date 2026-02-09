@@ -124,12 +124,12 @@ inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && st
  *
  * Chunked transfer encoding - platform differences:
  *   - ESP-IDF HttpContainer:
- *       is_read_complete() only tracks content_length-based completion and
- *       always returns false for chunked responses. For chunked responses,
- *       EOF is currently signaled by read() returning a negative value
- *       (HTTP_ERROR_CONNECTION_CLOSED), so callers cannot distinguish a
- *       successful end-of-chunks from a transport error based on the return
- *       code alone.
+ *       HttpContainerIDF overrides is_read_complete() to call
+ *       esp_http_client_is_complete_data_received(), which is the
+ *       authoritative completion check for both chunked and non-chunked
+ *       transfers. When esp_http_client_read() returns 0 for a completed
+ *       chunked response, read() returns 0 and is_read_complete() returns
+ *       true, so callers get COMPLETE from http_read_loop_result().
  *
  *   - Arduino HttpContainer:
  *       Chunked responses are decoded internally (see
@@ -240,13 +240,13 @@ class HttpContainer : public Parented<HttpRequestComponent> {
 
   size_t get_bytes_read() const { return this->bytes_read_; }
 
-  /// Check if all expected content has been read for non-chunked responses.
-  /// While is_chunked_ is true, this always returns false and callers must use
-  /// the platform-specific read() semantics to detect end-of-body:
-  ///   - ESP-IDF: chunked EOF is indicated when read() returns HTTP_ERROR_CONNECTION_CLOSED.
+  /// Check if all expected content has been read.
+  /// Base implementation handles non-chunked responses and status-code-based no-body checks.
+  /// Platform implementations may override for chunked completion detection:
+  ///   - ESP-IDF: overrides to call esp_http_client_is_complete_data_received() for chunked.
   ///   - Arduino: read_chunked_() clears is_chunked_ and sets content_length on the final
-  ///     chunk, after which this method behaves like the non-chunked case.
-  bool is_read_complete() const {
+  ///     chunk, after which the base implementation detects completion.
+  virtual bool is_read_complete() const {
     // Per RFC 9112, these responses have no body:
     // - 1xx (Informational), 204 No Content, 205 Reset Content, 304 Not Modified
     if ((this->status_code >= 100 && this->status_code < 200) || this->status_code == HTTP_STATUS_NO_CONTENT ||

@@ -218,6 +218,21 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   return container;
 }
 
+bool HttpContainerIDF::is_read_complete() const {
+  // Per RFC 9112, these responses have no body:
+  // - 1xx (Informational), 204 No Content, 205 Reset Content, 304 Not Modified
+  if ((this->status_code >= 100 && this->status_code < 200) || this->status_code == HTTP_STATUS_NO_CONTENT ||
+      this->status_code == HTTP_STATUS_RESET_CONTENT || this->status_code == HTTP_STATUS_NOT_MODIFIED) {
+    return true;
+  }
+  // For non-chunked responses, complete when bytes_read >= content_length
+  if (!this->is_chunked_) {
+    return this->bytes_read_ >= this->content_length;
+  }
+  // For chunked responses, use the authoritative ESP-IDF completion check
+  return esp_http_client_is_complete_data_received(this->client_);
+}
+
 // ESP-IDF HTTP read implementation (blocking mode)
 //
 // WARNING: Return values differ from BSD sockets! See http_request.h for full documentation.
@@ -230,14 +245,15 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 //
 // We normalize to HttpContainer::read() contract:
 //   > 0: bytes read
-//   0: all content read (only returned when content_length is known and fully read)
+//   0: all content read (for both content_length-based and chunked completion)
 //   < 0: error/connection closed
 //
 // Note on chunked transfer encoding:
 //   esp_http_client_fetch_headers() returns 0 for chunked responses (no Content-Length header).
-//   We handle this by skipping the content_length check when content_length is 0,
-//   allowing esp_http_client_read() to handle chunked decoding internally and signal EOF
-//   by returning 0.
+//   When esp_http_client_read() returns 0 for a chunked response, is_read_complete() calls
+//   esp_http_client_is_complete_data_received() to distinguish successful completion from
+//   connection errors. Callers use http_read_loop_result() which checks is_read_complete()
+//   to return COMPLETE for successful chunked EOF.
 //
 // Streaming chunked responses are not supported (see http_request.h for details).
 // When data stops arriving, esp_http_client_read() returns -ESP_ERR_HTTP_EAGAIN
@@ -267,17 +283,15 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   // esp_http_client_read() returns 0 when:
   // - Known content_length: connection closed before all data received (error)
   // - Chunked encoding: all chunks received (is_chunk_complete true, genuine EOF)
-  // In both cases, returning HTTP_ERROR_CONNECTION_CLOSED is acceptable:
-  // for the chunked case, all data has already been delivered in previous
-  // successful read() calls, so no response data is lost.
   //
-  // Note: for chunked responses, is_read_complete() always returns false
-  // (it only tracks content_length-based completion), so chunked transfers
-  // always terminate via this error path rather than the COMPLETE path in
-  // http_read_loop_result(). This works for complete-response use cases
-  // but means callers cannot distinguish chunked EOF from connection errors.
+  // Return 0 in both cases. Callers use http_read_loop_result() which calls
+  // is_read_complete() to distinguish these:
+  // - Chunked complete: is_read_complete() returns true (via
+  //   esp_http_client_is_complete_data_received()), caller gets COMPLETE
+  // - Non-chunked incomplete: is_read_complete() returns false, caller
+  //   eventually gets TIMEOUT (since no more data arrives)
   if (read_len_or_error == 0) {
-    return HTTP_ERROR_CONNECTION_CLOSED;
+    return 0;
   }
 
   // Negative value - error, return the actual error code for debugging
