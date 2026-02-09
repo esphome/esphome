@@ -27,6 +27,8 @@ void DlmsMeterComponent::dump_config() {
 }
 
 void DlmsMeterComponent::loop() {
+  // Early return avoids stack adjustment for the batch buffer below.
+  // loop() runs ~7000/min so most calls have nothing to read.
   // Read while data is available, netznoe uses two frames so allow 2x max frame length
   int avail = this->available();
   if (avail > 0) {
