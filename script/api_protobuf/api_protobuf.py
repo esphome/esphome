@@ -2277,12 +2277,6 @@ ifdefs: dict[str, str] = {}
 # Track messages with no fields (empty messages) for parameter elision
 EMPTY_MESSAGES: set[str] = set()
 
-# Track empty SOURCE_CLIENT messages that don't need class generation
-# These messages have no fields and are only received (never sent), so the
-# class definition (vtable, dump_to, message_name, ESTIMATED_SIZE) is dead code
-# that the compiler compiles but the linker strips away.
-SKIP_CLASS_GENERATION: set[str] = set()
-
 
 def get_opt(
     desc: descriptor.DescriptorProto,
@@ -2533,11 +2527,7 @@ def build_service_message_type(
             case += "#endif\n"
         case += f"this->{func}({'msg' if not is_empty else ''});\n"
         case += "break;"
-        if mt.name in SKIP_CLASS_GENERATION:
-            case_label = f"{id_} /* {mt.name} is empty */"
-        else:
-            case_label = f"{mt.name}::MESSAGE_TYPE"
-        RECEIVE_CASES[id_] = (case, ifdef, case_label)
+        RECEIVE_CASES[id_] = (case, ifdef, mt.name)
 
         # Only close ifdef if we opened it
         if ifdef is not None:
@@ -2733,19 +2723,6 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 
     mt = file.message_type
 
-    # Identify empty SOURCE_CLIENT messages that don't need class generation
-    for m in mt:
-        if m.options.deprecated:
-            continue
-        if not m.options.HasExtension(pb.id):
-            continue
-        source = message_source_map.get(m.name)
-        if source != SOURCE_CLIENT:
-            continue
-        has_fields = any(not field.options.deprecated for field in m.field)
-        if not has_fields:
-            SKIP_CLASS_GENERATION.add(m.name)
-
     # Collect messages by base class
     base_class_groups = collect_messages_by_base_class(mt)
 
@@ -2776,10 +2753,6 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 
         # Skip messages that aren't used (unless they have an ID/service message)
         if m.name not in used_messages and not m.options.HasExtension(pb.id):
-            continue
-
-        # Skip class generation for empty SOURCE_CLIENT messages
-        if m.name in SKIP_CLASS_GENERATION:
             continue
 
         s, c, dc = build_message_type(m, base_class_fields, message_source_map)
@@ -2928,18 +2901,10 @@ static const char *const TAG = "api.service";
     no_conn_ids: set[int] = set()
     conn_only_ids: set[int] = set()
 
-    # Build a reverse lookup from case_label to message name for auth lookups
-    case_label_to_msg: dict[int, str] = {}
-    for mt in file.message_type:
-        id_ = get_opt(mt, pb.id)
-        if id_ is not None and not mt.options.deprecated:
-            case_label_to_msg[id_] = mt.name
-
-    for id_, (_, _, case_label) in cases:
-        msg_name = case_label_to_msg.get(id_, "")
-        if msg_name in message_auth_map:
-            needs_auth = message_auth_map[msg_name]
-            needs_conn = message_conn_map[msg_name]
+    for id_, (_, _, case_msg_name) in cases:
+        if case_msg_name in message_auth_map:
+            needs_auth = message_auth_map[case_msg_name]
+            needs_conn = message_conn_map[case_msg_name]
 
             if not needs_conn:
                 no_conn_ids.add(id_)
@@ -2950,10 +2915,10 @@ static const char *const TAG = "api.service";
     def generate_cases(ids: set[int], comment: str) -> str:
         result = ""
         for id_ in sorted(ids):
-            _, ifdef, case_label = RECEIVE_CASES[id_]
+            _, ifdef, msg_name = RECEIVE_CASES[id_]
             if ifdef:
                 result += f"#ifdef {ifdef}\n"
-            result += f"    case {case_label}:  {comment}\n"
+            result += f"    case {msg_name}::MESSAGE_TYPE:  {comment}\n"
             if ifdef:
                 result += "#endif\n"
         return result
@@ -2993,11 +2958,11 @@ static const char *const TAG = "api.service";
 
     # Dispatch switch
     out += "  switch (msg_type) {\n"
-    for i, (case, ifdef, case_label) in cases:
+    for i, (case, ifdef, message_name) in cases:
         if ifdef is not None:
             out += f"#ifdef {ifdef}\n"
 
-        c = f"    case {case_label}: {{\n"
+        c = f"    case {message_name}::MESSAGE_TYPE: {{\n"
         c += indent(case, "      ") + "\n"
         c += "    }"
         out += c + "\n"
