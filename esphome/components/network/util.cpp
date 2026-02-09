@@ -35,13 +35,13 @@ bool is_connected() {
 #endif
 
 #ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected())
-    return true;
+  if (wifi::global_wifi_component != nullptr)
+    return wifi::global_wifi_component->is_connected();
 #endif
 
 #ifdef USE_OPENTHREAD
-  if (openthread::global_openthread_component != nullptr && openthread::global_openthread_component->is_connected())
-    return true;
+  if (openthread::global_openthread_component != nullptr)
+    return openthread::global_openthread_component->is_connected();
 #endif
 
 #ifdef USE_HOST

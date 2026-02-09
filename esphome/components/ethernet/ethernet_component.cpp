@@ -105,11 +105,7 @@ void EthernetComponent::setup() {
   err = esp_netif_init();
   ESPHL_ERROR_CHECK(err, "ETH netif init error");
   err = esp_event_loop_create_default();
-  // ESP_ERR_INVALID_STATE is returned if the default loop already exists, which is fine since we just want to make sure it exists
-  if (err != ERR_OK && err != ESP_ERR_INVALID_STATE) {
-    this->log_error_and_mark_failed_(err, "ETH event loop error");
-    return;
-  }
+  ESPHL_ERROR_CHECK(err, "ETH event loop error");
 
   esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
   this->eth_netif_ = esp_netif_new(&cfg);
