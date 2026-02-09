@@ -40,20 +40,18 @@ void Logger::pre_setup() {
     if (!uart_manager.init_uart_for_logger(lt_uart, this->baud_rate_)) {
       lt_uart = LT_UART_DEFAULT_SERIAL;
       if (!uart_manager.init_uart_for_logger(lt_uart, this->baud_rate_)) {
-        ESP_LOGW(TAG, "  Failed to initialize default logger uart UART%d. Logging disabled.", LT_UART_DEFAULT_SERIAL);
+        LT_E("  Failed to initialize default logger uart UART%d. Logging disabled.", LT_UART_DEFAULT_SERIAL);
         this->baud_rate_ = 0;
         global_logger = this;
         return;
       } else {
-        ESP_LOGW(TAG,
+        LT_E(
                  "  The chosen logger UART port is not available on this board."
                  "The default port (%u) will be used instead.",
                  LT_UART_DEFAULT_SERIAL);
       }
     }
     this->uart_ = lt_uart_number_2_esphome(lt_uart);
-    lt_log_set_port(lt_uart);
-
     this->hardware_idx_ = lt_uart;
     this->hw_serial_ = uart_manager.get_hw_serial_by_number(lt_uart);
   }

@@ -20,6 +20,7 @@ class LTComponent : public Component {
  public:
   float get_setup_priority() const override;
   void dump_config() override;
+  void on_powerdown() override;
 
   UartManager &get_uart_manager() { return uart_manager_; }
 

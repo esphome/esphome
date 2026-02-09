@@ -8,115 +8,33 @@
 namespace esphome::libretiny {
 
 struct UartManager {
-  const FixedVector<pin_size_t> &get_tx_pins_for_uart(const uint8_t uart_number) const {
-    auto *uart = get_uart_by_number_(uart_number);
-    if (!uart) {
-      return get_empty_pins();
-    }
-    return uart->tx_pins;
-  }
-
-  const FixedVector<pin_size_t> &get_rx_pins_for_uart(const uint8_t uart_number) const {
-    auto *uart = get_uart_by_number_(uart_number);
-    if (!uart) {
-      return get_empty_pins();
-    }
-    return uart->rx_pins;
-  }
-
-  HardwareSerial *get_hw_serial_by_number(const uint8_t uart_number) {
-    auto *uart = get_uart_by_number_(uart_number);
-    if (!uart) {
-      return nullptr;
-    }
-    return &(uart->hw_serial);
-  }
 
   FixedVector<uint8_t> get_available_uarts() const {
     return FixedVector<uint8_t> {
-#if LT_HW_UART0
+  #if LT_HW_UART0
       0,
-#endif
-#if LT_HW_UART1
+  #endif
+  #if LT_HW_UART1
           1,
-#endif
-#if LT_HW_UART2
+  #endif
+  #if LT_HW_UART2
           2,
-#endif
+  #endif
     };
   }
 
-  uint8_t get_default_uart_number() const { return LT_UART_DEFAULT_SERIAL; }
+  void deinit_all();
+  const FixedVector<pin_size_t> &get_tx_pins_for_uart(const uint8_t uart_number) const;
+  const FixedVector<pin_size_t> &get_rx_pins_for_uart(const uint8_t uart_number) const;
+  HardwareSerial *get_hw_serial_by_number(const uint8_t uart_number);
 
-  bool validate_pins(const uint8_t uart_number, const uint8_t rx_pin, const uint8_t tx_pin) const {
-    auto *uart = get_uart_by_number_(uart_number);
-    if (!uart) {
-      return false;
-    }
-    return uart->validate_pins(rx_pin, tx_pin);
-  }
-
-  /**
-   * @brief Initialize UART without changing pins
-   *
-   * @param uart_number Hardware UART number (0-2)
-   * @param baud_rate Baud rate to use
-   * @param config Configuration (data bits, parity, stop bits)
-   * @return true on success
-   */
-  bool init_uart(const uint8_t uart_number, uint32_t baud_rate, const uint16_t config) {
-    auto *uart = get_uart_by_number_(uart_number);
-    if (!uart) {
-      return false;
-    }
-
-    uart->hw_serial.begin(baud_rate, config);
-    return true;
-  }
-
-  /**
-   * @brief
-   *
-   * @param uart_number Hardware UART number (0-2)
-   * @param baud_rate Baud rate to use
-   * @param config Configuration (data bits, parity, stop bits)
-   * @param rx_pin pin number to use for RX
-   * @param tx_pin pin number to use for TX
-   * @return true on success
-   */
+  uint8_t get_default_uart_number() const;
+  bool validate_pins(const uint8_t uart_number, const uint8_t rx_pin, const uint8_t tx_pin) const;
+  bool init_uart(const uint8_t uart_number, uint32_t baud_rate, const uint16_t config);
   bool init_uart(const uint8_t uart_number, uint32_t baud_rate, const uint16_t config, const uint8_t rx_pin,
-                 const uint8_t tx_pin) {
-    auto *uart = get_uart_by_number_(uart_number);
-    if (!uart) {
-      return false;
-    }
-
-    if (!uart->validate_pins(rx_pin, tx_pin)) {
-      return false;
-    }
-
-    uart->hw_serial.begin(baud_rate, config, rx_pin, tx_pin);
-    return true;
-  }
-
-  bool init_uart_for_logger(const uint8_t uart_number, uint32_t baud_rate) {
-    auto *uart = get_uart_by_number_(uart_number);
-    if (!uart) {
-      return false;
-    }
-
-    uart->hw_serial.begin(baud_rate, SERIAL_8N1, uart->get_logger_rx_pin(), uart->get_logger_tx_pin());
-    return true;
-  }
-
-  void deinit_uart(const uint8_t uart_number) {
-    auto *uart = get_uart_by_number_(uart_number);
-    if (!uart) {
-      return;
-    }
-
-    uart->hw_serial.end();
-  }
+                 const uint8_t tx_pin);
+  bool init_uart_for_logger(const uint8_t uart_number, uint32_t baud_rate);
+  void deinit_uart(const uint8_t uart_number);
 
  private:
   static const FixedVector<pin_size_t> &get_empty_pins() {
@@ -197,19 +115,8 @@ struct UartManager {
 #endif
   };
 
-  UartInfo *get_uart_by_number_(const uint8_t uart_number) {
-    if ((uart_number >= s_max_uarts) || (!uarts_[uart_number].has_value())) {
-      return nullptr;
-    }
-    return &uarts_[uart_number].value();
-  }
-
-  const UartInfo *get_uart_by_number_(const uint8_t uart_number) const {
-    if ((uart_number >= s_max_uarts) || (!uarts_[uart_number].has_value())) {
-      return nullptr;
-    }
-    return &uarts_[uart_number].value();
-  }
+  UartInfo *get_uart_by_number_(const uint8_t uart_number);
+  const UartInfo *get_uart_by_number_(const uint8_t uart_number) const;
 };
 
 }  // namespace esphome::libretiny

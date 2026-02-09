@@ -84,13 +84,17 @@ void LibreTinyUARTComponent::setup() {
 
   auto fallback_to_sw_serial = shouldFallbackToSoftwareSerial(rx_pin_, tx_pin_);
   if (!fallback_to_sw_serial) {
+    ESP_LOGI(TAG, "Trying to initialize hardware UART with TX pin %d and RX pin %d", tx_pin, rx_pin);
     if (uart_manager.init_uart(0, this->baud_rate_, get_config(), rx_pin, tx_pin)) {
+      ESP_LOGI(TAG, "UART initialized on UART0");
       this->hardware_idx_ = 0;
       this->serial_ = uart_manager.get_hw_serial_by_number(0);
     } else if (uart_manager.init_uart(1, this->baud_rate_, get_config(), rx_pin, tx_pin)) {
+      ESP_LOGI(TAG, "UART initialized on UART1");
       this->hardware_idx_ = 1;
       this->serial_ = uart_manager.get_hw_serial_by_number(1);
     } else if (uart_manager.init_uart(2, this->baud_rate_, get_config(), rx_pin, tx_pin)) {
+      ESP_LOGI(TAG, "UART initialized on UART2");
       this->hardware_idx_ = 2;
       this->serial_ = uart_manager.get_hw_serial_by_number(2);
     } else {

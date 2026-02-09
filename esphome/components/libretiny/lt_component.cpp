@@ -2,6 +2,10 @@
 
 #ifdef USE_LIBRETINY
 
+extern "C" {
+extern void sys_log_uart_on(void);
+}
+
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -24,6 +28,11 @@ void LTComponent::dump_config() {
 }
 
 float LTComponent::get_setup_priority() const { return setup_priority::BUS + 500.0f; }  // must be before Logger & UART
+
+void LTComponent::on_powerdown()
+{
+  this->uart_manager_.deinit_all();
+}
 
 }  // namespace libretiny
 }  // namespace esphome
