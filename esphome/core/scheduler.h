@@ -154,7 +154,7 @@ class Scheduler {
 
     // Bit-packed fields (4 bits used, 4 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
-    NameType name_type_ : 2;  // Discriminator for name_ union (STATIC_STRING, HASHED_STRING, NUMERIC_ID)
+    NameType name_type_ : 2;  // Discriminator for name_ union (0–3, see NameType enum)
     bool is_retry : 1;        // True if this is a retry timeout
                               // 4 bits padding
 #else
@@ -162,7 +162,7 @@ class Scheduler {
     // Bit-packed fields (5 bits used, 3 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
     bool remove : 1;
-    NameType name_type_ : 2;  // Discriminator for name_ union (STATIC_STRING, HASHED_STRING, NUMERIC_ID)
+    NameType name_type_ : 2;  // Discriminator for name_ union (0–3, see NameType enum)
     bool is_retry : 1;        // True if this is a retry timeout
                               // 3 bits padding
 #endif
