@@ -256,7 +256,7 @@ void ModemComponent::handle_state_enabling_() {
     // so try sending an AT command to confirm it's responsive at this baud rate.
     if (!success) {
       App.feed_wdt();
-      auto result = this->modem_handler->send_at("AT");
+      auto result = this->modem_handler->send_at("AT", 100);
       success = result.esp_modem_command_result == command_result::OK;
     }
     if (success) {
