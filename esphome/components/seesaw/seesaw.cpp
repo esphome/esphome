@@ -196,6 +196,7 @@ i2c::ErrorCode Seesaw::readbuf_(SeesawModule mod, uint8_t reg, uint8_t *buf, uin
   i2c::ErrorCode err = this->write(sendbuf, 2);
   if (err != i2c::ERROR_OK)
     return err;
+  delayMicroseconds(250);
   if (wait)
     delay(wait);
   return this->read(buf, len);
