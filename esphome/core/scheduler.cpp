@@ -53,8 +53,11 @@ struct SchedulerNameLog {
     } else if (name_type == NameType::HASHED_STRING) {
       ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("hash:0x%08" PRIX32), hash_or_id);
       return buffer;
-    } else {  // NUMERIC_ID
+    } else if (name_type == NameType::NUMERIC_ID) {
       ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("id:%" PRIu32), hash_or_id);
+      return buffer;
+    } else {  // NUMERIC_ID_INTERNAL
+      ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("iid:%" PRIu32), hash_or_id);
       return buffer;
     }
   }
@@ -136,6 +139,9 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
       break;
     case NameType::NUMERIC_ID:
       item->set_numeric_id(hash_or_id);
+      break;
+    case NameType::NUMERIC_ID_INTERNAL:
+      item->set_internal_id(hash_or_id);
       break;
   }
   item->type = type;
