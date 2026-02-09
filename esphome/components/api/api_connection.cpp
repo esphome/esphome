@@ -283,7 +283,7 @@ void APIConnection::loop() {
 #endif
 }
 
-bool APIConnection::send_disconnect_response(const DisconnectRequest &msg) {
+bool APIConnection::send_disconnect_response() {
   // remote initiated disconnect_client
   // don't close yet, we still need to send the disconnect response
   // close will happen on next loop
@@ -292,7 +292,7 @@ bool APIConnection::send_disconnect_response(const DisconnectRequest &msg) {
   DisconnectResponse resp;
   return this->send_message(resp, DisconnectResponse::MESSAGE_TYPE);
 }
-void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
+void APIConnection::on_disconnect_response() {
   this->helper_->close();
   this->flags_.remove = true;
 }
@@ -1095,7 +1095,7 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
 void APIConnection::subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->subscribe_api_connection(this, msg.flags);
 }
-void APIConnection::unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
+void APIConnection::unsubscribe_bluetooth_le_advertisements() {
   bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
 }
 void APIConnection::bluetooth_device_request(const BluetoothDeviceRequest &msg) {
@@ -1121,8 +1121,7 @@ void APIConnection::bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg)
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_notify(msg);
 }
 
-bool APIConnection::send_subscribe_bluetooth_connections_free_response(
-    const SubscribeBluetoothConnectionsFreeRequest &msg) {
+bool APIConnection::send_subscribe_bluetooth_connections_free_response() {
   bluetooth_proxy::global_bluetooth_proxy->send_connections_free(this);
   return true;
 }
@@ -1491,12 +1490,12 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
   return this->send_message(resp, HelloResponse::MESSAGE_TYPE);
 }
 
-bool APIConnection::send_ping_response(const PingRequest &msg) {
+bool APIConnection::send_ping_response() {
   PingResponse resp;
   return this->send_message(resp, PingResponse::MESSAGE_TYPE);
 }
 
-bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
+bool APIConnection::send_device_info_response() {
   DeviceInfoResponse resp{};
   resp.name = StringRef(App.get_name());
   resp.friendly_name = StringRef(App.get_friendly_name());
@@ -1746,9 +1745,7 @@ bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryption
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) {
-  state_subs_at_ = 0;
-}
+void APIConnection::subscribe_home_assistant_states() { state_subs_at_ = 0; }
 #endif
 bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   if (this->flags_.remove)

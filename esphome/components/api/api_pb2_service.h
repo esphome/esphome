@@ -14,6 +14,7 @@ class APIServerConnectionBase : public ProtoService {
  protected:
   void log_send_message_(const char *name, const char *dump);
   void log_receive_message_(const LogString *name, const ProtoMessage &msg);
+  void log_receive_message_(const LogString *name);
 
  public:
 #endif
@@ -28,15 +29,15 @@ class APIServerConnectionBase : public ProtoService {
 
   virtual void on_hello_request(const HelloRequest &value){};
 
-  virtual void on_disconnect_request(const DisconnectRequest &value){};
-  virtual void on_disconnect_response(const DisconnectResponse &value){};
-  virtual void on_ping_request(const PingRequest &value){};
-  virtual void on_ping_response(const PingResponse &value){};
-  virtual void on_device_info_request(const DeviceInfoRequest &value){};
+  virtual void on_disconnect_request(){};
+  virtual void on_disconnect_response(){};
+  virtual void on_ping_request(){};
+  virtual void on_ping_response(){};
+  virtual void on_device_info_request(){};
 
-  virtual void on_list_entities_request(const ListEntitiesRequest &value){};
+  virtual void on_list_entities_request(){};
 
-  virtual void on_subscribe_states_request(const SubscribeStatesRequest &value){};
+  virtual void on_subscribe_states_request(){};
 
 #ifdef USE_COVER
   virtual void on_cover_command_request(const CoverCommandRequest &value){};
@@ -61,14 +62,14 @@ class APIServerConnectionBase : public ProtoService {
 #endif
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-  virtual void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &value){};
+  virtual void on_subscribe_homeassistant_services_request(){};
 #endif
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   virtual void on_homeassistant_action_response(const HomeassistantActionResponse &value){};
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-  virtual void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &value){};
+  virtual void on_subscribe_home_assistant_states_request(){};
 #endif
 
 #ifdef USE_API_HOMEASSISTANT_STATES
@@ -147,12 +148,11 @@ class APIServerConnectionBase : public ProtoService {
 #endif
 
 #ifdef USE_BLUETOOTH_PROXY
-  virtual void on_subscribe_bluetooth_connections_free_request(const SubscribeBluetoothConnectionsFreeRequest &value){};
+  virtual void on_subscribe_bluetooth_connections_free_request(){};
 #endif
 
 #ifdef USE_BLUETOOTH_PROXY
-  virtual void on_unsubscribe_bluetooth_le_advertisements_request(
-      const UnsubscribeBluetoothLEAdvertisementsRequest &value){};
+  virtual void on_unsubscribe_bluetooth_le_advertisements_request(){};
 #endif
 
 #ifdef USE_BLUETOOTH_PROXY
@@ -231,17 +231,17 @@ class APIServerConnectionBase : public ProtoService {
 class APIServerConnection : public APIServerConnectionBase {
  public:
   virtual bool send_hello_response(const HelloRequest &msg) = 0;
-  virtual bool send_disconnect_response(const DisconnectRequest &msg) = 0;
-  virtual bool send_ping_response(const PingRequest &msg) = 0;
-  virtual bool send_device_info_response(const DeviceInfoRequest &msg) = 0;
-  virtual void list_entities(const ListEntitiesRequest &msg) = 0;
-  virtual void subscribe_states(const SubscribeStatesRequest &msg) = 0;
+  virtual bool send_disconnect_response() = 0;
+  virtual bool send_ping_response() = 0;
+  virtual bool send_device_info_response() = 0;
+  virtual void list_entities() = 0;
+  virtual void subscribe_states() = 0;
   virtual void subscribe_logs(const SubscribeLogsRequest &msg) = 0;
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-  virtual void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) = 0;
+  virtual void subscribe_homeassistant_services() = 0;
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-  virtual void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) = 0;
+  virtual void subscribe_home_assistant_states() = 0;
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   virtual void execute_service(const ExecuteServiceRequest &msg) = 0;
@@ -331,11 +331,10 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  virtual bool send_subscribe_bluetooth_connections_free_response(
-      const SubscribeBluetoothConnectionsFreeRequest &msg) = 0;
+  virtual bool send_subscribe_bluetooth_connections_free_response() = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  virtual void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
+  virtual void unsubscribe_bluetooth_le_advertisements() = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   virtual void bluetooth_scanner_set_mode(const BluetoothScannerSetModeRequest &msg) = 0;
@@ -363,17 +362,17 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
-  void on_disconnect_request(const DisconnectRequest &msg) override;
-  void on_ping_request(const PingRequest &msg) override;
-  void on_device_info_request(const DeviceInfoRequest &msg) override;
-  void on_list_entities_request(const ListEntitiesRequest &msg) override;
-  void on_subscribe_states_request(const SubscribeStatesRequest &msg) override;
+  void on_disconnect_request() override;
+  void on_ping_request() override;
+  void on_device_info_request() override;
+  void on_list_entities_request() override;
+  void on_subscribe_states_request() override;
   void on_subscribe_logs_request(const SubscribeLogsRequest &msg) override;
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-  void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) override;
+  void on_subscribe_homeassistant_services_request() override;
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-  void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) override;
+  void on_subscribe_home_assistant_states_request() override;
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   void on_execute_service_request(const ExecuteServiceRequest &msg) override;
@@ -463,11 +462,10 @@ class APIServerConnection : public APIServerConnectionBase {
   void on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &msg) override;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  void on_subscribe_bluetooth_connections_free_request(const SubscribeBluetoothConnectionsFreeRequest &msg) override;
+  void on_subscribe_bluetooth_connections_free_request() override;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  void on_unsubscribe_bluetooth_le_advertisements_request(
-      const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
+  void on_unsubscribe_bluetooth_le_advertisements_request() override;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) override;

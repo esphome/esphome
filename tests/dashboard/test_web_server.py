@@ -8,6 +8,7 @@ import gzip
 import json
 import os
 from pathlib import Path
+import sys
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -421,7 +422,7 @@ async def test_download_binary_handler_idedata_fallback(
 
     # Mock idedata response
     mock_image = Mock()
-    mock_image.path = str(bootloader_file)
+    mock_image.path = bootloader_file
     mock_idedata_instance = Mock()
     mock_idedata_instance.extra_flash_images = [mock_image]
     mock_idedata.return_value = mock_idedata_instance
@@ -528,14 +529,22 @@ async def test_download_binary_handler_subdirectory_file_url_encoded(
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_ext_storage_path")
 @pytest.mark.parametrize(
-    "attack_path",
+    ("attack_path", "expected_code"),
     [
-        pytest.param("../../../secrets.yaml", id="basic_traversal"),
-        pytest.param("..%2F..%2F..%2Fsecrets.yaml", id="url_encoded"),
-        pytest.param("zephyr/../../../secrets.yaml", id="traversal_with_prefix"),
-        pytest.param("/etc/passwd", id="absolute_path"),
-        pytest.param("//etc/passwd", id="double_slash_absolute"),
-        pytest.param("....//secrets.yaml", id="multiple_dots"),
+        pytest.param("../../../secrets.yaml", 403, id="basic_traversal"),
+        pytest.param("..%2F..%2F..%2Fsecrets.yaml", 403, id="url_encoded"),
+        pytest.param("zephyr/../../../secrets.yaml", 403, id="traversal_with_prefix"),
+        pytest.param("/etc/passwd", 403, id="absolute_path"),
+        pytest.param("//etc/passwd", 403, id="double_slash_absolute"),
+        pytest.param(
+            "....//secrets.yaml",
+            # On Windows, Path.resolve() treats "..." and "...." as parent
+            # traversal (like ".."), so the path escapes base_dir -> 403.
+            # On Unix, "...." is a literal directory name that stays inside
+            # base_dir but doesn't exist -> 404.
+            403 if sys.platform == "win32" else 404,
+            id="multiple_dots",
+        ),
     ],
 )
 async def test_download_binary_handler_path_traversal_protection(
@@ -543,11 +552,14 @@ async def test_download_binary_handler_path_traversal_protection(
     tmp_path: Path,
     mock_storage_json: MagicMock,
     attack_path: str,
+    expected_code: int,
 ) -> None:
     """Test that DownloadBinaryRequestHandler prevents path traversal attacks.
 
-    Verifies that attempts to use '..' in file paths are sanitized to prevent
-    accessing files outside the build directory. Tests multiple attack vectors.
+    Verifies that attempts to escape the build directory via '..' are rejected
+    using resolve()/relative_to() validation. Tests multiple attack vectors.
+    Real traversals that escape the base directory get 403. Paths like '....'
+    that resolve inside the base directory but don't exist get 404.
     """
     # Create build structure
     build_dir = get_build_path(tmp_path, "test")
@@ -565,14 +577,67 @@ async def test_download_binary_handler_path_traversal_protection(
     mock_storage.firmware_bin_path = firmware_file
     mock_storage_json.load.return_value = mock_storage
 
-    # Attempt path traversal attack - should be blocked
-    with pytest.raises(HTTPClientError) as exc_info:
+    # Mock async_run_system_command so paths that pass validation but don't exist
+    # return 404 deterministically without spawning a real subprocess.
+    with (
+        patch(
+            "esphome.dashboard.web_server.async_run_system_command",
+            new_callable=AsyncMock,
+            return_value=(2, "", ""),
+        ),
+        pytest.raises(HTTPClientError) as exc_info,
+    ):
         await dashboard.fetch(
             f"/download.bin?configuration=test.yaml&file={attack_path}",
             method="GET",
         )
-    # Should get 404 (file not found after sanitization) or 500 (idedata fails)
-    assert exc_info.value.code in (404, 500)
+    assert exc_info.value.code == expected_code
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_no_firmware_bin_path(
+    dashboard: DashboardTestHelper,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test that download returns 404 when firmware_bin_path is None.
+
+    This covers configs created by StorageJSON.from_wizard() where no
+    firmware has been compiled yet.
+    """
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = None
+    mock_storage_json.load.return_value = mock_storage
+
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch(
+            "/download.bin?configuration=test.yaml&file=firmware.bin",
+            method="GET",
+        )
+    assert exc_info.value.code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+@pytest.mark.parametrize("file_value", ["", "%20%20", "%20"])
+async def test_download_binary_handler_empty_file_name(
+    dashboard: DashboardTestHelper,
+    mock_storage_json: MagicMock,
+    file_value: str,
+) -> None:
+    """Test that download returns 400 for empty or whitespace-only file names."""
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = Path("/fake/firmware.bin")
+    mock_storage_json.load.return_value = mock_storage
+
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch(
+            f"/download.bin?configuration=test.yaml&file={file_value}",
+            method="GET",
+        )
+    assert exc_info.value.code == 400
 
 
 @pytest.mark.asyncio
