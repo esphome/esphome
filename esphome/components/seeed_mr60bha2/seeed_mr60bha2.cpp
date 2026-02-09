@@ -30,6 +30,8 @@ void MR60BHA2Component::dump_config() {
 
 // main loop
 void MR60BHA2Component::loop() {
+  // Early return avoids stack adjustment for the batch buffer below.
+  // loop() runs ~7000/min so most calls have nothing to read.
   int avail = this->available();
   if (avail <= 0) {
     return;
