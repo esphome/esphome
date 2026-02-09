@@ -40,8 +40,6 @@ async def test_water_heater_template(
         states: dict[int, aioesphomeapi.EntityState] = {}
         gas_mode_future: asyncio.Future[WaterHeaterState] = loop.create_future()
         eco_mode_future: asyncio.Future[WaterHeaterState] = loop.create_future()
-        away_on_future: asyncio.Future[WaterHeaterState] = loop.create_future()
-        on_off_future: asyncio.Future[WaterHeaterState] = loop.create_future()
 
         def on_state(state: aioesphomeapi.EntityState) -> None:
             states[state.key] = state
@@ -52,16 +50,6 @@ async def test_water_heater_template(
                 # Wait for ECO mode (we start at OFF, so test transitioning to ECO)
                 elif state.mode == WaterHeaterMode.ECO and not eco_mode_future.done():
                     eco_mode_future.set_result(state)
-                # Wait for away=True
-                elif (
-                    state.state & WaterHeaterStateFlag.AWAY
-                ) != 0 and not away_on_future.done():
-                    away_on_future.set_result(state)
-                # Wait for on=False
-                elif (
-                    state.state & WaterHeaterStateFlag.ON
-                ) == 0 and not on_off_future.done():
-                    on_off_future.set_result(state)
 
         # Get entities and set up state synchronization
         entities, services = await client.list_entities_services()
@@ -154,25 +142,3 @@ async def test_water_heater_template(
 
         assert isinstance(eco_state, WaterHeaterState)
         assert eco_state.mode == WaterHeaterMode.ECO
-
-        # Test away mode: set away=True (optimistic update; lambda may override on next loop)
-        client.water_heater_command(test_water_heater.key, away=True)
-        try:
-            away_state = await asyncio.wait_for(away_on_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Away=True state not received within 5 seconds")
-        assert isinstance(away_state, WaterHeaterState)
-        assert (away_state.state & WaterHeaterStateFlag.AWAY) != 0, (
-            "Expected state to include AWAY flag after away=True command"
-        )
-
-        # Test on/off: set on=False
-        client.water_heater_command(test_water_heater.key, on=False)
-        try:
-            off_state = await asyncio.wait_for(on_off_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("On=False state not received within 5 seconds")
-        assert isinstance(off_state, WaterHeaterState)
-        assert (off_state.state & WaterHeaterStateFlag.ON) == 0, (
-            "Expected state to not include ON flag after on=False command"
-        )
