@@ -112,16 +112,14 @@ void TemplateWaterHeater::control(const water_heater::WaterHeaterCall &call) {
     }
   }
 
-  if ((call.get_state_mask() & water_heater::WATER_HEATER_STATE_AWAY) != 0) {
+  if (call.get_away().has_value()) {
     if (this->optimistic_) {
-      this->set_state_flag_(water_heater::WATER_HEATER_STATE_AWAY,
-                            (call.get_state() & water_heater::WATER_HEATER_STATE_AWAY) != 0);
+      this->set_state_flag_(water_heater::WATER_HEATER_STATE_AWAY, *call.get_away());
     }
   }
-  if ((call.get_state_mask() & water_heater::WATER_HEATER_STATE_ON) != 0) {
+  if (call.get_on().has_value()) {
     if (this->optimistic_) {
-      this->set_state_flag_(water_heater::WATER_HEATER_STATE_ON,
-                            (call.get_state() & water_heater::WATER_HEATER_STATE_ON) != 0);
+      this->set_state_flag_(water_heater::WATER_HEATER_STATE_ON, *call.get_on());
     }
   }
 
