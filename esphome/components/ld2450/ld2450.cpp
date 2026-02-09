@@ -276,14 +276,8 @@ void LD2450Component::dump_config() {
 }
 
 void LD2450Component::loop() {
-  // All current UART available() implementations return >= 0,
-  // use <= 0 to future-proof against any that may return negative on error.
-  int avail = this->available();
-  if (avail <= 0) {
-    return;
-  }
-
   // Read all available bytes in batches to reduce UART call overhead.
+  int avail = this->available();
   uint8_t buf[MAX_LINE_LENGTH];
   while (avail > 0) {
     size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
