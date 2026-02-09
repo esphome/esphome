@@ -43,6 +43,7 @@ _READELF_SECTION_PATTERN = re.compile(
 # Component category prefixes
 _COMPONENT_PREFIX_ESPHOME = "[esphome]"
 _COMPONENT_PREFIX_EXTERNAL = "[external]"
+_COMPONENT_PREFIX_LIB = "[lib]"
 _COMPONENT_CORE = f"{_COMPONENT_PREFIX_ESPHOME}core"
 _COMPONENT_API = f"{_COMPONENT_PREFIX_ESPHOME}api"
 
@@ -55,6 +56,16 @@ SymbolInfoType = tuple[str, int, str]
 
 # RAM sections - symbols in these sections consume RAM
 RAM_SECTIONS = frozenset([".data", ".bss"])
+
+# nm symbol types for global/weak defined symbols (used for library symbol mapping)
+# Only global (uppercase) and weak symbols are safe to use - local symbols (lowercase)
+# can have name collisions across compilation units
+_NM_DEFINED_GLOBAL_TYPES = frozenset({"T", "D", "B", "R", "W", "V"})
+
+# Pattern matching compiler-generated local names that can collide across compilation
+# units (e.g., packet$19, buf$20, flag$5261). These are unsafe for name-based lookup.
+# Does NOT match mangled C++ names with optimization suffixes (e.g., func$isra$0).
+_COMPILER_LOCAL_PATTERN = re.compile(r"^[a-zA-Z_]\w*\$\d+$")
 
 
 @dataclass
@@ -179,11 +190,19 @@ class MemoryAnalyzer:
         self._sdk_symbols: list[SDKSymbol] = []
         # CSWTCH symbols: list of (name, size, source_file, component)
         self._cswtch_symbols: list[tuple[str, int, str, str]] = []
+        # Library symbol mapping: symbol_name -> library_name
+        self._lib_symbol_map: dict[str, str] = {}
+        # Library dir to name mapping: "lib641" -> "espsoftwareserial",
+        # "espressif__mdns" -> "mdns"
+        self._lib_hash_to_name: dict[str, str] = {}
+        # Heuristic category to library redirect: "mdns_lib" -> "[lib]mdns"
+        self._heuristic_to_lib: dict[str, str] = {}
 
     def analyze(self) -> dict[str, ComponentMemory]:
         """Analyze the ELF file and return component memory usage."""
         self._parse_sections()
         self._parse_symbols()
+        self._scan_libraries()
         self._categorize_symbols()
         self._analyze_cswtch_symbols()
         self._analyze_sdk_libraries()
@@ -328,15 +347,19 @@ class MemoryAnalyzer:
             # If no component match found, it's core
             return _COMPONENT_CORE
 
+        # Check library symbol map (more accurate than heuristic patterns)
+        if lib_name := self._lib_symbol_map.get(symbol_name):
+            return f"{_COMPONENT_PREFIX_LIB}{lib_name}"
+
         # Check against symbol patterns
         for component, patterns in SYMBOL_PATTERNS.items():
             if any(pattern in symbol_name for pattern in patterns):
-                return component
+                return self._heuristic_to_lib.get(component, component)
 
         # Check against demangled patterns
         for component, patterns in DEMANGLED_PATTERNS.items():
             if any(pattern in demangled for pattern in patterns):
-                return component
+                return self._heuristic_to_lib.get(component, component)
 
         # Special cases that need more complex logic
 
@@ -383,6 +406,327 @@ class MemoryAnalyzer:
                 return category
 
         return "Other Core"
+
+    def _discover_pio_libraries(
+        self,
+        libraries: dict[str, list[Path]],
+        hash_to_name: dict[str, str],
+    ) -> None:
+        """Discover PlatformIO third-party libraries from the build directory.
+
+        Scans ``lib<hex>/`` directories under ``.pioenvs/<env>/`` to find
+        library names and their ``.a`` archive or ``.o`` file paths.
+
+        Args:
+            libraries: Dict to populate with library name -> file path list mappings.
+                Prefers ``.a`` archives when available, falls back to ``.o`` files
+                (e.g., pioarduino ESP32 Arduino builds only produce ``.o`` files).
+            hash_to_name: Dict to populate with dir name -> library name mappings
+                for CSWTCH attribution (e.g., ``lib641`` -> ``espsoftwareserial``).
+        """
+        build_dir = self.elf_path.parent
+
+        for entry in build_dir.iterdir():
+            if not entry.is_dir() or not entry.name.startswith("lib"):
+                continue
+            # Validate that the suffix after "lib" is a hex hash
+            hex_part = entry.name[3:]
+            if not hex_part:
+                continue
+            try:
+                int(hex_part, 16)
+            except ValueError:
+                continue
+
+            # Each lib<hex>/ directory contains a subdirectory named after the library
+            for lib_subdir in entry.iterdir():
+                if not lib_subdir.is_dir():
+                    continue
+                lib_name = lib_subdir.name.lower()
+
+                # Prefer .a archive (lib<LibraryName>.a), fall back to .o files
+                # e.g., lib72a/ESPAsyncTCP/... has lib72a/libESPAsyncTCP.a
+                archive = entry / f"lib{lib_subdir.name}.a"
+                if archive.exists():
+                    file_paths = [archive]
+                elif archives := list(entry.glob("*.a")):
+                    # Case-insensitive fallback
+                    file_paths = [archives[0]]
+                else:
+                    # No .a archive (e.g., pioarduino CMake builds) - use .o files
+                    file_paths = sorted(lib_subdir.rglob("*.o"))
+
+                if file_paths:
+                    libraries[lib_name] = file_paths
+                    hash_to_name[entry.name] = lib_name
+                    _LOGGER.debug(
+                        "Discovered PlatformIO library: %s -> %s",
+                        lib_subdir.name,
+                        file_paths[0],
+                    )
+
+    def _discover_idf_managed_components(
+        self,
+        libraries: dict[str, list[Path]],
+        hash_to_name: dict[str, str],
+    ) -> None:
+        """Discover ESP-IDF managed component libraries from the build directory.
+
+        ESP-IDF managed components (from the IDF component registry) use a
+        ``<vendor>__<name>`` naming convention. Source files live under
+        ``managed_components/<vendor>__<name>/`` and the compiled archives are at
+        ``esp-idf/<vendor>__<name>/lib<vendor>__<name>.a``.
+
+        Args:
+            libraries: Dict to populate with library name -> file path list mappings.
+            hash_to_name: Dict to populate with dir name -> library name mappings
+                for CSWTCH attribution (e.g., ``espressif__mdns`` -> ``mdns``).
+        """
+        build_dir = self.elf_path.parent
+
+        managed_dir = build_dir / "managed_components"
+        if not managed_dir.is_dir():
+            return
+
+        espidf_dir = build_dir / "esp-idf"
+
+        for entry in managed_dir.iterdir():
+            if not entry.is_dir() or "__" not in entry.name:
+                continue
+
+            # Extract the short name: espressif__mdns -> mdns
+            full_name = entry.name  # e.g., espressif__mdns
+            short_name = full_name.split("__", 1)[1].lower()
+
+            # Find the .a archive under esp-idf/<vendor>__<name>/
+            archive = espidf_dir / full_name / f"lib{full_name}.a"
+            if archive.exists():
+                libraries[short_name] = [archive]
+                hash_to_name[full_name] = short_name
+                _LOGGER.debug(
+                    "Discovered IDF managed component: %s -> %s",
+                    short_name,
+                    archive,
+                )
+
+    def _build_library_symbol_map(
+        self, libraries: dict[str, list[Path]]
+    ) -> dict[str, str]:
+        """Build a symbol-to-library mapping from library archives or object files.
+
+        Runs ``nm --defined-only`` on each ``.a`` or ``.o`` file to collect
+        global and weak defined symbols.
+
+        Args:
+            libraries: Dictionary mapping library name to list of file paths
+                (``.a`` archives or ``.o`` object files).
+
+        Returns:
+            Dictionary mapping symbol name to library name.
+        """
+        symbol_map: dict[str, str] = {}
+
+        if not self.nm_path:
+            return symbol_map
+
+        for lib_name, file_paths in libraries.items():
+            result = run_tool(
+                [self.nm_path, "--defined-only", *(str(p) for p in file_paths)],
+                timeout=10,
+            )
+            if result is None or result.returncode != 0:
+                continue
+
+            for line in result.stdout.splitlines():
+                parts = line.split()
+                if len(parts) < 3:
+                    continue
+
+                sym_type = parts[-2]
+                sym_name = parts[-1]
+
+                # Include global defined symbols (uppercase) and weak symbols (W/V)
+                if sym_type in _NM_DEFINED_GLOBAL_TYPES:
+                    symbol_map[sym_name] = lib_name
+
+        return symbol_map
+
+    @staticmethod
+    def _build_heuristic_to_lib_mapping(
+        library_names: set[str],
+    ) -> dict[str, str]:
+        """Build mapping from heuristic pattern categories to discovered libraries.
+
+        Heuristic categories like ``mdns_lib``, ``web_server_lib``, ``async_tcp``
+        exist as approximations for library attribution.  When we discover the
+        actual library, symbols matching those heuristics should be redirected
+        to the ``[lib]`` category instead.
+
+        The mapping is built by checking if the normalized category name
+        (stripped of ``_lib`` suffix and underscores) appears as a substring
+        of any discovered library name.
+
+        Examples::
+
+            mdns_lib -> mdns -> in "mdns" or "esp8266mdns" -> [lib]mdns
+            web_server_lib -> webserver -> in "espasyncwebserver" -> [lib]espasyncwebserver
+            async_tcp -> asynctcp -> in "espasynctcp" -> [lib]espasynctcp
+
+        Args:
+            library_names: Set of discovered library names (lowercase).
+
+        Returns:
+            Dictionary mapping heuristic category to ``[lib]<name>`` string.
+        """
+        mapping: dict[str, str] = {}
+        all_categories = set(SYMBOL_PATTERNS) | set(DEMANGLED_PATTERNS)
+
+        for category in all_categories:
+            base = category.removesuffix("_lib").replace("_", "")
+            # Collect all libraries whose name contains the base string
+            candidates = [lib_name for lib_name in library_names if base in lib_name]
+            if not candidates:
+                continue
+
+            # Choose a deterministic "best" match:
+            #   1. Prefer exact name matches over substring matches.
+            #   2. Among non-exact matches, prefer the shortest library name.
+            #   3. Break remaining ties lexicographically.
+            best_lib = min(
+                candidates,
+                key=lambda lib_name, _base=base: (
+                    lib_name != _base,
+                    len(lib_name),
+                    lib_name,
+                ),
+            )
+            mapping[category] = f"{_COMPONENT_PREFIX_LIB}{best_lib}"
+
+        if mapping:
+            _LOGGER.debug(
+                "Heuristic-to-library redirects: %s",
+                ", ".join(f"{k} -> {v}" for k, v in sorted(mapping.items())),
+            )
+
+        return mapping
+
+    def _parse_map_file(self) -> dict[str, str] | None:
+        """Parse linker map file to build authoritative symbol-to-library mapping.
+
+        The linker map file contains the definitive source attribution for every
+        symbol, including local/static ones that ``nm`` cannot safely export.
+
+        Map file format (GNU ld)::
+
+            .text._mdns_service_task
+                        0x400e9fdc      0x65c  .pioenvs/env/esp-idf/espressif__mdns/libespressif__mdns.a(mdns.c.o)
+
+        Each section entry has a ``.section.symbol_name`` line followed by an
+        indented line with address, size, and source path.
+
+        Returns:
+            Symbol-to-library dict, or ``None`` if no usable map file exists.
+        """
+        map_path = self.elf_path.with_suffix(".map")
+        if not map_path.exists() or map_path.stat().st_size < 10000:
+            return None
+
+        _LOGGER.info("Parsing linker map file: %s", map_path.name)
+
+        try:
+            map_text = map_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as err:
+            _LOGGER.warning("Failed to read map file: %s", err)
+            return None
+
+        symbol_map: dict[str, str] = {}
+        current_symbol: str | None = None
+        section_prefixes = (".text.", ".rodata.", ".data.", ".bss.", ".literal.")
+
+        for line in map_text.splitlines():
+            # Match section.symbol line: " .text.symbol_name"
+            # Single space indent, starts with dot
+            if len(line) > 2 and line[0] == " " and line[1] == ".":
+                stripped = line.strip()
+                for prefix in section_prefixes:
+                    if stripped.startswith(prefix):
+                        current_symbol = stripped[len(prefix) :]
+                        break
+                else:
+                    current_symbol = None
+                continue
+
+            # Match source attribution line: "        0xADDR  0xSIZE  source_path"
+            if current_symbol is None:
+                continue
+
+            fields = line.split()
+            # Skip compiler-generated local names (e.g., packet$19, buf$20)
+            # that can collide across compilation units
+            if (
+                len(fields) >= 3
+                and fields[0].startswith("0x")
+                and fields[1].startswith("0x")
+                and not _COMPILER_LOCAL_PATTERN.match(current_symbol)
+            ):
+                source_path = fields[2]
+                # Check if source path contains a known library directory
+                for dir_key, lib_name in self._lib_hash_to_name.items():
+                    if dir_key in source_path:
+                        symbol_map[current_symbol] = lib_name
+                        break
+
+            current_symbol = None
+
+        return symbol_map or None
+
+    def _scan_libraries(self) -> None:
+        """Discover third-party libraries and build symbol mapping.
+
+        Scans both PlatformIO ``lib<hex>/`` directories (Arduino builds) and
+        ESP-IDF ``managed_components/`` (IDF builds) to find library archives.
+
+        Uses the linker map file for authoritative symbol attribution when
+        available, falling back to ``nm`` scanning with heuristic redirects.
+        """
+        libraries: dict[str, list[Path]] = {}
+        self._discover_pio_libraries(libraries, self._lib_hash_to_name)
+        self._discover_idf_managed_components(libraries, self._lib_hash_to_name)
+
+        if not libraries:
+            _LOGGER.debug("No third-party libraries found")
+            return
+
+        _LOGGER.info(
+            "Scanning %d libraries: %s",
+            len(libraries),
+            ", ".join(sorted(libraries)),
+        )
+
+        # Heuristic redirect catches local symbols (e.g., mdns_task_buffer$14)
+        # that can't be safely added to the symbol map due to name collisions
+        self._heuristic_to_lib = self._build_heuristic_to_lib_mapping(
+            set(libraries.keys())
+        )
+
+        # Try linker map file first (authoritative, includes local symbols)
+        map_symbols = self._parse_map_file()
+        if map_symbols is not None:
+            self._lib_symbol_map = map_symbols
+            _LOGGER.info(
+                "Built library symbol map from linker map: %d symbols",
+                len(self._lib_symbol_map),
+            )
+            return
+
+        # Fall back to nm scanning (global symbols only)
+        self._lib_symbol_map = self._build_library_symbol_map(libraries)
+
+        _LOGGER.info(
+            "Built library symbol map from nm: %d symbols from %d libraries",
+            len(self._lib_symbol_map),
+            len(libraries),
+        )
 
     def _find_object_files_dir(self) -> Path | None:
         """Find the directory containing object files for this build.
@@ -559,9 +903,21 @@ class MemoryAnalyzer:
         if "esphome" in parts and "components" not in parts:
             return _COMPONENT_CORE
 
-        # Framework/library files - return the first path component
-        # e.g., lib65b/ESPAsyncTCP/... -> lib65b
-        #        FrameworkArduino/... -> FrameworkArduino
+        # Framework/library files - check for PlatformIO library hash dirs
+        # e.g., lib65b/ESPAsyncTCP/... -> [lib]espasynctcp
+        if parts and parts[0] in self._lib_hash_to_name:
+            return f"{_COMPONENT_PREFIX_LIB}{self._lib_hash_to_name[parts[0]]}"
+
+        # ESP-IDF managed components: managed_components/espressif__mdns/... -> [lib]mdns
+        if (
+            len(parts) >= 2
+            and parts[0] == "managed_components"
+            and parts[1] in self._lib_hash_to_name
+        ):
+            return f"{_COMPONENT_PREFIX_LIB}{self._lib_hash_to_name[parts[1]]}"
+
+        # Other framework/library files - return the first path component
+        # e.g., FrameworkArduino/... -> FrameworkArduino
         return parts[0] if parts else source_file
 
     def _analyze_cswtch_symbols(self) -> None:
