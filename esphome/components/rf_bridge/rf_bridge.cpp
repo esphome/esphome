@@ -136,14 +136,21 @@ void RFBridgeComponent::loop() {
     this->last_bridge_byte_ = now;
   }
 
-  while (this->available()) {
-    uint8_t byte;
-    this->read_byte(&byte);
-    if (this->parse_bridge_byte_(byte)) {
-      ESP_LOGVV(TAG, "Parsed: 0x%02X", byte);
-      this->last_bridge_byte_ = now;
-    } else {
-      this->rx_buffer_.clear();
+  int avail = this->available();
+  while (avail > 0) {
+    uint8_t buf[64];
+    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+    for (size_t i = 0; i < to_read; i++) {
+      if (this->parse_bridge_byte_(buf[i])) {
+        ESP_LOGVV(TAG, "Parsed: 0x%02X", buf[i]);
+        this->last_bridge_byte_ = now;
+      } else {
+        this->rx_buffer_.clear();
+      }
     }
   }
 }

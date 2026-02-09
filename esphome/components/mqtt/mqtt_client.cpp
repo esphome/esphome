@@ -8,6 +8,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/version.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -26,6 +27,11 @@
 namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt";
+
+// Disconnect reason strings indexed by MQTTClientDisconnectReason enum (0-8)
+PROGMEM_STRING_TABLE(MQTTDisconnectReasonStrings, "TCP disconnected", "Unacceptable Protocol Version",
+                     "Identifier Rejected", "Server Unavailable", "Malformed Credentials", "Not Authorized",
+                     "Not Enough Space", "TLS Bad Fingerprint", "DNS Resolve Error", "Unknown");
 
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
@@ -348,36 +354,8 @@ void MQTTClientComponent::loop() {
   mqtt_backend_.loop();
 
   if (this->disconnect_reason_.has_value()) {
-    const LogString *reason_s;
-    switch (*this->disconnect_reason_) {
-      case MQTTClientDisconnectReason::TCP_DISCONNECTED:
-        reason_s = LOG_STR("TCP disconnected");
-        break;
-      case MQTTClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
-        reason_s = LOG_STR("Unacceptable Protocol Version");
-        break;
-      case MQTTClientDisconnectReason::MQTT_IDENTIFIER_REJECTED:
-        reason_s = LOG_STR("Identifier Rejected");
-        break;
-      case MQTTClientDisconnectReason::MQTT_SERVER_UNAVAILABLE:
-        reason_s = LOG_STR("Server Unavailable");
-        break;
-      case MQTTClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS:
-        reason_s = LOG_STR("Malformed Credentials");
-        break;
-      case MQTTClientDisconnectReason::MQTT_NOT_AUTHORIZED:
-        reason_s = LOG_STR("Not Authorized");
-        break;
-      case MQTTClientDisconnectReason::ESP8266_NOT_ENOUGH_SPACE:
-        reason_s = LOG_STR("Not Enough Space");
-        break;
-      case MQTTClientDisconnectReason::TLS_BAD_FINGERPRINT:
-        reason_s = LOG_STR("TLS Bad Fingerprint");
-        break;
-      default:
-        reason_s = LOG_STR("Unknown");
-        break;
-    }
+    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(
+        static_cast<uint8_t>(*this->disconnect_reason_), MQTTDisconnectReasonStrings::LAST_INDEX);
     if (!network::is_connected()) {
       reason_s = LOG_STR("WiFi disconnected");
     }
