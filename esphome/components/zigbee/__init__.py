@@ -34,7 +34,7 @@ from .zigbee_zephyr import (
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@tomaszduda23"]
-CONFLICTS_WITH = ["openthread"]
+CONFLICTS_WITH = ["network"]
 
 
 def zigbee_set_core_data(config: ConfigType) -> ConfigType:

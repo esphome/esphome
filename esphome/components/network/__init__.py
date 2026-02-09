@@ -106,52 +106,42 @@ def has_high_performance_networking() -> bool:
     return CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
 
 
-CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.SplitDefault(
-                CONF_ENABLE_IPV6,
-                esp8266=False,
-                esp32=False,
-                rp2040=False,
-                bk72xx=False,
-                host=False,
-                nrf52=True,
-            ): cv.All(
-                cv.boolean,
-                cv.Any(
-                    cv.require_framework_version(
-                        esp_idf=cv.Version(0, 0, 0),
-                        esp32_arduino=cv.Version(0, 0, 0),
-                        esp8266_arduino=cv.Version(0, 0, 0),
-                        rp2040_arduino=cv.Version(0, 0, 0),
-                        bk72xx_arduino=cv.Version(1, 7, 0),
-                        host=cv.Version(0, 0, 0),
-                        nrf52_zephyr=cv.Version(0, 0, 0),
-                    ),
-                    cv.boolean_false,
+def _validate_nrf52(value):
+    if CORE.is_nrf52 and not value:
+        raise cv.Invalid("nRF52 requires IPv6 to be enabled.")
+    return value
+
+
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.SplitDefault(
+            CONF_ENABLE_IPV6,
+            esp8266=False,
+            esp32=False,
+            rp2040=False,
+            bk72xx=False,
+            host=False,
+            nrf52=True,
+        ): cv.All(
+            cv.boolean,
+            cv.Any(
+                cv.require_framework_version(
+                    esp_idf=cv.Version(0, 0, 0),
+                    esp32_arduino=cv.Version(0, 0, 0),
+                    esp8266_arduino=cv.Version(0, 0, 0),
+                    rp2040_arduino=cv.Version(0, 0, 0),
+                    bk72xx_arduino=cv.Version(1, 7, 0),
+                    host=cv.Version(0, 0, 0),
+                    nrf52_zephyr=cv.Version(0, 0, 0),
                 ),
+                cv.boolean_false,
             ),
-            cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
-            cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(
-                cv.boolean, cv.only_on_esp32
-            ),
-        }
-    ),
+            _validate_nrf52,
+        ),
+        cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
+        cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(cv.boolean, cv.only_on_esp32),
+    }
 )
-
-
-def _final_validate(config):
-    # Zigbee cannot coexist with IPv6 on nRF52 (disabled in firmware for resource efficiency)
-    if "zigbee" in CORE.loaded_integrations and config.get(CONF_ENABLE_IPV6, False):
-        raise cv.Invalid(
-            "Zigbee is not compatible with IPv6 on nRF52. "
-            "Zigbee requires IPv6 to be disabled due to resource constraints. "
-            "Remove `enable_ipv6: true` from the network configuration."
-        )
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.NETWORK)
