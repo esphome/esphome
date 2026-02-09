@@ -397,6 +397,8 @@ bool Nextion::remove_from_q_(bool report_empty) {
 }
 
 void Nextion::process_serial_() {
+  // Early return avoids stack adjustment for the batch buffer below.
+  // loop() runs ~7000/min so most calls have nothing to read.
   int avail = this->available();
   if (avail <= 0) {
     return;
