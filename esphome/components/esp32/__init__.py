@@ -612,9 +612,13 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     return f"{ARDUINO_FRAMEWORK_PKG}@https://github.com/espressif/arduino-esp32/releases/download/{ver}/{filename}"
 
 
-def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
+def _format_framework_espidf_version(
+    ver: cv.Version, release: str | None = None
+) -> str:
     # format the given espidf (https://github.com/pioarduino/esp-idf/releases) version to
     # a PIO platformio/framework-espidf value
+    if release is None:
+        release = ESP_IDF_RELEASE_LOOKUP.get(ver)
     if ver == cv.Version(5, 4, 3) or ver >= cv.Version(5, 5, 1):
         ext = "tar.xz"
     else:
@@ -1468,7 +1472,7 @@ async def to_code(config):
             if (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
                 cg.add_platformio_option(
                     "platform_packages",
-                    [_format_framework_espidf_version(idf_ver, None)],
+                    [_format_framework_espidf_version(idf_ver)],
                 )
                 # Use stub package to skip downloading precompiled libs
                 stubs_dir = CORE.relative_build_path("arduino_libs_stub")
@@ -1511,6 +1515,14 @@ async def to_code(config):
     add_idf_sdkconfig_option(
         f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
     )
+
+    # ESP32-P4: The ESP-IDF 5.5.2.260206 release changed the default of
+    # ESP32P4_SELECTS_REV_LESS_V3 from y to n. PlatformIO always uses
+    # sections.ld.in (for rev <3) rather than sections.rev3.ld.in (for rev >=3),
+    # causing a linker script mismatch with the generated memory.ld.
+    # Restore the previous default until PlatformIO handles this properly.
+    if variant == VARIANT_ESP32P4:
+        add_idf_sdkconfig_option("CONFIG_ESP32P4_SELECTS_REV_LESS_V3", True)
 
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
