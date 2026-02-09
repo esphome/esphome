@@ -30,8 +30,8 @@ bool is_connected() {
 #endif
 
 #ifdef USE_MODEM
-  if (modem::global_modem_component != nullptr && modem::global_modem_component->is_connected())
-    return true;
+  if (modem::global_modem_component != nullptr)
+    return modem::global_modem_component->is_connected();
 #endif
 
 #ifdef USE_WIFI
