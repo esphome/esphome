@@ -78,7 +78,7 @@ void Seesaw::enable_encoder(uint8_t number) { this->write8_(SEESAW_ENCODER, SEES
 
 int32_t Seesaw::get_encoder_position(uint8_t number) {
   uint8_t buf[4];
-  if (this->readbuf_(SEESAW_ENCODER, SEESAW_ENCODER_POSITION + number, buf, 4) != i2c::ERROR_OK)
+  if (this->readbuf_(SEESAW_ENCODER, SEESAW_ENCODER_POSITION + number, buf, 4, 1) != i2c::ERROR_OK)
     return 0;
   int32_t value = (buf[0] << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
   return -value;  // make clockwise positive
