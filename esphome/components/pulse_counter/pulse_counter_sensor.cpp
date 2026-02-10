@@ -9,6 +9,10 @@ static const char *const TAG = "pulse_counter";
 const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 
 #ifdef HAS_PCNT
+// Hardware PCNT counter is 16-bit signed across all ESP32 variants
+static constexpr int PCNT_UNIT_LOW_LIMIT = -32768;
+static constexpr int PCNT_UNIT_HIGH_LIMIT = 32767;
+
 PulseCounterStorageBase *get_storage(bool hw_pcnt) {
   return (hw_pcnt ? (PulseCounterStorageBase *) (new HwPulseCounterStorage)
                   : (PulseCounterStorageBase *) (new BasicPulseCounterStorage));
