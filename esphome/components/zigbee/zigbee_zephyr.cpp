@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
+#include "esphome/core/hal.h"
 
 extern "C" {
 #include <zboss_api.h>
@@ -223,6 +224,7 @@ void ZigbeeComponent::dump_config() {
                 get_wipe_on_boot(), YESNO(zb_zdo_joined()), zb_get_current_channel(), zb_get_current_page(),
                 zb_get_sleep_threshold(), role(), ieee_addr_buf, zb_get_short_address(), extended_pan_id_buf,
                 zb_get_pan_id());
+  dump_reporting_();
 }
 
 static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
@@ -242,6 +244,33 @@ void ZigbeeComponent::loop() {
 void ZigbeeComponent::factory_reset() {
   ESP_LOGD(TAG, "Factory reset");
   ZB_SCHEDULE_APP_CALLBACK(zb_bdb_reset_via_local_action, 0);
+}
+
+void ZigbeeComponent::dump_reporting_() {
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  auto now = millis();
+  bool first = true;
+  for (zb_uint8_t j = 0; j < ZCL_CTX().device_ctx->ep_count; j++) {
+    if (ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info) {
+      zb_zcl_reporting_info_t *rep_info = ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info;
+      for (zb_uint8_t i = 0; i < ZCL_CTX().device_ctx->ep_desc_list[j]->rep_info_count; i++) {
+        if (!first) {
+          ESP_LOGV(TAG, "");
+        }
+        first = false;
+        ESP_LOGV(TAG, "Endpoint: %d, cluster_id %d, attr_id %d, flags %d, report in %ums", rep_info->ep,
+                 rep_info->cluster_id, rep_info->attr_id, rep_info->flags,
+                 ZB_ZCL_GET_REPORTING_FLAG(rep_info, ZB_ZCL_REPORT_TIMER_STARTED)
+                     ? ZB_TIME_BEACON_INTERVAL_TO_MSEC(rep_info->run_time) - now
+                     : 0);
+        ESP_LOGV(TAG, "Min_interval %ds, max_interval %ds, def_min_interval %ds, def_max_interval %ds",
+                 rep_info->u.send_info.min_interval, rep_info->u.send_info.max_interval,
+                 rep_info->u.send_info.def_min_interval, rep_info->u.send_info.def_max_interval);
+        rep_info++;
+      }
+    }
+  }
+#endif
 }
 
 }  // namespace esphome::zigbee
