@@ -374,6 +374,8 @@ esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
 esphome/components/pm1006/* @habbie
 esphome/components/pm100x/* @habbie @tuct
+esphome/components/pm100x_pwm/* @habbie @tuct
+esphome/components/pm100x_uart/* @habbie @tuct
 esphome/components/pm2005/* @andrewjswan
 esphome/components/pmsa003i/* @sjtrny
 esphome/components/pmsx003/* @ximex
