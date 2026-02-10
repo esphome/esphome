@@ -302,6 +302,9 @@ void SEN6XComponent::finish_setup_() {
 void SEN6XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "sen6x:");
   LOG_I2C_DEVICE(this);
+  ESP_LOGCONFIG(TAG, "  Product: %s", this->product_name_.c_str());
+  ESP_LOGCONFIG(TAG, "  Serial: %s", this->serial_number_.c_str());
+  ESP_LOGCONFIG(TAG, "  Firmware: %u.%u", this->firmware_version_major_, this->firmware_version_minor_);
 
   if (this->is_failed()) {
     switch (this->error_code_) {
