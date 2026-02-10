@@ -160,18 +160,7 @@ void ResamplerSpeaker::loop() {
           this->waiting_for_output_ = true;
           this->state_start_ms_ = App.get_loop_component_start_time();
         } else {
-          switch (err) {
-            case ESP_ERR_INVALID_STATE:
-              this->status_set_error(LOG_STR("Task failed to start"));
-              break;
-            case ESP_ERR_NO_MEM:
-              this->status_set_error(LOG_STR("Not enough memory"));
-              break;
-            default:
-              this->status_set_error(LOG_STR("Failed to start"));
-              break;
-          }
-
+          this->set_start_error_(err);
           this->waiting_for_output_ = false;
           this->enter_stopping_state_();
         }
@@ -212,6 +201,20 @@ void ResamplerSpeaker::loop() {
         // No pending events, disable loop to save CPU cycles
         this->disable_loop();
       }
+      break;
+  }
+}
+
+void ResamplerSpeaker::set_start_error_(esp_err_t err) {
+  switch (err) {
+    case ESP_ERR_INVALID_STATE:
+      this->status_set_error(LOG_STR("Task failed to start"));
+      break;
+    case ESP_ERR_NO_MEM:
+      this->status_set_error(LOG_STR("Not enough memory"));
+      break;
+    default:
+      this->status_set_error(LOG_STR("Failed to start"));
       break;
   }
 }

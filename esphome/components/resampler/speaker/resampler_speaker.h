@@ -71,6 +71,9 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
   /// running, and stops the output speaker.
   void enter_stopping_state_();
 
+  /// @brief Sets the appropriate status error based on the start failure reason.
+  void set_start_error_(esp_err_t err);
+
   /// @brief Deallocates the task stack and resets the pointers.
   /// @return ESP_OK if successful
   ///         ESP_ERR_INVALID_STATE if the task hasn't stopped itself
