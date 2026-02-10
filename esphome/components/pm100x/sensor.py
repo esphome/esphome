@@ -37,21 +37,12 @@ MODEL_OPTIONS = {
 }
 
 
-def validate_pwm_id(config):
-    """Auto-generate ID for PWM sensor if neither id nor name is provided."""
-    if CONF_ID not in config and CONF_NAME not in config:
-        # Auto-generate an ID for internal PWM sensor
-        config = config.copy()
-        config[CONF_ID] = cv.declare_id(sensor.Sensor)(None)
-    return config
-
-
 # Generic PWM schema without duty_cycle class reference (loaded conditionally)
-PWM_SCHEMA = cv.All(
+PWM_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(sensor.Sensor),
-            cv.Optional(CONF_NAME): cv.string,
+            cv.Optional(CONF_NAME, default="PWM Duty"): cv.string,
             cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_INTERNAL, default=True): cv.boolean,
         }
@@ -64,8 +55,7 @@ PWM_SCHEMA = cv.All(
             accuracy_decimals=1,
             state_class=STATE_CLASS_MEASUREMENT,
         )
-    ),
-    validate_pwm_id,
+    )
 )
 
 
@@ -202,7 +192,9 @@ async def to_code(config):
 
     if CONF_PWM in config:
         # Conditionally load duty_cycle component when PWM is configured
-        from esphome.components import duty_cycle  # noqa: F401
+        from esphome.components import (  # noqa: F401
+            duty_cycle,  # pylint: disable=unused-import
+        )
 
         duty_cycle_ns = cg.esphome_ns.namespace("duty_cycle")
         DutyCycleSensor = duty_cycle_ns.class_(
