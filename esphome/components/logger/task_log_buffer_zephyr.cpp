@@ -27,8 +27,8 @@ TaskLogBufferZephyr::TaskLogBufferZephyr(size_t total_buffer_size) {
 
 TaskLogBufferZephyr::~TaskLogBufferZephyr() { delete[] this->mpsc_config_.buf; }
 
-bool TaskLogBufferZephyr::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, void *task_handle,
-                                                   const char *format, va_list args) {
+bool TaskLogBufferZephyr::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line,
+                                                   const char *thread_name, const char *format, va_list args) {
   // First, calculate the exact length needed using a null buffer (no actual writing)
   va_list args_copy;
   va_copy(args_copy, args);
@@ -51,12 +51,7 @@ bool TaskLogBufferZephyr::send_message_thread_safe(uint8_t level, const char *ta
   msg->level = level;
   msg->tag = tag;
   msg->line = line;
-  const char *thread_name = k_thread_name_get(static_cast<k_tid_t>(task_handle));
-  if (thread_name) {
-    strncpy(msg->thread_name, thread_name, sizeof(msg->thread_name) - 1);
-  } else {
-    std::snprintf(msg->thread_name, sizeof(msg->thread_name), "%p", task_handle);
-  }
+  strncpy(msg->thread_name, thread_name, sizeof(msg->thread_name) - 1);
 
   // Format the message text directly into the acquired memory
   // We add 1 to text_length to ensure space for null terminator during formatting

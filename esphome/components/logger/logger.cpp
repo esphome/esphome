@@ -55,8 +55,11 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   // ESP32/LibreTiny: use TaskHandle_t overload to avoid redundant xTaskGetCurrentTaskHandle()
   // (we already have the handle from the main task check above).
   // Host: pass a stack buffer for pthread_getname_np to write into.
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   const char *thread_name = get_thread_name_(current_task);
+#elif defined(USE_ZEPHYR)
+  char thread_name_buf[MAX_POINTER_REPRESENTATION];
+  const char *thread_name = get_thread_name_(thread_name_buf, current_task);
 #else  // USE_HOST
   char thread_name_buf[THREAD_NAME_BUF_SIZE];
   const char *thread_name = this->get_thread_name_(thread_name_buf);

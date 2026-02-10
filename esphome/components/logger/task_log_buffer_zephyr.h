@@ -52,8 +52,8 @@ class TaskLogBufferZephyr {
   void release_message_main_loop();
 
   // Thread-safe - send a message to the ring buffer from any thread
-  bool send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, void *task_handle, const char *format,
-                                va_list args);
+  bool send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
+                                const char *format, va_list args);
 
  protected:
   mpsc_pbuf_buffer_config mpsc_config_{};

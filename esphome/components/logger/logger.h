@@ -591,8 +591,10 @@ class Logger : public Component {
   }
 
 #elif defined(USE_ZEPHYR)
-  const char *HOT get_thread_name_(std::span<char> buff) {
-    k_tid_t current_task = k_current_get();
+  const char *HOT get_thread_name_(std::span<char> buff, k_tid_t current_task = nullptr) {
+    if (current_task == nullptr) {
+      current_task = k_current_get();
+    }
     if (current_task == main_task_) {
       return nullptr;  // Main task
     }
