@@ -10,8 +10,9 @@ params:
 The `zigbee` component allows exposing supported ESPHome components over a Zigbee network to Home Assistant
 via **Zigbee2MQTT** or **ZHA**. Due to the limitations of the Zigbee protocol, only basic properties are exposed.
 Additional properties must be configured manually in Home Assistant. Each ESPHome entity consumes one Zigbee endpoint.
-Because of a limitation in Zigbee2MQTT, at least two endpoints are required. The maximum number of supported endpoints
-is eight.
+Single endpoint requires ZHA or at least Zigbee2MQTT 2.8.0. For older versions of Zigbee2MQTT use multiple endpoints.
+Spaces in names require ZHA or at least Zigbee2MQTT 2.8.0. For older versions of Zigbee2MQTT do not use spaces.
+The maximum number of supported endpoints is eight.
 
 Zigbee support is currently available only on `nRF52` platforms.
 
