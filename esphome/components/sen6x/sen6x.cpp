@@ -83,32 +83,15 @@ void SEN6XComponent::setup() {
 
   // the sensor needs 100 ms to enter the idle state
   this->set_timeout(100, [this]() {
-    // Check if measurement is ready before reading the value
-    if (!this->write_command(SEN6X_CMD_GET_DATA_READY_STATUS)) {
-      ESP_LOGE(TAG, "Failed to write data ready status command");
+    // Reset the sensor to ensure a clean state regardless of prior commands or power issues
+    if (!this->write_command(SEN6X_CMD_RESET)) {
+      ESP_LOGE(TAG, "Failed to reset sensor");
       this->mark_failed();
       return;
     }
 
-    uint16_t raw_read_status;
-    if (!this->read_data(raw_read_status)) {
-      ESP_LOGE(TAG, "Failed to read data ready status");
-      this->mark_failed();
-      return;
-    }
-
-    // In order to query the device periodic measurement must be ceased
-    if (raw_read_status) {
-      ESP_LOGD(TAG, "Sensor has data available, stopping periodic measurement");
-
-      if (!this->write_command(SEN6X_CMD_STOP_MEASUREMENTS)) {
-        ESP_LOGE(TAG, "Failed to stop measurements");
-        this->mark_failed();
-        return;
-      }
-    }
-
-    this->set_timeout(20, [this]() {
+    // After reset the sensor needs 100 ms to become ready
+    this->set_timeout(100, [this]() {
       uint16_t raw_serial_number[16];
       if (!this->get_register(SEN6X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 16, 20)) {
         ESP_LOGE(TAG, "Failed to read serial number");
