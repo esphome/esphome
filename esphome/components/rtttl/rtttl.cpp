@@ -69,7 +69,7 @@ static uint8_t note_index_from_char(char note) {
     default:
       return 0;
   }
-};
+}
 
 void Rtttl::dump_config() {
   ESP_LOGCONFIG(TAG,
