@@ -53,8 +53,11 @@ struct SchedulerNameLog {
     } else if (name_type == NameType::HASHED_STRING) {
       ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("hash:0x%08" PRIX32), hash_or_id);
       return buffer;
-    } else {  // NUMERIC_ID
+    } else if (name_type == NameType::NUMERIC_ID) {
       ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("id:%" PRIu32), hash_or_id);
+      return buffer;
+    } else {  // NUMERIC_ID_INTERNAL
+      ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("iid:%" PRIu32), hash_or_id);
       return buffer;
     }
   }
@@ -136,6 +139,9 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
       break;
     case NameType::NUMERIC_ID:
       item->set_numeric_id(hash_or_id);
+      break;
+    case NameType::NUMERIC_ID_INTERNAL:
+      item->set_internal_id(hash_or_id);
       break;
   }
   item->type = type;
@@ -252,6 +258,11 @@ bool HOT Scheduler::cancel_interval(Component *component, uint32_t id) {
   return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::INTERVAL);
 }
 
+// Suppress deprecation warnings for RetryResult usage in the still-present (but deprecated) retry implementation.
+// Remove before 2026.8.0 along with all retry code.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 struct RetryArgs {
   // Ordered to minimize padding on 32-bit systems
   std::function<RetryResult(uint8_t)> func;
@@ -363,6 +374,8 @@ void HOT Scheduler::set_retry(Component *component, uint32_t id, uint32_t initia
 bool HOT Scheduler::cancel_retry(Component *component, uint32_t id) {
   return this->cancel_retry_(component, NameType::NUMERIC_ID, nullptr, id);
 }
+
+#pragma GCC diagnostic pop  // End suppression of deprecated RetryResult warnings
 
 optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // IMPORTANT: This method should only be called from the main thread (loop task).

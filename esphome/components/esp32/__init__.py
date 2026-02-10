@@ -1435,6 +1435,10 @@ async def to_code(config):
         CORE.relative_internal_path(".espressif")
     )
 
+    # Set the uv cache inside the data dir so "Clean All" clears it.
+    # Avoids persistent corrupted cache from mid-stream download failures.
+    os.environ["UV_CACHE_DIR"] = str(CORE.relative_internal_path(".uv_cache"))
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
