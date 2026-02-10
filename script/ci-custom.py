@@ -757,6 +757,53 @@ def lint_no_sprintf(fname, match):
 
 
 @lint_re_check(
+    # Match std::to_string() or unqualified to_string() calls
+    # The esphome namespace has "using std::to_string;" so unqualified calls resolve to std::to_string
+    # Use negative lookbehind for unqualified calls to avoid matching:
+    #   - Function definitions: "const char *to_string(" or "std::string to_string("
+    #   - Method definitions: "Class::to_string("
+    #   - Method calls: ".to_string(" or "->to_string("
+    #   - Other identifiers: "_to_string("
+    # Also explicitly match std::to_string since : is in the lookbehind
+    r"(?:(?<![*&.\w>:])to_string|std\s*::\s*to_string)\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+    exclude=[
+        # Vendored library
+        "esphome/components/http_request/httplib.h",
+        # Deprecated helpers that return std::string
+        "esphome/core/helpers.cpp",
+        # The using declaration itself
+        "esphome/core/helpers.h",
+        # Test fixtures - not production embedded code
+        "tests/integration/fixtures/*",
+    ],
+)
+def lint_no_std_to_string(fname, match):
+    return (
+        f"{highlight('std::to_string()')} (including unqualified {highlight('to_string()')}) "
+        f"allocates heap memory. On long-running embedded devices, repeated heap allocations "
+        f"fragment memory over time.\n"
+        f"Please use {highlight('snprintf()')} with a stack buffer instead.\n"
+        f"\n"
+        f"Buffer sizes and format specifiers (sizes include sign and null terminator):\n"
+        f"  uint8_t:          4 chars   - %u (or PRIu8)\n"
+        f"  int8_t:           5 chars   - %d (or PRId8)\n"
+        f"  uint16_t:         6 chars   - %u (or PRIu16)\n"
+        f"  int16_t:          7 chars   - %d (or PRId16)\n"
+        f"  uint32_t:         11 chars  - %" + "PRIu32\n"
+        "  int32_t:          12 chars  - %" + "PRId32\n"
+        "  uint64_t:         21 chars  - %" + "PRIu64\n"
+        "  int64_t:          21 chars  - %" + "PRId64\n"
+        f"  float/double:     24 chars  - %.8g (15 digits + sign + decimal + e+XXX)\n"
+        f"                    317 chars - %f (for DBL_MAX: 309 int digits + decimal + 6 frac + sign)\n"
+        f"\n"
+        f"For sensor values, use value_accuracy_to_buf() from helpers.h.\n"
+        f'Example: char buf[11]; snprintf(buf, sizeof(buf), "%" PRIu32, value);\n'
+        f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
+    )
+
+
+@lint_re_check(
     # Match scanf family functions: scanf, sscanf, fscanf, vscanf, vsscanf, vfscanf
     # Also match std:: prefixed versions
     # [^\w] ensures we match function calls, not substrings

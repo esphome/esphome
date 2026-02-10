@@ -2,6 +2,7 @@
 #include <cmath>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome {
 namespace rtttl {
@@ -375,22 +376,13 @@ void Rtttl::loop() {
 }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+// RTTTL state strings indexed by State enum (0-4): STOPPED, INIT, STARTING, RUNNING, STOPPING, plus UNKNOWN fallback
+PROGMEM_STRING_TABLE(RtttlStateStrings, "STATE_STOPPED", "STATE_INIT", "STATE_STARTING", "STATE_RUNNING",
+                     "STATE_STOPPING", "UNKNOWN");
+
 static const LogString *state_to_string(State state) {
-  switch (state) {
-    case STATE_STOPPED:
-      return LOG_STR("STATE_STOPPED");
-    case STATE_STARTING:
-      return LOG_STR("STATE_STARTING");
-    case STATE_RUNNING:
-      return LOG_STR("STATE_RUNNING");
-    case STATE_STOPPING:
-      return LOG_STR("STATE_STOPPING");
-    case STATE_INIT:
-      return LOG_STR("STATE_INIT");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-};
+  return RtttlStateStrings::get_log_str(static_cast<uint8_t>(state), RtttlStateStrings::LAST_INDEX);
+}
 #endif
 
 void Rtttl::set_state_(State state) {
