@@ -16,13 +16,14 @@ static const char *const TAG = "esp32_rmt_led_strip";
 
 static const size_t RMT_SYMBOLS_PER_BYTE = 8;
 
-// Use full APB clock as RMT resolution (~80MHz on most variants, 32MHz on H2).
+// Query the RMT default clock source frequency. This varies by variant:
+// APB (80MHz) on ESP32/S2/S3/C3, PLL_F80M (80MHz) on C6/P4, XTAL (32MHz) on H2.
 // Worst-case reset time is WS2811 at 300µs = 24000 ticks at 80MHz, well within
 // the 15-bit rmt_symbol_word_t duration field max of 32767.
 static uint32_t rmt_resolution_hz() {
-  uint32_t apb_freq;
-  esp_clk_tree_src_get_freq_hz(SOC_MOD_CLK_APB, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &apb_freq);
-  return apb_freq;
+  uint32_t freq;
+  esp_clk_tree_src_get_freq_hz((soc_module_clk_t) RMT_CLK_SRC_DEFAULT, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &freq);
+  return freq;
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
