@@ -13,6 +13,7 @@ static const size_t DEFAULT_TRANSFER_BUFFER_SIZE = 24 * 1024;
 
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;
 static const uint32_t CONNECTION_TIMEOUT_MS = 30000;  // 30 second timeout for no data
+static const uint8_t MAX_CONNECTION_ATTEMPTS = 6;
 
 static const char *const TAG = "http_media_source";
 
@@ -384,21 +385,39 @@ void HTTPMediaSource::read_task(void *params) {
     // Request Content-Type header for file type detection
     std::set<std::string> collect_headers = {"content-type"};
 
-    // Start HTTP request using HttpContainer
-    std::shared_ptr<HttpContainer> container = http_client->get(ctx.current_uri, {}, collect_headers);
+    // Start HTTP request, retrying on transient failures (e.g., EAGAIN during header fetch)
+    std::shared_ptr<HttpContainer> container;
+    for (uint8_t attempt = 0; attempt < MAX_CONNECTION_ATTEMPTS; ++attempt) {
+      if (xEventGroupGetBits(ctx.event_group) & EventGroupBits::COMMAND_STOP) {
+        break;
+      }
 
-    if (container == nullptr) {
-      ESP_LOGE(TAG, "Pipeline %zu: Failed to start HTTP request", pipeline);
-      xEventGroupSetBits(ctx.event_group,
-                         EventGroupBits::READER_ERROR | EventGroupBits::READER_FINISHED | EventGroupBits::COMMAND_STOP);
-      while (true) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+      container = http_client->get(ctx.current_uri, {}, collect_headers);
+
+      if (container != nullptr && is_success(container->status_code)) {
+        break;  // Success
+      }
+
+      // Clean up failed attempt
+      if (container != nullptr) {
+        ESP_LOGW(TAG, "Pipeline %zu: HTTP request attempt %u failed with status %d", pipeline, attempt + 1,
+                 container->status_code);
+        container->end();
+        container.reset();
+      } else {
+        ESP_LOGW(TAG, "Pipeline %zu: HTTP request attempt %u failed to connect", pipeline, attempt + 1);
+      }
+
+      if (attempt + 1 < MAX_CONNECTION_ATTEMPTS) {
+        vTaskDelay(pdMS_TO_TICKS(1000));  // Wait before retry
       }
     }
 
-    if (!is_success(container->status_code)) {
-      ESP_LOGE(TAG, "Pipeline %zu: HTTP request failed with status %d", pipeline, container->status_code);
-      container->end();
+    if (container == nullptr || !is_success(container->status_code)) {
+      ESP_LOGE(TAG, "Pipeline %zu: HTTP request failed after %u attempts", pipeline, MAX_CONNECTION_ATTEMPTS);
+      if (container != nullptr) {
+        container->end();
+      }
       xEventGroupSetBits(ctx.event_group,
                          EventGroupBits::READER_ERROR | EventGroupBits::READER_FINISHED | EventGroupBits::COMMAND_STOP);
       while (true) {
@@ -473,14 +492,16 @@ void HTTPMediaSource::read_task(void *params) {
       transfer_buffer->transfer_data_to_sink(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
 
       if (transfer_buffer->free() > 0) {
+        // Read directly from HttpContainer. We don't use http_read_loop_result() here because:
+        // - We're on a dedicated FreeRTOS task, not the main loop
+        // - esp_http_client_read() blocks, so tight-spinning isn't a concern
+        // - Transient errors (e.g., -ESP_ERR_HTTP_EAGAIN) should retry, not fail immediately
         int received_len = container->read(transfer_buffer->get_buffer_end(), transfer_buffer->free());
 
-        auto result =
-            http_read_loop_result(received_len, last_data_time, CONNECTION_TIMEOUT_MS, container->is_read_complete());
-
-        if (result == HttpReadLoopResult::DATA) {
+        if (received_len > 0) {
+          last_data_time = millis();
           transfer_buffer->increase_buffer_length(received_len);
-        } else if (result == HttpReadLoopResult::COMPLETE) {
+        } else if (received_len == 0 && container->is_read_complete()) {
           // Flush remaining buffered data to the ring buffer, retrying until empty
           while (transfer_buffer->available() > 0) {
             if (xEventGroupGetBits(ctx.event_group) & EventGroupBits::COMMAND_STOP) {
@@ -490,15 +511,12 @@ void HTTPMediaSource::read_task(void *params) {
           }
           ESP_LOGD(TAG, "Pipeline %zu: Reader finished", pipeline);
           break;
-        } else if (result == HttpReadLoopResult::RETRY) {
-          continue;
-        } else {
-          // ERROR or TIMEOUT
-          ESP_LOGE(TAG, "Pipeline %zu: Reader %s", pipeline,
-                   result == HttpReadLoopResult::TIMEOUT ? "timed out" : "failed");
+        } else if (millis() - last_data_time >= CONNECTION_TIMEOUT_MS) {
+          ESP_LOGE(TAG, "Pipeline %zu: Reader timed out", pipeline);
           xEventGroupSetBits(ctx.event_group, EventGroupBits::READER_ERROR | EventGroupBits::COMMAND_STOP);
           break;
         }
+        // else: no data yet or transient error (e.g., EAGAIN), loop continues
       }
     }
 
