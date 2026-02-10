@@ -7,21 +7,19 @@
 #include "esphome/core/log.h"
 
 #include <esp_attr.h>
+#include <esp_private/esp_clk.h>
 
 namespace esphome {
 namespace esp32_rmt_led_strip {
 
 static const char *const TAG = "esp32_rmt_led_strip";
 
-#ifdef USE_ESP32_VARIANT_ESP32H2
-static const uint32_t RMT_CLK_FREQ = 32000000;
-static const uint8_t RMT_CLK_DIV = 1;
-#else
-static const uint32_t RMT_CLK_FREQ = 80000000;
-static const uint8_t RMT_CLK_DIV = 2;
-#endif
-
 static const size_t RMT_SYMBOLS_PER_BYTE = 8;
+
+// Target ~40MHz RMT resolution to keep rmt_symbol_word_t duration fields (15-bit, max 32767)
+// from overflowing on long reset times (e.g. WS2811 300µs = 12000 ticks at 40MHz vs 24000 at 80MHz).
+// 25ns tick resolution is well within LED protocol tolerances (~100ns).
+static uint32_t rmt_resolution_hz() { return esp_clk_apb_freq() / (esp_clk_apb_freq() > 40000000 ? 2 : 1); }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
 static size_t IRAM_ATTR HOT encoder_callback(const void *data, size_t size, size_t symbols_written, size_t symbols_free,
@@ -92,7 +90,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
   rmt_tx_channel_config_t channel;
   memset(&channel, 0, sizeof(channel));
   channel.clk_src = RMT_CLK_SRC_DEFAULT;
-  channel.resolution_hz = RMT_CLK_FREQ / RMT_CLK_DIV;
+  channel.resolution_hz = rmt_resolution_hz();
   channel.gpio_num = gpio_num_t(this->pin_);
   channel.mem_block_symbols = this->rmt_symbols_;
   channel.trans_queue_depth = 1;
@@ -137,7 +135,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
 
 void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high,
                                                  uint32_t bit1_low, uint32_t reset_time_high, uint32_t reset_time_low) {
-  float ratio = (float) RMT_CLK_FREQ / RMT_CLK_DIV / 1e09f;
+  float ratio = (float) rmt_resolution_hz() / 1e09f;
 
   // 0-bit
   this->params_.bit0.duration0 = (uint32_t) (ratio * bit0_high);
