@@ -74,7 +74,6 @@ class AS3935Component : public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void loop() override;
 
   void set_irq_pin(GPIOPin *irq_pin) { irq_pin_ = irq_pin; }

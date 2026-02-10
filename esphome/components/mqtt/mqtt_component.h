@@ -9,6 +9,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 #include "mqtt_client.h"
 
@@ -31,6 +32,10 @@ static constexpr size_t MQTT_TOPIC_PREFIX_MAX_LEN = 64;  // Validated in Python:
 // Format: prefix + "/" + type + "/" + object_id + "/" + suffix + null
 static constexpr size_t MQTT_DEFAULT_TOPIC_MAX_LEN =
     MQTT_TOPIC_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1 + MQTT_SUFFIX_MAX_LEN + 1;
+static constexpr size_t MQTT_DISCOVERY_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
+// Format: prefix + "/" + type + "/" + name + "/" + object_id + "/config" + null
+static constexpr size_t MQTT_DISCOVERY_TOPIC_MAX_LEN = MQTT_DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN +
+                                                       1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
 
 class MQTTComponent;  // Forward declaration
 void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic);
@@ -54,6 +59,11 @@ void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, b
 \
  public: \
   void set_custom_##name##_##type##_topic(const std::string &topic) { this->custom_##name##_##type##_topic_ = topic; } \
+  StringRef get_##name##_##type##_topic_to(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) const { \
+    if (!this->custom_##name##_##type##_topic_.empty()) \
+      return StringRef(this->custom_##name##_##type##_topic_.data(), this->custom_##name##_##type##_topic_.size()); \
+    return this->get_default_topic_for_to_(buf, #name "/" #type, sizeof(#name "/" #type) - 1); \
+  } \
   std::string get_##name##_##type##_topic() const { \
     if (this->custom_##name##_##type##_topic_.empty()) \
       return this->get_default_topic_for_(#name "/" #type); \
@@ -157,12 +167,90 @@ class MQTTComponent : public Component {
    */
   bool publish(const std::string &topic, const char *payload, size_t payload_length);
 
+  /** Send a MQTT message.
+   *
+   * @param topic The topic.
+   * @param payload The null-terminated payload.
+   */
+  bool publish(const std::string &topic, const char *payload) {
+    return this->publish(topic.c_str(), payload, strlen(payload));
+  }
+
+  /** Send a MQTT message (no heap allocation for topic).
+   *
+   * @param topic The topic as C string.
+   * @param payload The payload buffer.
+   * @param payload_length The length of the payload.
+   */
+  bool publish(const char *topic, const char *payload, size_t payload_length);
+
+  /** Send a MQTT message (no heap allocation for topic).
+   *
+   * @param topic The topic as StringRef (for use with get_state_topic_to_()).
+   * @param payload The payload buffer.
+   * @param payload_length The length of the payload.
+   */
+  bool publish(StringRef topic, const char *payload, size_t payload_length) {
+    return this->publish(topic.c_str(), payload, payload_length);
+  }
+
+  /** Send a MQTT message (no heap allocation for topic).
+   *
+   * @param topic The topic as C string.
+   * @param payload The null-terminated payload.
+   */
+  bool publish(const char *topic, const char *payload);
+
+  /** Send a MQTT message (no heap allocation for topic).
+   *
+   * @param topic The topic as StringRef (for use with get_state_topic_to_()).
+   * @param payload The null-terminated payload.
+   */
+  bool publish(StringRef topic, const char *payload) { return this->publish(topic.c_str(), payload); }
+
+#ifdef USE_ESP8266
+  /** Send a MQTT message with a PROGMEM string payload.
+   *
+   * @param topic The topic.
+   * @param payload The payload (ProgmemStr - stored in flash on ESP8266).
+   */
+  bool publish(const std::string &topic, ProgmemStr payload);
+
+  /** Send a MQTT message with a PROGMEM string payload (no heap allocation for topic).
+   *
+   * @param topic The topic as C string.
+   * @param payload The payload (ProgmemStr - stored in flash on ESP8266).
+   */
+  bool publish(const char *topic, ProgmemStr payload);
+
+  /** Send a MQTT message with a PROGMEM string payload (no heap allocation for topic).
+   *
+   * @param topic The topic as StringRef (for use with get_state_topic_to_()).
+   * @param payload The payload (ProgmemStr - stored in flash on ESP8266).
+   */
+  bool publish(StringRef topic, ProgmemStr payload) { return this->publish(topic.c_str(), payload); }
+#endif
+
   /** Construct and send a JSON MQTT message.
    *
    * @param topic The topic.
    * @param f The Json Message builder.
    */
   bool publish_json(const std::string &topic, const json::json_build_t &f);
+
+  /** Construct and send a JSON MQTT message (no heap allocation for topic).
+   *
+   * @param topic The topic as C string.
+   * @param f The Json Message builder.
+   */
+  bool publish_json(const char *topic, const json::json_build_t &f);
+
+  /** Construct and send a JSON MQTT message (no heap allocation for topic).
+   *
+   * @param topic The topic as StringRef (for use with get_state_topic_to_()).
+   * @param f The Json Message builder.
+   */
+  bool publish_json(StringRef topic, const json::json_build_t &f) { return this->publish_json(topic.c_str(), f); }
 
   /** Subscribe to a MQTT topic.
    *
@@ -184,8 +272,9 @@ class MQTTComponent : public Component {
   void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
 
  protected:
-  /// Helper method to get the discovery topic for this component.
-  std::string get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const;
+  /// Helper method to get the discovery topic for this component into a buffer.
+  StringRef get_discovery_topic_to_(std::span<char, MQTT_DISCOVERY_TOPIC_MAX_LEN> buf,
+                                    const MQTTDiscoveryInfo &discovery_info) const;
 
   /** Get this components state/command/... topic into a buffer.
    *
@@ -209,7 +298,7 @@ class MQTTComponent : public Component {
   virtual const EntityBase *get_entity() const = 0;
 
   /// Get the friendly name of this MQTT component.
-  std::string friendly_name_() const;
+  const StringRef &friendly_name_() const;
 
   /// Get the icon field of this component as StringRef
   StringRef get_icon_ref_() const;

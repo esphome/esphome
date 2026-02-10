@@ -192,10 +192,14 @@ void APIServer::loop() {
     ESP_LOGV(TAG, "Remove connection %s", client->get_name());
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-    // Save client info before removal for the trigger
+    // Save client info before closing socket and removal for the trigger
+    char peername_buf[socket::SOCKADDR_STR_LEN];
     std::string client_name(client->get_name());
-    std::string client_peername(client->get_peername());
+    std::string client_peername(client->get_peername_to(peername_buf));
 #endif
+
+    // Close socket now (was deferred from on_fatal_error to allow getpeername)
+    client->helper_->close();
 
     // Swap with the last element and pop (avoids expensive vector shifts)
     if (client_index < this->clients_.size() - 1) {
@@ -211,7 +215,7 @@ void APIServer::loop() {
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
     // Fire trigger after client is removed so api.connected reflects the true state
-    this->client_disconnected_trigger_->trigger(client_name, client_peername);
+    this->client_disconnected_trigger_.trigger(client_name, client_peername);
 #endif
     // Don't increment client_index since we need to process the swapped element
   }

@@ -2,6 +2,7 @@
 #include <cmath>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome {
 namespace rtttl {
@@ -290,25 +291,26 @@ void Rtttl::loop() {
     this->position_++;
   }
 
-  // now, get optional '.' dotted note
-  if (this->rtttl_[this->position_] == '.') {
-    this->note_duration_ += this->note_duration_ / 2;
-    this->position_++;
-  }
-
   // now, get scale
   uint8_t scale = get_integer_();
-  if (scale == 0)
+  if (scale == 0) {
     scale = this->default_octave_;
+  }
 
   if (scale < 4 || scale > 7) {
     ESP_LOGE(TAG, "Octave must be between 4 and 7 (it is %d)", scale);
     this->finish_();
     return;
   }
-  bool need_note_gap = false;
+
+  // now, get optional '.' dotted note
+  if (this->rtttl_[this->position_] == '.') {
+    this->note_duration_ += this->note_duration_ / 2;
+    this->position_++;
+  }
 
   // Now play the note
+  bool need_note_gap = false;
   if (note) {
     auto note_index = (scale - 4) * 12 + note;
     if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {
@@ -374,22 +376,13 @@ void Rtttl::loop() {
 }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+// RTTTL state strings indexed by State enum (0-4): STOPPED, INIT, STARTING, RUNNING, STOPPING, plus UNKNOWN fallback
+PROGMEM_STRING_TABLE(RtttlStateStrings, "STATE_STOPPED", "STATE_INIT", "STATE_STARTING", "STATE_RUNNING",
+                     "STATE_STOPPING", "UNKNOWN");
+
 static const LogString *state_to_string(State state) {
-  switch (state) {
-    case STATE_STOPPED:
-      return LOG_STR("STATE_STOPPED");
-    case STATE_STARTING:
-      return LOG_STR("STATE_STARTING");
-    case STATE_RUNNING:
-      return LOG_STR("STATE_RUNNING");
-    case STATE_STOPPING:
-      return LOG_STR("STATE_STOPPING");
-    case STATE_INIT:
-      return LOG_STR("STATE_INIT");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-};
+  return RtttlStateStrings::get_log_str(static_cast<uint8_t>(state), RtttlStateStrings::LAST_INDEX);
+}
 #endif
 
 void Rtttl::set_state_(State state) {

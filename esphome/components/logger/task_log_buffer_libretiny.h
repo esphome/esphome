@@ -70,7 +70,7 @@ class TaskLogBufferLibreTiny {
   void release_message_main_loop();
 
   // Thread-safe - send a message to the buffer from any thread
-  bool send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, TaskHandle_t task_handle,
+  bool send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
                                 const char *format, va_list args);
 
   // Fast check using volatile counter - no lock needed

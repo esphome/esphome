@@ -8,6 +8,8 @@
 namespace esphome {
 namespace cse7766 {
 
+static constexpr size_t CSE7766_RAW_DATA_SIZE = 24;
+
 class CSE7766Component : public Component, public uart::UARTDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
@@ -23,7 +25,6 @@ class CSE7766Component : public Component, public uart::UARTDevice {
   void set_power_factor_sensor(sensor::Sensor *power_factor_sensor) { power_factor_sensor_ = power_factor_sensor; }
 
   void loop() override;
-  float get_setup_priority() const override;
   void dump_config() override;
 
  protected:
@@ -34,7 +35,7 @@ class CSE7766Component : public Component, public uart::UARTDevice {
                          this->raw_data_[start_index + 2]);
   }
 
-  uint8_t raw_data_[24];
+  uint8_t raw_data_[CSE7766_RAW_DATA_SIZE];
   uint8_t raw_data_index_{0};
   uint32_t last_transmission_{0};
   sensor::Sensor *voltage_sensor_{nullptr};

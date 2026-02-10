@@ -8,6 +8,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/version.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -26,6 +27,11 @@
 namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt";
+
+// Disconnect reason strings indexed by MQTTClientDisconnectReason enum (0-8)
+PROGMEM_STRING_TABLE(MQTTDisconnectReasonStrings, "TCP disconnected", "Unacceptable Protocol Version",
+                     "Identifier Rejected", "Server Unavailable", "Malformed Credentials", "Not Authorized",
+                     "Not Enough Space", "TLS Bad Fingerprint", "DNS Resolve Error", "Unknown");
 
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
@@ -164,10 +170,8 @@ void MQTTClientComponent::send_device_info_() {
 void MQTTClientComponent::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) tag;
   if (level <= this->log_level_ && this->is_connected()) {
-    this->publish({.topic = this->log_message_.topic,
-                   .payload = std::string(message, message_len),
-                   .qos = this->log_message_.qos,
-                   .retain = this->log_message_.retain});
+    this->publish(this->log_message_.topic.c_str(), message, message_len, this->log_message_.qos,
+                  this->log_message_.retain);
   }
 }
 #endif
@@ -348,36 +352,8 @@ void MQTTClientComponent::loop() {
   mqtt_backend_.loop();
 
   if (this->disconnect_reason_.has_value()) {
-    const LogString *reason_s;
-    switch (*this->disconnect_reason_) {
-      case MQTTClientDisconnectReason::TCP_DISCONNECTED:
-        reason_s = LOG_STR("TCP disconnected");
-        break;
-      case MQTTClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
-        reason_s = LOG_STR("Unacceptable Protocol Version");
-        break;
-      case MQTTClientDisconnectReason::MQTT_IDENTIFIER_REJECTED:
-        reason_s = LOG_STR("Identifier Rejected");
-        break;
-      case MQTTClientDisconnectReason::MQTT_SERVER_UNAVAILABLE:
-        reason_s = LOG_STR("Server Unavailable");
-        break;
-      case MQTTClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS:
-        reason_s = LOG_STR("Malformed Credentials");
-        break;
-      case MQTTClientDisconnectReason::MQTT_NOT_AUTHORIZED:
-        reason_s = LOG_STR("Not Authorized");
-        break;
-      case MQTTClientDisconnectReason::ESP8266_NOT_ENOUGH_SPACE:
-        reason_s = LOG_STR("Not Enough Space");
-        break;
-      case MQTTClientDisconnectReason::TLS_BAD_FINGERPRINT:
-        reason_s = LOG_STR("TLS Bad Fingerprint");
-        break;
-      default:
-        reason_s = LOG_STR("Unknown");
-        break;
-    }
+    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(
+        static_cast<uint8_t>(*this->disconnect_reason_), MQTTDisconnectReasonStrings::LAST_INDEX);
     if (!network::is_connected()) {
       reason_s = LOG_STR("WiFi disconnected");
     }
@@ -643,10 +619,34 @@ static bool topic_match(const char *message, const char *subscription) {
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-  for (auto &subscription : this->subscriptions_) {
-    if (topic_match(topic.c_str(), subscription.topic.c_str()))
-      subscription.callback(topic, payload);
-  }
+#ifdef USE_ESP8266
+  // IMPORTANT: This defer is REQUIRED to prevent stack overflow crashes on ESP8266.
+  //
+  // On ESP8266, this callback is invoked directly from the lwIP/AsyncTCP network stack
+  // which runs in the "sys" context with a very limited stack (~4KB). By the time we
+  // reach this function, the stack is already partially consumed by the network
+  // processing chain: tcp_input -> AsyncClient::_recv -> AsyncMqttClient::_onMessage -> here.
+  //
+  // MQTT subscription callbacks can trigger arbitrary user actions (automations, HTTP
+  // requests, sensor updates, etc.) which may have deep call stacks of their own.
+  // For example, an HTTP request action requires: DNS lookup -> TCP connect -> TLS
+  // handshake (if HTTPS) -> request formatting. This easily overflows the remaining
+  // system stack space, causing a LoadStoreAlignmentCause exception or silent corruption.
+  //
+  // By deferring to the main loop, we ensure callbacks execute with a fresh, full-size
+  // stack in the normal application context rather than the constrained network task.
+  //
+  // DO NOT REMOVE THIS DEFER without understanding the above. It may appear to work
+  // in simple tests but will cause crashes with complex automations.
+  this->defer([this, topic, payload]() {
+#endif
+    for (auto &subscription : this->subscriptions_) {
+      if (topic_match(topic.c_str(), subscription.topic.c_str()))
+        subscription.callback(topic, payload);
+    }
+#ifdef USE_ESP8266
+  });
+#endif
 }
 
 // Setters
