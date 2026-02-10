@@ -56,17 +56,23 @@ void PylontechComponent::setup() {
 void PylontechComponent::update() { this->write_str("pwr\n"); }
 
 void PylontechComponent::loop() {
-  if (this->available() > 0) {
+  int avail = this->available();
+  if (avail > 0) {
     // pylontech sends a lot of data very suddenly
     // we need to quickly put it all into our own buffer, otherwise the uart's buffer will overflow
-    uint8_t data;
     int recv = 0;
-    while (this->available() > 0) {
-      if (this->read_byte(&data)) {
-        buffer_[buffer_index_write_] += (char) data;
-        recv++;
-        if (buffer_[buffer_index_write_].back() == static_cast<char>(ASCII_LF) ||
-            buffer_[buffer_index_write_].length() >= MAX_DATA_LENGTH_BYTES) {
+    uint8_t buf[64];
+    while (avail > 0) {
+      size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+      if (!this->read_array(buf, to_read)) {
+        break;
+      }
+      avail -= to_read;
+      recv += to_read;
+
+      for (size_t i = 0; i < to_read; i++) {
+        buffer_[buffer_index_write_] += (char) buf[i];
+        if (buf[i] == ASCII_LF || buffer_[buffer_index_write_].length() >= MAX_DATA_LENGTH_BYTES) {
           // complete line received
           buffer_index_write_ = (buffer_index_write_ + 1) % NUM_BUFFERS;
         }

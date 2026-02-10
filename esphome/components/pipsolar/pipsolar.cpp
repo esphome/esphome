@@ -13,9 +13,12 @@ void Pipsolar::setup() {
 }
 
 void Pipsolar::empty_uart_buffer_() {
-  uint8_t byte;
-  while (this->available()) {
-    this->read_byte(&byte);
+  uint8_t buf[64];
+  int avail;
+  while ((avail = this->available()) > 0) {
+    if (!this->read_array(buf, std::min(static_cast<size_t>(avail), sizeof(buf)))) {
+      break;
+    }
   }
 }
 
@@ -94,32 +97,47 @@ void Pipsolar::loop() {
   }
 
   if (this->state_ == STATE_COMMAND || this->state_ == STATE_POLL) {
-    while (this->available()) {
-      uint8_t byte;
-      this->read_byte(&byte);
-
-      // make sure data and null terminator fit in buffer
-      if (this->read_pos_ >= PIPSOLAR_READ_BUFFER_LENGTH - 1) {
-        this->read_pos_ = 0;
-        this->empty_uart_buffer_();
-        ESP_LOGW(TAG, "response data too long, discarding.");
+    int avail = this->available();
+    while (avail > 0) {
+      uint8_t buf[64];
+      size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+      if (!this->read_array(buf, to_read)) {
         break;
       }
-      this->read_buffer_[this->read_pos_] = byte;
-      this->read_pos_++;
+      avail -= to_read;
+      bool done = false;
+      for (size_t i = 0; i < to_read; i++) {
+        uint8_t byte = buf[i];
 
-      // end of answer
-      if (byte == 0x0D) {
-        this->read_buffer_[this->read_pos_] = 0;
-        this->empty_uart_buffer_();
-        if (this->state_ == STATE_POLL) {
-          this->state_ = STATE_POLL_COMPLETE;
+        // make sure data and null terminator fit in buffer
+        if (this->read_pos_ >= PIPSOLAR_READ_BUFFER_LENGTH - 1) {
+          this->read_pos_ = 0;
+          this->empty_uart_buffer_();
+          ESP_LOGW(TAG, "response data too long, discarding.");
+          done = true;
+          break;
         }
-        if (this->state_ == STATE_COMMAND) {
-          this->state_ = STATE_COMMAND_COMPLETE;
+        this->read_buffer_[this->read_pos_] = byte;
+        this->read_pos_++;
+
+        // end of answer
+        if (byte == 0x0D) {
+          this->read_buffer_[this->read_pos_] = 0;
+          this->empty_uart_buffer_();
+          if (this->state_ == STATE_POLL) {
+            this->state_ = STATE_POLL_COMPLETE;
+          }
+          if (this->state_ == STATE_COMMAND) {
+            this->state_ = STATE_COMMAND_COMPLETE;
+          }
+          done = true;
+          break;
         }
       }
-    }  // available
+      if (done) {
+        break;
+      }
+    }
   }
   if (this->state_ == STATE_COMMAND) {
     if (millis() - this->command_start_millis_ > esphome::pipsolar::Pipsolar::COMMAND_TIMEOUT) {

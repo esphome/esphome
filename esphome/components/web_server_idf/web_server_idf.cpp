@@ -30,8 +30,7 @@
 #include <cerrno>
 #include <sys/socket.h>
 
-namespace esphome {
-namespace web_server_idf {
+namespace esphome::web_server_idf {
 
 #ifndef HTTPD_409
 #define HTTPD_409 "409 Conflict"
@@ -257,8 +256,6 @@ StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) co
   size_t decoded_len = url_decode(buffer.data());
   return StringRef(buffer.data(), decoded_len);
 }
-
-std::string AsyncWebServerRequest::host() const { return this->get_header("Host").value(); }
 
 void AsyncWebServerRequest::send(AsyncWebServerResponse *response) {
   httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
@@ -898,7 +895,6 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
 }
 #endif  // USE_WEBSERVER_OTA
 
-}  // namespace web_server_idf
-}  // namespace esphome
+}  // namespace esphome::web_server_idf
 
 #endif  // !defined(USE_ESP32)
