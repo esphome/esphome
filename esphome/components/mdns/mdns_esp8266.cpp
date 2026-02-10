@@ -36,18 +36,13 @@ static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SER
   }
 }
 
-void MDNSComponent::setup() { this->setup_buffers_and_register_(register_esp8266); }
-
-void MDNSComponent::loop() {
-  // Throttle MDNS.update() to avoid calling it every loop iteration (~120 Hz).
-  // The update() function only manages timer-driven probe/announce state machines
-  // and service query cache TTLs. Incoming mDNS packets are processed independently
-  // via the lwIP onRx callback and do not depend on update() frequency.
-  const uint32_t now = App.get_loop_component_start_time();
-  if (now - this->last_update_ < MDNS_UPDATE_INTERVAL_MS)
-    return;
-  this->last_update_ = now;
-  MDNS.update();
+void MDNSComponent::setup() {
+  this->setup_buffers_and_register_(register_esp8266);
+  // Schedule MDNS.update() via set_interval() instead of overriding loop().
+  // This removes the component from the per-iteration loop list entirely,
+  // eliminating virtual dispatch overhead on every main loop cycle.
+  // See MDNS_UPDATE_INTERVAL_MS comment in mdns_component.h for safety analysis.
+  this->set_interval(MDNS_UPDATE_INTERVAL_MS, []() { MDNS.update(); });
 }
 
 void MDNSComponent::on_shutdown() {
