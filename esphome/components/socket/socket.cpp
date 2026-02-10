@@ -10,6 +10,14 @@ namespace esphome::socket {
 
 Socket::~Socket() {}
 
+bool Socket::ready() const {
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  return !this->loop_monitored_ || App.is_socket_ready_(this->fd_);
+#else
+  return true;
+#endif
+}
+
 // Platform-specific inet_ntop wrappers
 #if defined(USE_SOCKET_IMPL_LWIP_TCP)
 // LWIP raw TCP (ESP8266) uses inet_ntoa_r which takes struct by value
