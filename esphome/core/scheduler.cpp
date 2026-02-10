@@ -53,8 +53,11 @@ struct SchedulerNameLog {
     } else if (name_type == NameType::HASHED_STRING) {
       ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("hash:0x%08" PRIX32), hash_or_id);
       return buffer;
-    } else {  // NUMERIC_ID
+    } else if (name_type == NameType::NUMERIC_ID) {
       ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("id:%" PRIu32), hash_or_id);
+      return buffer;
+    } else {  // NUMERIC_ID_INTERNAL
+      ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("iid:%" PRIu32), hash_or_id);
       return buffer;
     }
   }
@@ -136,6 +139,9 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
       break;
     case NameType::NUMERIC_ID:
       item->set_numeric_id(hash_or_id);
+      break;
+    case NameType::NUMERIC_ID_INTERNAL:
+      item->set_internal_id(hash_or_id);
       break;
   }
   item->type = type;
@@ -252,6 +258,11 @@ bool HOT Scheduler::cancel_interval(Component *component, uint32_t id) {
   return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::INTERVAL);
 }
 
+// Suppress deprecation warnings for RetryResult usage in the still-present (but deprecated) retry implementation.
+// Remove before 2026.8.0 along with all retry code.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 struct RetryArgs {
   // Ordered to minimize padding on 32-bit systems
   std::function<RetryResult(uint8_t)> func;
@@ -364,6 +375,8 @@ bool HOT Scheduler::cancel_retry(Component *component, uint32_t id) {
   return this->cancel_retry_(component, NameType::NUMERIC_ID, nullptr, id);
 }
 
+#pragma GCC diagnostic pop  // End suppression of deprecated RetryResult warnings
+
 optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // IMPORTANT: This method should only be called from the main thread (loop task).
   // It performs cleanup and accesses items_[0] without holding a lock, which is only
@@ -390,20 +403,19 @@ void Scheduler::full_cleanup_removed_items_() {
   // 4. No operations inside can block or take other locks, so no deadlock risk
   LockGuard guard{this->lock_};
 
-  std::vector<std::unique_ptr<SchedulerItem>> valid_items;
-
-  // Move all non-removed items to valid_items, recycle removed ones
-  for (auto &item : this->items_) {
-    if (!is_item_removed_(item.get())) {
-      valid_items.push_back(std::move(item));
+  // Compact in-place: move valid items forward, recycle removed ones
+  size_t write = 0;
+  for (size_t read = 0; read < this->items_.size(); ++read) {
+    if (!is_item_removed_(this->items_[read].get())) {
+      if (write != read) {
+        this->items_[write] = std::move(this->items_[read]);
+      }
+      ++write;
     } else {
-      // Recycle removed items
-      this->recycle_item_main_loop_(std::move(item));
+      this->recycle_item_main_loop_(std::move(this->items_[read]));
     }
   }
-
-  // Replace items_ with the filtered list
-  this->items_ = std::move(valid_items);
+  this->items_.erase(this->items_.begin() + write, this->items_.end());
   // Rebuild the heap structure since items are no longer in heap order
   std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   this->to_remove_ = 0;
