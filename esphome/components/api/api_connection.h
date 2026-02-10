@@ -15,6 +15,10 @@
 #include <limits>
 #include <vector>
 
+namespace esphome {
+class ComponentIterator;
+}  // namespace esphome
+
 namespace esphome::api {
 
 // Keepalive timeout in milliseconds
@@ -365,6 +369,10 @@ class APIConnection final : public APIServerConnectionBase {
   size_t get_max_batch_size_() const {
     return this->client_supports_api_version(1, 14) ? MAX_INITIAL_PER_BATCH : MAX_INITIAL_PER_BATCH_LEGACY;
   }
+
+  // Process active iterator (list_entities/initial_state) during connection setup.
+  // Extracted from loop() — only runs during initial handshake, NONE in steady state.
+  void __attribute__((noinline)) process_active_iterator_();
 
   // Helper method to process multiple entities from an iterator in a batch.
   // Takes ComponentIterator base class reference to avoid duplicate template instantiations.

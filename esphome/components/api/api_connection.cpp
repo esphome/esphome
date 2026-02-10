@@ -219,35 +219,8 @@ void APIConnection::loop() {
     this->process_batch_();
   }
 
-  switch (this->active_iterator_) {
-    case ActiveIterator::LIST_ENTITIES:
-      if (this->iterator_storage_.list_entities.completed()) {
-        this->destroy_active_iterator_();
-        if (this->flags_.state_subscription) {
-          this->begin_iterator_(ActiveIterator::INITIAL_STATE);
-        }
-      } else {
-        this->process_iterator_batch_(this->iterator_storage_.list_entities);
-      }
-      break;
-    case ActiveIterator::INITIAL_STATE:
-      if (this->iterator_storage_.initial_state.completed()) {
-        this->destroy_active_iterator_();
-        // Process any remaining batched messages immediately
-        if (!this->deferred_batch_.empty()) {
-          this->process_batch_();
-        }
-        // Now that everything is sent, enable immediate sending for future state changes
-        this->flags_.should_try_send_immediately = true;
-        // Release excess memory from buffers that grew during initial sync
-        this->deferred_batch_.release_buffer();
-        this->helper_->release_buffers();
-      } else {
-        this->process_iterator_batch_(this->iterator_storage_.initial_state);
-      }
-      break;
-    case ActiveIterator::NONE:
-      break;
+  if (this->active_iterator_ != ActiveIterator::NONE) {
+    this->process_active_iterator_();
   }
 
   if (this->flags_.sent_ping) {
@@ -281,6 +254,36 @@ void APIConnection::loop() {
   // (missing a frame is fine, missing a state update is not)
   this->try_send_camera_image_();
 #endif
+}
+
+void APIConnection::process_active_iterator_() {
+  // Caller ensures active_iterator_ != NONE
+  if (this->active_iterator_ == ActiveIterator::LIST_ENTITIES) {
+    if (!this->iterator_storage_.list_entities.completed()) {
+      this->process_iterator_batch_(this->iterator_storage_.list_entities);
+      return;
+    }
+    this->destroy_active_iterator_();
+    if (this->flags_.state_subscription) {
+      this->begin_iterator_(ActiveIterator::INITIAL_STATE);
+    }
+    return;
+  }
+  // INITIAL_STATE
+  if (!this->iterator_storage_.initial_state.completed()) {
+    this->process_iterator_batch_(this->iterator_storage_.initial_state);
+    return;
+  }
+  this->destroy_active_iterator_();
+  // Process any remaining batched messages immediately
+  if (!this->deferred_batch_.empty()) {
+    this->process_batch_();
+  }
+  // Now that everything is sent, enable immediate sending for future state changes
+  this->flags_.should_try_send_immediately = true;
+  // Release excess memory from buffers that grew during initial sync
+  this->deferred_batch_.release_buffer();
+  this->helper_->release_buffers();
 }
 
 void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
