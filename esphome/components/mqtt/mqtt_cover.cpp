@@ -160,7 +160,6 @@ bool MQTTCoverComponent::publish_state() {
   }
 #endif
   bool success = true;
-  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   if (traits.get_supports_position()) {
     char pos[VALUE_ACCURACY_MAX_LEN];
     size_t len = value_accuracy_to_buf(pos, roundf(this->cover_->position * 100), 0);
