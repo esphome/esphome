@@ -74,9 +74,9 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
   /// @brief Sets the appropriate status error based on the start failure reason.
   void set_start_error_(esp_err_t err);
 
-  /// @brief Deallocates the task stack and resets the pointers.
-  /// @return ESP_OK if successful
-  ///         ESP_ERR_INVALID_STATE if the task hasn't stopped itself
+  /// @brief Deletes the resampler task if suspended, deallocates the task stack, and resets the related pointers.
+  /// @return ESP_OK if cleanup completed successfully
+  ///         ESP_ERR_INVALID_STATE if the task or stack buffer could not be fully cleaned up
   esp_err_t delete_task_();
 
   /// @brief Sends a command via event group bits, enables the loop, and optionally wakes the main loop.
