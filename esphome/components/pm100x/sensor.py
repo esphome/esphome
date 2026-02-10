@@ -36,12 +36,22 @@ MODEL_OPTIONS = {
     "pm1006k": PM100XModel.PM1006K,
 }
 
+
+def validate_pwm_id(config):
+    """Auto-generate ID for PWM sensor if neither id nor name is provided."""
+    if CONF_ID not in config and CONF_NAME not in config:
+        # Auto-generate an ID for internal PWM sensor
+        config = config.copy()
+        config[CONF_ID] = cv.declare_id(sensor.Sensor)(None)
+    return config
+
+
 # Generic PWM schema without duty_cycle class reference (loaded conditionally)
-PWM_SCHEMA = (
+PWM_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(sensor.Sensor),
-            cv.Optional(CONF_NAME, default=""): cv.string,
+            cv.Optional(CONF_NAME): cv.string,
             cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_INTERNAL, default=True): cv.boolean,
         }
@@ -54,7 +64,8 @@ PWM_SCHEMA = (
             accuracy_decimals=1,
             state_class=STATE_CLASS_MEASUREMENT,
         )
-    )
+    ),
+    validate_pwm_id,
 )
 
 
