@@ -6,26 +6,16 @@ import asyncio
 
 import aioesphomeapi
 from aioesphomeapi import (
+    WaterHeaterFeature,
     WaterHeaterInfo,
     WaterHeaterMode,
     WaterHeaterState,
     WaterHeaterStateFlag,
 )
-from aioesphomeapi.model import APIIntEnum
 import pytest
 
 from .state_utils import InitialStateHelper
 from .types import APIClientConnectedFactory, RunCompiledFunction
-
-
-class WaterHeaterFeature(APIIntEnum):
-    """ESPHome water heater feature flags (WaterHeaterFeature)."""
-
-    SUPPORTS_CURRENT_TEMPERATURE = 1 << 0
-    SUPPORTS_TARGET_TEMPERATURE = 1 << 1
-    SUPPORTS_OPERATION_MODE = 1 << 2
-    SUPPORTS_AWAY_MODE = 1 << 3
-    SUPPORTS_ON_OFF = 1 << 4
 
 
 @pytest.mark.asyncio
