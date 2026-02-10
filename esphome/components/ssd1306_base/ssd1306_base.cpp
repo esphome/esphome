@@ -196,6 +196,7 @@ void SSD1306::setup() {
         break;
       case SH1107_MODEL_128_64:
       case SH1107_MODEL_128_128:
+      case SSD1306_MODEL_COUNT:
         // Not used, but prevents build warning
         break;
     }
