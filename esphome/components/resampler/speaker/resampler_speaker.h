@@ -75,9 +75,7 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
   void set_start_error_(esp_err_t err);
 
   /// @brief Deletes the resampler task if suspended, deallocates the task stack, and resets the related pointers.
-  /// @return ESP_OK if cleanup completed successfully
-  ///         ESP_ERR_INVALID_STATE if the task or stack buffer could not be fully cleaned up
-  esp_err_t delete_task_();
+  void delete_task_();
 
   /// @brief Sends a command via event group bits, enables the loop, and optionally wakes the main loop.
   void send_command_(uint32_t command_bit, bool wake_loop = false);

@@ -147,10 +147,9 @@ void ResamplerSpeaker::loop() {
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::STATE_STOPPING);
   }
   if (event_group_bits & ResamplingEventGroupBits::STATE_STOPPED) {
-    if (this->delete_task_() == ESP_OK) {
-      ESP_LOGD(TAG, "Stopped");
-      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::ALL_BITS);
-    }
+    this->delete_task_();
+    ESP_LOGD(TAG, "Stopped");
+    xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::ALL_BITS);
   }
 
   switch (this->state_) {
@@ -312,14 +311,14 @@ void ResamplerSpeaker::enter_stopping_state_() {
   this->output_speaker_->stop();
 }
 
-esp_err_t ResamplerSpeaker::delete_task_() {
+void ResamplerSpeaker::delete_task_() {
   if (this->task_handle_ != nullptr) {
     // Delete the suspended task
     vTaskDelete(this->task_handle_);
     this->task_handle_ = nullptr;
   }
 
-  if ((this->task_handle_ == nullptr) && (this->task_stack_buffer_ != nullptr)) {
+  if (this->task_stack_buffer_ != nullptr) {
     // Deallocate the task stack buffer
     if (this->task_stack_in_psram_) {
       RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
@@ -331,12 +330,6 @@ esp_err_t ResamplerSpeaker::delete_task_() {
 
     this->task_stack_buffer_ = nullptr;
   }
-
-  if ((this->task_handle_ != nullptr) || (this->task_stack_buffer_ != nullptr)) {
-    return ESP_ERR_INVALID_STATE;
-  }
-
-  return ESP_OK;
 }
 
 void ResamplerSpeaker::finish() { this->send_command_(ResamplingEventGroupBits::COMMAND_FINISH); }
