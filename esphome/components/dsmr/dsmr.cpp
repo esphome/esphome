@@ -134,7 +134,6 @@ void Dsmr::reset_telegram_() {
   this->bytes_read_ = 0;
   this->crypt_bytes_read_ = 0;
   this->crypt_telegram_len_ = 0;
-  this->last_read_time_ = 0;
 }
 
 void Dsmr::receive_telegram_() {
