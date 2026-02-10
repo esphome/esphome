@@ -37,7 +37,17 @@ static void register_rp2040(MDNSComponent *, StaticVector<MDNSService, MDNS_SERV
 
 void MDNSComponent::setup() { this->setup_buffers_and_register_(register_rp2040); }
 
-void MDNSComponent::loop() { MDNS.update(); }
+void MDNSComponent::loop() {
+  // Throttle MDNS.update() to avoid calling it every loop iteration (~120 Hz).
+  // The update() function only manages timer-driven probe/announce state machines
+  // and service query cache TTLs. Incoming mDNS packets are processed independently
+  // via the lwIP onRx callback and do not depend on update() frequency.
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->last_update_ < MDNS_UPDATE_INTERVAL_MS)
+    return;
+  this->last_update_ = now;
+  MDNS.update();
+}
 
 void MDNSComponent::on_shutdown() {
   MDNS.close();
