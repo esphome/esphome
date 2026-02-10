@@ -267,7 +267,7 @@ void APIConnection::process_active_iterator_() {
     } else {
       this->process_iterator_batch_(this->iterator_storage_.list_entities);
     }
-  } else {
+  } else {  // INITIAL_STATE
     if (this->iterator_storage_.initial_state.completed()) {
       this->destroy_active_iterator_();
       // Process any remaining batched messages immediately
