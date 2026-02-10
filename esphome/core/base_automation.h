@@ -191,15 +191,17 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
     // instead of std::bind to avoid bind overhead (~16 bytes heap + faster execution)
     if constexpr (sizeof...(Ts) == 0) {
       App.scheduler.set_timer_common_(
-          this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::STATIC_STRING, "delay", 0, this->delay_.value(),
+          this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL, nullptr,
+          static_cast<uint32_t>(InternalSchedulerID::DELAY_ACTION), this->delay_.value(),
           [this]() { this->play_next_(); },
           /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
     } else {
       // For delays with arguments, use std::bind to preserve argument values
       // Arguments must be copied because original references may be invalid after delay
       auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
-      App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::STATIC_STRING,
-                                      "delay", 0, this->delay_.value(x...), std::move(f),
+      App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL,
+                                      nullptr, static_cast<uint32_t>(InternalSchedulerID::DELAY_ACTION),
+                                      this->delay_.value(x...), std::move(f),
                                       /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
     }
   }
@@ -208,7 +210,7 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
   void play(const Ts &...x) override { /* ignore - see play_complex */
   }
 
-  void stop() override { this->cancel_timeout("delay"); }
+  void stop() override { this->cancel_timeout(InternalSchedulerID::DELAY_ACTION); }
 };
 
 template<typename... Ts> class LambdaAction : public Action<Ts...> {
