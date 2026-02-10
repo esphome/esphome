@@ -133,8 +133,8 @@ void APIConnection::start() {
     return;
   }
   // Initialize client name with peername (IP address) until Hello message provides actual name
-  const char *peername = this->helper_->get_client_peername();
-  this->helper_->set_client_name(peername, strlen(peername));
+  char peername[socket::SOCKADDR_STR_LEN];
+  this->helper_->set_client_name(this->helper_->get_peername_to(peername), strlen(peername));
 }
 
 APIConnection::~APIConnection() {
@@ -179,8 +179,8 @@ void APIConnection::begin_iterator_(ActiveIterator type) {
 
 void APIConnection::loop() {
   if (this->flags_.next_close) {
-    // requested a disconnect
-    this->helper_->close();
+    // requested a disconnect - don't close socket here, let APIServer::loop() do it
+    // so getpeername() still works for the disconnect trigger
     this->flags_.remove = true;
     return;
   }
@@ -293,7 +293,8 @@ bool APIConnection::send_disconnect_response_() {
   return this->send_message(resp, DisconnectResponse::MESSAGE_TYPE);
 }
 void APIConnection::on_disconnect_response() {
-  this->helper_->close();
+  // Don't close socket here, let APIServer::loop() do it
+  // so getpeername() still works for the disconnect trigger
   this->flags_.remove = true;
 }
 
@@ -1469,8 +1470,11 @@ void APIConnection::complete_authentication_() {
   this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::AUTHENTICATED);
   this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("connected"));
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  this->parent_->get_client_connected_trigger()->trigger(std::string(this->helper_->get_client_name()),
-                                                         std::string(this->helper_->get_client_peername()));
+  {
+    char peername[socket::SOCKADDR_STR_LEN];
+    this->parent_->get_client_connected_trigger()->trigger(std::string(this->helper_->get_client_name()),
+                                                           std::string(this->helper_->get_peername_to(peername)));
+  }
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   if (homeassistant::global_homeassistant_time != nullptr) {
@@ -1489,8 +1493,9 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   this->helper_->set_client_name(msg.client_info.c_str(), msg.client_info.size());
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
+  char peername[socket::SOCKADDR_STR_LEN];
   ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->helper_->get_client_name(),
-           this->helper_->get_client_peername(), this->client_api_version_major_, this->client_api_version_minor_);
+           this->helper_->get_peername_to(peername), this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
@@ -1838,7 +1843,8 @@ void APIConnection::on_no_setup_connection() {
   this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("no connection setup"));
 }
 void APIConnection::on_fatal_error() {
-  this->helper_->close();
+  // Don't close socket here - keep it open so getpeername() works for logging
+  // Socket will be closed when client is removed from the list in APIServer::loop()
   this->flags_.remove = true;
 }
 
@@ -2195,12 +2201,14 @@ void APIConnection::process_state_subscriptions_() {
 #endif  // USE_API_HOMEASSISTANT_STATES
 
 void APIConnection::log_client_(int level, const LogString *message) {
+  char peername[socket::SOCKADDR_STR_LEN];
   esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s (%s): %s"), this->helper_->get_client_name(),
-                  this->helper_->get_client_peername(), LOG_STR_ARG(message));
+                  this->helper_->get_peername_to(peername), LOG_STR_ARG(message));
 }
 
 void APIConnection::log_warning_(const LogString *message, APIError err) {
-  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->helper_->get_client_name(), this->helper_->get_client_peername(),
+  char peername[socket::SOCKADDR_STR_LEN];
+  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->helper_->get_client_name(), this->helper_->get_peername_to(peername),
            LOG_STR_ARG(message), LOG_STR_ARG(api_error_to_logstr(err)), errno);
 }
 
