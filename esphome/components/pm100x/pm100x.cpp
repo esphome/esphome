@@ -9,12 +9,11 @@ namespace pm100x {
 
 static const char *const TAG = "pm100x";
 
-static const uint8_t PM1003_RESPONSE_HEADER[] = {0x16, 0x11, 0x0B};
-static const uint8_t PM1003_COMMAND_MEASURE[] = {0x11, 0x02, 0x0B, 0x01, 0xE1};
+// PM1003 and PM1006 share the same protocol
+static const uint8_t PM100X_RESPONSE_HEADER[] = {0x16, 0x11, 0x0B};
+static const uint8_t PM100X_COMMAND_MEASURE[] = {0x11, 0x02, 0x0B, 0x01, 0xE1};
 
-static const uint8_t PM1006_RESPONSE_HEADER[] = {0x16, 0x11, 0x0B};
-static const uint8_t PM1006_COMMAND_MEASURE[] = {0x11, 0x02, 0x0B, 0x01, 0xE1};
-
+// PM1006K has a different protocol
 static const uint8_t PM1006K_RESPONSE_HEADER[] = {0x16, 0x0D, 0x02};
 static const uint8_t PM1006K_COMMAND_MEASURE[] = {0x11, 0x01, 0x02, 0xEC};
 
@@ -40,8 +39,7 @@ void PM100XComponent::setup() {
 }
 
 void PM100XComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "PM100X:");
-  ESP_LOGCONFIG(TAG, "  Model: %s", model_to_string(this->model_));
+  ESP_LOGCONFIG(TAG, "PM100X Model: %s", model_to_string(this->model_));
   LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
@@ -146,11 +144,9 @@ size_t PM100XComponent::get_frame_data_length_() const {
 const uint8_t *PM100XComponent::get_response_header_(size_t &length) const {
   switch (this->model_) {
     case PM100XModel::PM1003:
-      length = sizeof(PM1003_RESPONSE_HEADER);
-      return PM1003_RESPONSE_HEADER;
     case PM100XModel::PM1006:
-      length = sizeof(PM1006_RESPONSE_HEADER);
-      return PM1006_RESPONSE_HEADER;
+      length = sizeof(PM100X_RESPONSE_HEADER);
+      return PM100X_RESPONSE_HEADER;
     case PM100XModel::PM1006K:
       length = sizeof(PM1006K_RESPONSE_HEADER);
       return PM1006K_RESPONSE_HEADER;
@@ -162,11 +158,9 @@ const uint8_t *PM100XComponent::get_response_header_(size_t &length) const {
 const uint8_t *PM100XComponent::get_command_measure_(size_t &length) const {
   switch (this->model_) {
     case PM100XModel::PM1003:
-      length = sizeof(PM1003_COMMAND_MEASURE);
-      return PM1003_COMMAND_MEASURE;
     case PM100XModel::PM1006:
-      length = sizeof(PM1006_COMMAND_MEASURE);
-      return PM1006_COMMAND_MEASURE;
+      length = sizeof(PM100X_COMMAND_MEASURE);
+      return PM100X_COMMAND_MEASURE;
     case PM100XModel::PM1006K:
       length = sizeof(PM1006K_COMMAND_MEASURE);
       return PM1006K_COMMAND_MEASURE;

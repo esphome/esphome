@@ -1,4 +1,4 @@
-from esphome import automation, pins
+from esphome import pins
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
@@ -140,11 +140,6 @@ def validate_interval_uart(config):
 
 
 FINAL_VALIDATE_SCHEMA = validate_interval_uart
-
-
-PM100X_ACTION_SCHEMA = automation.maybe_simple_id(
-    {cv.GenerateID(): cv.use_id(PM100XComponent)}
-)
 
 
 async def to_code(config):

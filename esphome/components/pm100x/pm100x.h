@@ -2,11 +2,8 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
-
-#include <vector>
 
 namespace esphome {
 namespace pm100x {
