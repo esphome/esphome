@@ -218,32 +218,50 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   return container;
 }
 
+bool HttpContainerIDF::is_read_complete() const {
+  // Base class handles no-body status codes and non-chunked content_length completion
+  if (HttpContainer::is_read_complete()) {
+    return true;
+  }
+  // For chunked responses, use the authoritative ESP-IDF completion check
+  return this->is_chunked_ && esp_http_client_is_complete_data_received(this->client_);
+}
+
 // ESP-IDF HTTP read implementation (blocking mode)
 //
 // WARNING: Return values differ from BSD sockets! See http_request.h for full documentation.
 //
 // esp_http_client_read() in blocking mode returns:
 //   > 0: bytes read
-//   0: connection closed (end of stream)
+//   0: all chunked data received (is_chunk_complete true) or connection closed
+//   -ESP_ERR_HTTP_EAGAIN: transport timeout, no data available yet
 //   < 0: error
 //
 // We normalize to HttpContainer::read() contract:
 //   > 0: bytes read
-//   0: all content read (only returned when content_length is known and fully read)
+//   0: all content read (for both content_length-based and chunked completion)
 //   < 0: error/connection closed
 //
 // Note on chunked transfer encoding:
 //   esp_http_client_fetch_headers() returns 0 for chunked responses (no Content-Length header).
-//   We handle this by skipping the content_length check when content_length is 0,
-//   allowing esp_http_client_read() to handle chunked decoding internally and signal EOF
-//   by returning 0.
+//   When esp_http_client_read() returns 0 for a chunked response, is_read_complete() calls
+//   esp_http_client_is_complete_data_received() to distinguish successful completion from
+//   connection errors. Callers use http_read_loop_result() which checks is_read_complete()
+//   to return COMPLETE for successful chunked EOF.
+//
+// Streaming chunked responses are not supported (see http_request.h for details).
+// When data stops arriving, esp_http_client_read() returns -ESP_ERR_HTTP_EAGAIN
+// after its internal transport timeout (configured via timeout_ms) expires.
+// This is passed through as a negative return value, which callers treat as an error.
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
-  // Check if we've already read all expected content (non-chunked only)
-  // For chunked responses (content_length == 0), esp_http_client_read() handles EOF
-  if (this->is_read_complete()) {
+  // Check if we've already read all expected content (non-chunked and no-body only).
+  // Use the base class check here, NOT the override: esp_http_client_is_complete_data_received()
+  // returns true as soon as all data arrives from the network, but data may still be in
+  // the client's internal buffer waiting to be consumed by esp_http_client_read().
+  if (HttpContainer::is_read_complete()) {
     return 0;  // All content read successfully
   }
 
@@ -258,15 +276,18 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
     return read_len_or_error;
   }
 
-  // esp_http_client_read() returns 0 in two cases:
-  // 1. Known content_length: connection closed before all data received (error)
-  // 2. Chunked encoding (content_length == 0): end of stream reached (EOF)
-  // For case 1, returning HTTP_ERROR_CONNECTION_CLOSED is correct.
-  // For case 2, 0 indicates that all chunked data has already been delivered
-  // in previous successful read() calls, so treating this as a closed
-  // connection does not cause any loss of response data.
+  // esp_http_client_read() returns 0 when:
+  // - Known content_length: connection closed before all data received (error)
+  // - Chunked encoding: all chunks received (is_chunk_complete true, genuine EOF)
+  //
+  // Return 0 in both cases. Callers use http_read_loop_result() which calls
+  // is_read_complete() to distinguish these:
+  // - Chunked complete: is_read_complete() returns true (via
+  //   esp_http_client_is_complete_data_received()), caller gets COMPLETE
+  // - Non-chunked incomplete: is_read_complete() returns false, caller
+  //   eventually gets TIMEOUT (since no more data arrives)
   if (read_len_or_error == 0) {
-    return HTTP_ERROR_CONNECTION_CLOSED;
+    return 0;
   }
 
   // Negative value - error, return the actual error code for debugging

@@ -25,8 +25,13 @@ std::string build_json(const json_build_t &f) {
 }
 
 bool parse_json(const std::string &data, const json_parse_t &f) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  return parse_json(reinterpret_cast<const uint8_t *>(data.c_str()), data.size(), f);
+}
+
+bool parse_json(const uint8_t *data, size_t len, const json_parse_t &f) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  JsonDocument doc = parse_json(reinterpret_cast<const uint8_t *>(data.c_str()), data.size());
+  JsonDocument doc = parse_json(data, len);
   if (doc.overflowed() || doc.isNull())
     return false;
   return f(doc.as<JsonObject>());
