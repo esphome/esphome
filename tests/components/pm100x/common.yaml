@@ -1,27 +1,30 @@
 sensor:
-  - platform: pm100x
-    id: pm100x_uart
+  # UART mode - PM1003 with only PM2.5 sensor
+  - platform: pm100x_uart
+    id: pm1003_uart
     model: PM1003
     pm_2_5:
-      name: PM100X UART PM2.5
+      name: PM1003 UART PM2.5
 
-  - platform: pm100x
-    id: pm100x_pwm
+  # PWM mode - PM1003
+  - platform: pm100x_pwm
+    id: pm100x_pm1003_pwm
     model: PM1003
     pm_2_5:
-      name: PM100X PWM PM2.5
+      name: PM1003 PWM PM2.5
     pwm:
-      pin:
-        number: ${pwm_pin}
-        inverted: true
+      pin: ${pwm_pin_1}
+      inverted: true
 
-  - platform: pm100x
+  # UART mode - PM1006 with only PM2.5 sensor
+  - platform: pm100x_uart
     id: pm100x_pm1006
     model: PM1006
     pm_2_5:
       name: PM1006 UART PM2.5
 
-  - platform: pm100x
+  # UART mode - PM1006K with all sensors
+  - platform: pm100x_uart
     id: pm100x_pm1006k
     model: PM1006K
     pm_2_5:
@@ -31,12 +34,12 @@ sensor:
     pm_10_0:
       name: PM1006K UART PM10.0
 
-  - platform: pm100x
+  # PWM mode - PM1006K
+  - platform: pm100x_pwm
     id: pm100x_pm1006k_pwm
     model: PM1006K
     pm_2_5:
       name: PM1006K PWM PM2.5
     pwm:
-      pin:
-        number: ${pwm_pin}
-        inverted: true
+      pin: ${pwm_pin_2}
+      inverted: true

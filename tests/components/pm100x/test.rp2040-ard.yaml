@@ -1,7 +1,8 @@
 substitutions:
   tx_pin: GPIO4
   rx_pin: GPIO5
-  pwm_pin: GPIO6
+  pwm_pin_1: GPIO6
+  pwm_pin_2: GPIO7
 
 packages:
   uart: !include ../../test_build_components/common/uart/rp2040-ard.yaml

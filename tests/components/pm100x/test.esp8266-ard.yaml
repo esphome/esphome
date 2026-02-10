@@ -1,7 +1,8 @@
 substitutions:
   tx_pin: GPIO0
   rx_pin: GPIO2
-  pwm_pin: GPIO4
+  pwm_pin_1: GPIO4
+  pwm_pin_2: GPIO5
 
 packages:
   uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
