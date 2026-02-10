@@ -272,8 +272,6 @@ void SendspinMediaSource::loop() {
         if (event_bits & TASK_STOPPED) {
           ESP_LOGD(TAG, "Pipeline %zu stopped", pipeline);
           xEventGroupClearBits(ctx.event_group, TASK_STOPPED | COMMAND_STOP);
-          // Safe to reset ring buffer now that consumer task is stopped
-          ctx.encoded_ring_buffer->reset();
 
           vTaskDelete(ctx.sync_task_handle);
           ctx.sync_task_handle = nullptr;
@@ -716,6 +714,27 @@ void SendspinMediaSource::sync_soft_reset_(SyncContext &sync_context, SendspinMe
   ESP_LOGW(TAG, "Sync soft reset complete - resuming with preserved codec state");
 }
 
+void SendspinMediaSource::sync_drain_until_codec_header_(SyncContext &sync_context,
+                                                         SendspinMediaSourcePipeline &pipeline_context) {
+  // Drain any stale audio from the ring buffer until we find a codec header.
+  // This prevents a race condition where a rapid stop/start causes the new codec header
+  // to be preceded by leftover encoded audio from the previous stream.
+  while (!(xEventGroupGetBits(pipeline_context.event_group) & COMMAND_STOP)) {
+    auto *entry = pipeline_context.encoded_ring_buffer->receive_chunk(pdMS_TO_TICKS(100));
+    if (entry == nullptr) {
+      continue;  // Nothing available yet, keep waiting for the hub to send the header
+    }
+    if (entry->chunk_type != CHUNK_TYPE_ENCODED_AUDIO && entry->chunk_type != CHUNK_TYPE_DECODED_AUDIO) {
+      // Found a codec header - hand it off for normal processing
+      sync_context.encoded_entry = entry;
+      sync_context.release_chunk = false;
+      return;
+    }
+    // Stale audio data from previous stream, discard it
+    pipeline_context.encoded_ring_buffer->return_chunk(entry);
+  }
+}
+
 bool SendspinMediaSource::sync_decode_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context) {
   if (sync_context.decode_buffer != nullptr && sync_context.decode_buffer->available() > 0) {
     // Already have decoded audio
@@ -882,6 +901,9 @@ void SendspinMediaSource::sync_task(void *params) {
     SyncTaskState sync_state = SyncTaskState::LOAD_CHUNK;
 
     xEventGroupSetBits(ctx.event_group, EventGroupBits::TASK_RUNNING);
+
+    this_source->sync_drain_until_codec_header_(sync_context, ctx);
+
     while (!(xEventGroupGetBits(ctx.event_group) & COMMAND_STOP)) {
       // if (sync_context.current_stream_info != ctx.stream_info) {
       //   // This shouldn't change in the middle of a session. The hub should stop/warn us ahead of time

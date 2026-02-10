@@ -143,6 +143,10 @@ class SendspinMediaSource : public Component, public media_source::MediaSource, 
 
   void sync_soft_reset_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
 
+  /// @brief Drains stale audio from the ring buffer until a codec header is found.
+  /// Prevents a race condition where a rapid stop/start leaves leftover encoded audio before the new codec header.
+  void sync_drain_until_codec_header_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
+
   bool sync_decode_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
 
   void set_transfer_callbacks_(SyncContext &sync_context, int pipeline);
