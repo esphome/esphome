@@ -6,8 +6,7 @@
 #include <cstring>
 #include "multipart_parser.h"
 
-namespace esphome {
-namespace web_server_idf {
+namespace esphome::web_server_idf {
 
 static const char *const TAG = "multipart";
 
@@ -249,6 +248,5 @@ std::string str_trim(const std::string &str) {
   return str.substr(start, end - start + 1);
 }
 
-}  // namespace web_server_idf
-}  // namespace esphome
+}  // namespace esphome::web_server_idf
 #endif  // defined(USE_ESP32) && defined(USE_WEBSERVER_OTA)
