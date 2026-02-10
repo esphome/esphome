@@ -101,9 +101,6 @@ async def to_code(config):
 
     # PWM duty cycle sensor
     if CONF_PWM in config:
-        # Conditionally load duty_cycle component when PWM is configured
-        from esphome.components import duty_cycle  # noqa: F401
-
         # Add the duty_cycle header include to generated C++ code
         cg.add_global(
             cg.RawStatement(
