@@ -82,10 +82,14 @@ void SendspinMediaSource::init_pipelines(size_t pipeline_count) {
       this->mark_failed();
     }
 
-    ctx.encoded_ring_buffer = SendspinAudioRingBuffer::create(this->parent_->get_buffer_size());
-    if (ctx.encoded_ring_buffer == nullptr) {
-      ESP_LOGE(TAG, "Couldn't create encoded audio ring buffer.");
-      this->mark_failed();
+    if (i == 0) {
+      // This is a hack! We currently only ever use pipeline 0 for the Sendspin component, so it's a waste to
+      // permananetly allocate the ring buffer for pipeline 1
+      ctx.encoded_ring_buffer = SendspinAudioRingBuffer::create(this->parent_->get_buffer_size());
+      if (ctx.encoded_ring_buffer == nullptr) {
+        ESP_LOGE(TAG, "Couldn't create encoded audio ring buffer.");
+        this->mark_failed();
+      }
     }
 
     this->sendspin_pipelines_.push_back(std::move(ctx));
