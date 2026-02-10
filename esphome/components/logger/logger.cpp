@@ -36,8 +36,9 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 #endif
 
   // Fast path: main thread, no recursion (99.9% of all logs)
+  // Pass nullptr for thread_name since we already know this is the main task
   if (is_main_task && !this->main_task_recursion_guard_) [[likely]] {
-    this->log_message_to_buffer_and_send_(this->main_task_recursion_guard_, level, tag, line, format, args);
+    this->log_message_to_buffer_and_send_(this->main_task_recursion_guard_, level, tag, line, format, args, nullptr);
     return;
   }
 
@@ -47,21 +48,23 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   }
 
   // Non-main thread handling (~0.1% of logs)
+  // Resolve thread name once and pass it through the logging chain.
+  // ESP32/LibreTiny: use TaskHandle_t overload to avoid redundant xTaskGetCurrentTaskHandle()
+  // (we already have the handle from the main task check above).
+  // Host: pass a stack buffer for pthread_getname_np to write into.
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  this->log_vprintf_non_main_thread_(level, tag, line, format, args, current_task);
+  const char *thread_name = get_thread_name_(current_task);
 #else  // USE_HOST
-  this->log_vprintf_non_main_thread_(level, tag, line, format, args);
+  char thread_name_buf[THREAD_NAME_BUF_SIZE];
+  const char *thread_name = this->get_thread_name_(thread_name_buf);
 #endif
+  this->log_vprintf_non_main_thread_(level, tag, line, format, args, thread_name);
 }
 
 // Handles non-main thread logging only
 // Kept separate from hot path to improve instruction cache performance
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
 void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
-                                          TaskHandle_t current_task) {
-#else  // USE_HOST
-void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args) {
-#endif
+                                          const char *thread_name) {
   // Check if already in recursion for this non-main thread/task
   if (this->is_non_main_task_recursive_()) {
     return;
@@ -73,12 +76,8 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
   bool message_sent = false;
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // For non-main threads/tasks, queue the message for callbacks
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   message_sent =
-      this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), current_task, format, args);
-#else  // USE_HOST
-  message_sent = this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), format, args);
-#endif
+      this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), thread_name, format, args);
   if (message_sent) {
     // Enable logger loop to process the buffered message
     // This is safe to call from any context including ISRs
@@ -101,19 +100,27 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
 #endif
     char console_buffer[MAX_CONSOLE_LOG_MSG_SIZE];  // MUST be stack allocated for thread safety
     LogBuffer buf{console_buffer, MAX_CONSOLE_LOG_MSG_SIZE};
-    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf);
+    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf, thread_name);
     this->write_to_console_(buf);
   }
 
   // RAII guard automatically resets on return
 }
 #else
-// Implementation for all other platforms (single-task, no threading)
+// Implementation for single-task platforms (ESP8266, RP2040, Zephyr)
+// TODO: Zephyr may have multiple threads (work queues, etc.) but uses this single-task path.
+// Logging calls are NOT thread-safe: global_recursion_guard_ is a plain bool and tx_buffer_ has no locking.
+// Not a problem in practice yet since Zephyr has no API support (logs are console-only).
 void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
-
-  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args);
+#ifdef USE_ZEPHYR
+  char tmp[MAX_POINTER_REPRESENTATION];
+  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args,
+                                        this->get_thread_name_(tmp));
+#else  // Other single-task platforms don't have thread names, so pass nullptr
+  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args, nullptr);
+#endif
 }
 #endif  // USE_ESP32 / USE_HOST / USE_LIBRETINY
 
@@ -129,7 +136,7 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
-  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args);
+  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args, nullptr);
 }
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 

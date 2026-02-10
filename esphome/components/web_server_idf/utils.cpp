@@ -8,8 +8,7 @@
 
 #include "utils.h"
 
-namespace esphome {
-namespace web_server_idf {
+namespace esphome::web_server_idf {
 
 static const char *const TAG = "web_server_idf_utils";
 
@@ -119,6 +118,5 @@ const char *stristr(const char *haystack, const char *needle) {
   return nullptr;
 }
 
-}  // namespace web_server_idf
-}  // namespace esphome
+}  // namespace esphome::web_server_idf
 #endif  // USE_ESP32

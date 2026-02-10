@@ -17,7 +17,7 @@ class HostUartComponent : public UARTComponent, public Component {
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
-  int available() override;
+  size_t available() override;
   void flush() override;
   void set_name(std::string port_name) { port_name_ = port_name; };
 
