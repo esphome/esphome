@@ -14,3 +14,29 @@ sensor:
       pin:
         number: ${pwm_pin}
         inverted: true
+
+  - platform: pm100x
+    id: pm100x_pm1006
+    model: PM1006
+    pm_2_5:
+      name: PM1006 UART PM2.5
+
+  - platform: pm100x
+    id: pm100x_pm1006k
+    model: PM1006K
+    pm_2_5:
+      name: PM1006K UART PM2.5
+    pm_1_0:
+      name: PM1006K UART PM1.0
+    pm_10_0:
+      name: PM1006K UART PM10.0
+
+  - platform: pm100x
+    id: pm100x_pm1006k_pwm
+    model: PM1006K
+    pm_2_5:
+      name: PM1006K PWM PM2.5
+    pwm:
+      pin:
+        number: ${pwm_pin}
+        inverted: true
