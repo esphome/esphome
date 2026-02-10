@@ -24,14 +24,38 @@ void FilterLifetime::setup() {
   this->pref_.load(&this->runtime_minutes_);
 }
 
+bool FilterLifetime::get_is_on_() {
+  // Check binary sensor first, then lambda, default to true
+  if (this->is_on_sensor_ != nullptr) {
+    return this->is_on_sensor_->state;
+  }
+  if (this->is_on_lambda_) {
+    return this->is_on_lambda_();
+  }
+  return true;
+}
+
+float FilterLifetime::get_current_speed_() {
+  // Check sensor first, then lambda, default to 100.0
+  if (this->current_speed_sensor_ != nullptr) {
+    if (!std::isnan(this->current_speed_sensor_->state)) {
+      return this->current_speed_sensor_->state;
+    }
+  }
+  if (this->current_speed_lambda_) {
+    return this->current_speed_lambda_();
+  }
+  return 100.0f;
+}
+
 void FilterLifetime::update() {
   uint32_t now = App.get_loop_component_start_time();
   float elapsed_minutes = (now - this->last_update_) / 60000.0f;  // Convert ms to minutes
   this->last_update_ = now;
 
   // Get device state
-  bool is_on = this->is_on_ ? this->is_on_() : true;
-  float speed = this->current_speed_ ? this->current_speed_() : 100.0f;
+  bool is_on = this->get_is_on_();
+  float speed = this->get_current_speed_();
 
   ESP_LOGV(TAG, "Update: elapsed=%.2f min, is_on=%d, speed=%.1f%%", elapsed_minutes, is_on, speed);
 
