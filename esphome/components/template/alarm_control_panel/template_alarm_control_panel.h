@@ -26,7 +26,7 @@ enum BinarySensorFlags : uint16_t {
   BINARY_SENSOR_MODE_BYPASS_AUTO = 1 << 4,
 };
 
-enum AlarmSensorType : uint16_t {
+enum AlarmSensorType : uint8_t {
   ALARM_SENSOR_TYPE_DELAYED = 0,
   ALARM_SENSOR_TYPE_INSTANT,
   ALARM_SENSOR_TYPE_DELAYED_FOLLOWER,
