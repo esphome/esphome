@@ -15,6 +15,10 @@
 #include <limits>
 #include <vector>
 
+namespace esphome {
+class ComponentIterator;
+}  // namespace esphome
+
 namespace esphome::api {
 
 // Keepalive timeout in milliseconds
