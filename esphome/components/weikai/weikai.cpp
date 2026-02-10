@@ -401,7 +401,7 @@ bool WeikaiChannel::peek_byte(uint8_t *buffer) {
   return this->receive_buffer_.peek(*buffer);
 }
 
-int WeikaiChannel::available() {
+size_t WeikaiChannel::available() {
   size_t available = this->receive_buffer_.count();
   if (!available)
     available = xfer_fifo_to_buffer_();
