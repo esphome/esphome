@@ -1343,8 +1343,12 @@ void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequ
     call.set_target_temperature_low(msg.target_temperature_low);
   if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH)
     call.set_target_temperature_high(msg.target_temperature_high);
-  if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_STATE) {
+  if ((msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_AWAY_STATE) ||
+      (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_STATE)) {
     call.set_away((msg.state & water_heater::WATER_HEATER_STATE_AWAY) != 0);
+  }
+  if ((msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_ON_STATE) ||
+      (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_STATE)) {
     call.set_on((msg.state & water_heater::WATER_HEATER_STATE_ON) != 0);
   }
   call.perform();
