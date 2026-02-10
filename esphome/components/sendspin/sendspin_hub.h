@@ -13,7 +13,6 @@
 #ifdef USE_SENDSPIN_PLAYER
 #include "sendspin_audio_chunk.h"
 #include "esphome/components/audio/audio.h"
-#include <vector>
 #endif
 
 #ifdef USE_SENDSPIN_ARTWORK
@@ -106,10 +105,11 @@ class SendspinHub : public Component {
   size_t get_buffer_size() const { return this->buffer_size_; }
 
 #ifdef USE_SENDSPIN_PLAYER
-  // Simple audio chunk callback registration
-  void add_audio_chunk_callback(
-      std::function<bool(std::shared_ptr<SendspinAudioChunk>, TickType_t, const audio::AudioStreamInfo &)> &&callback) {
-    this->audio_chunk_callbacks_.push_back(std::move(callback));
+  /// @brief Sets the single audio chunk callback.
+  /// @param callback Function called with raw audio data for each chunk.
+  void set_audio_chunk_callback(std::function<bool(const uint8_t *data, size_t data_size, int64_t timestamp,
+                                                   ChunkType chunk_type, TickType_t ticks_to_wait)> &&callback) {
+    this->audio_chunk_callback_ = std::move(callback);
   }
 
   uint8_t get_volume() { return this->volume_; }
@@ -212,12 +212,12 @@ class SendspinHub : public Component {
   RetryResult send_hello_message_(uint8_t remaining_attempts, SendspinConnection *conn);
 
 #ifdef USE_SENDSPIN_PLAYER
-  bool send_audio_chunk_(std::shared_ptr<SendspinAudioChunk> audio_chunk, TickType_t ticks_to_wait,
-                         const audio::AudioStreamInfo &stream_info);
+  bool send_audio_chunk_(const uint8_t *data, size_t data_size, int64_t timestamp, ChunkType chunk_type,
+                         TickType_t ticks_to_wait);
 
-  // Simplified audio consumer management with pointer-based approach
-  std::vector<std::function<bool(std::shared_ptr<SendspinAudioChunk>, TickType_t, const audio::AudioStreamInfo &)>>
-      audio_chunk_callbacks_;
+  std::function<bool(const uint8_t *data, size_t data_size, int64_t timestamp, ChunkType chunk_type,
+                     TickType_t ticks_to_wait)>
+      audio_chunk_callback_;
 
   uint8_t volume_;
   bool muted_;
@@ -227,9 +227,8 @@ class SendspinHub : public Component {
 
   void send_time_message_();
 
-  /// @brief Processes sendspin binary message
-  /// If it returns true, the caller needs to deallocate the payload
-  bool process_binary_message_(uint8_t *payload, size_t len);
+  /// @brief Processes a sendspin binary message (payload owned by connection, read-only).
+  void process_binary_message_(uint8_t *payload, size_t len);
 
   // Process JSON message
   // Returns true if message was successfully processed, false otherwise

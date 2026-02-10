@@ -4,7 +4,6 @@
 #ifdef USE_SENDSPIN_PLAYER
 #include "sendspin_decoder.h"
 #include "esphome/components/audio/audio.h"
-#include "esphome/components/audio/audio_chunk.h"
 #endif
 
 #include "esphome/components/json/json_util.h"
@@ -167,7 +166,7 @@ void SendspinHub::connect_to_server(const std::string &url) {
     this->process_json_message_(conn, message, timestamp);
   };
   client_conn->on_binary_message = [this](SendspinConnection *conn, uint8_t *payload, size_t len) {
-    return this->process_binary_message_(payload, len);
+    this->process_binary_message_(payload, len);
   };
   client_conn->on_handshake_complete = [this](SendspinConnection *conn) {
     this->on_connection_handshake_complete_(conn);
@@ -320,7 +319,7 @@ void SendspinHub::on_new_connection_(std::unique_ptr<SendspinServerConnection> c
     this->process_json_message_(c, message, timestamp);
   };
   conn->on_binary_message = [this](SendspinConnection *c, uint8_t *payload, size_t len) {
-    return this->process_binary_message_(payload, len);
+    this->process_binary_message_(payload, len);
   };
   conn->on_handshake_complete = [this](SendspinConnection *c) { this->on_connection_handshake_complete_(c); };
 
@@ -535,10 +534,9 @@ void SendspinHub::persist_last_played_server_(const std::string &server_id) {
   }
 }
 
-bool SendspinHub::process_binary_message_(uint8_t *payload, size_t len) {
+void SendspinHub::process_binary_message_(uint8_t *payload, size_t len) {
   if (len < SENDSPIN_BINARY_CHUNK_HEADER_SIZE) {
-    // Packet too short for sendspin binary message header
-    return true;  // deallocate payload
+    return;
   }
 
   uint8_t binary_type = payload[0];
@@ -553,34 +551,19 @@ bool SendspinHub::process_binary_message_(uint8_t *payload, size_t len) {
     case SENDSPIN_ROLE_PLAYER: {
 #ifdef USE_SENDSPIN_PLAYER
       if (slot == 0) {
-        // Audio data (slot 0)
-        // Create a shared_ptr chunk that takes ownership of the payload
-        auto audio_chunk = create_sendspin_chunk_from_buffer(payload, len);
-        if (audio_chunk == nullptr) {
-          ESP_LOGE(TAG, "Failed to allocate SendspinAudioChunk");
-          return true;  // deallocate payload
+        // Audio data (slot 0) - pass raw data to callback (no heap allocation)
+        if (!this->send_audio_chunk_(payload + SENDSPIN_BINARY_CHUNK_HEADER_SIZE,
+                                     len - SENDSPIN_BINARY_CHUNK_HEADER_SIZE, server_timestamp,
+                                     CHUNK_TYPE_ENCODED_AUDIO, 0)) {
+          ESP_LOGW(TAG, "Failed to send audio chunk");
         }
-        audio_chunk->offset = SENDSPIN_BINARY_CHUNK_HEADER_SIZE;
-        audio_chunk->size = len - SENDSPIN_BINARY_CHUNK_HEADER_SIZE;
-        audio_chunk->timestamp = server_timestamp;
-        audio_chunk->chunk_type = CHUNK_TYPE_ENCODED_AUDIO;
-        audio::AudioStreamInfo stream_info(this->current_stream_params_.bit_depth.value(),
-                                           this->current_stream_params_.channels.value(),
-                                           this->current_stream_params_.sample_rate.value());
-
-        if (!this->send_audio_chunk_(audio_chunk, 0, stream_info)) {
-          ESP_LOGE(TAG, "Failed to send audio chunk");
-        }
-        // No need to manually release - shared_ptr handles cleanup automatically
-        return false;  // ownership transferred to audio_chunk, don't deallocate
       } else {
         ESP_LOGW(TAG, "Unknown player binary slot %d", slot);
       }
 #else
-      // Not built with audio, so ownership not transferred
       ESP_LOGV(TAG, "Ignoring player binary message (audio not enabled)");
 #endif
-      return true;  // deallocate payload
+      break;
     }
     case SENDSPIN_ROLE_ARTWORK: {
 #ifdef USE_SENDSPIN_ARTWORK
@@ -609,20 +592,18 @@ bool SendspinHub::process_binary_message_(uint8_t *payload, size_t len) {
 #else
       ESP_LOGV(TAG, "Ignoring artwork message with %zu bytes", len - SENDSPIN_BINARY_CHUNK_HEADER_SIZE);
 #endif
-      return true;  // deallocate payload
+      break;
     }
     case SENDSPIN_ROLE_VISUALIZER: {
       // TODO: implement visualizer binary message handling
       ESP_LOGV(TAG, "Ignoring visualizer message with %zu bytes", len - SENDSPIN_BINARY_CHUNK_HEADER_SIZE);
-      return true;  // deallocate payload
+      break;
     }
     default: {
       ESP_LOGW(TAG, "Unknown binary role %d (type %d)", role, binary_type);
       break;
     }
   }
-
-  return true;  // default to deallocate payload
 }
 
 bool SendspinHub::process_json_message_(SendspinConnection *conn, const std::string &message, int64_t timestamp) {
@@ -661,48 +642,30 @@ bool SendspinHub::process_json_message_(SendspinConnection *conn, const std::str
 
         audio::AudioStreamInfo stream_audio_stream_info(player_obj.bit_depth.value(), player_obj.channels.value(),
                                                         player_obj.sample_rate.value());
-        std::shared_ptr<SendspinAudioChunk> header_chunk = nullptr;
+        bool header_sent = false;
 
         if ((player_obj.codec.value() == SendspinCodecFormat::PCM) ||
             (player_obj.codec.value() == SendspinCodecFormat::OPUS)) {
-          header_chunk = create_sendspin_chunk(sizeof(DummyHeader));
-          if (header_chunk == nullptr) {
-            ESP_LOGE(TAG, "Memory allocation failed");
-            return false;
-          }
-          DummyHeader *header = reinterpret_cast<DummyHeader *>(header_chunk->get_data());
-          header->sample_rate = stream_audio_stream_info.get_sample_rate();
-          header->bits_per_sample = stream_audio_stream_info.get_bits_per_sample();
-          header->channels = stream_audio_stream_info.get_channels();
+          DummyHeader header;
+          header.sample_rate = stream_audio_stream_info.get_sample_rate();
+          header.bits_per_sample = stream_audio_stream_info.get_bits_per_sample();
+          header.channels = stream_audio_stream_info.get_channels();
 
-          header_chunk->offset = 0;
-          header_chunk->size = sizeof(DummyHeader);
-          header_chunk->timestamp = 0;
+          ChunkType chunk_type = (player_obj.codec.value() == SendspinCodecFormat::PCM) ? CHUNK_TYPE_PCM_DUMMY_HEADER
+                                                                                        : CHUNK_TYPE_OPUS_DUMMY_HEADER;
 
-          if (player_obj.codec.value() == SendspinCodecFormat::PCM) {
-            header_chunk->chunk_type = CHUNK_TYPE_PCM_DUMMY_HEADER;
-          } else if (player_obj.codec.value() == SendspinCodecFormat::OPUS) {
-            header_chunk->chunk_type = CHUNK_TYPE_OPUS_DUMMY_HEADER;
-          }
+          header_sent = this->send_audio_chunk_(reinterpret_cast<const uint8_t *>(&header), sizeof(DummyHeader), 0,
+                                                chunk_type, 0);
         } else if (player_obj.codec.value() == SendspinCodecFormat::FLAC) {
           if (!player_obj.codec_header.has_value()) {
             ESP_LOGE(TAG, "FLAC codec header missing");
             break;
           }
           std::vector<uint8_t> flac_header = base64_decode(player_obj.codec_header.value());
-          header_chunk = create_sendspin_chunk(flac_header.size());
-          if (header_chunk == nullptr) {
-            ESP_LOGE(TAG, "Memory allocation failed");
-            return false;
-          }
-          std::memcpy((void *) header_chunk->get_data(), (void *) flac_header.data(), flac_header.size());
-          header_chunk->offset = 0;
-          header_chunk->size = flac_header.size();
-          header_chunk->chunk_type = CHUNK_TYPE_FLAC_HEADER;
-          header_chunk->timestamp = 0;
+          header_sent = this->send_audio_chunk_(flac_header.data(), flac_header.size(), 0, CHUNK_TYPE_FLAC_HEADER, 0);
         }
 
-        if (!this->send_audio_chunk_(header_chunk, 0, stream_audio_stream_info)) {
+        if (!header_sent) {
           ESP_LOGE(TAG, "Failed to send codec header");
         } else {
           this->controls_callbacks_.call(SendspinControls::START);
@@ -951,28 +914,18 @@ void SendspinHub::publish_client_state(SendspinConnection *conn) {
   conn->send_text_message(state_message, nullptr);
 }
 
-bool SendspinHub::send_audio_chunk_(std::shared_ptr<SendspinAudioChunk> audio_chunk, TickType_t ticks_to_wait,
-                                    const audio::AudioStreamInfo &stream_info) {
-  if (audio_chunk == nullptr) {
-    ESP_LOGE(TAG, "Null audio chunk passed to send_audio_chunk_");
+bool SendspinHub::send_audio_chunk_(const uint8_t *data, size_t data_size, int64_t timestamp, ChunkType chunk_type,
+                                    TickType_t ticks_to_wait) {
+  if (data == nullptr || data_size == 0) {
+    ESP_LOGE(TAG, "Invalid data passed to send_audio_chunk_");
     return false;
   }
 
-  if (this->audio_chunk_callbacks_.empty()) {
-    // No callbacks registered, return true
+  if (!this->audio_chunk_callback_) {
     return true;
   }
 
-  // Simple distribution to all consumers
-  // Each consumer gets a shared_ptr copy automatically
-  for (auto &callback : this->audio_chunk_callbacks_) {
-    if (!callback(audio_chunk, ticks_to_wait, stream_info)) {
-      // TODO : properly handle if one consumer fails to receive and another succeeds
-      return false;
-    }
-  }
-
-  return true;
+  return this->audio_chunk_callback_(data, data_size, timestamp, chunk_type, ticks_to_wait);
 }
 #endif
 

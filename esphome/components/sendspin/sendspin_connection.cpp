@@ -39,6 +39,8 @@ void SendspinConnection::deallocate_websocket_payload_() {
   this->websocket_len_ = 0;
 }
 
+void SendspinConnection::reset_websocket_payload_() { this->websocket_write_offset_ = 0; }
+
 void SendspinConnection::init_time_filter(double process_error, double forget_factor) {
   this->kalman_process_error_ = process_error;
   this->kalman_forget_factor_ = forget_factor;
@@ -109,28 +111,15 @@ void SendspinConnection::dispatch_completed_message_(bool is_text, int64_t recei
     if (this->on_json_message) {
       this->on_json_message(this, message, receive_time);
     }
-
-    // Always deallocate after JSON processing
-    this->deallocate_websocket_payload_();
   } else {
-    // Binary message
+    // Binary message - connection retains buffer ownership, callback reads in-place
     if (this->on_binary_message) {
-      // Ask callback if it wants to take ownership of the payload
-      bool should_deallocate = this->on_binary_message(this, this->websocket_payload_, this->websocket_write_offset_);
-      if (should_deallocate) {
-        // Callback did not take ownership, we must deallocate
-        this->deallocate_websocket_payload_();
-      } else {
-        // Ownership transferred, just clear the pointer and reset lengths
-        this->websocket_payload_ = nullptr;
-        this->websocket_write_offset_ = 0;
-        this->websocket_len_ = 0;
-      }
-    } else {
-      // No callback registered, deallocate
-      this->deallocate_websocket_payload_();
+      this->on_binary_message(this, this->websocket_payload_, this->websocket_write_offset_);
     }
   }
+
+  // Reset write offset for next message; keep buffer allocated for reuse
+  this->reset_websocket_payload_();
 }
 
 }  // namespace sendspin

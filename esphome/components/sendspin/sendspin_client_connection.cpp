@@ -184,7 +184,7 @@ void SendspinClientConnection::handle_disconnected() {
   this->client_hello_sent_ = false;
   this->server_hello_received_ = false;
   this->pending_time_message_ = false;
-  this->deallocate_websocket_payload_();
+  this->reset_websocket_payload_();
 
   // Invoke the disconnected callback if set
   if (this->on_disconnected) {

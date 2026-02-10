@@ -9,7 +9,6 @@ namespace sendspin {
 
 /*
  * General todo list
- *  - Reuse output transfer buffer instead of having sendspin_decoder allocate a new output each time
  *  - Clean up the stream infos, its duplicated in multiple places and is probably not necessary
  *  - Review all elements of SyncContext, I doubt we need all of them
  *  - Think about function signatures for the sync_task helpers, especially their return types
@@ -30,9 +29,6 @@ namespace sendspin {
 
 // TODO: Remove this. Take out unnecessary logs and change useful ones to be VERBOSE level
 // #define SENDSPIN_MEDIA_SOURCE_DEBUG
-
-// TODO: Determine a default value - try seeing how many chunks of FLAC the server can send at the start
-static const uint32_t ENCODED_CHUNK_QUEUE_LENGTH = 100;
 
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;
 
@@ -86,13 +82,9 @@ void SendspinMediaSource::init_pipelines(size_t pipeline_count) {
       this->mark_failed();
     }
 
-    // TODO: Get max buffer size from hub
-    // (initial queue length, buffer size, dynamic growth enabled, max queue length)
-    ctx.encoded_chunk_queue =
-        audio::AudioChunkQueue::create(ENCODED_CHUNK_QUEUE_LENGTH, this->parent_->get_buffer_size(), true, 0);
-    if (ctx.encoded_chunk_queue == nullptr) {
-      // TODO: Need to actually make this function failable
-      ESP_LOGE(TAG, "Couldn't create chunk queue.");
+    ctx.encoded_ring_buffer = SendspinAudioRingBuffer::create(this->parent_->get_buffer_size());
+    if (ctx.encoded_ring_buffer == nullptr) {
+      ESP_LOGE(TAG, "Couldn't create encoded audio ring buffer.");
       this->mark_failed();
     }
 
@@ -166,7 +158,7 @@ void SendspinMediaSource::setup() {
         // TODO: This should be pipeline specific, not hardcoded to pipelone 0
         auto &ctx = this->sendspin_pipelines_[0];
         xEventGroupSetBits(ctx.event_group, EventGroupBits::COMMAND_STOP);
-        ctx.encoded_chunk_queue->reset();  // Reset the encoded chunk queue to clear it out
+        // Ring buffer reset happens in TASK_STOPPED handler when consumer task is safely done
         break;
       }
       case SendspinControls::VOLUME_UPDATE: {
@@ -183,14 +175,11 @@ void SendspinMediaSource::setup() {
   });
 
   // TODO: This always sends it to pipeline 0!
-  this->parent_->add_audio_chunk_callback([this](std::shared_ptr<SendspinAudioChunk> audio_chunk,
-                                                 TickType_t ticks_to_wait, const audio::AudioStreamInfo &stream_info) {
-    this->sendspin_pipelines_[0].stream_info = stream_info;
-
-    // AudioChunkQueue handles shared_ptr directly
-    return this->sendspin_pipelines_[0].encoded_chunk_queue->add_chunk(
-        std::static_pointer_cast<audio::AudioChunk>(audio_chunk), ticks_to_wait);
-  });
+  this->parent_->set_audio_chunk_callback(
+      [this](const uint8_t *data, size_t data_size, int64_t timestamp, ChunkType chunk_type, TickType_t ticks_to_wait) {
+        return this->sendspin_pipelines_[0].encoded_ring_buffer->write_chunk(data, data_size, timestamp, chunk_type,
+                                                                             ticks_to_wait);
+      });
 
   // Pipeline initialization happens via init_pipelines() called by MediaPlayer
   // Individual pipeline resources (event groups, queues, tasks) are created on-demand in loop()
@@ -283,6 +272,8 @@ void SendspinMediaSource::loop() {
         if (event_bits & TASK_STOPPED) {
           ESP_LOGD(TAG, "Pipeline %zu stopped", pipeline);
           xEventGroupClearBits(ctx.event_group, TASK_STOPPED | COMMAND_STOP);
+          // Safe to reset ring buffer now that consumer task is stopped
+          ctx.encoded_ring_buffer->reset();
 
           vTaskDelete(ctx.sync_task_handle);
           ctx.sync_task_handle = nullptr;
@@ -415,8 +406,9 @@ media_source::MediaSourceCapabilities SendspinMediaSource::get_capabilities() {
 }
 
 bool SendspinMediaSource::sync_transfer_audio_(SyncContext &sync_context) {
+  size_t decode_available = sync_context.release_chunk ? sync_context.decode_buffer->available() : 0;
   const uint32_t duration_in_transfer_buffers = sync_context.current_stream_info.bytes_to_ms(
-      sync_context.output_transfer_buffer->available() + sync_context.interpolation_transfer_buffer->available());
+      decode_available + sync_context.interpolation_transfer_buffer->available());
 
   size_t bytes_written = sync_context.interpolation_transfer_buffer->transfer_data_to_sink(
       pdMS_TO_TICKS(duration_in_transfer_buffers / 2), false);
@@ -426,21 +418,21 @@ bool SendspinMediaSource::sync_transfer_audio_(SyncContext &sync_context) {
     vTaskDelay(pdMS_TO_TICKS(sync_context.current_stream_info.bytes_to_ms(bytes_written) / 2));
   }
 
-  if (sync_context.interpolation_transfer_buffer->available() == 0) {
+  if (sync_context.interpolation_transfer_buffer->available() == 0 && sync_context.release_chunk) {
     // No interpolation bytes available, send main audio data
-    sync_context.output_transfer_buffer->transfer_data_to_sink(pdMS_TO_TICKS(3 * duration_in_transfer_buffers / 2),
-                                                               false);
+    sync_context.decode_buffer->transfer_data_to_sink(pdMS_TO_TICKS(3 * duration_in_transfer_buffers / 2), false);
   }
 
-  if ((sync_context.output_transfer_buffer->available() == 0) && (sync_context.decoded_chunk != nullptr) &&
-      sync_context.release_chunk) {
-    sync_context.decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
+  // When decode buffer fully consumed and released, mark done
+  if (sync_context.decode_buffer->available() == 0 && sync_context.release_chunk) {
     sync_context.release_chunk = false;
-    // printf("released chunk\n");
   }
 
-  if (sync_context.interpolation_transfer_buffer->available() + sync_context.output_transfer_buffer->available() > 0) {
-    // Some audio still needs to be sent, loop back around
+  // Keep transferring if there's still data to send
+  if (sync_context.interpolation_transfer_buffer->available() > 0) {
+    return false;
+  }
+  if (sync_context.release_chunk && sync_context.decode_buffer->available() > 0) {
     return false;
   }
 
@@ -449,24 +441,13 @@ bool SendspinMediaSource::sync_transfer_audio_(SyncContext &sync_context) {
 
 bool SendspinMediaSource::sync_load_next_chunk_(SyncContext &sync_context,
                                                 SendspinMediaSourcePipeline &pipeline_context) {
-  if (sync_context.encoded_chunk == nullptr) {
-    auto chunk = pipeline_context.encoded_chunk_queue->receive_chunk(pdMS_TO_TICKS(15));
-    if (!chunk) {
+  if (sync_context.encoded_entry == nullptr) {
+    sync_context.encoded_entry = pipeline_context.encoded_ring_buffer->receive_chunk(pdMS_TO_TICKS(15));
+    if (sync_context.encoded_entry == nullptr) {
       // No chunk available to process
       return false;
     }
-    sync_context.encoded_chunk = std::static_pointer_cast<SendspinAudioChunk>(chunk);
   }
-
-  // if (esp_timer_get_time() - sync_context.encoded_chunk->timestamp > 0) {
-  //   // Chunk was already supposed to play, skip it!
-  //   ESP_LOGE(TAG, "Chunk was already supposed to play at %" PRId64 " and its %" PRId64 ", so skipping it",
-  //            sync_context.encoded_chunk->timestamp, esp_timer_get_time());
-  //   sync_context.encoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
-  //   sync_context.release_chunk = false;
-  //   pipeline_context.encoded_chunk_queue->reset();  // We are way behind, so drop any pending audio
-  //   return false;
-  // }
 
   return true;
 }
@@ -592,7 +573,7 @@ void SendspinMediaSource::sync_hard_sync_add_silence_(SyncContext &sync_context,
 
   InternalAudioTiming timings;
 
-  timings.timestamp = sync_context.decoded_chunk->timestamp;
+  timings.timestamp = sync_context.decoded_timestamp;
   timings.total_frames = frame_corrections;
   timings.frame_corrections = frame_corrections;
   sync_context.pending_frame_corrections += frame_corrections;
@@ -608,7 +589,7 @@ void SendspinMediaSource::sync_hard_sync_remove_audio_(SyncContext &sync_context
   // Removes newly decoded frames (but will always leave a minimum of 1 frame)
 
   size_t bytes_to_remove = sync_context.current_stream_info.ms_to_bytes(abs(sync_context.recent_error_us) / 1000);
-  if (bytes_to_remove < sync_context.decoded_chunk->get_usable_size() - sync_context.bytes_per_frame) {
+  if (bytes_to_remove < sync_context.decode_buffer->available() - sync_context.bytes_per_frame) {
     // Trimming this chunk will get us precisely in sync, so correct in microseconds
     const uint32_t frames_to_remove =
         (abs(sync_context.recent_error_us) * sync_context.current_stream_info.get_sample_rate()) / 1000000;
@@ -616,19 +597,18 @@ void SendspinMediaSource::sync_hard_sync_remove_audio_(SyncContext &sync_context
   }
 
   size_t actual_bytes_to_remove =
-      std::min(bytes_to_remove, sync_context.decoded_chunk->get_usable_size() - sync_context.bytes_per_frame);
+      std::min(bytes_to_remove, sync_context.decode_buffer->available() - sync_context.bytes_per_frame);
 
-  sync_context.output_transfer_buffer->decrease_buffer_length(actual_bytes_to_remove);
+  sync_context.decode_buffer->decrease_buffer_length(actual_bytes_to_remove);
 
   // TODO: Is this right? Coudln't I just use get_buffer_start?
-  size_t bytes_to_silence = sync_context.decoded_chunk->get_usable_size() - actual_bytes_to_remove;
-  std::memset((void *) (sync_context.output_transfer_buffer->get_buffer_end() - bytes_to_silence), 0, bytes_to_silence);
+  size_t bytes_to_silence = sync_context.decode_buffer->available();
+  std::memset((void *) (sync_context.decode_buffer->get_buffer_end() - bytes_to_silence), 0, bytes_to_silence);
 
   frame_corrections = -sync_context.current_stream_info.bytes_to_frames(actual_bytes_to_remove);
 
   uint32_t total_frames_kept =
-      sync_context.current_stream_info.bytes_to_frames(sync_context.decoded_chunk->get_usable_size()) +
-      frame_corrections;
+      sync_context.current_stream_info.bytes_to_frames(sync_context.decode_buffer->available());
 #ifdef SENDSPIN_MEDIA_SOURCE_DEBUG
   ESP_LOGD(TAG,
            "Hard sync: removing %" PRId32 " frames and keeping %" PRIu32 " frames. Current error is %" PRId64
@@ -649,24 +629,22 @@ void SendspinMediaSource::sync_soft_sync_remove_audio_(SyncContext &sync_context
   const uint32_t num_channels = sync_context.current_stream_info.get_channels();
   const uint32_t bytes_per_sample = sync_context.bytes_per_frame / num_channels;
 
-  if (sync_context.output_transfer_buffer->available() >= 2 * sync_context.bytes_per_frame) {
+  if (sync_context.decode_buffer->available() >= 2 * sync_context.bytes_per_frame) {
     for (uint32_t chan = 0; chan < num_channels; ++chan) {
-      const int32_t first_sample =
-          audio::unpack_audio_sample_to_q31(sync_context.output_transfer_buffer->get_buffer_end() -
-                                                2 * sync_context.bytes_per_frame + chan * bytes_per_sample,
-                                            bytes_per_sample);
-      const int32_t second_sample =
-          audio::unpack_audio_sample_to_q31(sync_context.output_transfer_buffer->get_buffer_end() -
-                                                sync_context.bytes_per_frame + chan * bytes_per_sample,
-                                            bytes_per_sample);
+      const int32_t first_sample = audio::unpack_audio_sample_to_q31(
+          sync_context.decode_buffer->get_buffer_end() - 2 * sync_context.bytes_per_frame + chan * bytes_per_sample,
+          bytes_per_sample);
+      const int32_t second_sample = audio::unpack_audio_sample_to_q31(
+          sync_context.decode_buffer->get_buffer_end() - sync_context.bytes_per_frame + chan * bytes_per_sample,
+          bytes_per_sample);
       int32_t replacement_sample = first_sample / 2 + second_sample / 2;
-      audio::pack_q31_as_audio_sample(replacement_sample,
-                                      sync_context.output_transfer_buffer->get_buffer_end() -
-                                          2 * sync_context.bytes_per_frame + chan * bytes_per_sample,
-                                      bytes_per_sample);
+      audio::pack_q31_as_audio_sample(
+          replacement_sample,
+          sync_context.decode_buffer->get_buffer_end() - 2 * sync_context.bytes_per_frame + chan * bytes_per_sample,
+          bytes_per_sample);
     }
 
-    sync_context.output_transfer_buffer->decrease_buffer_length(sync_context.bytes_per_frame);
+    sync_context.decode_buffer->decrease_buffer_length(sync_context.bytes_per_frame);
     frame_corrections = -1;
     ++pipeline_context.single_frames_removed_;
   }
@@ -680,21 +658,19 @@ void SendspinMediaSource::sync_soft_sync_add_audio_(SyncContext &sync_context,
   // The new frame is the average of the first two frames in the chunk to minimize audible glitches.
 
   if ((sync_context.interpolation_transfer_buffer->free() >= sync_context.bytes_per_frame) &&
-      (sync_context.output_transfer_buffer->available() >= 2 * sync_context.bytes_per_frame)) {
+      (sync_context.decode_buffer->available() >= 2 * sync_context.bytes_per_frame)) {
     const uint32_t num_channels = sync_context.current_stream_info.get_channels();
     const uint32_t bytes_per_sample = sync_context.bytes_per_frame / num_channels;
 
     for (uint32_t chan = 0; chan < num_channels; ++chan) {
       const int32_t first_sample = audio::unpack_audio_sample_to_q31(
-          sync_context.output_transfer_buffer->get_buffer_start() + chan * bytes_per_sample, bytes_per_sample);
-      const int32_t second_sample =
-          audio::unpack_audio_sample_to_q31(sync_context.output_transfer_buffer->get_buffer_start() +
-                                                chan * bytes_per_sample + sync_context.bytes_per_frame,
-                                            bytes_per_sample);
+          sync_context.decode_buffer->get_buffer_start() + chan * bytes_per_sample, bytes_per_sample);
+      const int32_t second_sample = audio::unpack_audio_sample_to_q31(
+          sync_context.decode_buffer->get_buffer_start() + chan * bytes_per_sample + sync_context.bytes_per_frame,
+          bytes_per_sample);
       int32_t new_sample = first_sample / 2 + second_sample / 2;
-      audio::pack_q31_as_audio_sample(new_sample,
-                                      sync_context.output_transfer_buffer->get_buffer_start() + chan * bytes_per_sample,
-                                      bytes_per_sample);
+      audio::pack_q31_as_audio_sample(
+          new_sample, sync_context.decode_buffer->get_buffer_start() + chan * bytes_per_sample, bytes_per_sample);
       audio::pack_q31_as_audio_sample(
           first_sample, sync_context.interpolation_transfer_buffer->get_buffer_start() + chan * bytes_per_sample,
           bytes_per_sample);
@@ -727,25 +703,32 @@ void SendspinMediaSource::sync_soft_reset_(SyncContext &sync_context, SendspinMe
   sync_context.synced_chunks = 0;
   sync_context.temporary_hard_sync_threshold = HARD_SYNC_THRESHOLD_US;
 
-  sync_context.encoded_chunk = nullptr;
-  sync_context.decoded_chunk = nullptr;
+  // Return any borrowed ring buffer entry before resetting
+  if (sync_context.encoded_entry != nullptr) {
+    pipeline_context.encoded_ring_buffer->return_chunk(sync_context.encoded_entry);
+    sync_context.encoded_entry = nullptr;
+  }
+  if (sync_context.decode_buffer != nullptr) {
+    sync_context.decode_buffer->decrease_buffer_length(sync_context.decode_buffer->available());
+  }
   sync_context.release_chunk = true;
 
   ESP_LOGW(TAG, "Sync soft reset complete - resuming with preserved codec state");
 }
 
 bool SendspinMediaSource::sync_decode_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context) {
-  if (sync_context.decoded_chunk != nullptr) {
-    // Already have a decoded chunk
+  if (sync_context.decode_buffer != nullptr && sync_context.decode_buffer->available() > 0) {
+    // Already have decoded audio
     return true;
   }
 
-  if ((sync_context.encoded_chunk->chunk_type != CHUNK_TYPE_ENCODED_AUDIO) &&
-      (sync_context.encoded_chunk->chunk_type != CHUNK_TYPE_DECODED_AUDIO)) {
+  if ((sync_context.encoded_entry->chunk_type != CHUNK_TYPE_ENCODED_AUDIO) &&
+      (sync_context.encoded_entry->chunk_type != CHUNK_TYPE_DECODED_AUDIO)) {
     // New codec header
     sync_context.decoder->reset_decoders();
     audio::AudioStreamInfo decoded_stream_info;
-    if (!sync_context.decoder->process_header(sync_context.encoded_chunk, &decoded_stream_info)) {
+    if (!sync_context.decoder->process_header(sync_context.encoded_entry->data(), sync_context.encoded_entry->data_size,
+                                              sync_context.encoded_entry->chunk_type, &decoded_stream_info)) {
       ESP_LOGE(TAG, "Failed to process audio codec header");
     } else {
       ESP_LOGI(TAG, "Processed new codec header");
@@ -753,30 +736,47 @@ bool SendspinMediaSource::sync_decode_audio_(SyncContext &sync_context, Sendspin
       if (decoded_stream_info != sync_context.current_stream_info) {
         ESP_LOGW(TAG, "Decoded stream info doesn't match expected!");
       }
+
+      // Create or resize the decode buffer now that we know the maximum decoded size
+      size_t needed = sync_context.decoder->get_maximum_decoded_size();
+      if (sync_context.decode_buffer == nullptr) {
+        sync_context.decode_buffer = audio::AudioSinkTransferBuffer::create(needed);
+        sync_context.decode_buffer->set_sink([this, &sync_context](uint8_t *data, size_t len, TickType_t ticks) {
+          return this->output_callback_(data, len, ticks, sync_context.current_stream_info,
+                                        sync_context.pipeline_index);
+        });
+      } else if (needed > sync_context.decode_buffer->capacity()) {
+        sync_context.decode_buffer->reallocate(needed);
+      }
     }
   } else if ((sync_context.decoder->get_current_codec() != SendspinCodecFormat::UNSUPPORTED) &&
-             (sync_context.encoded_chunk->chunk_type == CHUNK_TYPE_ENCODED_AUDIO)) {
-    int64_t client_timestamp = this->parent_->get_client_time(sync_context.encoded_chunk->timestamp);
+             (sync_context.encoded_entry->chunk_type == CHUNK_TYPE_ENCODED_AUDIO)) {
+    int64_t client_timestamp = this->parent_->get_client_time(sync_context.encoded_entry->timestamp);
     int64_t time_until_playback_us = client_timestamp - esp_timer_get_time();
     // TODO: Don't hardcode 400 ms margin when first starting up, we can measure latency for future runs
     // We should also track how much audio we have buffered after the initial decode has happened, and use that to skip
     // some chunks if needed.
     if (time_until_playback_us < sync_context.initial_decode * 400000) {
       // Chunk was already supposed to play, skip it!
-      sync_context.encoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
+      pipeline_context.encoded_ring_buffer->return_chunk(sync_context.encoded_entry);
+      sync_context.encoded_entry = nullptr;
       return false;
     }
 
-    if (!sync_context.decoder->decode_audio_chunk(sync_context.encoded_chunk, sync_context.decoded_chunk)) {
+    size_t decoded_size = 0;
+    if (!sync_context.decoder->decode_audio_chunk(
+            sync_context.encoded_entry->data(), sync_context.encoded_entry->data_size,
+            sync_context.decode_buffer->get_buffer_end(), sync_context.decode_buffer->free(), &decoded_size)) {
       ESP_LOGE(TAG, "Failed to decode audio chunk");
     } else {
-      sync_context.decoded_chunk->timestamp = client_timestamp;
+      sync_context.decode_buffer->increase_buffer_length(decoded_size);
+      sync_context.decoded_timestamp = client_timestamp;
     }
   }
 
-  // Clear the encoded chunk. Note, for PCM, decoded_chunk is the same data as encoded_chunk but has its own
-  // shared_ptr reference
-  sync_context.encoded_chunk = nullptr;
+  // Return the encoded entry to the ring buffer
+  pipeline_context.encoded_ring_buffer->return_chunk(sync_context.encoded_entry);
+  sync_context.encoded_entry = nullptr;
 
   return true;
 }
@@ -789,8 +789,6 @@ bool SendspinMediaSource::sync_synchronize_audio_(SyncContext &sync_context,
   }
 
   sync_context.release_chunk = true;
-  sync_context.output_transfer_buffer->change_inplace_buffer(sync_context.decoded_chunk->get_data(),
-                                                             sync_context.decoded_chunk->size);
 
   InternalAudioTiming timings;
   int32_t frame_corrections = 0;
@@ -804,13 +802,13 @@ bool SendspinMediaSource::sync_synchronize_audio_(SyncContext &sync_context,
   }
 
   uint32_t chunk_frame_count =
-      sync_context.current_stream_info.bytes_to_frames(sync_context.decoded_chunk->get_usable_size());
+      sync_context.current_stream_info.bytes_to_frames(sync_context.decode_buffer->available());
   uint32_t new_frames = chunk_frame_count;
   const int64_t new_duration_ms = sync_context.current_stream_info.frames_to_milliseconds_with_remainder(&new_frames);
   const int64_t new_duration_us =
       new_duration_ms * 1000LL + sync_context.current_stream_info.frames_to_microseconds(new_frames);
 
-  timings.timestamp = sync_context.decoded_chunk->timestamp + new_duration_us;
+  timings.timestamp = sync_context.decoded_timestamp + new_duration_us;
   timings.total_frames = chunk_frame_count + frame_corrections;
   timings.frame_corrections = frame_corrections;
   sync_context.pending_frame_corrections += frame_corrections;
@@ -822,16 +820,12 @@ bool SendspinMediaSource::sync_synchronize_audio_(SyncContext &sync_context,
 }
 
 void SendspinMediaSource::set_transfer_callbacks_(SyncContext &sync_context, int pipeline) {
+  sync_context.pipeline_index = pipeline;
   std::function<size_t(uint8_t *, size_t, TickType_t)> wrapped_callback =
-      [this, &sync_context, pipeline](uint8_t *data, size_t len, TickType_t ticks) {
-        return this->output_callback_(data, len, ticks, sync_context.current_stream_info, pipeline);
+      [this, &sync_context](uint8_t *data, size_t len, TickType_t ticks) {
+        return this->output_callback_(data, len, ticks, sync_context.current_stream_info, sync_context.pipeline_index);
       };
-  sync_context.output_transfer_buffer->set_sink(std::move(wrapped_callback));
-  std::function<size_t(uint8_t *, size_t, TickType_t)> wrapped_callback2 =
-      [this, &sync_context, pipeline](uint8_t *data, size_t len, TickType_t ticks) {
-        return this->output_callback_(data, len, ticks, sync_context.current_stream_info, pipeline);
-      };
-  sync_context.interpolation_transfer_buffer->set_sink(std::move(wrapped_callback2));
+  sync_context.interpolation_transfer_buffer->set_sink(std::move(wrapped_callback));
 }
 
 enum class SyncTaskState : uint8_t {
@@ -856,10 +850,14 @@ void SendspinMediaSource::sync_task(void *params) {
   xEventGroupSetBits(ctx.event_group, EventGroupBits::TASK_STARTING);
   {  // Ensures all C++ objects deallocate when they fall out of scope
     SyncContext sync_context;
+    // Set stream_info from hub's current stream parameters
+    auto &params = this_source->parent_->get_current_stream_params();
+    if (params.bit_depth.has_value() && params.channels.has_value() && params.sample_rate.has_value()) {
+      ctx.stream_info =
+          audio::AudioStreamInfo(params.bit_depth.value(), params.channels.value(), params.sample_rate.value());
+    }
     sync_context.current_stream_info = ctx.stream_info;
     sync_context.bytes_per_frame = sync_context.current_stream_info.frames_to_bytes(1);
-
-    sync_context.output_transfer_buffer = audio::AudioSinkTransferBuffer::create_inplace();
 
     // TODO: Verify this allocation succeeds
     sync_context.interpolation_transfer_buffer = audio::AudioSinkTransferBuffer::create(
@@ -914,7 +912,7 @@ void SendspinMediaSource::sync_task(void *params) {
 #endif
             continue;
           }
-          if (sync_context.decoded_chunk == nullptr) {
+          if (sync_context.decode_buffer == nullptr || sync_context.decode_buffer->available() == 0) {
             // No decoded audio available yet, try again (probably just processed a header)
             continue;
           }
@@ -936,8 +934,8 @@ void SendspinMediaSource::sync_task(void *params) {
           // Intentional fallthrough
         case SyncTaskState::TRANSFER_AUDIO:
           /*
-           * Moves to the next state if all audio is sent from both the interpolation transfer buffer and output
-           * transfer buffer. Function yields while waiting to send the audio.
+           * Moves to the next state if all audio is sent from both the interpolation transfer buffer and decode
+           * buffer. Function yields while waiting to send the audio.
            */
           if (!this_source->sync_transfer_audio_(sync_context)) {
             continue;
@@ -946,11 +944,6 @@ void SendspinMediaSource::sync_task(void *params) {
           break;
       }
 #ifdef SENDSPIN_MEDIA_SOURCE_DEBUG
-      // TODO: Remove these debug checks/logging
-      if (ctx.encoded_chunk_queue->size() == 1) {
-        ESP_LOGW(TAG, "Potential buffer underflow incoming");
-      }
-
       static uint32_t high_water_mark = SYNC_TASK_STACK_SIZE;
       uint32_t new_high_water_mark = uxTaskGetStackHighWaterMark(nullptr);
       if (new_high_water_mark < high_water_mark) {
@@ -958,6 +951,12 @@ void SendspinMediaSource::sync_task(void *params) {
         high_water_mark = new_high_water_mark;
       }
 #endif
+    }
+
+    // Return any borrowed ring buffer entry before leaving scope
+    if (sync_context.encoded_entry != nullptr) {
+      ctx.encoded_ring_buffer->return_chunk(sync_context.encoded_entry);
+      sync_context.encoded_entry = nullptr;
     }
 
     xEventGroupSetBits(ctx.event_group, EventGroupBits::TASK_STOPPING);

@@ -4,6 +4,8 @@
 
 #include "esphome/core/log.h"
 
+#include <cstring>
+
 namespace esphome {
 namespace sendspin {
 
@@ -22,20 +24,19 @@ void SendspinDecoder::reset_decoders() {
   this->current_codec_ = SendspinCodecFormat::UNSUPPORTED;
 }
 
-bool SendspinDecoder::process_header(std::shared_ptr<SendspinAudioChunk> header_chunk,
+bool SendspinDecoder::process_header(const uint8_t *data, size_t data_size, ChunkType chunk_type,
                                      audio::AudioStreamInfo *stream_info) {
-  if (header_chunk == nullptr || stream_info == nullptr) {
+  if (data == nullptr || stream_info == nullptr) {
     ESP_LOGE(TAG, "Null pointer passed to process_header");
     return false;
   }
 
-  switch (header_chunk->chunk_type) {
+  switch (chunk_type) {
     case CHUNK_TYPE_FLAC_HEADER: {
       this->flac_decoder_ = make_unique<esp_audio_libs::flac::FLACDecoder>();
       this->flac_decoder_->set_crc_check_enabled(false);  // Disable CRC check for small speed up
 
-      auto result = this->flac_decoder_->read_header(header_chunk->get_data(),
-                                                     header_chunk->size);  // get_data() already applies offset
+      auto result = this->flac_decoder_->read_header(data, data_size);
 
       if (result == esp_audio_libs::flac::FLAC_DECODER_HEADER_OUT_OF_DATA) {
         ESP_LOGW(TAG, "Need more data to decode FLAC header");
@@ -53,10 +54,9 @@ bool SendspinDecoder::process_header(std::shared_ptr<SendspinAudioChunk> header_
       *stream_info = this->current_stream_info_;
       this->maximum_decoded_size_ = this->flac_decoder_->get_output_buffer_size_bytes();
       break;
-      // return true;
     }
     case CHUNK_TYPE_OPUS_DUMMY_HEADER: {
-      if (!this->decode_dummy_header_(header_chunk, stream_info)) {
+      if (!this->decode_dummy_header_(data, data_size, stream_info)) {
         return false;
       }
 
@@ -84,11 +84,12 @@ bool SendspinDecoder::process_header(std::shared_ptr<SendspinAudioChunk> header_
       break;
     }
     case CHUNK_TYPE_PCM_DUMMY_HEADER: {
-      if (!this->decode_dummy_header_(header_chunk, stream_info)) {
+      if (!this->decode_dummy_header_(data, data_size, stream_info)) {
         return false;
       }
       this->current_stream_info_ = *stream_info;
       this->current_codec_ = SendspinCodecFormat::PCM;
+      this->maximum_decoded_size_ = stream_info->ms_to_bytes(120);  // PCM max chunk size
       break;
     }
     default: {
@@ -97,85 +98,64 @@ bool SendspinDecoder::process_header(std::shared_ptr<SendspinAudioChunk> header_
     }
   }
 
-  // Caller retains ownership of header_chunk
   return true;
 }
 
-bool SendspinDecoder::decode_audio_chunk(std::shared_ptr<SendspinAudioChunk> encoded_chunk,
-                                         std::shared_ptr<SendspinAudioChunk> &decoded_chunk) {
-  if (encoded_chunk == nullptr) {
-    ESP_LOGE(TAG, "Null pointer passed to decode_audio_chunk");
+bool SendspinDecoder::decode_audio_chunk(const uint8_t *data, size_t data_size, uint8_t *output_buffer,
+                                         size_t output_buffer_size, size_t *decoded_size) {
+  if (data == nullptr || data_size == 0 || output_buffer == nullptr || decoded_size == nullptr) {
+    ESP_LOGE(TAG, "Invalid data passed to decode_audio_chunk");
     return false;
   }
 
   if (this->current_codec_ == SendspinCodecFormat::PCM) {
-    // For PCM, no decoding needed - share the same chunk
-    decoded_chunk = encoded_chunk;
-    // shared_ptr automatically handles reference counting
+    if (data_size > output_buffer_size) {
+      ESP_LOGE(TAG, "PCM data size %zu exceeds output buffer size %zu", data_size, output_buffer_size);
+      return false;
+    }
+    std::memcpy(output_buffer, data, data_size);
+    *decoded_size = data_size;
+  } else if ((this->flac_decoder_ != nullptr) && (this->current_codec_ == SendspinCodecFormat::FLAC)) {
+    uint32_t output_samples = 0;
+    auto result = this->flac_decoder_->decode_frame(data, data_size, output_buffer, &output_samples);
+
+    if (result == esp_audio_libs::flac::FLAC_DECODER_ERROR_OUT_OF_DATA) {
+      ESP_LOGE(TAG, "FLAC decoder ran out of data");
+      return false;
+    }
+
+    if (result > esp_audio_libs::flac::FLAC_DECODER_ERROR_OUT_OF_DATA) {
+      ESP_LOGE(TAG, "Serious error decoding FLAC file");
+      return false;
+    }
+
+    *decoded_size = this->current_stream_info_.samples_to_bytes(output_samples);
+  } else if ((this->opus_decoder_ != nullptr) && (this->current_codec_ == SendspinCodecFormat::OPUS)) {
+    int output_frames = opus_decode(this->opus_decoder_, data, data_size, (int16_t *) output_buffer,
+                                    this->current_stream_info_.bytes_to_frames(output_buffer_size), 0);
+    if (output_frames < 0) {
+      ESP_LOGE(TAG, "Error decoding opus chunk: %d", output_frames);
+      return false;
+    }
+
+    *decoded_size = this->current_stream_info_.frames_to_bytes(output_frames);
   } else {
-    // For other codecs, allocate new chunk and decode
-    decoded_chunk = create_sendspin_chunk(this->maximum_decoded_size_);
-    if (decoded_chunk == nullptr) {
-      ESP_LOGE(TAG, "Failed to allocate space for decoded audio");
-      return false;
-    }
-
-    if ((this->flac_decoder_ != nullptr) && (this->current_codec_ == SendspinCodecFormat::FLAC)) {
-      uint32_t output_samples = 0;
-      auto result = this->flac_decoder_->decode_frame(encoded_chunk->get_data(), encoded_chunk->get_usable_size(),
-                                                      decoded_chunk->get_data(), &output_samples);
-
-      if (result == esp_audio_libs::flac::FLAC_DECODER_ERROR_OUT_OF_DATA) {
-        ESP_LOGE(TAG, "FLAC decoder ran out of data");
-        decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
-        return false;
-      }
-
-      if (result > esp_audio_libs::flac::FLAC_DECODER_ERROR_OUT_OF_DATA) {
-        ESP_LOGE(TAG, "Serious error decoding FLAC file");
-        decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
-        return false;
-      }
-
-      decoded_chunk->offset = 0;
-      decoded_chunk->size = this->current_stream_info_.samples_to_bytes(output_samples);
-      // Try to shrink buffer to save memory (only works if we're the sole owner)
-      audio::shrink_audio_chunk_buffer(decoded_chunk);
-    } else if ((this->opus_decoder_ != nullptr) && (this->current_codec_ == SendspinCodecFormat::OPUS)) {
-      int output_frames = opus_decode(this->opus_decoder_, encoded_chunk->get_data(), encoded_chunk->get_usable_size(),
-                                      (int16_t *) decoded_chunk->get_data(),
-                                      this->current_stream_info_.bytes_to_frames(this->maximum_decoded_size_), 0);
-      if (output_frames < 0) {
-        ESP_LOGE(TAG, "Error decoding opus chunk: %d", output_frames);
-        decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
-        return false;
-      }
-
-      decoded_chunk->offset = 0;
-      decoded_chunk->size = this->current_stream_info_.frames_to_bytes(output_frames);
-      // Try to shrink buffer to save memory (only works if we're the sole owner)
-      audio::shrink_audio_chunk_buffer(decoded_chunk);
-    } else {
-      decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
-      return false;
-    }
+    return false;
   }
-
-  decoded_chunk->chunk_type = CHUNK_TYPE_DECODED_AUDIO;
 
   return true;
 }
 
-bool SendspinDecoder::decode_dummy_header_(std::shared_ptr<SendspinAudioChunk> header_chunk,
-                                           audio::AudioStreamInfo *stream_info) {
-  // TODO: why doesn't this work... may have been fixed since last tested
-  //   if (header_chunk->size != sizeof(DummyHeader)) {
-  //     ESP_LOGE(TAG, "Invalid dummy codec header");
-  //     return false;
-  //   }
+bool SendspinDecoder::decode_dummy_header_(const uint8_t *data, size_t data_size, audio::AudioStreamInfo *stream_info) {
+  if (data_size < sizeof(DummyHeader)) {
+    ESP_LOGE(TAG, "Invalid dummy codec header: size %zu < %zu", data_size, sizeof(DummyHeader));
+    return false;
+  }
 
-  DummyHeader *header = reinterpret_cast<DummyHeader *>(header_chunk->get_data());
-  this->current_stream_info_ = audio::AudioStreamInfo(header->bits_per_sample, header->channels, header->sample_rate);
+  // Copy into local struct to avoid alignment issues
+  DummyHeader header;
+  std::memcpy(&header, data, sizeof(DummyHeader));
+  this->current_stream_info_ = audio::AudioStreamInfo(header.bits_per_sample, header.channels, header.sample_rate);
   *stream_info = this->current_stream_info_;
   return true;
 }

@@ -106,10 +106,9 @@ class SendspinConnection {
 
   /// @brief Callback invoked when a binary message is received.
   /// @param conn Pointer to this connection.
-  /// @param payload Pointer to the binary message data.
+  /// @param payload Pointer to the binary message data (owned by connection, valid until callback returns).
   /// @param len Length of the binary message data.
-  /// @return true if the connection should deallocate the payload, false if the callback took ownership.
-  std::function<bool(SendspinConnection *, uint8_t *, size_t)> on_binary_message;
+  std::function<void(SendspinConnection *, uint8_t *, size_t)> on_binary_message;
 
   /// @brief Callback invoked when the transport connection is ready for messaging.
   /// @param conn Pointer to this connection.
@@ -196,6 +195,9 @@ class SendspinConnection {
   /// @brief Deallocates the websocket payload buffer if allocated.
   void deallocate_websocket_payload_();
 
+  /// @brief Resets the write offset without freeing the buffer (reuses it for the next message).
+  void reset_websocket_payload_();
+
   // Per-connection state (moved from hub)
 
   /// Time synchronization filter (Kalman-based).
@@ -233,7 +235,7 @@ class SendspinConnection {
   /// @brief Dispatches a fully assembled message to the appropriate callback.
   ///
   /// For text messages: creates a std::string from the buffer, invokes on_json_message, deallocates buffer.
-  /// For binary messages: invokes on_binary_message, handles ownership transfer or deallocation.
+  /// For binary messages: invokes on_binary_message callback.
   /// If the buffer is null, does nothing.
   ///
   /// @param is_text True if this is a text message, false for binary.

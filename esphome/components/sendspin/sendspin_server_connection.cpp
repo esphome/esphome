@@ -189,7 +189,7 @@ esp_err_t SendspinServerConnection::handle_data(httpd_req_t *req, int64_t receiv
   ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
   if (ret != ESP_OK) {
     ESP_LOGE(TAG, "httpd_ws_recv_frame failed with %d", ret);
-    this->deallocate_websocket_payload_();
+    this->reset_websocket_payload_();
     return ret;
   }
 
