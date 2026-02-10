@@ -10,7 +10,7 @@ static const char *const TAG = "hlk_fm22x";
 void HlkFm22xComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-FM22X...");
   this->set_enrolling_(false);
-  while (this->available()) {
+  while (this->available() > 0) {
     this->read();
   }
   this->defer([this]() { this->send_command_(HlkFm22xCommand::GET_STATUS); });
@@ -84,7 +84,7 @@ void HlkFm22xComponent::send_command_(HlkFm22xCommand command, const uint8_t *da
   }
   this->wait_cycles_ = 0;
   this->active_command_ = command;
-  while (this->available())
+  while (this->available() > 0)
     this->read();
   this->write((uint8_t) (START_CODE >> 8));
   this->write((uint8_t) (START_CODE & 0xFF));
@@ -136,7 +136,7 @@ void HlkFm22xComponent::recv_command_() {
   if (length > HLK_FM22X_MAX_RESPONSE_SIZE) {
     ESP_LOGE(TAG, "Response too large: %u bytes", length);
     // Discard exactly the remaining payload and checksum for this frame
-    for (uint16_t i = 0; i < length + 1 && this->available(); ++i)
+    for (uint16_t i = 0; i < length + 1 && this->available() > 0; ++i)
       this->read();
     return;
   }

@@ -28,7 +28,7 @@ void DlmsMeterComponent::dump_config() {
 
 void DlmsMeterComponent::loop() {
   // Read while data is available, netznoe uses two frames so allow 2x max frame length
-  int avail = this->available();
+  size_t avail = this->available();
   if (avail > 0) {
     size_t remaining = MBUS_MAX_FRAME_LENGTH * 2 - this->receive_buffer_.size();
     if (remaining == 0) {
@@ -36,12 +36,12 @@ void DlmsMeterComponent::loop() {
     } else {
       // Read all available bytes in batches to reduce UART call overhead.
       // Cap reads to remaining buffer capacity.
-      if (static_cast<size_t>(avail) > remaining) {
+      if (avail > remaining) {
         avail = remaining;
       }
       uint8_t buf[64];
       while (avail > 0) {
-        size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+        size_t to_read = std::min(avail, sizeof(buf));
         if (!this->read_array(buf, to_read)) {
           break;
         }
