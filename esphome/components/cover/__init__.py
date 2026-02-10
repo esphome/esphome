@@ -217,6 +217,7 @@ async def setup_cover_core_(var, config):
             cg.add(mqtt_.set_custom_position_command_topic(position_command_topic))
         if config.get(CONF_MQTT_JSON_STATE_PAYLOAD):
             cg.add_define("USE_MQTT_COVER_JSON")
+            cg.add(mqtt_.set_use_json_format(True))
         if (tilt_state_topic := config.get(CONF_TILT_STATE_TOPIC)) is not None:
             cg.add(mqtt_.set_custom_tilt_state_topic(tilt_state_topic))
         if (tilt_command_topic := config.get(CONF_TILT_COMMAND_TOPIC)) is not None:
