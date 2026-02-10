@@ -136,10 +136,10 @@ void RFBridgeComponent::loop() {
     this->last_bridge_byte_ = now;
   }
 
-  int avail = this->available();
+  size_t avail = this->available();
   while (avail > 0) {
     uint8_t buf[64];
-    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    size_t to_read = std::min(avail, sizeof(buf));
     if (!this->read_array(buf, to_read)) {
       break;
     }
