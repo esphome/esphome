@@ -1923,6 +1923,10 @@ void APIConnection::process_batch_() {
   for (size_t i = 0; i < num_items; i++) {
     total_estimated_size += this->deferred_batch_[i].estimated_size;
   }
+  // Clamp to MAX_BATCH_PACKET_SIZE — we won't send more than that per batch
+  if (total_estimated_size > MAX_BATCH_PACKET_SIZE) {
+    total_estimated_size = MAX_BATCH_PACKET_SIZE;
+  }
 
   this->prepare_first_message_buffer(shared_buf, header_padding, total_estimated_size);
 
