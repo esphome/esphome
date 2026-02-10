@@ -14,9 +14,6 @@ static const char *const TAG = "pulse_counter";
 const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 
 #ifdef HAS_PCNT
-// Hardware PCNT counter is 16-bit signed across all ESP32 variants
-static constexpr int PCNT_UNIT_LOW_LIMIT = -32768;
-static constexpr int PCNT_UNIT_HIGH_LIMIT = 32767;
 
 PulseCounterStorageBase *get_storage(bool hw_pcnt) {
   return (hw_pcnt ? (PulseCounterStorageBase *) (new HwPulseCounterStorage)
@@ -69,8 +66,9 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   this->pin->setup();
 
   pcnt_unit_config_t unit_config = {
-      .low_limit = PCNT_UNIT_LOW_LIMIT,
-      .high_limit = PCNT_UNIT_HIGH_LIMIT,
+      .low_limit = INT16_MIN,
+      .high_limit = INT16_MAX,
+      .flags = {.accum_count = true},
   };
   esp_err_t error = pcnt_new_unit(&unit_config, &this->pcnt_unit);
   if (error != ESP_OK) {
@@ -129,6 +127,17 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
       ESP_LOGE(TAG, "Setting PCNT glitch filter failed: %s", esp_err_to_name(error));
       return false;
     }
+  }
+
+  error = pcnt_unit_add_watch_point(this->pcnt_unit, INT16_MIN);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Adding PCNT low limit watch point failed: %s", esp_err_to_name(error));
+    return false;
+  }
+  error = pcnt_unit_add_watch_point(this->pcnt_unit, INT16_MAX);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Adding PCNT high limit watch point failed: %s", esp_err_to_name(error));
+    return false;
   }
 
   error = pcnt_unit_enable(this->pcnt_unit);
