@@ -79,17 +79,19 @@ void ResamplerSpeaker::loop() {
   // Process commands with priority: STOP > FINISH > START
   // This ensures stop commands take precedence over conflicting start commands
   if (event_group_bits & ResamplingEventGroupBits::COMMAND_STOP) {
-    if (this->state_ == speaker::STATE_RUNNING) {
-      // Clear both STOP and START bits - stop takes precedence
-      xEventGroupClearBits(this->event_group_,
-                           ResamplingEventGroupBits::COMMAND_STOP | ResamplingEventGroupBits::COMMAND_START);
+    if (this->state_ == speaker::STATE_RUNNING || this->state_ == speaker::STATE_STARTING) {
+      // Clear STOP, START, and FINISH bits - stop takes precedence
+      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_STOP |
+                                                   ResamplingEventGroupBits::COMMAND_START |
+                                                   ResamplingEventGroupBits::COMMAND_FINISH);
       this->enter_stopping_state_();
     } else if (this->state_ == speaker::STATE_STOPPED) {
       // Already stopped, just clear the command bits
-      xEventGroupClearBits(this->event_group_,
-                           ResamplingEventGroupBits::COMMAND_STOP | ResamplingEventGroupBits::COMMAND_START);
+      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_STOP |
+                                                   ResamplingEventGroupBits::COMMAND_START |
+                                                   ResamplingEventGroupBits::COMMAND_FINISH);
     }
-    // Leave bits set if transitioning states - will be processed once state allows
+    // Leave bits set if STATE_STOPPING - will be processed once stopped
   } else if (event_group_bits & ResamplingEventGroupBits::COMMAND_FINISH) {
     if (this->state_ == speaker::STATE_RUNNING) {
       xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_FINISH);
