@@ -1,0 +1,62 @@
+binary_sensor:
+  - platform: template
+    name: "Fan Running"
+    id: fan_running
+
+sensor:
+  - platform: template
+    name: "Fan Speed Percent"
+    id: fan_speed_percent
+    unit_of_measurement: "%"
+
+  # Test with lambdas
+  - platform: filter_lifetime
+    name: "Filter Lifetime Lambda"
+    id: filter_lifetime_lambda
+    max_lifetime: 12
+    is_on: !lambda 'return true;'
+    current_speed: !lambda 'return 50.0;'
+    update_interval: 60s
+    runtime_hours:
+      name: "Filter Runtime Hours Lambda"
+    remaining_days:
+      name: "Filter Remaining Days Lambda"
+
+  # Test with sensor references
+  - platform: filter_lifetime
+    name: "Filter Lifetime Sensor"
+    id: filter_lifetime_sensor
+    max_lifetime: 12
+    is_on_sensor: fan_running
+    current_speed_sensor: fan_speed_percent
+    update_interval: 60s
+    runtime_hours:
+      name: "Filter Runtime Hours Sensor"
+    remaining_days:
+      name: "Filter Remaining Days Sensor"
+
+  # Test with defaults (always on at 100%)
+  - platform: filter_lifetime
+    name: "Filter Lifetime Default"
+    id: filter_lifetime_default
+    max_lifetime: 6
+    update_interval: 60s
+
+button:
+  - platform: template
+    name: "Reset Filter Lambda"
+    on_press:
+      - filter_lifetime.reset_filter:
+          id: filter_lifetime_lambda
+
+  - platform: template
+    name: "Reset Filter Sensor"
+    on_press:
+      - filter_lifetime.reset_filter:
+          id: filter_lifetime_sensor
+
+  - platform: template
+    name: "Reset Filter Default"
+    on_press:
+      - filter_lifetime.reset_filter:
+          id: filter_lifetime_default
