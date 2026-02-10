@@ -10,13 +10,9 @@ namespace esphome::socket {
 
 Socket::~Socket() {}
 
-bool Socket::ready() const {
 #ifdef USE_SOCKET_SELECT_SUPPORT
-  return !this->loop_monitored_ || App.is_socket_ready_(this->fd_);
-#else
-  return true;
+bool Socket::ready() const { return !this->loop_monitored_ || App.is_socket_ready_(this->fd_); }
 #endif
-}
 
 // Platform-specific inet_ntop wrappers
 #if defined(USE_SOCKET_IMPL_LWIP_TCP)
