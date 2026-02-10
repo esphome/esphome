@@ -203,7 +203,11 @@ def main() -> int:
 
     if ram_bytes is None or flash_bytes is None:
         print("Failed to extract memory usage from compile output", file=sys.stderr)
-        print("Expected lines like:", file=sys.stderr)
+        print(file=sys.stderr)
+        print("This usually means the compilation failed.", file=sys.stderr)
+        print("Check the build output above for compilation errors.", file=sys.stderr)
+        print(file=sys.stderr)
+        print("If the build succeeded, expected lines like:", file=sys.stderr)
         print(
             "  RAM:   [====      ]  36.1% (used 29548 bytes from 81920 bytes)",
             file=sys.stderr,

@@ -43,6 +43,89 @@ from script.helpers import get_component_test_files
 from script.merge_component_configs import merge_component_configs
 
 
+def build_conflict_map(components: set[str]) -> dict[str, set[str]]:
+    """Build a bidirectional map of component conflicts.
+
+    Args:
+        components: Set of component names to analyze
+
+    Returns:
+        Dictionary mapping each component to its set of conflicting components
+    """
+    from esphome.loader import get_component
+
+    conflicts: dict[str, set[str]] = {component: set() for component in components}
+    for component in components:
+        manifest = get_component(component)
+        if manifest is None:
+            continue
+        for other in manifest.conflicts_with:
+            conflicts[component].add(other)
+            if other in conflicts:
+                conflicts[other].add(component)
+    return conflicts
+
+
+def split_groups_by_conflicts(
+    grouped_components: dict[tuple[str, str], list[str]],
+    conflict_map: dict[str, set[str]],
+) -> tuple[dict[tuple[str, str], list[str]], list[tuple[str, str, list[str]]]]:
+    """Split component groups to avoid conflicts.
+
+    When components in a group have CONFLICTS_WITH declarations,
+    this splits them into separate subgroups that can be tested together.
+
+    Args:
+        grouped_components: Dictionary mapping (platform, signature) to component lists
+        conflict_map: Bidirectional map of component conflicts
+
+    Returns:
+        Tuple of (new_groups_dict, conflict_splits_info)
+        where conflict_splits_info contains (platform, signature, original_components)
+        for groups that were split due to conflicts
+    """
+
+    def is_compatible(group: list[str], component: str) -> bool:
+        """Check if component can be added to group without conflicts."""
+        return all(
+            component not in conflict_map.get(existing, set())
+            and existing not in conflict_map.get(component, set())
+            for existing in group
+        )
+
+    split_groups: dict[tuple[str, str], list[str]] = {}
+    conflict_splits: list[tuple[str, str, list[str]]] = []
+
+    for (platform, signature), components in grouped_components.items():
+        if len(components) <= 1:
+            split_groups[(platform, signature)] = components
+            continue
+
+        # Create subgroups with no conflicts
+        subgroups: list[list[str]] = []
+        for component in sorted(components):
+            placed = False
+            for subgroup in subgroups:
+                if is_compatible(subgroup, component):
+                    subgroup.append(component)
+                    placed = True
+                    break
+            if not placed:
+                subgroups.append([component])
+
+        # If only one subgroup, no splitting needed
+        if len(subgroups) == 1:
+            split_groups[(platform, signature)] = subgroups[0]
+            continue
+
+        # Multiple subgroups - record the split and add suffix to signature
+        conflict_splits.append((platform, signature, components))
+        for index, subgroup in enumerate(subgroups, start=1):
+            split_groups[(platform, f"{signature}_conflict{index}")] = subgroup
+
+    return split_groups, conflict_splits
+
+
 @dataclass
 class TestResult:
     """Store information about a single test run."""
@@ -675,6 +758,16 @@ def run_grouped_component_tests(
     # as long as they don't have conflicting configurations for the same bus type
     grouped_components = merge_compatible_bus_groups(grouped_components)
 
+    # Split groups by component conflicts (CONFLICTS_WITH)
+    # Components that declare conflicts with each other cannot be in the same group
+    all_components_in_groups = {
+        comp for comps in grouped_components.values() for comp in comps
+    }
+    conflict_map = build_conflict_map(all_components_in_groups)
+    grouped_components, conflict_splits = split_groups_by_conflicts(
+        grouped_components, conflict_map
+    )
+
     # Print detailed grouping plan
     print("\nGrouping Plan:")
     print("-" * 80)
@@ -689,7 +782,7 @@ def run_grouped_component_tests(
 
         if predefined_isolated:
             print(
-                f"\n⚠ {len(predefined_isolated)} components must be tested in isolation (known build issues):"
+                f"\nWARN: {len(predefined_isolated)} components must be tested in isolation (known build issues):"
             )
             for comp in sorted(predefined_isolated):
                 reason = ISOLATED_COMPONENTS[comp]
@@ -697,7 +790,7 @@ def run_grouped_component_tests(
 
         if additional_in_tests:
             print(
-                f"\n✓ {len(additional_in_tests)} components tested in isolation (directly changed in PR):"
+                f"\nOK: {len(additional_in_tests)} components tested in isolation (directly changed in PR):"
             )
             for comp in sorted(additional_in_tests):
                 print(f"  - {comp}")
@@ -706,17 +799,37 @@ def run_grouped_component_tests(
     base_bus_in_tests = [c for c in BASE_BUS_COMPONENTS if c in all_tests]
     if base_bus_in_tests:
         print(
-            f"\n○ {len(base_bus_in_tests)} base bus platform components (tested individually):"
+            f"\nINFO: {len(base_bus_in_tests)} base bus platform components (tested individually):"
         )
         for comp in sorted(base_bus_in_tests):
             print(f"  - {comp}")
+
+    # Show components split due to conflicts
+    if conflict_splits:
+        print(
+            f"\nINFO: {len(conflict_splits)} groups split due to CONFLICTS_WITH declarations:"
+        )
+        for platform, signature, components in conflict_splits:
+            # Find which components conflict with each other
+            conflicts_found = []
+            for i, comp1 in enumerate(components):
+                conflicts_found.extend(
+                    f"{comp1} <-> {comp2}"
+                    for comp2 in components[i + 1 :]
+                    if comp2 in conflict_map.get(comp1, set())
+                )
+
+            component_list = ", ".join(sorted(components))
+            print(f"  [{platform}] [{signature}]: {component_list}")
+            if conflicts_found:
+                print(f"    Conflicts: {', '.join(conflicts_found)}")
 
     # Show excluded components with detailed reasons
     if non_groupable_reasons:
         excluded_in_tests = [c for c in non_groupable_reasons if c in all_tests]
         if excluded_in_tests:
             print(
-                f"\n⚠ {len(excluded_in_tests)} components excluded from grouping (each needs individual build):"
+                f"\nWARN: {len(excluded_in_tests)} components excluded from grouping (each needs individual build):"
             )
             # Group by reason to show summary
             direct_bus = [
@@ -726,7 +839,7 @@ def run_grouped_component_tests(
             ]
             if direct_bus:
                 print(
-                    f"\n  ⚠⚠⚠ {len(direct_bus)} DEFINE BUSES DIRECTLY - NEED MIGRATION TO PACKAGES:"
+                    f"\n  WARN: {len(direct_bus)} DEFINE BUSES DIRECTLY - NEED MIGRATION TO PACKAGES:"
                 )
                 for comp in sorted(direct_bus):
                     print(f"    - {comp}")

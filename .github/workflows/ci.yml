@@ -768,6 +768,7 @@ jobs:
         if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
         id: build
         run: |
+          set -o pipefail
           . venv/bin/activate
           components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
           platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
@@ -854,6 +855,7 @@ jobs:
       - name: Build, compile, and analyze memory
         id: extract
         run: |
+          set -o pipefail
           . venv/bin/activate
           components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
           platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
