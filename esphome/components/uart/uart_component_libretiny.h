@@ -21,7 +21,7 @@ class LibreTinyUARTComponent : public UARTComponent, public Component {
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
 
-  int available() override;
+  size_t available() override;
   void flush() override;
 
   uint16_t get_config();
