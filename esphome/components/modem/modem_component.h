@@ -99,18 +99,23 @@ class ModemComponent : public Component {
 
  protected:
   // ===== State handler methods =====
-  void handle_state_enabling_();
-  void handle_state_powering_on_();
-  void handle_state_syncing_();
-  void handle_state_init_network_();
-  void handle_state_start_ppp_();
-  void handle_state_wait_ip_();
-  void handle_state_connected_();
-  void handle_state_disconnected_();
-  void handle_state_not_responding_();
-  void handle_state_disabling_();
-  void handle_state_disabled_();
-  void handle_state_powering_off_();
+  ModemComponentState handle_state_enabling_();
+  ModemComponentState handle_state_powering_on_();
+  ModemComponentState handle_state_syncing_();
+  ModemComponentState handle_state_init_network_();
+  ModemComponentState handle_state_start_ppp_();
+  ModemComponentState handle_state_wait_ip_();
+  ModemComponentState handle_state_connected_();
+  ModemComponentState handle_state_disconnected_();
+  ModemComponentState handle_state_not_responding_();
+  ModemComponentState handle_state_disabling_();
+  ModemComponentState handle_state_disabled_();
+  ModemComponentState handle_state_powering_off_();
+
+  void transition_to_(ModemComponentState next_state);
+  void request_state_(ModemComponentState next_state);
+  void on_enter_state_(ModemComponentState state);
+  void on_exit_state_(ModemComponentState state);
 
   void abort_(const std::string &message);
   void loop_delay_(uint32_t delay_ms);
@@ -126,10 +131,14 @@ class ModemComponent : public Component {
   // Changes will trigger user callback
   ModemComponentState component_state_{ModemComponentState::DISABLED};
   ModemComponentState component_last_state_{ModemComponentState::DISABLED};
+  ModemComponentState requested_state_{ModemComponentState::DISABLED};
 
   uint32_t last_health_check_{0};
   uint32_t next_loop_millis_{0};
+  uint8_t enabling_retry_{0};
+  uint8_t wait_ip_retry_{0};
   bool disable_wanted_{true};
+  bool has_requested_state_{false};
 
   ModemRestoreState modem_restore_state_{};
   ESPPreferenceObject pref_;

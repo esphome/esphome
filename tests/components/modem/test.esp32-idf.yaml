@@ -6,8 +6,11 @@ modem:
   tx_pin: GPIO27
   baud_rate: 115200
   power_pin:
-    number: GPIO04
-    inverted: True
+    ton_pulse_delay: 3s
+    ton_delay: 10s
+    pin:
+      number: GPIO04
+      inverted: True
   model: SIM7600
   apn: orange
   pin_code: "0000"

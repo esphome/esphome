@@ -55,6 +55,7 @@ CONF_INIT_AT = "init_at"
 CONF_ON_NOT_RESPONDING = "on_not_responding"
 CONF_ON_POWERON = "on_poweron"
 CONF_ON_ENABLE = "on_enable"
+CONF_ON_DISABLE = "on_disable"
 CONF_ENABLE_CMUX = "enable_cmux"
 CONF_DTE_BUFFER_SIZE = "dte_buffer_size"
 CONF_NMEA = "nmea"
@@ -144,6 +145,9 @@ ModemOnPowerOnTrigger = modem_ns.class_(
 ModemOnEnableTrigger = modem_ns.class_(
     "ModemOnEnableTrigger", automation.Trigger.template()
 )
+ModemOnDisableTrigger = modem_ns.class_(
+    "ModemOnDisableTrigger", automation.Trigger.template()
+)
 
 # Actions
 ModemEnableAction = modem_ns.class_("ModemEnableAction", automation.Action)
@@ -227,6 +231,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_ENABLE): automation.validate_automation(
                 {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnEnableTrigger)}
+            ),
+            cv.Optional(CONF_ON_DISABLE): automation.validate_automation(
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnDisableTrigger)}
             ),
         }
     )
@@ -490,6 +497,7 @@ async def to_code(config):
         CONF_ON_DISCONNECT,
         CONF_ON_POWERON,
         CONF_ON_ENABLE,
+        CONF_ON_DISABLE,
     ]:
         for conf in config.get(conf_key, []):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
