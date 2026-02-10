@@ -36,7 +36,7 @@ void DlmsMeterComponent::loop() {
     } else {
       // Read all available bytes in batches to reduce UART call overhead.
       // Cap reads to remaining buffer capacity.
-      if (static_cast<size_t>(avail) > remaining) {
+      if (avail > remaining) {
         avail = remaining;
       }
       uint8_t buf[64];
