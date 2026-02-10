@@ -41,8 +41,10 @@ class Commands {
     }
     return "net-" + name + "-" + value;
   }
-  static std::string update_int(const std::string &name, int value) {
-    return "cmd-set:" + name + "=" + std::to_string(value);
+  static std::string update_int(const std::string &name, uint32_t value) {
+    char buf[11];
+    snprintf(buf, sizeof(buf), "%" PRIu32, value);
+    return "cmd-set:" + name + "=" + std::string(buf);
   }
 };
 
