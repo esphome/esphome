@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(PYTHONIOENCODING=utf-8 pre-commit run:*)",
-      "Bash(python:*)"
-    ]
-  }
-}
