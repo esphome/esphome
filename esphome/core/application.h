@@ -521,6 +521,7 @@ class Application {
 
   /// Process dump_config output one component per loop iteration.
   /// Extracted from loop() to keep cold startup/reconnect logging out of the hot path.
+  /// Caller must ensure dump_config_at_ < components_.size().
   void __attribute__((noinline)) process_dump_config_();
 
   void feed_wdt_arch_();
