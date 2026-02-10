@@ -106,12 +106,19 @@ void MR24HPC1Component::update_() {
 
 // main loop
 void MR24HPC1Component::loop() {
-  uint8_t byte;
+  // Read all available bytes in batches to reduce UART call overhead.
+  int avail = this->available();
+  uint8_t buf[64];
+  while (avail > 0) {
+    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
 
-  // Is there data on the serial port
-  while (this->available()) {
-    this->read_byte(&byte);
-    this->r24_split_data_frame_(byte);  // split data frame
+    for (size_t i = 0; i < to_read; i++) {
+      this->r24_split_data_frame_(buf[i]);  // split data frame
+    }
   }
 
   if ((this->s_output_info_switch_flag_ == OUTPUT_SWTICH_OFF) &&

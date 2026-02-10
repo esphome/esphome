@@ -130,9 +130,15 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
     App.feed_wdt();
     yield();
 
-    auto result = http_read_loop_result(bufsize_or_error, last_data_time, read_timeout);
+    auto result = http_read_loop_result(bufsize_or_error, last_data_time, read_timeout, container->is_read_complete());
     if (result == HttpReadLoopResult::RETRY)
       continue;
+    // For non-chunked responses, COMPLETE is unreachable (loop condition checks bytes_read < content_length).
+    // For chunked responses, the decoder sets content_length = bytes_read when the final chunk arrives,
+    // which causes the loop condition to terminate. But COMPLETE can still be returned if the decoder
+    // finishes mid-read, so this is needed for correctness.
+    if (result == HttpReadLoopResult::COMPLETE)
+      break;
     if (result != HttpReadLoopResult::DATA) {
       if (result == HttpReadLoopResult::TIMEOUT) {
         ESP_LOGE(TAG, "Timeout reading data");

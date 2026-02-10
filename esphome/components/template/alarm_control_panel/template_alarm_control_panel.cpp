@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::template_ {
 
@@ -28,18 +29,11 @@ void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, 
   this->sensor_data_.push_back(sd);
 };
 
+// Alarm sensor type strings indexed by AlarmSensorType enum (0-3): DELAYED, INSTANT, DELAYED_FOLLOWER, INSTANT_ALWAYS
+PROGMEM_STRING_TABLE(AlarmSensorTypeStrings, "delayed", "instant", "delayed_follower", "instant_always");
+
 static const LogString *sensor_type_to_string(AlarmSensorType type) {
-  switch (type) {
-    case ALARM_SENSOR_TYPE_INSTANT:
-      return LOG_STR("instant");
-    case ALARM_SENSOR_TYPE_DELAYED_FOLLOWER:
-      return LOG_STR("delayed_follower");
-    case ALARM_SENSOR_TYPE_INSTANT_ALWAYS:
-      return LOG_STR("instant_always");
-    case ALARM_SENSOR_TYPE_DELAYED:
-    default:
-      return LOG_STR("delayed");
-  }
+  return AlarmSensorTypeStrings::get_log_str(static_cast<uint8_t>(type), 0);
 }
 #endif
 

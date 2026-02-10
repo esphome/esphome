@@ -42,13 +42,12 @@ using ParamNameType = const __FlashStringHelper *;
 using ParamNameType = const char *;
 #endif
 
-// ESP8266 is single-threaded, so actions can execute directly in request context.
-// Multi-core platforms need to defer to main loop thread for thread safety.
-#ifdef USE_ESP8266
-#define DEFER_ACTION(capture, action) action
-#else
+// All platforms need to defer actions to main loop thread.
+// Multi-core platforms need this for thread safety.
+// ESP8266 needs this because ESPAsyncWebServer callbacks run in "sys" context
+// (SDK system context), not "cont" context (continuation/main loop). Calling
+// yield() from sys context causes a panic in the Arduino core.
 #define DEFER_ACTION(capture, action) this->defer([capture]() mutable { action; })
-#endif
 
 /// Result of matching a URL against an entity
 struct EntityMatchResult {

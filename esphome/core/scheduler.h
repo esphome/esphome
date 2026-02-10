@@ -46,11 +46,20 @@ class Scheduler {
   void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func);
   /// Set a timeout with a numeric ID (zero heap allocation)
   void set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> func);
+  /// Set a timeout with an internal scheduler ID (separate namespace from component NUMERIC_ID)
+  void set_timeout(Component *component, InternalSchedulerID id, uint32_t timeout, std::function<void()> func) {
+    this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID_INTERNAL, nullptr,
+                            static_cast<uint32_t>(id), timeout, std::move(func));
+  }
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   bool cancel_timeout(Component *component, const std::string &name);
   bool cancel_timeout(Component *component, const char *name);
   bool cancel_timeout(Component *component, uint32_t id);
+  bool cancel_timeout(Component *component, InternalSchedulerID id) {
+    return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, static_cast<uint32_t>(id),
+                              SchedulerItem::TIMEOUT);
+  }
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);
@@ -66,24 +75,45 @@ class Scheduler {
   void set_interval(Component *component, const char *name, uint32_t interval, std::function<void()> func);
   /// Set an interval with a numeric ID (zero heap allocation)
   void set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> func);
+  /// Set an interval with an internal scheduler ID (separate namespace from component NUMERIC_ID)
+  void set_interval(Component *component, InternalSchedulerID id, uint32_t interval, std::function<void()> func) {
+    this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID_INTERNAL, nullptr,
+                            static_cast<uint32_t>(id), interval, std::move(func));
+  }
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   bool cancel_interval(Component *component, const std::string &name);
   bool cancel_interval(Component *component, const char *name);
   bool cancel_interval(Component *component, uint32_t id);
+  bool cancel_interval(Component *component, InternalSchedulerID id) {
+    return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, static_cast<uint32_t>(id),
+                              SchedulerItem::INTERVAL);
+  }
 
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
                  std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(Component *component, const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
                  std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
-  /// Set a retry with a numeric ID (zero heap allocation)
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(Component *component, uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
                  std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
 
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
   bool cancel_retry(Component *component, const std::string &name);
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
   bool cancel_retry(Component *component, const char *name);
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
   bool cancel_retry(Component *component, uint32_t id);
 
   // Calculate when the next scheduled item should run
@@ -100,11 +130,12 @@ class Scheduler {
   void process_to_add();
 
   // Name storage type discriminator for SchedulerItem
-  // Used to distinguish between static strings, hashed strings, and numeric IDs
+  // Used to distinguish between static strings, hashed strings, numeric IDs, and internal numeric IDs
   enum class NameType : uint8_t {
-    STATIC_STRING = 0,  // const char* pointer to static/flash storage
-    HASHED_STRING = 1,  // uint32_t FNV-1a hash of a runtime string
-    NUMERIC_ID = 2      // uint32_t numeric identifier
+    STATIC_STRING = 0,       // const char* pointer to static/flash storage
+    HASHED_STRING = 1,       // uint32_t FNV-1a hash of a runtime string
+    NUMERIC_ID = 2,          // uint32_t numeric identifier (component-level)
+    NUMERIC_ID_INTERNAL = 3  // uint32_t numeric identifier (core/internal, separate namespace)
   };
 
  protected:
@@ -135,7 +166,7 @@ class Scheduler {
 
     // Bit-packed fields (4 bits used, 4 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
-    NameType name_type_ : 2;  // Discriminator for name_ union (STATIC_STRING, HASHED_STRING, NUMERIC_ID)
+    NameType name_type_ : 2;  // Discriminator for name_ union (0–3, see NameType enum)
     bool is_retry : 1;        // True if this is a retry timeout
                               // 4 bits padding
 #else
@@ -143,7 +174,7 @@ class Scheduler {
     // Bit-packed fields (5 bits used, 3 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
     bool remove : 1;
-    NameType name_type_ : 2;  // Discriminator for name_ union (STATIC_STRING, HASHED_STRING, NUMERIC_ID)
+    NameType name_type_ : 2;  // Discriminator for name_ union (0–3, see NameType enum)
     bool is_retry : 1;        // True if this is a retry timeout
                               // 3 bits padding
 #endif
@@ -206,6 +237,12 @@ class Scheduler {
       name_type_ = NameType::NUMERIC_ID;
     }
 
+    // Helper to set an internal numeric ID (separate namespace from NUMERIC_ID)
+    void set_internal_id(uint32_t id) {
+      name_.hash_or_id = id;
+      name_type_ = NameType::NUMERIC_ID_INTERNAL;
+    }
+
     static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
 
     // Note: We use 48 bits total (32 + 16), stored in a 64-bit value for API compatibility.
@@ -231,11 +268,14 @@ class Scheduler {
                          uint32_t hash_or_id, uint32_t delay, std::function<void()> func, bool is_retry = false,
                          bool skip_cancel = false);
 
-  // Common implementation for retry
+  // Common implementation for retry - Remove before 2026.8.0
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   void set_retry_common_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
                          uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> func,
                          float backoff_increase_factor);
+#pragma GCC diagnostic pop
   // Common implementation for cancel_retry
   bool cancel_retry_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
 
