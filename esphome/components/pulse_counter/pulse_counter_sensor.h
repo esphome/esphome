@@ -25,6 +25,12 @@ enum PulseCounterCountMode {
 
 using pulse_counter_t = int32_t;
 
+#ifdef HAS_PCNT
+// Hardware PCNT counter is 16-bit signed across all ESP32 variants
+static constexpr int PCNT_UNIT_LOW_LIMIT = -32768;
+static constexpr int PCNT_UNIT_HIGH_LIMIT = 32767;
+#endif  // HAS_PCNT
+
 struct PulseCounterStorageBase {
   virtual bool pulse_counter_setup(InternalGPIOPin *pin) = 0;
   virtual pulse_counter_t read_raw_value() = 0;

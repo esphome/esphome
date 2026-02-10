@@ -60,8 +60,8 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   this->pin->setup();
 
   pcnt_unit_config_t unit_config = {
-      .low_limit = -32768,
-      .high_limit = 32767,
+      .low_limit = PCNT_UNIT_LOW_LIMIT,
+      .high_limit = PCNT_UNIT_HIGH_LIMIT,
   };
   esp_err_t error = pcnt_new_unit(&unit_config, &this->pcnt_unit);
   if (error != ESP_OK) {
