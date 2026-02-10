@@ -1923,6 +1923,10 @@ void APIConnection::process_batch_() {
   for (size_t i = 0; i < num_items; i++) {
     total_estimated_size += this->deferred_batch_[i].estimated_size;
   }
+  // Clamp to MAX_BATCH_PACKET_SIZE — we won't send more than that per batch
+  if (total_estimated_size > MAX_BATCH_PACKET_SIZE) {
+    total_estimated_size = MAX_BATCH_PACKET_SIZE;
+  }
 
   this->prepare_first_message_buffer(shared_buf, header_padding, total_estimated_size);
 
@@ -2002,42 +2006,38 @@ void APIConnection::process_batch_multi_(std::vector<uint8_t> &shared_buf, size_
     current_offset = shared_buf.size() + footer_size;
   }
 
-  if (items_processed == 0) {
-    this->deferred_batch_.clear();
-    return;
-  }
+  if (items_processed > 0) {
+    // Add footer space for the last message (for Noise protocol MAC)
+    if (footer_size > 0) {
+      shared_buf.resize(shared_buf.size() + footer_size);
+    }
 
-  // Add footer space for the last message (for Noise protocol MAC)
-  if (footer_size > 0) {
-    shared_buf.resize(shared_buf.size() + footer_size);
-  }
-
-  // Send all collected messages
-  APIError err = this->helper_->write_protobuf_messages(ProtoWriteBuffer{&shared_buf},
-                                                        std::span<const MessageInfo>(message_info, items_processed));
-  if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
-    this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
-  }
+    // Send all collected messages
+    APIError err = this->helper_->write_protobuf_messages(ProtoWriteBuffer{&shared_buf},
+                                                          std::span<const MessageInfo>(message_info, items_processed));
+    if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
+      this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
+    }
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  // Log messages after send attempt for VV debugging
-  // It's safe to use the buffer for logging at this point regardless of send result
-  for (size_t i = 0; i < items_processed; i++) {
-    const auto &item = this->deferred_batch_[i];
-    this->log_batch_item_(item);
-  }
+    // Log messages after send attempt for VV debugging
+    // It's safe to use the buffer for logging at this point regardless of send result
+    for (size_t i = 0; i < items_processed; i++) {
+      const auto &item = this->deferred_batch_[i];
+      this->log_batch_item_(item);
+    }
 #endif
 
-  // Handle remaining items more efficiently
-  if (items_processed < this->deferred_batch_.size()) {
-    // Remove processed items from the beginning
-    this->deferred_batch_.remove_front(items_processed);
-    // Reschedule for remaining items
-    this->schedule_batch_();
-  } else {
-    // All items processed
-    this->clear_batch_();
+    // Partial batch — remove processed items and reschedule
+    if (items_processed < this->deferred_batch_.size()) {
+      this->deferred_batch_.remove_front(items_processed);
+      this->schedule_batch_();
+      return;
+    }
   }
+
+  // All items processed (or none could be processed)
+  this->clear_batch_();
 }
 
 // Dispatch message encoding based on message_type
