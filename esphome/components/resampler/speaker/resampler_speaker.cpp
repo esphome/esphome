@@ -225,11 +225,11 @@ size_t ResamplerSpeaker::play(const uint8_t *data, size_t length, TickType_t tic
     bytes_written = this->output_speaker_->play(data, length, ticks_to_wait);
   } else {
     std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
-    if (temp_ring_buffer.use_count() == 2) {
-      // Defensive programming check. Only write to the ring buffer if both the speaker and the caller own a reference
-      // to it.
+    if (temp_ring_buffer.use_count() > 0) {
+      // Only write to the ring buffer if the reference is valid
       bytes_written = temp_ring_buffer->write_without_replacement(data, length, ticks_to_wait);
     } else {
+      // Delay to avoid repeatedly hammering while waiting for the speaker to start
       vTaskDelay(ticks_to_wait);
     }
   }
