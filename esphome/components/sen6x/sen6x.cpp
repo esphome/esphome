@@ -97,9 +97,9 @@ void SEN6XComponent::setup() {
       return;
     }
 
-    // In order to query the device periodic measurement must be ceased => use reset!
+    // In order to query the device periodic measurement must be ceased
     if (raw_read_status) {
-      ESP_LOGD(TAG, "Sensor has data available, stopping periodic measurement / reset");
+      ESP_LOGD(TAG, "Sensor has data available, stopping periodic measurement");
 
       if (!this->write_command(SEN6X_CMD_STOP_MEASUREMENTS)) {
         ESP_LOGE(TAG, "Failed to stop measurements");
@@ -139,22 +139,16 @@ void SEN6XComponent::setup() {
       }
 
       this->product_name_.clear();
-      // 2 ASCII bytes are encoded in an int
-      const uint16_t *current_int = raw_product_name;
-      char current_char;
-      uint8_t max = 16;
-      do {
-        // first char
-        current_char = *current_int >> 8;
-        if (current_char) {
-          this->product_name_.push_back(current_char);
-          // second char
-          current_char = *current_int & 0xFF;
-          if (current_char)
-            this->product_name_.push_back(current_char);
-        }
-        current_int++;
-      } while (current_char && --max);
+      for (const uint16_t word : raw_product_name) {
+        const char c1 = static_cast<char>(word >> 8);
+        const char c2 = static_cast<char>(word & 0xFF);
+        if (c1 == '\0')
+          break;
+        this->product_name_.push_back(c1);
+        if (c2 == '\0')
+          break;
+        this->product_name_.push_back(c2);
+      }
 
       Sen6xType inferred_type = this->infer_type_from_product_name_(this->product_name_);
       if (this->sen6x_type_ == UNKNOWN) {
@@ -444,13 +438,16 @@ void SEN6XComponent::update() {
         this->temperature_sensor_->publish_state(this->last_temperature_);
       if (this->humidity_sensor_ != nullptr)
         this->humidity_sensor_->publish_state(this->last_humidity_);
-      if (this->voc_sensor_ != nullptr)
+      const bool has_gas_index = this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 ||
+                                 this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C;
+      if (this->voc_sensor_ != nullptr && has_gas_index)
         this->voc_sensor_->publish_state(this->last_voc_);
-      if (this->nox_sensor_ != nullptr)
+      if (this->nox_sensor_ != nullptr && has_gas_index)
         this->nox_sensor_->publish_state(this->last_nox_);
-      if (this->hcho_sensor_ != nullptr)
+      if (this->hcho_sensor_ != nullptr && (this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C))
         this->hcho_sensor_->publish_state(this->last_hcho_);
-      if (this->co2_sensor_ != nullptr)
+      if (this->co2_sensor_ != nullptr &&
+          (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C))
         this->co2_sensor_->publish_state(this->last_co2_);
       this->status_clear_warning();
     }
@@ -742,17 +739,20 @@ bool SEN6XComponent::start_fan_cleaning() {
   const uint32_t now = App.get_loop_component_start_time();
   if (this->last_stop_ms_ != 0 && (now - this->last_stop_ms_) < 50) {
     const uint32_t wait_ms = 50 - (now - this->last_stop_ms_);
-    this->set_timeout(wait_ms, [this]() { this->start_fan_cleaning(); });
+    this->set_timeout(wait_ms, [this, was_running]() { this->execute_fan_cleaning_(was_running); });
     return true;
   }
+  return this->execute_fan_cleaning_(was_running);
+}
+
+bool SEN6XComponent::execute_fan_cleaning_(bool restart_after) {
   if (!this->write_command(SEN6X_CMD_START_CLEANING_FAN)) {
     this->status_set_warning();
     ESP_LOGE(TAG, "write error start fan (%d)", this->last_error_);
     return false;
-  } else {
-    ESP_LOGD(TAG, "Fan auto clean started");
   }
-  if (was_running) {
+  ESP_LOGD(TAG, "Fan auto clean started");
+  if (restart_after) {
     this->auto_clean_restart_pending_ = true;
     this->set_timeout(15000, [this]() {
       if (this->auto_clean_restart_pending_) {

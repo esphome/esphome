@@ -150,6 +150,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   Sen6xType infer_type_from_product_name_(const std::string &product_name);
   void schedule_post_setup_commands_();
   void finish_setup_();
+  bool execute_fan_cleaning_(bool restart_after);
 
   ERRORCODE error_code_{COMMUNICATION_FAILED};
   bool initialized_{false};
