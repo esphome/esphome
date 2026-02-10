@@ -26,8 +26,8 @@ class PM100XComponent : public PollingComponent {
   void set_startup_delay(uint32_t delay_ms) { this->startup_delay_ms_ = delay_ms; }
   void setup() override;
   void dump_config() override;
-  virtual void loop() override;
-  virtual void update() override;
+  void loop() override;
+  void update() override;
 
   float get_setup_priority() const override;
 
