@@ -1435,6 +1435,10 @@ async def to_code(config):
         CORE.relative_internal_path(".espressif")
     )
 
+    # Set the uv cache inside the data dir so "Clean All" clears it.
+    # Avoids persistent corrupted cache from mid-stream download failures.
+    os.environ["UV_CACHE_DIR"] = str(CORE.relative_internal_path(".uv_cache"))
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
@@ -1467,7 +1471,7 @@ async def to_code(config):
                     [_format_framework_espidf_version(idf_ver, None)],
                 )
                 # Use stub package to skip downloading precompiled libs
-                stubs_dir = CORE.relative_build_path("arduino-libs-stub")
+                stubs_dir = CORE.relative_build_path("arduino_libs_stub")
                 cg.add_platformio_option(
                     "platform_packages", [f"{ARDUINO_LIBS_PKG}@file://{stubs_dir}"]
                 )
