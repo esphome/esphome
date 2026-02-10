@@ -41,7 +41,7 @@ void DlmsMeterComponent::loop() {
       }
       uint8_t buf[64];
       while (avail > 0) {
-        size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+        size_t to_read = std::min(avail, sizeof(buf));
         if (!this->read_array(buf, to_read)) {
           break;
         }
