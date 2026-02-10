@@ -376,7 +376,7 @@ void ResamplerSpeaker::resample_task(void *params) {
     std::shared_ptr<RingBuffer> temp_ring_buffer =
         RingBuffer::create(this_resampler->audio_stream_info_.ms_to_bytes(this_resampler->buffer_duration_ms_));
 
-    if (temp_ring_buffer.use_count() == 0) {
+    if (!temp_ring_buffer) {
       err = ESP_ERR_NO_MEM;
     } else {
       this_resampler->ring_buffer_ = temp_ring_buffer;
