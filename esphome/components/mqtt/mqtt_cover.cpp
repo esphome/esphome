@@ -72,16 +72,22 @@ void MQTTCoverComponent::dump_config() {
 #endif
   if (traits.get_supports_position()) {
 #ifdef USE_MQTT_COVER_JSON
-    if (!this->use_json_format_)
+    if (!this->use_json_format_) {
 #endif
       ESP_LOGCONFIG(TAG, "  Position State Topic: '%s'", this->get_position_state_topic().c_str());
+#ifdef USE_MQTT_COVER_JSON
+    }
+#endif
     ESP_LOGCONFIG(TAG, "  Position Command Topic: '%s'", this->get_position_command_topic().c_str());
   }
   if (traits.get_supports_tilt()) {
 #ifdef USE_MQTT_COVER_JSON
-    if (!this->use_json_format_)
+    if (!this->use_json_format_) {
 #endif
       ESP_LOGCONFIG(TAG, "  Tilt State Topic: '%s'", this->get_tilt_state_topic().c_str());
+#ifdef USE_MQTT_COVER_JSON
+    }
+#endif
     ESP_LOGCONFIG(TAG, "  Tilt Command Topic: '%s'", this->get_tilt_command_topic().c_str());
   }
 }
