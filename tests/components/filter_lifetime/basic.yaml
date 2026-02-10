@@ -1,5 +1,19 @@
-filter_lifetime:
-  id: filter_lifetime_1
-  max_lifetime: 12
-  is_on: !lambda 'return true;'
-  current_speed: !lambda 'return 50.0;'
+sensor:
+  - platform: filter_lifetime
+    name: "Filter Lifetime"
+    id: filter_lifetime_1
+    max_lifetime: 12
+    is_on: !lambda 'return true;'
+    current_speed: !lambda 'return 50.0;'
+    update_interval: 60s
+    runtime_hours:
+      name: "Filter Runtime Hours"
+    remaining_days:
+      name: "Filter Remaining Days"
+
+button:
+  - platform: template
+    name: "Reset Filter"
+    on_press:
+      - filter_lifetime.reset_filter:
+          id: filter_lifetime_1
