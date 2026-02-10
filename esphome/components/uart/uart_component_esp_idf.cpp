@@ -338,7 +338,7 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   return read_len == (int32_t) length_to_read;
 }
 
-int IDFUARTComponent::available() {
+size_t IDFUARTComponent::available() {
   size_t available = 0;
   esp_err_t err;
 
