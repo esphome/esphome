@@ -14,9 +14,9 @@ void Pipsolar::setup() {
 
 void Pipsolar::empty_uart_buffer_() {
   uint8_t buf[64];
-  int avail;
+  size_t avail;
   while ((avail = this->available()) > 0) {
-    if (!this->read_array(buf, std::min(static_cast<size_t>(avail), sizeof(buf)))) {
+    if (!this->read_array(buf, std::min(avail, sizeof(buf)))) {
       break;
     }
   }
@@ -97,10 +97,10 @@ void Pipsolar::loop() {
   }
 
   if (this->state_ == STATE_COMMAND || this->state_ == STATE_POLL) {
-    int avail = this->available();
+    size_t avail = this->available();
     while (avail > 0) {
       uint8_t buf[64];
-      size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+      size_t to_read = std::min(avail, sizeof(buf));
       if (!this->read_array(buf, to_read)) {
         break;
       }
