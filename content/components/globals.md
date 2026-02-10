@@ -45,6 +45,10 @@ globals:
 - **restore_value** (*Optional*, boolean): Whether to try to restore the state on boot up.
   Be careful: on the ESP8266, you only have a total of 96 bytes available for this! Defaults to `no`.
 
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval
+  to check if the value has changed and needs to be saved. Only applies when `restore_value` is `yes`.
+  Defaults to `1s`. The value is also saved on shutdown.
+
 - **max_restore_data_length** (*Optional*, integer): Only applies to variables of type `std::string`. ESPHome will allocate enough space for this many characters,
   plus single character of overhead. Strings longer than this will not be saved. The max value of this variable is 254 characters, and the default is 63 characters.
 
