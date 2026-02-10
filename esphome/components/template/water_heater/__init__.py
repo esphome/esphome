@@ -156,12 +156,12 @@ async def water_heater_template_publish_to_code(
         template_ = await cg.templatable(mode, args, water_heater.WaterHeaterMode)
         cg.add(var.set_mode(template_))
 
-    if away := config.get(CONF_AWAY):
-        template_ = await cg.templatable(away, args, bool)
+    if CONF_AWAY in config:
+        template_ = await cg.templatable(config[CONF_AWAY], args, bool)
         cg.add(var.set_away(template_))
 
-    if is_on := config.get(CONF_IS_ON):
-        template_ = await cg.templatable(is_on, args, bool)
+    if CONF_IS_ON in config:
+        template_ = await cg.templatable(config[CONF_IS_ON], args, bool)
         cg.add(var.set_is_on(template_))
 
     return var
