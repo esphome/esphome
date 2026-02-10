@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_DISABLED,
     CONF_ENABLE_ON_BOOT,
     CONF_ID,
-    CONF_INVERTED,
     CONF_MODEL,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
@@ -180,7 +179,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_POWER_PIN): cv.maybe_simple_value(
                 {
                     cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
-                    cv.Optional(CONF_INVERTED, default=False): cv.boolean,
                     cv.Optional(
                         CONF_TON_PULSE_DELAY
                     ): cv.positive_time_period_milliseconds,
@@ -463,7 +461,6 @@ async def to_code(config):
     if power_pin := config.get(CONF_POWER_PIN, None):
         pin = await cg.gpio_pin_expression(power_pin[CONF_PIN])
         cg.add(var.set_power_pin(pin))
-        cg.add(var.set_power_pin_inverted(power_pin.get(CONF_INVERTED)))
 
     if rx_buffer_size := config.get(CONF_RX_BUFFER_SIZE, None):
         cg.add(var.set_rx_buffer_size(rx_buffer_size))

@@ -91,7 +91,7 @@ void ModemComponent::setup() {
 
   if (this->modem_handler->power_pin) {
     this->modem_handler->power_pin->setup();
-    this->modem_handler->power_pin->digital_write(!this->modem_handler->power_pin_inverted);
+    this->modem_handler->power_pin->digital_write(true);
   }
   if (this->modem_handler->status_pin) {
     this->modem_handler->status_pin->setup();
@@ -159,7 +159,7 @@ void ModemComponent::setup() {
   err = esp_netif_init();
   ESPHL_ERROR_CHECK(err, "PPP netif init failed");
   err = esp_event_loop_create_default();
-  ESPHL_ERROR_CHECK(err, "PPP event loop init failed");
+  ESPHL_ERROR_CHECK(err, "PPP event loop create failed");
 
   esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
   this->modem_handler->ppp_netif = esp_netif_new(&netif_ppp_config);
@@ -311,10 +311,10 @@ void ModemComponent::handle_state_enabling_() {
 }
 
 void ModemComponent::handle_state_powering_on_() {
-  this->modem_handler->power_pin->digital_write(this->modem_handler->power_pin_inverted);
+  this->modem_handler->power_pin->digital_write(false);
   // Use timeout to prevent blocking the main loop
   set_timeout("modem_power_on", this->modem_handler->power_ton_pulse_delay, [this]() {
-    this->modem_handler->power_pin->digital_write(!this->modem_handler->power_pin_inverted);
+    this->modem_handler->power_pin->digital_write(true);
     uint32_t loop_delay = this->modem_handler->power_ton_delay;
     this->enable_loop();
     this->loop_delay_(loop_delay);
@@ -325,10 +325,10 @@ void ModemComponent::handle_state_powering_on_() {
 }
 
 void ModemComponent::handle_state_powering_off_() {
-  this->modem_handler->power_pin->digital_write(this->modem_handler->power_pin_inverted);
+  this->modem_handler->power_pin->digital_write(false);
   // Use timeout to prevent blocking the main loop
   set_timeout("modem_power_off", this->modem_handler->power_toff_pulse_delay, [this]() {
-    this->modem_handler->power_pin->digital_write(!this->modem_handler->power_pin_inverted);
+    this->modem_handler->power_pin->digital_write(true);
     this->enable_loop();
     this->loop_delay_(this->modem_handler->power_toff_delay);
     ESP_LOGD(TAG, "Modem should be OFF in %.1fs...", float(this->modem_handler->power_toff_delay) / 1000);
