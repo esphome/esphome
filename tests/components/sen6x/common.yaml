@@ -30,22 +30,8 @@ sensor:
       name: NOx
     voc:
       name: VOC
-      algorithm_tuning:
-        index_offset: 100
-        learning_time_offset_hours: 12
-        learning_time_gain_hours: 12
-        gating_max_duration_minutes: 180
-        std_initial: 50
-        gain_factor: 230
     co2:
       name: Carbon Dioxide
-      ambient_pressure_compensation: 1013
-      altitude_compensation: 0
     formaldehyde:
       name: Formaldehyde
-    temperature_compensation:
-      offset: 0
-      normalized_offset_slope: 0
-      time_constant: 0
-    store_baseline: true
     address: 0x6B
