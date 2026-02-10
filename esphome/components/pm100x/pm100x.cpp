@@ -24,9 +24,8 @@ static const char *model_to_string(PM100XModel model) {
       return "pm1006";
     case PM100XModel::PM1006K:
       return "pm1006k";
-    default:
-      return "unknown";
   }
+  return "unknown";
 }
 
 void PM100XComponent::setup() {
@@ -44,13 +43,13 @@ void PM100XComponent::dump_config() {
   LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
   LOG_SENSOR("  ", "PWM Duty Percent", this->pwm_sensor_);
   LOG_UPDATE_INTERVAL(this);
-  if (this->parent_ != nullptr) {
-    this->check_uart_settings(9600);
+  if (this->has_uart()) {
+    this->check_uart_baud_rate(9600);
   }
 }
 
 void PM100XComponent::update() {
-  if (this->parent_ == nullptr || this->pwm_sensor_ != nullptr)
+  if (!this->has_uart() || this->pwm_sensor_ != nullptr)
     return;
   if (this->get_update_interval() == 0)
     return;
@@ -66,14 +65,14 @@ void PM100XComponent::update() {
   if (command == nullptr || command_length == 0)
     return;
   ESP_LOGV(TAG, "sending measurement request");
-  this->write_array(command, command_length);
+  this->write_uart_array(command, command_length);
 }
 
 void PM100XComponent::loop() {
-  if (this->parent_ == nullptr || this->pwm_sensor_ != nullptr)
+  if (!this->has_uart() || this->pwm_sensor_ != nullptr)
     return;
-  while (this->available() != 0) {
-    this->read_byte(&this->data_[this->data_index_]);
+  while (this->uart_available() != 0) {
+    this->read_uart_byte(&this->data_[this->data_index_]);
     auto check = this->check_byte_();
     if (!check.has_value()) {
       ESP_LOGV(TAG, "frame complete, len=%u", this->data_index_ + 1);
@@ -93,9 +92,9 @@ void PM100XComponent::loop() {
 
 float PM100XComponent::get_setup_priority() const { return setup_priority::DATA; }
 
-uint8_t PM100XComponent::pm100x_checksum_(const uint8_t *command_data, uint8_t length) const {
+uint8_t PM100XComponent::pm100x_checksum_(const uint8_t *command_data, size_t length) const {
   uint8_t sum = 0;
-  for (uint8_t i = 0; i < length; i++) {
+  for (size_t i = 0; i < length; i++) {
     sum += command_data[i];
   }
   return sum;
