@@ -283,6 +283,20 @@ void APIConnection::loop() {
 #endif
 }
 
+void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
+  size_t initial_size = this->deferred_batch_.size();
+  size_t max_batch = this->get_max_batch_size_();
+  while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
+    iterator.advance();
+  }
+
+  // If the batch is full, process it immediately
+  // Note: iterator.advance() already calls schedule_batch_() via schedule_message_()
+  if (this->deferred_batch_.size() >= max_batch) {
+    this->process_batch_();
+  }
+}
+
 bool APIConnection::send_disconnect_response_() {
   // remote initiated disconnect_client
   // don't close yet, we still need to send the disconnect response
