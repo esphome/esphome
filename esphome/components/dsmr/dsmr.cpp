@@ -120,9 +120,9 @@ void Dsmr::stop_requesting_data_() {
 
 void Dsmr::drain_rx_buffer_() {
   uint8_t buf[64];
-  int avail;
+  size_t avail;
   while ((avail = this->available()) > 0) {
-    if (!this->read_array(buf, std::min(static_cast<size_t>(avail), sizeof(buf)))) {
+    if (!this->read_array(buf, std::min(avail, sizeof(buf)))) {
       break;
     }
   }
@@ -140,9 +140,9 @@ void Dsmr::receive_telegram_() {
   while (this->available_within_timeout_()) {
     // Read all available bytes in batches to reduce UART call overhead.
     uint8_t buf[64];
-    int avail = this->available();
+    size_t avail = this->available();
     while (avail > 0) {
-      size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+      size_t to_read = std::min(avail, sizeof(buf));
       if (!this->read_array(buf, to_read))
         return;
       avail -= to_read;
@@ -206,9 +206,9 @@ void Dsmr::receive_encrypted_telegram_() {
   while (this->available_within_timeout_()) {
     // Read all available bytes in batches to reduce UART call overhead.
     uint8_t buf[64];
-    int avail = this->available();
+    size_t avail = this->available();
     while (avail > 0) {
-      size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+      size_t to_read = std::min(avail, sizeof(buf));
       if (!this->read_array(buf, to_read))
         return;
       avail -= to_read;

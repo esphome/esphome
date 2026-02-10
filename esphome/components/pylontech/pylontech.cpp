@@ -56,14 +56,14 @@ void PylontechComponent::setup() {
 void PylontechComponent::update() { this->write_str("pwr\n"); }
 
 void PylontechComponent::loop() {
-  int avail = this->available();
+  size_t avail = this->available();
   if (avail > 0) {
     // pylontech sends a lot of data very suddenly
     // we need to quickly put it all into our own buffer, otherwise the uart's buffer will overflow
     int recv = 0;
     uint8_t buf[64];
     while (avail > 0) {
-      size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+      size_t to_read = std::min(avail, sizeof(buf));
       if (!this->read_array(buf, to_read)) {
         break;
       }
