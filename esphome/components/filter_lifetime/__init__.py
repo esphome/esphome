@@ -3,7 +3,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-CODEOWNERS = ["@yourusername"]  # Replace with your GitHub username
+CODEOWNERS = ["@tuct"]
 
 filter_lifetime_ns = cg.esphome_ns.namespace("filter_lifetime")
 FilterLifetime = filter_lifetime_ns.class_("FilterLifetime")
