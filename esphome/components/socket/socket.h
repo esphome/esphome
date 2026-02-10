@@ -63,13 +63,25 @@ class Socket {
   virtual int setblocking(bool blocking) = 0;
   virtual int loop() { return 0; };
 
-  /// Get the underlying file descriptor (returns -1 if not supported)
-  virtual int get_fd() const { return -1; }
+    /// Get the underlying file descriptor (returns -1 if not supported)
+    /// Non-virtual: only one socket implementation is active per build.
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  int get_fd() const { return this->fd_; }
+#else
+  int get_fd() const { return -1; }
+#endif
 
-  /// Check if socket has data ready to read
-  /// For loop-monitored sockets, checks with the Application's select() results
+  /// Check if socket has data ready to read (non-virtual for direct call)
+  /// For loop-monitored sockets, checks the Application's select() results
   /// For non-monitored sockets, always returns true (assumes data may be available)
-  virtual bool ready() const { return true; }
+  bool ready() const;
+
+ protected:
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  int fd_{-1};
+  bool closed_{false};
+  bool loop_monitored_{false};
+#endif
 };
 
 /// Create a socket of the given domain, type and protocol.
