@@ -148,4 +148,3 @@ sdkconfig.*
 /managed_components
 
 api-docs/
-.claude/settings.local.json
