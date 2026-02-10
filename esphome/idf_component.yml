@@ -32,7 +32,7 @@ dependencies:
     rules:
       - if: "target in [esp32s2, esp32s3, esp32p4]"
   esphome/esp-hub75:
-    version: 0.3.0
+    version: 0.3.2
     rules:
       - if: "target in [esp32, esp32s2, esp32s3, esp32c6, esp32p4]"
   esp32async/asynctcp:

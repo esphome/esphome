@@ -249,7 +249,7 @@ def merge_component_configs(
 
         if all_packages is None:
             # First component - initialize package dict
-            all_packages = comp_packages if comp_packages else {}
+            all_packages = comp_packages or {}
         elif comp_packages:
             # Merge packages - combine all unique package types
             # If both have the same package type, verify they're identical

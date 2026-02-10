@@ -69,7 +69,7 @@ class UARTComponent {
 
   // Pure virtual method to return the number of bytes available for reading.
   // @return Number of available bytes.
-  virtual int available() = 0;
+  virtual size_t available() = 0;
 
   // Pure virtual method to block until all bytes have been written to the UART bus.
   virtual void flush() = 0;

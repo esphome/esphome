@@ -150,27 +150,24 @@ void Nextion::dump_config() {
 #ifdef USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
   ESP_LOGCONFIG(TAG, "  Skip handshake: YES");
 #else  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
-  ESP_LOGCONFIG(TAG,
 #ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
+  ESP_LOGCONFIG(TAG,
                 "  Device Model: %s\n"
                 "  FW Version: %s\n"
                 "  Serial Number: %s\n"
                 "  Flash Size: %s\n"
                 "  Max queue age: %u ms\n"
                 "  Startup override: %u ms\n",
+                this->device_model_.c_str(), this->firmware_version_.c_str(), this->serial_number_.c_str(),
+                this->flash_size_.c_str(), this->max_q_age_ms_, this->startup_override_ms_);
 #endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
 #ifdef USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
-                "  Exit reparse: YES\n"
+  ESP_LOGCONFIG(TAG, "  Exit reparse: YES\n");
 #endif  // USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
+  ESP_LOGCONFIG(TAG,
                 "  Wake On Touch: %s\n"
                 "  Touch Timeout: %" PRIu16,
-#ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-                this->device_model_.c_str(), this->firmware_version_.c_str(), this->serial_number_.c_str(),
-                this->flash_size_.c_str(), this->max_q_age_ms_,
-                this->startup_override_ms_
-#endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-                    YESNO(this->connection_state_.auto_wake_on_touch_),
-                this->touch_sleep_timeout_);
+                YESNO(this->connection_state_.auto_wake_on_touch_), this->touch_sleep_timeout_);
 #endif  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
 
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
@@ -196,7 +193,6 @@ void Nextion::dump_config() {
 #endif
 }
 
-float Nextion::get_setup_priority() const { return setup_priority::DATA; }
 void Nextion::update() {
   if (!this->is_setup()) {
     return;
@@ -401,11 +397,17 @@ bool Nextion::remove_from_q_(bool report_empty) {
 }
 
 void Nextion::process_serial_() {
-  uint8_t d;
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[64];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
 
-  while (this->available()) {
-    read_byte(&d);
-    this->command_data_ += d;
+    this->command_data_.append(reinterpret_cast<const char *>(buf), to_read);
   }
 }
 // nextion.tech/instruction-set/

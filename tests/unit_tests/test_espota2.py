@@ -18,8 +18,8 @@ from esphome import espota2
 from esphome.core import EsphomeError
 
 # Test constants
-MOCK_RANDOM_VALUE = 0.123456
-MOCK_RANDOM_BYTES = b"0.123456"
+MOCK_MD5_CNONCE = "a" * 32  # Mock 32-char hex string from secrets.token_hex(16)
+MOCK_SHA256_CNONCE = "b" * 64  # Mock 64-char hex string from secrets.token_hex(32)
 MOCK_MD5_NONCE = b"12345678901234567890123456789012"  # 32 char nonce for MD5
 MOCK_SHA256_NONCE = b"1234567890123456789012345678901234567890123456789012345678901234"  # 64 char nonce for SHA256
 
@@ -55,10 +55,18 @@ def mock_time() -> Generator[None]:
 
 
 @pytest.fixture
-def mock_random() -> Generator[Mock]:
-    """Mock random for predictable test values."""
-    with patch("random.random", return_value=MOCK_RANDOM_VALUE) as mock_rand:
-        yield mock_rand
+def mock_token_hex() -> Generator[Mock]:
+    """Mock secrets.token_hex for predictable test values."""
+
+    def _token_hex(nbytes: int) -> str:
+        if nbytes == 16:
+            return MOCK_MD5_CNONCE
+        if nbytes == 32:
+            return MOCK_SHA256_CNONCE
+        raise ValueError(f"Unexpected nbytes for token_hex mock: {nbytes}")
+
+    with patch("esphome.espota2.secrets.token_hex", side_effect=_token_hex) as mock:
+        yield mock
 
 
 @pytest.fixture
@@ -236,7 +244,7 @@ def test_send_check_socket_error(mock_socket: Mock) -> None:
 
 @pytest.mark.usefixtures("mock_time")
 def test_perform_ota_successful_md5_auth(
-    mock_socket: Mock, mock_file: io.BytesIO, mock_random: Mock
+    mock_socket: Mock, mock_file: io.BytesIO, mock_token_hex: Mock
 ) -> None:
     """Test successful OTA with MD5 authentication."""
     # Setup socket responses for recv calls
@@ -272,8 +280,11 @@ def test_perform_ota_successful_md5_auth(
         )
     )
 
-    # Verify cnonce was sent (MD5 of random.random())
-    cnonce = hashlib.md5(MOCK_RANDOM_BYTES).hexdigest()
+    # Verify token_hex was called with MD5 digest size
+    mock_token_hex.assert_called_once_with(16)
+
+    # Verify cnonce was sent
+    cnonce = MOCK_MD5_CNONCE
     assert mock_socket.sendall.call_args_list[2] == call(cnonce.encode())
 
     # Verify auth result was computed correctly
@@ -366,7 +377,7 @@ def test_perform_ota_auth_without_password(mock_socket: Mock) -> None:
 
 @pytest.mark.usefixtures("mock_time")
 def test_perform_ota_md5_auth_wrong_password(
-    mock_socket: Mock, mock_file: io.BytesIO, mock_random: Mock
+    mock_socket: Mock, mock_file: io.BytesIO, mock_token_hex: Mock
 ) -> None:
     """Test OTA fails when MD5 authentication is rejected due to wrong password."""
     # Setup socket responses for recv calls
@@ -390,7 +401,7 @@ def test_perform_ota_md5_auth_wrong_password(
 
 @pytest.mark.usefixtures("mock_time")
 def test_perform_ota_sha256_auth_wrong_password(
-    mock_socket: Mock, mock_file: io.BytesIO, mock_random: Mock
+    mock_socket: Mock, mock_file: io.BytesIO, mock_token_hex: Mock
 ) -> None:
     """Test OTA fails when SHA256 authentication is rejected due to wrong password."""
     # Setup socket responses for recv calls
@@ -603,7 +614,7 @@ def test_progress_bar(capsys: CaptureFixture[str]) -> None:
 # Tests for SHA256 authentication
 @pytest.mark.usefixtures("mock_time")
 def test_perform_ota_successful_sha256_auth(
-    mock_socket: Mock, mock_file: io.BytesIO, mock_random: Mock
+    mock_socket: Mock, mock_file: io.BytesIO, mock_token_hex: Mock
 ) -> None:
     """Test successful OTA with SHA256 authentication."""
     # Setup socket responses for recv calls
@@ -639,8 +650,11 @@ def test_perform_ota_successful_sha256_auth(
         )
     )
 
-    # Verify cnonce was sent (SHA256 of random.random())
-    cnonce = hashlib.sha256(MOCK_RANDOM_BYTES).hexdigest()
+    # Verify token_hex was called with SHA256 digest size
+    mock_token_hex.assert_called_once_with(32)
+
+    # Verify cnonce was sent
+    cnonce = MOCK_SHA256_CNONCE
     assert mock_socket.sendall.call_args_list[2] == call(cnonce.encode())
 
     # Verify auth result was computed correctly with SHA256
@@ -654,7 +668,7 @@ def test_perform_ota_successful_sha256_auth(
 
 @pytest.mark.usefixtures("mock_time")
 def test_perform_ota_sha256_fallback_to_md5(
-    mock_socket: Mock, mock_file: io.BytesIO, mock_random: Mock
+    mock_socket: Mock, mock_file: io.BytesIO, mock_token_hex: Mock
 ) -> None:
     """Test SHA256-capable client falls back to MD5 for compatibility."""
     # This test verifies the temporary backward compatibility
@@ -692,7 +706,8 @@ def test_perform_ota_sha256_fallback_to_md5(
     )
 
     # But authentication was done with MD5
-    cnonce = hashlib.md5(MOCK_RANDOM_BYTES).hexdigest()
+    mock_token_hex.assert_called_once_with(16)
+    cnonce = MOCK_MD5_CNONCE
     expected_hash = hashlib.md5()
     expected_hash.update(b"testpass")
     expected_hash.update(MOCK_MD5_NONCE)

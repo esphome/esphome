@@ -39,6 +39,10 @@
 #include "esphome/components/esp32_improv/esp32_improv_component.h"
 #endif
 
+#ifdef USE_IMPROV_SERIAL
+#include "esphome/components/improv_serial/improv_serial_component.h"
+#endif
+
 namespace esphome::wifi {
 
 static const char *const TAG = "wifi";
@@ -232,25 +236,23 @@ static const char *const TAG = "wifi";
 /// │  - Roaming fail (RECONNECTING→IDLE): counter preserved (ping-pong)   │
 /// └──────────────────────────────────────────────────────────────────────┘
 
+// Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
-  switch (phase) {
-    case WiFiRetryPhase::INITIAL_CONNECT:
-      return LOG_STR("INITIAL_CONNECT");
+  if (phase == WiFiRetryPhase::INITIAL_CONNECT)
+    return LOG_STR("INITIAL_CONNECT");
 #ifdef USE_WIFI_FAST_CONNECT
-    case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
-      return LOG_STR("FAST_CONNECT_CYCLING");
+  if (phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS)
+    return LOG_STR("FAST_CONNECT_CYCLING");
 #endif
-    case WiFiRetryPhase::EXPLICIT_HIDDEN:
-      return LOG_STR("EXPLICIT_HIDDEN");
-    case WiFiRetryPhase::SCAN_CONNECTING:
-      return LOG_STR("SCAN_CONNECTING");
-    case WiFiRetryPhase::RETRY_HIDDEN:
-      return LOG_STR("RETRY_HIDDEN");
-    case WiFiRetryPhase::RESTARTING_ADAPTER:
-      return LOG_STR("RESTARTING");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  if (phase == WiFiRetryPhase::EXPLICIT_HIDDEN)
+    return LOG_STR("EXPLICIT_HIDDEN");
+  if (phase == WiFiRetryPhase::SCAN_CONNECTING)
+    return LOG_STR("SCAN_CONNECTING");
+  if (phase == WiFiRetryPhase::RETRY_HIDDEN)
+    return LOG_STR("RETRY_HIDDEN");
+  if (phase == WiFiRetryPhase::RESTARTING_ADAPTER)
+    return LOG_STR("RESTARTING");
+  return LOG_STR("UNKNOWN");
 }
 
 bool WiFiComponent::went_through_explicit_hidden_phase_() const {
@@ -363,6 +365,75 @@ bool WiFiComponent::ssid_was_seen_in_scan_(const std::string &ssid) const {
     }
   }
   return false;
+}
+
+bool WiFiComponent::needs_full_scan_results_() const {
+  // Components that require full scan results (for example, scan result listeners)
+  // are expected to call request_wifi_scan_results(), which sets keep_scan_results_.
+  if (this->keep_scan_results_) {
+    return true;
+  }
+
+#ifdef USE_CAPTIVE_PORTAL
+  // Captive portal needs full results when active (showing network list to user)
+  if (captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active()) {
+    return true;
+  }
+#endif
+
+#ifdef USE_IMPROV_SERIAL
+  // Improv serial needs results during provisioning (before connected)
+  if (improv_serial::global_improv_serial_component != nullptr && !this->is_connected()) {
+    return true;
+  }
+#endif
+
+#ifdef USE_IMPROV
+  // BLE improv also needs results during provisioning
+  if (esp32_improv::global_improv_component != nullptr && esp32_improv::global_improv_component->is_active()) {
+    return true;
+  }
+#endif
+
+  return false;
+}
+
+bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t *bssid) const {
+  // Hidden networks in scan results have empty SSIDs - skip them
+  if (ssid[0] == '\0') {
+    return false;
+  }
+  for (const auto &sta : this->sta_) {
+    // Skip hidden network configs (they don't appear in normal scans)
+    if (sta.get_hidden()) {
+      continue;
+    }
+    // For BSSID-only configs (empty SSID), match by BSSID
+    if (sta.get_ssid().empty()) {
+      if (sta.has_bssid() && std::memcmp(sta.get_bssid().data(), bssid, 6) == 0) {
+        return true;
+      }
+      continue;
+    }
+    // Match by SSID
+    if (sta.get_ssid() == ssid) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void WiFiComponent::log_discarded_scan_result_(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  // Skip logging during roaming scans to avoid log buffer overflow
+  // (roaming scans typically find many networks but only care about same-SSID APs)
+  if (this->roaming_state_ == RoamingState::SCANNING) {
+    return;
+  }
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  format_mac_addr_upper(bssid, bssid_s);
+  ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " %ddB Ch:%u", ssid, bssid_s, rssi, channel);
+#endif
 }
 
 int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
@@ -578,14 +649,21 @@ void WiFiComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
 
   if (this->has_sta()) {
+#if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
     if (this->is_connected() != this->handled_connected_state_) {
+#ifdef USE_WIFI_DISCONNECT_TRIGGER
       if (this->handled_connected_state_) {
-        this->disconnect_trigger_->trigger();
-      } else {
-        this->connect_trigger_->trigger();
+        this->disconnect_trigger_.trigger();
       }
+#endif
+#ifdef USE_WIFI_CONNECT_TRIGGER
+      if (!this->handled_connected_state_) {
+        this->connect_trigger_.trigger();
+      }
+#endif
       this->handled_connected_state_ = this->is_connected();
     }
+#endif  // USE_WIFI_CONNECT_TRIGGER || USE_WIFI_DISCONNECT_TRIGGER
 
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
@@ -656,8 +734,12 @@ void WiFiComponent::loop() {
         ESP_LOGI(TAG, "Starting fallback AP");
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
-        if (captive_portal::global_captive_portal != nullptr)
+        if (captive_portal::global_captive_portal != nullptr) {
+          // Reset so we force one full scan after captive portal starts
+          // (previous scans were filtered because captive portal wasn't active yet)
+          this->has_completed_scan_after_captive_portal_start_ = false;
           captive_portal::global_captive_portal->start();
+        }
 #endif
       }
     }
@@ -1195,7 +1277,7 @@ template<typename VectorType> static void insertion_sort_scan_results(VectorType
 // has overhead from UART transmission, so combining INFO+DEBUG into one line halves
 // the blocking time. Do NOT split this into separate ESP_LOGI/ESP_LOGD calls.
 __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res) {
-  char bssid_s[18];
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   auto bssid = res.get_bssid();
   format_mac_addr_upper(bssid.data(), bssid_s);
 
@@ -1211,18 +1293,6 @@ __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res)
 #endif
 }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-// Helper function to log non-matching scan results at verbose level
-__attribute__((noinline)) static void log_scan_result_non_matching(const WiFiScanResult &res) {
-  char bssid_s[18];
-  auto bssid = res.get_bssid();
-  format_mac_addr_upper(bssid.data(), bssid_s);
-
-  ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
-           LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-}
-#endif
-
 void WiFiComponent::check_scanning_finished() {
   if (!this->scan_done_) {
     if (millis() - this->action_started_ > WIFI_SCAN_TIMEOUT_MS) {
@@ -1232,6 +1302,8 @@ void WiFiComponent::check_scanning_finished() {
     return;
   }
   this->scan_done_ = false;
+  this->has_completed_scan_after_captive_portal_start_ =
+      true;  // Track that we've done a scan since captive portal started
   this->retry_hidden_mode_ = RetryHiddenMode::SCAN_BASED;
 
   if (this->scan_result_.empty()) {
@@ -1259,20 +1331,11 @@ void WiFiComponent::check_scanning_finished() {
   // Sort scan results using insertion sort for better memory efficiency
   insertion_sort_scan_results(this->scan_result_);
 
-  size_t non_matching_count = 0;
+  // Log matching networks (non-matching already logged at VERBOSE in scan callback)
   for (auto &res : this->scan_result_) {
     if (res.get_matches()) {
       log_scan_result(res);
-    } else {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      log_scan_result_non_matching(res);
-#else
-      non_matching_count++;
-#endif
     }
-  }
-  if (non_matching_count > 0) {
-    ESP_LOGD(TAG, "- %zu non-matching (VERBOSE to show)", non_matching_count);
   }
 
   // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_
@@ -1399,6 +1462,20 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 
     this->release_scan_results_();
 
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+    // Notify listeners now that state machine has reached STA_CONNECTED
+    // This ensures wifi.connected condition returns true in listener automations
+    this->notify_connect_state_listeners_();
+#endif
+
+#if defined(USE_ESP8266) && defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
+    // On ESP8266, GOT_IP event may not fire for static IP configurations,
+    // so notify IP state listeners here as a fallback.
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      this->notify_ip_state_listeners_();
+    }
+#endif
+
     return;
   }
 
@@ -1410,7 +1487,11 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
   }
 
   if (this->error_from_callback_) {
+    // ESP8266: logging done in callback, listeners deferred via pending_.disconnect
+    // Other platforms: just log generic failure message
+#ifndef USE_ESP8266
     ESP_LOGW(TAG, "Connecting to network failed (callback)");
+#endif
     this->retry_connect();
     return;
   }
@@ -1532,7 +1613,10 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       if (this->went_through_explicit_hidden_phase_()) {
         return WiFiRetryPhase::EXPLICIT_HIDDEN;
       }
-      // Skip scanning when captive portal/improv is active to avoid disrupting AP.
+      // Skip scanning when captive portal/improv is active to avoid disrupting AP,
+      // BUT only if we've already completed at least one scan AFTER the portal started.
+      // When captive portal first starts, scan results may be filtered/stale, so we need
+      // to do one full scan to populate available networks for the captive portal UI.
       //
       // WHY SCANNING DISRUPTS AP MODE:
       // WiFi scanning requires the radio to leave the AP's channel and hop through
@@ -1549,7 +1633,16 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       //
       // This allows users to configure WiFi via captive portal while the device keeps
       // attempting to connect to all configured networks in sequence.
-      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
+      // Captive portal needs scan results to show available networks.
+      // If captive portal is active, only skip scanning if we've done a scan after it started.
+      // If only improv is active (no captive portal), skip scanning since improv doesn't need results.
+      if (this->is_captive_portal_active_()) {
+        if (this->has_completed_scan_after_captive_portal_start_) {
+          return WiFiRetryPhase::RETRY_HIDDEN;
+        }
+        // Need to scan for captive portal
+      } else if (this->is_esp32_improv_active_()) {
+        // Improv doesn't need scan results
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
       return WiFiRetryPhase::SCAN_CONNECTING;
@@ -2096,7 +2189,7 @@ void WiFiComponent::clear_roaming_state_() {
 
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
-#ifdef USE_RP2040
+#if defined(USE_RP2040) || defined(USE_ESP32)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else
@@ -2105,6 +2198,44 @@ void WiFiComponent::release_scan_results_() {
 #endif
   }
 }
+
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+void WiFiComponent::notify_connect_state_listeners_() {
+  if (!this->pending_.connect_state)
+    return;
+  this->pending_.connect_state = false;
+  // Get current SSID and BSSID from the WiFi driver
+  char ssid_buf[SSID_BUFFER_SIZE];
+  const char *ssid = this->wifi_ssid_to(ssid_buf);
+  bssid_t bssid = this->wifi_bssid();
+  for (auto *listener : this->connect_state_listeners_) {
+    listener->on_wifi_connect_state(StringRef(ssid, strlen(ssid)), bssid);
+  }
+}
+
+void WiFiComponent::notify_disconnect_state_listeners_() {
+  constexpr uint8_t empty_bssid[6] = {};
+  for (auto *listener : this->connect_state_listeners_) {
+    listener->on_wifi_connect_state(StringRef(), empty_bssid);
+  }
+}
+#endif  // USE_WIFI_CONNECT_STATE_LISTENERS
+
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+void WiFiComponent::notify_ip_state_listeners_() {
+  for (auto *listener : this->ip_state_listeners_) {
+    listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+  }
+}
+#endif  // USE_WIFI_IP_STATE_LISTENERS
+
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
+void WiFiComponent::notify_scan_results_listeners_() {
+  for (auto *listener : this->scan_results_listeners_) {
+    listener->on_wifi_scan_results(this->scan_result_);
+  }
+}
+#endif  // USE_WIFI_SCAN_RESULTS_LISTENERS
 
 void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: not for hidden networks (may not appear in scan)
