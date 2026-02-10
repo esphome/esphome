@@ -1,8 +1,11 @@
+from pathlib import Path
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.helpers import copy_file_if_changed
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
@@ -49,5 +52,15 @@ async def to_code(config):
             CORE.add_platformio_option(
                 "lib_ignore", ["ESPAsyncTCP", "AsyncTCP", "AsyncTCP_RP2040W"]
             )
+            # ESPAsyncWebServer uses Hash library for sha1() on RP2040
+            cg.add_library("Hash", None)
+            # Fix Hash.h include conflict: Crypto-no-arduino (used by dsmr)
+            # provides a Hash.h that shadows the framework's Hash library.
+            # Prepend the framework Hash path so it's found first.
+            copy_file_if_changed(
+                Path(__file__).parent / "fix_rp2040_hash.py.script",
+                CORE.relative_build_path("fix_rp2040_hash.py"),
+            )
+            cg.add_platformio_option("extra_scripts", ["pre:fix_rp2040_hash.py"])
         # https://github.com/ESP32Async/ESPAsyncWebServer/blob/main/library.json
         cg.add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
