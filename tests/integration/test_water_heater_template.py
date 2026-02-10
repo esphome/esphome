@@ -111,6 +111,94 @@ async def test_water_heater_template(
             "Expected initial state to not include AWAY flag"
         )
 
+        # Test turning on away mode
+        away_on_future: asyncio.Future[WaterHeaterState] = loop.create_future()
+
+        def on_away_on(state: aioesphomeapi.EntityState) -> None:
+            if (
+                isinstance(state, WaterHeaterState)
+                and (state.state & WaterHeaterStateFlag.AWAY)
+                and not away_on_future.done()
+            ):
+                away_on_future.set_result(state)
+
+        client.subscribe_states(on_away_on)
+        client.water_heater_command(test_water_heater.key, away=True)
+
+        try:
+            away_on_state = await asyncio.wait_for(away_on_future, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("Away mode on not received within 5 seconds")
+
+        assert (away_on_state.state & WaterHeaterStateFlag.AWAY) != 0
+        # ON flag should still be set (is_on lambda returns true)
+        assert (away_on_state.state & WaterHeaterStateFlag.ON) != 0
+
+        # Test turning off away mode
+        away_off_future: asyncio.Future[WaterHeaterState] = loop.create_future()
+
+        def on_away_off(state: aioesphomeapi.EntityState) -> None:
+            if (
+                isinstance(state, WaterHeaterState)
+                and not (state.state & WaterHeaterStateFlag.AWAY)
+                and not away_off_future.done()
+            ):
+                away_off_future.set_result(state)
+
+        client.subscribe_states(on_away_off)
+        client.water_heater_command(test_water_heater.key, away=False)
+
+        try:
+            away_off_state = await asyncio.wait_for(away_off_future, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("Away mode off not received within 5 seconds")
+
+        assert (away_off_state.state & WaterHeaterStateFlag.AWAY) == 0
+        assert (away_off_state.state & WaterHeaterStateFlag.ON) != 0
+
+        # Test turning off (on=False)
+        off_future: asyncio.Future[WaterHeaterState] = loop.create_future()
+
+        def on_turn_off(state: aioesphomeapi.EntityState) -> None:
+            if (
+                isinstance(state, WaterHeaterState)
+                and not (state.state & WaterHeaterStateFlag.ON)
+                and not off_future.done()
+            ):
+                off_future.set_result(state)
+
+        client.subscribe_states(on_turn_off)
+        client.water_heater_command(test_water_heater.key, on=False)
+
+        try:
+            off_state = await asyncio.wait_for(off_future, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("Turn off not received within 5 seconds")
+
+        assert (off_state.state & WaterHeaterStateFlag.ON) == 0
+        assert (off_state.state & WaterHeaterStateFlag.AWAY) == 0
+
+        # Test turning back on (on=True)
+        on_future: asyncio.Future[WaterHeaterState] = loop.create_future()
+
+        def on_turn_on(state: aioesphomeapi.EntityState) -> None:
+            if (
+                isinstance(state, WaterHeaterState)
+                and (state.state & WaterHeaterStateFlag.ON)
+                and not on_future.done()
+            ):
+                on_future.set_result(state)
+
+        client.subscribe_states(on_turn_on)
+        client.water_heater_command(test_water_heater.key, on=True)
+
+        try:
+            on_state = await asyncio.wait_for(on_future, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("Turn on not received within 5 seconds")
+
+        assert (on_state.state & WaterHeaterStateFlag.ON) != 0
+
         # Test changing to GAS mode
         client.water_heater_command(test_water_heater.key, mode=WaterHeaterMode.GAS)
 
