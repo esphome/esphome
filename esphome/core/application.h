@@ -519,6 +519,10 @@ class Application {
   void before_loop_tasks_(uint32_t loop_start_time);
   void after_loop_tasks_();
 
+  /// Process dump_config output one component per loop iteration.
+  /// Extracted from loop() to keep cold startup/reconnect logging out of the hot path.
+  void __attribute__((noinline)) process_dump_config_();
+
   void feed_wdt_arch_();
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
