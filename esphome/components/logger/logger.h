@@ -2,6 +2,7 @@
 
 #include <cstdarg>
 #include <map>
+#include <span>
 #include <type_traits>
 #if defined(USE_ESP32) || defined(USE_HOST)
 #include <pthread.h>
@@ -123,6 +124,10 @@ static constexpr uint16_t MAX_HEADER_SIZE = 128;
 
 // "0x" + 2 hex digits per byte + '\0'
 static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
+
+// Stack buffer size for retrieving thread/task names from the OS
+// macOS allows up to 64 bytes, Linux up to 16
+static constexpr size_t THREAD_NAME_BUF_SIZE = 64;
 
 // Buffer wrapper for log formatting functions
 struct LogBuffer {
@@ -408,34 +413,24 @@ class Logger : public Component {
 
 #if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
   // Handles non-main thread logging only (~0.1% of calls)
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  // ESP32/LibreTiny: Pass task handle to avoid calling xTaskGetCurrentTaskHandle() twice
+  // thread_name is resolved by the caller from the task handle, avoiding redundant lookups
   void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
-                                    TaskHandle_t current_task);
-#else  // USE_HOST
-  // Host: No task handle parameter needed (not used in send_message_thread_safe)
-  void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args);
-#endif
+                                    const char *thread_name);
 #endif
   void process_messages_();
   void write_msg_(const char *msg, uint16_t len);
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
+  // thread_name: name of the calling thread/task, or nullptr for main task (callers already know which task they're on)
   inline void HOT format_log_to_buffer_with_terminator_(uint8_t level, const char *tag, int line, const char *format,
-                                                        va_list args, LogBuffer &buf) {
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_HOST)
-    buf.write_header(level, tag, line, this->get_thread_name_());
-#elif defined(USE_ZEPHYR)
-    char tmp[MAX_POINTER_REPRESENTATION];
-    buf.write_header(level, tag, line, this->get_thread_name_(tmp));
-#else
-    buf.write_header(level, tag, line, nullptr);
-#endif
+                                                        va_list args, LogBuffer &buf, const char *thread_name) {
+    buf.write_header(level, tag, line, thread_name);
     buf.format_body(format, args);
   }
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   // Format a log message with flash string format and write it to a buffer with header, footer, and null terminator
+  // ESP8266-only (single-task), thread_name is always nullptr
   inline void HOT format_log_to_buffer_with_terminator_P_(uint8_t level, const char *tag, int line,
                                                           const __FlashStringHelper *format, va_list args,
                                                           LogBuffer &buf) {
@@ -466,9 +461,10 @@ class Logger : public Component {
 
   // Helper to format and send a log message to both console and listeners
   // Template handles both const char* (RAM) and __FlashStringHelper* (flash) format strings
+  // thread_name: name of the calling thread/task, or nullptr for main task
   template<typename FormatType>
   inline void HOT log_message_to_buffer_and_send_(bool &recursion_guard, uint8_t level, const char *tag, int line,
-                                                  FormatType format, va_list args) {
+                                                  FormatType format, va_list args, const char *thread_name) {
     RecursionGuard guard(recursion_guard);
     LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
 #ifdef USE_STORE_LOG_STR_IN_FLASH
@@ -477,7 +473,7 @@ class Logger : public Component {
     } else
 #endif
     {
-      this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf);
+      this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf, thread_name);
     }
     this->notify_listeners_(level, tag, buf);
     this->write_log_buffer_to_console_(buf);
@@ -565,36 +561,56 @@ class Logger : public Component {
   bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
 #endif
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-  const char *HOT get_thread_name_(
-#ifdef USE_ZEPHYR
-      char *buff
+  // --- get_thread_name_ overloads (per-platform) ---
+
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // Primary overload - takes a task handle directly to avoid redundant xTaskGetCurrentTaskHandle() calls
+  // when the caller already has the handle (e.g. from the main task check in log_vprintf_)
+  const char *get_thread_name_(TaskHandle_t task) {
+    if (task == this->main_task_) {
+      return nullptr;  // Main task
+    }
+#if defined(USE_ESP32)
+    return pcTaskGetName(task);
+#elif defined(USE_LIBRETINY)
+    return pcTaskGetTaskName(task);
 #endif
-  ) {
-#ifdef USE_ZEPHYR
+  }
+
+  // Convenience overload - gets the current task handle and delegates
+  const char *HOT get_thread_name_() { return this->get_thread_name_(xTaskGetCurrentTaskHandle()); }
+
+#elif defined(USE_HOST)
+  // Takes a caller-provided buffer for the thread name (stack-allocated for thread safety)
+  const char *HOT get_thread_name_(std::span<char> buff) {
+    pthread_t current_thread = pthread_self();
+    if (pthread_equal(current_thread, main_thread_)) {
+      return nullptr;  // Main thread
+    }
+    // For non-main threads, get the thread name into the caller-provided buffer
+    if (pthread_getname_np(current_thread, buff.data(), buff.size()) == 0) {
+      return buff.data();
+    }
+    return nullptr;
+  }
+
+#elif defined(USE_ZEPHYR)
+  const char *HOT get_thread_name_(std::span<char> buff) {
     k_tid_t current_task = k_current_get();
-#else
-    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-#endif
     if (current_task == main_task_) {
       return nullptr;  // Main task
-    } else {
-#if defined(USE_ESP32)
-      return pcTaskGetName(current_task);
-#elif defined(USE_LIBRETINY)
-      return pcTaskGetTaskName(current_task);
-#elif defined(USE_ZEPHYR)
-      const char *name = k_thread_name_get(current_task);
-      if (name) {
-        // zephyr print task names only if debug component is present
-        return name;
-      }
-      std::snprintf(buff, MAX_POINTER_REPRESENTATION, "%p", current_task);
-      return buff;
-#endif
     }
+    const char *name = k_thread_name_get(current_task);
+    if (name) {
+      // zephyr print task names only if debug component is present
+      return name;
+    }
+    std::snprintf(buff.data(), buff.size(), "%p", current_task);
+    return buff.data();
   }
 #endif
+
+  // --- Non-main task recursion guards (per-platform) ---
 
 #if defined(USE_ESP32) || defined(USE_HOST)
   // RAII guard for non-main task recursion using pthread TLS
@@ -633,22 +649,6 @@ class Logger : public Component {
 
   // Create RAII guard for non-main task recursion (uses shared boolean for all non-main tasks)
   inline RecursionGuard make_non_main_task_guard_() { return RecursionGuard(non_main_task_recursion_guard_); }
-#endif
-
-#ifdef USE_HOST
-  const char *HOT get_thread_name_() {
-    pthread_t current_thread = pthread_self();
-    if (pthread_equal(current_thread, main_thread_)) {
-      return nullptr;  // Main thread
-    }
-    // For non-main threads, return the thread name
-    // We store it in thread-local storage to avoid allocation
-    static thread_local char thread_name_buf[32];
-    if (pthread_getname_np(current_thread, thread_name_buf, sizeof(thread_name_buf)) == 0) {
-      return thread_name_buf;
-    }
-    return nullptr;
-  }
 #endif
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
