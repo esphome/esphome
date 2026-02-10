@@ -18,7 +18,6 @@ static const size_t RMT_SYMBOLS_PER_BYTE = 8;
 
 // Target ~40MHz RMT resolution to keep rmt_symbol_word_t duration fields (15-bit, max 32767)
 // from overflowing on long reset times (e.g. WS2811 300µs = 12000 ticks at 40MHz vs 24000 at 80MHz).
-// 25ns tick resolution is well within LED protocol tolerances (~100ns).
 static uint32_t rmt_resolution_hz() { return esp_clk_apb_freq() / (esp_clk_apb_freq() > 40000000 ? 2 : 1); }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
