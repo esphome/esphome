@@ -5,8 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace pm100x {
+namespace esphome::pm100x {
 
 enum class PM100XModel {
   PM1003,
@@ -57,5 +56,4 @@ class PM100XComponent : public PollingComponent, public uart::UARTDevice {
   PM100XModel model_{PM100XModel::PM1003};
 };
 
-}  // namespace pm100x
-}  // namespace esphome
+}  // namespace esphome::pm100x

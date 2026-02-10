@@ -4,8 +4,7 @@
 
 #include <cmath>
 
-namespace esphome {
-namespace pm100x {
+namespace esphome::pm100x {
 
 static const char *const TAG = "pm100x";
 
@@ -263,5 +262,4 @@ void PM100XComponent::handle_pwm_state_(float duty_percent) {
   this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
 }
 
-}  // namespace pm100x
-}  // namespace esphome
+}  // namespace esphome::pm100x
