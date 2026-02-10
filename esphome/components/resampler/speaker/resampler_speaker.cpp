@@ -21,7 +21,7 @@ static const uint32_t TRANSFER_BUFFER_DURATION_MS = 50;
 
 static const uint32_t TASK_STACK_SIZE = 3072;
 
-static const uint32_t STOPPING_TIMEOUT_MS = 5000;
+static const uint32_t STATE_TRANSITION_TIMEOUT_MS = 5000;
 
 static const char *const TAG = "resampler_speaker";
 
@@ -158,7 +158,7 @@ void ResamplerSpeaker::loop() {
           this->callback_remainder_ = 0;  // reset callback remainder
           this->status_clear_error();
           this->waiting_for_output_ = true;
-          this->state_start_ms_ = millis();
+          this->state_start_ms_ = App.get_loop_component_start_time();
         } else {
           switch (err) {
             case ESP_ERR_INVALID_STATE:
@@ -179,7 +179,7 @@ void ResamplerSpeaker::loop() {
         if (this->output_speaker_->is_running()) {
           this->state_ = speaker::STATE_RUNNING;
           this->waiting_for_output_ = false;
-        } else if ((millis() - this->state_start_ms_) > STOPPING_TIMEOUT_MS) {
+        } else if ((App.get_loop_component_start_time() - this->state_start_ms_) > STATE_TRANSITION_TIMEOUT_MS) {
           // Timed out waiting for the output speaker to start
           this->waiting_for_output_ = false;
           this->enter_stopping_state_();
@@ -193,7 +193,8 @@ void ResamplerSpeaker::loop() {
       }
       break;
     case speaker::STATE_STOPPING: {
-      if ((this->output_speaker_->get_pause_state()) || ((millis() - this->state_start_ms_) > STOPPING_TIMEOUT_MS)) {
+      if ((this->output_speaker_->get_pause_state()) ||
+          ((App.get_loop_component_start_time() - this->state_start_ms_) > STATE_TRANSITION_TIMEOUT_MS)) {
         // If output speaker is paused or stopping timeout exceeded, force stop
         this->output_speaker_->stop();
       }
@@ -298,7 +299,7 @@ void ResamplerSpeaker::stop() { this->send_command_(ResamplingEventGroupBits::CO
 
 void ResamplerSpeaker::enter_stopping_state_() {
   this->state_ = speaker::STATE_STOPPING;
-  this->state_start_ms_ = millis();
+  this->state_start_ms_ = App.get_loop_component_start_time();
   if (this->task_handle_ != nullptr) {
     xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::TASK_COMMAND_STOP);
   }
