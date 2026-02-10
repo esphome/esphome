@@ -86,7 +86,8 @@ class TaskLogBufferHost {
 
   // Thread-safe - send a message to the buffer from any thread
   // Returns true if message was queued, false if buffer is full
-  bool send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *format, va_list args);
+  bool send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
+                                const char *format, va_list args);
 
   // Check if there are messages ready to be processed
   inline bool HOT has_messages() const {

@@ -1,5 +1,6 @@
 #include "mqtt_number.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -11,6 +12,9 @@ namespace esphome::mqtt {
 static const char *const TAG = "mqtt.number";
 
 using namespace esphome::number;
+
+// Number mode MQTT strings indexed by NumberMode enum: AUTO(0) is skipped, BOX(1), SLIDER(2)
+PROGMEM_STRING_TABLE(NumberMqttModeStrings, "", "box", "slider");
 
 MQTTNumberComponent::MQTTNumberComponent(Number *number) : number_(number) {}
 
@@ -48,15 +52,10 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   if (!unit_of_measurement.empty()) {
     root[MQTT_UNIT_OF_MEASUREMENT] = unit_of_measurement;
   }
-  switch (this->number_->traits.get_mode()) {
-    case NUMBER_MODE_AUTO:
-      break;
-    case NUMBER_MODE_BOX:
-      root[MQTT_MODE] = "box";
-      break;
-    case NUMBER_MODE_SLIDER:
-      root[MQTT_MODE] = "slider";
-      break;
+  const auto mode = this->number_->traits.get_mode();
+  if (mode != NUMBER_MODE_AUTO) {
+    root[MQTT_MODE] =
+        NumberMqttModeStrings::get_progmem_str(static_cast<uint8_t>(mode), static_cast<uint8_t>(NUMBER_MODE_BOX));
   }
   const auto device_class = this->number_->traits.get_device_class_ref();
   if (!device_class.empty()) {

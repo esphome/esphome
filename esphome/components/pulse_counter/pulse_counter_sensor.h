@@ -6,6 +6,10 @@
 
 #include <cinttypes>
 
+// TODO: Migrate from legacy PCNT API (driver/pcnt.h) to new PCNT API (driver/pulse_cnt.h)
+// The legacy PCNT API is deprecated in ESP-IDF 5.x. Migration would allow removing the
+// "driver" IDF component dependency. See:
+// https://docs.espressif.com/projects/esp-idf/en/latest/esp32/migration-guides/release-5.x/5.0/peripherals.html#id6
 #if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
 #include <driver/pcnt.h>
 #define HAS_PCNT

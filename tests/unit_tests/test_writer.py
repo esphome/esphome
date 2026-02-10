@@ -466,8 +466,8 @@ def test_clean_build(
     ) as mock_get_instance:
         mock_config = MagicMock()
         mock_get_instance.return_value = mock_config
-        mock_config.get.side_effect = (
-            lambda section, option: str(platformio_cache_dir)
+        mock_config.get.side_effect = lambda section, option: (
+            str(platformio_cache_dir)
             if (section, option) == ("platformio", "cache_dir")
             else ""
         )
@@ -630,8 +630,8 @@ def test_clean_build_empty_cache_dir(
     ) as mock_get_instance:
         mock_config = MagicMock()
         mock_get_instance.return_value = mock_config
-        mock_config.get.side_effect = (
-            lambda section, option: "   "  # Whitespace only
+        mock_config.get.side_effect = lambda section, option: (
+            "   "  # Whitespace only
             if (section, option) == ("platformio", "cache_dir")
             else ""
         )
@@ -1574,8 +1574,8 @@ def test_copy_src_tree_writes_build_info_files(
     mock_component.resources = mock_resources
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = "Test comment"
@@ -1649,8 +1649,8 @@ def test_copy_src_tree_detects_config_hash_change(
     build_info_h_path.write_text("// old build_info_data.h")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF  # Different from existing
     mock_core.comment = ""
@@ -1711,8 +1711,8 @@ def test_copy_src_tree_detects_version_change(
     build_info_h_path.write_text("// old build_info_data.h")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""
@@ -1761,8 +1761,8 @@ def test_copy_src_tree_handles_invalid_build_info_json(
     build_info_h_path.write_text("// old build_info_data.h")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""
@@ -1835,8 +1835,8 @@ def test_copy_src_tree_build_info_timestamp_behavior(
     mock_component.resources = mock_resources
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""
@@ -1930,8 +1930,8 @@ def test_copy_src_tree_detects_removed_source_file(
     existing_file.write_text("// test file")
 
     # Setup mocks - no components, so the file should be removed
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""
@@ -1992,8 +1992,8 @@ def test_copy_src_tree_ignores_removed_generated_file(
     build_info_h.write_text("// old generated file")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""
