@@ -6,14 +6,13 @@
 
 #include <cinttypes>
 
-// TODO: Migrate from legacy PCNT API (driver/pcnt.h) to new PCNT API (driver/pulse_cnt.h)
-// The legacy PCNT API is deprecated in ESP-IDF 5.x. Migration would allow removing the
-// "driver" IDF component dependency. See:
-// https://docs.espressif.com/projects/esp-idf/en/latest/esp32/migration-guides/release-5.x/5.0/peripherals.html#id6
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
-#include <driver/pcnt.h>
+#if defined(USE_ESP32)
+#include <soc/soc_caps.h>
+#ifdef SOC_PCNT_SUPPORTED
+#include <driver/pulse_cnt.h>
 #define HAS_PCNT
-#endif  // defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#endif  // SOC_PCNT_SUPPORTED
+#endif  // USE_ESP32
 
 namespace esphome {
 namespace pulse_counter {
@@ -24,11 +23,7 @@ enum PulseCounterCountMode {
   PULSE_COUNTER_DECREMENT,
 };
 
-#ifdef HAS_PCNT
-using pulse_counter_t = int16_t;
-#else   // HAS_PCNT
 using pulse_counter_t = int32_t;
-#endif  // HAS_PCNT
 
 struct PulseCounterStorageBase {
   virtual bool pulse_counter_setup(InternalGPIOPin *pin) = 0;
@@ -58,8 +53,8 @@ struct HwPulseCounterStorage : public PulseCounterStorageBase {
   bool pulse_counter_setup(InternalGPIOPin *pin) override;
   pulse_counter_t read_raw_value() override;
 
-  pcnt_unit_t pcnt_unit;
-  pcnt_channel_t pcnt_channel;
+  pcnt_unit_handle_t pcnt_unit{nullptr};
+  pcnt_channel_handle_t pcnt_channel{nullptr};
 };
 #endif  // HAS_PCNT
 
