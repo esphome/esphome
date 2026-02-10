@@ -117,37 +117,7 @@ void APIServer::setup() {
 void APIServer::loop() {
   // Accept new clients only if the socket exists and has incoming connections
   if (this->socket_ && this->socket_->ready()) {
-    while (true) {
-      struct sockaddr_storage source_addr;
-      socklen_t addr_len = sizeof(source_addr);
-
-      auto sock = this->socket_->accept_loop_monitored((struct sockaddr *) &source_addr, &addr_len);
-      if (!sock)
-        break;
-
-      char peername[socket::SOCKADDR_STR_LEN];
-      sock->getpeername_to(peername);
-
-      // Check if we're at the connection limit
-      if (this->clients_.size() >= this->max_connections_) {
-        ESP_LOGW(TAG, "Max connections (%d), rejecting %s", this->max_connections_, peername);
-        // Immediately close - socket destructor will handle cleanup
-        sock.reset();
-        continue;
-      }
-
-      ESP_LOGD(TAG, "Accept %s", peername);
-
-      auto *conn = new APIConnection(std::move(sock), this);
-      this->clients_.emplace_back(conn);
-      conn->start();
-
-      // First client connected - clear warning and update timestamp
-      if (this->clients_.size() == 1 && this->reboot_timeout_ != 0) {
-        this->status_clear_warning();
-        this->last_connected_ = App.get_loop_component_start_time();
-      }
-    }
+    this->accept_new_connections_();
   }
 
   if (this->clients_.empty()) {
@@ -218,6 +188,40 @@ void APIServer::loop() {
     this->client_disconnected_trigger_.trigger(client_name, client_peername);
 #endif
     // Don't increment client_index since we need to process the swapped element
+  }
+}
+
+void APIServer::accept_new_connections_() {
+  while (true) {
+    struct sockaddr_storage source_addr;
+    socklen_t addr_len = sizeof(source_addr);
+
+    auto sock = this->socket_->accept_loop_monitored((struct sockaddr *) &source_addr, &addr_len);
+    if (!sock)
+      break;
+
+    char peername[socket::SOCKADDR_STR_LEN];
+    sock->getpeername_to(peername);
+
+    // Check if we're at the connection limit
+    if (this->clients_.size() >= this->max_connections_) {
+      ESP_LOGW(TAG, "Max connections (%d), rejecting %s", this->max_connections_, peername);
+      // Immediately close - socket destructor will handle cleanup
+      sock.reset();
+      continue;
+    }
+
+    ESP_LOGD(TAG, "Accept %s", peername);
+
+    auto *conn = new APIConnection(std::move(sock), this);
+    this->clients_.emplace_back(conn);
+    conn->start();
+
+    // First client connected - clear warning and update timestamp
+    if (this->clients_.size() == 1 && this->reboot_timeout_ != 0) {
+      this->status_clear_warning();
+      this->last_connected_ = App.get_loop_component_start_time();
+    }
   }
 }
 
