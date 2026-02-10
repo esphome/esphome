@@ -26,8 +26,10 @@ class Commands {
   }
 
   static std::string update_temp_10(const std::string &name, float temp) {
-    int val = (int) (temp * 10.0);
-    return "net-" + name + "-" + std::to_string(val);
+    uint16_t value = (uint16_t) (temp * 10.0);
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%" PRIu16, value);
+    return "net-" + name + "-" + std::string(buf);
   }
 
   static std::string update_heater_el(const std::string &name, const std::string &el) {
@@ -41,9 +43,9 @@ class Commands {
     }
     return "net-" + name + "-" + value;
   }
-  static std::string update_int(const std::string &name, uint32_t value) {
-    char buf[11];
-    snprintf(buf, sizeof(buf), "%" PRIu32, value);
+  static std::string update_int(const std::string &name, uint16_t value) {
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%" PRIu16, value);
     return "cmd-set:" + name + "=" + std::string(buf);
   }
 };
