@@ -340,8 +340,11 @@ void ResamplerSpeaker::finish() { this->send_command_(ResamplingEventGroupBits::
 
 bool ResamplerSpeaker::has_buffered_data() const {
   bool has_ring_buffer_data = false;
-  if (this->requires_resampling_() && (this->ring_buffer_.use_count() > 0)) {
-    has_ring_buffer_data = (this->ring_buffer_.lock()->available() > 0);
+  if (this->requires_resampling_()) {
+    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    if (temp_ring_buffer.use_count() > 0) {
+      has_ring_buffer_data = (temp_ring_buffer->available() > 0);
+    }
   }
   return (has_ring_buffer_data || this->output_speaker_->has_buffered_data());
 }
