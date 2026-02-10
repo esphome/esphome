@@ -25,15 +25,9 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
-CODEOWNERS = ["@tuct", "@habbie"]
-AUTO_LOAD = ["duty_cycle", "uart"]
+from . import PM100XComponent, pm100x_ns
 
 CONF_PWM = "pwm"
-
-pm100x_ns = cg.esphome_ns.namespace("pm100x")
-PM100XComponent = pm100x_ns.class_(
-    "PM100XComponent", uart.UARTDevice, cg.PollingComponent
-)
 
 PM100XModel = pm100x_ns.enum("PM100XModel", True)
 MODEL_OPTIONS = {
