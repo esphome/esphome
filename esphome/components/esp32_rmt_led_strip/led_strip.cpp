@@ -7,7 +7,7 @@
 #include "esphome/core/log.h"
 
 #include <esp_attr.h>
-#include <esp_private/esp_clk.h>
+#include <esp_clk_tree.h>
 
 namespace esphome {
 namespace esp32_rmt_led_strip {
@@ -16,9 +16,14 @@ static const char *const TAG = "esp32_rmt_led_strip";
 
 static const size_t RMT_SYMBOLS_PER_BYTE = 8;
 
-// Target ~40MHz RMT resolution to keep rmt_symbol_word_t duration fields (15-bit, max 32767)
-// from overflowing on long reset times (e.g. WS2811 300µs = 12000 ticks at 40MHz vs 24000 at 80MHz).
-static uint32_t rmt_resolution_hz() { return esp_clk_apb_freq() / (esp_clk_apb_freq() > 40000000 ? 2 : 1); }
+// Use full APB clock as RMT resolution (~80MHz on most variants, 32MHz on H2).
+// Worst-case reset time is WS2811 at 300µs = 24000 ticks at 80MHz, well within
+// the 15-bit rmt_symbol_word_t duration field max of 32767.
+static uint32_t rmt_resolution_hz() {
+  uint32_t apb_freq;
+  esp_clk_tree_src_get_freq_hz(SOC_MOD_CLK_APB, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &apb_freq);
+  return apb_freq;
+}
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
 static size_t IRAM_ATTR HOT encoder_callback(const void *data, size_t size, size_t symbols_written, size_t symbols_free,

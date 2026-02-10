@@ -3,7 +3,7 @@
 
 #ifdef USE_ESP32
 #include <driver/gpio.h>
-#include <esp_private/esp_clk.h>
+#include <esp_clk_tree.h>
 
 namespace esphome::remote_receiver {
 
@@ -94,7 +94,9 @@ void RemoteReceiverComponent::setup() {
   }
 
   uint32_t event_size = sizeof(rmt_rx_done_event_data_t);
-  uint32_t max_filter_ns = UINT8_MAX * 1000u / (esp_clk_apb_freq() / 1000000);
+  uint32_t apb_freq;
+  esp_clk_tree_src_get_freq_hz(SOC_MOD_CLK_APB, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &apb_freq);
+  uint32_t max_filter_ns = UINT8_MAX * 1000u / (apb_freq / 1000000);
   memset(&this->store_.config, 0, sizeof(this->store_.config));
   this->store_.config.signal_range_min_ns = std::min(this->filter_us_ * 1000, max_filter_ns);
   this->store_.config.signal_range_max_ns = this->idle_us_ * 1000;
