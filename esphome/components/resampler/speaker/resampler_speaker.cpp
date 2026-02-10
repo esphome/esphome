@@ -84,6 +84,7 @@ void ResamplerSpeaker::loop() {
       xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_STOP |
                                                    ResamplingEventGroupBits::COMMAND_START |
                                                    ResamplingEventGroupBits::COMMAND_FINISH);
+      this->waiting_for_output_ = false;
       this->enter_stopping_state_();
     } else if (this->state_ == speaker::STATE_STOPPED) {
       // Already stopped, just clear the command bits
