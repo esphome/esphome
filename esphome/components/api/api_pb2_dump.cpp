@@ -385,6 +385,10 @@ const char *proto_enum_to_string<enums::WaterHeaterCommandHasField>(enums::Water
       return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW";
     case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH:
       return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH";
+    case enums::WATER_HEATER_COMMAND_HAS_ON_STATE:
+      return "WATER_HEATER_COMMAND_HAS_ON_STATE";
+    case enums::WATER_HEATER_COMMAND_HAS_AWAY_STATE:
+      return "WATER_HEATER_COMMAND_HAS_AWAY_STATE";
     default:
       return "UNKNOWN";
   }
