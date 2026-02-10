@@ -1921,10 +1921,6 @@ bool APIConnection::schedule_batch_() {
 }
 
 void APIConnection::process_batch_() {
-  // Ensure MessageInfo remains trivially destructible for our placement new approach
-  static_assert(std::is_trivially_destructible<MessageInfo>::value,
-                "MessageInfo must remain trivially destructible with this placement-new approach");
-
   if (this->deferred_batch_.empty()) {
     this->flags_.batch_scheduled = false;
     return;
@@ -1972,7 +1968,20 @@ void APIConnection::process_batch_() {
     return;
   }
 
-  size_t messages_to_process = std::min(num_items, MAX_MESSAGES_PER_BATCH);
+  // Multi-message path — heavy stack frame isolated in separate noinline function
+  this->process_batch_multi_(shared_buf, num_items, header_padding, footer_size);
+}
+
+// Separated from process_batch_() so the single-message fast path gets a minimal
+// stack frame without the MAX_MESSAGES_PER_BATCH * sizeof(MessageInfo) array.
+void APIConnection::process_batch_multi_(std::vector<uint8_t> &shared_buf, size_t num_items, uint8_t header_padding,
+                                         uint8_t footer_size) {
+  // Ensure MessageInfo remains trivially destructible for our placement new approach
+  static_assert(std::is_trivially_destructible<MessageInfo>::value,
+                "MessageInfo must remain trivially destructible with this placement-new approach");
+
+  const size_t messages_to_process = std::min(num_items, MAX_MESSAGES_PER_BATCH);
+  const uint8_t frame_overhead = header_padding + footer_size;
 
   // Stack-allocated array for message info
   alignas(MessageInfo) char message_info_storage[MAX_MESSAGES_PER_BATCH * sizeof(MessageInfo)];
@@ -1999,7 +2008,7 @@ void APIConnection::process_batch_() {
 
     // Message was encoded successfully
     // payload_size is header_padding + actual payload size + footer_size
-    uint16_t proto_payload_size = payload_size - header_padding - footer_size;
+    uint16_t proto_payload_size = payload_size - frame_overhead;
     // Use placement new to construct MessageInfo in pre-allocated stack array
     // This avoids default-constructing all MAX_MESSAGES_PER_BATCH elements
     // Explicit destruction is not needed because MessageInfo is trivially destructible,
