@@ -112,8 +112,12 @@ class ProtoVarInt {
     uint64_t result = buffer[0] & 0x7F;
     uint8_t bitpos = 7;
 
+    // A 64-bit varint is at most 10 bytes (ceil(64/7)). Reject overlong encodings
+    // to avoid undefined behavior from shifting uint64_t by >= 64 bits.
+    uint32_t max_len = std::min(len, uint32_t(10));
+
     // Start from the second byte since we've already processed the first
-    for (uint32_t i = 1; i < len; i++) {
+    for (uint32_t i = 1; i < max_len; i++) {
       uint8_t val = buffer[i];
       result |= uint64_t(val & 0x7F) << uint64_t(bitpos);
       bitpos += 7;

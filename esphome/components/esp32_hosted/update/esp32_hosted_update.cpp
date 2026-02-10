@@ -27,6 +27,11 @@ static const char *const TAG = "esp32_hosted.update";
 // Older coprocessor firmware versions have a 1500-byte limit per RPC call
 constexpr size_t CHUNK_SIZE = 1500;
 
+#ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+// Interval/timeout IDs (uint32_t to avoid string comparison)
+constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
+#endif
+
 // Compile-time version string from esp_hosted_host_fw_ver.h macros
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
@@ -127,15 +132,18 @@ void Esp32HostedUpdate::setup() {
   this->status_clear_error();
   this->publish_state();
 #else
-  // HTTP mode: retry initial check every 10s until network is ready (max 6 attempts)
+  // HTTP mode: check every 10s until network is ready (max 6 attempts)
   // Only if update interval is > 1 minute to avoid redundant checks
   if (this->get_update_interval() > 60000) {
-    this->set_retry("initial_check", 10000, 6, [this](uint8_t) {
-      if (!network::is_connected()) {
-        return RetryResult::RETRY;
+    this->initial_check_remaining_ = 6;
+    this->set_interval(INITIAL_CHECK_INTERVAL_ID, 10000, [this]() {
+      bool connected = network::is_connected();
+      if (--this->initial_check_remaining_ == 0 || connected) {
+        this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
+        if (connected) {
+          this->check();
+        }
       }
-      this->check();
-      return RetryResult::DONE;
     });
   }
 #endif

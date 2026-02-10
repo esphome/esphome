@@ -430,12 +430,14 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
   }
 
   if (this->api_client_ != nullptr) {
+    char current_peername[socket::SOCKADDR_STR_LEN];
+    char new_peername[socket::SOCKADDR_STR_LEN];
     ESP_LOGE(TAG,
              "Multiple API Clients attempting to connect to Voice Assistant\n"
              "Current client: %s (%s)\n"
              "New client: %s (%s)",
-             this->api_client_->get_name(), this->api_client_->get_peername(), client->get_name(),
-             client->get_peername());
+             this->api_client_->get_name(), this->api_client_->get_peername_to(current_peername), client->get_name(),
+             client->get_peername_to(new_peername));
     return;
   }
 
@@ -859,35 +861,43 @@ void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
 }
 
 void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse &msg) {
-  Timer timer = {
-      .id = msg.timer_id,
-      .name = msg.name,
-      .total_seconds = msg.total_seconds,
-      .seconds_left = msg.seconds_left,
-      .is_active = msg.is_active,
-  };
-  this->timers_[timer.id] = timer;
+  // Find existing timer or add a new one
+  auto it = this->timers_.begin();
+  for (; it != this->timers_.end(); ++it) {
+    if (it->id == msg.timer_id)
+      break;
+  }
+  if (it == this->timers_.end()) {
+    this->timers_.push_back({});
+    it = this->timers_.end() - 1;
+  }
+  it->id = msg.timer_id;
+  it->name = msg.name;
+  it->total_seconds = msg.total_seconds;
+  it->seconds_left = msg.seconds_left;
+  it->is_active = msg.is_active;
+
   char timer_buf[Timer::TO_STR_BUFFER_SIZE];
   ESP_LOGD(TAG,
            "Timer Event\n"
            "  Type: %" PRId32 "\n"
            "  %s",
-           msg.event_type, timer.to_str(timer_buf));
+           msg.event_type, it->to_str(timer_buf));
 
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_TIMER_STARTED:
-      this->timer_started_trigger_.trigger(timer);
+      this->timer_started_trigger_.trigger(*it);
       break;
     case api::enums::VOICE_ASSISTANT_TIMER_UPDATED:
-      this->timer_updated_trigger_.trigger(timer);
+      this->timer_updated_trigger_.trigger(*it);
       break;
     case api::enums::VOICE_ASSISTANT_TIMER_CANCELLED:
-      this->timer_cancelled_trigger_.trigger(timer);
-      this->timers_.erase(timer.id);
+      this->timer_cancelled_trigger_.trigger(*it);
+      this->timers_.erase(it);
       break;
     case api::enums::VOICE_ASSISTANT_TIMER_FINISHED:
-      this->timer_finished_trigger_.trigger(timer);
-      this->timers_.erase(timer.id);
+      this->timer_finished_trigger_.trigger(*it);
+      this->timers_.erase(it);
       break;
   }
 
@@ -901,16 +911,12 @@ void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse 
 }
 
 void VoiceAssistant::timer_tick_() {
-  std::vector<Timer> res;
-  res.reserve(this->timers_.size());
-  for (auto &pair : this->timers_) {
-    auto &timer = pair.second;
+  for (auto &timer : this->timers_) {
     if (timer.is_active && timer.seconds_left > 0) {
       timer.seconds_left--;
     }
-    res.push_back(timer);
   }
-  this->timer_tick_trigger_.trigger(res);
+  this->timer_tick_trigger_.trigger(this->timers_);
 }
 
 void VoiceAssistant::on_announce(const api::VoiceAssistantAnnounceRequest &msg) {

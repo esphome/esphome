@@ -1,4 +1,5 @@
 #include "rd03d.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
 
@@ -80,37 +81,47 @@ void RD03DComponent::dump_config() {
 }
 
 void RD03DComponent::loop() {
-  while (this->available()) {
-    uint8_t byte = this->read();
-    ESP_LOGVV(TAG, "Received byte: 0x%02X, buffer_pos: %d", byte, this->buffer_pos_);
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[64];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+    for (size_t i = 0; i < to_read; i++) {
+      uint8_t byte = buf[i];
+      ESP_LOGVV(TAG, "Received byte: 0x%02X, buffer_pos: %d", byte, this->buffer_pos_);
 
-    // Check if we're looking for frame header
-    if (this->buffer_pos_ < FRAME_HEADER_SIZE) {
-      if (byte == FRAME_HEADER[this->buffer_pos_]) {
-        this->buffer_[this->buffer_pos_++] = byte;
-      } else if (byte == FRAME_HEADER[0]) {
-        // Start over if we see a potential new header
-        this->buffer_[0] = byte;
-        this->buffer_pos_ = 1;
-      } else {
+      // Check if we're looking for frame header
+      if (this->buffer_pos_ < FRAME_HEADER_SIZE) {
+        if (byte == FRAME_HEADER[this->buffer_pos_]) {
+          this->buffer_[this->buffer_pos_++] = byte;
+        } else if (byte == FRAME_HEADER[0]) {
+          // Start over if we see a potential new header
+          this->buffer_[0] = byte;
+          this->buffer_pos_ = 1;
+        } else {
+          this->buffer_pos_ = 0;
+        }
+        continue;
+      }
+
+      // Accumulate data bytes
+      this->buffer_[this->buffer_pos_++] = byte;
+
+      // Check if we have a complete frame
+      if (this->buffer_pos_ == FRAME_SIZE) {
+        // Validate footer
+        if (this->buffer_[FRAME_SIZE - 2] == FRAME_FOOTER[0] && this->buffer_[FRAME_SIZE - 1] == FRAME_FOOTER[1]) {
+          this->process_frame_();
+        } else {
+          ESP_LOGW(TAG, "Invalid frame footer: 0x%02X 0x%02X (expected 0x55 0xCC)", this->buffer_[FRAME_SIZE - 2],
+                   this->buffer_[FRAME_SIZE - 1]);
+        }
         this->buffer_pos_ = 0;
       }
-      continue;
-    }
-
-    // Accumulate data bytes
-    this->buffer_[this->buffer_pos_++] = byte;
-
-    // Check if we have a complete frame
-    if (this->buffer_pos_ == FRAME_SIZE) {
-      // Validate footer
-      if (this->buffer_[FRAME_SIZE - 2] == FRAME_FOOTER[0] && this->buffer_[FRAME_SIZE - 1] == FRAME_FOOTER[1]) {
-        this->process_frame_();
-      } else {
-        ESP_LOGW(TAG, "Invalid frame footer: 0x%02X 0x%02X (expected 0x55 0xCC)", this->buffer_[FRAME_SIZE - 2],
-                 this->buffer_[FRAME_SIZE - 1]);
-      }
-      this->buffer_pos_ = 0;
     }
   }
 }
