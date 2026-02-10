@@ -5,8 +5,7 @@
 #include <string>
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace web_server_idf {
+namespace esphome::web_server_idf {
 
 /// Decode URL-encoded string in-place (e.g., %20 -> space, + -> space)
 /// Returns the new length of the decoded string
@@ -29,6 +28,5 @@ bool str_ncmp_ci(const char *s1, const char *s2, size_t n);
 // Case-insensitive string search (like strstr but case-insensitive)
 const char *stristr(const char *haystack, const char *needle);
 
-}  // namespace web_server_idf
-}  // namespace esphome
+}  // namespace esphome::web_server_idf
 #endif  // USE_ESP32
