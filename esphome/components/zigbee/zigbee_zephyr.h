@@ -76,7 +76,6 @@ class ZigbeeComponent : public Component {
   }
   void add_join_callback(std::function<void()> &&cb) { this->join_cb_.add(std::move(cb)); }
   void zboss_signal_handler_esphome(zb_bufid_t bufid);
-  void before_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req, zb_zcl_attr_addr_info_t *attr_addr_info);
   void after_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req, zb_zcl_attr_addr_info_t *attr_addr_info);
   void factory_reset();
   Trigger<> *get_join_trigger() { return &this->join_trigger_; };

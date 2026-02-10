@@ -269,15 +269,6 @@ void ZigbeeComponent::dump_reporting_() {
 #endif
 }
 
-void ZigbeeComponent::before_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req,
-                                            zb_zcl_attr_addr_info_t *attr_addr_info) {
-  if (config_rep_req->direction == ZB_ZCL_CONFIGURE_REPORTING_SEND_REPORT) {
-    // force reporting on zha
-    // later on it can be set from configuration
-    config_rep_req->u.clnt.min_interval = 0;
-  }
-}
-
 void ZigbeeComponent::after_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req,
                                            zb_zcl_attr_addr_info_t *attr_addr_info) {
 #ifdef ESPHOME_LOG_HAS_DEBUG
@@ -312,7 +303,6 @@ extern zb_ret_t __real_zb_zcl_put_reporting_info_from_req(zb_zcl_configure_repor
 
 zb_ret_t __wrap_zb_zcl_put_reporting_info_from_req(zb_zcl_configure_reporting_req_t *config_rep_req,
                                                    zb_zcl_attr_addr_info_t *attr_addr_info) {
-  esphome::zigbee::global_zigbee->before_reporting_info(config_rep_req, attr_addr_info);
   zb_ret_t ret = __real_zb_zcl_put_reporting_info_from_req(config_rep_req, attr_addr_info);
   esphome::zigbee::global_zigbee->after_reporting_info(config_rep_req, attr_addr_info);
   return ret;
