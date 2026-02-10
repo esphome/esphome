@@ -71,10 +71,14 @@ class Socket {
   int get_fd() const { return -1; }
 #endif
 
-  /// Check if socket has data ready to read (non-virtual for direct call)
-  /// For loop-monitored sockets, checks the Application's select() results
-  /// For non-monitored sockets, always returns true (assumes data may be available)
+  /// Check if socket has data ready to read
+  /// For select()-based sockets: non-virtual, checks Application's select() results
+  /// For LWIP raw TCP sockets: virtual, checks internal buffer state
+#ifdef USE_SOCKET_SELECT_SUPPORT
   bool ready() const;
+#else
+  virtual bool ready() const { return true; }
+#endif
 
  protected:
 #ifdef USE_SOCKET_SELECT_SUPPORT
