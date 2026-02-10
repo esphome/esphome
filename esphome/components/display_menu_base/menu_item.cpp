@@ -42,7 +42,8 @@ std::string MenuItemSelect::get_value_text() const {
     result = this->value_getter_.value()(this);
   } else {
     if (this->select_var_ != nullptr) {
-      result = this->select_var_->current_option();
+      auto option = this->select_var_->current_option();
+      result.assign(option.c_str(), option.size());
     }
   }
 

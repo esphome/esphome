@@ -89,7 +89,16 @@ void HOT ST7920::write_display_data() {
   }
 }
 
-void ST7920::fill(Color color) { memset(this->buffer_, color.is_on() ? 0xFF : 0x00, this->get_buffer_length_()); }
+void ST7920::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
+  uint8_t fill = color.is_on() ? 0xFF : 0x00;
+  memset(this->buffer_, fill, this->get_buffer_length_());
+}
 
 void ST7920::dump_config() {
   LOG_DISPLAY("", "ST7920", this);

@@ -175,6 +175,32 @@ ESP32_BOARD_PINS = {
         "LED": 13,
         "LED_BUILTIN": 13,
     },
+    "adafruit_feather_esp32s3_reversetft": {
+        "BUTTON": 0,
+        "A0": 18,
+        "A1": 17,
+        "A2": 16,
+        "A3": 15,
+        "A4": 14,
+        "A5": 8,
+        "SCK": 36,
+        "MOSI": 35,
+        "MISO": 37,
+        "RX": 38,
+        "TX": 39,
+        "SCL": 4,
+        "SDA": 3,
+        "NEOPIXEL": 33,
+        "PIN_NEOPIXEL": 33,
+        "NEOPIXEL_POWER": 21,
+        "TFT_I2C_POWER": 7,
+        "TFT_CS": 42,
+        "TFT_DC": 40,
+        "TFT_RESET": 41,
+        "TFT_BACKLIGHT": 45,
+        "LED": 13,
+        "LED_BUILTIN": 13,
+    },
     "adafruit_feather_esp32s3_tft": {
         "BUTTON": 0,
         "A0": 18,
@@ -1488,6 +1514,10 @@ BOARDS = {
         "name": "Arduino Nano ESP32",
         "variant": VARIANT_ESP32S3,
     },
+    "arduino_nesso_n1": {
+        "name": "Arduino Nesso-N1",
+        "variant": VARIANT_ESP32C6,
+    },
     "atd147_s3": {
         "name": "ArtronShop ATD1.47-S3",
         "variant": VARIANT_ESP32S3,
@@ -1656,6 +1686,10 @@ BOARDS = {
         "name": "Espressif ESP32-C6-DevKitM-1",
         "variant": VARIANT_ESP32C6,
     },
+    "esp32-c61-devkitc1-n8r2": {
+        "name": "Espressif ESP32-C61-DevKitC-1 N8R2 (8 MB Flash Quad, 2 MB PSRAM Quad)",
+        "variant": VARIANT_ESP32C61,
+    },
     "esp32-devkitlipo": {
         "name": "OLIMEX ESP32-DevKit-LiPo",
         "variant": VARIANT_ESP32,
@@ -1673,11 +1707,15 @@ BOARDS = {
         "variant": VARIANT_ESP32H2,
     },
     "esp32-p4": {
-        "name": "Espressif ESP32-P4 generic",
+        "name": "Espressif ESP32-P4 ES (pre rev.300) generic",
         "variant": VARIANT_ESP32P4,
     },
     "esp32-p4-evboard": {
-        "name": "Espressif ESP32-P4 Function EV Board",
+        "name": "Espressif ESP32-P4 Function EV Board (ES pre rev.300)",
+        "variant": VARIANT_ESP32P4,
+    },
+    "esp32-p4_r3": {
+        "name": "Espressif ESP32-P4 rev.300 generic",
         "variant": VARIANT_ESP32P4,
     },
     "esp32-pico-devkitm-2": {
@@ -2093,7 +2131,7 @@ BOARDS = {
         "variant": VARIANT_ESP32,
     },
     "m5stack-tab5-p4": {
-        "name": "M5STACK Tab5 esp32-p4 Board",
+        "name": "M5STACK Tab5 esp32-p4 Board (ES pre rev.300)",
         "variant": VARIANT_ESP32P4,
     },
     "m5stack-timer-cam": {

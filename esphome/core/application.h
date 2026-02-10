@@ -91,6 +91,9 @@
 #ifdef USE_WATER_HEATER
 #include "esphome/components/water_heater/water_heater.h"
 #endif
+#ifdef USE_INFRARED
+#include "esphome/components/infrared/infrared.h"
+#endif
 #ifdef USE_EVENT
 #include "esphome/components/event/event.h"
 #endif
@@ -221,6 +224,10 @@ class Application {
 
 #ifdef USE_WATER_HEATER
   void register_water_heater(water_heater::WaterHeater *water_heater) { this->water_heaters_.push_back(water_heater); }
+#endif
+
+#ifdef USE_INFRARED
+  void register_infrared(infrared::Infrared *infrared) { this->infrareds_.push_back(infrared); }
 #endif
 
 #ifdef USE_EVENT
@@ -457,6 +464,11 @@ class Application {
   GET_ENTITY_METHOD(water_heater::WaterHeater, water_heater, water_heaters)
 #endif
 
+#ifdef USE_INFRARED
+  auto &get_infrareds() const { return this->infrareds_; }
+  GET_ENTITY_METHOD(infrared::Infrared, infrared, infrareds)
+#endif
+
 #ifdef USE_EVENT
   auto &get_events() const { return this->events_; }
   GET_ENTITY_METHOD(event::Event, event, events)
@@ -655,6 +667,9 @@ class Application {
 #endif
 #ifdef USE_WATER_HEATER
   StaticVector<water_heater::WaterHeater *, ESPHOME_ENTITY_WATER_HEATER_COUNT> water_heaters_{};
+#endif
+#ifdef USE_INFRARED
+  StaticVector<infrared::Infrared *, ESPHOME_ENTITY_INFRARED_COUNT> infrareds_{};
 #endif
 #ifdef USE_UPDATE
   StaticVector<update::UpdateEntity *, ESPHOME_ENTITY_UPDATE_COUNT> updates_{};

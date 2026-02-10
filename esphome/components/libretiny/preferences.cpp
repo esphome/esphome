@@ -22,9 +22,11 @@ struct NVSData {
   size_t len;
 
   void set_data(const uint8_t *src, size_t size) {
-    this->data = std::make_unique<uint8_t[]>(size);
+    if (!this->data || this->len != size) {
+      this->data = std::make_unique<uint8_t[]>(size);
+      this->len = size;
+    }
     memcpy(this->data.get(), src, size);
-    this->len = size;
   }
 };
 
@@ -164,8 +166,8 @@ class LibreTinyPreferences : public ESPPreferences {
       return true;
     }
 
-    // Allocate buffer on heap to avoid stack allocation for large data
-    auto stored_data = std::make_unique<uint8_t[]>(kv.value_len);
+    // Most preferences are small, use stack buffer with heap fallback for large ones
+    SmallBufferWithHeapFallback<256> stored_data(kv.value_len);
     fdb_blob_make(&this->blob, stored_data.get(), kv.value_len);
     size_t actual_len = fdb_kv_get_blob(db, key_str, &this->blob);
     if (actual_len != kv.value_len) {
@@ -187,10 +189,11 @@ class LibreTinyPreferences : public ESPPreferences {
   }
 };
 
+static LibreTinyPreferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void setup_preferences() {
-  auto *prefs = new LibreTinyPreferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  prefs->open();
-  global_preferences = prefs;
+  s_preferences.open();
+  global_preferences = &s_preferences;
 }
 
 }  // namespace libretiny

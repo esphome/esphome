@@ -21,9 +21,11 @@ void ESPNowTransport::setup() {
     return;
   }
 
-  ESP_LOGI(TAG, "Registering ESP-NOW handlers");
-  ESP_LOGI(TAG, "Peer address: %02X:%02X:%02X:%02X:%02X:%02X", this->peer_address_[0], this->peer_address_[1],
-           this->peer_address_[2], this->peer_address_[3], this->peer_address_[4], this->peer_address_[5]);
+  ESP_LOGI(TAG,
+           "Registering ESP-NOW handlers\n"
+           "Peer address: %02X:%02X:%02X:%02X:%02X:%02X",
+           this->peer_address_[0], this->peer_address_[1], this->peer_address_[2], this->peer_address_[3],
+           this->peer_address_[4], this->peer_address_[5]);
 
   // Register received handler
   this->parent_->register_received_handler(this);

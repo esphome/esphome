@@ -273,8 +273,6 @@ void ESP32Camera::loop() {
   this->single_requesters_ = 0;
 }
 
-float ESP32Camera::get_setup_priority() const { return setup_priority::DATA; }
-
 /* ---------------- constructors ---------------- */
 ESP32Camera::ESP32Camera() {
   this->config_.pin_pwdn = -1;
@@ -498,9 +496,11 @@ void ESP32Camera::framebuffer_task(void *pv) {
     camera_fb_t *framebuffer = esp_camera_fb_get();
     xQueueSend(that->framebuffer_get_queue_, &framebuffer, portMAX_DELAY);
     // Only wake the main loop if there's a pending request to consume the frame
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
     if (that->has_requested_image_()) {
       App.wake_loop_threadsafe();
     }
+#endif
     // return is no-op for config with 1 fb
     xQueueReceive(that->framebuffer_return_queue_, &framebuffer, portMAX_DELAY);
     esp_camera_fb_return(framebuffer);
