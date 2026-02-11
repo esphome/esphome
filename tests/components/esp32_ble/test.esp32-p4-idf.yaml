@@ -1,0 +1,8 @@
+packages:
+  ble: !include ../../test_build_components/common/ble/esp32-p4-idf.yaml
+
+<<: !include common.yaml
+
+esp32_ble:
+  io_capability: keyboard_only
+  disable_bt_logs: false

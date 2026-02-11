@@ -22,7 +22,7 @@ class IDFUARTComponent : public UARTComponent, public Component {
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
 
-  int available() override;
+  size_t available() override;
   void flush() override;
 
   uint8_t get_hw_serial_number() { return this->uart_num_; }

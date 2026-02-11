@@ -135,6 +135,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
     "esp_driver_mcpwm",  # MCPWM driver - ESPHome doesn't use motor control PWM
+    "esp_driver_pcnt",  # PCNT driver - only needed by pulse_counter, hlw8012 components
     "esp_driver_rmt",  # RMT driver - only needed by remote_transmitter/receiver, neopixelbus
     "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
     "esp_driver_twai",  # TWAI/CAN driver - only needed by esp32_can component
@@ -1467,7 +1468,7 @@ async def to_code(config):
                     [_format_framework_espidf_version(idf_ver, None)],
                 )
                 # Use stub package to skip downloading precompiled libs
-                stubs_dir = CORE.relative_build_path("arduino-libs-stub")
+                stubs_dir = CORE.relative_build_path("arduino_libs_stub")
                 cg.add_platformio_option(
                     "platform_packages", [f"{ARDUINO_LIBS_PKG}@file://{stubs_dir}"]
                 )

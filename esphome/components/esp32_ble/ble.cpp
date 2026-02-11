@@ -369,42 +369,9 @@ bool ESP32BLE::ble_dismantle_() {
 }
 
 void ESP32BLE::loop() {
-  switch (this->state_) {
-    case BLE_COMPONENT_STATE_OFF:
-    case BLE_COMPONENT_STATE_DISABLED:
-      return;
-    case BLE_COMPONENT_STATE_DISABLE: {
-      ESP_LOGD(TAG, "Disabling");
-
-#ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
-      for (auto *ble_event_handler : this->ble_status_event_handlers_) {
-        ble_event_handler->ble_before_disabled_event_handler();
-      }
-#endif
-
-      if (!ble_dismantle_()) {
-        ESP_LOGE(TAG, "Could not be dismantled");
-        this->mark_failed();
-        return;
-      }
-      this->state_ = BLE_COMPONENT_STATE_DISABLED;
-      return;
-    }
-    case BLE_COMPONENT_STATE_ENABLE: {
-      ESP_LOGD(TAG, "Enabling");
-      this->state_ = BLE_COMPONENT_STATE_OFF;
-
-      if (!ble_setup_()) {
-        ESP_LOGE(TAG, "Could not be set up");
-        this->mark_failed();
-        return;
-      }
-
-      this->state_ = BLE_COMPONENT_STATE_ACTIVE;
-      return;
-    }
-    case BLE_COMPONENT_STATE_ACTIVE:
-      break;
+  if (this->state_ != BLE_COMPONENT_STATE_ACTIVE) {
+    this->loop_handle_state_transition_not_active_();
+    return;
   }
 
   BLEEvent *ble_event = this->ble_events_.pop();
@@ -517,6 +484,37 @@ void ESP32BLE::loop() {
   uint16_t dropped = this->ble_events_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u BLE events due to buffer overflow", dropped);
+  }
+}
+
+void ESP32BLE::loop_handle_state_transition_not_active_() {
+  // Caller ensures state_ != ACTIVE
+  if (this->state_ == BLE_COMPONENT_STATE_DISABLE) {
+    ESP_LOGD(TAG, "Disabling");
+
+#ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
+    for (auto *ble_event_handler : this->ble_status_event_handlers_) {
+      ble_event_handler->ble_before_disabled_event_handler();
+    }
+#endif
+
+    if (!ble_dismantle_()) {
+      ESP_LOGE(TAG, "Could not be dismantled");
+      this->mark_failed();
+      return;
+    }
+    this->state_ = BLE_COMPONENT_STATE_DISABLED;
+  } else if (this->state_ == BLE_COMPONENT_STATE_ENABLE) {
+    ESP_LOGD(TAG, "Enabling");
+    this->state_ = BLE_COMPONENT_STATE_OFF;
+
+    if (!ble_setup_()) {
+      ESP_LOGE(TAG, "Could not be set up");
+      this->mark_failed();
+      return;
+    }
+
+    this->state_ = BLE_COMPONENT_STATE_ACTIVE;
   }
 }
 

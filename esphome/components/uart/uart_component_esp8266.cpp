@@ -206,7 +206,7 @@ bool ESP8266UartComponent::read_array(uint8_t *data, size_t len) {
 #endif
   return true;
 }
-int ESP8266UartComponent::available() {
+size_t ESP8266UartComponent::available() {
   if (this->hw_serial_ != nullptr) {
     return this->hw_serial_->available();
   } else {
@@ -329,11 +329,14 @@ uint8_t ESP8266SoftwareSerial::peek_byte() {
 void ESP8266SoftwareSerial::flush() {
   // Flush is a NO-OP with software serial, all bytes are written immediately.
 }
-int ESP8266SoftwareSerial::available() {
-  int avail = int(this->rx_in_pos_) - int(this->rx_out_pos_);
-  if (avail < 0)
-    return avail + this->rx_buffer_size_;
-  return avail;
+size_t ESP8266SoftwareSerial::available() {
+  // Read volatile rx_in_pos_ once to avoid TOCTOU race with ISR.
+  // When in >= out, data is contiguous: [out..in).
+  // When in < out, data wraps: [out..buf_size) + [0..in).
+  size_t in = this->rx_in_pos_;
+  if (in >= this->rx_out_pos_)
+    return in - this->rx_out_pos_;
+  return this->rx_buffer_size_ - this->rx_out_pos_ + in;
 }
 
 }  // namespace esphome::uart

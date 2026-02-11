@@ -13,109 +13,44 @@ static const char *const TAG = "mqtt.climate";
 
 using namespace esphome::climate;
 
+// Climate mode MQTT strings indexed by ClimateMode enum (0-6): OFF, HEAT_COOL, COOL, HEAT, FAN_ONLY, DRY, AUTO
+PROGMEM_STRING_TABLE(ClimateMqttModeStrings, "off", "heat_cool", "cool", "heat", "fan_only", "dry", "auto", "unknown");
+
 static ProgmemStr climate_mode_to_mqtt_str(ClimateMode mode) {
-  switch (mode) {
-    case CLIMATE_MODE_OFF:
-      return ESPHOME_F("off");
-    case CLIMATE_MODE_HEAT_COOL:
-      return ESPHOME_F("heat_cool");
-    case CLIMATE_MODE_AUTO:
-      return ESPHOME_F("auto");
-    case CLIMATE_MODE_COOL:
-      return ESPHOME_F("cool");
-    case CLIMATE_MODE_HEAT:
-      return ESPHOME_F("heat");
-    case CLIMATE_MODE_FAN_ONLY:
-      return ESPHOME_F("fan_only");
-    case CLIMATE_MODE_DRY:
-      return ESPHOME_F("dry");
-    default:
-      return ESPHOME_F("unknown");
-  }
+  return ClimateMqttModeStrings::get_progmem_str(static_cast<uint8_t>(mode), ClimateMqttModeStrings::LAST_INDEX);
 }
+
+// Climate action MQTT strings indexed by ClimateAction enum (0,2-6): OFF, (gap), COOLING, HEATING, IDLE, DRYING, FAN
+PROGMEM_STRING_TABLE(ClimateMqttActionStrings, "off", "unknown", "cooling", "heating", "idle", "drying", "fan",
+                     "unknown");
 
 static ProgmemStr climate_action_to_mqtt_str(ClimateAction action) {
-  switch (action) {
-    case CLIMATE_ACTION_OFF:
-      return ESPHOME_F("off");
-    case CLIMATE_ACTION_COOLING:
-      return ESPHOME_F("cooling");
-    case CLIMATE_ACTION_HEATING:
-      return ESPHOME_F("heating");
-    case CLIMATE_ACTION_IDLE:
-      return ESPHOME_F("idle");
-    case CLIMATE_ACTION_DRYING:
-      return ESPHOME_F("drying");
-    case CLIMATE_ACTION_FAN:
-      return ESPHOME_F("fan");
-    default:
-      return ESPHOME_F("unknown");
-  }
+  return ClimateMqttActionStrings::get_progmem_str(static_cast<uint8_t>(action), ClimateMqttActionStrings::LAST_INDEX);
 }
+
+// Climate fan mode MQTT strings indexed by ClimateFanMode enum (0-9)
+PROGMEM_STRING_TABLE(ClimateMqttFanModeStrings, "on", "off", "auto", "low", "medium", "high", "middle", "focus",
+                     "diffuse", "quiet", "unknown");
 
 static ProgmemStr climate_fan_mode_to_mqtt_str(ClimateFanMode fan_mode) {
-  switch (fan_mode) {
-    case CLIMATE_FAN_ON:
-      return ESPHOME_F("on");
-    case CLIMATE_FAN_OFF:
-      return ESPHOME_F("off");
-    case CLIMATE_FAN_AUTO:
-      return ESPHOME_F("auto");
-    case CLIMATE_FAN_LOW:
-      return ESPHOME_F("low");
-    case CLIMATE_FAN_MEDIUM:
-      return ESPHOME_F("medium");
-    case CLIMATE_FAN_HIGH:
-      return ESPHOME_F("high");
-    case CLIMATE_FAN_MIDDLE:
-      return ESPHOME_F("middle");
-    case CLIMATE_FAN_FOCUS:
-      return ESPHOME_F("focus");
-    case CLIMATE_FAN_DIFFUSE:
-      return ESPHOME_F("diffuse");
-    case CLIMATE_FAN_QUIET:
-      return ESPHOME_F("quiet");
-    default:
-      return ESPHOME_F("unknown");
-  }
+  return ClimateMqttFanModeStrings::get_progmem_str(static_cast<uint8_t>(fan_mode),
+                                                    ClimateMqttFanModeStrings::LAST_INDEX);
 }
+
+// Climate swing mode MQTT strings indexed by ClimateSwingMode enum (0-3): OFF, BOTH, VERTICAL, HORIZONTAL
+PROGMEM_STRING_TABLE(ClimateMqttSwingModeStrings, "off", "both", "vertical", "horizontal", "unknown");
 
 static ProgmemStr climate_swing_mode_to_mqtt_str(ClimateSwingMode swing_mode) {
-  switch (swing_mode) {
-    case CLIMATE_SWING_OFF:
-      return ESPHOME_F("off");
-    case CLIMATE_SWING_BOTH:
-      return ESPHOME_F("both");
-    case CLIMATE_SWING_VERTICAL:
-      return ESPHOME_F("vertical");
-    case CLIMATE_SWING_HORIZONTAL:
-      return ESPHOME_F("horizontal");
-    default:
-      return ESPHOME_F("unknown");
-  }
+  return ClimateMqttSwingModeStrings::get_progmem_str(static_cast<uint8_t>(swing_mode),
+                                                      ClimateMqttSwingModeStrings::LAST_INDEX);
 }
 
+// Climate preset MQTT strings indexed by ClimatePreset enum (0-7)
+PROGMEM_STRING_TABLE(ClimateMqttPresetStrings, "none", "home", "away", "boost", "comfort", "eco", "sleep", "activity",
+                     "unknown");
+
 static ProgmemStr climate_preset_to_mqtt_str(ClimatePreset preset) {
-  switch (preset) {
-    case CLIMATE_PRESET_NONE:
-      return ESPHOME_F("none");
-    case CLIMATE_PRESET_HOME:
-      return ESPHOME_F("home");
-    case CLIMATE_PRESET_ECO:
-      return ESPHOME_F("eco");
-    case CLIMATE_PRESET_AWAY:
-      return ESPHOME_F("away");
-    case CLIMATE_PRESET_BOOST:
-      return ESPHOME_F("boost");
-    case CLIMATE_PRESET_COMFORT:
-      return ESPHOME_F("comfort");
-    case CLIMATE_PRESET_SLEEP:
-      return ESPHOME_F("sleep");
-    case CLIMATE_PRESET_ACTIVITY:
-      return ESPHOME_F("activity");
-    default:
-      return ESPHOME_F("unknown");
-  }
+  return ClimateMqttPresetStrings::get_progmem_str(static_cast<uint8_t>(preset), ClimateMqttPresetStrings::LAST_INDEX);
 }
 
 void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
@@ -365,9 +300,11 @@ const EntityBase *MQTTClimateComponent::get_entity() const { return this->device
 
 bool MQTTClimateComponent::publish_state_() {
   auto traits = this->device_->get_traits();
+  // Reusable stack buffer for topic construction (avoids heap allocation per publish)
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   // mode
   bool success = true;
-  if (!this->publish(this->get_mode_state_topic(), climate_mode_to_mqtt_str(this->device_->mode)))
+  if (!this->publish(this->get_mode_state_topic_to(topic_buf), climate_mode_to_mqtt_str(this->device_->mode)))
     success = false;
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
@@ -376,68 +313,70 @@ bool MQTTClimateComponent::publish_state_() {
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE) &&
       !std::isnan(this->device_->current_temperature)) {
     len = value_accuracy_to_buf(payload, this->device_->current_temperature, current_accuracy);
-    if (!this->publish(this->get_current_temperature_state_topic(), payload, len))
+    if (!this->publish(this->get_current_temperature_state_topic_to(topic_buf), payload, len))
       success = false;
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     len = value_accuracy_to_buf(payload, this->device_->target_temperature_low, target_accuracy);
-    if (!this->publish(this->get_target_temperature_low_state_topic(), payload, len))
+    if (!this->publish(this->get_target_temperature_low_state_topic_to(topic_buf), payload, len))
       success = false;
     len = value_accuracy_to_buf(payload, this->device_->target_temperature_high, target_accuracy);
-    if (!this->publish(this->get_target_temperature_high_state_topic(), payload, len))
+    if (!this->publish(this->get_target_temperature_high_state_topic_to(topic_buf), payload, len))
       success = false;
   } else {
     len = value_accuracy_to_buf(payload, this->device_->target_temperature, target_accuracy);
-    if (!this->publish(this->get_target_temperature_state_topic(), payload, len))
+    if (!this->publish(this->get_target_temperature_state_topic_to(topic_buf), payload, len))
       success = false;
   }
 
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY) &&
       !std::isnan(this->device_->current_humidity)) {
     len = value_accuracy_to_buf(payload, this->device_->current_humidity, 0);
-    if (!this->publish(this->get_current_humidity_state_topic(), payload, len))
+    if (!this->publish(this->get_current_humidity_state_topic_to(topic_buf), payload, len))
       success = false;
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY) &&
       !std::isnan(this->device_->target_humidity)) {
     len = value_accuracy_to_buf(payload, this->device_->target_humidity, 0);
-    if (!this->publish(this->get_target_humidity_state_topic(), payload, len))
+    if (!this->publish(this->get_target_humidity_state_topic_to(topic_buf), payload, len))
       success = false;
   }
 
   if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
     if (this->device_->has_custom_preset()) {
-      if (!this->publish(this->get_preset_state_topic(), this->device_->get_custom_preset()))
+      if (!this->publish(this->get_preset_state_topic_to(topic_buf), this->device_->get_custom_preset().c_str()))
         success = false;
     } else if (this->device_->preset.has_value()) {
-      if (!this->publish(this->get_preset_state_topic(), climate_preset_to_mqtt_str(this->device_->preset.value())))
+      if (!this->publish(this->get_preset_state_topic_to(topic_buf),
+                         climate_preset_to_mqtt_str(this->device_->preset.value())))
         success = false;
-    } else if (!this->publish(this->get_preset_state_topic(), "")) {
+    } else if (!this->publish(this->get_preset_state_topic_to(topic_buf), "")) {
       success = false;
     }
   }
 
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
-    if (!this->publish(this->get_action_state_topic(), climate_action_to_mqtt_str(this->device_->action)))
+    if (!this->publish(this->get_action_state_topic_to(topic_buf), climate_action_to_mqtt_str(this->device_->action)))
       success = false;
   }
 
   if (traits.get_supports_fan_modes()) {
     if (this->device_->has_custom_fan_mode()) {
-      if (!this->publish(this->get_fan_mode_state_topic(), this->device_->get_custom_fan_mode()))
+      if (!this->publish(this->get_fan_mode_state_topic_to(topic_buf), this->device_->get_custom_fan_mode().c_str()))
         success = false;
     } else if (this->device_->fan_mode.has_value()) {
-      if (!this->publish(this->get_fan_mode_state_topic(),
+      if (!this->publish(this->get_fan_mode_state_topic_to(topic_buf),
                          climate_fan_mode_to_mqtt_str(this->device_->fan_mode.value())))
         success = false;
-    } else if (!this->publish(this->get_fan_mode_state_topic(), "")) {
+    } else if (!this->publish(this->get_fan_mode_state_topic_to(topic_buf), "")) {
       success = false;
     }
   }
 
   if (traits.get_supports_swing_modes()) {
-    if (!this->publish(this->get_swing_mode_state_topic(), climate_swing_mode_to_mqtt_str(this->device_->swing_mode)))
+    if (!this->publish(this->get_swing_mode_state_topic_to(topic_buf),
+                       climate_swing_mode_to_mqtt_str(this->device_->swing_mode)))
       success = false;
   }
 

@@ -294,8 +294,13 @@ def has_api() -> bool:
 
 
 def has_ota() -> bool:
-    """Check if OTA is available."""
-    return CONF_OTA in CORE.config
+    """Check if OTA upload is available (requires platform: esphome)."""
+    if CONF_OTA not in CORE.config:
+        return False
+    return any(
+        ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
+        for ota_item in CORE.config[CONF_OTA]
+    )
 
 
 def has_mqtt_ip_lookup() -> bool:
