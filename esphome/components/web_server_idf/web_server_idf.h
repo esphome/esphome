@@ -277,7 +277,7 @@ struct DeferredEvent {
   bool operator==(const DeferredEvent &test) const {
     return (source_ == test.source_ && message_generator_ == test.message_generator_);
   }
-} __attribute__((packed));
+};
 
 class AsyncEventSourceResponse {
   friend class AsyncEventSource;
