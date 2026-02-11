@@ -220,10 +220,6 @@ class ProtoWriteBuffer {
   ProtoWriteBuffer(std::vector<uint8_t> *buffer) : buffer_(buffer) {}
   void write(uint8_t value) { this->buffer_->push_back(value); }
   void encode_varint_raw(uint32_t value) {
-    if (value <= 0x7F) {
-      this->buffer_->push_back(static_cast<uint8_t>(value));
-      return;
-    }
     while (value > 0x7F) {
       this->buffer_->push_back(static_cast<uint8_t>(value | 0x80));
       value >>= 7;
