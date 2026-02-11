@@ -58,8 +58,6 @@ void AS7341Component::dump_config() {
   LOG_SENSOR("  ", "NIR", this->nir_);
 }
 
-float AS7341Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void AS7341Component::update() {
   this->read_channels(this->channel_readings_);
 
