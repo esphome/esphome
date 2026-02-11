@@ -25,8 +25,8 @@ inline bool char_equals_ci(char a, char b) { return ::tolower(a) == ::tolower(b)
 // Helper function for case-insensitive string region comparison
 bool str_ncmp_ci(const char *s1, const char *s2, size_t n);
 
-// Case-insensitive string search (like strstr but case-insensitive)
-const char *stristr(const char *haystack, const char *needle);
+// Bounded case-insensitive string search (like strcasestr but length-bounded)
+const char *strcasestr_n(const char *haystack, size_t haystack_len, const char *needle);
 
 }  // namespace esphome::web_server_idf
 #endif  // USE_ESP32
