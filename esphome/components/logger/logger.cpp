@@ -171,7 +171,7 @@ void Logger::init_log_buffer(size_t total_buffer_size) {
   this->log_buffer_ = new logger::TaskLogBuffer(total_buffer_size);
 
 // Zephyr needs loop working to check when CDC port is open
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) && !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
+#if !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
   // Start with loop disabled when using task buffer (unless using USB CDC on ESP32)
   // The loop will be enabled automatically when messages arrive
   this->disable_loop_when_buffer_empty_();

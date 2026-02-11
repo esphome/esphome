@@ -358,7 +358,7 @@ class Logger : public Component {
 #ifdef USE_LIBRETINY
   UARTSelection uart_{UART_SELECTION_DEFAULT};
 #endif
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || USE_ZEPHYR
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   bool main_task_recursion_guard_{false};
 #ifdef USE_LIBRETINY
   bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
@@ -462,7 +462,7 @@ class Logger : public Component {
 #endif
 
 // Zephyr needs loop working to check when CDC port is open
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) && !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
   // Disable loop when task buffer is empty (with USB CDC check on ESP32)
   inline void disable_loop_when_buffer_empty_() {
     // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()
