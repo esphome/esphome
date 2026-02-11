@@ -59,6 +59,11 @@ void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, b
 \
  public: \
   void set_custom_##name##_##type##_topic(const std::string &topic) { this->custom_##name##_##type##_topic_ = topic; } \
+  StringRef get_##name##_##type##_topic_to(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) const { \
+    if (!this->custom_##name##_##type##_topic_.empty()) \
+      return StringRef(this->custom_##name##_##type##_topic_.data(), this->custom_##name##_##type##_topic_.size()); \
+    return this->get_default_topic_for_to_(buf, #name "/" #type, sizeof(#name "/" #type) - 1); \
+  } \
   std::string get_##name##_##type##_topic() const { \
     if (this->custom_##name##_##type##_topic_.empty()) \
       return this->get_default_topic_for_(#name "/" #type); \

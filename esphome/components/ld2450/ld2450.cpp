@@ -276,8 +276,19 @@ void LD2450Component::dump_config() {
 }
 
 void LD2450Component::loop() {
-  while (this->available()) {
-    this->readline_(this->read());
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[MAX_LINE_LENGTH];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+
+    for (size_t i = 0; i < to_read; i++) {
+      this->readline_(buf[i]);
+    }
   }
 }
 
@@ -400,6 +411,10 @@ void LD2450Component::restart_and_read_all_info() {
   this->set_config_mode_(true);
   this->restart_();
   this->set_timeout(1500, [this]() { this->read_all_info(); });
+}
+
+void LD2450Component::add_on_data_callback(std::function<void()> &&callback) {
+  this->data_callback_.add(std::move(callback));
 }
 
 // Send command with values to LD2450
@@ -602,6 +617,8 @@ void LD2450Component::handle_periodic_data_() {
     this->still_presence_millis_ = App.get_loop_component_start_time();
   }
 #endif
+
+  this->data_callback_.call();
 }
 
 bool LD2450Component::handle_ack_data_() {
