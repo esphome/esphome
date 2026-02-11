@@ -172,16 +172,63 @@ template<typename T> using wifi_scan_vector_t = std::vector<T>;
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
 #endif
 
+/// 20-byte string: 18 chars inline + null, heap for longer. Always null-terminated.
+/// Used internally for WiFi SSID/password storage to reduce heap fragmentation.
+class CompactString {
+ public:
+  static constexpr uint8_t MAX_LENGTH = 127;
+  static constexpr uint8_t INLINE_CAPACITY = 18;          // 18 chars + null terminator fits in 19 bytes
+  static constexpr uint8_t BUFFER_SIZE = MAX_LENGTH + 1;  // For external buffer (128 bytes)
+
+  CompactString() : length_(0), is_heap_(0) { this->storage_[0] = '\0'; }
+  CompactString(const char *str, size_t len);
+  CompactString(const CompactString &other);
+  CompactString(CompactString &&other) noexcept;
+  CompactString &operator=(const CompactString &other);
+  CompactString &operator=(CompactString &&other) noexcept;
+  ~CompactString();
+
+  const char *data() const { return this->is_heap_ ? this->get_heap_ptr_() : this->storage_; }
+  const char *c_str() const { return this->data(); }  // Always null-terminated
+  size_t size() const { return this->length_; }
+  bool empty() const { return this->length_ == 0; }
+
+  /// Return a StringRef view of this string (zero-copy)
+  StringRef ref() const { return StringRef(this->data(), this->size()); }
+
+  bool operator==(const CompactString &other) const {
+    return this->size() == other.size() && std::memcmp(this->data(), other.data(), this->size()) == 0;
+  }
+  bool operator!=(const CompactString &other) const { return !(*this == other); }
+
+ protected:
+  char *get_heap_ptr_() const {
+    char *ptr;
+    std::memcpy(&ptr, this->storage_, sizeof(ptr));
+    return ptr;
+  }
+  void set_heap_ptr_(char *ptr) { std::memcpy(this->storage_, &ptr, sizeof(ptr)); }
+
+  // Storage for string data. When is_heap_=0, contains the string directly (null-terminated).
+  // When is_heap_=1, first sizeof(char*) bytes contain pointer to heap allocation.
+  char storage_[INLINE_CAPACITY + 1];  // 19 bytes: 18 chars + null terminator
+  uint8_t length_ : 7;                 // String length (0-127)
+  uint8_t is_heap_ : 1;                // 1 if using heap pointer, 0 if using inline storage
+  // Total size: 20 bytes (19 bytes storage + 1 byte bitfields)
+};
+
+static_assert(sizeof(CompactString) == 20, "CompactString must be exactly 20 bytes");
+
 class WiFiAP {
  public:
   void set_ssid(const std::string &ssid);
   void set_ssid(const char *ssid);
-  void set_ssid(const CompactString &ssid) { this->ssid_ = ssid; }
+  void set_ssid(StringRef ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
   void set_bssid(const bssid_t &bssid);
   void clear_bssid();
   void set_password(const std::string &password);
   void set_password(const char *password);
-  void set_password(const CompactString &password) { this->password_ = password; }
+  void set_password(StringRef password) { this->password_ = CompactString(password.c_str(), password.size()); }
 #ifdef USE_WIFI_WPA2_EAP
   void set_eap(optional<EAPAuth> eap_auth);
 #endif  // USE_WIFI_WPA2_EAP
@@ -192,8 +239,8 @@ class WiFiAP {
   void set_manual_ip(optional<ManualIP> manual_ip);
 #endif
   void set_hidden(bool hidden);
-  const CompactString &get_ssid() const { return this->ssid_; }
-  const CompactString &get_password() const { return this->password_; }
+  StringRef get_ssid() const { return this->ssid_.ref(); }
+  StringRef get_password() const { return this->password_.ref(); }
   const bssid_t &get_bssid() const;
   bool has_bssid() const;
 #ifdef USE_WIFI_WPA2_EAP
@@ -233,7 +280,7 @@ class WiFiScanResult {
   bool get_matches() const;
   void set_matches(bool matches);
   const bssid_t &get_bssid() const;
-  const CompactString &get_ssid() const { return this->ssid_; }
+  StringRef get_ssid() const { return this->ssid_.ref(); }
   uint8_t get_channel() const;
   int8_t get_rssi() const;
   bool get_with_auth() const;
@@ -387,9 +434,7 @@ class WiFiComponent : public Component {
 
   void save_wifi_sta(const std::string &ssid, const std::string &password);
   void save_wifi_sta(const char *ssid, const char *password);
-  void save_wifi_sta(const CompactString &ssid, const CompactString &password) {
-    this->save_wifi_sta(ssid.c_str(), password.c_str());
-  }
+  void save_wifi_sta(StringRef ssid, StringRef password) { this->save_wifi_sta(ssid.c_str(), password.c_str()); }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -554,7 +599,7 @@ class WiFiComponent : public Component {
   int8_t find_first_non_hidden_index_() const;
   /// Check if an SSID was seen in the most recent scan results
   /// Used to skip hidden mode for SSIDs we know are visible
-  bool ssid_was_seen_in_scan_(const CompactString &ssid) const;
+  bool ssid_was_seen_in_scan_(StringRef ssid) const;
   /// Check if full scan results are needed (captive portal active, improv, listeners)
   bool needs_full_scan_results_() const;
   /// Check if network matches any configured network (for scan result filtering)

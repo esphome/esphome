@@ -20,6 +20,7 @@
 #endif
 
 #include <algorithm>
+#include <new>
 #include <utility>
 #include "lwip/dns.h"
 #include "lwip/err.h"
@@ -46,6 +47,62 @@
 namespace esphome::wifi {
 
 static const char *const TAG = "wifi";
+
+// CompactString implementation
+CompactString::CompactString(const char *str, size_t len) {
+  if (len > MAX_LENGTH) {
+    len = MAX_LENGTH;  // Clamp to max valid length
+  }
+
+  this->length_ = len;
+  if (len <= INLINE_CAPACITY) {
+    // Store inline with null terminator
+    this->is_heap_ = 0;
+    if (len > 0) {
+      std::memcpy(this->storage_, str, len);
+    }
+    this->storage_[len] = '\0';
+  } else {
+    // Heap allocate with null terminator
+    this->is_heap_ = 1;
+    char *heap_data = new char[len + 1];  // NOLINT(cppcoreguidelines-owning-memory)
+    std::memcpy(heap_data, str, len);
+    heap_data[len] = '\0';
+    this->set_heap_ptr_(heap_data);
+  }
+}
+
+CompactString::CompactString(const CompactString &other) : CompactString(other.data(), other.size()) {}
+
+CompactString &CompactString::operator=(const CompactString &other) {
+  if (this != &other) {
+    this->~CompactString();
+    new (this) CompactString(other);
+  }
+  return *this;
+}
+
+CompactString::CompactString(CompactString &&other) noexcept : length_(other.length_), is_heap_(other.is_heap_) {
+  // Copy full storage (includes null terminator for inline, or pointer for heap)
+  std::memcpy(this->storage_, other.storage_, INLINE_CAPACITY + 1);
+  other.length_ = 0;
+  other.is_heap_ = 0;
+  other.storage_[0] = '\0';
+}
+
+CompactString &CompactString::operator=(CompactString &&other) noexcept {
+  if (this != &other) {
+    this->~CompactString();
+    new (this) CompactString(std::move(other));
+  }
+  return *this;
+}
+
+CompactString::~CompactString() {
+  if (this->is_heap_) {
+    delete[] this->get_heap_ptr_();  // NOLINT(cppcoreguidelines-owning-memory)
+  }
+}
 
 /// WiFi Retry Logic - Priority-Based BSSID Selection
 ///
@@ -349,7 +406,7 @@ bool WiFiComponent::needs_scan_results_() const {
   return this->scan_result_.empty() || !this->scan_result_[0].get_matches();
 }
 
-bool WiFiComponent::ssid_was_seen_in_scan_(const CompactString &ssid) const {
+bool WiFiComponent::ssid_was_seen_in_scan_(StringRef ssid) const {
   // Check if this SSID is configured as hidden
   // If explicitly marked hidden, we should always try hidden mode regardless of scan results
   for (const auto &conf : this->sta_) {
@@ -2146,7 +2203,7 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
       return false;
   } else if (!config.get_ssid().empty()) {
     // check if SSID matches
-    if (config.get_ssid() != this->ssid_)
+    if (config.get_ssid() != this->ssid_.ref())
       return false;
   } else {
     // network is configured without SSID - match other settings
