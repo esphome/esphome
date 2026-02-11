@@ -26,5 +26,7 @@ text_sensor:
       name: "Network Key"
     pan_id:
       name: "PAN ID"
+    mesh_local_eid:
+      name: "Mesh Local EID"
     ext_pan_id:
       name: "Extended PAN ID"
