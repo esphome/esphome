@@ -19,7 +19,7 @@ class TaskLogBuffer {
  public:
   // Structure for a log message header (text data follows immediately after)
   struct LogMessage {
-    MPSC_PBUF_HDR;  // this is only 2 bits put not more that 30 bits directly after
+    MPSC_PBUF_HDR;  // this is only 2 bits but no more than 30 bits directly after
     uint16_t line;  // Source code line number
     uint8_t level;  // Log level (0-7)
 #if defined(CONFIG_THREAD_NAME)
@@ -59,8 +59,8 @@ class TaskLogBuffer {
   const mpsc_pbuf_generic *current_token_{};
 };
 
-#endif
+#endif  // USE_ESPHOME_TASK_LOG_BUFFER
 
 }  // namespace esphome::logger
 
-#endif
+#endif  // USE_ZEPHYR

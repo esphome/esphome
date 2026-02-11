@@ -228,7 +228,9 @@ class Logger : public Component {
   void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
                                     const char *thread_name);
 #endif
+#if defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC)
   void cdc_loop_();
+#endif
   void process_messages_();
   void write_msg_(const char *msg, uint16_t len);
 

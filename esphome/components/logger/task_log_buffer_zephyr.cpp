@@ -47,7 +47,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
   size_t text_length = (static_cast<size_t>(ret) > MAX_TEXT_SIZE) ? MAX_TEXT_SIZE : ret;
   size_t total_size = total_size_in_32bit_words(text_length);
   auto *msg = reinterpret_cast<LogMessage *>(mpsc_pbuf_alloc(&this->log_buffer_, total_size, K_NO_WAIT));
-  if (nullptr == msg) {
+  if (msg == nullptr) {
     return false;
   }
   msg->level = level;
@@ -63,7 +63,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
 
   // Handle unexpected formatting error
   if (ret <= 0) {
-    // this shall not happened vsnprintf was called already once
+    // this should not happen, vsnprintf was called already once
     // fill with '\n' to not call mpsc_pbuf_free from producer
     // it will be trimmed anyway
     for (size_t i = 0; i < text_length; ++i) {
@@ -86,11 +86,11 @@ bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &tex
 
   this->current_token_ = mpsc_pbuf_claim(&this->log_buffer_);
 
-  if (nullptr == this->current_token_) {
+  if (this->current_token_ == nullptr) {
     return false;
   }
 
-  // we claimed buffer alraedy const_cast is safe here
+  // we claimed buffer already, const_cast is safe here
   message = const_cast<LogMessage *>(reinterpret_cast<const LogMessage *>(this->current_token_));
 
   text_length = message->text_length;
@@ -109,6 +109,8 @@ void TaskLogBuffer::release_message_main_loop() {
   mpsc_pbuf_free(&this->log_buffer_, this->current_token_);
   this->current_token_ = nullptr;
 }
-#endif
+#endif  // USE_ESPHOME_TASK_LOG_BUFFER
+
 }  // namespace esphome::logger
-#endif
+
+#endif  // USE_ZEPHYR

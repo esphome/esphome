@@ -125,7 +125,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   // Other single-task platforms don't have thread names, so pass nullptr
   this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args, nullptr);
 }
-#endif  // USE_ESPHOME_TASK_LOG_BUFFER
+#endif  // USE_ESP32 || USE_HOST || USE_LIBRETINY || USE_ZEPHYR
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 // Implementation for ESP8266 with flash string support.
