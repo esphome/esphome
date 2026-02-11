@@ -235,8 +235,8 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
   switch (command.command) {
     case improv::WIFI_SETTINGS: {
       wifi::WiFiAP sta{};
-      sta.set_ssid(command.ssid);
-      sta.set_password(command.password);
+      sta.set_ssid(command.ssid.c_str());
+      sta.set_password(command.password.c_str());
       this->connecting_sta_ = sta;
 
       wifi::global_wifi_component->set_sta(sta);

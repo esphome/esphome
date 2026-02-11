@@ -13,7 +13,6 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
-#include <new>
 
 #ifdef USE_ESP32
 #include "rom/crc.h"
@@ -858,62 +857,6 @@ void IRAM_ATTR HOT delay_microseconds_safe(uint32_t us) {
   }
   while (micros() - start < us)  // fine delay the remaining usecs
     ;
-}
-
-// CompactString implementation
-CompactString::CompactString(const char *str, size_t len) {
-  if (len > MAX_LENGTH) {
-    len = MAX_LENGTH;  // Clamp to max valid length
-  }
-
-  this->length_ = len;
-  if (len <= INLINE_CAPACITY) {
-    // Store inline with null terminator
-    this->is_heap_ = 0;
-    if (len > 0) {
-      std::memcpy(this->storage_, str, len);
-    }
-    this->storage_[len] = '\0';
-  } else {
-    // Heap allocate with null terminator
-    this->is_heap_ = 1;
-    char *heap_data = new char[len + 1];  // NOLINT(cppcoreguidelines-owning-memory)
-    std::memcpy(heap_data, str, len);
-    heap_data[len] = '\0';
-    this->set_heap_ptr_(heap_data);
-  }
-}
-
-CompactString::CompactString(const CompactString &other) : CompactString(other.data(), other.size()) {}
-
-CompactString &CompactString::operator=(const CompactString &other) {
-  if (this != &other) {
-    this->~CompactString();
-    new (this) CompactString(other);
-  }
-  return *this;
-}
-
-CompactString::CompactString(CompactString &&other) noexcept : length_(other.length_), is_heap_(other.is_heap_) {
-  // Copy full storage (includes null terminator for inline, or pointer for heap)
-  std::memcpy(this->storage_, other.storage_, INLINE_CAPACITY + 1);
-  other.length_ = 0;
-  other.is_heap_ = 0;
-  other.storage_[0] = '\0';
-}
-
-CompactString &CompactString::operator=(CompactString &&other) noexcept {
-  if (this != &other) {
-    this->~CompactString();
-    new (this) CompactString(std::move(other));
-  }
-  return *this;
-}
-
-CompactString::~CompactString() {
-  if (this->is_heap_) {
-    delete[] this->get_heap_ptr_();  // NOLINT(cppcoreguidelines-owning-memory)
-  }
 }
 
 }  // namespace esphome

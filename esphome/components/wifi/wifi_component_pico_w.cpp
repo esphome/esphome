@@ -78,7 +78,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
 #endif
 
-  auto ret = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().c_str());
+  auto ret = WiFi.begin(ap.ssid_.c_str(), ap.password_.c_str());
   if (ret != WL_CONNECTED)
     return false;
 
@@ -203,7 +203,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   }
 #endif
 
-  WiFi.beginAP(ap.get_ssid().c_str(), ap.get_password().c_str(), ap.has_channel() ? ap.get_channel() : 1);
+  WiFi.beginAP(ap.ssid_.c_str(), ap.password_.c_str(), ap.has_channel() ? ap.get_channel() : 1);
 
   return true;
 }
