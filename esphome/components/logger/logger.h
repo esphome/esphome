@@ -346,15 +346,7 @@ class Logger : public Component {
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-#ifdef USE_HOST
-  logger::TaskLogBufferHost *log_buffer_{nullptr};  // Allocated once, never freed
-#elif defined(USE_ESP32)
   logger::TaskLogBuffer *log_buffer_{nullptr};  // Allocated once, never freed
-#elif defined(USE_LIBRETINY)
-  logger::TaskLogBufferLibreTiny *log_buffer_{nullptr};  // Allocated once, never freed
-#elif defined(USE_ZEPHYR)
-  logger::TaskLogBufferZephyr *log_buffer_{nullptr};  // Allocated once, never freed
-#endif
 #endif
 
   // Group smaller types together at the end

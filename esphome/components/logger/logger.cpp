@@ -173,20 +173,9 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
 }
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
 void Logger::init_log_buffer(size_t total_buffer_size) {
-#ifdef USE_HOST
   // Host uses slot count instead of byte size
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
-  this->log_buffer_ = new logger::TaskLogBufferHost(total_buffer_size);
-#elif defined(USE_ESP32)
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
   this->log_buffer_ = new logger::TaskLogBuffer(total_buffer_size);
-#elif defined(USE_LIBRETINY)
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
-  this->log_buffer_ = new logger::TaskLogBufferLibreTiny(total_buffer_size);
-#elif defined(USE_ZEPHYR)
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
-  this->log_buffer_ = new logger::TaskLogBufferZephyr(total_buffer_size);
-#endif
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || (defined(USE_ZEPHYR) && !defined(USE_LOGGER_USB_CDC))
   // Start with loop disabled when using task buffer (unless using USB CDC on ESP32)
@@ -210,7 +199,7 @@ void Logger::process_messages_() {
   // Process any buffered messages when available
   if (this->log_buffer_->has_messages()) {
 #ifdef USE_HOST
-    logger::TaskLogBufferHost::LogMessage *message;
+    logger::TaskLogBuffer::LogMessage *message;
     while (this->log_buffer_->get_message_main_loop(&message)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
       LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
@@ -220,13 +209,7 @@ void Logger::process_messages_() {
       this->write_log_buffer_to_console_(buf);
     }
 #elif defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-#ifdef USE_ESP32
     logger::TaskLogBuffer::LogMessage *message;
-#elif defined(USE_LIBRETINY)
-    logger::TaskLogBufferLibreTiny::LogMessage *message;
-#else
-    logger::TaskLogBufferZephyr::LogMessage *message;
-#endif
     const char *text;
     while (this->log_buffer_->borrow_message_main_loop(&message, &text)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;

@@ -9,12 +9,12 @@ namespace esphome::logger {
 __thread bool non_main_task_recursion_guard_;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static inline uint32_t get_wlen(const mpsc_pbuf_generic *item) {
-  auto *msg = reinterpret_cast<const TaskLogBufferZephyr::LogMessage *>(item);
+  auto *msg = reinterpret_cast<const TaskLogBuffer::LogMessage *>(item);
   // Calculate total size in 32-bit words needed (header + text length + null terminator + 3(4 bytes alignment)
-  return (sizeof(TaskLogBufferZephyr::LogMessage) + msg->text_length + 1 + 3) / sizeof(uint32_t);
+  return (sizeof(TaskLogBuffer::LogMessage) + msg->text_length + 1 + 3) / sizeof(uint32_t);
 }
 
-TaskLogBufferZephyr::TaskLogBufferZephyr(size_t total_buffer_size) {
+TaskLogBuffer::TaskLogBuffer(size_t total_buffer_size) {
   // alignment to 4 bytes
   total_buffer_size = (total_buffer_size + 3) / sizeof(uint32_t);
   this->mpsc_config_.buf = new uint32_t[total_buffer_size];
@@ -25,10 +25,10 @@ TaskLogBufferZephyr::TaskLogBufferZephyr(size_t total_buffer_size) {
   mpsc_pbuf_init(&this->log_buffer_, &this->mpsc_config_);
 }
 
-TaskLogBufferZephyr::~TaskLogBufferZephyr() { delete[] this->mpsc_config_.buf; }
+TaskLogBuffer::~TaskLogBuffer() { delete[] this->mpsc_config_.buf; }
 
-bool TaskLogBufferZephyr::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line,
-                                                   const char *thread_name, const char *format, va_list args) {
+bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
+                                             const char *format, va_list args) {
   // First, calculate the exact length needed using a null buffer (no actual writing)
   va_list args_copy;
   va_copy(args_copy, args);
@@ -76,7 +76,7 @@ bool TaskLogBufferZephyr::send_message_thread_safe(uint8_t level, const char *ta
   return true;
 }
 
-bool TaskLogBufferZephyr::borrow_message_main_loop(LogMessage **message, const char **text) {
+bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **text) {
   if (this->current_token_) {
     return false;
   }
@@ -100,7 +100,7 @@ bool TaskLogBufferZephyr::borrow_message_main_loop(LogMessage **message, const c
   return true;
 }
 
-void TaskLogBufferZephyr::release_message_main_loop() {
+void TaskLogBuffer::release_message_main_loop() {
   if (this->current_token_ == nullptr) {
     return;
   }

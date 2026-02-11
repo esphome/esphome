@@ -8,7 +8,7 @@
 
 namespace esphome::logger {
 
-TaskLogBufferLibreTiny::TaskLogBufferLibreTiny(size_t total_buffer_size) {
+TaskLogBuffer::TaskLogBuffer(size_t total_buffer_size) {
   this->size_ = total_buffer_size;
   // Allocate memory for the circular buffer using ESPHome's RAM allocator
   RAMAllocator<uint8_t> allocator;
@@ -17,7 +17,7 @@ TaskLogBufferLibreTiny::TaskLogBufferLibreTiny(size_t total_buffer_size) {
   this->mutex_ = xSemaphoreCreateMutex();
 }
 
-TaskLogBufferLibreTiny::~TaskLogBufferLibreTiny() {
+TaskLogBuffer::~TaskLogBuffer() {
   if (this->mutex_ != nullptr) {
     vSemaphoreDelete(this->mutex_);
     this->mutex_ = nullptr;
@@ -29,7 +29,7 @@ TaskLogBufferLibreTiny::~TaskLogBufferLibreTiny() {
   }
 }
 
-size_t TaskLogBufferLibreTiny::available_contiguous_space() const {
+size_t TaskLogBuffer::available_contiguous_space() const {
   if (this->head_ >= this->tail_) {
     // head is ahead of or equal to tail
     // Available space is from head to end, plus from start to tail
@@ -47,7 +47,7 @@ size_t TaskLogBufferLibreTiny::available_contiguous_space() const {
   }
 }
 
-bool TaskLogBufferLibreTiny::borrow_message_main_loop(LogMessage **message, const char **text) {
+bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **text) {
   if (message == nullptr || text == nullptr) {
     return false;
   }
@@ -85,7 +85,7 @@ bool TaskLogBufferLibreTiny::borrow_message_main_loop(LogMessage **message, cons
   return true;
 }
 
-void TaskLogBufferLibreTiny::release_message_main_loop() {
+void TaskLogBuffer::release_message_main_loop() {
   // Advance tail past the current message
   this->tail_ += this->current_message_size_;
 
@@ -100,8 +100,8 @@ void TaskLogBufferLibreTiny::release_message_main_loop() {
   xSemaphoreGive(this->mutex_);
 }
 
-bool TaskLogBufferLibreTiny::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line,
-                                                      const char *thread_name, const char *format, va_list args) {
+bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
+                                             const char *format, va_list args) {
   // First, calculate the exact length needed using a null buffer (no actual writing)
   va_list args_copy;
   va_copy(args_copy, args);

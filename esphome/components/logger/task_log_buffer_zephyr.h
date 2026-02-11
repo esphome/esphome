@@ -15,7 +15,7 @@ static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
 
 extern __thread bool non_main_task_recursion_guard_;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class TaskLogBufferZephyr {
+class TaskLogBuffer {
  public:
   // Structure for a log message header (text data follows immediately after)
   struct LogMessage {
@@ -36,8 +36,8 @@ class TaskLogBufferZephyr {
     inline const char *text_data() const { return reinterpret_cast<const char *>(this) + sizeof(LogMessage); }
   };
   // Constructor that takes a total buffer size
-  explicit TaskLogBufferZephyr(size_t total_buffer_size);
-  ~TaskLogBufferZephyr();
+  explicit TaskLogBuffer(size_t total_buffer_size);
+  ~TaskLogBuffer();
 
   // Check if there are messages ready to be processed using an atomic counter for performance
   inline bool HOT has_messages() { return mpsc_pbuf_is_pending(&this->log_buffer_); }

@@ -48,7 +48,7 @@ namespace esphome::logger {
  * - Atomic CAS for slot reservation allows multiple producers without locks
  * - Single consumer (main loop) processes messages in order
  */
-class TaskLogBufferHost {
+class TaskLogBuffer {
  public:
   // Default number of message slots - host has plenty of memory
   static constexpr size_t DEFAULT_SLOT_COUNT = 64;
@@ -74,8 +74,8 @@ class TaskLogBufferHost {
   };
 
   /// Constructor that takes the number of message slots
-  explicit TaskLogBufferHost(size_t slot_count);
-  ~TaskLogBufferHost();
+  explicit TaskLogBuffer(size_t slot_count);
+  ~TaskLogBuffer();
 
   // NOT thread-safe - get next message from buffer, only call from main loop
   // Returns true if a message was retrieved, false if buffer is empty
