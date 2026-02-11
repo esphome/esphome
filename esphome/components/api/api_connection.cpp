@@ -1921,10 +1921,6 @@ bool APIConnection::schedule_batch_() {
 }
 
 void APIConnection::process_batch_() {
-  // Ensure MessageInfo remains trivially destructible for our placement new approach
-  static_assert(std::is_trivially_destructible<MessageInfo>::value,
-                "MessageInfo must remain trivially destructible with this placement-new approach");
-
   if (this->deferred_batch_.empty()) {
     this->flags_.batch_scheduled = false;
     return;
@@ -1949,6 +1945,10 @@ void APIConnection::process_batch_() {
   for (size_t i = 0; i < num_items; i++) {
     total_estimated_size += this->deferred_batch_[i].estimated_size;
   }
+  // Clamp to MAX_BATCH_PACKET_SIZE — we won't send more than that per batch
+  if (total_estimated_size > MAX_BATCH_PACKET_SIZE) {
+    total_estimated_size = MAX_BATCH_PACKET_SIZE;
+  }
 
   this->prepare_first_message_buffer(shared_buf, header_padding, total_estimated_size);
 
@@ -1972,7 +1972,20 @@ void APIConnection::process_batch_() {
     return;
   }
 
-  size_t messages_to_process = std::min(num_items, MAX_MESSAGES_PER_BATCH);
+  // Multi-message path — heavy stack frame isolated in separate noinline function
+  this->process_batch_multi_(shared_buf, num_items, header_padding, footer_size);
+}
+
+// Separated from process_batch_() so the single-message fast path gets a minimal
+// stack frame without the MAX_MESSAGES_PER_BATCH * sizeof(MessageInfo) array.
+void APIConnection::process_batch_multi_(std::vector<uint8_t> &shared_buf, size_t num_items, uint8_t header_padding,
+                                         uint8_t footer_size) {
+  // Ensure MessageInfo remains trivially destructible for our placement new approach
+  static_assert(std::is_trivially_destructible<MessageInfo>::value,
+                "MessageInfo must remain trivially destructible with this placement-new approach");
+
+  const size_t messages_to_process = std::min(num_items, MAX_MESSAGES_PER_BATCH);
+  const uint8_t frame_overhead = header_padding + footer_size;
 
   // Stack-allocated array for message info
   alignas(MessageInfo) char message_info_storage[MAX_MESSAGES_PER_BATCH * sizeof(MessageInfo)];
@@ -1999,7 +2012,7 @@ void APIConnection::process_batch_() {
 
     // Message was encoded successfully
     // payload_size is header_padding + actual payload size + footer_size
-    uint16_t proto_payload_size = payload_size - header_padding - footer_size;
+    uint16_t proto_payload_size = payload_size - frame_overhead;
     // Use placement new to construct MessageInfo in pre-allocated stack array
     // This avoids default-constructing all MAX_MESSAGES_PER_BATCH elements
     // Explicit destruction is not needed because MessageInfo is trivially destructible,
@@ -2015,42 +2028,38 @@ void APIConnection::process_batch_() {
     current_offset = shared_buf.size() + footer_size;
   }
 
-  if (items_processed == 0) {
-    this->deferred_batch_.clear();
-    return;
-  }
+  if (items_processed > 0) {
+    // Add footer space for the last message (for Noise protocol MAC)
+    if (footer_size > 0) {
+      shared_buf.resize(shared_buf.size() + footer_size);
+    }
 
-  // Add footer space for the last message (for Noise protocol MAC)
-  if (footer_size > 0) {
-    shared_buf.resize(shared_buf.size() + footer_size);
-  }
-
-  // Send all collected messages
-  APIError err = this->helper_->write_protobuf_messages(ProtoWriteBuffer{&shared_buf},
-                                                        std::span<const MessageInfo>(message_info, items_processed));
-  if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
-    this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
-  }
+    // Send all collected messages
+    APIError err = this->helper_->write_protobuf_messages(ProtoWriteBuffer{&shared_buf},
+                                                          std::span<const MessageInfo>(message_info, items_processed));
+    if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
+      this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
+    }
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  // Log messages after send attempt for VV debugging
-  // It's safe to use the buffer for logging at this point regardless of send result
-  for (size_t i = 0; i < items_processed; i++) {
-    const auto &item = this->deferred_batch_[i];
-    this->log_batch_item_(item);
-  }
+    // Log messages after send attempt for VV debugging
+    // It's safe to use the buffer for logging at this point regardless of send result
+    for (size_t i = 0; i < items_processed; i++) {
+      const auto &item = this->deferred_batch_[i];
+      this->log_batch_item_(item);
+    }
 #endif
 
-  // Handle remaining items more efficiently
-  if (items_processed < this->deferred_batch_.size()) {
-    // Remove processed items from the beginning
-    this->deferred_batch_.remove_front(items_processed);
-    // Reschedule for remaining items
-    this->schedule_batch_();
-  } else {
-    // All items processed
-    this->clear_batch_();
+    // Partial batch — remove processed items and reschedule
+    if (items_processed < this->deferred_batch_.size()) {
+      this->deferred_batch_.remove_front(items_processed);
+      this->schedule_batch_();
+      return;
+    }
   }
+
+  // All items processed (or none could be processed)
+  this->clear_batch_();
 }
 
 // Dispatch message encoding based on message_type

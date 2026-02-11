@@ -548,8 +548,8 @@ class APIConnection final : public APIServerConnectionBase {
       batch_start_time = 0;
     }
 
-    // Remove processed items from the front
-    void remove_front(size_t count) { items.erase(items.begin(), items.begin() + count); }
+    // Remove processed items from the front — noinline to keep memmove out of warm callers
+    void remove_front(size_t count) __attribute__((noinline)) { items.erase(items.begin(), items.begin() + count); }
 
     bool empty() const { return items.empty(); }
     size_t size() const { return items.size(); }
@@ -621,6 +621,8 @@ class APIConnection final : public APIServerConnectionBase {
 
   bool schedule_batch_();
   void process_batch_();
+  void process_batch_multi_(std::vector<uint8_t> &shared_buf, size_t num_items, uint8_t header_padding,
+                            uint8_t footer_size) __attribute__((noinline));
   void clear_batch_() {
     this->deferred_batch_.clear();
     this->flags_.batch_scheduled = false;
