@@ -196,10 +196,10 @@ class CompactString {
   /// Return a StringRef view of this string (zero-copy)
   StringRef ref() const { return StringRef(this->data(), this->size()); }
 
-  bool operator==(const CompactString &other) const {
-    return this->size() == other.size() && std::memcmp(this->data(), other.data(), this->size()) == 0;
+  bool operator==(const StringRef &other) const {
+    return this->size() == other.size() && std::memcmp(this->data(), other.c_str(), this->size()) == 0;
   }
-  bool operator!=(const CompactString &other) const { return !(*this == other); }
+  bool operator!=(const StringRef &other) const { return !(*this == other); }
 
  protected:
   char *get_heap_ptr_() const {

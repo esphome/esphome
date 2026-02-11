@@ -2203,7 +2203,7 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
       return false;
   } else if (!config.get_ssid().empty()) {
     // check if SSID matches
-    if (config.get_ssid() != this->ssid_.ref())
+    if (this->ssid_ != config.get_ssid())
       return false;
   } else {
     // network is configured without SSID - match other settings
@@ -2345,7 +2345,7 @@ void WiFiComponent::process_roaming_scan_() {
 
   for (const auto &result : this->scan_result_) {
     // Must be same SSID, different BSSID
-    if (result.get_ssid() != current_ssid.c_str() || result.get_bssid() == current_bssid)
+    if (result.get_ssid() != current_ssid || result.get_bssid() == current_bssid)
       continue;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
