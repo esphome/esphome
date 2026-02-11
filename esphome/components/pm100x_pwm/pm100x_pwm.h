@@ -10,6 +10,7 @@ class PM100XComponentPWM : public pm100x::PM100XComponent {
   void set_pwm_sensor(sensor::Sensor *pwm_sensor) { this->pwm_sensor_ = pwm_sensor; }
   void setup() override;
   void dump_config() override;
+  void update() override {}
 
  protected:
   void handle_pwm_state_(float duty_percent);
