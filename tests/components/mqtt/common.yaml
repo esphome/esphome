@@ -219,11 +219,59 @@ cover:
     name: Template Cover
     state_topic: some/topic/cover
     qos: 2
+    mqtt_json_state_payload: true
     lambda: |-
       if (id(some_binary_sensor).state) {
         return COVER_OPEN;
       }
       return COVER_CLOSED;
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true
+  - platform: template
+    name: Template Cover with Position and Tilt
+    state_topic: some/topic/cover_pt
+    position_state_topic: some/topic/cover_pt/position
+    position_command_topic: some/topic/cover_pt/position/set
+    tilt_state_topic: some/topic/cover_pt/tilt
+    tilt_command_topic: some/topic/cover_pt/tilt/set
+    qos: 2
+    has_position: true
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return COVER_OPEN;
+      }
+      return COVER_CLOSED;
+    position_action:
+      - logger.log: position_action
+    tilt_action:
+      - logger.log: tilt_action
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true
+  - platform: template
+    name: Template Cover with Position and Tilt JSON
+    state_topic: some/topic/cover_pt_json
+    qos: 2
+    mqtt_json_state_payload: true
+    has_position: true
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return COVER_OPEN;
+      }
+      return COVER_CLOSED;
+    position_action:
+      - logger.log: position_action
+    tilt_action:
+      - logger.log: tilt_action
     open_action:
       - logger.log: open_action
     close_action:

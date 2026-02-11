@@ -112,10 +112,10 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   /*
     This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
     that will lazily generate that event.  The two pointers allow dedup in the deferred queue if multiple publishes for
-    the same component are backed up, and take up only 8 bytes of memory.  The entry in the deferred queue (a
-    std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only 8 bytes per
-    entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors publishing
-    because of dedup) would take up only 0.8 kB.
+    the same component are backed up, and take up only two pointers of memory.  The entry in the deferred queue (a
+    std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only two
+    pointers per entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors
+    publishing because of dedup) would take up only 0.8 kB.
   */
   struct DeferredEvent {
     friend class DeferredUpdateEventSource;
@@ -130,7 +130,9 @@ class DeferredUpdateEventSource : public AsyncEventSource {
     bool operator==(const DeferredEvent &test) const {
       return (source_ == test.source_ && message_generator_ == test.message_generator_);
     }
-  } __attribute__((packed));
+  };
+  static_assert(sizeof(DeferredEvent) == sizeof(void *) + sizeof(message_generator_t *),
+                "DeferredEvent should have no padding");
 
  protected:
   // surface a couple methods from the base class

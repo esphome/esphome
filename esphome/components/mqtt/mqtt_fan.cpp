@@ -173,19 +173,20 @@ bool MQTTFanComponent::publish_state() {
   this->publish(this->get_state_topic_to_(topic_buf), state_s);
   bool failed = false;
   if (this->state_->get_traits().supports_direction()) {
-    bool success = this->publish(this->get_direction_state_topic(), fan_direction_to_mqtt_str(this->state_->direction));
+    bool success = this->publish(this->get_direction_state_topic_to(topic_buf),
+                                 fan_direction_to_mqtt_str(this->state_->direction));
     failed = failed || !success;
   }
   if (this->state_->get_traits().supports_oscillation()) {
-    bool success =
-        this->publish(this->get_oscillation_state_topic(), fan_oscillation_to_mqtt_str(this->state_->oscillating));
+    bool success = this->publish(this->get_oscillation_state_topic_to(topic_buf),
+                                 fan_oscillation_to_mqtt_str(this->state_->oscillating));
     failed = failed || !success;
   }
   auto traits = this->state_->get_traits();
   if (traits.supports_speed()) {
     char buf[12];
     size_t len = buf_append_printf(buf, sizeof(buf), 0, "%d", this->state_->speed);
-    bool success = this->publish(this->get_speed_level_state_topic(), buf, len);
+    bool success = this->publish(this->get_speed_level_state_topic_to(topic_buf), buf, len);
     failed = failed || !success;
   }
   return !failed;

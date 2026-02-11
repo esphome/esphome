@@ -344,14 +344,34 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   memcpy(user_info + user_len + 1, password, pass_len);
   user_info[user_info_len] = '\0';
 
-  size_t n = 0, out;
-  esp_crypto_base64_encode(nullptr, 0, &n, reinterpret_cast<const uint8_t *>(user_info), user_info_len);
-
-  auto digest = std::unique_ptr<char[]>(new char[n + 1]);
-  esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest.get()), n, &out,
+  // Base64 output size is ceil(input_len * 4/3) + 1, with input bounded to 256 bytes
+  // max output is ceil(256 * 4/3) + 1 = 343 bytes, use 350 for safety
+  constexpr size_t max_digest_len = 350;
+  char digest[max_digest_len];
+  size_t out;
+  esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest), max_digest_len, &out,
                            reinterpret_cast<const uint8_t *>(user_info), user_info_len);
 
-  return strcmp(digest.get(), auth_str + auth_prefix_len) == 0;
+  // Constant-time comparison to avoid timing side channels.
+  // No early return on length mismatch — the length difference is folded
+  // into the accumulator so any mismatch is rejected.
+  const char *provided = auth_str + auth_prefix_len;
+  size_t digest_len = out;  // length from esp_crypto_base64_encode
+  // Derive provided_len from the already-sized std::string rather than
+  // rescanning with strlen (avoids attacker-controlled scan length).
+  size_t provided_len = auth.value().size() - auth_prefix_len;
+  // Use full-width XOR so any bit difference in the lengths is preserved
+  // (uint8_t truncation would miss differences in higher bytes, e.g.
+  // digest_len vs digest_len + 256).
+  volatile size_t result = digest_len ^ provided_len;
+  // Iterate over the expected digest length only — the full-width length
+  // XOR above already rejects any length mismatch, and bounding the loop
+  // prevents a long Authorization header from forcing extra work.
+  for (size_t i = 0; i < digest_len; i++) {
+    char provided_ch = (i < provided_len) ? provided[i] : 0;
+    result |= static_cast<uint8_t>(digest[i] ^ provided_ch);
+  }
+  return result == 0;
 }
 
 void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
@@ -861,12 +881,12 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
     }
   });
 
-  // Process data
-  std::unique_ptr<char[]> buffer(new char[MULTIPART_CHUNK_SIZE]);
+  // Process data - use stack buffer to avoid heap allocation
+  char buffer[MULTIPART_CHUNK_SIZE];
   size_t bytes_since_yield = 0;
 
   for (size_t remaining = r->content_len; remaining > 0;) {
-    int recv_len = httpd_req_recv(r, buffer.get(), std::min(remaining, MULTIPART_CHUNK_SIZE));
+    int recv_len = httpd_req_recv(r, buffer, std::min(remaining, MULTIPART_CHUNK_SIZE));
 
     if (recv_len <= 0) {
       httpd_resp_send_err(r, recv_len == HTTPD_SOCK_ERR_TIMEOUT ? HTTPD_408_REQ_TIMEOUT : HTTPD_400_BAD_REQUEST,
@@ -874,7 +894,7 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
       return recv_len == HTTPD_SOCK_ERR_TIMEOUT ? ESP_ERR_TIMEOUT : ESP_FAIL;
     }
 
-    if (reader->parse(buffer.get(), recv_len) != static_cast<size_t>(recv_len)) {
+    if (reader->parse(buffer, recv_len) != static_cast<size_t>(recv_len)) {
       ESP_LOGW(TAG, "Multipart parser error");
       httpd_resp_send_err(r, HTTPD_400_BAD_REQUEST, nullptr);
       return ESP_FAIL;
