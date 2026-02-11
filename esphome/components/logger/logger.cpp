@@ -205,7 +205,7 @@ void Logger::process_messages_() {
     }
   }
 // Zephyr needs loop working to check when CDC port is open
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
+#if !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
   else {
     // No messages to process, disable loop if appropriate
     // This reduces overhead when there's no async logging activity
