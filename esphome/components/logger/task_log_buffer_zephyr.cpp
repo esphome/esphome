@@ -54,6 +54,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
   msg->tag = tag;
   msg->line = line;
   strncpy(msg->thread_name, thread_name, sizeof(msg->thread_name) - 1);
+  msg->thread_name[sizeof(msg->thread_name) - 1] = '\0';  // Ensure null termination
 
   // Format the message text directly into the acquired memory
   // We add 1 to text_length to ensure space for null terminator during formatting
