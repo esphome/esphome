@@ -9,11 +9,10 @@ namespace esphome::api {
 class APIConnection;
 
 // Macro for generating ListEntitiesIterator handlers
-// Calls schedule_message_ with try_send_*_info
+// Calls schedule_message_ which dispatches to try_send_*_info
 #define LIST_ENTITIES_HANDLER(entity_type, EntityClass, ResponseType) \
   bool ListEntitiesIterator::on_##entity_type(EntityClass *entity) { /* NOLINT(bugprone-macro-parentheses) */ \
-    return this->client_->schedule_message_(entity, &APIConnection::try_send_##entity_type##_info, \
-                                            ResponseType::MESSAGE_TYPE, ResponseType::ESTIMATED_SIZE); \
+    return this->client_->schedule_message_(entity, ResponseType::MESSAGE_TYPE, ResponseType::ESTIMATED_SIZE); \
   }
 
 class ListEntitiesIterator : public ComponentIterator {
@@ -85,6 +84,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_WATER_HEATER
   bool on_water_heater(water_heater::WaterHeater *entity) override;
 #endif
+#ifdef USE_INFRARED
+  bool on_infrared(infrared::Infrared *entity) override;
+#endif
 #ifdef USE_EVENT
   bool on_event(event::Event *entity) override;
 #endif
@@ -92,7 +94,6 @@ class ListEntitiesIterator : public ComponentIterator {
   bool on_update(update::UpdateEntity *entity) override;
 #endif
   bool on_end() override;
-  bool completed() { return this->state_ == IteratorState::NONE; }
 
  protected:
   APIConnection *client_;

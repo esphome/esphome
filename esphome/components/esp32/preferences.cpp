@@ -23,9 +23,11 @@ struct NVSData {
   size_t len;
 
   void set_data(const uint8_t *src, size_t size) {
-    this->data = std::make_unique<uint8_t[]>(size);
+    if (!this->data || this->len != size) {
+      this->data = std::make_unique<uint8_t[]>(size);
+      this->len = size;
+    }
     memcpy(this->data.get(), src, size);
-    this->len = size;
   }
 };
 
@@ -179,7 +181,8 @@ class ESP32Preferences : public ESPPreferences {
     if (actual_len != to_save.len) {
       return true;
     }
-    auto stored_data = std::make_unique<uint8_t[]>(actual_len);
+    // Most preferences are small, use stack buffer with heap fallback for large ones
+    SmallBufferWithHeapFallback<256> stored_data(actual_len);
     err = nvs_get_blob(nvs_handle, key_str, stored_data.get(), &actual_len);
     if (err != 0) {
       ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", key_str, esp_err_to_name(err));
@@ -200,10 +203,11 @@ class ESP32Preferences : public ESPPreferences {
   }
 };
 
+static ESP32Preferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void setup_preferences() {
-  auto *prefs = new ESP32Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  prefs->open();
-  global_preferences = prefs;
+  s_preferences.open();
+  global_preferences = &s_preferences;
 }
 
 }  // namespace esp32

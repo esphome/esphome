@@ -338,7 +338,7 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   return read_len == (int32_t) length_to_read;
 }
 
-int IDFUARTComponent::available() {
+size_t IDFUARTComponent::available() {
   size_t available = 0;
   esp_err_t err;
 
@@ -398,14 +398,18 @@ void IDFUARTComponent::rx_event_task_func(void *param) {
         case UART_DATA:
           // Data available in UART RX buffer - wake the main loop
           ESP_LOGVV(TAG, "Data event: %d bytes", event.size);
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
           App.wake_loop_threadsafe();
+#endif
           break;
 
         case UART_FIFO_OVF:
         case UART_BUFFER_FULL:
           ESP_LOGW(TAG, "FIFO overflow or ring buffer full - clearing");
           uart_flush_input(self->uart_num_);
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
           App.wake_loop_threadsafe();
+#endif
           break;
 
         default:

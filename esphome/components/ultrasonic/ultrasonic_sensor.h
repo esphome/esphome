@@ -11,6 +11,8 @@ namespace esphome::ultrasonic {
 struct UltrasonicSensorStore {
   static void gpio_intr(UltrasonicSensorStore *arg);
 
+  ISRInternalGPIOPin echo_pin_isr;
+  volatile uint32_t wait_start_us{0};
   volatile uint32_t echo_start_us{0};
   volatile uint32_t echo_end_us{0};
   volatile bool echo_start{false};
@@ -22,16 +24,13 @@ class UltrasonicSensorComponent : public sensor::Sensor, public PollingComponent
   void set_trigger_pin(InternalGPIOPin *trigger_pin) { this->trigger_pin_ = trigger_pin; }
   void set_echo_pin(InternalGPIOPin *echo_pin) { this->echo_pin_ = echo_pin; }
 
-  /// Set the timeout for waiting for the echo in µs.
-  void set_timeout_us(uint32_t timeout_us) { this->timeout_us_ = timeout_us; }
-
   void setup() override;
   void loop() override;
   void dump_config() override;
   void update() override;
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
+  /// Set the maximum time in µs to wait for the echo to return
+  void set_timeout_us(uint32_t timeout_us) { this->timeout_us_ = timeout_us; }
   /// Set the time in µs the trigger pin should be enabled for in µs, defaults to 10µs (for HC-SR04)
   void set_pulse_time_us(uint32_t pulse_time_us) { this->pulse_time_us_ = pulse_time_us; }
 

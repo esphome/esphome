@@ -93,7 +93,9 @@ bool CH422GComponent::read_inputs_() {
 bool CH422GComponent::write_reg_(uint8_t reg, uint8_t value) {
   auto err = this->bus_->write_readv(reg, &value, 1, nullptr, 0);
   if (err != i2c::ERROR_OK) {
-    this->status_set_warning(str_sprintf("write failed for register 0x%X, error %d", reg, err).c_str());
+    char buf[64];
+    snprintf(buf, sizeof(buf), "write failed for register 0x%X, error %d", reg, err);
+    this->status_set_warning(buf);
     return false;
   }
   this->status_clear_warning();
@@ -104,7 +106,9 @@ uint8_t CH422GComponent::read_reg_(uint8_t reg) {
   uint8_t value;
   auto err = this->bus_->write_readv(reg, nullptr, 0, &value, 1);
   if (err != i2c::ERROR_OK) {
-    this->status_set_warning(str_sprintf("read failed for register 0x%X, error %d", reg, err).c_str());
+    char buf[64];
+    snprintf(buf, sizeof(buf), "read failed for register 0x%X, error %d", reg, err);
+    this->status_set_warning(buf);
     return 0;
   }
   this->status_clear_warning();
@@ -129,7 +133,7 @@ bool CH422GGPIOPin::digital_read() { return this->parent_->digital_read(this->pi
 
 void CH422GGPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value ^ this->inverted_); }
 size_t CH422GGPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "EXIO%u via CH422G", this->pin_);
+  return buf_append_printf(buffer, len, 0, "EXIO%u via CH422G", this->pin_);
 }
 void CH422GGPIOPin::set_flags(gpio::Flags flags) {
   flags_ = flags;

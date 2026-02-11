@@ -116,11 +116,11 @@ void E131Component::leave_(int universe) {
   ESP_LOGD(TAG, "Left %d universe for E1.31.", universe);
 }
 
-bool E131Component::packet_(const std::vector<uint8_t> &data, int &universe, E131Packet &packet) {
-  if (data.size() < E131_MIN_PACKET_SIZE)
+bool E131Component::packet_(const uint8_t *data, size_t len, int &universe, E131Packet &packet) {
+  if (len < E131_MIN_PACKET_SIZE)
     return false;
 
-  auto *sbuff = reinterpret_cast<const E131RawPacket *>(&data[0]);
+  auto *sbuff = reinterpret_cast<const E131RawPacket *>(data);
 
   if (memcmp(sbuff->acn_id, ACN_ID, sizeof(sbuff->acn_id)) != 0)
     return false;

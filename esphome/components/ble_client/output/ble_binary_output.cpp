@@ -9,12 +9,15 @@ static const char *const TAG = "ble_binary_output";
 
 void BLEBinaryOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Binary Output:");
+  char service_buf[esp32_ble::UUID_STR_LEN];
+  char char_buf[esp32_ble::UUID_STR_LEN];
+  this->service_uuid_.to_str(service_buf);
+  this->char_uuid_.to_str(char_buf);
   ESP_LOGCONFIG(TAG,
                 "  MAC address        : %s\n"
                 "  Service UUID       : %s\n"
                 "  Characteristic UUID: %s",
-                this->parent_->address_str(), this->service_uuid_.to_string().c_str(),
-                this->char_uuid_.to_string().c_str());
+                this->parent_->address_str(), service_buf, char_buf);
   LOG_BINARY_OUTPUT(this);
 }
 
@@ -24,8 +27,10 @@ void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
       if (chr == nullptr) {
-        ESP_LOGW(TAG, "Characteristic %s was not found in service %s", this->char_uuid_.to_string().c_str(),
-                 this->service_uuid_.to_string().c_str());
+        char char_buf[esp32_ble::UUID_STR_LEN];
+        char service_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGW(TAG, "Characteristic %s was not found in service %s", this->char_uuid_.to_str(char_buf),
+                 this->service_uuid_.to_str(service_buf));
         break;
       }
       this->char_handle_ = chr->handle;
@@ -37,20 +42,24 @@ void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
         this->write_type_ = ESP_GATT_WRITE_TYPE_NO_RSP;
         ESP_LOGD(TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
       } else {
-        ESP_LOGE(TAG, "Characteristic %s does not allow writing with%s response", this->char_uuid_.to_string().c_str(),
+        char char_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGE(TAG, "Characteristic %s does not allow writing with%s response", this->char_uuid_.to_str(char_buf),
                  this->require_response_ ? "" : "out");
         break;
       }
       this->node_state = espbt::ClientState::ESTABLISHED;
-      ESP_LOGD(TAG, "Found characteristic %s on device %s", this->char_uuid_.to_string().c_str(),
+      char char_buf[esp32_ble::UUID_STR_LEN];
+      ESP_LOGD(TAG, "Found characteristic %s on device %s", this->char_uuid_.to_str(char_buf),
                this->parent()->address_str());
       this->node_state = espbt::ClientState::ESTABLISHED;
       break;
     }
     case ESP_GATTC_WRITE_CHAR_EVT: {
       if (param->write.handle == this->char_handle_) {
-        if (param->write.status != 0)
-          ESP_LOGW(TAG, "[%s] Write error, status=%d", this->char_uuid_.to_string().c_str(), param->write.status);
+        if (param->write.status != 0) {
+          char char_buf[esp32_ble::UUID_STR_LEN];
+          ESP_LOGW(TAG, "[%s] Write error, status=%d", this->char_uuid_.to_str(char_buf), param->write.status);
+        }
       }
       break;
     }
@@ -60,18 +69,19 @@ void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 }
 
 void BLEBinaryOutput::write_state(bool state) {
+  char char_buf[esp32_ble::UUID_STR_LEN];
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "[%s] Not connected to BLE client.  State update can not be written.",
-             this->char_uuid_.to_string().c_str());
+             this->char_uuid_.to_str(char_buf));
     return;
   }
   uint8_t state_as_uint = (uint8_t) state;
-  ESP_LOGV(TAG, "[%s] Write State: %d", this->char_uuid_.to_string().c_str(), state_as_uint);
+  ESP_LOGV(TAG, "[%s] Write State: %d", this->char_uuid_.to_str(char_buf), state_as_uint);
   esp_err_t err =
       esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_,
                                sizeof(state_as_uint), &state_as_uint, this->write_type_, ESP_GATT_AUTH_REQ_NONE);
   if (err != ESP_GATT_OK)
-    ESP_LOGW(TAG, "[%s] Write error, err=%d", this->char_uuid_.to_string().c_str(), err);
+    ESP_LOGW(TAG, "[%s] Write error, err=%d", this->char_uuid_.to_str(char_buf), err);
 }
 
 }  // namespace esphome::ble_client

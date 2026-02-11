@@ -26,7 +26,12 @@ void arch_init() {
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};
     wdt_config.flags = WDT_FLAG_RESET_SOC;
+#ifdef USE_ZIGBEE
+    // zboss thread use a lot of cpu cycles during start
+    wdt_config.window.max = 10000;
+#else
     wdt_config.window.max = 2000;
+#endif
     wdt_channel_id = wdt_install_timeout(WDT, &wdt_config);
     if (wdt_channel_id >= 0) {
       uint8_t options = 0;

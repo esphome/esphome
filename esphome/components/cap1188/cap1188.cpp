@@ -63,14 +63,14 @@ void CAP1188Component::finish_setup_() {
 }
 
 void CAP1188Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "CAP1188:");
-  LOG_I2C_DEVICE(this);
-  LOG_PIN("  Reset Pin: ", this->reset_pin_);
   ESP_LOGCONFIG(TAG,
+                "CAP1188:\n"
                 "  Product ID: 0x%x\n"
                 "  Manufacture ID: 0x%x\n"
                 "  Revision ID: 0x%x",
                 this->cap1188_product_id_, this->cap1188_manufacture_id_, this->cap1188_revision_);
+  LOG_I2C_DEVICE(this);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
 
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:

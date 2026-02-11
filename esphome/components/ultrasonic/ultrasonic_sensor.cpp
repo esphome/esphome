@@ -6,12 +6,11 @@ namespace esphome::ultrasonic {
 
 static const char *const TAG = "ultrasonic.sensor";
 
-static constexpr uint32_t DEBOUNCE_US = 50;          // Ignore edges within 50us (noise filtering)
-static constexpr uint32_t TIMEOUT_MARGIN_US = 1000;  // Extra margin for sensor processing time
+static constexpr uint32_t START_TIMEOUT_US = 40000;  // Maximum time to wait for echo pulse to start
 
 void IRAM_ATTR UltrasonicSensorStore::gpio_intr(UltrasonicSensorStore *arg) {
   uint32_t now = micros();
-  if (!arg->echo_start || (now - arg->echo_start_us) <= DEBOUNCE_US) {
+  if (arg->echo_pin_isr.digital_read()) {
     arg->echo_start_us = now;
     arg->echo_start = true;
   } else {
@@ -38,6 +37,7 @@ void UltrasonicSensorComponent::setup() {
   this->trigger_pin_->digital_write(false);
   this->trigger_pin_isr_ = this->trigger_pin_->to_isr();
   this->echo_pin_->setup();
+  this->store_.echo_pin_isr = this->echo_pin_->to_isr();
   this->echo_pin_->attach_interrupt(UltrasonicSensorStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
 }
 
@@ -53,25 +53,44 @@ void UltrasonicSensorComponent::loop() {
     return;
   }
 
+  if (!this->store_.echo_start) {
+    uint32_t elapsed = micros() - this->measurement_start_us_;
+    if (elapsed >= START_TIMEOUT_US) {
+      ESP_LOGW(TAG, "'%s' - Measurement start timed out", this->name_.c_str());
+      this->publish_state(NAN);
+      this->measurement_pending_ = false;
+      return;
+    }
+  } else {
+    uint32_t elapsed;
+    if (this->store_.echo_end) {
+      elapsed = this->store_.echo_end_us - this->store_.echo_start_us;
+    } else {
+      elapsed = micros() - this->store_.echo_start_us;
+    }
+    if (elapsed >= this->timeout_us_) {
+      ESP_LOGD(TAG, "'%s' - Measurement pulse timed out after %" PRIu32 "us", this->name_.c_str(), elapsed);
+      this->publish_state(NAN);
+      this->measurement_pending_ = false;
+      return;
+    }
+  }
+
   if (this->store_.echo_end) {
-    uint32_t pulse_duration = this->store_.echo_end_us - this->store_.echo_start_us;
-    ESP_LOGV(TAG, "Echo took %" PRIu32 "us", pulse_duration);
-    float result = UltrasonicSensorComponent::us_to_m(pulse_duration);
-    ESP_LOGD(TAG, "'%s' - Got distance: %.3f m", this->name_.c_str(), result);
+    float result;
+    if (this->store_.echo_start) {
+      uint32_t pulse_duration = this->store_.echo_end_us - this->store_.echo_start_us;
+      ESP_LOGV(TAG, "pulse start took %" PRIu32 "us, echo took %" PRIu32 "us",
+               this->store_.echo_start_us - this->measurement_start_us_, pulse_duration);
+      result = UltrasonicSensorComponent::us_to_m(pulse_duration);
+      ESP_LOGD(TAG, "'%s' - Got distance: %.3f m", this->name_.c_str(), result);
+    } else {
+      ESP_LOGW(TAG, "'%s' - pulse end before pulse start, does the echo pin need to be inverted?", this->name_.c_str());
+      result = NAN;
+    }
     this->publish_state(result);
     this->measurement_pending_ = false;
     return;
-  }
-
-  uint32_t elapsed = micros() - this->measurement_start_us_;
-  if (elapsed >= this->timeout_us_ + TIMEOUT_MARGIN_US) {
-    ESP_LOGD(TAG,
-             "'%s' - Timeout after %" PRIu32 "us (measurement_start=%" PRIu32 ", echo_start=%" PRIu32
-             ", echo_end=%" PRIu32 ")",
-             this->name_.c_str(), elapsed, this->measurement_start_us_, this->store_.echo_start_us,
-             this->store_.echo_end_us);
-    this->publish_state(NAN);
-    this->measurement_pending_ = false;
   }
 }
 
@@ -80,8 +99,8 @@ void UltrasonicSensorComponent::dump_config() {
   LOG_PIN("  Echo Pin: ", this->echo_pin_);
   LOG_PIN("  Trigger Pin: ", this->trigger_pin_);
   ESP_LOGCONFIG(TAG,
-                "  Pulse time: %" PRIu32 " us\n"
-                "  Timeout: %" PRIu32 " us",
+                "  Pulse time: %" PRIu32 " µs\n"
+                "  Timeout: %" PRIu32 " µs",
                 this->pulse_time_us_, this->timeout_us_);
   LOG_UPDATE_INTERVAL(this);
 }

@@ -100,6 +100,8 @@ class WebServerBase : public Component {
     }
     this->server_ = std::make_unique<AsyncWebServer>(this->port_);
     // All content is controlled and created by user - so allowing all origins is fine here.
+    // NOTE: Currently 1 header. If more are added, update in __init__.py:
+    //   cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)
     DefaultHeaders::Instance().addHeader(ESPHOME_F("Access-Control-Allow-Origin"), ESPHOME_F("*"));
     this->server_->begin();
 
