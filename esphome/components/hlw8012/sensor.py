@@ -94,10 +94,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     if CORE.is_esp32:
-        # Re-enable ESP-IDF's legacy driver component (excluded by default to save compile time)
-        # HLW8012 uses pulse_counter's PCNT storage which requires driver/pcnt.h
-        # TODO: Remove this once pulse_counter migrates to new PCNT API (driver/pulse_cnt.h)
-        include_builtin_idf_component("driver")
+        include_builtin_idf_component("esp_driver_pcnt")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

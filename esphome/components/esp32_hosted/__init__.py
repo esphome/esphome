@@ -95,9 +95,9 @@ async def to_code(config):
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     os.environ["ESP_IDF_VERSION"] = f"{framework_ver.major}.{framework_ver.minor}"
     if framework_ver >= cv.Version(5, 5, 0):
-        esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.2.4")
+        esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.3.2")
         esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.4")
-        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.9.3")
+        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.11.5")
     else:
         esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="0.13.0")
         esp32.add_idf_component(name="espressif/eppp_link", ref="0.2.0")

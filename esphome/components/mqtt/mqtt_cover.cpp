@@ -112,19 +112,19 @@ bool MQTTCoverComponent::send_initial_state() { return this->publish_state(); }
 bool MQTTCoverComponent::publish_state() {
   auto traits = this->cover_->get_traits();
   bool success = true;
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   if (traits.get_supports_position()) {
     char pos[VALUE_ACCURACY_MAX_LEN];
     size_t len = value_accuracy_to_buf(pos, roundf(this->cover_->position * 100), 0);
-    if (!this->publish(this->get_position_state_topic(), pos, len))
+    if (!this->publish(this->get_position_state_topic_to(topic_buf), pos, len))
       success = false;
   }
   if (traits.get_supports_tilt()) {
     char pos[VALUE_ACCURACY_MAX_LEN];
     size_t len = value_accuracy_to_buf(pos, roundf(this->cover_->tilt * 100), 0);
-    if (!this->publish(this->get_tilt_state_topic(), pos, len))
+    if (!this->publish(this->get_tilt_state_topic_to(topic_buf), pos, len))
       success = false;
   }
-  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   if (!this->publish(this->get_state_topic_to_(topic_buf),
                      cover_state_to_mqtt_str(this->cover_->current_operation, this->cover_->position,
                                              traits.get_supports_position())))

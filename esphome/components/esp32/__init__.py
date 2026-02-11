@@ -46,10 +46,11 @@ from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
-from esphome.writer import clean_cmake_cache
+from esphome.writer import clean_cmake_cache, rmtree
 
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
+    KEY_ARDUINO_LIBRARIES,
     KEY_BOARD,
     KEY_COMPONENTS,
     KEY_ESP32,
@@ -94,6 +95,11 @@ CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_RELEASE = "release"
 
+ARDUINO_FRAMEWORK_NAME = "framework-arduinoespressif32"
+ARDUINO_FRAMEWORK_PKG = f"pioarduino/{ARDUINO_FRAMEWORK_NAME}"
+ARDUINO_LIBS_NAME = f"{ARDUINO_FRAMEWORK_NAME}-libs"
+ARDUINO_LIBS_PKG = f"pioarduino/{ARDUINO_LIBS_NAME}"
+
 LOG_LEVELS_IDF = [
     "NONE",
     "ERROR",
@@ -129,6 +135,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
     "esp_driver_mcpwm",  # MCPWM driver - ESPHome doesn't use motor control PWM
+    "esp_driver_pcnt",  # PCNT driver - only needed by pulse_counter, hlw8012 components
     "esp_driver_rmt",  # RMT driver - only needed by remote_transmitter/receiver, neopixelbus
     "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
     "esp_driver_twai",  # TWAI/CAN driver - only needed by esp32_can component
@@ -150,6 +157,168 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "unity",  # Unit testing framework - ESPHome doesn't use IDF's testing
     "wear_levelling",  # Flash wear levelling for fatfs - unused since fatfs unused
     "wifi_provisioning",  # WiFi provisioning - ESPHome uses its own improv implementation
+)
+
+# Additional IDF managed components to exclude for Arduino framework builds
+# These are pulled in by the Arduino framework's idf_component.yml but not used by ESPHome
+# Note: Component names include the namespace prefix (e.g., "espressif__cbor") because
+# that's how managed components are registered in the IDF build system
+# List includes direct dependencies from arduino-esp32/idf_component.yml
+# plus transitive dependencies from RainMaker/Insights (except espressif/mdns which we need)
+ARDUINO_EXCLUDED_IDF_COMPONENTS = (
+    "chmorgan__esp-libhelix-mp3",  # MP3 decoder - not used
+    "espressif__cbor",  # CBOR library - only used by RainMaker/Insights
+    "espressif__esp-dsp",  # DSP library - not used
+    "espressif__esp-modbus",  # Modbus - ESPHome has its own
+    "espressif__esp-sr",  # Speech recognition - not used
+    "espressif__esp-zboss-lib",  # Zigbee ZBOSS library - not used
+    "espressif__esp-zigbee-lib",  # Zigbee library - not used
+    "espressif__esp_diag_data_store",  # Diagnostics - not used
+    "espressif__esp_diagnostics",  # Diagnostics - not used
+    "espressif__esp_hosted",  # ESP hosted - only for ESP32-P4
+    "espressif__esp_insights",  # ESP Insights - not used
+    "espressif__esp_modem",  # Modem library - not used
+    "espressif__esp_rainmaker",  # RainMaker - not used
+    "espressif__esp_rcp_update",  # RCP update - RainMaker transitive dep
+    "espressif__esp_schedule",  # Schedule - RainMaker transitive dep
+    "espressif__esp_secure_cert_mgr",  # Secure cert - RainMaker transitive dep
+    "espressif__esp_wifi_remote",  # WiFi remote - only for ESP32-P4
+    "espressif__json_generator",  # JSON generator - RainMaker transitive dep
+    "espressif__json_parser",  # JSON parser - RainMaker transitive dep
+    "espressif__lan867x",  # Ethernet PHY - ESPHome uses ESP-IDF ethernet directly
+    "espressif__libsodium",  # Crypto - ESPHome uses its own noise-c library
+    "espressif__network_provisioning",  # Network provisioning - not used
+    "espressif__qrcode",  # QR code - not used
+    "espressif__rmaker_common",  # RainMaker common - not used
+    "joltwallet__littlefs",  # LittleFS - ESPHome doesn't use filesystem
+)
+
+# Mapping of Arduino libraries to IDF managed components they require
+# When an Arduino library is enabled via cg.add_library(), these components
+# are automatically un-stubbed from ARDUINO_EXCLUDED_IDF_COMPONENTS.
+#
+# Note: Some libraries (Matter, LittleFS, ESP_SR, WiFiProv, ArduinoOTA) already have
+# conditional maybe_add_component() calls in arduino-esp32/CMakeLists.txt that handle
+# their managed component dependencies. Our mapping is primarily needed for libraries
+# that don't have such conditionals (Ethernet, PPP, Zigbee, RainMaker, Insights, etc.)
+# and to ensure the stubs are removed from our idf_component.yml overrides.
+ARDUINO_LIBRARY_IDF_COMPONENTS: dict[str, tuple[str, ...]] = {
+    "BLE": ("esp_driver_gptimer",),
+    "BluetoothSerial": ("esp_driver_gptimer",),
+    "ESP_HostedOTA": ("espressif__esp_hosted", "espressif__esp_wifi_remote"),
+    "ESP_SR": ("espressif__esp-sr",),
+    "Ethernet": ("espressif__lan867x",),
+    "FFat": ("fatfs",),
+    "Insights": (
+        "espressif__cbor",
+        "espressif__esp_insights",
+        "espressif__esp_diagnostics",
+        "espressif__esp_diag_data_store",
+        "espressif__rmaker_common",  # Transitive dep from esp_insights
+    ),
+    "LittleFS": ("joltwallet__littlefs",),
+    "Matter": ("espressif__esp_matter",),
+    "PPP": ("espressif__esp_modem",),
+    "RainMaker": (
+        # Direct deps from idf_component.yml
+        "espressif__cbor",
+        "espressif__esp_rainmaker",
+        "espressif__esp_insights",
+        "espressif__esp_diagnostics",
+        "espressif__esp_diag_data_store",
+        "espressif__rmaker_common",
+        "espressif__qrcode",
+        # Transitive deps from esp_rainmaker
+        "espressif__esp_rcp_update",
+        "espressif__esp_schedule",
+        "espressif__esp_secure_cert_mgr",
+        "espressif__json_generator",
+        "espressif__json_parser",
+        "espressif__network_provisioning",
+    ),
+    "SD": ("fatfs",),
+    "SD_MMC": ("fatfs",),
+    "SPIFFS": ("spiffs",),
+    "WiFiProv": ("espressif__network_provisioning", "espressif__qrcode"),
+    "Zigbee": ("espressif__esp-zigbee-lib", "espressif__esp-zboss-lib"),
+}
+
+# Arduino library to Arduino library dependencies
+# When enabling one library, also enable its dependencies
+# Kconfig "select" statements don't work with CONFIG_ARDUINO_SELECTIVE_COMPILATION
+ARDUINO_LIBRARY_DEPENDENCIES: dict[str, tuple[str, ...]] = {
+    "Ethernet": ("Network",),
+    "WiFi": ("Network",),
+}
+
+
+def _idf_component_stub_name(component: str) -> str:
+    """Get stub directory name from IDF component name.
+
+    Component names are typically namespace__name (e.g., espressif__cbor).
+    Returns just the name part (e.g., cbor). If no namespace is present,
+    returns the original component name.
+    """
+    _prefix, sep, suffix = component.partition("__")
+    return suffix if sep else component
+
+
+def _idf_component_dep_name(component: str) -> str:
+    """Convert IDF component name to dependency format.
+
+    Converts espressif__cbor to espressif/cbor.
+    """
+    return component.replace("__", "/")
+
+
+# Arduino libraries to disable by default when using Arduino framework
+# ESPHome uses ESP-IDF APIs directly; we only need the Arduino core
+# (HardwareSerial, Print, Stream, GPIO functions which are always compiled)
+# Components use cg.add_library() which auto-enables any they need
+# This list must match ARDUINO_ALL_LIBRARIES from arduino-esp32/CMakeLists.txt
+ARDUINO_DISABLED_LIBRARIES: frozenset[str] = frozenset(
+    {
+        "ArduinoOTA",
+        "AsyncUDP",
+        "BLE",
+        "BluetoothSerial",
+        "DNSServer",
+        "EEPROM",
+        "ESP_HostedOTA",
+        "ESP_I2S",
+        "ESP_NOW",
+        "ESP_SR",
+        "ESPmDNS",
+        "Ethernet",
+        "FFat",
+        "FS",
+        "Hash",
+        "HTTPClient",
+        "HTTPUpdate",
+        "Insights",
+        "LittleFS",
+        "Matter",
+        "NetBIOS",
+        "Network",
+        "NetworkClientSecure",
+        "OpenThread",
+        "PPP",
+        "Preferences",
+        "RainMaker",
+        "SD",
+        "SD_MMC",
+        "SimpleBLE",
+        "SPI",
+        "SPIFFS",
+        "Ticker",
+        "Update",
+        "USB",
+        "WebServer",
+        "WiFi",
+        "WiFiProv",
+        "Wire",
+        "Zigbee",
+    }
 )
 
 # ESP32 (original) chip revision options
@@ -243,7 +412,13 @@ def set_core_data(config):
     CORE.data[KEY_ESP32][KEY_COMPONENTS] = {}
     # Initialize with default exclusions - components can call include_builtin_idf_component()
     # to re-enable any they need
-    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = set(DEFAULT_EXCLUDED_IDF_COMPONENTS)
+    excluded = set(DEFAULT_EXCLUDED_IDF_COMPONENTS)
+    # Add Arduino-specific managed component exclusions when using Arduino framework
+    if conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
+        excluded.update(ARDUINO_EXCLUDED_IDF_COMPONENTS)
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = excluded
+    # Initialize Arduino library tracking - cg.add_library() auto-enables libraries
+    CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES] = set()
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
@@ -391,6 +566,26 @@ def include_builtin_idf_component(name: str) -> None:
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
 
 
+def _enable_arduino_library(name: str) -> None:
+    """Enable an Arduino library that is disabled by default.
+
+    This is called automatically by CORE.add_library() when a component adds
+    an Arduino library via cg.add_library(). Components should not call this
+    directly - just use cg.add_library("LibName", None).
+
+    Args:
+        name: The library name (e.g., "Wire", "SPI", "WiFi")
+    """
+    enabled_libs: set[str] = CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES]
+    enabled_libs.add(name)
+    # Also enable any required Arduino library dependencies
+    for dep_lib in ARDUINO_LIBRARY_DEPENDENCIES.get(name, ()):
+        enabled_libs.add(dep_lib)
+    # Also enable any required IDF components
+    for idf_component in ARDUINO_LIBRARY_IDF_COMPONENTS.get(name, ()):
+        include_builtin_idf_component(idf_component)
+
+
 def add_extra_script(stage: str, filename: str, path: Path):
     """Add an extra script to the project."""
     key = f"{stage}:{filename}"
@@ -410,14 +605,12 @@ def add_extra_build_file(filename: str, path: Path) -> bool:
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
-    # format the given arduino (https://github.com/espressif/arduino-esp32/releases) version to
-    # a PIO pioarduino/framework-arduinoespressif32 value
     # 3.3.6+ changed filename from esp32-{ver}.zip to esp32-core-{ver}.tar.xz
     if ver >= cv.Version(3, 3, 6):
         filename = f"esp32-core-{ver}.tar.xz"
     else:
         filename = f"esp32-{ver}.zip"
-    return f"pioarduino/framework-arduinoespressif32@https://github.com/espressif/arduino-esp32/releases/download/{ver}/{filename}"
+    return f"{ARDUINO_FRAMEWORK_PKG}@https://github.com/espressif/arduino-esp32/releases/download/{ver}/{filename}"
 
 
 def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
@@ -552,9 +745,7 @@ def _check_versions(config):
             CONF_SOURCE, _format_framework_arduino_version(version)
         )
         if _is_framework_url(value[CONF_SOURCE]):
-            value[CONF_SOURCE] = (
-                f"pioarduino/framework-arduinoespressif32@{value[CONF_SOURCE]}"
-            )
+            value[CONF_SOURCE] = f"{ARDUINO_FRAMEWORK_PKG}@{value[CONF_SOURCE]}"
     else:
         if version < cv.Version(5, 0, 0):
             raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
@@ -979,8 +1170,8 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         + "(We've been warning about this change since ESPHome 2025.8.0)\n"
         + "\n"
         + "Why we made this change:\n"
-        + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller firmware binaries\n")
-        + color(AnsiFore.GREEN, "  ⚡ 2-3x faster compile times\n")
+        + color(AnsiFore.GREEN, "  ✨ Smaller firmware binaries\n")
+        + color(AnsiFore.GREEN, "  ⚡ Faster compile times\n")
         + color(AnsiFore.GREEN, "  🚀 Better performance and newer features\n")
         + color(AnsiFore.GREEN, "  🔧 More actively maintained by ESPHome\n")
         + "\n"
@@ -1133,6 +1324,41 @@ async def _write_exclude_components() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
+async def _write_arduino_libs_stub(stubs_dir: Path, idf_ver: cv.Version) -> None:
+    """Write stub package to skip downloading precompiled Arduino libs."""
+    stubs_dir.mkdir(parents=True, exist_ok=True)
+    write_file_if_changed(
+        stubs_dir / "package.json",
+        f'{{"name":"{ARDUINO_LIBS_NAME}","version":"{idf_ver.major}.{idf_ver.minor}.{idf_ver.patch}"}}',
+    )
+    write_file_if_changed(
+        stubs_dir / "tools.json",
+        '{"packages":[{"platforms":[{"toolsDependencies":[]}],"tools":[]}]}',
+    )
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _write_arduino_libraries_sdkconfig() -> None:
+    """Write Arduino selective compilation sdkconfig after all components have added libraries.
+
+    This must run at FINAL priority so that all components have had a chance to call
+    cg.add_library() which auto-enables Arduino libraries via _enable_arduino_library().
+    """
+    if KEY_ESP32 not in CORE.data:
+        return
+    # Enable Arduino selective compilation to disable unused Arduino libraries
+    # ESPHome uses ESP-IDF APIs directly; we only need the Arduino core
+    # (HardwareSerial, Print, Stream, GPIO functions which are always compiled)
+    # cg.add_library() auto-enables needed libraries; users can also add
+    # libraries via esphome: libraries: config which calls cg.add_library()
+    add_idf_sdkconfig_option("CONFIG_ARDUINO_SELECTIVE_COMPILATION", True)
+    enabled_libs = CORE.data[KEY_ESP32].get(KEY_ARDUINO_LIBRARIES, set())
+    for lib in ARDUINO_DISABLED_LIBRARIES:
+        # Enable if explicitly requested, disable otherwise
+        add_idf_sdkconfig_option(f"CONFIG_ARDUINO_SELECTIVE_{lib}", lib in enabled_libs)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_yaml_idf_components(components: list[ConfigType]):
     """Add IDF components from YAML config with final priority to override code-added components."""
     for component in components:
@@ -1210,6 +1436,14 @@ async def to_code(config):
         CORE.relative_internal_path(".espressif")
     )
 
+    # Set the uv cache inside the data dir so "Clean All" clears it.
+    # Avoids persistent corrupted cache from mid-stream download failures.
+    os.environ["UV_CACHE_DIR"] = str(CORE.relative_internal_path(".uv_cache"))
+
+    # Set the uv cache inside the data dir so "Clean All" clears it.
+    # Avoids persistent corrupted cache from mid-stream download failures.
+    os.environ["UV_CACHE_DIR"] = str(CORE.relative_internal_path(".uv_cache"))
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
@@ -1241,6 +1475,12 @@ async def to_code(config):
                     "platform_packages",
                     [_format_framework_espidf_version(idf_ver, None)],
                 )
+                # Use stub package to skip downloading precompiled libs
+                stubs_dir = CORE.relative_build_path("arduino_libs_stub")
+                cg.add_platformio_option(
+                    "platform_packages", [f"{ARDUINO_LIBS_PKG}@file://{stubs_dir}"]
+                )
+                CORE.add_job(_write_arduino_libs_stub, stubs_dir, idf_ver)
 
             # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
             if get_esp32_variant() == VARIANT_ESP32S2:
@@ -1550,6 +1790,11 @@ async def to_code(config):
     # Default exclusions are added in set_core_data() during config validation.
     CORE.add_job(_write_exclude_components)
 
+    # Write Arduino selective compilation sdkconfig at FINAL priority after all
+    # components have had a chance to call cg.add_library() to enable libraries they need.
+    if conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
+        CORE.add_job(_write_arduino_libraries_sdkconfig)
+
 
 APP_PARTITION_SIZES = {
     "2MB": 0x0C0000,  # 768 KB
@@ -1630,11 +1875,49 @@ def _write_sdkconfig():
 
 def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
+    dependencies: dict[str, dict] = {}
+
+    # For Arduino builds, override unused managed components from the Arduino framework
+    # by pointing them to empty stub directories using override_path
+    # This prevents the IDF component manager from downloading the real components
+    if CORE.using_arduino:
+        # Determine which IDF components are needed by enabled Arduino libraries
+        enabled_libs = CORE.data[KEY_ESP32].get(KEY_ARDUINO_LIBRARIES, set())
+        required_idf_components = {
+            comp
+            for lib in enabled_libs
+            for comp in ARDUINO_LIBRARY_IDF_COMPONENTS.get(lib, ())
+        }
+
+        # Only stub components that are not required by any enabled Arduino library
+        components_to_stub = (
+            set(ARDUINO_EXCLUDED_IDF_COMPONENTS) - required_idf_components
+        )
+
+        stubs_dir = CORE.relative_build_path("component_stubs")
+        stubs_dir.mkdir(exist_ok=True)
+        for component_name in components_to_stub:
+            # Create stub directory with minimal CMakeLists.txt
+            stub_path = stubs_dir / _idf_component_stub_name(component_name)
+            stub_path.mkdir(exist_ok=True)
+            stub_cmake = stub_path / "CMakeLists.txt"
+            if not stub_cmake.exists():
+                stub_cmake.write_text("idf_component_register()\n")
+            dependencies[_idf_component_dep_name(component_name)] = {
+                "version": "*",
+                "override_path": str(stub_path),
+            }
+
+        # Remove stubs for components that are now required by enabled libraries
+        for component_name in required_idf_components:
+            stub_path = stubs_dir / _idf_component_stub_name(component_name)
+            if stub_path.exists():
+                rmtree(stub_path)
+
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
-        dependencies = {}
         for name, component in components.items():
-            dependency = {}
+            dependency: dict[str, str] = {}
             if component[KEY_REF]:
                 dependency["version"] = component[KEY_REF]
             if component[KEY_REPO]:
@@ -1642,9 +1925,8 @@ def _write_idf_component_yml():
             if component[KEY_PATH]:
                 dependency["path"] = component[KEY_PATH]
             dependencies[name] = dependency
-        contents = yaml_util.dump({"dependencies": dependencies})
-    else:
-        contents = ""
+
+    contents = yaml_util.dump({"dependencies": dependencies}) if dependencies else ""
     if write_file_if_changed(yml_path, contents):
         dependencies_lock = CORE.relative_build_path("dependencies.lock")
         if dependencies_lock.is_file():

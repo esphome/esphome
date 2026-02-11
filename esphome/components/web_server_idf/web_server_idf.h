@@ -121,7 +121,6 @@ class AsyncWebServerRequest {
     char buffer[URL_BUF_SIZE];
     return std::string(this->url_to(buffer));
   }
-  std::string host() const;
   // NOLINTNEXTLINE(readability-identifier-naming)
   size_t contentLength() const { return this->req_->content_len; }
 

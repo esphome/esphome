@@ -295,7 +295,7 @@ size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
   size_t chars = std::min(length, 2 * count);
   for (size_t i = 2 * count - chars; i < 2 * count; i++, str++) {
     uint8_t val = parse_hex_char(*str);
-    if (val > 15)
+    if (val == INVALID_HEX_CHAR)
       return 0;
     data[i >> 1] = (i & 1) ? data[i >> 1] | val : val << 4;
   }
