@@ -36,12 +36,12 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
            lt_get_version(), lt_cpu_get_model_name(), lt_cpu_get_model(), lt_cpu_get_freq_mhz(), mac_id,
            lt_get_board_code(), flash_kib, ram_kib, reset_reason);
 
-  pos = buf_append(buf, size, pos, "|Version: %s", LT_BANNER_STR + 10);
-  pos = buf_append(buf, size, pos, "|Reset Reason: %s", reset_reason);
-  pos = buf_append(buf, size, pos, "|Chip Name: %s", lt_cpu_get_model_name());
-  pos = buf_append(buf, size, pos, "|Chip ID: 0x%06" PRIX32, mac_id);
-  pos = buf_append(buf, size, pos, "|Flash: %" PRIu32 " KiB", flash_kib);
-  pos = buf_append(buf, size, pos, "|RAM: %" PRIu32 " KiB", ram_kib);
+  pos = buf_append_printf(buf, size, pos, "|Version: %s", LT_BANNER_STR + 10);
+  pos = buf_append_printf(buf, size, pos, "|Reset Reason: %s", reset_reason);
+  pos = buf_append_printf(buf, size, pos, "|Chip Name: %s", lt_cpu_get_model_name());
+  pos = buf_append_printf(buf, size, pos, "|Chip ID: 0x%06" PRIX32, mac_id);
+  pos = buf_append_printf(buf, size, pos, "|Flash: %" PRIu32 " KiB", flash_kib);
+  pos = buf_append_printf(buf, size, pos, "|RAM: %" PRIu32 " KiB", ram_kib);
 
   return pos;
 }
@@ -50,6 +50,9 @@ void DebugComponent::update_platform_() {
 #ifdef USE_SENSOR
   if (this->block_sensor_ != nullptr) {
     this->block_sensor_->publish_state(lt_heap_get_max_alloc());
+  }
+  if (this->min_free_sensor_ != nullptr) {
+    this->min_free_sensor_->publish_state(lt_heap_get_min_free());
   }
 #endif
 }

@@ -1,5 +1,6 @@
 #include "mqtt_cover.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -11,6 +12,20 @@ namespace esphome::mqtt {
 static const char *const TAG = "mqtt.cover";
 
 using namespace esphome::cover;
+
+static ProgmemStr cover_state_to_mqtt_str(CoverOperation operation, float position, bool supports_position) {
+  if (operation == COVER_OPERATION_OPENING)
+    return ESPHOME_F("opening");
+  if (operation == COVER_OPERATION_CLOSING)
+    return ESPHOME_F("closing");
+  if (position == COVER_CLOSED)
+    return ESPHOME_F("closed");
+  if (position == COVER_OPEN)
+    return ESPHOME_F("open");
+  if (supports_position)
+    return ESPHOME_F("open");
+  return ESPHOME_F("unknown");
+}
 
 MQTTCoverComponent::MQTTCoverComponent(Cover *cover) : cover_(cover) {}
 void MQTTCoverComponent::setup() {
@@ -51,7 +66,7 @@ void MQTTCoverComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT cover '%s':", this->cover_->get_name().c_str());
   auto traits = this->cover_->get_traits();
   bool has_command_topic = traits.get_supports_position() || !traits.get_supports_tilt();
-  LOG_MQTT_COMPONENT(true, has_command_topic)
+  LOG_MQTT_COMPONENT(true, has_command_topic);
   if (traits.get_supports_position()) {
     ESP_LOGCONFIG(TAG,
                   "  Position State Topic: '%s'\n"
@@ -97,23 +112,22 @@ bool MQTTCoverComponent::send_initial_state() { return this->publish_state(); }
 bool MQTTCoverComponent::publish_state() {
   auto traits = this->cover_->get_traits();
   bool success = true;
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   if (traits.get_supports_position()) {
-    std::string pos = value_accuracy_to_string(roundf(this->cover_->position * 100), 0);
-    if (!this->publish(this->get_position_state_topic(), pos))
+    char pos[VALUE_ACCURACY_MAX_LEN];
+    size_t len = value_accuracy_to_buf(pos, roundf(this->cover_->position * 100), 0);
+    if (!this->publish(this->get_position_state_topic_to(topic_buf), pos, len))
       success = false;
   }
   if (traits.get_supports_tilt()) {
-    std::string pos = value_accuracy_to_string(roundf(this->cover_->tilt * 100), 0);
-    if (!this->publish(this->get_tilt_state_topic(), pos))
+    char pos[VALUE_ACCURACY_MAX_LEN];
+    size_t len = value_accuracy_to_buf(pos, roundf(this->cover_->tilt * 100), 0);
+    if (!this->publish(this->get_tilt_state_topic_to(topic_buf), pos, len))
       success = false;
   }
-  const char *state_s = this->cover_->current_operation == COVER_OPERATION_OPENING   ? "opening"
-                        : this->cover_->current_operation == COVER_OPERATION_CLOSING ? "closing"
-                        : this->cover_->position == COVER_CLOSED                     ? "closed"
-                        : this->cover_->position == COVER_OPEN                       ? "open"
-                        : traits.get_supports_position()                             ? "open"
-                                                                                     : "unknown";
-  if (!this->publish(this->get_state_topic_(), state_s))
+  if (!this->publish(this->get_state_topic_to_(topic_buf),
+                     cover_state_to_mqtt_str(this->cover_->current_operation, this->cover_->position,
+                                             traits.get_supports_position())))
     success = false;
   return success;
 }

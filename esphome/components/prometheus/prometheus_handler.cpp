@@ -194,7 +194,9 @@ void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor 
     stream->print(ESPHOME_F("\",unit=\""));
     stream->print(obj->get_unit_of_measurement_ref().c_str());
     stream->print(ESPHOME_F("\"} "));
-    stream->print(value_accuracy_to_string(obj->state, obj->get_accuracy_decimals()).c_str());
+    char value_buf[VALUE_ACCURACY_MAX_LEN];
+    value_accuracy_to_buf(value_buf, obj->state, obj->get_accuracy_decimals());
+    stream->print(value_buf);
     stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
@@ -954,7 +956,7 @@ void PrometheusHandler::climate_setting_row_(AsyncResponseStream *stream, climat
 
 void PrometheusHandler::climate_value_row_(AsyncResponseStream *stream, climate::Climate *obj, std::string &area,
                                            std::string &node, std::string &friendly_name, std::string &category,
-                                           std::string &climate_value) {
+                                           const char *climate_value) {
   stream->print(ESPHOME_F("esphome_climate_value{id=\""));
   stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
@@ -965,7 +967,7 @@ void PrometheusHandler::climate_value_row_(AsyncResponseStream *stream, climate:
   stream->print(ESPHOME_F("\",category=\""));
   stream->print(category.c_str());
   stream->print(ESPHOME_F("\"} "));
-  stream->print(climate_value.c_str());
+  stream->print(climate_value);
   stream->print(ESPHOME_F("\n"));
 }
 
@@ -1003,14 +1005,15 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
   // Now see if traits is supported
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
+  char value_buf[VALUE_ACCURACY_MAX_LEN];
   // max temp
   std::string max_temp = "maximum_temperature";
-  auto max_temp_value = value_accuracy_to_string(traits.get_visual_max_temperature(), target_accuracy);
-  climate_value_row_(stream, obj, area, node, friendly_name, max_temp, max_temp_value);
-  // max temp
-  std::string min_temp = "mininum_temperature";
-  auto min_temp_value = value_accuracy_to_string(traits.get_visual_min_temperature(), target_accuracy);
-  climate_value_row_(stream, obj, area, node, friendly_name, min_temp, min_temp_value);
+  value_accuracy_to_buf(value_buf, traits.get_visual_max_temperature(), target_accuracy);
+  climate_value_row_(stream, obj, area, node, friendly_name, max_temp, value_buf);
+  // min temp
+  std::string min_temp = "minimum_temperature";
+  value_accuracy_to_buf(value_buf, traits.get_visual_min_temperature(), target_accuracy);
+  climate_value_row_(stream, obj, area, node, friendly_name, min_temp, value_buf);
   // now check optional traits
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE)) {
     std::string current_temp = "current_temperature";
@@ -1018,8 +1021,8 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
       climate_failed_row_(stream, obj, area, node, friendly_name, current_temp, true);
       any_failures = true;
     } else {
-      auto current_temp_value = value_accuracy_to_string(obj->current_temperature, current_accuracy);
-      climate_value_row_(stream, obj, area, node, friendly_name, current_temp, current_temp_value);
+      value_accuracy_to_buf(value_buf, obj->current_temperature, current_accuracy);
+      climate_value_row_(stream, obj, area, node, friendly_name, current_temp, value_buf);
       climate_failed_row_(stream, obj, area, node, friendly_name, current_temp, false);
     }
   }
@@ -1029,8 +1032,8 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
       climate_failed_row_(stream, obj, area, node, friendly_name, current_humidity, true);
       any_failures = true;
     } else {
-      auto current_humidity_value = value_accuracy_to_string(obj->current_humidity, 0);
-      climate_value_row_(stream, obj, area, node, friendly_name, current_humidity, current_humidity_value);
+      value_accuracy_to_buf(value_buf, obj->current_humidity, 0);
+      climate_value_row_(stream, obj, area, node, friendly_name, current_humidity, value_buf);
       climate_failed_row_(stream, obj, area, node, friendly_name, current_humidity, false);
     }
   }
@@ -1040,23 +1043,23 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
       climate_failed_row_(stream, obj, area, node, friendly_name, target_humidity, true);
       any_failures = true;
     } else {
-      auto target_humidity_value = value_accuracy_to_string(obj->target_humidity, 0);
-      climate_value_row_(stream, obj, area, node, friendly_name, target_humidity, target_humidity_value);
+      value_accuracy_to_buf(value_buf, obj->target_humidity, 0);
+      climate_value_row_(stream, obj, area, node, friendly_name, target_humidity, value_buf);
       climate_failed_row_(stream, obj, area, node, friendly_name, target_humidity, false);
     }
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     std::string target_temp_low = "target_temperature_low";
-    auto target_temp_low_value = value_accuracy_to_string(obj->target_temperature_low, target_accuracy);
-    climate_value_row_(stream, obj, area, node, friendly_name, target_temp_low, target_temp_low_value);
+    value_accuracy_to_buf(value_buf, obj->target_temperature_low, target_accuracy);
+    climate_value_row_(stream, obj, area, node, friendly_name, target_temp_low, value_buf);
     std::string target_temp_high = "target_temperature_high";
-    auto target_temp_high_value = value_accuracy_to_string(obj->target_temperature_high, target_accuracy);
-    climate_value_row_(stream, obj, area, node, friendly_name, target_temp_high, target_temp_high_value);
+    value_accuracy_to_buf(value_buf, obj->target_temperature_high, target_accuracy);
+    climate_value_row_(stream, obj, area, node, friendly_name, target_temp_high, value_buf);
   } else {
     std::string target_temp = "target_temperature";
-    auto target_temp_value = value_accuracy_to_string(obj->target_temperature, target_accuracy);
-    climate_value_row_(stream, obj, area, node, friendly_name, target_temp, target_temp_value);
+    value_accuracy_to_buf(value_buf, obj->target_temperature, target_accuracy);
+    climate_value_row_(stream, obj, area, node, friendly_name, target_temp, value_buf);
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
     std::string climate_trait_category = "action";

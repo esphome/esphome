@@ -32,7 +32,6 @@ void VersionTextSensor::setup() {
   version_str[sizeof(version_str) - 1] = '\0';
   this->publish_state(version_str);
 }
-float VersionTextSensor::get_setup_priority() const { return setup_priority::DATA; }
 void VersionTextSensor::set_hide_timestamp(bool hide_timestamp) { this->hide_timestamp_ = hide_timestamp; }
 void VersionTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Version Text Sensor", this); }
 

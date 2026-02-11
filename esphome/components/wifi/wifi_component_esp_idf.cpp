@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <memory>
 #include <utility>
 #ifdef USE_WIFI_WPA2_EAP
 #if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
@@ -281,7 +282,7 @@ bool WiFiComponent::wifi_apply_power_save_() {
       break;
   }
   bool success = esp_wifi_set_ps(power_save) == ESP_OK;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_POWER_SAVE_LISTENERS
   if (success) {
     for (auto *listener : this->power_save_listeners_) {
       listener->on_wifi_power_save(this->power_save_);
@@ -709,6 +710,9 @@ void WiFiComponent::wifi_loop_() {
     delete data;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
+// Events are processed from queue in main loop context, but listener notifications
+// must be deferred until after the state machine transitions (in check_connecting_finished)
+// so that conditions like wifi.connected return correct values in automations.
 void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   esp_err_t err;
   if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_START) {
@@ -741,18 +745,16 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
              (const char *) it.ssid, bssid_buf, it.channel, get_auth_mode_str(it.authmode));
 #endif
     s_sta_connected = true;
-#ifdef USE_WIFI_LISTENERS
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
-    }
-    // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
-#ifdef USE_WIFI_MANUAL_IP
-    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
-    }
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+    // Defer listener notification until state machine reaches STA_CONNECTED
+    // This ensures wifi.connected condition returns true in listener automations
+    this->pending_.connect_state = true;
 #endif
+    // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
+#if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      this->notify_ip_state_listeners_();
+    }
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
@@ -774,11 +776,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = false;
     s_sta_connecting = false;
     error_from_callback_ = true;
-#ifdef USE_WIFI_LISTENERS
-    static constexpr uint8_t EMPTY_BSSID[6] = {};
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
-    }
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+    this->notify_disconnect_state_listeners_();
 #endif
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
@@ -788,10 +787,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif /* USE_NETWORK_IPV6 */
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
-#ifdef USE_WIFI_LISTENERS
-    for (auto *listener : this->ip_state_listeners_) {
-      listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-    }
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+    this->notify_ip_state_listeners_();
 #endif
 
 #if USE_NETWORK_IPV6
@@ -799,10 +796,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     const auto &it = data->data.ip_got_ip6;
     ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
     this->num_ipv6_addresses_++;
-#ifdef USE_WIFI_LISTENERS
-    for (auto *listener : this->ip_state_listeners_) {
-      listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-    }
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+    this->notify_ip_state_listeners_();
 #endif
 #endif /* USE_NETWORK_IPV6 */
 
@@ -827,26 +822,59 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
 
     uint16_t number = it.number;
-    auto records = std::make_unique<wifi_ap_record_t[]>(number);
+    bool needs_full = this->needs_full_scan_results_();
+
+    // Smart reserve: full capacity if needed, small reserve otherwise
+    if (needs_full) {
+      this->scan_result_.reserve(number);
+    } else {
+      this->scan_result_.reserve(WIFI_SCAN_RESULT_FILTERED_RESERVE);
+    }
+
+#ifdef USE_ESP32_HOSTED
+    // getting records one at a time fails on P4 with hosted esp32 WiFi coprocessor
+    // Presumably an upstream bug, work-around by getting all records at once
+    // Use stack buffer (3904 bytes / ~80 bytes per record = ~48 records) with heap fallback
+    static constexpr size_t SCAN_RECORD_STACK_COUNT = 3904 / sizeof(wifi_ap_record_t);
+    SmallBufferWithHeapFallback<SCAN_RECORD_STACK_COUNT, wifi_ap_record_t> records(number);
     err = esp_wifi_scan_get_ap_records(&number, records.get());
     if (err != ESP_OK) {
+      esp_wifi_clear_ap_list();
       ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
       return;
     }
+    for (uint16_t i = 0; i < number; i++) {
+      wifi_ap_record_t &record = records.get()[i];
+#else
+    // Process one record at a time to avoid large buffer allocation
+    for (uint16_t i = 0; i < number; i++) {
+      wifi_ap_record_t record;
+      err = esp_wifi_scan_get_ap_record(&record);
+      if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_scan_get_ap_record failed: %s", esp_err_to_name(err));
+        esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
+        break;
+      }
+#endif  // USE_ESP32_HOSTED
 
-    scan_result_.init(number);
-    for (int i = 0; i < number; i++) {
-      auto &record = records[i];
-      bssid_t bssid;
-      std::copy(record.bssid, record.bssid + 6, bssid.begin());
-      std::string ssid(reinterpret_cast<const char *>(record.ssid));
-      scan_result_.emplace_back(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN,
-                                ssid.empty());
+      // Check C string first - avoid std::string construction for non-matching networks
+      const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
+
+      // Only construct std::string and store if needed
+      if (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) {
+        bssid_t bssid;
+        std::copy(record.bssid, record.bssid + 6, bssid.begin());
+        std::string ssid(ssid_cstr);
+        this->scan_result_.emplace_back(bssid, std::move(ssid), record.primary, record.rssi,
+                                        record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
+      } else {
+        this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
+      }
     }
-#ifdef USE_WIFI_LISTENERS
-    for (auto *listener : this->scan_results_listeners_) {
-      listener->on_wifi_scan_results(this->scan_result_);
-    }
+    ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),
+             needs_full ? "" : " (filtered)");
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
+    this->notify_scan_results_listeners_();
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_START) {

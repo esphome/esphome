@@ -4,7 +4,10 @@ from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import logger, socket
-from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    include_builtin_idf_component,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -350,6 +353,7 @@ def exp_mqtt_message(config):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
     # Add required libraries for ESP8266 and LibreTiny
     if CORE.is_esp8266 or CORE.is_libretiny:
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
@@ -359,6 +363,8 @@ async def to_code(config):
     # This enables low-latency MQTT event processing instead of waiting for select() timeout
     if CORE.is_esp32:
         socket.require_wake_loop_threadsafe()
+        # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)
+        include_builtin_idf_component("mqtt")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
@@ -432,6 +438,8 @@ async def to_code(config):
         cg.add(var.disable_log_message())
     else:
         cg.add(var.set_log_message_template(exp_mqtt_message(log_topic)))
+        # Request a log listener slot only when log topic is enabled
+        logger.request_log_listener()
 
         if CONF_LEVEL in log_topic:
             cg.add(var.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
@@ -572,9 +580,13 @@ async def register_mqtt_component(var, config):
     if not config.get(CONF_DISCOVERY, True):
         cg.add(var.disable_discovery())
     if CONF_STATE_TOPIC in config:
-        cg.add(var.set_custom_state_topic(config[CONF_STATE_TOPIC]))
+        state_topic = await cg.templatable(config[CONF_STATE_TOPIC], [], cg.std_string)
+        cg.add(var.set_custom_state_topic(state_topic))
     if CONF_COMMAND_TOPIC in config:
-        cg.add(var.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
+        command_topic = await cg.templatable(
+            config[CONF_COMMAND_TOPIC], [], cg.std_string
+        )
+        cg.add(var.set_custom_command_topic(command_topic))
     if CONF_COMMAND_RETAIN in config:
         cg.add(var.set_command_retain(config[CONF_COMMAND_RETAIN]))
     if CONF_AVAILABILITY in config:

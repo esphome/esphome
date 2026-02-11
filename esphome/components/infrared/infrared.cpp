@@ -18,7 +18,15 @@ InfraredCall &InfraredCall::set_carrier_frequency(uint32_t frequency) {
 
 InfraredCall &InfraredCall::set_raw_timings(const std::vector<int32_t> &timings) {
   this->raw_timings_ = &timings;
-  this->packed_data_ = nullptr;  // Clear packed if vector is set
+  this->packed_data_ = nullptr;
+  this->base64url_ptr_ = nullptr;
+  return *this;
+}
+
+InfraredCall &InfraredCall::set_raw_timings_base64url(const std::string &base64url) {
+  this->base64url_ptr_ = &base64url;
+  this->raw_timings_ = nullptr;
+  this->packed_data_ = nullptr;
   return *this;
 }
 
@@ -26,7 +34,8 @@ InfraredCall &InfraredCall::set_raw_timings_packed(const uint8_t *data, uint16_t
   this->packed_data_ = data;
   this->packed_length_ = length;
   this->packed_count_ = count;
-  this->raw_timings_ = nullptr;  // Clear vector if packed is set
+  this->raw_timings_ = nullptr;
+  this->base64url_ptr_ = nullptr;
   return *this;
 }
 
@@ -88,27 +97,32 @@ void Infrared::control(const InfraredCall &call) {
   // Set timings based on format
   if (call.is_packed()) {
     // Zero-copy from packed protobuf data
-    ESP_LOGD(TAG, "Transmitting raw timings: timing_count=%u, repeat_count=%u", call.get_packed_count(),
-             call.get_repeat_count());
     transmit_data->set_data_from_packed_sint32(call.get_packed_data(), call.get_packed_length(),
                                                call.get_packed_count());
-  } else {
-    // From vector (lambdas/automations)
-    const auto &timings = call.get_raw_timings();
-    if (timings.empty()) {
-      ESP_LOGE(TAG, "Raw timings array is empty");
+    ESP_LOGD(TAG, "Transmitting packed raw timings: count=%u, repeat=%u", call.get_packed_count(),
+             call.get_repeat_count());
+  } else if (call.is_base64url()) {
+    // Decode base64url (URL-safe) into transmit buffer
+    if (!transmit_data->set_data_from_base64url(call.get_base64url_data())) {
+      ESP_LOGE(TAG, "Invalid base64url data");
       return;
     }
-    ESP_LOGD(TAG, "Transmitting raw timings: timing_count=%zu, repeat_count=%u", timings.size(),
-             call.get_repeat_count());
-    // Timings format: positive values = mark (LED on), negative values = space (LED off)
-    for (const auto &timing : timings) {
-      if (timing > 0) {
-        transmit_data->mark(static_cast<uint32_t>(timing));
-      } else {
-        transmit_data->space(static_cast<uint32_t>(-timing));
+    // Sanity check: validate timing values are within reasonable bounds
+    constexpr int32_t max_timing_us = 500000;  // 500ms absolute max
+    for (int32_t timing : transmit_data->get_data()) {
+      int32_t abs_timing = timing < 0 ? -timing : timing;
+      if (abs_timing > max_timing_us) {
+        ESP_LOGE(TAG, "Invalid timing value: %d µs (max %d)", timing, max_timing_us);
+        return;
       }
     }
+    ESP_LOGD(TAG, "Transmitting base64url raw timings: count=%zu, repeat=%u", transmit_data->get_data().size(),
+             call.get_repeat_count());
+  } else {
+    // From vector (lambdas/automations)
+    transmit_data->set_data(call.get_raw_timings());
+    ESP_LOGD(TAG, "Transmitting raw timings: count=%zu, repeat=%u", call.get_raw_timings().size(),
+             call.get_repeat_count());
   }
 
   // Set repeat count

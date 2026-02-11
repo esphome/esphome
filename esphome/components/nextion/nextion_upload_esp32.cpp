@@ -36,7 +36,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
   }
 
   char range_header[32];
-  sprintf(range_header, "bytes=%" PRIu32 "-%" PRIu32, range_start, range_end);
+  buf_append_printf(range_header, sizeof(range_header), 0, "bytes=%" PRIu32 "-%" PRIu32, range_start, range_end);
   ESP_LOGV(TAG, "Range: %s", range_header);
   esp_http_client_set_header(http_client, "Range", range_header);
   ESP_LOGV(TAG, "Open HTTP");

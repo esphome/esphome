@@ -220,7 +220,7 @@ void RC522::loop() {
 
       std::vector<uint8_t> rfid_uid(std::begin(uid_buffer_), std::begin(uid_buffer_) + uid_idx_);
       uid_idx_ = 0;
-      // ESP_LOGD(TAG, "Processing '%s'", format_hex_pretty(rfid_uid, '-', false).c_str());
+      // ESP_LOGD(TAG, "Processing '%s'", format_hex_pretty(rfid_uid, '-', false).c_str());  // NOLINT
       pcd_antenna_off_();
       state_ = STATE_INIT;  // scan again on next update
       bool report = true;

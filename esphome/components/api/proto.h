@@ -112,8 +112,12 @@ class ProtoVarInt {
     uint64_t result = buffer[0] & 0x7F;
     uint8_t bitpos = 7;
 
+    // A 64-bit varint is at most 10 bytes (ceil(64/7)). Reject overlong encodings
+    // to avoid undefined behavior from shifting uint64_t by >= 64 bits.
+    uint32_t max_len = std::min(len, uint32_t(10));
+
     // Start from the second byte since we've already processed the first
-    for (uint32_t i = 1; i < len; i++) {
+    for (uint32_t i = 1; i < max_len; i++) {
       uint8_t val = buffer[i];
       result |= uint64_t(val & 0x7F) << uint64_t(bitpos);
       bitpos += 7;
@@ -362,6 +366,77 @@ class ProtoWriteBuffer {
   std::vector<uint8_t> *buffer_;
 };
 
+#ifdef HAS_PROTO_MESSAGE_DUMP
+/**
+ * Fixed-size buffer for message dumps - avoids heap allocation.
+ * Sized to match the logger's default tx_buffer_size (512 bytes)
+ * since anything larger gets truncated anyway.
+ */
+class DumpBuffer {
+ public:
+  // Matches default tx_buffer_size in logger component
+  static constexpr size_t CAPACITY = 512;
+
+  DumpBuffer() : pos_(0) { buf_[0] = '\0'; }
+
+  DumpBuffer &append(const char *str) {
+    if (str) {
+      append_impl_(str, strlen(str));
+    }
+    return *this;
+  }
+
+  DumpBuffer &append(const char *str, size_t len) {
+    append_impl_(str, len);
+    return *this;
+  }
+
+  DumpBuffer &append(size_t n, char c) {
+    size_t space = CAPACITY - 1 - pos_;
+    if (n > space)
+      n = space;
+    if (n > 0) {
+      memset(buf_ + pos_, c, n);
+      pos_ += n;
+      buf_[pos_] = '\0';
+    }
+    return *this;
+  }
+
+  const char *c_str() const { return buf_; }
+  size_t size() const { return pos_; }
+
+  /// Get writable buffer pointer for use with buf_append_printf
+  char *data() { return buf_; }
+  /// Get current position for use with buf_append_printf
+  size_t pos() const { return pos_; }
+  /// Update position after buf_append_printf call
+  void set_pos(size_t pos) {
+    if (pos >= CAPACITY) {
+      pos_ = CAPACITY - 1;
+    } else {
+      pos_ = pos;
+    }
+    buf_[pos_] = '\0';
+  }
+
+ private:
+  void append_impl_(const char *str, size_t len) {
+    size_t space = CAPACITY - 1 - pos_;
+    if (len > space)
+      len = space;
+    if (len > 0) {
+      memcpy(buf_ + pos_, str, len);
+      pos_ += len;
+      buf_[pos_] = '\0';
+    }
+  }
+
+  char buf_[CAPACITY];
+  size_t pos_;
+};
+#endif
+
 class ProtoMessage {
  public:
   virtual ~ProtoMessage() = default;
@@ -370,8 +445,7 @@ class ProtoMessage {
   // Default implementation for messages with no fields
   virtual void calculate_size(ProtoSize &size) const {}
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  std::string dump() const;
-  virtual void dump_to(std::string &out) const = 0;
+  virtual const char *dump_to(DumpBuffer &out) const = 0;
   virtual const char *message_name() const { return "unknown"; }
 #endif
 };
@@ -887,32 +961,16 @@ class ProtoService {
   virtual bool is_connection_setup() = 0;
   virtual void on_fatal_error() = 0;
   virtual void on_no_setup_connection() = 0;
-  /**
-   * Create a buffer with a reserved size.
-   * @param reserve_size The number of bytes to pre-allocate in the buffer. This is a hint
-   *                     to optimize memory usage and avoid reallocations during encoding.
-   *                     Implementations should aim to allocate at least this size.
-   * @return A ProtoWriteBuffer object with the reserved size.
-   */
-  virtual ProtoWriteBuffer create_buffer(uint32_t reserve_size) = 0;
   virtual bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) = 0;
   virtual void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) = 0;
-
-  // Optimized method that pre-allocates buffer based on message size
-  bool send_message_(const ProtoMessage &msg, uint8_t message_type) {
-    ProtoSize size;
-    msg.calculate_size(size);
-    uint32_t msg_size = size.get_size();
-
-    // Create a pre-sized buffer
-    auto buffer = this->create_buffer(msg_size);
-
-    // Encode message into the buffer
-    msg.encode(buffer);
-
-    // Send the buffer
-    return this->send_buffer(buffer, message_type);
-  }
+  /**
+   * Send a protobuf message by calculating its size, allocating a buffer, encoding, and sending.
+   * This is the implementation method - callers should use send_message() which adds logging.
+   * @param msg The protobuf message to send.
+   * @param message_type The message type identifier.
+   * @return True if the message was sent successfully, false otherwise.
+   */
+  virtual bool send_message_impl(const ProtoMessage &msg, uint8_t message_type) = 0;
 
   // Authentication helper methods
   inline bool check_connection_setup_() {

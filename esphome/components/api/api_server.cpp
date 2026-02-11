@@ -192,10 +192,14 @@ void APIServer::loop() {
     ESP_LOGV(TAG, "Remove connection %s", client->get_name());
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-    // Save client info before removal for the trigger
+    // Save client info before closing socket and removal for the trigger
+    char peername_buf[socket::SOCKADDR_STR_LEN];
     std::string client_name(client->get_name());
-    std::string client_peername(client->get_peername());
+    std::string client_peername(client->get_peername_to(peername_buf));
 #endif
+
+    // Close socket now (was deferred from on_fatal_error to allow getpeername)
+    client->helper_->close();
 
     // Swap with the last element and pop (avoids expensive vector shifts)
     if (client_index < this->clients_.size() - 1) {
@@ -211,7 +215,7 @@ void APIServer::loop() {
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
     // Fire trigger after client is removed so api.connected reflects the true state
-    this->client_disconnected_trigger_->trigger(client_name, client_peername);
+    this->client_disconnected_trigger_.trigger(client_name, client_peername);
 #endif
     // Don't increment client_index since we need to process the swapped element
   }
@@ -241,8 +245,10 @@ void APIServer::handle_disconnect(APIConnection *conn) {}
   void APIServer::on_##entity_name##_update(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
     if (obj->is_internal()) \
       return; \
-    for (auto &c : this->clients_) \
-      c->send_##entity_name##_state(obj); \
+    for (auto &c : this->clients_) { \
+      if (c->flags_.state_subscription) \
+        c->send_##entity_name##_state(obj); \
+    } \
   }
 
 #ifdef USE_BINARY_SENSOR
@@ -318,13 +324,13 @@ API_DISPATCH_UPDATE(water_heater::WaterHeater, water_heater)
 #endif
 
 #ifdef USE_EVENT
-// Event is a special case - unlike other entities with simple state fields,
-// events store their state in a member accessed via obj->get_last_event_type()
 void APIServer::on_event(event::Event *obj) {
   if (obj->is_internal())
     return;
-  for (auto &c : this->clients_)
-    c->send_event(obj, obj->get_last_event_type());
+  for (auto &c : this->clients_) {
+    if (c->flags_.state_subscription)
+      c->send_event(obj);
+  }
 }
 #endif
 
@@ -333,8 +339,10 @@ void APIServer::on_event(event::Event *obj) {
 void APIServer::on_update(update::UpdateEntity *obj) {
   if (obj->is_internal())
     return;
-  for (auto &c : this->clients_)
-    c->send_update_state(obj);
+  for (auto &c : this->clients_) {
+    if (c->flags_.state_subscription)
+      c->send_update_state(obj);
+  }
 }
 #endif
 
@@ -554,8 +562,10 @@ bool APIServer::clear_noise_psk(bool make_active) {
 #ifdef USE_HOMEASSISTANT_TIME
 void APIServer::request_time() {
   for (auto &client : this->clients_) {
-    if (!client->flags_.remove && client->is_authenticated())
+    if (!client->flags_.remove && client->is_authenticated()) {
       client->send_time_request();
+      return;  // Only request from one client to avoid clock conflicts
+    }
   }
 }
 #endif
@@ -615,8 +625,7 @@ void APIServer::on_shutdown() {
     if (!c->send_message(req, DisconnectRequest::MESSAGE_TYPE)) {
       // If we can't send the disconnect request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
-      c->schedule_message_front_(nullptr, &APIConnection::try_send_disconnect_request, DisconnectRequest::MESSAGE_TYPE,
-                                 DisconnectRequest::ESTIMATED_SIZE);
+      c->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);
     }
   }
 }
@@ -648,18 +657,18 @@ uint32_t APIServer::register_active_action_call(uint32_t client_call_id, APIConn
   this->active_action_calls_.push_back({action_call_id, client_call_id, conn});
 
   // Schedule automatic cleanup after timeout (client will have given up by then)
-  this->set_timeout(str_sprintf("action_call_%u", action_call_id), USE_API_ACTION_CALL_TIMEOUT_MS,
-                    [this, action_call_id]() {
-                      ESP_LOGD(TAG, "Action call %u timed out", action_call_id);
-                      this->unregister_active_action_call(action_call_id);
-                    });
+  // Uses numeric ID overload to avoid heap allocation from str_sprintf
+  this->set_timeout(action_call_id, USE_API_ACTION_CALL_TIMEOUT_MS, [this, action_call_id]() {
+    ESP_LOGD(TAG, "Action call %u timed out", action_call_id);
+    this->unregister_active_action_call(action_call_id);
+  });
 
   return action_call_id;
 }
 
 void APIServer::unregister_active_action_call(uint32_t action_call_id) {
-  // Cancel the timeout for this action call
-  this->cancel_timeout(str_sprintf("action_call_%u", action_call_id));
+  // Cancel the timeout for this action call (uses numeric ID overload)
+  this->cancel_timeout(action_call_id);
 
   // Swap-and-pop is more efficient than remove_if for unordered vectors
   for (size_t i = 0; i < this->active_action_calls_.size(); i++) {
@@ -675,8 +684,8 @@ void APIServer::unregister_active_action_calls_for_connection(APIConnection *con
   // Remove all active action calls for disconnected connection using swap-and-pop
   for (size_t i = 0; i < this->active_action_calls_.size();) {
     if (this->active_action_calls_[i].connection == conn) {
-      // Cancel the timeout for this action call
-      this->cancel_timeout(str_sprintf("action_call_%u", this->active_action_calls_[i].action_call_id));
+      // Cancel the timeout for this action call (uses numeric ID overload)
+      this->cancel_timeout(this->active_action_calls_[i].action_call_id);
 
       std::swap(this->active_action_calls_[i], this->active_action_calls_.back());
       this->active_action_calls_.pop_back();

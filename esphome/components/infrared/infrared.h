@@ -28,12 +28,29 @@ class InfraredCall {
 
   /// Set the carrier frequency in Hz
   InfraredCall &set_carrier_frequency(uint32_t frequency);
-  /// Set the raw timings (positive = mark, negative = space)
-  /// Note: The timings vector must outlive the InfraredCall (zero-copy reference)
+
+  // ===== Raw Timings Methods =====
+  // All set_raw_timings_* methods store pointers/references to external data.
+  // The referenced data must remain valid until perform() completes.
+  // Safe pattern:   call.set_raw_timings_xxx(data); call.perform();  // synchronous
+  // Unsafe pattern: call.set_raw_timings_xxx(data); defer([call]() { call.perform(); });  // data may be gone!
+
+  /// Set the raw timings from a vector (positive = mark, negative = space)
+  /// @note Lifetime: Stores a pointer to the vector. The vector must outlive perform().
+  /// @note Usage: Primarily for lambdas/automations where the vector is in scope.
   InfraredCall &set_raw_timings(const std::vector<int32_t> &timings);
-  /// Set the raw timings from packed protobuf sint32 data (zero-copy from wire)
-  /// Note: The data must outlive the InfraredCall
+
+  /// Set the raw timings from base64url-encoded little-endian int32 data
+  /// @note Lifetime: Stores a pointer to the string. The string must outlive perform().
+  /// @note Usage: For web_server - base64url is fully URL-safe (uses '-' and '_').
+  /// @note Decoding happens at perform() time, directly into the transmit buffer.
+  InfraredCall &set_raw_timings_base64url(const std::string &base64url);
+
+  /// Set the raw timings from packed protobuf sint32 data (zigzag + varint encoded)
+  /// @note Lifetime: Stores a pointer to the buffer. The buffer must outlive perform().
+  /// @note Usage: For API component where data comes directly from the protobuf message.
   InfraredCall &set_raw_timings_packed(const uint8_t *data, uint16_t length, uint16_t count);
+
   /// Set the number of times to repeat transmission (1 = transmit once, 2 = transmit twice, etc.)
   InfraredCall &set_repeat_count(uint32_t count);
 
@@ -42,12 +59,18 @@ class InfraredCall {
 
   /// Get the carrier frequency
   const optional<uint32_t> &get_carrier_frequency() const { return this->carrier_frequency_; }
-  /// Get the raw timings (only valid if set via set_raw_timings, not packed)
+  /// Get the raw timings (only valid if set via set_raw_timings)
   const std::vector<int32_t> &get_raw_timings() const { return *this->raw_timings_; }
-  /// Check if raw timings have been set (either vector or packed)
-  bool has_raw_timings() const { return this->raw_timings_ != nullptr || this->packed_data_ != nullptr; }
+  /// Check if raw timings have been set (any format)
+  bool has_raw_timings() const {
+    return this->raw_timings_ != nullptr || this->packed_data_ != nullptr || this->base64url_ptr_ != nullptr;
+  }
   /// Check if using packed data format
   bool is_packed() const { return this->packed_data_ != nullptr; }
+  /// Check if using base64url data format
+  bool is_base64url() const { return this->base64url_ptr_ != nullptr; }
+  /// Get the base64url data string
+  const std::string &get_base64url_data() const { return *this->base64url_ptr_; }
   /// Get packed data (only valid if set via set_raw_timings_packed)
   const uint8_t *get_packed_data() const { return this->packed_data_; }
   uint16_t get_packed_length() const { return this->packed_length_; }
@@ -59,9 +82,11 @@ class InfraredCall {
   uint32_t repeat_count_{1};
   Infrared *parent_;
   optional<uint32_t> carrier_frequency_;
-  // Vector-based timings (for lambdas/automations)
+  // Pointer to vector-based timings (caller-owned, must outlive perform())
   const std::vector<int32_t> *raw_timings_{nullptr};
-  // Packed protobuf timings (for API zero-copy)
+  // Pointer to base64url-encoded string (caller-owned, must outlive perform())
+  const std::string *base64url_ptr_{nullptr};
+  // Pointer to packed protobuf buffer (caller-owned, must outlive perform())
   const uint8_t *packed_data_{nullptr};
   uint16_t packed_length_{0};
   uint16_t packed_count_{0};

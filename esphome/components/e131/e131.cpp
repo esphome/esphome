@@ -55,7 +55,6 @@ void E131Component::setup() {
 }
 
 void E131Component::loop() {
-  std::vector<uint8_t> payload;
   E131Packet packet;
   int universe = 0;
   uint8_t buf[1460];
@@ -64,11 +63,9 @@ void E131Component::loop() {
   if (len == -1) {
     return;
   }
-  payload.resize(len);
-  memmove(&payload[0], buf, len);
 
-  if (!this->packet_(payload, universe, packet)) {
-    ESP_LOGV(TAG, "Invalid packet received of size %zu.", payload.size());
+  if (!this->packet_(buf, (size_t) len, universe, packet)) {
+    ESP_LOGV(TAG, "Invalid packet received of size %zd.", len);
     return;
   }
 

@@ -1,5 +1,6 @@
 #include "toshiba.h"
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
+#include "esphome/core/helpers.h"
 
 #include <vector>
 
@@ -427,10 +428,17 @@ void ToshibaClimate::setup() {
   // Never send nan to HA
   if (std::isnan(this->target_temperature))
     this->target_temperature = 24;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   // Log final state for debugging HA errors
-  ESP_LOGV(TAG, "Setup complete - Mode: %d, Fan: %s, Swing: %d, Temp: %.1f", static_cast<int>(this->mode),
-           this->fan_mode.has_value() ? std::to_string(static_cast<int>(this->fan_mode.value())).c_str() : "NONE",
+  const char *fan_mode_str = "NONE";
+  char fan_mode_buf[4];  // max 3 digits for fan mode enum + null
+  if (this->fan_mode.has_value()) {
+    buf_append_printf(fan_mode_buf, sizeof(fan_mode_buf), 0, "%d", static_cast<int>(this->fan_mode.value()));
+    fan_mode_str = fan_mode_buf;
+  }
+  ESP_LOGV(TAG, "Setup complete - Mode: %d, Fan: %s, Swing: %d, Temp: %.1f", static_cast<int>(this->mode), fan_mode_str,
            static_cast<int>(this->swing_mode), this->target_temperature);
+#endif
 }
 
 void ToshibaClimate::transmit_state() {
