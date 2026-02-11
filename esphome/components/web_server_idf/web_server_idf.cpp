@@ -412,7 +412,7 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
   return param;
 }
 
-optional<std::string> AsyncWebServerRequest::find_query_value_(const char *name) {
+optional<std::string> AsyncWebServerRequest::find_query_value_(const char *name) const {
   auto val = query_key_value(this->post_query_.c_str(), this->post_query_.size(), name);
   if (val.has_value()) {
     return val;

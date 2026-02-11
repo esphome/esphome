@@ -186,7 +186,7 @@ class AsyncWebServerRequest {
   // is faster than tree/hash overhead. AsyncWebParameter stores both name and value to avoid
   // duplicate storage. Only successful lookups are cached to prevent cache pollution when
   // handlers check for optional parameters that don't exist.
-  optional<std::string> find_query_value_(const char *name);
+  optional<std::string> find_query_value_(const char *name) const;
   std::vector<AsyncWebParameter *> params_;
   std::string post_query_;
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
