@@ -38,7 +38,7 @@ class HUB75Display final : public display::Display {
   void set_brightness(uint8_t brightness);
 
   void set_rotation(display::DisplayRotation rotation);
-  display::DisplayRotation get_rotation();
+  display::DisplayRotation get_rotation() const;
 
  protected:
   // Display internal methods

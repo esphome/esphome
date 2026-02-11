@@ -229,7 +229,7 @@ void HUB75Display::set_rotation(display::DisplayRotation rotation) {
   driver_->set_rotation(hub75_rotation);
 }
 
-display::DisplayRotation HUB75Display::get_rotation() {
+display::DisplayRotation HUB75Display::get_rotation() const {
   if (!driver_) [[unlikely]]
     return display::DisplayRotation::DISPLAY_ROTATION_0_DEGREES;
 
