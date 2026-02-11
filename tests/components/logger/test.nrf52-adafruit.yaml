@@ -5,4 +5,4 @@ esphome:
 
 logger:
   level: DEBUG
-  task_log_buffer_size: 768
+  task_log_buffer_size: 0
