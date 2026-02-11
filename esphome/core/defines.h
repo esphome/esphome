@@ -14,6 +14,7 @@
 #define ESPHOME_PROJECT_VERSION_30 "v2"
 #define ESPHOME_VARIANT "ESP32"
 #define ESPHOME_DEBUG_SCHEDULER
+#define ESPHOME_DEBUG_API
 
 // Default threading model for static analysis (ESP32 is multi-threaded with atomics)
 #define ESPHOME_THREAD_MULTI_ATOMICS
