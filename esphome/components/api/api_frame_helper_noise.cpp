@@ -29,7 +29,12 @@ static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
 static constexpr size_t API_MAX_LOG_BYTES = 168;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-#define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, this->client_peername_, ##__VA_ARGS__)
+#define HELPER_LOG(msg, ...) \
+  do { \
+    char peername_buf[socket::SOCKADDR_STR_LEN]; \
+    this->get_peername_to(peername_buf); \
+    ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, peername_buf, ##__VA_ARGS__); \
+  } while (0)
 #else
 #define HELPER_LOG(msg, ...) ((void) 0)
 #endif

@@ -155,6 +155,10 @@ class ESP32BLE : public Component {
 #endif
   static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
+  // Handle DISABLE and ENABLE transitions when not in the ACTIVE state.
+  // Other non-ACTIVE states (e.g. OFF, DISABLED) are currently treated as no-ops.
+  void __attribute__((noinline)) loop_handle_state_transition_not_active_();
+
   bool ble_setup_();
   bool ble_dismantle_();
   bool ble_pre_setup_();

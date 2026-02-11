@@ -15,6 +15,10 @@
 #include <limits>
 #include <vector>
 
+namespace esphome {
+class ComponentIterator;
+}  // namespace esphome
+
 namespace esphome::api {
 
 // Keepalive timeout in milliseconds
@@ -276,8 +280,10 @@ class APIConnection final : public APIServerConnectionBase {
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
   const char *get_name() const { return this->helper_->get_client_name(); }
-  /// Get peer name (IP address) - cached at connection init time
-  const char *get_peername() const { return this->helper_->get_client_peername(); }
+  /// Get peer name (IP address) into caller-provided buffer, returns buf for convenience
+  const char *get_peername_to(std::span<char, socket::SOCKADDR_STR_LEN> buf) const {
+    return this->helper_->get_peername_to(buf);
+  }
 
  protected:
   // Helper function to handle authentication completion
@@ -364,20 +370,13 @@ class APIConnection final : public APIServerConnectionBase {
     return this->client_supports_api_version(1, 14) ? MAX_INITIAL_PER_BATCH : MAX_INITIAL_PER_BATCH_LEGACY;
   }
 
-  // Helper method to process multiple entities from an iterator in a batch
-  template<typename Iterator> void process_iterator_batch_(Iterator &iterator) {
-    size_t initial_size = this->deferred_batch_.size();
-    size_t max_batch = this->get_max_batch_size_();
-    while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
-      iterator.advance();
-    }
+  // Process active iterator (list_entities/initial_state) during connection setup.
+  // Extracted from loop() — only runs during initial handshake, NONE in steady state.
+  void __attribute__((noinline)) process_active_iterator_();
 
-    // If the batch is full, process it immediately
-    // Note: iterator.advance() already calls schedule_batch_() via schedule_message_()
-    if (this->deferred_batch_.size() >= max_batch) {
-      this->process_batch_();
-    }
-  }
+  // Helper method to process multiple entities from an iterator in a batch.
+  // Takes ComponentIterator base class reference to avoid duplicate template instantiations.
+  void process_iterator_batch_(ComponentIterator &iterator);
 
 #ifdef USE_BINARY_SENSOR
   static uint16_t try_send_binary_sensor_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
