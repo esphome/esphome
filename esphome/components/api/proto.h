@@ -221,11 +221,11 @@ class ProtoWriteBuffer {
       this->buffer_->push_back(static_cast<uint8_t>(value));
       return;
     }
-    while (value) {
-      uint8_t temp = value & 0x7F;
+    while (value > 0x7F) {
+      this->buffer_->push_back(static_cast<uint8_t>(value | 0x80));
       value >>= 7;
-      this->buffer_->push_back(value ? (temp | 0x80) : temp);
     }
+    this->buffer_->push_back(static_cast<uint8_t>(value));
   }
   void encode_varint_raw_64(uint64_t value) {
     while (value > 0x7F) {
@@ -289,7 +289,7 @@ class ProtoWriteBuffer {
     if (!value && !force)
       return;
     this->encode_field_raw(field_id, 0);  // type 0: Varint - bool
-    this->write(0x01);
+    this->buffer_->push_back(0x01);
   }
   void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
