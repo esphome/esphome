@@ -352,7 +352,26 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest), max_digest_len, &out,
                            reinterpret_cast<const uint8_t *>(user_info), user_info_len);
 
-  return strcmp(digest, auth_str + auth_prefix_len) == 0;
+  // Constant-time comparison to avoid timing side channels.
+  // No early return on length mismatch — the length difference is folded
+  // into the accumulator so any mismatch is rejected.
+  const char *provided = auth_str + auth_prefix_len;
+  size_t digest_len = out;  // length from esp_crypto_base64_encode
+  // Derive provided_len from the already-sized std::string rather than
+  // rescanning with strlen (avoids attacker-controlled scan length).
+  size_t provided_len = auth.value().size() - auth_prefix_len;
+  // Use full-width XOR so any bit difference in the lengths is preserved
+  // (uint8_t truncation would miss differences in higher bytes, e.g.
+  // digest_len vs digest_len + 256).
+  volatile size_t result = digest_len ^ provided_len;
+  // Iterate over the expected digest length only — the full-width length
+  // XOR above already rejects any length mismatch, and bounding the loop
+  // prevents a long Authorization header from forcing extra work.
+  for (size_t i = 0; i < digest_len; i++) {
+    char provided_ch = (i < provided_len) ? provided[i] : 0;
+    result |= static_cast<uint8_t>(digest[i] ^ provided_ch);
+  }
+  return result == 0;
 }
 
 void AsyncWebServerRequest::requestAuthentication(const char *realm) const {

@@ -13,15 +13,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-#ifdef USE_HOST
+#include "log_buffer.h"
 #include "task_log_buffer_host.h"
-#elif defined(USE_ESP32)
 #include "task_log_buffer_esp32.h"
-#elif defined(USE_LIBRETINY)
 #include "task_log_buffer_libretiny.h"
-#endif
-#endif
+#include "task_log_buffer_zephyr.h"
 
 #ifdef USE_ARDUINO
 #if defined(USE_ESP8266)
@@ -97,194 +93,9 @@ struct CStrCompare {
 };
 #endif
 
-// ANSI color code last digit (30-38 range, store only last digit to save RAM)
-static constexpr char LOG_LEVEL_COLOR_DIGIT[] = {
-    '\0',  // NONE
-    '1',   // ERROR (31 = red)
-    '3',   // WARNING (33 = yellow)
-    '2',   // INFO (32 = green)
-    '5',   // CONFIG (35 = magenta)
-    '6',   // DEBUG (36 = cyan)
-    '7',   // VERBOSE (37 = gray)
-    '8',   // VERY_VERBOSE (38 = white)
-};
-
-static constexpr char LOG_LEVEL_LETTER_CHARS[] = {
-    '\0',  // NONE
-    'E',   // ERROR
-    'W',   // WARNING
-    'I',   // INFO
-    'C',   // CONFIG
-    'D',   // DEBUG
-    'V',   // VERBOSE (VERY_VERBOSE uses two 'V's)
-};
-
-// Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
-static constexpr uint16_t MAX_HEADER_SIZE = 128;
-
-// "0x" + 2 hex digits per byte + '\0'
-static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
-
 // Stack buffer size for retrieving thread/task names from the OS
 // macOS allows up to 64 bytes, Linux up to 16
 static constexpr size_t THREAD_NAME_BUF_SIZE = 64;
-
-// Buffer wrapper for log formatting functions
-struct LogBuffer {
-  char *data;
-  uint16_t size;
-  uint16_t pos{0};
-  // Replaces the null terminator with a newline for console output.
-  // Must be called after notify_listeners_() since listeners need null-terminated strings.
-  // Console output uses length-based writes (buf.pos), so null terminator is not needed.
-  void terminate_with_newline() {
-    if (this->pos < this->size) {
-      this->data[this->pos++] = '\n';
-    } else if (this->size > 0) {
-      // Buffer was full - replace last char with newline to ensure it's visible
-      this->data[this->size - 1] = '\n';
-      this->pos = this->size;
-    }
-  }
-  void HOT write_header(uint8_t level, const char *tag, int line, const char *thread_name) {
-    // Early return if insufficient space - intentionally don't update pos to prevent partial writes
-    if (this->pos + MAX_HEADER_SIZE > this->size)
-      return;
-
-    char *p = this->current_();
-
-    // Write ANSI color
-    this->write_ansi_color_(p, level);
-
-    // Construct: [LEVEL][tag:line]
-    *p++ = '[';
-    if (level != 0) {
-      if (level >= 7) {
-        *p++ = 'V';  // VERY_VERBOSE = "VV"
-        *p++ = 'V';
-      } else {
-        *p++ = LOG_LEVEL_LETTER_CHARS[level];
-      }
-    }
-    *p++ = ']';
-    *p++ = '[';
-
-    // Copy tag
-    this->copy_string_(p, tag);
-
-    *p++ = ':';
-
-    // Format line number without modulo operations
-    if (line > 999) [[unlikely]] {
-      int thousands = line / 1000;
-      *p++ = '0' + thousands;
-      line -= thousands * 1000;
-    }
-    int hundreds = line / 100;
-    int remainder = line - hundreds * 100;
-    int tens = remainder / 10;
-    *p++ = '0' + hundreds;
-    *p++ = '0' + tens;
-    *p++ = '0' + (remainder - tens * 10);
-    *p++ = ']';
-
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR) || defined(USE_HOST)
-    // Write thread name with bold red color
-    if (thread_name != nullptr) {
-      this->write_ansi_color_(p, 1);  // Bold red for thread name
-      *p++ = '[';
-      this->copy_string_(p, thread_name);
-      *p++ = ']';
-      this->write_ansi_color_(p, level);  // Restore original color
-    }
-#endif
-
-    *p++ = ':';
-    *p++ = ' ';
-
-    this->pos = p - this->data;
-  }
-  void HOT format_body(const char *format, va_list args) {
-    this->format_vsnprintf_(format, args);
-    this->finalize_();
-  }
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void HOT format_body_P(PGM_P format, va_list args) {
-    this->format_vsnprintf_P_(format, args);
-    this->finalize_();
-  }
-#endif
-  void write_body(const char *text, uint16_t text_length) {
-    this->write_(text, text_length);
-    this->finalize_();
-  }
-
- private:
-  bool full_() const { return this->pos >= this->size; }
-  uint16_t remaining_() const { return this->size - this->pos; }
-  char *current_() { return this->data + this->pos; }
-  void write_(const char *value, uint16_t length) {
-    const uint16_t available = this->remaining_();
-    const uint16_t copy_len = (length < available) ? length : available;
-    if (copy_len > 0) {
-      memcpy(this->current_(), value, copy_len);
-      this->pos += copy_len;
-    }
-  }
-  void finalize_() {
-    // Write color reset sequence
-    static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
-    this->write_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN);
-    // Null terminate
-    this->data[this->full_() ? this->size - 1 : this->pos] = '\0';
-  }
-  void strip_trailing_newlines_() {
-    while (this->pos > 0 && this->data[this->pos - 1] == '\n')
-      this->pos--;
-  }
-  void process_vsnprintf_result_(int ret) {
-    if (ret < 0)
-      return;
-    const uint16_t rem = this->remaining_();
-    this->pos += (ret >= rem) ? (rem - 1) : static_cast<uint16_t>(ret);
-    this->strip_trailing_newlines_();
-  }
-  void format_vsnprintf_(const char *format, va_list args) {
-    if (this->full_())
-      return;
-    this->process_vsnprintf_result_(vsnprintf(this->current_(), this->remaining_(), format, args));
-  }
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void format_vsnprintf_P_(PGM_P format, va_list args) {
-    if (this->full_())
-      return;
-    this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
-  }
-#endif
-  // Write ANSI color escape sequence to buffer, updates pointer in place
-  // Caller is responsible for ensuring buffer has sufficient space
-  void write_ansi_color_(char *&p, uint8_t level) {
-    if (level == 0)
-      return;
-    // Direct buffer fill: "\033[{bold};3{color}m" (7 bytes)
-    *p++ = '\033';
-    *p++ = '[';
-    *p++ = (level == 1) ? '1' : '0';  // Only ERROR is bold
-    *p++ = ';';
-    *p++ = '3';
-    *p++ = LOG_LEVEL_COLOR_DIGIT[level];
-    *p++ = 'm';
-  }
-  // Copy string without null terminator, updates pointer in place
-  // Caller is responsible for ensuring buffer has sufficient space
-  void copy_string_(char *&p, const char *str) {
-    const size_t len = strlen(str);
-    // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - intentionally no null terminator, building string piece by
-    // piece
-    memcpy(p, str, len);
-    p += len;
-  }
-};
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 /** Enum for logging UART selection
@@ -411,11 +222,14 @@ class Logger : public Component {
     bool &flag_;
   };
 
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   // Handles non-main thread logging only (~0.1% of calls)
   // thread_name is resolved by the caller from the task handle, avoiding redundant lookups
   void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
                                     const char *thread_name);
+#endif
+#if defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC)
+  void cdc_loop_();
 #endif
   void process_messages_();
   void write_msg_(const char *msg, uint16_t len);
@@ -534,13 +348,7 @@ class Logger : public Component {
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-#ifdef USE_HOST
-  logger::TaskLogBufferHost *log_buffer_{nullptr};  // Allocated once, never freed
-#elif defined(USE_ESP32)
   logger::TaskLogBuffer *log_buffer_{nullptr};  // Allocated once, never freed
-#elif defined(USE_LIBRETINY)
-  logger::TaskLogBufferLibreTiny *log_buffer_{nullptr};  // Allocated once, never freed
-#endif
 #endif
 
   // Group smaller types together at the end
@@ -552,7 +360,7 @@ class Logger : public Component {
 #ifdef USE_LIBRETINY
   UARTSelection uart_{UART_SELECTION_DEFAULT};
 #endif
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   bool main_task_recursion_guard_{false};
 #ifdef USE_LIBRETINY
   bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
@@ -595,8 +403,10 @@ class Logger : public Component {
   }
 
 #elif defined(USE_ZEPHYR)
-  const char *HOT get_thread_name_(std::span<char> buff) {
-    k_tid_t current_task = k_current_get();
+  const char *HOT get_thread_name_(std::span<char> buff, k_tid_t current_task = nullptr) {
+    if (current_task == nullptr) {
+      current_task = k_current_get();
+    }
     if (current_task == main_task_) {
       return nullptr;  // Main task
     }
@@ -635,7 +445,7 @@ class Logger : public Component {
   // Create RAII guard for non-main task recursion
   inline NonMainTaskRecursionGuard make_non_main_task_guard_() { return NonMainTaskRecursionGuard(log_recursion_key_); }
 
-#elif defined(USE_LIBRETINY)
+#elif defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   // LibreTiny doesn't have FreeRTOS TLS, so use a simple approach:
   // - Main task uses dedicated boolean (same as ESP32)
   // - Non-main tasks share a single recursion guard
@@ -643,6 +453,8 @@ class Logger : public Component {
   // - Recursion from logging within logging is the main concern
   // - Cross-task "recursion" is prevented by the buffer mutex anyway
   // - Missing a recursive call from another task is acceptable (falls back to direct output)
+  //
+  // Zephyr use __thread as TLS
 
   // Check if non-main task is already in recursion
   inline bool HOT is_non_main_task_recursive_() const { return non_main_task_recursion_guard_; }
@@ -651,7 +463,8 @@ class Logger : public Component {
   inline RecursionGuard make_non_main_task_guard_() { return RecursionGuard(non_main_task_recursion_guard_); }
 #endif
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+// Zephyr needs loop working to check when CDC port is open
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
   // Disable loop when task buffer is empty (with USB CDC check on ESP32)
   inline void disable_loop_when_buffer_empty_() {
     // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()
