@@ -80,7 +80,6 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
   auto guard = this->make_non_main_task_guard_();
 
   bool message_sent = false;
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // For non-main threads/tasks, queue the message for callbacks
   message_sent =
       this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), thread_name, format, args);
@@ -89,7 +88,6 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
     // This is safe to call from any context including ISRs
     this->enable_loop_soon_any_context();
   }
-#endif  // USE_ESPHOME_TASK_LOG_BUFFER
 
   // Emergency console logging for non-main threads when ring buffer is full or disabled
   // This is a fallback mechanism to ensure critical log messages are visible

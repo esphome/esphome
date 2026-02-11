@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+
 namespace esphome::logger {
 
 // Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)

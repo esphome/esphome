@@ -43,7 +43,7 @@ bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &tex
   }
 
   LogMessage *msg = static_cast<LogMessage *>(received_item);
-  *message = msg;
+  message = msg;
   text_length = msg->text_length;
   this->current_token_ = received_item;
 
