@@ -10,9 +10,9 @@ namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-// Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads, LibreTiny with FreeRTOS)
-// Main thread/task always uses direct buffer access for console output and callbacks
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+// Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads, LibreTiny with FreeRTOS,
+// Zephyr) Main thread/task always uses direct buffer access for console output and callbacks
 //
 // For non-main threads/tasks:
 //  - WITH task log buffer: Prefer sending to ring buffer for async processing
