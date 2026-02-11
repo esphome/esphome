@@ -1,12 +1,10 @@
 #include "logger.h"
 #include <cinttypes>
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-#include <memory>  // For unique_ptr
-#endif
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::logger {
 
@@ -38,10 +36,9 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 #endif
 
   // Fast path: main thread, no recursion (99.9% of all logs)
+  // Pass nullptr for thread_name since we already know this is the main task
   if (is_main_task && !this->main_task_recursion_guard_) [[likely]] {
-    RecursionGuard guard(this->main_task_recursion_guard_);
-    // Format and send to both console and callbacks
-    this->log_message_to_buffer_and_send_(level, tag, line, format, args);
+    this->log_message_to_buffer_and_send_(this->main_task_recursion_guard_, level, tag, line, format, args, nullptr);
     return;
   }
 
@@ -51,21 +48,23 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   }
 
   // Non-main thread handling (~0.1% of logs)
+  // Resolve thread name once and pass it through the logging chain.
+  // ESP32/LibreTiny: use TaskHandle_t overload to avoid redundant xTaskGetCurrentTaskHandle()
+  // (we already have the handle from the main task check above).
+  // Host: pass a stack buffer for pthread_getname_np to write into.
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  this->log_vprintf_non_main_thread_(level, tag, line, format, args, current_task);
+  const char *thread_name = get_thread_name_(current_task);
 #else  // USE_HOST
-  this->log_vprintf_non_main_thread_(level, tag, line, format, args);
+  char thread_name_buf[THREAD_NAME_BUF_SIZE];
+  const char *thread_name = this->get_thread_name_(thread_name_buf);
 #endif
+  this->log_vprintf_non_main_thread_(level, tag, line, format, args, thread_name);
 }
 
 // Handles non-main thread logging only
 // Kept separate from hot path to improve instruction cache performance
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
 void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
-                                          TaskHandle_t current_task) {
-#else  // USE_HOST
-void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args) {
-#endif
+                                          const char *thread_name) {
   // Check if already in recursion for this non-main thread/task
   if (this->is_non_main_task_recursive_()) {
     return;
@@ -77,12 +76,8 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
   bool message_sent = false;
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // For non-main threads/tasks, queue the message for callbacks
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   message_sent =
-      this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), current_task, format, args);
-#else  // USE_HOST
-  message_sent = this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), format, args);
-#endif
+      this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), thread_name, format, args);
   if (message_sent) {
     // Enable logger loop to process the buffered message
     // This is safe to call from any context including ISRs
@@ -104,25 +99,28 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
     static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 144;
 #endif
     char console_buffer[MAX_CONSOLE_LOG_MSG_SIZE];  // MUST be stack allocated for thread safety
-    uint16_t buffer_at = 0;                         // Initialize buffer position
-    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, console_buffer, &buffer_at,
-                                                MAX_CONSOLE_LOG_MSG_SIZE);
-    // Add newline before writing to console
-    this->add_newline_to_buffer_(console_buffer, &buffer_at, MAX_CONSOLE_LOG_MSG_SIZE);
-    this->write_msg_(console_buffer, buffer_at);
+    LogBuffer buf{console_buffer, MAX_CONSOLE_LOG_MSG_SIZE};
+    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf, thread_name);
+    this->write_to_console_(buf);
   }
 
   // RAII guard automatically resets on return
 }
 #else
-// Implementation for all other platforms (single-task, no threading)
+// Implementation for single-task platforms (ESP8266, RP2040, Zephyr)
+// TODO: Zephyr may have multiple threads (work queues, etc.) but uses this single-task path.
+// Logging calls are NOT thread-safe: global_recursion_guard_ is a plain bool and tx_buffer_ has no locking.
+// Not a problem in practice yet since Zephyr has no API support (logs are console-only).
 void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
-
-  RecursionGuard guard(global_recursion_guard_);
-  // Format and send to both console and callbacks
-  this->log_message_to_buffer_and_send_(level, tag, line, format, args);
+#ifdef USE_ZEPHYR
+  char tmp[MAX_POINTER_REPRESENTATION];
+  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args,
+                                        this->get_thread_name_(tmp));
+#else  // Other single-task platforms don't have thread names, so pass nullptr
+  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args, nullptr);
+#endif
 }
 #endif  // USE_ESP32 / USE_HOST / USE_LIBRETINY
 
@@ -131,60 +129,14 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 // Note: USE_STORE_LOG_STR_IN_FLASH is only defined for ESP8266.
 //
 // This function handles format strings stored in flash memory (PROGMEM) to save RAM.
-// The buffer is used in a special way to avoid allocating extra memory:
-//
-// Memory layout during execution:
-// Step 1: Copy format string from flash to buffer
-//         tx_buffer_: [format_string][null][.....................]
-//         tx_buffer_at_: ------------------^
-//         msg_start: saved here -----------^
-//
-// Step 2: format_log_to_buffer_with_terminator_ reads format string from beginning
-//         and writes formatted output starting at msg_start position
-//         tx_buffer_: [format_string][null][formatted_message][null]
-//         tx_buffer_at_: -------------------------------------^
-//
-// Step 3: Output the formatted message (starting at msg_start)
-//         write_msg_ and callbacks receive: this->tx_buffer_ + msg_start
-//         which points to: [formatted_message][null]
+// Uses vsnprintf_P to read the format string directly from flash without copying to RAM.
 //
 void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format,
                           va_list args) {  // NOLINT
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
-  RecursionGuard guard(global_recursion_guard_);
-  this->tx_buffer_at_ = 0;
-
-  // Copy format string from progmem
-  auto *format_pgm_p = reinterpret_cast<const uint8_t *>(format);
-  char ch = '.';
-  while (this->tx_buffer_at_ < this->tx_buffer_size_ && ch != '\0') {
-    this->tx_buffer_[this->tx_buffer_at_++] = ch = (char) progmem_read_byte(format_pgm_p++);
-  }
-
-  // Buffer full from copying format - RAII guard handles cleanup on return
-  if (this->tx_buffer_at_ >= this->tx_buffer_size_) {
-    return;
-  }
-
-  // Save the offset before calling format_log_to_buffer_with_terminator_
-  // since it will increment tx_buffer_at_ to the end of the formatted string
-  uint16_t msg_start = this->tx_buffer_at_;
-  this->format_log_to_buffer_with_terminator_(level, tag, line, this->tx_buffer_, args, this->tx_buffer_,
-                                              &this->tx_buffer_at_, this->tx_buffer_size_);
-
-  uint16_t msg_length =
-      this->tx_buffer_at_ - msg_start;  // Don't subtract 1 - tx_buffer_at_ is already at the null terminator position
-
-  // Listeners get message first (before console write)
-#ifdef USE_LOG_LISTENERS
-  for (auto *listener : this->log_listeners_)
-    listener->on_log(level, tag, this->tx_buffer_ + msg_start, msg_length);
-#endif
-
-  // Write to console starting at the msg_start
-  this->write_tx_buffer_to_console_(msg_start, &msg_length);
+  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args, nullptr);
 }
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 
@@ -199,7 +151,8 @@ inline uint8_t Logger::level_for(const char *tag) {
 
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
   // add 1 to buffer size for null terminator
-  this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
+  this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   this->main_task_ = xTaskGetCurrentTaskHandle();
 #elif defined(USE_ZEPHYR)
@@ -212,11 +165,14 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
 void Logger::init_log_buffer(size_t total_buffer_size) {
 #ifdef USE_HOST
   // Host uses slot count instead of byte size
-  this->log_buffer_ = esphome::make_unique<logger::TaskLogBufferHost>(total_buffer_size);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
+  this->log_buffer_ = new logger::TaskLogBufferHost(total_buffer_size);
 #elif defined(USE_ESP32)
-  this->log_buffer_ = esphome::make_unique<logger::TaskLogBuffer>(total_buffer_size);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
+  this->log_buffer_ = new logger::TaskLogBuffer(total_buffer_size);
 #elif defined(USE_LIBRETINY)
-  this->log_buffer_ = esphome::make_unique<logger::TaskLogBufferLibreTiny>(total_buffer_size);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
+  this->log_buffer_ = new logger::TaskLogBufferLibreTiny(total_buffer_size);
 #endif
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
@@ -239,10 +195,11 @@ void Logger::process_messages_() {
     logger::TaskLogBufferHost::LogMessage *message;
     while (this->log_buffer_->get_message_main_loop(&message)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
+      LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, message->text,
-                                                message->text_length);
+                                                message->text_length, buf);
       this->log_buffer_->release_message_main_loop();
-      this->write_tx_buffer_to_console_();
+      this->write_log_buffer_to_console_(buf);
     }
 #elif defined(USE_ESP32)
     logger::TaskLogBuffer::LogMessage *message;
@@ -250,22 +207,24 @@ void Logger::process_messages_() {
     void *received_token;
     while (this->log_buffer_->borrow_message_main_loop(&message, &text, &received_token)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
+      LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
-                                                message->text_length);
+                                                message->text_length, buf);
       // Release the message to allow other tasks to use it as soon as possible
       this->log_buffer_->release_message_main_loop(received_token);
-      this->write_tx_buffer_to_console_();
+      this->write_log_buffer_to_console_(buf);
     }
 #elif defined(USE_LIBRETINY)
     logger::TaskLogBufferLibreTiny::LogMessage *message;
     const char *text;
     while (this->log_buffer_->borrow_message_main_loop(&message, &text)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
+      LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
-                                                message->text_length);
+                                                message->text_length, buf);
       // Release the message to allow other tasks to use it as soon as possible
       this->log_buffer_->release_message_main_loop();
-      this->write_tx_buffer_to_console_();
+      this->write_log_buffer_to_console_(buf);
     }
 #endif
   }
@@ -290,34 +249,20 @@ UARTSelection Logger::get_uart() const { return this->uart_; }
 
 float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-// ESP8266: PSTR() cannot be used in array initializers, so we need to declare
-// each string separately as a global constant first
-static const char LOG_LEVEL_NONE[] PROGMEM = "NONE";
-static const char LOG_LEVEL_ERROR[] PROGMEM = "ERROR";
-static const char LOG_LEVEL_WARN[] PROGMEM = "WARN";
-static const char LOG_LEVEL_INFO[] PROGMEM = "INFO";
-static const char LOG_LEVEL_CONFIG[] PROGMEM = "CONFIG";
-static const char LOG_LEVEL_DEBUG[] PROGMEM = "DEBUG";
-static const char LOG_LEVEL_VERBOSE[] PROGMEM = "VERBOSE";
-static const char LOG_LEVEL_VERY_VERBOSE[] PROGMEM = "VERY_VERBOSE";
+// Log level strings - packed into flash on ESP8266, indexed by log level (0-7)
+PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE");
 
-static const LogString *const LOG_LEVELS[] = {
-    reinterpret_cast<const LogString *>(LOG_LEVEL_NONE),    reinterpret_cast<const LogString *>(LOG_LEVEL_ERROR),
-    reinterpret_cast<const LogString *>(LOG_LEVEL_WARN),    reinterpret_cast<const LogString *>(LOG_LEVEL_INFO),
-    reinterpret_cast<const LogString *>(LOG_LEVEL_CONFIG),  reinterpret_cast<const LogString *>(LOG_LEVEL_DEBUG),
-    reinterpret_cast<const LogString *>(LOG_LEVEL_VERBOSE), reinterpret_cast<const LogString *>(LOG_LEVEL_VERY_VERBOSE),
-};
-#else
-static const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
-#endif
+static const LogString *get_log_level_str(uint8_t level) {
+  return LogLevelStrings::get_log_str(level, LogLevelStrings::LAST_INDEX);
+}
 
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Logger:\n"
                 "  Max Level: %s\n"
                 "  Initial Level: %s",
-                LOG_STR_ARG(LOG_LEVELS[ESPHOME_LOG_LEVEL]), LOG_STR_ARG(LOG_LEVELS[this->current_level_]));
+                LOG_STR_ARG(get_log_level_str(ESPHOME_LOG_LEVEL)),
+                LOG_STR_ARG(get_log_level_str(this->current_level_)));
 #ifndef USE_HOST
   ESP_LOGCONFIG(TAG,
                 "  Log Baud Rate: %" PRIu32 "\n"
@@ -336,7 +281,7 @@ void Logger::dump_config() {
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   for (auto &it : this->log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(LOG_LEVELS[it.second]));
+    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
   }
 #endif
 }
@@ -344,7 +289,8 @@ void Logger::dump_config() {
 void Logger::set_log_level(uint8_t level) {
   if (level > ESPHOME_LOG_LEVEL) {
     level = ESPHOME_LOG_LEVEL;
-    ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s", LOG_STR_ARG(LOG_LEVELS[ESPHOME_LOG_LEVEL]));
+    ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s",
+             LOG_STR_ARG(get_log_level_str(ESPHOME_LOG_LEVEL)));
   }
   this->current_level_ = level;
 #ifdef USE_LOGGER_LEVEL_LISTENERS

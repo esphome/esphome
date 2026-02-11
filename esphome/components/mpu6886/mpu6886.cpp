@@ -146,7 +146,5 @@ void MPU6886Component::update() {
   this->status_clear_warning();
 }
 
-float MPU6886Component::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace mpu6886
 }  // namespace esphome

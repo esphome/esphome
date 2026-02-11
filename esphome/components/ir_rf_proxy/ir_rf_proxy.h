@@ -5,8 +5,6 @@
 // Once the API is considered stable, this warning will be removed.
 
 #include "esphome/components/infrared/infrared.h"
-#include "esphome/components/remote_transmitter/remote_transmitter.h"
-#include "esphome/components/remote_receiver/remote_receiver.h"
 
 namespace esphome::ir_rf_proxy {
 

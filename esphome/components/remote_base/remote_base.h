@@ -36,6 +36,11 @@ class RemoteTransmitData {
   /// @param len Length of the buffer in bytes
   /// @param count Number of values (for reserve optimization)
   void set_data_from_packed_sint32(const uint8_t *data, size_t len, size_t count);
+  /// Set data from base64url-encoded little-endian int32 values
+  /// Base64url is URL-safe: uses '-' instead of '+', '_' instead of '/'
+  /// @param base64url Base64url-encoded string of little-endian int32 values
+  /// @return true if successful, false if decode failed or invalid size
+  bool set_data_from_base64url(const std::string &base64url);
   void reset() {
     this->data_.clear();
     this->carrier_frequency_ = 0;

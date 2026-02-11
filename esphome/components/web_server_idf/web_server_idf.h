@@ -3,21 +3,26 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include <esp_http_server.h>
 
 #include <atomic>
 #include <functional>
 #include <list>
 #include <map>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
+
+#ifdef USE_WEBSERVER
+#include "esphome/components/web_server/list_entities.h"
+#endif
 
 namespace esphome {
 #ifdef USE_WEBSERVER
 namespace web_server {
 class WebServer;
-class ListEntitiesIterator;
 };  // namespace web_server
 #endif
 namespace web_server_idf {
@@ -107,8 +112,15 @@ class AsyncWebServerRequest {
   ~AsyncWebServerRequest();
 
   http_method method() const { return static_cast<http_method>(this->req_->method); }
-  std::string url() const;
-  std::string host() const;
+  static constexpr size_t URL_BUF_SIZE = CONFIG_HTTPD_MAX_URI_LEN + 1;  ///< Buffer size for url_to()
+  /// Write URL (without query string) to buffer, returns StringRef pointing to buffer.
+  /// URL is decoded (e.g., %20 -> space).
+  StringRef url_to(std::span<char, URL_BUF_SIZE> buffer) const;
+  /// Get URL as std::string. Prefer url_to() to avoid heap allocation.
+  std::string url() const {
+    char buffer[URL_BUF_SIZE];
+    return std::string(this->url_to(buffer));
+  }
   // NOLINTNEXTLINE(readability-identifier-naming)
   size_t contentLength() const { return this->req_->content_len; }
 
@@ -149,19 +161,24 @@ class AsyncWebServerRequest {
   }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  bool hasParam(const std::string &name) { return this->getParam(name) != nullptr; }
+  bool hasParam(const char *name) { return this->getParam(name) != nullptr; }
   // NOLINTNEXTLINE(readability-identifier-naming)
-  AsyncWebParameter *getParam(const std::string &name);
+  bool hasParam(const std::string &name) { return this->getParam(name.c_str()) != nullptr; }
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  AsyncWebParameter *getParam(const char *name);
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  AsyncWebParameter *getParam(const std::string &name) { return this->getParam(name.c_str()); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   bool hasArg(const char *name) { return this->hasParam(name); }
-  std::string arg(const std::string &name) {
+  std::string arg(const char *name) {
     auto *param = this->getParam(name);
     if (param) {
       return param->value();
     }
     return {};
   }
+  std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
@@ -284,7 +301,7 @@ class AsyncEventSourceResponse {
   std::atomic<int> fd_{};
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
-  std::unique_ptr<esphome::web_server::ListEntitiesIterator> entities_iterator_;
+  esphome::web_server::ListEntitiesIterator entities_iterator_;
   std::string event_buffer_{""};
   size_t event_bytes_sent_;
   uint16_t consecutive_send_failures_{0};
@@ -303,7 +320,10 @@ class AsyncEventSource : public AsyncWebHandler {
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   bool canHandle(AsyncWebServerRequest *request) const override {
-    return request->method() == HTTP_GET && request->url() == this->url_;
+    if (request->method() != HTTP_GET)
+      return false;
+    char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+    return request->url_to(url_buf) == this->url_;
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
   void handleRequest(AsyncWebServerRequest *request) override;

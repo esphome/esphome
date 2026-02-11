@@ -10,8 +10,7 @@
 #include <string>
 #include <utility>
 
-namespace esphome {
-namespace web_server_idf {
+namespace esphome::web_server_idf {
 
 // Wrapper around zorxx/multipart-parser for ESP-IDF OTA uploads
 class MultipartReader {
@@ -81,6 +80,5 @@ bool parse_multipart_boundary(const char *content_type, const char **boundary_st
 // Trim whitespace from both ends of a string
 std::string str_trim(const std::string &str);
 
-}  // namespace web_server_idf
-}  // namespace esphome
+}  // namespace esphome::web_server_idf
 #endif  // defined(USE_ESP32) && defined(USE_WEBSERVER_OTA)

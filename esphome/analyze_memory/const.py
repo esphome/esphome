@@ -9,20 +9,61 @@ ESPHOME_COMPONENT_PATTERN = re.compile(r"esphome::([a-zA-Z0-9_]+)::")
 # Maps standard section names to their various platform-specific variants
 # Note: Order matters! More specific patterns (.bss) must come before general ones (.dram)
 # because ESP-IDF uses names like ".dram0.bss" which would match ".dram" otherwise
+#
+# Platform-specific sections:
+# - ESP8266/ESP32: .iram*, .dram*
+# - LibreTiny RTL87xx: .xip.code_* (flash), .ram.code_* (RAM)
+# - LibreTiny BK7231: .itcm.code (fast RAM), .vectors (interrupt vectors)
+# - LibreTiny LN882X: .flash_text, .flash_copy* (flash code)
+# - Zephyr/nRF52: text, rodata, datas, bss (no leading dots)
 SECTION_MAPPING = {
-    ".text": frozenset([".text", ".iram"]),
-    ".rodata": frozenset([".rodata"]),
-    ".bss": frozenset([".bss"]),  # Must be before .data to catch ".dram0.bss"
-    ".data": frozenset([".data", ".dram"]),
-}
-
-# Section to ComponentMemory attribute mapping
-# Maps section names to the attribute name in ComponentMemory dataclass
-SECTION_TO_ATTR = {
-    ".text": "text_size",
-    ".rodata": "rodata_size",
-    ".data": "data_size",
-    ".bss": "bss_size",
+    ".text": frozenset(
+        [
+            ".text",
+            ".iram",
+            # LibreTiny RTL87xx XIP (eXecute In Place) flash code
+            ".xip.code",
+            # LibreTiny RTL87xx RAM code
+            ".ram.code_text",
+            # LibreTiny BK7231 fast RAM code and vectors
+            ".itcm.code",
+            ".vectors",
+            # LibreTiny LN882X flash code
+            ".flash_text",
+            ".flash_copy",
+            # Zephyr/nRF52 sections (no leading dots)
+            "text",
+            "rom_start",
+        ]
+    ),
+    ".rodata": frozenset(
+        [
+            ".rodata",
+            # LibreTiny RTL87xx read-only data in RAM
+            ".ram.code_rodata",
+            # Zephyr/nRF52 sections (no leading dots)
+            "rodata",
+        ]
+    ),
+    # .bss patterns - must be before .data to catch ".dram0.bss"
+    ".bss": frozenset(
+        [
+            ".bss",
+            # LibreTiny LN882X BSS
+            ".bss_ram",
+            # Zephyr/nRF52 sections (no leading dots)
+            "bss",
+            "noinit",
+        ]
+    ),
+    ".data": frozenset(
+        [
+            ".data",
+            ".dram",
+            # Zephyr/nRF52 sections (no leading dots)
+            "datas",
+        ]
+    ),
 }
 
 # Component identification rules
@@ -463,7 +504,9 @@ SYMBOL_PATTERNS = {
         "__FUNCTION__$",
         "DAYS_IN_MONTH",
         "_DAYS_BEFORE_MONTH",
-        "CSWTCH$",
+        # Note: CSWTCH$ symbols are GCC switch table lookup tables.
+        # They are attributed to their source object files via _analyze_cswtch_symbols()
+        # rather than being lumped into libc.
         "dst$",
         "sulp",
         "_strtol_l",  # String to long with locale
