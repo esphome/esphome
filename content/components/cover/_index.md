@@ -58,14 +58,23 @@ Advanced options:
 
 MQTT options:
 
+- **mqtt_json_state_payload** (*Optional*, boolean): When set to `true`, state changes will
+  be published only to the `state_topic` as a single JSON object per state change. Example:
+
+  ```json
+  { "state": "open", "position": 100, "tilt": 50 }
+  ```
+
+  When `false`, individual values are published to the `state_topic`, `position_state_topic`, and `tilt_state_topic` separately. Defaults to `false`.
+
 - **position_state_topic** (*Optional*, string): The topic to publish
-  cover position changes to.
+  cover position changes to. Not valid if `mqtt_json_state_payload` is set to `true`.
 
 - **position_command_topic** (*Optional*, string): The topic to receive
   cover position commands on.
 
 - **tilt_state_topic** (*Optional*, string): The topic to publish cover
-  cover tilt state changes to.
+  cover tilt state changes to. Not valid if `mqtt_json_state_payload` is set to `true`.
 
 - **tilt_command_topic** (*Optional*, string): The topic to receive
   cover tilt commands on.
