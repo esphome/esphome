@@ -1,4 +1,4 @@
 packages:
-  uart: !include ../../test_build_components/common/uart_2400/esp32-ard.yaml
+  uart_2400: !include ../../test_build_components/common/uart_2400/esp32-ard.yaml
 
 <<: !include common-generic.yaml

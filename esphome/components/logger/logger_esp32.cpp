@@ -118,9 +118,7 @@ void Logger::pre_setup() {
   ESP_LOGI(TAG, "Log initialized");
 }
 
-void HOT Logger::write_msg_(const char *msg, size_t len) {
-  // Length is now always passed explicitly - no strlen() fallback needed
-
+void HOT Logger::write_msg_(const char *msg, uint16_t len) {
 #if defined(USE_LOGGER_UART_SELECTION_USB_CDC) || defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
   // USB CDC/JTAG - single write including newline (already in buffer)
   // Use fwrite to stdout which goes through VFS to USB console

@@ -2,21 +2,18 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome {
 namespace fan {
 
 static const char *const TAG = "fan";
 
+// Fan direction strings indexed by FanDirection enum (0-1): FORWARD, REVERSE, plus UNKNOWN
+PROGMEM_STRING_TABLE(FanDirectionStrings, "FORWARD", "REVERSE", "UNKNOWN");
+
 const LogString *fan_direction_to_string(FanDirection direction) {
-  switch (direction) {
-    case FanDirection::FORWARD:
-      return LOG_STR("FORWARD");
-    case FanDirection::REVERSE:
-      return LOG_STR("REVERSE");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return FanDirectionStrings::get_log_str(static_cast<uint8_t>(direction), FanDirectionStrings::LAST_INDEX);
 }
 
 FanCall &FanCall::set_preset_mode(const std::string &preset_mode) {

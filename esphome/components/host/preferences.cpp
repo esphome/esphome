@@ -66,10 +66,11 @@ ESPPreferenceObject HostPreferences::make_preference(size_t length, uint32_t typ
   return ESPPreferenceObject(backend);
 };
 
+static HostPreferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void setup_preferences() {
-  auto *pref = new HostPreferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  host_preferences = pref;
-  global_preferences = pref;
+  host_preferences = &s_preferences;
+  global_preferences = &s_preferences;
 }
 
 bool HostPreferenceBackend::save(const uint8_t *data, size_t len) {
