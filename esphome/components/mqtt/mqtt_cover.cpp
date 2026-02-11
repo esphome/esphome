@@ -67,6 +67,7 @@ void MQTTCoverComponent::dump_config() {
   auto traits = this->cover_->get_traits();
   bool has_command_topic = traits.get_supports_position() || !traits.get_supports_tilt();
   LOG_MQTT_COMPONENT(true, has_command_topic);
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
 #ifdef USE_MQTT_COVER_JSON
   ESP_LOGCONFIG(TAG, "  JSON State Payload: %s", YESNO(this->use_json_format_));
 #endif
@@ -74,7 +75,7 @@ void MQTTCoverComponent::dump_config() {
 #ifdef USE_MQTT_COVER_JSON
     if (!this->use_json_format_) {
 #endif
-      ESP_LOGCONFIG(TAG, "  Position State Topic: '%s'", this->get_position_state_topic().c_str());
+      ESP_LOGCONFIG(TAG, "  Position State Topic: '%s'", this->get_position_state_topic_to(topic_buf).c_str());
 #ifdef USE_MQTT_COVER_JSON
     }
 #endif
@@ -84,7 +85,7 @@ void MQTTCoverComponent::dump_config() {
 #ifdef USE_MQTT_COVER_JSON
     if (!this->use_json_format_) {
 #endif
-      ESP_LOGCONFIG(TAG, "  Tilt State Topic: '%s'", this->get_tilt_state_topic().c_str());
+      ESP_LOGCONFIG(TAG, "  Tilt State Topic: '%s'", this->get_tilt_state_topic_to(topic_buf).c_str());
 #ifdef USE_MQTT_COVER_JSON
     }
 #endif
@@ -103,18 +104,18 @@ void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
   if (traits.get_is_assumed_state()) {
     root[MQTT_OPTIMISTIC] = true;
   }
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
 #ifdef USE_MQTT_COVER_JSON
   if (this->use_json_format_) {
     // JSON mode: all state published to state_topic as JSON, use templates to extract
-    char state_topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
     root[MQTT_VALUE_TEMPLATE] = ESPHOME_F("{{ value_json.state }}");
     if (traits.get_supports_position()) {
-      root[MQTT_POSITION_TOPIC] = this->get_state_topic_to_(state_topic_buf);
+      root[MQTT_POSITION_TOPIC] = this->get_state_topic_to_(topic_buf);
       root[MQTT_POSITION_TEMPLATE] = ESPHOME_F("{{ value_json.position }}");
       root[MQTT_SET_POSITION_TOPIC] = this->get_position_command_topic();
     }
     if (traits.get_supports_tilt()) {
-      root[MQTT_TILT_STATUS_TOPIC] = this->get_state_topic_to_(state_topic_buf);
+      root[MQTT_TILT_STATUS_TOPIC] = this->get_state_topic_to_(topic_buf);
       root[MQTT_TILT_STATUS_TEMPLATE] = ESPHOME_F("{{ value_json.tilt }}");
       root[MQTT_TILT_COMMAND_TOPIC] = this->get_tilt_command_topic();
     }
@@ -123,11 +124,11 @@ void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
   {
     // Standard mode: separate topics for position and tilt
     if (traits.get_supports_position()) {
-      root[MQTT_POSITION_TOPIC] = this->get_position_state_topic();
+      root[MQTT_POSITION_TOPIC] = this->get_position_state_topic_to(topic_buf);
       root[MQTT_SET_POSITION_TOPIC] = this->get_position_command_topic();
     }
     if (traits.get_supports_tilt()) {
-      root[MQTT_TILT_STATUS_TOPIC] = this->get_tilt_state_topic();
+      root[MQTT_TILT_STATUS_TOPIC] = this->get_tilt_state_topic_to(topic_buf);
       root[MQTT_TILT_COMMAND_TOPIC] = this->get_tilt_command_topic();
     }
   }
