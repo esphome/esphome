@@ -105,6 +105,7 @@ class ProtoVarInt {
 
   /// Parse a varint from buffer. consumed must be a valid pointer (not null).
   static optional<ProtoVarInt> parse(const uint8_t *buffer, uint32_t len, uint32_t *consumed) {
+    assert(consumed != nullptr);
     if (len == 0)
       return {};
 
