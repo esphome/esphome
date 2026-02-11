@@ -862,7 +862,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       }
       auto call = is_on ? obj->turn_on() : obj->turn_off();
 
-      parse_int_param_(request, ESPHOME_F("speed_level"), call, &decltype(call)::set_speed);
+      parse_num_param_(request, ESPHOME_F("speed_level"), call, &decltype(call)::set_speed);
 
       if (request->hasArg(ESPHOME_F("oscillation"))) {
         auto speed = request->arg(ESPHOME_F("oscillation"));
@@ -1047,8 +1047,8 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       return;
     }
 
-    parse_float_param_(request, ESPHOME_F("position"), call, &decltype(call)::set_position);
-    parse_float_param_(request, ESPHOME_F("tilt"), call, &decltype(call)::set_tilt);
+    parse_num_param_(request, ESPHOME_F("position"), call, &decltype(call)::set_position);
+    parse_num_param_(request, ESPHOME_F("tilt"), call, &decltype(call)::set_tilt);
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1107,7 +1107,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
     }
 
     auto call = obj->make_call();
-    parse_float_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_value);
+    parse_num_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_value);
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1478,10 +1478,9 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     parse_string_param_(request, ESPHOME_F("swing_mode"), call, &decltype(call)::set_swing_mode);
 
     // Parse temperature parameters
-    parse_float_param_(request, ESPHOME_F("target_temperature_high"), call,
-                       &decltype(call)::set_target_temperature_high);
-    parse_float_param_(request, ESPHOME_F("target_temperature_low"), call, &decltype(call)::set_target_temperature_low);
-    parse_float_param_(request, ESPHOME_F("target_temperature"), call, &decltype(call)::set_target_temperature);
+    parse_num_param_(request, ESPHOME_F("target_temperature_high"), call, &decltype(call)::set_target_temperature_high);
+    parse_num_param_(request, ESPHOME_F("target_temperature_low"), call, &decltype(call)::set_target_temperature_low);
+    parse_num_param_(request, ESPHOME_F("target_temperature"), call, &decltype(call)::set_target_temperature);
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1727,7 +1726,7 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
       return;
     }
 
-    parse_float_param_(request, ESPHOME_F("position"), call, &decltype(call)::set_position);
+    parse_num_param_(request, ESPHOME_F("position"), call, &decltype(call)::set_position);
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1871,12 +1870,12 @@ void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, cons
     parse_string_param_(request, ESPHOME_F("mode"), base_call, &water_heater::WaterHeaterCall::set_mode);
 
     // Parse temperature parameters
-    parse_float_param_(request, ESPHOME_F("target_temperature"), base_call,
-                       &water_heater::WaterHeaterCall::set_target_temperature);
-    parse_float_param_(request, ESPHOME_F("target_temperature_low"), base_call,
-                       &water_heater::WaterHeaterCall::set_target_temperature_low);
-    parse_float_param_(request, ESPHOME_F("target_temperature_high"), base_call,
-                       &water_heater::WaterHeaterCall::set_target_temperature_high);
+    parse_num_param_(request, ESPHOME_F("target_temperature"), base_call,
+                     &water_heater::WaterHeaterCall::set_target_temperature);
+    parse_num_param_(request, ESPHOME_F("target_temperature_low"), base_call,
+                     &water_heater::WaterHeaterCall::set_target_temperature_low);
+    parse_num_param_(request, ESPHOME_F("target_temperature_high"), base_call,
+                     &water_heater::WaterHeaterCall::set_target_temperature_high);
 
     // Parse away mode parameter
     parse_bool_param_(request, ESPHOME_F("away"), base_call, &water_heater::WaterHeaterCall::set_away);
@@ -1980,7 +1979,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
     auto call = obj->make_call();
 
     // Parse carrier frequency (optional)
-    if (request->hasArg(ESPHOME_F("carrier_frequency"))) {
+    {
       auto value = parse_number<uint32_t>(request->arg(ESPHOME_F("carrier_frequency")).c_str());
       if (value.has_value()) {
         call.set_carrier_frequency(*value);
@@ -1988,7 +1987,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
     }
 
     // Parse repeat count (optional, defaults to 1)
-    if (request->hasArg(ESPHOME_F("repeat_count"))) {
+    {
       auto value = parse_number<uint32_t>(request->arg(ESPHOME_F("repeat_count")).c_str());
       if (value.has_value()) {
         call.set_repeat_count(*value);
@@ -1997,17 +1996,12 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
 
     // Parse base64url-encoded raw timings (required)
     // Base64url is URL-safe: uses A-Za-z0-9-_ (no special characters needing escaping)
-    if (!request->hasArg(ESPHOME_F("data"))) {
-      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Missing 'data' parameter"));
-      return;
-    }
-
     // .c_str() is required for Arduino framework where arg() returns Arduino String instead of std::string
     std::string encoded = request->arg(ESPHOME_F("data")).c_str();  // NOLINT(readability-redundant-string-cstr)
 
-    // Validate base64url is not empty
+    // Validate base64url is not empty (also catches missing parameter since arg() returns empty string)
     if (encoded.empty()) {
-      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Empty 'data' parameter"));
+      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Missing or empty 'data' parameter"));
       return;
     }
 
