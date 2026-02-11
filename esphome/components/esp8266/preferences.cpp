@@ -12,15 +12,10 @@ extern "C" {
 #include "preferences.h"
 
 #include <cstring>
-#include <memory>
 
 namespace esphome::esp8266 {
 
 static const char *const TAG = "esp8266.preferences";
-
-static uint32_t *s_flash_storage = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_prevent_write = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_flash_dirty = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static constexpr uint32_t ESP_RTC_USER_MEM_START = 0x60001200;
 static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = 128;
@@ -43,6 +38,11 @@ static constexpr uint32_t ESP8266_FLASH_STORAGE_SIZE = 128;
 #else
 static constexpr uint32_t ESP8266_FLASH_STORAGE_SIZE = 64;
 #endif
+
+static uint32_t
+    s_flash_storage[ESP8266_FLASH_STORAGE_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_prevent_write = false;              // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_flash_dirty = false;                // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static inline bool esp_rtc_user_mem_read(uint32_t index, uint32_t *dest) {
   if (index >= ESP_RTC_USER_MEM_SIZE_WORDS) {
@@ -143,16 +143,8 @@ class ESP8266PreferenceBackend : public ESPPreferenceBackend {
       return false;
 
     const size_t buffer_size = static_cast<size_t>(this->length_words) + 1;
-    uint32_t stack_buffer[PREF_BUFFER_WORDS];
-    std::unique_ptr<uint32_t[]> heap_buffer;
-    uint32_t *buffer;
-
-    if (buffer_size <= PREF_BUFFER_WORDS) {
-      buffer = stack_buffer;
-    } else {
-      heap_buffer = make_unique<uint32_t[]>(buffer_size);
-      buffer = heap_buffer.get();
-    }
+    SmallBufferWithHeapFallback<PREF_BUFFER_WORDS, uint32_t> buffer_alloc(buffer_size);
+    uint32_t *buffer = buffer_alloc.get();
     memset(buffer, 0, buffer_size * sizeof(uint32_t));
 
     memcpy(buffer, data, len);
@@ -167,16 +159,8 @@ class ESP8266PreferenceBackend : public ESPPreferenceBackend {
       return false;
 
     const size_t buffer_size = static_cast<size_t>(this->length_words) + 1;
-    uint32_t stack_buffer[PREF_BUFFER_WORDS];
-    std::unique_ptr<uint32_t[]> heap_buffer;
-    uint32_t *buffer;
-
-    if (buffer_size <= PREF_BUFFER_WORDS) {
-      buffer = stack_buffer;
-    } else {
-      heap_buffer = make_unique<uint32_t[]>(buffer_size);
-      buffer = heap_buffer.get();
-    }
+    SmallBufferWithHeapFallback<PREF_BUFFER_WORDS, uint32_t> buffer_alloc(buffer_size);
+    uint32_t *buffer = buffer_alloc.get();
 
     bool ret = this->in_flash ? load_from_flash(this->offset, buffer, buffer_size)
                               : load_from_rtc(this->offset, buffer, buffer_size);
@@ -197,7 +181,6 @@ class ESP8266Preferences : public ESPPreferences {
   uint32_t current_flash_offset = 0;  // in words
 
   void setup() {
-    s_flash_storage = new uint32_t[ESP8266_FLASH_STORAGE_SIZE];  // NOLINT
     ESP_LOGVV(TAG, "Loading preferences from flash");
 
     {
@@ -300,10 +283,11 @@ class ESP8266Preferences : public ESPPreferences {
   }
 };
 
+static ESP8266Preferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void setup_preferences() {
-  auto *pref = new ESP8266Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  pref->setup();
-  global_preferences = pref;
+  s_preferences.setup();
+  global_preferences = &s_preferences;
 }
 void preferences_prevent_write(bool prevent) { s_prevent_write = prevent; }
 

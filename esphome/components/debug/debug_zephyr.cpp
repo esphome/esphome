@@ -132,6 +132,26 @@ void DebugComponent::log_partition_info_() {
   flash_area_foreach(fa_cb, nullptr);
 }
 
+static const char *regout0_to_str(uint32_t value) {
+  switch (value) {
+    case (UICR_REGOUT0_VOUT_DEFAULT):
+      return "1.8V (default)";
+    case (UICR_REGOUT0_VOUT_1V8):
+      return "1.8V";
+    case (UICR_REGOUT0_VOUT_2V1):
+      return "2.1V";
+    case (UICR_REGOUT0_VOUT_2V4):
+      return "2.4V";
+    case (UICR_REGOUT0_VOUT_2V7):
+      return "2.7V";
+    case (UICR_REGOUT0_VOUT_3V0):
+      return "3.0V";
+    case (UICR_REGOUT0_VOUT_3V3):
+      return "3.3V";
+  }
+  return "???V";
+}
+
 size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE> buffer, size_t pos) {
   constexpr size_t size = DEVICE_INFO_BUFFER_SIZE;
   char *buf = buffer.data();
@@ -145,34 +165,14 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   // Regulator stage 0
   if (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_HIGH) {
     const char *reg0_type = nrf_power_dcdcen_vddh_get(NRF_POWER) ? "DC/DC" : "LDO";
-    const char *reg0_voltage;
-    switch (NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) {
-      case (UICR_REGOUT0_VOUT_DEFAULT << UICR_REGOUT0_VOUT_Pos):
-        reg0_voltage = "1.8V (default)";
-        break;
-      case (UICR_REGOUT0_VOUT_1V8 << UICR_REGOUT0_VOUT_Pos):
-        reg0_voltage = "1.8V";
-        break;
-      case (UICR_REGOUT0_VOUT_2V1 << UICR_REGOUT0_VOUT_Pos):
-        reg0_voltage = "2.1V";
-        break;
-      case (UICR_REGOUT0_VOUT_2V4 << UICR_REGOUT0_VOUT_Pos):
-        reg0_voltage = "2.4V";
-        break;
-      case (UICR_REGOUT0_VOUT_2V7 << UICR_REGOUT0_VOUT_Pos):
-        reg0_voltage = "2.7V";
-        break;
-      case (UICR_REGOUT0_VOUT_3V0 << UICR_REGOUT0_VOUT_Pos):
-        reg0_voltage = "3.0V";
-        break;
-      case (UICR_REGOUT0_VOUT_3V3 << UICR_REGOUT0_VOUT_Pos):
-        reg0_voltage = "3.3V";
-        break;
-      default:
-        reg0_voltage = "???V";
-    }
+    const char *reg0_voltage = regout0_to_str((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) >> UICR_REGOUT0_VOUT_Pos);
     ESP_LOGD(TAG, "Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
     pos = buf_append_printf(buf, size, pos, "|Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
+#ifdef USE_NRF52_REG0_VOUT
+    if ((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) >> UICR_REGOUT0_VOUT_Pos != USE_NRF52_REG0_VOUT) {
+      ESP_LOGE(TAG, "Regulator stage 0: expected %s", regout0_to_str(USE_NRF52_REG0_VOUT));
+    }
+#endif
   } else {
     ESP_LOGD(TAG, "Regulator stage 0: disabled");
     pos = buf_append_printf(buf, size, pos, "|Regulator stage 0: disabled");
