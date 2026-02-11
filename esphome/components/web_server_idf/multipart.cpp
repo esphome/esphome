@@ -54,15 +54,14 @@ size_t MultipartReader::parse(const char *data, size_t len) {
 
 void MultipartReader::process_header_(const char *value, size_t length) {
   // Process the completed header (field + value pair)
-  const char *field = current_header_field_.c_str();
-  size_t field_len = current_header_field_.length();
+  std::string value_str(value, length);
 
-  if (str_startswith_case_insensitive(field, field_len, "content-disposition")) {
+  if (str_startswith_case_insensitive(current_header_field_, "content-disposition")) {
     // Parse name and filename from Content-Disposition
-    extract_header_param(value, length, "name", current_part_.name);
-    extract_header_param(value, length, "filename", current_part_.filename);
-  } else if (str_startswith_case_insensitive(field, field_len, "content-type")) {
-    str_trim(value, length, current_part_.content_type);
+    current_part_.name = extract_header_param(value_str, "name");
+    current_part_.filename = extract_header_param(value_str, "filename");
+  } else if (str_startswith_case_insensitive(current_header_field_, "content-type")) {
+    current_part_.content_type = str_trim(value_str);
   }
 
   // Clear field for next header
@@ -108,29 +107,25 @@ int MultipartReader::on_part_data_end(multipart_parser *parser) {
 // ========== Utility Functions ==========
 
 // Case-insensitive string prefix check
-bool str_startswith_case_insensitive(const char *str, size_t str_len, const char *prefix) {
-  size_t prefix_len = strlen(prefix);
-  if (str_len < prefix_len) {
+bool str_startswith_case_insensitive(const std::string &str, const std::string &prefix) {
+  if (str.length() < prefix.length()) {
     return false;
   }
-  return str_ncmp_ci(str, prefix, prefix_len);
+  return str_ncmp_ci(str.c_str(), prefix.c_str(), prefix.length());
 }
 
 // Extract a parameter value from a header line
 // Handles both quoted and unquoted values
-// Assigns to out if found, clears out otherwise
-void extract_header_param(const char *header, size_t header_len, const char *param, std::string &out) {
-  size_t param_len = strlen(param);
+std::string extract_header_param(const std::string &header, const std::string &param) {
   size_t search_pos = 0;
 
-  while (search_pos < header_len) {
+  while (search_pos < header.length()) {
     // Look for param name
-    const char *found = strcasestr_n(header + search_pos, header_len - search_pos, param);
+    const char *found = stristr(header.c_str() + search_pos, param.c_str());
     if (!found) {
-      out.clear();
-      return;
+      return "";
     }
-    size_t pos = found - header;
+    size_t pos = found - header.c_str();
 
     // Check if this is a word boundary (not part of another parameter)
     if (pos > 0 && header[pos - 1] != ' ' && header[pos - 1] != ';' && header[pos - 1] != '\t') {
@@ -139,14 +134,14 @@ void extract_header_param(const char *header, size_t header_len, const char *par
     }
 
     // Move past param name
-    pos += param_len;
+    pos += param.length();
 
     // Skip whitespace and find '='
-    while (pos < header_len && (header[pos] == ' ' || header[pos] == '\t')) {
+    while (pos < header.length() && (header[pos] == ' ' || header[pos] == '\t')) {
       pos++;
     }
 
-    if (pos >= header_len || header[pos] != '=') {
+    if (pos >= header.length() || header[pos] != '=') {
       search_pos = pos;
       continue;
     }
@@ -154,39 +149,36 @@ void extract_header_param(const char *header, size_t header_len, const char *par
     pos++;  // Skip '='
 
     // Skip whitespace after '='
-    while (pos < header_len && (header[pos] == ' ' || header[pos] == '\t')) {
+    while (pos < header.length() && (header[pos] == ' ' || header[pos] == '\t')) {
       pos++;
     }
 
-    if (pos >= header_len) {
-      out.clear();
-      return;
+    if (pos >= header.length()) {
+      return "";
     }
 
     // Check if value is quoted
     if (header[pos] == '"') {
       pos++;
-      const char *end = static_cast<const char *>(memchr(header + pos, '"', header_len - pos));
-      if (end) {
-        out.assign(header + pos, end - (header + pos));
-        return;
+      size_t end = header.find('"', pos);
+      if (end != std::string::npos) {
+        return header.substr(pos, end - pos);
       }
       // Malformed - no closing quote
-      out.clear();
-      return;
+      return "";
     }
 
     // Unquoted value - find the end (semicolon, comma, or end of string)
     size_t end = pos;
-    while (end < header_len && header[end] != ';' && header[end] != ',' && header[end] != ' ' && header[end] != '\t') {
+    while (end < header.length() && header[end] != ';' && header[end] != ',' && header[end] != ' ' &&
+           header[end] != '\t') {
       end++;
     }
 
-    out.assign(header + pos, end - pos);
-    return;
+    return header.substr(pos, end - pos);
   }
 
-  out.clear();
+  return "";
 }
 
 // Parse boundary from Content-Type header
@@ -197,15 +189,13 @@ bool parse_multipart_boundary(const char *content_type, const char **boundary_st
     return false;
   }
 
-  size_t content_type_len = strlen(content_type);
-
   // Check for multipart/form-data (case-insensitive)
-  if (!strcasestr_n(content_type, content_type_len, "multipart/form-data")) {
+  if (!stristr(content_type, "multipart/form-data")) {
     return false;
   }
 
   // Look for boundary parameter
-  const char *b = strcasestr_n(content_type, content_type_len, "boundary=");
+  const char *b = stristr(content_type, "boundary=");
   if (!b) {
     return false;
   }
@@ -248,15 +238,14 @@ bool parse_multipart_boundary(const char *content_type, const char **boundary_st
   return true;
 }
 
-// Trim whitespace from both ends, assign result to out
-void str_trim(const char *str, size_t len, std::string &out) {
-  const char *start = str;
-  const char *end = str + len;
-  while (start < end && (*start == ' ' || *start == '\t' || *start == '\r' || *start == '\n'))
-    start++;
-  while (end > start && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' || end[-1] == '\n'))
-    end--;
-  out.assign(start, end - start);
+// Trim whitespace from both ends of a string
+std::string str_trim(const std::string &str) {
+  size_t start = str.find_first_not_of(" \t\r\n");
+  if (start == std::string::npos) {
+    return "";
+  }
+  size_t end = str.find_last_not_of(" \t\r\n");
+  return str.substr(start, end - start + 1);
 }
 
 }  // namespace esphome::web_server_idf
