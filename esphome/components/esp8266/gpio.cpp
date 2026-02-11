@@ -99,7 +99,7 @@ void ESP8266GPIOPin::pin_mode(gpio::Flags flags) {
 }
 
 size_t ESP8266GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "GPIO%u", this->pin_);
+  return buf_append_printf(buffer, len, 0, "GPIO%u", this->pin_);
 }
 
 bool ESP8266GPIOPin::digital_read() {

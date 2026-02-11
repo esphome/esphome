@@ -165,7 +165,7 @@ void PI4IOE5V6408GPIOPin::digital_write(bool value) {
   this->parent_->digital_write(this->pin_, value != this->inverted_);
 }
 size_t PI4IOE5V6408GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "%u via PI4IOE5V6408", this->pin_);
+  return buf_append_printf(buffer, len, 0, "%u via PI4IOE5V6408", this->pin_);
 }
 
 }  // namespace pi4ioe5v6408

@@ -5,6 +5,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+#include <esp_ota_ops.h>
+#endif
+
 namespace esphome::safe_mode {
 
 /// SafeModeComponent provides a safe way to recover from repeated boot failures
@@ -42,6 +46,9 @@ class SafeModeComponent : public Component {
   // Group 1-byte members together to minimize padding
   bool boot_successful_{false};  ///< set to true after boot is considered successful
   uint8_t safe_mode_num_attempts_{0};
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+  esp_ota_img_states_t ota_state_{ESP_OTA_IMG_UNDEFINED};
+#endif
   // Larger objects at the end
   ESPPreferenceObject rtc_;
 #ifdef USE_SAFE_MODE_CALLBACK

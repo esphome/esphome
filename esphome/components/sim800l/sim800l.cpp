@@ -1,4 +1,5 @@
 #include "sim800l.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstring>
 
@@ -50,8 +51,8 @@ void Sim800LComponent::update() {
   } else if (state_ == STATE_RECEIVED_SMS) {
     // Serial Buffer should have flushed.
     // Send cmd to delete received sms
-    char delete_cmd[20];
-    sprintf(delete_cmd, "AT+CMGD=%d", this->parse_index_);
+    char delete_cmd[20];  // "AT+CMGD=" (8) + uint8_t (max 3) + null = 12 <= 20
+    buf_append_printf(delete_cmd, sizeof(delete_cmd), 0, "AT+CMGD=%d", this->parse_index_);
     this->send_cmd_(delete_cmd);
     this->state_ = STATE_CHECK_SMS;
     this->expect_ack_ = true;

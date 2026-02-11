@@ -1472,6 +1472,24 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
             determine_jobs.Platform.BK72XX_ARD,
         ),
         ("esphome/components/ble/ble_bk72xx.cpp", determine_jobs.Platform.BK72XX_ARD),
+        # RTL87xx (LibreTiny Realtek) detection
+        (
+            "tests/components/logger/test.rtl87xx-ard.yaml",
+            determine_jobs.Platform.RTL87XX_ARD,
+        ),
+        (
+            "esphome/components/libretiny/wifi_rtl87xx.cpp",
+            determine_jobs.Platform.RTL87XX_ARD,
+        ),
+        # LN882x (LibreTiny Lightning) detection
+        (
+            "tests/components/logger/test.ln882x-ard.yaml",
+            determine_jobs.Platform.LN882X_ARD,
+        ),
+        (
+            "esphome/components/libretiny/wifi_ln882x.cpp",
+            determine_jobs.Platform.LN882X_ARD,
+        ),
         # RP2040 / Raspberry Pi Pico detection
         ("esphome/components/gpio/gpio_rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
         ("esphome/components/wifi/wifi_rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
@@ -1480,6 +1498,23 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
         (
             "tests/components/rp2040/test.rp2040-ard.yaml",
             determine_jobs.Platform.RP2040_ARD,
+        ),
+        # nRF52 / Zephyr detection
+        (
+            "tests/components/logger/test.nrf52-adafruit.yaml",
+            determine_jobs.Platform.NRF52_ZEPHYR,
+        ),
+        (
+            "esphome/components/nrf52/gpio.cpp",
+            determine_jobs.Platform.NRF52_ZEPHYR,
+        ),
+        (
+            "esphome/components/zephyr/core.cpp",
+            determine_jobs.Platform.NRF52_ZEPHYR,
+        ),
+        (
+            "esphome/components/zephyr_ble_server/ble_server.cpp",
+            determine_jobs.Platform.NRF52_ZEPHYR,
         ),
         # No platform hint (generic files)
         ("esphome/components/wifi/wifi.cpp", None),
@@ -1501,11 +1536,19 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
         "esp32_in_name",
         "libretiny",
         "bk72xx",
+        "rtl87xx_test_yaml",
+        "rtl87xx_wifi",
+        "ln882x_test_yaml",
+        "ln882x_wifi",
         "rp2040_gpio",
         "rp2040_wifi",
         "pico_i2c",
         "pico_spi",
         "rp2040_test_yaml",
+        "nrf52_test_yaml",
+        "nrf52_gpio",
+        "zephyr_core",
+        "zephyr_ble_server",
         "generic_wifi_no_hint",
         "generic_sensor_no_hint",
         "core_helpers_no_hint",
@@ -1532,6 +1575,11 @@ def test_detect_platform_hint_from_filename(
         ("file_ESP8266.cpp", determine_jobs.Platform.ESP8266_ARD),
         # ESP32 with different cases
         ("file_ESP32.cpp", determine_jobs.Platform.ESP32_IDF),
+        # nRF52/Zephyr with different cases
+        ("file_NRF52.cpp", determine_jobs.Platform.NRF52_ZEPHYR),
+        ("file_Nrf52.cpp", determine_jobs.Platform.NRF52_ZEPHYR),
+        ("file_ZEPHYR.cpp", determine_jobs.Platform.NRF52_ZEPHYR),
+        ("file_Zephyr.cpp", determine_jobs.Platform.NRF52_ZEPHYR),
     ],
     ids=[
         "rp2040_uppercase",
@@ -1540,6 +1588,10 @@ def test_detect_platform_hint_from_filename(
         "pico_titlecase",
         "esp8266_uppercase",
         "esp32_uppercase",
+        "nrf52_uppercase",
+        "nrf52_mixedcase",
+        "zephyr_uppercase",
+        "zephyr_titlecase",
     ],
 )
 def test_detect_platform_hint_from_filename_case_insensitive(

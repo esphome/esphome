@@ -682,14 +682,18 @@ def lint_trailing_whitespace(fname, match):
 # Heap-allocating helpers that cause fragmentation on long-running embedded devices.
 # These return std::string and should be replaced with stack-based alternatives.
 HEAP_ALLOCATING_HELPERS = {
+    "format_bin": "format_bin_to() with a stack buffer",
     "format_hex": "format_hex_to() with a stack buffer",
     "format_hex_pretty": "format_hex_pretty_to() with a stack buffer",
     "format_mac_address_pretty": "format_mac_addr_upper() with a stack buffer",
     "get_mac_address": "get_mac_address_into_buffer() with a stack buffer",
     "get_mac_address_pretty": "get_mac_address_pretty_into_buffer() with a stack buffer",
+    "str_sanitize": "str_sanitize_to() with a stack buffer",
     "str_truncate": "removal (function is unused)",
     "str_upper_case": "removal (function is unused)",
     "str_snake_case": "removal (function is unused)",
+    "str_sprintf": "snprintf() with a stack buffer",
+    "str_snprintf": "snprintf() with a stack buffer",
 }
 
 
@@ -699,14 +703,18 @@ HEAP_ALLOCATING_HELPERS = {
     # get_mac_address(?!_) ensures we don't match get_mac_address_into_buffer, etc.
     # CPP_RE_EOL captures rest of line so NOLINT comments are detected
     r"[^\w]("
+    r"format_bin(?!_)|"
     r"format_hex(?!_)|"
     r"format_hex_pretty(?!_)|"
     r"format_mac_address_pretty|"
     r"get_mac_address_pretty(?!_)|"
     r"get_mac_address(?!_)|"
+    r"str_sanitize(?!_)|"
     r"str_truncate|"
     r"str_upper_case|"
-    r"str_snake_case"
+    r"str_snake_case|"
+    r"str_sprintf|"
+    r"str_snprintf"
     r")\s*\(" + CPP_RE_EOL,
     include=cpp_include,
     exclude=[
@@ -724,6 +732,95 @@ def lint_no_heap_allocating_helpers(fname, match):
         f"become time bombs - the heap eventually cannot satisfy requests even with free "
         f"memory available.\n"
         f"Please use {replacement} instead.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    # Match sprintf/vsprintf but not snprintf/vsnprintf
+    # [^\w] ensures we don't match the safe variants
+    r"[^\w](v?sprintf)\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_sprintf(fname, match):
+    func = match.group(1)
+    safe_func = func.replace("sprintf", "snprintf")
+    return (
+        f"{highlight(func + '()')} is not allowed in ESPHome. It has no buffer size limit "
+        f"and can cause buffer overflows.\n"
+        f"Please use one of these alternatives:\n"
+        f"  - {highlight(safe_func + '(buf, sizeof(buf), fmt, ...)')} for general formatting\n"
+        f"  - {highlight('buf_append_printf(buf, sizeof(buf), pos, fmt, ...)')} for "
+        f"offset-based formatting (also stores format strings in flash on ESP8266)\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    # Match std::to_string() or unqualified to_string() calls
+    # The esphome namespace has "using std::to_string;" so unqualified calls resolve to std::to_string
+    # Use negative lookbehind for unqualified calls to avoid matching:
+    #   - Function definitions: "const char *to_string(" or "std::string to_string("
+    #   - Method definitions: "Class::to_string("
+    #   - Method calls: ".to_string(" or "->to_string("
+    #   - Other identifiers: "_to_string("
+    # Also explicitly match std::to_string since : is in the lookbehind
+    r"(?:(?<![*&.\w>:])to_string|std\s*::\s*to_string)\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+    exclude=[
+        # Vendored library
+        "esphome/components/http_request/httplib.h",
+        # Deprecated helpers that return std::string
+        "esphome/core/helpers.cpp",
+        # The using declaration itself
+        "esphome/core/helpers.h",
+        # Test fixtures - not production embedded code
+        "tests/integration/fixtures/*",
+    ],
+)
+def lint_no_std_to_string(fname, match):
+    return (
+        f"{highlight('std::to_string()')} (including unqualified {highlight('to_string()')}) "
+        f"allocates heap memory. On long-running embedded devices, repeated heap allocations "
+        f"fragment memory over time.\n"
+        f"Please use {highlight('snprintf()')} with a stack buffer instead.\n"
+        f"\n"
+        f"Buffer sizes and format specifiers (sizes include sign and null terminator):\n"
+        f"  uint8_t:          4 chars   - %u (or PRIu8)\n"
+        f"  int8_t:           5 chars   - %d (or PRId8)\n"
+        f"  uint16_t:         6 chars   - %u (or PRIu16)\n"
+        f"  int16_t:          7 chars   - %d (or PRId16)\n"
+        f"  uint32_t:         11 chars  - %" + "PRIu32\n"
+        "  int32_t:          12 chars  - %" + "PRId32\n"
+        "  uint64_t:         21 chars  - %" + "PRIu64\n"
+        "  int64_t:          21 chars  - %" + "PRId64\n"
+        f"  float/double:     24 chars  - %.8g (15 digits + sign + decimal + e+XXX)\n"
+        f"                    317 chars - %f (for DBL_MAX: 309 int digits + decimal + 6 frac + sign)\n"
+        f"\n"
+        f"For sensor values, use value_accuracy_to_buf() from helpers.h.\n"
+        f'Example: char buf[11]; snprintf(buf, sizeof(buf), "%" PRIu32, value);\n'
+        f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    # Match scanf family functions: scanf, sscanf, fscanf, vscanf, vsscanf, vfscanf
+    # Also match std:: prefixed versions
+    # [^\w] ensures we match function calls, not substrings
+    r"[^\w]((?:std::)?v?[fs]?scanf)\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_scanf(fname, match):
+    func = match.group(1)
+    return (
+        f"{highlight(func + '()')} is not allowed in new ESPHome code. The scanf family "
+        f"pulls in ~7KB flash on ESP8266 and ~9KB on ESP32, and ESPHome doesn't otherwise "
+        f"need this code.\n"
+        f"Please use alternatives:\n"
+        f"  - {highlight('parse_number<T>(str)')} for parsing integers/floats from strings\n"
+        f"  - {highlight('strtol()/strtof()')} for C-style number parsing with error checking\n"
+        f"  - {highlight('parse_hex()')} for hex string parsing\n"
+        f"  - Manual parsing for simple fixed formats\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
 
