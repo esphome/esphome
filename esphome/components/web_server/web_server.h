@@ -574,7 +574,7 @@ class WebServer : public Controller,
   template<typename T, typename Ret>
   void parse_bool_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(bool)) {
     if (request->hasArg(param_name)) {
-      auto param_value = request->arg(param_name);
+      const auto &param_value = request->arg(param_name);
       // First check on/off (default), then true/false (custom)
       auto val = parse_on_off(param_value.c_str());
       if (val == PARSE_NONE) {
