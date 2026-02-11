@@ -8,6 +8,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 
+#include <array>
 #include <span>
 #include <string>
 #include <vector>
@@ -122,6 +123,14 @@ enum class RoamingState : uint8_t {
   CONNECTING,
   /// Roam connection failed, reconnecting to any available AP
   RECONNECTING,
+};
+
+/// Controls when the access point is active
+enum WiFiAPMode : uint8_t {
+  /// AP only active when STA fails to connect (default behavior)
+  WIFI_AP_MODE_FALLBACK = 0,
+  /// AP always active alongside STA (WISP/wireless bridge mode)
+  WIFI_AP_MODE_WISP = 1,
 };
 
 /// Controls how RETRY_HIDDEN phase selects networks to try
@@ -348,6 +357,14 @@ class WiFiComponent : public Component {
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
+  void set_ap_mode(WiFiAPMode mode) { ap_mode_ = mode; }
+#ifdef USE_WIFI_NAT
+  void add_dns_server(network::IPAddress dns) {
+    if (this->dns_server_count_ < this->dns_servers_.size()) {
+      this->dns_servers_[this->dns_server_count_++] = dns;
+    }
+  }
+#endif  // USE_WIFI_NAT
 #endif  // USE_WIFI_AP
 
   void enable();
@@ -519,6 +536,15 @@ class WiFiComponent : public Component {
   void setup_ap_config_();
 #endif  // USE_WIFI_AP
 
+#ifdef USE_WIFI_NAT
+#ifdef USE_ESP32
+  /// Helper for ESP-IDF: enable NAT using global STA and AP netif instances
+  void enable_nat_esp_idf_();
+  /// Helper for ESP-IDF: disable NAT using global AP netif instance
+  void disable_nat_esp_idf_();
+#endif  // USE_ESP32
+#endif  // USE_WIFI_NAT
+
   void print_connect_params_();
   WiFiAP build_params_for_current_phase_();
 
@@ -681,7 +707,11 @@ class WiFiComponent : public Component {
   uint32_t roaming_last_check_{0};
 #ifdef USE_WIFI_AP
   uint32_t ap_timeout_{};
-#endif
+  WiFiAPMode ap_mode_{WIFI_AP_MODE_FALLBACK};
+#ifdef USE_WIFI_NAT
+  std::array<network::IPAddress, 2> dns_servers_{};
+#endif  // USE_WIFI_NAT
+#endif  // USE_WIFI_AP
 
   // Group all 8-bit values together
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
@@ -694,6 +724,9 @@ class WiFiComponent : public Component {
   // int8_t limits to 127 APs (enforced in __init__.py via MAX_WIFI_NETWORKS)
   int8_t selected_sta_index_{-1};
   uint8_t roaming_attempts_{0};
+#ifdef USE_WIFI_NAT
+  uint8_t dns_server_count_{0};
+#endif  // USE_WIFI_NAT
 
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
