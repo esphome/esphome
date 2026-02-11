@@ -10,7 +10,7 @@ namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 // Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads, LibreTiny with FreeRTOS,
 // Zephyr) Main thread/task always uses direct buffer access for console output and callbacks
 //
@@ -80,6 +80,7 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
   auto guard = this->make_non_main_task_guard_();
 
   bool message_sent = false;
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // For non-main threads/tasks, queue the message for callbacks
   message_sent =
       this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), thread_name, format, args);
@@ -88,7 +89,7 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
     // This is safe to call from any context including ISRs
     this->enable_loop_soon_any_context();
   }
-
+#endif
   // Emergency console logging for non-main threads when ring buffer is full or disabled
   // This is a fallback mechanism to ensure critical log messages are visible
   // Note: This may cause interleaved/corrupted console output if multiple threads
@@ -115,22 +116,16 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
   // RAII guard automatically resets on return
 }
 #else
-// Implementation for single-task platforms (ESP8266, RP2040, Zephyr)
-// TODO: Zephyr may have multiple threads (work queues, etc.) but uses this single-task path.
+// Implementation for single-task platforms (ESP8266, RP2040)
 // Logging calls are NOT thread-safe: global_recursion_guard_ is a plain bool and tx_buffer_ has no locking.
 // Not a problem in practice yet since Zephyr has no API support (logs are console-only).
 void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
-#ifdef USE_ZEPHYR
-  char tmp[MAX_POINTER_REPRESENTATION];
-  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args,
-                                        this->get_thread_name_(tmp));
-#else  // Other single-task platforms don't have thread names, so pass nullptr
+  // Other single-task platforms don't have thread names, so pass nullptr
   this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args, nullptr);
-#endif
 }
-#endif  // USE_ESP32 / USE_HOST / USE_LIBRETINY
+#endif  // USE_ESPHOME_TASK_LOG_BUFFER
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 // Implementation for ESP8266 with flash string support.
@@ -176,7 +171,7 @@ void Logger::init_log_buffer(size_t total_buffer_size) {
   this->log_buffer_ = new logger::TaskLogBuffer(total_buffer_size);
 
 // Zephyr needs loop working to check when CDC port is open
-#if !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
   // Start with loop disabled when using task buffer (unless using USB CDC on ESP32)
   // The loop will be enabled automatically when messages arrive
   this->disable_loop_when_buffer_empty_();
@@ -210,7 +205,7 @@ void Logger::process_messages_() {
     }
   }
 // Zephyr needs loop working to check when CDC port is open
-#if !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
   else {
     // No messages to process, disable loop if appropriate
     // This reduces overhead when there's no async logging activity

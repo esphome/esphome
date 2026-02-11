@@ -222,7 +222,7 @@ class Logger : public Component {
     bool &flag_;
   };
 
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   // Handles non-main thread logging only (~0.1% of calls)
   // thread_name is resolved by the caller from the task handle, avoiding redundant lookups
   void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,

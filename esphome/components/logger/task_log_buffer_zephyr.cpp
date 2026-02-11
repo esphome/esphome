@@ -2,11 +2,11 @@
 
 #include "task_log_buffer_zephyr.h"
 
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-
 namespace esphome::logger {
 
 __thread bool non_main_task_recursion_guard_;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
 
 static inline uint32_t total_size_in_32bit_words(uint16_t text_length) {
   // Calculate total size in 32-bit words needed (header + text length + null terminator + 3(4 bytes alignment)
@@ -109,7 +109,6 @@ void TaskLogBuffer::release_message_main_loop() {
   mpsc_pbuf_free(&this->log_buffer_, this->current_token_);
   this->current_token_ = nullptr;
 }
-}  // namespace esphome::logger
-
 #endif
+}  // namespace esphome::logger
 #endif

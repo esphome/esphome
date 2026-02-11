@@ -326,7 +326,6 @@ async def to_code(config):
             cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
             cg.add(log.init_log_buffer(task_log_buffer_size))
             if CORE.using_zephyr:
-                zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
                 zephyr_add_prj_conf("MPSC_PBUF", True)
     elif CORE.is_host:
         cg.add(log.create_pthread_key())
@@ -427,6 +426,7 @@ async def to_code(config):
         pass
 
     if CORE.is_nrf52:
+        zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
         if config[CONF_HARDWARE_UART] == UART0:
             zephyr_add_overlay("""&uart0 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == UART1:
