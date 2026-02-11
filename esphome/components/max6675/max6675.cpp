@@ -23,7 +23,6 @@ void MAX6675Sensor::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
 }
-float MAX6675Sensor::get_setup_priority() const { return setup_priority::DATA; }
 void MAX6675Sensor::read_data_() {
   this->enable();
   delay(1);
