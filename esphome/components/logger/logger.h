@@ -417,7 +417,8 @@ class Logger : public Component {
   inline RecursionGuard make_non_main_task_guard_() { return RecursionGuard(non_main_task_recursion_guard_); }
 #endif
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || (defined(USE_ZEPHYR) && !defined(USE_LOGGER_USB_CDC))
+// Zephyr needs loop working to check when CDC port is open
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
   // Disable loop when task buffer is empty (with USB CDC check on ESP32)
   inline void disable_loop_when_buffer_empty_() {
     // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()

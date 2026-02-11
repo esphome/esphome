@@ -115,11 +115,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
   return true;
 }
 
-bool TaskLogBuffer::get_message_main_loop(LogMessage **message) {
-  if (message == nullptr) {
-    return false;
-  }
-
+bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &text_length) {
   size_t current_read = this->read_index_.load(std::memory_order_relaxed);
   size_t current_write = this->write_index_.load(std::memory_order_acquire);
 
@@ -134,7 +130,8 @@ bool TaskLogBuffer::get_message_main_loop(LogMessage **message) {
     return false;
   }
 
-  *message = &msg;
+  message = &msg;
+  text_length = msg.text_length;
   return true;
 }
 

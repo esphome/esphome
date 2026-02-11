@@ -177,7 +177,8 @@ void Logger::init_log_buffer(size_t total_buffer_size) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
   this->log_buffer_ = new logger::TaskLogBuffer(total_buffer_size);
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || (defined(USE_ZEPHYR) && !defined(USE_LOGGER_USB_CDC))
+// Zephyr needs loop working to check when CDC port is open
+#if !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
   // Start with loop disabled when using task buffer (unless using USB CDC on ESP32)
   // The loop will be enabled automatically when messages arrive
   this->disable_loop_when_buffer_empty_();
@@ -199,26 +200,19 @@ void Logger::process_messages_() {
   // Process any buffered messages when available
   if (this->log_buffer_->has_messages()) {
     logger::TaskLogBuffer::LogMessage *message;
-    const char *text;
-#ifdef USE_HOST
-    while (this->log_buffer_->get_message_main_loop(&message))
-#elif defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-    while (this->log_buffer_->borrow_message_main_loop(&message, &text))
-#endif
-    {
-#ifdef USE_HOST
-      text = message->text;
-#endif
+    uint16_t text_length;
+    while (this->log_buffer_->borrow_message_main_loop(message, text_length)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
       LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
-      this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
-                                                message->text_length, buf);
+      this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name,
+                                                message->text_data(), text_length, buf);
       // Release the message to allow other tasks to use it as soon as possible
       this->log_buffer_->release_message_main_loop();
       this->write_log_buffer_to_console_(buf);
     }
   }
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || (defined(USE_ZEPHYR) && !defined(USE_LOGGER_USB_CDC))
+// Zephyr needs loop working to check when CDC port is open
+#if !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
   else {
     // No messages to process, disable loop if appropriate
     // This reduces overhead when there's no async logging activity

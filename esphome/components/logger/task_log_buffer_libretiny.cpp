@@ -47,11 +47,7 @@ size_t TaskLogBuffer::available_contiguous_space() const {
   }
 }
 
-bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **text) {
-  if (message == nullptr || text == nullptr) {
-    return false;
-  }
-
+bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &text_length) {
   // Check if buffer was initialized successfully
   if (this->mutex_ == nullptr || this->storage_ == nullptr) {
     return false;
@@ -77,8 +73,8 @@ bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **
     this->tail_ = 0;
     msg = reinterpret_cast<LogMessage *>(this->storage_);
   }
-  *message = msg;
-  *text = msg->text_data();
+  message = msg;
+  text_length = msg->text_length;
   this->current_message_size_ = message_total_size(msg->text_length);
 
   // Keep mutex held until release_message_main_loop()

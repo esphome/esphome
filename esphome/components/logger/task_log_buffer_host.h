@@ -21,12 +21,12 @@ namespace esphome::logger {
  *
  * Threading Model: Multi-Producer Single-Consumer (MPSC)
  * - Multiple threads can safely call send_message_thread_safe() concurrently
- * - Only the main loop thread calls get_message_main_loop() and release_message_main_loop()
+ * - Only the main loop thread calls borrow_message_main_loop() and release_message_main_loop()
  *
  *   Producers (multiple threads)              Consumer (main loop only)
  *            │                                        │
  *            ▼                                        ▼
- *     acquire_write_slot_()                  get_message_main_loop()
+ *     acquire_write_slot_()                  bool borrow_message_main_loop()
  *       CAS on reserve_index_                  read write_index_
  *            │                                   check ready flag
  *            ▼                                        │
@@ -79,7 +79,7 @@ class TaskLogBuffer {
 
   // NOT thread-safe - get next message from buffer, only call from main loop
   // Returns true if a message was retrieved, false if buffer is empty
-  bool get_message_main_loop(LogMessage **message);
+  bool borrow_message_main_loop(LogMessage *&message, uint16_t &text_length);
 
   // NOT thread-safe - release the message after processing, only call from main loop
   void release_message_main_loop();

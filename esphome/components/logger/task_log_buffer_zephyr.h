@@ -32,8 +32,6 @@ class TaskLogBuffer {
 
     // Methods for accessing message contents
     inline char *text_data() { return reinterpret_cast<char *>(this) + sizeof(LogMessage); }
-
-    inline const char *text_data() const { return reinterpret_cast<const char *>(this) + sizeof(LogMessage); }
   };
   // Constructor that takes a total buffer size
   explicit TaskLogBuffer(size_t total_buffer_size);
@@ -46,7 +44,7 @@ class TaskLogBuffer {
   inline size_t size() const { return this->mpsc_config_.size * sizeof(uint32_t); }
 
   // NOT thread-safe - borrow a message from the ring buffer, only call from main loop
-  bool borrow_message_main_loop(LogMessage **message, const char **text);
+  bool borrow_message_main_loop(LogMessage *&message, uint16_t &text_length);
 
   // NOT thread-safe - release a message buffer and update the counter, only call from main loop
   void release_message_main_loop();

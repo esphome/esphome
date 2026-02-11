@@ -8,10 +8,13 @@ namespace esphome::logger {
 
 __thread bool non_main_task_recursion_guard_;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-static inline uint32_t get_wlen(const mpsc_pbuf_generic *item) {
-  auto *msg = reinterpret_cast<const TaskLogBuffer::LogMessage *>(item);
+static inline uint32_t total_size_in_32bit_words(uint16_t text_length) {
   // Calculate total size in 32-bit words needed (header + text length + null terminator + 3(4 bytes alignment)
-  return (sizeof(TaskLogBuffer::LogMessage) + msg->text_length + 1 + 3) / sizeof(uint32_t);
+  return (sizeof(TaskLogBuffer::LogMessage) + text_length + 1 + 3) / sizeof(uint32_t);
+}
+
+static inline uint32_t get_wlen(const mpsc_pbuf_generic *item) {
+  return total_size_in_32bit_words(reinterpret_cast<const TaskLogBuffer::LogMessage *>(item)->text_length);
 }
 
 TaskLogBuffer::TaskLogBuffer(size_t total_buffer_size) {
@@ -42,8 +45,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
   // Calculate actual text length (capped to maximum size)
   static constexpr size_t MAX_TEXT_SIZE = 255;
   size_t text_length = (static_cast<size_t>(ret) > MAX_TEXT_SIZE) ? MAX_TEXT_SIZE : ret;
-  // Calculate total size in 32-bit words needed (header + text length + null terminator + 3(4 bytes alignment)
-  size_t total_size = (sizeof(LogMessage) + text_length + 1 + 3) / sizeof(uint32_t);
+  size_t total_size = total_size_in_32bit_words(text_length);
   auto *msg = reinterpret_cast<LogMessage *>(mpsc_pbuf_alloc(&this->log_buffer_, total_size, K_NO_WAIT));
   if (nullptr == msg) {
     return false;
@@ -76,7 +78,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
   return true;
 }
 
-bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **text) {
+bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &text_length) {
   if (this->current_token_) {
     return false;
   }
@@ -88,13 +90,12 @@ bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **
   }
 
   // we claimed buffer alraedy const_cast is safe here
-  *message = const_cast<LogMessage *>(reinterpret_cast<const LogMessage *>(this->current_token_));
+  message = const_cast<LogMessage *>(reinterpret_cast<const LogMessage *>(this->current_token_));
 
-  *text = (*message)->text_data();
-
+  text_length = message->text_length;
   // Remove trailing newlines
-  while ((*message)->text_length > 0 && (*text)[(*message)->text_length - 1] == '\n') {
-    (*message)->text_length--;
+  while (text_length > 0 && message->text_data()[text_length - 1] == '\n') {
+    text_length--;
   }
 
   return true;

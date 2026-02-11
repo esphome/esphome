@@ -31,8 +31,8 @@ TaskLogBuffer::~TaskLogBuffer() {
   }
 }
 
-bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **text) {
-  if (message == nullptr || text == nullptr || this->current_token_) {
+bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &text_length) {
+  if (this->current_token_) {
     return false;
   }
 
@@ -44,7 +44,7 @@ bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **
 
   LogMessage *msg = static_cast<LogMessage *>(received_item);
   *message = msg;
-  *text = msg->text_data();
+  text_length = msg->text_length;
   this->current_token_ = received_item;
 
   return true;
