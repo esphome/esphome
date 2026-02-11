@@ -105,7 +105,7 @@ class ProtoVarInt {
 
   /// Parse a varint from buffer. consumed must be a valid pointer (not null).
   static optional<ProtoVarInt> parse(const uint8_t *buffer, uint32_t len, uint32_t *consumed) {
-#ifdef DEBUG
+#ifdef ESPHOME_DEBUG_API
     assert(consumed != nullptr);
 #endif
     if (len == 0)
@@ -922,7 +922,7 @@ inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessa
   // Now encode the message content - it will append to the buffer
   value.encode(*this);
 
-#ifdef DEBUG
+#ifdef ESPHOME_DEBUG_API
   // Verify that the encoded size matches what we calculated
   assert(this->buffer_->size() == begin + varint_length_bytes + msg_length_bytes);
 #endif
