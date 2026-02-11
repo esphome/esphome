@@ -95,15 +95,18 @@ class LightColorValues {
    */
   void normalize_color() {
     if (this->color_mode_ & ColorCapability::RGB) {
-      float max_value = fmaxf(this->get_red(), fmaxf(this->get_green(), this->get_blue()));
+      float max_value = fmaxf(this->red_, fmaxf(this->green_, this->blue_));
+      // Assign directly to avoid redundant clamp in set_red/green/blue.
+      // Values are guaranteed in [0,1]: inputs are already clamped to [0,1],
+      // and dividing by max_value (the largest) keeps results in [0,1].
       if (max_value == 0.0f) {
-        this->set_red(1.0f);
-        this->set_green(1.0f);
-        this->set_blue(1.0f);
+        this->red_ = 1.0f;
+        this->green_ = 1.0f;
+        this->blue_ = 1.0f;
       } else {
-        this->set_red(this->get_red() / max_value);
-        this->set_green(this->get_green() / max_value);
-        this->set_blue(this->get_blue() / max_value);
+        this->red_ /= max_value;
+        this->green_ /= max_value;
+        this->blue_ /= max_value;
       }
     }
   }
