@@ -1,6 +1,7 @@
 #include "debug_component.h"
 #ifdef USE_ESP8266
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <Esp.h>
 
 extern "C" {
@@ -19,27 +20,38 @@ namespace debug {
 
 static const char *const TAG = "debug";
 
+// PROGMEM string table for reset reasons, indexed by reason code (0-6), with "Unknown" as fallback
+// clang-format off
+PROGMEM_STRING_TABLE(ResetReasonStrings,
+  "Power On",                  // 0 = REASON_DEFAULT_RST
+  "Hardware Watchdog",         // 1 = REASON_WDT_RST
+  "Exception",                 // 2 = REASON_EXCEPTION_RST
+  "Software Watchdog",         // 3 = REASON_SOFT_WDT_RST
+  "Software/System restart",   // 4 = REASON_SOFT_RESTART
+  "Deep-Sleep Wake",           // 5 = REASON_DEEP_SLEEP_AWAKE
+  "External System",           // 6 = REASON_EXT_SYS_RST
+  "Unknown"                    // 7 = fallback
+);
+// clang-format on
+static_assert(REASON_DEFAULT_RST == 0, "Reset reason enum values must match table indices");
+static_assert(REASON_WDT_RST == 1, "Reset reason enum values must match table indices");
+static_assert(REASON_EXCEPTION_RST == 2, "Reset reason enum values must match table indices");
+static_assert(REASON_SOFT_WDT_RST == 3, "Reset reason enum values must match table indices");
+static_assert(REASON_SOFT_RESTART == 4, "Reset reason enum values must match table indices");
+static_assert(REASON_DEEP_SLEEP_AWAKE == 5, "Reset reason enum values must match table indices");
+static_assert(REASON_EXT_SYS_RST == 6, "Reset reason enum values must match table indices");
+
+// PROGMEM string table for flash chip modes, indexed by mode code (0-3), with "UNKNOWN" as fallback
+PROGMEM_STRING_TABLE(FlashModeStrings, "QIO", "QOUT", "DIO", "DOUT", "UNKNOWN");
+static_assert(FM_QIO == 0, "Flash mode enum values must match table indices");
+static_assert(FM_QOUT == 1, "Flash mode enum values must match table indices");
+static_assert(FM_DIO == 2, "Flash mode enum values must match table indices");
+static_assert(FM_DOUT == 3, "Flash mode enum values must match table indices");
+
 // Get reset reason string from reason code (no heap allocation)
 // Returns LogString* pointing to flash (PROGMEM) on ESP8266
 static const LogString *get_reset_reason_str(uint32_t reason) {
-  switch (reason) {
-    case REASON_DEFAULT_RST:
-      return LOG_STR("Power On");
-    case REASON_WDT_RST:
-      return LOG_STR("Hardware Watchdog");
-    case REASON_EXCEPTION_RST:
-      return LOG_STR("Exception");
-    case REASON_SOFT_WDT_RST:
-      return LOG_STR("Software Watchdog");
-    case REASON_SOFT_RESTART:
-      return LOG_STR("Software/System restart");
-    case REASON_DEEP_SLEEP_AWAKE:
-      return LOG_STR("Deep-Sleep Wake");
-    case REASON_EXT_SYS_RST:
-      return LOG_STR("External System");
-    default:
-      return LOG_STR("Unknown");
-  }
+  return ResetReasonStrings::get_log_str(static_cast<uint8_t>(reason), ResetReasonStrings::LAST_INDEX);
 }
 
 // Size for core version hex buffer
@@ -92,23 +104,9 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   constexpr size_t size = DEVICE_INFO_BUFFER_SIZE;
   char *buf = buffer.data();
 
-  const LogString *flash_mode;
-  switch (ESP.getFlashChipMode()) {  // NOLINT(readability-static-accessed-through-instance)
-    case FM_QIO:
-      flash_mode = LOG_STR("QIO");
-      break;
-    case FM_QOUT:
-      flash_mode = LOG_STR("QOUT");
-      break;
-    case FM_DIO:
-      flash_mode = LOG_STR("DIO");
-      break;
-    case FM_DOUT:
-      flash_mode = LOG_STR("DOUT");
-      break;
-    default:
-      flash_mode = LOG_STR("UNKNOWN");
-  }
+  const LogString *flash_mode = FlashModeStrings::get_log_str(
+      static_cast<uint8_t>(ESP.getFlashChipMode()),  // NOLINT(readability-static-accessed-through-instance)
+      FlashModeStrings::LAST_INDEX);
   uint32_t flash_size = ESP.getFlashChipSize() / 1024;       // NOLINT(readability-static-accessed-through-instance)
   uint32_t flash_speed = ESP.getFlashChipSpeed() / 1000000;  // NOLINT(readability-static-accessed-through-instance)
   ESP_LOGD(TAG, "Flash Chip: Size=%" PRIu32 "kB Speed=%" PRIu32 "MHz Mode=%s", flash_size, flash_speed,

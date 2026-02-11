@@ -45,9 +45,28 @@ class MDNSComponent : public Component {
   void setup() override;
   void dump_config() override;
 
-#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_ARDUINO)
-  void loop() override;
-#endif
+  // Polling interval for MDNS.update() on platforms that require it (ESP8266, RP2040).
+  //
+  // On these platforms, MDNS.update() calls _process(true) which only manages timer-driven
+  // state machines (probe/announce timeouts and service query cache TTLs). Incoming mDNS
+  // packets are handled independently via the lwIP onRx UDP callback and are NOT affected
+  // by how often update() is called.
+  //
+  // The shortest internal timer is the 250ms probe interval (RFC 6762 Section 8.1).
+  // Announcement intervals are 1000ms and cache TTL checks are on the order of seconds
+  // to minutes. A 50ms polling interval provides sufficient resolution for all timers
+  // while completely removing mDNS from the per-iteration loop list.
+  //
+  // In steady state (after the ~8 second boot probe/announce phase completes), update()
+  // checks timers that are set to never expire, making every call pure overhead.
+  //
+  // Tasmota uses a 50ms main loop cycle with mDNS working correctly, confirming this
+  // interval is safe in production.
+  //
+  // By using set_interval() instead of overriding loop(), the component is excluded from
+  // the main loop list via has_overridden_loop(), eliminating all per-iteration overhead
+  // including virtual dispatch.
+  static constexpr uint32_t MDNS_UPDATE_INTERVAL_MS = 50;
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
 #ifdef USE_MDNS_EXTRA_SERVICES
