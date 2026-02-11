@@ -190,11 +190,11 @@ def validate_jpeg_quality(config: ConfigType) -> ConfigType:
     quality = config.get(CONF_JPEG_QUALITY)
     pixel_format = config.get(CONF_PIXEL_FORMAT, "JPEG")
 
-    if quality is None:
-        # Set appropriate default based on pixel format
-        config[CONF_JPEG_QUALITY] = 10 if pixel_format == "JPEG" else 0
-    elif pixel_format != "JPEG" and quality == 0:
-        pass  # 0 means no conversion for non-JPEG
+    if quality == 0:
+        # Set default JPEG quality if not specified for backwards compatibility
+        if pixel_format == "JPEG":
+            config[CONF_JPEG_QUALITY] = 10
+        # For pixel formats other than JPEG, the valid 0 means no conversion
     elif quality < 6 or quality > 63:
         raise cv.Invalid(f"jpeg_quality must be between 6 and 63, got {quality}")
 
