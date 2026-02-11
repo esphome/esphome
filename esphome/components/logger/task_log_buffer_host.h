@@ -71,6 +71,7 @@ class TaskLogBuffer {
       thread_name[0] = '\0';
       text[0] = '\0';
     }
+    inline char *text_data() { return this->text; }
   };
 
   /// Constructor that takes the number of message slots
