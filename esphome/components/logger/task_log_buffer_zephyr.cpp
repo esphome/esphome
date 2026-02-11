@@ -61,8 +61,8 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
   char *text_area = msg->text_data();
   ret = vsnprintf(text_area, text_length + 1, format, args);
 
-  // Handle unexpected formatting error
-  if (ret <= 0) {
+  // Handle unexpected formatting error (ret < 0 is encoding error; ret == 0 is valid empty output)
+  if (ret < 0) {
     // this should not happen, vsnprintf was called already once
     // fill with '\n' to not call mpsc_pbuf_free from producer
     // it will be trimmed anyway
