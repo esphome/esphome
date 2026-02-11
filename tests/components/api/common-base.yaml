@@ -1,7 +1,4 @@
 esphome:
-  platformio_options:
-    build_flags:
-      - -DESPHOME_DEBUG_API
   on_boot:
     then:
       - wait_until:
