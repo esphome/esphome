@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import pm100x, sensor
+from esphome.components import pm100x, pm100x_pwm, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -69,7 +69,7 @@ PWM_SCHEMA = cv.All(
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(pm100x.PM100XComponent),
+            cv.GenerateID(): cv.declare_id(pm100x_pwm.PM100XComponentPWM),
             cv.Optional(CONF_MODEL, default="pm1003"): cv.one_of(
                 "pm1003", "pm1006", "pm1006k", lower=True
             ),
@@ -90,6 +90,10 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    cg.add_global(
+        cg.RawStatement('#include "esphome/components/pm100x_pwm/pm100x_pwm.h"')
+    )
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

@@ -1,24 +1,32 @@
 #pragma once
 
+#include "esphome/core/helpers.h"
 #include "esphome/components/pm100x/pm100x.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace pm100x_uart {
+namespace esphome::pm100x_uart {
 
-// UART-enabled subclass
+// UART-enabled subclass with protocol parsing
 class PM100XComponentUART : public pm100x::PM100XComponent, public uart::UARTDevice {
  public:
-  void loop() override { pm100x::PM100XComponent::loop(); }
-  void update() override { pm100x::PM100XComponent::update(); }
+  void setup() override;
+  void loop() override;
+  void update() override;
+  void dump_config() override;
 
  protected:
-  bool has_uart() const override { return this->parent_ != nullptr; }
-  void write_uart_array(const uint8_t *data, size_t len) override { this->write_array(data, len); }
-  bool read_uart_byte(uint8_t *byte) override { return this->read_byte(byte); }
-  int uart_available() override { return this->available(); }
-  void check_uart_baud_rate(uint32_t baud_rate) override { this->check_uart_settings(baud_rate); }
+  optional<bool> check_byte_() const;
+  void parse_data_();
+  const uint8_t *get_response_header_(size_t &length) const;
+  const uint8_t *get_command_measure_(size_t &length) const;
+  size_t get_frame_data_length_() const;
+  uint8_t pm100x_checksum_(const uint8_t *command_data, size_t length) const;
+  uint16_t get_16_bit_uint_(uint8_t start_index) const {
+    return encode_uint16(this->data_[start_index], this->data_[start_index + 1]);
+  }
+
+  uint8_t data_[20];
+  uint8_t data_index_{0};
 };
 
-}  // namespace pm100x_uart
-}  // namespace esphome
+}  // namespace esphome::pm100x_uart
