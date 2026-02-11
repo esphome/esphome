@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 from esphome import git, loader
+import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPONENTS,
@@ -23,9 +24,13 @@ _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = CONF_EXTERNAL_COMPONENTS
 
+# Won't actually generate any code for this, but an id is required to support
+# modifying config from packages. e.g. https://esphome.io/components/packages/#extend
+ExternalComponent = cg.global_ns.namespace("external_components").class_("ExternalComponent")
 
 CONFIG_SCHEMA = cv.ensure_list(
     {
+        cv.GenerateID(): cv.declare_id(ExternalComponent),
         cv.Required(CONF_SOURCE): cv.SOURCE_SCHEMA,
         cv.Optional(CONF_REFRESH, default="1d"): cv.All(cv.string, cv.source_refresh),
         cv.Optional(CONF_COMPONENTS, default="all"): cv.Any(
