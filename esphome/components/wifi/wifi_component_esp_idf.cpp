@@ -1060,7 +1060,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   }
   memcpy(reinterpret_cast<char *>(conf.ap.ssid), ap.ssid_.c_str(), ap.ssid_.size());
   conf.ap.channel = ap.has_channel() ? ap.get_channel() : 1;
-  conf.ap.ssid_hidden = ap.ssid_.size();
+  conf.ap.ssid_hidden = ap.get_hidden();
   conf.ap.max_connection = 5;
   conf.ap.beacon_interval = 100;
 
