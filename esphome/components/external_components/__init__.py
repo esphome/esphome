@@ -26,7 +26,9 @@ DOMAIN = CONF_EXTERNAL_COMPONENTS
 
 # Won't actually generate any code for this, but an id is required to support
 # modifying config from packages. e.g. https://esphome.io/components/packages/#extend
-ExternalComponent = cg.global_ns.namespace("external_components").class_("ExternalComponent")
+ExternalComponent = cg.global_ns.namespace("external_components").class_(
+    "ExternalComponent"
+)
 
 CONFIG_SCHEMA = cv.ensure_list(
     {
