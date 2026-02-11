@@ -300,19 +300,19 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_wifi.html#_CPPv417wifi_sta_config_t
   wifi_config_t conf;
   memset(&conf, 0, sizeof(conf));
-  if (ap.get_ssid().size() > sizeof(conf.sta.ssid)) {
+  if (ap.ssid_.size() > sizeof(conf.sta.ssid)) {
     ESP_LOGE(TAG, "SSID too long");
     return false;
   }
-  if (ap.get_password().size() > sizeof(conf.sta.password)) {
+  if (ap.password_.size() > sizeof(conf.sta.password)) {
     ESP_LOGE(TAG, "Password too long");
     return false;
   }
-  memcpy(reinterpret_cast<char *>(conf.sta.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
-  memcpy(reinterpret_cast<char *>(conf.sta.password), ap.get_password().c_str(), ap.get_password().size());
+  memcpy(reinterpret_cast<char *>(conf.sta.ssid), ap.ssid_.c_str(), ap.ssid_.size());
+  memcpy(reinterpret_cast<char *>(conf.sta.password), ap.password_.c_str(), ap.password_.size());
 
   // The weakest authmode to accept in the fast scan mode
-  if (ap.get_password().empty()) {
+  if (ap.password_.empty()) {
     conf.sta.threshold.authmode = WIFI_AUTH_OPEN;
   } else {
     // Set threshold based on configured minimum auth mode
@@ -1054,26 +1054,26 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   wifi_config_t conf;
   memset(&conf, 0, sizeof(conf));
-  if (ap.get_ssid().size() > sizeof(conf.ap.ssid)) {
+  if (ap.ssid_.size() > sizeof(conf.ap.ssid)) {
     ESP_LOGE(TAG, "AP SSID too long");
     return false;
   }
-  memcpy(reinterpret_cast<char *>(conf.ap.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
+  memcpy(reinterpret_cast<char *>(conf.ap.ssid), ap.ssid_.c_str(), ap.ssid_.size());
   conf.ap.channel = ap.has_channel() ? ap.get_channel() : 1;
-  conf.ap.ssid_hidden = ap.get_ssid().size();
+  conf.ap.ssid_hidden = ap.ssid_.size();
   conf.ap.max_connection = 5;
   conf.ap.beacon_interval = 100;
 
-  if (ap.get_password().empty()) {
+  if (ap.password_.empty()) {
     conf.ap.authmode = WIFI_AUTH_OPEN;
     *conf.ap.password = 0;
   } else {
     conf.ap.authmode = WIFI_AUTH_WPA2_PSK;
-    if (ap.get_password().size() > sizeof(conf.ap.password)) {
+    if (ap.password_.size() > sizeof(conf.ap.password)) {
       ESP_LOGE(TAG, "AP password too long");
       return false;
     }
-    memcpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), ap.get_password().size());
+    memcpy(reinterpret_cast<char *>(conf.ap.password), ap.password_.c_str(), ap.password_.size());
   }
 
   // pairwise cipher of SoftAP, group cipher will be derived using this.

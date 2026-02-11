@@ -196,9 +196,9 @@ class CompactString {
   /// Return a StringRef view of this string (zero-copy)
   StringRef ref() const { return StringRef(this->data(), this->size()); }
 
-  bool operator==(const StringRef &other) const {
-    return this->size() == other.size() && std::memcmp(this->data(), other.c_str(), this->size()) == 0;
-  }
+  bool operator==(const CompactString &other) const;
+  bool operator!=(const CompactString &other) const { return !(*this == other); }
+  bool operator==(const StringRef &other) const;
   bool operator!=(const StringRef &other) const { return !(*this == other); }
 
  protected:
@@ -220,6 +220,9 @@ class CompactString {
 static_assert(sizeof(CompactString) == 20, "CompactString must be exactly 20 bytes");
 
 class WiFiAP {
+  friend class WiFiComponent;
+  friend class WiFiScanResult;
+
  public:
   void set_ssid(const std::string &ssid);
   void set_ssid(const char *ssid);
@@ -271,6 +274,8 @@ class WiFiAP {
 };
 
 class WiFiScanResult {
+  friend class WiFiComponent;
+
  public:
   WiFiScanResult(const bssid_t &bssid, const char *ssid, size_t ssid_len, uint8_t channel, int8_t rssi, bool with_auth,
                  bool is_hidden);
@@ -599,7 +604,7 @@ class WiFiComponent : public Component {
   int8_t find_first_non_hidden_index_() const;
   /// Check if an SSID was seen in the most recent scan results
   /// Used to skip hidden mode for SSIDs we know are visible
-  bool ssid_was_seen_in_scan_(StringRef ssid) const;
+  bool ssid_was_seen_in_scan_(const CompactString &ssid) const;
   /// Check if full scan results are needed (captive portal active, improv, listeners)
   bool needs_full_scan_results_() const;
   /// Check if network matches any configured network (for scan result filtering)
