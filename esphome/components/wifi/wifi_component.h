@@ -177,8 +177,7 @@ template<typename T> using wifi_scan_vector_t = FixedVector<T>;
 class CompactString {
  public:
   static constexpr uint8_t MAX_LENGTH = 127;
-  static constexpr uint8_t INLINE_CAPACITY = 18;          // 18 chars + null terminator fits in 19 bytes
-  static constexpr uint8_t BUFFER_SIZE = MAX_LENGTH + 1;  // For external buffer (128 bytes)
+  static constexpr uint8_t INLINE_CAPACITY = 18;  // 18 chars + null terminator fits in 19 bytes
 
   CompactString() : length_(0), is_heap_(0) { this->storage_[0] = '\0'; }
   CompactString(const char *str, size_t len);
