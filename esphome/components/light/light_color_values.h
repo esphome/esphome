@@ -276,6 +276,8 @@ class LightColorValues {
   /// Set the warm white property of these light color values. In range 0.0 to 1.0.
   void set_warm_white(float warm_white) { this->warm_white_ = clamp(warm_white, 0.0f, 1.0f); }
 
+  friend class LightCall;
+
  protected:
   float state_;  ///< ON / OFF, float for transition
   float brightness_;
