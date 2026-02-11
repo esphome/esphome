@@ -480,7 +480,7 @@ bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t 
       continue;
     }
     // Match by SSID
-    if (sta.ssid_ == StringRef(ssid)) {
+    if (sta.ssid_ == ssid) {
       return true;
     }
   }

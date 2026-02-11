@@ -200,6 +200,8 @@ class CompactString {
   bool operator!=(const CompactString &other) const { return !(*this == other); }
   bool operator==(const StringRef &other) const;
   bool operator!=(const StringRef &other) const { return !(*this == other); }
+  bool operator==(const char *other) const { return *this == StringRef(other); }
+  bool operator!=(const char *other) const { return !(*this == other); }
 
  protected:
   char *get_heap_ptr_() const {
