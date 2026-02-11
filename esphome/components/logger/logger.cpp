@@ -198,20 +198,17 @@ void Logger::process_messages_() {
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Process any buffered messages when available
   if (this->log_buffer_->has_messages()) {
-#ifdef USE_HOST
-    logger::TaskLogBuffer::LogMessage *message;
-    while (this->log_buffer_->get_message_main_loop(&message)) {
-      const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
-      LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
-      this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, message->text,
-                                                message->text_length, buf);
-      this->log_buffer_->release_message_main_loop();
-      this->write_log_buffer_to_console_(buf);
-    }
-#elif defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
     logger::TaskLogBuffer::LogMessage *message;
     const char *text;
-    while (this->log_buffer_->borrow_message_main_loop(&message, &text)) {
+#ifdef USE_HOST
+    while (this->log_buffer_->get_message_main_loop(&message))
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+    while (this->log_buffer_->borrow_message_main_loop(&message, &text))
+#endif
+    {
+#ifdef USE_HOST
+      text = message->text;
+#endif
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
       LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
@@ -220,7 +217,6 @@ void Logger::process_messages_() {
       this->log_buffer_->release_message_main_loop();
       this->write_log_buffer_to_console_(buf);
     }
-#endif
   }
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || (defined(USE_ZEPHYR) && !defined(USE_LOGGER_USB_CDC))
   else {
