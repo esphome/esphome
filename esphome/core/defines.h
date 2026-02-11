@@ -320,6 +320,7 @@
 #endif
 
 #ifdef USE_NRF52
+#define USE_ESPHOME_TASK_LOG_BUFFER
 #define USE_NRF52_DFU
 #define USE_NRF52_REG0_VOUT 5
 #define USE_NRF52_UICR_ERASE
