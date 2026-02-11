@@ -204,36 +204,40 @@ void Application::loop() {
   this->last_loop_ = last_op_end_time;
 
   if (this->dump_config_at_ < this->components_.size()) {
-    if (this->dump_config_at_ == 0) {
-      char build_time_str[Application::BUILD_TIME_STR_SIZE];
-      this->get_build_time_string(build_time_str);
-      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", build_time_str);
+    this->process_dump_config_();
+  }
+}
+
+void Application::process_dump_config_() {
+  if (this->dump_config_at_ == 0) {
+    char build_time_str[Application::BUILD_TIME_STR_SIZE];
+    this->get_build_time_string(build_time_str);
+    ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", build_time_str);
 #ifdef ESPHOME_PROJECT_NAME
-      ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
+    ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
 #endif
 #ifdef USE_ESP32
-      esp_chip_info_t chip_info;
-      esp_chip_info(&chip_info);
-      ESP_LOGI(TAG, "ESP32 Chip: %s rev%d.%d, %d core(s)", ESPHOME_VARIANT, chip_info.revision / 100,
-               chip_info.revision % 100, chip_info.cores);
+    esp_chip_info_t chip_info;
+    esp_chip_info(&chip_info);
+    ESP_LOGI(TAG, "ESP32 Chip: %s rev%d.%d, %d core(s)", ESPHOME_VARIANT, chip_info.revision / 100,
+             chip_info.revision % 100, chip_info.cores);
 #if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_MIN_CHIP_REVISION_SET)
-      // Suggest optimization for chips that don't need the PSRAM cache workaround
-      if (chip_info.revision >= 300) {
+    // Suggest optimization for chips that don't need the PSRAM cache workaround
+    if (chip_info.revision >= 300) {
 #ifdef USE_PSRAM
-        ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to save ~10KB IRAM", chip_info.revision / 100,
-                 chip_info.revision % 100);
+      ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to save ~10KB IRAM", chip_info.revision / 100,
+               chip_info.revision % 100);
 #else
-        ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to reduce binary size", chip_info.revision / 100,
-                 chip_info.revision % 100);
-#endif
-      }
-#endif
+      ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to reduce binary size", chip_info.revision / 100,
+               chip_info.revision % 100);
 #endif
     }
-
-    this->components_[this->dump_config_at_]->call_dump_config();
-    this->dump_config_at_++;
+#endif
+#endif
   }
+
+  this->components_[this->dump_config_at_]->call_dump_config();
+  this->dump_config_at_++;
 }
 
 void IRAM_ATTR HOT Application::feed_wdt(uint32_t time) {
