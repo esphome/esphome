@@ -6,10 +6,18 @@ esp32:
     type: esp-idf
     components:
       - espressif/mdns^1.8.2
-      - name: espressif/esp_hosted
-        ref: 2.7.0
+      - name: espressif/button
+        ref: 4.1.5
     advanced:
       enable_idf_experimental_features: yes
+      disable_debug_stubs: true
+      disable_ocd_aware: true
+      disable_usb_serial_jtag_secondary: true
+      disable_dev_null_vfs: true
+      disable_mbedtls_peer_cert: true
+      disable_mbedtls_pkcs7: true
+      disable_regi2c_in_iram: true
+      disable_fatfs: true
 
 ota:
   platform: esphome

@@ -4,8 +4,7 @@
 #include "esphome/core/template_lambda.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 class TemplateSensor final : public sensor::Sensor, public PollingComponent {
  public:
@@ -21,5 +20,4 @@ class TemplateSensor final : public sensor::Sensor, public PollingComponent {
   TemplateLambda<float> f_;
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

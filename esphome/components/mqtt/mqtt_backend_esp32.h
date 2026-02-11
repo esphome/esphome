@@ -15,8 +15,7 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 struct Event {
   esp_mqtt_event_id_t event_id;
@@ -140,7 +139,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
     this->lwt_retain_ = retain;
   }
   void set_server(network::IPAddress ip, uint16_t port) final {
-    this->host_ = ip.str();
+    char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    this->host_ = ip.str_to(ip_buf);
     this->port_ = port;
   }
   void set_server(const char *host, uint16_t port) final {
@@ -273,8 +273,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
 #endif
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif

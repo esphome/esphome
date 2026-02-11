@@ -22,7 +22,6 @@ from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
-AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
 DOMAIN = "esp32_ble"
 

@@ -5,8 +5,7 @@
 #include "esphome/core/template_lambda.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 class TemplateTextSensor final : public text_sensor::TextSensor, public PollingComponent {
  public:
@@ -22,5 +21,4 @@ class TemplateTextSensor final : public text_sensor::TextSensor, public PollingC
   TemplateLambda<std::string> f_{};
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

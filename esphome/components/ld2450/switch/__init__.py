@@ -3,6 +3,7 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUETOOTH,
+    CONF_ID,
     DEVICE_CLASS_SWITCH,
     ENTITY_CATEGORY_CONFIG,
     ICON_BLUETOOTH,
@@ -17,6 +18,7 @@ MultiTargetSwitch = ld2450_ns.class_("MultiTargetSwitch", switch.Switch)
 CONF_MULTI_TARGET = "multi_target"
 
 CONFIG_SCHEMA = {
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
     cv.Optional(CONF_BLUETOOTH): switch.switch_schema(
         BluetoothSwitch,

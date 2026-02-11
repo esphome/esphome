@@ -105,8 +105,10 @@ void ESP32TouchComponent::setup() {
   touch_pad_set_charge_discharge_times(this->meas_cycle_);
   touch_pad_set_measurement_interval(this->sleep_cycle_);
 
-  // Configure timeout if needed
-  touch_pad_timeout_set(true, TOUCH_PAD_THRESHOLD_MAX);
+  // Disable hardware timeout - it causes continuous interrupts with high-capacitance
+  // setups (e.g., pressure sensors under cushions). The periodic release check in
+  // loop() handles state detection reliably without needing hardware timeout.
+  touch_pad_timeout_set(false, TOUCH_PAD_THRESHOLD_MAX);
 
   // Register ISR handler with interrupt mask
   esp_err_t err =
@@ -314,8 +316,7 @@ void ESP32TouchComponent::loop() {
 
   size_t pads_off = 0;
   for (auto *child : this->children_) {
-    if (child->benchmark_ == 0)
-      touch_pad_read_benchmark(child->touch_pad_, &child->benchmark_);
+    child->ensure_benchmark_read();
     // Handle initial state publication after startup
     this->publish_initial_state_if_needed_(child, now);
 
@@ -354,7 +355,7 @@ void ESP32TouchComponent::loop() {
 
 void ESP32TouchComponent::on_shutdown() {
   // Disable interrupts
-  touch_pad_intr_disable(static_cast<touch_pad_intr_mask_t>(TOUCH_PAD_INTR_MASK_ACTIVE | TOUCH_PAD_INTR_MASK_TIMEOUT));
+  touch_pad_intr_disable(TOUCH_PAD_INTR_MASK_ACTIVE);
   touch_pad_isr_deregister(touch_isr_handler, this);
   this->cleanup_touch_queue_();
 

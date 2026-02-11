@@ -69,7 +69,7 @@ class UARTComponent {
 
   // Pure virtual method to return the number of bytes available for reading.
   // @return Number of available bytes.
-  virtual int available() = 0;
+  virtual size_t available() = 0;
 
   // Pure virtual method to block until all bytes have been written to the UART bus.
   virtual void flush() = 0;
@@ -189,10 +189,10 @@ class UARTComponent {
   size_t rx_buffer_size_;
   size_t rx_full_threshold_{1};
   size_t rx_timeout_{0};
-  uint32_t baud_rate_;
-  uint8_t stop_bits_;
-  uint8_t data_bits_;
-  UARTParityOptions parity_;
+  uint32_t baud_rate_{0};
+  uint8_t stop_bits_{0};
+  uint8_t data_bits_{0};
+  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
 #endif
