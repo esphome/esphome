@@ -412,6 +412,28 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
   return param;
 }
 
+optional<std::string> AsyncWebServerRequest::find_query_value_(const char *name) {
+  auto val = query_key_value(this->post_query_.c_str(), this->post_query_.size(), name);
+  if (val.has_value()) {
+    return val;
+  }
+  auto url_query = request_get_url_query(*this);
+  if (url_query.has_value()) {
+    return query_key_value(url_query.value().c_str(), url_query.value().size(), name);
+  }
+  return {};
+}
+
+bool AsyncWebServerRequest::hasArg(const char *name) { return this->find_query_value_(name).has_value(); }
+
+std::string AsyncWebServerRequest::arg(const char *name) {
+  auto val = this->find_query_value_(name);
+  if (val.has_value()) {
+    return std::move(val.value());
+  }
+  return {};
+}
+
 void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
   httpd_resp_set_hdr(*this->req_, name, value);
 }
