@@ -1841,4 +1841,10 @@ class CompactString {
 
 static_assert(sizeof(CompactString) == 20, "CompactString must be exactly 20 bytes");
 
+// Reverse comparison overloads so CompactString works on either side of == and !=
+inline bool operator==(const std::string &lhs, const CompactString &rhs) { return rhs == lhs; }
+inline bool operator==(const char *lhs, const CompactString &rhs) { return rhs == lhs; }
+inline bool operator!=(const std::string &lhs, const CompactString &rhs) { return !(rhs == lhs); }
+inline bool operator!=(const char *lhs, const CompactString &rhs) { return !(rhs == lhs); }
+
 }  // namespace esphome
