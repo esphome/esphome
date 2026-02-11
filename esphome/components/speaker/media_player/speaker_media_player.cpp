@@ -1,6 +1,6 @@
 #include "speaker_media_player.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/log.h"
 
@@ -55,7 +55,7 @@ void SpeakerMediaPlayer::setup() {
 
   this->media_control_command_queue_ = xQueueCreate(MEDIA_CONTROLS_QUEUE_LENGTH, sizeof(MediaCallCommand));
 
-  this->pref_ = global_preferences->make_preference<VolumeRestoreState>(this->get_preference_hash());
+  this->pref_ = this->make_entity_preference<VolumeRestoreState>();
 
   VolumeRestoreState volume_restore_state;
   if (this->pref_.load(&volume_restore_state)) {
@@ -66,25 +66,8 @@ void SpeakerMediaPlayer::setup() {
     this->set_mute_state_(false);
   }
 
-#ifdef USE_OTA
-  ota::get_global_ota_callback()->add_on_state_callback(
-      [this](ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
-        if (state == ota::OTA_STARTED) {
-          if (this->media_pipeline_ != nullptr) {
-            this->media_pipeline_->suspend_tasks();
-          }
-          if (this->announcement_pipeline_ != nullptr) {
-            this->announcement_pipeline_->suspend_tasks();
-          }
-        } else if (state == ota::OTA_ERROR) {
-          if (this->media_pipeline_ != nullptr) {
-            this->media_pipeline_->resume_tasks();
-          }
-          if (this->announcement_pipeline_ != nullptr) {
-            this->announcement_pipeline_->resume_tasks();
-          }
-        }
-      });
+#ifdef USE_OTA_STATE_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
 
   this->announcement_pipeline_ =
@@ -118,6 +101,20 @@ void SpeakerMediaPlayer::set_playlist_delay_ms(AudioPipelineType pipeline_type, 
       this->media_playlist_delay_ms_ = delay_ms;
       break;
   }
+}
+
+void SpeakerMediaPlayer::stop_and_unpause_media_() {
+  this->media_pipeline_->stop();
+  this->unpause_media_remaining_ = 3;
+  this->set_interval("unpause_med", 50, [this]() {
+    if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
+      this->cancel_interval("unpause_med");
+      this->media_pipeline_->set_pause_state(false);
+      this->is_paused_ = false;
+    } else if (--this->unpause_media_remaining_ == 0) {
+      this->cancel_interval("unpause_med");
+    }
+  });
 }
 
 void SpeakerMediaPlayer::watch_media_commands_() {
@@ -161,15 +158,7 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           if (this->is_paused_) {
             // If paused, stop the media pipeline and unpause it after confirming its stopped. This avoids playing a
             // short segment of the paused file before starting the new one.
-            this->media_pipeline_->stop();
-            this->set_retry("unpause_med", 50, 3, [this](const uint8_t remaining_attempts) {
-              if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
-                this->media_pipeline_->set_pause_state(false);
-                this->is_paused_ = false;
-                return RetryResult::DONE;
-              }
-              return RetryResult::RETRY;
-            });
+            this->stop_and_unpause_media_();
           } else {
             // Not paused, just directly start the file
             if (media_command.file.has_value()) {
@@ -214,27 +203,21 @@ void SpeakerMediaPlayer::watch_media_commands_() {
               this->cancel_timeout("next_ann");
               this->announcement_playlist_.clear();
               this->announcement_pipeline_->stop();
-              this->set_retry("unpause_ann", 50, 3, [this](const uint8_t remaining_attempts) {
+              this->unpause_announcement_remaining_ = 3;
+              this->set_interval("unpause_ann", 50, [this]() {
                 if (this->announcement_pipeline_state_ == AudioPipelineState::STOPPED) {
+                  this->cancel_interval("unpause_ann");
                   this->announcement_pipeline_->set_pause_state(false);
-                  return RetryResult::DONE;
+                } else if (--this->unpause_announcement_remaining_ == 0) {
+                  this->cancel_interval("unpause_ann");
                 }
-                return RetryResult::RETRY;
               });
             }
           } else {
             if (this->media_pipeline_ != nullptr) {
               this->cancel_timeout("next_media");
               this->media_playlist_.clear();
-              this->media_pipeline_->stop();
-              this->set_retry("unpause_med", 50, 3, [this](const uint8_t remaining_attempts) {
-                if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
-                  this->media_pipeline_->set_pause_state(false);
-                  this->is_paused_ = false;
-                  return RetryResult::DONE;
-                }
-                return RetryResult::RETRY;
-              });
+              this->stop_and_unpause_media_();
             }
           }
 
@@ -299,6 +282,27 @@ void SpeakerMediaPlayer::watch_media_commands_() {
     }
   }
 }
+
+#ifdef USE_OTA_STATE_LISTENER
+void SpeakerMediaPlayer::on_ota_global_state(ota::OTAState state, float progress, uint8_t error,
+                                             ota::OTAComponent *comp) {
+  if (state == ota::OTA_STARTED) {
+    if (this->media_pipeline_ != nullptr) {
+      this->media_pipeline_->suspend_tasks();
+    }
+    if (this->announcement_pipeline_ != nullptr) {
+      this->announcement_pipeline_->suspend_tasks();
+    }
+  } else if (state == ota::OTA_ERROR) {
+    if (this->media_pipeline_ != nullptr) {
+      this->media_pipeline_->resume_tasks();
+    }
+    if (this->announcement_pipeline_ != nullptr) {
+      this->announcement_pipeline_->resume_tasks();
+    }
+  }
+}
+#endif
 
 void SpeakerMediaPlayer::loop() {
   this->watch_media_commands_();
@@ -515,9 +519,9 @@ void SpeakerMediaPlayer::set_mute_state_(bool mute_state) {
 
   if (old_mute_state != mute_state) {
     if (mute_state) {
-      this->defer([this]() { this->mute_trigger_->trigger(); });
+      this->defer([this]() { this->mute_trigger_.trigger(); });
     } else {
-      this->defer([this]() { this->unmute_trigger_->trigger(); });
+      this->defer([this]() { this->unmute_trigger_.trigger(); });
     }
   }
 }
@@ -546,7 +550,7 @@ void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
     this->set_mute_state_(false);
   }
 
-  this->defer([this, volume]() { this->volume_trigger_->trigger(volume); });
+  this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
 }
 
 }  // namespace speaker

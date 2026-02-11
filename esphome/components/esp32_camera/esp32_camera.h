@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <atomic>
 #include <esp_camera.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -158,7 +159,6 @@ class ESP32Camera : public camera::Camera {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   /* public API (specific) */
   void start_stream(camera::CameraRequester requester) override;
   void stop_stream(camera::CameraRequester requester) override;
@@ -205,14 +205,18 @@ class ESP32Camera : public camera::Camera {
 
   esp_err_t init_error_{ESP_OK};
   std::shared_ptr<ESP32CameraImage> current_image_;
-  uint8_t single_requesters_{0};
-  uint8_t stream_requesters_{0};
+  std::atomic<uint8_t> single_requesters_{0};
+  std::atomic<uint8_t> stream_requesters_{0};
   QueueHandle_t framebuffer_get_queue_;
   QueueHandle_t framebuffer_return_queue_;
   std::vector<camera::CameraListener *> listeners_;
 
   uint32_t last_idle_request_{0};
   uint32_t last_update_{0};
+#if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_VERBOSE
+  uint32_t last_log_time_{0};
+  uint16_t frame_count_{0};
+#endif
 #ifdef USE_I2C
   i2c::InternalI2CBus *i2c_bus_{nullptr};
 #endif  // USE_I2C

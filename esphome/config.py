@@ -1010,13 +1010,13 @@ def validate_config(
             result.add_error(err)
             return result
 
-    CORE.raw_config = config
-
     # 1.1. Merge packages
     if CONF_PACKAGES in config:
         from esphome.components.packages import merge_packages
 
         config = merge_packages(config)
+
+    CORE.raw_config = config
 
     # 1.2. Resolve !extend and !remove and check for REPLACEME
     # After this step, there will not be any Extend or Remove values in the config anymore

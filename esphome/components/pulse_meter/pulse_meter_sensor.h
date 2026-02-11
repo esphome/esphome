@@ -27,7 +27,6 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
 
   void setup() override;
   void loop() override;
-  float get_setup_priority() const override;
   void dump_config() override;
 
  protected:

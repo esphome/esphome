@@ -18,7 +18,6 @@ class ESPNowTransport : public packet_transport::PacketTransport,
                         public ESPNowBroadcastedHandler {
  public:
   void setup() override;
-  void update() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   void set_peer_address(peer_address_t address) {

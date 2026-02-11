@@ -12,8 +12,8 @@ from esphome.components.packet_transport import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
-from esphome.core import ID, Lambda
-from esphome.cpp_generator import ExpressionStatement, MockObj
+from esphome.core import ID
+from esphome.cpp_generator import MockObj
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["network"]
@@ -23,7 +23,13 @@ MULTI_CONF = True
 udp_ns = cg.esphome_ns.namespace("udp")
 UDPComponent = udp_ns.class_("UDPComponent", cg.Component)
 UDPWriteAction = udp_ns.class_("UDPWriteAction", automation.Action)
+trigger_argname = "data"
+# Listener callback type (non-owning span from UDP component)
+listener_args = cg.std_span.template(cg.uint8.operator("const"))
+listener_argtype = [(listener_args, trigger_argname)]
+# Automation/trigger type (owned vector, safe for deferred actions like delay)
 trigger_args = cg.std_vector.template(cg.uint8)
+trigger_argtype = [(trigger_args, trigger_argname)]
 
 CONF_ADDRESSES = "addresses"
 CONF_LISTEN_ADDRESS = "listen_address"
@@ -108,17 +114,23 @@ async def to_code(config):
         cg.add(var.set_broadcast_port(conf_port[CONF_BROADCAST_PORT]))
     if (listen_address := str(config[CONF_LISTEN_ADDRESS])) != "255.255.255.255":
         cg.add(var.set_listen_address(listen_address))
-    for address in config[CONF_ADDRESSES]:
-        cg.add(var.add_address(str(address)))
+    cg.add(var.set_addresses([str(addr) for addr in config[CONF_ADDRESSES]]))
     if on_receive := config.get(CONF_ON_RECEIVE):
         on_receive = on_receive[0]
-        trigger = cg.new_Pvariable(on_receive[CONF_TRIGGER_ID])
+        trigger_id = cg.new_Pvariable(on_receive[CONF_TRIGGER_ID])
         trigger = await automation.build_automation(
-            trigger, [(trigger_args, "data")], on_receive
+            trigger_id, trigger_argtype, on_receive
         )
-        trigger = Lambda(str(ExpressionStatement(trigger.trigger(MockObj("data")))))
-        trigger = await cg.process_lambda(trigger, [(trigger_args, "data")])
-        cg.add(var.add_listener(trigger))
+        trigger_lambda = await cg.process_lambda(
+            trigger.trigger(
+                cg.std_vector.template(cg.uint8)(
+                    MockObj(trigger_argname).begin(),
+                    MockObj(trigger_argname).end(),
+                )
+            ),
+            listener_argtype,
+        )
+        cg.add(var.add_listener(trigger_lambda))
         cg.add(var.set_should_listen())
 
 

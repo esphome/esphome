@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 #include <strings.h>
@@ -143,11 +144,12 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
   return refout ? (crc ^ 0xffff) : crc;
 }
 
+// FNV-1 hash - deprecated, use fnv1a_hash() for new code
 uint32_t fnv1_hash(const char *str) {
-  uint32_t hash = 2166136261UL;
+  uint32_t hash = FNV1_OFFSET_BASIS;
   if (str) {
     while (*str) {
-      hash *= 16777619UL;
+      hash *= FNV1_PRIME;
       hash ^= *str++;
     }
   }
@@ -161,6 +163,9 @@ float random_float() { return static_cast<float>(random_uint32()) / static_cast<
 bool str_equals_case_insensitive(const std::string &a, const std::string &b) {
   return strcasecmp(a.c_str(), b.c_str()) == 0;
 }
+bool str_equals_case_insensitive(StringRef a, StringRef b) {
+  return a.size() == b.size() && strncasecmp(a.c_str(), b.c_str(), a.size()) == 0;
+}
 #if __cplusplus >= 202002L
 bool str_startswith(const std::string &str, const std::string &start) { return str.starts_with(start); }
 bool str_endswith(const std::string &str, const std::string &end) { return str.ends_with(end); }
@@ -170,6 +175,13 @@ bool str_endswith(const std::string &str, const std::string &end) {
   return str.rfind(end) == (str.size() - end.size());
 }
 #endif
+
+bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffix, size_t suffix_len) {
+  if (suffix_len > str_len)
+    return false;
+  return strncasecmp(str + str_len - suffix_len, suffix, suffix_len) == 0;
+}
+
 std::string str_truncate(const std::string &str, size_t length) {
   return str.length() > length ? str.substr(0, length) : str;
 }
@@ -189,21 +201,29 @@ template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str)
 std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
 std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
 std::string str_snake_case(const std::string &str) {
-  std::string result;
-  result.resize(str.length());
-  std::transform(str.begin(), str.end(), result.begin(), ::tolower);
-  std::replace(result.begin(), result.end(), ' ', '_');
+  std::string result = str;
+  for (char &c : result) {
+    c = to_snake_case_char(c);
+  }
   return result;
 }
+char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
+  if (buffer_size == 0) {
+    return buffer;
+  }
+  size_t i = 0;
+  while (*str && i < buffer_size - 1) {
+    buffer[i++] = to_sanitized_char(*str++);
+  }
+  buffer[i] = '\0';
+  return buffer;
+}
+
 std::string str_sanitize(const std::string &str) {
-  std::string out = str;
-  std::replace_if(
-      out.begin(), out.end(),
-      [](const char &c) {
-        return c != '-' && c != '_' && (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z');
-      },
-      '_');
-  return out;
+  std::string result;
+  result.resize(str.size());
+  str_sanitize_to(&result[0], str.size() + 1, str.c_str());
+  return result;
 }
 std::string str_snprintf(const char *fmt, size_t len, ...) {
   std::string str;
@@ -238,17 +258,16 @@ std::string str_sprintf(const char *fmt, ...) {
 // Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
 static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
 
-std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
-                                  size_t suffix_len) {
-  char buffer[MAX_NAME_WITH_SUFFIX_SIZE];
+size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
+                                const char *suffix_ptr, size_t suffix_len) {
   size_t total_len = name_len + 1 + suffix_len;
 
   // Silently truncate if needed: prioritize keeping the full suffix
-  if (total_len >= MAX_NAME_WITH_SUFFIX_SIZE) {
-    // NOTE: This calculation could underflow if suffix_len >= MAX_NAME_WITH_SUFFIX_SIZE - 2,
+  if (total_len >= buffer_size) {
+    // NOTE: This calculation could underflow if suffix_len >= buffer_size - 2,
     // but this is safe because this helper is only called with small suffixes:
     // MAC suffixes (6-12 bytes), ".local" (5 bytes), etc.
-    name_len = MAX_NAME_WITH_SUFFIX_SIZE - suffix_len - 2;  // -2 for separator and null terminator
+    name_len = buffer_size - suffix_len - 2;  // -2 for separator and null terminator
     total_len = name_len + 1 + suffix_len;
   }
 
@@ -256,7 +275,14 @@ std::string make_name_with_suffix(const char *name, size_t name_len, char sep, c
   buffer[name_len] = sep;
   memcpy(buffer + name_len + 1, suffix_ptr, suffix_len);
   buffer[total_len] = '\0';
-  return std::string(buffer, total_len);
+  return total_len;
+}
+
+std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
+                                  size_t suffix_len) {
+  char buffer[MAX_NAME_WITH_SUFFIX_SIZE];
+  size_t len = make_name_with_suffix_to(buffer, sizeof(buffer), name, name_len, sep, suffix_ptr, suffix_len);
+  return std::string(buffer, len);
 }
 
 std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len) {
@@ -269,7 +295,7 @@ size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
   size_t chars = std::min(length, 2 * count);
   for (size_t i = 2 * count - chars; i < 2 * count; i++, str++) {
     uint8_t val = parse_hex_char(*str);
-    if (val > 15)
+    if (val == INVALID_HEX_CHAR)
       return 0;
     data[i >> 1] = (i & 1) ? data[i >> 1] | val : val << 4;
   }
@@ -282,30 +308,91 @@ std::string format_mac_address_pretty(const uint8_t *mac) {
   return std::string(buf);
 }
 
+// Internal helper for hex formatting - base is 'a' for lowercase or 'A' for uppercase
+static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator,
+                                 char base) {
+  if (length == 0) {
+    buffer[0] = '\0';
+    return buffer;
+  }
+  // With separator: total length is 3*length (2*length hex chars, (length-1) separators, 1 null terminator)
+  // Without separator: total length is 2*length + 1 (2*length hex chars, 1 null terminator)
+  uint8_t stride = separator ? 3 : 2;
+  size_t max_bytes = separator ? (buffer_size / stride) : ((buffer_size - 1) / stride);
+  if (max_bytes == 0) {
+    buffer[0] = '\0';
+    return buffer;
+  }
+  if (length > max_bytes) {
+    length = max_bytes;
+  }
+  for (size_t i = 0; i < length; i++) {
+    size_t pos = i * stride;
+    buffer[pos] = format_hex_char(data[i] >> 4, base);
+    buffer[pos + 1] = format_hex_char(data[i] & 0x0F, base);
+    if (separator && i < length - 1) {
+      buffer[pos + 2] = separator;
+    }
+  }
+  buffer[length * stride - (separator ? 1 : 0)] = '\0';
+  return buffer;
+}
+
+char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
+  return format_hex_internal(buffer, buffer_size, data, length, 0, 'a');
+}
+
 std::string format_hex(const uint8_t *data, size_t length) {
   std::string ret;
   ret.resize(length * 2);
-  for (size_t i = 0; i < length; i++) {
-    ret[2 * i] = format_hex_char(data[i] >> 4);
-    ret[2 * i + 1] = format_hex_char(data[i] & 0x0F);
-  }
+  format_hex_to(&ret[0], length * 2 + 1, data, length);
   return ret;
 }
 std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
+
+char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator) {
+  return format_hex_internal(buffer, buffer_size, data, length, separator, 'A');
+}
+
+char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint16_t *data, size_t length, char separator) {
+  if (length == 0 || buffer_size == 0) {
+    if (buffer_size > 0)
+      buffer[0] = '\0';
+    return buffer;
+  }
+  // With separator: each uint16_t needs 5 chars (4 hex + 1 sep), except last has no separator
+  // Without separator: each uint16_t needs 4 chars, plus null terminator
+  uint8_t stride = separator ? 5 : 4;
+  size_t max_values = separator ? (buffer_size / stride) : ((buffer_size - 1) / stride);
+  if (max_values == 0) {
+    buffer[0] = '\0';
+    return buffer;
+  }
+  if (length > max_values) {
+    length = max_values;
+  }
+  for (size_t i = 0; i < length; i++) {
+    size_t pos = i * stride;
+    buffer[pos] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
+    buffer[pos + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
+    buffer[pos + 2] = format_hex_pretty_char((data[i] & 0x00F0) >> 4);
+    buffer[pos + 3] = format_hex_pretty_char(data[i] & 0x000F);
+    if (separator && i < length - 1) {
+      buffer[pos + 4] = separator;
+    }
+  }
+  buffer[length * stride - (separator ? 1 : 0)] = '\0';
+  return buffer;
+}
 
 // Shared implementation for uint8_t and string hex formatting
 static std::string format_hex_pretty_uint8(const uint8_t *data, size_t length, char separator, bool show_length) {
   if (data == nullptr || length == 0)
     return "";
   std::string ret;
-  uint8_t multiple = separator ? 3 : 2;  // 3 if separator is not \0, 2 otherwise
-  ret.resize(multiple * length - (separator ? 1 : 0));
-  for (size_t i = 0; i < length; i++) {
-    ret[multiple * i] = format_hex_pretty_char(data[i] >> 4);
-    ret[multiple * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
-    if (separator && i != length - 1)
-      ret[multiple * i + 2] = separator;
-  }
+  size_t hex_len = separator ? (length * 3 - 1) : (length * 2);
+  ret.resize(hex_len);
+  format_hex_pretty_to(&ret[0], hex_len + 1, data, length, separator);
   if (show_length && length > 4)
     return ret + " (" + std::to_string(length) + ")";
   return ret;
@@ -322,16 +409,9 @@ std::string format_hex_pretty(const uint16_t *data, size_t length, char separato
   if (data == nullptr || length == 0)
     return "";
   std::string ret;
-  uint8_t multiple = separator ? 5 : 4;  // 5 if separator is not \0, 4 otherwise
-  ret.resize(multiple * length - (separator ? 1 : 0));
-  for (size_t i = 0; i < length; i++) {
-    ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
-    ret[multiple * i + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
-    ret[multiple * i + 2] = format_hex_pretty_char((data[i] & 0x00F0) >> 4);
-    ret[multiple * i + 3] = format_hex_pretty_char(data[i] & 0x000F);
-    if (separator && i != length - 1)
-      ret[multiple * i + 4] = separator;
-  }
+  size_t hex_len = separator ? (length * 5 - 1) : (length * 4);
+  ret.resize(hex_len);
+  format_hex_pretty_to(&ret[0], hex_len + 1, data, length, separator);
   if (show_length && length > 4)
     return ret + " (" + std::to_string(length) + ")";
   return ret;
@@ -343,28 +423,44 @@ std::string format_hex_pretty(const std::string &data, char separator, bool show
   return format_hex_pretty_uint8(reinterpret_cast<const uint8_t *>(data.data()), data.length(), separator, show_length);
 }
 
+char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
+  if (buffer_size == 0) {
+    return buffer;
+  }
+  // Calculate max bytes we can format: each byte needs 8 chars
+  size_t max_bytes = (buffer_size - 1) / 8;
+  if (max_bytes == 0 || length == 0) {
+    buffer[0] = '\0';
+    return buffer;
+  }
+  size_t bytes_to_format = std::min(length, max_bytes);
+
+  for (size_t byte_idx = 0; byte_idx < bytes_to_format; byte_idx++) {
+    for (size_t bit_idx = 0; bit_idx < 8; bit_idx++) {
+      buffer[byte_idx * 8 + bit_idx] = ((data[byte_idx] >> (7 - bit_idx)) & 1) + '0';
+    }
+  }
+  buffer[bytes_to_format * 8] = '\0';
+  return buffer;
+}
+
 std::string format_bin(const uint8_t *data, size_t length) {
   std::string result;
   result.resize(length * 8);
-  for (size_t byte_idx = 0; byte_idx < length; byte_idx++) {
-    for (size_t bit_idx = 0; bit_idx < 8; bit_idx++) {
-      result[byte_idx * 8 + bit_idx] = ((data[byte_idx] >> (7 - bit_idx)) & 1) + '0';
-    }
-  }
-
+  format_bin_to(&result[0], length * 8 + 1, data, length);
   return result;
 }
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
-  if (on == nullptr && strcasecmp(str, "on") == 0)
+  if (on == nullptr && ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("on")) == 0)
     return PARSE_ON;
   if (on != nullptr && strcasecmp(str, on) == 0)
     return PARSE_ON;
-  if (off == nullptr && strcasecmp(str, "off") == 0)
+  if (off == nullptr && ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("off")) == 0)
     return PARSE_OFF;
   if (off != nullptr && strcasecmp(str, off) == 0)
     return PARSE_OFF;
-  if (strcasecmp(str, "toggle") == 0)
+  if (ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("toggle")) == 0)
     return PARSE_TOGGLE;
 
   return PARSE_NONE;
@@ -379,23 +475,33 @@ static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_de
 }
 
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  normalize_accuracy_decimals(value, accuracy_decimals);
-  char tmp[32];  // should be enough, but we should maybe improve this at some point.
-  snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
-  return std::string(tmp);
+  char buf[VALUE_ACCURACY_MAX_LEN];
+  value_accuracy_to_buf(buf, value, accuracy_decimals);
+  return std::string(buf);
 }
 
-std::string value_accuracy_with_uom_to_string(float value, int8_t accuracy_decimals, StringRef unit_of_measurement) {
+size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals) {
   normalize_accuracy_decimals(value, accuracy_decimals);
-  // Buffer sized for float (up to ~15 chars) + space + typical UOM (usually <20 chars like "μS/cm")
-  // snprintf truncates safely if exceeded, though ESPHome UOMs are typically short
-  char tmp[64];
+  // snprintf returns chars that would be written (excluding null), or negative on error
+  int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, value);
+  if (len < 0)
+    return 0;  // encoding error
+  // On truncation, snprintf returns would-be length; actual written is buf.size() - 1
+  return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
+}
+
+size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value,
+                                      int8_t accuracy_decimals, StringRef unit_of_measurement) {
   if (unit_of_measurement.empty()) {
-    snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
-  } else {
-    snprintf(tmp, sizeof(tmp), "%.*f %s", accuracy_decimals, value, unit_of_measurement.c_str());
+    return value_accuracy_to_buf(buf, value, accuracy_decimals);
   }
-  return std::string(tmp);
+  normalize_accuracy_decimals(value, accuracy_decimals);
+  // snprintf returns chars that would be written (excluding null), or negative on error
+  int len = snprintf(buf.data(), buf.size(), "%.*f %s", accuracy_decimals, value, unit_of_measurement.c_str());
+  if (len < 0)
+    return 0;  // encoding error
+  // On truncation, snprintf returns would-be length; actual written is buf.size() - 1
+  return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
 }
 
 int8_t step_to_accuracy_decimals(float step) {
@@ -416,19 +522,26 @@ static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                             "abcdefghijklmnopqrstuvwxyz"
                                             "0123456789+/";
 
-// Helper function to find the index of a base64 character in the lookup table.
+// Helper function to find the index of a base64/base64url character in the lookup table.
 // Returns the character's position (0-63) if found, or 0 if not found.
+// Supports both standard base64 (+/) and base64url (-_) alphabets.
 // NOTE: This returns 0 for both 'A' (valid base64 char at index 0) and invalid characters.
 // This is safe because is_base64() is ALWAYS checked before calling this function,
 // preventing invalid characters from ever reaching here. The base64_decode function
 // stops processing at the first invalid character due to the is_base64() check in its
 // while loop condition, making this edge case harmless in practice.
 static inline uint8_t base64_find_char(char c) {
+  // Handle base64url variants: '-' maps to '+' (index 62), '_' maps to '/' (index 63)
+  if (c == '-')
+    return 62;
+  if (c == '_')
+    return 63;
   const char *pos = strchr(BASE64_CHARS, c);
   return pos ? (pos - BASE64_CHARS) : 0;
 }
 
-static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
+// Check if character is valid base64 or base64url
+static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/') || (c == '-') || (c == '_')); }
 
 std::string base64_encode(const std::vector<uint8_t> &buf) { return base64_encode(buf.data(), buf.size()); }
 
@@ -473,10 +586,14 @@ std::string base64_encode(const uint8_t *buf, size_t buf_len) {
 }
 
 size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf_len) {
-  int in_len = encoded_string.size();
+  return base64_decode(reinterpret_cast<const uint8_t *>(encoded_string.data()), encoded_string.size(), buf, buf_len);
+}
+
+size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len) {
+  size_t in_len = encoded_len;
   int i = 0;
   int j = 0;
-  int in = 0;
+  size_t in = 0;
   size_t out = 0;
   uint8_t char_array_4[4], char_array_3[3];
   bool truncated = false;
@@ -484,8 +601,8 @@ size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf
   // SAFETY: The loop condition checks is_base64() before processing each character.
   // This ensures base64_find_char() is only called on valid base64 characters,
   // preventing the edge case where invalid chars would return 0 (same as 'A').
-  while (in_len-- && (encoded_string[in] != '=') && is_base64(encoded_string[in])) {
-    char_array_4[i++] = encoded_string[in];
+  while (in_len-- && (encoded_data[in] != '=') && is_base64(encoded_data[in])) {
+    char_array_4[i++] = encoded_data[in];
     in++;
     if (i == 4) {
       for (i = 0; i < 4; i++)
@@ -540,6 +657,46 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   size_t actual_len = base64_decode(encoded_string, ret.data(), max_len);
   ret.resize(actual_len);
   return ret;
+}
+
+/// Decode base64/base64url string directly into vector of little-endian int32 values
+/// @param base64 Base64 or base64url encoded string (both +/ and -_ accepted)
+/// @param out Output vector (cleared and filled with decoded int32 values)
+/// @return true if successful, false if decode failed or invalid size
+bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> &out) {
+  // Decode in chunks to minimize stack usage
+  constexpr size_t chunk_bytes = 48;  // 12 int32 values
+  constexpr size_t chunk_chars = 64;  // 48 * 4/3 = 64 chars
+  uint8_t chunk[chunk_bytes];
+
+  out.clear();
+
+  const uint8_t *input = reinterpret_cast<const uint8_t *>(base64.data());
+  size_t remaining = base64.size();
+  size_t pos = 0;
+
+  while (remaining > 0) {
+    size_t chars_to_decode = std::min(remaining, chunk_chars);
+    size_t decoded_len = base64_decode(input + pos, chars_to_decode, chunk, chunk_bytes);
+
+    if (decoded_len == 0)
+      return false;
+
+    // Parse little-endian int32 values
+    for (size_t i = 0; i + 3 < decoded_len; i += 4) {
+      int32_t timing = static_cast<int32_t>(encode_uint32(chunk[i + 3], chunk[i + 2], chunk[i + 1], chunk[i]));
+      out.push_back(timing);
+    }
+
+    // Check for incomplete int32 in last chunk
+    if (remaining <= chunk_chars && (decoded_len % 4) != 0)
+      return false;
+
+    pos += chars_to_decode;
+    remaining -= chars_to_decode;
+  }
+
+  return !out.empty();
 }
 
 // Colors

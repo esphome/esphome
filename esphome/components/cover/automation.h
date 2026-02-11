@@ -90,44 +90,53 @@ template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
   Cover *cover_;
 };
 
-template<typename... Ts> class CoverIsOpenCondition : public Condition<Ts...> {
+template<bool OPEN, typename... Ts> class CoverPositionCondition : public Condition<Ts...> {
  public:
-  CoverIsOpenCondition(Cover *cover) : cover_(cover) {}
-  bool check(const Ts &...x) override { return this->cover_->is_fully_open(); }
+  CoverPositionCondition(Cover *cover) : cover_(cover) {}
+
+  bool check(const Ts &...x) override { return this->cover_->position == (OPEN ? COVER_OPEN : COVER_CLOSED); }
 
  protected:
   Cover *cover_;
 };
 
-template<typename... Ts> class CoverIsClosedCondition : public Condition<Ts...> {
+template<typename... Ts> using CoverIsOpenCondition = CoverPositionCondition<true, Ts...>;
+template<typename... Ts> using CoverIsClosedCondition = CoverPositionCondition<false, Ts...>;
+
+template<bool OPEN> class CoverPositionTrigger : public Trigger<> {
  public:
-  CoverIsClosedCondition(Cover *cover) : cover_(cover) {}
-  bool check(const Ts &...x) override { return this->cover_->is_fully_closed(); }
+  CoverPositionTrigger(Cover *a_cover) {
+    a_cover->add_on_state_callback([this, a_cover]() {
+      if (a_cover->position != this->last_position_) {
+        this->last_position_ = a_cover->position;
+        if (a_cover->position == (OPEN ? COVER_OPEN : COVER_CLOSED))
+          this->trigger();
+      }
+    });
+  }
 
  protected:
-  Cover *cover_;
+  float last_position_{NAN};
 };
 
-class CoverOpenTrigger : public Trigger<> {
+using CoverOpenedTrigger = CoverPositionTrigger<true>;
+using CoverClosedTrigger = CoverPositionTrigger<false>;
+
+template<CoverOperation OP> class CoverTrigger : public Trigger<> {
  public:
-  CoverOpenTrigger(Cover *a_cover) {
+  CoverTrigger(Cover *a_cover) {
     a_cover->add_on_state_callback([this, a_cover]() {
-      if (a_cover->is_fully_open()) {
-        this->trigger();
+      auto current_op = a_cover->current_operation;
+      if (current_op == OP) {
+        if (!this->last_operation_.has_value() || this->last_operation_.value() != OP) {
+          this->trigger();
+        }
       }
+      this->last_operation_ = current_op;
     });
   }
-};
 
-class CoverClosedTrigger : public Trigger<> {
- public:
-  CoverClosedTrigger(Cover *a_cover) {
-    a_cover->add_on_state_callback([this, a_cover]() {
-      if (a_cover->is_fully_closed()) {
-        this->trigger();
-      }
-    });
-  }
+ protected:
+  optional<CoverOperation> last_operation_{};
 };
-
 }  // namespace esphome::cover

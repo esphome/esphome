@@ -153,6 +153,19 @@ def generate_comparable_preset(config, name):
     return comparable_preset
 
 
+def validate_heat_cool_mode(value) -> list:
+    """Validate heat_cool_mode - accepts either True or an automation."""
+    if value is True:
+        # Convert True to empty automation list
+        return []
+    if value is False:
+        raise cv.Invalid(
+            "heat_cool_mode cannot be 'false'. Specify 'true' to enable the mode or provide an automation"
+        )
+    # Otherwise validate as automation
+    return automation.validate_automation(single=True)(value)
+
+
 def validate_thermostat(config):
     # verify corresponding action(s) exist(s) for any defined climate mode or action
     requirements = {
@@ -554,9 +567,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FAN_ONLY_MODE): automation.validate_automation(
                 single=True
             ),
-            cv.Optional(CONF_HEAT_COOL_MODE): automation.validate_automation(
-                single=True
-            ),
+            cv.Optional(CONF_HEAT_COOL_MODE): validate_heat_cool_mode,
             cv.Optional(CONF_HEAT_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_OFF_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_FAN_MODE_ON_ACTION): automation.validate_automation(
@@ -828,9 +839,11 @@ async def to_code(config):
         )
         cg.add(var.set_supports_heat(True))
     if CONF_HEAT_COOL_MODE in config:
-        await automation.build_automation(
-            var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
-        )
+        # Build automation only if user provided actions (not just `true`)
+        if config[CONF_HEAT_COOL_MODE]:
+            await automation.build_automation(
+                var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
+            )
         cg.add(var.set_supports_heat_cool(True))
     if CONF_OFF_MODE in config:
         await automation.build_automation(

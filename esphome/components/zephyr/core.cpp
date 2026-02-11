@@ -10,8 +10,10 @@
 
 namespace esphome {
 
+#ifdef CONFIG_WATCHDOG
 static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
+#endif
 
 void yield() { ::k_yield(); }
 uint32_t millis() { return k_ticks_to_ms_floor32(k_uptime_ticks()); }
@@ -20,10 +22,16 @@ void delayMicroseconds(uint32_t us) { ::k_usleep(us); }
 void delay(uint32_t ms) { ::k_msleep(ms); }
 
 void arch_init() {
+#ifdef CONFIG_WATCHDOG
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};
     wdt_config.flags = WDT_FLAG_RESET_SOC;
+#ifdef USE_ZIGBEE
+    // zboss thread use a lot of cpu cycles during start
+    wdt_config.window.max = 10000;
+#else
     wdt_config.window.max = 2000;
+#endif
     wdt_channel_id = wdt_install_timeout(WDT, &wdt_config);
     if (wdt_channel_id >= 0) {
       uint8_t options = 0;
@@ -36,12 +44,15 @@ void arch_init() {
       wdt_setup(WDT, options);
     }
   }
+#endif
 }
 
 void arch_feed_wdt() {
+#ifdef CONFIG_WATCHDOG
   if (wdt_channel_id >= 0) {
     wdt_feed(WDT, wdt_channel_id);
   }
+#endif
 }
 
 void arch_restart() { sys_reboot(SYS_REBOOT_COLD); }
@@ -72,6 +83,7 @@ bool random_bytes(uint8_t *data, size_t len) {
   return true;
 }
 
+#ifdef USE_NRF52
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
   mac[0] = ((NRF_FICR->DEVICEADDR[1] & 0xFFFF) >> 8) | 0xC0;
   mac[1] = NRF_FICR->DEVICEADDR[1] & 0xFFFF;
@@ -80,7 +92,7 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   mac[4] = NRF_FICR->DEVICEADDR[0] >> 8;
   mac[5] = NRF_FICR->DEVICEADDR[0];
 }
-
+#endif
 }  // namespace esphome
 
 void setup();

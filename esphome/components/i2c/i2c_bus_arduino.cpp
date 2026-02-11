@@ -12,6 +12,9 @@ namespace i2c {
 
 static const char *const TAG = "i2c.arduino";
 
+// Maximum bytes to log in hex format (truncates larger transfers)
+static constexpr size_t I2C_MAX_LOG_BYTES = 32;
+
 void ArduinoI2CBus::setup() {
   recover_();
 
@@ -107,7 +110,10 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
     return ERROR_NOT_INITIALIZED;
   }
 
-  ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty(write_buffer, write_count).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(I2C_MAX_LOG_BYTES)];
+  ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty_to(hex_buf, write_buffer, write_count));
+#endif
 
   uint8_t status = 0;
   if (write_count != 0 || read_count == 0) {
@@ -128,25 +134,23 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
     for (size_t j = 0; j != read_count; j++)
       read_buffer[j] = wire_->read();
   }
-  switch (status) {
-    case 0:
-      return ERROR_OK;
-    case 1:
-      // transmit buffer not large enough
-      ESP_LOGVV(TAG, "TX failed: buffer not large enough");
-      return ERROR_UNKNOWN;
-    case 2:
-    case 3:
-      ESP_LOGVV(TAG, "TX failed: not acknowledged: %d", status);
-      return ERROR_NOT_ACKNOWLEDGED;
-    case 5:
-      ESP_LOGVV(TAG, "TX failed: timeout");
-      return ERROR_UNKNOWN;
-    case 4:
-    default:
-      ESP_LOGVV(TAG, "TX failed: unknown error %u", status);
-      return ERROR_UNKNOWN;
+  // Avoid switch to prevent compiler-generated lookup table in RAM on ESP8266
+  if (status == 0)
+    return ERROR_OK;
+  if (status == 1) {
+    ESP_LOGVV(TAG, "TX failed: buffer not large enough");
+    return ERROR_UNKNOWN;
   }
+  if (status == 2 || status == 3) {
+    ESP_LOGVV(TAG, "TX failed: not acknowledged: %u", status);
+    return ERROR_NOT_ACKNOWLEDGED;
+  }
+  if (status == 5) {
+    ESP_LOGVV(TAG, "TX failed: timeout");
+    return ERROR_UNKNOWN;
+  }
+  ESP_LOGVV(TAG, "TX failed: unknown error %u", status);
+  return ERROR_UNKNOWN;
 }
 
 /// Perform I2C bus recovery, see:
