@@ -41,6 +41,11 @@ packages:
                 id: ["Invalid ID"]
             - obj:
                 id: {"invalid": "id"}
+  - external_components:
+      - id: bh1750_dev
+        source: github://esphome/esphome@dev
+        refresh: 1d
+        components: [bh1750]
 
 some_component:
   - id: !extend ${A}
@@ -68,3 +73,7 @@ lvgl:
                   id: !extend object4
                   x: 14
                   width: 15
+
+external_components:
+  - id: !extend bh1750_dev
+    refresh: 0s

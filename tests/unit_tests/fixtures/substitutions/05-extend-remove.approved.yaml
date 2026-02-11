@@ -37,3 +37,8 @@ lvgl:
         - obj:
             id:
               invalid: id
+external_components:
+  - id: bh1750_dev
+    source: github://esphome/esphome@dev
+    refresh: 0s
+    components: [bh1750]
