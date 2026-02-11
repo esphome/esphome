@@ -68,7 +68,10 @@ void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
   }
 
   if (sig == ZB_COMMON_SIGNAL_CAN_SLEEP) {
-    this->sleep_time_ += (millis() - before) / 1000;
+    this->sleep_remainder_ += millis() - before;
+    uint32_t seconds = this->sleep_remainder_ / 1000;
+    this->sleep_remainder_ -= seconds * 1000;
+    this->sleep_time_ += seconds;
   }
 
   switch (sig) {

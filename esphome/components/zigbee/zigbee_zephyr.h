@@ -93,6 +93,7 @@ class ZigbeeComponent : public Component {
   Trigger<> join_trigger_;
   bool force_report_{false};
   uint32_t sleep_time_{};
+  uint32_t sleep_remainder_{};
 };
 
 class ZigbeeEntity {
