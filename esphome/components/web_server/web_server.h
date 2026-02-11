@@ -513,8 +513,8 @@ class WebServer : public Controller,
   template<typename T, typename Ret>
   void parse_light_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(float),
                           float scale = 1.0f) {
-    if (request->hasParam(param_name)) {
-      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
+    if (request->hasArg(param_name)) {
+      auto value = parse_number<float>(request->arg(param_name).c_str());
       if (value.has_value()) {
         (call.*setter)(*value / scale);
       }
@@ -525,8 +525,8 @@ class WebServer : public Controller,
   template<typename T, typename Ret>
   void parse_light_param_uint_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
                                Ret (T::*setter)(uint32_t), uint32_t scale = 1) {
-    if (request->hasParam(param_name)) {
-      auto value = parse_number<uint32_t>(request->getParam(param_name)->value().c_str());
+    if (request->hasArg(param_name)) {
+      auto value = parse_number<uint32_t>(request->arg(param_name).c_str());
       if (value.has_value()) {
         (call.*setter)(*value * scale);
       }
@@ -537,8 +537,8 @@ class WebServer : public Controller,
   // Generic helper to parse and apply a float parameter
   template<typename T, typename Ret>
   void parse_float_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(float)) {
-    if (request->hasParam(param_name)) {
-      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
+    if (request->hasArg(param_name)) {
+      auto value = parse_number<float>(request->arg(param_name).c_str());
       if (value.has_value()) {
         (call.*setter)(*value);
       }
@@ -548,8 +548,8 @@ class WebServer : public Controller,
   // Generic helper to parse and apply an int parameter
   template<typename T, typename Ret>
   void parse_int_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(int)) {
-    if (request->hasParam(param_name)) {
-      auto value = parse_number<int>(request->getParam(param_name)->value().c_str());
+    if (request->hasArg(param_name)) {
+      auto value = parse_number<int>(request->arg(param_name).c_str());
       if (value.has_value()) {
         (call.*setter)(*value);
       }
@@ -560,9 +560,9 @@ class WebServer : public Controller,
   template<typename T, typename Ret>
   void parse_string_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
                            Ret (T::*setter)(const std::string &)) {
-    if (request->hasParam(param_name)) {
-      // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
-      std::string value = request->getParam(param_name)->value().c_str();  // NOLINT(readability-redundant-string-cstr)
+    if (request->hasArg(param_name)) {
+      // .c_str() is required for Arduino framework where arg() returns Arduino String instead of std::string
+      std::string value = request->arg(param_name).c_str();  // NOLINT(readability-redundant-string-cstr)
       (call.*setter)(value);
     }
   }
@@ -573,8 +573,8 @@ class WebServer : public Controller,
   // Invalid values are ignored (setter not called)
   template<typename T, typename Ret>
   void parse_bool_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(bool)) {
-    if (request->hasParam(param_name)) {
-      auto param_value = request->getParam(param_name)->value();
+    if (request->hasArg(param_name)) {
+      auto param_value = request->arg(param_name);
       // First check on/off (default), then true/false (custom)
       auto val = parse_on_off(param_value.c_str());
       if (val == PARSE_NONE) {

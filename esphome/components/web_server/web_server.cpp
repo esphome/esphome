@@ -583,8 +583,7 @@ static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const c
 
 // Helper to get request detail parameter
 static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
-  auto *param = request->getParam(ESPHOME_F("detail"));
-  return (param && param->value() == "all") ? DETAIL_ALL : DETAIL_STATE;
+  return request->arg(ESPHOME_F("detail")) == "all" ? DETAIL_ALL : DETAIL_STATE;
 }
 
 #ifdef USE_SENSOR
@@ -863,8 +862,8 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
 
       parse_int_param_(request, ESPHOME_F("speed_level"), call, &decltype(call)::set_speed);
 
-      if (request->hasParam(ESPHOME_F("oscillation"))) {
-        auto speed = request->getParam(ESPHOME_F("oscillation"))->value();
+      if (request->hasArg(ESPHOME_F("oscillation"))) {
+        auto speed = request->arg(ESPHOME_F("oscillation"));
         auto val = parse_on_off(speed.c_str());
         switch (val) {
           case PARSE_ON:
@@ -1040,8 +1039,8 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
     }
 
     auto traits = obj->get_traits();
-    if ((request->hasParam(ESPHOME_F("position")) && !traits.get_supports_position()) ||
-        (request->hasParam(ESPHOME_F("tilt")) && !traits.get_supports_tilt())) {
+    if ((request->hasArg(ESPHOME_F("position")) && !traits.get_supports_position()) ||
+        (request->hasArg(ESPHOME_F("tilt")) && !traits.get_supports_tilt())) {
       request->send(409);
       return;
     }
@@ -1174,7 +1173,7 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
 
     auto call = obj->make_call();
 
-    if (!request->hasParam(ESPHOME_F("value"))) {
+    if (!request->hasArg(ESPHOME_F("value"))) {
       request->send(409);
       return;
     }
@@ -1234,7 +1233,7 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
 
     auto call = obj->make_call();
 
-    if (!request->hasParam(ESPHOME_F("value"))) {
+    if (!request->hasArg(ESPHOME_F("value"))) {
       request->send(409);
       return;
     }
@@ -1293,7 +1292,7 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
 
     auto call = obj->make_call();
 
-    if (!request->hasParam(ESPHOME_F("value"))) {
+    if (!request->hasArg(ESPHOME_F("value"))) {
       request->send(409);
       return;
     }
@@ -1721,7 +1720,7 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
     }
 
     auto traits = obj->get_traits();
-    if (request->hasParam(ESPHOME_F("position")) && !traits.get_supports_position()) {
+    if (request->hasArg(ESPHOME_F("position")) && !traits.get_supports_position()) {
       request->send(409);
       return;
     }
@@ -1979,16 +1978,16 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
     auto call = obj->make_call();
 
     // Parse carrier frequency (optional)
-    if (request->hasParam(ESPHOME_F("carrier_frequency"))) {
-      auto value = parse_number<uint32_t>(request->getParam(ESPHOME_F("carrier_frequency"))->value().c_str());
+    if (request->hasArg(ESPHOME_F("carrier_frequency"))) {
+      auto value = parse_number<uint32_t>(request->arg(ESPHOME_F("carrier_frequency")).c_str());
       if (value.has_value()) {
         call.set_carrier_frequency(*value);
       }
     }
 
     // Parse repeat count (optional, defaults to 1)
-    if (request->hasParam(ESPHOME_F("repeat_count"))) {
-      auto value = parse_number<uint32_t>(request->getParam(ESPHOME_F("repeat_count"))->value().c_str());
+    if (request->hasArg(ESPHOME_F("repeat_count"))) {
+      auto value = parse_number<uint32_t>(request->arg(ESPHOME_F("repeat_count")).c_str());
       if (value.has_value()) {
         call.set_repeat_count(*value);
       }
@@ -1996,14 +1995,13 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
 
     // Parse base64url-encoded raw timings (required)
     // Base64url is URL-safe: uses A-Za-z0-9-_ (no special characters needing escaping)
-    if (!request->hasParam(ESPHOME_F("data"))) {
+    if (!request->hasArg(ESPHOME_F("data"))) {
       request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Missing 'data' parameter"));
       return;
     }
 
-    // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
-    std::string encoded =
-        request->getParam(ESPHOME_F("data"))->value().c_str();  // NOLINT(readability-redundant-string-cstr)
+    // .c_str() is required for Arduino framework where arg() returns Arduino String instead of std::string
+    std::string encoded = request->arg(ESPHOME_F("data")).c_str();  // NOLINT(readability-redundant-string-cstr)
 
     // Validate base64url is not empty
     if (encoded.empty()) {
