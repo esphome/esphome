@@ -59,10 +59,10 @@ namespace bl0942 {
 //
 // Which makes BL0952_EREF = BL0942_PREF * 3600000 / 419430.4
 
-static const float BL0942_PREF = 623.3937992;  // calculated for (390k x 5 / 510R) & 1mR
+static const float BL0942_PREF = 623.0270705;  // calculated using UREF and IREF
 static const float BL0942_UREF = 15883.34116;  // calculated for (390k x 5 / 510R) voltage divider
 static const float BL0942_IREF = 251065.6814;  // calculated for 1mR shunt
-static const float BL0942_EREF = 5350.631898;  // calculated for (390k x 5 / 510R) & 1mR
+static const float BL0942_EREF = 5347.484240;  // calculated using UREF and IREF
 
 struct DataPacket {
   uint8_t frame_header;
