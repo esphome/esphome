@@ -232,9 +232,12 @@ RetryResult SendspinHub::send_hello_message_(uint8_t remaining_attempts, Sendspi
   supported_formats.push_back({SendspinCodecFormat::PCM, 2, 48000, 16});
   supported_formats.push_back({SendspinCodecFormat::PCM, 1, 48000, 16});
 
+  // Advertise 80% of the overall buffer capacity. This is to account for the ring buffer now stores chunk metadata. It
+  // also better handles cases when rapidly stopping then starting. The media source may not clear enough buffers when
+  // restarting, and so the hub can overwhelm it when the next stream starts.
   PlayerSupportObject player_support = {
       .supported_formats = supported_formats,
-      .buffer_capacity = this->buffer_size_,
+      .buffer_capacity = this->buffer_size_ * 4 / 5,
       .supported_commands = {SendspinPlayerCommand::VOLUME, SendspinPlayerCommand::MUTE},
   };
   msg.player_v1_support = player_support;
@@ -636,6 +639,10 @@ bool SendspinHub::process_json_message_(SendspinConnection *conn, const std::str
           break;
         }
 
+        // Start player immediately so the task can drain the ring buffer, if necessary. Also reduces overall latency to
+        // first sound.
+        this->controls_callbacks_.call(SendspinControls::START);
+
         const ServerPlayerStreamObject &player_obj = stream_msg.player.value();
         // Store the initial stream parameters
         this->current_stream_params_ = player_obj;
@@ -655,20 +662,20 @@ bool SendspinHub::process_json_message_(SendspinConnection *conn, const std::str
                                                                                         : CHUNK_TYPE_OPUS_DUMMY_HEADER;
 
           header_sent = this->send_audio_chunk_(reinterpret_cast<const uint8_t *>(&header), sizeof(DummyHeader), 0,
-                                                chunk_type, 0);
+                                                chunk_type, pdMS_TO_TICKS(100));
         } else if (player_obj.codec.value() == SendspinCodecFormat::FLAC) {
           if (!player_obj.codec_header.has_value()) {
             ESP_LOGE(TAG, "FLAC codec header missing");
             break;
           }
           std::vector<uint8_t> flac_header = base64_decode(player_obj.codec_header.value());
-          header_sent = this->send_audio_chunk_(flac_header.data(), flac_header.size(), 0, CHUNK_TYPE_FLAC_HEADER, 0);
+          header_sent = this->send_audio_chunk_(flac_header.data(), flac_header.size(), 0, CHUNK_TYPE_FLAC_HEADER,
+                                                pdMS_TO_TICKS(100));
         }
 
         if (!header_sent) {
           ESP_LOGE(TAG, "Failed to send codec header");
-        } else {
-          this->controls_callbacks_.call(SendspinControls::START);
+          this->controls_callbacks_.call(SendspinControls::STOP);
         }
       }
 #else
