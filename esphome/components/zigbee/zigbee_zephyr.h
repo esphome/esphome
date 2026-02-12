@@ -80,7 +80,7 @@ class ZigbeeComponent : public Component {
   Trigger<> *get_join_trigger() { return &this->join_trigger_; };
   void force_report();
   void loop() override;
-  void set_sleepy() { this->sleepy_ = true; }
+  void set_sleepy(bool sleepy) { this->sleepy_ = sleepy; }
 
  protected:
   static void zcl_device_cb(zb_bufid_t bufid);

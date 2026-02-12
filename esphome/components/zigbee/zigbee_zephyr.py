@@ -195,8 +195,7 @@ async def zephyr_to_code(config: ConfigType) -> None:
     await _attr_to_code(config)
     CORE.add_job(_ctx_to_code, config)
 
-    if config[CONF_SLEEPY]:
-        cg.add(var.set_sleepy())
+    cg.add(var.set_sleepy(config[CONF_SLEEPY]))
 
 
 async def _attr_to_code(config: ConfigType) -> None:
