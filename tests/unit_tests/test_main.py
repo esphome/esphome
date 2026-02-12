@@ -32,6 +32,7 @@ from esphome.__main__ import (
     has_mqtt_ip_lookup,
     has_mqtt_logging,
     has_non_ip_address,
+    has_ota,
     has_resolvable_address,
     mqtt_get_ip,
     run_esphome,
@@ -332,7 +333,9 @@ def test_choose_upload_log_host_with_mixed_hostnames_and_ips() -> None:
 
 def test_choose_upload_log_host_with_ota_list() -> None:
     """Test with OTA as the only item in the list."""
-    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
 
     result = choose_upload_log_host(
         default=["OTA"],
@@ -345,7 +348,7 @@ def test_choose_upload_log_host_with_ota_list() -> None:
 @pytest.mark.usefixtures("mock_has_mqtt_logging")
 def test_choose_upload_log_host_with_ota_list_mqtt_fallback() -> None:
     """Test with OTA list falling back to MQTT when no address."""
-    setup_core(config={CONF_OTA: {}, "mqtt": {}})
+    setup_core(config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}], "mqtt": {}})
 
     result = choose_upload_log_host(
         default=["OTA"],
@@ -408,7 +411,9 @@ def test_choose_upload_log_host_with_serial_device_with_ports(
 
 def test_choose_upload_log_host_with_ota_device_with_ota_config() -> None:
     """Test OTA device when OTA is configured."""
-    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
 
     result = choose_upload_log_host(
         default="OTA",
@@ -475,7 +480,9 @@ def test_choose_upload_log_host_with_ota_device_no_fallback() -> None:
 @pytest.mark.usefixtures("mock_choose_prompt")
 def test_choose_upload_log_host_multiple_devices() -> None:
     """Test with multiple devices including special identifiers."""
-    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
 
     mock_ports = [MockSerialPort("/dev/ttyUSB0", "USB Serial")]
 
@@ -514,7 +521,9 @@ def test_choose_upload_log_host_no_defaults_with_serial_ports(
 @pytest.mark.usefixtures("mock_no_serial_ports")
 def test_choose_upload_log_host_no_defaults_with_ota() -> None:
     """Test interactive mode with OTA option."""
-    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
 
     with patch(
         "esphome.__main__.choose_prompt", return_value="192.168.1.100"
@@ -575,7 +584,11 @@ def test_choose_upload_log_host_no_defaults_with_all_options(
 ) -> None:
     """Test interactive mode with all options available."""
     setup_core(
-        config={CONF_OTA: {}, CONF_API: {}, CONF_MQTT: {CONF_BROKER: "mqtt.local"}},
+        config={
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+            CONF_API: {},
+            CONF_MQTT: {CONF_BROKER: "mqtt.local"},
+        },
         address="192.168.1.100",
     )
 
@@ -604,7 +617,11 @@ def test_choose_upload_log_host_no_defaults_with_all_options_logging(
 ) -> None:
     """Test interactive mode with all options available."""
     setup_core(
-        config={CONF_OTA: {}, CONF_API: {}, CONF_MQTT: {CONF_BROKER: "mqtt.local"}},
+        config={
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+            CONF_API: {},
+            CONF_MQTT: {CONF_BROKER: "mqtt.local"},
+        },
         address="192.168.1.100",
     )
 
@@ -632,7 +649,9 @@ def test_choose_upload_log_host_no_defaults_with_all_options_logging(
 @pytest.mark.usefixtures("mock_no_serial_ports")
 def test_choose_upload_log_host_check_default_matches() -> None:
     """Test when check_default matches an available option."""
-    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
 
     result = choose_upload_log_host(
         default=None,
@@ -704,7 +723,10 @@ def test_choose_upload_log_host_mixed_resolved_unresolved() -> None:
 
 def test_choose_upload_log_host_ota_both_conditions() -> None:
     """Test OTA device when both OTA and API are configured and enabled."""
-    setup_core(config={CONF_OTA: {}, CONF_API: {}}, address="192.168.1.100")
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}], CONF_API: {}},
+        address="192.168.1.100",
+    )
 
     result = choose_upload_log_host(
         default="OTA",
@@ -719,7 +741,7 @@ def test_choose_upload_log_host_ota_ip_all_options() -> None:
     """Test OTA device when both static IP, OTA, API and MQTT are configured and enabled but MDNS not."""
     setup_core(
         config={
-            CONF_OTA: {},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
             CONF_API: {},
             CONF_MQTT: {
                 CONF_BROKER: "mqtt.local",
@@ -744,7 +766,7 @@ def test_choose_upload_log_host_ota_local_all_options() -> None:
     """Test OTA device when both static IP, OTA, API and MQTT are configured and enabled but MDNS not."""
     setup_core(
         config={
-            CONF_OTA: {},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
             CONF_API: {},
             CONF_MQTT: {
                 CONF_BROKER: "mqtt.local",
@@ -769,7 +791,7 @@ def test_choose_upload_log_host_ota_ip_all_options_logging() -> None:
     """Test OTA device when both static IP, OTA, API and MQTT are configured and enabled but MDNS not."""
     setup_core(
         config={
-            CONF_OTA: {},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
             CONF_API: {},
             CONF_MQTT: {
                 CONF_BROKER: "mqtt.local",
@@ -794,7 +816,7 @@ def test_choose_upload_log_host_ota_local_all_options_logging() -> None:
     """Test OTA device when both static IP, OTA, API and MQTT are configured and enabled but MDNS not."""
     setup_core(
         config={
-            CONF_OTA: {},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
             CONF_API: {},
             CONF_MQTT: {
                 CONF_BROKER: "mqtt.local",
@@ -817,7 +839,7 @@ def test_choose_upload_log_host_ota_local_all_options_logging() -> None:
 @pytest.mark.usefixtures("mock_no_mqtt_logging")
 def test_choose_upload_log_host_no_address_with_ota_config() -> None:
     """Test OTA device when OTA is configured but no address is set."""
-    setup_core(config={CONF_OTA: {}})
+    setup_core(config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
 
     with pytest.raises(
         EsphomeError, match="All specified devices .* could not be resolved"
@@ -1532,8 +1554,41 @@ def test_has_mqtt() -> None:
     assert has_mqtt() is False
 
     # Test with other components but no MQTT
-    setup_core(config={CONF_API: {}, CONF_OTA: {}})
+    setup_core(config={CONF_API: {}, CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
     assert has_mqtt() is False
+
+
+def test_has_ota() -> None:
+    """Test has_ota function.
+
+    The has_ota function should only return True when OTA is configured
+    with platform: esphome, not when only platform: http_request is configured.
+    This is because CLI OTA upload only works with the esphome platform.
+    """
+    # Test with OTA esphome platform configured
+    setup_core(config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    assert has_ota() is True
+
+    # Test with OTA http_request platform only (should return False)
+    # This is the bug scenario from issue #13783
+    setup_core(config={CONF_OTA: [{CONF_PLATFORM: "http_request"}]})
+    assert has_ota() is False
+
+    # Test without OTA configured
+    setup_core(config={})
+    assert has_ota() is False
+
+    # Test with multiple OTA platforms including esphome
+    setup_core(
+        config={
+            CONF_OTA: [{CONF_PLATFORM: "http_request"}, {CONF_PLATFORM: CONF_ESPHOME}]
+        }
+    )
+    assert has_ota() is True
+
+    # Test with empty OTA list
+    setup_core(config={CONF_OTA: []})
+    assert has_ota() is False
 
 
 def test_get_port_type() -> None:

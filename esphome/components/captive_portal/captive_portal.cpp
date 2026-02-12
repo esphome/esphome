@@ -96,10 +96,16 @@ void CaptivePortal::start() {
 }
 
 void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
-  if (req->url() == ESPHOME_F("/config.json")) {
+#ifdef USE_ESP32
+  char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  StringRef url = req->url_to(url_buf);
+#else
+  const auto &url = req->url();
+#endif
+  if (url == ESPHOME_F("/config.json")) {
     this->handle_config(req);
     return;
-  } else if (req->url() == ESPHOME_F("/wifisave")) {
+  } else if (url == ESPHOME_F("/wifisave")) {
     this->handle_wifisave(req);
     return;
   }

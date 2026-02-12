@@ -2,6 +2,8 @@
 
 #include <cstdarg>
 #include <map>
+#include <span>
+#include <type_traits>
 #if defined(USE_ESP32) || defined(USE_HOST)
 #include <pthread.h>
 #endif
@@ -11,15 +13,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-#ifdef USE_HOST
+#include "log_buffer.h"
 #include "task_log_buffer_host.h"
-#elif defined(USE_ESP32)
 #include "task_log_buffer_esp32.h"
-#elif defined(USE_LIBRETINY)
 #include "task_log_buffer_libretiny.h"
-#endif
-#endif
+#include "task_log_buffer_zephyr.h"
 
 #ifdef USE_ARDUINO
 #if defined(USE_ESP8266)
@@ -95,33 +93,9 @@ struct CStrCompare {
 };
 #endif
 
-// ANSI color code last digit (30-38 range, store only last digit to save RAM)
-static constexpr char LOG_LEVEL_COLOR_DIGIT[] = {
-    '\0',  // NONE
-    '1',   // ERROR (31 = red)
-    '3',   // WARNING (33 = yellow)
-    '2',   // INFO (32 = green)
-    '5',   // CONFIG (35 = magenta)
-    '6',   // DEBUG (36 = cyan)
-    '7',   // VERBOSE (37 = gray)
-    '8',   // VERY_VERBOSE (38 = white)
-};
-
-static constexpr char LOG_LEVEL_LETTER_CHARS[] = {
-    '\0',  // NONE
-    'E',   // ERROR
-    'W',   // WARNING
-    'I',   // INFO
-    'C',   // CONFIG
-    'D',   // DEBUG
-    'V',   // VERBOSE (VERY_VERBOSE uses two 'V's)
-};
-
-// Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
-static constexpr uint16_t MAX_HEADER_SIZE = 128;
-
-// "0x" + 2 hex digits per byte + '\0'
-static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
+// Stack buffer size for retrieving thread/task names from the OS
+// macOS allows up to 64 bytes, Linux up to 16
+static constexpr size_t THREAD_NAME_BUF_SIZE = 64;
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 /** Enum for logging UART selection
@@ -248,125 +222,88 @@ class Logger : public Component {
     bool &flag_;
   };
 
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   // Handles non-main thread logging only (~0.1% of calls)
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  // ESP32/LibreTiny: Pass task handle to avoid calling xTaskGetCurrentTaskHandle() twice
+  // thread_name is resolved by the caller from the task handle, avoiding redundant lookups
   void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
-                                    TaskHandle_t current_task);
-#else  // USE_HOST
-  // Host: No task handle parameter needed (not used in send_message_thread_safe)
-  void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args);
+                                    const char *thread_name);
 #endif
+#if defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC)
+  void cdc_loop_();
 #endif
   void process_messages_();
-  void write_msg_(const char *msg, size_t len);
+  void write_msg_(const char *msg, uint16_t len);
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
-  // It's the caller's responsibility to initialize buffer_at (typically to 0)
+  // thread_name: name of the calling thread/task, or nullptr for main task (callers already know which task they're on)
   inline void HOT format_log_to_buffer_with_terminator_(uint8_t level, const char *tag, int line, const char *format,
-                                                        va_list args, char *buffer, uint16_t *buffer_at,
-                                                        uint16_t buffer_size) {
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_HOST)
-    this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(), buffer, buffer_at, buffer_size);
-#elif defined(USE_ZEPHYR)
-    char buff[MAX_POINTER_REPRESENTATION];
-    this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(buff), buffer, buffer_at, buffer_size);
-#else
-    this->write_header_to_buffer_(level, tag, line, nullptr, buffer, buffer_at, buffer_size);
+                                                        va_list args, LogBuffer &buf, const char *thread_name) {
+    buf.write_header(level, tag, line, thread_name);
+    buf.format_body(format, args);
+  }
+
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  // Format a log message with flash string format and write it to a buffer with header, footer, and null terminator
+  // ESP8266-only (single-task), thread_name is always nullptr
+  inline void HOT format_log_to_buffer_with_terminator_P_(uint8_t level, const char *tag, int line,
+                                                          const __FlashStringHelper *format, va_list args,
+                                                          LogBuffer &buf) {
+    buf.write_header(level, tag, line, nullptr);
+    buf.format_body_P(reinterpret_cast<PGM_P>(format), args);
+  }
 #endif
-    this->format_body_to_buffer_(buffer, buffer_at, buffer_size, format, args);
-    this->write_footer_to_buffer_(buffer, buffer_at, buffer_size);
 
-    // Always ensure the buffer has a null terminator, even if we need to
-    // overwrite the last character of the actual content
-    if (*buffer_at >= buffer_size) {
-      buffer[buffer_size - 1] = '\0';  // Truncate and ensure null termination
-    } else {
-      buffer[*buffer_at] = '\0';  // Normal case, append null terminator
-    }
+  // Helper to notify log listeners
+  inline void HOT notify_listeners_(uint8_t level, const char *tag, const LogBuffer &buf) {
+#ifdef USE_LOG_LISTENERS
+    for (auto *listener : this->log_listeners_)
+      listener->on_log(level, tag, buf.data, buf.pos);
+#endif
   }
 
-  // Helper to add newline to buffer before writing to console
-  // Modifies buffer_at to include the newline
-  inline void HOT add_newline_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
-    // Add newline - don't need to maintain null termination
-    // write_msg_ receives explicit length, so we can safely overwrite the null terminator
-    // This is safe because:
-    // 1. Callbacks already received the message (before we add newline)
-    // 2. write_msg_ receives the length explicitly (doesn't need null terminator)
-    if (*buffer_at < buffer_size) {
-      buffer[(*buffer_at)++] = '\n';
-    } else if (buffer_size > 0) {
-      // Buffer was full - replace last char with newline to ensure it's visible
-      buffer[buffer_size - 1] = '\n';
-      *buffer_at = buffer_size;
-    }
+  // Helper to write log buffer to console (replaces null terminator with newline and writes)
+  inline void HOT write_to_console_(LogBuffer &buf) {
+    buf.terminate_with_newline();
+    this->write_msg_(buf.data, buf.pos);
   }
 
-  // Helper to write tx_buffer_ to console if logging is enabled
-  // INTERNAL USE ONLY - offset > 0 requires length parameter to be non-null
-  inline void HOT write_tx_buffer_to_console_(uint16_t offset = 0, uint16_t *length = nullptr) {
-    if (this->baud_rate_ > 0) {
-      uint16_t *len_ptr = length ? length : &this->tx_buffer_at_;
-      this->add_newline_to_buffer_(this->tx_buffer_ + offset, len_ptr, this->tx_buffer_size_ - offset);
-      this->write_msg_(this->tx_buffer_ + offset, *len_ptr);
-    }
+  // Helper to write log buffer to console if logging is enabled
+  inline void HOT write_log_buffer_to_console_(LogBuffer &buf) {
+    if (this->baud_rate_ > 0)
+      this->write_to_console_(buf);
   }
 
   // Helper to format and send a log message to both console and listeners
-  inline void HOT log_message_to_buffer_and_send_(uint8_t level, const char *tag, int line, const char *format,
-                                                  va_list args) {
-    // Format to tx_buffer and prepare for output
-    this->tx_buffer_at_ = 0;  // Initialize buffer position
-    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, this->tx_buffer_, &this->tx_buffer_at_,
-                                                this->tx_buffer_size_);
-
-    // Listeners get message WITHOUT newline (for API/MQTT/syslog)
-#ifdef USE_LOG_LISTENERS
-    for (auto *listener : this->log_listeners_)
-      listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
+  // Template handles both const char* (RAM) and __FlashStringHelper* (flash) format strings
+  // thread_name: name of the calling thread/task, or nullptr for main task
+  template<typename FormatType>
+  inline void HOT log_message_to_buffer_and_send_(bool &recursion_guard, uint8_t level, const char *tag, int line,
+                                                  FormatType format, va_list args, const char *thread_name) {
+    RecursionGuard guard(recursion_guard);
+    LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+    if constexpr (std::is_same_v<FormatType, const __FlashStringHelper *>) {
+      this->format_log_to_buffer_with_terminator_P_(level, tag, line, format, args, buf);
+    } else
 #endif
-
-    // Console gets message WITH newline (if platform needs it)
-    this->write_tx_buffer_to_console_();
+    {
+      this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf, thread_name);
+    }
+    this->notify_listeners_(level, tag, buf);
+    this->write_log_buffer_to_console_(buf);
   }
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Helper to format a pre-formatted message from the task log buffer and notify listeners
   // Used by process_messages_ to avoid code duplication between ESP32 and host platforms
   inline void HOT format_buffered_message_and_notify_(uint8_t level, const char *tag, uint16_t line,
-                                                      const char *thread_name, const char *text, size_t text_length) {
-    this->tx_buffer_at_ = 0;
-    this->write_header_to_buffer_(level, tag, line, thread_name, this->tx_buffer_, &this->tx_buffer_at_,
-                                  this->tx_buffer_size_);
-    this->write_body_to_buffer_(text, text_length, this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
-    this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
-    this->tx_buffer_[this->tx_buffer_at_] = '\0';
-#ifdef USE_LOG_LISTENERS
-    for (auto *listener : this->log_listeners_)
-      listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
-#endif
+                                                      const char *thread_name, const char *text, uint16_t text_length,
+                                                      LogBuffer &buf) {
+    buf.write_header(level, tag, line, thread_name);
+    buf.write_body(text, text_length);
+    this->notify_listeners_(level, tag, buf);
   }
 #endif
-
-  // Write the body of the log message to the buffer
-  inline void write_body_to_buffer_(const char *value, size_t length, char *buffer, uint16_t *buffer_at,
-                                    uint16_t buffer_size) {
-    // Calculate available space
-    if (*buffer_at >= buffer_size)
-      return;
-    const uint16_t available = buffer_size - *buffer_at;
-
-    // Determine copy length (minimum of remaining capacity and string length)
-    const size_t copy_len = (length < static_cast<size_t>(available)) ? length : available;
-
-    // Copy the data
-    if (copy_len > 0) {
-      memcpy(buffer + *buffer_at, value, copy_len);
-      *buffer_at += copy_len;
-    }
-  }
 
 #ifndef USE_HOST
   const LogString *get_uart_selection_();
@@ -411,17 +348,10 @@ class Logger : public Component {
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-#ifdef USE_HOST
-  logger::TaskLogBufferHost *log_buffer_{nullptr};  // Allocated once, never freed
-#elif defined(USE_ESP32)
   logger::TaskLogBuffer *log_buffer_{nullptr};  // Allocated once, never freed
-#elif defined(USE_LIBRETINY)
-  logger::TaskLogBufferLibreTiny *log_buffer_{nullptr};  // Allocated once, never freed
-#endif
 #endif
 
   // Group smaller types together at the end
-  uint16_t tx_buffer_at_{0};
   uint16_t tx_buffer_size_{0};
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
@@ -430,7 +360,7 @@ class Logger : public Component {
 #ifdef USE_LIBRETINY
   UARTSelection uart_{UART_SELECTION_DEFAULT};
 #endif
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   bool main_task_recursion_guard_{false};
 #ifdef USE_LIBRETINY
   bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
@@ -439,36 +369,58 @@ class Logger : public Component {
   bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
 #endif
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-  const char *HOT get_thread_name_(
-#ifdef USE_ZEPHYR
-      char *buff
+  // --- get_thread_name_ overloads (per-platform) ---
+
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // Primary overload - takes a task handle directly to avoid redundant xTaskGetCurrentTaskHandle() calls
+  // when the caller already has the handle (e.g. from the main task check in log_vprintf_)
+  const char *get_thread_name_(TaskHandle_t task) {
+    if (task == this->main_task_) {
+      return nullptr;  // Main task
+    }
+#if defined(USE_ESP32)
+    return pcTaskGetName(task);
+#elif defined(USE_LIBRETINY)
+    return pcTaskGetTaskName(task);
 #endif
-  ) {
-#ifdef USE_ZEPHYR
-    k_tid_t current_task = k_current_get();
-#else
-    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-#endif
+  }
+
+  // Convenience overload - gets the current task handle and delegates
+  const char *HOT get_thread_name_() { return this->get_thread_name_(xTaskGetCurrentTaskHandle()); }
+
+#elif defined(USE_HOST)
+  // Takes a caller-provided buffer for the thread name (stack-allocated for thread safety)
+  const char *HOT get_thread_name_(std::span<char> buff) {
+    pthread_t current_thread = pthread_self();
+    if (pthread_equal(current_thread, main_thread_)) {
+      return nullptr;  // Main thread
+    }
+    // For non-main threads, get the thread name into the caller-provided buffer
+    if (pthread_getname_np(current_thread, buff.data(), buff.size()) == 0) {
+      return buff.data();
+    }
+    return nullptr;
+  }
+
+#elif defined(USE_ZEPHYR)
+  const char *HOT get_thread_name_(std::span<char> buff, k_tid_t current_task = nullptr) {
+    if (current_task == nullptr) {
+      current_task = k_current_get();
+    }
     if (current_task == main_task_) {
       return nullptr;  // Main task
-    } else {
-#if defined(USE_ESP32)
-      return pcTaskGetName(current_task);
-#elif defined(USE_LIBRETINY)
-      return pcTaskGetTaskName(current_task);
-#elif defined(USE_ZEPHYR)
-      const char *name = k_thread_name_get(current_task);
-      if (name) {
-        // zephyr print task names only if debug component is present
-        return name;
-      }
-      std::snprintf(buff, MAX_POINTER_REPRESENTATION, "%p", current_task);
-      return buff;
-#endif
     }
+    const char *name = k_thread_name_get(current_task);
+    if (name) {
+      // zephyr print task names only if debug component is present
+      return name;
+    }
+    std::snprintf(buff.data(), buff.size(), "%p", current_task);
+    return buff.data();
   }
 #endif
+
+  // --- Non-main task recursion guards (per-platform) ---
 
 #if defined(USE_ESP32) || defined(USE_HOST)
   // RAII guard for non-main task recursion using pthread TLS
@@ -493,7 +445,7 @@ class Logger : public Component {
   // Create RAII guard for non-main task recursion
   inline NonMainTaskRecursionGuard make_non_main_task_guard_() { return NonMainTaskRecursionGuard(log_recursion_key_); }
 
-#elif defined(USE_LIBRETINY)
+#elif defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   // LibreTiny doesn't have FreeRTOS TLS, so use a simple approach:
   // - Main task uses dedicated boolean (same as ESP32)
   // - Non-main tasks share a single recursion guard
@@ -501,6 +453,8 @@ class Logger : public Component {
   // - Recursion from logging within logging is the main concern
   // - Cross-task "recursion" is prevented by the buffer mutex anyway
   // - Missing a recursive call from another task is acceptable (falls back to direct output)
+  //
+  // Zephyr use __thread as TLS
 
   // Check if non-main task is already in recursion
   inline bool HOT is_non_main_task_recursive_() const { return non_main_task_recursion_guard_; }
@@ -509,125 +463,8 @@ class Logger : public Component {
   inline RecursionGuard make_non_main_task_guard_() { return RecursionGuard(non_main_task_recursion_guard_); }
 #endif
 
-#ifdef USE_HOST
-  const char *HOT get_thread_name_() {
-    pthread_t current_thread = pthread_self();
-    if (pthread_equal(current_thread, main_thread_)) {
-      return nullptr;  // Main thread
-    }
-    // For non-main threads, return the thread name
-    // We store it in thread-local storage to avoid allocation
-    static thread_local char thread_name_buf[32];
-    if (pthread_getname_np(current_thread, thread_name_buf, sizeof(thread_name_buf)) == 0) {
-      return thread_name_buf;
-    }
-    return nullptr;
-  }
-#endif
-
-  static inline void copy_string(char *buffer, uint16_t &pos, const char *str) {
-    const size_t len = strlen(str);
-    // Intentionally no null terminator, building larger string
-    memcpy(buffer + pos, str, len);  // NOLINT(bugprone-not-null-terminated-result)
-    pos += len;
-  }
-
-  static inline void write_ansi_color_for_level(char *buffer, uint16_t &pos, uint8_t level) {
-    if (level == 0)
-      return;
-    // Construct ANSI escape sequence: "\033[{bold};3{color}m"
-    // Example: "\033[1;31m" for ERROR (bold red)
-    buffer[pos++] = '\033';
-    buffer[pos++] = '[';
-    buffer[pos++] = (level == 1) ? '1' : '0';  // Only ERROR is bold
-    buffer[pos++] = ';';
-    buffer[pos++] = '3';
-    buffer[pos++] = LOG_LEVEL_COLOR_DIGIT[level];
-    buffer[pos++] = 'm';
-  }
-
-  inline void HOT write_header_to_buffer_(uint8_t level, const char *tag, int line, const char *thread_name,
-                                          char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
-    uint16_t pos = *buffer_at;
-    // Early return if insufficient space - intentionally don't update buffer_at to prevent partial writes
-    if (pos + MAX_HEADER_SIZE > buffer_size)
-      return;
-
-    // Construct: <color>[LEVEL][tag:line]:
-    write_ansi_color_for_level(buffer, pos, level);
-    buffer[pos++] = '[';
-    if (level != 0) {
-      if (level >= 7) {
-        buffer[pos++] = 'V';  // VERY_VERBOSE = "VV"
-        buffer[pos++] = 'V';
-      } else {
-        buffer[pos++] = LOG_LEVEL_LETTER_CHARS[level];
-      }
-    }
-    buffer[pos++] = ']';
-    buffer[pos++] = '[';
-    copy_string(buffer, pos, tag);
-    buffer[pos++] = ':';
-    // Format line number without modulo operations (passed by value, safe to mutate)
-    if (line > 999) [[unlikely]] {
-      int thousands = line / 1000;
-      buffer[pos++] = '0' + thousands;
-      line -= thousands * 1000;
-    }
-    int hundreds = line / 100;
-    int remainder = line - hundreds * 100;
-    int tens = remainder / 10;
-    buffer[pos++] = '0' + hundreds;
-    buffer[pos++] = '0' + tens;
-    buffer[pos++] = '0' + (remainder - tens * 10);
-    buffer[pos++] = ']';
-
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR) || defined(USE_HOST)
-    if (thread_name != nullptr) {
-      write_ansi_color_for_level(buffer, pos, 1);  // Always use bold red for thread name
-      buffer[pos++] = '[';
-      copy_string(buffer, pos, thread_name);
-      buffer[pos++] = ']';
-      write_ansi_color_for_level(buffer, pos, level);  // Restore original color
-    }
-#endif
-
-    buffer[pos++] = ':';
-    buffer[pos++] = ' ';
-    *buffer_at = pos;
-  }
-
-  inline void HOT format_body_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size, const char *format,
-                                         va_list args) {
-    // Get remaining capacity in the buffer
-    if (*buffer_at >= buffer_size)
-      return;
-    const uint16_t remaining = buffer_size - *buffer_at;
-
-    const int ret = vsnprintf(buffer + *buffer_at, remaining, format, args);
-
-    if (ret < 0) {
-      return;  // Encoding error, do not increment buffer_at
-    }
-
-    // Update buffer_at with the formatted length (handle truncation)
-    // When vsnprintf truncates (ret >= remaining), it writes (remaining - 1) chars + null terminator
-    // When it doesn't truncate (ret < remaining), it writes ret chars + null terminator
-    uint16_t formatted_len = (ret >= remaining) ? (remaining - 1) : ret;
-    *buffer_at += formatted_len;
-
-    // Remove all trailing newlines right after formatting
-    while (*buffer_at > 0 && buffer[*buffer_at - 1] == '\n') {
-      (*buffer_at)--;
-    }
-  }
-
-  inline void HOT write_footer_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
-    static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
-    this->write_body_to_buffer_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN, buffer, buffer_at, buffer_size);
-  }
-
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+// Zephyr needs loop working to check when CDC port is open
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
   // Disable loop when task buffer is empty (with USB CDC check on ESP32)
   inline void disable_loop_when_buffer_empty_() {
     // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()

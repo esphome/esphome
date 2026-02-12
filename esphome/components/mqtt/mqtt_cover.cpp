@@ -1,5 +1,6 @@
 #include "mqtt_cover.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -11,6 +12,20 @@ namespace esphome::mqtt {
 static const char *const TAG = "mqtt.cover";
 
 using namespace esphome::cover;
+
+static ProgmemStr cover_state_to_mqtt_str(CoverOperation operation, float position, bool supports_position) {
+  if (operation == COVER_OPERATION_OPENING)
+    return ESPHOME_F("opening");
+  if (operation == COVER_OPERATION_CLOSING)
+    return ESPHOME_F("closing");
+  if (position == COVER_CLOSED)
+    return ESPHOME_F("closed");
+  if (position == COVER_OPEN)
+    return ESPHOME_F("open");
+  if (supports_position)
+    return ESPHOME_F("open");
+  return ESPHOME_F("unknown");
+}
 
 MQTTCoverComponent::MQTTCoverComponent(Cover *cover) : cover_(cover) {}
 void MQTTCoverComponent::setup() {
@@ -51,18 +66,27 @@ void MQTTCoverComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT cover '%s':", this->cover_->get_name().c_str());
   auto traits = this->cover_->get_traits();
   bool has_command_topic = traits.get_supports_position() || !traits.get_supports_tilt();
-  LOG_MQTT_COMPONENT(true, has_command_topic)
+  LOG_MQTT_COMPONENT(true, has_command_topic);
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+#ifdef USE_MQTT_COVER_JSON
+  if (this->use_json_format_) {
+    ESP_LOGCONFIG(TAG, "  JSON State Payload: YES");
+  } else {
+#endif
+    if (traits.get_supports_position()) {
+      ESP_LOGCONFIG(TAG, "  Position State Topic: '%s'", this->get_position_state_topic_to(topic_buf).c_str());
+    }
+    if (traits.get_supports_tilt()) {
+      ESP_LOGCONFIG(TAG, "  Tilt State Topic: '%s'", this->get_tilt_state_topic_to(topic_buf).c_str());
+    }
+#ifdef USE_MQTT_COVER_JSON
+  }
+#endif
   if (traits.get_supports_position()) {
-    ESP_LOGCONFIG(TAG,
-                  "  Position State Topic: '%s'\n"
-                  "  Position Command Topic: '%s'",
-                  this->get_position_state_topic().c_str(), this->get_position_command_topic().c_str());
+    ESP_LOGCONFIG(TAG, "  Position Command Topic: '%s'", this->get_position_command_topic_to(topic_buf).c_str());
   }
   if (traits.get_supports_tilt()) {
-    ESP_LOGCONFIG(TAG,
-                  "  Tilt State Topic: '%s'\n"
-                  "  Tilt Command Topic: '%s'",
-                  this->get_tilt_state_topic().c_str(), this->get_tilt_command_topic().c_str());
+    ESP_LOGCONFIG(TAG, "  Tilt Command Topic: '%s'", this->get_tilt_command_topic_to(topic_buf).c_str());
   }
 }
 void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
@@ -77,13 +101,33 @@ void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
   if (traits.get_is_assumed_state()) {
     root[MQTT_OPTIMISTIC] = true;
   }
-  if (traits.get_supports_position()) {
-    root[MQTT_POSITION_TOPIC] = this->get_position_state_topic();
-    root[MQTT_SET_POSITION_TOPIC] = this->get_position_command_topic();
-  }
-  if (traits.get_supports_tilt()) {
-    root[MQTT_TILT_STATUS_TOPIC] = this->get_tilt_state_topic();
-    root[MQTT_TILT_COMMAND_TOPIC] = this->get_tilt_command_topic();
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+#ifdef USE_MQTT_COVER_JSON
+  if (this->use_json_format_) {
+    // JSON mode: all state published to state_topic as JSON, use templates to extract
+    root[MQTT_VALUE_TEMPLATE] = ESPHOME_F("{{ value_json.state }}");
+    if (traits.get_supports_position()) {
+      root[MQTT_POSITION_TOPIC] = this->get_state_topic_to_(topic_buf);
+      root[MQTT_POSITION_TEMPLATE] = ESPHOME_F("{{ value_json.position }}");
+      root[MQTT_SET_POSITION_TOPIC] = this->get_position_command_topic_to(topic_buf);
+    }
+    if (traits.get_supports_tilt()) {
+      root[MQTT_TILT_STATUS_TOPIC] = this->get_state_topic_to_(topic_buf);
+      root[MQTT_TILT_STATUS_TEMPLATE] = ESPHOME_F("{{ value_json.tilt }}");
+      root[MQTT_TILT_COMMAND_TOPIC] = this->get_tilt_command_topic_to(topic_buf);
+    }
+  } else
+#endif
+  {
+    // Standard mode: separate topics for position and tilt
+    if (traits.get_supports_position()) {
+      root[MQTT_POSITION_TOPIC] = this->get_position_state_topic_to(topic_buf);
+      root[MQTT_SET_POSITION_TOPIC] = this->get_position_command_topic_to(topic_buf);
+    }
+    if (traits.get_supports_tilt()) {
+      root[MQTT_TILT_STATUS_TOPIC] = this->get_tilt_state_topic_to(topic_buf);
+      root[MQTT_TILT_COMMAND_TOPIC] = this->get_tilt_command_topic_to(topic_buf);
+    }
   }
   if (traits.get_supports_tilt() && !traits.get_supports_position()) {
     config.command_topic = false;
@@ -96,26 +140,39 @@ const EntityBase *MQTTCoverComponent::get_entity() const { return this->cover_; 
 bool MQTTCoverComponent::send_initial_state() { return this->publish_state(); }
 bool MQTTCoverComponent::publish_state() {
   auto traits = this->cover_->get_traits();
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+#ifdef USE_MQTT_COVER_JSON
+  if (this->use_json_format_) {
+    return this->publish_json(this->get_state_topic_to_(topic_buf), [this, traits](JsonObject root) {
+      // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+      root[ESPHOME_F("state")] = cover_state_to_mqtt_str(this->cover_->current_operation, this->cover_->position,
+                                                         traits.get_supports_position());
+      if (traits.get_supports_position()) {
+        root[ESPHOME_F("position")] = static_cast<int>(roundf(this->cover_->position * 100));
+      }
+      if (traits.get_supports_tilt()) {
+        root[ESPHOME_F("tilt")] = static_cast<int>(roundf(this->cover_->tilt * 100));
+      }
+      // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
+    });
+  }
+#endif
   bool success = true;
   if (traits.get_supports_position()) {
     char pos[VALUE_ACCURACY_MAX_LEN];
     size_t len = value_accuracy_to_buf(pos, roundf(this->cover_->position * 100), 0);
-    if (!this->publish(this->get_position_state_topic(), pos, len))
+    if (!this->publish(this->get_position_state_topic_to(topic_buf), pos, len))
       success = false;
   }
   if (traits.get_supports_tilt()) {
     char pos[VALUE_ACCURACY_MAX_LEN];
     size_t len = value_accuracy_to_buf(pos, roundf(this->cover_->tilt * 100), 0);
-    if (!this->publish(this->get_tilt_state_topic(), pos, len))
+    if (!this->publish(this->get_tilt_state_topic_to(topic_buf), pos, len))
       success = false;
   }
-  const char *state_s = this->cover_->current_operation == COVER_OPERATION_OPENING   ? "opening"
-                        : this->cover_->current_operation == COVER_OPERATION_CLOSING ? "closing"
-                        : this->cover_->position == COVER_CLOSED                     ? "closed"
-                        : this->cover_->position == COVER_OPEN                       ? "open"
-                        : traits.get_supports_position()                             ? "open"
-                                                                                     : "unknown";
-  if (!this->publish(this->get_state_topic_(), state_s))
+  if (!this->publish(this->get_state_topic_to_(topic_buf),
+                     cover_state_to_mqtt_str(this->cover_->current_operation, this->cover_->position,
+                                             traits.get_supports_position())))
     success = false;
   return success;
 }

@@ -5,8 +5,7 @@
 #include <string>
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace web_server_idf {
+namespace esphome::web_server_idf {
 
 /// Decode URL-encoded string in-place (e.g., %20 -> space, + -> space)
 /// Returns the new length of the decoded string
@@ -15,7 +14,10 @@ size_t url_decode(char *str);
 bool request_has_header(httpd_req_t *req, const char *name);
 optional<std::string> request_get_header(httpd_req_t *req, const char *name);
 optional<std::string> request_get_url_query(httpd_req_t *req);
-optional<std::string> query_key_value(const std::string &query_url, const std::string &key);
+optional<std::string> query_key_value(const char *query_url, size_t query_len, const char *key);
+inline optional<std::string> query_key_value(const std::string &query_url, const std::string &key) {
+  return query_key_value(query_url.c_str(), query_url.size(), key.c_str());
+}
 
 // Helper function for case-insensitive character comparison
 inline bool char_equals_ci(char a, char b) { return ::tolower(a) == ::tolower(b); }
@@ -23,9 +25,8 @@ inline bool char_equals_ci(char a, char b) { return ::tolower(a) == ::tolower(b)
 // Helper function for case-insensitive string region comparison
 bool str_ncmp_ci(const char *s1, const char *s2, size_t n);
 
-// Case-insensitive string search (like strstr but case-insensitive)
-const char *stristr(const char *haystack, const char *needle);
+// Bounded case-insensitive string search (like strcasestr but length-bounded)
+const char *strcasestr_n(const char *haystack, size_t haystack_len, const char *needle);
 
-}  // namespace web_server_idf
-}  // namespace esphome
+}  // namespace esphome::web_server_idf
 #endif  // USE_ESP32

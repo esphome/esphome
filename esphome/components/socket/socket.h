@@ -63,13 +63,29 @@ class Socket {
   virtual int setblocking(bool blocking) = 0;
   virtual int loop() { return 0; };
 
-  /// Get the underlying file descriptor (returns -1 if not supported)
-  virtual int get_fd() const { return -1; }
+    /// Get the underlying file descriptor (returns -1 if not supported)
+    /// Non-virtual: only one socket implementation is active per build.
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  int get_fd() const { return this->fd_; }
+#else
+  int get_fd() const { return -1; }
+#endif
 
   /// Check if socket has data ready to read
-  /// For loop-monitored sockets, checks with the Application's select() results
-  /// For non-monitored sockets, always returns true (assumes data may be available)
+  /// For select()-based sockets: non-virtual, checks Application's select() results
+  /// For LWIP raw TCP sockets: virtual, checks internal buffer state
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  bool ready() const;
+#else
   virtual bool ready() const { return true; }
+#endif
+
+ protected:
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  int fd_{-1};
+  bool closed_{false};
+  bool loop_monitored_{false};
+#endif
 };
 
 /// Create a socket of the given domain, type and protocol.
@@ -101,6 +117,9 @@ inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const st
 
 /// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
+
+/// Format sockaddr into caller-provided buffer, returns length written (excluding null)
+size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf);
 
 #if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 /// Delay that can be woken early by socket activity.

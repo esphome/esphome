@@ -27,8 +27,9 @@ void HttpRequestIDF::dump_config() {
   HttpRequestComponent::dump_config();
   ESP_LOGCONFIG(TAG,
                 "  Buffer Size RX: %u\n"
-                "  Buffer Size TX: %u",
-                this->buffer_size_rx_, this->buffer_size_tx_);
+                "  Buffer Size TX: %u\n"
+                "  Custom CA Certificate: %s",
+                this->buffer_size_rx_, this->buffer_size_tx_, YESNO(this->ca_certificate_ != nullptr));
 }
 
 esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
@@ -88,11 +89,15 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   config.disable_auto_redirect = !this->follow_redirects_;
   config.max_redirection_count = this->redirect_limit_;
   config.auth_type = HTTP_AUTH_TYPE_BASIC;
+  if (secure && this->verify_ssl_) {
+    if (this->ca_certificate_ != nullptr) {
+      config.cert_pem = this->ca_certificate_;
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
-  if (secure) {
-    config.crt_bundle_attach = esp_crt_bundle_attach;
-  }
+    } else {
+      config.crt_bundle_attach = esp_crt_bundle_attach;
 #endif
+    }
+  }
 
   if (this->useragent_ != nullptr) {
     config.user_agent = this->useragent_;
@@ -152,7 +157,10 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   }
 
   container->feed_wdt();
+  // esp_http_client_fetch_headers() returns 0 for chunked transfer encoding (no Content-Length header).
+  // The read() method handles content_length == 0 specially to support chunked responses.
   container->content_length = esp_http_client_fetch_headers(client);
+  container->set_chunked(esp_http_client_is_chunked_response(client));
   container->feed_wdt();
   container->status_code = esp_http_client_get_status_code(client);
   container->feed_wdt();
@@ -188,6 +196,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 
       container->feed_wdt();
       container->content_length = esp_http_client_fetch_headers(client);
+      container->set_chunked(esp_http_client_is_chunked_response(client));
       container->feed_wdt();
       container->status_code = esp_http_client_get_status_code(client);
       container->feed_wdt();
@@ -209,26 +218,91 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   return container;
 }
 
+bool HttpContainerIDF::is_read_complete() const {
+  // Base class handles no-body status codes and non-chunked content_length completion
+  if (HttpContainer::is_read_complete()) {
+    return true;
+  }
+  // For chunked responses, use the authoritative ESP-IDF completion check
+  return this->is_chunked_ && esp_http_client_is_complete_data_received(this->client_);
+}
+
+// ESP-IDF HTTP read implementation (blocking mode)
+//
+// WARNING: Return values differ from BSD sockets! See http_request.h for full documentation.
+//
+// esp_http_client_read() in blocking mode returns:
+//   > 0: bytes read
+//   0: all chunked data received (is_chunk_complete true) or connection closed
+//   -ESP_ERR_HTTP_EAGAIN: transport timeout, no data available yet
+//   < 0: error
+//
+// We normalize to HttpContainer::read() contract:
+//   > 0: bytes read
+//   0: all content read (for both content_length-based and chunked completion)
+//   < 0: error/connection closed
+//
+// Note on chunked transfer encoding:
+//   esp_http_client_fetch_headers() returns 0 for chunked responses (no Content-Length header).
+//   When esp_http_client_read() returns 0 for a chunked response, is_read_complete() calls
+//   esp_http_client_is_complete_data_received() to distinguish successful completion from
+//   connection errors. Callers use http_read_loop_result() which checks is_read_complete()
+//   to return COMPLETE for successful chunked EOF.
+//
+// Streaming chunked responses are not supported (see http_request.h for details).
+// When data stops arriving, esp_http_client_read() returns -ESP_ERR_HTTP_EAGAIN
+// after its internal transport timeout (configured via timeout_ms) expires.
+// This is passed through as a negative return value, which callers treat as an error.
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
-  this->feed_wdt();
-  int read_len = esp_http_client_read(this->client_, (char *) buf, max_len);
-  this->feed_wdt();
-  if (read_len > 0) {
-    this->bytes_read_ += read_len;
+  // Check if we've already read all expected content (non-chunked and no-body only).
+  // Use the base class check here, NOT the override: esp_http_client_is_complete_data_received()
+  // returns true as soon as all data arrives from the network, but data may still be in
+  // the client's internal buffer waiting to be consumed by esp_http_client_read().
+  if (HttpContainer::is_read_complete()) {
+    return 0;  // All content read successfully
   }
+
+  this->feed_wdt();
+  int read_len_or_error = esp_http_client_read(this->client_, (char *) buf, max_len);
+  this->feed_wdt();
+
   this->duration_ms += (millis() - start);
 
-  return read_len;
+  if (read_len_or_error > 0) {
+    this->bytes_read_ += read_len_or_error;
+    return read_len_or_error;
+  }
+
+  // esp_http_client_read() returns 0 when:
+  // - Known content_length: connection closed before all data received (error)
+  // - Chunked encoding: all chunks received (is_chunk_complete true, genuine EOF)
+  //
+  // Return 0 in both cases. Callers use http_read_loop_result() which calls
+  // is_read_complete() to distinguish these:
+  // - Chunked complete: is_read_complete() returns true (via
+  //   esp_http_client_is_complete_data_received()), caller gets COMPLETE
+  // - Non-chunked incomplete: is_read_complete() returns false, caller
+  //   eventually gets TIMEOUT (since no more data arrives)
+  if (read_len_or_error == 0) {
+    return 0;
+  }
+
+  // Negative value - error, return the actual error code for debugging
+  return read_len_or_error;
 }
 
 void HttpContainerIDF::end() {
+  if (this->client_ == nullptr) {
+    return;  // Already cleaned up
+  }
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
   esp_http_client_close(this->client_);
   esp_http_client_cleanup(this->client_);
+  this->client_ = nullptr;
 }
 
 void HttpContainerIDF::feed_wdt() {
