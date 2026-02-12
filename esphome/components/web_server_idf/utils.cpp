@@ -3,14 +3,11 @@
 #include <cstring>
 #include <cctype>
 #include "esphome/core/helpers.h"
-#include "esphome/core/log.h"
 #include "http_parser.h"
 
 #include "utils.h"
 
 namespace esphome::web_server_idf {
-
-static const char *const TAG = "web_server_idf_utils";
 
 size_t url_decode(char *str) {
   char *start = str;
@@ -48,24 +45,6 @@ optional<std::string> request_get_header(httpd_req_t *req, const char *name) {
 
   auto res = httpd_req_get_hdr_value_str(req, name, &str[0], len + 1);
   if (res != ESP_OK) {
-    return {};
-  }
-
-  return {str};
-}
-
-optional<std::string> request_get_url_query(httpd_req_t *req) {
-  auto len = httpd_req_get_url_query_len(req);
-  if (len == 0) {
-    return {};
-  }
-
-  std::string str;
-  str.resize(len);
-
-  auto res = httpd_req_get_url_query_str(req, &str[0], len + 1);
-  if (res != ESP_OK) {
-    ESP_LOGW(TAG, "Can't get query for request: %s", esp_err_to_name(res));
     return {};
   }
 

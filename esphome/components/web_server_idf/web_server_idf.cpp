@@ -393,13 +393,7 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
   }
 
   // Look up value from query strings
-  optional<std::string> val = query_key_value(this->post_query_.c_str(), this->post_query_.size(), name);
-  if (!val.has_value()) {
-    auto url_query = request_get_url_query(*this);
-    if (url_query.has_value()) {
-      val = query_key_value(url_query.value().c_str(), url_query.value().size(), name);
-    }
-  }
+  auto val = this->find_query_value_(name);
 
   // Don't cache misses to avoid wasting memory when handlers check for
   // optional parameters that don't exist in the request
@@ -418,9 +412,11 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
 template<typename Func>
 static auto search_query_sources(httpd_req_t *req, const std::string &post_query, const char *name, Func func)
     -> decltype(func(nullptr, size_t{0}, name)) {
-  auto result = func(post_query.c_str(), post_query.size(), name);
-  if (result) {
-    return result;
+  if (!post_query.empty()) {
+    auto result = func(post_query.c_str(), post_query.size(), name);
+    if (result) {
+      return result;
+    }
   }
   auto len = httpd_req_get_url_query_len(req);
   if (len == 0) {
