@@ -136,7 +136,6 @@ void Rtttl::loop() {
 
           sample[sample_index].left = val;
           sample[sample_index].right = val;
-
         } else {
           sample[sample_index].left = 0;
           sample[sample_index].right = 0;
@@ -151,7 +150,7 @@ void Rtttl::loop() {
       if (sample_index > 0) {
         int send = this->speaker_->play((uint8_t *) (&sample), sample_index * 2);
         if (send != sample_index * 4) {
-          this->samples_sent_ -= (sample_index - (send / 2));
+          this->samples_sent_ -= sample_index - (send / 2);
         }
         return;
       }
@@ -210,7 +209,10 @@ void Rtttl::loop() {
   bool need_note_gap = false;
 
   // Now play the note
-  if (note) {
+  if (note_index_in_octave == 0) {
+    this->output_freq_ = 0;
+    ESP_LOGVV(TAG, "Waiting: %dms", this->note_duration_);
+  } else {
     auto note_index = (scale - MIN_OCTAVE) * SEMITONES_IN_OCTAVE + note_index_in_octave;
     if (note_index < 0 || note_index >= NOTES_COUNT) {
       ESP_LOGE(TAG, "Note out of range (note: %d, scale: %d, index: %d, max: %d)", note_index_in_octave, scale,
@@ -224,24 +226,21 @@ void Rtttl::loop() {
     // Add small silence gap between same note
     this->output_freq_ = freq;
 
-    ESP_LOGVV(TAG, "playing note: %d for %dms", note_index_in_octave, this->note_duration_);
-  } else {
-    ESP_LOGVV(TAG, "waiting: %dms", this->note_duration_);
-    this->output_freq_ = 0;
+    ESP_LOGVV(TAG, "Playing note: %d for %dms", note_index_in_octave, this->note_duration_);
   }
 
 #ifdef USE_OUTPUT
   if (this->output_ != nullptr) {
-    if (need_note_gap) {
+    if (this->output_freq_ == 0) {
       this->output_->set_level(0.0);
-      delay(REPEATING_NOTE_GAP_MS);
-      this->note_duration_ -= REPEATING_NOTE_GAP_MS;
-    }
-    if (this->output_freq_ != 0) {
+    } else {
+      if (need_note_gap) {
+        this->output_->set_level(0.0);
+        delay(REPEATING_NOTE_GAP_MS);
+        this->note_duration_ -= REPEATING_NOTE_GAP_MS;
+      }
       this->output_->update_frequency(this->output_freq_);
       this->output_->set_level(this->gain_);
-    } else {
-      this->output_->set_level(0.0);
     }
   }
 #endif  // USE_OUTPUT
@@ -262,9 +261,8 @@ void Rtttl::loop() {
 
       uint16_t division = ((this->samples_count_ << 10) / this->samples_per_wave_) + 1;
 
-      this->samples_count_ = (division * this->samples_per_wave_);
-      this->samples_count_ = this->samples_count_ >> 10;
-      ESP_LOGVV(TAG, "- Calc play time: wish: %d gets: %d (div: %d spw: %d)", samples_wish, this->samples_count_,
+      this->samples_count_ = (division * this->samples_per_wave_) >> 10;
+      ESP_LOGVV(TAG, "Calc play time: wish: %d gets: %d (div: %d spw: %d)", samples_wish, this->samples_count_,
                 division, this->samples_per_wave_);
     }
     // Convert from frequency in Hz to high and low samples in fixed point
@@ -315,8 +313,11 @@ void Rtttl::play(std::string rtttl) {
   }
   this->position_ += 2;
   num = this->get_integer_();
-  if (num > 0) {
+  if (num == 1 || num == 2 || num == 4 || num == 8 || num == 16 || num == 32) {
     this->default_note_denominator_ = num;
+  } else {
+    ESP_LOGE(TAG, "Invalid default duration: %d", num);
+    return;
   }
 
   // Get default octave
@@ -329,6 +330,9 @@ void Rtttl::play(std::string rtttl) {
   num = this->get_integer_();
   if (num >= MIN_OCTAVE && num <= MAX_OCTAVE) {
     this->default_octave_ = num;
+  } else {
+    ESP_LOGE(TAG, "Invalid default octave: %d", num);
+    return;
   }
 
   // Get BPM
@@ -339,8 +343,11 @@ void Rtttl::play(std::string rtttl) {
   }
   this->position_ += 2;
   num = this->get_integer_();
-  if (num != 0) {
+  if (num >= 4) {  // Below 4 is not realistic and would cause a integer overflow
     bpm = num;
+  } else {
+    ESP_LOGE(TAG, "Invalid BPM: %d", num);
+    return;
   }
 
   this->position_ = this->rtttl_.find(':', this->position_);
