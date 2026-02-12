@@ -2002,11 +2002,11 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
 
     // Parse base64url-encoded raw timings (required)
     // Base64url is URL-safe: uses A-Za-z0-9-_ (no special characters needing escaping)
-    // .c_str() is required for Arduino framework where arg() returns Arduino String instead of std::string
-    std::string encoded = request->arg(ESPHOME_F("data")).c_str();  // NOLINT(readability-redundant-string-cstr)
+    const auto &data_arg = request->arg(ESPHOME_F("data"));
 
     // Validate base64url is not empty (also catches missing parameter since arg() returns empty string)
-    if (encoded.empty()) {
+    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
+    if (data_arg.length() == 0) {  // NOLINT(readability-container-size-empty)
       request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Missing or empty 'data' parameter"));
       return;
     }
@@ -2015,7 +2015,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
     // it outlives the call - set_raw_timings_base64url stores a pointer, so the string
     // must remain valid until perform() completes.
     // ESP8266 also needs this because ESPAsyncWebServer callbacks run in "sys" context.
-    this->defer([call, encoded = std::move(encoded)]() mutable {
+    this->defer([call, encoded = std::string(data_arg.c_str(), data_arg.length())]() mutable {
       call.set_raw_timings_base64url(encoded);
       call.perform();
     });
