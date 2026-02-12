@@ -414,27 +414,32 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
 
 /// Search post_query then URL query with a callback.
 /// Returns first truthy result, or value-initialized default.
+/// Uses stack buffer for URL query to avoid heap allocation.
 template<typename Func>
-static auto search_query_sources(const AsyncWebServerRequest &req, const std::string &post_query, const char *name,
-                                 Func func) -> decltype(func(nullptr, size_t{0}, name)) {
+static auto search_query_sources(httpd_req_t *req, const std::string &post_query, const char *name, Func func)
+    -> decltype(func(nullptr, size_t{0}, name)) {
   auto result = func(post_query.c_str(), post_query.size(), name);
   if (result) {
     return result;
   }
-  auto url_query = request_get_url_query(req);
-  if (url_query.has_value()) {
-    return func(url_query.value().c_str(), url_query.value().size(), name);
+  auto len = httpd_req_get_url_query_len(req);
+  if (len == 0) {
+    return {};
   }
-  return {};
+  SmallBufferWithHeapFallback<256, char> buf(len + 1);
+  if (httpd_req_get_url_query_str(req, buf.get(), len + 1) != ESP_OK) {
+    return {};
+  }
+  return func(buf.get(), len, name);
 }
 
 optional<std::string> AsyncWebServerRequest::find_query_value_(const char *name) const {
-  return search_query_sources(*this, this->post_query_, name,
+  return search_query_sources(this->req_, this->post_query_, name,
                               [](const char *q, size_t len, const char *k) { return query_key_value(q, len, k); });
 }
 
 bool AsyncWebServerRequest::hasArg(const char *name) {
-  return search_query_sources(*this, this->post_query_, name, query_has_key);
+  return search_query_sources(this->req_, this->post_query_, name, query_has_key);
 }
 
 std::string AsyncWebServerRequest::arg(const char *name) {
