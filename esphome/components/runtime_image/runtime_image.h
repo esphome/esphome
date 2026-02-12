@@ -65,6 +65,7 @@ class RuntimeImage : public image::Image {
    */
   int resize(int width, int height);
   void draw_pixel(int x, int y, const Color &color);
+  void map_chroma_key(Color &color);
   int get_buffer_width() const { return this->buffer_width_; }
   int get_buffer_height() const { return this->buffer_height_; }
 
