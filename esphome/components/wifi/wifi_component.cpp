@@ -1336,6 +1336,9 @@ void WiFiComponent::start_scanning() {
 // on some implementations). This was not possible before PR#13472 replaced
 // std::string with CompactString, since std::string's internal layout is
 // implementation-defined and may use self-referential pointers.
+//
+// TODO: If C++ standardizes std::trivially_relocatable, add the assertion for
+// WiFiScanResult/CompactString here to formally express the memcpy safety guarantee.
 template<typename VectorType> static void insertion_sort_scan_results(VectorType &results) {
   // memcpy-based sort requires no self-referential pointers or virtual dispatch.
   // These static_asserts guard the assumptions. If any fire, the memcpy sort
