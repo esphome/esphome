@@ -73,9 +73,10 @@ bool query_has_key(const char *query_url, size_t query_len, const char *key) {
   }
   // Minimal buffer — we only care if the key exists, not the value
   char buf[1];
-  // httpd_query_key_value returns ESP_OK if key found (even if buffer too small for value),
-  // ESP_ERR_NOT_FOUND if key absent
-  return httpd_query_key_value(query_url, key, buf, sizeof(buf)) != ESP_ERR_NOT_FOUND;
+  // httpd_query_key_value returns ESP_OK if found, ESP_ERR_HTTPD_RESULT_TRUNC if found
+  // but value truncated (expected with 1-byte buffer), or other errors for invalid input
+  auto err = httpd_query_key_value(query_url, key, buf, sizeof(buf));
+  return err == ESP_OK || err == ESP_ERR_HTTPD_RESULT_TRUNC;
 }
 
 // Helper function for case-insensitive string region comparison
