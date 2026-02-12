@@ -1083,6 +1083,9 @@ template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &dat
  * Each byte is displayed as a two-digit uppercase hex value, separated by the specified separator.
  * Optionally includes the total byte count in parentheses at the end.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data Pointer to the byte array to format.
  * @param length Number of bytes in the array.
  * @param separator Character to use between hex bytes (default: '.').
@@ -1108,6 +1111,9 @@ std::string format_hex_pretty(const uint8_t *data, size_t length, char separator
  *
  * Similar to the byte array version, but formats 16-bit words as 4-digit hex values.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data Pointer to the 16-bit word array to format.
  * @param length Number of 16-bit words in the array.
  * @param separator Character to use between hex words (default: '.').
@@ -1130,6 +1136,9 @@ std::string format_hex_pretty(const uint16_t *data, size_t length, char separato
  *
  * Convenience overload for std::vector<uint8_t>. Formats each byte as a two-digit
  * uppercase hex value with customizable separator.
+ *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
  *
  * @param data Vector of bytes to format.
  * @param separator Character to use between hex bytes (default: '.').
@@ -1154,6 +1163,9 @@ std::string format_hex_pretty(const std::vector<uint8_t> &data, char separator =
  * Convenience overload for std::vector<uint16_t>. Each 16-bit word is formatted
  * as a 4-digit uppercase hex value in big-endian order.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data Vector of 16-bit words to format.
  * @param separator Character to use between hex words (default: '.').
  * @param show_length Whether to append the word count in parentheses (default: true).
@@ -1176,6 +1188,9 @@ std::string format_hex_pretty(const std::vector<uint16_t> &data, char separator 
  * Treats each character in the string as a byte and formats it in hex.
  * Useful for debugging binary data stored in std::string containers.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data String whose bytes should be formatted as hex.
  * @param separator Character to use between hex bytes (default: '.').
  * @param show_length Whether to append the byte count in parentheses (default: true).
@@ -1197,6 +1212,9 @@ std::string format_hex_pretty(const std::string &data, char separator = '.', boo
  *
  * Converts the integer to big-endian byte order and formats each byte as hex.
  * The most significant byte appears first in the output string.
+ *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
  *
  * @tparam T Unsigned integer type (uint8_t, uint16_t, uint32_t, uint64_t, etc.).
  * @param val The unsigned integer value to format.
