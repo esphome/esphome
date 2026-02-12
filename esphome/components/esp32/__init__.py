@@ -97,7 +97,6 @@ CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_RELEASE = "release"
 CONF_SUBTYPE = "subtype"
-CONF_CUSTOM_PARTITIONS = "custom_partitions"
 
 ARDUINO_FRAMEWORK_NAME = "framework-arduinoespressif32"
 ARDUINO_FRAMEWORK_PKG = f"pioarduino/{ARDUINO_FRAMEWORK_NAME}"
@@ -828,9 +827,6 @@ def _detect_variant(value):
     return value
 
 
-KEY_CUSTOM_PARTITIONS = "custom_partitions"
-
-
 def final_validate(config):
     # Imported locally to avoid circular import issues
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
@@ -886,19 +882,6 @@ def final_validate(config):
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
-    if CONF_PARTITIONS in config and KEY_CUSTOM_PARTITIONS in CORE.data:
-        with open(
-            CORE.relative_config_path(config[CONF_PARTITIONS]), encoding="utf8"
-        ) as f:
-            partitions_tab = f.read()
-            for partition, types in CORE.data[KEY_CUSTOM_PARTITIONS].items():
-                if partition not in partitions_tab:
-                    errs.append(
-                        cv.Invalid(
-                            f"Add '{partition}, {types['type']}, {types['subtype']},   , {types['size']},' to your custom partition table."
-                        )
-                    )
-
     if (
         config[CONF_FLASH_SIZE] == "32MB"
         and "ota" in full_config
@@ -1229,9 +1212,13 @@ def _set_default_framework(config):
 
 
 def _validate_custom_partition(config):
-    return validate_custom_partition(
-        config[CONF_NAME], config[CONF_TYPE], config[CONF_SUBTYPE], config[CONF_SIZE]
-    )(config)
+    add_partition(
+        config[CONF_NAME],
+        config[CONF_TYPE],
+        config[CONF_SUBTYPE],
+        config[CONF_SIZE],
+    )
+    return config
 
 
 FLASH_SIZES = [
@@ -1255,24 +1242,26 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLASH_SIZE, default="4MB"): cv.one_of(
                 *FLASH_SIZES, upper=True
             ),
-            cv.Optional(CONF_PARTITIONS): cv.file_,
-            cv.Optional(CONF_CUSTOM_PARTITIONS): cv.ensure_list(
-                cv.All(
-                    cv.Schema(
-                        {
-                            cv.Required(CONF_NAME): cv.string_strict,
-                            cv.Required(CONF_TYPE): cv.Any(
-                                cv.string_strict,
-                                cv.int_range(0x40, 0xFE),
-                            ),
-                            cv.Required(CONF_SUBTYPE): cv.Any(
-                                cv.string_strict,
-                                cv.int_range(0, 0xFE),
-                            ),
-                            cv.Required(CONF_SIZE): cv.int_,
-                        }
+            cv.Optional(CONF_PARTITIONS): cv.Any(
+                cv.file_,
+                cv.ensure_list(
+                    cv.All(
+                        cv.Schema(
+                            {
+                                cv.Required(CONF_NAME): cv.string_strict,
+                                cv.Required(CONF_TYPE): cv.Any(
+                                    cv.string_strict,
+                                    cv.int_range(0x40, 0xFE),
+                                ),
+                                cv.Required(CONF_SUBTYPE): cv.Any(
+                                    cv.string_strict,
+                                    cv.int_range(0, 0xFE),
+                                ),
+                                cv.Required(CONF_SIZE): cv.int_,
+                            }
+                        ),
+                        _validate_custom_partition,
                     ),
-                    _validate_custom_partition,
                 ),
             ),
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
@@ -1284,7 +1273,6 @@ CONFIG_SCHEMA = cv.All(
     _check_versions,
     set_core_data,
     cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
-    cv.has_at_most_one_key(CONF_PARTITIONS, CONF_CUSTOM_PARTITIONS),
 )
 
 
@@ -1711,7 +1699,7 @@ async def to_code(config):
 
     if use_platformio:
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
-    if CONF_PARTITIONS in config:
+    if CONF_PARTITIONS in config and not isinstance(config[CONF_PARTITIONS], list):
         add_extra_build_file(
             "partitions.csv", CORE.relative_config_path(config[CONF_PARTITIONS])
         )
@@ -1833,35 +1821,32 @@ async def to_code(config):
         CORE.add_job(_write_arduino_libraries_sdkconfig)
 
 
-def validate_custom_partition(
-    name: str, p_type: int | str, subtype: int | str, size: int
-) -> None:
-    def validator(value):
-        p_type_ = p_type
-        subtype_ = subtype
-        if name in ["nvs", "app0", "app1", "otadata", "eeprom", "spiffs", "phy_init"]:
-            raise cv.Invalid(f"Partition name {name} is reserved.")
-        if isinstance(p_type_, str) and p_type_ not in ["app", "data"]:
-            raise cv.Invalid(
-                f"Type {p_type_} is invalid. Only app and data are allowed. Use numbers for custom types"
-            )
-        if isinstance(p_type_, int):
-            if p_type_ not in range(0x40, 0xFE):
-                raise cv.Invalid(
-                    f"Type 0x{p_type_:X} is invalid. Only custom types 0x40 - 0xFE are allowed"
-                )
-            p_type_ = f"0x{p_type_:X}"
-        if isinstance(subtype_, int):
-            if subtype_ not in range(0x0, 0xFE):
-                raise cv.Invalid(
-                    f"Subtype 0x{subtype_:X} is invalid. Only 0x0 - 0xFE are allowed"
-                )
-            subtype_ = f"0x{subtype_:X}"
-        custom_partitions = CORE.data.setdefault(KEY_CUSTOM_PARTITIONS, {})
-        custom_partitions[name] = {"type": p_type_, "subtype": subtype_, "size": size}
-        return value
+KEY_CUSTOM_PARTITIONS = "custom_partitions"
 
-    return validator
+
+def add_partition(name: str, p_type: int | str, subtype: int | str, size: int) -> None:
+    p_type_ = p_type
+    subtype_ = subtype
+    if name in ["nvs", "app0", "app1", "otadata", "eeprom", "spiffs", "phy_init"]:
+        raise cv.Invalid(f"Partition name {name} is reserved.")
+    if isinstance(p_type_, str) and p_type_ not in ["app", "data"]:
+        raise cv.Invalid(
+            f"Type {p_type_} is invalid. Only app and data are allowed. Use numbers for custom types"
+        )
+    if isinstance(p_type_, int):
+        if p_type_ not in range(0x40, 0xFE):
+            raise cv.Invalid(
+                f"Type 0x{p_type_:X} is invalid. Only custom types 0x40 - 0xFE are allowed"
+            )
+        p_type_ = f"0x{p_type_:X}"
+    if isinstance(subtype_, int):
+        if subtype_ not in range(0x0, 0xFE):
+            raise cv.Invalid(
+                f"Subtype 0x{subtype_:X} is invalid. Only 0x0 - 0xFE are allowed"
+            )
+        subtype_ = f"0x{subtype_:X}"
+    custom_partitions = CORE.data.setdefault(KEY_CUSTOM_PARTITIONS, {})
+    custom_partitions[name] = {"type": p_type_, "subtype": subtype_, "size": size}
 
 
 def _get_custom_partition_half_size() -> int:
