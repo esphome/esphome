@@ -10,11 +10,11 @@ namespace esphome::uart {
 
 /// ESP-IDF UART driver wrapper.
 ///
-/// Thread safety: All public methods (read_array, write_array, peek_byte, available, flush,
-/// load_settings) must only be called from the main loop. The ESP-IDF UART driver API does not
-/// guarantee thread safety, and ESPHome's peek byte state (has_peek_/peek_byte_) is not
-/// synchronized. The rx_event_task (when enabled) must not call any of these methods — it
-/// communicates with the main loop exclusively via App.wake_loop_threadsafe().
+/// Thread safety: All public methods must only be called from the main loop.
+/// The ESP-IDF UART driver API does not guarantee thread safety, and ESPHome's
+/// peek byte state (has_peek_/peek_byte_) is not synchronized. The rx_event_task
+/// (when enabled) must not call any of these methods — it communicates with the
+/// main loop exclusively via App.wake_loop_threadsafe().
 class IDFUARTComponent : public UARTComponent, public Component {
  public:
   void setup() override;
