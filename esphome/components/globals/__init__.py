@@ -78,7 +78,7 @@ _BASE_SCHEMA = {
 
 def validate_restore_mode(value):
     value = cv.one_of(RTC_RESTORE_MODE, upper=True)(value)
-    # Only RTC is available in ESP32
+    # RTC restore mode is only supported on ESP32
     if isinstance(value, str) and value == RTC_RESTORE_MODE and not CORE.is_esp32:
         raise cv.Invalid(
             f"RTC restore mode is only supported on ESP32 platforms, but current platform is {CORE.target_platform}"
