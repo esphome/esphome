@@ -195,7 +195,7 @@ void APIServer::remove_client_(size_t client_index) {
 #endif
 }
 
-void APIServer::accept_new_connections_() {
+void __attribute__((flatten)) APIServer::accept_new_connections_() {
   while (true) {
     struct sockaddr_storage source_addr;
     socklen_t addr_len = sizeof(source_addr);
