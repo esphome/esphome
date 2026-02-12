@@ -1,1 +1,50 @@
 <<: !include common.yaml
+
+esphome:
+  on_boot:
+    then:
+      - lambda: |-
+          id(uint8_test_no_restore)++;
+          id(uint8_test_restore)++;
+          id(uint8_test_rpc)++;
+          id(uint8_test_no_restore_array)[0]++;
+          id(uint8_test_no_restore_array)[1]++;
+          id(uint8_test_restore_array)[0]++;
+          id(uint8_test_restore_array)[1]++;
+          id(uint8_test_rpc_array)[0]++;
+          id(uint8_test_rpc_array)[1]++;
+      - globals.set:
+          id: uint8_test_no_restore
+          value: 42
+      - globals.set:
+          id: uint8_test_restore
+          value: 42
+      - globals.set:
+          id: uint8_test_rpc
+          value: 42
+
+globals:
+  - id: uint8_test_no_restore
+    type: uint8_t
+    restore_value: no
+    initial_value: "0"
+  - id: uint8_test_restore
+    type: uint8_t
+    restore_value: yes
+    initial_value: "0"
+  - id: uint8_test_rpc
+    type: uint8_t
+    restore_value: RTC
+    initial_value: "0"
+  - id: uint8_test_no_restore_array
+    type: uint8_t[2]
+    restore_value: no
+    initial_value: '{0, 0}'
+  - id: uint8_test_restore_array
+    type: uint8_t[2]
+    restore_value: yes
+    initial_value: '{0, 0}'
+  - id: uint8_test_rpc_array
+    type: uint8_t[2]
+    restore_value: RTC
+    initial_value: '{0, 0}'

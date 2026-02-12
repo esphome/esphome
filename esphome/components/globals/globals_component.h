@@ -27,6 +27,7 @@ template<typename T> class GlobalsComponent : public Component {
 #ifdef USE_ESP32
 template<typename T> class RTCGlobalsComponent : public Component {
  public:
+  using value_type = T;
   explicit RTCGlobalsComponent(T *rtc_ptr) : rtc_ptr_(rtc_ptr) {}
 
   T &value() { return *this->rtc_ptr_; }
