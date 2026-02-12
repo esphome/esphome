@@ -4,7 +4,7 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_RECEIVE_TIMEOUT, CONF_UART_ID
 
-CODEOWNERS = ["@glmnet", "@zuidwijk", "@PolarGoose"]
+CODEOWNERS = ["@glmnet", "@PolarGoose"]
 
 MULTI_CONF = True
 
