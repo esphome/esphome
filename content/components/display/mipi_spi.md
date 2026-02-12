@@ -48,6 +48,7 @@ using an octal SPI bus, so references here to parallel and octal SPI are equival
 | ILI9488     | 320x480            |
 | ILI9488_A   | 320x480            |
 | ST7796      | 320x480            |
+| ST7789P     | 240x320            |
 | ST7789V     | 240x320            |
 | GC9A01A     | 240x240            |
 | GC9D01N     | 240x240            |
@@ -55,6 +56,15 @@ using an octal SPI bus, so references here to parallel and octal SPI are equival
 | ST7735      | 128x160            |
 | CO5300      | 466x466            |
 | CUSTOM      | Customisable       |
+
+### Display panels
+
+These models represent display panels with known dimensions, but without a microcontroller. The configuration will require
+the pins used to interface to the display to be specified.
+
+| Panel                                | Manufacturer | Product Description                                               |
+| ------------------------------------ | ------------ | ----------------------------------------------------------------- |
+| WAVESHARE-1.83-V2                    | Waveshare    | <https://www.waveshare.com/1.83inch-LCD-Module.htm> |
 
 ### Boards with integrated displays
 
