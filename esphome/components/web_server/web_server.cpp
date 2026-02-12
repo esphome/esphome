@@ -1173,12 +1173,13 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
 
     auto call = obj->make_call();
 
-    if (!request->hasArg(ESPHOME_F("value"))) {
+    // .c_str() is required for Arduino framework where arg() returns Arduino String instead of std::string
+    std::string value = request->arg(ESPHOME_F("value")).c_str();  // NOLINT(readability-redundant-string-cstr)
+    if (value.empty()) {
       request->send(409);
       return;
     }
-
-    parse_string_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_date);
+    call.set_date(value);
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1233,12 +1234,13 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
 
     auto call = obj->make_call();
 
-    if (!request->hasArg(ESPHOME_F("value"))) {
+    // .c_str() is required for Arduino framework where arg() returns Arduino String instead of std::string
+    std::string value = request->arg(ESPHOME_F("value")).c_str();  // NOLINT(readability-redundant-string-cstr)
+    if (value.empty()) {
       request->send(409);
       return;
     }
-
-    parse_string_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_time);
+    call.set_time(value);
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1292,12 +1294,13 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
 
     auto call = obj->make_call();
 
-    if (!request->hasArg(ESPHOME_F("value"))) {
+    // .c_str() is required for Arduino framework where arg() returns Arduino String instead of std::string
+    std::string value = request->arg(ESPHOME_F("value")).c_str();  // NOLINT(readability-redundant-string-cstr)
+    if (value.empty()) {
       request->send(409);
       return;
     }
-
-    parse_string_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_datetime);
+    call.set_datetime(value);
 
     DEFER_ACTION(call, call.perform());
     request->send(200);

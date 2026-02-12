@@ -543,9 +543,9 @@ class WebServer : public Controller,
   template<typename T, typename Ret>
   void parse_string_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
                            Ret (T::*setter)(const std::string &)) {
-    if (request->hasArg(param_name)) {
-      // .c_str() is required for Arduino framework where arg() returns Arduino String instead of std::string
-      std::string value = request->arg(param_name).c_str();  // NOLINT(readability-redundant-string-cstr)
+    // .c_str() is required for Arduino framework where arg() returns Arduino String instead of std::string
+    std::string value = request->arg(param_name).c_str();  // NOLINT(readability-redundant-string-cstr)
+    if (!value.empty()) {
       (call.*setter)(value);
     }
   }
