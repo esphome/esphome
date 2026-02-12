@@ -265,17 +265,17 @@ def copy_files():
             CORE.relative_build_path("zephyr/pm_static.yml"), pm_static
         )
 
-    if zephyr_data()[KEY_KCONFIG]:
-        end = zephyr_data()[KEY_KCONFIG]
-        zephyr_data()[KEY_KCONFIG] = ""
-        zephyr_add_kconfig(
-            """
+    kconfig = zephyr_data()[KEY_KCONFIG]
+    if kconfig:
+        kconfig = (
+            textwrap.dedent(
+                """
                 menu "Zephyr"
                 source "Kconfig.zephyr"
                 endmenu
             """
+            )
+            + "\n"
+            + kconfig
         )
-        zephyr_data()[KEY_KCONFIG] += end
-        write_file_if_changed(
-            CORE.relative_build_path("zephyr/Kconfig"), zephyr_data()[KEY_KCONFIG]
-        )
+        write_file_if_changed(CORE.relative_build_path("zephyr/Kconfig"), kconfig)
