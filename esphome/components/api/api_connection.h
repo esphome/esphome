@@ -15,6 +15,10 @@
 #include <limits>
 #include <vector>
 
+namespace esphome {
+class ComponentIterator;
+}  // namespace esphome
+
 namespace esphome::api {
 
 // Keepalive timeout in milliseconds
@@ -366,20 +370,13 @@ class APIConnection final : public APIServerConnectionBase {
     return this->client_supports_api_version(1, 14) ? MAX_INITIAL_PER_BATCH : MAX_INITIAL_PER_BATCH_LEGACY;
   }
 
-  // Helper method to process multiple entities from an iterator in a batch
-  template<typename Iterator> void process_iterator_batch_(Iterator &iterator) {
-    size_t initial_size = this->deferred_batch_.size();
-    size_t max_batch = this->get_max_batch_size_();
-    while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
-      iterator.advance();
-    }
+  // Process active iterator (list_entities/initial_state) during connection setup.
+  // Extracted from loop() — only runs during initial handshake, NONE in steady state.
+  void __attribute__((noinline)) process_active_iterator_();
 
-    // If the batch is full, process it immediately
-    // Note: iterator.advance() already calls schedule_batch_() via schedule_message_()
-    if (this->deferred_batch_.size() >= max_batch) {
-      this->process_batch_();
-    }
-  }
+  // Helper method to process multiple entities from an iterator in a batch.
+  // Takes ComponentIterator base class reference to avoid duplicate template instantiations.
+  void process_iterator_batch_(ComponentIterator &iterator);
 
 #ifdef USE_BINARY_SENSOR
   static uint16_t try_send_binary_sensor_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
@@ -551,8 +548,8 @@ class APIConnection final : public APIServerConnectionBase {
       batch_start_time = 0;
     }
 
-    // Remove processed items from the front
-    void remove_front(size_t count) { items.erase(items.begin(), items.begin() + count); }
+    // Remove processed items from the front — noinline to keep memmove out of warm callers
+    void remove_front(size_t count) __attribute__((noinline)) { items.erase(items.begin(), items.begin() + count); }
 
     bool empty() const { return items.empty(); }
     size_t size() const { return items.size(); }
@@ -624,6 +621,8 @@ class APIConnection final : public APIServerConnectionBase {
 
   bool schedule_batch_();
   void process_batch_();
+  void process_batch_multi_(std::vector<uint8_t> &shared_buf, size_t num_items, uint8_t header_padding,
+                            uint8_t footer_size) __attribute__((noinline));
   void clear_batch_() {
     this->deferred_batch_.clear();
     this->flags_.batch_scheduled = false;
