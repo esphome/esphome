@@ -1179,7 +1179,7 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
       request->send(409);
       return;
     }
-    call.set_date(value);
+    call.set_date(value.c_str(), value.size());
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1240,7 +1240,7 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
       request->send(409);
       return;
     }
-    call.set_time(value);
+    call.set_time(value.c_str(), value.size());
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1300,7 +1300,7 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
       request->send(409);
       return;
     }
-    call.set_datetime(value);
+    call.set_datetime(value.c_str(), value.size());
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
