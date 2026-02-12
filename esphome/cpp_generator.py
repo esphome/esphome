@@ -695,6 +695,7 @@ async def process_lambda(
         GlobalsComponent,
         RestoringGlobalsComponent,
         RestoringGlobalStringComponent,
+        RTCGlobalsComponent,
     )
 
     if value is None:
@@ -717,6 +718,7 @@ async def process_lambda(
                 full_id.type.inherits_from(GlobalsComponent)
                 or full_id.type.inherits_from(RestoringGlobalsComponent)
                 or full_id.type.inherits_from(RestoringGlobalStringComponent)
+                or full_id.type.inherits_from(RTCGlobalsComponent)
             )
         ):
             parts[i * 3 + 1] = var.value()

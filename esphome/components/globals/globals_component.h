@@ -3,6 +3,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/defines.h"
 #include <cstring>
 
 namespace esphome::globals {
@@ -22,6 +23,20 @@ template<typename T> class GlobalsComponent : public Component {
  protected:
   T value_{};
 };
+
+#ifdef USE_ESP32
+template<typename T> class RTCGlobalsComponent : public Component {
+ public:
+  explicit RTCGlobalsComponent(T *rtc_ptr) : rtc_ptr_(rtc_ptr) {}
+
+  T &value() { return *this->rtc_ptr_; }
+
+  void setup() override {}
+
+ protected:
+  T *rtc_ptr_;
+};
+#endif
 
 template<typename T> class RestoringGlobalsComponent : public PollingComponent {
  public:
@@ -144,5 +159,8 @@ template<class C, typename... Ts> class GlobalVarSetAction : public Action<Ts...
 template<typename T> T &id(GlobalsComponent<T> *value) { return value->value(); }
 template<typename T> T &id(RestoringGlobalsComponent<T> *value) { return value->value(); }
 template<typename T, uint8_t SZ> T &id(RestoringGlobalStringComponent<T, SZ> *value) { return value->value(); }
+#ifdef USE_ESP32
+template<typename T> T &id(RTCGlobalsComponent<T> *value) { return value->value(); }
+#endif
 
 }  // namespace esphome::globals
