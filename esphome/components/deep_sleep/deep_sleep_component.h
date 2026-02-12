@@ -14,6 +14,10 @@
 #include "esphome/core/time.h"
 #endif
 
+#ifdef USE_ZEPHYR
+#include <zephyr/kernel.h>
+#endif
+
 #include <cinttypes>
 
 namespace esphome {
@@ -130,6 +134,7 @@ class DeepSleepComponent : public Component {
   void dump_config_platform_();
   bool prepare_to_sleep_();
   void deep_sleep_();
+  void setup_deep_sleep_();
 
 #ifdef USE_BK72XX
   bool pin_prevents_sleep_(WakeUpPinItem &pinItem) const;
@@ -158,6 +163,9 @@ class DeepSleepComponent : public Component {
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};
   bool prevent_{false};
+#ifdef USE_ZEPHYR
+  k_sem wakeup_sem_;
+#endif
 };
 
 extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

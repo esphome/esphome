@@ -75,6 +75,9 @@ class ZigbeeComponent : public Component {
     this->callbacks_[endpoint - 1] = std::move(cb);
   }
   void add_join_callback(std::function<void()> &&cb) { this->join_cb_.add(std::move(cb)); }
+#ifdef USE_DEEP_SLEEP
+  void add_wakeup_callback(std::function<void()> &&cb) { this->wakeup_cb_ = std::move(cb); }
+#endif
   void zboss_signal_handler_esphome(zb_bufid_t bufid);
   void factory_reset();
   Trigger<> *get_join_trigger() { return &this->join_trigger_; };
@@ -94,6 +97,9 @@ class ZigbeeComponent : public Component {
   bool force_report_{false};
   uint32_t sleep_time_{};
   uint32_t sleep_remainder_{};
+#ifdef USE_DEEP_SLEEP
+  std::function<void()> wakeup_cb_;
+#endif
 };
 
 class ZigbeeEntity {
@@ -105,6 +111,8 @@ class ZigbeeEntity {
   zb_uint8_t endpoint_{0};
   ZigbeeComponent *parent_{nullptr};
 };
+
+extern ZigbeeComponent *global_zigbee;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::zigbee
 #endif

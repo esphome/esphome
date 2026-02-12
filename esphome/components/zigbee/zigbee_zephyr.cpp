@@ -116,6 +116,12 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   /* Set default response value. */
   p_device_cb_param->status = RET_OK;
 
+#ifdef USE_DEEP_SLEEP
+  if (global_zigbee->wakeup_cb_) {
+    global_zigbee->wakeup_cb_();
+  }
+#endif
+
   // endpoints are enumerated from 1
   if (global_zigbee->callbacks_.size() >= endpoint) {
     const auto &cb = global_zigbee->callbacks_[endpoint - 1];

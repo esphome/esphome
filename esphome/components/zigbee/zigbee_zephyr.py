@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 import random
 
 from esphome import automation
@@ -75,6 +76,8 @@ from .const_zephyr import (
     ZigbeeComponent,
     zigbee_ns,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
@@ -188,6 +191,12 @@ async def zephyr_to_code(config: ConfigType) -> None:
 
     await _attr_to_code(config)
     CORE.add_job(_ctx_to_code, config)
+
+    if (
+        config[CONF_POWER_SOURCE] != "BATTERY"
+        and "deep_sleep" in CORE.loaded_integrations
+    ):
+        _LOGGER.warning("For deep sleep zigbee should use: power_source: BATTERY")
 
 
 async def _attr_to_code(config: ConfigType) -> None:

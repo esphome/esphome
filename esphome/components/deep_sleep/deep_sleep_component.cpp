@@ -1,6 +1,7 @@
 #include "deep_sleep_component.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include <esphome/components/zigbee/zigbee_zephyr.h>
 
 namespace esphome {
 namespace deep_sleep {
@@ -12,8 +13,18 @@ static const uint32_t TEARDOWN_TIMEOUT_DEEP_SLEEP_MS = 5000;
 bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void DeepSleepComponent::setup() {
+#ifdef USE_ZEPHYR
+  k_sem_init(&this->wakeup_sem_, 0, 1);
+#ifdef USE_ZIGBEE
+  zigbee::global_zigbee->add_wakeup_callback([this]() { k_sem_give(&this->wakeup_sem_); });
+#endif
+#endif
   global_has_deep_sleep = true;
+  this->setup_deep_sleep_();
+}
 
+void DeepSleepComponent::setup_deep_sleep_() {
+  this->next_enter_deep_sleep_ = false;
   const optional<uint32_t> run_duration = get_run_duration_();
   if (run_duration.has_value()) {
     ESP_LOGI(TAG, "Scheduling in %" PRIu32 " ms", *run_duration);
@@ -69,6 +80,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
   App.run_powerdown_hooks();
 
   this->deep_sleep_();
+  this->setup_deep_sleep_();
 }
 
 float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }
