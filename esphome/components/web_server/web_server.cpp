@@ -557,7 +557,9 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
       root[ESPHOME_F("device")] = device_name;
     }
 #endif
+#ifdef USE_ENTITY_ICON
     root[ESPHOME_F("icon")] = obj->get_icon_ref();
+#endif
     root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();
     if (is_disabled)
