@@ -429,6 +429,7 @@ esphome/components/sen21231/* @shreyaskarnik
 esphome/components/sen5x/* @martgras
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
+esphome/components/serial_proxy/* @kbx81
 esphome/components/sfa30/* @ghsensdev
 esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sgp4x/* @martgras @SenexCrenshaw
