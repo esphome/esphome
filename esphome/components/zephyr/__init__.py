@@ -273,7 +273,7 @@ def copy_files():
                 menu "Zephyr"
                 source "Kconfig.zephyr"
                 endmenu
-            """
+                """
             )
             + "\n"
             + kconfig
