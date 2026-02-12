@@ -424,7 +424,16 @@ optional<std::string> AsyncWebServerRequest::find_query_value_(const char *name)
   return {};
 }
 
-bool AsyncWebServerRequest::hasArg(const char *name) { return this->find_query_value_(name).has_value(); }
+bool AsyncWebServerRequest::hasArg(const char *name) {
+  if (query_has_key(this->post_query_.c_str(), this->post_query_.size(), name)) {
+    return true;
+  }
+  auto url_query = request_get_url_query(*this);
+  if (url_query.has_value()) {
+    return query_has_key(url_query.value().c_str(), url_query.value().size(), name);
+  }
+  return false;
+}
 
 std::string AsyncWebServerRequest::arg(const char *name) {
   auto val = this->find_query_value_(name);

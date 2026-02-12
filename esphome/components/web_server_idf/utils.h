@@ -18,6 +18,7 @@ optional<std::string> query_key_value(const char *query_url, size_t query_len, c
 inline optional<std::string> query_key_value(const std::string &query_url, const std::string &key) {
   return query_key_value(query_url.c_str(), query_url.size(), key.c_str());
 }
+bool query_has_key(const char *query_url, size_t query_len, const char *key);
 
 // Helper function for case-insensitive character comparison
 inline bool char_equals_ci(char a, char b) { return ::tolower(a) == ::tolower(b); }

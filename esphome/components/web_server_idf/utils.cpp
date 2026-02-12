@@ -88,6 +88,17 @@ optional<std::string> query_key_value(const char *query_url, size_t query_len, c
   return {val.get()};
 }
 
+bool query_has_key(const char *query_url, size_t query_len, const char *key) {
+  if (query_url == nullptr || query_len == 0) {
+    return false;
+  }
+  // Minimal buffer — we only care if the key exists, not the value
+  char buf[1];
+  // httpd_query_key_value returns ESP_OK if key found (even if buffer too small for value),
+  // ESP_ERR_NOT_FOUND if key absent
+  return httpd_query_key_value(query_url, key, buf, sizeof(buf)) != ESP_ERR_NOT_FOUND;
+}
+
 // Helper function for case-insensitive string region comparison
 bool str_ncmp_ci(const char *s1, const char *s2, size_t n) {
   for (size_t i = 0; i < n; i++) {
