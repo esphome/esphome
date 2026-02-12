@@ -49,9 +49,7 @@ def extract_primitive_type(type_str):
     primitive_type, length_part = type_str.split("[", 1)
     primitive_type = primitive_type.strip()
     if "]" not in length_part:
-        raise cv.Invalid(
-            f"Invalid array type syntax '{type_str}': missing closing ']'"
-        )
+        raise cv.Invalid(f"Invalid array type syntax '{type_str}': missing closing ']'")
     length_str, _ = length_part.split("]", 1)
     length_str = length_str.strip()
     if not length_str:
