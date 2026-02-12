@@ -116,7 +116,8 @@ class AsyncWebServerRequest {
   /// Write URL (without query string) to buffer, returns StringRef pointing to buffer.
   /// URL is decoded (e.g., %20 -> space).
   StringRef url_to(std::span<char, URL_BUF_SIZE> buffer) const;
-  /// Get URL as std::string. Prefer url_to() to avoid heap allocation.
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use url_to() instead. Removed in 2026.9.0", "2026.3.0")
   std::string url() const {
     char buffer[URL_BUF_SIZE];
     return std::string(this->url_to(buffer));
