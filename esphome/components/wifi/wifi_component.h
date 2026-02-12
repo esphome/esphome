@@ -219,6 +219,12 @@ class CompactString {
 };
 
 static_assert(sizeof(CompactString) == 20, "CompactString must be exactly 20 bytes");
+// CompactString is safe to memcpy for permutation-based sorting (no ownership duplication).
+// Unlike libstdc++ std::string which uses a self-referential pointer (_M_p -> _M_local_buf)
+// in SSO mode, CompactString stores either inline data or an external heap pointer in
+// storage_[] — never a pointer to itself. These asserts guard that property.
+static_assert(std::is_standard_layout<CompactString>::value, "CompactString must be standard layout for memcpy safety");
+static_assert(!std::is_polymorphic<CompactString>::value, "CompactString must not have vtable for memcpy safety");
 
 class WiFiAP {
   friend class WiFiComponent;
