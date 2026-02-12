@@ -20,9 +20,6 @@
 #include <freertos/task.h>
 #include <freertos/queue.h>
 
-#include <deque>
-#include <optional>
-
 namespace esphome {
 namespace sendspin {
 
@@ -32,17 +29,23 @@ struct PlaybackProgress {
   int64_t finish_timestamp;  // The timestamp when the audio frames should finish playing
 };
 
-// Stores the timing information for decoded chunks of audio sent to the speaker
-struct InternalAudioTiming {
-  int64_t timestamp;          // Timestamp when this audio chunk should finish playing
-  uint32_t total_frames;      // Total number of audio frames in this chunk, including corrections
-  int32_t frame_corrections;  // Number of frames in this added/removed by the decoder to maintain sync
-};
-
 enum class SendspinGenerationState : uint8_t {
   START_TASK,
   GENERATING,
   IDLE,
+};
+
+enum class SyncTaskState : uint8_t {
+  INITIAL_SYNC,
+  LOAD_CHUNK,
+  SYNCHRONIZE_AUDIO,
+  TRANSFER_AUDIO,
+};
+
+enum class DecodeResult : uint8_t {
+  SUCCESS,  // Audio decoded successfully (or header processed)
+  SKIPPED,  // Chunk skipped because it can't be played in time
+  FAILED,   // Decoder failed to decode the chunk
 };
 
 // Stores all the variables need by segments of the sync task
@@ -57,12 +60,9 @@ struct SyncContext {
   size_t pipeline_index;
   bool release_chunk;
   bool initial_decode;
-  int64_t pending_frame_corrections;
-  int synced_chunks;
-  std::deque<InternalAudioTiming> chunk_timings;
-  std::optional<int64_t> last_error;
-  int64_t temporary_hard_sync_threshold;
-  int64_t recent_error_us;
+  bool hard_syncing{true};  // Starts true so initial sync uses tight settle threshold
+  uint32_t buffered_frames;
+  int64_t new_audio_client_playtime;
 };
 
 // Forward declaration
@@ -82,11 +82,10 @@ struct SendspinMediaSourcePipeline {
   QueueHandle_t playback_progress_queue;
   audio::AudioStreamInfo stream_info;
   std::unique_ptr<SendspinAudioRingBuffer> encoded_ring_buffer;
-  uint32_t single_frames_added_{0};
-  uint32_t single_frames_removed_{0};
-  uint32_t hard_sync_added_frames_{0};
-  uint32_t hard_sync_removed_frames_{0};
-  uint32_t audible_syncs_{0};
+  uint32_t single_frames_added{0};
+  uint32_t single_frames_removed{0};
+  uint32_t hard_sync_added_frames{0};
+  uint32_t hard_sync_removed_frames{0};
 };
 
 /// @brief Parameters passed to generate task
@@ -116,38 +115,47 @@ class SendspinMediaSource : public Component, public media_source::MediaSource, 
  protected:
   static void sync_task(void *params);
 
-  // Return true if ready to move onto next stage, false if more audio needs to be sent
+  /// @brief Handles the INITIAL_SYNC state: feeds zeros to prime the audio pipeline.
+  SyncTaskState sync_handle_initial_sync_(SyncContext &sync_context);
+
+  /// @brief Handles the LOAD_CHUNK state: loads and decodes the next encoded chunk.
+  SyncTaskState sync_handle_load_chunk_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
+
+  /// @brief Handles the SYNCHRONIZE_AUDIO state: applies sync corrections based on predicted error.
+  SyncTaskState sync_handle_synchronize_audio_(SyncContext &sync_context,
+                                               SendspinMediaSourcePipeline &pipeline_context);
+
+  /// @brief Handles the TRANSFER_AUDIO state: sends buffered audio to the sink.
+  SyncTaskState sync_handle_transfer_audio_(SyncContext &sync_context);
+
+  /// @brief Updates buffered_frames and new_audio_client_playtime after sending audio to the speaker.
+  /// These two must always be updated together to keep the playtime estimate consistent.
+  void sync_track_sent_audio_(SyncContext &sync_context, size_t bytes_sent);
+
+  /// @brief Transfers audio from interpolation and decode buffers to the sink.
+  /// Returns true when all data has been sent, false if more transfers are needed.
   bool sync_transfer_audio_(SyncContext &sync_context);
 
-  /// @brief Return true fi ready to move onto next stage, false if needed to run again
+  /// @brief Loads the next encoded chunk from the ring buffer.
+  /// Returns true if a chunk is available, false if none ready yet.
   bool sync_load_next_chunk_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
 
-  /// @brief Determines the raw sync error (not taking into account pending corrections). Return true if ready to go
-  /// onto the next stage, false if need to run again.
-  bool sync_determine_raw_sync_error_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
+  /// @brief Removes last decoded frame, blending into the second-to-last to minimize glitches.
+  /// Returns -1 if a frame was removed, 0 if preconditions not met.
+  int32_t sync_soft_sync_remove_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
 
-  /// @brief Determine the error after pending corrections. Returns true always
-  bool sync_determine_predicted_error_(SyncContext &sync_context);
-
-  /// @biref Return true if ready to move onto next stage, otherwise call again
-  bool sync_synchronize_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
-
-  void sync_hard_sync_add_silence_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
-  void sync_hard_sync_remove_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context,
-                                    InternalAudioTiming &timings, int32_t &frame_corrections);
-
-  void sync_soft_sync_remove_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context,
-                                    InternalAudioTiming &timings, int32_t &frame_corrections);
-  void sync_soft_sync_add_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context,
-                                 InternalAudioTiming &timings, int32_t &frame_corrections);
-
-  void sync_soft_reset_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
+  /// @brief Adds one interpolated frame between the first two decoded frames.
+  /// Returns 1 if a frame was added, 0 if preconditions not met.
+  int32_t sync_soft_sync_add_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
 
   /// @brief Drains stale audio from the ring buffer until a codec header is found.
-  /// Prevents a race condition where a rapid stop/start leaves leftover encoded audio before the new codec header.
   void sync_drain_until_codec_header_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
 
-  bool sync_decode_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
+  /// @brief Decodes the current encoded chunk.
+  DecodeResult sync_decode_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
+
+  /// @brief Processes playback progress messages from the speaker to update buffered_frames and playtime.
+  void sync_process_playback_progress_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
 
   void set_transfer_callbacks_(SyncContext &sync_context, int pipeline);
 
