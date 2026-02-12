@@ -8,11 +8,21 @@ namespace esphome::rtttl {
 
 static const char *const TAG = "rtttl";
 
+static const uint8_t SONG_NAME_SOFT_LIMIT = 10;
+static const uint8_t SONG_NAME_HARD_LIMIT = 15;
+static const uint8_t SEMITONES_IN_OCTAVE = 12;
+
+static const uint8_t MIN_OCTAVE = 4;
+static const uint8_t MAX_OCTAVE = 7;
+
+static const uint8_t DEFAULT_BPM = 63;  // Default beats per minute
+
 // These values can also be found as constants in the Tone library (Tone.h)
 static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370,  392,  415,  440,  466,  494,
                                  523,  554,  587,  622,  659,  698,  740,  784,  831,  880,  932,  988,  1047,
                                  1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217,
                                  2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
+static const uint8_t NOTES_COUNT = static_cast<uint8_t>(sizeof(NOTES) / sizeof(NOTES[0]));  // 1+4*12=49
 
 #if defined(USE_OUTPUT) || defined(USE_SPEAKER)
 static const uint32_t REPEATING_NOTE_GAP_MS = 10;
@@ -20,6 +30,7 @@ static const uint32_t REPEATING_NOTE_GAP_MS = 10;
 
 #ifdef USE_SPEAKER
 static const size_t SAMPLE_BUFFER_SIZE = 2048;
+static const uint16_t SAMPLE_RATE = 16000;
 
 struct SpeakerSample {
   int8_t left{0};
@@ -184,8 +195,8 @@ void Rtttl::loop() {
     scale = this->default_octave_;
   }
 
-  if (scale < 4 || scale > 7) {
-    ESP_LOGE(TAG, "Octave must be between 4 and 7 (it is %d)", scale);
+  if (scale < MIN_OCTAVE || scale > MAX_OCTAVE) {
+    ESP_LOGE(TAG, "Octave must be between %d and %d (it is %d)", MIN_OCTAVE, MAX_OCTAVE, scale);
     this->finish_();
     return;
   }
@@ -200,10 +211,10 @@ void Rtttl::loop() {
 
   // Now play the note
   if (note) {
-    auto note_index = (scale - 4) * 12 + note_index_in_octave;
-    if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {
+    auto note_index = (scale - MIN_OCTAVE) * SEMITONES_IN_OCTAVE + note_index_in_octave;
+    if (note_index < 0 || note_index >= NOTES_COUNT) {
       ESP_LOGE(TAG, "Note out of range (note: %d, scale: %d, index: %d, max: %d)", note_index_in_octave, scale,
-               note_index, (int) sizeof(NOTES));
+               note_index, NOTES_COUNT);
       this->finish_();
       return;
     }
@@ -240,14 +251,14 @@ void Rtttl::loop() {
     this->samples_sent_ = 0;
     this->samples_gap_ = 0;
     this->samples_per_wave_ = 0;
-    this->samples_count_ = (this->sample_rate_ * this->note_duration_) / 1600;  // ms
+    this->samples_count_ = (SAMPLE_RATE * this->note_duration_) / 1600;  // ms
     if (need_note_gap) {
-      this->samples_gap_ = (this->sample_rate_ * REPEATING_NOTE_GAP_MS) / 1600;  // ms
+      this->samples_gap_ = (SAMPLE_RATE * REPEATING_NOTE_GAP_MS) / 1600;  // ms
     }
     if (this->output_freq_ != 0) {
       // Make sure there is enough samples to add a full last sinus.
       uint16_t samples_wish = this->samples_count_;
-      this->samples_per_wave_ = (this->sample_rate_ << 10) / this->output_freq_;
+      this->samples_per_wave_ = (SAMPLE_RATE << 10) / this->output_freq_;
 
       uint16_t division = ((this->samples_count_ << 10) / this->samples_per_wave_) + 1;
 
@@ -273,11 +284,11 @@ void Rtttl::play(std::string rtttl) {
 
   this->rtttl_ = std::move(rtttl);
 
-  this->default_note_denominator_ = 4;
-  this->default_octave_ = 6;
+  this->default_note_denominator_ = DEFAULT_NOTE_DENOMINATOR;
+  this->default_octave_ = DEFAULT_OCTAVE;
   this->note_duration_ = 0;
 
-  int bpm = 63;
+  int bpm = DEFAULT_BPM;
   uint8_t num;  // Used for: default note-denominator, default octave, BPM
 
   // Get name
@@ -285,11 +296,15 @@ void Rtttl::play(std::string rtttl) {
 
   // It's somewhat documented to be up to 10 (SONG_NAME_SOFT_LIMIT) characters but let's be a bit flexible here
   // (SONG_NAME_HARD_LIMIT = 15)
-  if (this->position_ == std::string::npos || this->position_ > 15) {
+  if (this->position_ == std::string::npos || this->position_ > SONG_NAME_HARD_LIMIT) {
     ESP_LOGE(TAG, "Unable to determine name; missing ':'");
     return;
   }
 
+  if (this->position_ > SONG_NAME_SOFT_LIMIT) {
+    ESP_LOGW(TAG, "Name is longer than %d characters: %.*s", SONG_NAME_SOFT_LIMIT, (int) this->position_,
+             this->rtttl_.c_str());
+  }
   ESP_LOGD(TAG, "Playing song %.*s", (int) this->position_, this->rtttl_.c_str());
 
   // Get default duration
@@ -312,7 +327,7 @@ void Rtttl::play(std::string rtttl) {
   }
   this->position_ += 2;
   num = this->get_integer_();
-  if (num >= 3 && num <= 7) {
+  if (num >= MIN_OCTAVE && num <= MAX_OCTAVE) {
     this->default_octave_ = num;
   }
 
