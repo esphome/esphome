@@ -59,9 +59,7 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   wifi::global_wifi_component->save_wifi_sta(ssid.c_str(), psk.c_str());
 #else
   // Defer save to main loop thread to avoid NVS operations from HTTP thread
-  this->defer([ssid = std::string(ssid.c_str(), ssid.length()), psk = std::string(psk.c_str(), psk.length())]() {
-    wifi::global_wifi_component->save_wifi_sta(ssid, psk);
-  });
+  this->defer([ssid, psk]() { wifi::global_wifi_component->save_wifi_sta(ssid.c_str(), psk.c_str()); });
 #endif
   request->redirect(ESPHOME_F("/?save"));
 }
