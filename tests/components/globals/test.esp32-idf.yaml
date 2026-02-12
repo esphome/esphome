@@ -1,5 +1,3 @@
-<<: !include common.yaml
-
 esphome:
   on_boot:
     then:
