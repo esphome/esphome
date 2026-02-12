@@ -389,18 +389,21 @@ void EthernetComponent::dump_config() {
       eth_type = "KSZ8081RNA";
       break;
 #endif
+#if CONFIG_ETH_SPI_ETHERNET_W5500
     case ETHERNET_TYPE_W5500:
       eth_type = "W5500";
       break;
-
-    case ETHERNET_TYPE_OPENETH:
-      eth_type = "OPENETH";
-      break;
-
+#endif
+#if CONFIG_ETH_SPI_ETHERNET_DM9051
     case ETHERNET_TYPE_DM9051:
       eth_type = "DM9051";
       break;
-
+#endif
+#ifdef USE_ETHERNET_OPENETH
+    case ETHERNET_TYPE_OPENETH:
+      eth_type = "OPENETH";
+      break;
+#endif
 #ifdef USE_ETHERNET_LAN8670
     case ETHERNET_TYPE_LAN8670:
       eth_type = "LAN8670";
@@ -829,8 +832,8 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
   ESPHL_ERROR_CHECK(err, "Read PHY Control 2 failed");
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   char hex_buf[format_hex_pretty_size(PHY_REG_SIZE)];
-  ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty_to(hex_buf, (uint8_t *) &phy_control_2, PHY_REG_SIZE));
 #endif
+  ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty_to(hex_buf, (uint8_t *) &phy_control_2, PHY_REG_SIZE));
 
   /*
    * Bit 7 is `RMII Reference Clock Select`. Default is `0`.
@@ -847,10 +850,8 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
     ESPHL_ERROR_CHECK(err, "Write PHY Control 2 failed");
     err = mac->read_phy_reg(mac, this->phy_addr_, KSZ80XX_PC2R_REG_ADDR, &(phy_control_2));
     ESPHL_ERROR_CHECK(err, "Read PHY Control 2 failed");
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
     ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s",
               format_hex_pretty_to(hex_buf, (uint8_t *) &phy_control_2, PHY_REG_SIZE));
-#endif
   }
 }
 #endif  // USE_ETHERNET_KSZ8081
