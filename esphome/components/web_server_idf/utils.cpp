@@ -8,8 +8,7 @@
 
 #include "utils.h"
 
-namespace esphome {
-namespace web_server_idf {
+namespace esphome::web_server_idf {
 
 static const char *const TAG = "web_server_idf_utils";
 
@@ -99,8 +98,8 @@ bool str_ncmp_ci(const char *s1, const char *s2, size_t n) {
   return true;
 }
 
-// Case-insensitive string search (like strstr but case-insensitive)
-const char *stristr(const char *haystack, const char *needle) {
+// Bounded case-insensitive string search (like strcasestr but length-bounded)
+const char *strcasestr_n(const char *haystack, size_t haystack_len, const char *needle) {
   if (!haystack) {
     return nullptr;
   }
@@ -110,7 +109,12 @@ const char *stristr(const char *haystack, const char *needle) {
     return haystack;
   }
 
-  for (const char *p = haystack; *p; p++) {
+  if (haystack_len < needle_len) {
+    return nullptr;
+  }
+
+  const char *end = haystack + haystack_len - needle_len + 1;
+  for (const char *p = haystack; p < end; p++) {
     if (str_ncmp_ci(p, needle, needle_len)) {
       return p;
     }
@@ -119,6 +123,5 @@ const char *stristr(const char *haystack, const char *needle) {
   return nullptr;
 }
 
-}  // namespace web_server_idf
-}  // namespace esphome
+}  // namespace esphome::web_server_idf
 #endif  // USE_ESP32
