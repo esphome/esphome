@@ -17,9 +17,9 @@ namespace esphome {
 namespace json {
 
 /// Buffer for JSON serialization that uses stack allocation for small payloads.
-/// Template parameter STACK_SIZE specifies the stack buffer size (default 768 bytes).
+/// Template parameter STACK_SIZE specifies the stack buffer size (default 512 bytes).
 /// Supports move semantics for efficient return-by-value.
-template<size_t STACK_SIZE = 768> class SerializationBuffer {
+template<size_t STACK_SIZE = 512> class SerializationBuffer {
  public:
   static constexpr size_t BUFFER_SIZE = STACK_SIZE;  ///< Stack buffer size for this instantiation
 
@@ -175,7 +175,7 @@ class JsonBuilder {
   }
 
   /// Serialize the JSON document to a SerializationBuffer (stack-first allocation)
-  /// Uses 768-byte stack buffer by default, falls back to heap for larger JSON
+  /// Uses 512-byte stack buffer by default, falls back to heap for larger JSON
   SerializationBuffer<> serialize();
 
  private:

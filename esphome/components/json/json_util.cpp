@@ -70,7 +70,7 @@ SerializationBuffer<> JsonBuilder::serialize() {
   // directly in the caller's stack frame, eliminating the move constructor call entirely.
   //
   // WITHOUT NRVO: Each return would trigger SerializationBuffer's move constructor, which
-  // must memcpy up to 768 bytes of stack buffer content. This happens on EVERY JSON
+  // must memcpy up to 512 bytes of stack buffer content. This happens on EVERY JSON
   // serialization (sensor updates, web server responses, MQTT publishes, etc.).
   //
   // WITH NRVO: Zero memcpy, zero move constructor overhead. The buffer lives directly
@@ -89,7 +89,7 @@ SerializationBuffer<> JsonBuilder::serialize() {
   //     Should show only destructor, NOT move constructor
   //
   // Why we avoid measureJson(): It instantiates DummyWriter templates adding ~1KB flash.
-  // Instead, try stack buffer first. 768 bytes covers 99.9% of JSON payloads (sensors ~200B,
+  // Instead, try stack buffer first. 512 bytes covers 99.9% of JSON payloads (sensors ~200B,
   // lights ~170B, climate ~700B). Only entities with 40+ options exceed this.
   //
   // ===========================================================================================
