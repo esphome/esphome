@@ -68,16 +68,15 @@ class Rtttl : public Component {
   /// The current position in the RTTTL string.
   size_t position_{0};
   /// The duration of a whole note in milliseconds.
-  uint16_t wholenote_;
+  uint16_t wholenote_duration_;
   /// The default duration of a note (e.g. 4 for a quarter note).
-  uint16_t default_duration_;
+  uint16_t default_note_denominator_;
   /// The default octave for a note.
   uint16_t default_octave_;
   /// The time in milliseconds since microcontroller boot when the last note was started.
-  uint32_t last_note_;
+  uint32_t last_note_start_time_;
   /// The duration of the current note in milliseconds.
   uint16_t note_duration_;
-
   /// The frequency of the current note in Hz.
   uint32_t output_freq_;
   /// The gain of the output.

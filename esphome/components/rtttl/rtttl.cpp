@@ -15,7 +15,7 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
                                  2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
 
 #if defined(USE_OUTPUT) || defined(USE_SPEAKER)
-static const uint32_t DOUBLE_NOTE_GAP_MS = 10;
+static const uint32_t REPEATING_NOTE_GAP_MS = 10;
 #endif  // USE_OUTPUT || USE_SPEAKER
 
 #ifdef USE_SPEAKER
@@ -85,7 +85,7 @@ void Rtttl::loop() {
   }
 
 #ifdef USE_OUTPUT
-  if (this->output_ != nullptr && millis() - this->last_note_ < this->note_duration_) {
+  if (this->output_ != nullptr && millis() - this->last_note_start_time_ < this->note_duration_) {
     return;
   }
 #endif  // USE_OUTPUT
@@ -113,7 +113,7 @@ void Rtttl::loop() {
     }
     if (this->samples_sent_ != this->samples_count_) {
       SpeakerSample sample[SAMPLE_BUFFER_SIZE + 2];
-      int x = 0;
+      int sample_index = 0;
       double rem = 0.0;
 
       while (true) {
@@ -123,24 +123,24 @@ void Rtttl::loop() {
 
           int16_t val = (127 * this->gain_) * sin(deg2rad(rem));
 
-          sample[x].left = val;
-          sample[x].right = val;
+          sample[sample_index].left = val;
+          sample[sample_index].right = val;
 
         } else {
-          sample[x].left = 0;
-          sample[x].right = 0;
+          sample[sample_index].left = 0;
+          sample[sample_index].right = 0;
         }
 
-        if (static_cast<size_t>(x) >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
+        if (static_cast<size_t>(sample_index) >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
           break;
         }
         this->samples_sent_++;
-        x++;
+        sample_index++;
       }
-      if (x > 0) {
-        int send = this->speaker_->play((uint8_t *) (&sample), x * 2);
-        if (send != x * 4) {
-          this->samples_sent_ -= (x - (send / 2));
+      if (sample_index > 0) {
+        int send = this->speaker_->play((uint8_t *) (&sample), sample_index * 2);
+        if (send != sample_index * 4) {
+          this->samples_sent_ -= (sample_index - (send / 2));
         }
         return;
       }
@@ -159,22 +159,22 @@ void Rtttl::loop() {
   }
 
   // First, get note duration, if available
-  uint8_t num = this->get_integer_();
+  uint8_t note_denominator = this->get_integer_();
 
-  if (num) {
-    this->note_duration_ = this->wholenote_ / num;
+  if (note_denominator) {
+    this->note_duration_ = this->wholenote_duration_ / note_denominator;
   } else {
     // We will need to check if we are a dotted note after
-    this->note_duration_ = this->wholenote_ / this->default_duration_;
+    this->note_duration_ = this->wholenote_duration_ / this->default_note_denominator_;
   }
 
-  uint8_t note = note_index_from_char(this->rtttl_[this->position_]);
+  uint8_t note_index_in_octave = note_index_from_char(this->rtttl_[this->position_]);
 
   this->position_++;
 
   // Now, get optional '#' sharp
   if (this->rtttl_[this->position_] == '#') {
-    note++;
+    note_index_in_octave++;
     this->position_++;
   }
 
@@ -200,10 +200,10 @@ void Rtttl::loop() {
 
   // Now play the note
   if (note) {
-    auto note_index = (scale - 4) * 12 + note;
+    auto note_index = (scale - 4) * 12 + note_index_in_octave;
     if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {
-      ESP_LOGE(TAG, "Note out of range (note: %d, scale: %d, index: %d, max: %d)", note, scale, note_index,
-               (int) sizeof(NOTES));
+      ESP_LOGE(TAG, "Note out of range (note: %d, scale: %d, index: %d, max: %d)", note_index_in_octave, scale,
+               note_index, (int) sizeof(NOTES));
       this->finish_();
       return;
     }
@@ -213,7 +213,7 @@ void Rtttl::loop() {
     // Add small silence gap between same note
     this->output_freq_ = freq;
 
-    ESP_LOGVV(TAG, "playing note: %d for %dms", note, this->note_duration_);
+    ESP_LOGVV(TAG, "playing note: %d for %dms", note_index_in_octave, this->note_duration_);
   } else {
     ESP_LOGVV(TAG, "waiting: %dms", this->note_duration_);
     this->output_freq_ = 0;
@@ -223,8 +223,8 @@ void Rtttl::loop() {
   if (this->output_ != nullptr) {
     if (need_note_gap) {
       this->output_->set_level(0.0);
-      delay(DOUBLE_NOTE_GAP_MS);
-      this->note_duration_ -= DOUBLE_NOTE_GAP_MS;
+      delay(REPEATING_NOTE_GAP_MS);
+      this->note_duration_ -= REPEATING_NOTE_GAP_MS;
     }
     if (this->output_freq_ != 0) {
       this->output_->update_frequency(this->output_freq_);
@@ -242,7 +242,7 @@ void Rtttl::loop() {
     this->samples_per_wave_ = 0;
     this->samples_count_ = (this->sample_rate_ * this->note_duration_) / 1600;  // ms
     if (need_note_gap) {
-      this->samples_gap_ = (this->sample_rate_ * DOUBLE_NOTE_GAP_MS) / 1600;  // ms
+      this->samples_gap_ = (this->sample_rate_ * REPEATING_NOTE_GAP_MS) / 1600;  // ms
     }
     if (this->output_freq_ != 0) {
       // Make sure there is enough samples to add a full last sinus.
@@ -260,7 +260,7 @@ void Rtttl::loop() {
   }
 #endif  // USE_SPEAKER
 
-  this->last_note_ = millis();
+  this->last_note_start_time_ = millis();
 }
 
 void Rtttl::play(std::string rtttl) {
@@ -273,7 +273,7 @@ void Rtttl::play(std::string rtttl) {
 
   this->rtttl_ = std::move(rtttl);
 
-  this->default_duration_ = 4;
+  this->default_note_denominator_ = 4;
   this->default_octave_ = 6;
   this->note_duration_ = 0;
 
@@ -301,7 +301,7 @@ void Rtttl::play(std::string rtttl) {
   this->position_ += 2;
   num = this->get_integer_();
   if (num > 0) {
-    this->default_duration_ = num;
+    this->default_note_denominator_ = num;
   }
 
   // Get default octave
@@ -336,10 +336,10 @@ void Rtttl::play(std::string rtttl) {
   this->position_++;
 
   // BPM usually expresses the number of quarter notes per minute
-  this->wholenote_ = 60 * 1000L * 4 / bpm;  // This is the time for whole note (in milliseconds)
+  this->wholenote_duration_ = 60 * 1000L * 4 / bpm;  // This is the time for whole note (in milliseconds)
 
   this->output_freq_ = 0;
-  this->last_note_ = millis();
+  this->last_note_start_time_ = millis();
   this->note_duration_ = 1;
 
 #ifdef USE_OUTPUT
