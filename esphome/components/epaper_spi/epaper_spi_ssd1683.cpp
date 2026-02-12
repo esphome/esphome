@@ -10,7 +10,10 @@ static constexpr const char *const TAG = "epaper_spi.mono";
 void EPaperSSD1683::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh screen");
   this->cmd_data(0x21, {partial ? (uint8_t) 0x00 : (uint8_t) 0x40, (uint8_t) 0x00});
-  this->cmd_data(0x22, {partial ? (uint8_t) 0xFC : (uint8_t) 0xD7});  // Forces fast updates only, don't know how
+  if (!partial) {
+    this->cmd_data(0x1A, {(uint8_t) 0x6E});
+  }  // Manually set internal temp register to 110C to force fast full refresh every time
+  this->cmd_data(0x22, {partial ? (uint8_t) 0xFC : (uint8_t) 0xD7});
   this->command(0x20);
 }
 
@@ -58,7 +61,7 @@ bool HOT EPaperSSD1683::transfer_data() {
   while (this->current_data_index_ != this->y_high_) {
     size_t data_idx = this->current_data_index_ * this->row_width_ + this->x_low_ / 8;
     for (size_t i = 0; i != row_length; i++) {
-      bytes_to_send[i] = this->send_red_ ? 0 : this->buffer_[data_idx++];
+      bytes_to_send[i] = this->send_red_ ? 0xFF : this->buffer_[data_idx++];
     }
     ++this->current_data_index_;
     this->write_array(&bytes_to_send.front(), row_length);  // NOLINT
