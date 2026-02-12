@@ -487,7 +487,7 @@ bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t 
   return false;
 }
 
-void __attribute__((flatten)) WiFiComponent::set_sta_priority(const bssid_t bssid, int8_t priority) {
+void __attribute__((flatten)) WiFiComponent::set_sta_priority(bssid_t bssid, int8_t priority) {
   for (auto &it : this->sta_priorities_) {
     if (it.bssid == bssid) {
       it.priority = priority;
