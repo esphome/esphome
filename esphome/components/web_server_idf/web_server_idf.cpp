@@ -422,11 +422,11 @@ static auto search_query_sources(httpd_req_t *req, const std::string &post_query
   if (len == 0) {
     return {};
   }
-  SmallBufferWithHeapFallback<256, char> buf(len + 1);
-  if (httpd_req_get_url_query_str(req, buf.get(), len + 1) != ESP_OK) {
+  char buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  if (httpd_req_get_url_query_str(req, buf, len + 1) != ESP_OK) {
     return {};
   }
-  return func(buf.get(), len, name);
+  return func(buf, len, name);
 }
 
 optional<std::string> AsyncWebServerRequest::find_query_value_(const char *name) const {
