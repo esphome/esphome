@@ -46,8 +46,24 @@ def extract_primitive_type(type_str):
     # Extract the primitive type and length from stuff like uint8_t[10]
     if "[" not in type_str:
         return type_str, None
-    primitive_type, length_str = type_str.split("[", 1)
-    length = int(length_str.rstrip("]"))
+    primitive_type, length_part = type_str.split("[", 1)
+    primitive_type = primitive_type.strip()
+    if "]" not in length_part:
+        raise cv.Invalid(
+            f"Invalid array type syntax '{type_str}': missing closing ']'"
+        )
+    length_str, _ = length_part.split("]", 1)
+    length_str = length_str.strip()
+    if not length_str:
+        raise cv.Invalid(
+            f"Invalid array type syntax '{type_str}': missing array length"
+        )
+    try:
+        length = int(length_str)
+    except ValueError as err:
+        raise cv.Invalid(
+            f"Invalid array length '{length_str}' in type '{type_str}': expected integer"
+        ) from err
     return primitive_type, length
 
 
