@@ -53,6 +53,7 @@ from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
+    CONF_SLEEPY,
     CONF_WIPE_ON_BOOT,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
@@ -169,6 +170,11 @@ async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("NET_IP_ADDR_CHECK", False)
     zephyr_add_prj_conf("NET_UDP", False)
 
+    # disable all extra to reduce power and save flash
+    zephyr_add_prj_conf("ZIGBEE_HAVE_SERIAL", False)
+    zephyr_add_prj_conf("ZBOSS_ERROR_PRINT_TO_LOG", False)
+    zephyr_add_prj_conf("DK_LIBRARY", False)
+
     if CONF_IEEE802154_VENDOR_OUI in config:
         zephyr_add_prj_conf("IEEE802154_VENDOR_OUI_ENABLE", True)
         random_number = config[CONF_IEEE802154_VENDOR_OUI]
@@ -199,6 +205,9 @@ async def zephyr_to_code(config: ConfigType) -> None:
         _LOGGER.warning(
             "Zigbee with deep sleep component should use: power_source: BATTERY"
         )
+
+    if config[CONF_SLEEPY]:
+        cg.add(var.set_sleepy())
 
 
 async def _attr_to_code(config: ConfigType) -> None:

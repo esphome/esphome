@@ -16,6 +16,7 @@ from .const_zephyr import (
     CONF_MAX_EP_NUMBER,
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
+    CONF_SLEEPY,
     CONF_WIPE_ON_BOOT,
     CONF_ZIGBEE_ID,
     KEY_EP_NUMBER,
@@ -70,6 +71,10 @@ CONFIG_SCHEMA = cv.All(
                     cv.int_range(min=0x000000, max=0xFFFFFF),
                     cv.one_of(*["random"], lower=True),
                 ),
+                cv.requires_component("nrf52"),
+            ),
+            cv.Optional(CONF_SLEEPY, default=False): cv.All(
+                cv.boolean,
                 cv.requires_component("nrf52"),
             ),
         }

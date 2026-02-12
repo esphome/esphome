@@ -83,6 +83,7 @@ class ZigbeeComponent : public Component {
   Trigger<> *get_join_trigger() { return &this->join_trigger_; };
   void force_report();
   void loop() override;
+  void set_sleepy() { this->sleepy_ = true; }
 
  protected:
   static void zcl_device_cb(zb_bufid_t bufid);
@@ -100,6 +101,7 @@ class ZigbeeComponent : public Component {
 #ifdef USE_DEEP_SLEEP
   std::function<void()> wakeup_cb_;
 #endif
+  bool sleepy_{};
 };
 
 class ZigbeeEntity {

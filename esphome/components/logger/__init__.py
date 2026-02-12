@@ -427,13 +427,14 @@ async def to_code(config):
 
     if CORE.is_nrf52:
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
-        if config[CONF_HARDWARE_UART] == UART0:
-            zephyr_add_overlay("""&uart0 { status = "okay";};""")
-        if config[CONF_HARDWARE_UART] == UART1:
-            zephyr_add_overlay("""&uart1 { status = "okay";};""")
-        if config[CONF_HARDWARE_UART] == USB_CDC:
-            zephyr_add_prj_conf("UART_LINE_CTRL", True)
-            zephyr_add_cdc_acm(config, 0)
+        if has_serial_logging:
+            if config[CONF_HARDWARE_UART] == UART0:
+                zephyr_add_overlay("""&uart0 { status = "okay";};""")
+            if config[CONF_HARDWARE_UART] == UART1:
+                zephyr_add_overlay("""&uart1 { status = "okay";};""")
+            if config[CONF_HARDWARE_UART] == USB_CDC:
+                zephyr_add_prj_conf("UART_LINE_CTRL", True)
+                zephyr_add_cdc_acm(config, 0)
 
     # Register at end for safe mode
     await cg.register_component(log, config)
