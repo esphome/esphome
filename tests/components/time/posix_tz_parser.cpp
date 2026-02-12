@@ -1,5 +1,5 @@
 // Tests for the POSIX TZ parser and ESPTime::strptime implementations
-// These custom parsers avoid pulling in scanf (~9.8KB on ESP32-IDF).
+// These custom parsers avoid pulling in the scanf family, saving ~9.8KB on ESP32-IDF.
 
 // Enable USE_TIME_TIMEZONE for tests
 #define USE_TIME_TIMEZONE
