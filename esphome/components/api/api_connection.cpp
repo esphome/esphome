@@ -230,17 +230,7 @@ void APIConnection::loop() {
       this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("is unresponsive; disconnecting"));
     }
   } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && !this->flags_.remove) {
-    // Only send ping if we're not disconnecting
-    ESP_LOGVV(TAG, "Sending keepalive PING");
-    PingRequest req;
-    this->flags_.sent_ping = this->send_message(req, PingRequest::MESSAGE_TYPE);
-    if (!this->flags_.sent_ping) {
-      // If we can't send the ping request directly (tx_buffer full),
-      // schedule it at the front of the batch so it will be sent with priority
-      ESP_LOGW(TAG, "Buffer full, ping queued");
-      this->schedule_message_front_(nullptr, PingRequest::MESSAGE_TYPE, PingRequest::ESTIMATED_SIZE);
-      this->flags_.sent_ping = true;  // Mark as sent to avoid scheduling multiple pings
-    }
+    this->send_keepalive_ping_();
   }
 
 #ifdef USE_API_HOMEASSISTANT_STATES
@@ -254,6 +244,20 @@ void APIConnection::loop() {
   // (missing a frame is fine, missing a state update is not)
   this->try_send_camera_image_();
 #endif
+}
+
+void APIConnection::send_keepalive_ping_() {
+  // Only send ping if we're not disconnecting
+  ESP_LOGVV(TAG, "Sending keepalive PING");
+  PingRequest req;
+  this->flags_.sent_ping = this->send_message(req, PingRequest::MESSAGE_TYPE);
+  if (!this->flags_.sent_ping) {
+    // If we can't send the ping request directly (tx_buffer full),
+    // schedule it at the front of the batch so it will be sent with priority
+    ESP_LOGW(TAG, "Buffer full, ping queued");
+    this->schedule_message_front_(nullptr, PingRequest::MESSAGE_TYPE, PingRequest::ESTIMATED_SIZE);
+    this->flags_.sent_ping = true;  // Mark as sent to avoid scheduling multiple pings
+  }
 }
 
 void APIConnection::process_active_iterator_() {
