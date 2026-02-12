@@ -543,9 +543,8 @@ class WebServer : public Controller,
   template<typename T, typename Ret>
   void parse_string_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
                            Ret (T::*setter)(const std::string &)) {
-    const auto &value = request->arg(param_name);
-    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
-    if (value.length() > 0) {  // NOLINT(readability-container-size-empty)
+    if (request->hasArg(param_name)) {
+      const auto &value = request->arg(param_name);
       (call.*setter)(std::string(value.c_str(), value.length()));
     }
   }
