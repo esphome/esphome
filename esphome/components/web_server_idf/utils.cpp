@@ -55,13 +55,16 @@ optional<std::string> query_key_value(const char *query_url, size_t query_len, c
     return {};
   }
 
-  char val[CONFIG_HTTPD_MAX_URI_LEN + 1];
-  if (httpd_query_key_value(query_url, key, val, query_len) != ESP_OK) {
+  // Value can't exceed query_len. Use small stack buffer for typical values,
+  // heap fallback for long ones (e.g. base64 IR data) to limit stack usage
+  // since callers may also have stack buffers for the query string.
+  SmallBufferWithHeapFallback<128, char> val(query_len);
+  if (httpd_query_key_value(query_url, key, val.get(), query_len) != ESP_OK) {
     return {};
   }
 
-  url_decode(val);
-  return {val};
+  url_decode(val.get());
+  return {val.get()};
 }
 
 bool query_has_key(const char *query_url, size_t query_len, const char *key) {

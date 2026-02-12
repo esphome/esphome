@@ -408,7 +408,6 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
 
 /// Search post_query then URL query with a callback.
 /// Returns first truthy result, or value-initialized default.
-/// Uses stack buffer for URL query to avoid heap allocation.
 template<typename Func>
 static auto search_query_sources(httpd_req_t *req, const std::string &post_query, const char *name, Func func)
     -> decltype(func(nullptr, size_t{0}, name)) {
