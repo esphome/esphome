@@ -502,6 +502,8 @@ class WiFiComponent : public Component {
   }
 
   network::IPAddresses wifi_sta_ip_addresses();
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use wifi_ssid_to() instead. Removed in 2026.9.0", "2026.3.0")
   std::string wifi_ssid();
   /// Write SSID to buffer without heap allocation.
   /// Returns pointer to buffer, or empty string if not connected.

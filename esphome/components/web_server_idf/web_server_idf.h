@@ -170,14 +170,8 @@ class AsyncWebServerRequest {
   AsyncWebParameter *getParam(const std::string &name) { return this->getParam(name.c_str()); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  bool hasArg(const char *name) { return this->hasParam(name); }
-  std::string arg(const char *name) {
-    auto *param = this->getParam(name);
-    if (param) {
-      return param->value();
-    }
-    return {};
-  }
+  bool hasArg(const char *name);
+  std::string arg(const char *name);
   std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
   operator httpd_req_t *() const { return this->req_; }
@@ -192,6 +186,7 @@ class AsyncWebServerRequest {
   // is faster than tree/hash overhead. AsyncWebParameter stores both name and value to avoid
   // duplicate storage. Only successful lookups are cached to prevent cache pollution when
   // handlers check for optional parameters that don't exist.
+  optional<std::string> find_query_value_(const char *name) const;
   std::vector<AsyncWebParameter *> params_;
   std::string post_query_;
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
