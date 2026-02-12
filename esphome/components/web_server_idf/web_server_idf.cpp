@@ -393,13 +393,7 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
   }
 
   // Look up value from query strings
-  optional<std::string> val = query_key_value(this->post_query_.c_str(), this->post_query_.size(), name);
-  if (!val.has_value()) {
-    auto url_query = request_get_url_query(*this);
-    if (url_query.has_value()) {
-      val = query_key_value(url_query.value().c_str(), url_query.value().size(), name);
-    }
-  }
+  auto val = this->find_query_value_(name);
 
   // Don't cache misses to avoid wasting memory when handlers check for
   // optional parameters that don't exist in the request
@@ -412,19 +406,37 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
   return param;
 }
 
-optional<std::string> AsyncWebServerRequest::find_query_value_(const char *name) const {
-  auto val = query_key_value(this->post_query_.c_str(), this->post_query_.size(), name);
-  if (val.has_value()) {
-    return val;
+/// Search post_query then URL query with a callback.
+/// Returns first truthy result, or value-initialized default.
+/// Uses stack buffer for URL query to avoid heap allocation.
+template<typename Func>
+static auto search_query_sources(httpd_req_t *req, const std::string &post_query, const char *name, Func func)
+    -> decltype(func(nullptr, size_t{0}, name)) {
+  if (!post_query.empty()) {
+    auto result = func(post_query.c_str(), post_query.size(), name);
+    if (result) {
+      return result;
+    }
   }
-  auto url_query = request_get_url_query(*this);
-  if (url_query.has_value()) {
-    return query_key_value(url_query.value().c_str(), url_query.value().size(), name);
+  auto len = httpd_req_get_url_query_len(req);
+  if (len == 0) {
+    return {};
   }
-  return {};
+  char buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  if (httpd_req_get_url_query_str(req, buf, len + 1) != ESP_OK) {
+    return {};
+  }
+  return func(buf, len, name);
 }
 
-bool AsyncWebServerRequest::hasArg(const char *name) { return this->find_query_value_(name).has_value(); }
+optional<std::string> AsyncWebServerRequest::find_query_value_(const char *name) const {
+  return search_query_sources(this->req_, this->post_query_, name,
+                              [](const char *q, size_t len, const char *k) { return query_key_value(q, len, k); });
+}
+
+bool AsyncWebServerRequest::hasArg(const char *name) {
+  return search_query_sources(this->req_, this->post_query_, name, query_has_key);
+}
 
 std::string AsyncWebServerRequest::arg(const char *name) {
   auto val = this->find_query_value_(name);

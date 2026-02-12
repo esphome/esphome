@@ -1,16 +1,12 @@
 #ifdef USE_ESP32
-#include <memory>
 #include <cstring>
 #include <cctype>
 #include "esphome/core/helpers.h"
-#include "esphome/core/log.h"
 #include "http_parser.h"
 
 #include "utils.h"
 
 namespace esphome::web_server_idf {
-
-static const char *const TAG = "web_server_idf_utils";
 
 size_t url_decode(char *str) {
   char *start = str;
@@ -54,38 +50,29 @@ optional<std::string> request_get_header(httpd_req_t *req, const char *name) {
   return {str};
 }
 
-optional<std::string> request_get_url_query(httpd_req_t *req) {
-  auto len = httpd_req_get_url_query_len(req);
-  if (len == 0) {
-    return {};
-  }
-
-  std::string str;
-  str.resize(len);
-
-  auto res = httpd_req_get_url_query_str(req, &str[0], len + 1);
-  if (res != ESP_OK) {
-    ESP_LOGW(TAG, "Can't get query for request: %s", esp_err_to_name(res));
-    return {};
-  }
-
-  return {str};
-}
-
 optional<std::string> query_key_value(const char *query_url, size_t query_len, const char *key) {
   if (query_url == nullptr || query_len == 0) {
     return {};
   }
 
-  // Use stack buffer for typical query strings, heap fallback for large ones
-  SmallBufferWithHeapFallback<256, char> val(query_len);
-
-  if (httpd_query_key_value(query_url, key, val.get(), query_len) != ESP_OK) {
+  char val[CONFIG_HTTPD_MAX_URI_LEN + 1];
+  if (httpd_query_key_value(query_url, key, val, query_len) != ESP_OK) {
     return {};
   }
 
-  url_decode(val.get());
-  return {val.get()};
+  url_decode(val);
+  return {val};
+}
+
+bool query_has_key(const char *query_url, size_t query_len, const char *key) {
+  if (query_url == nullptr || query_len == 0) {
+    return false;
+  }
+  // Minimal buffer — we only care if the key exists, not the value
+  char buf[1];
+  // httpd_query_key_value returns ESP_OK if key found (even if buffer too small for value),
+  // ESP_ERR_NOT_FOUND if key absent
+  return httpd_query_key_value(query_url, key, buf, sizeof(buf)) != ESP_ERR_NOT_FOUND;
 }
 
 // Helper function for case-insensitive string region comparison
