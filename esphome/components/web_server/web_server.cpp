@@ -1173,13 +1173,13 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
 
     auto call = obj->make_call();
 
-    // .c_str() is required for Arduino framework where arg() returns Arduino String instead of std::string
-    std::string value = request->arg(ESPHOME_F("value")).c_str();  // NOLINT(readability-redundant-string-cstr)
-    if (value.empty()) {
+    const auto &value = request->arg(ESPHOME_F("value"));
+    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
+    if (value.length() == 0) {  // NOLINT(readability-container-size-empty)
       request->send(409);
       return;
     }
-    call.set_date(value.c_str(), value.size());
+    call.set_date(value.c_str(), value.length());
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1234,13 +1234,13 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
 
     auto call = obj->make_call();
 
-    // .c_str() is required for Arduino framework where arg() returns Arduino String instead of std::string
-    std::string value = request->arg(ESPHOME_F("value")).c_str();  // NOLINT(readability-redundant-string-cstr)
-    if (value.empty()) {
+    const auto &value = request->arg(ESPHOME_F("value"));
+    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
+    if (value.length() == 0) {  // NOLINT(readability-container-size-empty)
       request->send(409);
       return;
     }
-    call.set_time(value.c_str(), value.size());
+    call.set_time(value.c_str(), value.length());
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1294,13 +1294,13 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
 
     auto call = obj->make_call();
 
-    // .c_str() is required for Arduino framework where arg() returns Arduino String instead of std::string
-    std::string value = request->arg(ESPHOME_F("value")).c_str();  // NOLINT(readability-redundant-string-cstr)
-    if (value.empty()) {
+    const auto &value = request->arg(ESPHOME_F("value"));
+    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
+    if (value.length() == 0) {  // NOLINT(readability-container-size-empty)
       request->send(409);
       return;
     }
-    call.set_datetime(value.c_str(), value.size());
+    call.set_datetime(value.c_str(), value.length());
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
