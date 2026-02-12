@@ -73,7 +73,7 @@ class Rtttl : public Component {
   uint16_t default_duration_;
   /// The default octave for a note.
   uint16_t default_octave_;
-  /// The time the last note was started.
+  /// The time in milliseconds since microcontroller boot when the last note was started.
   uint32_t last_note_;
   /// The duration of the current note in milliseconds.
   uint16_t note_duration_;

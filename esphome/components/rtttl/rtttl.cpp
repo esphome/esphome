@@ -117,12 +117,11 @@ void Rtttl::loop() {
       double rem = 0.0;
 
       while (true) {
-        // Try and send out the remainder of the existing note, one per loop()
-
-        if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note//
+        // Try and send out the remainder of the existing note, one per `loop()`
+        if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
           rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
 
-          int16_t val = (127 * this->gain_) * sin(deg2rad(rem));  // 16bit = 49152
+          int16_t val = (127 * this->gain_) * sin(deg2rad(rem));
 
           sample[x].left = val;
           sample[x].right = val;
@@ -154,32 +153,32 @@ void Rtttl::loop() {
     return;
   }
 
-  // align to note: most rtttl's out there does not add and space after the ',' separator but just in case...
+  // Align to note: most rtttl's out there does not add any space after the ',' separator but just in case
   while (this->rtttl_[this->position_] == ',' || this->rtttl_[this->position_] == ' ') {
     this->position_++;
   }
 
-  // first, get note duration, if available
+  // First, get note duration, if available
   uint8_t num = this->get_integer_();
 
   if (num) {
     this->note_duration_ = this->wholenote_ / num;
   } else {
-    this->note_duration_ =
-        this->wholenote_ / this->default_duration_;  // we will need to check if we are a dotted note after
+    // We will need to check if we are a dotted note after
+    this->note_duration_ = this->wholenote_ / this->default_duration_;
   }
 
   uint8_t note = note_index_from_char(this->rtttl_[this->position_]);
 
   this->position_++;
 
-  // now, get optional '#' sharp
+  // Now, get optional '#' sharp
   if (this->rtttl_[this->position_] == '#') {
     note++;
     this->position_++;
   }
 
-  // now, get scale
+  // Now, get scale
   uint8_t scale = this->get_integer_();
   if (scale == 0) {
     scale = this->default_octave_;
@@ -191,14 +190,15 @@ void Rtttl::loop() {
     return;
   }
 
-  // now, get optional '.' dotted note
+  // Now, get optional '.' dotted note
   if (this->rtttl_[this->position_] == '.') {
-    this->note_duration_ += this->note_duration_ / 2;
+    this->note_duration_ += this->note_duration_ / 2;  // Duration +50%
     this->position_++;
   }
 
-  // Now play the note
   bool need_note_gap = false;
+
+  // Now play the note
   if (note) {
     auto note_index = (scale - 4) * 12 + note;
     if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {
@@ -240,13 +240,12 @@ void Rtttl::loop() {
     this->samples_sent_ = 0;
     this->samples_gap_ = 0;
     this->samples_per_wave_ = 0;
-    this->samples_count_ = (this->sample_rate_ * this->note_duration_) / 1600;  //(ms);
+    this->samples_count_ = (this->sample_rate_ * this->note_duration_) / 1600;  // ms
     if (need_note_gap) {
-      this->samples_gap_ = (this->sample_rate_ * DOUBLE_NOTE_GAP_MS) / 1600;  //(ms);
+      this->samples_gap_ = (this->sample_rate_ * DOUBLE_NOTE_GAP_MS) / 1600;  // ms
     }
     if (this->output_freq_ != 0) {
-      // make sure there is enough samples to add a full last sinus.
-
+      // Make sure there is enough samples to add a full last sinus.
       uint16_t samples_wish = this->samples_count_;
       this->samples_per_wave_ = (this->sample_rate_ << 10) / this->output_freq_;
 
@@ -279,12 +278,13 @@ void Rtttl::play(std::string rtttl) {
   this->note_duration_ = 0;
 
   int bpm = 63;
-  uint8_t num;
+  uint8_t num;  // Used for: default note-denominator, default octave, BPM
 
   // Get name
   this->position_ = this->rtttl_.find(':');
 
-  // it's somewhat documented to be up to 10 characters but let's be a bit flexible here
+  // It's somewhat documented to be up to 10 (SONG_NAME_SOFT_LIMIT) characters but let's be a bit flexible here
+  // (SONG_NAME_HARD_LIMIT = 15)
   if (this->position_ == std::string::npos || this->position_ > 15) {
     ESP_LOGE(TAG, "Unable to determine name; missing ':'");
     return;
@@ -292,7 +292,7 @@ void Rtttl::play(std::string rtttl) {
 
   ESP_LOGD(TAG, "Playing song %.*s", (int) this->position_, this->rtttl_.c_str());
 
-  // get default duration
+  // Get default duration
   this->position_ = this->rtttl_.find("d=", this->position_);
   if (this->position_ == std::string::npos) {
     ESP_LOGE(TAG, "Missing 'd='");
@@ -304,7 +304,7 @@ void Rtttl::play(std::string rtttl) {
     this->default_duration_ = num;
   }
 
-  // get default octave
+  // Get default octave
   this->position_ = this->rtttl_.find("o=", this->position_);
   if (this->position_ == std::string::npos) {
     ESP_LOGE(TAG, "Missing 'o=");
@@ -316,7 +316,7 @@ void Rtttl::play(std::string rtttl) {
     this->default_octave_ = num;
   }
 
-  // get BPM
+  // Get BPM
   this->position_ = this->rtttl_.find("b=", this->position_);
   if (this->position_ == std::string::npos) {
     ESP_LOGE(TAG, "Missing b=");
@@ -336,7 +336,7 @@ void Rtttl::play(std::string rtttl) {
   this->position_++;
 
   // BPM usually expresses the number of quarter notes per minute
-  this->wholenote_ = 60 * 1000L * 4 / bpm;  // this is the time for whole note (in milliseconds)
+  this->wholenote_ = 60 * 1000L * 4 / bpm;  // This is the time for whole note (in milliseconds)
 
   this->output_freq_ = 0;
   this->last_note_ = millis();
@@ -401,7 +401,7 @@ void Rtttl::finish_() {
   }
 #endif  // USE_SPEAKER
 
-  // Ensure no more notes are played in case finish_() is called for an error.
+  // Ensure no more notes are played in case `finish_()` is called for an error.
   this->position_ = this->rtttl_.length();
   this->note_duration_ = 0;
 }
