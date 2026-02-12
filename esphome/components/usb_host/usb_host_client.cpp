@@ -143,16 +143,17 @@ static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc
   } while (next_desc != NULL);
 }
 #endif
-// USB string descriptors: bLength (uint8_t, max 255) includes 2-byte header.
-// Loop iterates bLength/2 times (max 127), each writing at most 1 ASCII char, plus null terminator.
+// USB string descriptors: bLength (uint8_t, max 255) includes 2-byte header (bLength + bDescriptorType).
+// Character count = (bLength - 2) / 2, max 126 chars + null terminator.
 static constexpr size_t DESC_STRING_BUF_SIZE = 128;
 
 static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
-  if (desc == nullptr)
+  if (desc == nullptr || desc->bLength < 2)
     return "(unspecified)";
+  int char_count = (desc->bLength - 2) / 2;
   char *p = buffer.data();
   char *end = p + buffer.size() - 1;
-  for (int i = 0; i != desc->bLength / 2 && p < end; i++) {
+  for (int i = 0; i != char_count && p < end; i++) {
     auto c = desc->wData[i];
     if (c < 0x100)
       *p++ = static_cast<char>(c);
