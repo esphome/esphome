@@ -232,7 +232,7 @@ void ZigbeeComponent::dump_config() {
                 "  Wipe on boot: %s\n"
                 "  Device is joined to the network: %s\n"
                 "  Sleep time: %us\n"
-                "  RX on when idle: %s\n"
+                "  RX ON when idle: %s\n"
                 "  Current channel: %d\n"
                 "  Current page: %d\n"
                 "  Sleep threshold: %ums\n"
