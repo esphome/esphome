@@ -94,6 +94,9 @@
 #ifdef USE_INFRARED
 #include "esphome/components/infrared/infrared.h"
 #endif
+#ifdef USE_SERIAL_PROXY
+#include "esphome/components/serial_proxy/serial_proxy.h"
+#endif
 #ifdef USE_EVENT
 #include "esphome/components/event/event.h"
 #endif
@@ -232,6 +235,13 @@ class Application {
 
 #ifdef USE_INFRARED
   void register_infrared(infrared::Infrared *infrared) { this->infrareds_.push_back(infrared); }
+#endif
+
+#ifdef USE_SERIAL_PROXY
+  void register_serial_proxy(serial_proxy::SerialProxy *proxy) {
+    proxy->set_instance_index(this->serial_proxies_.size());
+    this->serial_proxies_.push_back(proxy);
+  }
 #endif
 
 #ifdef USE_EVENT
@@ -473,6 +483,10 @@ class Application {
   GET_ENTITY_METHOD(infrared::Infrared, infrared, infrareds)
 #endif
 
+#ifdef USE_SERIAL_PROXY
+  auto &get_serial_proxies() const { return this->serial_proxies_; }
+#endif
+
 #ifdef USE_EVENT
   auto &get_events() const { return this->events_; }
   GET_ENTITY_METHOD(event::Event, event, events)
@@ -689,6 +703,9 @@ class Application {
 #endif
 #ifdef USE_INFRARED
   StaticVector<infrared::Infrared *, ESPHOME_ENTITY_INFRARED_COUNT> infrareds_{};
+#endif
+#ifdef USE_SERIAL_PROXY
+  std::vector<serial_proxy::SerialProxy *> serial_proxies_{};
 #endif
 #ifdef USE_UPDATE
   StaticVector<update::UpdateEntity *, ESPHOME_ENTITY_UPDATE_COUNT> updates_{};

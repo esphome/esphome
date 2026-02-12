@@ -182,6 +182,15 @@ class APIConnection final : public APIServerConnectionBase {
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
 #endif
 
+#ifdef USE_SERIAL_PROXY
+  void on_serial_proxy_configure_request(const SerialProxyConfigureRequest &msg) override;
+  void on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) override;
+  void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) override;
+  void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) override;
+  void on_serial_proxy_flush_request(const SerialProxyFlushRequest &msg) override;
+  void send_serial_proxy_data(const SerialProxyDataReceived &msg);
+#endif
+
 #ifdef USE_EVENT
   void send_event(event::Event *event);
 #endif

@@ -1413,6 +1413,66 @@ void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent 
 }
 #endif
 
+#ifdef USE_SERIAL_PROXY
+void APIConnection::on_serial_proxy_configure_request(const SerialProxyConfigureRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %u out of range (max %u)", msg.instance,
+             static_cast<uint32_t>(proxies.size()));
+    return;
+  }
+  proxies[msg.instance]->configure(msg.baudrate, msg.flow_control, static_cast<uint8_t>(msg.parity), msg.stop_bits,
+                                   msg.data_size);
+}
+
+void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    return;
+  }
+  proxies[msg.instance]->write(msg.data, msg.data_len);
+}
+
+void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    return;
+  }
+  proxies[msg.instance]->set_modem_pins(msg.rts, msg.dtr);
+}
+
+void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    return;
+  }
+  bool rts, dtr;
+  proxies[msg.instance]->get_modem_pins(rts, dtr);
+
+  SerialProxyGetModemPinsResponse resp{};
+  resp.instance = msg.instance;
+  resp.rts = rts;
+  resp.dtr = dtr;
+  this->send_message(resp, SerialProxyGetModemPinsResponse::MESSAGE_TYPE);
+}
+
+void APIConnection::on_serial_proxy_flush_request(const SerialProxyFlushRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    return;
+  }
+  proxies[msg.instance]->flush_port();
+}
+
+void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) {
+  this->send_message(msg, SerialProxyDataReceived::MESSAGE_TYPE);
+}
+#endif
+
 #ifdef USE_INFRARED
 uint16_t APIConnection::try_send_infrared_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *infrared = static_cast<infrared::Infrared *>(entity);
@@ -1626,6 +1686,9 @@ bool APIConnection::send_device_info_response_() {
 #ifdef USE_ZWAVE_PROXY
   resp.zwave_proxy_feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
   resp.zwave_home_id = zwave_proxy::global_zwave_proxy->get_home_id();
+#endif
+#ifdef USE_SERIAL_PROXY
+  resp.serial_proxy_count = App.get_serial_proxies().size();
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;

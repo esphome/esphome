@@ -69,6 +69,12 @@ service APIConnection {
   rpc zwave_proxy_request(ZWaveProxyRequest) returns (void) {}
 
   rpc infrared_rf_transmit_raw_timings(InfraredRFTransmitRawTimingsRequest) returns (void) {}
+
+  rpc serial_proxy_configure(SerialProxyConfigureRequest) returns (void) {}
+  rpc serial_proxy_write(SerialProxyWriteRequest) returns (void) {}
+  rpc serial_proxy_set_modem_pins(SerialProxySetModemPinsRequest) returns (void) {}
+  rpc serial_proxy_get_modem_pins(SerialProxyGetModemPinsRequest) returns (void) {}
+  rpc serial_proxy_flush(SerialProxyFlushRequest) returns (void) {}
 }
 
 
@@ -260,6 +266,9 @@ message DeviceInfoResponse {
   // Indicates if Z-Wave proxy support is available and features supported
   uint32 zwave_proxy_feature_flags = 23 [(field_ifdef) = "USE_ZWAVE_PROXY"];
   uint32 zwave_home_id = 24 [(field_ifdef) = "USE_ZWAVE_PROXY"];
+
+  // Number of serial proxy instances available on the device
+  uint32 serial_proxy_count = 25 [(field_ifdef) = "USE_SERIAL_PROXY"];
 }
 
 message ListEntitiesRequest {
@@ -2487,4 +2496,88 @@ message InfraredRFReceiveEvent {
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
   fixed32 key = 2;                                    // Key identifying the receiver instance
   repeated sint32 timings = 3 [packed = true, (container_pointer_no_template) = "std::vector<int32_t>"];  // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
+}
+
+// ==================== SERIAL PROXY ====================
+
+enum SerialProxyParity {
+  SERIAL_PROXY_PARITY_NONE = 0;
+  SERIAL_PROXY_PARITY_EVEN = 1;
+  SERIAL_PROXY_PARITY_ODD = 2;
+}
+
+// Configure UART parameters for a serial proxy instance
+message SerialProxyConfigureRequest {
+  option (id) = 138;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;          // Instance index (0-based)
+  uint32 baudrate = 2;          // Baud rate in bits per second
+  bool flow_control = 3;        // Enable hardware flow control
+  SerialProxyParity parity = 4; // Parity setting
+  uint32 stop_bits = 5;         // Number of stop bits (1 or 2)
+  uint32 data_size = 6;         // Number of data bits (5-8)
+}
+
+// Data received from a serial device, forwarded to clients
+message SerialProxyDataReceived {
+  option (id) = 139;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SERIAL_PROXY";
+  option (no_delay) = true;
+
+  uint32 instance = 1;          // Instance index (0-based)
+  bytes data = 2;               // Raw data received from the serial device
+}
+
+// Write data to a serial device
+message SerialProxyWriteRequest {
+  option (id) = 140;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+  option (no_delay) = true;
+
+  uint32 instance = 1;          // Instance index (0-based)
+  bytes data = 2;               // Raw data to write to the serial device
+}
+
+// Set modem control pin states (RTS and DTR)
+message SerialProxySetModemPinsRequest {
+  option (id) = 141;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;          // Instance index (0-based)
+  bool rts = 2;                 // Desired RTS pin state
+  bool dtr = 3;                 // Desired DTR pin state
+}
+
+// Request current modem control pin states
+message SerialProxyGetModemPinsRequest {
+  option (id) = 142;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;          // Instance index (0-based)
+}
+
+// Response with current modem control pin states
+message SerialProxyGetModemPinsResponse {
+  option (id) = 143;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;          // Instance index (0-based)
+  bool rts = 2;                 // Current RTS pin state
+  bool dtr = 3;                 // Current DTR pin state
+}
+
+// Flush the serial port (block until all TX data is sent)
+message SerialProxyFlushRequest {
+  option (id) = 144;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;          // Instance index (0-based)
 }

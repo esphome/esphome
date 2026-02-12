@@ -311,6 +311,13 @@ enum ZWaveProxyRequestType : uint32_t {
   ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE = 2,
 };
 #endif
+#ifdef USE_SERIAL_PROXY
+enum SerialProxyParity : uint32_t {
+  SERIAL_PROXY_PARITY_NONE = 0,
+  SERIAL_PROXY_PARITY_EVEN = 1,
+  SERIAL_PROXY_PARITY_ODD = 2,
+};
+#endif
 
 }  // namespace enums
 
@@ -474,7 +481,7 @@ class DeviceInfo final : public ProtoMessage {
 class DeviceInfoResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 10;
-  static constexpr uint8_t ESTIMATED_SIZE = 255;
+  static constexpr uint16_t ESTIMATED_SIZE = 260;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "device_info_response"; }
 #endif
@@ -526,6 +533,9 @@ class DeviceInfoResponse final : public ProtoMessage {
 #endif
 #ifdef USE_ZWAVE_PROXY
   uint32_t zwave_home_id{0};
+#endif
+#ifdef USE_SERIAL_PROXY
+  uint32_t serial_proxy_count{0};
 #endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -3023,6 +3033,133 @@ class InfraredRFReceiveEvent final : public ProtoMessage {
 #endif
 
  protected:
+};
+#endif
+#ifdef USE_SERIAL_PROXY
+class SerialProxyConfigureRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 138;
+  static constexpr uint8_t ESTIMATED_SIZE = 20;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "serial_proxy_configure_request"; }
+#endif
+  uint32_t instance{0};
+  uint32_t baudrate{0};
+  bool flow_control{false};
+  enums::SerialProxyParity parity{};
+  uint32_t stop_bits{0};
+  uint32_t data_size{0};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class SerialProxyDataReceived final : public ProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 139;
+  static constexpr uint8_t ESTIMATED_SIZE = 23;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "serial_proxy_data_received"; }
+#endif
+  uint32_t instance{0};
+  const uint8_t *data_ptr_{nullptr};
+  size_t data_len_{0};
+  void set_data(const uint8_t *data, size_t len) {
+    this->data_ptr_ = data;
+    this->data_len_ = len;
+  }
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+class SerialProxyWriteRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 140;
+  static constexpr uint8_t ESTIMATED_SIZE = 23;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "serial_proxy_write_request"; }
+#endif
+  uint32_t instance{0};
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class SerialProxySetModemPinsRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 141;
+  static constexpr uint8_t ESTIMATED_SIZE = 8;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "serial_proxy_set_modem_pins_request"; }
+#endif
+  uint32_t instance{0};
+  bool rts{false};
+  bool dtr{false};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class SerialProxyGetModemPinsRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 142;
+  static constexpr uint8_t ESTIMATED_SIZE = 4;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "serial_proxy_get_modem_pins_request"; }
+#endif
+  uint32_t instance{0};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class SerialProxyGetModemPinsResponse final : public ProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 143;
+  static constexpr uint8_t ESTIMATED_SIZE = 8;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "serial_proxy_get_modem_pins_response"; }
+#endif
+  uint32_t instance{0};
+  bool rts{false};
+  bool dtr{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+class SerialProxyFlushRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 144;
+  static constexpr uint8_t ESTIMATED_SIZE = 4;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "serial_proxy_flush_request"; }
+#endif
+  uint32_t instance{0};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
 

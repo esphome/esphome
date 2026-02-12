@@ -1,0 +1,8 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+serial_proxy:
+  - id: serial_proxy_1

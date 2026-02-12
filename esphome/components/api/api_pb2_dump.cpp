@@ -736,6 +736,20 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
   }
 }
 #endif
+#ifdef USE_SERIAL_PROXY
+template<> const char *proto_enum_to_string<enums::SerialProxyParity>(enums::SerialProxyParity value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_PARITY_NONE:
+      return "SERIAL_PROXY_PARITY_NONE";
+    case enums::SERIAL_PROXY_PARITY_EVEN:
+      return "SERIAL_PROXY_PARITY_EVEN";
+    case enums::SERIAL_PROXY_PARITY_ODD:
+      return "SERIAL_PROXY_PARITY_ODD";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
 
 const char *HelloRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "HelloRequest");
@@ -845,6 +859,9 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
 #endif
 #ifdef USE_ZWAVE_PROXY
   dump_field(out, "zwave_home_id", this->zwave_home_id);
+#endif
+#ifdef USE_SERIAL_PROXY
+  dump_field(out, "serial_proxy_count", this->serial_proxy_count);
 #endif
   return out.c_str();
 }
@@ -2466,6 +2483,54 @@ const char *InfraredRFReceiveEvent::dump_to(DumpBuffer &out) const {
   for (const auto &it : *this->timings) {
     dump_field(out, "timings", it, 4);
   }
+  return out.c_str();
+}
+#endif
+#ifdef USE_SERIAL_PROXY
+const char *SerialProxyConfigureRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyConfigureRequest");
+  dump_field(out, "instance", this->instance);
+  dump_field(out, "baudrate", this->baudrate);
+  dump_field(out, "flow_control", this->flow_control);
+  dump_field(out, "parity", static_cast<enums::SerialProxyParity>(this->parity));
+  dump_field(out, "stop_bits", this->stop_bits);
+  dump_field(out, "data_size", this->data_size);
+  return out.c_str();
+}
+const char *SerialProxyDataReceived::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyDataReceived");
+  dump_field(out, "instance", this->instance);
+  dump_bytes_field(out, "data", this->data_ptr_, this->data_len_);
+  return out.c_str();
+}
+const char *SerialProxyWriteRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyWriteRequest");
+  dump_field(out, "instance", this->instance);
+  dump_bytes_field(out, "data", this->data, this->data_len);
+  return out.c_str();
+}
+const char *SerialProxySetModemPinsRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxySetModemPinsRequest");
+  dump_field(out, "instance", this->instance);
+  dump_field(out, "rts", this->rts);
+  dump_field(out, "dtr", this->dtr);
+  return out.c_str();
+}
+const char *SerialProxyGetModemPinsRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyGetModemPinsRequest");
+  dump_field(out, "instance", this->instance);
+  return out.c_str();
+}
+const char *SerialProxyGetModemPinsResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyGetModemPinsResponse");
+  dump_field(out, "instance", this->instance);
+  dump_field(out, "rts", this->rts);
+  dump_field(out, "dtr", this->dtr);
+  return out.c_str();
+}
+const char *SerialProxyFlushRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyFlushRequest");
+  dump_field(out, "instance", this->instance);
   return out.c_str();
 }
 #endif

@@ -119,6 +119,9 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_ZWAVE_PROXY
   buffer.encode_uint32(24, this->zwave_home_id);
 #endif
+#ifdef USE_SERIAL_PROXY
+  buffer.encode_uint32(25, this->serial_proxy_count);
+#endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->name.size());
@@ -173,6 +176,9 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #endif
 #ifdef USE_ZWAVE_PROXY
   size.add_uint32(2, this->zwave_home_id);
+#endif
+#ifdef USE_SERIAL_PROXY
+  size.add_uint32(2, this->serial_proxy_count);
 #endif
 }
 #ifdef USE_BINARY_SENSOR
@@ -3438,6 +3444,109 @@ void InfraredRFReceiveEvent::calculate_size(ProtoSize &size) const {
       size.add_sint32_force(1, it);
     }
   }
+}
+#endif
+#ifdef USE_SERIAL_PROXY
+bool SerialProxyConfigureRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->instance = value.as_uint32();
+      break;
+    case 2:
+      this->baudrate = value.as_uint32();
+      break;
+    case 3:
+      this->flow_control = value.as_bool();
+      break;
+    case 4:
+      this->parity = static_cast<enums::SerialProxyParity>(value.as_uint32());
+      break;
+    case 5:
+      this->stop_bits = value.as_uint32();
+      break;
+    case 6:
+      this->data_size = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+void SerialProxyDataReceived::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint32(1, this->instance);
+  buffer.encode_bytes(2, this->data_ptr_, this->data_len_);
+}
+void SerialProxyDataReceived::calculate_size(ProtoSize &size) const {
+  size.add_uint32(1, this->instance);
+  size.add_length(1, this->data_len_);
+}
+bool SerialProxyWriteRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->instance = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool SerialProxyWriteRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->data = value.data();
+      this->data_len = value.size();
+      break;
+    }
+    default:
+      return false;
+  }
+  return true;
+}
+bool SerialProxySetModemPinsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->instance = value.as_uint32();
+      break;
+    case 2:
+      this->rts = value.as_bool();
+      break;
+    case 3:
+      this->dtr = value.as_bool();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool SerialProxyGetModemPinsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->instance = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+void SerialProxyGetModemPinsResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint32(1, this->instance);
+  buffer.encode_bool(2, this->rts);
+  buffer.encode_bool(3, this->dtr);
+}
+void SerialProxyGetModemPinsResponse::calculate_size(ProtoSize &size) const {
+  size.add_uint32(1, this->instance);
+  size.add_bool(1, this->rts);
+  size.add_bool(1, this->dtr);
+}
+bool SerialProxyFlushRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->instance = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
 }
 #endif
 
