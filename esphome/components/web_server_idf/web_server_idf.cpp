@@ -418,18 +418,18 @@ static auto search_query_sources(httpd_req_t *req, const std::string &post_query
       return result;
     }
   }
-  // Access query string directly from URI — no stack buffer needed.
+  // Use httpd API for query length, then access string directly from URI.
   // http_parser identifies components by offset/length without modifying the URI string.
   // This is the same pattern used by url_to().
+  auto len = httpd_req_get_url_query_len(req);
+  if (len == 0) {
+    return {};
+  }
   const char *query = strchr(req->uri, '?');
   if (query == nullptr) {
     return {};
   }
   query++;  // skip '?'
-  size_t len = strlen(query);
-  if (len == 0) {
-    return {};
-  }
   return func(query, len, name);
 }
 
