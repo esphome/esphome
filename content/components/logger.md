@@ -47,7 +47,7 @@ Advanced settings:
    for log messages. Decrease this if you're having memory problems.
    Defaults to `512`.
 
-- **task_log_buffer_size** (*Optional*, int): **ESP32 and LibreTiny only**: The size of the internal thread-safe ring buffer for task log messages.
+- **task_log_buffer_size** (*Optional*, int): **ESP32, LibreTiny and nRF52 only**: The size of the internal thread-safe ring buffer for task log messages.
    This prevents API disconnections when multiple threads attempt to log simultaneously.
    Set to `0` to disable the log buffer. Defaults to `768B`.
 

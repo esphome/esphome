@@ -50,6 +50,16 @@ binary_sensor:
   sleep behavior. One of `UNKNOWN`, `MAINS_SINGLE_PHASE`, `MAINS_THREE_PHASE`, `BATTERY`,
   `DC_SOURCE`, `EMERGENCY_MAINS_CONST`, or `EMERGENCY_MAINS_TRANSF`. Defaults to `DC_SOURCE`.
 
+- **ieee802154_vendor_oui** (*Optional*, int): Sets the Vendor Organizationally Unique Identifier (OUI).
+  This allows replacing Nordic Semiconductor's default company ID with your own.
+  The value must be a 24-bit integer in the range `0x000000` to `0xFFFFFF`.
+  Alternatively, set to `random` to generate a new random OUI on every firmware compilation.
+  This is useful during development to force the coordinator (ZHA/Z2M) to recognize the device
+  as new after firmware updates.
+
+> [!WARNING]
+> Overusing `random` may exhaust memory in the Zigbee coordinator by creating many "ghost" devices.
+
 ## Actions
 
 ### `factory_reset` Action
@@ -141,6 +151,37 @@ switch:
 - **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
   not be exposed over Zigbee. Only specifying an `id` without a `name` will implicitly set this to true.
   Use this if you run out of Zigbee endpoints.
+
+### Number Configuration
+
+All numbers with a `name` are automatically exposed over Zigbee.
+
+```yaml
+number:
+  - platform: template
+    name: "Template Number"
+    optimistic: true
+    min_value: 2
+    max_value: 100
+    step: 1
+```
+
+#### Configuration variables
+
+- **name** (**Required**, string): The name for the number. This is exposed as the
+  Zigbee endpoint description.
+- **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
+  not be exposed over Zigbee. Only specifying an `id` without a `name` will implicitly set this to true.
+  Use this if you run out of Zigbee endpoints.
+- **unit_of_measurement** (*Optional*, string): Manually set the unit. By default, values are unitless.
+  Only a limited set of units is supported. Unsupported units will revert to unitless.
+  This is exposed as the Zigbee endpoint engineering units.
+- **min_value** (*Optional*, float): The minimum value this number can be. This is exposed as the
+  Zigbee endpoint min present value.
+- **max_value** (*Optional*, float): The maximum value this number can be. This is exposed as the
+  Zigbee endpoint max present value.
+- **step** (*Optional*, float): The granularity with which the number can be set. This is exposed
+  as the Zigbee endpoint resolution.
 
 ## See Also
 

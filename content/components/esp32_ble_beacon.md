@@ -56,7 +56,7 @@ Advanced options:
   under the heading *Calibrating iBeacon*. Between -128 to 0. Defaults to `-59`.
 
 - **tx_power** (*Optional*, int): The transmit power of the iBeacon in dBm.
-  One of -12, -9, -6, -3, 0, 3, 6, 9. Defaults to `3dBm`.
+  One of -12, -9, -6, -3, 0, 3, 6, 9. Defaults to `3dBm`. Not available on ESP-Hosted platforms (e.g., ESP32-P4).
 
 ## Setting Up
 

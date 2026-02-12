@@ -24,6 +24,7 @@ The following table shows the currently supported models of Vbus devices.
 | ---------------- | ---------------- | ----------- | ------------------- |
 | DeltaSol BS Plus | deltasol_bs_plus | 4221        |                     |
 | DeltaSol BS 2009 | deltasol_bs_2009 | 427B        | DeltaSol BS Plus V2 |
+| DeltaSol BS/2 (DrainBack) | deltasol_bs2 | 4278 | |
 | Dux H3214 | deltasol_bs_2009 | 427B | Pump 2 unsupported |
 | DeltaSol C | deltasol_c | 4212 | |
 | DeltaSol CS2 | deltasol_cs2 | 1121 | |
@@ -122,6 +123,7 @@ sensor:
 Supported sensors:
 
 - for **deltasol_bs_plus** and **deltasol_bs_2009**: `temperature_1`, `temperature_2`, `temperature_3`, `temperature_4`, `pump_speed_1`, `pump_speed_2`, `operating_hours_1`, `operating_hours_2`, `heat_quantity`, `time`, `version`.
+- for **deltasol_bs2**: `temperature_1`, `temperature_2`, `temperature_3`, `temperature_4`, `pump_speed_1`, `pump_speed_2`, `operating_hours_1`, `operating_hours_2`, `heat_quantity`, `version`.
 - for **deltasol_c**: `temperature_1`, `temperature_2`, `temperature_3`, `temperature_4`, `pump_speed_1`, `pump_speed_2`, `operating_hours_1`, `operating_hours_2`, `heat_quantity`, `time`.
 - for **deltasol_cs2**: `temperature_1`, `temperature_2`, `temperature_3`, `temperature_4`, `pump_speed`, `operating_hours`, `heat_quantity`, `version`.
 - for **deltasol_cs_plus**: `temperature_1`, `temperature_2`, `temperature_3`, `temperature_4`, `temperature_5`, `pump_speed_1`, `pump_speed_2`, `operating_hours_1`, `operating_hours_2`, `heat_quantity`, `time`, `version`, `flow_rate`.
@@ -173,6 +175,7 @@ binary_sensor:
 
   - **`deltasol_bs_plus`**: `relay1`, `relay2`, `sensor1_error`, `sensor2_error`, `sensor3_error`, `sensor4_error`, `collector_max`, `collector_min`, `collector_frost`, `tube_collector`, `recooling`, `hqm`.
   - **`deltasol_bs_2009`**: `sensor1_error`, `sensor2_error`, `sensor3_error`, `sensor4_error`, `frost_protection_active`.
+  - **`deltasol_bs2`**: `sensor1_error`, `sensor2_error`, `sensor3_error`, `sensor4_error`.
   - **`deltasol_c`**: `sensor1_error`, `sensor2_error`, `sensor3_error`, `sensor4_error`.
   - **`deltasol_cs2`**: `sensor1_error`, `sensor2_error`, `sensor3_error`, `sensor4_error`.
   - **`deltasol_cs_plus`**: `sensor1_error`, `sensor2_error`, `sensor3_error`, `sensor4_error`.

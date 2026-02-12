@@ -40,13 +40,33 @@ specified, or a custom init sequence can be provided.
 
 ### Boards with integrated displays
 
-| Model                  | Manufacturer | Product Description                                                           |
-| ---------------------- | ------------ | ----------------------------------------------------------------------------- |
-| JC1060P470             | Guition      | <https://aliexpress.com/item/1005008328088576.html>                           |
-| JC4880P443             | Guition      | <https://aliexpress.com/item/1005009618259341.html>                           |
-| M5STACK-TAB5           | M5Stack      | <https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4> |
-| WAVESHARE-P4-NANO-10.1 | Waveshare | <https://www.waveshare.com/esp32-p4-nano.htm?sku=29031> |
-| WAVESHARE-P4-86-PANEL | Waveshare | <https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm?sku=31570> |
+| Model                                   | Manufacturer | Product Description                                                           |
+|-----------------------------------------|--------------|-------------------------------------------------------------------------------|
+| JC1060P470                              | Guition      | <https://aliexpress.com/item/1005008328088576.html>                           |
+| JC4880P443                              | Guition      | <https://aliexpress.com/item/1005009618259341.html>                           |
+| JC8012P4A1                              | Guition      | <https://aliexpress.com/item/1005008789890066.html>                           |
+| M5STACK-TAB5                            | M5Stack      | <https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4> |
+| M5STACK-TAB5-V2                         | M5Stack      | <https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4> |
+| WAVESHARE-P4-NANO-10.1                  | Waveshare    | <https://www.waveshare.com/esp32-p4-nano.htm?sku=29031>                       |
+| WAVESHARE-P4-86-PANEL                   | Waveshare    | <https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm?sku=31570>         |
+| WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-7B   | Waveshare    | <https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-7B>                  |
+| WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-3.4C | Waveshare    | <https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-3.4C>                |
+| WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-4C   | Waveshare    | <https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-4C>                  |
+
+> [!NOTE]
+The M5Stack Tab5 has two hardware revisions with different display chips requiring different model selections.
+
+Units manufactured before October 14, 2025 use the ILI9881C display driver with separate GT911 touch driver (use `M5STACK-TAB5`).
+Units manufactured on or after that date use the integrated ST7123 display-touch driver (use `M5STACK-TAB5-V2`).
+
+If unsure which model you have, check the sticker on the back of the device for the display driver chip name.
+The label is just above the ESPressif icon. See image below for example of V2 hardware.
+
+Selection of the wrong display driver model will cause the display to simply fail to work with no relevant logging.
+Selection of the wrong touchscreen driver however will display an error message in the log output, so if in doubt,
+verify the correct touchscreen driver first to accurately identify the board before configuring the display driver.
+
+{{< img src="tab5-version-label.jpg" alt="Tab5 version label showing model identification" width="50%" class="align-center" >}}
 
 ## Configuration
 

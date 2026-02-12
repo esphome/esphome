@@ -20,8 +20,18 @@ water_heater:
     # Lambda to read the current temperature (e.g. from a sensor)
     current_temperature: !lambda 'return id(my_sensor).state;'
 
+    # Lambda to read the target temperature (optional)
+    target_temperature: !lambda 'return id(my_target_temp_sensor).state;'
+
     # Lambda to read the current operation mode (optional)
     mode: !lambda 'return water_heater::WATER_HEATER_MODE_ECO;'
+
+    # Lambda to read the away mode state (optional)
+    away: !lambda "return id(vacation_mode).state;"
+
+    # Lambda to read the current On/Off state (optional)
+    is_on: !lambda 'return id(my_relay).state;'
+
     optimistic: true
 
     # List of modes to show in the UI (optional)
@@ -38,26 +48,40 @@ water_heater:
     set_action:
       - lambda: |-
           ESP_LOGI("boiler", "New mode: %d", id(my_boiler).get_mode());
+          ESP_LOGI("boiler", "New target temperature: %.1f", id(my_boiler).get_target_temperature());
+          ESP_LOGI("boiler", "On: %s, Away: %s", YESNO(id(my_boiler).is_on()), YESNO(id(my_boiler).is_away()));
 ```
 
 Possible return values for the lambdas:
 
 - `current_temperature`: Returns a `float` (e.g. `42.5`).
+- `target_temperature`: Returns a `float` (e.g. `60.0`).
 - `mode`: Returns a `WaterHeaterMode` enum (e.g. `water_heater::WATER_HEATER_MODE_ECO`).
+- `away`: Returns a `bool` (e.g. `false`).
+- `is_on`: Returns a `bool` (e.g. `true`).
 
 ## Configuration variables
 
 - **current_temperature** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda to be evaluated repeatedly to get the current temperature of the water. Expects a float return value.
 
+- **target_temperature** (*Optional*, [lambda](/automations/templates#config-lambda)):
+  Lambda to be evaluated repeatedly to get the target temperature of the water. Expects a float return value.
+
 - **mode** (*Optional*, [lambda](/automations/templates#config-lambda)):
   Lambda to be evaluated repeatedly to get the current operation mode. Expects a `WaterHeaterMode` enum return value.
+
+- **away** (*Optional*, [lambda](/automations/templates#config-lambda)):
+  Lambda to be evaluated repeatedly to get the current away mode state. Expects a boolean return value.
+
+- **is_on** (*Optional*, [lambda](/automations/templates#config-lambda)):
+  Lambda to be evaluated repeatedly to get the current On/Off state. Expects a boolean return value.
 
 - **optimistic** (*Optional*, boolean): Whether to operate in optimistic mode - when in this mode, any command sent to
   the template water heater will immediately update the reported state. Defaults to `true`.
 
 - **set_action** (*Optional*, [Action](/automations/actions#all-actions)):
-  The action to perform when the water heater receives a command (mode change, target temperature change, etc.).
+  The action to perform when the water heater receives a command (mode change, target temperature change, away, on/off, etc.).
   This is where you implement the actual control logic for your water heater.
 
 - **supported_modes** (*Optional*, list):
@@ -88,6 +112,8 @@ with the `water_heater.template.publish` action.
     current_temperature: 55.0
     target_temperature: 60.0
     mode: ECO
+    away: false
+    is_on: true
 ```
 
 Configuration options:
@@ -99,6 +125,10 @@ Configuration options:
   The target setpoint temperature to publish.
 - **mode** (*Optional*, [templatable](/automations/templates), string):
   The operation mode to publish. See [Water Heater Modes](/components/water_heater#water-heater-modes) for options.
+- **away** (*Optional*, [templatable](/automations/templates), boolean):
+  The away mode state to publish.
+- **is_on** (*Optional*, [templatable](/automations/templates), boolean):
+  The boolean On/Off state to publish.
 
 > [!NOTE]
 > This action can also be written in lambdas:

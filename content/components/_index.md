@@ -179,6 +179,7 @@ Create update entities simplifying management of OTA updates.
 
 {{< imgtable >}}
 "CH422G","components/ch422g","ch422g.svg"
+"CH423","components/ch423","ch423.png"
 "MAX6956 - I²C Bus","components/max6956","max6956.jpg"
 "MCP230XX - I²C Bus","components/mcp230xx","mcp230xx.svg"
 "MCP23SXX - SPI Bus","components/mcp23Sxx","mcp23sxx.svg"
@@ -338,6 +339,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "CSE7766","components/sensor/cse7766","cse7766.svg","Voltage & Current & Power"
 "CT Clamp","components/sensor/ct_clamp","ct_clamp.jpg","AC Current"
 "Daly BMS","components/sensor/daly_bms","daly_bms.jpg","Voltage & Current & Power"
+"DLMS Meter","components/sensor/dlms_meter","dlms_meter.jpg","Electrical counter"
 "DSMR","components/sensor/dsmr","dsmr.svg","Electrical counter"
 "HLW8012","components/sensor/hlw8012","hlw8012.svg","Voltage & Current & Power"
 "HLW8032","components/sensor/hlw8032","hlw8032.png","Voltage & Current & Power"
@@ -506,6 +508,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "Resol VBus","components/vbus","resol_deltasol_bs_plus.jpg",""
 "Rotary Encoder","components/sensor/rotary_encoder","rotary_encoder.jpg",""
 "SMT100","components/sensor/smt100","smt100.jpg","Moisture & Temperature"
+"SY6970","components/sensor/sy6970","sy6970.jpg","Battery charge IC"
 "Sound Level","components/sensor/sound_level","waveform.svg","dark-invert"
 "Tuya Sensor","components/sensor/tuya","tuya.png",""
 "TX20","components/sensor/tx20","tx20.jpg","Wind speed & Wind direction"
@@ -1003,6 +1006,7 @@ at the {{< docref "light/fastled" "FastLED Light" >}}.
 "BLE Scanner","components/text_sensor/ble_scanner","bluetooth.svg","dark-invert"
 "Ethernet Info","components/text_sensor/ethernet_info","ethernet.svg","dark-invert"
 "Home Assistant","components/text_sensor/homeassistant","home-assistant.svg","dark-invert"
+"Key Collector","components/text_sensor/key_collector","key_collector.svg","dark-invert"
 "LibreTiny","components/text_sensor/libretiny","libretiny.svg",""
 "LVGL textarea Text Sensor","components/text_sensor/lvgl","lvgl_c_txt.png",""
 "Modbus Text Sensor","components/text_sensor/modbus_controller","modbus.png",""
@@ -1028,6 +1032,7 @@ at the {{< docref "light/fastled" "FastLED Light" >}}.
 "PCF85063 RTC","components/time/pcf85063","clock-outline.svg","dark-invert"
 "PCF8563 RTC","components/time/pcf8563","clock-outline.svg","dark-invert"
 "SNTP","components/time/sntp","clock-outline.svg","dark-invert"
+"Zigbee Time","components/time/zigbee","zigbee.svg",""
 {{< /imgtable >}}
 
 ## Touchscreen Components
@@ -1080,7 +1085,7 @@ ESPHome to cellular networks. **Does not encompass Wi-Fi.**
 
 {{< imgtable >}}
 "Camera Encoder","components/camera/camera_encoder","camera.svg","dark-invert"
-"Key Collector","components/key_collector","matrix_keypad.jpg",""
+"Key Collector","components/key_collector","key_collector.svg","dark-invert"
 "ESP32 Camera","components/esp32_camera","camera.svg","dark-invert"
 "Exposure Notifications","components/exposure_notifications","exposure_notifications.png",""
 "GPS","components/gps","crosshairs-gps.svg","dark-invert"

@@ -40,6 +40,10 @@ http_request:
 
 - **buffer_size_rx** (*Optional*, integer): Change HTTP receive buffer size. Defaults to `512`.
 - **buffer_size_tx** (*Optional*, integer): Change HTTP transmit buffer size. Defaults to `512`.
+- **ca_certificate_path** (*Optional*, file path): Path to a PEM-encoded CA certificate file. Use this to verify
+  connections to servers using self-signed or custom CA certificates while keeping `verify_ssl` enabled. The
+  certificate is embedded in the firmware at compile time. When specified, the default certificate bundle is not
+  included, reducing firmware size.
 
 **For the ESP8266:**
 
@@ -60,9 +64,11 @@ http_request:
 >
 > To maximize security, do not set `verify_ssl` to `false` *unless:*
 >
-> - a custom CA/self-signed certificate is used,
 > - the Arduino framework on a non-ESP32 device is used, or
 > - the device does not have sufficient memory to store the certificate bundle
+>
+> If you need to connect to a server using a self-signed or custom CA certificate on ESP32, use the
+> `ca_certificate_path` option instead of disabling `verify_ssl`.
 >
 > **We strongly recommend using hardware which properly supports TLS/SSL.**
 

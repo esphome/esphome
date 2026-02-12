@@ -173,7 +173,9 @@ filters:
   - heartbeat: 5s
   - debounce: 0.1s
   - timeout: 1min
-  - delta: 5.0
+  - delta:
+      min_value: 5.0
+      max_value: 2%
   - or:
     - throttle: 1s
     - delta: 5.0

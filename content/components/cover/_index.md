@@ -58,23 +58,34 @@ Advanced options:
 
 MQTT options:
 
+- **mqtt_json_state_payload** (*Optional*, boolean): When set to `true`, state changes will
+  be published only to the `state_topic` as a single JSON object per state change. Example:
+
+  ```json
+  { "state": "open", "position": 100, "tilt": 50 }
+  ```
+
+  When `false`, individual values are published to the `state_topic`, `position_state_topic`, and `tilt_state_topic` separately. Defaults to `false`.
+
 - **position_state_topic** (*Optional*, string): The topic to publish
-  cover position changes to.
+  cover position changes to. Not valid if `mqtt_json_state_payload` is set to `true`.
 
 - **position_command_topic** (*Optional*, string): The topic to receive
   cover position commands on.
 
 - **tilt_state_topic** (*Optional*, string): The topic to publish cover
-  cover tilt state changes to.
+  cover tilt state changes to. Not valid if `mqtt_json_state_payload` is set to `true`.
 
 - **tilt_command_topic** (*Optional*, string): The topic to receive
   cover tilt commands on.
 
 - All other options from [MQTT Component](/components/mqtt#config-mqtt-component).
 
+## Actions
+
 {{< anchor "cover-open_action" >}}
 
-## `cover.open` Action
+### `cover.open` Action
 
 This [action](/automations/actions#all-actions) opens the cover with the given ID when executed.
 
@@ -95,7 +106,7 @@ on_...:
 
 {{< anchor "cover-close_action" >}}
 
-## `cover.close` Action
+### `cover.close` Action
 
 This [action](/automations/actions#all-actions) closes the cover with the given ID when executed.
 
@@ -116,7 +127,7 @@ on_...:
 
 {{< anchor "cover-stop_action" >}}
 
-## `cover.stop` Action
+### `cover.stop` Action
 
 This [action](/automations/actions#all-actions) stops the cover with the given ID when executed.
 
@@ -137,7 +148,7 @@ on_...:
 
 {{< anchor "cover-toggle_action" >}}
 
-## `cover.toggle` Action
+### `cover.toggle` Action
 
 This [action](/automations/actions#all-actions) toggles the cover with the given ID when executed,
 cycling through the states close/stop/open/stop... This allows the cover to be controlled
@@ -160,7 +171,7 @@ on_...:
 
 {{< anchor "cover-control_action" >}}
 
-## `cover.control` Action
+### `cover.control` Action
 
 This [action](/automations/actions#all-actions) is a more generic version of the other cover actions and
 allows all cover attributes to be set.
@@ -196,6 +207,121 @@ Configuration variables:
 > call.perform();
 > ```
 
+## Conditions
+
+{{< anchor "cover-is_open_condition" >}}
+
+### `cover.is_open` Condition
+
+This [condition](/automations/actions#all-conditions) checks if the cover with the given ID is fully open.
+
+```yaml
+on_...:
+  if:
+    condition:
+      cover.is_open: cover_1
+    then:
+      - logger.log: "Cover is open!"
+```
+
+Configuration variables:
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The cover to check.
+
+{{< anchor "cover-is_closed_condition" >}}
+
+### `cover.is_closed` Condition
+
+This [condition](/automations/actions#all-conditions) checks if the cover with the given ID is fully closed.
+
+```yaml
+on_...:
+  if:
+    condition:
+      cover.is_closed: cover_1
+    then:
+      - logger.log: "Cover is closed!"
+```
+
+Configuration variables:
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The cover to check.
+
+## Triggers
+
+{{< anchor "cover-on_opened_trigger" >}}
+
+### `cover.on_opened` Trigger
+
+This trigger is activated each time the cover reaches a fully open state.
+
+```yaml
+cover:
+  - platform: template  # or any other platform
+    # ...
+    on_opened:
+      - logger.log: "Cover is fully open!"
+```
+
+{{< anchor "cover-on_closed_trigger" >}}
+
+### `cover.on_closed` Trigger
+
+This trigger is activated each time the cover reaches a fully closed state.
+
+```yaml
+cover:
+  - platform: template  # or any other platform
+    # ...
+    on_closed:
+      - logger.log: "Cover is fully closed!"
+```
+
+{{< anchor "cover-on_opening_trigger" >}}
+
+### `cover.on_opening` Trigger
+
+This trigger is activated each time the cover starts opening.
+
+```yaml
+cover:
+  - platform: template  # or any other platform
+    # ...
+    on_opening:
+      - logger.log: "Cover started opening"
+```
+
+{{< anchor "cover-on_closing_trigger" >}}
+
+### `cover.on_closing` Trigger
+
+This trigger is activated each time the cover starts closing.
+
+```yaml
+cover:
+  - platform: template  # or any other platform
+    # ...
+    on_closing:
+      - logger.log: "Cover started closing"
+```
+
+{{< anchor "cover-on_idle_trigger" >}}
+
+### `cover.on_idle` Trigger
+
+This trigger is activated each time the cover stops moving and becomes idle.
+
+```yaml
+cover:
+  - platform: template  # or any other platform
+    # ...
+    on_idle:
+      - logger.log: "Cover stopped moving"
+```
+
+> [!NOTE]
+> The `on_open` trigger is deprecated and will be removed in a future release. Please use `on_opened` instead.
+
 {{< anchor "cover-lambda_calls" >}}
 
 ## Lambdas
@@ -227,34 +353,6 @@ fields are read-only, if you want to act on the cover, use the `make_call()` met
         } else if (id(my_cover).current_operation == CoverOperation::COVER_OPERATION_CLOSING) {
           // Cover is currently closing
         }
-```
-
-{{< anchor "cover-on_open_trigger" >}}
-
-### `cover.on_open` Trigger
-
-This trigger is activated each time the cover reaches a fully open state.
-
-```yaml
-cover:
-  - platform: template  # or any other platform
-    # ...
-    on_open:
-      - logger.log: "Cover is Open!"
-```
-
-{{< anchor "cover-on_closed_trigger" >}}
-
-### `cover.on_closed` Trigger
-
-This trigger is activated each time the cover reaches a fully closed state.
-
-```yaml
-cover:
-  - platform: template  # or any other platform
-    # ...
-    on_closed:
-      - logger.log: "Cover is Closed!"
 ```
 
 ## See Also

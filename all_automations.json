@@ -495,6 +495,7 @@
   "pin_providers": [
     "bk72xx",
     "ch422g",
+    "ch423",
     "esp32",
     "esp8266",
     "host",

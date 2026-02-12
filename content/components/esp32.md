@@ -247,14 +247,82 @@ The following options disable unused VFS features to save flash memory:
   primarily at setup, not in hot loops). Set to `true` only if you have a specific use case requiring faster heap operations.
   Defaults to `false` (heap functions in flash to save IRAM).
 
+**TLS/Certificate Options:**
+
+- **use_full_certificate_bundle** (*Optional*, boolean): Use the full certificate bundle instead of the common CAs
+  bundle. By default, ESPHome uses the CMN (common CAs) bundle which includes only Certificate Authorities with
+  greater than 1% market share. This covers approximately 99% of websites including Let's Encrypt, DigiCert, Google Trust
+  Services, Amazon Trust Services, and other major CAs. The CMN bundle is sufficient for most use cases including GitHub
+  (commonly used for OTA updates via {{< docref "/components/http_request" >}}), Home Assistant Cloud, and typical HTTPS
+  endpoints. Set to `true` only if connecting to services that use uncommon Certificate Authorities. Defaults to `false`
+  (CMN bundle saves ~51 KB flash).
+
+- **disable_mbedtls_peer_cert** (*Optional*, boolean): Disable keeping the peer certificate after TLS handshake completion.
+  This saves approximately 4 KB of heap memory per TLS connection, but prevents inspecting the peer's certificate after the
+  handshake. Most ESPHome use cases don't need post-handshake certificate access. Components that require peer certificate
+  access automatically enable it regardless of this setting. Defaults to `true` (peer certificate not kept to save heap).
+
+**Built-in IDF Component Inclusion:**
+
+- **include_builtin_idf_components** (*Optional*, list of strings): A list of built-in ESP-IDF component names to
+  re-enable in the build. ESPHome excludes certain built-in IDF components by default to reduce compile time. If you
+  need to use a built-in IDF component that is excluded (for example, when using custom code in a lambda that requires
+  a specific IDF library), you can explicitly include it here. Example: `["esp_http_client", "mqtt"]`.
+
+  Note: This is different from the `components` option which adds external components from the
+  [ESP Component Registry](https://components.espressif.com/). This option re-enables built-in ESP-IDF components
+  that are excluded by default.
+
 Some options can be disabled to save flash memory without affecting typical ESPHome functionality. The performance
 options (defaulting to `true`  ) improve socket operation performance but can be disabled if you need better
 multi-threaded scalability (which is uncommon since ESPHome uses an event loop).
 
-**Example configuration with advanced LWIP and VFS options:**
+- **disable_mbedtls_pkcs7** (*Optional*, boolean): Disable PKCS#7 support in mbedTLS. PKCS#7 is used for specific certificate
+  validation scenarios that ESPHome doesn't typically use. Components that require PKCS#7 automatically enable it regardless
+  of this setting. Disabling this saves code size. Defaults to `true` (PKCS#7 disabled to save flash).
+
+**Debug and Development Options:**
+
+The following options disable debug features that are rarely needed in production ESPHome deployments:
+
+- **disable_debug_stubs** (*Optional*, boolean): Disable OpenOCD debug stubs. These are used for on-chip debugging with
+  OpenOCD/JTAG debuggers and are rarely needed for typical ESPHome use. Disabling this saves code size. Defaults to `true`
+  (debug stubs disabled to save flash).
+
+- **disable_ocd_aware** (*Optional*, boolean): Disable OCD (On-Chip Debugger) aware exception and panic handlers. When enabled,
+  the panic handler detects if a JTAG debugger is connected and halts instead of resetting, allowing post-mortem debugging.
+  Most ESPHome users don't use JTAG debugging. Disabling this saves code size. Defaults to `true` (OCD awareness disabled
+  to save flash).
+
+- **disable_usb_serial_jtag_secondary** (*Optional*, boolean): Disable the secondary USB Serial/JTAG console. This is a fallback
+  console output when UART0 is the primary console but not connected. On chips that default to USB Serial/JTAG as the primary
+  console (ESP32-C3, ESP32-C5, ESP32-C6, ESP32-H2, ESP32-P4, ESP32-S3), this setting has no effect since the primary console is already USB Serial/JTAG.
+  Components like the logger that need USB Serial/JTAG automatically enable it regardless of this setting. Defaults to `true`
+  (secondary console disabled to save resources).
+
+- **disable_dev_null_vfs** (*Optional*, boolean): Disable /dev/null VFS initialization. ESPHome doesn't typically need /dev/null.
+  Disabling this saves a small amount of resources. Defaults to `true` (/dev/null disabled).
+
+**Filesystem Options:**
+
+- **disable_fatfs** (*Optional*, boolean): Disable FAT filesystem support. ESPHome doesn't use FATFS by default. Components
+  that require FATFS (e.g., SD card components) automatically enable it regardless of this setting. Disabling this saves
+  code size. Defaults to `true` (FATFS disabled to save flash).
+
+**Peripheral Options:**
+
+- **disable_regi2c_in_iram** (*Optional*, boolean): Move analog I2C master control functions (regi2c) from IRAM to flash.
+  These functions are used internally by ESP-IDF for analog peripherals (ADC, DAC, temperature sensor calibration). Moving
+  them to flash saves IRAM. This is safe for ESPHome because no ESPHome IRAM interrupt service routines call ADC or other
+  analog functions. Defaults to `true` (regi2c functions in flash to save IRAM).
+
+These defaults are chosen to reduce flash and IRAM usage for typical ESPHome devices. Adjust them only if you have specific
+debugging or performance requirements that justify changing them.
+
+**Example configuration with advanced options:**
 
 ```yaml
-# Example configuration entry
+# Example configuration entry - all defaults shown explicitly
 esp32:
   board: esp32dev
   framework:
@@ -264,15 +332,67 @@ esp32:
       enable_lwip_tcpip_core_locking: true  # Better socket performance
       enable_lwip_check_thread_safety: true  # Thread safety validation
 
-      # Memory saving options
-      disable_libc_locks_in_iram: true  # Enabled by default, saves 1.3 KB IRAM
-      disable_vfs_support_termios: true  # Enabled by default, saves 1.8 KB flash
-      disable_vfs_support_select: true  # Enabled by default, saves 2.7 KB flash (auto-enabled by openthread)
-      disable_vfs_support_dir: true  # Enabled by default, saves 0.5 KB+ flash
-      enable_lwip_dhcp_server: false  # Disabled by default, only needed for AP mode
-      enable_lwip_mdns_queries: false  # Enabled by default, can disable if not using .local hostnames
-      enable_lwip_bridge_interface: false  # Disabled by default
+      # VFS and LWIP memory saving options (enabled by default)
+      disable_libc_locks_in_iram: true  # Saves ~1.3 KB IRAM
+      disable_vfs_support_termios: true  # Saves ~1.8 KB flash
+      disable_vfs_support_select: true  # Saves ~2.7 KB flash (auto-enabled by OpenThread)
+      disable_vfs_support_dir: true  # Saves ~0.5 KB+ flash
+      enable_lwip_dhcp_server: false  # Only needed for WiFi AP mode
+      enable_lwip_mdns_queries: true  # Needed for .local hostname resolution
+      enable_lwip_bridge_interface: false  # Only needed for network bridging
+
+      # TLS options (disabled by default to save resources)
+      use_full_certificate_bundle: false  # Saves ~51 KB flash
+      disable_mbedtls_peer_cert: true  # Saves ~4 KB heap per connection
+      disable_mbedtls_pkcs7: true  # Saves code size
+
+      # Debug options (disabled by default for production)
+      disable_debug_stubs: true  # Saves code size
+      disable_ocd_aware: true  # Saves code size
+      disable_usb_serial_jtag_secondary: true  # Saves resources
+      disable_dev_null_vfs: true  # Saves resources
+
+      # Filesystem and peripheral options
+      disable_fatfs: true  # Saves code size (auto-enabled by SD card components)
+      disable_regi2c_in_iram: true  # Saves IRAM
 ```
+
+**Example for development/debugging with JTAG:**
+
+```yaml
+# Enable debug features for JTAG debugging
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    advanced:
+      disable_debug_stubs: false  # Keep OpenOCD debug stubs
+      disable_ocd_aware: false  # Keep OCD-aware panic handlers
+```
+
+**Arduino Selective Compilation:**
+
+When using the Arduino framework, ESPHome uses selective compilation to only build the Arduino libraries actually needed by your configuration. This significantly reduces flash usage, RAM usage, and build times. Most Arduino libraries (WiFi, Network, BLE, Zigbee, Matter, RainMaker, etc.) are disabled by default since ESPHome uses ESP-IDF APIs directly.
+
+Previously, many Arduino libraries were compiled even though ESPHome never called them. In most Arduino configs, none of these libraries were actually used, yet they bloated the binary by 50% or more and consumed significant RAM.
+
+Components that need specific Arduino libraries automatically enable them. For edge cases where a library isn't auto-detected (e.g., custom lambdas using Arduino APIs), you can explicitly enable libraries using the {{< docref "/components/esphome#libraries" "libraries" >}} configuration option.
+
+```yaml
+# Example: Enabling Arduino libraries for custom lambda code
+esphome:
+  name: my-device
+  libraries:
+    - Preferences  # If using Arduino Preferences API in lambda
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+```
+
+> [!NOTE]
+> If you were already adding libraries via `libraries` config or calling `cg.add_library()`, no action is needed. If you were previously using Arduino library APIs directly in lambdas (e.g. `Preferences`, `Wire`, `SPI`) without adding them to the `libraries` config, you will need to explicitly add them.
 
 {{< anchor "esp32-idf_components" >}}
 

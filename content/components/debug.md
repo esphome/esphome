@@ -30,10 +30,12 @@ sensor:
   - platform: debug
     free:
       name: "Heap Free"
-    fragmentation:
-      name: "Heap Fragmentation"
     block:
       name: "Heap Max Block"
+    min_free:
+      name: "Heap Min Free"
+    fragmentation:
+      name: "Heap Fragmentation"
     loop_time:
       name: "Loop Time"
     psram:
@@ -76,11 +78,13 @@ sensor:
 
 - **free** (*Optional*): Reports the free heap size in bytes. All options from [Sensor](/components/sensor).
 
-- **fragmentation** (*Optional*): Reports the fragmentation metric of the heap
-  (0% is clean, more than ~50% is not harmless). Only available on ESP8266 with Arduino 2.5.2+.
-  All options from [Sensor](/components/sensor).
-
 - **block** (*Optional*): Reports the largest contiguous free RAM block on the heap in bytes. All options from [Sensor](/components/sensor).
+
+- **min_free** (*Optional*): Reports the minimum free heap size since boot in bytes. This is useful for detecting memory leaks or high-water-mark usage. Only available on ESP32 and LibreTiny. All options from [Sensor](/components/sensor).
+
+- **fragmentation** (*Optional*): Reports the fragmentation metric of the heap
+  (0% is clean, more than ~50% may cause allocation failures). Available on ESP8266 with Arduino 2.5.2+ and ESP32.
+  All options from [Sensor](/components/sensor).
 
 - **loop_time** (*Optional*): Reports the longest time between successive iterations of the main loop. All options from [Sensor](/components/sensor).
 

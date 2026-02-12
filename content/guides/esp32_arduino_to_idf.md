@@ -140,15 +140,7 @@ If you encounter compilation errors after switching to ESP-IDF:
 
 ### Build Time
 
-ESP-IDF compilation is significantly faster than Arduino:
-
-- **ESP-IDF is 2-3x faster** than Arduino framework
-- On modern desktop systems: ESP-IDF saves 30-60 seconds per build
-- On Raspberry Pi 5: ESP-IDF saves 2-4 minutes per build
-- On Raspberry Pi 4 or older: ESP-IDF saves 6-10 minutes or more per build
-- Subsequent builds maintain the same relative performance advantage
-
-The faster build times are due to ESP-IDF's optimized build system and the elimination of the Arduino compatibility layer overhead.
+Build times between ESP-IDF and Arduino are comparable. Configurations using more Arduino-specific libraries may take longer to compile.
 
 ### Performance Considerations
 

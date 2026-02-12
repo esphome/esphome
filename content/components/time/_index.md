@@ -23,7 +23,7 @@ All time configuration schemas inherit these options.
   (warning: the format is quite complicated, see [examples](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv))
   or the simpler [TZ database name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) in the form
   `<Region>/<City>`. ESPHome tries to automatically infer the time zone string based on the time zone of the computer
-  that is running ESPHome, but this might not always be accurate.
+  that is running ESPHome, but this might not always be accurate. Not available on nRF52 platforms.
 
 - **on_time** (*Optional*, [Automation](/automations)): Automation to run at specific intervals using
   a cron-like syntax. See [`on_time` Trigger](#time-on_time).

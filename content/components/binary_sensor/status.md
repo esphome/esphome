@@ -1,9 +1,9 @@
 ---
-description: "Instructions for setting up MQTT status binary sensors."
+description: "Instructions for setting up status binary sensors."
 title: "Status Binary Sensor"
 params:
   seo:
-    description: Instructions for setting up MQTT status binary sensors.
+    description: Instructions for setting up status binary sensors.
     image: server-network.svg
 ---
 
@@ -21,7 +21,9 @@ binary_sensor:
 
 ## Configuration variables
 
-- All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor). (Inverted mode is not supported)
+- **update_interval** (*Optional*, {{< docref "/guides/configuration-types#time" "Time" >}}): The interval
+  to check the connection status. Defaults to `1s`.
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor). (Inverted mode is not supported)
 
 ## See Also
 

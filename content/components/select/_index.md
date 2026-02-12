@@ -53,8 +53,6 @@ Configuration variables:
 
 - If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](/components/web_server#config-webserver-version-3-options).
 
-Automations:
-
 - **on_value** (*Optional*, [Automation](/automations)): An automation to perform
   when a new value is published. See [`on_value`](#select-on_value).
 
@@ -62,11 +60,13 @@ MQTT Options:
 
 - All other options from [MQTT Component](/components/mqtt#config-mqtt-component).
 
-## Select Automation
+### Accessing the current option
 
 You can access the most recent state of the select in [lambdas](/automations/templates#config-lambda) using
 `id(select_id).current_option()`.
 For more information on using lambdas with select, see [lambda calls](#select-lambda_calls).
+
+## Triggers
 
 {{< anchor "select-on_value" >}}
 
@@ -87,6 +87,48 @@ select:
 ```
 
 Configuration variables: See [Automation](/automations).
+
+## Conditions
+
+### `select.is` Condition
+
+This [Condition](/automations/actions#all-conditions) checks if the select is set to any one of a list of options. A lambda may also be used for more complex computations.
+
+Configuration variables:
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the select to test.
+- **options** (*Optional*, list): A string, or list of strings to compare with the current selection. The condition is true if any match.
+- **lambda** (*Optional*, [templatable](/automations/templates)): A lambda returning a boolean value. The current selection is passed in a `StringRef` argument called `current`.
+
+Only one of `options` and `lambda` must be provided.
+
+```yaml
+# In some trigger:
+on_...:
+  - if:
+      condition:
+        select.is:
+          id: my_select
+          options: [Happy, Ecstatic]
+      then:
+        - logger.log: "Select is Happy or Ecstatic"
+  - if:
+      condition:
+        select.is:
+          id: my_select
+          options: "Happy" # Single option 
+      then:
+        - logger.log: "Select is exactly Happy"
+  - if:
+      condition:
+        select.is:
+          id: my_select
+          lambda: return id(text_sensor).state == current || "Happy" == current;
+      then:
+        - logger.log: "Select is Happy, or matches some variable state"
+```
+
+## Actions
 
 {{< anchor "select-set_action" >}}
 
@@ -249,10 +291,9 @@ Configuration variables:
 
 {{< anchor "select-lambda_calls" >}}
 
-### lambda calls
+## Using Selects in Lambdas
 
-From [lambdas](/automations/templates#config-lambda), you can call several methods on all selects to do some
-advanced stuff (see the full API Reference for more info).
+From [lambdas](/automations/templates#config-lambda), you can call several methods on selects (see the full API Reference for more info).
 
 - `.make_call()`  : Create a call for changing the select state.
 
