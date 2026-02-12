@@ -196,7 +196,9 @@ async def zephyr_to_code(config: ConfigType) -> None:
         config[CONF_POWER_SOURCE] != "BATTERY"
         and "deep_sleep" in CORE.loaded_integrations
     ):
-        _LOGGER.warning("For deep sleep zigbee should use: power_source: BATTERY")
+        _LOGGER.warning(
+            "Zigbee with deep sleep component should use: power_source: BATTERY"
+        )
 
 
 async def _attr_to_code(config: ConfigType) -> None:
