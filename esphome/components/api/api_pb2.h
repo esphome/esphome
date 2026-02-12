@@ -317,6 +317,9 @@ enum SerialProxyParity : uint32_t {
   SERIAL_PROXY_PARITY_EVEN = 1,
   SERIAL_PROXY_PARITY_ODD = 2,
 };
+enum SerialProxyRequestType : uint32_t {
+  SERIAL_PROXY_REQUEST_TYPE_FLUSH = 0,
+};
 #endif
 
 }  // namespace enums
@@ -3146,14 +3149,15 @@ class SerialProxyGetModemPinsResponse final : public ProtoMessage {
 
  protected:
 };
-class SerialProxyFlushRequest final : public ProtoDecodableMessage {
+class SerialProxyRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 144;
-  static constexpr uint8_t ESTIMATED_SIZE = 4;
+  static constexpr uint8_t ESTIMATED_SIZE = 6;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "serial_proxy_flush_request"; }
+  const char *message_name() const override { return "serial_proxy_request"; }
 #endif
   uint32_t instance{0};
+  enums::SerialProxyRequestType type{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif

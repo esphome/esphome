@@ -74,7 +74,7 @@ service APIConnection {
   rpc serial_proxy_write(SerialProxyWriteRequest) returns (void) {}
   rpc serial_proxy_set_modem_pins(SerialProxySetModemPinsRequest) returns (void) {}
   rpc serial_proxy_get_modem_pins(SerialProxyGetModemPinsRequest) returns (void) {}
-  rpc serial_proxy_flush(SerialProxyFlushRequest) returns (void) {}
+  rpc serial_proxy_request(SerialProxyRequest) returns (void) {}
 }
 
 
@@ -2573,11 +2573,16 @@ message SerialProxyGetModemPinsResponse {
   bool dtr = 3;                 // Current DTR pin state
 }
 
-// Flush the serial port (block until all TX data is sent)
-message SerialProxyFlushRequest {
+enum SerialProxyRequestType {
+  SERIAL_PROXY_REQUEST_TYPE_FLUSH = 0;  // Flush the serial port (block until all TX data is sent)
+}
+
+// Generic request message for simple serial proxy operations
+message SerialProxyRequest {
   option (id) = 144;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_SERIAL_PROXY";
 
-  uint32 instance = 1;          // Instance index (0-based)
+  uint32 instance = 1;                  // Instance index (0-based)
+  SerialProxyRequestType type = 2;      // Request type
 }

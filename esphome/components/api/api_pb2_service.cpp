@@ -680,13 +680,13 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_SERIAL_PROXY
-    case SerialProxyFlushRequest::MESSAGE_TYPE: {
-      SerialProxyFlushRequest msg;
+    case SerialProxyRequest::MESSAGE_TYPE: {
+      SerialProxyRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      this->log_receive_message_(LOG_STR("on_serial_proxy_flush_request"), msg);
+      this->log_receive_message_(LOG_STR("on_serial_proxy_request"), msg);
 #endif
-      this->on_serial_proxy_flush_request(msg);
+      this->on_serial_proxy_request(msg);
       break;
     }
 #endif

@@ -749,6 +749,14 @@ template<> const char *proto_enum_to_string<enums::SerialProxyParity>(enums::Ser
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::SerialProxyRequestType>(enums::SerialProxyRequestType value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH:
+      return "SERIAL_PROXY_REQUEST_TYPE_FLUSH";
+    default:
+      return "UNKNOWN";
+  }
+}
 #endif
 
 const char *HelloRequest::dump_to(DumpBuffer &out) const {
@@ -2528,9 +2536,10 @@ const char *SerialProxyGetModemPinsResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, "dtr", this->dtr);
   return out.c_str();
 }
-const char *SerialProxyFlushRequest::dump_to(DumpBuffer &out) const {
-  MessageDumpHelper helper(out, "SerialProxyFlushRequest");
+const char *SerialProxyRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyRequest");
   dump_field(out, "instance", this->instance);
+  dump_field(out, "type", static_cast<enums::SerialProxyRequestType>(this->type));
   return out.c_str();
 }
 #endif

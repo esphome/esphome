@@ -1459,13 +1459,20 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
   this->send_message(resp, SerialProxyGetModemPinsResponse::MESSAGE_TYPE);
 }
 
-void APIConnection::on_serial_proxy_flush_request(const SerialProxyFlushRequest &msg) {
+void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
     ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
     return;
   }
-  proxies[msg.instance]->flush_port();
+  switch (msg.type) {
+    case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH:
+      proxies[msg.instance]->flush_port();
+      break;
+    default:
+      ESP_LOGW(TAG, "Unknown serial proxy request type: %u", static_cast<uint32_t>(msg.type));
+      break;
+  }
 }
 
 void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) {

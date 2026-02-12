@@ -3538,10 +3538,13 @@ void SerialProxyGetModemPinsResponse::calculate_size(ProtoSize &size) const {
   size.add_bool(1, this->rts);
   size.add_bool(1, this->dtr);
 }
-bool SerialProxyFlushRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool SerialProxyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1:
       this->instance = value.as_uint32();
+      break;
+    case 2:
+      this->type = static_cast<enums::SerialProxyRequestType>(value.as_uint32());
       break;
     default:
       return false;

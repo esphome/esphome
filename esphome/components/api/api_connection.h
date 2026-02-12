@@ -187,7 +187,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) override;
   void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) override;
   void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) override;
-  void on_serial_proxy_flush_request(const SerialProxyFlushRequest &msg) override;
+  void on_serial_proxy_request(const SerialProxyRequest &msg) override;
   void send_serial_proxy_data(const SerialProxyDataReceived &msg);
 #endif
 
