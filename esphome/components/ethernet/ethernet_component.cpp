@@ -707,16 +707,22 @@ void EthernetComponent::dump_connect_params_() {
   char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "  IP Address: %s\n"
                 "  Hostname: '%s'\n"
                 "  Subnet: %s\n"
                 "  Gateway: %s\n"
                 "  DNS1: %s\n"
-                "  DNS2: %s",
+                "  DNS2: %s\n"
+                "  MAC Address: %s\n"
+                "  Is Full Duplex: %s\n"
+                "  Link Speed: %u",
                 network::IPAddress(&ip.ip).str_to(ip_buf), App.get_name().c_str(),
                 network::IPAddress(&ip.netmask).str_to(subnet_buf), network::IPAddress(&ip.gw).str_to(gateway_buf),
-                network::IPAddress(dns_ip1).str_to(dns1_buf), network::IPAddress(dns_ip2).str_to(dns2_buf));
+                network::IPAddress(dns_ip1).str_to(dns1_buf), network::IPAddress(dns_ip2).str_to(dns2_buf),
+                this->get_eth_mac_address_pretty_into_buffer(mac_buf),
+                YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL), this->get_link_speed() == ETH_SPEED_100M ? 100 : 10);
 
 #if USE_NETWORK_IPV6
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
@@ -727,14 +733,6 @@ void EthernetComponent::dump_connect_params_() {
     ESP_LOGCONFIG(TAG, "  IPv6: " IPV6STR, IPV62STR(if_ip6s[i]));
   }
 #endif /* USE_NETWORK_IPV6 */
-
-  char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  ESP_LOGCONFIG(TAG,
-                "  MAC Address: %s\n"
-                "  Is Full Duplex: %s\n"
-                "  Link Speed: %u",
-                this->get_eth_mac_address_pretty_into_buffer(mac_buf),
-                YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL), this->get_link_speed() == ETH_SPEED_100M ? 100 : 10);
 }
 
 #ifdef USE_ETHERNET_SPI
