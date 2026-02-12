@@ -11,7 +11,7 @@ static const char *const TAG = "web_server_base";
 
 WebServerBase *global_web_server_base = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-void WebServerBase::add_handler(AsyncWebHandler *handler) {
+void __attribute__((flatten)) WebServerBase::add_handler(AsyncWebHandler *handler) {
   // remove all handlers
 
 #ifdef USE_WEBSERVER_AUTH
