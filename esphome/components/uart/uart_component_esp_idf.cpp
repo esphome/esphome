@@ -397,10 +397,13 @@ void IDFUARTComponent::rx_event_task_func(void *param) {
 
         case UART_FIFO_OVF:
         case UART_BUFFER_FULL:
-          // Don't call uart_flush_input() here - it races with read_array() on the main loop
-          // and can destroy data mid-read. The driver self-heals: uart_read_bytes() internally
-          // calls uart_check_buf_full() which moves stashed FIFO bytes into the ring buffer
-          // and re-enables RX interrupts once space is freed by normal reads.
+          // Don't call uart_flush_input() here — this task does not own the read side.
+          // ESP-IDF examples flush on overflow because the same task handles both events
+          // and reads, so flush and read are serialized. Here, reads happen on the main
+          // loop, so flushing from this task races with read_array() and can destroy data
+          // mid-read. The driver self-heals without an explicit flush: uart_read_bytes()
+          // calls uart_check_buf_full() after each chunk, which moves stashed FIFO bytes
+          // into the ring buffer and re-enables RX interrupts once space is freed.
           ESP_LOGW(TAG, "FIFO overflow or ring buffer full");
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
           App.wake_loop_threadsafe();
