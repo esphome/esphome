@@ -553,6 +553,11 @@ void AudioPipeline::decode_task(void *params) {
               initial_bytes_to_buffer /= 2;  // Estimate the FLAC compression factor is 2
               break;
 #endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+            case audio::AudioFileType::OPUS:
+              initial_bytes_to_buffer /= 8;  // Estimate the Opus compression factor is 8
+              break;
+#endif
             default:
               break;
           }
