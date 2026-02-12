@@ -372,7 +372,7 @@ async def to_code(config):
 
     if CONF_TOUCH_WAKEUP in config:
         cg.add(var.set_touch_wakeup(config[CONF_TOUCH_WAKEUP]))
-    if CORE.using_zephyr:
+    if CORE.using_zephyr and "zigbee" not in CORE.loaded_integrations:
         zephyr_add_prj_conf("POWEROFF", True)
 
     cg.add_define("USE_DEEP_SLEEP")
