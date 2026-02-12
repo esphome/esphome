@@ -542,7 +542,7 @@ class APIConnection final : public APIServerConnectionBase {
     // Add item to the front of the batch (for high priority messages like ping)
     void add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size);
     // Single push_back site to avoid duplicate _M_realloc_insert instantiation
-    void push_item_(const BatchItem &item);
+    void push_item(const BatchItem &item);
 
     // Clear all items
     void clear() {

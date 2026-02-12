@@ -497,7 +497,7 @@ class WiFiComponent : public Component {
     }
     return 0;
   }
-  void set_sta_priority(const bssid_t bssid, int8_t priority);
+  void set_sta_priority(bssid_t bssid, int8_t priority);
 
   network::IPAddresses wifi_sta_ip_addresses();
   // Remove before 2026.9.0
