@@ -1864,8 +1864,6 @@ void APIConnection::on_fatal_error() {
   this->flags_.remove = true;
 }
 
-void __attribute__((flatten)) APIConnection::DeferredBatch::push_item(const BatchItem &item) { items.push_back(item); }
-
 void APIConnection::DeferredBatch::add_item(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
                                             uint8_t aux_data_index) {
   // Check if we already have a message of this type for this entity
@@ -1882,7 +1880,7 @@ void APIConnection::DeferredBatch::add_item(EntityBase *entity, uint8_t message_
     }
   }
   // No existing item found (or event), add new one
-  this->push_item({entity, message_type, estimated_size, aux_data_index});
+  items.push_back({entity, message_type, estimated_size, aux_data_index});
 }
 
 void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
@@ -1890,7 +1888,7 @@ void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, uint8_t me
   // This avoids expensive vector::insert which shifts all elements
   // Note: We only ever have one high-priority message at a time (ping OR disconnect)
   // If we're disconnecting, pings are blocked, so this simple swap is sufficient
-  this->push_item({entity, message_type, estimated_size, AUX_DATA_UNUSED});
+  items.push_back({entity, message_type, estimated_size, AUX_DATA_UNUSED});
   if (items.size() > 1) {
     // Swap the new high-priority item to the front
     std::swap(items.front(), items.back());
