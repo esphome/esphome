@@ -25,11 +25,11 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
 static const uint8_t NOTES_COUNT = static_cast<uint8_t>(sizeof(NOTES) / sizeof(NOTES[0]));  // 1+4*12=49
 
 #if defined(USE_OUTPUT) || defined(USE_SPEAKER)
-static const uint32_t REPEATING_NOTE_GAP_MS = 10;
+static const uint8_t REPEATING_NOTE_GAP_MS = 10;
 #endif  // USE_OUTPUT || USE_SPEAKER
 
 #ifdef USE_SPEAKER
-static const size_t SAMPLE_BUFFER_SIZE = 2048;
+static const uint16_t SAMPLE_BUFFER_SIZE = 2048;
 static const uint16_t SAMPLE_RATE = 16000;
 
 struct SpeakerSample {
@@ -124,7 +124,7 @@ void Rtttl::loop() {
     }
     if (this->samples_sent_ != this->samples_count_) {
       SpeakerSample sample[SAMPLE_BUFFER_SIZE + 2];
-      int sample_index = 0;
+      uint16_t sample_index = 0;
       double rem = 0.0;
 
       while (true) {
@@ -132,7 +132,7 @@ void Rtttl::loop() {
         if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
           rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
 
-          int16_t val = (127 * this->gain_) * sin(deg2rad(rem));
+          int8_t val = (127 * this->gain_) * sin(deg2rad(rem));
 
           sample[sample_index].left = val;
           sample[sample_index].right = val;
@@ -141,14 +141,14 @@ void Rtttl::loop() {
           sample[sample_index].right = 0;
         }
 
-        if (static_cast<size_t>(sample_index) >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
+        if (sample_index >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
           break;
         }
         this->samples_sent_++;
         sample_index++;
       }
       if (sample_index > 0) {
-        int send = this->speaker_->play((uint8_t *) (&sample), sample_index * 2);
+        size_t send = this->speaker_->play((uint8_t *) (&sample), sample_index * 2);
         if (send != sample_index * 4) {
           this->samples_sent_ -= sample_index - (send / 2);
         }
@@ -213,14 +213,14 @@ void Rtttl::loop() {
     this->output_freq_ = 0;
     ESP_LOGVV(TAG, "Waiting: %dms", this->note_duration_);
   } else {
-    auto note_index = (scale - MIN_OCTAVE) * SEMITONES_IN_OCTAVE + note_index_in_octave;
+    uint8_t note_index = (scale - MIN_OCTAVE) * SEMITONES_IN_OCTAVE + note_index_in_octave;
     if (note_index < 0 || note_index >= NOTES_COUNT) {
       ESP_LOGE(TAG, "Note out of range (note: %d, scale: %d, index: %d, max: %d)", note_index_in_octave, scale,
                note_index, NOTES_COUNT);
       this->finish_();
       return;
     }
-    auto freq = NOTES[note_index];
+    uint16_t freq = NOTES[note_index];
     need_note_gap = freq == this->output_freq_;
 
     // Add small silence gap between same note
@@ -286,7 +286,7 @@ void Rtttl::play(std::string rtttl) {
   this->default_octave_ = DEFAULT_OCTAVE;
   this->note_duration_ = 0;
 
-  int bpm = DEFAULT_BPM;
+  uint8_t bpm = DEFAULT_BPM;
   uint8_t num;  // Used for: default note-denominator, default octave, BPM
 
   // Get name

@@ -71,9 +71,9 @@ class Rtttl : public Component {
   /// The current position in the RTTTL string.
   size_t position_{0};
   /// The default duration of a note (e.g. 4 for a quarter note).
-  uint16_t default_note_denominator_{DEFAULT_NOTE_DENOMINATOR};
+  uint8_t default_note_denominator_{DEFAULT_NOTE_DENOMINATOR};
   /// The default octave for a note.
-  uint16_t default_octave_{DEFAULT_OCTAVE};
+  uint8_t default_octave_{DEFAULT_OCTAVE};
   /// The duration of the current note in milliseconds.
   uint16_t note_duration_{0};
   /// The duration of a whole note in milliseconds.
@@ -96,13 +96,13 @@ class Rtttl : public Component {
   /// The speaker to write the sound to.
   speaker::Speaker *speaker_{nullptr};
   /// The number of samples for one full cycle of a note's waveform, in Q10 fixed-point format.
-  int samples_per_wave_{0};
+  uint32_t samples_per_wave_{0};
   /// The number of samples sent.
   int samples_sent_{0};
   /// The total number of samples to send.
   int samples_count_{0};
   /// The number of samples for the gap between notes.
-  int samples_gap_{0};
+  uint8_t samples_gap_{0};
 #endif  // USE_SPEAKER
 
   /// The callback to call when playback is finished.
