@@ -1446,6 +1446,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [MiKuBB (@MiKuBB)](https://github.com/MiKuBB)
 - [Milan Dzuriš (@milandzuris)](https://github.com/milandzuris)
 - [Tucker Kern (@mill1000)](https://github.com/mill1000)
+- [Roger Barnes (@mindsocket)](https://github.com/mindsocket)
 - [mingan666 (@mingan666)](https://github.com/mingan666)
 - [Minideezel (@minideezel)](https://github.com/minideezel)
 - [mipa87 (@mipa87)](https://github.com/mipa87)
@@ -1754,6 +1755,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Quinn Casey (@qcasey)](https://github.com/qcasey)
 - [qianh-wan (@qianh-wan)](https://github.com/qianh-wan)
 - [Karol Zlot (@qqgg231)](https://github.com/qqgg231)
+- [Awesome Walrus (@QRPp)](https://github.com/QRPp)
 - [Tommy Jonsson (@quazzie)](https://github.com/quazzie)
 - [quentin9696 (@quentin9696)](https://github.com/quentin9696)
 - [Quentin Smith (@quentinmit)](https://github.com/quentinmit)
@@ -2285,6 +2287,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [wysiwyng (@wysiwyng)](https://github.com/wysiwyng)
 - [X-Ryl669 (@X-Ryl669)](https://github.com/X-Ryl669)
 - [xalbertoisorna (@xalbertoisorna)](https://github.com/xalbertoisorna)
+- [Sean Kelly (@xconverge)](https://github.com/xconverge)
 - [De Cock Xavier (@xdecock)](https://github.com/xdecock)
 - [Jakob (@XDjackieXD)](https://github.com/XDjackieXD)
 - [Mike Brown (@xenoxaos)](https://github.com/xenoxaos)
@@ -2339,4 +2342,4 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Christian Zufferey (@zuzu59)](https://github.com/zuzu59)
 - [Zynth-dev (@Zynth-dev)](https://github.com/Zynth-dev)
 
-*This page was last updated February 11, 2026.*
+*This page was last updated February 12, 2026.*
