@@ -1478,9 +1478,14 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     parse_string_param_(request, ESPHOME_F("swing_mode"), call, &decltype(call)::set_swing_mode);
 
     // Parse temperature parameters
-    parse_num_param_(request, ESPHOME_F("target_temperature_high"), call, &decltype(call)::set_target_temperature_high);
-    parse_num_param_(request, ESPHOME_F("target_temperature_low"), call, &decltype(call)::set_target_temperature_low);
-    parse_num_param_(request, ESPHOME_F("target_temperature"), call, &decltype(call)::set_target_temperature);
+    // static_cast needed to disambiguate overloaded setters (float vs optional<float>)
+    using ClimateCall = decltype(call);
+    parse_num_param_(request, ESPHOME_F("target_temperature_high"), call,
+                     static_cast<ClimateCall &(ClimateCall::*) (float)>(&ClimateCall::set_target_temperature_high));
+    parse_num_param_(request, ESPHOME_F("target_temperature_low"), call,
+                     static_cast<ClimateCall &(ClimateCall::*) (float)>(&ClimateCall::set_target_temperature_low));
+    parse_num_param_(request, ESPHOME_F("target_temperature"), call,
+                     static_cast<ClimateCall &(ClimateCall::*) (float)>(&ClimateCall::set_target_temperature));
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
