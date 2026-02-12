@@ -143,7 +143,7 @@ static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc
   } while (next_desc != NULL);
 }
 #endif
-// USB string descriptors: bLength (uint8_t, max 255) includes 2-byte header (bLength + bDescriptorType).
+// USB string descriptors: bLength (uint8_t, max 255) includes the 2-byte header (bLength and bDescriptorType).
 // Character count = (bLength - 2) / 2, max 126 chars + null terminator.
 static constexpr size_t DESC_STRING_BUF_SIZE = 128;
 
