@@ -376,6 +376,13 @@ void IDFUARTComponent::start_rx_event_task_() {
   ESP_LOGV(TAG, "RX event task started");
 }
 
+// FreeRTOS task that relays UART ISR events to the main loop.
+// This task exists because wake_loop_threadsafe() is not ISR-safe (it uses a
+// UDP loopback socket), so we need a task as an ISR-to-main-loop trampoline.
+// IMPORTANT: This task must NOT call any UART wrapper methods (read_array,
+// write_array, peek_byte, etc.) or touch has_peek_/peek_byte_ — all reading
+// is done by the main loop. This task only reads from the event queue and
+// calls App.wake_loop_threadsafe().
 void IDFUARTComponent::rx_event_task_func(void *param) {
   auto *self = static_cast<IDFUARTComponent *>(param);
   uart_event_t event;
