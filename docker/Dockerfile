@@ -23,7 +23,7 @@ RUN if command -v apk > /dev/null; then \
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN pip install --no-cache-dir -U pip uv==0.6.14
+RUN pip install --no-cache-dir -U pip uv==0.10.1
 
 COPY requirements.txt /
 

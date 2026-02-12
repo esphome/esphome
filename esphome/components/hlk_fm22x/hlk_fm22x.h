@@ -7,12 +7,15 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/uart/uart.h"
 
+#include <array>
 #include <utility>
-#include <vector>
 
 namespace esphome::hlk_fm22x {
 
 static const uint16_t START_CODE = 0xEFAA;
+static constexpr size_t HLK_FM22X_NAME_SIZE = 32;
+// Maximum response payload: command(1) + result(1) + face_id(2) + name(32) = 36
+static constexpr size_t HLK_FM22X_MAX_RESPONSE_SIZE = 36;
 enum HlkFm22xCommand {
   NONE = 0x00,
   RESET = 0x10,
@@ -118,10 +121,11 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
   void get_face_count_();
   void send_command_(HlkFm22xCommand command, const uint8_t *data = nullptr, size_t size = 0);
   void recv_command_();
-  void handle_note_(const std::vector<uint8_t> &data);
-  void handle_reply_(const std::vector<uint8_t> &data);
+  void handle_note_(const uint8_t *data, size_t length);
+  void handle_reply_(const uint8_t *data, size_t length);
   void set_enrolling_(bool enrolling);
 
+  std::array<uint8_t, HLK_FM22X_MAX_RESPONSE_SIZE> recv_buf_;
   HlkFm22xCommand active_command_ = HlkFm22xCommand::NONE;
   uint16_t wait_cycles_ = 0;
   sensor::Sensor *face_count_sensor_{nullptr};

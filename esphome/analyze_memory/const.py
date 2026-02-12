@@ -66,15 +66,6 @@ SECTION_MAPPING = {
     ),
 }
 
-# Section to ComponentMemory attribute mapping
-# Maps section names to the attribute name in ComponentMemory dataclass
-SECTION_TO_ATTR = {
-    ".text": "text_size",
-    ".rodata": "rodata_size",
-    ".data": "data_size",
-    ".bss": "bss_size",
-}
-
 # Component identification rules
 # Symbol patterns: patterns found in raw symbol names
 SYMBOL_PATTERNS = {
@@ -513,7 +504,9 @@ SYMBOL_PATTERNS = {
         "__FUNCTION__$",
         "DAYS_IN_MONTH",
         "_DAYS_BEFORE_MONTH",
-        "CSWTCH$",
+        # Note: CSWTCH$ symbols are GCC switch table lookup tables.
+        # They are attributed to their source object files via _analyze_cswtch_symbols()
+        # rather than being lumped into libc.
         "dst$",
         "sulp",
         "_strtol_l",  # String to long with locale

@@ -874,6 +874,9 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
 }
 
 /// Parse a hex character to its nibble value (0-15), returns 255 on invalid input
+/// Returned by parse_hex_char() for non-hex characters.
+static constexpr uint8_t INVALID_HEX_CHAR = 255;
+
 constexpr uint8_t parse_hex_char(char c) {
   if (c >= '0' && c <= '9')
     return c - '0';
@@ -881,7 +884,7 @@ constexpr uint8_t parse_hex_char(char c) {
     return c - 'A' + 10;
   if (c >= 'a' && c <= 'f')
     return c - 'a' + 10;
-  return 255;
+  return INVALID_HEX_CHAR;
 }
 
 /// Convert a nibble (0-15) to hex char with specified base ('a' for lowercase, 'A' for uppercase)

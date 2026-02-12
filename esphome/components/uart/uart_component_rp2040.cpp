@@ -186,7 +186,7 @@ bool RP2040UartComponent::read_array(uint8_t *data, size_t len) {
 #endif
   return true;
 }
-int RP2040UartComponent::available() { return this->serial_->available(); }
+size_t RP2040UartComponent::available() { return this->serial_->available(); }
 void RP2040UartComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
   this->serial_->flush();
