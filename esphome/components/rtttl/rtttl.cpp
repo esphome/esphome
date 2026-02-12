@@ -214,7 +214,7 @@ void Rtttl::loop() {
     ESP_LOGVV(TAG, "Waiting: %dms", this->note_duration_);
   } else {
     uint8_t note_index = (scale - MIN_OCTAVE) * SEMITONES_IN_OCTAVE + note_index_in_octave;
-    if (note_index < 0 || note_index >= NOTES_COUNT) {
+    if (note_index >= NOTES_COUNT) {
       ESP_LOGE(TAG, "Note out of range (note: %d, scale: %d, index: %d, max: %d)", note_index_in_octave, scale,
                note_index, NOTES_COUNT);
       this->finish_();
@@ -292,13 +292,17 @@ void Rtttl::play(std::string rtttl) {
   // Get name
   this->position_ = this->rtttl_.find(':');
 
-  // It's somewhat documented to be up to 10 (SONG_NAME_SOFT_LIMIT) characters but let's be a bit flexible here
-  // (SONG_NAME_HARD_LIMIT = 15)
-  if (this->position_ == std::string::npos || this->position_ > SONG_NAME_HARD_LIMIT) {
+  if (this->position_ == std::string::npos) {
     ESP_LOGE(TAG, "Unable to determine name; missing ':'");
     return;
   }
-
+  // It's somewhat documented to be up to 10 (SONG_NAME_SOFT_LIMIT) characters but let's be a bit flexible here
+  // (SONG_NAME_HARD_LIMIT = 15)
+  if (this->position_ > SONG_NAME_HARD_LIMIT) {
+    ESP_LOGE(TAG, "Name is too long: length=%u, limit=%u", static_cast<unsigned>(this->position_),
+             static_cast<unsigned>(SONG_NAME_HARD_LIMIT));
+    return;
+  }
   if (this->position_ > SONG_NAME_SOFT_LIMIT) {
     ESP_LOGW(TAG, "Name is longer than %d characters: %.*s", SONG_NAME_SOFT_LIMIT, (int) this->position_,
              this->rtttl_.c_str());
