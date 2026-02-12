@@ -558,7 +558,8 @@ class WebServer : public Controller,
   template<typename T, typename Ret>
   void parse_bool_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(bool)) {
     const auto &param_value = request->arg(param_name);
-    if (param_value.length() > 0) {
+    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
+    if (param_value.length() > 0) {  // NOLINT(readability-container-size-empty)
       // First check on/off (default), then true/false (custom)
       auto val = parse_on_off(param_value.c_str());
       if (val == PARSE_NONE) {
