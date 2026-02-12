@@ -24,10 +24,12 @@ uint8_t *DownloadBuffer::data(size_t offset) {
 }
 
 size_t DownloadBuffer::read(size_t len) {
-  this->unread_ -= len;
-  if (this->unread_ > 0) {
-    memmove(this->data(), this->data(len), this->unread_);
+  if (len >= this->unread_) {
+    this->unread_ = 0;
+    return 0;
   }
+  this->unread_ -= len;
+  memmove(this->data(), this->data(len), this->unread_);
   return this->unread_;
 }
 
