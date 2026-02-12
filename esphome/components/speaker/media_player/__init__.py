@@ -203,6 +203,10 @@ def _validate_pipeline(config):
     inherit_property_from(CONF_NUM_CHANNELS, CONF_SPEAKER)(config)
     inherit_property_from(CONF_SAMPLE_RATE, CONF_SPEAKER)(config)
 
+    # Opus only supports 48 kHz
+    if config.get(CONF_FORMAT) == "OPUS" and config.get(CONF_SAMPLE_RATE) != 48000:
+        raise cv.Invalid("Opus only supports a sample rate of 48000 Hz")
+
     # Validate the transcoder settings is compatible with the speaker
     audio.final_validate_audio_schema(
         "speaker media_player",
