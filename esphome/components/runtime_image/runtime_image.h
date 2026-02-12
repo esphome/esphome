@@ -162,14 +162,16 @@ class RuntimeImage : public image::Image {
    * Actual width of the current image.
    * This needs to be separate from "Image::get_width()" because the latter
    * must return 0 until the image has been decoded (to avoid showing partially
-   * decoded images).
+   * decoded images). When progressive_display_ is enabled, Image dimensions
+   * are updated during decoding to allow rendering in progress.
    */
   int buffer_width_{0};
   /**
    * Actual height of the current image.
    * This needs to be separate from "Image::get_height()" because the latter
    * must return 0 until the image has been decoded (to avoid showing partially
-   * decoded images).
+   * decoded images). When progressive_display_ is enabled, Image dimensions
+   * are updated during decoding to allow rendering in progress.
    */
   int buffer_height_{0};
 
