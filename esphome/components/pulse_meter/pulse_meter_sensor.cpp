@@ -58,7 +58,9 @@ void PulseMeterSensor::loop() {
     this->last_pin_val_ = current;
 
     // Get the latest state from the ISR and reset the count in the ISR
-    std::memcpy((void *) &state, (void *) &this->state_, sizeof(State));
+    state.last_detected_edge_us_ = this->state_.last_detected_edge_us_;
+    state.last_rising_edge_us_ = this->state_.last_rising_edge_us_;
+    state.count_ = this->state_.count_;
     this->state_.count_ = 0;
   }
 
