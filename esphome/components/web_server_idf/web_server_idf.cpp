@@ -408,6 +408,7 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
 
 /// Search post_query then URL query with a callback.
 /// Returns first truthy result, or value-initialized default.
+/// URL query is accessed directly from req->uri (same pattern as url_to()).
 template<typename Func>
 static auto search_query_sources(httpd_req_t *req, const std::string &post_query, const char *name, Func func)
     -> decltype(func(nullptr, size_t{0}, name)) {
@@ -417,15 +418,19 @@ static auto search_query_sources(httpd_req_t *req, const std::string &post_query
       return result;
     }
   }
-  auto len = httpd_req_get_url_query_len(req);
+  // Access query string directly from URI — no stack buffer needed.
+  // http_parser identifies components by offset/length without modifying the URI string.
+  // This is the same pattern used by url_to().
+  const char *query = strchr(req->uri, '?');
+  if (query == nullptr) {
+    return {};
+  }
+  query++;  // skip '?'
+  size_t len = strlen(query);
   if (len == 0) {
     return {};
   }
-  char buf[AsyncWebServerRequest::URL_BUF_SIZE];
-  if (httpd_req_get_url_query_str(req, buf, len + 1) != ESP_OK) {
-    return {};
-  }
-  return func(buf, len, name);
+  return func(query, len, name);
 }
 
 optional<std::string> AsyncWebServerRequest::find_query_value_(const char *name) const {
