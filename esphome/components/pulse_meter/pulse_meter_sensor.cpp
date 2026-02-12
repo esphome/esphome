@@ -97,8 +97,8 @@ void PulseMeterSensor::loop() {
       case MeterState::RUNNING: {
         uint32_t delta_us = state.last_detected_edge_us_ - this->last_processed_edge_us_;
         float pulse_width_us = delta_us / float(state.count_);
-        ESP_LOGV(TAG, "New pulse, delta: %" PRIu32 " µs, count: %" PRIu32 ", width: %.5f µs", delta_us,
-                 state.count_, pulse_width_us);
+        ESP_LOGV(TAG, "New pulse, delta: %" PRIu32 " µs, count: %" PRIu32 ", width: %.5f µs", delta_us, state.count_,
+                 pulse_width_us);
         this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
       } break;
     }
