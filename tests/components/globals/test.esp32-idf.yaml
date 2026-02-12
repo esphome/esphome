@@ -15,13 +15,13 @@ esphome:
           id(uint8_test_rpc_array)[1]++;
       - globals.set:
           id: uint8_test_no_restore
-          value: 42
+          value: '42'
       - globals.set:
           id: uint8_test_restore
-          value: 42
+          value: '42'
       - globals.set:
           id: uint8_test_rpc
-          value: 42
+          value: '42'
 
 globals:
   - id: uint8_test_no_restore
