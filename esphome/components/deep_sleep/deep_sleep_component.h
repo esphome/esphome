@@ -125,6 +125,9 @@ class DeepSleepComponent : public Component {
 
   void prevent_deep_sleep();
   void allow_deep_sleep();
+#ifdef USE_ZEPHYR
+  void wakeup();
+#endif
 
  protected:
   // Returns nullopt if no run duration is set. Otherwise, returns the run
@@ -251,6 +254,8 @@ template<typename... Ts> class AllowDeepSleepAction : public Action<Ts...>, publ
  public:
   void play(const Ts &...x) override { this->parent_->allow_deep_sleep(); }
 };
+
+extern DeepSleepComponent *global_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace deep_sleep
 }  // namespace esphome

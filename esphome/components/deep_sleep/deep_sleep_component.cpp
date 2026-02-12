@@ -1,9 +1,6 @@
 #include "deep_sleep_component.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
-#ifdef USE_ZIGBEE
-#include <esphome/components/zigbee/zigbee_zephyr.h>
-#endif
 
 namespace esphome {
 namespace deep_sleep {
@@ -12,15 +9,14 @@ static const char *const TAG = "deep_sleep";
 // 5 seconds for deep sleep to ensure clean disconnect from Home Assistant
 static const uint32_t TEARDOWN_TIMEOUT_DEEP_SLEEP_MS = 5000;
 
-bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+bool global_has_deep_sleep = false;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+DeepSleepComponent *global_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void DeepSleepComponent::setup() {
 #ifdef USE_ZEPHYR
   k_sem_init(&this->wakeup_sem_, 0, 1);
-#ifdef USE_ZIGBEE
-  zigbee::global_zigbee->add_wakeup_callback([this]() { k_sem_give(&this->wakeup_sem_); });
 #endif
-#endif
+  global_deep_sleep = this;
   global_has_deep_sleep = true;
   this->setup_deep_sleep_();
 }

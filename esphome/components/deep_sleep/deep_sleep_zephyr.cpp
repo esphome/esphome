@@ -10,6 +10,8 @@ namespace esphome::deep_sleep {
 
 static const char *const TAG = "deep_sleep";
 
+void DeepSleepComponent::wakeup() { k_sem_give(&this->wakeup_sem_); }
+
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
 
 void DeepSleepComponent::dump_config_platform_() {}

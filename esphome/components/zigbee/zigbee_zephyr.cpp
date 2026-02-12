@@ -4,6 +4,9 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
 #include "esphome/core/hal.h"
+#ifdef USE_DEEP_SLEEP
+#include "esphome/components/deep_sleep/deep_sleep_component.h"
+#endif
 
 extern "C" {
 #include <zboss_api.h>
@@ -117,9 +120,7 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   p_device_cb_param->status = RET_OK;
 
 #ifdef USE_DEEP_SLEEP
-  if (global_zigbee->wakeup_cb_) {
-    global_zigbee->wakeup_cb_();
-  }
+  deep_sleep::global_deep_sleep->wakeup();
 #endif
 
   // endpoints are enumerated from 1
