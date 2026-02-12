@@ -1,7 +1,9 @@
 #include "deep_sleep_component.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#ifdef USE_ZIGBEE
 #include <esphome/components/zigbee/zigbee_zephyr.h>
+#endif
 
 namespace esphome {
 namespace deep_sleep {
