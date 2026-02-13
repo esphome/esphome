@@ -7,15 +7,6 @@
 
 namespace esphome::sen6x {
 
-enum ERRORCODE {
-  COMMUNICATION_FAILED,
-  SERIAL_NUMBER_IDENTIFICATION_FAILED,
-  MEASUREMENT_INIT_FAILED,
-  PRODUCT_NAME_FAILED,
-  FIRMWARE_FAILED,
-  UNKNOWN_ERROR
-};
-
 class SEN6XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
   SUB_SENSOR(pm_1_0)
   SUB_SENSOR(pm_2_5)
@@ -41,7 +32,6 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
  protected:
   Sen6xType infer_type_from_product_name_(const std::string &product_name);
 
-  ERRORCODE error_code_{COMMUNICATION_FAILED};
   bool initialized_{false};
   std::string product_name_;
   Sen6xType sen6x_type_{UNKNOWN};
