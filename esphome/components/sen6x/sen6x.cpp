@@ -85,7 +85,7 @@ void SEN6XComponent::setup() {
   this->set_timeout(100, [this]() {
     // Reset the sensor to ensure a clean state regardless of prior commands or power issues
     if (!this->write_command(SEN6X_CMD_RESET)) {
-      ESP_LOGE(TAG, "Failed to reset sensor");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       this->mark_failed();
       return;
     }
@@ -94,8 +94,7 @@ void SEN6XComponent::setup() {
     this->set_timeout(100, [this]() {
       uint16_t raw_serial_number[16];
       if (!this->get_register(SEN6X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 16, 20)) {
-        ESP_LOGE(TAG, "Failed to read serial number");
-        this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         this->mark_failed();
         return;
       }
@@ -115,8 +114,7 @@ void SEN6XComponent::setup() {
 
       uint16_t raw_product_name[16];
       if (!this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
-        ESP_LOGE(TAG, "Failed to read product name");
-        this->error_code_ = PRODUCT_NAME_FAILED;
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         this->mark_failed();
         return;
       }
@@ -139,7 +137,6 @@ void SEN6XComponent::setup() {
         if (inferred_type == UNKNOWN) {
           ESP_LOGE(TAG, "Unable to infer sensor type from product name '%s'. Please specify 'type' in configuration.",
                    this->product_name_.c_str());
-          this->error_code_ = PRODUCT_NAME_FAILED;
           this->mark_failed();
           return;
         }
@@ -154,8 +151,7 @@ void SEN6XComponent::setup() {
 
       uint16_t raw_firmware_version = 0;
       if (!this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, raw_firmware_version, 20)) {
-        ESP_LOGE(TAG, "Failed to read firmware version");
-        this->error_code_ = FIRMWARE_FAILED;
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         this->mark_failed();
         return;
       }
@@ -282,9 +278,7 @@ void SEN6XComponent::finish_setup_() {
   }
 
   if (!this->write_command(SEN6X_CMD_START_MEASUREMENTS)) {
-    ESP_LOGE(TAG, "Error starting continuous measurements.");
-
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -300,34 +294,14 @@ void SEN6XComponent::finish_setup_() {
 }
 
 void SEN6XComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "sen6x:");
-  LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  Product: %s", this->product_name_.c_str());
-  ESP_LOGCONFIG(TAG, "  Serial: %s", this->serial_number_.c_str());
-  ESP_LOGCONFIG(TAG, "  Firmware: %u.%u", this->firmware_version_major_, this->firmware_version_minor_);
-
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, "Communication failed! Is the sensor connected?");
-        break;
-      case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed!");
-        break;
-      case SERIAL_NUMBER_IDENTIFICATION_FAILED:
-        ESP_LOGW(TAG, "Unable to read sensor serial id");
-        break;
-      case PRODUCT_NAME_FAILED:
-        ESP_LOGW(TAG, "Unable to read product name");
-        break;
-      case FIRMWARE_FAILED:
-        ESP_LOGW(TAG, "Unable to read sensor firmware version");
-        break;
-      default:
-        ESP_LOGW(TAG, "Unknown setup error!");
-        break;
-    }
-  }
+  ESP_LOGCONFIG(TAG,
+                "sen6x:\n"
+                "  Product: %s\n"
+                "  Serial: %s\n"
+                "  Firmware: %u.%u\n"
+                "  Address: 0x%02X",
+                this->product_name_.c_str(), this->serial_number_.c_str(), this->firmware_version_major_,
+                this->firmware_version_minor_, this->address_);
   LOG_UPDATE_INTERVAL(this);
   if (this->ambient_pressure_source_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",

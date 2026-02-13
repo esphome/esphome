@@ -10,15 +10,6 @@
 
 namespace esphome::sen6x {
 
-enum ERRORCODE {
-  COMMUNICATION_FAILED,
-  SERIAL_NUMBER_IDENTIFICATION_FAILED,
-  MEASUREMENT_INIT_FAILED,
-  PRODUCT_NAME_FAILED,
-  FIRMWARE_FAILED,
-  UNKNOWN_ERROR
-};
-
 // Shortest time interval of 2H (in milliseconds) for storing baseline values.
 // Prevents wear of the flash because of too many write operations
 static constexpr uint32_t SHORTEST_BASELINE_STORE_INTERVAL_MS = 2 * 60 * 60 * 1000UL;
@@ -152,7 +143,6 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   void finish_setup_();
   bool execute_fan_cleaning_(bool restart_after);
 
-  ERRORCODE error_code_{COMMUNICATION_FAILED};
   bool initialized_{false};
   sensor::Sensor *ambient_pressure_source_{nullptr};
   std::string product_name_;
