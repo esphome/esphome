@@ -36,6 +36,11 @@ bool OnlineImage::validate_url_(const std::string &url) {
 }
 
 void OnlineImage::update() {
+  if (this->is_decoding()) {
+    ESP_LOGW(TAG, "Image already being updated.");
+    return;
+  }
+
   if (!this->validate_url_(this->url_)) {
     ESP_LOGE(TAG, "Invalid URL: %s", this->url_.c_str());
     this->download_error_callback_.call();
