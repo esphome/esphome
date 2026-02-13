@@ -243,17 +243,22 @@ void STCC4Component::continue_setup_() {
         break;
       }
       ESP_LOGI(TAG, "Self check completed");
+
+      this->perform_conditioning_();
+      this->stage_++;
+      this->set_timeout("Beginning Conditioning", 22000, [this]() { continue_setup_(); });
+      break;
+
+    case 3: {
       if (this->continuous_) {
+        ESP_LOGI(TAG, "Conditioning Complete!");
         this->start_continuous_measurement_();
         this->stage_++;
         this->set_timeout("Beginning cont measurement", 1200, [this]() { continue_setup_(); });
         break;
       }
-
-      this->stage_ = 99;
-      break;
-
-    case 3: {
+    }
+    case 4: {
       // Try to read sensor
       uint16_t data[3] = {0};
       this->read_measurement_(data);
