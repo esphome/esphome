@@ -138,10 +138,12 @@ APIError APINoiseFrameHelper::handle_noise_error_(int err, const LogString *func
 
 /// Run through handshake messages (if in that phase)
 APIError APINoiseFrameHelper::loop() {
-  // During handshake phase, process as many actions as possible until we can't progress
-  // socket_->ready() stays true until next main loop, but state_action() will return
-  // WOULD_BLOCK when no more data is available to read
-  while (state_ != State::DATA && this->socket_->ready()) {
+  // Cache ready() outside the loop. On ESP8266 LWIP raw TCP, ready() returns false once
+  // the rx buffer is consumed. Re-checking each iteration would block handshake writes
+  // that must follow reads, deadlocking the handshake. state_action() will return
+  // WOULD_BLOCK when no more data is available to read.
+  bool socket_ready = this->socket_->ready();
+  while (state_ != State::DATA && socket_ready) {
     APIError err = state_action_();
     if (err == APIError::WOULD_BLOCK) {
       break;
