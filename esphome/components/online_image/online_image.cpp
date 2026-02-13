@@ -141,9 +141,11 @@ void OnlineImage::loop() {
     return;
   }
 
-  // Check if download is complete
-  if (this->downloader_->get_bytes_read() >= this->downloader_->content_length &&
-      this->download_buffer_.unread() == 0) {
+  // Check if download is complete — use decoder's format-specific completion check
+  // to handle both known content-length and chunked transfer encoding
+  if (this->is_decode_finished() || (this->downloader_->content_length > 0 &&
+                                     this->downloader_->get_bytes_read() >= this->downloader_->content_length &&
+                                     this->download_buffer_.unread() == 0)) {
     // Finalize decoding
     this->end_decode();
 

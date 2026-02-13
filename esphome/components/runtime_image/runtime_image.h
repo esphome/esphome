@@ -102,6 +102,14 @@ class RuntimeImage : public image::Image {
   bool is_decoding() const { return this->decoder_ != nullptr; }
 
   /**
+   * @brief Check if the decoder has finished processing all data.
+   *
+   * This delegates to the decoder's format-specific completion check,
+   * which handles both known-size and chunked transfer cases.
+   */
+  bool is_decode_finished() const;
+
+  /**
    * @brief Check if an image is currently loaded.
    */
   bool is_loaded() const { return this->buffer_ != nullptr; }

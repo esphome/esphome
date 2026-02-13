@@ -1,4 +1,5 @@
 #include "runtime_image.h"
+#include "image_decoder.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include <cstring>
@@ -209,6 +210,13 @@ bool RuntimeImage::end_decode() {
 
   ESP_LOGD(TAG, "Decoding complete: %dx%d, %zu bytes", this->width_, this->height_, this->decoded_bytes_);
   return true;
+}
+
+bool RuntimeImage::is_decode_finished() const {
+  if (!this->decoder_) {
+    return false;
+  }
+  return this->decoder_->is_finished();
 }
 
 void RuntimeImage::release() {
