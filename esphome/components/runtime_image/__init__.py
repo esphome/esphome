@@ -119,7 +119,7 @@ def runtime_image_schema(image_class=RuntimeImage):
             cv.Required(CONF_ID): cv.declare_id(image_class),
             cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
             cv.Optional(CONF_RESIZE): cv.dimensions,
-            cv.Optional(CONF_TYPE): validate_type(IMAGE_TYPE),
+            cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
             cv.Optional(CONF_BYTE_ORDER): cv.one_of(
                 "BIG_ENDIAN", "LITTLE_ENDIAN", upper=True
             ),
