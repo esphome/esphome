@@ -108,15 +108,15 @@ def final_validate_esp32(config: ConfigType) -> ConfigType:
                 ("zb_fct", {"type": "data", "subtype": "fat", "size": 0x400}),
             ]:
                 if partition not in partitions_tab:
-                    cv.Invalid(
+                    raise cv.Invalid(
                         f"Add '{partition}, {types['type']}, {types['subtype']},   , {types['size']},' to your custom partition table."
                     )
-                elif not re.search(
+                if not re.search(
                     rf"^{partition},\s*{types['type']},\s*{types['subtype']}",
                     partitions_tab,
                     re.MULTILINE,
                 ):
-                    cv.Invalid(
+                    raise cv.Invalid(
                         f"Partition '{partition}' in your custom partition table has wrong format. It should be: '{partition}, {types['type']}, {types['subtype']},   , {types['size']},'"
                     )
     return config
