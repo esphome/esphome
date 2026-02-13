@@ -1,3 +1,4 @@
+#include <array>
 #include <memory>
 
 #include "pn532.h"
@@ -106,10 +107,10 @@ bool PN532::auth_mifare_classic_block_(nfc::NfcTagUid &uid, uint8_t block_num, u
 }
 
 bool PN532::format_mifare_classic_mifare_(nfc::NfcTagUid &uid) {
-  std::vector<uint8_t> blank_buffer(
-      {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
-  std::vector<uint8_t> trailer_buffer(
-      {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x07, 0x80, 0x69, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
+  static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> blank_buffer = {
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> trailer_buffer = {
+      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x07, 0x80, 0x69, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
   bool error = false;
 
@@ -118,20 +119,20 @@ bool PN532::format_mifare_classic_mifare_(nfc::NfcTagUid &uid) {
       continue;
     }
     if (block != 0) {
-      if (!this->write_mifare_classic_block_(block, blank_buffer)) {
+      if (!this->write_mifare_classic_block_(block, blank_buffer.data(), blank_buffer.size())) {
         ESP_LOGE(TAG, "Unable to write block %d", block);
         error = true;
       }
     }
-    if (!this->write_mifare_classic_block_(block + 1, blank_buffer)) {
+    if (!this->write_mifare_classic_block_(block + 1, blank_buffer.data(), blank_buffer.size())) {
       ESP_LOGE(TAG, "Unable to write block %d", block + 1);
       error = true;
     }
-    if (!this->write_mifare_classic_block_(block + 2, blank_buffer)) {
+    if (!this->write_mifare_classic_block_(block + 2, blank_buffer.data(), blank_buffer.size())) {
       ESP_LOGE(TAG, "Unable to write block %d", block + 2);
       error = true;
     }
-    if (!this->write_mifare_classic_block_(block + 3, trailer_buffer)) {
+    if (!this->write_mifare_classic_block_(block + 3, trailer_buffer.data(), trailer_buffer.size())) {
       ESP_LOGE(TAG, "Unable to write block %d", block + 3);
       error = true;
     }
@@ -141,28 +142,28 @@ bool PN532::format_mifare_classic_mifare_(nfc::NfcTagUid &uid) {
 }
 
 bool PN532::format_mifare_classic_ndef_(nfc::NfcTagUid &uid) {
-  std::vector<uint8_t> empty_ndef_message(
-      {0x03, 0x03, 0xD0, 0x00, 0x00, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
-  std::vector<uint8_t> blank_block(
-      {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
-  std::vector<uint8_t> block_1_data(
-      {0x14, 0x01, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1});
-  std::vector<uint8_t> block_2_data(
-      {0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1});
-  std::vector<uint8_t> block_3_trailer(
-      {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x78, 0x77, 0x88, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
-  std::vector<uint8_t> ndef_trailer(
-      {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07, 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
+  static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> empty_ndef_message = {
+      0x03, 0x03, 0xD0, 0x00, 0x00, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> blank_block = {
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> block_1_data = {
+      0x14, 0x01, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1};
+  static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> block_2_data = {
+      0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1};
+  static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> block_3_trailer = {
+      0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x78, 0x77, 0x88, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> ndef_trailer = {
+      0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07, 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
   if (!this->auth_mifare_classic_block_(uid, 0, nfc::MIFARE_CMD_AUTH_B, nfc::DEFAULT_KEY)) {
     ESP_LOGE(TAG, "Unable to authenticate block 0 for formatting!");
     return false;
   }
-  if (!this->write_mifare_classic_block_(1, block_1_data))
+  if (!this->write_mifare_classic_block_(1, block_1_data.data(), block_1_data.size()))
     return false;
-  if (!this->write_mifare_classic_block_(2, block_2_data))
+  if (!this->write_mifare_classic_block_(2, block_2_data.data(), block_2_data.size()))
     return false;
-  if (!this->write_mifare_classic_block_(3, block_3_trailer))
+  if (!this->write_mifare_classic_block_(3, block_3_trailer.data(), block_3_trailer.size()))
     return false;
 
   ESP_LOGD(TAG, "Sector 0 formatted to NDEF");
@@ -172,36 +173,36 @@ bool PN532::format_mifare_classic_ndef_(nfc::NfcTagUid &uid) {
       return false;
     }
     if (block == 4) {
-      if (!this->write_mifare_classic_block_(block, empty_ndef_message)) {
+      if (!this->write_mifare_classic_block_(block, empty_ndef_message.data(), empty_ndef_message.size())) {
         ESP_LOGE(TAG, "Unable to write block %d", block);
       }
     } else {
-      if (!this->write_mifare_classic_block_(block, blank_block)) {
+      if (!this->write_mifare_classic_block_(block, blank_block.data(), blank_block.size())) {
         ESP_LOGE(TAG, "Unable to write block %d", block);
       }
     }
-    if (!this->write_mifare_classic_block_(block + 1, blank_block)) {
+    if (!this->write_mifare_classic_block_(block + 1, blank_block.data(), blank_block.size())) {
       ESP_LOGE(TAG, "Unable to write block %d", block + 1);
     }
-    if (!this->write_mifare_classic_block_(block + 2, blank_block)) {
+    if (!this->write_mifare_classic_block_(block + 2, blank_block.data(), blank_block.size())) {
       ESP_LOGE(TAG, "Unable to write block %d", block + 2);
     }
-    if (!this->write_mifare_classic_block_(block + 3, ndef_trailer)) {
+    if (!this->write_mifare_classic_block_(block + 3, ndef_trailer.data(), ndef_trailer.size())) {
       ESP_LOGE(TAG, "Unable to write trailer block %d", block + 3);
     }
   }
   return true;
 }
 
-bool PN532::write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &write_data) {
-  std::vector<uint8_t> data({
+bool PN532::write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, size_t len) {
+  std::vector<uint8_t> cmd({
       PN532_COMMAND_INDATAEXCHANGE,
       0x01,  // One card
       nfc::MIFARE_CMD_WRITE,
       block_num,
   });
-  data.insert(data.end(), write_data.begin(), write_data.end());
-  if (!this->write_command_(data)) {
+  cmd.insert(cmd.end(), data, data + len);
+  if (!this->write_command_(cmd)) {
     ESP_LOGE(TAG, "Error writing block %d", block_num);
     return false;
   }
@@ -243,8 +244,7 @@ bool PN532::write_mifare_classic_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *mes
       }
     }
 
-    std::vector<uint8_t> data(encoded.begin() + index, encoded.begin() + index + nfc::MIFARE_CLASSIC_BLOCK_SIZE);
-    if (!this->write_mifare_classic_block_(current_block, data)) {
+    if (!this->write_mifare_classic_block_(current_block, encoded.data() + index, nfc::MIFARE_CLASSIC_BLOCK_SIZE)) {
       return false;
     }
     index += nfc::MIFARE_CLASSIC_BLOCK_SIZE;
