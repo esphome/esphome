@@ -103,10 +103,7 @@ bool STCC4Component::exit_sleep_mode_() {
   return true;  // Sensor out of sleep
 }
 
-void STCC4Component::perform_conditioning_() {
-  this->write_command((uint16_t) SensorCommand::PERFORM_CONDITIONING);
-  this->state_.is_conditioning = true;
-}
+void STCC4Component::perform_conditioning_() { this->write_command((uint16_t) SensorCommand::PERFORM_CONDITIONING); }
 
 void STCC4Component::perform_soft_reset_() {
   this->write_command((uint16_t) SensorCommand::PERFORM_SOFT_RESET);
@@ -254,6 +251,7 @@ void STCC4Component::continue_setup_() {
         ESP_LOGI(TAG, "Conditioning Complete!");
         this->start_continuous_measurement_();
         this->stage_++;
+        ESP_LOGI(TAG, "Beginning Cont Measurement");
         this->set_timeout("Beginning cont measurement", 1200, [this]() { continue_setup_(); });
         break;
       }
@@ -264,6 +262,7 @@ void STCC4Component::continue_setup_() {
       this->read_measurement_(data);
 
       if (data[0] == 0) {
+        ESP_LOGI(TAG, "CO2 Data Invalid");
         // CO2 ppm is 0, which is not possible, retry
         this->set_timeout("Retrying read", 150, [this]() { continue_setup_(); });
         break;
