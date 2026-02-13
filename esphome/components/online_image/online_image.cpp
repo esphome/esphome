@@ -51,6 +51,14 @@ void OnlineImage::update() {
 
   std::list<http_request::Header> headers;
 
+  // Add caching headers if we have them
+  if (!this->etag_.empty()) {
+    headers.push_back({IF_NONE_MATCH_HEADER_NAME, this->etag_});
+  }
+  if (!this->last_modified_.empty()) {
+    headers.push_back({IF_MODIFIED_SINCE_HEADER_NAME, this->last_modified_});
+  }
+
   // Add Accept header based on image format
   const char *accept_mime_type;
   switch (this->get_format()) {
@@ -75,16 +83,9 @@ void OnlineImage::update() {
   }
   headers.push_back({"Accept", accept_mime_type});
 
+  // User headers last so they can override any of the above
   for (auto &header : this->request_headers_) {
     headers.push_back(http_request::Header{header.first, header.second.value()});
-  }
-
-  // Add caching headers if we have them
-  if (!this->etag_.empty()) {
-    headers.push_back({IF_NONE_MATCH_HEADER_NAME, this->etag_});
-  }
-  if (!this->last_modified_.empty()) {
-    headers.push_back({IF_MODIFIED_SINCE_HEADER_NAME, this->last_modified_});
   }
 
   this->downloader_ = this->parent_->get(this->url_, headers, {ETAG_HEADER_NAME, LAST_MODIFIED_HEADER_NAME});
