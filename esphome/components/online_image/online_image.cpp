@@ -88,6 +88,11 @@ void OnlineImage::update() {
     return;
   }
 
+  // JPEG requires the complete image in the download buffer before decoding
+  if (this->get_format() == runtime_image::JPEG && total_size > this->download_buffer_.size()) {
+    this->download_buffer_.resize(total_size);
+  }
+
   ESP_LOGI(TAG, "Downloading image (Size: %zu)", total_size);
   this->start_time_ = ::time(nullptr);
   this->enable_loop();
