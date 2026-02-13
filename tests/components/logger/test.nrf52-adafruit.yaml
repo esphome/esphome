@@ -7,3 +7,4 @@ logger:
   level: DEBUG
   wait_for_cdc: true
   early_message: true
+  task_log_buffer_size: 0

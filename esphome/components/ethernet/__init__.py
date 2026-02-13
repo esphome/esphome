@@ -130,11 +130,16 @@ ETHERNET_TYPES = {
 }
 
 # PHY types that need compile-time defines for conditional compilation
+# Each RMII PHY type gets a define so unused PHY drivers are excluded by the linker
 _PHY_TYPE_TO_DEFINE = {
+    "LAN8720": "USE_ETHERNET_LAN8720",
+    "RTL8201": "USE_ETHERNET_RTL8201",
+    "DP83848": "USE_ETHERNET_DP83848",
+    "IP101": "USE_ETHERNET_IP101",
+    "JL1101": "USE_ETHERNET_JL1101",
     "KSZ8081": "USE_ETHERNET_KSZ8081",
     "KSZ8081RNA": "USE_ETHERNET_KSZ8081",
     "LAN8670": "USE_ETHERNET_LAN8670",
-    # Add other PHY types here only if they need conditional compilation
 }
 
 SPI_ETHERNET_TYPES = ["W5500", "DM9051"]
