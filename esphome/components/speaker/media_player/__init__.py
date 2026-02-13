@@ -26,7 +26,6 @@ from esphome.const import (
 from esphome.core import CORE, HexInt
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.external_files import download_content
-from esphome.final_validate import full_config
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +35,10 @@ DEPENDENCIES = ["network"]
 
 CODEOWNERS = ["@kahrendt", "@synesthesiam"]
 DOMAIN = "media_player"
+
+CODEC_SUPPORT_ALL = "all"
+CODEC_SUPPORT_NEEDED = "needed"
+CODEC_SUPPORT_NONE = "none"
 
 TYPE_LOCAL = "local"
 TYPE_WEB = "web"
@@ -233,17 +236,30 @@ def _validate_repeated_speaker(config):
 
 
 def _final_validate(config):
-    # Default to using codec if psram is enabled
-    if (use_codec := config.get(CONF_CODEC_SUPPORT_ENABLED)) is None:
-        use_codec = psram.DOMAIN in full_config.get()
+    # Normalize boolean values to string equivalents
+    codec_mode = config[CONF_CODEC_SUPPORT_ENABLED]
+    if codec_mode is True:
+        codec_mode = CODEC_SUPPORT_ALL
+    elif codec_mode is False:
+        codec_mode = CODEC_SUPPORT_NONE
+
+    use_codec = codec_mode != CODEC_SUPPORT_NONE
     conf_id = config[CONF_ID].id
     core_data = CORE.data.setdefault(DOMAIN, {conf_id: {}})
     core_data[conf_id][CONF_CODEC_SUPPORT_ENABLED] = use_codec
 
-    if use_codec:
-        audio.request_flac_support()
-        audio.request_mp3_support()
-        audio.request_opus_support()
+    # In "needed" mode, collect formats from pipelines and files
+    needed_formats = set()
+    need_all = False
+    if codec_mode == CODEC_SUPPORT_NEEDED:
+        for pipeline_key in (CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE):
+            if pipeline := config.get(pipeline_key):
+                fmt = pipeline[CONF_FORMAT]
+                if fmt == "NONE":
+                    # No preferred format means any format could arrive
+                    need_all = True
+                else:
+                    needed_formats.add(fmt)
 
     for file_config in config.get(CONF_FILES, []):
         _, media_file_type = _read_audio_file_and_type(file_config)
@@ -256,6 +272,25 @@ def _final_validate(config):
             raise cv.Invalid(
                 f"Unsupported local media file type, set {CONF_CODEC_SUPPORT_ENABLED} to true or convert the media file to wav"
             )
+        # In "needed" mode, add file format to needed codecs
+        if codec_mode == CODEC_SUPPORT_NEEDED:
+            for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
+                if str(media_file_type) == str(fmt_enum):
+                    needed_formats.add(fmt_name)
+                    break
+
+    # Request codec support
+    if codec_mode == CODEC_SUPPORT_ALL or need_all:
+        audio.request_flac_support()
+        audio.request_mp3_support()
+        audio.request_opus_support()
+    elif codec_mode == CODEC_SUPPORT_NEEDED:
+        if "FLAC" in needed_formats:
+            audio.request_flac_support()
+        if "MP3" in needed_formats:
+            audio.request_mp3_support()
+        if "OPUS" in needed_formats:
+            audio.request_opus_support()
 
     return config
 
@@ -320,7 +355,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(
                 min=4000, max=4000000
             ),
-            cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.boolean,
+            cv.Optional(
+                CONF_CODEC_SUPPORT_ENABLED, default=CODEC_SUPPORT_NEEDED
+            ): cv.Any(
+                cv.boolean,
+                cv.one_of(
+                    CODEC_SUPPORT_ALL,
+                    CODEC_SUPPORT_NEEDED,
+                    CODEC_SUPPORT_NONE,
+                    lower=True,
+                ),
+            ),
             cv.Optional(CONF_FILES): cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
                 cv.boolean, cv.requires_component(psram.DOMAIN)
