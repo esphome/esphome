@@ -47,7 +47,7 @@ std::string Frame::to_string() const {
   char part_buffer[3];
   for (auto it = this->cbegin(); it != this->cend(); it++) {
     uint8_t byte_value = *it;
-    sprintf(part_buffer, "%02X", byte_value);
+    snprintf(part_buffer, sizeof(part_buffer), "%02X", byte_value);
     result += part_buffer;
 
     if (it != (this->end() - 1)) {
@@ -281,7 +281,7 @@ std::string CECTransmit::get_state() const {
   char line[64];
   const static std::array<const char *, 3> NAMES = {"IDLE", "BUSY", "EOM_CONFIRMED"};
   const TransmitState s = transmit_state_;  // take atomic value
-  sprintf(line, "Tx State=%s", NAMES[static_cast<int>(s)]);
+  snprintf(line, sizeof(line), "Tx State=%s", NAMES[static_cast<int>(s)]);
   return std::string(line);
 }
 
@@ -587,7 +587,8 @@ std::string CECReceive::get_state() const {
                                                     "WAITING_FOR_EOM_ACK"};
   const int rcv_state = static_cast<int>(receiver_state_);
   const int rcv_cnt = static_cast<int>(recv_bit_counter_);
-  sprintf(line, "Rx State=%s, bytecnt=%d + bitcnt=%d", NAMES[rcv_state], recv_frame_buffer_->size(), rcv_cnt);
+  sprintf(line, sizeof(line), "Rx State=%s, bytecnt=%d + bitcnt=%d", NAMES[rcv_state], recv_frame_buffer_->size(),
+          rcv_cnt);
   return std::string(line);
 }
 
