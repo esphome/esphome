@@ -48,11 +48,11 @@ DECODE_ERROR_OUT_OF_MEMORY = DecodeError.DECODE_ERROR_OUT_OF_MEMORY
 class Format:
     """Base class for image format definitions."""
 
-    def __init__(self, name, decoder_class):
+    def __init__(self, name: str, decoder_class: cg.MockObjClass) -> None:
         self.name = name
         self.decoder_class = decoder_class
 
-    def actions(self):
+    def actions(self) -> None:
         """Add defines and libraries needed for this format."""
 
 
@@ -62,7 +62,7 @@ class BMPFormat(Format):
     def __init__(self):
         super().__init__("BMP", BmpDecoder)
 
-    def actions(self):
+    def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_BMP")
 
 
@@ -72,7 +72,7 @@ class JPEGFormat(Format):
     def __init__(self):
         super().__init__("JPEG", JpegDecoder)
 
-    def actions(self):
+    def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
         cg.add_library("JPEGDEC", None, "https://github.com/bitbank2/JPEGDEC#ca1e0f2")
 
@@ -83,7 +83,7 @@ class PNGFormat(Format):
     def __init__(self):
         super().__init__("PNG", PngDecoder)
 
-    def actions(self):
+    def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_PNG")
         cg.add_library("pngle", "1.1.0")
 
@@ -97,12 +97,12 @@ IMAGE_FORMATS = {
 }
 
 
-def get_format(format_name):
+def get_format(format_name: str) -> Format | None:
     """Get a format instance by name."""
     return IMAGE_FORMATS.get(format_name.upper())
 
 
-def enable_format(format_name):
+def enable_format(format_name: str) -> Format | None:
     """Enable a specific image format by adding its defines and libraries."""
     format_obj = get_format(format_name)
     if format_obj:
@@ -129,7 +129,7 @@ def runtime_image_schema(image_class=RuntimeImage):
     )
 
 
-def validate_runtime_image_settings(config):
+def validate_runtime_image_settings(config: dict) -> dict:
     """Apply validate_settings from image component to runtime image config."""
     return validate_settings(config)
 
