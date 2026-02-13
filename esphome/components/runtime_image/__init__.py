@@ -140,11 +140,11 @@ class RuntimeImageSettings:
 
     width: int
     height: int
-    format_enum: cg.EnumValue
-    image_type_enum: cg.EnumValue | None
-    transparent: cg.EnumValue
+    format_enum: cg.MockObj
+    image_type_enum: cg.MockObj | None
+    transparent: cg.MockObj
     byte_order_big_endian: bool
-    placeholder: cg.Pvariable | None
+    placeholder: cg.MockObj | None
 
 
 async def process_runtime_image_config(config: dict) -> RuntimeImageSettings:
