@@ -587,8 +587,8 @@ std::string CECReceive::get_state() const {
                                                     "WAITING_FOR_EOM_ACK"};
   const int rcv_state = static_cast<int>(receiver_state_);
   const int rcv_cnt = static_cast<int>(recv_bit_counter_);
-  sprintf(line, sizeof(line), "Rx State=%s, bytecnt=%d + bitcnt=%d", NAMES[rcv_state], recv_frame_buffer_->size(),
-          rcv_cnt);
+  snprintf(line, sizeof(line), "Rx State=%s, bytecnt=%d + bitcnt=%d", NAMES[rcv_state], recv_frame_buffer_->size(),
+           rcv_cnt);
   return std::string(line);
 }
 
