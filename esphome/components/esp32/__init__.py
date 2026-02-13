@@ -1225,18 +1225,6 @@ def _validate_custom_partition(config):
         raise cv.Invalid(
             f"Type {config['type']} is invalid. Only app and data are allowed. Use numbers for custom types"
         )
-    if isinstance(config["type"], int):
-        if config["type"] not in range(0x40, 0xFE):
-            raise cv.Invalid(
-                f"Type 0x{config['type']:X} is invalid. Only custom types 0x40 - 0xFE are allowed"
-            )
-        config["type"] = f"0x{config['type']:X}"
-    if isinstance(config["subtype"], int):
-        if config["subtype"] not in range(0x0, 0xFE):
-            raise cv.Invalid(
-                f"Subtype 0x{config['subtype']:X} is invalid. Only 0x0 - 0xFE are allowed"
-            )
-        config["subtype"] = f"0x{config['subtype']:X}"
     if (
         isinstance(config["subtype"], str)
         and config["type"] == "app"
@@ -1263,6 +1251,10 @@ def _validate_custom_partition(config):
         raise cv.Invalid(
             f"Subtype {config['subtype']} is invalid for data type. Only nvs, nvs_keys, spiffs, coredump, efuse, fat, undefined, and littlefs are allowed. Use numbers for custom subtypes"
         )
+    if isinstance(config["type"], int):
+        config["type"] = f"0x{config['type']:X}"
+    if isinstance(config["subtype"], int):
+        config["subtype"] = f"0x{config['subtype']:X}"
     return config
 
 
@@ -1878,7 +1870,7 @@ async def to_code(config):
 KEY_CUSTOM_PARTITIONS = "custom_partitions"
 
 
-def add_partition(name: str, p_type: int | str, subtype: int | str, size: int) -> None:
+def add_partition(name: str, p_type: str, subtype: str, size: int) -> None:
     p_type_ = p_type
     subtype_ = subtype
     if name in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}):
