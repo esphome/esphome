@@ -115,6 +115,7 @@ jobs:
         python-version:
           - "3.11"
           - "3.13"
+          - "3.14"
         os:
           - ubuntu-latest
           - macOS-latest

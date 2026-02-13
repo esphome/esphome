@@ -219,28 +219,15 @@ class Scheduler {
     // Helper to get the name type
     NameType get_name_type() const { return name_type_; }
 
-    // Helper to set a static string name (no allocation)
-    void set_static_name(const char *name) {
-      name_.static_name = name;
-      name_type_ = NameType::STATIC_STRING;
-    }
-
-    // Helper to set a hashed string name (hash computed from std::string)
-    void set_hashed_name(uint32_t hash) {
-      name_.hash_or_id = hash;
-      name_type_ = NameType::HASHED_STRING;
-    }
-
-    // Helper to set a numeric ID name
-    void set_numeric_id(uint32_t id) {
-      name_.hash_or_id = id;
-      name_type_ = NameType::NUMERIC_ID;
-    }
-
-    // Helper to set an internal numeric ID (separate namespace from NUMERIC_ID)
-    void set_internal_id(uint32_t id) {
-      name_.hash_or_id = id;
-      name_type_ = NameType::NUMERIC_ID_INTERNAL;
+    // Set name storage: for STATIC_STRING stores the pointer, for all other types stores hash_or_id.
+    // Both union members occupy the same offset, so only one store is needed.
+    void set_name(NameType type, const char *static_name, uint32_t hash_or_id) {
+      if (type == NameType::STATIC_STRING) {
+        name_.static_name = static_name;
+      } else {
+        name_.hash_or_id = hash_or_id;
+      }
+      name_type_ = type;
     }
 
     static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
@@ -354,6 +341,17 @@ class Scheduler {
 
   // Helper to perform full cleanup when too many items are cancelled
   void full_cleanup_removed_items_();
+
+  // Helper to calculate random offset for interval timers - extracted to reduce code size of set_timer_common_
+  // IMPORTANT: Must not be inlined - called only for intervals, keeping it out of the hot path saves flash.
+  uint32_t __attribute__((noinline)) calculate_interval_offset_(uint32_t delay);
+
+  // Helper to check if a retry was already cancelled - extracted to reduce code size of set_timer_common_
+  // Remove before 2026.8.0 along with all retry code.
+  // IMPORTANT: Must not be inlined - retry path is cold and deprecated.
+  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
+  bool __attribute__((noinline))
+  is_retry_cancelled_locked_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Helper for debug logging in set_timer_common_ - extracted to reduce code size
