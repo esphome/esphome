@@ -1,0 +1,394 @@
+---
+description: "Changelog for ESPHome 2025.2.0."
+title: "ESPHome 2025.2.0 - 19th February 2025"
+pagefind: false
+slug: "changelog/2025.2.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Audio ADC Core","/components/audio_adc/index","audio_adc.svg"],
+  ["XXTEA","/components/xxtea","xxtea.svg"],
+  ["Host SDL2 Keyboard","/components/binary_sensor/sdl","sdl.png"],
+  ["ES7210","/components/audio_adc/es7210","es7210.svg"],
+  ["ES7243E","/components/audio_adc/es7243e","es7243e.svg"],
+  ["ES8156","/components/audio_dac/es8156","es8156.svg"],
+  ["Speaker Media Player","/components/media_player/speaker","speaker.svg","dark-invert"],
+  ["Mixer Speaker","/components/speaker/mixer","mixer.svg"],
+  ["Resampler Speaker","/components/speaker/resampler","waveform.svg","dark-invert"]
+]} />
+
+**🎉 Happy New Year! 🎉**
+
+We're kicking off 2025 with a number of updates, several of which are focused on removing old code. Unfortunately,
+this means we have a few breaking changes, but this work helps keep ESPHome more maintainable in the long-run.
+
+Join us below for the ESPHome New Year Release Party.
+
+{/* markdownlint-disable-next-line MD033 */}
+<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/HtG3fjAO96c"
+        title="YouTube video player" frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen>
+</iframe>
+
+## Removal of "old style" Platform Configuration
+
+[Three years ago](https://github.com/esphome/esphome/pull/2303), we added support for using
+[ESP-IDF](https://github.com/espressif/esp-idf/) directly (as an alternative to Arduino). This brought about a
+number of benefits and a new syntax was introduced to facilitate greater flexibility when specifying and configuring
+your microcontroller/board.
+
+In this release, we've removed support for the "old style" of configuring your microcontroller/board. If you're still
+using it, you'll need to update your configurations to use the new style. A brief explanation is
+[in this pull request](https://github.com/esphome/esphome/pull/8118), but for more detail, please see the
+[documentation for your microcontroller platform](/components#devices).
+
+## Removal of Custom Components
+
+Custom components were deprecated over a year ago and, as promised, support for them was removed in this release. We
+encourage all developers to migrate their custom components to [External Components](/components/external_components/).
+Please see [a note about custom components](https://developers.esphome.io/blog/2025/02/19/about-the-removal-of-support-for-custom-components/)
+for a detailed explanation and next steps.
+
+## Removal of `armv7` support
+
+ESPHome no longer supports the 32-bit `armv7` architecture. This is due to both waning support as it relates to
+tooling and performance reasons. We strongly recommend moving to a more modern architecture, especially if you're using
+the ESPHome Device Builder to build/compile firmware for your devices.
+
+- The toolchains required for compiling ESPHome are dropping support for armv7, so if the toolchain is not available,
+  ESPHome can't do the compile.
+
+- Building on armv7 is very slow and is likely to crash due to lack of RAM, which is not a good user experience.
+- ESPHome can be installed anywhere you can run Docker or Python pip, which will provide a better experience with
+  much faster compiling.
+
+## `esp32_rmt` Updates
+
+Components which utilize the RMT hardware found on the ESP32 and its variants have been updated to use the new
+interface available in [ESP-IDF](https://github.com/espressif/esp-idf/) versions 5 and above. This eliminates
+related warnings seen in the compiler logs while building ESPHome configurations. In most cases, you won't notice any
+difference, but this change could result in some issues, particularly for
+[External Components](/components/external_components/). You may need to make a minor change or two in your device
+configurations; the configuration validator will tell you if this is necessary as you update your devices.
+
+## Audio Components
+
+This release includes support for a number of new audio-related components/hardware. These are primarily aimed at
+supporting hardware found in Espressif's S3-Box series of products, eliminating the need to use the
+[ESP-ADF](https://github.com/espressif/esp-adf/) and thus offering better integration with ESPHome in general. If
+you're using an S3-Box (or one of the variants), we strongly recommend updating your device either OTA or by using our
+[Projects](/projects/) web installer. If you have "taken control" of or "adopted" your S3-Box, we strongly recommend
+updating your device's local configuration based on our updated configuration files found at
+[https://github.com/esphome/wake-word-voice-assistants](https://github.com/esphome/wake-word-voice-assistants).
+
+In addition, new `speaker` components have been introduced to provide more advanced functionality when using
+[Voice Assistant](/components/voice_assistant/). These components extend our work to help you create the ultimate
+personal voice assistant hardware.
+
+The new [speaker media player](/components/media_player/speaker/) component adds several features
+for building a well-rounded audio device. It supports playing two different streams of audio: one for announcements
+and another for music.
+
+The new [mixer speaker](/components/speaker/mixer/) component lets you combine the two streams. The mixer
+even supports audio ducking, so you can lower the volume of the music while your announcement plays!
+
+## Image Components
+
+This release adds support for alpha-blending images when using LVGL. To facilitate this, the `use_transparency`
+configuration variable in [Image](/components/image/) and related components was renamed to `transparency`
+and changed from a boolean to an enum; in addition, the `type` configuration variable is now mandatory. See the
+[Image](/components/image/) documentation for more detail.
+
+The default presentation for binary images has changed in part due to the new transparency support. This may result
+in images appearing to have inverted colors for example on e-ink displays. There is a new configuration variable,
+`invert_alpha`, which can be used to switch black and white pixels if necessary to restore the previous behaviour.
+
+Finally, the [Online Image](/components/online_image/) was updated to add support for both BMP and JPEG image formats.
+
+## ILI9XXX Display Component
+
+There are two changes to the [Ili9Xxx](/components/display/ili9xxx/) component. Previously the component
+automatically loaded the `psram` component - this has been removed, and you must now explicitly include the
+`psram` component in your configuration if your display requires it. The bit-depth defaults to 16 bit as before, but
+there is no attempt to automatically fallback to 8 bit if insufficient memory is available. You must now explicitly
+select 8-bit mode with the `color_palette` configuration variable if required.
+
+The symptoms caused by these changes are likely to be a blank screen or a screen that is not displaying correctly. Check
+the runtime logs for any errors or warnings that may indicate the cause of the issue, specifically memory allocation
+failures.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2025.2.1 - February 26
+
+- Bump aioesphomeapi to 29.1.1 [esphome#8274](https://github.com/esphome/esphome/pull/8274) by [@bdraco](https://github.com/bdraco)
+- Fix BLE max notifications with ESP-IDF 5.x [esphome#8301](https://github.com/esphome/esphome/pull/8301) by [@bdraco](https://github.com/bdraco)
+- Update webserver local assets to 20250224-195901 [esphome#8312](https://github.com/esphome/esphome/pull/8312) by [@esphomebot](https://github.com/esphomebot)
+- Fix bluetooth race when disconnect called while still connecting [esphome#8297](https://github.com/esphome/esphome/pull/8297) by [@bdraco](https://github.com/bdraco)
+- [esp32_touch] Fix variants, add tests for variants [esphome#8320](https://github.com/esphome/esphome/pull/8320) by [@kbx81](https://github.com/kbx81)
+
+## Release 2025.2.2 - March 3
+
+- Fix `end_of_scan_` not being called while disconnecting [esphome#8328](https://github.com/esphome/esphome/pull/8328) by [@bdraco](https://github.com/bdraco)
+- [audio] Determine http timeout based on duration since last successful read [esphome#8341](https://github.com/esphome/esphome/pull/8341) by [@kahrendt](https://github.com/kahrendt)
+- Bump aioesphomeapi to 29.3.2 [esphome#8353](https://github.com/esphome/esphome/pull/8353) by [@bdraco](https://github.com/bdraco)
+- [ltr390] Move calculation to allow dynamic setting of gain and resolution [esphome#8343](https://github.com/esphome/esphome/pull/8343) by [@jesserockz](https://github.com/jesserockz)
+
+## Full list of changes
+
+### New Components
+
+- [es7210] add support for es7210 ADC [esphome#8007](https://github.com/esphome/esphome/pull/8007) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- [audio_adc] Add new `audio_adc` component [esphome#8094](https://github.com/esphome/esphome/pull/8094) by [@kbx81](https://github.com/kbx81) (new-integration)
+- [es8156] Add support for ES8156 audio DAC [esphome#8085](https://github.com/esphome/esphome/pull/8085) by [@kbx81](https://github.com/kbx81) (new-integration)
+- [es7243e] Add support for ES7243E audio ADC [esphome#8098](https://github.com/esphome/esphome/pull/8098) by [@kbx81](https://github.com/kbx81) (new-integration)
+- [esp32_ble_server] Create custom services, characteristics and descriptors [esphome#7009](https://github.com/esphome/esphome/pull/7009) by [@Rapsssito](https://github.com/Rapsssito) (new-integration)
+- [resampler] Media Player Components PR7 [esphome#8169](https://github.com/esphome/esphome/pull/8169) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- [mixer] Media Player Components PR8 [esphome#8170](https://github.com/esphome/esphome/pull/8170) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- [xxtea] Extract encryption functions to separate component [esphome#8183](https://github.com/esphome/esphome/pull/8183) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- [logger] Add runtime level select [esphome#8222](https://github.com/esphome/esphome/pull/8222) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- [speaker] Media Player Components PR9 [esphome#8171](https://github.com/esphome/esphome/pull/8171) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+
+### New Platforms
+
+- [uptime] Add text_sensor [esphome#8028](https://github.com/esphome/esphome/pull/8028) by [@clydebarrow](https://github.com/clydebarrow) (new-platform)
+- Add: Human Presence and Target Count to the Seeed Studio MR60BHA2 [esphome#8010](https://github.com/esphome/esphome/pull/8010) by [@limengdu](https://github.com/limengdu) (new-platform)
+- [sdl] Implement binary sensors from keystrokes [esphome#8207](https://github.com/esphome/esphome/pull/8207) by [@bdm310](https://github.com/bdm310) (new-platform)
+
+### Breaking Changes
+
+- [esp32_rmt] Updates for IDF 5+ [esphome#7770](https://github.com/esphome/esphome/pull/7770) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- [lvgl] remove default state [esphome#8038](https://github.com/esphome/esphome/pull/8038) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [nextion] Brightness control tweaks [esphome#8027](https://github.com/esphome/esphome/pull/8027) by [@kbx81](https://github.com/kbx81) (breaking-change)
+- [image] Transparency changes; code refactor [esphome#7908](https://github.com/esphome/esphome/pull/7908) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [ili9xxx] psram and 8 bit changes [esphome#8084](https://github.com/esphome/esphome/pull/8084) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [core] Remove old style platform configuration [esphome#8118](https://github.com/esphome/esphome/pull/8118) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- [custom] Remove platforms [esphome#8119](https://github.com/esphome/esphome/pull/8119) by [@kbx81](https://github.com/kbx81) (breaking-change)
+- Remove arm/v7 container image support [esphome#8194](https://github.com/esphome/esphome/pull/8194) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- [esp32_rmt] Set pull-up and open-drain modes based on pin schema [esphome#8178](https://github.com/esphome/esphome/pull/8178) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- [scd30] Increase minimal CONF_UPDATE_INTERVAL from 1 to 2 seconds [esphome#8256](https://github.com/esphome/esphome/pull/8256) by [@DjordjeMandic](https://github.com/DjordjeMandic) (breaking-change)
+
+### Beta Changes
+
+- [online_image]Fix reset if buffer not allocated [esphome#8236](https://github.com/esphome/esphome/pull/8236) by [@guillempages](https://github.com/guillempages)
+- [core] Ignore dot-prefixed config entries when looking for target platform [esphome#8240](https://github.com/esphome/esphome/pull/8240) by [@jesserockz](https://github.com/jesserockz)
+- Bump zeroconf to 0.144.1 [esphome#8238](https://github.com/esphome/esphome/pull/8238) by [@bdraco](https://github.com/bdraco)
+- [core] Fix `config_dir` for dashboard [esphome#8242](https://github.com/esphome/esphome/pull/8242) by [@jesserockz](https://github.com/jesserockz)
+- [cse7766] Remove `stream` dependency [esphome#7720](https://github.com/esphome/esphome/pull/7720) by [@gabest11](https://github.com/gabest11)
+- [graph] Remove `stream` dependency [esphome#8243](https://github.com/esphome/esphome/pull/8243) by [@kbx81](https://github.com/kbx81)
+- [modbus_controller] Remove `stream` dependency [esphome#8244](https://github.com/esphome/esphome/pull/8244) by [@kbx81](https://github.com/kbx81)
+- [logger] Fix bug causing global log level to be overwritten [esphome#8248](https://github.com/esphome/esphome/pull/8248) by [@swoboda1337](https://github.com/swoboda1337)
+- Add support for the DAC on the S2 [esphome#8030](https://github.com/esphome/esphome/pull/8030) by [@maraid](https://github.com/maraid)
+- Fix crash when storage file doesnt exist yet [esphome#8249](https://github.com/esphome/esphome/pull/8249) by [@jesserockz](https://github.com/jesserockz)
+- don't crash on null pages [esphome#8254](https://github.com/esphome/esphome/pull/8254) by [@ssieb](https://github.com/ssieb)
+- [scd30] Increase minimal CONF_UPDATE_INTERVAL from 1 to 2 seconds [esphome#8256](https://github.com/esphome/esphome/pull/8256) by [@DjordjeMandic](https://github.com/DjordjeMandic) (breaking-change)
+- Bump zeroconf to 0.144.3 [esphome#8253](https://github.com/esphome/esphome/pull/8253) by [@bdraco](https://github.com/bdraco)
+- DHT platform now supports modules with inbuilt external resistor [esphome#8257](https://github.com/esphome/esphome/pull/8257) by [@deCodeIt](https://github.com/deCodeIt)
+- Replace glyphsets with esphome_glyphsets [esphome#8261](https://github.com/esphome/esphome/pull/8261) by [@bdraco](https://github.com/bdraco)
+- Bump aioesphomeapi to 29.1.0 [esphome#8105](https://github.com/esphome/esphome/pull/8105) by [@bdraco](https://github.com/bdraco)
+- Bump openssh-client to 1:9.2p1-2+deb12u4 to fix docker builds [esphome#8269](https://github.com/esphome/esphome/pull/8269) by [@bdraco](https://github.com/bdraco)
+- Increase default repeat delay for Toto remote transmitter protocol [esphome#8265](https://github.com/esphome/esphome/pull/8265) by [@G-Two](https://github.com/G-Two)
+- Bump zeroconf to 0.145.1 [esphome#8267](https://github.com/esphome/esphome/pull/8267) by [@bdraco](https://github.com/bdraco)
+
+### All changes
+
+- [rotary_encoder] Fix volatile increment/decrement deprecation warnings [esphome#7958](https://github.com/esphome/esphome/pull/7958) by [@edwardtfn](https://github.com/edwardtfn)
+- [pulse_counter] Fix volatile increment/decrement deprecation warnings [esphome#7954](https://github.com/esphome/esphome/pull/7954) by [@edwardtfn](https://github.com/edwardtfn)
+- [nextion] Publishes `is_connected()` [esphome#7961](https://github.com/esphome/esphome/pull/7961) by [@edwardtfn](https://github.com/edwardtfn)
+- Fix adc channel for ESP32-H2 [esphome#7964](https://github.com/esphome/esphome/pull/7964) by [@luar123](https://github.com/luar123)
+- [nextion] Remove `_internal` from non-protected functions [esphome#7656](https://github.com/esphome/esphome/pull/7656) by [@edwardtfn](https://github.com/edwardtfn)
+- [opentherm] Message ordering, on-the-fly message editing, code improvements [esphome#7903](https://github.com/esphome/esphome/pull/7903) by [@olegtarasov](https://github.com/olegtarasov)
+- [debug] Detailed reset reason [esphome#7729](https://github.com/esphome/esphome/pull/7729) by [@edwardtfn](https://github.com/edwardtfn)
+- [uart] Use `SOC_UART_NUM` as number of uarts instead of `UART_NUM_MAX` [esphome#7967](https://github.com/esphome/esphome/pull/7967) by [@jesserockz](https://github.com/jesserockz)
+- [ci] Dont run main ci suite on docker files [esphome#7966](https://github.com/esphome/esphome/pull/7966) by [@jesserockz](https://github.com/jesserockz)
+- Bump docker/setup-buildx-action from 3.7.1 to 3.8.0 in the docker-actions group [esphome#7969](https://github.com/esphome/esphome/pull/7969) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [core] Add c6 and h2 to split default [esphome#7974](https://github.com/esphome/esphome/pull/7974) by [@swoboda1337](https://github.com/swoboda1337)
+- [midea] Add Fahrenheit support to `midea_ac.follow_me` action [esphome#7762](https://github.com/esphome/esphome/pull/7762) by [@DjordjeMandic](https://github.com/DjordjeMandic)
+- [esp32_rmt] Updates for IDF 5+ [esphome#7770](https://github.com/esphome/esphome/pull/7770) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- [qspi_dbi] Bugfix and new features [esphome#7979](https://github.com/esphome/esphome/pull/7979) by [@clydebarrow](https://github.com/clydebarrow)
+- [helpers] Provide calls to get free heap and largest available block. [esphome#7978](https://github.com/esphome/esphome/pull/7978) by [@clydebarrow](https://github.com/clydebarrow)
+- Bump actions/upload-artifact from 4.4.3 to 4.5.0 [esphome#7981](https://github.com/esphome/esphome/pull/7981) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [esp32_ble] do not skip events if queue is blocked [esphome#7960](https://github.com/esphome/esphome/pull/7960) by [@tomaszduda23](https://github.com/tomaszduda23)
+- [ble_client, bluetooth_proxy, esp32_ble_client, esp32_ble_tracker] fix ble proxy stop working [esphome#7901](https://github.com/esphome/esphome/pull/7901) by [@tomaszduda23](https://github.com/tomaszduda23)
+- [esp32_rmt] IDF 5+ update fixes [esphome#8002](https://github.com/esphome/esphome/pull/8002) by [@swoboda1337](https://github.com/swoboda1337)
+- Initialize esp32_rmt_led_strip buffer [esphome#8036](https://github.com/esphome/esphome/pull/8036) by [@pzich](https://github.com/pzich)
+- [addressable_light] Remove rmt channel from idf tests [esphome#7987](https://github.com/esphome/esphome/pull/7987) by [@clydebarrow](https://github.com/clydebarrow)
+- Remove rmt channel from idf tests [esphome#8054](https://github.com/esphome/esphome/pull/8054) by [@clydebarrow](https://github.com/clydebarrow)
+- Fixed comment typo in light_color_values.h [esphome#8050](https://github.com/esphome/esphome/pull/8050) by [@samunemeth](https://github.com/samunemeth)
+- Fix braceless else statements [esphome#7799](https://github.com/esphome/esphome/pull/7799) by [@pzich](https://github.com/pzich)
+- Enable udp to work (on ipv4) when ipv6 is enabled [esphome#8060](https://github.com/esphome/esphome/pull/8060) by [@HeMan](https://github.com/HeMan)
+- Update sprinkler.cpp [esphome#7996](https://github.com/esphome/esphome/pull/7996) by [@jotaj91](https://github.com/jotaj91)
+- [lvgl] remove default state [esphome#8038](https://github.com/esphome/esphome/pull/8038) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [lvgl] fix bg_image_src [esphome#8005](https://github.com/esphome/esphome/pull/8005) by [@clydebarrow](https://github.com/clydebarrow)
+- [lgvl] disp_bg_image and disp_bg_opa changes [esphome#8025](https://github.com/esphome/esphome/pull/8025) by [@clydebarrow](https://github.com/clydebarrow)
+- [spi_led_strip] Fix priority [esphome#8021](https://github.com/esphome/esphome/pull/8021) by [@clydebarrow](https://github.com/clydebarrow)
+- [config] Early check for required version [esphome#8000](https://github.com/esphome/esphome/pull/8000) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Implement `lvgl.page.is_showing:` condition [esphome#8055](https://github.com/esphome/esphome/pull/8055) by [@clydebarrow](https://github.com/clydebarrow)
+- [display] auto_clear_enabled defaults [esphome#7986](https://github.com/esphome/esphome/pull/7986) by [@clydebarrow](https://github.com/clydebarrow)
+- Convert IPAddress to use Pythonmodule ipaddress [esphome#8072](https://github.com/esphome/esphome/pull/8072) by [@HeMan](https://github.com/HeMan)
+- Add log level env var [esphome#7604](https://github.com/esphome/esphome/pull/7604) by [@briancw](https://github.com/briancw)
+- [spi] relay on KEY_TARGET_PLATFORM as the other platforms does [esphome#8066](https://github.com/esphome/esphome/pull/8066) by [@tomaszduda23](https://github.com/tomaszduda23)
+- Bump actions/upload-artifact from 4.5.0 to 4.6.0 [esphome#8058](https://github.com/esphome/esphome/pull/8058) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump peter-evans/create-pull-request from 7.0.5 to 7.0.6 [esphome#8024](https://github.com/esphome/esphome/pull/8024) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker/setup-qemu-action from 3.2.0 to 3.3.0 in the docker-actions group [esphome#8052](https://github.com/esphome/esphome/pull/8052) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker/build-push-action from 6.10.0 to 6.11.0 in /.github/actions/build-image [esphome#8053](https://github.com/esphome/esphome/pull/8053) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Allow CONF_RMT_CHANNEL parameter for IDF 4.X [esphome#8035](https://github.com/esphome/esphome/pull/8035) by [@gnumpi](https://github.com/gnumpi)
+- [esp32] Fix arch_get_cpu_freq_hz [esphome#8047](https://github.com/esphome/esphome/pull/8047) by [@swoboda1337](https://github.com/swoboda1337)
+- Fix Waveshare 7in5bv3bwr image quality in BWR mode [esphome#8043](https://github.com/esphome/esphome/pull/8043) by [@zbikmarc](https://github.com/zbikmarc)
+- [json] use correct formatting [esphome#8039](https://github.com/esphome/esphome/pull/8039) by [@clydebarrow](https://github.com/clydebarrow)
+- [nextion] Brightness control tweaks [esphome#8027](https://github.com/esphome/esphome/pull/8027) by [@kbx81](https://github.com/kbx81) (breaking-change)
+- [image] Transparency changes; code refactor [esphome#7908](https://github.com/esphome/esphome/pull/7908) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- Added VERY_VERBOSE dfplayer printing [esphome#8026](https://github.com/esphome/esphome/pull/8026) by [@solarkennedy](https://github.com/solarkennedy)
+- [core] fix comment for crc8 function in helpers.h [esphome#8016](https://github.com/esphome/esphome/pull/8016) by [@DjordjeMandic](https://github.com/DjordjeMandic)
+- [debug] Add framework type to debug info [esphome#8013](https://github.com/esphome/esphome/pull/8013) by [@edwardtfn](https://github.com/edwardtfn)
+- [debug] Add ESP32 partition table logging to `dump_config` [esphome#8012](https://github.com/esphome/esphome/pull/8012) by [@edwardtfn](https://github.com/edwardtfn)
+- [psram] Improve total PSRAM display in logs by using rounded KB values [esphome#8008](https://github.com/esphome/esphome/pull/8008) by [@edwardtfn](https://github.com/edwardtfn)
+- Use ESPHome logo on readme page according to theme (light/dark) [esphome#7992](https://github.com/esphome/esphome/pull/7992) by [@dougiteixeira](https://github.com/dougiteixeira)
+- Fix compile errors with pioarduino/platform-espressif32: wifi_component_esp32_arduino.cpp [esphome#7998](https://github.com/esphome/esphome/pull/7998) by [@bitflippersanonymous](https://github.com/bitflippersanonymous)
+- Include esp_mac.h and C++20 str_startswith/str_ends [esphome#7999](https://github.com/esphome/esphome/pull/7999) by [@bitflippersanonymous](https://github.com/bitflippersanonymous)
+- [esp32_wifi] Enhance WiFi component with TCPIP core locking. [esphome#7997](https://github.com/esphome/esphome/pull/7997) by [@bitflippersanonymous](https://github.com/bitflippersanonymous)
+- add missing include in base_automation.h [esphome#8001](https://github.com/esphome/esphome/pull/8001) by [@nielsnl68](https://github.com/nielsnl68)
+- Fixed topic when mac is used [esphome#7988](https://github.com/esphome/esphome/pull/7988) by [@Hadatko](https://github.com/Hadatko)
+- web_server: Adds REST API POST endpoints to arm and disarm [esphome#7985](https://github.com/esphome/esphome/pull/7985) by [@heythisisnate](https://github.com/heythisisnate)
+- [lvgl] fix tests [esphome#8075](https://github.com/esphome/esphome/pull/8075) by [@clydebarrow](https://github.com/clydebarrow)
+- Allow external libraries to use ESP_LOGx macros [esphome#8078](https://github.com/esphome/esphome/pull/8078) by [@kroimon](https://github.com/kroimon)
+- [uptime] Add text_sensor [esphome#8028](https://github.com/esphome/esphome/pull/8028) by [@clydebarrow](https://github.com/clydebarrow) (new-platform)
+- [image] Fix mdi images [esphome#8082](https://github.com/esphome/esphome/pull/8082) by [@clydebarrow](https://github.com/clydebarrow)
+- [ili9xxx] psram and 8 bit changes [esphome#8084](https://github.com/esphome/esphome/pull/8084) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [spi] Restore `SPIDelegateDummy` [esphome#8019](https://github.com/esphome/esphome/pull/8019) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] fix lvgl.widget.update and friends [esphome#8087](https://github.com/esphome/esphome/pull/8087) by [@clydebarrow](https://github.com/clydebarrow)
+- fix(web_server/fan): send speed update values even when fan is off [esphome#8086](https://github.com/esphome/esphome/pull/8086) by [@distante](https://github.com/distante)
+- [es7210] add support for es7210 ADC [esphome#8007](https://github.com/esphome/esphome/pull/8007) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- [event] Store `last_event_type` in class [esphome#8088](https://github.com/esphome/esphome/pull/8088) by [@jesserockz](https://github.com/jesserockz)
+- [prometheus] Select, media_player, and number prometheus metrics [esphome#7895](https://github.com/esphome/esphome/pull/7895) by [@jzucker2](https://github.com/jzucker2)
+- Bump docker/build-push-action from 6.11.0 to 6.12.0 in /.github/actions/build-image [esphome#8090](https://github.com/esphome/esphome/pull/8090) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Revert "Add resistance_sampler interface for config validation" [esphome#8093](https://github.com/esphome/esphome/pull/8093) by [@clydebarrow](https://github.com/clydebarrow)
+- Fix running pre-commit on Windows [esphome#8095](https://github.com/esphome/esphome/pull/8095) by [@stellar-aria](https://github.com/stellar-aria)
+- Remove black-formatter from pre-commit hooks [esphome#8097](https://github.com/esphome/esphome/pull/8097) by [@stellar-aria](https://github.com/stellar-aria)
+- Increase Daly-BMS coltage cells from 16 to 18 cells [esphome#8057](https://github.com/esphome/esphome/pull/8057) by [@j-sepul](https://github.com/j-sepul)
+- [image]Rename option "use_transparency" [esphome#8113](https://github.com/esphome/esphome/pull/8113) by [@guillempages](https://github.com/guillempages)
+- [online_image] Use RAMAllocator [esphome#8114](https://github.com/esphome/esphome/pull/8114) by [@guillempages](https://github.com/guillempages)
+- Fixed incorrect display dimension [esphome#8110](https://github.com/esphome/esphome/pull/8110) by [@Duckle29](https://github.com/Duckle29)
+- Update defines.h for esp-idf 5.1.5 [esphome#8117](https://github.com/esphome/esphome/pull/8117) by [@jesserockz](https://github.com/jesserockz)
+- [audio_adc] Add new `audio_adc` component [esphome#8094](https://github.com/esphome/esphome/pull/8094) by [@kbx81](https://github.com/kbx81) (new-integration)
+- [uptime] Cosmetic improvements for uptime text_sensor [esphome#8101](https://github.com/esphome/esphome/pull/8101) by [@clydebarrow](https://github.com/clydebarrow)
+- [es8156] Add support for ES8156 audio DAC [esphome#8085](https://github.com/esphome/esphome/pull/8085) by [@kbx81](https://github.com/kbx81) (new-integration)
+- [esp32_touch] Fix deprecated warning [esphome#8092](https://github.com/esphome/esphome/pull/8092) by [@swoboda1337](https://github.com/swoboda1337)
+- [core] Remove old style platform configuration [esphome#8118](https://github.com/esphome/esphome/pull/8118) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Bump actions/stale from 9.0.0 to 9.1.0 [esphome#8120](https://github.com/esphome/esphome/pull/8120) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [custom] Remove platforms [esphome#8119](https://github.com/esphome/esphome/pull/8119) by [@kbx81](https://github.com/kbx81) (breaking-change)
+- Add: Human Presence and Target Count to the Seeed Studio MR60BHA2 [esphome#8010](https://github.com/esphome/esphome/pull/8010) by [@limengdu](https://github.com/limengdu) (new-platform)
+- [es7243e] Add support for ES7243E audio ADC [esphome#8098](https://github.com/esphome/esphome/pull/8098) by [@kbx81](https://github.com/kbx81) (new-integration)
+- [debug] fix debug_esp32 printf for partition size and address [esphome#8122](https://github.com/esphome/esphome/pull/8122) by [@fightforlife](https://github.com/fightforlife)
+- [esp32] Set logger default interface for C6 [esphome#8126](https://github.com/esphome/esphome/pull/8126) by [@kbx81](https://github.com/kbx81)
+- [core] add support for custom platform [esphome#7616](https://github.com/esphome/esphome/pull/7616) by [@tomaszduda23](https://github.com/tomaszduda23)
+- Add verbose logging for pulse width calculation in pulse_meter [esphome#8124](https://github.com/esphome/esphome/pull/8124) by [@DjordjeMandic](https://github.com/DjordjeMandic)
+- [ads1115] Add sample rate control [esphome#8102](https://github.com/esphome/esphome/pull/8102) by [@brambo123](https://github.com/brambo123)
+- Fix mqtt climate step rounding [esphome#8121](https://github.com/esphome/esphome/pull/8121) by [@olemmela](https://github.com/olemmela)
+- [spi] Fix data type in bitbash transfer_() [esphome#8125](https://github.com/esphome/esphome/pull/8125) by [@oliv3r](https://github.com/oliv3r)
+- [online_image] Add binary bmp support [esphome#8116](https://github.com/esphome/esphome/pull/8116) by [@jesserockz](https://github.com/jesserockz)
+- [online_image] Code Improvements [esphome#8130](https://github.com/esphome/esphome/pull/8130) by [@guillempages](https://github.com/guillempages)
+- Update mdns for ESP-IDF [esphome#8145](https://github.com/esphome/esphome/pull/8145) by [@HeMan](https://github.com/HeMan)
+- Include Bluetooth connection slot allocations in connections free message [esphome#8148](https://github.com/esphome/esphome/pull/8148) by [@bdraco](https://github.com/bdraco)
+- [esp32_ble_server] Create custom services, characteristics and descriptors [esphome#7009](https://github.com/esphome/esphome/pull/7009) by [@Rapsssito](https://github.com/Rapsssito) (new-integration)
+- [online_image] Add JPEG support to online_image [esphome#8127](https://github.com/esphome/esphome/pull/8127) by [@guillempages](https://github.com/guillempages)
+- [logger] Ensure PRIu32 and friends are available [esphome#8155](https://github.com/esphome/esphome/pull/8155) by [@clydebarrow](https://github.com/clydebarrow)
+- Fix forgotten uses of use_transparency [esphome#8115](https://github.com/esphome/esphome/pull/8115) by [@kroimon](https://github.com/kroimon)
+- Add multicast support to udp component [esphome#8051](https://github.com/esphome/esphome/pull/8051) by [@HeMan](https://github.com/HeMan)
+- [display] Properly handle case of auto_clear_enabled: false [esphome#8156](https://github.com/esphome/esphome/pull/8156) by [@clydebarrow](https://github.com/clydebarrow)
+- [esp32_rmt] Increase default symbols in led strip and remove IRAM config [esphome#8133](https://github.com/esphome/esphome/pull/8133) by [@swoboda1337](https://github.com/swoboda1337)
+- [climate] Accept °K as intended [esphome#8134](https://github.com/esphome/esphome/pull/8134) by [@oliv3r](https://github.com/oliv3r)
+- Bump docker/build-push-action from 6.12.0 to 6.13.0 in /.github/actions/build-image [esphome#8136](https://github.com/esphome/esphome/pull/8136) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pypa/gh-action-pypi-publish from 1.12.3 to 1.12.4 [esphome#8137](https://github.com/esphome/esphome/pull/8137) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/setup-python from 5.3.0 to 5.4.0 [esphome#8154](https://github.com/esphome/esphome/pull/8154) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/setup-python from 5.3.0 to 5.4.0 in /.github/actions/restore-python [esphome#8153](https://github.com/esphome/esphome/pull/8153) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [remote_transmitter] Fix issues with 32bit rollover on esp8266 and libretiny [esphome#8056](https://github.com/esphome/esphome/pull/8056) by [@swoboda1337](https://github.com/swoboda1337)
+- Use abspath for config path dir [esphome#8044](https://github.com/esphome/esphome/pull/8044) by [@NicoIIT](https://github.com/NicoIIT)
+- [remote_base] Add default value for offset in is_valid [esphome#8159](https://github.com/esphome/esphome/pull/8159) by [@swoboda1337](https://github.com/swoboda1337)
+- feat(core): Add support for `<...>` includes [esphome#8132](https://github.com/esphome/esphome/pull/8132) by [@Rapsssito](https://github.com/Rapsssito)
+- Bump zeroconf to 0.143.0 [esphome#8104](https://github.com/esphome/esphome/pull/8104) by [@bdraco](https://github.com/bdraco)
+- [i2s_audio] Media Player Components PR1 [esphome#8163](https://github.com/esphome/esphome/pull/8163) by [@kahrendt](https://github.com/kahrendt)
+- [audio, i2s_audio, speaker] Media Player Components PR2 [esphome#8164](https://github.com/esphome/esphome/pull/8164) by [@kahrendt](https://github.com/kahrendt)
+- [audio] Media Player Components PR3 [esphome#8165](https://github.com/esphome/esphome/pull/8165) by [@kahrendt](https://github.com/kahrendt)
+- Add virtual get_flags() to GPIOPin and implementation in InternalGPIOPin derivatives [esphome#8151](https://github.com/esphome/esphome/pull/8151) by [@DjordjeMandic](https://github.com/DjordjeMandic)
+- Make get_flags() in GPIOPin mandatory [esphome#8182](https://github.com/esphome/esphome/pull/8182) by [@DjordjeMandic](https://github.com/DjordjeMandic)
+- [audio] Media Player Components PR4 [esphome#8166](https://github.com/esphome/esphome/pull/8166) by [@kahrendt](https://github.com/kahrendt)
+- [audio] Media Player Components PR5 [esphome#8167](https://github.com/esphome/esphome/pull/8167) by [@kahrendt](https://github.com/kahrendt)
+- [audio] Media Player Components PR6 [esphome#8168](https://github.com/esphome/esphome/pull/8168) by [@kahrendt](https://github.com/kahrendt)
+- Remove arm/v7 container image support [esphome#8194](https://github.com/esphome/esphome/pull/8194) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- [resampler] Media Player Components PR7 [esphome#8169](https://github.com/esphome/esphome/pull/8169) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- [mixer] Media Player Components PR8 [esphome#8170](https://github.com/esphome/esphome/pull/8170) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- [CI] Consolidate some tests (A) [esphome#8184](https://github.com/esphome/esphome/pull/8184) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (B) [esphome#8185](https://github.com/esphome/esphome/pull/8185) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (C) [esphome#8186](https://github.com/esphome/esphome/pull/8186) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (D) [esphome#8189](https://github.com/esphome/esphome/pull/8189) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (E) [esphome#8191](https://github.com/esphome/esphome/pull/8191) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (F) [esphome#8195](https://github.com/esphome/esphome/pull/8195) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (G) [esphome#8196](https://github.com/esphome/esphome/pull/8196) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (H) [esphome#8198](https://github.com/esphome/esphome/pull/8198) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (K, L) [esphome#8201](https://github.com/esphome/esphome/pull/8201) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (M) [esphome#8202](https://github.com/esphome/esphome/pull/8202) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (I, J) [esphome#8200](https://github.com/esphome/esphome/pull/8200) by [@kbx81](https://github.com/kbx81)
+- [i2c] Workaround for i2c on s2 [esphome#8188](https://github.com/esphome/esphome/pull/8188) by [@swoboda1337](https://github.com/swoboda1337)
+- [lvgl] add triggers for swipe gestures [esphome#8190](https://github.com/esphome/esphome/pull/8190) by [@clydebarrow](https://github.com/clydebarrow)
+- [xxtea] Extract encryption functions to separate component [esphome#8183](https://github.com/esphome/esphome/pull/8183) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- [lvgl] Make layouts work properly on base display [esphome#8193](https://github.com/esphome/esphome/pull/8193) by [@clydebarrow](https://github.com/clydebarrow)
+- [preferences] Better handling of flash_write_interval [esphome#8199](https://github.com/esphome/esphome/pull/8199) by [@clydebarrow](https://github.com/clydebarrow)
+- [CI] Consolidate some tests (N, O, P) [esphome#8204](https://github.com/esphome/esphome/pull/8204) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (Q, R) [esphome#8205](https://github.com/esphome/esphome/pull/8205) by [@kbx81](https://github.com/kbx81)
+- [prometheus] Add update entity to prometheus metrics [esphome#8173](https://github.com/esphome/esphome/pull/8173) by [@jzucker2](https://github.com/jzucker2)
+- [uponor_smatrix] add target temperature as sensor [esphome#7745](https://github.com/esphome/esphome/pull/7745) by [@janschroeter](https://github.com/janschroeter)
+- [sdl] Implement binary sensors from keystrokes [esphome#8207](https://github.com/esphome/esphome/pull/8207) by [@bdm310](https://github.com/bdm310) (new-platform)
+- Bump the docker-actions group with 2 updates [esphome#8215](https://github.com/esphome/esphome/pull/8215) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [esp32_rmt] Set pull-up and open-drain modes based on pin schema [esphome#8178](https://github.com/esphome/esphome/pull/8178) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- Add Toto protocol to remote receiver and transmitter [esphome#8177](https://github.com/esphome/esphome/pull/8177) by [@G-Two](https://github.com/G-Two)
+- Markdown tweaks/updates [esphome#8211](https://github.com/esphome/esphome/pull/8211) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (S) [esphome#8206](https://github.com/esphome/esphome/pull/8206) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (U, V, W, X, Y, Z) [esphome#8210](https://github.com/esphome/esphome/pull/8210) by [@kbx81](https://github.com/kbx81)
+- [CI] Consolidate some tests (T) [esphome#8208](https://github.com/esphome/esphome/pull/8208) by [@kbx81](https://github.com/kbx81)
+- [online_image]Pin specific version of JPEG library [esphome#8217](https://github.com/esphome/esphome/pull/8217) by [@guillempages](https://github.com/guillempages)
+- [logger] Add runtime level select [esphome#8222](https://github.com/esphome/esphome/pull/8222) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- [online_image] Set Accept header [esphome#8216](https://github.com/esphome/esphome/pull/8216) by [@candrews](https://github.com/candrews)
+- [waveshare_epaper] Rationalise and complete tests [esphome#8221](https://github.com/esphome/esphome/pull/8221) by [@clydebarrow](https://github.com/clydebarrow)
+- Fix pref conflict of WiFi creds and fast_connect [esphome#8219](https://github.com/esphome/esphome/pull/8219) by [@QRPp](https://github.com/QRPp)
+- Don't activate venv in devcontainer [esphome#8128](https://github.com/esphome/esphome/pull/8128) by [@kroimon](https://github.com/kroimon)
+- Add ADC sampling method option [esphome#8131](https://github.com/esphome/esphome/pull/8131) by [@blind-oracle](https://github.com/blind-oracle)
+- [ota] Increase socket timeout earlier in OTA script [esphome#8129](https://github.com/esphome/esphome/pull/8129) by [@swoboda1337](https://github.com/swoboda1337)
+- [speaker] Media Player Components PR9 [esphome#8171](https://github.com/esphome/esphome/pull/8171) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- Add partial update of GDEW029T5 e-paper display [esphome#8162](https://github.com/esphome/esphome/pull/8162) by [@mystster](https://github.com/mystster)
+- Add waveshare 2.9inch e-Paper HAT (D) [esphome#7906](https://github.com/esphome/esphome/pull/7906) by [@TataGEEK](https://github.com/TataGEEK)
+- [http_request]Use `std::string` for headers [esphome#8225](https://github.com/esphome/esphome/pull/8225) by [@guillempages](https://github.com/guillempages)
+- [online_image] Improve error handling [esphome#8212](https://github.com/esphome/esphome/pull/8212) by [@guillempages](https://github.com/guillempages)
+- [speaker] Bugfix: Ensure all audio is played after completely decoding a file [esphome#8231](https://github.com/esphome/esphome/pull/8231) by [@kahrendt](https://github.com/kahrendt)
+- [voice_assistant] Add announce support [esphome#8232](https://github.com/esphome/esphome/pull/8232) by [@kahrendt](https://github.com/kahrendt)
+- [prometheus] Adding valve entity metrics [esphome#8223](https://github.com/esphome/esphome/pull/8223) by [@jzucker2](https://github.com/jzucker2)
+- Added Waveshare e-paper display model "7.50inv2p" to the waveshare_epaper component. [esphome#7751](https://github.com/esphome/esphome/pull/7751) by [@tmpeh](https://github.com/tmpeh)
+- added Waveshare BWR Mode for the 4.2in Display [esphome#7995](https://github.com/esphome/esphome/pull/7995) by [@itpcc](https://github.com/itpcc)
+- Add GDEY029T94 support [esphome#7931](https://github.com/esphome/esphome/pull/7931) by [@danielkoek](https://github.com/danielkoek)
+- GDEY042T81 e-paper displays support [esphome#8061](https://github.com/esphome/esphome/pull/8061) by [@mgruener](https://github.com/mgruener)
+- Add support for Waveshare 7.3" ACeP 7-Color display [esphome#6380](https://github.com/esphome/esphome/pull/6380) by [@NeilSCGH](https://github.com/NeilSCGH)
+- Bump esphome-dashboard to 20250212.0 [esphome#8235](https://github.com/esphome/esphome/pull/8235) by [@jesserockz](https://github.com/jesserockz)
+- [online_image]Fix reset if buffer not allocated [esphome#8236](https://github.com/esphome/esphome/pull/8236) by [@guillempages](https://github.com/guillempages)
+- [core] Ignore dot-prefixed config entries when looking for target platform [esphome#8240](https://github.com/esphome/esphome/pull/8240) by [@jesserockz](https://github.com/jesserockz)
+- Bump zeroconf to 0.144.1 [esphome#8238](https://github.com/esphome/esphome/pull/8238) by [@bdraco](https://github.com/bdraco)
+- [core] Fix `config_dir` for dashboard [esphome#8242](https://github.com/esphome/esphome/pull/8242) by [@jesserockz](https://github.com/jesserockz)
+- [cse7766] Remove `stream` dependency [esphome#7720](https://github.com/esphome/esphome/pull/7720) by [@gabest11](https://github.com/gabest11)
+- [graph] Remove `stream` dependency [esphome#8243](https://github.com/esphome/esphome/pull/8243) by [@kbx81](https://github.com/kbx81)
+- [modbus_controller] Remove `stream` dependency [esphome#8244](https://github.com/esphome/esphome/pull/8244) by [@kbx81](https://github.com/kbx81)
+- [logger] Fix bug causing global log level to be overwritten [esphome#8248](https://github.com/esphome/esphome/pull/8248) by [@swoboda1337](https://github.com/swoboda1337)
+- Add support for the DAC on the S2 [esphome#8030](https://github.com/esphome/esphome/pull/8030) by [@maraid](https://github.com/maraid)
+- Fix crash when storage file doesnt exist yet [esphome#8249](https://github.com/esphome/esphome/pull/8249) by [@jesserockz](https://github.com/jesserockz)
+- don't crash on null pages [esphome#8254](https://github.com/esphome/esphome/pull/8254) by [@ssieb](https://github.com/ssieb)
+- [scd30] Increase minimal CONF_UPDATE_INTERVAL from 1 to 2 seconds [esphome#8256](https://github.com/esphome/esphome/pull/8256) by [@DjordjeMandic](https://github.com/DjordjeMandic) (breaking-change)
+- Bump zeroconf to 0.144.3 [esphome#8253](https://github.com/esphome/esphome/pull/8253) by [@bdraco](https://github.com/bdraco)
+- DHT platform now supports modules with inbuilt external resistor [esphome#8257](https://github.com/esphome/esphome/pull/8257) by [@deCodeIt](https://github.com/deCodeIt)
+- Replace glyphsets with esphome_glyphsets [esphome#8261](https://github.com/esphome/esphome/pull/8261) by [@bdraco](https://github.com/bdraco)
+- Bump aioesphomeapi to 29.1.0 [esphome#8105](https://github.com/esphome/esphome/pull/8105) by [@bdraco](https://github.com/bdraco)
+- Bump openssh-client to 1:9.2p1-2+deb12u4 to fix docker builds [esphome#8269](https://github.com/esphome/esphome/pull/8269) by [@bdraco](https://github.com/bdraco)
+- Increase default repeat delay for Toto remote transmitter protocol [esphome#8265](https://github.com/esphome/esphome/pull/8265) by [@G-Two](https://github.com/G-Two)
+- Bump zeroconf to 0.145.1 [esphome#8267](https://github.com/esphome/esphome/pull/8267) by [@bdraco](https://github.com/bdraco)
+
+{/* markdownlint-enable MD013 */}

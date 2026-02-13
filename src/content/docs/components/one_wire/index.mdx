@@ -1,0 +1,38 @@
+---
+description: "Instructions for setting up a Dallas (Analog Devices) 1-Wire bus to communicate with 1-wire devices in ESPHome"
+title: "1-Wire Bus"
+sidebar:
+  label: "1-Wire Bus"
+---
+
+import { Image } from 'astro:assets';
+import dallasLogImg from './images/dallas-log.png';
+import APIRef from '@components/APIRef.astro';
+
+The `one_wire` component allows you to use supported 1-Wire devices in ESPHome.
+
+## Hardware
+
+The 1-Wire bus the devices are connected to should have an external pull-up resistor of about 4.7KΩ. A resistor of
+*about* 4.7KΩ connected between `3.3V` and the 1-Wire bus's GPIO/data pin should suffice. Values ± 1KΩ will generally
+work fine as well, provided you don't have unusually long wires.
+
+## Platforms
+
+- [**GPIO**](/components/one_wire/gpio/) Create a 1-Wire bus on a GPIO pin
+- [**DS2484**](/components/one_wire/ds2484/) An I2C-to-1-Wire bridge device
+
+## Obtaining Sensor IDs
+
+To find device addresses, simply start the firmware on your device with a `one_wire` hub configured and observe the
+log output. Note that you don't need to define the individual sensors just yet, as scanning will occur even with no
+sensors configured.
+
+Here's an example log:
+
+<Image src={dallasLogImg} layout="constrained" alt="" />
+
+## See Also
+
+- [Guidelines for Reliable Long Line 1-Wire Networks](https://www.analog.com/en/technical-articles/guidelines-for-reliable-long-line-1wire-networks.html)
+- <APIRef text="one_wire_bus.h" path="one_wire/one_wire_bus.h" />

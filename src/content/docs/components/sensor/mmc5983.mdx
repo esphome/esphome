@@ -1,0 +1,60 @@
+---
+description: "Instructions for setting up MMC5983 magnetometer."
+title: "MMC5983 Magnetometer"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+import APIRef from '@components/APIRef.astro';
+
+<span id="mmc5983"></span>
+
+The `mmc5983` component allows you to use your MMC5983 triple-axis magnetometer ([datasheet](https://www.memsic.com/Public/Uploads/uploadfile/files/20220119/MMC5983MADatasheetRevA.pdf), [SparkFun](https://www.sparkfun.com/products/19921)) with ESPHome.
+
+The [I²C Bus](/components/i2c) is required to be set up for this sensor to work. The device supports 400kHz
+operation, so you may specify up to `frequency: 400kHz` in your `i2c` configuration.
+
+<Figure
+  src="/images/mmc5983.jpg"
+  alt=""
+  caption="MMC5983 Magnetometer."
+  layout="constrained"
+  width={300}
+  height={147}
+/>
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: mmc5983
+    field_strength_x:
+      name: "Field X"
+    field_strength_y:
+      id: "field_y"
+      internal: true
+    field_strength_z:
+      name: "Field Z"
+      filters:
+        - throttle: 120s
+    update_interval: 60s
+```
+
+## Configuration variables
+
+- **field_strength_x** (_Optional_): The information for the X-axis field sensor. All options from
+  [Sensor](/components/sensor).
+
+- **field_strength_y** (_Optional_): The information for the Y-axis field sensor. All options from
+  [Sensor](/components/sensor).
+
+- **field_strength_z** (_Optional_): The information for the Z-axis field sensor. All options from
+  [Sensor](/components/sensor).
+
+- **update_interval** (_Optional_, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [MMC5603 Magnetometer](/components/sensor/mmc5603/)
+- [SparkFun MMC5983MA Magnetometer Arduino Library](https://github.com/sparkfun/SparkFun_MMC5983MA_Magnetometer_Arduino_Library)
+- <APIRef text="mmc5983.h" path="mmc5983/mmc5983.h" />

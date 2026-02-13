@@ -1,0 +1,262 @@
+---
+description: "Changelog for ESPHome 2023.11.0."
+title: "ESPHome 2023.11.0 - 15th November 2023"
+pagefind: false
+slug: "changelog/2023.11.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Text Core","/components/text/index","folder-open.svg","dark-invert"],
+  ["Template Text","/components/text/template","description.svg","dark-invert"],
+  ["UART Button","/components/button/uart","uart.svg"],
+  ["GREE Climate","/components/climate/climate_ir","air-conditioner-ir.svg","dark-invert"],
+  ["DFRobot mmWave Radar","/components/dfrobot_sen0395","dfrobot_sen0395.jpg"],
+  ["LD2420","/components/sensor/ld2420","ld2420.jpg"],
+  ["Qwiic PIR Motion","/components/binary_sensor/qwiic_pir","qwiic_pir.jpg"],
+  ["Noblex Climate","/components/climate/climate_ir","air-conditioner-ir.svg","dark-invert"],
+  ["Honeywell ABP2","/components/sensor/honeywellabp2_i2c","honeywellabp.jpg"],
+  ["iAQ-Core","/components/sensor/iaqcore","iaqcore.jpg"],
+  ["SFA30","/components/sensor/sfa30","sfa30.jpg"],
+  ["ZH/LT-01 Climate","/components/climate/climate_ir","air-conditioner-ir.svg","dark-invert"],
+  ["EMC2101","/components/emc2101","emc2101.jpg"],
+  ["MicroNova pellet stove","/components/micronova","micronova.svg"],
+  ["XGZP68xx Series","/components/sensor/xgzp68xx","6897d.jpg"]
+]} />
+
+## Text Components
+
+We finally have implemented the [Text](/components/text/) Components.
+Many people have been using "Text Input Helpers" to get user entered text into
+ESPHome for various reasons. Now ESPHome can expose text entities
+directly to Home Assistant. These require Home Assistant 2023.11 or above to use.
+
+## Various Automations
+
+- BLE have had `ble.enable` and `ble.disable` actions added to turn on and off when not needed,
+  as well as a new condition `ble.enabled` to check the state.
+
+- Wi-Fi has new triggers for `on_connect` and `on_disconnect`.
+
+- `api` has new triggers `on_client_connected` and `on_client_disconnected` which were
+  released in the 2023.10.5 patch version due to requiring that specific PR to not cause merge
+  conflicts later.
+
+## Areas
+
+When you add a new ESPHome device to Home Assistant, you assign that device to an area.
+From Home Assistant 2023.12, you will be able to specify the suggested area that Home Assistant
+pre-populates when you connect the device.
+
+```yaml
+esphome:
+  name: living-room-light
+  friendly_name: Living Room Light
+  area: Living Room
+```
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2023.11.1 - November 16
+
+- Add more VA triggers [esphome#5762](https://github.com/esphome/esphome/pull/5762) by [@kbx81](https://github.com/kbx81)
+- Fix MY9231 flicker [esphome#5765](https://github.com/esphome/esphome/pull/5765) by [@Mat931](https://github.com/Mat931)
+
+## Release 2023.11.2 - November 18
+
+- Bump aioesphomeapi from 18.4.0 to 18.4.1 [esphome#5767](https://github.com/esphome/esphome/pull/5767) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 18.4.1 to 18.5.2 [esphome#5780](https://github.com/esphome/esphome/pull/5780) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- fix 32-bit arm [esphome#5781](https://github.com/esphome/esphome/pull/5781) by [@ssieb](https://github.com/ssieb)
+- Add 2MB option for partitions.csv generation and restore use of user-defined partitions [esphome#5779](https://github.com/esphome/esphome/pull/5779) by [@kbx81](https://github.com/kbx81)
+
+## Release 2023.11.3 - November 22
+
+- include payload_open when a lock supports OPEN [esphome#5809](https://github.com/esphome/esphome/pull/5809) by [@ccutrer](https://github.com/ccutrer)
+- dashboard: Fix online status when api is disabled [esphome#5791](https://github.com/esphome/esphome/pull/5791) by [@bdraco](https://github.com/bdraco)
+- fix: compile errors with fonts [esphome#5808](https://github.com/esphome/esphome/pull/5808) by [@cvandesande](https://github.com/cvandesande)
+- Early return when there are no wifi scan results [esphome#5797](https://github.com/esphome/esphome/pull/5797) by [@jesserockz](https://github.com/jesserockz)
+- Add some additional VA triggers, part 2 [esphome#5811](https://github.com/esphome/esphome/pull/5811) by [@kbx81](https://github.com/kbx81)
+
+## Release 2023.11.4 - November 24
+
+- Allow images to be downloaded from URLs [esphome#5214](https://github.com/esphome/esphome/pull/5214) by [@landonr](https://github.com/landonr)
+
+## Release 2023.11.5 - November 28
+
+- Voice Assistant improvements [esphome#5827](https://github.com/esphome/esphome/pull/5827) by [@jesserockz](https://github.com/jesserockz)
+- Fix missing include in remote_base [esphome#5843](https://github.com/esphome/esphome/pull/5843) by [@jesserockz](https://github.com/jesserockz)
+- Add 'voice_assistant.connected' condition [esphome#5845](https://github.com/esphome/esphome/pull/5845) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.11.6 - November 28
+
+- Fix write_speaker without speaker in config [esphome#5847](https://github.com/esphome/esphome/pull/5847) by [@jesserockz](https://github.com/jesserockz)
+
+## Full list of changes
+
+### New Components
+
+- Add Support for Sensirion SFA30 sensor [esphome#5519](https://github.com/esphome/esphome/pull/5519) by [@ghsensdev](https://github.com/ghsensdev) (new-integration)
+- add uart button [esphome#5540](https://github.com/esphome/esphome/pull/5540) by [@ssieb](https://github.com/ssieb) (new-integration)
+- Add ZH/LT-01 climate component with IR receiver option [esphome#4333](https://github.com/esphome/esphome/pull/4333) by [@cfeenstra1024](https://github.com/cfeenstra1024) (new-integration)
+- Feat: Add GREE climateir component [esphome#4464](https://github.com/esphome/esphome/pull/4464) by [@PiuPiuson](https://github.com/PiuPiuson) (new-integration)
+- AMS iAQ Core CO2 sensor component [esphome#5192](https://github.com/esphome/esphome/pull/5192) by [@yozik04](https://github.com/yozik04) (new-integration)
+- Add IR Noblex climate component [esphome#4913](https://github.com/esphome/esphome/pull/4913) by [@AGalfra](https://github.com/AGalfra) (new-integration)
+- Add text component [esphome#5336](https://github.com/esphome/esphome/pull/5336) by [@EternityForest](https://github.com/EternityForest) (new-integration)
+- Add support for honeywellabp2 pressure sensor [esphome#5422](https://github.com/esphome/esphome/pull/5422) by [@jpfaff](https://github.com/jpfaff) (new-integration)
+- Add Emc2101 [esphome#4491](https://github.com/esphome/esphome/pull/4491) by [@ellull](https://github.com/ellull) (new-integration)
+- Add support for Qwiic PIR binary sensor [esphome#5194](https://github.com/esphome/esphome/pull/5194) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- Add dfrobot_sen0395 mmwave radar component [esphome#4203](https://github.com/esphome/esphome/pull/4203) by [@niklasweber](https://github.com/niklasweber) (new-integration)
+- Add HLK-LD2420 mmWave Radar module component. [esphome#4847](https://github.com/esphome/esphome/pull/4847) by [@descipher](https://github.com/descipher) (new-integration)
+- Add Micronova component [esphome#4760](https://github.com/esphome/esphome/pull/4760) by [@Jorre05](https://github.com/Jorre05) (new-integration)
+- Add differential pressure sensor support for CFSensor XGZP68xxD devices [esphome#5562](https://github.com/esphome/esphome/pull/5562) by [@gcormier](https://github.com/gcormier) (new-integration)
+- Add spi support for ade7953 [esphome#5439](https://github.com/esphome/esphome/pull/5439) by [@angelnu](https://github.com/angelnu) (new-integration)
+- Add resistance_sampler interface for config validation [esphome#5718](https://github.com/esphome/esphome/pull/5718) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+
+### Breaking Changes
+
+- Hydreon updates [esphome#5424](https://github.com/esphome/esphome/pull/5424) by [@jj-uk](https://github.com/jj-uk) (breaking-change)
+- Fix esp32_rmt_led_strip custom timing units [esphome#5696](https://github.com/esphome/esphome/pull/5696) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+
+### Beta Changes
+
+- Handle nanoseconds in config [esphome#5695](https://github.com/esphome/esphome/pull/5695) by [@jesserockz](https://github.com/jesserockz)
+- Fix esp32_rmt_led_strip custom timing units [esphome#5696](https://github.com/esphome/esphome/pull/5696) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Fix static assets cache logic [esphome#5700](https://github.com/esphome/esphome/pull/5700) by [@bdraco](https://github.com/bdraco)
+- Use piwheels for armv7 docker image builds [esphome#5703](https://github.com/esphome/esphome/pull/5703) by [@bdraco](https://github.com/bdraco)
+- fix: Fix broken bluetooth_proxy and ble_clients after BLE enable/disable [esphome#5704](https://github.com/esphome/esphome/pull/5704) by [@Rapsssito](https://github.com/Rapsssito)
+- Bump aioesphomeapi to 18.2.7 [esphome#5706](https://github.com/esphome/esphome/pull/5706) by [@bdraco](https://github.com/bdraco)
+- Update Dockerfile to use piwheels for armv7 [esphome#5709](https://github.com/esphome/esphome/pull/5709) by [@bdraco](https://github.com/bdraco)
+- Bump zeroconf from 0.120.0 to 0.122.3 [esphome#5715](https://github.com/esphome/esphome/pull/5715) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add resistance_sampler interface for config validation [esphome#5718](https://github.com/esphome/esphome/pull/5718) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Fix zeroconf name resolution refactoring error [esphome#5725](https://github.com/esphome/esphome/pull/5725) by [@bdraco](https://github.com/bdraco)
+- Missed ifdefs [esphome#5727](https://github.com/esphome/esphome/pull/5727) by [@descipher](https://github.com/descipher)
+- Bump aioesphomeapi from 18.2.7 to 18.4.0 [esphome#5735](https://github.com/esphome/esphome/pull/5735) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Migrate to using aioesphomeapi for the log runner to fix multiple issues [esphome#5733](https://github.com/esphome/esphome/pull/5733) by [@bdraco](https://github.com/bdraco)
+- Bump zeroconf to 0.123.0 [esphome#5736](https://github.com/esphome/esphome/pull/5736) by [@bdraco](https://github.com/bdraco)
+- Handle wake word not set up internally [esphome#5738](https://github.com/esphome/esphome/pull/5738) by [@jesserockz](https://github.com/jesserockz)
+- dashboard: remove usage of codecs module [esphome#5741](https://github.com/esphome/esphome/pull/5741) by [@bdraco](https://github.com/bdraco)
+- dashboard: Run get_serial_ports in the executor [esphome#5740](https://github.com/esphome/esphome/pull/5740) by [@bdraco](https://github.com/bdraco)
+- Generate partitions.csv based on flash size [esphome#5697](https://github.com/esphome/esphome/pull/5697) by [@kbx81](https://github.com/kbx81)
+- Allow setup to continue past mqtt if network/wifi is disabled [esphome#5754](https://github.com/esphome/esphome/pull/5754) by [@jesserockz](https://github.com/jesserockz)
+- Dont dump wifi info when disabled [esphome#5755](https://github.com/esphome/esphome/pull/5755) by [@jesserockz](https://github.com/jesserockz)
+
+### All changes
+
+- Splits FastLed test scripts out of test1.yaml [esphome#5522](https://github.com/esphome/esphome/pull/5522) by [@nielsnl68](https://github.com/nielsnl68)
+- Add round sensor filter [esphome#5532](https://github.com/esphome/esphome/pull/5532) by [@jesserockz](https://github.com/jesserockz)
+- Add Support for Sensirion SFA30 sensor [esphome#5519](https://github.com/esphome/esphome/pull/5519) by [@ghsensdev](https://github.com/ghsensdev) (new-integration)
+- Change UART source clock to `UART_SCLK_DEFAULT` when IDF >=v5 [esphome#5533](https://github.com/esphome/esphome/pull/5533) by [@leoshusar](https://github.com/leoshusar)
+- add uart button [esphome#5540](https://github.com/esphome/esphome/pull/5540) by [@ssieb](https://github.com/ssieb) (new-integration)
+- add on/off options for uart switch [esphome#5539](https://github.com/esphome/esphome/pull/5539) by [@ssieb](https://github.com/ssieb)
+- Update docker base and packages + docker python 3.11 [esphome#5473](https://github.com/esphome/esphome/pull/5473) by [@bdraco](https://github.com/bdraco)
+- IDF 5 fixes for various components from test1.yaml [esphome#5451](https://github.com/esphome/esphome/pull/5451) by [@kbx81](https://github.com/kbx81)
+- Bump aioesphomeapi from 15.0.0 to 18.0.6 [esphome#5557](https://github.com/esphome/esphome/pull/5557) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump zeroconf from 0.115.1 to 0.119.0 [esphome#5560](https://github.com/esphome/esphome/pull/5560) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add config to allow suppression of warnings about use of strapping pins [esphome#5287](https://github.com/esphome/esphome/pull/5287) by [@clydebarrow](https://github.com/clydebarrow)
+- Hydreon updates [esphome#5424](https://github.com/esphome/esphome/pull/5424) by [@jj-uk](https://github.com/jj-uk) (breaking-change)
+- Bump actions/checkout from 4.1.0 to 4.1.1 [esphome#5551](https://github.com/esphome/esphome/pull/5551) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pyupgrade from 3.10.1 to 3.13.0 [esphome#5428](https://github.com/esphome/esphome/pull/5428) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump tzlocal from 5.0.1 to 5.1 [esphome#5480](https://github.com/esphome/esphome/pull/5480) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump black from 23.9.1 to 23.10.0 [esphome#5561](https://github.com/esphome/esphome/pull/5561) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fan no off cycle action [esphome#5564](https://github.com/esphome/esphome/pull/5564) by [@skykingjwc](https://github.com/skykingjwc)
+- Bump aioesphomeapi from 18.0.6 to 18.0.7 [esphome#5573](https://github.com/esphome/esphome/pull/5573) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Remove unnecessary checks in Nextion component [esphome#5578](https://github.com/esphome/esphome/pull/5578) by [@edwardtfn](https://github.com/edwardtfn)
+- update storage version from mdns [esphome#5584](https://github.com/esphome/esphome/pull/5584) by [@glmnet](https://github.com/glmnet)
+- set Nextion protocol reparse mode [esphome#5484](https://github.com/esphome/esphome/pull/5484) by [@edwardtfn](https://github.com/edwardtfn)
+- Add address text sensor to WireGuard [esphome#5576](https://github.com/esphome/esphome/pull/5576) by [@droscy](https://github.com/droscy)
+- Add LibreTiny hardwares to PR Template [esphome#5575](https://github.com/esphome/esphome/pull/5575) by [@HeMan](https://github.com/HeMan)
+- Bump pytest-mock from 3.11.1 to 3.12.0 [esphome#5571](https://github.com/esphome/esphome/pull/5571) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pyupgrade from 3.13.0 to 3.15.0 [esphome#5570](https://github.com/esphome/esphome/pull/5570) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add ZH/LT-01 climate component with IR receiver option [esphome#4333](https://github.com/esphome/esphome/pull/4333) by [@cfeenstra1024](https://github.com/cfeenstra1024) (new-integration)
+- Feat: Add GREE climateir component [esphome#4464](https://github.com/esphome/esphome/pull/4464) by [@PiuPiuson](https://github.com/PiuPiuson) (new-integration)
+- AMS iAQ Core CO2 sensor component [esphome#5192](https://github.com/esphome/esphome/pull/5192) by [@yozik04](https://github.com/yozik04) (new-integration)
+- Add IR Noblex climate component [esphome#4913](https://github.com/esphome/esphome/pull/4913) by [@AGalfra](https://github.com/AGalfra) (new-integration)
+- Bump aioesphomeapi from 18.0.7 to 18.0.12 [esphome#5597](https://github.com/esphome/esphome/pull/5597) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add text component [esphome#5336](https://github.com/esphome/esphome/pull/5336) by [@EternityForest](https://github.com/EternityForest) (new-integration)
+- Fix exception handling when loading packages [esphome#5569](https://github.com/esphome/esphome/pull/5569) by [@dentra](https://github.com/dentra)
+- Add support for honeywellabp2 pressure sensor [esphome#5422](https://github.com/esphome/esphome/pull/5422) by [@jpfaff](https://github.com/jpfaff) (new-integration)
+- Add Emc2101 [esphome#4491](https://github.com/esphome/esphome/pull/4491) by [@ellull](https://github.com/ellull) (new-integration)
+- Fix: Incorporate unique serial number in preference's hash for multiple Sensirion sensors [esphome#5479](https://github.com/esphome/esphome/pull/5479) by [@kahrendt](https://github.com/kahrendt)
+- Add support for Qwiic PIR binary sensor [esphome#5194](https://github.com/esphome/esphome/pull/5194) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- Add ignore out of range option for clamp filter [esphome#5455](https://github.com/esphome/esphome/pull/5455) by [@kahrendt](https://github.com/kahrendt)
+- Print text mqtt command topic [esphome#5601](https://github.com/esphome/esphome/pull/5601) by [@jesserockz](https://github.com/jesserockz)
+- Correctly allow mqtt topics to be none so ESPHome does not sub/pub to them [esphome#5213](https://github.com/esphome/esphome/pull/5213) by [@jesserockz](https://github.com/jesserockz)
+- SX1509 output debounce fix (resolves esphome/issues#4402) [esphome#4672](https://github.com/esphome/esphome/pull/4672) by [@tracestep](https://github.com/tracestep)
+- Add details when error loading package [esphome#5603](https://github.com/esphome/esphome/pull/5603) by [@dentra](https://github.com/dentra)
+- Fallback to main secrets.yaml for packages [esphome#5604](https://github.com/esphome/esphome/pull/5604) by [@dentra](https://github.com/dentra)
+- Add area (zone) to esphome core config to be suggested through API and MQTT. [esphome#5602](https://github.com/esphome/esphome/pull/5602) by [@Cossid](https://github.com/Cossid)
+- Devcontainer: allow pip install and dont warn about root user [esphome#5608](https://github.com/esphome/esphome/pull/5608) by [@jesserockz](https://github.com/jesserockz)
+- Validate test files before compiling [esphome#5611](https://github.com/esphome/esphome/pull/5611) by [@jesserockz](https://github.com/jesserockz)
+- Minor defines.h updates [esphome#5610](https://github.com/esphome/esphome/pull/5610) by [@jesserockz](https://github.com/jesserockz)
+- timeout filter: return value [esphome#5612](https://github.com/esphome/esphome/pull/5612) by [@jesserockz](https://github.com/jesserockz)
+- Add dfrobot_sen0395 mmwave radar component [esphome#4203](https://github.com/esphome/esphome/pull/4203) by [@niklasweber](https://github.com/niklasweber) (new-integration)
+- refactor mcp4728 component [esphome#5609](https://github.com/esphome/esphome/pull/5609) by [@ssieb](https://github.com/ssieb)
+- Fix HA error related to incorrect state class [esphome#5605](https://github.com/esphome/esphome/pull/5605) by [@nagyrobi](https://github.com/nagyrobi)
+- Fix xpt2046 for IDF 5 [esphome#5614](https://github.com/esphome/esphome/pull/5614) by [@kbx81](https://github.com/kbx81)
+- IDF 5 fixes for various components from test4.yaml [esphome#5622](https://github.com/esphome/esphome/pull/5622) by [@kbx81](https://github.com/kbx81)
+- IDF 5 fixes for various components from test2.yaml [esphome#5621](https://github.com/esphome/esphome/pull/5621) by [@kbx81](https://github.com/kbx81)
+- Fix armv7 docker builds [esphome#5630](https://github.com/esphome/esphome/pull/5630) by [@bdraco](https://github.com/bdraco)
+- Bump aioesphomeapi from 18.0.12 to 18.2.0 [esphome#5606](https://github.com/esphome/esphome/pull/5606) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add needs-docs workflow to fail CI [esphome#5643](https://github.com/esphome/esphome/pull/5643) by [@jesserockz](https://github.com/jesserockz)
+- Add support for PCA9535 16 bit I/O expander [esphome#5634](https://github.com/esphome/esphome/pull/5634) by [@clydebarrow](https://github.com/clydebarrow)
+- Fix nextion waveform sending for multiple waveforms [esphome#4408](https://github.com/esphome/esphome/pull/4408) by [@gpambrozio](https://github.com/gpambrozio)
+- Allow validation of pins based on hub config [esphome#5647](https://github.com/esphome/esphome/pull/5647) by [@jesserockz](https://github.com/jesserockz)
+- Bump aioesphomeapi from 18.2.0 to 18.2.1 [esphome#5653](https://github.com/esphome/esphome/pull/5653) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Validate sn74hc595 pin number are within range [esphome#5655](https://github.com/esphome/esphome/pull/5655) by [@jesserockz](https://github.com/jesserockz)
+- Update PCA9554 pin checks to new facility [esphome#5656](https://github.com/esphome/esphome/pull/5656) by [@clydebarrow](https://github.com/clydebarrow)
+- Update mDNS component to 1.2.2 [esphome#5654](https://github.com/esphome/esphome/pull/5654) by [@HeMan](https://github.com/HeMan)
+- Fix return value of run_external_command [esphome#5657](https://github.com/esphome/esphome/pull/5657) by [@jesserockz](https://github.com/jesserockz)
+- Update RTTTL component to allow I2S [esphome#5177](https://github.com/esphome/esphome/pull/5177) by [@nielsnl68](https://github.com/nielsnl68)
+- Bump flake8 version in pre-commit to match requirements file [esphome#5658](https://github.com/esphome/esphome/pull/5658) by [@jesserockz](https://github.com/jesserockz)
+- Bump pytest from 7.4.2 to 7.4.3 [esphome#5599](https://github.com/esphome/esphome/pull/5599) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump tzlocal from 5.1 to 5.2 [esphome#5594](https://github.com/esphome/esphome/pull/5594) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump black from 23.10.0 to 23.10.1 [esphome#5593](https://github.com/esphome/esphome/pull/5593) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add Healthcheck to Dockerfile [esphome#5651](https://github.com/esphome/esphome/pull/5651) by [@JcMinarro](https://github.com/JcMinarro)
+- Add HLK-LD2420 mmWave Radar module component. [esphome#4847](https://github.com/esphome/esphome/pull/4847) by [@descipher](https://github.com/descipher) (new-integration)
+- Add Micronova component [esphome#4760](https://github.com/esphome/esphome/pull/4760) by [@Jorre05](https://github.com/Jorre05) (new-integration)
+- Add basic shell autocompletion using argcomplete [esphome#5618](https://github.com/esphome/esphome/pull/5618) by [@Nardol](https://github.com/Nardol)
+- Fixed int variables for user defined service in case of ESP32-C3 [esphome#5675](https://github.com/esphome/esphome/pull/5675) by [@paveldn](https://github.com/paveldn)
+- Add callback for raw sml messages [esphome#5668](https://github.com/esphome/esphome/pull/5668) by [@micw](https://github.com/micw)
+- Fix compile with latest esp-idf on esp32c6 [esphome#5677](https://github.com/esphome/esphome/pull/5677) by [@DAVe3283](https://github.com/DAVe3283)
+- Null topic_prefix disables MQTT publishing/subscription unless topic is explicitly configured [esphome#5644](https://github.com/esphome/esphome/pull/5644) by [@kahrendt](https://github.com/kahrendt)
+- feat: Add ESP32 BLE enable/disable automations [esphome#5616](https://github.com/esphome/esphome/pull/5616) by [@Rapsssito](https://github.com/Rapsssito)
+- ble_client rssi sensor fix when not connected [esphome#5632](https://github.com/esphome/esphome/pull/5632) by [@jesserockz](https://github.com/jesserockz)
+- Add Byron Doorbell RF protocol [esphome#4718](https://github.com/esphome/esphome/pull/4718) by [@marshn](https://github.com/marshn)
+- Refactor dashboard zeroconf support [esphome#5681](https://github.com/esphome/esphome/pull/5681) by [@bdraco](https://github.com/bdraco)
+- Allow static assets to be cached if not in debug mode [esphome#5684](https://github.com/esphome/esphome/pull/5684) by [@jesserockz](https://github.com/jesserockz)
+- Remove extra code in old sgp40 [esphome#5685](https://github.com/esphome/esphome/pull/5685) by [@jesserockz](https://github.com/jesserockz)
+- Allow pulse light effect to have separate on and off transition lengths [esphome#5659](https://github.com/esphome/esphome/pull/5659) by [@jesserockz](https://github.com/jesserockz)
+- Add differential pressure sensor support for CFSensor XGZP68xxD devices [esphome#5562](https://github.com/esphome/esphome/pull/5562) by [@gcormier](https://github.com/gcormier) (new-integration)
+- Bump zeroconf from 0.119.0 to 0.120.0 [esphome#5682](https://github.com/esphome/esphome/pull/5682) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add spi support for ade7953 [esphome#5439](https://github.com/esphome/esphome/pull/5439) by [@angelnu](https://github.com/angelnu) (new-integration)
+- Remove page jump on Nextion startup [esphome#5673](https://github.com/esphome/esphome/pull/5673) by [@edwardtfn](https://github.com/edwardtfn)
+- [web_server] Adds the ability to handle Private Network Access preflight requests [esphome#5669](https://github.com/esphome/esphome/pull/5669) by [@DanielBaulig](https://github.com/DanielBaulig)
+- Update esphome-dashboard to version 20231107.0 [esphome#5686](https://github.com/esphome/esphome/pull/5686) by [@jesserockz](https://github.com/jesserockz)
+- add wifi.on_connect and wifi.on_disconnect triggers [esphome#3639](https://github.com/esphome/esphome/pull/3639) by [@ChemicalXandco](https://github.com/ChemicalXandco)
+- Implement a memory cache for dashboard entries to avoid frequent disk reads [esphome#5687](https://github.com/esphome/esphome/pull/5687) by [@bdraco](https://github.com/bdraco)
+- support spi for sn74hc595 [esphome#5491](https://github.com/esphome/esphome/pull/5491) by [@angelnu](https://github.com/angelnu)
+- Handle on_disconnect when Wi-Fi is disabled [esphome#5691](https://github.com/esphome/esphome/pull/5691) by [@kbx81](https://github.com/kbx81)
+- Bump aioesphomeapi from 18.2.1 to 18.2.4 [esphome#5692](https://github.com/esphome/esphome/pull/5692) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Handle nanoseconds in config [esphome#5695](https://github.com/esphome/esphome/pull/5695) by [@jesserockz](https://github.com/jesserockz)
+- Fix esp32_rmt_led_strip custom timing units [esphome#5696](https://github.com/esphome/esphome/pull/5696) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Fix static assets cache logic [esphome#5700](https://github.com/esphome/esphome/pull/5700) by [@bdraco](https://github.com/bdraco)
+- Use piwheels for armv7 docker image builds [esphome#5703](https://github.com/esphome/esphome/pull/5703) by [@bdraco](https://github.com/bdraco)
+- fix: Fix broken bluetooth_proxy and ble_clients after BLE enable/disable [esphome#5704](https://github.com/esphome/esphome/pull/5704) by [@Rapsssito](https://github.com/Rapsssito)
+- Bump aioesphomeapi to 18.2.7 [esphome#5706](https://github.com/esphome/esphome/pull/5706) by [@bdraco](https://github.com/bdraco)
+- Update Dockerfile to use piwheels for armv7 [esphome#5709](https://github.com/esphome/esphome/pull/5709) by [@bdraco](https://github.com/bdraco)
+- Bump zeroconf from 0.120.0 to 0.122.3 [esphome#5715](https://github.com/esphome/esphome/pull/5715) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add resistance_sampler interface for config validation [esphome#5718](https://github.com/esphome/esphome/pull/5718) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Fix zeroconf name resolution refactoring error [esphome#5725](https://github.com/esphome/esphome/pull/5725) by [@bdraco](https://github.com/bdraco)
+- Missed ifdefs [esphome#5727](https://github.com/esphome/esphome/pull/5727) by [@descipher](https://github.com/descipher)
+- Bump aioesphomeapi from 18.2.7 to 18.4.0 [esphome#5735](https://github.com/esphome/esphome/pull/5735) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Migrate to using aioesphomeapi for the log runner to fix multiple issues [esphome#5733](https://github.com/esphome/esphome/pull/5733) by [@bdraco](https://github.com/bdraco)
+- Bump zeroconf to 0.123.0 [esphome#5736](https://github.com/esphome/esphome/pull/5736) by [@bdraco](https://github.com/bdraco)
+- Handle wake word not set up internally [esphome#5738](https://github.com/esphome/esphome/pull/5738) by [@jesserockz](https://github.com/jesserockz)
+- dashboard: remove usage of codecs module [esphome#5741](https://github.com/esphome/esphome/pull/5741) by [@bdraco](https://github.com/bdraco)
+- dashboard: Run get_serial_ports in the executor [esphome#5740](https://github.com/esphome/esphome/pull/5740) by [@bdraco](https://github.com/bdraco)
+- Generate partitions.csv based on flash size [esphome#5697](https://github.com/esphome/esphome/pull/5697) by [@kbx81](https://github.com/kbx81)
+- Allow setup to continue past mqtt if network/wifi is disabled [esphome#5754](https://github.com/esphome/esphome/pull/5754) by [@jesserockz](https://github.com/jesserockz)
+- Dont dump wifi info when disabled [esphome#5755](https://github.com/esphome/esphome/pull/5755) by [@jesserockz](https://github.com/jesserockz)
+
+{/* markdownlint-enable MD013 */}

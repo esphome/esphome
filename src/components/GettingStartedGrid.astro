@@ -1,0 +1,58 @@
+---
+/**
+ * GettingStartedGrid Component
+ * Creates a grid of getting started cards with icons, descriptions, and action buttons.
+ *
+ * Usage in MDX:
+ * <GettingStartedGrid items={[
+ *   {
+ *     icon: "home-assistant",
+ *     title: "From Home Assistant",
+ *     description: "The easiest way to get started",
+ *     url: "/guides/getting_started_hassio/",
+ *     button_text: "Home Assistant Guide"
+ *   },
+ * ]} />
+ */
+
+interface GettingStartedItem {
+  icon: string;
+  title: string;
+  description: string;
+  url?: string;
+  button_text?: string;
+  steps?: string[];
+}
+
+interface Props {
+  items: GettingStartedItem[];
+}
+
+const { items } = Astro.props;
+
+function getIconPath(icon: string): string {
+  return `/images/icons/${icon}.svg`;
+}
+---
+
+<div class="getting-started-grid">
+  {items.map((item) => (
+    <div class="feature-card">
+      <div class="feature-icon">
+        <img src={getIconPath(item.icon)} alt="" loading="lazy" />
+      </div>
+      <div class="getting-started-heading">{item.title}</div>
+      <p>{item.description}</p>
+      {item.steps && item.steps.length > 0 && (
+        <ol>
+          {item.steps.map((step) => (
+            <li set:html={step} />
+          ))}
+        </ol>
+      )}
+      {item.url && (
+        <a href={item.url} class="btn btn-primary">{item.button_text}</a>
+      )}
+    </div>
+  ))}
+</div>

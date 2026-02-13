@@ -1,0 +1,174 @@
+---
+description: "Changelog for ESPHome 2024.4.0."
+title: "ESPHome 2024.4.0 - 17th April 2024"
+pagefind: false
+slug: "changelog/2024.4.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Template Datetime Time","/components/datetime/template","description.svg","dark-invert"],
+  ["SUN-GTIL2 inverter","/components/sun_gtil2","sun_1000g2.png"],
+  ["AT581X","/components/at581x","at581x.png"],
+  ["JSN-SR04T","/components/sensor/jsn_sr04t","jsn-sr04t-v3.jpg"],
+  ["Daikin ARC","/components/climate/climate_ir","air-conditioner-ir.svg","dark-invert"],
+  ["HHCCJCY10 (MiFlora Pink)","/components/sensor/xiaomi_hhccjcy10","xiaomi_hhccjcy10.jpg"],
+  ["TLC5971","/components/output/tlc5971","tlc5971.jpg"],
+  ["Dooya","/components/remote_transmitter","remote.svg"]
+]} />
+
+## Time Entities
+
+ESPHome now has support for `time` entities that can be set from the frontend (like Home Assistant).
+This allows you to set a timer to execute future automations on device.
+
+ESPHome Dates require Home Assistant 2024.4 or later.
+
+## Voice Assistant Audio
+
+This release adds support for sending and receiving audio to/from voice assistants via the API. Currently ESPHome
+sends and receives the Voice Assistant audio bytes via a UDP socket which can be unreliable and insecure.
+Beginning with Home Assistant 2024.5, both sides will automatically recognise that they both support API Audio and will
+use that route instead. This is more reliable because the ESPHome API uses a TCP socket, so packet order and
+delivery is guaranteed, and if you use API Encryption, your audio will also be encrypted in transit.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2024.4.1 - April 23
+
+- [Tuya Climate] Fix compilation error caused by codegen [esphome#6568](https://github.com/esphome/esphome/pull/6568) by [@zry98](https://github.com/zry98)
+- wifi: fix reconnect issue due to enablement of fast connect [esphome#6598](https://github.com/esphome/esphome/pull/6598) by [@jpeletier](https://github.com/jpeletier)
+- Calibrate Beken internal temperature [esphome#6599](https://github.com/esphome/esphome/pull/6599) by [@Mat931](https://github.com/Mat931)
+- fix streaming logs from MQTT for ESP32 devices using TLS [esphome#6605](https://github.com/esphome/esphome/pull/6605) by [@ccutrer](https://github.com/ccutrer)
+- Disallow variant/family override for known boards [esphome#6512](https://github.com/esphome/esphome/pull/6512) by [@clydebarrow](https://github.com/clydebarrow)
+- esp32_ble: Consider ESP_BT_STATUS_DONE a successful state [esphome#6493](https://github.com/esphome/esphome/pull/6493) by [@polyfloyd](https://github.com/polyfloyd)
+- Fix or filter [esphome#6574](https://github.com/esphome/esphome/pull/6574) by [@swoboda1337](https://github.com/swoboda1337)
+
+## Release 2024.4.2 - April 30
+
+- Fix SHT3xd fails sometimes in 2024.4.0 [esphome#6592](https://github.com/esphome/esphome/pull/6592) by [@mrtoy-me](https://github.com/mrtoy-me)
+- allow defaults with no include vars [esphome#6613](https://github.com/esphome/esphome/pull/6613) by [@ssieb](https://github.com/ssieb)
+- Revert #6458 [esphome#6650](https://github.com/esphome/esphome/pull/6650) by [@tronikos](https://github.com/tronikos)
+- [i2s_audio.microphone] Fixing adc bug [esphome#6654](https://github.com/esphome/esphome/pull/6654) by [@jesserockz](https://github.com/jesserockz)
+
+## Full list of changes
+
+### New Components
+
+- Add sun_gtil2 component (for SUN-1000G2 / SUN-2000G2 grid tie inverters) [esphome#4958](https://github.com/esphome/esphome/pull/4958) by [@Mat931](https://github.com/Mat931) (new-integration)
+- Add support for AT581x component [esphome#6297](https://github.com/esphome/esphome/pull/6297) by [@X-Ryl669](https://github.com/X-Ryl669) (new-integration)
+- Add new Component: Ultrasonic Distance Sensor JSN-SR04T [esphome#6023](https://github.com/esphome/esphome/pull/6023) by [@Mafus1](https://github.com/Mafus1) (new-integration)
+- feat: Add Daikin ARC (tested on Daikin ARC472A62) [esphome#6429](https://github.com/esphome/esphome/pull/6429) by [@magicbear](https://github.com/magicbear) (new-integration)
+- add support for Tuya pink version of miflora [esphome#5402](https://github.com/esphome/esphome/pull/5402) by [@fariouche](https://github.com/fariouche) (new-integration)
+- Implemented support for the TLC5971 as an output component [esphome#6494](https://github.com/esphome/esphome/pull/6494) by [@IJIJI](https://github.com/IJIJI) (new-integration)
+
+### Breaking Changes
+
+- Add support for new modes in Tuya Climate [esphome#5159](https://github.com/esphome/esphome/pull/5159) by [@moriahmorgan](https://github.com/moriahmorgan) (breaking-change)
+- IPv6 string representation follows RFC5952 [esphome#6449](https://github.com/esphome/esphome/pull/6449) by [@HeMan](https://github.com/HeMan) (breaking-change)
+
+### Beta Changes
+
+- Add dooya remote transmitter test [esphome#6508](https://github.com/esphome/esphome/pull/6508) by [@jesserockz](https://github.com/jesserockz)
+- ads1115: remove auto-load and split sensor into platform folder [esphome#5981](https://github.com/esphome/esphome/pull/5981) by [@jesserockz](https://github.com/jesserockz) (new-platform)
+- Bump esphome-dashboard to 20240412.0 [esphome#6517](https://github.com/esphome/esphome/pull/6517) by [@jesserockz](https://github.com/jesserockz)
+- Fix missing ifdefs in voice assistant [esphome#6520](https://github.com/esphome/esphome/pull/6520) by [@jesserockz](https://github.com/jesserockz)
+- Fix project version longer than 30 characters breaking compilation [esphome#6535](https://github.com/esphome/esphome/pull/6535) by [@jesserockz](https://github.com/jesserockz)
+- Fix no-release bug on ft6x36 [esphome#6527](https://github.com/esphome/esphome/pull/6527) by [@clydebarrow](https://github.com/clydebarrow)
+
+### All changes
+
+- Bump docker/login-action from 3.0.0 to 3.1.0 [esphome#6367](https://github.com/esphome/esphome/pull/6367) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump peter-evans/create-pull-request from 6.0.1 to 6.0.2 [esphome#6361](https://github.com/esphome/esphome/pull/6361) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker/build-push-action from 5.2.0 to 5.3.0 in /.github/actions/build-image [esphome#6373](https://github.com/esphome/esphome/pull/6373) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker/setup-buildx-action from 3.1.0 to 3.2.0 [esphome#6372](https://github.com/esphome/esphome/pull/6372) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix deep_sleep for ESP32-C6 [esphome#6377](https://github.com/esphome/esphome/pull/6377) by [@ferrets6](https://github.com/ferrets6)
+- Fix keeloq for IDF 5+ [esphome#6382](https://github.com/esphome/esphome/pull/6382) by [@kbx81](https://github.com/kbx81)
+- Fix Nextion set_component_picture call [esphome#6378](https://github.com/esphome/esphome/pull/6378) by [@edwardtfn](https://github.com/edwardtfn)
+- Add line_at_angle method to Display component [esphome#6381](https://github.com/esphome/esphome/pull/6381) by [@deisterhold](https://github.com/deisterhold)
+- Check generated proto files are as expected if any are modified in PRs [esphome#6254](https://github.com/esphome/esphome/pull/6254) by [@jesserockz](https://github.com/jesserockz)
+- ld2420: fix energy mode documentation [esphome#6225](https://github.com/esphome/esphome/pull/6225) by [@andresv](https://github.com/andresv)
+- Add actions for component tests A, B and C [esphome#6256](https://github.com/esphome/esphome/pull/6256) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (V) [esphome#6231](https://github.com/esphome/esphome/pull/6231) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (X,Y,Z) [esphome#6233](https://github.com/esphome/esphome/pull/6233) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (E) [esphome#6176](https://github.com/esphome/esphome/pull/6176) by [@kbx81](https://github.com/kbx81)
+- Make SPI compile with IDF ≥ 5.0 [esphome#6383](https://github.com/esphome/esphome/pull/6383) by [@HeMan](https://github.com/HeMan)
+- Fix esp32-camera test yaml [esphome#6398](https://github.com/esphome/esphome/pull/6398) by [@kbx81](https://github.com/kbx81)
+- Bump pytest-asyncio from 0.23.5.post1 to 0.23.6 [esphome#6402](https://github.com/esphome/esphome/pull/6402) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/cache from 4.0.1 to 4.0.2 in /.github/actions/restore-python [esphome#6403](https://github.com/esphome/esphome/pull/6403) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/cache from 4.0.1 to 4.0.2 [esphome#6404](https://github.com/esphome/esphome/pull/6404) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump ESP8266 Arduino versions [esphome#5359](https://github.com/esphome/esphome/pull/5359) by [@HeMan](https://github.com/HeMan)
+- Allow accept/reject delta to be specified. [esphome#5060](https://github.com/esphome/esphome/pull/5060) by [@cvwillegen](https://github.com/cvwillegen)
+- Allow setting htop for ledc [esphome#6340](https://github.com/esphome/esphome/pull/6340) by [@Gagootron](https://github.com/Gagootron)
+- sm2135: add separate_modes option to support different chip variants [esphome#6152](https://github.com/esphome/esphome/pull/6152) by [@jasperro](https://github.com/jasperro)
+- AHT10: fix temperature-only operation; add warning/error messages [esphome#6405](https://github.com/esphome/esphome/pull/6405) by [@clydebarrow](https://github.com/clydebarrow)
+- Add support for new modes in Tuya Climate [esphome#5159](https://github.com/esphome/esphome/pull/5159) by [@moriahmorgan](https://github.com/moriahmorgan) (breaking-change)
+- Add sun_gtil2 component (for SUN-1000G2 / SUN-2000G2 grid tie inverters) [esphome#4958](https://github.com/esphome/esphome/pull/4958) by [@Mat931](https://github.com/Mat931) (new-integration)
+- SPI: Make some validation failures give more useful messages. [esphome#6413](https://github.com/esphome/esphome/pull/6413) by [@clydebarrow](https://github.com/clydebarrow)
+- Bump aioesphomeapi from 23.1.1 to 23.2.0 [esphome#6412](https://github.com/esphome/esphome/pull/6412) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add check for use of GPIOXX in config [esphome#6419](https://github.com/esphome/esphome/pull/6419) by [@clydebarrow](https://github.com/clydebarrow)
+- WireGuard for esp8266 [esphome#6365](https://github.com/esphome/esphome/pull/6365) by [@droscy](https://github.com/droscy)
+- setup.cfg: drop duplicate, underintended trove classifier [esphome#6421](https://github.com/esphome/esphome/pull/6421) by [@mweinelt](https://github.com/mweinelt)
+- Store preferences in disk file on host platform [esphome#6428](https://github.com/esphome/esphome/pull/6428) by [@clydebarrow](https://github.com/clydebarrow)
+- Add support for AT581x component [esphome#6297](https://github.com/esphome/esphome/pull/6297) by [@X-Ryl669](https://github.com/X-Ryl669) (new-integration)
+- Add some components to the new testing framework (F) [esphome#6177](https://github.com/esphome/esphome/pull/6177) by [@kbx81](https://github.com/kbx81)
+- Add get_contrast() and get_brightness() to SSD1306 class to get protected variables [esphome#6435](https://github.com/esphome/esphome/pull/6435) by [@benediktkr](https://github.com/benediktkr)
+- Add new Component: Ultrasonic Distance Sensor JSN-SR04T [esphome#6023](https://github.com/esphome/esphome/pull/6023) by [@Mafus1](https://github.com/Mafus1) (new-integration)
+- Add some components to the new testing framework (G) [esphome#6178](https://github.com/esphome/esphome/pull/6178) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (K) [esphome#6186](https://github.com/esphome/esphome/pull/6186) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (N) [esphome#6210](https://github.com/esphome/esphome/pull/6210) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (Q) [esphome#6218](https://github.com/esphome/esphome/pull/6218) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (U) [esphome#6230](https://github.com/esphome/esphome/pull/6230) by [@kbx81](https://github.com/kbx81)
+- Fix spacing in new test yaml [esphome#6441](https://github.com/esphome/esphome/pull/6441) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (W) [esphome#6232](https://github.com/esphome/esphome/pull/6232) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (L) [esphome#6195](https://github.com/esphome/esphome/pull/6195) by [@kbx81](https://github.com/kbx81)
+- feat: Add Daikin ARC (tested on Daikin ARC472A62) [esphome#6429](https://github.com/esphome/esphome/pull/6429) by [@magicbear](https://github.com/magicbear) (new-integration)
+- Disable truthy yamllint rule [esphome#6442](https://github.com/esphome/esphome/pull/6442) by [@jesserockz](https://github.com/jesserockz)
+- Add get_size method to QR Code header [esphome#6430](https://github.com/esphome/esphome/pull/6430) by [@deisterhold](https://github.com/deisterhold)
+- Minor change to support sht85 sensor [esphome#6415](https://github.com/esphome/esphome/pull/6415) by [@mrtoy-me](https://github.com/mrtoy-me)
+- IPv6 string representation follows RFC5952 [esphome#6449](https://github.com/esphome/esphome/pull/6449) by [@HeMan](https://github.com/HeMan) (breaking-change)
+- Bump actions/setup-python from 5.0.0 to 5.1.0 [esphome#6437](https://github.com/esphome/esphome/pull/6437) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/setup-python from 5.0.0 to 5.1.0 in /.github/actions/restore-python [esphome#6438](https://github.com/esphome/esphome/pull/6438) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Optimize QMC5883L: Read registers only for enabled sensors [esphome#6458](https://github.com/esphome/esphome/pull/6458) by [@tronikos](https://github.com/tronikos)
+- minor refactor to allow commit hash as ref value. [esphome#6446](https://github.com/esphome/esphome/pull/6446) by [@LelandSindt](https://github.com/LelandSindt)
+- TMP117 fix polling period config [esphome#6452](https://github.com/esphome/esphome/pull/6452) by [@mrtoy-me](https://github.com/mrtoy-me)
+- Bump Arduino Pico Framework to 3.7.2 and Platform to 1.12.0 [esphome#6386](https://github.com/esphome/esphome/pull/6386) by [@HeMan](https://github.com/HeMan)
+- Display menu: Allow "left" key to exit current menu if not editing [esphome#6460](https://github.com/esphome/esphome/pull/6460) by [@jesserockz](https://github.com/jesserockz)
+- Fix NOLINT on inclusive-language check [esphome#6464](https://github.com/esphome/esphome/pull/6464) by [@jesserockz](https://github.com/jesserockz)
+- Add yamllint to dev requirements [esphome#6466](https://github.com/esphome/esphome/pull/6466) by [@jesserockz](https://github.com/jesserockz)
+- Add temperature for QMC5883L [esphome#6456](https://github.com/esphome/esphome/pull/6456) by [@tronikos](https://github.com/tronikos)
+- web_server: Return early if no clients connected [esphome#6467](https://github.com/esphome/esphome/pull/6467) by [@jesserockz](https://github.com/jesserockz)
+- ESP32 Arduino WiFi: misc bug fixes [esphome#6470](https://github.com/esphome/esphome/pull/6470) by [@paravoid](https://github.com/paravoid)
+- Replace std::regex with sscanf calls [esphome#6468](https://github.com/esphome/esphome/pull/6468) by [@jesserockz](https://github.com/jesserockz)
+- Include "Failed" status in config log. [esphome#6482](https://github.com/esphome/esphome/pull/6482) by [@clydebarrow](https://github.com/clydebarrow)
+- Fix Microphone IsCapturingCondition [esphome#6490](https://github.com/esphome/esphome/pull/6490) by [@RaymiiOrg](https://github.com/RaymiiOrg)
+- Remove misleading tag/line in messages [esphome#6495](https://github.com/esphome/esphome/pull/6495) by [@clydebarrow](https://github.com/clydebarrow)
+- Send/Receive Voice Assistant audio via API [esphome#6471](https://github.com/esphome/esphome/pull/6471) by [@jesserockz](https://github.com/jesserockz)
+- Datetime date initial value fix [esphome#6483](https://github.com/esphome/esphome/pull/6483) by [@RFDarter](https://github.com/RFDarter)
+- If the loop() took more than the required time, don't delay further [esphome#6496](https://github.com/esphome/esphome/pull/6496) by [@clydebarrow](https://github.com/clydebarrow)
+- Bump LibreTiny version to 1.5.1 [esphome#6500](https://github.com/esphome/esphome/pull/6500) by [@kuba2k2](https://github.com/kuba2k2)
+- Internal temperature: Support Beken platform [esphome#6491](https://github.com/esphome/esphome/pull/6491) by [@Mat931](https://github.com/Mat931)
+- Bump docker/setup-buildx-action from 3.2.0 to 3.3.0 [esphome#6502](https://github.com/esphome/esphome/pull/6502) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- add support for Tuya pink version of miflora [esphome#5402](https://github.com/esphome/esphome/pull/5402) by [@fariouche](https://github.com/fariouche) (new-integration)
+- Add MAC address to WiFi config reply [esphome#6489](https://github.com/esphome/esphome/pull/6489) by [@cvwillegen](https://github.com/cvwillegen)
+- Adds i2c timeout config [esphome#4614](https://github.com/esphome/esphome/pull/4614) by [@tracestep](https://github.com/tracestep)
+- Add ABB-Welcome / Busch-Welcome Door Intercom Protocol [esphome#4689](https://github.com/esphome/esphome/pull/4689) by [@Mat931](https://github.com/Mat931)
+- Add support for time entities [esphome#6399](https://github.com/esphome/esphome/pull/6399) by [@jesserockz](https://github.com/jesserockz)
+- Fix Match by IRK [esphome#6499](https://github.com/esphome/esphome/pull/6499) by [@MRemy2](https://github.com/MRemy2)
+- Add rmt_channel to remote_transmitter and remote_receiver [esphome#6497](https://github.com/esphome/esphome/pull/6497) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Rework tlc5947 to remove AUTO_LOAD [esphome#6503](https://github.com/esphome/esphome/pull/6503) by [@jesserockz](https://github.com/jesserockz)
+- UART: ignore require_tx/rx if not a native uart implementation [esphome#6504](https://github.com/esphome/esphome/pull/6504) by [@jesserockz](https://github.com/jesserockz)
+- esp32_rmt_led_strip bugfixes [esphome#6506](https://github.com/esphome/esphome/pull/6506) by [@Mat931](https://github.com/Mat931)
+- Implemented support for the TLC5971 as an output component [esphome#6494](https://github.com/esphome/esphome/pull/6494) by [@IJIJI](https://github.com/IJIJI) (new-integration)
+- Add Dooya protocol to remote_base [esphome#6488](https://github.com/esphome/esphome/pull/6488) by [@bukureckid](https://github.com/bukureckid)
+- Only give error for connected sensors at startup [esphome#6474](https://github.com/esphome/esphome/pull/6474) by [@leejoow](https://github.com/leejoow)
+- Webserver float to string fix [esphome#6507](https://github.com/esphome/esphome/pull/6507) by [@RFDarter](https://github.com/RFDarter)
+- Add dooya remote transmitter test [esphome#6508](https://github.com/esphome/esphome/pull/6508) by [@jesserockz](https://github.com/jesserockz)
+- ads1115: remove auto-load and split sensor into platform folder [esphome#5981](https://github.com/esphome/esphome/pull/5981) by [@jesserockz](https://github.com/jesserockz) (new-platform)
+- Bump esphome-dashboard to 20240412.0 [esphome#6517](https://github.com/esphome/esphome/pull/6517) by [@jesserockz](https://github.com/jesserockz)
+- Fix missing ifdefs in voice assistant [esphome#6520](https://github.com/esphome/esphome/pull/6520) by [@jesserockz](https://github.com/jesserockz)
+- Fix project version longer than 30 characters breaking compilation [esphome#6535](https://github.com/esphome/esphome/pull/6535) by [@jesserockz](https://github.com/jesserockz)
+- Fix no-release bug on ft6x36 [esphome#6527](https://github.com/esphome/esphome/pull/6527) by [@clydebarrow](https://github.com/clydebarrow)
+
+{/* markdownlint-enable MD013 */}

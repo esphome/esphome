@@ -1,0 +1,147 @@
+---
+description: "Changelog for ESPHome 2022.5.0."
+title: "ESPHome 2022.5.0 - 18th May 2022"
+pagefind: false
+slug: "changelog/2022.5.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["BedJet Climate System","/components/climate/bedjet","bedjet.png"],
+  ["BL0939","/components/sensor/bl0939","bl0939.png"],
+  ["ENS210","/components/sensor/ens210","ens210.jpg"],
+  ["SEN5x","/components/sensor/sen5x","sen54.jpg"],
+  ["SML","/components/sml","sml.svg"],
+  ["Delonghi Penguino PAC W120HP","/components/climate/climate_ir","air-conditioner-ir.svg","dark-invert"]
+]} />
+
+## Rename
+
+ESPHome now offers a way for people to rename their devices automatically. This is done by creating a new YAML file
+with the new filename, changing the `name` inside the YAML, and then OTA uploading to the device to its
+existing hostname. If all is successful, the old YAML file will be removed and you can continue configuring your
+newly named device.
+
+This is particularly useful if you have received a pre-installed device, or are installing pre-configured ESPHome
+from a website for example.
+
+## API Transport Encryption
+
+API transport encryption is now enabled by default when you create a new device in ESPHome. This will
+autogenerate a random encryption key in the device YAML file
+that you will need to retrieve when you attempt to add the device to Home Assistant. Simply remove the
+encryption key lines from your YAML should you choose to not use encryption.
+
+## Select & Number changes
+
+The `select` component has had a bunch of new features and actions added.
+`select.first`, `select.last`, `select.next`, and `select.previous`.
+
+Alongside these new changes were some removals of internal (but public) functions on `select` and `number`
+components that might break `external_components` or `lambdas` that might have been using them. See
+[esphome#3457](https://github.com/esphome/esphome/pull/3457) and [esphome#3458](https://github.com/esphome/esphome/pull/3458) for more details.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2022.5.1 - May 24
+
+- Update bedjet_const.h to remove blank spaces before speed steps, fixes Unknown Error when using climate.set_fan_mode in HA [esphome#3476](https://github.com/esphome/esphome/pull/3476) by [@user897943](https://github.com/user897943)
+- Add missing import to bedjet [esphome#3490](https://github.com/esphome/esphome/pull/3490) by [@jesserockz](https://github.com/jesserockz)
+- esp32: fix NVS [esphome#3497](https://github.com/esphome/esphome/pull/3497) by [@martgras](https://github.com/martgras)
+
+## Full list of changes
+
+### New Components
+
+- Add support for Shelly Dimmer 2 [esphome#2954](https://github.com/esphome/esphome/pull/2954) by [@rnauber](https://github.com/rnauber) (new-integration)
+- Add BedJet BLE climate component [esphome#2452](https://github.com/esphome/esphome/pull/2452) by [@jhansche](https://github.com/jhansche) (new-integration)
+- Add support for BL0939 (Sonoff Dual R3 V2 powermeter) [esphome#3300](https://github.com/esphome/esphome/pull/3300) by [@ziceva](https://github.com/ziceva) (new-integration)
+- Add ENS210 Humidity & Temperature sensor component [esphome#2942](https://github.com/esphome/esphome/pull/2942) by [@itn3rd77](https://github.com/itn3rd77) (new-integration)
+- add support for Sen5x sensor series [esphome#3383](https://github.com/esphome/esphome/pull/3383) by [@martgras](https://github.com/martgras) (new-integration)
+- Add SML (Smart Message Language) platform for energy meters [esphome#2396](https://github.com/esphome/esphome/pull/2396) by [@alengwenus](https://github.com/alengwenus) (new-integration)
+- Delonghi Penguino PAC W120HP ir support [esphome#3124](https://github.com/esphome/esphome/pull/3124) by [@grob6000](https://github.com/grob6000) (new-integration)
+
+### Breaking Changes
+
+- Code cleanup fixes for the select component [esphome#3457](https://github.com/esphome/esphome/pull/3457) by [@mmakaay](https://github.com/mmakaay) (breaking-change)
+- Code cleanup fixes for the number component [esphome#3458](https://github.com/esphome/esphome/pull/3458) by [@mmakaay](https://github.com/mmakaay) (breaking-change)
+
+### Beta Changes
+
+- Restore RealTimeClock's local TZ after epoch sync [esphome#3462](https://github.com/esphome/esphome/pull/3462) by [@mmakaay](https://github.com/mmakaay)
+- Shelly dimmer: Use unique_ptr to handle the lifetime of stm32_t [esphome#3400](https://github.com/esphome/esphome/pull/3400) by [@edge90](https://github.com/edge90)
+- Use heat mode for heat. Move EXT HT to custom presets. [esphome#3437](https://github.com/esphome/esphome/pull/3437) by [@jgissend10](https://github.com/jgissend10)
+- Make custom_fan and custom_preset templatable as per documentation [esphome#3330](https://github.com/esphome/esphome/pull/3330) by [@MrMDavidson](https://github.com/MrMDavidson)
+- Update captive portal canHandle function [esphome#3360](https://github.com/esphome/esphome/pull/3360) by [@bkaufx](https://github.com/bkaufx)
+- Increase JSON buffer size on overflow [esphome#3475](https://github.com/esphome/esphome/pull/3475) by [@pyos](https://github.com/pyos)
+- Mark improv_serial and ESP-IDF usb based serial on c3/s2/s3 unsupported [esphome#3477](https://github.com/esphome/esphome/pull/3477) by [@jesserockz](https://github.com/jesserockz)
+- ESP32: Only save to NVS if data was changed [esphome#3479](https://github.com/esphome/esphome/pull/3479) by [@martgras](https://github.com/martgras)
+- Retry Tuya init commands [esphome#3482](https://github.com/esphome/esphome/pull/3482) by [@ssieb](https://github.com/ssieb)
+
+### Notable Changes
+
+- Enable api transport encryption for new projects [esphome#3142](https://github.com/esphome/esphome/pull/3142) by [@OttoWinter](https://github.com/OttoWinter) (notable-change)
+
+### All changes
+
+- Add default object_id_generator for mqtt [esphome#3389](https://github.com/esphome/esphome/pull/3389) by [@jesserockz](https://github.com/jesserockz)
+- Add BedJet BLE climate component [esphome#2452](https://github.com/esphome/esphome/pull/2452) by [@jhansche](https://github.com/jhansche) (new-integration)
+- Multi conf for Teleinfo component [esphome#3401](https://github.com/esphome/esphome/pull/3401) by [@parats15](https://github.com/parats15)
+- Add support for Mopeka Pro+ Residential sensor [esphome#3393](https://github.com/esphome/esphome/pull/3393) by [@jamesduke](https://github.com/jamesduke)
+- Add support for BL0939 (Sonoff Dual R3 V2 powermeter) [esphome#3300](https://github.com/esphome/esphome/pull/3300) by [@ziceva](https://github.com/ziceva) (new-integration)
+- Add "esphome rename" command [esphome#3403](https://github.com/esphome/esphome/pull/3403) by [@jesserockz](https://github.com/jesserockz)
+- SPS30: Add fan action [esphome#3410](https://github.com/esphome/esphome/pull/3410) by [@martgras](https://github.com/martgras)
+- feat: add openssh-client on docker image (#1681) [esphome#3319](https://github.com/esphome/esphome/pull/3319) by [@quentin9696](https://github.com/quentin9696)
+- Add duration device class for sensors [esphome#3421](https://github.com/esphome/esphome/pull/3421) by [@jesserockz](https://github.com/jesserockz)
+- Missing `f` prefix on f-strings fix [esphome#3415](https://github.com/esphome/esphome/pull/3415) by [@code-review-doctor](https://github.com/code-review-doctor)
+- Queue sensor publishes so we don't block for too long [esphome#3422](https://github.com/esphome/esphome/pull/3422) by [@trvrnrth](https://github.com/trvrnrth)
+- added RGB565 image type [esphome#3229](https://github.com/esphome/esphome/pull/3229) by [@lubeda](https://github.com/lubeda)
+- Allow wifi output_power down to 8.5dB [esphome#3405](https://github.com/esphome/esphome/pull/3405) by [@e28eta](https://github.com/e28eta)
+- Add help text to rename command [esphome#3442](https://github.com/esphome/esphome/pull/3442) by [@jesserockz](https://github.com/jesserockz)
+- Add rename command handler [esphome#3443](https://github.com/esphome/esphome/pull/3443) by [@balloob](https://github.com/balloob)
+- Support for Arduino 2 and serial port on ESP32-S2 and ESP32-C3 [esphome#3436](https://github.com/esphome/esphome/pull/3436) by [@jenscski](https://github.com/jenscski)
+- Bump dashboard to 20220508.0 [esphome#3448](https://github.com/esphome/esphome/pull/3448) by [@balloob](https://github.com/balloob)
+- Waveshare epaper 7in5 v2alt [esphome#3276](https://github.com/esphome/esphome/pull/3276) by [@patvdleer](https://github.com/patvdleer)
+- Early pin init [esphome#3439](https://github.com/esphome/esphome/pull/3439) by [@rainero84](https://github.com/rainero84)
+- Add ENS210 Humidity & Temperature sensor component [esphome#2942](https://github.com/esphome/esphome/pull/2942) by [@itn3rd77](https://github.com/itn3rd77) (new-integration)
+- Also rename yaml filename with rename command [esphome#3447](https://github.com/esphome/esphome/pull/3447) by [@jesserockz](https://github.com/jesserockz)
+- Bump click from 8.1.2 to 8.1.3 [esphome#3426](https://github.com/esphome/esphome/pull/3426) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix spi transfer with miso pin defined on espidf [esphome#3450](https://github.com/esphome/esphome/pull/3450) by [@jesserockz](https://github.com/jesserockz)
+- Force using name substitution when adopting a device [esphome#3451](https://github.com/esphome/esphome/pull/3451) by [@jesserockz](https://github.com/jesserockz)
+- Bump pyupgrade from 2.32.0 to 2.32.1 [esphome#3452](https://github.com/esphome/esphome/pull/3452) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pylint from 2.13.5 to 2.13.8 [esphome#3432](https://github.com/esphome/esphome/pull/3432) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Esp32c3 deepsleep fix [esphome#3433](https://github.com/esphome/esphome/pull/3433) by [@MFlasskamp](https://github.com/MFlasskamp)
+- Add SERIAL_JTAG/CDC logger option for ESP-IDF platform for ESP32-S2/S3/C3 [esphome#3105](https://github.com/esphome/esphome/pull/3105) by [@unaiur](https://github.com/unaiur)
+- Select enhancement [esphome#3423](https://github.com/esphome/esphome/pull/3423) by [@mmakaay](https://github.com/mmakaay)
+- Number enhancement [esphome#3429](https://github.com/esphome/esphome/pull/3429) by [@mmakaay](https://github.com/mmakaay)
+- mask deprecated adc_gpio_init() for esp32-s2 [esphome#3445](https://github.com/esphome/esphome/pull/3445) by [@MFlasskamp](https://github.com/MFlasskamp)
+- tca9548a fix channel selection [esphome#3417](https://github.com/esphome/esphome/pull/3417) by [@martgras](https://github.com/martgras)
+- add support for Sen5x sensor series [esphome#3383](https://github.com/esphome/esphome/pull/3383) by [@martgras](https://github.com/martgras) (new-integration)
+- Add SML (Smart Message Language) platform for energy meters [esphome#2396](https://github.com/esphome/esphome/pull/2396) by [@alengwenus](https://github.com/alengwenus) (new-integration)
+- Delonghi Penguino PAC W120HP ir support [esphome#3124](https://github.com/esphome/esphome/pull/3124) by [@grob6000](https://github.com/grob6000) (new-integration)
+- extend scd4x [esphome#3409](https://github.com/esphome/esphome/pull/3409) by [@martgras](https://github.com/martgras)
+- PMSX003: Add support for specifying the update interval and spinning down [esphome#3053](https://github.com/esphome/esphome/pull/3053) by [@mjg59](https://github.com/mjg59)
+- CAN bus: on_frame remote_transmission_request [esphome#3376](https://github.com/esphome/esphome/pull/3376) by [@felixstorm](https://github.com/felixstorm)
+- Fix cover set position by force pushing position_id datapoint (simila… [esphome#3435](https://github.com/esphome/esphome/pull/3435) by [@dennisvbussel](https://github.com/dennisvbussel)
+- added prev_frame for animation [esphome#3427](https://github.com/esphome/esphome/pull/3427) by [@lubeda](https://github.com/lubeda)
+- Fix tests [esphome#3455](https://github.com/esphome/esphome/pull/3455) by [@jesserockz](https://github.com/jesserockz)
+- Fix BME280 setup() when the sensor is marked as failed. [esphome#3396](https://github.com/esphome/esphome/pull/3396) by [@ctrix](https://github.com/ctrix)
+- Esp32c3 deepsleep fix [esphome#3454](https://github.com/esphome/esphome/pull/3454) by [@MFlasskamp](https://github.com/MFlasskamp)
+- Make retry scheduler efficient [esphome#3225](https://github.com/esphome/esphome/pull/3225) by [@OttoWinter](https://github.com/OttoWinter)
+- Code cleanup fixes for the select component [esphome#3457](https://github.com/esphome/esphome/pull/3457) by [@mmakaay](https://github.com/mmakaay) (breaking-change)
+- Code cleanup fixes for the number component [esphome#3458](https://github.com/esphome/esphome/pull/3458) by [@mmakaay](https://github.com/mmakaay) (breaking-change)
+- Enable api transport encryption for new projects [esphome#3142](https://github.com/esphome/esphome/pull/3142) by [@OttoWinter](https://github.com/OttoWinter) (notable-change)
+- Implement allow_deep_sleep [esphome#3282](https://github.com/esphome/esphome/pull/3282) by [@rubdos](https://github.com/rubdos)
+- Add deep_sleep.allow YAML action [esphome#3459](https://github.com/esphome/esphome/pull/3459) by [@jesserockz](https://github.com/jesserockz)
+- Restore RealTimeClock's local TZ after epoch sync [esphome#3462](https://github.com/esphome/esphome/pull/3462) by [@mmakaay](https://github.com/mmakaay)
+- Shelly dimmer: Use unique_ptr to handle the lifetime of stm32_t [esphome#3400](https://github.com/esphome/esphome/pull/3400) by [@edge90](https://github.com/edge90)
+- Use heat mode for heat. Move EXT HT to custom presets. [esphome#3437](https://github.com/esphome/esphome/pull/3437) by [@jgissend10](https://github.com/jgissend10)
+- Make custom_fan and custom_preset templatable as per documentation [esphome#3330](https://github.com/esphome/esphome/pull/3330) by [@MrMDavidson](https://github.com/MrMDavidson)
+- Update captive portal canHandle function [esphome#3360](https://github.com/esphome/esphome/pull/3360) by [@bkaufx](https://github.com/bkaufx)
+- Increase JSON buffer size on overflow [esphome#3475](https://github.com/esphome/esphome/pull/3475) by [@pyos](https://github.com/pyos)
+- Mark improv_serial and ESP-IDF usb based serial on c3/s2/s3 unsupported [esphome#3477](https://github.com/esphome/esphome/pull/3477) by [@jesserockz](https://github.com/jesserockz)
+- ESP32: Only save to NVS if data was changed [esphome#3479](https://github.com/esphome/esphome/pull/3479) by [@martgras](https://github.com/martgras)
+- Retry Tuya init commands [esphome#3482](https://github.com/esphome/esphome/pull/3482) by [@ssieb](https://github.com/ssieb)
+
+{/* markdownlint-enable MD013 */}

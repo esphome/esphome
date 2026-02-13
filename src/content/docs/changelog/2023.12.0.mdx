@@ -1,0 +1,303 @@
+---
+description: "Changelog for ESPHome 2023.12.0."
+title: "ESPHome 2023.12.0 - 20th December 2023"
+pagefind: false
+slug: "changelog/2023.12.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["ENS160","/components/sensor/ens160","ens160.jpg","CO2 & Air Quality"],
+  ["GT911","/components/touchscreen/gt911","esp32_s3_box_3.png"],
+  ["Pylontech Batteries","/components/pylontech","pylontech.jpg"],
+  ["HE60R Cover","/components/cover/he60r","he60r.jpg"],
+  ["Graphical Display Menu","/components/display_menu/graphical_display_menu","graphical_display_menu.png"],
+  ["FT63X6","/components/touchscreen/ft63x6","wt32-sc01.png"],
+  ["A02YYUW","/components/sensor/a02yyuw","a02yyuw.jpg"],
+  ["PN7150","/components/pn7150","pn7150.jpg"],
+  ["PN716X","/components/pn7160","pn716x.jpg"]
+]} />
+
+## Graphical Menu
+
+Following on from the previous [Lcd Menu](/components/display_menu/lcd_menu/) that was only for LCD displays,
+there is now a new [Graphical Display Menu](/components/display_menu/graphical_display_menu/) that can be used with any
+graphical/pixel based display.
+
+## Pin Reuse validation
+
+There is a new validation performed on configurations to ensure that pins are not reused unintentionally.
+This is a common source of issues and generally a pin does not need to be reused across multiple components
+in a single configuration. Pins should only be reused in a very limited set of circumstances and seeing the
+error will generally mean that you need to reorganise your configuration to not reuse the pins.
+The error can be bypassed by specifically adding another config item to all of the
+duplicate pin definitions. See the [Pin Schema](/guides/configuration-types#pin-schema) for details.
+
+## Touchscreen internal changes
+
+The touchscreen component code has had a big overhaul which breaks any external components or open PRs for
+new touchscreens. See [esphome#4596](https://github.com/esphome/esphome/pull/4596) for details if this affects you.
+
+## MCP3008 breaking changes
+
+The MCP3008 has had a restructure of the code and at the same time the default update interval has been changed
+to 60 seconds, the units, device class and state class default have also been set to sane defaults expected for
+a voltage sensor.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2023.12.1 - December 21
+
+- Fix replaced - in allowed characters during object_id sanitizing [esphome#5983](https://github.com/esphome/esphome/pull/5983) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.12.2 - December 22
+
+- ESP32-S3 and ESP-IDF don't play well with USB_CDC and need USB_SERIAL_JTAG [esphome#5929](https://github.com/esphome/esphome/pull/5929) by [@clydebarrow](https://github.com/clydebarrow)
+- Update libtiff6 [esphome#5985](https://github.com/esphome/esphome/pull/5985) by [@cvandesande](https://github.com/cvandesande)
+- Override GPIOs 12 and 13 on the airm2m (LuatOS) board [esphome#5982](https://github.com/esphome/esphome/pull/5982) by [@davidmonro](https://github.com/davidmonro)
+- Add workaround for crash in Arduino 2.0.9 when CDC is configured [esphome#5987](https://github.com/esphome/esphome/pull/5987) by [@kbx81](https://github.com/kbx81)
+- web_server.py: return empty content when file doesn't exist [esphome#5980](https://github.com/esphome/esphome/pull/5980) by [@jessicah](https://github.com/jessicah)
+
+## Release 2023.12.3 - December 22
+
+- Fix unexpected disconnects when outgoing buffer is full during keepalive [esphome#5988](https://github.com/esphome/esphome/pull/5988) by [@bdraco](https://github.com/bdraco)
+- Regenerate api_pb2 after manual changes were added incorrectly in #5732 [esphome#5990](https://github.com/esphome/esphome/pull/5990) by [@jesserockz](https://github.com/jesserockz)
+- Improved sensor readings in htu21d component. [esphome#5839](https://github.com/esphome/esphome/pull/5839) by [@matzman666](https://github.com/matzman666)
+- Fix dashboard logs when api is disabled and using MQTT [esphome#5992](https://github.com/esphome/esphome/pull/5992) by [@bdraco](https://github.com/bdraco)
+- Fix broken configs with non-existent components [esphome#5993](https://github.com/esphome/esphome/pull/5993) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.12.4 - December 25
+
+- dashboard: Only ping when polling is active [esphome#6001](https://github.com/esphome/esphome/pull/6001) by [@bdraco](https://github.com/bdraco)
+- tt21100: restore init read [esphome#6008](https://github.com/esphome/esphome/pull/6008) by [@nielsnl68](https://github.com/nielsnl68)
+- dashboard: Fix file writes on Windows [esphome#6013](https://github.com/esphome/esphome/pull/6013) by [@bdraco](https://github.com/bdraco)
+- Display: fix class inherence in Python script [esphome#6009](https://github.com/esphome/esphome/pull/6009) by [@nielsnl68](https://github.com/nielsnl68)
+
+## Release 2023.12.5 - December 25
+
+- Fix docker builds [esphome#6012](https://github.com/esphome/esphome/pull/6012) by [@bdraco](https://github.com/bdraco)
+
+## Release 2023.12.6 - January 15
+
+- Fix device not requesting Home Assistant time at the update interval [esphome#6022](https://github.com/esphome/esphome/pull/6022) by [@bdraco](https://github.com/bdraco)
+- fix compilation error for libretiny [esphome#6064](https://github.com/esphome/esphome/pull/6064) by [@tomaszduda23](https://github.com/tomaszduda23)
+- pylontech: Fix parsing error with US2000 [esphome#6061](https://github.com/esphome/esphome/pull/6061) by [@functionpointer](https://github.com/functionpointer)
+- Support full (>460 char) dumps of Pronto IR commands [esphome#6040](https://github.com/esphome/esphome/pull/6040) by [@rpaskowitz](https://github.com/rpaskowitz)
+- ESP32-C3 USB_CDC fixes [esphome#6069](https://github.com/esphome/esphome/pull/6069) by [@kbx81](https://github.com/kbx81)
+- Improv Serial -- don't wait for incoming bytes [esphome#6089](https://github.com/esphome/esphome/pull/6089) by [@kbx81](https://github.com/kbx81)
+- add STATE_CLASS_TOTAL_INCREASING to bl0940 and bl0942 [esphome#6090](https://github.com/esphome/esphome/pull/6090) by [@tomaszduda23](https://github.com/tomaszduda23)
+- Fallback to pure-python loader for better error when YAML loading fails [esphome#6081](https://github.com/esphome/esphome/pull/6081) by [@bdraco](https://github.com/bdraco)
+
+## Release 2023.12.7 - January 17
+
+- Fix RMT timing clock base [esphome#6101](https://github.com/esphome/esphome/pull/6101) by [@majkrzak](https://github.com/majkrzak)
+- Create RingBuffer for VoiceAssistant [esphome#6102](https://github.com/esphome/esphome/pull/6102) by [@jesserockz](https://github.com/jesserockz)
+- Inkplate6: Fix crash with initial set of greyscale [esphome#6038](https://github.com/esphome/esphome/pull/6038) by [@clydebarrow](https://github.com/clydebarrow)
+
+## Release 2023.12.8 - January 19
+
+- Let show_*_page actions depend on "Display" [esphome#6092](https://github.com/esphome/esphome/pull/6092) by [@guillempages](https://github.com/guillempages)
+- Fix some Voice Assistant bugs [esphome#6121](https://github.com/esphome/esphome/pull/6121) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.12.9 - January 22
+
+- fix sen5x negative temperature [esphome#6082](https://github.com/esphome/esphome/pull/6082) by [@ssieb](https://github.com/ssieb)
+- negative values for all DHT22 variants [esphome#6074](https://github.com/esphome/esphome/pull/6074) by [@ssieb](https://github.com/ssieb)
+- fix negative temperature for pmsx003 [esphome#6083](https://github.com/esphome/esphome/pull/6083) by [@ssieb](https://github.com/ssieb)
+- fix: negative temperatures on PMS5003T sensors [esphome#6100](https://github.com/esphome/esphome/pull/6100) by [@aschmitz](https://github.com/aschmitz)
+
+## Full list of changes
+
+### New Components
+
+- Add ENS160 Sensor [esphome#4243](https://github.com/esphome/esphome/pull/4243) by [@vincentscode](https://github.com/vincentscode) (new-integration)
+- Create GT911 Touchscreen component [esphome#4027](https://github.com/esphome/esphome/pull/4027) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Pylontech integration (solar battery bank) [esphome#4688](https://github.com/esphome/esphome/pull/4688) by [@functionpointer](https://github.com/functionpointer) (new-integration)
+- Add Chamberlain/HomEntry HE60R garage door opener [esphome#5834](https://github.com/esphome/esphome/pull/5834) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- Add graphical display menu [esphome#4105](https://github.com/esphome/esphome/pull/4105) by [@MrMDavidson](https://github.com/MrMDavidson) (new-integration)
+- Updating the touchscreen interface structure [esphome#4596](https://github.com/esphome/esphome/pull/4596) by [@nielsnl68](https://github.com/nielsnl68) (new-integration) (breaking-change)
+- Added the A02YYUW distance sensor [esphome#5729](https://github.com/esphome/esphome/pull/5729) by [@TH-Braemer](https://github.com/TH-Braemer) (new-integration)
+- Add support for PN7160 [esphome#5486](https://github.com/esphome/esphome/pull/5486) by [@kbx81](https://github.com/kbx81) (new-integration)
+- Add support for PN7150 [esphome#5487](https://github.com/esphome/esphome/pull/5487) by [@kbx81](https://github.com/kbx81) (new-integration)
+
+### Breaking Changes
+
+- Add proper support for SH1107 to SSD1306 component [esphome#5166](https://github.com/esphome/esphome/pull/5166) by [@nikitakuklev](https://github.com/nikitakuklev) (breaking-change)
+- sen5x fix temperature compensation and gas tuning [esphome#4901](https://github.com/esphome/esphome/pull/4901) by [@matt7aylor](https://github.com/matt7aylor) (breaking-change)
+- Ensure names containing characters other than `a-z` `A-Z` `0-9` or `_` are unique [esphome#5810](https://github.com/esphome/esphome/pull/5810) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- mcp3008: Tidy up and fix auto load bug [esphome#5842](https://github.com/esphome/esphome/pull/5842) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Nextion colors parameters [esphome#5699](https://github.com/esphome/esphome/pull/5699) by [@edwardtfn](https://github.com/edwardtfn) (breaking-change)
+- Checks for pins used in multiple places [esphome#5666](https://github.com/esphome/esphome/pull/5666) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- Updating the touchscreen interface structure [esphome#4596](https://github.com/esphome/esphome/pull/4596) by [@nielsnl68](https://github.com/nielsnl68) (new-integration) (breaking-change)
+
+### Beta Changes
+
+- Allow use of CDC/JTAG loggers on esp32 variants with Arduino [esphome#4658](https://github.com/esphome/esphome/pull/4658) by [@jesserockz](https://github.com/jesserockz)
+- [Logger] ESP32 S3 serial logger [esphome#4853](https://github.com/esphome/esphome/pull/4853) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Support toggle action for template cover [esphome#5917](https://github.com/esphome/esphome/pull/5917) by [@jochenvg](https://github.com/jochenvg)
+- Fix SplitDefault with variants [esphome#5928](https://github.com/esphome/esphome/pull/5928) by [@jesserockz](https://github.com/jesserockz)
+- Update ENS160 TVOC device_class and AQI units to match required by HA [esphome#5939](https://github.com/esphome/esphome/pull/5939) by [@mrtoy-me](https://github.com/mrtoy-me)
+- Bump zeroconf from 0.128.4 to 0.130.0 [esphome#5950](https://github.com/esphome/esphome/pull/5950) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- UARTComponent inline doc [esphome#5930](https://github.com/esphome/esphome/pull/5930) by [@edwardtfn](https://github.com/edwardtfn)
+- Fix - Tuya Fan - Allow integer speed datapoint [esphome#5948](https://github.com/esphome/esphome/pull/5948) by [@cram42](https://github.com/cram42)
+- i2s_audio: Set player_task's prio to 1 [esphome#5945](https://github.com/esphome/esphome/pull/5945) by [@gaaf](https://github.com/gaaf)
+- esp32_camera: Set framebuffer task prio to 1 [esphome#5943](https://github.com/esphome/esphome/pull/5943) by [@gaaf](https://github.com/gaaf)
+- web_server_idf: fix call with hardcoded http code [esphome#5942](https://github.com/esphome/esphome/pull/5942) by [@dentra](https://github.com/dentra)
+- Revert pure virtual functions in UART component from #5920 [esphome#5932](https://github.com/esphome/esphome/pull/5932) by [@DrCoolzic](https://github.com/DrCoolzic)
+- Use the correct UART/`Serial` when CDC is enabled [esphome#5957](https://github.com/esphome/esphome/pull/5957) by [@kbx81](https://github.com/kbx81)
+- rename `set_raw_touch_position_` to `add_raw_touch_position_` [esphome#5962](https://github.com/esphome/esphome/pull/5962) by [@nielsnl68](https://github.com/nielsnl68)
+- Fix build issue with UART component when building with Arduino and CDC [esphome#5964](https://github.com/esphome/esphome/pull/5964) by [@kbx81](https://github.com/kbx81)
+- Fix `I2CBus::write()` bug and add i2c documentation [esphome#5947](https://github.com/esphome/esphome/pull/5947) by [@DrCoolzic](https://github.com/DrCoolzic)
+- Add deep sleep between updates for waveshare epaper 1.54in and 1.54inv2 [esphome#5961](https://github.com/esphome/esphome/pull/5961) by [@mathieu-mp](https://github.com/mathieu-mp)
+- Speed up writing protobuf strings/bytes [esphome#5828](https://github.com/esphome/esphome/pull/5828) by [@bdraco](https://github.com/bdraco)
+- Bump aioesphomeapi to 21.0.1 [esphome#5969](https://github.com/esphome/esphome/pull/5969) by [@bdraco](https://github.com/bdraco)
+- image: allow the image to by auto-loaded by animation [esphome#5139](https://github.com/esphome/esphome/pull/5139) by [@ayufan](https://github.com/ayufan)
+- Fix pin reuse error with pin expanders [esphome#5973](https://github.com/esphome/esphome/pull/5973) by [@jesserockz](https://github.com/jesserockz)
+
+### All changes
+
+- Nextion support to `esp-idf` [esphome#5667](https://github.com/esphome/esphome/pull/5667) by [@edwardtfn](https://github.com/edwardtfn)
+- fix pin range for xl9535 [esphome#5722](https://github.com/esphome/esphome/pull/5722) by [@ssieb](https://github.com/ssieb)
+- Bump black from 23.10.1 to 23.11.0 [esphome#5702](https://github.com/esphome/esphome/pull/5702) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Speed up YAML by using YAML C loader when available [esphome#5721](https://github.com/esphome/esphome/pull/5721) by [@bdraco](https://github.com/bdraco)
+- Bump Arduino Pico Framework to 3.6.0 and Platform to 1.10.0 [esphome#5731](https://github.com/esphome/esphome/pull/5731) by [@HeMan](https://github.com/HeMan)
+- Correct url for Arduino platform [esphome#5744](https://github.com/esphome/esphome/pull/5744) by [@HeMan](https://github.com/HeMan)
+- remote_base: added helper class and schemas [esphome#5169](https://github.com/esphome/esphome/pull/5169) by [@dudanov](https://github.com/dudanov)
+- Bump zeroconf from 0.123.0 to 0.126.0 [esphome#5748](https://github.com/esphome/esphome/pull/5748) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Make precommit checks happy [esphome#5751](https://github.com/esphome/esphome/pull/5751) by [@HeMan](https://github.com/HeMan)
+- dashboard: Use mdns cache when available if device connection is OTA [esphome#5724](https://github.com/esphome/esphome/pull/5724) by [@bdraco](https://github.com/bdraco)
+- Speed up OTAs [esphome#5720](https://github.com/esphome/esphome/pull/5720) by [@bdraco](https://github.com/bdraco)
+- dashboard: convert ping thread to use asyncio [esphome#5749](https://github.com/esphome/esphome/pull/5749) by [@bdraco](https://github.com/bdraco)
+- dashboard: Break apart dashboard into separate modules [esphome#5764](https://github.com/esphome/esphome/pull/5764) by [@bdraco](https://github.com/bdraco)
+- dashboard: split dashboard web server code into its own module [esphome#5770](https://github.com/esphome/esphome/pull/5770) by [@bdraco](https://github.com/bdraco)
+- Bump zeroconf from 0.126.0 to 0.127.0 [esphome#5768](https://github.com/esphome/esphome/pull/5768) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- dashboard: fix subprocesses blocking the event loop [esphome#5772](https://github.com/esphome/esphome/pull/5772) by [@bdraco](https://github.com/bdraco)
+- dashboard: use fastest available yaml loader in the dashboard [esphome#5771](https://github.com/esphome/esphome/pull/5771) by [@bdraco](https://github.com/bdraco)
+- dashboard: Centralize dashboard entries into DashboardEntries class [esphome#5774](https://github.com/esphome/esphome/pull/5774) by [@bdraco](https://github.com/bdraco)
+- Pass the name to the log runner when available [esphome#5759](https://github.com/esphome/esphome/pull/5759) by [@bdraco](https://github.com/bdraco)
+- Add proper support for SH1107 to SSD1306 component [esphome#5166](https://github.com/esphome/esphome/pull/5166) by [@nikitakuklev](https://github.com/nikitakuklev) (breaking-change)
+- Split release workflow jobs per system arch [esphome#5723](https://github.com/esphome/esphome/pull/5723) by [@jesserockz](https://github.com/jesserockz)
+- Bump aioesphomeapi to 18.5.3 [esphome#5785](https://github.com/esphome/esphome/pull/5785) by [@bdraco](https://github.com/bdraco)
+- Refactor log api client to let aioesphomeapi manage zeroconf [esphome#5783](https://github.com/esphome/esphome/pull/5783) by [@bdraco](https://github.com/bdraco)
+- dashboard: Add support for firing events [esphome#5775](https://github.com/esphome/esphome/pull/5775) by [@bdraco](https://github.com/bdraco)
+- dashboard: Ensure disk I/O happens in the executor [esphome#5789](https://github.com/esphome/esphome/pull/5789) by [@bdraco](https://github.com/bdraco)
+- dashboard: Add lookup by name to entries [esphome#5790](https://github.com/esphome/esphome/pull/5790) by [@bdraco](https://github.com/bdraco)
+- Refactor StorageJSON to keep loaded_integrations a set until its converted to JSON [esphome#5793](https://github.com/esphome/esphome/pull/5793) by [@bdraco](https://github.com/bdraco)
+- wifi: Don't build SoftAP/DHCPS support unless 'ap' is in config. [esphome#5649](https://github.com/esphome/esphome/pull/5649) by [@kpfleming](https://github.com/kpfleming)
+- ssd1306: handle V_COM differently for SH1106 [esphome#5796](https://github.com/esphome/esphome/pull/5796) by [@papillon81](https://github.com/papillon81)
+- Bump aioesphomeapi from 18.5.3 to 18.5.5 [esphome#5804](https://github.com/esphome/esphome/pull/5804) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- dashboard: Fix online status when api is disabled [esphome#5792](https://github.com/esphome/esphome/pull/5792) by [@bdraco](https://github.com/bdraco)
+- Haier component updated to support new protocol variations [esphome#5713](https://github.com/esphome/esphome/pull/5713) by [@paveldn](https://github.com/paveldn)
+- sen5x fix temperature compensation and gas tuning [esphome#4901](https://github.com/esphome/esphome/pull/4901) by [@matt7aylor](https://github.com/matt7aylor) (breaking-change)
+- Add startup_delay to interval. [esphome#5327](https://github.com/esphome/esphome/pull/5327) by [@clydebarrow](https://github.com/clydebarrow)
+- Pillow: bump to 10.1.0 [esphome#5815](https://github.com/esphome/esphome/pull/5815) by [@hostcc](https://github.com/hostcc)
+- dashboard: set nodelay on the websocket to avoid a delay seeing log messages [esphome#5802](https://github.com/esphome/esphome/pull/5802) by [@bdraco](https://github.com/bdraco)
+- Bump aioesphomeapi from 18.5.5 to 18.5.7 [esphome#5822](https://github.com/esphome/esphome/pull/5822) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Ensure names containing characters other than `a-z` `A-Z` `0-9` or `_` are unique [esphome#5810](https://github.com/esphome/esphome/pull/5810) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- Add ENS160 Sensor [esphome#4243](https://github.com/esphome/esphome/pull/4243) by [@vincentscode](https://github.com/vincentscode) (new-integration)
+- Bump actions/github-script from 6.4.1 to 7.0.1 [esphome#5803](https://github.com/esphome/esphome/pull/5803) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Run all tests when local testing. [esphome#5717](https://github.com/esphome/esphome/pull/5717) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Bump aioesphomeapi from 18.5.7 to 18.5.9 [esphome#5830](https://github.com/esphome/esphome/pull/5830) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Allow split uart pin inversion for ESP-IDF [esphome#5831](https://github.com/esphome/esphome/pull/5831) by [@clydebarrow](https://github.com/clydebarrow)
+- Add `is_detected()` for Nextion displays [esphome#5825](https://github.com/esphome/esphome/pull/5825) by [@edwardtfn](https://github.com/edwardtfn)
+- Pull PollingComponent up from individual display drivers to Display. [esphome#5444](https://github.com/esphome/esphome/pull/5444) by [@clydebarrow](https://github.com/clydebarrow)
+- Implement variable length single word SPI writes. [esphome#5678](https://github.com/esphome/esphome/pull/5678) by [@clydebarrow](https://github.com/clydebarrow)
+- Add 'enable_on_boot' feature to power_supply [esphome#5826](https://github.com/esphome/esphome/pull/5826) by [@clydebarrow](https://github.com/clydebarrow)
+- mcp3008: Tidy up and fix auto load bug [esphome#5842](https://github.com/esphome/esphome/pull/5842) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Create GT911 Touchscreen component [esphome#4027](https://github.com/esphome/esphome/pull/4027) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Bump aioesphomeapi from 18.5.9 to 19.1.2 [esphome#5844](https://github.com/esphome/esphome/pull/5844) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Nextion - Standardizing log messages [esphome#5837](https://github.com/esphome/esphome/pull/5837) by [@edwardtfn](https://github.com/edwardtfn)
+- dashboard: Small cleanups to dashboard [esphome#5841](https://github.com/esphome/esphome/pull/5841) by [@bdraco](https://github.com/bdraco)
+- Pylontech integration (solar battery bank) [esphome#4688](https://github.com/esphome/esphome/pull/4688) by [@functionpointer](https://github.com/functionpointer) (new-integration)
+- Implement deep sleep and clear screen on Waveshare 7.5in B V3 [esphome#5239](https://github.com/esphome/esphome/pull/5239) by [@lucasprim](https://github.com/lucasprim)
+- Fix ESP-IDF uart initialisation sequence to match Espressif docs. [esphome#5838](https://github.com/esphome/esphome/pull/5838) by [@clydebarrow](https://github.com/clydebarrow)
+- Nextion - Align strings on `dump_config` [esphome#5824](https://github.com/esphome/esphome/pull/5824) by [@edwardtfn](https://github.com/edwardtfn)
+- Speed up (and fix) ili9xxx display component. [esphome#5406](https://github.com/esphome/esphome/pull/5406) by [@clydebarrow](https://github.com/clydebarrow)
+- Fix regex for 'byte' custom CI check [esphome#5851](https://github.com/esphome/esphome/pull/5851) by [@jesserockz](https://github.com/jesserockz)
+- Pass through additional arguments to create number [esphome#5849](https://github.com/esphome/esphome/pull/5849) by [@clydebarrow](https://github.com/clydebarrow)
+- Nextion `on_touch` trigger [esphome#5833](https://github.com/esphome/esphome/pull/5833) by [@edwardtfn](https://github.com/edwardtfn)
+- Nextion colors parameters [esphome#5699](https://github.com/esphome/esphome/pull/5699) by [@edwardtfn](https://github.com/edwardtfn) (breaking-change)
+- dashboard: fix supervisor auth doing I/O in the event loop [esphome#5807](https://github.com/esphome/esphome/pull/5807) by [@bdraco](https://github.com/bdraco)
+- Improve reliability of Nextion TFT uploads (Arduino) [esphome#5683](https://github.com/esphome/esphome/pull/5683) by [@edwardtfn](https://github.com/edwardtfn)
+- Add Pro Check Universal sensor support. [esphome#5798](https://github.com/esphome/esphome/pull/5798) by [@spbrogan](https://github.com/spbrogan)
+- Bump aioesphomeapi from 19.1.2 to 19.1.7 [esphome#5859](https://github.com/esphome/esphome/pull/5859) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Pn532 non blocking scan [esphome#5191](https://github.com/esphome/esphome/pull/5191) by [@sharkydog](https://github.com/sharkydog)
+- Add Chamberlain/HomEntry HE60R garage door opener [esphome#5834](https://github.com/esphome/esphome/pull/5834) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- Bump aioesphomeapi from 19.1.7 to 19.2.1 [esphome#5863](https://github.com/esphome/esphome/pull/5863) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump tornado from 6.3.3 to 6.4 [esphome#5862](https://github.com/esphome/esphome/pull/5862) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- add missing ifdef to pvvx_mithermometer [esphome#5880](https://github.com/esphome/esphome/pull/5880) by [@ssieb](https://github.com/ssieb)
+- Fix un-initialized version string [esphome#5865](https://github.com/esphome/esphome/pull/5865) by [@descipher](https://github.com/descipher)
+- fix a01nyub data reading [esphome#5882](https://github.com/esphome/esphome/pull/5882) by [@ssieb](https://github.com/ssieb)
+- Bump pytest-asyncio from 0.21.1 to 0.23.2 [esphome#5888](https://github.com/esphome/esphome/pull/5888) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump zeroconf from 0.127.0 to 0.128.0 [esphome#5889](https://github.com/esphome/esphome/pull/5889) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pylint from 2.17.6 to 3.0.2 [esphome#5592](https://github.com/esphome/esphome/pull/5592) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump voluptuous from 0.13.1 to 0.14.1 [esphome#5784](https://github.com/esphome/esphome/pull/5784) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Security improvement: Support wifi ap_timeout=0s (disable) [esphome#5887](https://github.com/esphome/esphome/pull/5887) by [@fornellas](https://github.com/fornellas)
+- Suppress full config output of "esphome config" when -q option is used. [esphome#5852](https://github.com/esphome/esphome/pull/5852) by [@clydebarrow](https://github.com/clydebarrow)
+- Checks for pins used in multiple places [esphome#5666](https://github.com/esphome/esphome/pull/5666) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- Nextion support to idf with `cinttypes` [esphome#5876](https://github.com/esphome/esphome/pull/5876) by [@edwardtfn](https://github.com/edwardtfn)
+- Fix test4.yaml after #5666 [esphome#5890](https://github.com/esphome/esphome/pull/5890) by [@kbx81](https://github.com/kbx81)
+- Fix template text component length check [esphome#5881](https://github.com/esphome/esphome/pull/5881) by [@fornellas](https://github.com/fornellas)
+- RC522 - Fix error counter error [esphome#5873](https://github.com/esphome/esphome/pull/5873) by [@kbx81](https://github.com/kbx81)
+- feat(packages): support removing components [esphome#5821](https://github.com/esphome/esphome/pull/5821) by [@TMaYaD](https://github.com/TMaYaD)
+- dashboard: Add some basic tests for the dashboard [esphome#5870](https://github.com/esphome/esphome/pull/5870) by [@bdraco](https://github.com/bdraco)
+- Nextion exit reparse mode on startup [esphome#5868](https://github.com/esphome/esphome/pull/5868) by [@edwardtfn](https://github.com/edwardtfn)
+- Bump aioesphomeapi from 19.2.1 to 19.3.0 [esphome#5895](https://github.com/esphome/esphome/pull/5895) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add framework info to Nextion log tags [esphome#5864](https://github.com/esphome/esphome/pull/5864) by [@edwardtfn](https://github.com/edwardtfn)
+- Handle case where using enetity level name: None with MQTT [esphome#5897](https://github.com/esphome/esphome/pull/5897) by [@mtl010957](https://github.com/mtl010957)
+- Bump actions/setup-python from 4.7.1 to 5.0.0 [esphome#5896](https://github.com/esphome/esphome/pull/5896) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump zeroconf from 0.128.0 to 0.128.4 [esphome#5906](https://github.com/esphome/esphome/pull/5906) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix 18 bit displays. [esphome#5908](https://github.com/esphome/esphome/pull/5908) by [@clydebarrow](https://github.com/clydebarrow)
+- fix RGBW Mode on RP2040 [esphome#5907](https://github.com/esphome/esphome/pull/5907) by [@firegore](https://github.com/firegore)
+- Add graphical display menu [esphome#4105](https://github.com/esphome/esphome/pull/4105) by [@MrMDavidson](https://github.com/MrMDavidson) (new-integration)
+- Added on_image callback to ESP32 Cam [esphome#4860](https://github.com/esphome/esphome/pull/4860) by [@freekode](https://github.com/freekode)
+- Bump actions/stale from 8.0.0 to 9.0.0 [esphome#5899](https://github.com/esphome/esphome/pull/5899) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pylint from 3.0.2 to 3.0.3 [esphome#5905](https://github.com/esphome/esphome/pull/5905) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump frenck/action-yamllint from 1.4.1 to 1.4.2 [esphome#5716](https://github.com/esphome/esphome/pull/5716) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump dessant/lock-threads from 4.0.1 to 5.0.1 [esphome#5820](https://github.com/esphome/esphome/pull/5820) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add support for fan preset modes [esphome#5694](https://github.com/esphome/esphome/pull/5694) by [@mill1000](https://github.com/mill1000)
+- Fix uninitialized climate target temperature [esphome#5795](https://github.com/esphome/esphome/pull/5795) by [@ckoca](https://github.com/ckoca)
+- Bump aioesphomeapi from 19.3.0 to 20.0.0 [esphome#5911](https://github.com/esphome/esphome/pull/5911) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump black from 23.11.0 to 23.12.0 [esphome#5912](https://github.com/esphome/esphome/pull/5912) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Updating the touchscreen interface structure [esphome#4596](https://github.com/esphome/esphome/pull/4596) by [@nielsnl68](https://github.com/nielsnl68) (new-integration) (breaking-change)
+- Added the A02YYUW distance sensor [esphome#5729](https://github.com/esphome/esphome/pull/5729) by [@TH-Braemer](https://github.com/TH-Braemer) (new-integration)
+- Fix AHT10 / AHT20 communication [esphome#5198](https://github.com/esphome/esphome/pull/5198) by [@flaminggoat](https://github.com/flaminggoat)
+- Fix crash when handling pin_check error [esphome#5915](https://github.com/esphome/esphome/pull/5915) by [@clydebarrow](https://github.com/clydebarrow)
+- Bump aioesphomeapi to 20.1.0 [esphome#5914](https://github.com/esphome/esphome/pull/5914) by [@bdraco](https://github.com/bdraco)
+- Remove setpoint-change from error when calculating derivative in pid controller [esphome#4737](https://github.com/esphome/esphome/pull/4737) by [@Newspaperman57](https://github.com/Newspaperman57)
+- ir_transmitter: add support for repeated commands in NEC protocol [esphome#4995](https://github.com/esphome/esphome/pull/4995) by [@ngilles](https://github.com/ngilles)
+- BP1658CJ - Fix timing for all platforms, now consistent with other drivers [esphome#5799](https://github.com/esphome/esphome/pull/5799) by [@Cossid](https://github.com/Cossid)
+- Add humidity support to climate [esphome#5732](https://github.com/esphome/esphome/pull/5732) by [@kroimon](https://github.com/kroimon)
+- Remove lingering note [esphome#5916](https://github.com/esphome/esphome/pull/5916) by [@jesserockz](https://github.com/jesserockz)
+- Fix typo added in esp32 post_build filename [esphome#5918](https://github.com/esphome/esphome/pull/5918) by [@jesserockz](https://github.com/jesserockz)
+- Copy esp32 custom partition files to build folder [esphome#5919](https://github.com/esphome/esphome/pull/5919) by [@jesserockz](https://github.com/jesserockz)
+- UART change at runtime [esphome#5909](https://github.com/esphome/esphome/pull/5909) by [@edwardtfn](https://github.com/edwardtfn)
+- Bump aioesphomeapi from 20.1.0 to 21.0.0 [esphome#5922](https://github.com/esphome/esphome/pull/5922) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix the initial run of lambda light effects [esphome#5921](https://github.com/esphome/esphome/pull/5921) by [@smithjacobj](https://github.com/smithjacobj)
+- Exposes `load_settings` to `UARTComponent` class [esphome#5920](https://github.com/esphome/esphome/pull/5920) by [@edwardtfn](https://github.com/edwardtfn)
+- Add support for PN7160 [esphome#5486](https://github.com/esphome/esphome/pull/5486) by [@kbx81](https://github.com/kbx81) (new-integration)
+- Add support for PN7150 [esphome#5487](https://github.com/esphome/esphome/pull/5487) by [@kbx81](https://github.com/kbx81) (new-integration)
+- Allow use of CDC/JTAG loggers on esp32 variants with Arduino [esphome#4658](https://github.com/esphome/esphome/pull/4658) by [@jesserockz](https://github.com/jesserockz)
+- [Logger] ESP32 S3 serial logger [esphome#4853](https://github.com/esphome/esphome/pull/4853) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Support toggle action for template cover [esphome#5917](https://github.com/esphome/esphome/pull/5917) by [@jochenvg](https://github.com/jochenvg)
+- Fix SplitDefault with variants [esphome#5928](https://github.com/esphome/esphome/pull/5928) by [@jesserockz](https://github.com/jesserockz)
+- Update ENS160 TVOC device_class and AQI units to match required by HA [esphome#5939](https://github.com/esphome/esphome/pull/5939) by [@mrtoy-me](https://github.com/mrtoy-me)
+- Bump zeroconf from 0.128.4 to 0.130.0 [esphome#5950](https://github.com/esphome/esphome/pull/5950) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- UARTComponent inline doc [esphome#5930](https://github.com/esphome/esphome/pull/5930) by [@edwardtfn](https://github.com/edwardtfn)
+- Fix - Tuya Fan - Allow integer speed datapoint [esphome#5948](https://github.com/esphome/esphome/pull/5948) by [@cram42](https://github.com/cram42)
+- i2s_audio: Set player_task's prio to 1 [esphome#5945](https://github.com/esphome/esphome/pull/5945) by [@gaaf](https://github.com/gaaf)
+- esp32_camera: Set framebuffer task prio to 1 [esphome#5943](https://github.com/esphome/esphome/pull/5943) by [@gaaf](https://github.com/gaaf)
+- web_server_idf: fix call with hardcoded http code [esphome#5942](https://github.com/esphome/esphome/pull/5942) by [@dentra](https://github.com/dentra)
+- Revert pure virtual functions in UART component from #5920 [esphome#5932](https://github.com/esphome/esphome/pull/5932) by [@DrCoolzic](https://github.com/DrCoolzic)
+- Use the correct UART/`Serial` when CDC is enabled [esphome#5957](https://github.com/esphome/esphome/pull/5957) by [@kbx81](https://github.com/kbx81)
+- rename `set_raw_touch_position_` to `add_raw_touch_position_` [esphome#5962](https://github.com/esphome/esphome/pull/5962) by [@nielsnl68](https://github.com/nielsnl68)
+- Fix build issue with UART component when building with Arduino and CDC [esphome#5964](https://github.com/esphome/esphome/pull/5964) by [@kbx81](https://github.com/kbx81)
+- Fix I2CBus::write() bug and add i2c documentation [esphome#5947](https://github.com/esphome/esphome/pull/5947) by [@DrCoolzic](https://github.com/DrCoolzic)
+- Add deep sleep between updates for waveshare epaper 1.54in and 1.54inv2 [esphome#5961](https://github.com/esphome/esphome/pull/5961) by [@mathieu-mp](https://github.com/mathieu-mp)
+- Speed up writing protobuf strings/bytes [esphome#5828](https://github.com/esphome/esphome/pull/5828) by [@bdraco](https://github.com/bdraco)
+- Bump aioesphomeapi to 21.0.1 [esphome#5969](https://github.com/esphome/esphome/pull/5969) by [@bdraco](https://github.com/bdraco)
+- image: allow the image to by auto-loaded by animation [esphome#5139](https://github.com/esphome/esphome/pull/5139) by [@ayufan](https://github.com/ayufan)
+- Fix pin reuse error with pin expanders [esphome#5973](https://github.com/esphome/esphome/pull/5973) by [@jesserockz](https://github.com/jesserockz)
+
+{/* markdownlint-enable MD013 */}

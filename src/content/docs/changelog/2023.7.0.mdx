@@ -1,0 +1,174 @@
+---
+description: "Changelog for ESPHome 2023.7.0."
+title: "ESPHome 2023.7.0 - 19th July 2023"
+pagefind: false
+slug: "changelog/2023.7.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["XL9535 I/O Expander","/components/xl9535","xl9535.svg"],
+  ["Zio Ultrasonic Sensor","/components/sensor/zio_ultrasonic","zio_ultrasonic.jpg"],
+  ["Alpha3","/components/sensor/alpha3","alpha3.jpg"],
+  ["PCF8563 RTC","/components/time/pcf8563","clock-outline.svg","dark-invert"],
+  ["TT21100","/components/touchscreen/tt21100","esp32-s3-korvo-2-lcd.png"],
+  ["Grove TB6612FNG","/components/grove_tb6612fng","motor.png"],
+  ["ATM90E26","/components/sensor/atm90e26","atm90e26.jpg"],
+  ["Duty Time","/components/sensor/duty_time","timer-play-outline.svg","dark-invert"]
+]} />
+
+## Webserver with ESP-IDF
+
+This releases adds support for the [Webserver](/components/web_server/) and
+[Captive Portal](/components/captive_portal/) when using the `esp-idf` framework on ESP32 boards.
+
+## Display components
+
+This release adds a few changes to the display core code to optimise and allow for future
+improvements which are already in progress. This also may bring breaking changes to the internal APIs that
+`external_components` may be relying on.
+
+## A new warning in the logs
+
+```text
+[00:00:00][W][component:204]: Component xxxxxx took a long time for an operation (x.xx s).
+[00:00:00][W][component:205]: Components should block for at most 20-30ms.
+```
+
+These 2 log lines may show up in the most recent version of ESPHome due to the log level being changed from
+`verbose` to `warning`. I made this change because changing the device log level to verbose just to see if these
+lines show up significantly slowed down the device due to all the extra logging it had to do.
+
+Please do not report new issues for this, but [comment on this issue](https://github.com/esphome/issues/issues/4717)
+if someone has not already commented for that specific component.
+
+## Full list of changes
+
+{/* markdownlint-disable MD013 */}
+
+### New Components
+
+- XL9535 I/O Expander [esphome#4899](https://github.com/esphome/esphome/pull/4899) by [@mreditor97](https://github.com/mreditor97) (new-integration)
+- Add Zio Ultrasonic Distance Sensor Component [esphome#5059](https://github.com/esphome/esphome/pull/5059) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- Add Alpha3 pump component [esphome#3787](https://github.com/esphome/esphome/pull/3787) by [@jan-hofmeier](https://github.com/jan-hofmeier) (new-integration)
+- RTC implementation of pcf8563 [esphome#4998](https://github.com/esphome/esphome/pull/4998) by [@KoenBreeman](https://github.com/KoenBreeman) (new-integration)
+- web server esp idf support [esphome#3500](https://github.com/esphome/esphome/pull/3500) by [@dentra](https://github.com/dentra) (new-integration)
+- Add TT21100 touchscreen component [esphome#4793](https://github.com/esphome/esphome/pull/4793) by [@kroimon](https://github.com/kroimon) (new-integration)
+- Add support for Grove tb6612 fng [esphome#4797](https://github.com/esphome/esphome/pull/4797) by [@max246](https://github.com/max246) (new-integration)
+- Add support for ATM90E26 [esphome#4366](https://github.com/esphome/esphome/pull/4366) by [@danieltwagner](https://github.com/danieltwagner) (new-integration)
+- New 'Duty Time' sensor component [esphome#5069](https://github.com/esphome/esphome/pull/5069) by [@dudanov](https://github.com/dudanov) (new-integration)
+
+### Breaking Changes
+
+- display: add `BaseFont` and introduce `Font::draw` methods [esphome#4963](https://github.com/esphome/esphome/pull/4963) by [@ayufan](https://github.com/ayufan) (breaking-change)
+- display: Rename `display.DisplayBufferRef` to `display.DisplayRef` used by lambda [esphome#5002](https://github.com/esphome/esphome/pull/5002) by [@ayufan](https://github.com/ayufan) (breaking-change)
+- Remove template switch restore_state [esphome#5106](https://github.com/esphome/esphome/pull/5106) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+
+### Beta Changes
+
+- Dont do mqtt ip lookup if `use_address` has ip address [esphome#5096](https://github.com/esphome/esphome/pull/5096) by [@jesserockz](https://github.com/jesserockz)
+- ESP32 enable ADC2 when wifi is disabled [esphome#4381](https://github.com/esphome/esphome/pull/4381) by [@pciavald](https://github.com/pciavald)
+- [Sprinkler] Resume fixes [esphome#5100](https://github.com/esphome/esphome/pull/5100) by [@hostcc](https://github.com/hostcc)
+- Remove template switch restore_state [esphome#5106](https://github.com/esphome/esphome/pull/5106) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Add timeout filter [esphome#5104](https://github.com/esphome/esphome/pull/5104) by [@clydebarrow](https://github.com/clydebarrow)
+- P1 values for capacity tariff in Belgium [esphome#5081](https://github.com/esphome/esphome/pull/5081) by [@bwynants](https://github.com/bwynants)
+- airthings_wave: Silence compiler warnings [esphome#5098](https://github.com/esphome/esphome/pull/5098) by [@kpfleming](https://github.com/kpfleming)
+- Sigma delta fix [esphome#4911](https://github.com/esphome/esphome/pull/4911) by [@PlainTechEnthusiast](https://github.com/PlainTechEnthusiast)
+- [LD2410] Remove baud_rate check [esphome#5112](https://github.com/esphome/esphome/pull/5112) by [@voed](https://github.com/voed)
+- Fix silence detection flag on voice assistant [esphome#5120](https://github.com/esphome/esphome/pull/5120) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.7.1 - August 1
+
+- Dashboard: use Popen() on Windows [esphome#5110](https://github.com/esphome/esphome/pull/5110) by [@kuba2k2](https://github.com/kuba2k2)
+- Swap ADC back to use 'int' because C3 [esphome#5151](https://github.com/esphome/esphome/pull/5151) by [@kbx81](https://github.com/kbx81)
+- wifi: handle WIFI_REASON_ROAMING reason in event [esphome#5153](https://github.com/esphome/esphome/pull/5153) by [@stintel](https://github.com/stintel)
+- Slightly lower template switch setup priority [esphome#5163](https://github.com/esphome/esphome/pull/5163) by [@cvwillegen](https://github.com/cvwillegen)
+- update "Can't convert" warning to match others in homeassistant_sensor [esphome#5162](https://github.com/esphome/esphome/pull/5162) by [@PlainTechEnthusiast](https://github.com/PlainTechEnthusiast)
+- Increase maximum number of BLE notifications [esphome#5155](https://github.com/esphome/esphome/pull/5155) by [@bdraco](https://github.com/bdraco)
+- invert min_rssi check [esphome#5150](https://github.com/esphome/esphome/pull/5150) by [@Jorre05](https://github.com/Jorre05)
+- Fix graininess & streaks for 7.50inV2alt Waveshare e-paper [esphome#5168](https://github.com/esphome/esphome/pull/5168) by [@Egglestron](https://github.com/Egglestron)
+
+### All changes
+
+- Upgraded Haier climate component implementation [esphome#4521](https://github.com/esphome/esphome/pull/4521) by [@paveldn](https://github.com/paveldn)
+- display: add `BaseFont` and introduce `Font::draw` methods [esphome#4963](https://github.com/esphome/esphome/pull/4963) by [@ayufan](https://github.com/ayufan) (breaking-change)
+- display/font: optimise font rendering by about 25% [esphome#4956](https://github.com/esphome/esphome/pull/4956) by [@ayufan](https://github.com/ayufan)
+- display: move `Rect` into `rect.cpp/.h` [esphome#4957](https://github.com/esphome/esphome/pull/4957) by [@ayufan](https://github.com/ayufan)
+- Bump pytest from 7.3.1 to 7.3.2 [esphome#4936](https://github.com/esphome/esphome/pull/4936) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add read/write for 16bit registers [esphome#4844](https://github.com/esphome/esphome/pull/4844) by [@CarsonF](https://github.com/CarsonF)
+- XL9535 I/O Expander [esphome#4899](https://github.com/esphome/esphome/pull/4899) by [@mreditor97](https://github.com/mreditor97) (new-integration)
+- Fix python venv restoring [esphome#4965](https://github.com/esphome/esphome/pull/4965) by [@jesserockz](https://github.com/jesserockz)
+- Preprocess away unused code when IPv6 is disabled [esphome#4973](https://github.com/esphome/esphome/pull/4973) by [@HeMan](https://github.com/HeMan)
+- Bump aioesphomeapi from 14.0.0 to 14.1.0 [esphome#4972](https://github.com/esphome/esphome/pull/4972) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add actions to animation [esphome#4959](https://github.com/esphome/esphome/pull/4959) by [@guillempages](https://github.com/guillempages)
+- Bump zeroconf from 0.63.0 to 0.69.0 [esphome#4970](https://github.com/esphome/esphome/pull/4970) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- mqtt: add ESP-IDF ≥ 5.0 support [esphome#4854](https://github.com/esphome/esphome/pull/4854) by [@stintel](https://github.com/stintel)
+- display: move `Image`, `Font` and `Animation` code into components [esphome#4967](https://github.com/esphome/esphome/pull/4967) by [@ayufan](https://github.com/ayufan)
+- support empty schemas and one platform components [esphome#4999](https://github.com/esphome/esphome/pull/4999) by [@glmnet](https://github.com/glmnet)
+- update dsmr to 0.7 [esphome#5011](https://github.com/esphome/esphome/pull/5011) by [@Pvlerick](https://github.com/Pvlerick)
+- add water delivered to dsmr component [esphome#4237](https://github.com/esphome/esphome/pull/4237) by [@jerome992](https://github.com/jerome992)
+- Update sync workflow [esphome#5017](https://github.com/esphome/esphome/pull/5017) by [@jesserockz](https://github.com/jesserockz)
+- Bump aioesphomeapi from 14.1.0 to 15.0.0 [esphome#5012](https://github.com/esphome/esphome/pull/5012) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pyupgrade from 3.4.0 to 3.7.0 [esphome#4971](https://github.com/esphome/esphome/pull/4971) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest from 7.3.2 to 7.4.0 [esphome#5000](https://github.com/esphome/esphome/pull/5000) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Attempt to fix script parameters [esphome#4627](https://github.com/esphome/esphome/pull/4627) by [@jesserockz](https://github.com/jesserockz)
+- Remove yaml test cache [esphome#5019](https://github.com/esphome/esphome/pull/5019) by [@jesserockz](https://github.com/jesserockz)
+- Bump esptool from 4.6 to 4.6.2 [esphome#4949](https://github.com/esphome/esphome/pull/4949) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-mock from 3.10.0 to 3.11.1 [esphome#4977](https://github.com/esphome/esphome/pull/4977) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- binary_sensor removed unused filter [esphome#5039](https://github.com/esphome/esphome/pull/5039) by [@dudanov](https://github.com/dudanov)
+- binary_sensor filters templatable delays [esphome#5029](https://github.com/esphome/esphome/pull/5029) by [@dudanov](https://github.com/dudanov)
+- Improve the gamma settings for the S3-Box-lite display [esphome#5046](https://github.com/esphome/esphome/pull/5046) by [@guillempages](https://github.com/guillempages)
+- Prepare ethernet to work with esp idf 5.0 [esphome#5037](https://github.com/esphome/esphome/pull/5037) by [@HeMan](https://github.com/HeMan)
+- Prepare debug and logger component to work with idf 5.0 [esphome#5036](https://github.com/esphome/esphome/pull/5036) by [@HeMan](https://github.com/HeMan)
+- Mopeka std fixes [esphome#5041](https://github.com/esphome/esphome/pull/5041) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Adjust signature for on_disconnect [esphome#5009](https://github.com/esphome/esphome/pull/5009) by [@bdraco](https://github.com/bdraco)
+- Log component long time message at warning level [esphome#5048](https://github.com/esphome/esphome/pull/5048) by [@jesserockz](https://github.com/jesserockz)
+- Log start of i2c setup [esphome#5049](https://github.com/esphome/esphome/pull/5049) by [@jesserockz](https://github.com/jesserockz)
+- Initial debug component support for rp2040 [esphome#5056](https://github.com/esphome/esphome/pull/5056) by [@HeMan](https://github.com/HeMan)
+- Fix when idf component has broken symlinks [esphome#5058](https://github.com/esphome/esphome/pull/5058) by [@jesserockz](https://github.com/jesserockz)
+- Some tests wasn't running (locally) [esphome#5050](https://github.com/esphome/esphome/pull/5050) by [@HeMan](https://github.com/HeMan)
+- [ILI9xxx] Add ili9488_a (alternative gamma configuration for ILI9488) [esphome#5027](https://github.com/esphome/esphome/pull/5027) by [@lnicolas83](https://github.com/lnicolas83)
+- [ili9xxx] Allow config of spi data rate. [esphome#4701](https://github.com/esphome/esphome/pull/4701) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Make scheduler debuging work with idf ≥ 5 [esphome#5052](https://github.com/esphome/esphome/pull/5052) by [@HeMan](https://github.com/HeMan)
+- Adds 1.54" e-ink display (gdew0154m09) support to waveshare_epaper component [esphome#4939](https://github.com/esphome/esphome/pull/4939) by [@tobiasoort](https://github.com/tobiasoort)
+- display: split `DisplayBuffer` and `Display` [esphome#5001](https://github.com/esphome/esphome/pull/5001) by [@ayufan](https://github.com/ayufan)
+- Fixed ili9xxx_display update() method [esphome#5013](https://github.com/esphome/esphome/pull/5013) by [@nielsnl68](https://github.com/nielsnl68)
+- [Ethernet] ksz8081rna support [esphome#4739](https://github.com/esphome/esphome/pull/4739) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Improve BME680 BSEC sensor device classes [esphome#4859](https://github.com/esphome/esphome/pull/4859) by [@trvrnrth](https://github.com/trvrnrth)
+- Update RP2040 Aruino framwork and platform to latest [esphome#5025](https://github.com/esphome/esphome/pull/5025) by [@HeMan](https://github.com/HeMan)
+- Allow pillow versions over 10 [esphome#5071](https://github.com/esphome/esphome/pull/5071) by [@HeMan](https://github.com/HeMan)
+- display: Rename `display.DisplayBufferRef` to `display.DisplayRef` used by lambda [esphome#5002](https://github.com/esphome/esphome/pull/5002) by [@ayufan](https://github.com/ayufan) (breaking-change)
+- Add Zio Ultrasonic Distance Sensor Component [esphome#5059](https://github.com/esphome/esphome/pull/5059) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- Add Alpha3 pump component [esphome#3787](https://github.com/esphome/esphome/pull/3787) by [@jan-hofmeier](https://github.com/jan-hofmeier) (new-integration)
+- RTC implementation of pcf8563 [esphome#4998](https://github.com/esphome/esphome/pull/4998) by [@KoenBreeman](https://github.com/KoenBreeman) (new-integration)
+- web server esp idf support [esphome#3500](https://github.com/esphome/esphome/pull/3500) by [@dentra](https://github.com/dentra) (new-integration)
+- Add TT21100 touchscreen component [esphome#4793](https://github.com/esphome/esphome/pull/4793) by [@kroimon](https://github.com/kroimon) (new-integration)
+- tuya_light: fix float->int conversion while setting color temperature [esphome#5067](https://github.com/esphome/esphome/pull/5067) by [@kswt](https://github.com/kswt)
+- Fix typo in mpu6050.cpp [esphome#5086](https://github.com/esphome/esphome/pull/5086) by [@stefanklug](https://github.com/stefanklug)
+- airthings_wave: Battery level reporting [esphome#4979](https://github.com/esphome/esphome/pull/4979) by [@kpfleming](https://github.com/kpfleming)
+- Add support for Grove tb6612 fng [esphome#4797](https://github.com/esphome/esphome/pull/4797) by [@max246](https://github.com/max246) (new-integration)
+- Add MCP2515 12MHz xtal support [esphome#5089](https://github.com/esphome/esphome/pull/5089) by [@clydebarrow](https://github.com/clydebarrow)
+- Correct message for standard transmission. [esphome#5088](https://github.com/esphome/esphome/pull/5088) by [@clydebarrow](https://github.com/clydebarrow)
+- Restrict pillow to versions before 10.0.0 [esphome#5090](https://github.com/esphome/esphome/pull/5090) by [@jesserockz](https://github.com/jesserockz)
+- Bump esphome-dashboard to 20230711.0 [esphome#5085](https://github.com/esphome/esphome/pull/5085) by [@jesserockz](https://github.com/jesserockz)
+- added uart final validate data bits [esphome#5079](https://github.com/esphome/esphome/pull/5079) by [@dudanov](https://github.com/dudanov)
+- Add support for ATM90E26 [esphome#4366](https://github.com/esphome/esphome/pull/4366) by [@danieltwagner](https://github.com/danieltwagner) (new-integration)
+- Grove amend name [esphome#5093](https://github.com/esphome/esphome/pull/5093) by [@max246](https://github.com/max246)
+- Fixing colon for tm1637 display if inverted set true [esphome#5072](https://github.com/esphome/esphome/pull/5072) by [@paveldn](https://github.com/paveldn)
+- Fix use of `optional<T>` [esphome#5091](https://github.com/esphome/esphome/pull/5091) by [@dudanov](https://github.com/dudanov)
+- New 'Duty Time' sensor component [esphome#5069](https://github.com/esphome/esphome/pull/5069) by [@dudanov](https://github.com/dudanov) (new-integration)
+- Fix PIDController::in_deadband() to give correct result when error is zero [esphome#5078](https://github.com/esphome/esphome/pull/5078) by [@lewissbaker](https://github.com/lewissbaker)
+- Edit error message for pillow install to add version restrictions [esphome#5094](https://github.com/esphome/esphome/pull/5094) by [@jesserockz](https://github.com/jesserockz)
+- Dont do mqtt ip lookup if `use_address` has ip address [esphome#5096](https://github.com/esphome/esphome/pull/5096) by [@jesserockz](https://github.com/jesserockz)
+- ESP32 enable ADC2 when wifi is disabled [esphome#4381](https://github.com/esphome/esphome/pull/4381) by [@pciavald](https://github.com/pciavald)
+- [Sprinkler] Resume fixes [esphome#5100](https://github.com/esphome/esphome/pull/5100) by [@hostcc](https://github.com/hostcc)
+- Remove template switch restore_state [esphome#5106](https://github.com/esphome/esphome/pull/5106) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Add timeout filter [esphome#5104](https://github.com/esphome/esphome/pull/5104) by [@clydebarrow](https://github.com/clydebarrow)
+- P1 values for capacity tariff in Belgium [esphome#5081](https://github.com/esphome/esphome/pull/5081) by [@bwynants](https://github.com/bwynants)
+- airthings_wave: Silence compiler warnings [esphome#5098](https://github.com/esphome/esphome/pull/5098) by [@kpfleming](https://github.com/kpfleming)
+- Sigma delta fix [esphome#4911](https://github.com/esphome/esphome/pull/4911) by [@PlainTechEnthusiast](https://github.com/PlainTechEnthusiast)
+- [LD2410] Remove baud_rate check [esphome#5112](https://github.com/esphome/esphome/pull/5112) by [@voed](https://github.com/voed)
+- Fix silence detection flag on voice assistant [esphome#5120](https://github.com/esphome/esphome/pull/5120) by [@jesserockz](https://github.com/jesserockz)
+
+{/* markdownlint-enable MD013 */}

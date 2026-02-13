@@ -1,0 +1,29 @@
+---
+description: "Instructions for setting up buttons that can remotely reboot the ESP in ESPHome."
+title: "Restart Button"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+The `restart` button platform allows you to restart your node remotely
+through Home Assistant.
+
+```yaml
+# Example configuration entry
+button:
+  - platform: restart
+    name: "Living Room Restart"
+```
+
+## Configuration variables
+
+- All options from [Button](/components/button#config-button).
+
+## See Also
+
+- [Shutdown Button](/components/button/shutdown/)
+- [Safe Mode Button](/components/button/safe_mode/)
+- [Factory Reset Button](/components/button/factory_reset/)
+- [Restart Switch](/components/switch/restart/)
+- [Template Button](/components/button/template/)
+- <APIRef text="restart_button.h" path="restart/button/restart_button.h" />

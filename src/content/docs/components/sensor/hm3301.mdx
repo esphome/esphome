@@ -1,0 +1,108 @@
+---
+description: "Instructions for setting up HM3301 Particulate matter sensor"
+title: "The Grove - Laser PM2.5 Sensor (HM3301)"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+The `HM3301` sensor platform allows you to use your HM3301 particulate matter sensor
+([more info](http://wiki.seeedstudio.com/Grove-Laser_PM2.5_Sensor-HM3301))
+sensors with ESPHome.
+
+The sensor communicate with board by [I²C](/components/i2c) protocol, and requires 3.3v.
+
+```yaml
+# Example configuration entry
+i2c:
+
+sensor:
+  - platform: hm3301
+    pm_1_0:
+      name: "PM1.0"
+    pm_2_5:
+      name: "PM2.5"
+    pm_10_0:
+      name: "PM10.0"
+    aqi:
+      name: "AQI"
+      calculation_type: "CAQI"
+```
+
+## Configuration variables
+
+- **pm_1_0** (*Optional*): Use the concentration of particulates of size less than 1.0µm in µg per cubic meter.
+
+  - All options from [Sensor](/components/sensor).
+
+- **pm_2_5** (*Optional*): Use the concentration of particulates of size less than 2.5µm in µg per cubic meter.
+
+  - All options from [Sensor](/components/sensor).
+
+- **pm_10_0** (*Optional*): Use the concentration of particulates of size less than 10.0µm in µg per cubic meter.
+
+  - All options from [Sensor](/components/sensor).
+
+  - **calculation_type** (**Required**): One of: `AQI` or `CAQI`.
+  - All other options from [Sensor](/components/sensor).
+
+## Air Quality Index
+
+The AQI (Air Quality Index) sensor calculates an air quality index value based on the
+PM2.5 and PM10 particulate matter concentrations. This provides a single number that
+indicates overall air quality and associated health concerns.
+
+Two calculation standards are supported:
+
+- **AQI** (US EPA Air Quality Index): The standard used in the United States, Canada,
+  and parts of Asia. Scale of 0-500+.
+- **CAQI** (Common Air Quality Index): The European standard. Scale of 0-400.
+
+Both calculation types take the PM2.5 and PM10 values and return the higher
+(more conservative) of the two calculated index values.
+
+### AQI Scale (US EPA)
+
+| Index | Level | Health Implications |
+|-------|-------|---------------------|
+| 0-50 | Good | Air quality is satisfactory |
+| 51-100 | Moderate | Some pollutants may be a concern for sensitive individuals |
+| 101-150 | Unhealthy for Sensitive Groups | Sensitive groups may experience health effects |
+| 151-200 | Unhealthy | Everyone may begin to experience health effects |
+| 201-300 | Very Unhealthy | Everyone may experience more serious health effects |
+| 301-500 | Hazardous | Health warnings of emergency conditions |
+
+### CAQI Scale (European)
+
+| Index | Level | Health Implications |
+|-------|-------|---------------------|
+| 0-25 | Very Low | Air quality is excellent |
+| 26-50 | Low | Air quality is good |
+| 51-75 | Medium | Air quality is fair |
+| 76-100 | High | Air quality is poor |
+| 101-400 | Very High | Air quality is very poor |
+
+### Configuration Example
+
+```yaml
+sensor:
+  - platform: hm3301
+    pm_2_5:
+      name: "PM2.5"
+    pm_10_0:
+      name: "PM10.0"
+    aqi:
+      name: "Air Quality Index"
+      calculation_type: "CAQI"  # or "AQI" for US EPA standard
+      # Optional: Apply filters for smoother values
+      filters:
+        - sliding_window_moving_average:
+            window_size: 10
+            send_every: 1
+```
+
+## See Also
+
+- [Air Quality Index (AQI)](/components/sensor/aqi/)
+- [SDS011 Particulate Matter Sensor](/components/sensor/sds011/)
+- [Sensor Filters](/components/sensor#sensor-filters)
+- <APIRef text="hm3301.h" path="hm3301/hm3301.h" />

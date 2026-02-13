@@ -1,0 +1,38 @@
+---
+/**
+ * APIRef Component
+ * Creates a link to a C++ API reference.
+ *
+ * Usage in MDX:
+ * <APIRef text="Sensor class" path="esphome::sensor::Sensor" />
+ */
+
+interface Props {
+  text: string;
+  path: string;
+}
+
+const { text, path } = Astro.props;
+
+// Process the path to generate the API docs URL
+// 1. Get the last path element
+const lastPathElement = path.split('/').pop() || path;
+
+// 2. Replace special characters
+let processedPath = lastPathElement
+  .replace(/_/g, '__')
+  .replace(/\./g, '_8')
+  .replace(/:/g, '_1');
+
+// 3. Convert capital letters to lowercase preceded by underscore
+processedPath = processedPath.replace(/([A-Z])/g, (match) => `_${match.toLowerCase()}`);
+
+// Base URL for API docs
+const baseUrl = 'https://api-docs.esphome.io';
+const url = `${baseUrl}/${processedPath}`;
+
+// Display text defaults to "API Reference" if same as path
+const displayText = text === path ? 'API Reference' : text;
+---
+
+<a href={url}>{displayText}</a>

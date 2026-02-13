@@ -1,0 +1,214 @@
+---
+description: "Changelog for ESPHome 2023.6.0."
+title: "ESPHome 2023.6.0 - 21st June 2023"
+pagefind: false
+slug: "changelog/2023.6.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Alarm Control Panel Core","/components/alarm_control_panel/index","alarm-panel.svg","dark-invert"],
+  ["Template Alarm Control Panel","/components/alarm_control_panel/template","description.svg","dark-invert"],
+  ["RP2040 PIO LED Strip","/components/light/rp2040_pio_led_strip","color_lens.svg","dark-invert"],
+  ["TMP1075","/components/sensor/tmp1075","tmp1075.jpg"]
+]} />
+
+## Dark Mode 😎
+
+Thanks to [@grahambrown11](https://github.com/grahambrown11) for implement a dark mode for the ESPHome dashboard!
+It will take the preference of your browser and is not configurable at this time.
+
+## Alarm Control Panel
+
+[@grahambrown11](https://github.com/grahambrown11) also has contributed the base alarm control panel code and a template alarm
+control panel. This is available to use now in ESPHome, but will require Home Assistant 2023.7 or newer for the entity
+to show up and be control from that side.
+
+## MDI icons
+
+You can now specify MDI icons as ESPHome images using the `mdi:` prefix, for example:
+
+```yaml
+image:
+  - file: "my_image.png"
+    id: my_image
+  - file: "mdi:chip"
+    resize: 32x32
+    id: chip_icon
+```
+
+## Wi-Fi enable and disable
+
+Wi-Fi can now be enabled and disabled on demand using the `wifi.enable` and `wifi.disable` actions.
+It can also be set to not enable on bootup. See the [Wi-Fi documentation](/components/wifi/)
+for more details.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2023.6.1 - June 23
+
+- Make ethernet_info work with esp-idf framework [esphome#4976](https://github.com/esphome/esphome/pull/4976) by [@HeMan](https://github.com/HeMan)
+- display: fix white screen on binary displays [esphome#4991](https://github.com/esphome/esphome/pull/4991) by [@ayufan](https://github.com/ayufan)
+
+## Release 2023.6.2 - June 23
+
+- remove unused static declarations [esphome#4993](https://github.com/esphome/esphome/pull/4993) by [@ssieb](https://github.com/ssieb)
+- Fix rp2040 pio tool download [esphome#4994](https://github.com/esphome/esphome/pull/4994) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.6.3 - June 28
+
+- Update webserver to 56d73b5 [esphome#5007](https://github.com/esphome/esphome/pull/5007) by [@jesserockz](https://github.com/jesserockz)
+- Synchronise Device Classes from Home Assistant [esphome#5018](https://github.com/esphome/esphome/pull/5018) by [@esphomebot](https://github.com/esphomebot)
+- Fixes compressed downloads [esphome#5014](https://github.com/esphome/esphome/pull/5014) by [@fdcastel](https://github.com/fdcastel)
+- Add CONFIG_BT_BLE_42_FEATURES_SUPPORTED for ble [esphome#5008](https://github.com/esphome/esphome/pull/5008) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.6.4 - July 4
+
+- [SCD30] Disable negative temperature offset [esphome#4850](https://github.com/esphome/esphome/pull/4850) by [@ardichoke](https://github.com/ardichoke)
+- fix template binary_sensor publish_initial_state option [esphome#5033](https://github.com/esphome/esphome/pull/5033) by [@dudanov](https://github.com/dudanov)
+- Add alarm to reserved ids [esphome#5042](https://github.com/esphome/esphome/pull/5042) by [@grahambrown11](https://github.com/grahambrown11)
+- Advertise noise is enabled [esphome#5034](https://github.com/esphome/esphome/pull/5034) by [@bdraco](https://github.com/bdraco)
+- Update webserver to ea86d81 [esphome#5023](https://github.com/esphome/esphome/pull/5023) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.6.5 - July 10
+
+- Fix bulk and single Bluetooth parser coexistence [esphome#5073](https://github.com/esphome/esphome/pull/5073) by [@bdraco](https://github.com/bdraco)
+- binary_sensor: Validate max_length for on_click/on_double_click [esphome#5068](https://github.com/esphome/esphome/pull/5068) by [@kpfleming](https://github.com/kpfleming)
+
+## Breaking Changes
+
+### VOC sensors
+
+Some VOC sensors have had their default device class changed from `volatile_organic_compounds` to `volatile_organic_compounds_parts`
+to better align with what they are returning.
+
+### Microphone
+
+The `on_data` trigger (and the internal callback) for the microphone now provides `std::vector<int16>` instead of a `std::vector<uin8_t>`.
+
+### Header files moved
+
+There are a couple of breaking changes for users who publish `external_components` and may use the internal APIs.
+See the list below for the pull requests that have been marked as breaking changes.
+
+## Full list of changes
+
+### New Components
+
+- Rp2040 pio ledstrip [esphome#4818](https://github.com/esphome/esphome/pull/4818) by [@Papa-DMan](https://github.com/Papa-DMan) (new-integration)
+- Add support for TMP1075 temperature sensor [esphome#4776](https://github.com/esphome/esphome/pull/4776) by [@sybrenstuvel](https://github.com/sybrenstuvel) (new-integration)
+- Add Alarm Control Panel [esphome#4770](https://github.com/esphome/esphome/pull/4770) by [@grahambrown11](https://github.com/grahambrown11) (new-integration)
+
+### Breaking Changes
+
+- Add transparency support to all image types [esphome#4600](https://github.com/esphome/esphome/pull/4600) by [@guillempages](https://github.com/guillempages) (breaking-change)
+- Allow i2s microphone bits per sample to be configured [esphome#4884](https://github.com/esphome/esphome/pull/4884) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Move ESPTime into core esphome namespace [esphome#4926](https://github.com/esphome/esphome/pull/4926) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- display: add `BaseImage` and provide only `Image::get_pixel` method [esphome#4932](https://github.com/esphome/esphome/pull/4932) by [@ayufan](https://github.com/ayufan) (breaking-change)
+- Migrate VOC sensors that use ppb to use volatile_organic_compounds_parts device class [esphome#4982](https://github.com/esphome/esphome/pull/4982) by [@bdraco](https://github.com/bdraco) (breaking-change)
+
+### Beta Changes
+
+- Add support in vbus component for Deltasol BS 2009 [esphome#4943](https://github.com/esphome/esphome/pull/4943) by [@clydebarrow](https://github.com/clydebarrow)
+- fix vbus sensor offsets [esphome#4952](https://github.com/esphome/esphome/pull/4952) by [@ssieb](https://github.com/ssieb)
+- Add support for ESP32-S3-BOX-Lite displays [esphome#4941](https://github.com/esphome/esphome/pull/4941) by [@guillempages](https://github.com/guillempages)
+- Split display_buffer sub-components into own files [esphome#4950](https://github.com/esphome/esphome/pull/4950) by [@guillempages](https://github.com/guillempages)
+- Add support for S3 box display [esphome#4942](https://github.com/esphome/esphome/pull/4942) by [@guillempages](https://github.com/guillempages)
+- display: allow to align image with `ImageAlign` [esphome#4933](https://github.com/esphome/esphome/pull/4933) by [@ayufan](https://github.com/ayufan)
+- Use HW SPI for rp2040 [esphome#4955](https://github.com/esphome/esphome/pull/4955) by [@jesserockz](https://github.com/jesserockz)
+- Fix for Fujitsu AC not having Quiet Fan Mode [esphome#4962](https://github.com/esphome/esphome/pull/4962) by [@TaruDesigns](https://github.com/TaruDesigns)
+- Store app comment and compilation_time in flash [esphome#4945](https://github.com/esphome/esphome/pull/4945) by [@bdraco](https://github.com/bdraco)
+- Construct web_server assets at build time instead of run time [esphome#4944](https://github.com/esphome/esphome/pull/4944) by [@bdraco](https://github.com/bdraco)
+- Update pca9685_output.cpp [esphome#4929](https://github.com/esphome/esphome/pull/4929) by [@standahabich](https://github.com/standahabich)
+- Apply configured IIR filter setting in generated BMP280 code [esphome#4975](https://github.com/esphome/esphome/pull/4975) by [@murrayma](https://github.com/murrayma)
+- airthings_wave: refactor to eliminate code duplication [esphome#4910](https://github.com/esphome/esphome/pull/4910) by [@kpfleming](https://github.com/kpfleming) (new-integration)
+- Make growatt play nicer with other modbus components. [esphome#4947](https://github.com/esphome/esphome/pull/4947) by [@onnlucky](https://github.com/onnlucky)
+- Bump esphome-dashboard to 20230621.0 [esphome#4980](https://github.com/esphome/esphome/pull/4980) by [@jesserockz](https://github.com/jesserockz)
+- Fix pypi release [esphome#4983](https://github.com/esphome/esphome/pull/4983) by [@jesserockz](https://github.com/jesserockz)
+- Add configuration option to disable the log UI. [esphome#4419](https://github.com/esphome/esphome/pull/4419) by [@dd32](https://github.com/dd32)
+- Update webserver and captive portal pages to 67c48ee9 [esphome#4986](https://github.com/esphome/esphome/pull/4986) by [@jesserockz](https://github.com/jesserockz)
+- Migrate VOC sensors that use ppb to use volatile_organic_compounds_parts device class [esphome#4982](https://github.com/esphome/esphome/pull/4982) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- dashboard: Adds "compressed=1" to /download.bin endpoint. (...) [esphome#4966](https://github.com/esphome/esphome/pull/4966) by [@fdcastel](https://github.com/fdcastel)
+
+### All changes
+
+- Add minimum RSSI check to ble presence [esphome#4646](https://github.com/esphome/esphome/pull/4646) by [@nielsnl68](https://github.com/nielsnl68)
+- Run black over tests folder [esphome#4824](https://github.com/esphome/esphome/pull/4824) by [@jesserockz](https://github.com/jesserockz)
+- Use token so PR checks are run [esphome#4834](https://github.com/esphome/esphome/pull/4834) by [@jesserockz](https://github.com/jesserockz)
+- Fix stale bot ignoring not-stale [esphome#4836](https://github.com/esphome/esphome/pull/4836) by [@jesserockz](https://github.com/jesserockz)
+- Rework CI into multiple dependent jobs [esphome#4823](https://github.com/esphome/esphome/pull/4823) by [@jesserockz](https://github.com/jesserockz)
+- Add DNS to Text info [esphome#4821](https://github.com/esphome/esphome/pull/4821) by [@max246](https://github.com/max246)
+- allow to use MQTT for discovery of IPs if mDNS is no option [esphome#3887](https://github.com/esphome/esphome/pull/3887) by [@Links2004](https://github.com/Links2004)
+- Move some I2C logic out of header file [esphome#4839](https://github.com/esphome/esphome/pull/4839) by [@CarsonF](https://github.com/CarsonF)
+- Allow substitutions to be valid names [esphome#4726](https://github.com/esphome/esphome/pull/4726) by [@jgoguen](https://github.com/jgoguen)
+- Insert Europe Tank Types from mopeka_std_check [esphome#4757](https://github.com/esphome/esphome/pull/4757) by [@lukasl96](https://github.com/lukasl96)
+- Bump tornado from 6.3.1 to 6.3.2 [esphome#4841](https://github.com/esphome/esphome/pull/4841) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pylint from 2.17.3 to 2.17.4 [esphome#4843](https://github.com/esphome/esphome/pull/4843) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump zeroconf from 0.60.0 to 0.62.0 [esphome#4781](https://github.com/esphome/esphome/pull/4781) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pyupgrade from 3.3.2 to 3.4.0 [esphome#4842](https://github.com/esphome/esphome/pull/4842) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump platformio from 6.1.6 to 6.1.7 [esphome#4795](https://github.com/esphome/esphome/pull/4795) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Migrate e131 to use socket instead of WiFiUDP arduino library [esphome#4832](https://github.com/esphome/esphome/pull/4832) by [@jesserockz](https://github.com/jesserockz)
+- Add transparency support to all image types [esphome#4600](https://github.com/esphome/esphome/pull/4600) by [@guillempages](https://github.com/guillempages) (breaking-change)
+- Run YAML test 8 during CI and fix board used [esphome#4862](https://github.com/esphome/esphome/pull/4862) by [@kroimon](https://github.com/kroimon)
+- Rp2040 pio ledstrip [esphome#4818](https://github.com/esphome/esphome/pull/4818) by [@Papa-DMan](https://github.com/Papa-DMan) (new-integration)
+- [ILI9xxx] Update ili9xxx_init.h code for the ILI9488 display for correct white balance [esphome#4849](https://github.com/esphome/esphome/pull/4849) by [@lucasreiners](https://github.com/lucasreiners)
+- Update codeowners [esphome#4875](https://github.com/esphome/esphome/pull/4875) by [@freekode](https://github.com/freekode)
+- Fix rp2040_pio_led_strip color modes [esphome#4887](https://github.com/esphome/esphome/pull/4887) by [@jesserockz](https://github.com/jesserockz)
+- Add i2s mclk [esphome#4885](https://github.com/esphome/esphome/pull/4885) by [@rpatel3001](https://github.com/rpatel3001)
+- Allow partially looping animations [esphome#4693](https://github.com/esphome/esphome/pull/4693) by [@guillempages](https://github.com/guillempages)
+- Allow i2s microphone bits per sample to be configured [esphome#4884](https://github.com/esphome/esphome/pull/4884) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Add support for TMP1075 temperature sensor [esphome#4776](https://github.com/esphome/esphome/pull/4776) by [@sybrenstuvel](https://github.com/sybrenstuvel) (new-integration)
+- move pio tools to LED component [esphome#4903](https://github.com/esphome/esphome/pull/4903) by [@ssieb](https://github.com/ssieb)
+- add SUB_SELECT macro [esphome#4897](https://github.com/esphome/esphome/pull/4897) by [@regevbr](https://github.com/regevbr)
+- add SUB_SWITCH macro [esphome#4898](https://github.com/esphome/esphome/pull/4898) by [@regevbr](https://github.com/regevbr)
+- esp32_rmt_led_strip: fix compile with ESP-IDF ≥ 5 [esphome#4856](https://github.com/esphome/esphome/pull/4856) by [@stintel](https://github.com/stintel)
+- Bump aioesphomeapi from 13.7.5 to 13.9.0 [esphome#4907](https://github.com/esphome/esphome/pull/4907) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- ota: fix compile with ESP-IDF ≥ 5 [esphome#4857](https://github.com/esphome/esphome/pull/4857) by [@stintel](https://github.com/stintel)
+- ota: fix TWDT with ESP-IDF ≥ 5 [esphome#4858](https://github.com/esphome/esphome/pull/4858) by [@stintel](https://github.com/stintel)
+- light: fix compile with ESP-IDF ≥ 5 [esphome#4855](https://github.com/esphome/esphome/pull/4855) by [@stintel](https://github.com/stintel)
+- Continuous voice_assistant and silence detection [esphome#4892](https://github.com/esphome/esphome/pull/4892) by [@jesserockz](https://github.com/jesserockz)
+- Allow WIFI to be disabled and enabled [esphome#4810](https://github.com/esphome/esphome/pull/4810) by [@jesserockz](https://github.com/jesserockz)
+- Bump frenck/action-yamllint from 1.4.0 to 1.4.1 [esphome#4876](https://github.com/esphome/esphome/pull/4876) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-cov from 4.0.0 to 4.1.0 [esphome#4888](https://github.com/esphome/esphome/pull/4888) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump zeroconf from 0.62.0 to 0.63.0 [esphome#4890](https://github.com/esphome/esphome/pull/4890) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump esptool from 4.5.1 to 4.6 [esphome#4906](https://github.com/esphome/esphome/pull/4906) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- prometheus: fix compilation with EntityBase [esphome#4895](https://github.com/esphome/esphome/pull/4895) by [@mischief](https://github.com/mischief)
+- Support for Adafruit ESP32-S2 TFT Feather [esphome#4912](https://github.com/esphome/esphome/pull/4912) by [@PlainTechEnthusiast](https://github.com/PlainTechEnthusiast)
+- Add support for mdi images [esphome#4654](https://github.com/esphome/esphome/pull/4654) by [@guillempages](https://github.com/guillempages)
+- Increase SNTP setup priority [esphome#4917](https://github.com/esphome/esphome/pull/4917) by [@droscy](https://github.com/droscy)
+- Bump aioesphomeapi from 13.9.0 to 14.0.0 [esphome#4925](https://github.com/esphome/esphome/pull/4925) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bluetooth Proxy: Raw bundled advertisements [esphome#4924](https://github.com/esphome/esphome/pull/4924) by [@jesserockz](https://github.com/jesserockz)
+- Move ESPTime into core esphome namespace [esphome#4926](https://github.com/esphome/esphome/pull/4926) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Allow multiple MAC addresses for 'on_ble_advertise' filter [esphome#4773](https://github.com/esphome/esphome/pull/4773) by [@RoboMagus](https://github.com/RoboMagus)
+- Add SVG image support [esphome#4922](https://github.com/esphome/esphome/pull/4922) by [@guillempages](https://github.com/guillempages)
+- Add !extend to devcontainer's customTags [esphome#4749](https://github.com/esphome/esphome/pull/4749) by [@jimtng](https://github.com/jimtng)
+- [max7219digit] fix 270° rotation [esphome#4930](https://github.com/esphome/esphome/pull/4930) by [@spezifisch](https://github.com/spezifisch)
+- proto generation updates [esphome#4653](https://github.com/esphome/esphome/pull/4653) by [@jesserockz](https://github.com/jesserockz)
+- I2S media player allow setting communication format for external DACs [esphome#4918](https://github.com/esphome/esphome/pull/4918) by [@ccorderor](https://github.com/ccorderor)
+- Add MULTI_CONF to pn53_i2c [esphome#4938](https://github.com/esphome/esphome/pull/4938) by [@jesserockz](https://github.com/jesserockz)
+- display: Improve Image rendering by removing usage of virtual functions [esphome#4931](https://github.com/esphome/esphome/pull/4931) by [@ayufan](https://github.com/ayufan)
+- display: add `BaseImage` and provide only `Image::get_pixel` method [esphome#4932](https://github.com/esphome/esphome/pull/4932) by [@ayufan](https://github.com/ayufan) (breaking-change)
+- Add Alarm Control Panel [esphome#4770](https://github.com/esphome/esphome/pull/4770) by [@grahambrown11](https://github.com/grahambrown11) (new-integration)
+- Add support in vbus component for Deltasol BS 2009 [esphome#4943](https://github.com/esphome/esphome/pull/4943) by [@clydebarrow](https://github.com/clydebarrow)
+- fix vbus sensor offsets [esphome#4952](https://github.com/esphome/esphome/pull/4952) by [@ssieb](https://github.com/ssieb)
+- Add support for ESP32-S3-BOX-Lite displays [esphome#4941](https://github.com/esphome/esphome/pull/4941) by [@guillempages](https://github.com/guillempages)
+- Split display_buffer sub-components into own files [esphome#4950](https://github.com/esphome/esphome/pull/4950) by [@guillempages](https://github.com/guillempages)
+- Add support for S3 box display [esphome#4942](https://github.com/esphome/esphome/pull/4942) by [@guillempages](https://github.com/guillempages)
+- display: allow to align image with `ImageAlign` [esphome#4933](https://github.com/esphome/esphome/pull/4933) by [@ayufan](https://github.com/ayufan)
+- Use HW SPI for rp2040 [esphome#4955](https://github.com/esphome/esphome/pull/4955) by [@jesserockz](https://github.com/jesserockz)
+- Fix for Fujitsu AC not having Quiet Fan Mode [esphome#4962](https://github.com/esphome/esphome/pull/4962) by [@TaruDesigns](https://github.com/TaruDesigns)
+- Store app comment and compilation_time in flash [esphome#4945](https://github.com/esphome/esphome/pull/4945) by [@bdraco](https://github.com/bdraco)
+- Construct web_server assets at build time instead of run time [esphome#4944](https://github.com/esphome/esphome/pull/4944) by [@bdraco](https://github.com/bdraco)
+- Update pca9685_output.cpp [esphome#4929](https://github.com/esphome/esphome/pull/4929) by [@standahabich](https://github.com/standahabich)
+- Apply configured IIR filter setting in generated BMP280 code [esphome#4975](https://github.com/esphome/esphome/pull/4975) by [@murrayma](https://github.com/murrayma)
+- airthings_wave: refactor to eliminate code duplication [esphome#4910](https://github.com/esphome/esphome/pull/4910) by [@kpfleming](https://github.com/kpfleming) (new-integration)
+- Make growatt play nicer with other modbus components. [esphome#4947](https://github.com/esphome/esphome/pull/4947) by [@onnlucky](https://github.com/onnlucky)
+- Bump esphome-dashboard to 20230621.0 [esphome#4980](https://github.com/esphome/esphome/pull/4980) by [@jesserockz](https://github.com/jesserockz)
+- Fix pypi release [esphome#4983](https://github.com/esphome/esphome/pull/4983) by [@jesserockz](https://github.com/jesserockz)
+- Add configuration option to disable the log UI. [esphome#4419](https://github.com/esphome/esphome/pull/4419) by [@dd32](https://github.com/dd32)
+- Update webserver and captive portal pages to 67c48ee9 [esphome#4986](https://github.com/esphome/esphome/pull/4986) by [@jesserockz](https://github.com/jesserockz)
+- Migrate VOC sensors that use ppb to use volatile_organic_compounds_parts device class [esphome#4982](https://github.com/esphome/esphome/pull/4982) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- dashboard: Adds "compressed=1" to /download.bin endpoint. (...) [esphome#4966](https://github.com/esphome/esphome/pull/4966) by [@fdcastel](https://github.com/fdcastel)
+
+{/* markdownlint-enable MD013 */}

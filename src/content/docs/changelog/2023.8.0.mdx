@@ -1,0 +1,170 @@
+---
+description: "Changelog for ESPHome 2023.8.0."
+title: "ESPHome 2023.8.0 - 16th August 2023"
+pagefind: false
+slug: "changelog/2023.8.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["A01NYUB","/components/sensor/a01nyub","a01nyub.jpg"],
+  ["KMeterISO","/components/sensor/kmeteriso","kmeteriso.jpg"],
+  ["BMP581","/components/sensor/bmp581","bmp581.jpg"],
+  ["GCJA5","/components/sensor/gcja5","gcja5.svg"]
+]} />
+
+## LD2410
+
+The LD2410 component has had a massive upgrade thanks to [@regevbr](https://github.com/regevbr)!
+It now supports settings most if not all configuration parameters via `switches` / `numbers` and `selects`
+and exposes more data via various `sensors`.
+This includes breaking changes that mean the existing gate configuration options have been moved to the
+`number` platform.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2023.8.1 - August 18
+
+- Fix checksum calculation for sml [esphome#5271](https://github.com/esphome/esphome/pull/5271) by [@Mat931](https://github.com/Mat931)
+- Change haier from AUTO to HEAT_COOL [esphome#5267](https://github.com/esphome/esphome/pull/5267) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+
+## Release 2023.8.2 - August 21
+
+- Move libcairo to all architectures in docker [esphome#5276](https://github.com/esphome/esphome/pull/5276) by [@jesserockz](https://github.com/jesserockz)
+- Resolve offline ESPs in dashboard when using ESPHOME_DASHBOARD_USE_PING=true [esphome#5281](https://github.com/esphome/esphome/pull/5281) by [@mwolter805](https://github.com/mwolter805)
+- Align SPI data rates in C++ code with Python [esphome#5284](https://github.com/esphome/esphome/pull/5284) by [@clydebarrow](https://github.com/clydebarrow)
+- Change htu21d sensors from required to optional [esphome#5285](https://github.com/esphome/esphome/pull/5285) by [@jesserockz](https://github.com/jesserockz)
+- Reserve keyword "clock" [esphome#5279](https://github.com/esphome/esphome/pull/5279) by [@clydebarrow](https://github.com/clydebarrow)
+
+## Release 2023.8.3 - September 6
+
+- Introduce cv.temperature_delta and fix problematic thermostat configuration behavior [esphome#5297](https://github.com/esphome/esphome/pull/5297) by [@sebastianrasor](https://github.com/sebastianrasor)
+- fix to PR # 3887 MQTT connection not using discovery: false [esphome#5275](https://github.com/esphome/esphome/pull/5275) by [@luka6000](https://github.com/luka6000)
+- Attempt to fix secret blurring [esphome#5326](https://github.com/esphome/esphome/pull/5326) by [@jesserockz](https://github.com/jesserockz)
+- Bugfix: disable channels after IO if multiple tca9548a I2C multiplexers are configured [esphome#5317](https://github.com/esphome/esphome/pull/5317) by [@kahrendt](https://github.com/kahrendt)
+- Fix checksum calculation for pipsolar [esphome#5299](https://github.com/esphome/esphome/pull/5299) by [@Mat931](https://github.com/Mat931)
+
+## Full list of changes
+
+### New Components
+
+- Add support for a01nyub [esphome#4863](https://github.com/esphome/esphome/pull/4863) by [@MrSuicideParrot](https://github.com/MrSuicideParrot) (new-integration)
+- Add KMeterISO component. [esphome#5170](https://github.com/esphome/esphome/pull/5170) by [@Rudd-O](https://github.com/Rudd-O) (new-integration)
+- New component: Add support for bmp581 pressure and temperature sensors [esphome#4657](https://github.com/esphome/esphome/pull/4657) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- New PM sensor Panasonic SN-GCJA5 [esphome#4988](https://github.com/esphome/esphome/pull/4988) by [@gcormier](https://github.com/gcormier) (new-integration)
+- Add configuration flow abilites to the ld2410 component [esphome#4434](https://github.com/esphome/esphome/pull/4434) by [@regevbr](https://github.com/regevbr) (new-integration) (notable-change) (breaking-change)
+
+### Breaking Changes
+
+- Coolix IR protocol improvements [esphome#5105](https://github.com/esphome/esphome/pull/5105) by [@dudanov](https://github.com/dudanov) (breaking-change)
+- Speaker return bytes written and do not wait for queue [esphome#5182](https://github.com/esphome/esphome/pull/5182) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Change device name in MQTT discovery messages to friendly names [esphome#5205](https://github.com/esphome/esphome/pull/5205) by [@pidpawel](https://github.com/pidpawel) (breaking-change)
+- Add configuration flow abilites to the ld2410 component [esphome#4434](https://github.com/esphome/esphome/pull/4434) by [@regevbr](https://github.com/regevbr) (new-integration) (notable-change) (breaking-change)
+
+### Beta Changes
+
+- Read string of bool env and match against well known values [esphome#5232](https://github.com/esphome/esphome/pull/5232) by [@jesserockz](https://github.com/jesserockz)
+- fix aeha data template [esphome#5231](https://github.com/esphome/esphome/pull/5231) by [@ssieb](https://github.com/ssieb)
+- Expose start to speaker interface [esphome#5228](https://github.com/esphome/esphome/pull/5228) by [@jesserockz](https://github.com/jesserockz)
+- New features added for Haier integration [esphome#5196](https://github.com/esphome/esphome/pull/5196) by [@paveldn](https://github.com/paveldn)
+- pca9554 cache reads [esphome#5137](https://github.com/esphome/esphome/pull/5137) by [@hwstar](https://github.com/hwstar)
+- fix midea: undo approved PR#4053 [esphome#5233](https://github.com/esphome/esphome/pull/5233) by [@dudanov](https://github.com/dudanov)
+- Fixing smartair2 protocol implementation if no Wi-Fi [esphome#5238](https://github.com/esphome/esphome/pull/5238) by [@paveldn](https://github.com/paveldn)
+- tuya: add time sync callback only once to prevent memleak [esphome#5234](https://github.com/esphome/esphome/pull/5234) by [@afflux](https://github.com/afflux)
+- Fix duplicate tuya time warning [esphome#5243](https://github.com/esphome/esphome/pull/5243) by [@jesserockz](https://github.com/jesserockz)
+- Change XL9535 `setup_priority` to IO [esphome#5246](https://github.com/esphome/esphome/pull/5246) by [@mreditor97](https://github.com/mreditor97)
+- rmt_base additional minor changes [esphome#5245](https://github.com/esphome/esphome/pull/5245) by [@dudanov](https://github.com/dudanov)
+- Fix 24 bit signed integer parsing in sml parser [esphome#5250](https://github.com/esphome/esphome/pull/5250) by [@mulder-fbi](https://github.com/mulder-fbi)
+- Fix IDFI2CBus::writev ignoring stop parameter [esphome#4840](https://github.com/esphome/esphome/pull/4840) by [@CarsonF](https://github.com/CarsonF)
+- Add configuration flow abilites to the ld2410 component [esphome#4434](https://github.com/esphome/esphome/pull/4434) by [@regevbr](https://github.com/regevbr) (new-integration) (notable-change) (breaking-change)
+
+### Notable Changes
+
+- Change MQTT client for ESP32 Arduino [esphome#5157](https://github.com/esphome/esphome/pull/5157) by [@HeMan](https://github.com/HeMan) (notable-change)
+- Add configuration flow abilites to the ld2410 component [esphome#4434](https://github.com/esphome/esphome/pull/4434) by [@regevbr](https://github.com/regevbr) (new-integration) (notable-change) (breaking-change)
+
+### All changes
+
+- Mk2 to prepare color.h for idf ≥ 5 [esphome#5070](https://github.com/esphome/esphome/pull/5070) by [@HeMan](https://github.com/HeMan)
+- display: Add helper methods to `Display::clip` and `Display::clamp_x/y_` [esphome#5003](https://github.com/esphome/esphome/pull/5003) by [@ayufan](https://github.com/ayufan)
+- Mark repo as safe directory to git config [esphome#5102](https://github.com/esphome/esphome/pull/5102) by [@davet2001](https://github.com/davet2001)
+- Bump click from 8.1.3 to 8.1.5 [esphome#5099](https://github.com/esphome/esphome/pull/5099) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pyyaml from 6.0 to 6.0.1 [esphome#5117](https://github.com/esphome/esphome/pull/5117) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- ignore components folder in root [esphome#5130](https://github.com/esphome/esphome/pull/5130) by [@jesserockz](https://github.com/jesserockz)
+- Add size getter to CallbackManager [esphome#5129](https://github.com/esphome/esphome/pull/5129) by [@jesserockz](https://github.com/jesserockz)
+- Make docker use pip installed pillow [esphome#5074](https://github.com/esphome/esphome/pull/5074) by [@HeMan](https://github.com/HeMan)
+- Change datatype in e131 addressable light [esphome#5127](https://github.com/esphome/esphome/pull/5127) by [@HeMan](https://github.com/HeMan)
+- Streamer mode [esphome#5119](https://github.com/esphome/esphome/pull/5119) by [@grahambrown11](https://github.com/grahambrown11)
+- Version bump for ESP32 IDF and Arduino [esphome#5035](https://github.com/esphome/esphome/pull/5035) by [@HeMan](https://github.com/HeMan)
+- Synchronise Device Classes from Home Assistant [esphome#5136](https://github.com/esphome/esphome/pull/5136) by [@esphomebot](https://github.com/esphomebot)
+- Update known boards to 5.4.0 [esphome#5134](https://github.com/esphome/esphome/pull/5134) by [@jesserockz](https://github.com/jesserockz)
+- Init colorama in ESPHome main [esphome#5111](https://github.com/esphome/esphome/pull/5111) by [@kuba2k2](https://github.com/kuba2k2)
+- Coolix IR protocol improvements [esphome#5105](https://github.com/esphome/esphome/pull/5105) by [@dudanov](https://github.com/dudanov) (breaking-change)
+- Allow esp32 idf components to specify submodules and specific components [esphome#5128](https://github.com/esphome/esphome/pull/5128) by [@jesserockz](https://github.com/jesserockz)
+- Synchronise Device Classes from Home Assistant [esphome#5147](https://github.com/esphome/esphome/pull/5147) by [@esphomebot](https://github.com/esphomebot)
+- Prepare some components for IDF ≥ 5 [esphome#5061](https://github.com/esphome/esphome/pull/5061) by [@HeMan](https://github.com/HeMan)
+- Bump clang-tidy from 11 to 14 [esphome#5160](https://github.com/esphome/esphome/pull/5160) by [@dudanov](https://github.com/dudanov)
+- climate triggers Climate and ClimateCall references [esphome#5028](https://github.com/esphome/esphome/pull/5028) by [@dudanov](https://github.com/dudanov)
+- remote_base changes [esphome#5124](https://github.com/esphome/esphome/pull/5124) by [@dudanov](https://github.com/dudanov)
+- Add 'map_linear' and 'clamp' sensor filters [esphome#5040](https://github.com/esphome/esphome/pull/5040) by [@Mat931](https://github.com/Mat931)
+- Adding Inkplate 6 v2 model variant [esphome#5165](https://github.com/esphome/esphome/pull/5165) by [@mullerdavid](https://github.com/mullerdavid)
+- duty_time: fix build without binary_sensor. Parented in automations. [esphome#5156](https://github.com/esphome/esphome/pull/5156) by [@dudanov](https://github.com/dudanov)
+- Add standardized CRC helper functions [esphome#4798](https://github.com/esphome/esphome/pull/4798) by [@Mat931](https://github.com/Mat931)
+- Enable IPv6 for ESP32 Arduino, wifi and ethernet [esphome#4865](https://github.com/esphome/esphome/pull/4865) by [@HeMan](https://github.com/HeMan)
+- Bump zeroconf from 0.69.0 to 0.71.4 [esphome#5148](https://github.com/esphome/esphome/pull/5148) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump black from 23.3.0 to 23.7.0 [esphome#5126](https://github.com/esphome/esphome/pull/5126) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pylint from 2.17.4 to 2.17.5 [esphome#5172](https://github.com/esphome/esphome/pull/5172) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pyupgrade from 3.7.0 to 3.9.0 [esphome#5083](https://github.com/esphome/esphome/pull/5083) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Vertical and horizontal airflow actions fix for Haier climate [esphome#5164](https://github.com/esphome/esphome/pull/5164) by [@paveldn](https://github.com/paveldn)
+- Microphone add is_stopped [esphome#5183](https://github.com/esphome/esphome/pull/5183) by [@jesserockz](https://github.com/jesserockz)
+- Add get_board function to esp32 module [esphome#5184](https://github.com/esphome/esphome/pull/5184) by [@jesserockz](https://github.com/jesserockz)
+- Speaker return bytes written and do not wait for queue [esphome#5182](https://github.com/esphome/esphome/pull/5182) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Update components "if x in config" [esphome#5181](https://github.com/esphome/esphome/pull/5181) by [@jesserockz](https://github.com/jesserockz)
+- Bump click from 8.1.5 to 8.1.6 [esphome#5179](https://github.com/esphome/esphome/pull/5179) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- PWM Output on RP2040 for high frequencies [esphome#5204](https://github.com/esphome/esphome/pull/5204) by [@matemaciek](https://github.com/matemaciek)
+- Fix some configs after #5181 [esphome#5209](https://github.com/esphome/esphome/pull/5209) by [@jesserockz](https://github.com/jesserockz)
+- Improved compensation sgp30 [esphome#5208](https://github.com/esphome/esphome/pull/5208) by [@arno1801](https://github.com/arno1801)
+- Add support for a01nyub [esphome#4863](https://github.com/esphome/esphome/pull/4863) by [@MrSuicideParrot](https://github.com/MrSuicideParrot) (new-integration)
+- Change device name in MQTT discovery messages to friendly names [esphome#5205](https://github.com/esphome/esphome/pull/5205) by [@pidpawel](https://github.com/pidpawel) (breaking-change)
+- Add ESP32-S2/S3 capacitive touch support [esphome#5116](https://github.com/esphome/esphome/pull/5116) by [@kbx81](https://github.com/kbx81)
+- Bump zeroconf from 0.71.4 to 0.74.0 [esphome#5199](https://github.com/esphome/esphome/pull/5199) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Implemented Waveshare 7.5in B V3 [esphome#5210](https://github.com/esphome/esphome/pull/5210) by [@lucasprim](https://github.com/lucasprim)
+- Refactor `pulse_meter` to better handle higher frequencies [esphome#4231](https://github.com/esphome/esphome/pull/4231) by [@TrentHouliston](https://github.com/TrentHouliston)
+- Change MQTT client for ESP32 Arduino [esphome#5157](https://github.com/esphome/esphome/pull/5157) by [@HeMan](https://github.com/HeMan) (notable-change)
+- Add read interface to microphone [esphome#5131](https://github.com/esphome/esphome/pull/5131) by [@jesserockz](https://github.com/jesserockz)
+- i2c: fix build on ESP-IDF ≥ 5.1 [esphome#5200](https://github.com/esphome/esphome/pull/5200) by [@stintel](https://github.com/stintel)
+- Add socket define for rp2040 dev [esphome#4968](https://github.com/esphome/esphome/pull/4968) by [@jesserockz](https://github.com/jesserockz)
+- core: read ESP32 MAC address from eFuse if IEEE802.15.4 is supported [esphome#5176](https://github.com/esphome/esphome/pull/5176) by [@stintel](https://github.com/stintel)
+- esp32_ble_beacon: enable CONFIG_BT_BLE_42_FEATURES_SUPPORTED [esphome#5211](https://github.com/esphome/esphome/pull/5211) by [@stintel](https://github.com/stintel)
+- Bump pytest-asyncio from 0.21.0 to 0.21.1 [esphome#5187](https://github.com/esphome/esphome/pull/5187) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- ledc: check SOC_LEDC_SUPPORT_APB_CLOCK [esphome#5212](https://github.com/esphome/esphome/pull/5212) by [@stintel](https://github.com/stintel)
+- Add arm night to alarm control panel [esphome#5186](https://github.com/esphome/esphome/pull/5186) by [@primeroz](https://github.com/primeroz)
+- Bump pyupgrade from 3.9.0 to 3.10.1 [esphome#5189](https://github.com/esphome/esphome/pull/5189) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add KMeterISO component. [esphome#5170](https://github.com/esphome/esphome/pull/5170) by [@Rudd-O](https://github.com/Rudd-O) (new-integration)
+- Bump platformio from 6.1.7 to 6.1.9 [esphome#5066](https://github.com/esphome/esphome/pull/5066) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- New component: Add support for bmp581 pressure and temperature sensors [esphome#4657](https://github.com/esphome/esphome/pull/4657) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- New PM sensor Panasonic SN-GCJA5 [esphome#4988](https://github.com/esphome/esphome/pull/4988) by [@gcormier](https://github.com/gcormier) (new-integration)
+- Daly BMS improvements [esphome#3388](https://github.com/esphome/esphome/pull/3388) by [@matthias882](https://github.com/matthias882)
+- Add missing `on_(arming|pending|armed_home|armed_night|armed_away|disarmed)` triggers to alarm_control_panel [esphome#5219](https://github.com/esphome/esphome/pull/5219) by [@primeroz](https://github.com/primeroz)
+- add value option to timeout filter [esphome#5222](https://github.com/esphome/esphome/pull/5222) by [@ssieb](https://github.com/ssieb)
+- Tweak Color init because IDF 5+ [esphome#5221](https://github.com/esphome/esphome/pull/5221) by [@kbx81](https://github.com/kbx81)
+- Read string of bool env and match against well known values [esphome#5232](https://github.com/esphome/esphome/pull/5232) by [@jesserockz](https://github.com/jesserockz)
+- fix aeha data template [esphome#5231](https://github.com/esphome/esphome/pull/5231) by [@ssieb](https://github.com/ssieb)
+- Expose start to speaker interface [esphome#5228](https://github.com/esphome/esphome/pull/5228) by [@jesserockz](https://github.com/jesserockz)
+- New features added for Haier integration [esphome#5196](https://github.com/esphome/esphome/pull/5196) by [@paveldn](https://github.com/paveldn)
+- pca9554 cache reads [esphome#5137](https://github.com/esphome/esphome/pull/5137) by [@hwstar](https://github.com/hwstar)
+- fix midea: undo approved PR#4053 [esphome#5233](https://github.com/esphome/esphome/pull/5233) by [@dudanov](https://github.com/dudanov)
+- Fixing smartair2 protocol implementation if no Wi-Fi [esphome#5238](https://github.com/esphome/esphome/pull/5238) by [@paveldn](https://github.com/paveldn)
+- tuya: add time sync callback only once to prevent memleak [esphome#5234](https://github.com/esphome/esphome/pull/5234) by [@afflux](https://github.com/afflux)
+- Fix duplicate tuya time warning [esphome#5243](https://github.com/esphome/esphome/pull/5243) by [@jesserockz](https://github.com/jesserockz)
+- Change XL9535 `setup_priority` to IO [esphome#5246](https://github.com/esphome/esphome/pull/5246) by [@mreditor97](https://github.com/mreditor97)
+- rmt_base additional minor changes [esphome#5245](https://github.com/esphome/esphome/pull/5245) by [@dudanov](https://github.com/dudanov)
+- Fix 24 bit signed integer parsing in sml parser [esphome#5250](https://github.com/esphome/esphome/pull/5250) by [@mulder-fbi](https://github.com/mulder-fbi)
+- Fix IDFI2CBus::writev ignoring stop parameter [esphome#4840](https://github.com/esphome/esphome/pull/4840) by [@CarsonF](https://github.com/CarsonF)
+- Add configuration flow abilites to the ld2410 component [esphome#4434](https://github.com/esphome/esphome/pull/4434) by [@regevbr](https://github.com/regevbr) (new-integration) (notable-change) (breaking-change)
+- Add `libfreetype-dev` Debian package for armv7 Docker builds [esphome#5262](https://github.com/esphome/esphome/pull/5262) by [@pierlon](https://github.com/pierlon)
+- Add delay before enabling ipv6 [esphome#5256](https://github.com/esphome/esphome/pull/5256) by [@HeMan](https://github.com/HeMan)
+- Bump zeroconf from 0.74.0 to 0.80.0 [esphome#5260](https://github.com/esphome/esphome/pull/5260) by [@dependabot[bot]](https://github.com/dependabot[bot])
+
+{/* markdownlint-enable MD013 */}

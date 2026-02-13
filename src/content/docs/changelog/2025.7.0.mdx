@@ -1,0 +1,826 @@
+---
+description: "Changelog for ESPHome 2025.7.0."
+title: "ESPHome 2025.7.0 - 16th July 2025"
+pagefind: false
+slug: "changelog/2025.7.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["DS2484","/components/one_wire/ds2484","ds2484.svg"],
+  ["ESP32 Hosted","/components/esp32_hosted","network-wifi.svg","dark-invert"],
+  ["GL-R01","/components/sensor/gl_r01","gl_r01.jpg"],
+  ["LN882x","/components/libretiny","ln882x.svg"],
+  ["LPS22","/components/sensor/lps22","lps22.webp"],
+  ["OPT3001","/components/sensor/opt3001","opt3001.jpg"],
+  ["PI4IOE5V6408","/components/pi4ioe5v6408","pca9554a.jpg"],
+  ["SX126x","/components/sx126x","sx126x.png"],
+  ["SX127x","/components/sx127x","sx127x.png"],
+  ["XMWSDJ04MMC","/components/sensor/xiaomi_ble","xiaomi_mijia_logo.jpg"]
+]} />
+
+## Release Overview
+
+ESPHome 2025.7.0 is a major release featuring significant architectural improvements, new hardware support,
+and important platform updates. This release modernizes the codebase while expanding hardware compatibility
+and introducing powerful new features for advanced users.
+
+**Major Changes:**
+
+- **Web Server OTA** moved to dedicated platform (breaking change - migration required)
+- **ESP-IDF 4.x support removed** - ESP-IDF 5.3.2+ now required
+- **ESP32 Arduino updated to 3.1.3** for better compatibility and performance
+- **Sub-device support** for logical entity grouping in Home Assistant
+- **Jinja2 template expressions** for dynamic configuration generation
+
+**New Hardware:**
+
+- LoRa communication (SX126x/SX127x), ESP32 Hosted WiFi, LN882X SoCs
+- New sensors: OPT3001 light, LPS22 pressure, GL-R01 ToF, Xiaomi BLE
+
+**Performance:**
+
+- Extensive memory optimizations (up to 40% reduction in component memory usage)
+- Enhanced performance through C++20 support and optimized algorithms
+- Improved interrupt handling and scheduler efficiency
+
+## Web Server OTA Platform
+
+> [!WARNING]
+> **Breaking Change:** Read this carefully! If your only OTA method is `web_server` and you don't have it explicitly
+> enabled, you will lose the ability to update devices OTA after updating to 2025.7.0. You must add the `web_server`
+> OTA platform to your configuration to maintain OTA functionality.
+
+The [Web Server](/components/web_server/) component has undergone a significant architectural change. Previously,
+OTA functionality was built directly into the web server component. This has now been extracted into a dedicated
+OTA platform: [Web Server](/components/ota/web_server/).
+
+**Migration Required:**
+
+If you were relying on the web server's built-in OTA functionality, you now need to explicitly configure the web
+server OTA platform:
+
+```yaml
+# Before (implicit OTA in web server)
+web_server:
+  port: 80
+
+# After (explicit OTA platform required)
+web_server:
+  port: 80
+
+ota:
+  - platform: esphome  # Your existing OTA method
+  - platform: web_server  # Add this for web-based OTA uploads
+```
+
+**Benefits of this change:**
+
+- **Cleaner separation of concerns** - Web server focuses on serving content, OTA platform handles updates
+- **More flexible OTA configuration** - Better control over OTA methods and security
+- **Improved maintainability** - Dedicated OTA platform allows for better features and bug fixes
+
+## ESP-IDF 4.x End of Life
+
+> [!NOTE]
+> **Major Platform Change:** This release completely removes support for ESP-IDF 4.x versions, marking the end of life
+> for these older framework versions.
+
+ESPHome 2025.7.0 removes all support for ESP-IDF 4.x versions as part of our commitment to supporting modern,
+secure, and well-maintained development frameworks. Please see our
+[developer blog post](https://developers.esphome.io/blog/2025/06/18/sunsetting-support-for-idf-4x/) for detailed
+background and technical reasons behind this decision.
+
+**What this means for users:**
+
+- **Most users are unaffected** - We automatically set the recommended ESP-IDF version (currently 5.3.2) as the default
+- **Explicit version users must update** - If you're explicitly setting the ESP-IDF version in your configuration,
+  you must update to version 5.3.2 or later
+
+- **Legacy projects may need updates** - Older projects might require minor configuration adjustments
+
+**Required action if you explicitly set ESP-IDF version:**
+
+```yaml
+# Remove or update old explicit versions
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    version: 4.4.7  # ❌ No longer supported
+
+# Update to supported version
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    version: 5.3.2  # ✅ Supported (or omit for latest recommended)
+```
+
+**Benefits of ESP-IDF 5.x:**
+
+- **Enhanced security** - Latest security patches and improvements
+- **Better performance** - Optimized code generation and runtime performance
+- **Modern C++ support** - Full C++20 support with improved standard library
+- **Expanded hardware support** - Better support for newer ESP32 variants (S2, S3, C3, C6, H2)
+- **Active maintenance** - Continued updates and bug fixes from Espressif
+
+## ESP32 Arduino Framework 3.x
+
+> [!NOTE]
+> **Framework Update:** Arduino for ESP32 has been upgraded to version 3.1.3, bringing significant improvements
+> and maintaining compatibility with ESP-IDF 5.3.2.
+
+To maintain alignment and compatibility with the current ESP-IDF version of 5.3.2, the Arduino framework for ESP32
+has been updated to version 3.1.3. This represents a major version jump from Arduino 2.x.
+
+**Key improvements in Arduino 3.1.3:**
+
+- **ESP-IDF 5.3.2 compatibility** - Full integration with the latest ESP-IDF features
+- **Improved stability** - Better memory management and reduced crashes
+- **Enhanced WiFi performance** - More reliable connections and better power management
+- **Updated libraries** - Latest versions of core Arduino libraries
+- **Bug fixes** - Numerous fixes for issues present in earlier versions
+
+**Potential compatibility considerations:**
+
+- Some third-party Arduino libraries may need updates for Arduino 3.x compatibility
+- Timing-sensitive code might behave slightly differently due to framework optimizations
+- Memory usage patterns may change slightly due to framework improvements
+
+> [!NOTE]
+> **Flash Usage Warning:** Arduino 3.x can use more flash memory than Arduino 2.x, which may cause some projects
+> with many components to exceed available flash space. If you encounter flash size issues, consider:
+>
+> - Switching to ESP-IDF framework (recommended for large projects)
+> - Reducing the number of enabled components
+> - Using a board with more flash memory
+
+Most users will see this as a transparent improvement with better performance and reliability.
+
+## Sub-Device Support
+
+> [!NOTE]
+> **New Feature:** Entities can now be organized into logical sub-devices, enabling better organization
+> and area management in Home Assistant.
+
+ESPHome now supports **sub-devices**, a powerful new feature that allows you to logically group entities from a single
+physical ESPHome device into multiple virtual devices within Home Assistant. This is particularly useful for complex
+setups where one ESP32 controls sensors or actuators in different areas of your home.
+
+**Use cases and benefits:**
+
+- **Multi-room sensors** - One ESP32 with temperature sensors in different rooms can appear as separate devices per room
+- **Complex automation hubs** - A single ESP32 controlling lights, fans, and sensors across multiple areas
+- **Better Home Assistant organization** - Entities automatically appear in the correct areas and can be managed
+  independently
+
+- **Cleaner dashboards** - Related entities are grouped together logically rather than by physical device
+
+**How it works:**
+
+You can assign entities to sub-devices using the new `device_id` configuration option. First, define your devices
+in the `devices` section under `esphome:`, then reference them in individual entities.
+
+**Example configuration:**
+
+```yaml
+esphome:
+  name: multi_room_controller
+
+  # Define areas (optional)
+  areas:
+    - id: living_room_area
+      name: "Living Room"
+    - id: bedroom_area
+      name: "Bedroom"
+
+  # Define devices
+  devices:
+    - id: living_room_device
+      name: "Living Room Sensors"
+      area_id: living_room_area
+    - id: bedroom_device
+      name: "Bedroom Sensors"
+      area_id: bedroom_area
+
+# Assign sensors to different devices
+sensor:
+  - platform: dht
+    pin: GPIO4
+    temperature:
+      name: "Living Room Temperature"
+      device_id: living_room_device
+    humidity:
+      name: "Living Room Humidity"
+      device_id: living_room_device
+
+  - platform: dht
+    pin: GPIO5
+    temperature:
+      name: "Bedroom Temperature"
+      device_id: bedroom_device
+    humidity:
+      name: "Bedroom Humidity"
+      device_id: bedroom_device
+```
+
+In this example, Home Assistant will see two separate sensor devices (one for living room, one for bedroom)
+even though they're controlled by a single ESPHome device.
+
+This feature enhances the logical organization of your smart home while maintaining the efficiency of
+centralized ESPHome device management.
+
+## New Hardware Support Highlights
+
+This release brings support for exciting new hardware platforms and components:
+
+**New Wireless Communication:**
+
+- **SX126x & SX127x LoRa modules** - Long-range, low-power communication for remote sensors and IoT applications
+- **ESP32 Hosted WiFi** - Use an ESP32 as a WiFi adapter for other microcontrollers, expanding connectivity options
+
+**New Sensors & Measurement:**
+
+- **OPT3001** - High-precision ambient light sensor with excellent low-light sensitivity
+- **LPS22** - Accurate barometric pressure sensor for weather monitoring and altitude measurement
+- **GL-R01** - Time-of-flight distance sensor for precise proximity and ranging applications
+- **Xiaomi XMWSDJ04MMC** - Support for popular Xiaomi Bluetooth temperature/humidity sensors
+
+**Expanded Platform Support:**
+
+- **LN882X SoC Family** - New LibreTiny support extends ESPHome to additional low-cost WiFi microcontrollers
+- **PI4IOE5V6408** - New I2C GPIO expander for applications requiring additional digital I/O pins
+
+**Infrastructure Improvements:**
+
+- **DS2484** - Advanced 1-Wire bus master for improved reliability in complex 1-Wire networks
+- **Enhanced Camera Framework** - New base camera class enables support for alternative camera implementations
+
+## Memory and Performance Optimizations
+
+ESPHome 2025.7.0 includes extensive memory and performance optimizations, particularly beneficial for
+resource-constrained devices:
+
+**Memory Usage Reductions:**
+
+- **Component memory reduced** (8 bytes per component) - Significant savings for devices with many components
+- **Sensor entities optimized** - Reduced memory footprint for devices with numerous sensors
+- **API and networking optimizations** - Lower RAM usage for WiFi and API communication
+- **Color constant storage optimization** - More efficient handling of color data in displays and lighting
+
+**Performance Improvements:**
+
+- **Faster loop processing** - Components can now disable their loop() method when not needed, reducing CPU overhead
+- **Optimized API communication** - Improved batching and reduced redundant operations
+- **Enhanced logging performance** - More efficient message processing and reduced CPU impact
+- **Bluetooth proxy optimizations** - Better performance for ESP32 devices acting as Bluetooth proxies
+
+**Code Quality Enhancements:**
+
+- **C++20 support** - Modern C++ features for better performance and developer experience
+- **Improved interrupt handling** - More reliable GPIO interrupt processing
+- **Enhanced scheduler** - Better task management with comprehensive test coverage
+
+## Jinja2 Template Expressions in Substitutions
+
+> [!NOTE]
+> **New Feature:** ESPHome now supports Jinja2 template expressions within substitutions,
+> enabling more advanced and dynamic value generation.
+
+ESPHome 2025.7.0 introduces support for Jinja2 template expressions within the existing substitutions system.
+This enhancement extends the current `${ }` substitution syntax to support Jinja2 expressions, allowing for
+more sophisticated value calculations and transformations.
+
+**Enhanced substitution capabilities:**
+
+- **Mathematical operations** - Perform calculations using substitution variables
+- **Conditional expressions** - Use ternary operators and conditional logic
+- **String formatting** - Advanced string manipulation and formatting
+- **Type conversions** - Convert between strings, numbers, and other types
+- **Filter operations** - Apply Jinja2 filters for data transformation
+
+**Example usage:**
+
+```yaml
+substitutions:
+  device_name: living_room_sensors
+  num_sensors: 3
+  base_pin: 4
+  offset_voltage: 3.3
+  enable_debugging: false
+  sensor_config:
+    update_interval: 60s
+    accuracy_decimals: 2
+
+sensor:
+  - platform: adc
+    pin: GPIO${base_pin}
+    name: "${device_name} voltage"
+    update_interval: ${sensor_config.update_interval}
+    accuracy_decimals: ${sensor_config.accuracy_decimals}
+    filters:
+      # Convert ADC reading to actual voltage
+      - multiply: ${offset_voltage / 4095}
+
+  - platform: adc
+    pin: GPIO${base_pin + 1}
+    name: "${device_name} sensor ${num_sensors > 1 and 'secondary' or 'primary'}"
+    accuracy_decimals: ${1 if num_sensors <= 2 else 2}
+    update_interval: ${sensor_config.update_interval}
+
+binary_sensor:
+  - platform: gpio
+    pin: GPIO${base_pin + 2}
+    name: "${device_name} status ${enable_debugging and '(debug)' or ''}"
+```
+
+**Key features:**
+
+- **Works within existing substitutions** - Uses the familiar `${ }` syntax you already know
+- **Access to substitution variables** - All defined substitutions are available as Jinja variables
+- **Dictionary and list access** - Use dot notation (`device.name`  ) or indexing (`pins[0]`  )
+- **Mathematical functions** - Access to Python's math library (`math.sqrt`, `math.pi`, etc.)
+- **Conditional logic** - Ternary operators and boolean expressions for dynamic values
+
+**Benefits:**
+
+- **More powerful substitutions** - Calculate complex values instead of just simple replacements
+- **Reduced duplication** - Generate values programmatically based on other substitutions
+- **Better maintainability** - Change base values and have dependent values update automatically
+- **Enhanced flexibility** - Support for conditional values and complex transformations
+
+This feature builds upon ESPHome's existing substitutions system, making it more powerful while maintaining
+backward compatibility. It's particularly useful for responsive designs, calculated pin assignments,
+and configurations that need to adapt based on device capabilities or user preferences.
+
+For complete documentation and more examples, see the [Substitutions](/components/substitutions/) guide.
+
+## ArduinoJson Library 7.x
+
+> [!WARNING]
+> **Breaking Change:** The ArduinoJson library has been upgraded from version 6.x to 7.2.0, introducing
+> breaking changes that may affect custom components and external integrations.
+
+ESPHome 2025.7.0 upgrades the ArduinoJson library to version 7.2.0, bringing performance improvements and
+reduced memory usage. Most users will not be affected as all standard ESPHome components have been updated.
+However, if you have external components, or lambdas that directly use ArduinoJson, you may need
+to update your code.
+
+For detailed migration information, see the [ArduinoJson migration guide](https://arduinojson.org/v7/how-to/upgrade-from-v6/).
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2025.7.1 - July 17
+
+<details open>
+<summary></summary>
+
+
+
+- [lvgl]: fix missing await keyword in meter tick_style width processing [esphome#9538](https://github.com/esphome/esphome/pull/9538) by [@theshut](https://github.com/theshut)
+- Fix compilation error when using string lambdas with homeassistant services [esphome#9543](https://github.com/esphome/esphome/pull/9543) by [@bdraco](https://github.com/bdraco)
+- Fix format string warnings in Web Server OTA component [esphome#9569](https://github.com/esphome/esphome/pull/9569) by [@bdraco](https://github.com/bdraco)
+- Add helpful error message when ESP32+Arduino runs out of flash space [esphome#9580](https://github.com/esphome/esphome/pull/9580) by [@bdraco](https://github.com/bdraco)
+- Allow disabling OTA for web_server while keeping it enabled for captive_portal [esphome#9583](https://github.com/esphome/esphome/pull/9583) by [@bdraco](https://github.com/bdraco)
+- [esp32] Add missing include for helpers [esphome#9579](https://github.com/esphome/esphome/pull/9579) by [@jesserockz](https://github.com/jesserockz)
+- Fix lwIP thread safety assertion failures on ESP32 [esphome#9570](https://github.com/esphome/esphome/pull/9570) by [@bdraco](https://github.com/bdraco)
+
+
+</details>
+
+## Release 2025.7.2 - July 19
+
+<details open>
+<summary></summary>
+
+
+
+- Fix template event web_server crash [esphome#9618](https://github.com/esphome/esphome/pull/9618) by [@AzonInc](https://github.com/AzonInc)
+- [api] Fix compilation error with char* lambdas in HomeAssistant services [esphome#9638](https://github.com/esphome/esphome/pull/9638) by [@bdraco](https://github.com/bdraco)
+- [wireguard] Fix boot loop when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled [esphome#9637](https://github.com/esphome/esphome/pull/9637) by [@bdraco](https://github.com/bdraco)
+- [scheduler] Fix cancellation of timers with empty string names [esphome#9641](https://github.com/esphome/esphome/pull/9641) by [@bdraco](https://github.com/bdraco)
+- [logger] fix on_message [esphome#9642](https://github.com/esphome/esphome/pull/9642) by [@ssieb](https://github.com/ssieb)
+- esp32_camera: deprecate i2c_pins; throw error if combined with i2c: block [esphome#9615](https://github.com/esphome/esphome/pull/9615) by [@RubenKelevra](https://github.com/RubenKelevra)
+- [scheduler] Fix DelayAction cancellation in restart mode scripts [esphome#9646](https://github.com/esphome/esphome/pull/9646) by [@bdraco](https://github.com/bdraco)
+- [lvgl] Fix meter rotation [esphome#9605](https://github.com/esphome/esphome/pull/9605) by [@clydebarrow](https://github.com/clydebarrow)
+- [libretiny] Remove unsupported lock-free queue and event pool implementations [esphome#9653](https://github.com/esphome/esphome/pull/9653) by [@bdraco](https://github.com/bdraco)
+- [lvgl] Prevent keyerror on min/max value widgets with no default [esphome#9660](https://github.com/esphome/esphome/pull/9660) by [@jesserockz](https://github.com/jesserockz)
+- Fix AsyncTCP version mismatch between platformio.ini and async_tcp component [esphome#9676](https://github.com/esphome/esphome/pull/9676) by [@bdraco](https://github.com/bdraco)
+- [speaker] Media player's pipeline properly returns playing state near end of file [esphome#9668](https://github.com/esphome/esphome/pull/9668) by [@kahrendt](https://github.com/kahrendt)
+- [voice_assistant] Use media player callbacks to track TTS response status [esphome#9670](https://github.com/esphome/esphome/pull/9670) by [@kahrendt](https://github.com/kahrendt)
+- [gpio] Disable interrupt mode by default for LibreTiny platforms [esphome#9687](https://github.com/esphome/esphome/pull/9687) by [@bdraco](https://github.com/bdraco)
+
+
+</details>
+
+## Release 2025.7.3 - July 23
+
+<details open>
+<summary></summary>
+
+
+
+- [gpio] Auto-disable interrupts for shared GPIO pins in binary sensors [esphome#9701](https://github.com/esphome/esphome/pull/9701) by [@bdraco](https://github.com/bdraco)
+- Fix format string error in ota_web_server.cpp [esphome#9711](https://github.com/esphome/esphome/pull/9711) by [@tmpeh](https://github.com/tmpeh)
+- [sdl][mipi_spi] Respect clipping when drawing [esphome#9722](https://github.com/esphome/esphome/pull/9722) by [@JonasB2497](https://github.com/JonasB2497)
+- [esp32_touch] Fix setup mode in v1 driver [esphome#9725](https://github.com/esphome/esphome/pull/9725) by [@swoboda1337](https://github.com/swoboda1337)
+- [tuya] Update use of fan_schema [esphome#9762](https://github.com/esphome/esphome/pull/9762) by [@jesserockz](https://github.com/jesserockz)
+- [config_validation] Add support for suggesting alternate component/platform [esphome#9757](https://github.com/esphome/esphome/pull/9757) by [@kbx81](https://github.com/kbx81)
+- [core] Process pending loop enables during setup blocking phase [esphome#9787](https://github.com/esphome/esphome/pull/9787) by [@bdraco](https://github.com/bdraco)
+- [fastled_clockless, fastled_spi] Add suggested alternate when using IDF [esphome#9784](https://github.com/esphome/esphome/pull/9784) by [@kbx81](https://github.com/kbx81)
+- [neopixelbus] Add suggested alternate when using IDF [esphome#9783](https://github.com/esphome/esphome/pull/9783) by [@kbx81](https://github.com/kbx81)
+- [bme680_bsec] Add suggested alternate when using IDF [esphome#9785](https://github.com/esphome/esphome/pull/9785) by [@kbx81](https://github.com/kbx81)
+
+
+</details>
+
+## Release 2025.7.4 - July 28
+
+<details open>
+<summary></summary>
+
+
+
+- [remote_receiver] Fix idle validation [esphome#9819](https://github.com/esphome/esphome/pull/9819) by [@swoboda1337](https://github.com/swoboda1337)
+- [gt911] i2c fixes [esphome#9822](https://github.com/esphome/esphome/pull/9822) by [@clydebarrow](https://github.com/clydebarrow)
+- fix: non-optional x/y target calculation for ld2450 [esphome#9849](https://github.com/esphome/esphome/pull/9849) by [@Hofferic](https://github.com/Hofferic)
+- [logger] Don't allow `logger.log` actions without configuring the `logger` [esphome#9821](https://github.com/esphome/esphome/pull/9821) by [@jesserockz](https://github.com/jesserockz)
+- Add seed flag when running setup with uv present [esphome#9932](https://github.com/esphome/esphome/pull/9932) by [@cryptk](https://github.com/cryptk)
+- Fail with old lerp [esphome#9914](https://github.com/esphome/esphome/pull/9914) by [@HeMan](https://github.com/HeMan)
+
+
+</details>
+
+## Release 2025.7.5 - August 5
+
+<details open>
+<summary></summary>
+
+
+
+- [lvgl] Bugfix for tileview [esphome#9938](https://github.com/esphome/esphome/pull/9938) by [@clydebarrow](https://github.com/clydebarrow)
+- [api] Fix OTA progress updates not being sent when main loop is blocked [esphome#10049](https://github.com/esphome/esphome/pull/10049) by [@bdraco](https://github.com/bdraco)
+- [font] Catch file load exception [esphome#10058](https://github.com/esphome/esphome/pull/10058) by [@clydebarrow](https://github.com/clydebarrow)
+- [i2s_audio] Use high-pass filter for dc offset correction [esphome#10005](https://github.com/esphome/esphome/pull/10005) by [@doobry](https://github.com/doobry)
+
+
+</details>
+
+## Full list of changes
+
+### New Components
+
+- Add support for Xiaomi XMWSDJ04MMC [esphome#8591](https://github.com/esphome/esphome/pull/8591) by [@medusalix](https://github.com/medusalix) (new-integration)
+- [opt3001] New component [esphome#6625](https://github.com/esphome/esphome/pull/6625) by [@ccutrer](https://github.com/ccutrer) (new-integration)
+- [esp32_hosted] Add support for remote wifi [esphome#8833](https://github.com/esphome/esphome/pull/8833) by [@swoboda1337](https://github.com/swoboda1337) (new-integration)
+- [pi4ioe5v6408] Add new IO Expander [esphome#8888](https://github.com/esphome/esphome/pull/8888) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add support for LN882X Family (with LibreTiny) [esphome#8954](https://github.com/esphome/esphome/pull/8954) by [@lamauny](https://github.com/lamauny) (new-integration) (notable-change)
+- Replace custom OTA implementation in web_server_base [esphome#9274](https://github.com/esphome/esphome/pull/9274) by [@bdraco](https://github.com/bdraco) (new-integration) (breaking-change)
+- [ds2484] New component [esphome#9147](https://github.com/esphome/esphome/pull/9147) by [@mrk-its](https://github.com/mrk-its) (new-integration)
+- [sx127x] Add sx127x component [esphome#7490](https://github.com/esphome/esphome/pull/7490) by [@swoboda1337](https://github.com/swoboda1337) (new-integration)
+- Introduce base Camera class to support alternative camera implementations [esphome#9285](https://github.com/esphome/esphome/pull/9285) by [@DT-art1](https://github.com/DT-art1) (new-integration)
+- [sx126x] Add sx126x component [esphome#8516](https://github.com/esphome/esphome/pull/8516) by [@swoboda1337](https://github.com/swoboda1337) (new-integration)
+- lps22: add a component [esphome#7540](https://github.com/esphome/esphome/pull/7540) by [@nagisa](https://github.com/nagisa) (new-integration)
+- Add support for GL-R01 I2C - Time of Flight sensor [esphome#8329](https://github.com/esphome/esphome/pull/8329) by [@pkejval](https://github.com/pkejval) (new-integration)
+
+### Breaking Changes
+
+- [binary_sensor] Add action to invalidate state and pass to HA [esphome#8961](https://github.com/esphome/esphome/pull/8961) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [esp32_hall] Remove esp32_hall [esphome#9117](https://github.com/esphome/esphome/pull/9117) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- [web_server] Upgrade ESPAsync libraries [esphome#8867](https://github.com/esphome/esphome/pull/8867) by [@kuba2k2](https://github.com/kuba2k2) (breaking-change)
+- Bump ESP32 Arduino version to 3.1.3 [esphome#8604](https://github.com/esphome/esphome/pull/8604) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- [mqtt] Don't wait for connection unless configured to [esphome#8933](https://github.com/esphome/esphome/pull/8933) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- [API] Sub devices and areas [esphome#8544](https://github.com/esphome/esphome/pull/8544) by [@dala318](https://github.com/dala318) (breaking-change)
+- Reduce memory required for sensor entities [esphome#9201](https://github.com/esphome/esphome/pull/9201) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- Optimize TemplatableValue memory [esphome#9202](https://github.com/esphome/esphome/pull/9202) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- Optimize Application class memory layout and reduce loop_interval size [esphome#9208](https://github.com/esphome/esphome/pull/9208) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- [pins] Update `internal_gpio_pin_number` to work directly like `internal_gpio_output_pin_number` [esphome#9270](https://github.com/esphome/esphome/pull/9270) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- [smt100] Rename `dielectric_constant` to `permittivity` [esphome#9175](https://github.com/esphome/esphome/pull/9175) by [@piechade](https://github.com/piechade) (breaking-change)
+- Fix entity hash collisions by enforcing unique names across devices per platform [esphome#9276](https://github.com/esphome/esphome/pull/9276) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- [esp32] Remove IDF 4 support and clean up code [esphome#9145](https://github.com/esphome/esphome/pull/9145) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- Replace custom OTA implementation in web_server_base [esphome#9274](https://github.com/esphome/esphome/pull/9274) by [@bdraco](https://github.com/bdraco) (new-integration) (breaking-change)
+- Reduce RAM usage by optimizing Color constant storage [esphome#9339](https://github.com/esphome/esphome/pull/9339) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- Optimize logger callback API by including message length parameter [esphome#9368](https://github.com/esphome/esphome/pull/9368) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- Conditionally compile API user services to save 4.3KB flash (follow-up to #9262) [esphome#9451](https://github.com/esphome/esphome/pull/9451) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- [json] Bump ArduinoJson library to 7.4.2 [esphome#8857](https://github.com/esphome/esphome/pull/8857) by [@kahrendt](https://github.com/kahrendt) (breaking-change)
+
+### Notable Changes
+
+- Add support for LN882X Family (with LibreTiny) [esphome#8954](https://github.com/esphome/esphome/pull/8954) by [@lamauny](https://github.com/lamauny) (new-integration) (notable-change)
+- Jinja expressions in configs (Take #3) [esphome#8955](https://github.com/esphome/esphome/pull/8955) by [@jpeletier](https://github.com/jpeletier) (notable-change)
+
+### All changes
+
+<details>
+<summary></summary>
+
+
+
+- [core/pins] improve pins types [esphome#8848](https://github.com/esphome/esphome/pull/8848) by [@ximex](https://github.com/ximex)
+- [binary_sensor] Add action to invalidate state and pass to HA [esphome#8961](https://github.com/esphome/esphome/pull/8961) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- ina219: powerdown the sensor on shutdown [esphome#9053](https://github.com/esphome/esphome/pull/9053) by [@youknow0](https://github.com/youknow0)
+- Build with C++17 [esphome#8603](https://github.com/esphome/esphome/pull/8603) by [@HeMan](https://github.com/HeMan)
+- Move some consts to `const.py` [esphome#9084](https://github.com/esphome/esphome/pull/9084) by [@kbx81](https://github.com/kbx81)
+- Reduce Component memory usage by 20 bytes per component [esphome#9080](https://github.com/esphome/esphome/pull/9080) by [@bdraco](https://github.com/bdraco)
+- [ruff] Apply various ruff suggestions [esphome#8947](https://github.com/esphome/esphome/pull/8947) by [@jesserockz](https://github.com/jesserockz)
+- Bump LibreTiny recommended version to 1.9.1 [esphome#9110](https://github.com/esphome/esphome/pull/9110) by [@swoboda1337](https://github.com/swoboda1337)
+- [esp32_hall] Remove esp32_hall [esphome#9117](https://github.com/esphome/esphome/pull/9117) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- Resolve esphome::optional vs std::optional ambiguity in code generation [esphome#9119](https://github.com/esphome/esphome/pull/9119) by [@bdraco](https://github.com/bdraco)
+- Add intent progress event to voice assistant enum [esphome#9103](https://github.com/esphome/esphome/pull/9103) by [@synesthesiam](https://github.com/synesthesiam)
+- Pin libretiny to 1.9.1 [esphome#9118](https://github.com/esphome/esphome/pull/9118) by [@swoboda1337](https://github.com/swoboda1337)
+- Bump ruff in pre-commit to 0.12.0 [esphome#9121](https://github.com/esphome/esphome/pull/9121) by [@bdraco](https://github.com/bdraco)
+- [heatpumpir] Bump HeatpumpIR to 1.0.35 [esphome#9123](https://github.com/esphome/esphome/pull/9123) by [@swoboda1337](https://github.com/swoboda1337)
+- [i2s_audio] Bump esphome/ESP32-audioI2S to 2.3.0 [esphome#9124](https://github.com/esphome/esphome/pull/9124) by [@swoboda1337](https://github.com/swoboda1337)
+- Reduce CPU overhead by allowing components to disable their loop() [esphome#9089](https://github.com/esphome/esphome/pull/9089) by [@bdraco](https://github.com/bdraco)
+- Add support for Xiaomi XMWSDJ04MMC [esphome#8591](https://github.com/esphome/esphome/pull/8591) by [@medusalix](https://github.com/medusalix) (new-integration)
+- [web_server] Upgrade ESPAsync libraries [esphome#8867](https://github.com/esphome/esphome/pull/8867) by [@kuba2k2](https://github.com/kuba2k2) (breaking-change)
+- Bump ESP32 Arduino version to 3.1.3 [esphome#8604](https://github.com/esphome/esphome/pull/8604) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- Remove empty generated protobuf methods [esphome#9098](https://github.com/esphome/esphome/pull/9098) by [@bdraco](https://github.com/bdraco)
+- Reduce code duplication in auto-generated API protocol code [esphome#9097](https://github.com/esphome/esphome/pull/9097) by [@bdraco](https://github.com/bdraco)
+- Use smaller atomic types for ESP32 BLE Tracker ring buffer indices [esphome#9106](https://github.com/esphome/esphome/pull/9106) by [@bdraco](https://github.com/bdraco)
+- Optimize API server performance by using cached loop time [esphome#9104](https://github.com/esphome/esphome/pull/9104) by [@bdraco](https://github.com/bdraco)
+- Optimize API component memory usage by reordering class members to reduce padding [esphome#9111](https://github.com/esphome/esphome/pull/9111) by [@bdraco](https://github.com/bdraco)
+- Optimize bluetooth_proxy memory usage on ESP32 [esphome#9114](https://github.com/esphome/esphome/pull/9114) by [@bdraco](https://github.com/bdraco)
+- Add enable_loop_soon_any_context() for thread and ISR-safe loop enabling [esphome#9127](https://github.com/esphome/esphome/pull/9127) by [@bdraco](https://github.com/bdraco)
+- Optimize OTA loop to avoid unnecessary stack allocations [esphome#9129](https://github.com/esphome/esphome/pull/9129) by [@bdraco](https://github.com/bdraco)
+- [i2c] Expose internal i2c bus port number [esphome#9136](https://github.com/esphome/esphome/pull/9136) by [@jesserockz](https://github.com/jesserockz)
+- Disable Ethernet loop polling when connected and stable [esphome#9102](https://github.com/esphome/esphome/pull/9102) by [@bdraco](https://github.com/bdraco)
+- Clean up RAMAllocators in audio related code [esphome#9140](https://github.com/esphome/esphome/pull/9140) by [@jesserockz](https://github.com/jesserockz)
+- Clean up RAMAllocators in http_request code [esphome#9143](https://github.com/esphome/esphome/pull/9143) by [@jesserockz](https://github.com/jesserockz)
+- Clean up RAMAllocators in display related code [esphome#9141](https://github.com/esphome/esphome/pull/9141) by [@jesserockz](https://github.com/jesserockz)
+- [i2c] Make `get_port()` public [esphome#9146](https://github.com/esphome/esphome/pull/9146) by [@jesserockz](https://github.com/jesserockz)
+- [esp32_camera] Allow sharing i2c bus [esphome#9137](https://github.com/esphome/esphome/pull/9137) by [@jesserockz](https://github.com/jesserockz)
+- [nextion] Add command queuing to prevent command loss when spacing is active [esphome#9139](https://github.com/esphome/esphome/pull/9139) by [@edwardtfn](https://github.com/edwardtfn)
+- [nextion] Cached timing optimization [esphome#9150](https://github.com/esphome/esphome/pull/9150) by [@edwardtfn](https://github.com/edwardtfn)
+- [wifi, wifi_info] Tidy up/shorten more log messages [esphome#9151](https://github.com/esphome/esphome/pull/9151) by [@kbx81](https://github.com/kbx81)
+- [bh1750] Remove redundant platform name from logging [esphome#9153](https://github.com/esphome/esphome/pull/9153) by [@kbx81](https://github.com/kbx81)
+- Add option to enable support for USB Hubs [esphome#9154](https://github.com/esphome/esphome/pull/9154) by [@RoganDawes](https://github.com/RoganDawes)
+- [spi] Enable >6 devices with ESP-IDF [esphome#9128](https://github.com/esphome/esphome/pull/9128) by [@clydebarrow](https://github.com/clydebarrow)
+- Clean up RAMAllocators in light related code [esphome#9142](https://github.com/esphome/esphome/pull/9142) by [@jesserockz](https://github.com/jesserockz)
+- [nextion] Extract common `upload_end_` function to shared file [esphome#9155](https://github.com/esphome/esphome/pull/9155) by [@edwardtfn](https://github.com/edwardtfn)
+- Improve on C++17 [esphome#9170](https://github.com/esphome/esphome/pull/9170) by [@HeMan](https://github.com/HeMan)
+- [nextion] Revert to `millis()` on `recv_ret_string_` [esphome#9168](https://github.com/esphome/esphome/pull/9168) by [@edwardtfn](https://github.com/edwardtfn)
+- [const] Move `CONF_DEVICES` to `const.py` [esphome#9179](https://github.com/esphome/esphome/pull/9179) by [@jesserockz](https://github.com/jesserockz)
+- Reduce Logger memory usage by optimizing variable sizes [esphome#9161](https://github.com/esphome/esphome/pull/9161) by [@bdraco](https://github.com/bdraco)
+- Fix slow noise handshake by reading multiple messages per loop [esphome#9130](https://github.com/esphome/esphome/pull/9130) by [@bdraco](https://github.com/bdraco)
+- Reduce RAM usage for scheduled tasks [esphome#9180](https://github.com/esphome/esphome/pull/9180) by [@bdraco](https://github.com/bdraco)
+- Pre-reserve looping components vector to reduce memory allocations [esphome#9177](https://github.com/esphome/esphome/pull/9177) by [@bdraco](https://github.com/bdraco)
+- [lvgl] Add start_value to bar; make values templatable and updateable [esphome#9056](https://github.com/esphome/esphome/pull/9056) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Use styles instead of object properties for themes [esphome#9116](https://github.com/esphome/esphome/pull/9116) by [@clydebarrow](https://github.com/clydebarrow)
+- Feature fontmetrics [esphome#8978](https://github.com/esphome/esphome/pull/8978) by [@JonasB2497](https://github.com/JonasB2497)
+- Image should not update when setting URL [esphome#8885](https://github.com/esphome/esphome/pull/8885) by [@gpambrozio](https://github.com/gpambrozio)
+- [opt3001] New component [esphome#6625](https://github.com/esphome/esphome/pull/6625) by [@ccutrer](https://github.com/ccutrer) (new-integration)
+- [mqtt] Don't wait for connection unless configured to [esphome#8933](https://github.com/esphome/esphome/pull/8933) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- [modbus_controller] Fix modbus read_lambda precision for non-floats or large integers [esphome#9159](https://github.com/esphome/esphome/pull/9159) by [@jpeletier](https://github.com/jpeletier)
+- [helpers] Add `format_mac_address_pretty` function, migrate components [esphome#9193](https://github.com/esphome/esphome/pull/9193) by [@kbx81](https://github.com/kbx81)
+- [ld2450] Use `App.get_loop_component_start_time()`, shorten log messages [esphome#9192](https://github.com/esphome/esphome/pull/9192) by [@kbx81](https://github.com/kbx81)
+- [ld2420] Shorten log messages + other clean-up [esphome#9200](https://github.com/esphome/esphome/pull/9200) by [@kbx81](https://github.com/kbx81)
+- [ld2410] Use `App.get_loop_component_start_time()`, shorten log messages [esphome#9194](https://github.com/esphome/esphome/pull/9194) by [@kbx81](https://github.com/kbx81)
+- [esp32_hall] Add dummy component [esphome#9125](https://github.com/esphome/esphome/pull/9125) by [@swoboda1337](https://github.com/swoboda1337)
+- fix(MQTT): Call disconnect callback on DNS error [esphome#9016](https://github.com/esphome/esphome/pull/9016) by [@Rapsssito](https://github.com/Rapsssito)
+- Rename kVARh/VARh to kvarh/varh [esphome#9191](https://github.com/esphome/esphome/pull/9191) by [@Drafteed](https://github.com/Drafteed)
+- [API] Sub devices and areas [esphome#8544](https://github.com/esphome/esphome/pull/8544) by [@dala318](https://github.com/dala318) (breaking-change)
+- [binary_sensor] Add timeout filter [esphome#9198](https://github.com/esphome/esphome/pull/9198) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Allow linear positioning of grid cells [esphome#9196](https://github.com/esphome/esphome/pull/9196) by [@clydebarrow](https://github.com/clydebarrow)
+- Reduce memory required for sensor entities [esphome#9201](https://github.com/esphome/esphome/pull/9201) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- Reduce logger CPU usage by disabling loop when buffer is empty [esphome#9160](https://github.com/esphome/esphome/pull/9160) by [@bdraco](https://github.com/bdraco)
+- Optimize API connection loop performance [esphome#9184](https://github.com/esphome/esphome/pull/9184) by [@bdraco](https://github.com/bdraco)
+- Optimize TemplatableValue memory [esphome#9202](https://github.com/esphome/esphome/pull/9202) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- Optimize API connection memory with tagged pointers [esphome#9203](https://github.com/esphome/esphome/pull/9203) by [@bdraco](https://github.com/bdraco)
+- Fix missing protobuf message dump for batched messages with very verbose logging [esphome#9206](https://github.com/esphome/esphome/pull/9206) by [@bdraco](https://github.com/bdraco)
+- Optimize Application class memory layout and reduce loop_interval size [esphome#9208](https://github.com/esphome/esphome/pull/9208) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- Use shared workflow for locking [esphome#9211](https://github.com/esphome/esphome/pull/9211) by [@jesserockz](https://github.com/jesserockz)
+- [esp32] Improve and simplify IDF component support [esphome#9163](https://github.com/esphome/esphome/pull/9163) by [@swoboda1337](https://github.com/swoboda1337)
+- [ld2450] More optimizing, fix copypasta [esphome#9210](https://github.com/esphome/esphome/pull/9210) by [@kbx81](https://github.com/kbx81)
+- [ci] Lint lock.yml [esphome#9214](https://github.com/esphome/esphome/pull/9214) by [@jesserockz](https://github.com/jesserockz)
+- [script] Add exec bit to run-in-env [esphome#9212](https://github.com/esphome/esphome/pull/9212) by [@jesserockz](https://github.com/jesserockz)
+- [ld2410] More optimizations [esphome#9209](https://github.com/esphome/esphome/pull/9209) by [@kbx81](https://github.com/kbx81)
+- [ld2450] Move consts to cpp file, optimize memory use [esphome#9215](https://github.com/esphome/esphome/pull/9215) by [@kbx81](https://github.com/kbx81)
+- [tests] Remove extra newline [esphome#9213](https://github.com/esphome/esphome/pull/9213) by [@jesserockz](https://github.com/jesserockz)
+- Optimize SafeModeComponent memory layout to reduce padding [esphome#9228](https://github.com/esphome/esphome/pull/9228) by [@bdraco](https://github.com/bdraco)
+- [esp32_hosted] Add support for remote wifi [esphome#8833](https://github.com/esphome/esphome/pull/8833) by [@swoboda1337](https://github.com/swoboda1337) (new-integration)
+- use c++17 `[[fallthrough]];` [esphome#9149](https://github.com/esphome/esphome/pull/9149) by [@ximex](https://github.com/ximex)
+- [esp32] Update IDF components to use the registry [esphome#9223](https://github.com/esphome/esphome/pull/9223) by [@swoboda1337](https://github.com/swoboda1337)
+- [wifi] Reduce memory usage [esphome#9232](https://github.com/esphome/esphome/pull/9232) by [@bdraco](https://github.com/bdraco)
+- [ethernet] Reduce memory usage by 8 bytes [esphome#9231](https://github.com/esphome/esphome/pull/9231) by [@bdraco](https://github.com/bdraco)
+- [gpio] Reduce ESP32 memory usage by optimizing struct padding [esphome#9230](https://github.com/esphome/esphome/pull/9230) by [@bdraco](https://github.com/bdraco)
+- Reduce component_iterator memory usage [esphome#9205](https://github.com/esphome/esphome/pull/9205) by [@bdraco](https://github.com/bdraco)
+- Upgrade to use C++20 [esphome#9135](https://github.com/esphome/esphome/pull/9135) by [@HeMan](https://github.com/HeMan)
+- [mcp23xxx_base] fix pin interrupts [esphome#9244](https://github.com/esphome/esphome/pull/9244) by [@ssieb](https://github.com/ssieb)
+- [i2c] Disable i2c scan on certain idf versions [esphome#9237](https://github.com/esphome/esphome/pull/9237) by [@swoboda1337](https://github.com/swoboda1337)
+- Reduce libretiny logconfig messages [esphome#9239](https://github.com/esphome/esphome/pull/9239) by [@bdraco](https://github.com/bdraco)
+- Disable dynamic log level control for ESP32 ESP-IDF builds [esphome#9233](https://github.com/esphome/esphome/pull/9233) by [@bdraco](https://github.com/bdraco)
+- Silence protobuf compatibility warnings when importing aioesphomeapi [esphome#9236](https://github.com/esphome/esphome/pull/9236) by [@bdraco](https://github.com/bdraco)
+- [esp32] Allow 5.4.2 [esphome#9243](https://github.com/esphome/esphome/pull/9243) by [@swoboda1337](https://github.com/swoboda1337)
+- Remove backports of `std` [esphome#9246](https://github.com/esphome/esphome/pull/9246) by [@HeMan](https://github.com/HeMan)
+- Fix buffer corruption in API message encoding with very verbose logging [esphome#9249](https://github.com/esphome/esphome/pull/9249) by [@bdraco](https://github.com/bdraco)
+- Extract lock-free queue and event pool to core helpers [esphome#9238](https://github.com/esphome/esphome/pull/9238) by [@bdraco](https://github.com/bdraco)
+- Replace ping retry timer with batch queue fallback [esphome#9207](https://github.com/esphome/esphome/pull/9207) by [@bdraco](https://github.com/bdraco)
+- [thermostat] Memory optimizations [esphome#9259](https://github.com/esphome/esphome/pull/9259) by [@kbx81](https://github.com/kbx81)
+- [adc] Memory optimizations [esphome#9247](https://github.com/esphome/esphome/pull/9247) by [@kbx81](https://github.com/kbx81)
+- [light] Memory optimizations [esphome#9260](https://github.com/esphome/esphome/pull/9260) by [@kbx81](https://github.com/kbx81)
+- Reduce web_server code duplication by extracting detail parameter parsing [esphome#9257](https://github.com/esphome/esphome/pull/9257) by [@bdraco](https://github.com/bdraco)
+- Remove redundant get_setup_priority() overrides returning default value [esphome#9253](https://github.com/esphome/esphome/pull/9253) by [@bdraco](https://github.com/bdraco)
+- Fix MQTT blocking main loop for multiple seconds at a time [esphome#8325](https://github.com/esphome/esphome/pull/8325) by [@dwmw2](https://github.com/dwmw2)
+- Remove single-use send_*_info wrappers in API connection [esphome#9255](https://github.com/esphome/esphome/pull/9255) by [@bdraco](https://github.com/bdraco)
+- Reduce API memory footprint through bitfield consolidation and type sizing [esphome#9252](https://github.com/esphome/esphome/pull/9252) by [@bdraco](https://github.com/bdraco)
+- Reduce flash usage by making add_message_object non-template [esphome#9258](https://github.com/esphome/esphome/pull/9258) by [@bdraco](https://github.com/bdraco)
+- Remove unused return value from read_message and fix ifdef placement in generated API code [esphome#9256](https://github.com/esphome/esphome/pull/9256) by [@bdraco](https://github.com/bdraco)
+- Reduce web_server RAM usage by 96 bytes with conditional sorting compilation [esphome#9227](https://github.com/esphome/esphome/pull/9227) by [@bdraco](https://github.com/bdraco)
+- Add interrupt support to GPIO binary sensors [esphome#9115](https://github.com/esphome/esphome/pull/9115) by [@bdraco](https://github.com/bdraco)
+- [pi4ioe5v6408] Add new IO Expander [esphome#8888](https://github.com/esphome/esphome/pull/8888) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Reduce loop enable/disable log spam by using very verbose level [esphome#9267](https://github.com/esphome/esphome/pull/9267) by [@bdraco](https://github.com/bdraco)
+- Fix thread-safe cleanup of event source connections in ESP-IDF web server [esphome#9268](https://github.com/esphome/esphome/pull/9268) by [@bdraco](https://github.com/bdraco)
+- Reduce API component memory usage with conditional compilation [esphome#9262](https://github.com/esphome/esphome/pull/9262) by [@bdraco](https://github.com/bdraco)
+- Optimize scheduler string storage to eliminate heap allocations [esphome#9251](https://github.com/esphome/esphome/pull/9251) by [@bdraco](https://github.com/bdraco)
+- Optimize web_server UrlMatch to avoid heap allocations [esphome#9263](https://github.com/esphome/esphome/pull/9263) by [@bdraco](https://github.com/bdraco)
+- Add support for LN882X Family (with LibreTiny) [esphome#8954](https://github.com/esphome/esphome/pull/8954) by [@lamauny](https://github.com/lamauny) (new-integration) (notable-change)
+- Support DM9051 SPI ethernet device [esphome#6861](https://github.com/esphome/esphome/pull/6861) by [@bmork](https://github.com/bmork)
+- [light] Fix transitions with `lerp` [esphome#9269](https://github.com/esphome/esphome/pull/9269) by [@kbx81](https://github.com/kbx81)
+- [remote_base] Fix dumper base class and enable schema extension [esphome#9218](https://github.com/esphome/esphome/pull/9218) by [@gabest11](https://github.com/gabest11)
+- [ld2420] Move consts to cpp file, optimize memory use [esphome#9216](https://github.com/esphome/esphome/pull/9216) by [@kbx81](https://github.com/kbx81)
+- Update libsodium to 1.0.20 [esphome#9240](https://github.com/esphome/esphome/pull/9240) by [@bdraco](https://github.com/bdraco)
+- Fixes for async MQTT [esphome#9273](https://github.com/esphome/esphome/pull/9273) by [@dwmw2](https://github.com/dwmw2)
+- Fix flaky test_api_conditional_memory by waiting for all required states [esphome#9271](https://github.com/esphome/esphome/pull/9271) by [@bdraco](https://github.com/bdraco)
+- [pins] Update `internal_gpio_pin_number` to work directly like `internal_gpio_output_pin_number` [esphome#9270](https://github.com/esphome/esphome/pull/9270) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- [http_request.update] Fix `size_t` printing [esphome#9144](https://github.com/esphome/esphome/pull/9144) by [@jesserockz](https://github.com/jesserockz)
+- [smt100] Rename `dielectric_constant` to `permittivity` [esphome#9175](https://github.com/esphome/esphome/pull/9175) by [@piechade](https://github.com/piechade) (breaking-change)
+- [ethernet] P4 changes and 5.3.0 deprecated warnings [esphome#8457](https://github.com/esphome/esphome/pull/8457) by [@swoboda1337](https://github.com/swoboda1337)
+- Fix - Pass thread TLVs down to openthread if they are defined [esphome#9182](https://github.com/esphome/esphome/pull/9182) by [@mrene](https://github.com/mrene)
+- Fix entity hash collisions by enforcing unique names across devices per platform [esphome#9276](https://github.com/esphome/esphome/pull/9276) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- [host] Disable platformio ldf [esphome#9277](https://github.com/esphome/esphome/pull/9277) by [@jesserockz](https://github.com/jesserockz)
+- Jinja expressions in configs (Take #3) [esphome#8955](https://github.com/esphome/esphome/pull/8955) by [@jpeletier](https://github.com/jpeletier) (notable-change)
+- Use interrupt based approach for esp32_touch [esphome#9059](https://github.com/esphome/esphome/pull/9059) by [@bdraco](https://github.com/bdraco)
+- Add OTA support to ESP-IDF webserver [esphome#9264](https://github.com/esphome/esphome/pull/9264) by [@bdraco](https://github.com/bdraco)
+- [modbus] Modbus server role: write holding registers [esphome#9156](https://github.com/esphome/esphome/pull/9156) by [@jpeletier](https://github.com/jpeletier)
+- [esp32] Remove IDF 4 support and clean up code [esphome#9145](https://github.com/esphome/esphome/pull/9145) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- Fix regression: BK7231N devices not returning entities via API [esphome#9283](https://github.com/esphome/esphome/pull/9283) by [@bdraco](https://github.com/bdraco)
+- [esp32_rmt_led_strip] Reduce memory usage by 32x with IDF 5.3 [esphome#8388](https://github.com/esphome/esphome/pull/8388) by [@swoboda1337](https://github.com/swoboda1337)
+- [api] Dump bytes fields as hex instead of unreadable string [esphome#9288](https://github.com/esphome/esphome/pull/9288) by [@jesserockz](https://github.com/jesserockz)
+- Reduce Component memory usage by 40% (8 bytes per component) [esphome#9278](https://github.com/esphome/esphome/pull/9278) by [@bdraco](https://github.com/bdraco)
+- Replace custom OTA implementation in web_server_base [esphome#9274](https://github.com/esphome/esphome/pull/9274) by [@bdraco](https://github.com/bdraco) (new-integration) (breaking-change)
+- pulse_meter total [esphome#9282](https://github.com/esphome/esphome/pull/9282) by [@prchal](https://github.com/prchal)
+- Mmc5603 fix for devices that don't retrieve chip_id [esphome#8959](https://github.com/esphome/esphome/pull/8959) by [@jsb2092](https://github.com/jsb2092)
+- made qr_code elements optional [esphome#8896](https://github.com/esphome/esphome/pull/8896) by [@JonasB2497](https://github.com/JonasB2497)
+- [nextion] memory optimization [esphome#9164](https://github.com/esphome/esphome/pull/9164) by [@edwardtfn](https://github.com/edwardtfn)
+- Use encode_bytes() for protobuf bytes fields [esphome#9289](https://github.com/esphome/esphome/pull/9289) by [@bdraco](https://github.com/bdraco)
+- [core] Deleting CMakeCache.txt for fast recompilation with ESP-IDF [esphome#8750](https://github.com/esphome/esphome/pull/8750) by [@zkoalexey](https://github.com/zkoalexey)
+- [heatpumpir] Add Support for PHS32 HeatPump [esphome#7378](https://github.com/esphome/esphome/pull/7378) by [@mrtntome](https://github.com/mrtntome)
+- OpenThread - add Device Type [esphome#9272](https://github.com/esphome/esphome/pull/9272) by [@rwrozelle](https://github.com/rwrozelle)
+- Don't compile `state_to_string()` unless debugging. [esphome#7473](https://github.com/esphome/esphome/pull/7473) by [@colmbuckley](https://github.com/colmbuckley)
+- [time] Add `USE_TIME_TIMEZONE` define [esphome#9290](https://github.com/esphome/esphome/pull/9290) by [@jesserockz](https://github.com/jesserockz)
+- [time] fix clang-tidy [esphome#9292](https://github.com/esphome/esphome/pull/9292) by [@tomaszduda23](https://github.com/tomaszduda23)
+- [esp32_touch] Fix threshold [esphome#9291](https://github.com/esphome/esphome/pull/9291) by [@clydebarrow](https://github.com/clydebarrow)
+- [ds2484] New component [esphome#9147](https://github.com/esphome/esphome/pull/9147) by [@mrk-its](https://github.com/mrk-its) (new-integration)
+- Fix missing ifdef guards in API protobuf generator [esphome#9296](https://github.com/esphome/esphome/pull/9296) by [@bdraco](https://github.com/bdraco)
+- Save flash and RAM by conditionally compiling unused API password code [esphome#9297](https://github.com/esphome/esphome/pull/9297) by [@bdraco](https://github.com/bdraco)
+- [Packet transport] Ping timeout sensor [esphome#8694](https://github.com/esphome/esphome/pull/8694) by [@dala318](https://github.com/dala318)
+- Allow disabling API batch delay for real-time state updates [esphome#9298](https://github.com/esphome/esphome/pull/9298) by [@bdraco](https://github.com/bdraco)
+- Packages: optional base path for remote git packages [esphome#9279](https://github.com/esphome/esphome/pull/9279) by [@dudanov](https://github.com/dudanov)
+- [sx127x] Add sx127x component [esphome#7490](https://github.com/esphome/esphome/pull/7490) by [@swoboda1337](https://github.com/swoboda1337) (new-integration)
+- [microphone] simplify mute handling to avoid unnecessary copies [esphome#9303](https://github.com/esphome/esphome/pull/9303) by [@kahrendt](https://github.com/kahrendt)
+- Add device_id to entity state messages for sub-device support [esphome#9304](https://github.com/esphome/esphome/pull/9304) by [@bdraco](https://github.com/bdraco)
+- Fix web_server URL parsing lifetime issue [esphome#9309](https://github.com/esphome/esphome/pull/9309) by [@bdraco](https://github.com/bdraco)
+- Reduce web_server loop overhead on ESP32 by avoiding unnecessary semaphore operations [esphome#9308](https://github.com/esphome/esphome/pull/9308) by [@bdraco](https://github.com/bdraco)
+- Fix compiler warning in tsl2591 component [esphome#9310](https://github.com/esphome/esphome/pull/9310) by [@mikelawrence](https://github.com/mikelawrence)
+- Fix web_server busy loop with ungracefully disconnected clients [esphome#9312](https://github.com/esphome/esphome/pull/9312) by [@bdraco](https://github.com/bdraco)
+- Add const char overload for Component::defer() [esphome#9324](https://github.com/esphome/esphome/pull/9324) by [@bdraco](https://github.com/bdraco)
+- [rtttl] trim extraneous whitespace in "ac_dimmer" in "PWM_BAD" list [esphome#9318](https://github.com/esphome/esphome/pull/9318) by [@ximex](https://github.com/ximex)
+- Mark ESPTime comparison operators as const [esphome#9335](https://github.com/esphome/esphome/pull/9335) by [@freundTech](https://github.com/freundTech)
+- [ld2450] Reduce CPU usage, eliminate redundant sensor updates [esphome#9334](https://github.com/esphome/esphome/pull/9334) by [@bdraco](https://github.com/bdraco)
+- [nextion] Memory optimization [esphome#9338](https://github.com/esphome/esphome/pull/9338) by [@edwardtfn](https://github.com/edwardtfn)
+- Reduce RAM usage by optimizing Color constant storage [esphome#9339](https://github.com/esphome/esphome/pull/9339) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- Eliminate API component guard variable to save 8 bytes RAM [esphome#9341](https://github.com/esphome/esphome/pull/9341) by [@bdraco](https://github.com/bdraco)
+- Eliminate web_server_idf guard variable to save 8 bytes RAM [esphome#9344](https://github.com/esphome/esphome/pull/9344) by [@bdraco](https://github.com/bdraco)
+- [scd4x] Optimize logging + minor code clean-up [esphome#9347](https://github.com/esphome/esphome/pull/9347) by [@kbx81](https://github.com/kbx81)
+- [ld2410] Reduce RAM usage, general clean-up [esphome#9346](https://github.com/esphome/esphome/pull/9346) by [@kbx81](https://github.com/kbx81)
+- [sx127x] Improve error handling [esphome#9351](https://github.com/esphome/esphome/pull/9351) by [@swoboda1337](https://github.com/swoboda1337)
+- Fix defer() thread safety issues on multi-core platforms [esphome#9317](https://github.com/esphome/esphome/pull/9317) by [@bdraco](https://github.com/bdraco)
+- [update, http_request_update] Implement update available trigger [esphome#9174](https://github.com/esphome/esphome/pull/9174) by [@jhbruhn](https://github.com/jhbruhn)
+- Split LockFreeQueue into base and notifying variants to reduce memory usage [esphome#9330](https://github.com/esphome/esphome/pull/9330) by [@bdraco](https://github.com/bdraco)
+- Fix bluetooth proxy busy loop when disconnecting pending BLE connections [esphome#9332](https://github.com/esphome/esphome/pull/9332) by [@bdraco](https://github.com/bdraco)
+- Use std::span to eliminate heap allocation for single-packet API transmissions [esphome#9313](https://github.com/esphome/esphome/pull/9313) by [@bdraco](https://github.com/bdraco)
+- [sx127x] Fix shaping print in dump_config and preallocate packet [esphome#9357](https://github.com/esphome/esphome/pull/9357) by [@swoboda1337](https://github.com/swoboda1337)
+- Introduce base Camera class to support alternative camera implementations [esphome#9285](https://github.com/esphome/esphome/pull/9285) by [@DT-art1](https://github.com/DT-art1) (new-integration)
+- [scd4x] Memory optimization [esphome#9358](https://github.com/esphome/esphome/pull/9358) by [@kbx81](https://github.com/kbx81)
+- [nextion] Replace boolean flags with bitfields to optimize memory usage [esphome#9359](https://github.com/esphome/esphome/pull/9359) by [@edwardtfn](https://github.com/edwardtfn)
+- [inkplate6] Require 240mhz cpu frequency [esphome#9356](https://github.com/esphome/esphome/pull/9356) by [@jesserockz](https://github.com/jesserockz)
+- [sx126x] Add sx126x component [esphome#8516](https://github.com/esphome/esphome/pull/8516) by [@swoboda1337](https://github.com/swoboda1337) (new-integration)
+- [nextion] Optimize settings memory usage with compile-time defines [esphome#9350](https://github.com/esphome/esphome/pull/9350) by [@edwardtfn](https://github.com/edwardtfn)
+- [ld2450] Clean-up for consistency, reduce CPU usage when idle [esphome#9363](https://github.com/esphome/esphome/pull/9363) by [@kbx81](https://github.com/kbx81)
+- [nextion] Review `touch_sleep_timeout` [esphome#9345](https://github.com/esphome/esphome/pull/9345) by [@edwardtfn](https://github.com/edwardtfn)
+- [core] Move platform helper implementations into their own file [esphome#9361](https://github.com/esphome/esphome/pull/9361) by [@jesserockz](https://github.com/jesserockz)
+- [nextion] Add optional device info storage configuration [esphome#9366](https://github.com/esphome/esphome/pull/9366) by [@edwardtfn](https://github.com/edwardtfn)
+- Optimize Bluetooth proxy batching and increase scan buffer capacity [esphome#9328](https://github.com/esphome/esphome/pull/9328) by [@bdraco](https://github.com/bdraco)
+- Fix scheduler race conditions and add comprehensive test suite [esphome#9348](https://github.com/esphome/esphome/pull/9348) by [@bdraco](https://github.com/bdraco)
+- Reduce LightCall memory usage by 50 bytes per call [esphome#9333](https://github.com/esphome/esphome/pull/9333) by [@bdraco](https://github.com/bdraco)
+- Optimize entity icon memory usage with USE_ENTITY_ICON flag [esphome#9337](https://github.com/esphome/esphome/pull/9337) by [@bdraco](https://github.com/bdraco)
+- Reduce core RAM usage by 40 bytes with static initialization optimizations [esphome#9340](https://github.com/esphome/esphome/pull/9340) by [@bdraco](https://github.com/bdraco)
+- Fix flaky test_api_conditional_memory by disabling API batch delay [esphome#9360](https://github.com/esphome/esphome/pull/9360) by [@bdraco](https://github.com/bdraco)
+- Fix format specifier warnings in QuantileFilter logging [esphome#9364](https://github.com/esphome/esphome/pull/9364) by [@bdraco](https://github.com/bdraco)
+- Optimize logger performance by eliminating redundant strlen calls [esphome#9369](https://github.com/esphome/esphome/pull/9369) by [@bdraco](https://github.com/bdraco)
+- Replace deprecated sprintf with snprintf in API protobuf code generation [esphome#9365](https://github.com/esphome/esphome/pull/9365) by [@bdraco](https://github.com/bdraco)
+- Refactor duplicate socket read error handling in API frame helper [esphome#9370](https://github.com/esphome/esphome/pull/9370) by [@bdraco](https://github.com/bdraco)
+- Refactor entity lookup methods with macros in preparation for device_id support [esphome#9371](https://github.com/esphome/esphome/pull/9371) by [@bdraco](https://github.com/bdraco)
+- Refactor API entity update dispatch to reduce code duplication [esphome#9372](https://github.com/esphome/esphome/pull/9372) by [@bdraco](https://github.com/bdraco)
+- Don't compile unnecessary platform files (e.g. ESP8266 files on ESP32) [esphome#9354](https://github.com/esphome/esphome/pull/9354) by [@bdraco](https://github.com/bdraco)
+- Refactor voice assistant API methods to reduce code duplication [esphome#9374](https://github.com/esphome/esphome/pull/9374) by [@bdraco](https://github.com/bdraco)
+- Eliminate bluetooth_proxy guard variable to save 8 bytes RAM [esphome#9343](https://github.com/esphome/esphome/pull/9343) by [@bdraco](https://github.com/bdraco)
+- [nextion] Optimize component memory usage with bitfield state management [esphome#9373](https://github.com/esphome/esphome/pull/9373) by [@edwardtfn](https://github.com/edwardtfn)
+- Fix brightness setting not working on SSD1305 128x32 OLEDs [esphome#9376](https://github.com/esphome/esphome/pull/9376) by [@DooMMasteR](https://github.com/DooMMasteR)
+- Optimize logger callback API by including message length parameter [esphome#9368](https://github.com/esphome/esphome/pull/9368) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- Run integration tests only on Python 3.13 to reduce CI resource usage [esphome#9377](https://github.com/esphome/esphome/pull/9377) by [@bdraco](https://github.com/bdraco)
+- Fix flaky test_api_conditional_memory and improve integration test patterns [esphome#9379](https://github.com/esphome/esphome/pull/9379) by [@bdraco](https://github.com/bdraco)
+- [helpers] Improve `format_hex_pretty` [esphome#9380](https://github.com/esphome/esphome/pull/9380) by [@jesserockz](https://github.com/jesserockz)
+- hydreon_rgxx: remove precipitation_intensity from RG9 [esphome#9367](https://github.com/esphome/esphome/pull/9367) by [@functionpointer](https://github.com/functionpointer)
+- [image] Add byte order option and unit tests [esphome#9326](https://github.com/esphome/esphome/pull/9326) by [@clydebarrow](https://github.com/clydebarrow)
+- Fix integration test race condition by isolating PlatformIO directories [esphome#9383](https://github.com/esphome/esphome/pull/9383) by [@bdraco](https://github.com/bdraco)
+- Fix format string error in waveshare_epaper.cpp [esphome#9322](https://github.com/esphome/esphome/pull/9322) by [@tmpeh](https://github.com/tmpeh)
+- Fix race condition in scheduler string lifetime integration test [esphome#9382](https://github.com/esphome/esphome/pull/9382) by [@bdraco](https://github.com/bdraco)
+- lps22: add a component [esphome#7540](https://github.com/esphome/esphome/pull/7540) by [@nagisa](https://github.com/nagisa) (new-integration)
+- [nfc] Update code to use `format_hex_pretty` [esphome#9384](https://github.com/esphome/esphome/pull/9384) by [@jesserockz](https://github.com/jesserockz)
+- [helpers] Fix `format_hex_pretty` resize without separator [esphome#9389](https://github.com/esphome/esphome/pull/9389) by [@jesserockz](https://github.com/jesserockz)
+- Add support for GL-R01 I2C - Time of Flight sensor [esphome#8329](https://github.com/esphome/esphome/pull/8329) by [@pkejval](https://github.com/pkejval) (new-integration)
+- [esp32] Improve flexibility of `only_on_variant` [esphome#9390](https://github.com/esphome/esphome/pull/9390) by [@jesserockz](https://github.com/jesserockz)
+- ESP_EXT1_WAKEUP_ANY_LOW is for s2/s3/c6/h2; ESP_EXT1_WAKEUP_ALL_LOW otherwise [esphome#9387](https://github.com/esphome/esphome/pull/9387) by [@candrews](https://github.com/candrews)
+- [apds9960] Add 0x9E ID [esphome#9392](https://github.com/esphome/esphome/pull/9392) by [@Merikei](https://github.com/Merikei)
+- Fix another race in the string lifetime scheduler test [esphome#9399](https://github.com/esphome/esphome/pull/9399) by [@bdraco](https://github.com/bdraco)
+- [esp32_touch] Fix touch v1 [esphome#9414](https://github.com/esphome/esphome/pull/9414) by [@swoboda1337](https://github.com/swoboda1337)
+- Set lib_compat_mode to strict [esphome#9408](https://github.com/esphome/esphome/pull/9408) by [@swoboda1337](https://github.com/swoboda1337)
+- debug: bufferoverflow mitigation in DebugComponent::on_shutdown() [esphome#9422](https://github.com/esphome/esphome/pull/9422) by [@RubenKelevra](https://github.com/RubenKelevra)
+- Exclude internal entities from name uniqueness validation [esphome#9410](https://github.com/esphome/esphome/pull/9410) by [@bdraco](https://github.com/bdraco)
+- Handle ESP32 chunked MQTT messages missing topic on non-first chunks, causing panic [esphome#5786](https://github.com/esphome/esphome/pull/5786) by [@aaliddell](https://github.com/aaliddell)
+- Replace remaining instances of USE_ESP32_CAMERA with USE_CAMERA [esphome#9401](https://github.com/esphome/esphome/pull/9401) by [@DT-art1](https://github.com/DT-art1)
+- Sync api.proto from aioesphomeapi [esphome#9393](https://github.com/esphome/esphome/pull/9393) by [@bdraco](https://github.com/bdraco)
+- Fix scheduler crash when cancelling items with NULL names [esphome#9444](https://github.com/esphome/esphome/pull/9444) by [@bdraco](https://github.com/bdraco)
+- [wizard] use lowercase to match [esphome#9448](https://github.com/esphome/esphome/pull/9448) by [@ssieb](https://github.com/ssieb)
+- Optimize API flash usage by storing message size at compile time [esphome#9447](https://github.com/esphome/esphome/pull/9447) by [@bdraco](https://github.com/bdraco)
+- Optimize API proto size calculations by removing redundant force parameter [esphome#9449](https://github.com/esphome/esphome/pull/9449) by [@bdraco](https://github.com/bdraco)
+- [ld2410] Remove redundant `delay()` calls, minor optimizations [esphome#9453](https://github.com/esphome/esphome/pull/9453) by [@kbx81](https://github.com/kbx81)
+- [ld2420] Memory optimization, code clean-up [esphome#9426](https://github.com/esphome/esphome/pull/9426) by [@kbx81](https://github.com/kbx81)
+- Reduce API flash usage by eliminating unnecessary template instantiations [esphome#9452](https://github.com/esphome/esphome/pull/9452) by [@bdraco](https://github.com/bdraco)
+- Conditionally compile API user services to save 4.3KB flash (follow-up to #9262) [esphome#9451](https://github.com/esphome/esphome/pull/9451) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- [packet_transport] Don't run update if ping_pong not enabled. [esphome#9434](https://github.com/esphome/esphome/pull/9434) by [@clydebarrow](https://github.com/clydebarrow)
+- [sx127x, sx126x] Fix preamble_size default and validation [esphome#9454](https://github.com/esphome/esphome/pull/9454) by [@swoboda1337](https://github.com/swoboda1337)
+- Apply existing protobuf buffer optimization to nested message encoding (~2.3x speed up) [esphome#9458](https://github.com/esphome/esphome/pull/9458) by [@bdraco](https://github.com/bdraco)
+- Only generate protobuf encode/decode methods for the message direction they're used [esphome#9461](https://github.com/esphome/esphome/pull/9461) by [@bdraco](https://github.com/bdraco)
+- [usb_uart] Be flexible about descriptor layout for CDC-ACM devices [esphome#9425](https://github.com/esphome/esphome/pull/9425) by [@clydebarrow](https://github.com/clydebarrow)
+- [libretiny] Set lib_compat_mode to soft for libretiny [esphome#9439](https://github.com/esphome/esphome/pull/9439) by [@swoboda1337](https://github.com/swoboda1337)
+- (Maybe?) fix I2S speaker internal DAC mode [esphome#9435](https://github.com/esphome/esphome/pull/9435) by [@pzich](https://github.com/pzich)
+- [lvgl] Post-process size arguments in meter config [esphome#9466](https://github.com/esphome/esphome/pull/9466) by [@pzich](https://github.com/pzich)
+- Automatically disable interrupts for ESP8266 GPIO16 binary sensors [esphome#9467](https://github.com/esphome/esphome/pull/9467) by [@bdraco](https://github.com/bdraco)
+- [substitutions] Fix #7189 [esphome#9469](https://github.com/esphome/esphome/pull/9469) by [@jpeletier](https://github.com/jpeletier)
+- Fix pre-commit CI failures by skipping local hooks that require virtual environment [esphome#9476](https://github.com/esphome/esphome/pull/9476) by [@bdraco](https://github.com/bdraco)
+- [esp_ldo] Component schema; default priority [esphome#9479](https://github.com/esphome/esphome/pull/9479) by [@clydebarrow](https://github.com/clydebarrow)
+- Follow logging best practices by removing redundant component prefix [esphome#9481](https://github.com/esphome/esphome/pull/9481) by [@bdraco](https://github.com/bdraco)
+- Fix dormant bug in RAMAllocator::reallocate() manual_size calculation [esphome#9482](https://github.com/esphome/esphome/pull/9482) by [@bdraco](https://github.com/bdraco)
+- Suppress spurious volatile and Python syntax warnings during builds [esphome#9488](https://github.com/esphome/esphome/pull/9488) by [@bdraco](https://github.com/bdraco)
+- [online_image] Support `byte_order` [esphome#9502](https://github.com/esphome/esphome/pull/9502) by [@clydebarrow](https://github.com/clydebarrow)
+- [json] Bump ArduinoJson library to 7.4.2 [esphome#8857](https://github.com/esphome/esphome/pull/8857) by [@kahrendt](https://github.com/kahrendt) (breaking-change)
+- [fan] Do not save state for fan if configured as NO_RESTORE [esphome#9472](https://github.com/esphome/esphome/pull/9472) by [@skyegecko](https://github.com/skyegecko)
+- Fix LibreTiny compilation error by updating ESPAsyncWebServer and dependencies [esphome#9492](https://github.com/esphome/esphome/pull/9492) by [@bdraco](https://github.com/bdraco)
+- [captive_portal] Add test case for libretiny [esphome#9457](https://github.com/esphome/esphome/pull/9457) by [@clydebarrow](https://github.com/clydebarrow)
+- [opentherm.output] Fix `lerp` [esphome#9506](https://github.com/esphome/esphome/pull/9506) by [@kbx81](https://github.com/kbx81)
+- [servo] Fix `lerp` [esphome#9507](https://github.com/esphome/esphome/pull/9507) by [@kbx81](https://github.com/kbx81)
+- Add missing clang-tidy NOLINT comments for ArduinoJson v7 in IDF webserver [esphome#9508](https://github.com/esphome/esphome/pull/9508) by [@bdraco](https://github.com/bdraco)
+- [core] Don't issue -Wno-volatile for host platform [esphome#9511](https://github.com/esphome/esphome/pull/9511) by [@clydebarrow](https://github.com/clydebarrow)
+- [component] Fix `is_ready` flag when loop disabled [esphome#9501](https://github.com/esphome/esphome/pull/9501) by [@jesserockz](https://github.com/jesserockz)
+- [ms8607] Fix humidity calc [esphome#9499](https://github.com/esphome/esphome/pull/9499) by [@LorbusChris](https://github.com/LorbusChris)
+- Fix timing overflow when components disable themselves during loop [esphome#9529](https://github.com/esphome/esphome/pull/9529) by [@bdraco](https://github.com/bdraco)
+- [as3935_spi] remove unnecessary includes [esphome#9528](https://github.com/esphome/esphome/pull/9528) by [@ssieb](https://github.com/ssieb)
+
+
+</details>
+
+### Dependency Changes
+
+<details>
+<summary></summary>
+
+
+
+- Bump pytest-cov from 6.1.1 to 6.2.1 [esphome#9063](https://github.com/esphome/esphome/pull/9063) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-asyncio from 0.26.0 to 1.0.0 [esphome#9067](https://github.com/esphome/esphome/pull/9067) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker/setup-buildx-action from 3.10.0 to 3.11.0 in the docker-actions group [esphome#9105](https://github.com/esphome/esphome/pull/9105) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump ruff from 0.11.13 to 0.12.0 [esphome#9120](https://github.com/esphome/esphome/pull/9120) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker/setup-buildx-action from 3.11.0 to 3.11.1 in the docker-actions group [esphome#9133](https://github.com/esphome/esphome/pull/9133) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 32.2.3 to 32.2.4 [esphome#9132](https://github.com/esphome/esphome/pull/9132) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest from 8.4.0 to 8.4.1 [esphome#9131](https://github.com/esphome/esphome/pull/9131) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump esptool from 4.8.1 to 4.9.0 [esphome#9158](https://github.com/esphome/esphome/pull/9158) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 32.2.4 to 33.1.0 [esphome#9173](https://github.com/esphome/esphome/pull/9173) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump flake8 from 7.2.0 to 7.3.0 [esphome#9172](https://github.com/esphome/esphome/pull/9172) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 33.1.0 to 33.1.1 [esphome#9187](https://github.com/esphome/esphome/pull/9187) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump ruff from 0.12.0 to 0.12.1 [esphome#9241](https://github.com/esphome/esphome/pull/9241) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 33.1.1 to 34.0.0 [esphome#9265](https://github.com/esphome/esphome/pull/9265) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 34.0.0 to 34.1.0 [esphome#9301](https://github.com/esphome/esphome/pull/9301) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump ruff from 0.12.1 to 0.12.2 [esphome#9311](https://github.com/esphome/esphome/pull/9311) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump puremagic from 1.29 to 1.30 [esphome#9320](https://github.com/esphome/esphome/pull/9320) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 34.1.0 to 34.2.0 [esphome#9391](https://github.com/esphome/esphome/pull/9391) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 34.2.0 to 34.2.1 [esphome#9460](https://github.com/esphome/esphome/pull/9460) by [@dependabot[bot]](https://github.com/dependabot[bot])
+
+
+</details>
+
+{/* markdownlint-enable MD013 */}

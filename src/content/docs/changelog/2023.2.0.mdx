@@ -1,0 +1,230 @@
+---
+description: "Changelog for ESPHome 2023.2.0."
+title: "ESPHome 2023.2.0 - 15th February 2023"
+pagefind: false
+slug: "changelog/2023.2.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["PCA9554 I/O Expander","/components/pca9554","pca9554a.jpg"],
+  ["BP1658CJ","/components/output/bp1658cj","bp1658cj.svg"],
+  ["BP5758D","/components/output/bp5758d","bp5758d.svg"],
+  ["SM2235","/components/output/sm2235","sm2235.svg"],
+  ["SM2335","/components/output/sm2335","sm2335.svg"],
+  ["PCF85063 RTC","/components/time/pcf85063","clock-outline.svg","dark-invert"],
+  ["Matrix Keypad","/components/matrix_keypad","matrix_keypad.jpg"],
+  ["X9C Potentiometer","/components/output/x9c","x9c.jpg"],
+  ["EE895","/components/sensor/ee895","EE895.png"],
+  ["HTE501","/components/sensor/hte501","HTE501.png"],
+  ["TEE501","/components/sensor/tee501","TEE501.png"],
+  ["Sigma-Delta Output","/components/output/sigma_delta_output","sigma-delta.svg","dark-invert"],
+  ["Wiegand Reader","/components/wiegand","wiegand.jpg"],
+  ["MiCS-4514","/components/sensor/mics_4514","mics_4514.jpg"],
+  ["LD2410","/components/sensor/ld2410","ld2410.jpg"],
+  ["Resol VBus","/components/vbus","resol_deltasol_bs_plus.jpg"]
+]} />
+
+## Friendly Name
+
+ESPHome now supports setting a `friendly_name` which is sent to Home Assistant. This name will be used for the config entry,
+the device name, and will be automatically prefixed to all of the entities where needed by Home Assistant.
+
+> [!NOTE]
+> If you opt to use this new friendly name, take note that you should remove any friendly name (substitition) that
+> you currently prepend onto entity `name` in YAML.
+
+```yaml
+esphome:
+  name: living-room
+  friendly_name: Living Room
+
+sensor:
+  - platform: dht
+    pin: GPIO5
+    name: Temperature
+```
+
+## ESPHome Update Entities in Home Assistant
+
+Home Assistant has offered "read-only" update entities since 2023.2.0 for ESPHome devices. This release of ESPHome
+added a new API required so that those update entities can now trigger a build and install of the new firmware "over
+the air" to your devices.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2023.2.1 - February 16
+
+- Add ESPHome version to generated platformio.ini [esphome#4443](https://github.com/esphome/esphome/pull/4443) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.2.2 - February 17
+
+- Fix adoption of variants and pico-w [esphome#4455](https://github.com/esphome/esphome/pull/4455) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.2.3 - February 20
+
+- Fix MQTT discovery for climate after preset implementation [esphome#4451](https://github.com/esphome/esphome/pull/4451) by [@jmichiel](https://github.com/jmichiel)
+- Update distribution manifest [esphome#4459](https://github.com/esphome/esphome/pull/4459) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.2.4 - February 23
+
+- BL0939 state_class set for energy sensors [esphome#4463](https://github.com/esphome/esphome/pull/4463) by [@konsulten](https://github.com/konsulten)
+- fix wiegand tag parity [esphome#4476](https://github.com/esphome/esphome/pull/4476) by [@ssieb](https://github.com/ssieb)
+- Fix multiple remote_receivers with triggers [esphome#4477](https://github.com/esphome/esphome/pull/4477) by [@jesserockz](https://github.com/jesserockz)
+
+## Full list of changes
+
+### New Components
+
+- Add Pca9554 component [esphome#4192](https://github.com/esphome/esphome/pull/4192) by [@hwstar](https://github.com/hwstar) (new-integration)
+- Add support for BP5758D LED driver [esphome#4021](https://github.com/esphome/esphome/pull/4021) by [@Cossid](https://github.com/Cossid) (new-integration)
+- Add support for BP1658CJ LED driver [esphome#4020](https://github.com/esphome/esphome/pull/4020) by [@Cossid](https://github.com/Cossid) (new-integration)
+- Add support for SM2235 and SM2335 LED drivers [esphome#3924](https://github.com/esphome/esphome/pull/3924) by [@Cossid](https://github.com/Cossid) (new-integration)
+- PCF85063 RTC chip [esphome#3873](https://github.com/esphome/esphome/pull/3873) by [@brogon](https://github.com/brogon) (new-integration)
+- Add support for matrix keypads [esphome#4241](https://github.com/esphome/esphome/pull/4241) by [@ssieb](https://github.com/ssieb) (new-integration)
+- Add X9C Potentiometer component [esphome#4183](https://github.com/esphome/esphome/pull/4183) by [@EtienneMD](https://github.com/EtienneMD) (new-integration)
+- add key collector component [esphome#4242](https://github.com/esphome/esphome/pull/4242) by [@ssieb](https://github.com/ssieb) (new-integration)
+- Add support for EE895 [esphome#3771](https://github.com/esphome/esphome/pull/3771) by [@Stock-M](https://github.com/Stock-M) (new-integration)
+- Add support for HTE501 [esphome#3772](https://github.com/esphome/esphome/pull/3772) by [@Stock-M](https://github.com/Stock-M) (new-integration)
+- Add support for TEE501 [esphome#3773](https://github.com/esphome/esphome/pull/3773) by [@Stock-M](https://github.com/Stock-M) (new-integration)
+- Implement a slow sigma-delta modulation based output [esphome#4132](https://github.com/esphome/esphome/pull/4132) by [@Cat-Ion](https://github.com/Cat-Ion) (new-integration)
+- add Wiegand reader component [esphome#4288](https://github.com/esphome/esphome/pull/4288) by [@ssieb](https://github.com/ssieb) (new-integration)
+- Add MICS-4514 gas sensor [esphome#4316](https://github.com/esphome/esphome/pull/4316) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add Ld2410 Support [esphome#3919](https://github.com/esphome/esphome/pull/3919) by [@sebcaps](https://github.com/sebcaps) (new-integration)
+- add Resol VBus support [esphome#3976](https://github.com/esphome/esphome/pull/3976) by [@ssieb](https://github.com/ssieb) (new-integration)
+
+### Breaking Changes
+
+- Use NAN values for TSL2591 saturation [esphome#3931](https://github.com/esphome/esphome/pull/3931) by [@mdonoughe](https://github.com/mdonoughe) (breaking-change)
+- set_retry: add retries remaining parameter to the provided function [esphome#4251](https://github.com/esphome/esphome/pull/4251) by [@e28eta](https://github.com/e28eta) (breaking-change)
+
+### Beta Changes
+
+- Bump curl version in docker [esphome#4403](https://github.com/esphome/esphome/pull/4403) by [@jesserockz](https://github.com/jesserockz)
+- Fix release workflow [esphome#4405](https://github.com/esphome/esphome/pull/4405) by [@jesserockz](https://github.com/jesserockz)
+- Climate PID Autotune Logging fixes [esphome#4136](https://github.com/esphome/esphome/pull/4136) by [@patrickcollins12](https://github.com/patrickcollins12)
+- Add Clipping to displaybuffer [esphome#4271](https://github.com/esphome/esphome/pull/4271) by [@nielsnl68](https://github.com/nielsnl68)
+- Fix check for empty clipping array [esphome#4421](https://github.com/esphome/esphome/pull/4421) by [@nielsnl68](https://github.com/nielsnl68)
+- Ledc fix [esphome#4338](https://github.com/esphome/esphome/pull/4338) by [@xvil](https://github.com/xvil)
+- Add version api endpoint [esphome#4429](https://github.com/esphome/esphome/pull/4429) by [@jesserockz](https://github.com/jesserockz)
+- Handle uart.write in json-config endpoint [esphome#4430](https://github.com/esphome/esphome/pull/4430) by [@jesserockz](https://github.com/jesserockz)
+- Bump esphome-dashboard to 20230214.0 [esphome#4431](https://github.com/esphome/esphome/pull/4431) by [@jesserockz](https://github.com/jesserockz)
+- Fix setting wrong traits on midea climate component [esphome#4425](https://github.com/esphome/esphome/pull/4425) by [@dudanov](https://github.com/dudanov)
+
+### All changes
+
+- Expose lambda action to reset a cycle in `slow_pwm` [esphome#4158](https://github.com/esphome/esphome/pull/4158) by [@johndbritton](https://github.com/johndbritton)
+- climate: Add features to generic Toshiba model [esphome#3912](https://github.com/esphome/esphome/pull/3912) by [@zagor](https://github.com/zagor)
+- Fix UUID displaying incorrectly in BLE Tracker logs [esphome#4187](https://github.com/esphome/esphome/pull/4187) by [@deunlee](https://github.com/deunlee)
+- Bump actions/stale from 6 to 7 [esphome#4217](https://github.com/esphome/esphome/pull/4217) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add Pca9554 component [esphome#4192](https://github.com/esphome/esphome/pull/4192) by [@hwstar](https://github.com/hwstar) (new-integration)
+- Bump aioesphomeapi from 13.0.1 to 13.0.2 [esphome#4188](https://github.com/esphome/esphome/pull/4188) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-asyncio from 0.20.2 to 0.20.3 [esphome#4164](https://github.com/esphome/esphome/pull/4164) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Handle deprecated sdkconfig option [esphome#4204](https://github.com/esphome/esphome/pull/4204) by [@mmakaay](https://github.com/mmakaay)
+- feat: set a wider range for jpeg quality [esphome#3872](https://github.com/esphome/esphome/pull/3872) by [@sisco0](https://github.com/sisco0)
+- Bump black from 22.10.0 to 22.12.0 [esphome#4167](https://github.com/esphome/esphome/pull/4167) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Use NAN values for TSL2591 saturation [esphome#3931](https://github.com/esphome/esphome/pull/3931) by [@mdonoughe](https://github.com/mdonoughe) (breaking-change)
+- Ili9341 8bit indexed mode pt2 [esphome#2502](https://github.com/esphome/esphome/pull/2502) by [@davet2001](https://github.com/davet2001)
+- Allow ignoring of failed Modbus response CRC [esphome#3930](https://github.com/esphome/esphome/pull/3930) by [@jangrewe](https://github.com/jangrewe)
+- calc LEDC PWM Resolution with LEDC_TIMER_BIT_MAX [esphome#3820](https://github.com/esphome/esphome/pull/3820) by [@MFlasskamp](https://github.com/MFlasskamp)
+- Component::set_retry updates [esphome#3305](https://github.com/esphome/esphome/pull/3305) by [@e28eta](https://github.com/e28eta)
+- Fix race condition in web_server scheduler on ESP32 [esphome#3951](https://github.com/esphome/esphome/pull/3951) by [@tomaszduda23](https://github.com/tomaszduda23)
+- Fix saving light state for restore modes LIGHT_RESTORE_AND_OFF/ON [esphome#4131](https://github.com/esphome/esphome/pull/4131) by [@myhomeiot](https://github.com/myhomeiot)
+- Add precipitation device class [esphome#4219](https://github.com/esphome/esphome/pull/4219) by [@jesserockz](https://github.com/jesserockz)
+- Add support for BP5758D LED driver [esphome#4021](https://github.com/esphome/esphome/pull/4021) by [@Cossid](https://github.com/Cossid) (new-integration)
+- Add support for BP1658CJ LED driver [esphome#4020](https://github.com/esphome/esphome/pull/4020) by [@Cossid](https://github.com/Cossid) (new-integration)
+- Add support for SM2235 and SM2335 LED drivers [esphome#3924](https://github.com/esphome/esphome/pull/3924) by [@Cossid](https://github.com/Cossid) (new-integration)
+- Fix broken PULSE_METER [esphome#4199](https://github.com/esphome/esphome/pull/4199) by [@cstaahl](https://github.com/cstaahl)
+- PCF85063 RTC chip [esphome#3873](https://github.com/esphome/esphome/pull/3873) by [@brogon](https://github.com/brogon) (new-integration)
+- Add API for dashboard to get boards list by platform [esphome#4168](https://github.com/esphome/esphome/pull/4168) by [@kuba2k2](https://github.com/kuba2k2)
+- Bump dashboard to 20221231.0 [esphome#4248](https://github.com/esphome/esphome/pull/4248) by [@balloob](https://github.com/balloob)
+- Bump zeroconf to 0.47.1 [esphome#4268](https://github.com/esphome/esphome/pull/4268) by [@bdraco](https://github.com/bdraco)
+- Don't match words containing "id" [esphome#4265](https://github.com/esphome/esphome/pull/4265) by [@ssieb](https://github.com/ssieb)
+- Add support for matrix keypads [esphome#4241](https://github.com/esphome/esphome/pull/4241) by [@ssieb](https://github.com/ssieb) (new-integration)
+- Fix Template Switch restore_mode support [esphome#4280](https://github.com/esphome/esphome/pull/4280) by [@SharpEdgeMarshall](https://github.com/SharpEdgeMarshall)
+- Correct decimals in Growatt energy reporting [esphome#4277](https://github.com/esphome/esphome/pull/4277) by [@rfpronk](https://github.com/rfpronk)
+- Bump pylint from 2.15.8 to 2.15.10 [esphome#4278](https://github.com/esphome/esphome/pull/4278) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix frequency limit for MCP9600 [esphome#4276](https://github.com/esphome/esphome/pull/4276) by [@jowgn](https://github.com/jowgn)
+- fix: json compilation error on rp2040 [esphome#4273](https://github.com/esphome/esphome/pull/4273) by [@kellertk](https://github.com/kellertk)
+- http_request: add request duration logging [esphome#4272](https://github.com/esphome/esphome/pull/4272) by [@stas-sl](https://github.com/stas-sl)
+- Fix HttpRequestResponseTrigger [esphome#4270](https://github.com/esphome/esphome/pull/4270) by [@gmbuell](https://github.com/gmbuell)
+- Fix HttpRequestResponseTrigger again [esphome#4285](https://github.com/esphome/esphome/pull/4285) by [@gmbuell](https://github.com/gmbuell)
+- Add X9C Potentiometer component [esphome#4183](https://github.com/esphome/esphome/pull/4183) by [@EtienneMD](https://github.com/EtienneMD) (new-integration)
+- small DisplayBuffer images and font update [esphome#4044](https://github.com/esphome/esphome/pull/4044) by [@nielsnl68](https://github.com/nielsnl68)
+- Fix use of dangling pointers in esp-idf MQTT backend [esphome#4239](https://github.com/esphome/esphome/pull/4239) by [@aaliddell](https://github.com/aaliddell)
+- Ensure we never write zero bytes [esphome#4284](https://github.com/esphome/esphome/pull/4284) by [@bdraco](https://github.com/bdraco)
+- Fix off-by-one bedjet fan speed (#3873) [esphome#4292](https://github.com/esphome/esphome/pull/4292) by [@jhansche](https://github.com/jhansche)
+- Clean up dashboard ping result post-rename/delete [esphome#4170](https://github.com/esphome/esphome/pull/4170) by [@balloob](https://github.com/balloob)
+- Calculate PWM wrap dynamically whenever the frequency is changed [esphome#4294](https://github.com/esphome/esphome/pull/4294) by [@tradeJmark](https://github.com/tradeJmark)
+- Remove baud check in tuya dump_config [esphome#4298](https://github.com/esphome/esphome/pull/4298) by [@jesserockz](https://github.com/jesserockz)
+- Add friendly_name to device [esphome#4296](https://github.com/esphome/esphome/pull/4296) by [@jesserockz](https://github.com/jesserockz)
+- allow multiple dsmr [esphome#4299](https://github.com/esphome/esphome/pull/4299) by [@ssieb](https://github.com/ssieb)
+- Bump pytest from 7.2.0 to 7.2.1 [esphome#4300](https://github.com/esphome/esphome/pull/4300) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 13.0.2 to 13.1.0 [esphome#4301](https://github.com/esphome/esphome/pull/4301) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Display the configured esphome:comment on the WebServer [esphome#4246](https://github.com/esphome/esphome/pull/4246) by [@grillp](https://github.com/grillp)
+- Allow 0xA8 ID for APDS9960 [esphome#4287](https://github.com/esphome/esphome/pull/4287) by [@reubn](https://github.com/reubn)
+- Dont default CORE.friendly_name [esphome#4305](https://github.com/esphome/esphome/pull/4305) by [@jesserockz](https://github.com/jesserockz)
+- add key collector component [esphome#4242](https://github.com/esphome/esphome/pull/4242) by [@ssieb](https://github.com/ssieb) (new-integration)
+- Tsl2591 gain publish [esphome#4291](https://github.com/esphome/esphome/pull/4291) by [@z3liff](https://github.com/z3liff)
+- Add support for EE895 [esphome#3771](https://github.com/esphome/esphome/pull/3771) by [@Stock-M](https://github.com/Stock-M) (new-integration)
+- Add support for HTE501 [esphome#3772](https://github.com/esphome/esphome/pull/3772) by [@Stock-M](https://github.com/Stock-M) (new-integration)
+- Add support for TEE501 [esphome#3773](https://github.com/esphome/esphome/pull/3773) by [@Stock-M](https://github.com/Stock-M) (new-integration)
+- PCA9685, fix reset device and add option EXTCLK [esphome#3845](https://github.com/esphome/esphome/pull/3845) by [@standahabich](https://github.com/standahabich)
+- Implement a slow sigma-delta modulation based output [esphome#4132](https://github.com/esphome/esphome/pull/4132) by [@Cat-Ion](https://github.com/Cat-Ion) (new-integration)
+- set_retry: add retries remaining parameter to the provided function [esphome#4251](https://github.com/esphome/esphome/pull/4251) by [@e28eta](https://github.com/e28eta) (breaking-change)
+- add Wiegand reader component [esphome#4288](https://github.com/esphome/esphome/pull/4288) by [@ssieb](https://github.com/ssieb) (new-integration)
+- Format docker/build.py [esphome#4313](https://github.com/esphome/esphome/pull/4313) by [@jesserockz](https://github.com/jesserockz)
+- Add macro for sub sensor defining [esphome#4315](https://github.com/esphome/esphome/pull/4315) by [@jesserockz](https://github.com/jesserockz)
+- Add friendly name in MDNS records if it is not empty [esphome#4317](https://github.com/esphome/esphome/pull/4317) by [@catalin2402](https://github.com/catalin2402)
+- Add upload dashboard api [esphome#4318](https://github.com/esphome/esphome/pull/4318) by [@balloob](https://github.com/balloob)
+- Bump esphome-dashboard to 20230120.0 [esphome#4319](https://github.com/esphome/esphome/pull/4319) by [@jesserockz](https://github.com/jesserockz)
+- Hydreon: Use new device classes water and precipitation_intensity [esphome#3993](https://github.com/esphome/esphome/pull/3993) by [@functionpointer](https://github.com/functionpointer)
+- Dont fail workflows if lint building fails [esphome#4336](https://github.com/esphome/esphome/pull/4336) by [@jesserockz](https://github.com/jesserockz)
+- Add MICS-4514 gas sensor [esphome#4316](https://github.com/esphome/esphome/pull/4316) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Refactor esp32_ble_tracker to use esp32_ble core ble setup code [esphome#4173](https://github.com/esphome/esphome/pull/4173) by [@jesserockz](https://github.com/jesserockz)
+- Add next_url to improv serial component config [esphome#4343](https://github.com/esphome/esphome/pull/4343) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Remove state class from uptime sensor [esphome#4345](https://github.com/esphome/esphome/pull/4345) by [@jesserockz](https://github.com/jesserockz)
+- Fix esp32_ble_tracker setup priority [esphome#4346](https://github.com/esphome/esphome/pull/4346) by [@jesserockz](https://github.com/jesserockz)
+- Fix in ble client base address parsing [esphome#4347](https://github.com/esphome/esphome/pull/4347) by [@jesserockz](https://github.com/jesserockz)
+- Added support for ADS1015 [esphome#4281](https://github.com/esphome/esphome/pull/4281) by [@xvil](https://github.com/xvil)
+- Fix "BLE server / advertising always on" [esphome#4353](https://github.com/esphome/esphome/pull/4353) by [@Mat931](https://github.com/Mat931)
+- Dump full parsed config to json-config api call [esphome#4373](https://github.com/esphome/esphome/pull/4373) by [@jesserockz](https://github.com/jesserockz)
+- Fix pressure compensation in SCD4X [esphome#4357](https://github.com/esphome/esphome/pull/4357) by [@CarlosGS](https://github.com/CarlosGS)
+- Allow mdns services to be exposed by config [esphome#4202](https://github.com/esphome/esphome/pull/4202) by [@elupus](https://github.com/elupus)
+- Allow final validate of uart stop bits and parity [esphome#4376](https://github.com/esphome/esphome/pull/4376) by [@jesserockz](https://github.com/jesserockz)
+- Update sim800l.cpp [esphome#4223](https://github.com/esphome/esphome/pull/4223) by [@fbeek](https://github.com/fbeek)
+- SCD30 Added support for manual calibration [esphome#4362](https://github.com/esphome/esphome/pull/4362) by [@ftrueck](https://github.com/ftrueck)
+- Add Ld2410 Support [esphome#3919](https://github.com/esphome/esphome/pull/3919) by [@sebcaps](https://github.com/sebcaps) (new-integration)
+- add Resol VBus support [esphome#3976](https://github.com/esphome/esphome/pull/3976) by [@ssieb](https://github.com/ssieb) (new-integration)
+- Allow dashboard import to specify if api encryption key should be generated [esphome#4393](https://github.com/esphome/esphome/pull/4393) by [@jesserockz](https://github.com/jesserockz)
+- modify SGP4X integration to report device_class as air quality index [esphome#4327](https://github.com/esphome/esphome/pull/4327) by [@alexd321](https://github.com/alexd321)
+- Remove unneeded validation for esp32 gpio pins [esphome#4394](https://github.com/esphome/esphome/pull/4394) by [@jesserockz](https://github.com/jesserockz)
+- Fix shelly dimmer current sensor device class [esphome#4385](https://github.com/esphome/esphome/pull/4385) by [@trvrnrth](https://github.com/trvrnrth)
+- Added Ethernet Component for ESP IDF with JL1101 PHY driver [esphome#4009](https://github.com/esphome/esphome/pull/4009) by [@mobrembski](https://github.com/mobrembski)
+- adds gpio INPUT_OUTPUT_OPEN_DRAIN [esphome#4360](https://github.com/esphome/esphome/pull/4360) by [@tomaszduda23](https://github.com/tomaszduda23)
+- Merge components in packages [esphome#3555](https://github.com/esphome/esphome/pull/3555) by [@quentinmit](https://github.com/quentinmit)
+- Update ld2410 logging [esphome#4395](https://github.com/esphome/esphome/pull/4395) by [@jesserockz](https://github.com/jesserockz)
+- Update log for mics4514 to state 3 minute start time. [esphome#4396](https://github.com/esphome/esphome/pull/4396) by [@jesserockz](https://github.com/jesserockz)
+- mDNS updates [esphome#4399](https://github.com/esphome/esphome/pull/4399) by [@jesserockz](https://github.com/jesserockz)
+- Dont keep logging on improv start [esphome#4401](https://github.com/esphome/esphome/pull/4401) by [@jesserockz](https://github.com/jesserockz)
+- Add support for Lippert LP sensors in mopeka_pro_check component [esphome#4118](https://github.com/esphome/esphome/pull/4118) by [@rperciaccante](https://github.com/rperciaccante)
+- climate: add support for quiet fan mode [esphome#3609](https://github.com/esphome/esphome/pull/3609) by [@MichaelMure](https://github.com/MichaelMure)
+- add MQTT preset support for Climate components [esphome#4379](https://github.com/esphome/esphome/pull/4379) by [@jmichiel](https://github.com/jmichiel)
+- Added CanalSat and CanalSatLD protocol support [esphome#3513](https://github.com/esphome/esphome/pull/3513) by [@Emrvb](https://github.com/Emrvb)
+- Remove unused manifest handler [esphome#4169](https://github.com/esphome/esphome/pull/4169) by [@balloob](https://github.com/balloob)
+- Use the github-script action to call the workflow [esphome#4400](https://github.com/esphome/esphome/pull/4400) by [@jesserockz](https://github.com/jesserockz)
+- Convert secrets constant to a tuple [esphome#4245](https://github.com/esphome/esphome/pull/4245) by [@balloob](https://github.com/balloob)
+- Verify rel_path output is relative [esphome#4247](https://github.com/esphome/esphome/pull/4247) by [@balloob](https://github.com/balloob)
+- Bump curl version in docker [esphome#4403](https://github.com/esphome/esphome/pull/4403) by [@jesserockz](https://github.com/jesserockz)
+- Fix release workflow [esphome#4405](https://github.com/esphome/esphome/pull/4405) by [@jesserockz](https://github.com/jesserockz)
+- Climate PID Autotune Logging fixes [esphome#4136](https://github.com/esphome/esphome/pull/4136) by [@patrickcollins12](https://github.com/patrickcollins12)
+- Add Clipping to displaybuffer [esphome#4271](https://github.com/esphome/esphome/pull/4271) by [@nielsnl68](https://github.com/nielsnl68)
+- Fix check for empty clipping array [esphome#4421](https://github.com/esphome/esphome/pull/4421) by [@nielsnl68](https://github.com/nielsnl68)
+- Ledc fix [esphome#4338](https://github.com/esphome/esphome/pull/4338) by [@xvil](https://github.com/xvil)
+- Add version api endpoint [esphome#4429](https://github.com/esphome/esphome/pull/4429) by [@jesserockz](https://github.com/jesserockz)
+- Handle uart.write in json-config endpoint [esphome#4430](https://github.com/esphome/esphome/pull/4430) by [@jesserockz](https://github.com/jesserockz)
+- Bump esphome-dashboard to 20230214.0 [esphome#4431](https://github.com/esphome/esphome/pull/4431) by [@jesserockz](https://github.com/jesserockz)
+- Fix setting wrong traits on midea climate component [esphome#4425](https://github.com/esphome/esphome/pull/4425) by [@dudanov](https://github.com/dudanov)
+
+{/* markdownlint-enable MD013 */}

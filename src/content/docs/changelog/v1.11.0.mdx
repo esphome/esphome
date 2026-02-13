@@ -1,0 +1,282 @@
+---
+description: "Changelog for esphomelib version 1.11.0."
+title: "Changelog - Version 1.11.0"
+pagefind: false
+slug: "changelog/v1.11.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Completed Rename","/index","logo.svg","dark-invert"],
+  ["Home Assistant Binary Sensor","/components/binary_sensor/homeassistant","home-assistant.svg","dark-invert"],
+  ["Light Partition","/components/light/partition","color_lens.svg","dark-invert"]
+]} />
+
+
+{/* markdownlint-disable MD013 */}
+
+Release 1.11.0 is here, and it has been a busy few weeks :)
+
+First of all, thank you all for the amazing support on discord, twitter, twitch, etc.
+Seeing how much people can accomplish with this tool is really inspiring!
+
+## ESPHome Rename Completed
+
+Back in 1.10.0, it was decided to rename the project from esphomelib to ESPHome. This release
+has seen **massive** refactors to allow this rename. Literally thousands of files had
+to be changed, often with lots of manual action required. Now a rename might not seem
+too exciting for you the user, but consider this: Lots of ancient code got revised and cleaned up,
+the ESPHome source got moved to a [dedicated Github Organization](https://github.com/esphome)
+and many other organizational changes were made which will enable faster feature development.
+
+As an example, ESPHome's documentation now gets built and served by [Netlify](https://www.netlify.com/),
+so all documentation contributions will now get a preview of the changes on a preview website.
+
+## Installation Methods Changed
+
+Because of this rename, ESPHome's installation methods have also changed (breaking change!).
+
+- **Hass.io**: The Hass.io addon repository has moved to [https://github.com/esphome/hassio](https://github.com/esphome/hassio),
+  please remove the old addon repository and add the new repository.
+
+- **pip-based installs**: The new installation command is `pip install esphome` and
+  the `esphomeyaml` command now is called `esphome`.
+
+- **docker-based installs**: The docker image has moved to `esphome/esphome`. So now you need
+  to use `docker run --rm -it esphome/esphome livingroom.yaml run`. The dashboard view
+  now uses mDNS to show online/offline status of ESPs, so you need to add `--net=host` for
+  that to work.
+
+All old installation methods will no longer receive updates (and potentially be removed
+in the future).
+
+## Local mDNS Responder
+
+Up until now, many users had to set static IPs for all ESP nodes in order to be able to connect to
+them. That was not a good user experience and this project is committed to providing the best
+possible user experience. So now ESPHome bundles its own mDNS responder so static IPs are no
+longer necessary (ref: [esphome#386](https://github.com/esphome/esphome/pull/386))! 🎉
+
+## Faster Release Cycle
+
+One of the big things that needs to be changed with this project is the release cycle.
+For one thing there's all contributions by you the users that potentially have to wait
+before users can use it. But it also makes releasing small tweaks or fixes much more difficult.
+
+I know I've said this before, but I want to move ESPHome to a quicker and more regular release
+interval. As a start, I've set my personal due date for the next release to be in two weeks.
+Going forward, I want to have a regular release interval of 3 weeks (remind me of this if I forget :)
+
+Also, you might have seen me post a picture of an ESP32 camera integration for ESPHome. Don't worry,
+I've made that a top priority for the next release, but I've hit some road blocks that would have
+prevented it from working in a stable way for this release (and I needed to finally get this darn
+release out).
+
+## Release 1.11.2 - February 26
+
+- docs: Fix units on the valid frequency values [esphome-docs#170](https://github.com/esphome/esphome-docs/pull/170) by [@kwdavidson](https://github.com/kwdavidson)
+- esphome: Allow non-pullup pins for dallas [esphome#456](https://github.com/esphome/esphome/pull/456)
+- core: Turn off light at 0% brightness [esphome-core#526](https://github.com/esphome/esphome-core/pull/526)
+- core: HLW8012 don't count a single pulse as power [esphome-core#527](https://github.com/esphome/esphome-core/pull/527)
+- core: Set initial brightness to 0 when turning light on [esphome-core#528](https://github.com/esphome/esphome-core/pull/528)
+- core: Allow white value of addressable lights to be controlled independently of brightness [esphome-core#529](https://github.com/esphome/esphome-core/pull/529)
+- core: Fix WiFi not connecting to open networks [esphome-core#531](https://github.com/esphome/esphome-core/pull/531)
+- esphome: Remove automatic update check [esphome#457](https://github.com/esphome/esphome/pull/457)
+- esphome: Fix mDNS library added only with OTA [esphome#451](https://github.com/esphome/esphome/pull/451)
+- docs: Merge dallas component [esphome-docs#179](https://github.com/esphome/esphome-docs/pull/179) by [@FrengerH](https://github.com/FrengerH)
+- docs: Correct ultrasonic filter_nan example [esphome-docs#159](https://github.com/esphome/esphome-docs/pull/159) by [@apeeters](https://github.com/apeeters)
+- docs: Cookbook entry for Display component [esphome-docs#173](https://github.com/esphome/esphome-docs/pull/173) by [@ahd71](https://github.com/ahd71)
+- core: Fix light partition src offset [esphome-core#525](https://github.com/esphome/esphome-core/pull/525)
+
+## Release 1.11.1 - February 23
+
+- core: Fix addressable not updating light [esphome-core#521](https://github.com/esphome/esphome-core/pull/521)
+- docs: Add Ethernet pin config for olimex esp32-poe board [esphome-docs#166](https://github.com/esphome/esphome-docs/pull/166) by [@setola](https://github.com/setola)
+- docs: FAQ: Add description for mDNS support on different subnets [esphome-docs#169](https://github.com/esphome/esphome-docs/pull/169) by [@Taigar2015](https://github.com/Taigar2015)
+
+## Breaking Changes
+
+- Template Switches no longer restore their state by default [esphome-core#503](https://github.com/esphome/esphome-core/pull/503)
+- Removed heartbeat filter from binary sensors [esphome-core#454](https://github.com/esphome/esphome-core/pull/454)
+- `optimistic` mode for template platforms has been split off into `optimistic` and
+  `assumed_state` options [esphome-core#455](https://github.com/esphome/esphome-core/pull/455)
+
+- `run_cycles` has been removed from deep_sleep [esphome#353](https://github.com/esphome/esphome/pull/353)
+
+## Other notable changes
+
+- Added GPIO Switch interlocking [esphome-core#482](https://github.com/esphome/esphome-core/pull/482)
+- Added light partition platform which allows you to split an addressable light into partitions
+  and combine them [esphome-core#501](https://github.com/esphome/esphome-core/pull/501)
+
+- Added `wait_until` action [esphome-core#508](https://github.com/esphome/esphome-core/pull/508)
+- Added template publish actions, which allow you to manually push a state to a template
+  platform [esphome-core#453](https://github.com/esphome/esphome-core/pull/453)
+
+- Added support for SI7021 sensors (found in Sonoff TH modules) [esphome#375](https://github.com/esphome/esphome/pull/375)
+- MQTT is no longer compiled into firmwares that do no use it, should save a bit of space
+  [esphome-core#430](https://github.com/esphome/esphome-core/pull/430), [esphome-core#409](https://github.com/esphome/esphome-core/pull/409)
+
+- Added `use_address` option to `wifi:` which overrides the address ESPHome connects to [esphome-core#484](https://github.com/esphome/esphome-core/pull/484)
+- Added display pages, which allow you to have a display that periodically switches between
+  different pages of content [esphome-core#507](https://github.com/esphome/esphome-core/pull/507)
+
+- Added two new IR codecs: IR5 and JVC [esphome-core#502](https://github.com/esphome/esphome-core/pull/502), [esphome-core#493](https://github.com/esphome/esphome-core/pull/493)
+- Added option to use alternative hardware UART interfaces for logging [esphome-core#483](https://github.com/esphome/esphome-core/pull/483)
+- All log strings are stored in flash now, so that saves a few kb of IRAM on ESP8266s [esphome-core#432](https://github.com/esphome/esphome-core/pull/432)
+- Fixed ESP8266s with CSE7766 rebooting often
+- Fixed using MQTT and native API at the same time
+- Personal information is now automatically redacted from dashboard logs [esphome-core#488](https://github.com/esphome/esphome-core/pull/488)
+
+## Beta Fixes
+
+- esphome: Fix custom components not registered [esphome#441](https://github.com/esphome/esphome/pull/441)
+- core: Add empty nameable constructors [esphome-core#509](https://github.com/esphome/esphome-core/pull/509)
+- core: Fix Nextion "Received unknown filler end bytes" [esphome-core#510](https://github.com/esphome/esphome-core/pull/510)
+- core: Fix functional attachInterrupt placed in flash [esphome-core#511](https://github.com/esphome/esphome-core/pull/511)
+- esphome: Remove duplicate scrollbar & move scrollbar [esphome#443](https://github.com/esphome/esphome/pull/443) by [@TheZoker](https://github.com/TheZoker)
+- esphome: Remove unnecessary wrapper [esphome#444](https://github.com/esphome/esphome/pull/444) by [@TheZoker](https://github.com/TheZoker)
+- core: Refactor addressable light and fix partition issue [esphome-core#512](https://github.com/esphome/esphome-core/pull/512)
+- esphome: Fix MQTT log topic level [esphome#445](https://github.com/esphome/esphome/pull/445)
+- core: Fix ESP8266 functional interrupts [esphome-core#515](https://github.com/esphome/esphome-core/pull/515)
+- esphome: Allow i2c on non-pullup pins [esphome#447](https://github.com/esphome/esphome/pull/447)
+- esphome: Allow use of arduino core v2.5.0 on ESP8266 [esphome#446](https://github.com/esphome/esphome/pull/446)
+
+## All changes
+
+- core: Attempt to fix the addressable flicker effect [esphome-core#392](https://github.com/esphome/esphome-core/pull/392) by [@RomRider](https://github.com/RomRider)
+- esphome: typing is only required for python < 3.5 [esphome#341](https://github.com/esphome/esphome/pull/341) by [@dotlambda](https://github.com/dotlambda)
+- esphome: Fix install pillow in docker image [esphome#338](https://github.com/esphome/esphome/pull/338)
+- esphome: Allow IPv4 addresses for SNTP servers [esphome#340](https://github.com/esphome/esphome/pull/340)
+- docs: Fix esp8266_pwm example, IDs cannot have hyphens [esphome-docs#123](https://github.com/esphome/esphome-docs/pull/123) by [@rabbadab](https://github.com/rabbadab)
+- esphome: Add pyserial to install_requires [esphome#348](https://github.com/esphome/esphome/pull/348) by [@dotlambda](https://github.com/dotlambda)
+- docs: Added explanation how to change the password [esphome-docs#124](https://github.com/esphome/esphome-docs/pull/124) by [@WoLpH](https://github.com/WoLpH)
+- docs: Update light lambda effect example [esphome-docs#125](https://github.com/esphome/esphome-docs/pull/125) by [@jdads1](https://github.com/jdads1)
+- core: Improve handling of MQTT birth message [esphome-core#410](https://github.com/esphome/esphome-core/pull/410)
+- core: Fix WiFi apply hostname too early [esphome-core#399](https://github.com/esphome/esphome-core/pull/399)
+- core: Fix pulse counter filtering for ESP8266 [esphome-core#397](https://github.com/esphome/esphome-core/pull/397)
+- esphome: Warn if expire_after used without MQTT [esphome#354](https://github.com/esphome/esphome/pull/354)
+- esphome: Use strict string mode for WiFi password [esphome#351](https://github.com/esphome/esphome/pull/351)
+- docs: Add ESP8266 advanced info [esphome-docs#128](https://github.com/esphome/esphome-docs/pull/128)
+- docs: Cookbook Entry for Sonoff Basic Fish Pond Pump [esphome-docs#122](https://github.com/esphome/esphome-docs/pull/122) by [@meijerwynand](https://github.com/meijerwynand)
+- docs: Add Arilux LC02 pinout [esphome-docs#130](https://github.com/esphome/esphome-docs/pull/130) by [@pixiandreas](https://github.com/pixiandreas)
+- docs: Dallas: Update for default update_interval [esphome-docs#131](https://github.com/esphome/esphome-docs/pull/131) by [@balk77](https://github.com/balk77)
+- core: Fix Light Color Temperature for native API [esphome-core#398](https://github.com/esphome/esphome-core/pull/398)
+- core: Throttle filter doesn't work for quick firing sensors [esphome-core#408](https://github.com/esphome/esphome-core/pull/408) by [@AlexDanault](https://github.com/AlexDanault)
+- core: Improve Preferences Log Output [esphome-core#414](https://github.com/esphome/esphome-core/pull/414)
+- core: Fix GPIO switch restoring inverted [esphome-core#415](https://github.com/esphome/esphome-core/pull/415)
+- core: Default expire after to 0 with deep sleep [esphome-core#417](https://github.com/esphome/esphome-core/pull/417)
+- core: Improve DHT error message [esphome-core#424](https://github.com/esphome/esphome-core/pull/424)
+- esphome: Fix Non-ASCII characters being escaped if in wrong locale [esphome#369](https://github.com/esphome/esphome/pull/369)
+- esphome: Upgrade HassIO Ubuntu Base to 2.2.1 [esphome#368](https://github.com/esphome/esphome/pull/368)
+- esphome: Fix ESP32 BLE tracker scan interval in seconds [esphome#367](https://github.com/esphome/esphome/pull/367)
+- esphome: ESP8266 Better Exception Code Names [esphome#358](https://github.com/esphome/esphome/pull/358)
+- esphome: Remove DNS1,DNS2 inclusive [esphome#357](https://github.com/esphome/esphome/pull/357)
+- esphome: Remove deep sleep run_cycles [esphome#353](https://github.com/esphome/esphome/pull/353)
+- esphome: Fix custom output requiring type [esphome#344](https://github.com/esphome/esphome/pull/344)
+- core: Don't duplicate binary sensor events [esphome-core#411](https://github.com/esphome/esphome-core/pull/411)
+- esphome: Add ability to run commands using subprocess, instead of in-process [esphome#359](https://github.com/esphome/esphome/pull/359) by [@dotlambda](https://github.com/dotlambda)
+- core: Fix on_press / on_release being triggered on initial state [esphome-core#425](https://github.com/esphome/esphome-core/pull/425)
+- core: Remove hard dependencies in library.json [esphome-core#409](https://github.com/esphome/esphome-core/pull/409)
+- esphome: Upgrade espressif32 package to 1.6.0 [esphome#355](https://github.com/esphome/esphome/pull/355)
+- esphome: Fix dashboard password with python 3 [esphome#339](https://github.com/esphome/esphome/pull/339)
+- esphome: Fix nginx closing WebSocket connection after 60 seconds [esphome#370](https://github.com/esphome/esphome/pull/370)
+- esphome: Disable platformio LDF [esphome#352](https://github.com/esphome/esphome/pull/352)
+- core: Store log strings in flash for ESP8266 [esphome-core#432](https://github.com/esphome/esphome-core/pull/432)
+- core: Adding DHT model SI7021 to DHT sensor [esphome-core#433](https://github.com/esphome/esphome-core/pull/433) by [@grea09](https://github.com/grea09)
+- esphome: Adding SI7021 sensor to config validation [esphome#375](https://github.com/esphome/esphome/pull/375) by [@grea09](https://github.com/grea09)
+- core: Add logging to NeoPixelBus [esphome-core#438](https://github.com/esphome/esphome-core/pull/438) by [@badbadc0ffee](https://github.com/badbadc0ffee)
+- esphome: Includes should be relative to the src directory, not main.cpp file [esphome#390](https://github.com/esphome/esphome/pull/390) by [@yawor](https://github.com/yawor)
+- esphome: Generate variable for each custom component id [esphome#382](https://github.com/esphome/esphome/pull/382) by [@yawor](https://github.com/yawor)
+- esphome: Fix Custom Components No Name [esphome#395](https://github.com/esphome/esphome/pull/395)
+- core: Split off assumed state from optimistic mode [esphome-core#455](https://github.com/esphome/esphome-core/pull/455)
+- esphome: Remove Heartbeat Binary Sensor Filter [esphome#393](https://github.com/esphome/esphome/pull/393)
+- core: Disable MQTT if not used [esphome-core#430](https://github.com/esphome/esphome-core/pull/430)
+- esphome: Disable MQTT if not used [esphome#373](https://github.com/esphome/esphome/pull/373)
+- core: Store raw remote codes in flash [esphome-core#456](https://github.com/esphome/esphome-core/pull/456)
+- core: Deduplicate values before sending [esphome-core#454](https://github.com/esphome/esphome-core/pull/454)
+- core: Rewrite native API client for increased reliability [esphome-core#426](https://github.com/esphome/esphome-core/pull/426)
+- docs: Fix Typo in BME280 Environment Cookbook [esphome-docs#145](https://github.com/esphome/esphome-docs/pull/145) by [@hajdbo](https://github.com/hajdbo)
+- docs: Updating Repo URLs in Contribution Guide [esphome-docs#143](https://github.com/esphome/esphome-docs/pull/143) by [@badbadc0ffee](https://github.com/badbadc0ffee)
+- core: Update sony.cpp to fix incorrectly formed Sony IR code (extra bit) [esphome-core#458](https://github.com/esphome/esphome-core/pull/458) by [@chris-jennings](https://github.com/chris-jennings)
+- docs: Extra example in cookbook / flashing DOIT ESP32 [esphome-docs#138](https://github.com/esphome/esphome-docs/pull/138) by [@DavidDeSloovere](https://github.com/DavidDeSloovere)
+- docs: Adding the SI7021 to docs [esphome-docs#147](https://github.com/esphome/esphome-docs/pull/147) by [@grea09](https://github.com/grea09)
+- esphome: Validate neopixelbus method [esphome#398](https://github.com/esphome/esphome/pull/398)
+- core: Fix PMSx003 payload length calculation [esphome-core#471](https://github.com/esphome/esphome-core/pull/471) by [@hajdbo](https://github.com/hajdbo)
+- docs: Netlify [esphome-docs#153](https://github.com/esphome/esphome-docs/pull/153)
+- docs: Remove duplicate "includes" line [esphome-docs#154](https://github.com/esphome/esphome-docs/pull/154) by [@notgwj](https://github.com/notgwj)
+- core: Remove 'flash' property from MQTT Light discovery JSON. [esphome-core#478](https://github.com/esphome/esphome-core/pull/478) by [@brandond](https://github.com/brandond)
+- docs: Improve docker build instructions [esphome-docs#155](https://github.com/esphome/esphome-docs/pull/155) by [@DavidDeSloovere](https://github.com/DavidDeSloovere)
+- core: Add Homeassistant Binary Sensor [esphome-core#480](https://github.com/esphome/esphome-core/pull/480) (cherry-picked)
+- core: GPIO Switch Interlocking [esphome-core#482](https://github.com/esphome/esphome-core/pull/482) (cherry-picked)
+- esphome: Print error when mqtt.publish used without MQTT enabled [esphome#408](https://github.com/esphome/esphome/pull/408) (cherry-picked)
+- esphome: Add Homeassistant Binary Sensor [esphome#409](https://github.com/esphome/esphome/pull/409) (cherry-picked)
+- esphome: Allow pins 9&10 for PWM [esphome#410](https://github.com/esphome/esphome/pull/410) (cherry-picked)
+- docs: Homeassistant binary sensor [esphome-docs#156](https://github.com/esphome/esphome-docs/pull/156)
+- esphome: Store Raw Remote Codes in PROGMEM [esphome#392](https://github.com/esphome/esphome/pull/392) (cherry-picked)
+- core: Better error messages for OTA [esphome-core#486](https://github.com/esphome/esphome-core/pull/486)
+- esphome: Better error messages for OTA [esphome#418](https://github.com/esphome/esphome/pull/418)
+- core: Synchronize homeassistant time periodically [esphome-core#485](https://github.com/esphome/esphome-core/pull/485)
+- core: ESP8266 Arduino 2.5.0 Compatibility [esphome-core#481](https://github.com/esphome/esphome-core/pull/481) (cherry-picked)
+- esphome: Add Switch Interlocking [esphome#411](https://github.com/esphome/esphome/pull/411) (cherry-picked)
+- esphome: Add local mDNS responder for .local [esphome#386](https://github.com/esphome/esphome/pull/386) (cherry-picked)
+- core: Auto-Redact private information from logs [esphome-core#488](https://github.com/esphome/esphome-core/pull/488)
+- esphome: Auto-Redact private information from logs in dashboard [esphome#421](https://github.com/esphome/esphome/pull/421)
+- esphome: Replace optimistic with Assumed State [esphome#394](https://github.com/esphome/esphome/pull/394) (cherry-picked)
+- core: Add Template Publish Action [esphome-core#453](https://github.com/esphome/esphome-core/pull/453) (cherry-picked)
+- esphome: Add template publish actions and switch triggers [esphome#391](https://github.com/esphome/esphome/pull/391) (cherry-picked)
+- core: Rework hostname (replaced by use_address) [esphome-core#484](https://github.com/esphome/esphome-core/pull/484)
+- esphome: Add use_address [esphome#417](https://github.com/esphome/esphome/pull/417)
+- core: Fixes I2C SH1106 repeats the first 8 lines of the display. [esphome-core#492](https://github.com/esphome/esphome-core/pull/492) by [@n0bel](https://github.com/n0bel)
+- docs: Link Home Assistant's include system in FAQ [esphome-docs#157](https://github.com/esphome/esphome-docs/pull/157) by [@TheHackmeister](https://github.com/TheHackmeister)
+- core: Rework UART component for fixes [esphome-core#487](https://github.com/esphome/esphome-core/pull/487)
+- esphome: Rework UART component for fixes [esphome#419](https://github.com/esphome/esphome/pull/419)
+- esphome: Make dout the default flash mode [esphome#420](https://github.com/esphome/esphome/pull/420)
+- core: Revert espressif32 package upgrade [esphome-core#490](https://github.com/esphome/esphome-core/pull/490)
+- esphome: Revert "Upgrade espressif32 package to 1.6.0 (#355)" [esphome#422](https://github.com/esphome/esphome/pull/422)
+- core: Add support for JVC remote transmitting and receiving [esphome-core#493](https://github.com/esphome/esphome-core/pull/493) by [@jesserockz](https://github.com/jesserockz)
+- esphome: Add support for JVC remote transmitting and receiving [esphome#423](https://github.com/esphome/esphome/pull/423) by [@jesserockz](https://github.com/jesserockz)
+- docs: Add docs for JVC remote transmitting and receiving [esphome-docs#160](https://github.com/esphome/esphome-docs/pull/160) by [@jesserockz](https://github.com/jesserockz)
+- docs: H801 LED controller (remade) [esphome-docs#158](https://github.com/esphome/esphome-docs/pull/158) by [@erazor666](https://github.com/erazor666)
+- core: Enable use of alternate hardware UARTs for logging [esphome-core#483](https://github.com/esphome/esphome-core/pull/483) by [@brandond](https://github.com/brandond)
+- esphome: Enable use of alternate hardware UARTs for logging [esphome#427](https://github.com/esphome/esphome/pull/427) by [@brandond](https://github.com/brandond)
+- docs: Enable use of alternate hardware UARTs for logging [esphome-docs#161](https://github.com/esphome/esphome-docs/pull/161) by [@brandond](https://github.com/brandond)
+- core: Rename esphomelib to esphome-core [esphome-core#494](https://github.com/esphome/esphome-core/pull/494)
+- esphome: Rename esphomeyaml to esphome [esphome#426](https://github.com/esphome/esphome/pull/426)
+- esphome: Include common components for compiles [esphome#431](https://github.com/esphome/esphome/pull/431)
+- core: Add light partition platform [esphome-core#501](https://github.com/esphome/esphome-core/pull/501)
+- core: Add RC5 IR code support [esphome-core#502](https://github.com/esphome/esphome-core/pull/502)
+- core: Template switch do not restore state by default [esphome-core#503](https://github.com/esphome/esphome-core/pull/503)
+- core: Fix ethernet initialization order [esphome-core#504](https://github.com/esphome/esphome-core/pull/504)
+- esphome: Add RC5 IR code support [esphome#432](https://github.com/esphome/esphome/pull/432)
+- core: Tweak BLE tracker settings [esphome-core#505](https://github.com/esphome/esphome-core/pull/505)
+- esphome: Add text_sensor.template.publish action [esphome#433](https://github.com/esphome/esphome/pull/433)
+- esphome: Add light partition platform [esphome#434](https://github.com/esphome/esphome/pull/434)
+- core: Add 'hidden' option to wifi networks [esphome-core#506](https://github.com/esphome/esphome-core/pull/506)
+- esphome: Add hidden option to wifi networks [esphome#436](https://github.com/esphome/esphome/pull/436)
+- core: Add display pages abstraction [esphome-core#507](https://github.com/esphome/esphome-core/pull/507)
+- esphome: Add display page abstraction [esphome#435](https://github.com/esphome/esphome/pull/435)
+- esphome: Fix dashboard style issues [esphome#437](https://github.com/esphome/esphome/pull/437) by [@TheZoker](https://github.com/TheZoker)
+- esphome: Include tapTarget html element only when needed [esphome#439](https://github.com/esphome/esphome/pull/439) by [@TheZoker](https://github.com/TheZoker)
+- core: Add wait_until action [esphome-core#508](https://github.com/esphome/esphome-core/pull/508)
+- esphome: Add wait_until action [esphome#440](https://github.com/esphome/esphome/pull/440)
+- docs: Document addressable_lambda light effect [esphome-docs#163](https://github.com/esphome/esphome-docs/pull/163)
+- esphome: Fix custom components not registered [esphome#441](https://github.com/esphome/esphome/pull/441) (cherry-picked)
+- docs: Custom Binary Sensor: Add missing ";" and fix indentation in YAML [esphome-docs#164](https://github.com/esphome/esphome-docs/pull/164) by [@mjoshd](https://github.com/mjoshd)
+- core: Add empty nameable constructors [esphome-core#509](https://github.com/esphome/esphome-core/pull/509) (cherry-picked)
+- core: Fix Nextion "Received unknown filler end bytes" [esphome-core#510](https://github.com/esphome/esphome-core/pull/510) (cherry-picked)
+- core: Fix functional attachInterrupt placed in flash [esphome-core#511](https://github.com/esphome/esphome-core/pull/511) (cherry-picked)
+- docs: Add Sonoff T1 LED pin [esphome-docs#165](https://github.com/esphome/esphome-docs/pull/165) by [@lwis](https://github.com/lwis)
+- esphome: Remove duplicate scrollbar & move scrollbar [esphome#443](https://github.com/esphome/esphome/pull/443) by [@TheZoker](https://github.com/TheZoker) (cherry-picked)
+- esphome: Remove unnecessary wrapper [esphome#444](https://github.com/esphome/esphome/pull/444) by [@TheZoker](https://github.com/TheZoker) (cherry-picked)
+- core: Refactor addressable light and fix partition issue [esphome-core#512](https://github.com/esphome/esphome-core/pull/512) (cherry-picked)
+- esphome: Fix MQTT log topic level [esphome#445](https://github.com/esphome/esphome/pull/445) (cherry-picked)
+- core: Fix ESP8266 functional interrupts [esphome-core#515](https://github.com/esphome/esphome-core/pull/515) (cherry-picked)
+- esphome: Allow i2c on non-pullup pins [esphome#447](https://github.com/esphome/esphome/pull/447) (cherry-picked)
+- esphome: Allow use of arduino core v2.5.0 on ESP8266 [esphome#446](https://github.com/esphome/esphome/pull/446) (cherry-picked)
+- core: Fix feed_wdt [esphome-core#520](https://github.com/esphome/esphome-core/pull/520)
+- core: Speed up waveshare Epaper [esphome-core#518](https://github.com/esphome/esphome-core/pull/518)
+- esphome: Improve dashboard setup wizard [esphome#450](https://github.com/esphome/esphome/pull/450)
+
+{/* markdownlint-enable MD013 */}

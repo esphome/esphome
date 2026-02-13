@@ -1,0 +1,63 @@
+---
+description: "Instructions for setting up TSL2561 ambient light sensors in ESPHome."
+title: "TSL2561 Ambient Light Sensor"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+import tsl2561FullImg from './images/tsl2561-full.jpg';
+import tsl2561UiImg from './images/tsl2561-ui.png';
+import APIRef from '@components/APIRef.astro';
+
+The `tsl2561` sensor platform allows you to use your TSL2561
+([datasheet](https://cdn-shop.adafruit.com/datasheets/TSL2561.pdf),
+[Adafruit](https://www.adafruit.com/product/439))
+ambient light sensor with ESPHome. The [I²C](/components/i2c) is required to be set up in
+your configuration for this sensor to work.
+
+<Figure
+  src={tsl2561FullImg}
+  alt=""
+  caption="TSL2561 Ambient Light Sensor."
+  layout="constrained"
+/>
+
+<Image src={tsl2561UiImg} layout="constrained" alt="" />
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: tsl2561
+    name: "TSL2561 Ambient Light"
+    address: 0x39
+    update_interval: 60s
+```
+
+## Configuration variables
+
+- **address** (*Optional*, int): Manually specify the I²C address of the sensor. Defaults to `0x39`.
+- **integration_time** (*Optional*, [Time](/guides/configuration-types#time)):
+  The time the sensor will take for each measurement. Longer means more accurate values. One of
+  `14ms`, `101ms`, `402ms`. Defaults to `402ms`.
+
+- **gain** (*Optional*, string): The gain of the sensor. Higher values are better in low-light conditions.
+  One of `1x` and `16x`. Defaults to `1x`.
+
+- **is_cs_package** (*Optional*, boolean): The "CS" package of this sensor has a slightly different
+  formula for calculating the illuminance in lx. Set this to `true` if you're working with a CS
+  package. Defaults to `false`.
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
+  sensor. Defaults to `60s`.
+
+- All other options from [Sensor](/components/sensor).
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [BH1750 Ambient Light Sensor](/components/sensor/bh1750/)
+- [OPT3001 Ambient Light Sensor](/components/sensor/opt3001/)
+- [TSL2591 Ambient Light Sensor](/components/sensor/tsl2591/)
+- [Analog To Digital Sensor](/components/sensor/adc/)
+- [SparkFun TSL2561 Arduino Library](https://github.com/sparkfun/SparkFun_TSL2561_Arduino_Library) by [SparkFun](https://sparkfun.com/)
+- <APIRef text="tsl2561.h" path="tsl2561/tsl2561.h" />

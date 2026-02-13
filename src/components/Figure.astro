@@ -1,0 +1,58 @@
+---
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+
+interface Props {
+  src: ImageMetadata | string;
+  alt: string;
+  caption?: string;
+  layout?: 'constrained' | 'fixed' | 'full-width';
+  style?: string;
+  width?: number;
+  height?: number;
+}
+
+const { src, alt, caption, layout = 'constrained', style, width, height } = Astro.props;
+
+// Check if there's slot content for caption
+const hasSlot = Astro.slots.has('caption');
+---
+
+<figure class="captioned-image">
+  <Image
+    src={src}
+    alt={alt}
+    layout={layout}
+    style={style}
+    width={width}
+    height={height}
+  />
+  {(hasSlot || caption) && (
+    <figcaption>
+      {hasSlot ? <slot name="caption" /> : caption}
+    </figcaption>
+  )}
+</figure>
+
+<style>
+  .captioned-image {
+    margin: 1.5rem auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .captioned-image :global(img) {
+    display: block;
+    margin: 0 auto;
+  }
+
+  figcaption {
+    margin-top: 0.5rem;
+    text-align: center;
+    font-size: 0.9em;
+    color: var(--sl-color-gray-3);
+    font-style: italic;
+    max-width: 100%;
+  }
+</style>

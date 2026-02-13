@@ -1,0 +1,43 @@
+---
+description: "Instructions for setting up a UART packet transport platform on ESPHome"
+title: "UART Packet Transport Platform"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+<span id="uart-packet-transport"></span>
+
+The [Packet Transport](/components/packet_transport/) platform allows ESPHome nodes to directly communicate with each over a communication channel.
+The UART implementation of the platform uses a serial port as a communication medium. See the [Packet Transport](/components/packet_transport/) and [Uart](/components/uart/) for more information.
+
+## Example Configuration
+
+```yaml
+# Example configuration entry
+packet_transport:
+  platform: uart
+  sensors:
+    - dht_temp
+
+uart:
+  tx_pin: GPIOXX
+  rx_pin: GPIOXX
+  baud_rate: 9600
+
+sensor:
+  - platform: dht
+      id: dht
+      pin: GPIOXX
+      temperature:
+        name: "Temperature"
+        id: dht_temp
+```
+
+## See Also
+
+- [Packet Transport Component](/components/packet_transport/)
+- [UART Bus](/components/uart/)
+- [Packet Transport Binary Sensor](/components/binary_sensor/packet_transport/)
+- [Packet Transport Sensor](/components/sensor/packet_transport/)
+- [Automation](/automations/)
+- <APIRef text="packet_transport.h" path="packet_transport/packet_transport.h" />

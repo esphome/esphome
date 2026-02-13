@@ -1,0 +1,33 @@
+---
+description: "Instructions for setting up switches that can remotely reboot the ESP in ESPHome."
+title: "Restart Switch"
+---
+
+import { Image } from 'astro:assets';
+import restartUiImg from './images/restart-ui.png';
+import APIRef from '@components/APIRef.astro';
+
+The `restart` switch platform allows you to restart your node remotely
+through Home Assistant.
+
+<Image src={restartUiImg} layout="constrained" alt="" />
+
+```yaml
+# Example configuration entry
+switch:
+  - platform: restart
+    name: "Living Room Restart"
+```
+
+## Configuration variables
+
+- All options from [Switch](/components/switch#config-switch).
+
+## See Also
+
+- [Shutdown Switch](/components/switch/shutdown/)
+- [Safe Mode Switch](/components/switch/safe_mode/)
+- [Factory Reset Switch](/components/switch/factory_reset/)
+- [Restart Button](/components/button/restart/)
+- [Template Switch](/components/switch/template/)
+- <APIRef text="restart_switch.h" path="restart/switch/restart_switch.h" />

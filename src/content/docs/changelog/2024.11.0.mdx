@@ -1,0 +1,239 @@
+---
+description: "Changelog for ESPHome 2024.11.0."
+title: "ESPHome 2024.11.0 - 20th November 2024"
+pagefind: false
+slug: "changelog/2024.11.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["AXS15231","/components/touchscreen/axs15231","axs15231.svg"],
+  ["ES8311","/components/audio_dac/es8311","es8311.svg"],
+  ["i2c_device","/components/i2c_device","i2c.svg"],
+  ["MAX17043","/components/sensor/max17043","max17043.jpg"],
+  ["OpenTherm","/components/opentherm","opentherm.png"],
+  ["TC74","/components/sensor/tc74","tc74.jpg"]
+]} />
+
+ESPHome has grown over time and become more friendly for vendors to create and pre-install ESPHome onto devices
+they sell / give away / provide. We are seeing more devices with ESPHome pre-installed, and we are so happy to
+see how accessible it is becoming for regular Home Assistant users (not just developers or tech-savvy people) to
+get their hands on a device that; A, works out of the box, B, works locally, and C can be fully customized by
+the person who bought it if they choose to do so.
+Because there are now more devices you can buy and do not have to install ESPHome onto yourself, we have made some
+updates to allow ignoring these discovered devices from the ESPHome Dashboard as for most of these devices, you
+don't actually need to **take control** and write and manage your own firmware for them.
+
+Further to this, we have slightly changed the identity of ESPHome as an add-on in Home Assistant. It is now called
+**ESPHome Device Compiler**, because that is what it does, and most people do not need it if they are not going to
+actually compile anything.
+
+## OpenTherm
+
+This release brings [Opentherm](/components/opentherm/) support to ESPHome. Please see the
+[documentation](/components/opentherm/) for detailed information about it and how to use it.
+
+## ESPHome `armv7` Docker Support
+
+We will be retiring ESPHome's Docker support for `armv7` hardware in the February 2025 release.
+
+This is due to both waning support as it relates to tooling and performance reasons. We strongly recommend moving to a
+more modern architecture, especially if you're using the ESPHome Device Compiler to build/compile firmware for your
+devices.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2024.11.1 - November 22
+
+- [http_request] Fix within context with parameters. (Bugfix) [esphome#7790](https://github.com/esphome/esphome/pull/7790) by [@clydebarrow](https://github.com/clydebarrow)
+- [rtttl] Clamp gain between 0 and 1 [esphome#7793](https://github.com/esphome/esphome/pull/7793) by [@jesserockz](https://github.com/jesserockz)
+- [speaker] Add missing auto-load for `audio` [esphome#7794](https://github.com/esphome/esphome/pull/7794) by [@jesserockz](https://github.com/jesserockz)
+- [qspi_dbi] Fix garbled graphics on RM690B0 [esphome#7795](https://github.com/esphome/esphome/pull/7795) by [@manuelkasper](https://github.com/manuelkasper)
+- Check for min_version earlier in validation [esphome#7797](https://github.com/esphome/esphome/pull/7797) by [@spuder](https://github.com/spuder)
+- Fix for OTA mode not activating in safe_mode when OTA section has an on_xxxx action [esphome#7796](https://github.com/esphome/esphome/pull/7796) by [@Dilbert66](https://github.com/Dilbert66)
+- Ensure storage I/O for ignored devices runs in the executor [esphome#7792](https://github.com/esphome/esphome/pull/7792) by [@bdraco](https://github.com/bdraco)
+
+## Release 2024.11.2 - November 27
+
+- [lvgl] Bugfixes [esphome#7803](https://github.com/esphome/esphome/pull/7803) by [@clydebarrow](https://github.com/clydebarrow)
+- [docker] Leave run-time required libraries installed. [esphome#7804](https://github.com/esphome/esphome/pull/7804) by [@clydebarrow](https://github.com/clydebarrow)
+- [qspi_dbi] Fix init sequences (Bugfix) [esphome#7805](https://github.com/esphome/esphome/pull/7805) by [@clydebarrow](https://github.com/clydebarrow)
+- fix modbus crashing when bad data returned [esphome#7810](https://github.com/esphome/esphome/pull/7810) by [@ssieb](https://github.com/ssieb)
+- [Modbus Controller] Fix issue #6477. Online automation triggering Offline [esphome#7801](https://github.com/esphome/esphome/pull/7801) by [@0x3333](https://github.com/0x3333)
+- [fix] Status sensor does not check if required network component is missing [esphome#7734](https://github.com/esphome/esphome/pull/7734) by [@rvalitov](https://github.com/rvalitov)
+- keypad binary sensors should be initially off [esphome#7808](https://github.com/esphome/esphome/pull/7808) by [@ssieb](https://github.com/ssieb)
+- fix 32 char SSIDs [esphome#7834](https://github.com/esphome/esphome/pull/7834) by [@ssieb](https://github.com/ssieb)
+- [honeywell] use warning instead of failing [esphome#7862](https://github.com/esphome/esphome/pull/7862) by [@ssieb](https://github.com/ssieb)
+
+## Release 2024.11.3 - December 6
+
+- [opentherm] Fix out of memory errors on ESP8266 [esphome#7835](https://github.com/esphome/esphome/pull/7835) by [@olegtarasov](https://github.com/olegtarasov)
+- fix local time timestamp calculation [esphome#7807](https://github.com/esphome/esphome/pull/7807) by [@ssieb](https://github.com/ssieb)
+- [online_image]Don't access decoder if not initialized [esphome#7882](https://github.com/esphome/esphome/pull/7882) by [@guillempages](https://github.com/guillempages)
+- Add IRAM_ATTR to all functions used during interrupts on esp8266 chips. [esphome#7840](https://github.com/esphome/esphome/pull/7840) by [@FreeBear-nc](https://github.com/FreeBear-nc)
+- [st7920] Remove unnecessary warning when drawing outside display bounds [esphome#7868](https://github.com/esphome/esphome/pull/7868) by [@jesserockz](https://github.com/jesserockz)
+- Fix recalc_timestamp_utc [esphome#7894](https://github.com/esphome/esphome/pull/7894) by [@RouNNdeL](https://github.com/RouNNdeL)
+- Cast port to int for ota pushing [esphome#7888](https://github.com/esphome/esphome/pull/7888) by [@jesserockz](https://github.com/jesserockz)
+- [lvgl] Bugfixes [esphome#7896](https://github.com/esphome/esphome/pull/7896) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Fix msgbox content [esphome#7912](https://github.com/esphome/esphome/pull/7912) by [@clydebarrow](https://github.com/clydebarrow)
+- [esp32] Fix crash with empty `platformio_options:` value [esphome#7920](https://github.com/esphome/esphome/pull/7920) by [@clydebarrow](https://github.com/clydebarrow)
+
+## Full list of changes
+
+### New Features
+
+- Support ignoring discovered devices from the dashboard [esphome#7665](https://github.com/esphome/esphome/pull/7665) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- [media_player] Add new media player conditions [esphome#7667](https://github.com/esphome/esphome/pull/7667) by [@kahrendt](https://github.com/kahrendt) (new-feature)
+
+### New Components
+
+- Add TC74 temperature sensor [esphome#7460](https://github.com/esphome/esphome/pull/7460) by [@sethgirvan](https://github.com/sethgirvan) (new-integration)
+- Add support for Analog Devices MAX17043 battery fuel gauge [esphome#7522](https://github.com/esphome/esphome/pull/7522) by [@blacknell](https://github.com/blacknell) (new-integration)
+- [speaker, i2s_audio] I2S Speaker implementation using a ring buffer [esphome#7605](https://github.com/esphome/esphome/pull/7605) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- [axs15231] Touchscreen driver [esphome#7592](https://github.com/esphome/esphome/pull/7592) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- i2c_device [esphome#7641](https://github.com/esphome/esphome/pull/7641) by [@gabest11](https://github.com/gabest11) (new-integration)
+- [es8311] Add es8311 dac component [esphome#7693](https://github.com/esphome/esphome/pull/7693) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- Add OpenTherm component (part 3: rest of the sensors) [esphome#7676](https://github.com/esphome/esphome/pull/7676) by [@olegtarasov](https://github.com/olegtarasov) (new-integration)
+
+### New Platforms
+
+- [qspi_dbi] Rename from qspi_amoled, add features [esphome#7594](https://github.com/esphome/esphome/pull/7594) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change) (new-platform)
+- Add OpenTherm component (part 2.1: sensor platform) [esphome#7529](https://github.com/esphome/esphome/pull/7529) by [@olegtarasov](https://github.com/olegtarasov) (new-platform)
+
+### Breaking Changes
+
+- [qspi_dbi] Rename from qspi_amoled, add features [esphome#7594](https://github.com/esphome/esphome/pull/7594) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change) (new-platform)
+- [lvgl] light schema should require `widget:` not `led:` (Bugfix) [esphome#7649](https://github.com/esphome/esphome/pull/7649) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [http_request] Always return defined server response status [esphome#7689](https://github.com/esphome/esphome/pull/7689) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [touchscreen] Calibration fixes [esphome#7704](https://github.com/esphome/esphome/pull/7704) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [spi_device] rename mode to spi_mode [esphome#7724](https://github.com/esphome/esphome/pull/7724) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- Update UNIT_VOLT_AMPS_REACTIVE = "var" (Currently 'VAR') [esphome#7643](https://github.com/esphome/esphome/pull/7643) by [@Roving-Ronin](https://github.com/Roving-Ronin) (breaking-change)
+
+### Beta Changes
+
+- Fix temperature and humidity for bme680 with bsec2 [esphome#7728](https://github.com/esphome/esphome/pull/7728) by [@luar123](https://github.com/luar123)
+- [i2s_audio] Bugfix: Adjust I2S speaker setup priority [esphome#7759](https://github.com/esphome/esphome/pull/7759) by [@kahrendt](https://github.com/kahrendt)
+- Update UNIT_VOLT_AMPS_REACTIVE = "var" (Currently 'VAR') [esphome#7643](https://github.com/esphome/esphome/pull/7643) by [@Roving-Ronin](https://github.com/Roving-Ronin) (breaking-change)
+- Fix reactive power unit of measurement from VAR to var [esphome#7757](https://github.com/esphome/esphome/pull/7757) by [@felipecrs](https://github.com/felipecrs)
+- Disable bluetooth proxy during update [esphome#7695](https://github.com/esphome/esphome/pull/7695) by [@jzucker2](https://github.com/jzucker2)
+- ld2420: fix typo in log message [esphome#7758](https://github.com/esphome/esphome/pull/7758) by [@bfabio](https://github.com/bfabio)
+- TuyaFan control should use oscillation_type [esphome#7776](https://github.com/esphome/esphome/pull/7776) by [@pethans](https://github.com/pethans)
+- Bump esphome-dashboard to 20241118.0 [esphome#7782](https://github.com/esphome/esphome/pull/7782) by [@jesserockz](https://github.com/jesserockz)
+- [http_request] Feed watchdog timeout around http request functions [esphome#7786](https://github.com/esphome/esphome/pull/7786) by [@jesserockz](https://github.com/jesserockz)
+- Bump esphome-dashboard to 20241120.0 [esphome#7787](https://github.com/esphome/esphome/pull/7787) by [@jesserockz](https://github.com/jesserockz)
+
+### All changes
+
+- Update `pillow` to 10.4.0 [esphome#7566](https://github.com/esphome/esphome/pull/7566) by [@hostcc](https://github.com/hostcc)
+- Bump actions/upload-artifact from 4.4.2 to 4.4.3 [esphome#7575](https://github.com/esphome/esphome/pull/7575) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [fix] ESP32-C6 Reset Reasons [esphome#7578](https://github.com/esphome/esphome/pull/7578) by [@rvalitov](https://github.com/rvalitov)
+- [light] Add `initial_state` configuration [esphome#7577](https://github.com/esphome/esphome/pull/7577) by [@jesserockz](https://github.com/jesserockz)
+- [CI] failures when installing using apt-get. [esphome#7593](https://github.com/esphome/esphome/pull/7593) by [@clydebarrow](https://github.com/clydebarrow)
+- [web_server] expose event compoent to REST [esphome#7587](https://github.com/esphome/esphome/pull/7587) by [@RFDarter](https://github.com/RFDarter)
+- Update test_build_components [esphome#7597](https://github.com/esphome/esphome/pull/7597) by [@tomaszduda23](https://github.com/tomaszduda23)
+- [fix] ESP32-C6: internal temperature reporting [esphome#7579](https://github.com/esphome/esphome/pull/7579) by [@rvalitov](https://github.com/rvalitov)
+- [code-quality] statsd component [esphome#7603](https://github.com/esphome/esphome/pull/7603) by [@tomaszduda23](https://github.com/tomaszduda23)
+- [automation] Implement all and any condition shortcuts [esphome#7565](https://github.com/esphome/esphome/pull/7565) by [@clydebarrow](https://github.com/clydebarrow)
+- Add TC74 temperature sensor [esphome#7460](https://github.com/esphome/esphome/pull/7460) by [@sethgirvan](https://github.com/sethgirvan) (new-integration)
+- [display] filled_ring and filled_gauge methods added [esphome#7420](https://github.com/esphome/esphome/pull/7420) by [@artemyevav](https://github.com/artemyevav)
+- [fix] deprecated functions warnings for logger component with ESP IDF version 5.3.0+ [esphome#7600](https://github.com/esphome/esphome/pull/7600) by [@rvalitov](https://github.com/rvalitov)
+- [lvgl] Implement better software rotation [esphome#7595](https://github.com/esphome/esphome/pull/7595) by [@clydebarrow](https://github.com/clydebarrow)
+- [qspi_dbi] Rename from qspi_amoled, add features [esphome#7594](https://github.com/esphome/esphome/pull/7594) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change) (new-platform)
+- Add support for Analog Devices MAX17043 battery fuel gauge [esphome#7522](https://github.com/esphome/esphome/pull/7522) by [@blacknell](https://github.com/blacknell) (new-integration)
+- chore: bump pyyaml to 6.0.2 to support py3.13 build [esphome#7610](https://github.com/esphome/esphome/pull/7610) by [@chenrui333](https://github.com/chenrui333)
+- chore: bump platformio to 6.1.16 to support py3.13 build [esphome#7590](https://github.com/esphome/esphome/pull/7590) by [@chenrui333](https://github.com/chenrui333)
+- [speaker, i2s_audio] I2S Speaker implementation using a ring buffer [esphome#7605](https://github.com/esphome/esphome/pull/7605) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- Bump arduino-mlx90393 to 1.0.2 [esphome#7618](https://github.com/esphome/esphome/pull/7618) by [@functionpointer](https://github.com/functionpointer)
+- [fix] ESP32-C6 BLE compile error [esphome#7580](https://github.com/esphome/esphome/pull/7580) by [@rvalitov](https://github.com/rvalitov)
+- [axs15231] Touchscreen driver [esphome#7592](https://github.com/esphome/esphome/pull/7592) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- [lvgl] Roller and Dropdown enhancements; [esphome#7608](https://github.com/esphome/esphome/pull/7608) by [@clydebarrow](https://github.com/clydebarrow)
+- [code-quality] udp component [esphome#7602](https://github.com/esphome/esphome/pull/7602) by [@tomaszduda23](https://github.com/tomaszduda23)
+- [lvgl] Revise code generation to allow early widget creation [esphome#7611](https://github.com/esphome/esphome/pull/7611) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Allow esphome::Image in lambda to update image source directly [esphome#7624](https://github.com/esphome/esphome/pull/7624) by [@guillempages](https://github.com/guillempages)
+- Bump bme68x_bsec2 version to 1.8.2610 [esphome#7626](https://github.com/esphome/esphome/pull/7626) by [@shvmm](https://github.com/shvmm)
+- Update Pull request template [esphome#7620](https://github.com/esphome/esphome/pull/7620) by [@jesserockz](https://github.com/jesserockz)
+- [lvgl] Defer display rotation reset until setup(). (Bugfix) [esphome#7627](https://github.com/esphome/esphome/pull/7627) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] light schema should require `widget:` not `led:` (Bugfix) [esphome#7649](https://github.com/esphome/esphome/pull/7649) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [image] Fix compile time problem with host image not using lvgl [esphome#7654](https://github.com/esphome/esphome/pull/7654) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Fix rotation code for 90deg (Bugfix) [esphome#7653](https://github.com/esphome/esphome/pull/7653) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Allow strings to be interpreted as integers (Bugfix) [esphome#7652](https://github.com/esphome/esphome/pull/7652) by [@clydebarrow](https://github.com/clydebarrow)
+- [rtttl] Add `get_gain()` [esphome#7647](https://github.com/esphome/esphome/pull/7647) by [@edwardtfn](https://github.com/edwardtfn)
+- feat(MQTT): Add subscribe QoS to discovery [esphome#7648](https://github.com/esphome/esphome/pull/7648) by [@Rapsssito](https://github.com/Rapsssito)
+- i2c_device [esphome#7641](https://github.com/esphome/esphome/pull/7641) by [@gabest11](https://github.com/gabest11) (new-integration)
+- Bump actions/cache from 4.1.1 to 4.1.2 in /.github/actions/restore-python [esphome#7659](https://github.com/esphome/esphome/pull/7659) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/cache from 4.1.1 to 4.1.2 [esphome#7660](https://github.com/esphome/esphome/pull/7660) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [speaker, i2s_audio] Support audio_dac component, mute actions, and improved logging [esphome#7664](https://github.com/esphome/esphome/pull/7664) by [@kahrendt](https://github.com/kahrendt)
+- unified way how all platforms handle copy_files [esphome#7614](https://github.com/esphome/esphome/pull/7614) by [@tomaszduda23](https://github.com/tomaszduda23)
+- updating ESP32 board definitions [esphome#7650](https://github.com/esphome/esphome/pull/7650) by [@asolochek](https://github.com/asolochek)
+- Support ignoring discovered devices from the dashboard [esphome#7665](https://github.com/esphome/esphome/pull/7665) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Bump esphome-dashboard to 20241025.0 [esphome#7669](https://github.com/esphome/esphome/pull/7669) by [@jesserockz](https://github.com/jesserockz)
+- unified way how all platforms handle get_download_types [esphome#7617](https://github.com/esphome/esphome/pull/7617) by [@tomaszduda23](https://github.com/tomaszduda23)
+- [media_player] Add new media player conditions [esphome#7667](https://github.com/esphome/esphome/pull/7667) by [@kahrendt](https://github.com/kahrendt) (new-feature)
+- [code-quality] weikai.h [esphome#7601](https://github.com/esphome/esphome/pull/7601) by [@tomaszduda23](https://github.com/tomaszduda23)
+- Bump actions/setup-python from 5.2.0 to 5.3.0 in /.github/actions/restore-python [esphome#7671](https://github.com/esphome/esphome/pull/7671) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/setup-python from 5.2.0 to 5.3.0 [esphome#7670](https://github.com/esphome/esphome/pull/7670) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [image][online_image][animation] Fix transparency in RGB565 [esphome#7631](https://github.com/esphome/esphome/pull/7631) by [@clydebarrow](https://github.com/clydebarrow)
+- Add OpenTherm component (part 2.1: sensor platform) [esphome#7529](https://github.com/esphome/esphome/pull/7529) by [@olegtarasov](https://github.com/olegtarasov) (new-platform)
+- gp8403 : Add the possibility to use substitution for channel selection [esphome#7681](https://github.com/esphome/esphome/pull/7681) by [@SeByDocKy](https://github.com/SeByDocKy)
+- [lvgl] Implement qrcode [esphome#7623](https://github.com/esphome/esphome/pull/7623) by [@clydebarrow](https://github.com/clydebarrow)
+- [bytebuffer] Rework ByteBuffer using templates [esphome#7638](https://github.com/esphome/esphome/pull/7638) by [@clydebarrow](https://github.com/clydebarrow)
+- [http_request] Always return defined server response status [esphome#7689](https://github.com/esphome/esphome/pull/7689) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [font] Fix failure with bitmap fonts [esphome#7691](https://github.com/esphome/esphome/pull/7691) by [@clydebarrow](https://github.com/clydebarrow)
+- [http_request] Add enum for status codes [esphome#7690](https://github.com/esphome/esphome/pull/7690) by [@clydebarrow](https://github.com/clydebarrow)
+- Support W5500 SPI-Ethernet polling mode if framework is supported [esphome#7503](https://github.com/esphome/esphome/pull/7503) by [@slakichi](https://github.com/slakichi)
+- Add asdf to gitignore (and dockerignore) [esphome#7686](https://github.com/esphome/esphome/pull/7686) by [@jzucker2](https://github.com/jzucker2)
+- Add more prometheus metrics [esphome#7683](https://github.com/esphome/esphome/pull/7683) by [@jzucker2](https://github.com/jzucker2)
+- Mopeka Pro Check improvement to allow user to configure the sensor reporting for lower quality readings [esphome#7475](https://github.com/esphome/esphome/pull/7475) by [@spbrogan](https://github.com/spbrogan)
+- fix(WiFi): Fix strncpy missing NULL terminator [-Werror=stringop-truncation] [esphome#7668](https://github.com/esphome/esphome/pull/7668) by [@Rapsssito](https://github.com/Rapsssito)
+- let make new platform implementation in external components [esphome#7615](https://github.com/esphome/esphome/pull/7615) by [@tomaszduda23](https://github.com/tomaszduda23)
+- remove use of delay [esphome#7680](https://github.com/esphome/esphome/pull/7680) by [@ssieb](https://github.com/ssieb)
+- fix build error [esphome#7694](https://github.com/esphome/esphome/pull/7694) by [@tomaszduda23](https://github.com/tomaszduda23)
+- fix: [climate] Allow substitutions in `visual.temperature_step.{target_temperature,current_temperature}` [esphome#7679](https://github.com/esphome/esphome/pull/7679) by [@hostcc](https://github.com/hostcc)
+- Add in area and device to the prometheus labels [esphome#7692](https://github.com/esphome/esphome/pull/7692) by [@jzucker2](https://github.com/jzucker2)
+- [http_request] Implement `on_error` trigger for requests [esphome#7696](https://github.com/esphome/esphome/pull/7696) by [@clydebarrow](https://github.com/clydebarrow)
+- Bump pypa/gh-action-pypi-publish from 1.10.3 to 1.11.0 [esphome#7700](https://github.com/esphome/esphome/pull/7700) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [es8311] Add es8311 dac component [esphome#7693](https://github.com/esphome/esphome/pull/7693) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- [sdl] Allow window to be resized. [esphome#7698](https://github.com/esphome/esphome/pull/7698) by [@clydebarrow](https://github.com/clydebarrow)
+- Add config for current temperature precision [esphome#7699](https://github.com/esphome/esphome/pull/7699) by [@JasonN3](https://github.com/JasonN3)
+- [spi] Add mosi pin checks for displays [esphome#7702](https://github.com/esphome/esphome/pull/7702) by [@clydebarrow](https://github.com/clydebarrow)
+- [CI] Fix webserver defines to be present based on platform, not just framework [esphome#7703](https://github.com/esphome/esphome/pull/7703) by [@jesserockz](https://github.com/jesserockz)
+- [touchscreen] Calibration fixes [esphome#7704](https://github.com/esphome/esphome/pull/7704) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [font] Add support for "glyphsets" [esphome#7429](https://github.com/esphome/esphome/pull/7429) by [@paravoid](https://github.com/paravoid)
+- [lvlg] fix tests [esphome#7708](https://github.com/esphome/esphome/pull/7708) by [@clydebarrow](https://github.com/clydebarrow)
+- [esp32_ble] Add disconnect as a virtual function to `ESPBTClient` [esphome#7705](https://github.com/esphome/esphome/pull/7705) by [@jesserockz](https://github.com/jesserockz)
+- handle bad pin schemas [esphome#7711](https://github.com/esphome/esphome/pull/7711) by [@ssieb](https://github.com/ssieb)
+- datetime fix build_language_schema [esphome#7710](https://github.com/esphome/esphome/pull/7710) by [@tomaszduda23](https://github.com/tomaszduda23)
+- [lvgl] Don't just throw key error if someone types a bad layout type [esphome#7722](https://github.com/esphome/esphome/pull/7722) by [@jesserockz](https://github.com/jesserockz)
+- [spi_device] rename mode to spi_mode [esphome#7724](https://github.com/esphome/esphome/pull/7724) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- feat(MQTT): Add `enable`, `disable` and `enable_on_boot` [esphome#7716](https://github.com/esphome/esphome/pull/7716) by [@Rapsssito](https://github.com/Rapsssito)
+- [lvgl] Allow multiple LVGL instances [esphome#7712](https://github.com/esphome/esphome/pull/7712) by [@clydebarrow](https://github.com/clydebarrow)
+- [fix] deprecated legacy driver tsens [esphome#7658](https://github.com/esphome/esphome/pull/7658) by [@rvalitov](https://github.com/rvalitov)
+- [lvgl] Fix id config for the lvgl component (Bugfix) [esphome#7731](https://github.com/esphome/esphome/pull/7731) by [@clydebarrow](https://github.com/clydebarrow)
+- Bump pypa/gh-action-pypi-publish from 1.11.0 to 1.12.2 [esphome#7730](https://github.com/esphome/esphome/pull/7730) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- OTA: Fix IPv6 and multiple address support [esphome#7414](https://github.com/esphome/esphome/pull/7414) by [@dwmw2](https://github.com/dwmw2)
+- Fix dashboard ip resolving [esphome#7747](https://github.com/esphome/esphome/pull/7747) by [@jesserockz](https://github.com/jesserockz)
+- [docker] Bump curl, iputils-ping and libssl-dev [esphome#7748](https://github.com/esphome/esphome/pull/7748) by [@jesserockz](https://github.com/jesserockz)
+- Remove the choice for MQTT logging if it is disabled [esphome#7723](https://github.com/esphome/esphome/pull/7723) by [@solarkennedy](https://github.com/solarkennedy)
+- [sensor] Make some values templatable [esphome#7735](https://github.com/esphome/esphome/pull/7735) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Implement keypads [esphome#7719](https://github.com/esphome/esphome/pull/7719) by [@clydebarrow](https://github.com/clydebarrow)
+- [midea] Add temperature validation in do_follow_me method (bugfix) [esphome#7736](https://github.com/esphome/esphome/pull/7736) by [@DjordjeMandic](https://github.com/DjordjeMandic)
+- Add OpenTherm component (part 3: rest of the sensors) [esphome#7676](https://github.com/esphome/esphome/pull/7676) by [@olegtarasov](https://github.com/olegtarasov) (new-integration)
+- [i2s_audio] I2S speaker improvements [esphome#7749](https://github.com/esphome/esphome/pull/7749) by [@kahrendt](https://github.com/kahrendt)
+- [opentherm] Message to string extend [esphome#7755](https://github.com/esphome/esphome/pull/7755) by [@FreeBear-nc](https://github.com/FreeBear-nc)
+- [sun] Implements `is_above_horizon()` [esphome#7754](https://github.com/esphome/esphome/pull/7754) by [@edwardtfn](https://github.com/edwardtfn)
+- [core] Ring buffer write functions use const pointer parameter [esphome#7750](https://github.com/esphome/esphome/pull/7750) by [@kahrendt](https://github.com/kahrendt)
+- [Modbus Controller] Added `on_online` and `on_offline` automation [esphome#7417](https://github.com/esphome/esphome/pull/7417) by [@0x3333](https://github.com/0x3333)
+- Updated dfplayer logging to be more user-friendly [esphome#7740](https://github.com/esphome/esphome/pull/7740) by [@solarkennedy](https://github.com/solarkennedy)
+- Fix temperature and humidity for bme680 with bsec2 [esphome#7728](https://github.com/esphome/esphome/pull/7728) by [@luar123](https://github.com/luar123)
+- [i2s_audio] Bugfix: Adjust I2S speaker setup priority [esphome#7759](https://github.com/esphome/esphome/pull/7759) by [@kahrendt](https://github.com/kahrendt)
+- Update UNIT_VOLT_AMPS_REACTIVE = "var" (Currently 'VAR') [esphome#7643](https://github.com/esphome/esphome/pull/7643) by [@Roving-Ronin](https://github.com/Roving-Ronin) (breaking-change)
+- Fix reactive power unit of measurement from VAR to var [esphome#7757](https://github.com/esphome/esphome/pull/7757) by [@felipecrs](https://github.com/felipecrs)
+- Disable bluetooth proxy during update [esphome#7695](https://github.com/esphome/esphome/pull/7695) by [@jzucker2](https://github.com/jzucker2)
+- ld2420: fix typo in log message [esphome#7758](https://github.com/esphome/esphome/pull/7758) by [@bfabio](https://github.com/bfabio)
+- TuyaFan control should use oscillation_type [esphome#7776](https://github.com/esphome/esphome/pull/7776) by [@pethans](https://github.com/pethans)
+- Bump esphome-dashboard to 20241118.0 [esphome#7782](https://github.com/esphome/esphome/pull/7782) by [@jesserockz](https://github.com/jesserockz)
+- [http_request] Feed watchdog timeout around http request functions [esphome#7786](https://github.com/esphome/esphome/pull/7786) by [@jesserockz](https://github.com/jesserockz)
+- Bump esphome-dashboard to 20241120.0 [esphome#7787](https://github.com/esphome/esphome/pull/7787) by [@jesserockz](https://github.com/jesserockz)
+
+{/* markdownlint-enable MD013 */}

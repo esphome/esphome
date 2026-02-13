@@ -1,0 +1,63 @@
+---
+description: "Instructions for setting up RGBCT lights."
+title: "RGBCT Light"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+The `rgbct` light platform creates an RGBWT (color temperature + white brightness)
+light from 5 [float output components](/components/output/) (one for each channel).
+
+```yaml
+# Example configuration entry
+light:
+  - platform: rgbct
+    name: "Livingroom Lights"
+    red: output_component1
+    green: output_component2
+    blue: output_component3
+    color_temperature: output_component4
+    white_brightness: output_component5
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+```
+
+## Configuration variables
+
+- **red** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output/) to use for the red channel.
+- **green** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output/) to use for the green channel.
+- **blue** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output/) to use for the blue channel.
+- **color_temperature** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output/) to use for the
+  color temperature channel.
+
+- **white_brightness** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output/) to use for the brightness
+  of the white leds.
+
+- **cold_white_color_temperature** (**Required**, float): The coldest color temperature supported by this light. This
+  is the lowest value when expressed in [mireds](https://en.wikipedia.org/wiki/Mired), or the highest value when
+  expressed in Kelvin.
+
+- **warm_white_color_temperature** (**Required**, float): The warmest color temperature supported by this light. This
+  is the highest value when expressed in [mireds](https://en.wikipedia.org/wiki/Mired), or the lowest value when
+  expressed in Kelvin.
+
+- **color_interlock** (*Optional*, boolean): When enabled, this will prevent white leds being on at the same
+  time as RGB leds. See [Color Interlock](/components/light/rgbw#rgbw_color_interlock) for more information. Defaults to `false`.
+
+- All other options from [Light](/components/light#config-light).
+
+## See Also
+
+- [Output Component](/components/output/)
+- [Light Component](/components/light/)
+- [RGB Light](/components/light/rgb/)
+- [RGBW Light](/components/light/rgbw/)
+- [RGBWW Light](/components/light/rgbww/)
+- [Power Supply Component](/components/power_supply/)
+- [ESP32 LEDC Output](/components/output/ledc/)
+- [ESP8266 Software PWM Output](/components/output/esp8266_pwm/)
+- [PCA9685](/components/output/pca9685/)
+- [TLC59208F](/components/output/tlc59208f/)
+- [MY9231/MY9291 LED driver](/components/output/my9231/)
+- [SM16716 LED driver](/components/output/sm16716/)
+- <APIRef text="rgbct_light_output.h" path="rgbct/rgbct_light_output.h" />

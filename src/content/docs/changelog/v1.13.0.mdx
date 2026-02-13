@@ -1,0 +1,292 @@
+---
+description: "Changelog for ESPHome version 1.13.0."
+title: "Changelog - Version 1.13.0 - May 30th 2019"
+pagefind: false
+slug: "changelog/v1.13.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Climate Devices","/components/climate/index","folder-open.svg","dark-invert"],
+  ["Endstop Cover","/components/cover/endstop","electric-switch.svg","dark-invert"],
+  ["Time-Based Cover","/components/cover/time_based","timer.svg","dark-invert"],
+  ["Bang Bang Controller","/components/climate/bang_bang","air-conditioner.svg","dark-invert"],
+  ["AM2320","/components/sensor/am2320","am2320.jpg"],
+  ["CCS811","/components/sensor/ccs811","ccs811.jpg"],
+  ["Integration","/components/sensor/integration","sigma.svg","dark-invert"],
+  ["Pulse Width","/components/sensor/pulse_width","pulse.svg","dark-invert"],
+  ["Resistance Sensor","/components/sensor/resistance","omega.svg","dark-invert"],
+  ["NTC Thermistor","/components/sensor/ntc","ntc.jpg"],
+  ["CT Clamp","/components/sensor/ct_clamp","ct_clamp.jpg"],
+  ["Binary Sensor Map","/components/sensor/binary_sensor_map","binary_sensor_map.jpg"],
+  ["TTP229","/components/binary_sensor/ttp229","ttp229.jpg"],
+  ["Coolix IR Remote","/components/climate/climate_ir","air-conditioner.svg","dark-invert"],
+  ["Tcl112 IR Remote","/components/climate/climate_ir","air-conditioner.svg","dark-invert"],
+  ["Sun","/components/sun","weather-sunny.svg","dark-invert"],
+  ["GPS Time Source","/components/gps","crosshairs-gps.svg","dark-invert"],
+  ["Custom Light","/components/light/custom","language-cpp.svg","dark-invert"],
+  ["Custom Cover","/components/cover/custom","language-cpp.svg","dark-invert"],
+  ["Custom Climate","/components/climate/custom","language-cpp.svg","dark-invert"]
+]} />
+
+
+import { Image } from 'astro:assets';
+import liveValidationImg from './images/live-validation.png';
+
+{/* markdownlint-disable MD013 */}
+
+Oh hi there!
+
+It's been a while since the last release (once again 😅). But I hope you'll be excited
+to hear what's new in this latest release of ESPHome: 1.13.0!
+
+First of all, as you can see in the table above, a *ton* of new components have been added. Some to
+highlight are:
+
+- **Cover Updates**: Covers now support setting arbitrary position (and the new time-based and endstop covers
+  make full use of it).
+
+- **Climate Support**: ESPHome now has a full climate abstraction - with the "bang bang" climate device
+  you can automate thermostats directly on the ESP.
+
+- **Sun, GPS** etc - This release brings a lot of helper components too of course.
+
+But... the biggest change in this version has yet to be mentioned here: A complete refactor of the
+ESPHome codebase. Remember the project rename in 1.11? It's nothing compared to the latest and greatest
+[code refactor](https://github.com/esphome/esphome/pull/504). ESPHome has gotten a completely new
+directory structure, and the codebase has been simplified a lot.
+
+**What does this mean for you?**
+
+Well, you'll be happy to hear that this refactor improves **compile times** by around **2x**.
+Additionally, these changes will make contributing a lot easier, because now the code is much more
+modular.
+
+**But it doesn't stop there!**
+
+This release also brings another awesome new feature: Live validation! If you use the editor in the
+ESPHome dashboard, your configuration will be validated on-the-fly and any validation errors
+are shown directly in the editor in less than half a second!
+
+<Image src={liveValidationImg} layout="constrained" alt="" />
+
+I also want to give special shout outs to these awesome people who have contributed a lot of
+features in this version:
+
+- [@gitolicious](https://github.com/gitolicious) for his awesome work on improving the dashboard!
+- [@mvturnho](https://github.com/mvturnho) for the new TTP219 and binary sensor map additions!
+- [@glmnet](https://github.com/glmnet) for adding the TCL112 and Coolix climate platforms, as well [@puuu](https://github.com/puuu)
+  for pushing ahead with the climate component!
+
+- Everyone who has been supporting me financially over [Patreon](https://www.patreon.com/ottowinter)!
+- Everybody who reported bugs, contributed documentation and fixed things!
+
+If you like this version, please consider starring the [ESPHome repository](https://github.com/esphome/esphome)
+on Github 💫!
+
+## Other notable changes
+
+- Hass.io Ingress - ESPHome now supports showing the dashboard directly in the Home Assistant frontend
+  via the Hass.io Ingress feature.
+
+- The i2c variant of the ttp229 device is now also supported.
+- Covers now support position & tilt - you can use these with the new [endstop](/components/cover/endstop/)
+  and [time-based](/components/cover/time_based/) cover platforms.
+
+- ESPHome has received support for climate devices, you can now let your ESP control heaters/coolers
+  directly on the ESP. Great for building a DIY thermostat or making an existing one IoT-enabled.
+
+- [Lights](/components/light/) now have some new actions: `light.dim_relative` and
+  `light.addressable_set`. Addressable lights now also support a new range syntax (`.range()` and `.all()`  )
+  functions to allow easier effect creation.
+
+- Added a new custom component mechanism and contribution guidelines have been updated.
+- [RDM6300](/components/binary_sensor/rdm6300/) now also has an `on_tag` trigger like the PN532.
+- [Remote Transmitter](/components/remote_transmitter/) and [Remote Receiver](/components/remote_receiver/)
+  have gotten some new features: custom triggers and actions with templatable values.
+
+- Added `output.esp8266_pwm.set_frequency` action for dynamically changing the frequency of the ESP8266
+  PWM output (for example for active buzzers).
+
+- Added `servo.detach` action to disable a servo - this prevents it from moving around once it's in position.
+- Added `stepper.set_speed` to dynamically change a stepper's speed at runtime.
+- Added `text_sensor.state` condition for checking a text sensor's state against a fixed value.
+- Added [globals.set](/components/globals#globals-set_action) action,
+  [script.is_running](/components/script#script-is_running_condition) condition,
+  [for](/automations/actions#for_condition) condition.
+
+- Custom components can now access ESPHome's global variables.
+- Added `restore_mode` for lights and [light.is_on/off](/components/light#light-is_on_condition).
+
+## Breaking Changes
+
+All of these are also documented in validation - just view the validation output and it should tell
+you what has changed.
+
+- `esphome_core_version` has been removed - ESPHome is no longer split up in the core and python repository.
+- The `esp32_ble_tracker` binary sensor platform (not the global hub) has been renamed to `ble_presence`.
+- The remote transmitter switch has been removed and a template switch with the new actions should be used.
+  See validation output.
+
+- `esphome_core_version` has been removed - ESPHome is no longer split up in the core and python repository.
+- Because of some internal changes, some ID names are used internally and can no longer be used.
+  See validation errors.
+
+## Release 1.13.1 - May 30
+
+- esphome: Fix validation TypeError [esphome#574](https://github.com/esphome/esphome/pull/574)
+- esphome: Fix Sun Trigger [esphome#572](https://github.com/esphome/esphome/pull/572)
+- esphome: Dashboard work around Hass.io bug [esphome#575](https://github.com/esphome/esphome/pull/575)
+- esphome: Fix waveshare 7.5in model [esphome#576](https://github.com/esphome/esphome/pull/576)
+
+## Release 1.13.2 - May 31
+
+- esphome: Fix remote_receiver binary_sensor schema [esphome#578](https://github.com/esphome/esphome/pull/578)
+- esphome: Fix MQTT client_id changed [esphome#579](https://github.com/esphome/esphome/pull/579)
+- esphome: Fix Rotary Encoder [esphome#580](https://github.com/esphome/esphome/pull/580)
+- esphome: Fix travis build [esphome#582](https://github.com/esphome/esphome/pull/582)
+- esphome: Fix MQTT on_message trigger [esphome#583](https://github.com/esphome/esphome/pull/583)
+- esphome: Fix light partition [esphome#584](https://github.com/esphome/esphome/pull/584)
+- esphome: Fix i2c setup priority [esphome#585](https://github.com/esphome/esphome/pull/585)
+- docs: add note for asynchronously update of adc [esphome-docs#259](https://github.com/esphome/esphome-docs/pull/259) by [@escoand](https://github.com/escoand)
+
+## Release 1.13.3 - June 1
+
+- esphome: List the correct boards when building for ESP32 [esphome#589](https://github.com/esphome/esphome/pull/589) by [@macourteau](https://github.com/macourteau)
+- esphome: Fix addressable effects [esphome#590](https://github.com/esphome/esphome/pull/590)
+- esphome: Fix scripts circular dependency [esphome#591](https://github.com/esphome/esphome/pull/591)
+- esphome: Fix timezone detection for timezones without daylight savings time [esphome#586](https://github.com/esphome/esphome/pull/586)
+- esphome: Fix remote_receiver binary_sensor [esphome#592](https://github.com/esphome/esphome/pull/592)
+- docs: Add missing filter name for ct_clamp [esphome-docs#258](https://github.com/esphome/esphome-docs/pull/258) by [@jesserockz](https://github.com/jesserockz)
+- esphome: Fix flicker light effect turning itself off [esphome#594](https://github.com/esphome/esphome/pull/594)
+- esphome: Fix medium fan speed [esphome#595](https://github.com/esphome/esphome/pull/595)
+- esphome: Fix dashboard for Py3 installs [esphome#596](https://github.com/esphome/esphome/pull/596)
+
+## Release 1.13.4 - June 3
+
+- esphome: Add better esphomeyaml migration path [esphome#600](https://github.com/esphome/esphome/pull/600)
+- esphome: Allow old remote_transmitter repeat schema [esphome#601](https://github.com/esphome/esphome/pull/601)
+- esphome: Fix color wipe effect [esphome#599](https://github.com/esphome/esphome/pull/599)
+- docs: Update integration.rst [esphome-docs#263](https://github.com/esphome/esphome-docs/pull/263) by [@balk77](https://github.com/balk77)
+- esphome: Fix hx711 [esphome#602](https://github.com/esphome/esphome/pull/602)
+- esphome: Fix validation infinite loop with empty platform block [esphome#598](https://github.com/esphome/esphome/pull/598)
+- esphome: Fix ADS1115 calculation [esphome#606](https://github.com/esphome/esphome/pull/606)
+- esphome: ESP8266 connect fixes [esphome#605](https://github.com/esphome/esphome/pull/605)
+
+## Release 1.13.5 - June 8
+
+- esphome: Move ESPHome version define [esphome#607](https://github.com/esphome/esphome/pull/607)
+- esphome: Fix ForCondition time duration check [esphome#610](https://github.com/esphome/esphome/pull/610) by [@ptatrai](https://github.com/ptatrai)
+- docs: Add timezone mapping to Docker compose. [esphome-docs#266](https://github.com/esphome/esphome-docs/pull/266) by [@jeff-h](https://github.com/jeff-h)
+- esphome: DHT22 ignore invalid values [esphome#614](https://github.com/esphome/esphome/pull/614)
+- esphome: Template Cover don't auto-set current_operation [esphome#612](https://github.com/esphome/esphome/pull/612)
+- esphome: Fix Hass.io addon SSL [esphome#613](https://github.com/esphome/esphome/pull/613)
+- esphome: Fix remote_receiver always shows sony [esphome#617](https://github.com/esphome/esphome/pull/617)
+- esphome: Make ForCondition a component [esphome#616](https://github.com/esphome/esphome/pull/616)
+- esphome: Update docker base image to 1.8.0 [esphome#618](https://github.com/esphome/esphome/pull/618)
+- esphome: Fix integration sensor, add test [esphome#619](https://github.com/esphome/esphome/pull/619)
+- esphome: Fix sun default elevation [esphome#620](https://github.com/esphome/esphome/pull/620)
+- esphome: Update base image to 1.8.3 [esphome#625](https://github.com/esphome/esphome/pull/625)
+- esphome: Fix status binary sensor for MQTT [esphome#628](https://github.com/esphome/esphome/pull/628)
+- esphome: Work around ESP32 BLE issue [esphome#626](https://github.com/esphome/esphome/pull/626)
+- esphome: Work around ESP32 core WiFi Bug [esphome#627](https://github.com/esphome/esphome/pull/627)
+
+## Release 1.13.6 - June 14
+
+- docs: Lambas won't just work with the short name [esphome-docs#269](https://github.com/esphome/esphome-docs/pull/269) by [@ryannazaretian](https://github.com/ryannazaretian)
+- esphome: Fix ESP32 RCSwitch Dump Stack Smash Protection [esphome#636](https://github.com/esphome/esphome/pull/636)
+- esphome: Fix russia timezone detection [esphome#637](https://github.com/esphome/esphome/pull/637)
+- esphome: Fix esp8266_restore_from_flash [esphome#638](https://github.com/esphome/esphome/pull/638)
+- esphome: Fix globals.set [esphome#635](https://github.com/esphome/esphome/pull/635)
+- esphome: Fix version.h file [esphome#630](https://github.com/esphome/esphome/pull/630)
+- esphome: Fix remote_receiver raw binary sensor [esphome#639](https://github.com/esphome/esphome/pull/639)
+- esphome: Re-add CustomMQTTDevice class [esphome#640](https://github.com/esphome/esphome/pull/640)
+
+## All changes
+
+- docs: Extend the documentation of esp8266_restore_from_flash to include pla… [esphome-docs#203](https://github.com/esphome/esphome-docs/pull/203) by [@placidorevilla](https://github.com/placidorevilla)
+- esphome: TTP229-LSF i2c device support [esphome#489](https://github.com/esphome/esphome/pull/489) by [@mvturnho](https://github.com/mvturnho)
+- docs: TTP229-LSF i2c device support [esphome-docs#205](https://github.com/esphome/esphome-docs/pull/205) by [@mvturnho](https://github.com/mvturnho)
+- docs: Remove deprecated filter_nan: option [esphome-docs#214](https://github.com/esphome/esphome-docs/pull/214) by [@davericher](https://github.com/davericher)
+- docs: Minor Gramatical fix [esphome-docs#220](https://github.com/esphome/esphome-docs/pull/220) by [@meichthys](https://github.com/meichthys)
+- esphome: Add cover position/tilt support [esphome#496](https://github.com/esphome/esphome/pull/496)
+- esphome: Add climate support [esphome#502](https://github.com/esphome/esphome/pull/502)
+- esphome: Add 'at' time trigger [esphome#493](https://github.com/esphome/esphome/pull/493)
+- docs: Stepper combine lambda docs [esphome-docs#223](https://github.com/esphome/esphome-docs/pull/223) by [@AalianKhan](https://github.com/AalianKhan)
+- esphome: Simplify coroutine syntax [esphome#503](https://github.com/esphome/esphome/pull/503)
+- docs: Added a section for all lambda calls [esphome-docs#222](https://github.com/esphome/esphome-docs/pull/222) by [@AalianKhan](https://github.com/AalianKhan)
+- docs: Typo in ESP32 Touch Component [esphome-docs#216](https://github.com/esphome/esphome-docs/pull/216) by [@jcullen86](https://github.com/jcullen86)
+- docs: MQTT clean-mqtt: Document for docker [esphome-docs#210](https://github.com/esphome/esphome-docs/pull/210) by [@bphermansson](https://github.com/bphermansson)
+- esphome: Wio_link and wio_node pinout improvements [esphome#505](https://github.com/esphome/esphome/pull/505) by [@sethcohn](https://github.com/sethcohn)
+- docs: Voltage range of ADC is at the chip pin [esphome-docs#224](https://github.com/esphome/esphome-docs/pull/224) by [@kimonm](https://github.com/kimonm)
+- esphome: Escape double quotes and backslashes in ssid and psk [esphome#507](https://github.com/esphome/esphome/pull/507) by [@gitolicious](https://github.com/gitolicious)
+- docs: Added Gitpod documentation [esphome-docs#225](https://github.com/esphome/esphome-docs/pull/225) by [@gitolicious](https://github.com/gitolicious)
+- docs: Fixed lint and ref errors [esphome-docs#228](https://github.com/esphome/esphome-docs/pull/228) by [@gitolicious](https://github.com/gitolicious)
+- esphome: 🏗 Merge C++ into python codebase [esphome#504](https://github.com/esphome/esphome/pull/504)
+- docs: Create .gitpod.yml [esphome-docs#226](https://github.com/esphome/esphome-docs/pull/226) by [@gitolicious](https://github.com/gitolicious)
+- esphome: Cleanup dashboard JS [esphome#491](https://github.com/esphome/esphome/pull/491)
+- docs: Add esp32_camera ttgo-camera example [esphome-docs#231](https://github.com/esphome/esphome-docs/pull/231) by [@Naesstrom](https://github.com/Naesstrom)
+- esphome: Hass.io Ingress [esphome#519](https://github.com/esphome/esphome/pull/519)
+- docs: Fix config name for showing previous page [esphome-docs#238](https://github.com/esphome/esphome-docs/pull/238) by [@kevinior](https://github.com/kevinior)
+- docs: fixed copy paste error [esphome-docs#237](https://github.com/esphome/esphome-docs/pull/237) by [@norges](https://github.com/norges)
+- docs: Update switch/index.rst lambda section [esphome-docs#236](https://github.com/esphome/esphome-docs/pull/236) by [@EmmanuelLM](https://github.com/EmmanuelLM)
+- docs: Update h801 cookbook [esphome-docs#235](https://github.com/esphome/esphome-docs/pull/235) by [@Eenoo](https://github.com/Eenoo)
+- esphome: Create .gitpod.yml [esphome#508](https://github.com/esphome/esphome/pull/508) by [@gitolicious](https://github.com/gitolicious)
+- esphome: Fix MQTT Not Working in dev branch [esphome#527](https://github.com/esphome/esphome/pull/527) by [@mtl010957](https://github.com/mtl010957)
+- esphome: Fix custom_sensor codegen [esphome#526](https://github.com/esphome/esphome/pull/526) by [@emwap](https://github.com/emwap)
+- esphome: Fix compilation of automations [esphome#525](https://github.com/esphome/esphome/pull/525) by [@envy](https://github.com/envy)
+- esphome: Add Custom Component tests [esphome#529](https://github.com/esphome/esphome/pull/529) by [@emwap](https://github.com/emwap)
+- esphome: Create .editorconfig [esphome#524](https://github.com/esphome/esphome/pull/524) by [@gitolicious](https://github.com/gitolicious)
+- docs: Fix minor typo in ESP32 camera docs [esphome-docs#241](https://github.com/esphome/esphome-docs/pull/241) by [@richrd](https://github.com/richrd)
+- esphome: Added save & validate button in editor window [esphome#511](https://github.com/esphome/esphome/pull/511) by [@gitolicious](https://github.com/gitolicious)
+- esphome: Fix compilation of my9231 component [esphome#533](https://github.com/esphome/esphome/pull/533) by [@puuu](https://github.com/puuu)
+- esphome: Allow rx_only mode of sds011 component [esphome#534](https://github.com/esphome/esphome/pull/534) by [@puuu](https://github.com/puuu)
+- esphome: MPU6050 fix temperature reading (wrong datatype) [esphome#532](https://github.com/esphome/esphome/pull/532) by [@norges](https://github.com/norges)
+- esphome: Check lambdas for return statement [esphome#539](https://github.com/esphome/esphome/pull/539)
+- esphome: Auto-Generate esphome.h [esphome#538](https://github.com/esphome/esphome/pull/538)
+- esphome: Revert HLW8012 to use pulse counter [esphome#537](https://github.com/esphome/esphome/pull/537)
+- esphome: Use int_range validator [esphome#542](https://github.com/esphome/esphome/pull/542)
+- esphome: Dashboard editor live validation [esphome#540](https://github.com/esphome/esphome/pull/540)
+- esphome: Sun support [esphome#531](https://github.com/esphome/esphome/pull/531)
+- esphome: Update CI linter [esphome#544](https://github.com/esphome/esphome/pull/544)
+- esphome: Updates for 1.13 [esphome#546](https://github.com/esphome/esphome/pull/546)
+- esphome: Make Climate component work over mqtt [esphome#535](https://github.com/esphome/esphome/pull/535) by [@puuu](https://github.com/puuu)
+- esphome: CCS811 support [esphome#536](https://github.com/esphome/esphome/pull/536)
+- esphome: GPS time source [esphome#543](https://github.com/esphome/esphome/pull/543)
+- esphome: TTP229 BSF support [esphome#547](https://github.com/esphome/esphome/pull/547)
+- docs: Update links [esphome-docs#243](https://github.com/esphome/esphome-docs/pull/243) by [@oscar-b](https://github.com/oscar-b)
+- esphome: Bme680 pressure value fix [esphome#550](https://github.com/esphome/esphome/pull/550) by [@plopp](https://github.com/plopp)
+- docs: Fix typo in docs mi flora [esphome-docs#250](https://github.com/esphome/esphome-docs/pull/250) by [@seuros](https://github.com/seuros)
+- docs: Stepper component: fix typo in doc [esphome-docs#254](https://github.com/esphome/esphome-docs/pull/254) by [@Johboh](https://github.com/Johboh)
+- esphome: Suggested fix for empty domain [esphome#555](https://github.com/esphome/esphome/pull/555) by [@ASMfreaK](https://github.com/ASMfreaK)
+- docs: Sensor: correct example for on_raw_value [esphome-docs#255](https://github.com/esphome/esphome-docs/pull/255) by [@Johboh](https://github.com/Johboh)
+- docs: Update bh1750.rst (fix incorrect link text) [esphome-docs#246](https://github.com/esphome/esphome-docs/pull/246) by [@richrd](https://github.com/richrd)
+- esphome: Don't fall back to the global availability topic if it is empty [esphome#553](https://github.com/esphome/esphome/pull/553) by [@brandond](https://github.com/brandond)
+- esphome: Add examples to Nextion page [esphome#548](https://github.com/esphome/esphome/pull/548) by [@AalianKhan](https://github.com/AalianKhan)
+- esphome: Support for AM2320 temperature and humidity sensor [esphome#554](https://github.com/esphome/esphome/pull/554) by [@T3m3z](https://github.com/T3m3z)
+- docs: Documentation for AM2320 component [esphome-docs#249](https://github.com/esphome/esphome-docs/pull/249) by [@T3m3z](https://github.com/T3m3z)
+- esphome: Add TCL112 climate [esphome#523](https://github.com/esphome/esphome/pull/523) by [@glmnet](https://github.com/glmnet)
+- docs: Add Coolix Tcl112 Climate [esphome-docs#247](https://github.com/esphome/esphome-docs/pull/247) by [@glmnet](https://github.com/glmnet)
+- esphome: Add coolix climate ❄ 🔥 [esphome#521](https://github.com/esphome/esphome/pull/521) by [@glmnet](https://github.com/glmnet)
+- esphome: added link from dashboard to web server, if configured [esphome#556](https://github.com/esphome/esphome/pull/556) by [@gitolicious](https://github.com/gitolicious) (cherry-picked)
+- esphome: Add NTC and resistance sensor [esphome#560](https://github.com/esphome/esphome/pull/560) (cherry-picked)
+- esphome: Waveshare enter deep sleep mode on shutdown [esphome#561](https://github.com/esphome/esphome/pull/561) (cherry-picked)
+- docs: extended mpr121 docs with debounce and thresholds config [esphome-docs#245](https://github.com/esphome/esphome-docs/pull/245) by [@mvturnho](https://github.com/mvturnho) (cherry-picked)
+- esphome: Mpr121 added debounce and thresholds config [esphome#558](https://github.com/esphome/esphome/pull/558) by [@mvturnho](https://github.com/mvturnho) (cherry-picked)
+- docs: Documentation for binary_sensor_map [esphome-docs#199](https://github.com/esphome/esphome-docs/pull/199) by [@mvturnho](https://github.com/mvturnho) (cherry-picked)
+- esphome: Binary sensor map implementation [esphome#551](https://github.com/esphome/esphome/pull/551) by [@mvturnho](https://github.com/mvturnho) (cherry-picked)
+- esphome: Fix CWWW/RGBWW lights [esphome#562](https://github.com/esphome/esphome/pull/562) (cherry-picked)
+- esphome: added download, edit and retry buttons to upload modal [esphome#557](https://github.com/esphome/esphome/pull/557) by [@gitolicious](https://github.com/gitolicious) (cherry-picked)
+- esphome: Renamed upload button [esphome#563](https://github.com/esphome/esphome/pull/563) by [@gitolicious](https://github.com/gitolicious)
+- esphome: Warn if a component does long-running work in loop thread [esphome#565](https://github.com/esphome/esphome/pull/565)
+- esphome: Add CT Clamp component [esphome#559](https://github.com/esphome/esphome/pull/559) by [@jesserockz](https://github.com/jesserockz)
+- docs: Add docs for CT Clamp [esphome-docs#256](https://github.com/esphome/esphome-docs/pull/256) by [@jesserockz](https://github.com/jesserockz)
+- docs: Put 'MAC_ADDRESS' instead of MAC_ADDRESS [esphome-docs#239](https://github.com/esphome/esphome-docs/pull/239) by [@tiagofreire-pt](https://github.com/tiagofreire-pt)
+- esphome: Fix TSL2561 invalid default [esphome#566](https://github.com/esphome/esphome/pull/566)
+- esphome: Use copy for custom includes [esphome#568](https://github.com/esphome/esphome/pull/568)
+- esphome: Add uart.write action [esphome#567](https://github.com/esphome/esphome/pull/567)
+- esphome: Correctly set warm white variables [esphome#569](https://github.com/esphome/esphome/pull/569) by [@jesserockz](https://github.com/jesserockz)
+- esphome: Register light conditions [esphome#570](https://github.com/esphome/esphome/pull/570)
+
+{/* markdownlint-enable MD013 */}

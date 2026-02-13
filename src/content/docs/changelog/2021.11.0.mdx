@@ -1,0 +1,293 @@
+---
+description: "Changelog for ESPHome 2021.11.0."
+title: "ESPHome 2021.11.0 - 17th November 2021"
+pagefind: false
+slug: "changelog/2021.11.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["CSE7761","/components/sensor/cse7761","cse7761.svg"],
+  ["CAP1188 Capacitive Touch Sensor","/components/binary_sensor/cap1188","cap1188.jpg"],
+  ["ESP32 Camera Web Server","/components/esp32_camera_web_server","camera.svg","dark-invert"],
+  ["Improv via Serial","/components/improv_serial","improv.svg","dark-invert"]
+]} />
+
+
+import { Image } from 'astro:assets';
+import configurationUrlImg from './images/configuration-url.png';
+
+
+## State of the Open Smart Home
+
+Mark your calendar for the [State of the Open Smart Home](https://www.home-assistant.io/state-of-the-open-home/)
+hosted by Nabu Casa, Home Assistant & ESPHome and we'll be joined by our friends from WLED and Z-Wave JS to talk
+about our work on making this vision a reality.
+
+Where: YouTube
+
+When: Saturday, December 11, at 11am PST / 8pm CET
+
+{/* markdownlint-disable MD033 */}
+<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/6ZMXE5PXPqU"
+        title="YouTube video player" frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen></iframe>
+
+## Improv via Serial
+
+<script
+type="module"
+src="https://unpkg.com/improv-wifi-serial-sdk@2.0.0/dist/web/serial-launch-button.js"
+></script>
+
+<improv-wifi-serial-launch-button>
+    <i slot='unsupported'>The demo does not work in your browser. Use Google Chrome or Microsoft Edge.</i>
+</improv-wifi-serial-launch-button>
+{/* markdownlint-enable MD033 */}
+
+After we created [Esp32 Improv](/components/esp32_improv/), we thought it might be a good idea to implement the same
+for serial connections. See the docs here for [Improv via Serial](/components/improv_serial/) and the
+[website documentation](https://www.improv-wifi.com/serial/) for implementing a client or implementing improv in
+other firmware.
+
+## Entity Categories for Home Assistant
+
+Home Assistant 2021.11 added support for [Entity Categories](https://www.home-assistant.io/blog/2021/11/03/release-202111/#entity-categorization)
+and with this release certain ESPHome entites such as the restart switch and uptime sensors will have the config and
+diagnostic categories set respectively.
+The category can be overridden by the user in the yaml configuration.
+
+## Configuration URL
+
+Another feature added to Home Assistant 2021.11 is the configuration URL. This allows for ESPHome devices to notify
+Home Assistant when the `web_server` is enabled and there will be a button in the Home Assistant device page to
+link directly to the `web_server` UI for your ESPHome device.
+
+<Image src={configurationUrlImg} layout="constrained" alt="" />
+
+## Repeat Action
+
+[@oxan](https://github.com/oxan) has implemented a `repeat` action for those that want to execute a list of actions x number
+of times without just copying and pasting them.
+
+## Device name length
+
+The maximum length of the device name has been limited to 31 characters to fall in line with standards and you will get
+an error if you try to set a device name longer than that.
+
+## BLE Sensor UUID changes
+
+A bug was introduced in 2021.9 with the UUIDs for the `ble_client` sensors being reversed incorrectly. This release
+flips them to be the correct way around and you will need to reverse them in your YAML configuration.
+
+## BH1750
+
+When using the default resolution of 0.5 for the BH1750, the result is now divided by 2 as per the finidings of
+the community.
+
+## Binary sensor device classes
+
+[esphome#2703](https://github.com/esphome/esphome/pull/2703) removed the `update` `device_class` for binary sensors incorrectly in 2021.11.0.
+[@frenck](https://github.com/frenck) noticed this and has added it back again in 2021.11.1.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2021.11.1 - November 17
+
+- Fix AQI index calculator [esphome#2739](https://github.com/esphome/esphome/pull/2739) by [@freekode](https://github.com/freekode)
+- Re-instate device class update for binary sensors [esphome#2743](https://github.com/esphome/esphome/pull/2743) by [@frenck](https://github.com/frenck)
+
+## Release 2021.11.2 - November 26
+
+- Allow UART debug configuration with no after: definition [esphome#2753](https://github.com/esphome/esphome/pull/2753) by [@mmakaay](https://github.com/mmakaay)
+- Fix gif frame scaling #2717 [esphome#2750](https://github.com/esphome/esphome/pull/2750) by [@davet2001](https://github.com/davet2001)
+- esp32_camera_web_server: Improve support for MotionEye [esphome#2777](https://github.com/esphome/esphome/pull/2777) by [@ayufan](https://github.com/ayufan)
+- Remove floating point ops from the ISR [esphome#2751](https://github.com/esphome/esphome/pull/2751) by [@ssieb](https://github.com/ssieb)
+- Fix parsing numbers from null-terminated buffers [esphome#2755](https://github.com/esphome/esphome/pull/2755) by [@oxan](https://github.com/oxan)
+
+## Release 2021.11.3 - November 27
+
+- Fix restoring preferences for ESP32 [esphome#2805](https://github.com/esphome/esphome/pull/2805) by [@mmakaay](https://github.com/mmakaay)
+
+## Release 2021.11.4 - November 29
+
+- Fix parsing numbers in Anova [esphome#2816](https://github.com/esphome/esphome/pull/2816) by [@oxan](https://github.com/oxan)
+- Fix parsing of multiple values in EZO sensor [esphome#2814](https://github.com/esphome/esphome/pull/2814) by [@oxan](https://github.com/oxan)
+- Fix compilation error for WPA enterprise in ESP-IDF [esphome#2815](https://github.com/esphome/esphome/pull/2815) by [@CarlosGS](https://github.com/CarlosGS)
+- Correct bitmask for third color (blue) scaling. [esphome#2817](https://github.com/esphome/esphome/pull/2817) by [@davet2001](https://github.com/davet2001)
+- Add delay to improve stability [esphome#2793](https://github.com/esphome/esphome/pull/2793) by [@Conclusio](https://github.com/Conclusio)
+
+## Full list of changes
+
+### New Features
+
+- Make per-loop display clearing optional [esphome#2626](https://github.com/esphome/esphome/pull/2626) by [@timn](https://github.com/timn) (new-feature)
+- Add Entity categories for Home Assistant [esphome#2636](https://github.com/esphome/esphome/pull/2636) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Add repeat action for automations [esphome#2538](https://github.com/esphome/esphome/pull/2538) by [@oxan](https://github.com/oxan) (new-feature)
+- Neopixelbus redo method definitions [esphome#2616](https://github.com/esphome/esphome/pull/2616) by [@OttoWinter](https://github.com/OttoWinter) (new-feature) (breaking-change)
+
+### New Components
+
+- Feature/sensor cse7761 [esphome#2546](https://github.com/esphome/esphome/pull/2546) by [@berfenger](https://github.com/berfenger) (new-integration)
+- Add `esp32_camera_web_server:` to expose mjpg/jpg images [esphome#2237](https://github.com/esphome/esphome/pull/2237) by [@ayufan](https://github.com/ayufan) (new-integration)
+- CAP1188 Capacitive Touch Sensor Support [esphome#2653](https://github.com/esphome/esphome/pull/2653) by [@MrEditor97](https://github.com/MrEditor97) (new-integration)
+- Implement Improv via Serial component [esphome#2423](https://github.com/esphome/esphome/pull/2423) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+
+### Breaking Changes
+
+- TCS34725 BugFix and GA factor [esphome#2445](https://github.com/esphome/esphome/pull/2445) by [@razorback16](https://github.com/razorback16) (breaking-change)
+- Limit hostnames to 31 characters [esphome#2531](https://github.com/esphome/esphome/pull/2531) by [@oxan](https://github.com/oxan) (breaking-change)
+- Move default build path to .esphome directory [esphome#2586](https://github.com/esphome/esphome/pull/2586) by [@OttoWinter](https://github.com/OttoWinter) (breaking-change)
+- ESP8266 disable PIO LDF [esphome#2608](https://github.com/esphome/esphome/pull/2608) by [@OttoWinter](https://github.com/OttoWinter) (breaking-change)
+- Remove autoload of xiaomi_ble and ruuvi_ble [esphome#2617](https://github.com/esphome/esphome/pull/2617) by [@spbrogan](https://github.com/spbrogan) (breaking-change)
+- BH1750: Fix a too high default H-res2 mode value [esphome#2536](https://github.com/esphome/esphome/pull/2536) by [@kixtarter](https://github.com/kixtarter) (breaking-change)
+- Add option to use MQTT abbreviations [esphome#2641](https://github.com/esphome/esphome/pull/2641) by [@paulmonigatti](https://github.com/paulmonigatti) (breaking-change)
+- Add restore_mode to rotary_encoder [esphome#2643](https://github.com/esphome/esphome/pull/2643) by [@niklasweber](https://github.com/niklasweber) (breaking-change)
+- Neopixelbus redo method definitions [esphome#2616](https://github.com/esphome/esphome/pull/2616) by [@OttoWinter](https://github.com/OttoWinter) (new-feature) (breaking-change)
+- Update device classes for binary sensors [esphome#2703](https://github.com/esphome/esphome/pull/2703) by [@lcavalli](https://github.com/lcavalli) (breaking-change)
+- BLE_Sensor: Use as_reversed_hex_array to properly parse UUIDs after #1627 [esphome#2737](https://github.com/esphome/esphome/pull/2737) by [@tekmaven](https://github.com/tekmaven) (breaking-change)
+
+### Beta Fixes
+
+- Fix template number initial value being NaN [esphome#2692](https://github.com/esphome/esphome/pull/2692) by [@jesserockz](https://github.com/jesserockz)
+- [remote_transmitter] accurate pulse timing for ESP8266 [esphome#2476](https://github.com/esphome/esphome/pull/2476) by [@CarlosGS](https://github.com/CarlosGS)
+- Uart debugging support [esphome#2478](https://github.com/esphome/esphome/pull/2478) by [@mmakaay](https://github.com/mmakaay)
+- Enable addressable light power supply based on raw values [esphome#2690](https://github.com/esphome/esphome/pull/2690) by [@oxan](https://github.com/oxan)
+- Remove my.ha links from improv [esphome#2695](https://github.com/esphome/esphome/pull/2695) by [@jesserockz](https://github.com/jesserockz)
+- Only allow prometheus when using arduino [esphome#2697](https://github.com/esphome/esphome/pull/2697) by [@jesserockz](https://github.com/jesserockz)
+- Update device classes for binary sensors [esphome#2703](https://github.com/esphome/esphome/pull/2703) by [@lcavalli](https://github.com/lcavalli) (breaking-change)
+- Bump ESPAsyncWebServer to 2.1.0 [esphome#2686](https://github.com/esphome/esphome/pull/2686) by [@jesserockz](https://github.com/jesserockz)
+- Allow setting custom command_topic for Select and Number components [esphome#2714](https://github.com/esphome/esphome/pull/2714) by [@kbialek](https://github.com/kbialek)
+- Restore InterruptLock on wifi-less ESP8266 [esphome#2712](https://github.com/esphome/esphome/pull/2712) by [@oxan](https://github.com/oxan)
+- Feed WDT between doing ESP32 touchpad measurements [esphome#2720](https://github.com/esphome/esphome/pull/2720) by [@oxan](https://github.com/oxan)
+- RemoteTransmitter fix. Bug from version 2021.10. Some changes. [esphome#2706](https://github.com/esphome/esphome/pull/2706) by [@dudanov](https://github.com/dudanov)
+- Fix indentation of write_lambda for modbus_controller number [esphome#2722](https://github.com/esphome/esphome/pull/2722) by [@jesserockz](https://github.com/jesserockz)
+- Remove unnecessary duplicate touch_pad_filter_start [esphome#2724](https://github.com/esphome/esphome/pull/2724) by [@Maelstrom96](https://github.com/Maelstrom96)
+- Add zeroconf as a direct dependency and lock the version [esphome#2729](https://github.com/esphome/esphome/pull/2729) by [@jesserockz](https://github.com/jesserockz)
+- Improv serial/checksum changes [esphome#2731](https://github.com/esphome/esphome/pull/2731) by [@jesserockz](https://github.com/jesserockz)
+- Fix zeroconf time comparisons [esphome#2733](https://github.com/esphome/esphome/pull/2733) by [@jesserockz](https://github.com/jesserockz)
+- BLE_Sensor: Use as_reversed_hex_array to properly parse UUIDs after #1627 [esphome#2737](https://github.com/esphome/esphome/pull/2737) by [@tekmaven](https://github.com/tekmaven) (breaking-change)
+- Fix senseair component uart read timeout [esphome#2658](https://github.com/esphome/esphome/pull/2658) by [@rotarykite](https://github.com/rotarykite)
+
+### All changes
+
+- TCS34725 BugFix and GA factor [esphome#2445](https://github.com/esphome/esphome/pull/2445) by [@razorback16](https://github.com/razorback16) (breaking-change)
+- Change millis() to faster micros() for 3ms check in feed_wdt [esphome#2492](https://github.com/esphome/esphome/pull/2492) by [@CarlosGS](https://github.com/CarlosGS)
+- Add ESP32 IDF as a test env for PRs [esphome#2494](https://github.com/esphome/esphome/pull/2494) by [@mmakaay](https://github.com/mmakaay)
+- use no hold master mode for si7021/htu21d [esphome#2528](https://github.com/esphome/esphome/pull/2528) by [@dmitriy5181](https://github.com/dmitriy5181)
+- Bump pyyaml from 5.4.1 to 6.0 [esphome#2521](https://github.com/esphome/esphome/pull/2521) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Clarify statement at the cmd wizard tool, for new users [esphome#2519](https://github.com/esphome/esphome/pull/2519) by [@CarlosGS](https://github.com/CarlosGS)
+- Continue ethernet setup if hostname fails [esphome#2430](https://github.com/esphome/esphome/pull/2430) by [@Tommatheussen](https://github.com/Tommatheussen)
+- Bump aioesphomeapi from 9.1.5 to 10.0.0 [esphome#2508](https://github.com/esphome/esphome/pull/2508) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Move TemplatableValue helper class to automation.h [esphome#2511](https://github.com/esphome/esphome/pull/2511) by [@oxan](https://github.com/oxan)
+- [esp-idf fix] increase FreeRTOS ticker loop from 100Hz to 1kHz [esphome#2527](https://github.com/esphome/esphome/pull/2527) by [@CarlosGS](https://github.com/CarlosGS)
+- Bump pytest-asyncio from 0.15.1 to 0.16.0 [esphome#2547](https://github.com/esphome/esphome/pull/2547) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [ESP32] ADC auto-range setting [esphome#2541](https://github.com/esphome/esphome/pull/2541) by [@CarlosGS](https://github.com/CarlosGS)
+- Bump paho-mqtt from 1.5.1 to 1.6.0 [esphome#2568](https://github.com/esphome/esphome/pull/2568) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix ESP8266 dallas GPIO16 INPUT_PULLUP [esphome#2581](https://github.com/esphome/esphome/pull/2581) by [@OttoWinter](https://github.com/OttoWinter)
+- Fix platformio version in Dockerfile doesn't match requirements [esphome#2582](https://github.com/esphome/esphome/pull/2582) by [@OttoWinter](https://github.com/OttoWinter)
+- Fix platformio_install_deps no longer installing all lib_deps [esphome#2584](https://github.com/esphome/esphome/pull/2584) by [@OttoWinter](https://github.com/OttoWinter)
+- ESP32 ADC use factory calibration data [esphome#2574](https://github.com/esphome/esphome/pull/2574) by [@OttoWinter](https://github.com/OttoWinter)
+- Add mDNS config dump [esphome#2576](https://github.com/esphome/esphome/pull/2576) by [@mmakaay](https://github.com/mmakaay)
+- Fix mDNS ESP8266 log not included [esphome#2589](https://github.com/esphome/esphome/pull/2589) by [@OttoWinter](https://github.com/OttoWinter)
+- Bump platformio from 5.2.1 to 5.2.2 [esphome#2569](https://github.com/esphome/esphome/pull/2569) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Update docker base images [esphome#2583](https://github.com/esphome/esphome/pull/2583) by [@OttoWinter](https://github.com/OttoWinter)
+- Bump paho-mqtt from 1.6.0 to 1.6.1 [esphome#2596](https://github.com/esphome/esphome/pull/2596) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Logging a proper url allows terminals to make it clickable [esphome#2554](https://github.com/esphome/esphome/pull/2554) by [@jesserockz](https://github.com/jesserockz)
+- Bump aioesphomeapi from 10.0.0 to 10.0.3 [esphome#2595](https://github.com/esphome/esphome/pull/2595) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump tzlocal from 3.0 to 4.0.1 [esphome#2553](https://github.com/esphome/esphome/pull/2553) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add IDF support to dallas [esphome#2578](https://github.com/esphome/esphome/pull/2578) by [@OttoWinter](https://github.com/OttoWinter)
+- Limit hostnames to 31 characters [esphome#2531](https://github.com/esphome/esphome/pull/2531) by [@oxan](https://github.com/oxan) (breaking-change)
+- Add EntityBase properties to ESP32 Camera [esphome#2600](https://github.com/esphome/esphome/pull/2600) by [@paulmonigatti](https://github.com/paulmonigatti)
+- Move default build path to .esphome directory [esphome#2586](https://github.com/esphome/esphome/pull/2586) by [@OttoWinter](https://github.com/OttoWinter) (breaking-change)
+- ESP8266 disable PIO LDF [esphome#2608](https://github.com/esphome/esphome/pull/2608) by [@OttoWinter](https://github.com/OttoWinter) (breaking-change)
+- Switch issue-close-app to GH Actions and workflow cleanup [esphome#2624](https://github.com/esphome/esphome/pull/2624) by [@OttoWinter](https://github.com/OttoWinter)
+- relax max entities checking [esphome#2629](https://github.com/esphome/esphome/pull/2629) by [@martgras](https://github.com/martgras)
+- Allow setting URL as platform_version [esphome#2598](https://github.com/esphome/esphome/pull/2598) by [@oxan](https://github.com/oxan)
+- Constrain GH Actions workflows permissions [esphome#2625](https://github.com/esphome/esphome/pull/2625) by [@OttoWinter](https://github.com/OttoWinter)
+- Bump tzlocal from 4.0.1 to 4.0.2 [esphome#2631](https://github.com/esphome/esphome/pull/2631) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump esptool from 3.1 to 3.2 [esphome#2632](https://github.com/esphome/esphome/pull/2632) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add publish_initial_value option to rotary encoder [esphome#2503](https://github.com/esphome/esphome/pull/2503) by [@niklasweber](https://github.com/niklasweber)
+- Remove autoload of xiaomi_ble and ruuvi_ble [esphome#2617](https://github.com/esphome/esphome/pull/2617) by [@spbrogan](https://github.com/spbrogan) (breaking-change)
+- Bump aioesphomeapi from 10.0.3 to 10.1.0 [esphome#2638](https://github.com/esphome/esphome/pull/2638) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Expose web_server port via the API [esphome#2467](https://github.com/esphome/esphome/pull/2467) by [@alexiri](https://github.com/alexiri)
+- Allow cloning/fetching Github PR branches in external_components [esphome#2639](https://github.com/esphome/esphome/pull/2639) by [@jesserockz](https://github.com/jesserockz)
+- use update_interval for sntp synchronization [esphome#2563](https://github.com/esphome/esphome/pull/2563) by [@martgras](https://github.com/martgras)
+- Feature/sensor cse7761 [esphome#2546](https://github.com/esphome/esphome/pull/2546) by [@berfenger](https://github.com/berfenger) (new-integration)
+- Bump aioesphomeapi from 10.1.0 to 10.2.0 [esphome#2642](https://github.com/esphome/esphome/pull/2642) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- BH1750: Fix a too high default H-res2 mode value [esphome#2536](https://github.com/esphome/esphome/pull/2536) by [@kixtarter](https://github.com/kixtarter) (breaking-change)
+- Bump tzlocal from 4.0.2 to 4.1 [esphome#2645](https://github.com/esphome/esphome/pull/2645) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- convert SCD30 into Component, polls dataready register [esphome#2308](https://github.com/esphome/esphome/pull/2308) by [@geoffrey-vl](https://github.com/geoffrey-vl)
+- Add option to use MQTT abbreviations [esphome#2641](https://github.com/esphome/esphome/pull/2641) by [@paulmonigatti](https://github.com/paulmonigatti) (breaking-change)
+- Fix deep sleep invert_wakeup mode [esphome#2644](https://github.com/esphome/esphome/pull/2644) by [@OttoWinter](https://github.com/OttoWinter)
+- Expose webserver_port to the native API [esphome#2640](https://github.com/esphome/esphome/pull/2640) by [@jesserockz](https://github.com/jesserockz)
+- Fix for noise in pulse_counter and duty_cycle components [esphome#2646](https://github.com/esphome/esphome/pull/2646) by [@CarlosGS](https://github.com/CarlosGS)
+- Bump black from 21.9b0 to 21.10b0 [esphome#2650](https://github.com/esphome/esphome/pull/2650) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add restore_mode to rotary_encoder [esphome#2643](https://github.com/esphome/esphome/pull/2643) by [@niklasweber](https://github.com/niklasweber) (breaking-change)
+- Make per-loop display clearing optional [esphome#2626](https://github.com/esphome/esphome/pull/2626) by [@timn](https://github.com/timn) (new-feature)
+- Allow esp8266 to compile with no wifi [esphome#2664](https://github.com/esphome/esphome/pull/2664) by [@glmnet](https://github.com/glmnet)
+- Fix CRC error during DSMR chunked message reading [esphome#2622](https://github.com/esphome/esphome/pull/2622) by [@mmakaay](https://github.com/mmakaay)
+- Add Entity categories for Home Assistant [esphome#2636](https://github.com/esphome/esphome/pull/2636) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Add SPI lib for ESP8266 and only add lib for ESP32 when using Arduino [esphome#2677](https://github.com/esphome/esphome/pull/2677) by [@mmakaay](https://github.com/mmakaay)
+- Hotfix for encrypted DSMR regression [esphome#2679](https://github.com/esphome/esphome/pull/2679) by [@mmakaay](https://github.com/mmakaay)
+- Add HA Entity Category support to MQTT [esphome#2678](https://github.com/esphome/esphome/pull/2678) by [@paulmonigatti](https://github.com/paulmonigatti)
+- Fix gpio validation for esp32 variants [esphome#2609](https://github.com/esphome/esphome/pull/2609) by [@martgras](https://github.com/martgras)
+- Fix when package url has no branch/ref [esphome#2683](https://github.com/esphome/esphome/pull/2683) by [@jesserockz](https://github.com/jesserockz)
+- SSD1306_base -> Add support for 64x32 size and fix typo for flip functions [esphome#2682](https://github.com/esphome/esphome/pull/2682) by [@ychieux](https://github.com/ychieux)
+- Fix dashboard imports for adoption [esphome#2684](https://github.com/esphome/esphome/pull/2684) by [@jesserockz](https://github.com/jesserockz)
+- Add `esp32_camera_web_server:` to expose mjpg/jpg images [esphome#2237](https://github.com/esphome/esphome/pull/2237) by [@ayufan](https://github.com/ayufan) (new-integration)
+- fix esp32 rmt receiver item array length [esphome#2671](https://github.com/esphome/esphome/pull/2671) by [@glmnet](https://github.com/glmnet)
+- Remote base add pronto protocol [esphome#2619](https://github.com/esphome/esphome/pull/2619) by [@cvwillegen](https://github.com/cvwillegen)
+- Set up output_switch at priority DATA instead of HARDWARE. [esphome#2648](https://github.com/esphome/esphome/pull/2648) by [@duncf](https://github.com/duncf)
+- fix rc switch protocol 6 [esphome#2672](https://github.com/esphome/esphome/pull/2672) by [@glmnet](https://github.com/glmnet)
+- Remove "delay_microseconds_accurate()" and improve systemwide delayMicroseconds() [esphome#2497](https://github.com/esphome/esphome/pull/2497) by [@CarlosGS](https://github.com/CarlosGS)
+- modbus_controller: remove hard coded register size [esphome#2654](https://github.com/esphome/esphome/pull/2654) by [@martgras](https://github.com/martgras)
+- CAP1188 Capacitive Touch Sensor Support [esphome#2653](https://github.com/esphome/esphome/pull/2653) by [@MrEditor97](https://github.com/MrEditor97) (new-integration)
+- Add missing hal.h include in esp32_camera_web_server [esphome#2689](https://github.com/esphome/esphome/pull/2689) by [@oxan](https://github.com/oxan)
+- [ESP32 ADC] Add option for raw uncalibrated output [esphome#2663](https://github.com/esphome/esphome/pull/2663) by [@CarlosGS](https://github.com/CarlosGS)
+- Introduce parse_number() helper function [esphome#2659](https://github.com/esphome/esphome/pull/2659) by [@oxan](https://github.com/oxan)
+- Add repeat action for automations [esphome#2538](https://github.com/esphome/esphome/pull/2538) by [@oxan](https://github.com/oxan) (new-feature)
+- Neopixelbus redo method definitions [esphome#2616](https://github.com/esphome/esphome/pull/2616) by [@OttoWinter](https://github.com/OttoWinter) (new-feature) (breaking-change)
+- Introduce byteswap helpers [esphome#2661](https://github.com/esphome/esphome/pull/2661) by [@oxan](https://github.com/oxan)
+- Max7219digit multiline [esphome#1622](https://github.com/esphome/esphome/pull/1622) by [@TVDLoewe](https://github.com/TVDLoewe)
+- Clean-up string sanitization helpers [esphome#2660](https://github.com/esphome/esphome/pull/2660) by [@oxan](https://github.com/oxan)
+- Introduce encode_value/decode_value() template functions [esphome#2662](https://github.com/esphome/esphome/pull/2662) by [@oxan](https://github.com/oxan)
+- Make OTA function switchable in web_server component [esphome#2685](https://github.com/esphome/esphome/pull/2685) by [@lazlyhu](https://github.com/lazlyhu)
+- Implement Improv via Serial component [esphome#2423](https://github.com/esphome/esphome/pull/2423) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- [ms5611]: Re-implement conversion from ADC readings to sensor values [esphome#2665](https://github.com/esphome/esphome/pull/2665) by [@anatoly-savchenkov](https://github.com/anatoly-savchenkov)
+- Fix template number initial value being NaN [esphome#2692](https://github.com/esphome/esphome/pull/2692) by [@jesserockz](https://github.com/jesserockz)
+- [remote_transmitter] accurate pulse timing for ESP8266 [esphome#2476](https://github.com/esphome/esphome/pull/2476) by [@CarlosGS](https://github.com/CarlosGS)
+- Uart debugging support [esphome#2478](https://github.com/esphome/esphome/pull/2478) by [@mmakaay](https://github.com/mmakaay)
+- Enable addressable light power supply based on raw values [esphome#2690](https://github.com/esphome/esphome/pull/2690) by [@oxan](https://github.com/oxan)
+- Remove my.ha links from improv [esphome#2695](https://github.com/esphome/esphome/pull/2695) by [@jesserockz](https://github.com/jesserockz)
+- Only allow prometheus when using arduino [esphome#2697](https://github.com/esphome/esphome/pull/2697) by [@jesserockz](https://github.com/jesserockz)
+- Update device classes for binary sensors [esphome#2703](https://github.com/esphome/esphome/pull/2703) by [@lcavalli](https://github.com/lcavalli) (breaking-change)
+- Bump ESPAsyncWebServer to 2.1.0 [esphome#2686](https://github.com/esphome/esphome/pull/2686) by [@jesserockz](https://github.com/jesserockz)
+- Allow setting custom command_topic for Select and Number components [esphome#2714](https://github.com/esphome/esphome/pull/2714) by [@kbialek](https://github.com/kbialek)
+- Restore InterruptLock on wifi-less ESP8266 [esphome#2712](https://github.com/esphome/esphome/pull/2712) by [@oxan](https://github.com/oxan)
+- Feed WDT between doing ESP32 touchpad measurements [esphome#2720](https://github.com/esphome/esphome/pull/2720) by [@oxan](https://github.com/oxan)
+- RemoteTransmitter fix. Bug from version 2021.10. Some changes. [esphome#2706](https://github.com/esphome/esphome/pull/2706) by [@dudanov](https://github.com/dudanov)
+- Fix indentation of write_lambda for modbus_controller number [esphome#2722](https://github.com/esphome/esphome/pull/2722) by [@jesserockz](https://github.com/jesserockz)
+- Remove unnecessary duplicate touch_pad_filter_start [esphome#2724](https://github.com/esphome/esphome/pull/2724) by [@Maelstrom96](https://github.com/Maelstrom96)
+- Add zeroconf as a direct dependency and lock the version [esphome#2729](https://github.com/esphome/esphome/pull/2729) by [@jesserockz](https://github.com/jesserockz)
+- Improv serial/checksum changes [esphome#2731](https://github.com/esphome/esphome/pull/2731) by [@jesserockz](https://github.com/jesserockz)
+- Fix zeroconf time comparisons [esphome#2733](https://github.com/esphome/esphome/pull/2733) by [@jesserockz](https://github.com/jesserockz)
+- BLE_Sensor: Use as_reversed_hex_array to properly parse UUIDs after #1627 [esphome#2737](https://github.com/esphome/esphome/pull/2737) by [@tekmaven](https://github.com/tekmaven) (breaking-change)
+- Fix senseair component uart read timeout [esphome#2658](https://github.com/esphome/esphome/pull/2658) by [@rotarykite](https://github.com/rotarykite)
+- Fix AQI index calculator [esphome#2739](https://github.com/esphome/esphome/pull/2739) by [@freekode](https://github.com/freekode)
+- Re-instate device class update for binary sensors [esphome#2743](https://github.com/esphome/esphome/pull/2743) by [@frenck](https://github.com/frenck)
+- Allow UART debug configuration with no after: definition [esphome#2753](https://github.com/esphome/esphome/pull/2753) by [@mmakaay](https://github.com/mmakaay)
+- Fix gif frame scaling #2717 [esphome#2750](https://github.com/esphome/esphome/pull/2750) by [@davet2001](https://github.com/davet2001)
+- esp32_camera_web_server: Improve support for MotionEye [esphome#2777](https://github.com/esphome/esphome/pull/2777) by [@ayufan](https://github.com/ayufan)
+- Remove floating point ops from the ISR [esphome#2751](https://github.com/esphome/esphome/pull/2751) by [@ssieb](https://github.com/ssieb)
+- Fix parsing numbers from null-terminated buffers [esphome#2755](https://github.com/esphome/esphome/pull/2755) by [@oxan](https://github.com/oxan)
+- Fix restoring preferences for ESP32 [esphome#2805](https://github.com/esphome/esphome/pull/2805) by [@mmakaay](https://github.com/mmakaay)
+- Fix parsing numbers in Anova [esphome#2816](https://github.com/esphome/esphome/pull/2816) by [@oxan](https://github.com/oxan)
+- Fix parsing of multiple values in EZO sensor [esphome#2814](https://github.com/esphome/esphome/pull/2814) by [@oxan](https://github.com/oxan)
+- Fix compilation error for WPA enterprise in ESP-IDF [esphome#2815](https://github.com/esphome/esphome/pull/2815) by [@CarlosGS](https://github.com/CarlosGS)
+- Correct bitmask for third color (blue) scaling. [esphome#2817](https://github.com/esphome/esphome/pull/2817) by [@davet2001](https://github.com/davet2001)
+- Add delay to improve stability [esphome#2793](https://github.com/esphome/esphome/pull/2793) by [@Conclusio](https://github.com/Conclusio)
+
+{/* markdownlint-enable MD013 */}

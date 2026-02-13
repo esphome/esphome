@@ -1,0 +1,190 @@
+---
+description: "Changelog for ESPHome 2022.4.0."
+title: "ESPHome 2022.4.0 - 20th April 2022"
+pagefind: false
+slug: "changelog/2022.4.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["QMP6988","/components/sensor/qmp6988","qmp6988_env3.png"],
+  ["Hydreon Rain Sensor","/components/binary_sensor/hydreon_rgxx","hydreon_rg9.jpg"],
+  ["Mi Motion Sensor 2","/components/sensor/xiaomi_ble","xiaomi_rtcgq02lm.jpg"],
+  ["Sonoff D1 Dimmer","/components/light/sonoff_d1","sonoff_d1.jpg"],
+  ["MCP3208","/components/sensor/mcp3204","mcp3204.jpg"],
+  ["Shelly Dimmer","/components/light/shelly_dimmer","shellydimmer2.jpg"]
+]} />
+
+## Home Assistant Addon Repo
+
+This is a repeat from the 2022.2 release notes.
+
+The [ESPHome Home Assistant addon repository](https://github.com/esphome/home-assistant-addon)
+is added by default to new Home Assistant installations. Because of this, we have decided that we would
+deprecate the ESPHome addon inside the [Community Addons](https://github.com/hassio-addons/repository)
+and everyone should move to the ESPHome repo. It is safe to delete the Community ESPHome addon as
+your configuration YAML files are stored in the Home Assistant configuration folder.
+
+You can add the ESPHome addon here:
+
+[![Open your Home Assistant instance and show the dashboard of an add-on.][my-badge]][my-url]
+
+[my-badge]: https://my.home-assistant.io/badges/supervisor_addon.svg
+[my-url]: https://my.home-assistant.io/redirect/supervisor_addon/?addon=5c53de3b_esphome&repository_url=https%3A%2F%2Fgithub.com%2Fesphome%2Fhome-assistant-addon
+
+## Python 3.8 Minimum
+
+A friendly reminder that 2022.3 set the minimum Python version to 3.8.
+Please upgrade your local python if you are unable to update ESPHome further.
+This is taken care of automatically if you are using the Home Assistant Add-on, or the
+ESPHome docker container.
+
+## Shelly Dimmer 2
+
+Support for the STM32 chip of the Shelly Dimmer has been added in this release. The component also supports
+flashing custom firmware to the stm32 via ESPHome which is required to use the component. See the
+[documentation](/components/light/shelly_dimmer/) for more details.
+
+## Google Fonts
+
+[@OttoWinter](https://github.com/OttoWinter) has given everyone a way to use Google Fonts in their YAML and displays without
+having to manually download TTF font files. The example below will automatically download and cache the Roboto
+TTF font file required so you can utilise it. See the [Font Renderer Component](/components/font#display-fonts) documentation
+for more details.
+
+```yaml
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
+```
+
+## Deep sleep wakeup time
+
+Deep sleep for ESP32 has had a new feature added.
+
+```yaml
+on_...:
+  - deep_sleep.enter:
+      until: "14:00:00"
+      time_id: ...
+```
+
+This will automatically calculate the time required to deep sleep to ensure that the device will
+wake up at "14:00:00". The time format here is local time to match the timezone you have configured and
+this requires a time component to be configured.
+
+## Sensors imported from Home Assistant
+
+In this release there is a breaking change on the sensors that are imported from homeassistant,
+`platform: homeassistant`. They will now default to being internal to ESPHome and will not be re-exported back
+to Home Assistant, MQTT or the web server. This change makes sense as it was just extra sensors and network traffic.
+You are able to add these back as non internal by adding `internal: false` to the YAML for each of the sensors.
+
+## Full list of changes
+
+{/* markdownlint-disable MD013 */}
+
+### New Features
+
+- Allow to set user defined characters on LCD [esphome#3322](https://github.com/esphome/esphome/pull/3322) by [@numo68](https://github.com/numo68) (new-feature)
+- Font allow using google fonts directly [esphome#3243](https://github.com/esphome/esphome/pull/3243) by [@OttoWinter](https://github.com/OttoWinter) (new-feature) (notable-change)
+- Add mqtt for idf [esphome#2930](https://github.com/esphome/esphome/pull/2930) by [@martgras](https://github.com/martgras) (new-feature)
+- Extend mcp3204 to support 8 channels (mcp3208 variant) [esphome#3332](https://github.com/esphome/esphome/pull/3332) by [@RadekHvizdos](https://github.com/RadekHvizdos) (new-feature)
+- Add cover toggle support to endstop cover [esphome#3358](https://github.com/esphome/esphome/pull/3358) by [@rrooggiieerr](https://github.com/rrooggiieerr) (new-feature)
+- Remote base pronto receive [esphome#2826](https://github.com/esphome/esphome/pull/2826) by [@cvwillegen](https://github.com/cvwillegen) (new-feature)
+- Allow specifying deep sleep wakup clock time [esphome#3312](https://github.com/esphome/esphome/pull/3312) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+
+### New Components
+
+- Add support for QMP6988 Pressure sensor [esphome#3192](https://github.com/esphome/esphome/pull/3192) by [@andrewpc](https://github.com/andrewpc) (new-integration)
+- Add integration hydreon_rgxx for rain sensors by Hydreon [esphome#2711](https://github.com/esphome/esphome/pull/2711) by [@functionpointer](https://github.com/functionpointer) (new-integration)
+- Add Xiaomi RTCGQ02LM - Mi Motion Sensor 2 [esphome#3186](https://github.com/esphome/esphome/pull/3186) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add Sonoff D1 Dimmer support [esphome#2775](https://github.com/esphome/esphome/pull/2775) by [@anatoly-savchenkov](https://github.com/anatoly-savchenkov) (new-integration)
+- Refactor Sensirion Sensors [esphome#3374](https://github.com/esphome/esphome/pull/3374) by [@martgras](https://github.com/martgras) (new-integration)
+- Add support for Shelly Dimmer 2 [esphome#2954](https://github.com/esphome/esphome/pull/2954) by [@rnauber](https://github.com/rnauber) (new-integration)
+
+### Breaking Changes
+
+- Make home_assistant imported sensors internal by default [esphome#3372](https://github.com/esphome/esphome/pull/3372) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+
+### Beta Changes
+
+- Actually increase request memory for json parsing [esphome#3331](https://github.com/esphome/esphome/pull/3331) by [@jesserockz](https://github.com/jesserockz)
+- Actually increase request memory for json parsing [esphome#3331](https://github.com/esphome/esphome/pull/3331) by [@jesserockz](https://github.com/jesserockz)
+- Changes accuracy of single cell voltage [esphome#3387](https://github.com/esphome/esphome/pull/3387) by [@matthias882](https://github.com/matthias882)
+- Add support for Shelly Dimmer 2 [esphome#2954](https://github.com/esphome/esphome/pull/2954) by [@rnauber](https://github.com/rnauber) (new-integration)
+- Allocate smaller amount of buffer for JSON [esphome#3384](https://github.com/esphome/esphome/pull/3384) by [@dz0ny](https://github.com/dz0ny)
+- Fix power_delivered/produced_phase sensor deviceclass in DSMR [esphome#3395](https://github.com/esphome/esphome/pull/3395) by [@mvdwetering](https://github.com/mvdwetering)
+- Shelly Dimmer: Delete obsolete LICENSE.txt [esphome#3394](https://github.com/esphome/esphome/pull/3394) by [@rnauber](https://github.com/rnauber)
+- Dont require empty object for wifi ap with defaults [esphome#3404](https://github.com/esphome/esphome/pull/3404) by [@jesserockz](https://github.com/jesserockz)
+
+### Notable Changes
+
+- Font allow using google fonts directly [esphome#3243](https://github.com/esphome/esphome/pull/3243) by [@OttoWinter](https://github.com/OttoWinter) (new-feature) (notable-change)
+
+### All changes
+
+- Bump pytest-asyncio from 0.18.1 to 0.18.2 [esphome#3262](https://github.com/esphome/esphome/pull/3262) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump zeroconf from 0.38.3 to 0.38.4 [esphome#3257](https://github.com/esphome/esphome/pull/3257) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump click from 8.0.3 to 8.0.4 [esphome#3248](https://github.com/esphome/esphome/pull/3248) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker dependencies [esphome#3281](https://github.com/esphome/esphome/pull/3281) by [@OttoWinter](https://github.com/OttoWinter)
+- Fixed wrong comment [esphome#3286](https://github.com/esphome/esphome/pull/3286) by [@Rai-Rai](https://github.com/Rai-Rai)
+- Add support for QMP6988 Pressure sensor [esphome#3192](https://github.com/esphome/esphome/pull/3192) by [@andrewpc](https://github.com/andrewpc) (new-integration)
+- Adds support for b-parasite's v2 BLE protocol [esphome#3290](https://github.com/esphome/esphome/pull/3290) by [@rbaron](https://github.com/rbaron)
+- increase delay for Ethernet module warm up Safe Mode [esphome#3326](https://github.com/esphome/esphome/pull/3326) by [@nagyrobi](https://github.com/nagyrobi)
+- Bump esptool from 3.2 to 3.3 [esphome#3327](https://github.com/esphome/esphome/pull/3327) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Allow to set user defined characters on LCD [esphome#3322](https://github.com/esphome/esphome/pull/3322) by [@numo68](https://github.com/numo68) (new-feature)
+- Font allow using google fonts directly [esphome#3243](https://github.com/esphome/esphome/pull/3243) by [@OttoWinter](https://github.com/OttoWinter) (new-feature) (notable-change)
+- Actually increase request memory for json parsing [esphome#3331](https://github.com/esphome/esphome/pull/3331) by [@jesserockz](https://github.com/jesserockz)
+- Actually increase request memory for json parsing [esphome#3331](https://github.com/esphome/esphome/pull/3331) by [@jesserockz](https://github.com/jesserockz)
+- Change beginning of file comments to avoid creating doxygen tag for `esphome` namespace [esphome#3314](https://github.com/esphome/esphome/pull/3314) by [@e28eta](https://github.com/e28eta)
+- Publish custom data when modbus number lambda fills vector [esphome#3295](https://github.com/esphome/esphome/pull/3295) by [@jesserockz](https://github.com/jesserockz)
+- Define touchscreen support when in use. [esphome#3296](https://github.com/esphome/esphome/pull/3296) by [@geiseri](https://github.com/geiseri)
+- New vscode schema gen [esphome#3336](https://github.com/esphome/esphome/pull/3336) by [@glmnet](https://github.com/glmnet)
+- protobuf: fix incomplete 64 bits implementation [esphome#3341](https://github.com/esphome/esphome/pull/3341) by [@ianchi](https://github.com/ianchi)
+- feat: support ble_client that use security w/o pin codes [esphome#3320](https://github.com/esphome/esphome/pull/3320) by [@ammmze](https://github.com/ammmze)
+- Add mqtt for idf [esphome#2930](https://github.com/esphome/esphome/pull/2930) by [@martgras](https://github.com/martgras) (new-feature)
+- Added a function to load custom characters in LCD display [esphome#3279](https://github.com/esphome/esphome/pull/3279) by [@andrewjswan](https://github.com/andrewjswan)
+- CAN bus: support remote transmission request flag for canbus.send [esphome#3193](https://github.com/esphome/esphome/pull/3193) by [@felixstorm](https://github.com/felixstorm)
+- Tm1637 binarysensor [esphome#2792](https://github.com/esphome/esphome/pull/2792) by [@mvturnho](https://github.com/mvturnho)
+- Bump click from 8.0.4 to 8.1.2 [esphome#3351](https://github.com/esphome/esphome/pull/3351) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pylint from 2.12.2 to 2.13.4 [esphome#3348](https://github.com/esphome/esphome/pull/3348) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-asyncio from 0.18.2 to 0.18.3 [esphome#3335](https://github.com/esphome/esphome/pull/3335) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest from 7.0.1 to 7.1.1 [esphome#3313](https://github.com/esphome/esphome/pull/3313) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker dependencies [esphome#3354](https://github.com/esphome/esphome/pull/3354) by [@OttoWinter](https://github.com/OttoWinter)
+- Bump voluptuous from 0.12.2 to 0.13.0 [esphome#3355](https://github.com/esphome/esphome/pull/3355) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump tzlocal from 4.1 to 4.2 [esphome#3356](https://github.com/esphome/esphome/pull/3356) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pyupgrade from 2.31.0 to 2.31.1 [esphome#3292](https://github.com/esphome/esphome/pull/3292) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump black from 22.1.0 to 22.3.0 [esphome#3357](https://github.com/esphome/esphome/pull/3357) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Allow on_value_range for sensor and number to be templated [esphome#3359](https://github.com/esphome/esphome/pull/3359) by [@jesserockz](https://github.com/jesserockz)
+- Add support for Electrolux heatpump and bump arduino-heatpumpir version [esphome#3353](https://github.com/esphome/esphome/pull/3353) by [@ikilledmypc](https://github.com/ikilledmypc)
+- Implement newer RTU protocol of Growatt inverters [esphome#3315](https://github.com/esphome/esphome/pull/3315) by [@djwlindenaar](https://github.com/djwlindenaar)
+- Add parameter to control i2c stop signal at endTransmission [esphome#3370](https://github.com/esphome/esphome/pull/3370) by [@kbickar](https://github.com/kbickar)
+- Fix SHTC3 sensor detection [esphome#3365](https://github.com/esphome/esphome/pull/3365) by [@ssieb](https://github.com/ssieb)
+- Extend mcp3204 to support 8 channels (mcp3208 variant) [esphome#3332](https://github.com/esphome/esphome/pull/3332) by [@RadekHvizdos](https://github.com/RadekHvizdos) (new-feature)
+- Bump pyupgrade from 2.31.1 to 2.32.0 [esphome#3366](https://github.com/esphome/esphome/pull/3366) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump voluptuous from 0.13.0 to 0.13.1 [esphome#3364](https://github.com/esphome/esphome/pull/3364) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pylint from 2.13.4 to 2.13.5 [esphome#3363](https://github.com/esphome/esphome/pull/3363) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix HM3301 AQI int8 overflow [esphome#3361](https://github.com/esphome/esphome/pull/3361) by [@calco88](https://github.com/calco88)
+- Add cover toggle support to endstop cover [esphome#3358](https://github.com/esphome/esphome/pull/3358) by [@rrooggiieerr](https://github.com/rrooggiieerr) (new-feature)
+- Make home_assistant imported sensors internal by default [esphome#3372](https://github.com/esphome/esphome/pull/3372) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Add integration hydreon_rgxx for rain sensors by Hydreon [esphome#2711](https://github.com/esphome/esphome/pull/2711) by [@functionpointer](https://github.com/functionpointer) (new-integration)
+- Addition of Deep Sleep RTC pin definition for ESP32-S2 [esphome#3303](https://github.com/esphome/esphome/pull/3303) by [@andrewpc](https://github.com/andrewpc)
+- Add Xiaomi RTCGQ02LM - Mi Motion Sensor 2 [esphome#3186](https://github.com/esphome/esphome/pull/3186) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add Sonoff D1 Dimmer support [esphome#2775](https://github.com/esphome/esphome/pull/2775) by [@anatoly-savchenkov](https://github.com/anatoly-savchenkov) (new-integration)
+- Remote base pronto receive [esphome#2826](https://github.com/esphome/esphome/pull/2826) by [@cvwillegen](https://github.com/cvwillegen) (new-feature)
+- Use correct http defines [esphome#3378](https://github.com/esphome/esphome/pull/3378) by [@dz0ny](https://github.com/dz0ny)
+- Refactor Sensirion Sensors [esphome#3374](https://github.com/esphome/esphome/pull/3374) by [@martgras](https://github.com/martgras) (new-integration)
+- Fix silent config errors [esphome#3380](https://github.com/esphome/esphome/pull/3380) by [@jesserockz](https://github.com/jesserockz)
+- Move PN532OnTagTrigger to nfc::NfcOnTagTrigger [esphome#3379](https://github.com/esphome/esphome/pull/3379) by [@jesserockz](https://github.com/jesserockz)
+- Allow specifying deep sleep wakup clock time [esphome#3312](https://github.com/esphome/esphome/pull/3312) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Changes accuracy of single cell voltage [esphome#3387](https://github.com/esphome/esphome/pull/3387) by [@matthias882](https://github.com/matthias882)
+- Add support for Shelly Dimmer 2 [esphome#2954](https://github.com/esphome/esphome/pull/2954) by [@rnauber](https://github.com/rnauber) (new-integration)
+- Allocate smaller amount of buffer for JSON [esphome#3384](https://github.com/esphome/esphome/pull/3384) by [@dz0ny](https://github.com/dz0ny)
+- Fix power_delivered/produced_phase sensor deviceclass in DSMR [esphome#3395](https://github.com/esphome/esphome/pull/3395) by [@mvdwetering](https://github.com/mvdwetering)
+- Shelly Dimmer: Delete obsolete LICENSE.txt [esphome#3394](https://github.com/esphome/esphome/pull/3394) by [@rnauber](https://github.com/rnauber)
+- Dont require empty object for wifi ap with defaults [esphome#3404](https://github.com/esphome/esphome/pull/3404) by [@jesserockz](https://github.com/jesserockz)
+
+{/* markdownlint-enable MD013 */}

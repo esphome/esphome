@@ -1,0 +1,261 @@
+---
+description: "Changelog for ESPHome 2022.2.0."
+title: "ESPHome 2022.2.0 - 16th February 2022"
+pagefind: false
+slug: "changelog/2022.2.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Lock Core","/components/lock/index","folder-open.svg","dark-invert"],
+  ["Generic Output Lock","/components/lock/output","upload.svg","dark-invert"],
+  ["Template Lock","/components/lock/template","description.svg","dark-invert"],
+  ["QR Code","/components/display/index","qr-code.svg"],
+  ["Touchscreen Core","/components/touchscreen/index","folder-open.svg","dark-invert"],
+  ["EKTF2232","/components/touchscreen/ektf2232","ektf2232.svg"],
+  ["Lilygo T5 4.7","","components/touchscreen/lilygo_t5_47","lilygo_t5_47_touch.jpg"],
+  ["MLX90393","/components/sensor/mlx90393","mlx90393.jpg"],
+  ["Wake-on-LAN Button","/components/button/wake_on_lan","power_settings.svg","dark-invert"],
+  ["Generic Output Button","/components/button/output","upload.svg","dark-invert"],
+  ["Xiaomi MHOC303","/components/sensor/xiaomi_ble","xiaomi_mijia_logo.jpg"],
+  ["RadonEye BLE","/components/sensor/radon_eye_ble","radon_eye_logo.png"],
+  ["Modbus Select","/components/select/modbus_controller","modbus.png"],
+  ["MAX9611","/components/sensor/max9611","max9611.jpg"],
+  ["Inkplate 6 Plus","/components/display/inkplate6","inkplate6.jpg"]
+]} />
+
+## Home Assistant Addon Repo
+
+In a future Supervisor version, the [ESPHome Home Assistant addon repository](https://github.com/esphome/home-assistant-addon)
+will be added by default to new Home Assistant installations.
+We have decided that we will deprecate the ESPHome addon inside the
+[Community Addons](https://github.com/hassio-addons/repository)
+and everyone should move to the ESPHome repo. It is safe to delete the
+ESPHome addon as your configuration YAML files are stored in the Home
+Assistant configuration folder.
+
+You can add the ESPHome addon here:
+
+[![Open your Home Assistant instance and show the dashboard of an add-on.][my-badge]][my-url]
+
+[my-badge]: https://my.home-assistant.io/badges/supervisor_addon.svg
+[my-url]: https://my.home-assistant.io/redirect/supervisor_addon/?addon=5c53de3b_esphome&repository_url=https%3A%2F%2Fgithub.com%2Fesphome%2Fhome-assistant-addon
+
+## Locks
+
+Lock Entities have been added to ESPHome. These will be available after Home Assistant 2022.3 is released.
+Thanks [@kbickar](https://github.com/kbickar).
+
+## ESP8266 recommended framework bump
+
+The recommended (and therefore default) version of Arduino for ESP8266 devices
+has been bumped to 3.0.2 from 2.7.4. This brings many underlying changes to the
+ESP8266 SDK. The 3.0.2 release has been out since July 2021 but ESPHome just
+did not bump the default until now.
+
+## FastLED
+
+Due to the Arduino bump, the FastLED library suffers issues when running on ESP8266
+on Arduino 3+. Because of this there is now a restriction on the `fastled_clockless`
+and `fastled_spi` components to only allow using them if you change the arduino version
+back to 2.7.4 or lower. This will be in place until the library can update and fix the
+issues. See the [documentation](/components/light/fastled/) for information on how
+to continue using the lights.
+
+## Improv serial Wi-Fi scan
+
+Improv serial has been updated to be able to start a Wi-Fi scan and send the results
+back to the improv client so the user can select the network SSID instead of having to type it in.
+
+## Tuya Multi multi-datapoint
+
+Some work was done on the tuya component to support devices that send all of their
+datapoints in a single message. This allows for more devices to be supported and should
+not cause issues with existing devices but please create an issue if it does.
+
+## Debug Sensors Breaking change
+
+The sub-sensors of the `debug` have been moved to their respective component platforms.
+Please see the [documentation](/components/debug/) page for the new way to configure them.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2022.2.1 - February 17
+
+- Fix missed ARDUINO_VERSION_CODE to USE_ARDUINO_VERSION_CODE changes [esphome#3206](https://github.com/esphome/esphome/pull/3206) by [@stewiem2000](https://github.com/stewiem2000)
+
+## Release 2022.2.2 - February 18
+
+- Set entity-category to diagnostic for debug component [esphome#3209](https://github.com/esphome/esphome/pull/3209) by [@stewiem2000](https://github.com/stewiem2000)
+- Fix platformio docker version mismstch [esphome#3215](https://github.com/esphome/esphome/pull/3215) by [@OttoWinter](https://github.com/OttoWinter)
+- Add LONG LONG flag for arduinojson [esphome#3212](https://github.com/esphome/esphome/pull/3212) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2022.2.3 - February 18
+
+- Bump platformio from 5.2.4 to 5.2.5 [esphome#3188](https://github.com/esphome/esphome/pull/3188) by [@dependabot[bot]](https://github.com/dependabot[bot])
+
+## Release 2022.2.4 - February 21
+
+- Publish NAN when dallas conversion failed [esphome#3227](https://github.com/esphome/esphome/pull/3227) by [@OttoWinter](https://github.com/OttoWinter)
+- Fix ESP8266 climate memaccess warning [esphome#3226](https://github.com/esphome/esphome/pull/3226) by [@OttoWinter](https://github.com/OttoWinter)
+- Improve ESP8266 iram usage [esphome#3223](https://github.com/esphome/esphome/pull/3223) by [@OttoWinter](https://github.com/OttoWinter)
+- ESP32-C3 deep sleep fix [esphome#3066](https://github.com/esphome/esphome/pull/3066) by [@Troublebrewing](https://github.com/Troublebrewing)
+- Fix lilygo touchscreen rotation [esphome#3221](https://github.com/esphome/esphome/pull/3221) by [@jesserockz](https://github.com/jesserockz)
+- Fix fatal erroring in addon startup script [esphome#3244](https://github.com/esphome/esphome/pull/3244) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2022.2.5 - February 23
+
+- Respect ESPHOME_USE_SUBPROCESS in esp32 post_build script [esphome#3246](https://github.com/esphome/esphome/pull/3246) by [@mweinelt](https://github.com/mweinelt)
+- Fix regression caused by TSL2591 auto gain [esphome#3249](https://github.com/esphome/esphome/pull/3249) by [@Azimath](https://github.com/Azimath)
+
+## Release 2022.2.6 - March 2
+
+- Only get free memory size from internal [esphome#3259](https://github.com/esphome/esphome/pull/3259) by [@jesserockz](https://github.com/jesserockz)
+
+## Full list of changes
+
+### New Features
+
+- Add initial_run to regular lambda light effect [esphome#3059](https://github.com/esphome/esphome/pull/3059) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Support simple transparent pngs for display [esphome#3035](https://github.com/esphome/esphome/pull/3035) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Add restore_mode to fan component [esphome#3051](https://github.com/esphome/esphome/pull/3051) by [@joshuaspence](https://github.com/joshuaspence) (new-feature)
+- slow_pwm: allow to restart a cycle on state change [esphome#3004](https://github.com/esphome/esphome/pull/3004) by [@Chupaka](https://github.com/Chupaka) (new-feature)
+- Command retain option for MQTT component [esphome#3078](https://github.com/esphome/esphome/pull/3078) by [@VitaliyKurokhtin](https://github.com/VitaliyKurokhtin) (new-feature)
+- Esp32cam full control [esphome#3090](https://github.com/esphome/esphome/pull/3090) by [@dav-id-org](https://github.com/dav-id-org) (new-feature)
+- Configurable HTTP redirect following [esphome#3100](https://github.com/esphome/esphome/pull/3100) by [@guillempages](https://github.com/guillempages) (new-feature)
+- Add IPv6 for esp-idf framework [esphome#2953](https://github.com/esphome/esphome/pull/2953) by [@HeMan](https://github.com/HeMan) (new-feature)
+- Improv_serial scan and send wifi networks list [esphome#3116](https://github.com/esphome/esphome/pull/3116) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Inkplate 6 PLUS [esphome#3013](https://github.com/esphome/esphome/pull/3013) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+
+### New Components
+
+- Add ektf2232 touchscreen support [esphome#3027](https://github.com/esphome/esphome/pull/3027) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Wake-on-LAN button [esphome#3030](https://github.com/esphome/esphome/pull/3030) by [@willwill2will54](https://github.com/willwill2will54) (new-integration)
+- Implement output button [esphome#3109](https://github.com/esphome/esphome/pull/3109) by [@oxan](https://github.com/oxan) (new-integration)
+- Create base touchscreen component and refactor ektf2232 [esphome#3083](https://github.com/esphome/esphome/pull/3083) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add qr code support for displays [esphome#2952](https://github.com/esphome/esphome/pull/2952) by [@wjtje](https://github.com/wjtje) (new-integration)
+- Add Xiaomi MHOC303 sensor e-ink clock [esphome#3115](https://github.com/esphome/esphome/pull/3115) by [@drug123](https://github.com/drug123) (new-integration)
+- Add new Lock core component [esphome#2958](https://github.com/esphome/esphome/pull/2958) by [@kbickar](https://github.com/kbickar) (new-integration)
+- Added RadonEye RD200 Component [esphome#3119](https://github.com/esphome/esphome/pull/3119) by [@jeffeb3](https://github.com/jeffeb3) (new-integration)
+- MLX90393 three-axis magnetometer [esphome#2770](https://github.com/esphome/esphome/pull/2770) by [@functionpointer](https://github.com/functionpointer) (new-integration)
+- Add Lilygo t5 4.7 Touchscreen [esphome#3084](https://github.com/esphome/esphome/pull/3084) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add Select for modbus [esphome#3032](https://github.com/esphome/esphome/pull/3032) by [@stegm](https://github.com/stegm) (new-integration)
+- Add max9611 High Side Current Shunt ADC [esphome#2705](https://github.com/esphome/esphome/pull/2705) by [@mckaymatthew](https://github.com/mckaymatthew) (new-integration)
+
+### Breaking Changes
+
+- [TCS34725] remove duplicated endian conversion [esphome#3037](https://github.com/esphome/esphome/pull/3037) by [@martgras](https://github.com/martgras) (breaking-change)
+- TSL2591 automatic gain control [esphome#3071](https://github.com/esphome/esphome/pull/3071) by [@Azimath](https://github.com/Azimath) (breaking-change)
+- [debug] Refactor debug sensors to use the normal sensor model. [esphome#3162](https://github.com/esphome/esphome/pull/3162) by [@mknjc](https://github.com/mknjc) (breaking-change)
+- Allow framework version validator to be maximum version [esphome#3197](https://github.com/esphome/esphome/pull/3197) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+
+### Notable Changes
+
+- ESP8266 Set recommended framework to 3.0.2 [esphome#2606](https://github.com/esphome/esphome/pull/2606) by [@OttoWinter](https://github.com/OttoWinter) (notable-change)
+- Handle Tuya multi-datapoint messages [esphome#3159](https://github.com/esphome/esphome/pull/3159) by [@ssieb](https://github.com/ssieb) (notable-change)
+
+### Beta Changes
+
+- Enable mDNS during OTA safe mode [esphome#3146](https://github.com/esphome/esphome/pull/3146) by [@OttoWinter](https://github.com/OttoWinter)
+- Try fix canbus config validation [esphome#3173](https://github.com/esphome/esphome/pull/3173) by [@jesserockz](https://github.com/jesserockz)
+- Bump aioesphomeapi from 10.8.1 to 10.8.2 [esphome#3182](https://github.com/esphome/esphome/pull/3182) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Clamp rotary_encoder restored value to min and max [esphome#3184](https://github.com/esphome/esphome/pull/3184) by [@jesserockz](https://github.com/jesserockz)
+- Make generating combined binary output verbose [esphome#3127](https://github.com/esphome/esphome/pull/3127) by [@OttoWinter](https://github.com/OttoWinter)
+- Allow framework version validator to be maximum version [esphome#3197](https://github.com/esphome/esphome/pull/3197) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Fix strlcpy() uses to make long SSIDs and passwords work [esphome#3199](https://github.com/esphome/esphome/pull/3199) by [@mmakaay](https://github.com/mmakaay)
+- Update HA addon token [esphome#3200](https://github.com/esphome/esphome/pull/3200) by [@jesserockz](https://github.com/jesserockz)
+
+### All changes
+
+- Bump pytest-asyncio from 0.16.0 to 0.17.0 [esphome#3047](https://github.com/esphome/esphome/pull/3047) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix argument order in gitpod config file [esphome#3058](https://github.com/esphome/esphome/pull/3058) by [@oxan](https://github.com/oxan)
+- Bump pytest-asyncio from 0.17.0 to 0.17.2 [esphome#3064](https://github.com/esphome/esphome/pull/3064) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix calibration parameter for bme680 humidity calculation [esphome#3069](https://github.com/esphome/esphome/pull/3069) by [@cwitting](https://github.com/cwitting)
+- Bump improv library version [esphome#3072](https://github.com/esphome/esphome/pull/3072) by [@jesserockz](https://github.com/jesserockz)
+- API: Expect a name for connections [esphome#2533](https://github.com/esphome/esphome/pull/2533) by [@OttoWinter](https://github.com/OttoWinter)
+- AM43: autoload "sensor" to avoid compile errors [esphome#3077](https://github.com/esphome/esphome/pull/3077) by [@buxtronix](https://github.com/buxtronix)
+- Add initial_run to regular lambda light effect [esphome#3059](https://github.com/esphome/esphome/pull/3059) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Support simple transparent pngs for display [esphome#3035](https://github.com/esphome/esphome/pull/3035) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Bump aioesphomeapi from 10.6.0 to 10.8.0 [esphome#3081](https://github.com/esphome/esphome/pull/3081) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add ektf2232 touchscreen support [esphome#3027](https://github.com/esphome/esphome/pull/3027) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Implement IPv6 sockets for lwIP [esphome#3015](https://github.com/esphome/esphome/pull/3015) by [@HeMan](https://github.com/HeMan)
+- Allow multiple configs for cd74hc4067 [esphome#3085](https://github.com/esphome/esphome/pull/3085) by [@jesserockz](https://github.com/jesserockz)
+- Wake-on-LAN button [esphome#3030](https://github.com/esphome/esphome/pull/3030) by [@willwill2will54](https://github.com/willwill2will54) (new-integration)
+- Add restore_mode to fan component [esphome#3051](https://github.com/esphome/esphome/pull/3051) by [@joshuaspence](https://github.com/joshuaspence) (new-feature)
+- slow_pwm: allow to restart a cycle on state change [esphome#3004](https://github.com/esphome/esphome/pull/3004) by [@Chupaka](https://github.com/Chupaka) (new-feature)
+- Enable readability-const-return-type check [esphome#3099](https://github.com/esphome/esphome/pull/3099) by [@oxan](https://github.com/oxan)
+- Enable readability-qualified-auto check [esphome#3095](https://github.com/esphome/esphome/pull/3095) by [@oxan](https://github.com/oxan)
+- Enable readability-redundant-member-init check [esphome#3097](https://github.com/esphome/esphome/pull/3097) by [@oxan](https://github.com/oxan)
+- Enable readability-named-parameter check [esphome#3098](https://github.com/esphome/esphome/pull/3098) by [@oxan](https://github.com/oxan)
+- Enable readability-redundant-access-specifiers check [esphome#3096](https://github.com/esphome/esphome/pull/3096) by [@oxan](https://github.com/oxan)
+- Command retain option for MQTT component [esphome#3078](https://github.com/esphome/esphome/pull/3078) by [@VitaliyKurokhtin](https://github.com/VitaliyKurokhtin) (new-feature)
+- Refactor fan platform to resemble climate/cover platforms [esphome#2848](https://github.com/esphome/esphome/pull/2848) by [@oxan](https://github.com/oxan)
+- Rename WEBSERVER_PORT define to USE_WEBSERVER_PORT [esphome#3102](https://github.com/esphome/esphome/pull/3102) by [@oxan](https://github.com/oxan)
+- Fix path to extra_scripts in platformio.ini [esphome#3093](https://github.com/esphome/esphome/pull/3093) by [@oxan](https://github.com/oxan)
+- Generate ARDUINO_VERSION_CODE in Python code [esphome#3101](https://github.com/esphome/esphome/pull/3101) by [@oxan](https://github.com/oxan)
+- Add cv.require_esphome_version helper [esphome#3103](https://github.com/esphome/esphome/pull/3103) by [@oxan](https://github.com/oxan)
+- Bump aioesphomeapi from 10.8.0 to 10.8.1 [esphome#3110](https://github.com/esphome/esphome/pull/3110) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Remove unused polling_component_schema from modbus number [esphome#3108](https://github.com/esphome/esphome/pull/3108) by [@martgras](https://github.com/martgras)
+- Force braces around multi-line statements [esphome#3094](https://github.com/esphome/esphome/pull/3094) by [@oxan](https://github.com/oxan)
+- Make CallbackManager invocable [esphome#3089](https://github.com/esphome/esphome/pull/3089) by [@oxan](https://github.com/oxan)
+- Implement output button [esphome#3109](https://github.com/esphome/esphome/pull/3109) by [@oxan](https://github.com/oxan) (new-integration)
+- Add increment_day function to ESPTime [esphome#2955](https://github.com/esphome/esphome/pull/2955) by [@RebbePod](https://github.com/RebbePod)
+- [TCS34725] remove duplicated endian conversion [esphome#3037](https://github.com/esphome/esphome/pull/3037) by [@martgras](https://github.com/martgras) (breaking-change)
+- Perform merges when substituting dict keys [esphome#3062](https://github.com/esphome/esphome/pull/3062) by [@joshuaspence](https://github.com/joshuaspence)
+- Esp32cam full control [esphome#3090](https://github.com/esphome/esphome/pull/3090) by [@dav-id-org](https://github.com/dav-id-org) (new-feature)
+- Fix config merging with null [esphome#3113](https://github.com/esphome/esphome/pull/3113) by [@joshuaspence](https://github.com/joshuaspence)
+- Configurable HTTP redirect following [esphome#3100](https://github.com/esphome/esphome/pull/3100) by [@guillempages](https://github.com/guillempages) (new-feature)
+- Add IPv6 for esp-idf framework [esphome#2953](https://github.com/esphome/esphome/pull/2953) by [@HeMan](https://github.com/HeMan) (new-feature)
+- Add support for additional colors on GROW R503 [esphome#3087](https://github.com/esphome/esphome/pull/3087) by [@Zebble](https://github.com/Zebble)
+- Add Heap Sensors - free/max block/fragmentation [esphome#1578](https://github.com/esphome/esphome/pull/1578) by [@micronen](https://github.com/micronen)
+- Create base touchscreen component and refactor ektf2232 [esphome#3083](https://github.com/esphome/esphome/pull/3083) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add qr code support for displays [esphome#2952](https://github.com/esphome/esphome/pull/2952) by [@wjtje](https://github.com/wjtje) (new-integration)
+- ESP8266 Set recommended framework to 3.0.2 [esphome#2606](https://github.com/esphome/esphome/pull/2606) by [@OttoWinter](https://github.com/OttoWinter) (notable-change)
+- TSL2591 automatic gain control [esphome#3071](https://github.com/esphome/esphome/pull/3071) by [@Azimath](https://github.com/Azimath) (breaking-change)
+- set adc width to 13 bits for esp32-s2 [esphome#3117](https://github.com/esphome/esphome/pull/3117) by [@martgras](https://github.com/martgras)
+- Fix lint for TSL2591 [esphome#3118](https://github.com/esphome/esphome/pull/3118) by [@OttoWinter](https://github.com/OttoWinter)
+- Add Xiaomi MHOC303 sensor e-ink clock [esphome#3115](https://github.com/esphome/esphome/pull/3115) by [@drug123](https://github.com/drug123) (new-integration)
+- Logically group and document helper functions [esphome#3112](https://github.com/esphome/esphome/pull/3112) by [@oxan](https://github.com/oxan)
+- Add support for Waveshare 7.5in-bv2 [esphome#3121](https://github.com/esphome/esphome/pull/3121) by [@Eriner](https://github.com/Eriner)
+- Bump docker dependencies [esphome#3131](https://github.com/esphome/esphome/pull/3131) by [@OttoWinter](https://github.com/OttoWinter)
+- Bump pytest-mock from 3.6.1 to 3.7.0 [esphome#3128](https://github.com/esphome/esphome/pull/3128) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Improv_serial scan and send wifi networks list [esphome#3116](https://github.com/esphome/esphome/pull/3116) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Disable platformio ldf for build [esphome#3130](https://github.com/esphome/esphome/pull/3130) by [@OttoWinter](https://github.com/OttoWinter)
+- Bump esp-idf framework version from 4.3.0 to 4.3.2 [esphome#3120](https://github.com/esphome/esphome/pull/3120) by [@OttoWinter](https://github.com/OttoWinter)
+- Bump pre-commit flake8 from 3.8.4 to 4.0.1 [esphome#3149](https://github.com/esphome/esphome/pull/3149) by [@OttoWinter](https://github.com/OttoWinter)
+- Bump black from 21.12b0 to 22.1.0 [esphome#3147](https://github.com/esphome/esphome/pull/3147) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix ESP32C3 toolchain requires stdarg import in helpers [esphome#3151](https://github.com/esphome/esphome/pull/3151) by [@OttoWinter](https://github.com/OttoWinter)
+- Add new Lock core component [esphome#2958](https://github.com/esphome/esphome/pull/2958) by [@kbickar](https://github.com/kbickar) (new-integration)
+- Add device class support to Switch [esphome#3012](https://github.com/esphome/esphome/pull/3012) by [@frenck](https://github.com/frenck)
+- Handle Tuya multi-datapoint messages [esphome#3159](https://github.com/esphome/esphome/pull/3159) by [@ssieb](https://github.com/ssieb) (notable-change)
+- Bump improv library to 1.2.1 [esphome#3160](https://github.com/esphome/esphome/pull/3160) by [@jesserockz](https://github.com/jesserockz)
+- Fix copy_file_if_changed src permissions copied too [esphome#3161](https://github.com/esphome/esphome/pull/3161) by [@OttoWinter](https://github.com/OttoWinter)
+- [debug] Refactor debug sensors to use the normal sensor model. [esphome#3162](https://github.com/esphome/esphome/pull/3162) by [@mknjc](https://github.com/mknjc) (breaking-change)
+- Added RadonEye RD200 Component [esphome#3119](https://github.com/esphome/esphome/pull/3119) by [@jeffeb3](https://github.com/jeffeb3) (new-integration)
+- Text sensor schema generator similar to sensor [esphome#3172](https://github.com/esphome/esphome/pull/3172) by [@jesserockz](https://github.com/jesserockz)
+- wifi_info, reduce polling interval [esphome#3165](https://github.com/esphome/esphome/pull/3165) by [@jbergler](https://github.com/jbergler)
+- MLX90393 three-axis magnetometer [esphome#2770](https://github.com/esphome/esphome/pull/2770) by [@functionpointer](https://github.com/functionpointer) (new-integration)
+- Enable mDNS during OTA safe mode [esphome#3146](https://github.com/esphome/esphome/pull/3146) by [@OttoWinter](https://github.com/OttoWinter)
+- Dont warn on nonnull comparisons [esphome#3123](https://github.com/esphome/esphome/pull/3123) by [@jesserockz](https://github.com/jesserockz)
+- Add require response option for BLE binary output [esphome#3091](https://github.com/esphome/esphome/pull/3091) by [@AshtonKem](https://github.com/AshtonKem)
+- Add Lilygo t5 4.7 Touchscreen [esphome#3084](https://github.com/esphome/esphome/pull/3084) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add Select for modbus [esphome#3032](https://github.com/esphome/esphome/pull/3032) by [@stegm](https://github.com/stegm) (new-integration)
+- Add max9611 High Side Current Shunt ADC [esphome#2705](https://github.com/esphome/esphome/pull/2705) by [@mckaymatthew](https://github.com/mckaymatthew) (new-integration)
+- Inkplate 6 PLUS [esphome#3013](https://github.com/esphome/esphome/pull/3013) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Implement MQTT discovery object_id generator [esphome#3114](https://github.com/esphome/esphome/pull/3114) by [@akomelj](https://github.com/akomelj)
+- Fix files CI after merging [esphome#3175](https://github.com/esphome/esphome/pull/3175) by [@jesserockz](https://github.com/jesserockz)
+- Try fix canbus config validation [esphome#3173](https://github.com/esphome/esphome/pull/3173) by [@jesserockz](https://github.com/jesserockz)
+- Bump pytest from 6.2.5 to 7.0.0 [esphome#3163](https://github.com/esphome/esphome/pull/3163) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-asyncio from 0.17.2 to 0.18.0 [esphome#3168](https://github.com/esphome/esphome/pull/3168) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Allow to set manufacturer data for BLEAdvertising [esphome#3179](https://github.com/esphome/esphome/pull/3179) by [@ashald](https://github.com/ashald)
+- Change most references from hassio to ha-addon [esphome#3178](https://github.com/esphome/esphome/pull/3178) by [@jesserockz](https://github.com/jesserockz)
+- Bump aioesphomeapi from 10.8.1 to 10.8.2 [esphome#3182](https://github.com/esphome/esphome/pull/3182) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Clamp rotary_encoder restored value to min and max [esphome#3184](https://github.com/esphome/esphome/pull/3184) by [@jesserockz](https://github.com/jesserockz)
+- Make generating combined binary output verbose [esphome#3127](https://github.com/esphome/esphome/pull/3127) by [@OttoWinter](https://github.com/OttoWinter)
+- Allow framework version validator to be maximum version [esphome#3197](https://github.com/esphome/esphome/pull/3197) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Fix strlcpy() uses to make long SSIDs and passwords work [esphome#3199](https://github.com/esphome/esphome/pull/3199) by [@mmakaay](https://github.com/mmakaay)
+- Update HA addon token [esphome#3200](https://github.com/esphome/esphome/pull/3200) by [@jesserockz](https://github.com/jesserockz)
+- Fix missed ARDUINO_VERSION_CODE to USE_ARDUINO_VERSION_CODE changes [esphome#3206](https://github.com/esphome/esphome/pull/3206) by [@stewiem2000](https://github.com/stewiem2000)
+
+{/* markdownlint-enable MD013 */}

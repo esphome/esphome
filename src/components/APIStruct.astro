@@ -1,0 +1,32 @@
+---
+/**
+ * APIStruct Component
+ * Creates a link to a C++ struct in the API documentation.
+ *
+ * Usage in MDX:
+ * <APIStruct text="SensorStateClass" path="esphome::sensor::SensorStateClass" />
+ */
+
+interface Props {
+  text: string;
+  path: string;
+}
+
+const { text, path } = Astro.props;
+
+// Process the path to generate the API docs URL
+const lastPathElement = path.split('/').pop() || path;
+
+let processedPath = lastPathElement
+  .replace(/_/g, '__')
+  .replace(/\./g, '_8')
+  .replace(/:/g, '_1');
+
+// Convert capital letters to lowercase preceded by underscore
+processedPath = processedPath.replace(/([A-Z])/g, (match) => `_${match.toLowerCase()}`);
+
+const baseUrl = 'https://api-docs.esphome.io';
+const url = `${baseUrl}/structesphome_1_1${processedPath}`;
+---
+
+<a href={url}>{text}</a>
