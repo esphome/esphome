@@ -175,18 +175,9 @@ class RuntimeImage : public image::Image {
    */
   int buffer_height_{0};
 
-  // Configuration
-  bool progressive_display_{false};
-
   // Decoding state
   size_t total_size_{0};
   size_t decoded_bytes_{0};
-
-  /**
-   * Whether the image is stored in big-endian format.
-   * This is used to determine how to store 16 bit colors in the buffer.
-   */
-  bool is_big_endian_{false};
 
   /** Fixed width requested on configuration, or 0 if not specified. */
   const int fixed_width_{0};
@@ -195,6 +186,14 @@ class RuntimeImage : public image::Image {
 
   /** Placeholder image to show when the runtime image is not available. */
   image::Image *placeholder_{nullptr};
+
+  // Configuration
+  bool progressive_display_{false};
+  /**
+   * Whether the image is stored in big-endian format.
+   * This is used to determine how to store 16 bit colors in the buffer.
+   */
+  bool is_big_endian_{false};
 };
 
 }  // namespace esphome::runtime_image
