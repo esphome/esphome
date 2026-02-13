@@ -21,12 +21,6 @@ void STCC4Component::stop_continuous_measurement_() {
 
 void STCC4Component::read_measurement_(uint16_t *data) {
   // Read sensor data while in continuous measurement mode
-  if (this->state_.is_idle) {
-    ESP_LOGW(TAG, "Sensor must be in continuous measurement mode to use this command");
-    this->status_set_error();
-    return;
-  }
-
   this->read_data(data, 4);
   this->state_.is_measuring = true;
 }
@@ -229,12 +223,18 @@ void STCC4Component::continue_setup_() {
       break;
 
     case 1:
+      this->perform_soft_reset_();
+      this->stage_++;
+      this->set_timeout("Sensor reset", 10, [this]() { continue_setup_(); });
+      break;
+
+    case 2:
       this->write_command((uint16_t) SensorCommand::PERFORM_SELF_TEST);
       this->stage_++;
       this->set_timeout("Sensor self-test command sent!", 500, [this]() { continue_setup_(); });
       break;
 
-    case 2:
+    case 3:
       if (!this->perform_self_test_()) {
         this->set_timeout("Running test again", 500, [this]() { continue_setup_(); });
         break;
@@ -246,7 +246,7 @@ void STCC4Component::continue_setup_() {
       this->set_timeout("Beginning Conditioning", 22000, [this]() { continue_setup_(); });
       break;
 
-    case 3: {
+    case 4: {
       if (this->continuous_) {
         ESP_LOGI(TAG, "Conditioning Complete!");
         this->start_continuous_measurement_();
@@ -256,7 +256,7 @@ void STCC4Component::continue_setup_() {
         break;
       }
     }
-    case 4: {
+    case 5: {
       // Try to read sensor
       uint16_t data[3] = {0};
       this->read_measurement_(data);
