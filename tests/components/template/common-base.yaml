@@ -13,6 +13,8 @@ esphome:
         id: template_water_heater
         target_temperature: 50.0
         mode: ECO
+        away: false
+        is_on: true
 
     # Templated
     - water_heater.template.publish:
@@ -20,6 +22,8 @@ esphome:
         current_temperature: !lambda "return 45.0;"
         target_temperature: !lambda "return 55.0;"
         mode: !lambda "return water_heater::WATER_HEATER_MODE_GAS;"
+        away: !lambda "return true;"
+        is_on: !lambda "return false;"
 
     # Test C++ API: set_template() with stateless lambda (no captures)
     # NOTE: set_template() is not intended to be a public API, but we test it to ensure it doesn't break.
@@ -414,6 +418,8 @@ water_heater:
     current_temperature: !lambda "return 42.0f;"
     target_temperature: !lambda "return 60.0f;"
     mode: !lambda "return water_heater::WATER_HEATER_MODE_ECO;"
+    away: !lambda "return false;"
+    is_on: !lambda "return true;"
     supported_modes:
       - "OFF"
       - ECO
