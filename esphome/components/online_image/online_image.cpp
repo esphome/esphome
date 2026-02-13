@@ -132,6 +132,8 @@ void OnlineImage::loop() {
 
   if (!this->downloader_) {
     ESP_LOGE(TAG, "Downloader not instantiated; cannot download");
+    this->end_connection_();
+    this->download_error_callback_.call();
     return;
   }
 
@@ -201,6 +203,10 @@ void OnlineImage::loop() {
 }
 
 void OnlineImage::end_connection_() {
+  // Abort any in-progress decode to free decoder resources
+  if (this->is_decoding()) {
+    this->release();
+  }
   if (this->downloader_) {
     this->downloader_->end();
     this->downloader_ = nullptr;
