@@ -173,7 +173,7 @@ template<> bool Decoder::do_operand_<Decoder::AUDIO_STATUS>() {
   char line[20];
   if (offset_ < frame_.size()) {
     uint8_t field = frame_[offset_];
-    std::sprintf(line, "Mute=%d,Vol=%02X", (field >> 7), (field & 0x7f));
+    std::snprintf(line, sizeof(line), "Mute=%d,Vol=%02X", (field >> 7), (field & 0x7f));
     return append_operand_(line);
   } else {
     return append_operand_("?");
@@ -218,8 +218,8 @@ template<> bool Decoder::do_operand_<Decoder::PHYSICAL_ADDRESS>() {
     return append_operand_("?", 2);
   }
   char line[12];
-  std::sprintf(line, "%1x.%1x.%1x.%1x", (frame_[offset_] >> 4) & 0xF, frame_[offset_] & 0xF,
-               (frame_[offset_ + 1] >> 4) & 0xF, frame_[offset_ + 1] & 0xF);
+  std::snprintf(line, sizeof(line), "%1x.%1x.%1x.%1x", (frame_[offset_] >> 4) & 0xF, frame_[offset_] & 0xF,
+                (frame_[offset_ + 1] >> 4) & 0xF, frame_[offset_ + 1] & 0xF);
   return append_operand_(line, 2);
 }
 
@@ -239,13 +239,13 @@ template<> bool Decoder::do_operand_<Decoder::SHORT_AUDIO_DESCRIPTOR>() {
   while (ok && (offset_ + 2 < frame_.size())) {
     const uint8_t *descriptor = frame_.data() + offset_;
     uint8_t format = (descriptor[0] >> 3) & 0x0F;
-    pos = std::sprintf(&line[0], "%s", AUDIO_FORMATS[format]);
-    pos += std::sprintf(&line[pos], ",num_channels=%d", (descriptor[0] & 0x07));
+    pos = buf_append_printf(&line[0], line.size(), 0, "%s", AUDIO_FORMATS[format]);
+    pos = buf_append_printf(&line[0], line.size(), pos, ",num_channels=%d", (descriptor[0] & 0x07));
     uint8_t rates = descriptor[1];
     for (int bit = 0; rates; bit++, rates >>= 1) {
       if (rates & 0x1) {
         // show support of various audio sample rates
-        pos += std::sprintf(&line[pos], ",%skHz", AUDIO_SAMPLERATES[bit]);
+        pos = buf_append_printf(&line[0], line.size(), pos, ",%skHz", AUDIO_SAMPLERATES[bit]);
       }
     }
     if (format == 1) {
@@ -254,7 +254,7 @@ template<> bool Decoder::do_operand_<Decoder::SHORT_AUDIO_DESCRIPTOR>() {
       for (int i = 0; widths; i++, widths >>= 1) {
         if (widths & 0x1) {
           // show support of audio samble bit widths of 16, 20, and/or 24
-          pos += std::sprintf(&line[pos], ",%dbits", (16 + 4 * i));
+          pos = buf_append_printf(&line[0], line.size(), pos, ",%dbits", (16 + 4 * i));
         }
       }
     }
@@ -305,7 +305,7 @@ template<> bool Decoder::do_operand_<Decoder::VENDOR_ID>() {
   if (it == VENDOR_IDS.end()) {
     // if the hdmi-cec vendor id is not in our list, the id value itself is printed.
     char line[12];
-    sprintf(line, "ID=%06x", id);
+    std::snprintf(line, sizeof(line), "ID=%06x", id);
     return append_operand_(line, 3);
   }
   return append_operand_(it->second, 3);
@@ -424,7 +424,7 @@ const char *Decoder::find_opcode_name_(uint32_t opcode) const {
  * @return true if a further operand can be decoded, false otherwise
  */
 bool Decoder::append_operand_(const char *word, uint8_t offset_incr /* default 1 */) {
-  length_ += snprintf(&line_[length_], (line_.size() - length_), "[%s]", word);
+  length_ = buf_append_printf(&line_[0], line_.size(), length_, "[%s]", word);
   offset_ += offset_incr;
   return (length_ < line_.size()) && (offset_ < frame_.size());
 }
