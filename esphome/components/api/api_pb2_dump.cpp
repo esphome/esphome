@@ -100,6 +100,18 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
   out.append(hex_buf).append("\n");
 }
 
+template<> const char *proto_enum_to_string<enums::SerialProxyPortType>(enums::SerialProxyPortType value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_PORT_TYPE_TTL:
+      return "SERIAL_PROXY_PORT_TYPE_TTL";
+    case enums::SERIAL_PROXY_PORT_TYPE_RS232:
+      return "SERIAL_PROXY_PORT_TYPE_RS232";
+    case enums::SERIAL_PROXY_PORT_TYPE_RS485:
+      return "SERIAL_PROXY_PORT_TYPE_RS485";
+    default:
+      return "UNKNOWN";
+  }
+}
 template<> const char *proto_enum_to_string<enums::EntityCategory>(enums::EntityCategory value) {
   switch (value) {
     case enums::ENTITY_CATEGORY_NONE:
@@ -807,6 +819,14 @@ const char *DeviceInfo::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
+#ifdef USE_SERIAL_PROXY
+const char *SerialProxyInfo::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyInfo");
+  dump_field(out, "name", this->name);
+  dump_field(out, "port_type", static_cast<enums::SerialProxyPortType>(this->port_type));
+  return out.c_str();
+}
+#endif
 const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "DeviceInfoResponse");
   dump_field(out, "name", this->name);
@@ -869,7 +889,11 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, "zwave_home_id", this->zwave_home_id);
 #endif
 #ifdef USE_SERIAL_PROXY
-  dump_field(out, "serial_proxy_count", this->serial_proxy_count);
+  for (const auto &it : this->serial_proxies) {
+    out.append("  serial_proxies: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
 #endif
   return out.c_str();
 }

@@ -204,6 +204,17 @@ message DeviceInfo {
   uint32 area_id = 3;
 }
 
+enum SerialProxyPortType {
+  SERIAL_PROXY_PORT_TYPE_TTL = 0;
+  SERIAL_PROXY_PORT_TYPE_RS232 = 1;
+  SERIAL_PROXY_PORT_TYPE_RS485 = 2;
+}
+
+message SerialProxyInfo {
+  string name = 1;                    // Human-readable port name
+  SerialProxyPortType port_type = 2;  // Port type (RS232, RS485)
+}
+
 message DeviceInfoResponse {
   option (id) = 10;
   option (source) = SOURCE_SERVER;
@@ -267,8 +278,8 @@ message DeviceInfoResponse {
   uint32 zwave_proxy_feature_flags = 23 [(field_ifdef) = "USE_ZWAVE_PROXY"];
   uint32 zwave_home_id = 24 [(field_ifdef) = "USE_ZWAVE_PROXY"];
 
-  // Number of serial proxy instances available on the device
-  uint32 serial_proxy_count = 25 [(field_ifdef) = "USE_SERIAL_PROXY"];
+  // Serial proxy instance metadata
+  repeated SerialProxyInfo serial_proxies = 25 [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
 }
 
 message ListEntitiesRequest {

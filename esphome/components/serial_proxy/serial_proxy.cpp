@@ -47,9 +47,15 @@ void SerialProxy::loop() {
 void SerialProxy::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Serial Proxy [%u]:\n"
+                "  Name: %s\n"
+                "  Port Type: %s\n"
                 "  RTS Pin: %s\n"
                 "  DTR Pin: %s",
-                this->instance_index_, this->rts_pin_ != nullptr ? "configured" : "not configured",
+                this->instance_index_, this->name_.c_str(),
+                this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485   ? "RS485"
+                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232 ? "RS232"
+                                                                               : "TTL",
+                this->rts_pin_ != nullptr ? "configured" : "not configured",
                 this->dtr_pin_ != nullptr ? "configured" : "not configured");
 }
 

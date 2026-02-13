@@ -8,9 +8,12 @@
 
 #ifdef USE_SERIAL_PROXY
 
+#include "esphome/components/api/api_pb2.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/uart/uart.h"
+
+#include <string>
 
 namespace esphome::serial_proxy {
 
@@ -29,6 +32,18 @@ class SerialProxy : public uart::UARTDevice, public Component {
 
   /// Set the instance index (called by Application::register_serial_proxy)
   void set_instance_index(uint32_t index) { this->instance_index_ = index; }
+
+  /// Set the human-readable port name (from YAML configuration)
+  void set_name(const std::string &name) { this->name_ = name; }
+
+  /// Get the human-readable port name
+  const std::string &get_name() const { return this->name_; }
+
+  /// Set the port type (from YAML configuration)
+  void set_port_type(api::enums::SerialProxyPortType port_type) { this->port_type_ = port_type; }
+
+  /// Get the port type
+  api::enums::SerialProxyPortType get_port_type() const { return this->port_type_; }
 
   /// Configure UART parameters and apply them
   /// @param baudrate Baud rate in bits per second
@@ -65,6 +80,12 @@ class SerialProxy : public uart::UARTDevice, public Component {
  protected:
   /// Instance index for identifying this proxy in API messages
   uint32_t instance_index_{0};
+
+  /// Human-readable port name
+  std::string name_;
+
+  /// Port type
+  api::enums::SerialProxyPortType port_type_{api::enums::SERIAL_PROXY_PORT_TYPE_TTL};
 
   /// Optional GPIO pins for modem control
   GPIOPin *rts_pin_{nullptr};

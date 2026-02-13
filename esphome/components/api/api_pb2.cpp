@@ -65,6 +65,16 @@ void DeviceInfo::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, this->area_id);
 }
 #endif
+#ifdef USE_SERIAL_PROXY
+void SerialProxyInfo::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->name);
+  buffer.encode_uint32(2, static_cast<uint32_t>(this->port_type));
+}
+void SerialProxyInfo::calculate_size(ProtoSize &size) const {
+  size.add_length(1, this->name.size());
+  size.add_uint32(1, static_cast<uint32_t>(this->port_type));
+}
+#endif
 void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(2, this->name);
   buffer.encode_string(3, this->mac_address);
@@ -120,7 +130,9 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(24, this->zwave_home_id);
 #endif
 #ifdef USE_SERIAL_PROXY
-  buffer.encode_uint32(25, this->serial_proxy_count);
+  for (const auto &it : this->serial_proxies) {
+    buffer.encode_message(25, it);
+  }
 #endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
@@ -178,7 +190,9 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
   size.add_uint32(2, this->zwave_home_id);
 #endif
 #ifdef USE_SERIAL_PROXY
-  size.add_uint32(2, this->serial_proxy_count);
+  for (const auto &it : this->serial_proxies) {
+    size.add_message_object_force(2, it);
+  }
 #endif
 }
 #ifdef USE_BINARY_SENSOR

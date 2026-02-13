@@ -6,3 +6,5 @@ api:
 
 serial_proxy:
   - id: serial_proxy_1
+    name: Test Serial Port
+    port_type: RS232

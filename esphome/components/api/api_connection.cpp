@@ -1695,7 +1695,14 @@ bool APIConnection::send_device_info_response_() {
   resp.zwave_home_id = zwave_proxy::global_zwave_proxy->get_home_id();
 #endif
 #ifdef USE_SERIAL_PROXY
-  resp.serial_proxy_count = App.get_serial_proxies().size();
+  size_t serial_proxy_index = 0;
+  for (auto const &proxy : App.get_serial_proxies()) {
+    if (serial_proxy_index >= SERIAL_PROXY_COUNT)
+      break;
+    auto &info = resp.serial_proxies[serial_proxy_index++];
+    info.name = StringRef(proxy->get_name());
+    info.port_type = proxy->get_port_type();
+  }
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;

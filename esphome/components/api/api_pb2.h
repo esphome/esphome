@@ -12,6 +12,11 @@ namespace esphome::api {
 
 namespace enums {
 
+enum SerialProxyPortType : uint32_t {
+  SERIAL_PROXY_PORT_TYPE_TTL = 0,
+  SERIAL_PROXY_PORT_TYPE_RS232 = 1,
+  SERIAL_PROXY_PORT_TYPE_RS485 = 2,
+};
 enum EntityCategory : uint32_t {
   ENTITY_CATEGORY_NONE = 0,
   ENTITY_CATEGORY_CONFIG = 1,
@@ -481,10 +486,24 @@ class DeviceInfo final : public ProtoMessage {
  protected:
 };
 #endif
+#ifdef USE_SERIAL_PROXY
+class SerialProxyInfo final : public ProtoMessage {
+ public:
+  StringRef name{};
+  enums::SerialProxyPortType port_type{};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
 class DeviceInfoResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 10;
-  static constexpr uint16_t ESTIMATED_SIZE = 260;
+  static constexpr uint16_t ESTIMATED_SIZE = 309;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "device_info_response"; }
 #endif
@@ -538,7 +557,7 @@ class DeviceInfoResponse final : public ProtoMessage {
   uint32_t zwave_home_id{0};
 #endif
 #ifdef USE_SERIAL_PROXY
-  uint32_t serial_proxy_count{0};
+  std::array<SerialProxyInfo, SERIAL_PROXY_COUNT> serial_proxies{};
 #endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
