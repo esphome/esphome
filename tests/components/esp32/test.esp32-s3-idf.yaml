@@ -1,6 +1,6 @@
 esp32:
   variant: esp32s3
-  custom_partitions:
+  partitions:
     - name: my_data
       type: data
       subtype: spiffs

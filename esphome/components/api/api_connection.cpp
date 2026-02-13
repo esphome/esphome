@@ -133,8 +133,8 @@ void APIConnection::start() {
     return;
   }
   // Initialize client name with peername (IP address) until Hello message provides actual name
-  const char *peername = this->helper_->get_client_peername();
-  this->helper_->set_client_name(peername, strlen(peername));
+  char peername[socket::SOCKADDR_STR_LEN];
+  this->helper_->set_client_name(this->helper_->get_peername_to(peername), strlen(peername));
 }
 
 APIConnection::~APIConnection() {
@@ -179,8 +179,8 @@ void APIConnection::begin_iterator_(ActiveIterator type) {
 
 void APIConnection::loop() {
   if (this->flags_.next_close) {
-    // requested a disconnect
-    this->helper_->close();
+    // requested a disconnect - don't close socket here, let APIServer::loop() do it
+    // so getpeername() still works for the disconnect trigger
     this->flags_.remove = true;
     return;
   }
@@ -219,35 +219,8 @@ void APIConnection::loop() {
     this->process_batch_();
   }
 
-  switch (this->active_iterator_) {
-    case ActiveIterator::LIST_ENTITIES:
-      if (this->iterator_storage_.list_entities.completed()) {
-        this->destroy_active_iterator_();
-        if (this->flags_.state_subscription) {
-          this->begin_iterator_(ActiveIterator::INITIAL_STATE);
-        }
-      } else {
-        this->process_iterator_batch_(this->iterator_storage_.list_entities);
-      }
-      break;
-    case ActiveIterator::INITIAL_STATE:
-      if (this->iterator_storage_.initial_state.completed()) {
-        this->destroy_active_iterator_();
-        // Process any remaining batched messages immediately
-        if (!this->deferred_batch_.empty()) {
-          this->process_batch_();
-        }
-        // Now that everything is sent, enable immediate sending for future state changes
-        this->flags_.should_try_send_immediately = true;
-        // Release excess memory from buffers that grew during initial sync
-        this->deferred_batch_.release_buffer();
-        this->helper_->release_buffers();
-      } else {
-        this->process_iterator_batch_(this->iterator_storage_.initial_state);
-      }
-      break;
-    case ActiveIterator::NONE:
-      break;
+  if (this->active_iterator_ != ActiveIterator::NONE) {
+    this->process_active_iterator_();
   }
 
   if (this->flags_.sent_ping) {
@@ -283,7 +256,50 @@ void APIConnection::loop() {
 #endif
 }
 
-bool APIConnection::send_disconnect_response(const DisconnectRequest &msg) {
+void APIConnection::process_active_iterator_() {
+  // Caller ensures active_iterator_ != NONE
+  if (this->active_iterator_ == ActiveIterator::LIST_ENTITIES) {
+    if (this->iterator_storage_.list_entities.completed()) {
+      this->destroy_active_iterator_();
+      if (this->flags_.state_subscription) {
+        this->begin_iterator_(ActiveIterator::INITIAL_STATE);
+      }
+    } else {
+      this->process_iterator_batch_(this->iterator_storage_.list_entities);
+    }
+  } else {  // INITIAL_STATE
+    if (this->iterator_storage_.initial_state.completed()) {
+      this->destroy_active_iterator_();
+      // Process any remaining batched messages immediately
+      if (!this->deferred_batch_.empty()) {
+        this->process_batch_();
+      }
+      // Now that everything is sent, enable immediate sending for future state changes
+      this->flags_.should_try_send_immediately = true;
+      // Release excess memory from buffers that grew during initial sync
+      this->deferred_batch_.release_buffer();
+      this->helper_->release_buffers();
+    } else {
+      this->process_iterator_batch_(this->iterator_storage_.initial_state);
+    }
+  }
+}
+
+void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
+  size_t initial_size = this->deferred_batch_.size();
+  size_t max_batch = this->get_max_batch_size_();
+  while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
+    iterator.advance();
+  }
+
+  // If the batch is full, process it immediately
+  // Note: iterator.advance() already calls schedule_batch_() via schedule_message_()
+  if (this->deferred_batch_.size() >= max_batch) {
+    this->process_batch_();
+  }
+}
+
+bool APIConnection::send_disconnect_response_() {
   // remote initiated disconnect_client
   // don't close yet, we still need to send the disconnect response
   // close will happen on next loop
@@ -292,8 +308,9 @@ bool APIConnection::send_disconnect_response(const DisconnectRequest &msg) {
   DisconnectResponse resp;
   return this->send_message(resp, DisconnectResponse::MESSAGE_TYPE);
 }
-void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
-  this->helper_->close();
+void APIConnection::on_disconnect_response() {
+  // Don't close socket here, let APIServer::loop() do it
+  // so getpeername() still works for the disconnect trigger
   this->flags_.remove = true;
 }
 
@@ -406,7 +423,7 @@ uint16_t APIConnection::try_send_cover_info(EntityBase *entity, APIConnection *c
   msg.device_class = cover->get_device_class_ref();
   return fill_and_encode_entity_info(cover, msg, ListEntitiesCoverResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::cover_command(const CoverCommandRequest &msg) {
+void APIConnection::on_cover_command_request(const CoverCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(cover::Cover, cover, cover)
   if (msg.has_position)
     call.set_position(msg.position);
@@ -449,7 +466,7 @@ uint16_t APIConnection::try_send_fan_info(EntityBase *entity, APIConnection *con
   msg.supported_preset_modes = &traits.supported_preset_modes();
   return fill_and_encode_entity_info(fan, msg, ListEntitiesFanResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::fan_command(const FanCommandRequest &msg) {
+void APIConnection::on_fan_command_request(const FanCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(fan::Fan, fan, fan)
   if (msg.has_state)
     call.set_state(msg.state);
@@ -517,7 +534,7 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
   msg.effects = &effects_list;
   return fill_and_encode_entity_info(light, msg, ListEntitiesLightResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::light_command(const LightCommandRequest &msg) {
+void APIConnection::on_light_command_request(const LightCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(light::LightState, light, light)
   if (msg.has_state)
     call.set_state(msg.state);
@@ -594,7 +611,7 @@ uint16_t APIConnection::try_send_switch_info(EntityBase *entity, APIConnection *
   msg.device_class = a_switch->get_device_class_ref();
   return fill_and_encode_entity_info(a_switch, msg, ListEntitiesSwitchResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::switch_command(const SwitchCommandRequest &msg) {
+void APIConnection::on_switch_command_request(const SwitchCommandRequest &msg) {
   ENTITY_COMMAND_GET(switch_::Switch, a_switch, switch)
 
   if (msg.state) {
@@ -692,7 +709,7 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   msg.supported_swing_modes = &traits.get_supported_swing_modes();
   return fill_and_encode_entity_info(climate, msg, ListEntitiesClimateResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::climate_command(const ClimateCommandRequest &msg) {
+void APIConnection::on_climate_command_request(const ClimateCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(climate::Climate, climate, climate)
   if (msg.has_mode)
     call.set_mode(static_cast<climate::ClimateMode>(msg.mode));
@@ -742,7 +759,7 @@ uint16_t APIConnection::try_send_number_info(EntityBase *entity, APIConnection *
   msg.step = number->traits.get_step();
   return fill_and_encode_entity_info(number, msg, ListEntitiesNumberResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::number_command(const NumberCommandRequest &msg) {
+void APIConnection::on_number_command_request(const NumberCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(number::Number, number, number)
   call.set_value(msg.state);
   call.perform();
@@ -767,7 +784,7 @@ uint16_t APIConnection::try_send_date_info(EntityBase *entity, APIConnection *co
   ListEntitiesDateResponse msg;
   return fill_and_encode_entity_info(date, msg, ListEntitiesDateResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::date_command(const DateCommandRequest &msg) {
+void APIConnection::on_date_command_request(const DateCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(datetime::DateEntity, date, date)
   call.set_date(msg.year, msg.month, msg.day);
   call.perform();
@@ -792,7 +809,7 @@ uint16_t APIConnection::try_send_time_info(EntityBase *entity, APIConnection *co
   ListEntitiesTimeResponse msg;
   return fill_and_encode_entity_info(time, msg, ListEntitiesTimeResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::time_command(const TimeCommandRequest &msg) {
+void APIConnection::on_time_command_request(const TimeCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(datetime::TimeEntity, time, time)
   call.set_time(msg.hour, msg.minute, msg.second);
   call.perform();
@@ -819,7 +836,7 @@ uint16_t APIConnection::try_send_datetime_info(EntityBase *entity, APIConnection
   ListEntitiesDateTimeResponse msg;
   return fill_and_encode_entity_info(datetime, msg, ListEntitiesDateTimeResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::datetime_command(const DateTimeCommandRequest &msg) {
+void APIConnection::on_date_time_command_request(const DateTimeCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(datetime::DateTimeEntity, datetime, datetime)
   call.set_datetime(msg.epoch_seconds);
   call.perform();
@@ -848,7 +865,7 @@ uint16_t APIConnection::try_send_text_info(EntityBase *entity, APIConnection *co
   msg.pattern = text->traits.get_pattern_ref();
   return fill_and_encode_entity_info(text, msg, ListEntitiesTextResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::text_command(const TextCommandRequest &msg) {
+void APIConnection::on_text_command_request(const TextCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(text::Text, text, text)
   call.set_value(msg.state);
   call.perform();
@@ -874,7 +891,7 @@ uint16_t APIConnection::try_send_select_info(EntityBase *entity, APIConnection *
   msg.options = &select->traits.get_options();
   return fill_and_encode_entity_info(select, msg, ListEntitiesSelectResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::select_command(const SelectCommandRequest &msg) {
+void APIConnection::on_select_command_request(const SelectCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(select::Select, select, select)
   call.set_option(msg.state.c_str(), msg.state.size());
   call.perform();
@@ -888,7 +905,7 @@ uint16_t APIConnection::try_send_button_info(EntityBase *entity, APIConnection *
   msg.device_class = button->get_device_class_ref();
   return fill_and_encode_entity_info(button, msg, ListEntitiesButtonResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void esphome::api::APIConnection::button_command(const ButtonCommandRequest &msg) {
+void esphome::api::APIConnection::on_button_command_request(const ButtonCommandRequest &msg) {
   ENTITY_COMMAND_GET(button::Button, button, button)
   button->press();
 }
@@ -914,7 +931,7 @@ uint16_t APIConnection::try_send_lock_info(EntityBase *entity, APIConnection *co
   msg.requires_code = a_lock->traits.get_requires_code();
   return fill_and_encode_entity_info(a_lock, msg, ListEntitiesLockResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::lock_command(const LockCommandRequest &msg) {
+void APIConnection::on_lock_command_request(const LockCommandRequest &msg) {
   ENTITY_COMMAND_GET(lock::Lock, a_lock, lock)
 
   switch (msg.command) {
@@ -952,7 +969,7 @@ uint16_t APIConnection::try_send_valve_info(EntityBase *entity, APIConnection *c
   msg.supports_stop = traits.get_supports_stop();
   return fill_and_encode_entity_info(valve, msg, ListEntitiesValveResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::valve_command(const ValveCommandRequest &msg) {
+void APIConnection::on_valve_command_request(const ValveCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(valve::Valve, valve, valve)
   if (msg.has_position)
     call.set_position(msg.position);
@@ -996,7 +1013,7 @@ uint16_t APIConnection::try_send_media_player_info(EntityBase *entity, APIConnec
   return fill_and_encode_entity_info(media_player, msg, ListEntitiesMediaPlayerResponse::MESSAGE_TYPE, conn,
                                      remaining_size);
 }
-void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
+void APIConnection::on_media_player_command_request(const MediaPlayerCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(media_player::MediaPlayer, media_player, media_player)
   if (msg.has_command) {
     call.set_command(static_cast<media_player::MediaPlayerCommand>(msg.command));
@@ -1063,7 +1080,7 @@ uint16_t APIConnection::try_send_camera_info(EntityBase *entity, APIConnection *
   ListEntitiesCameraResponse msg;
   return fill_and_encode_entity_info(camera, msg, ListEntitiesCameraResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::camera_image(const CameraImageRequest &msg) {
+void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
   if (camera::Camera::instance() == nullptr)
     return;
 
@@ -1092,42 +1109,47 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
 #endif
 
 #ifdef USE_BLUETOOTH_PROXY
-void APIConnection::subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) {
+void APIConnection::on_subscribe_bluetooth_le_advertisements_request(
+    const SubscribeBluetoothLEAdvertisementsRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->subscribe_api_connection(this, msg.flags);
 }
-void APIConnection::unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
+void APIConnection::on_unsubscribe_bluetooth_le_advertisements_request() {
   bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
 }
-void APIConnection::bluetooth_device_request(const BluetoothDeviceRequest &msg) {
+void APIConnection::on_bluetooth_device_request(const BluetoothDeviceRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_device_request(msg);
 }
-void APIConnection::bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) {
+void APIConnection::on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_read(msg);
 }
-void APIConnection::bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) {
+void APIConnection::on_bluetooth_gatt_write_request(const BluetoothGATTWriteRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_write(msg);
 }
-void APIConnection::bluetooth_gatt_read_descriptor(const BluetoothGATTReadDescriptorRequest &msg) {
+void APIConnection::on_bluetooth_gatt_read_descriptor_request(const BluetoothGATTReadDescriptorRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_read_descriptor(msg);
 }
-void APIConnection::bluetooth_gatt_write_descriptor(const BluetoothGATTWriteDescriptorRequest &msg) {
+void APIConnection::on_bluetooth_gatt_write_descriptor_request(const BluetoothGATTWriteDescriptorRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_write_descriptor(msg);
 }
-void APIConnection::bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) {
+void APIConnection::on_bluetooth_gatt_get_services_request(const BluetoothGATTGetServicesRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_send_services(msg);
 }
 
-void APIConnection::bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) {
+void APIConnection::on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_notify(msg);
 }
 
-bool APIConnection::send_subscribe_bluetooth_connections_free_response(
-    const SubscribeBluetoothConnectionsFreeRequest &msg) {
+bool APIConnection::send_subscribe_bluetooth_connections_free_response_() {
   bluetooth_proxy::global_bluetooth_proxy->send_connections_free(this);
   return true;
 }
+void APIConnection::on_subscribe_bluetooth_connections_free_request() {
+  if (!this->send_subscribe_bluetooth_connections_free_response_()) {
+    this->on_fatal_error();
+  }
+}
 
-void APIConnection::bluetooth_scanner_set_mode(const BluetoothScannerSetModeRequest &msg) {
+void APIConnection::on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_scanner_set_mode(
       msg.mode == enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE);
 }
@@ -1139,7 +1161,7 @@ bool APIConnection::check_voice_assistant_api_connection_() const {
          voice_assistant::global_voice_assistant->get_api_connection() == this;
 }
 
-void APIConnection::subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) {
+void APIConnection::on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &msg) {
   if (voice_assistant::global_voice_assistant != nullptr) {
     voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe);
   }
@@ -1185,7 +1207,7 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
   }
 }
 
-bool APIConnection::send_voice_assistant_get_configuration_response(const VoiceAssistantConfigurationRequest &msg) {
+bool APIConnection::send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg) {
   VoiceAssistantConfigurationResponse resp;
   if (!this->check_voice_assistant_api_connection_()) {
     return this->send_message(resp, VoiceAssistantConfigurationResponse::MESSAGE_TYPE);
@@ -1222,8 +1244,13 @@ bool APIConnection::send_voice_assistant_get_configuration_response(const VoiceA
   resp.max_active_wake_words = config.max_active_wake_words;
   return this->send_message(resp, VoiceAssistantConfigurationResponse::MESSAGE_TYPE);
 }
+void APIConnection::on_voice_assistant_configuration_request(const VoiceAssistantConfigurationRequest &msg) {
+  if (!this->send_voice_assistant_get_configuration_response_(msg)) {
+    this->on_fatal_error();
+  }
+}
 
-void APIConnection::voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) {
+void APIConnection::on_voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) {
   if (this->check_voice_assistant_api_connection_()) {
     voice_assistant::global_voice_assistant->on_set_configuration(msg.active_wake_words);
   }
@@ -1231,11 +1258,11 @@ void APIConnection::voice_assistant_set_configuration(const VoiceAssistantSetCon
 #endif
 
 #ifdef USE_ZWAVE_PROXY
-void APIConnection::zwave_proxy_frame(const ZWaveProxyFrame &msg) {
+void APIConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) {
   zwave_proxy::global_zwave_proxy->send_frame(msg.data, msg.data_len);
 }
 
-void APIConnection::zwave_proxy_request(const ZWaveProxyRequest &msg) {
+void APIConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
   zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, msg.type);
 }
 #endif
@@ -1263,7 +1290,7 @@ uint16_t APIConnection::try_send_alarm_control_panel_info(EntityBase *entity, AP
   return fill_and_encode_entity_info(a_alarm_control_panel, msg, ListEntitiesAlarmControlPanelResponse::MESSAGE_TYPE,
                                      conn, remaining_size);
 }
-void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) {
+void APIConnection::on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(alarm_control_panel::AlarmControlPanel, a_alarm_control_panel, alarm_control_panel)
   switch (msg.command) {
     case enums::ALARM_CONTROL_PANEL_DISARM:
@@ -1323,7 +1350,7 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
   return fill_and_encode_entity_info(wh, msg, ListEntitiesWaterHeaterResponse::MESSAGE_TYPE, conn, remaining_size);
 }
 
-void APIConnection::water_heater_command(const WaterHeaterCommandRequest &msg) {
+void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(water_heater::WaterHeater, water_heater, water_heater)
   if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_MODE)
     call.set_mode(static_cast<water_heater::WaterHeaterMode>(msg.mode));
@@ -1333,8 +1360,12 @@ void APIConnection::water_heater_command(const WaterHeaterCommandRequest &msg) {
     call.set_target_temperature_low(msg.target_temperature_low);
   if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH)
     call.set_target_temperature_high(msg.target_temperature_high);
-  if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_STATE) {
+  if ((msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_AWAY_STATE) ||
+      (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_STATE)) {
     call.set_away((msg.state & water_heater::WATER_HEATER_STATE_AWAY) != 0);
+  }
+  if ((msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_ON_STATE) ||
+      (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_STATE)) {
     call.set_on((msg.state & water_heater::WATER_HEATER_STATE_ON) != 0);
   }
   call.perform();
@@ -1365,7 +1396,7 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
 #endif
 
 #ifdef USE_IR_RF
-void APIConnection::infrared_rf_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) {
+void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) {
   // TODO: When RF is implemented, add a field to the message to distinguish IR vs RF
   // and dispatch to the appropriate entity type based on that field.
 #ifdef USE_INFRARED
@@ -1419,7 +1450,7 @@ uint16_t APIConnection::try_send_update_info(EntityBase *entity, APIConnection *
   msg.device_class = update->get_device_class_ref();
   return fill_and_encode_entity_info(update, msg, ListEntitiesUpdateResponse::MESSAGE_TYPE, conn, remaining_size);
 }
-void APIConnection::update_command(const UpdateCommandRequest &msg) {
+void APIConnection::on_update_command_request(const UpdateCommandRequest &msg) {
   ENTITY_COMMAND_GET(update::UpdateEntity, update, update)
 
   switch (msg.command) {
@@ -1455,8 +1486,11 @@ void APIConnection::complete_authentication_() {
   this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::AUTHENTICATED);
   this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("connected"));
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  this->parent_->get_client_connected_trigger()->trigger(std::string(this->helper_->get_client_name()),
-                                                         std::string(this->helper_->get_client_peername()));
+  {
+    char peername[socket::SOCKADDR_STR_LEN];
+    this->parent_->get_client_connected_trigger()->trigger(std::string(this->helper_->get_client_name()),
+                                                           std::string(this->helper_->get_peername_to(peername)));
+  }
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   if (homeassistant::global_homeassistant_time != nullptr) {
@@ -1470,13 +1504,14 @@ void APIConnection::complete_authentication_() {
 #endif
 }
 
-bool APIConnection::send_hello_response(const HelloRequest &msg) {
+bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Copy client name with truncation if needed (set_client_name handles truncation)
   this->helper_->set_client_name(msg.client_info.c_str(), msg.client_info.size());
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
+  char peername[socket::SOCKADDR_STR_LEN];
   ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->helper_->get_client_name(),
-           this->helper_->get_client_peername(), this->client_api_version_major_, this->client_api_version_minor_);
+           this->helper_->get_peername_to(peername), this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
@@ -1491,12 +1526,12 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
   return this->send_message(resp, HelloResponse::MESSAGE_TYPE);
 }
 
-bool APIConnection::send_ping_response(const PingRequest &msg) {
+bool APIConnection::send_ping_response_() {
   PingResponse resp;
   return this->send_message(resp, PingResponse::MESSAGE_TYPE);
 }
 
-bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
+bool APIConnection::send_device_info_response_() {
   DeviceInfoResponse resp{};
   resp.name = StringRef(App.get_name());
   resp.friendly_name = StringRef(App.get_friendly_name());
@@ -1619,6 +1654,26 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 
   return this->send_message(resp, DeviceInfoResponse::MESSAGE_TYPE);
 }
+void APIConnection::on_hello_request(const HelloRequest &msg) {
+  if (!this->send_hello_response_(msg)) {
+    this->on_fatal_error();
+  }
+}
+void APIConnection::on_disconnect_request() {
+  if (!this->send_disconnect_response_()) {
+    this->on_fatal_error();
+  }
+}
+void APIConnection::on_ping_request() {
+  if (!this->send_ping_response_()) {
+    this->on_fatal_error();
+  }
+}
+void APIConnection::on_device_info_request() {
+  if (!this->send_device_info_response_()) {
+    this->on_fatal_error();
+  }
+}
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
@@ -1657,7 +1712,7 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
 }
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
-void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
+void APIConnection::on_execute_service_request(const ExecuteServiceRequest &msg) {
   bool found = false;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
   // Register the call and get a unique server-generated action_call_id
@@ -1723,7 +1778,7 @@ void APIConnection::on_homeassistant_action_response(const HomeassistantActionRe
 };
 #endif
 #ifdef USE_API_NOISE
-bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) {
+bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg) {
   NoiseEncryptionSetKeyResponse resp;
   resp.success = false;
 
@@ -1744,11 +1799,14 @@ bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryption
 
   return this->send_message(resp, NoiseEncryptionSetKeyResponse::MESSAGE_TYPE);
 }
+void APIConnection::on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg) {
+  if (!this->send_noise_encryption_set_key_response_(msg)) {
+    this->on_fatal_error();
+  }
+}
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) {
-  state_subs_at_ = 0;
-}
+void APIConnection::on_subscribe_home_assistant_states_request() { state_subs_at_ = 0; }
 #endif
 bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   if (this->flags_.remove)
@@ -1801,7 +1859,8 @@ void APIConnection::on_no_setup_connection() {
   this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("no connection setup"));
 }
 void APIConnection::on_fatal_error() {
-  this->helper_->close();
+  // Don't close socket here - keep it open so getpeername() works for logging
+  // Socket will be closed when client is removed from the list in APIServer::loop()
   this->flags_.remove = true;
 }
 
@@ -2158,12 +2217,14 @@ void APIConnection::process_state_subscriptions_() {
 #endif  // USE_API_HOMEASSISTANT_STATES
 
 void APIConnection::log_client_(int level, const LogString *message) {
+  char peername[socket::SOCKADDR_STR_LEN];
   esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s (%s): %s"), this->helper_->get_client_name(),
-                  this->helper_->get_client_peername(), LOG_STR_ARG(message));
+                  this->helper_->get_peername_to(peername), LOG_STR_ARG(message));
 }
 
 void APIConnection::log_warning_(const LogString *message, APIError err) {
-  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->helper_->get_client_name(), this->helper_->get_client_peername(),
+  char peername[socket::SOCKADDR_STR_LEN];
+  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->helper_->get_client_name(), this->helper_->get_peername_to(peername),
            LOG_STR_ARG(message), LOG_STR_ARG(api_error_to_logstr(err)), errno);
 }
 
