@@ -14,6 +14,7 @@ from . import (
     _COMPONENT_CORE,
     _COMPONENT_PREFIX_ESPHOME,
     _COMPONENT_PREFIX_EXTERNAL,
+    _COMPONENT_PREFIX_LIB,
     RAM_SECTIONS,
     MemoryAnalyzer,
 )
@@ -183,6 +184,52 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             lines.append(
                 f"{i + 1:>2}. {size:>7,} B {section_label:<8} {demangled_display:<{self.COL_TOP_SYMBOL_NAME}} {component}"
             )
+
+    def _add_cswtch_analysis(self, lines: list[str]) -> None:
+        """Add CSWTCH (GCC switch table lookup) analysis section."""
+        self._add_section_header(lines, "CSWTCH Analysis (GCC Switch Table Lookups)")
+
+        total_size = sum(size for _, size, _, _ in self._cswtch_symbols)
+        lines.append(
+            f"Total: {len(self._cswtch_symbols)} switch table(s), {total_size:,} B"
+        )
+        lines.append("")
+
+        # Group by component
+        by_component: dict[str, list[tuple[str, int, str]]] = defaultdict(list)
+        for sym_name, size, source_file, component in self._cswtch_symbols:
+            by_component[component].append((sym_name, size, source_file))
+
+        # Sort components by total size descending
+        sorted_components = sorted(
+            by_component.items(),
+            key=lambda x: sum(s[1] for s in x[1]),
+            reverse=True,
+        )
+
+        for component, symbols in sorted_components:
+            comp_total = sum(s[1] for s in symbols)
+            lines.append(f"{component} ({comp_total:,} B, {len(symbols)} tables):")
+
+            # Group by source file within component
+            by_file: dict[str, list[tuple[str, int]]] = defaultdict(list)
+            for sym_name, size, source_file in symbols:
+                by_file[source_file].append((sym_name, size))
+
+            for source_file, file_symbols in sorted(
+                by_file.items(),
+                key=lambda x: sum(s[1] for s in x[1]),
+                reverse=True,
+            ):
+                file_total = sum(s[1] for s in file_symbols)
+                lines.append(
+                    f"  {source_file} ({file_total:,} B, {len(file_symbols)} tables)"
+                )
+                for sym_name, size in sorted(
+                    file_symbols, key=lambda x: x[1], reverse=True
+                ):
+                    lines.append(f"    {size:>6,} B  {sym_name}")
+            lines.append("")
 
     def generate_report(self, detailed: bool = False) -> str:
         """Generate a formatted memory report."""
@@ -361,6 +408,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             for name, mem in components
             if name.startswith(_COMPONENT_PREFIX_EXTERNAL)
         ]
+        library_components = [
+            (name, mem)
+            for name, mem in components
+            if name.startswith(_COMPONENT_PREFIX_LIB)
+        ]
 
         top_esphome_components = sorted(
             esphome_components, key=lambda x: x[1].flash_total, reverse=True
@@ -369,6 +421,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         # Include all external components (they're usually important)
         top_external_components = sorted(
             external_components, key=lambda x: x[1].flash_total, reverse=True
+        )
+
+        # Include all library components
+        top_library_components = sorted(
+            library_components, key=lambda x: x[1].flash_total, reverse=True
         )
 
         # Check if API component exists and ensure it's included
@@ -389,10 +446,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             if name in system_components_to_include
         ]
 
-        # Combine all components to analyze: top ESPHome + all external + API if not already included + system components
+        # Combine all components to analyze: top ESPHome + all external + libraries + API if not already included + system components
         components_to_analyze = (
             list(top_esphome_components)
             + list(top_external_components)
+            + list(top_library_components)
             + system_components
         )
         if api_component and api_component not in components_to_analyze:
@@ -470,6 +528,10 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 if len(large_ram_syms) > 10:
                     lines.append(f"    ... and {len(large_ram_syms) - 10} more")
             lines.append("")
+
+        # CSWTCH (GCC switch table) analysis
+        if self._cswtch_symbols:
+            self._add_cswtch_analysis(lines)
 
         lines.append(
             "Note: This analysis covers symbols in the ELF file. Some runtime allocations may not be included."

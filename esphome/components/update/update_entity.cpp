@@ -2,11 +2,20 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome {
 namespace update {
 
 static const char *const TAG = "update";
+
+// Update state strings indexed by UpdateState enum (0-3): UNKNOWN, NO UPDATE, UPDATE AVAILABLE, INSTALLING
+PROGMEM_STRING_TABLE(UpdateStateStrings, "UNKNOWN", "NO UPDATE", "UPDATE AVAILABLE", "INSTALLING");
+
+const LogString *update_state_to_string(UpdateState state) {
+  return UpdateStateStrings::get_log_str(static_cast<uint8_t>(state),
+                                         static_cast<uint8_t>(UpdateState::UPDATE_STATE_UNKNOWN));
+}
 
 void UpdateEntity::publish_state() {
   ESP_LOGD(TAG,

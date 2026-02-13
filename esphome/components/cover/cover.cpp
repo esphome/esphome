@@ -19,17 +19,11 @@ const LogString *cover_command_to_str(float pos) {
     return LOG_STR("UNKNOWN");
   }
 }
+// Cover operation strings indexed by CoverOperation enum (0-2): IDLE, OPENING, CLOSING, plus UNKNOWN
+PROGMEM_STRING_TABLE(CoverOperationStrings, "IDLE", "OPENING", "CLOSING", "UNKNOWN");
+
 const LogString *cover_operation_to_str(CoverOperation op) {
-  switch (op) {
-    case COVER_OPERATION_IDLE:
-      return LOG_STR("IDLE");
-    case COVER_OPERATION_OPENING:
-      return LOG_STR("OPENING");
-    case COVER_OPERATION_CLOSING:
-      return LOG_STR("CLOSING");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return CoverOperationStrings::get_log_str(static_cast<uint8_t>(op), CoverOperationStrings::LAST_INDEX);
 }
 
 Cover::Cover() : position{COVER_OPEN} {}
