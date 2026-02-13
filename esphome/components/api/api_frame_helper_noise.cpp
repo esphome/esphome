@@ -201,9 +201,10 @@ APIError APINoiseFrameHelper::try_read_frame_() {
     return (state_ == State::DATA) ? APIError::BAD_DATA_PACKET : APIError::BAD_HANDSHAKE_PACKET_LEN;
   }
 
-  // Reserve space for body
-  if (this->rx_buf_.size() != msg_size) {
-    this->rx_buf_.resize(msg_size);
+  // Reserve space for body (+1 for null terminator so protobuf StringRef fields
+  // can be safely null-terminated in-place after decode)
+  if (this->rx_buf_.size() != msg_size + 1) {
+    this->rx_buf_.resize(msg_size + 1);
   }
 
   if (rx_buf_len_ < msg_size) {

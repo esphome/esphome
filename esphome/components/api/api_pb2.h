@@ -1095,6 +1095,7 @@ class HomeAssistantStateResponse final : public ProtoDecodableMessage {
   StringRef entity_id{};
   StringRef state{};
   StringRef attribute{};
+  void decode(const uint8_t *buffer, size_t length) override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif

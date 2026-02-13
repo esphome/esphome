@@ -76,7 +76,7 @@ SERVICE_ARG_NATIVE_TYPES: dict[str, MockObj] = {
     "bool": cg.bool_,
     "int": cg.int32,
     "float": cg.float_,
-    "string": cg.std_string,
+    "string": cg.StringRef,
     "bool[]": cg.FixedVector.template(cg.bool_).operator("const").operator("ref"),
     "int[]": cg.FixedVector.template(cg.int32).operator("const").operator("ref"),
     "float[]": cg.FixedVector.template(cg.float_).operator("const").operator("ref"),
@@ -380,9 +380,16 @@ async def to_code(config: ConfigType) -> None:
                 if is_optional:
                     func_args.append((cg.bool_, "return_response"))
 
+            # Check if action chain has deferred actions that would make
+            # non-owning StringRef dangle (rx_buf_ reused after delay)
+            has_deferred = automation.has_deferred_actions(conf.get(CONF_THEN, []))
+
             service_arg_names: list[str] = []
             for name, var_ in conf[CONF_VARIABLES].items():
                 native = SERVICE_ARG_NATIVE_TYPES[var_]
+                # Fall back to std::string for string args if deferred actions exist
+                if has_deferred and native is cg.StringRef:
+                    native = cg.std_string
                 service_template_args.append(native)
                 func_args.append((native, name))
                 service_arg_names.append(name)

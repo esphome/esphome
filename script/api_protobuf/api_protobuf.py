@@ -2020,6 +2020,8 @@ def build_message_type(
 
     # Collect fixed_vector fields for custom decode generation
     fixed_vector_fields = []
+    # Collect fields with (null_terminate) = true option
+    null_terminate_fields = []
 
     for field in desc.field:
         # Skip deprecated fields completely
@@ -2061,6 +2063,10 @@ def build_message_type(
             fixed_vector_fields.append((field.name, field.number))
 
         ti = create_field_type_info(field, needs_decode, needs_encode)
+
+        # Collect fields with (null_terminate) = true for post-decode null-termination
+        if needs_decode and get_field_opt(field, pb.null_terminate, False):
+            null_terminate_fields.append(ti.field_name)
 
         # Skip field declarations for fields that are in the base class
         # but include their encode/decode logic
@@ -2168,8 +2174,8 @@ def build_message_type(
         prot = "bool decode_64bit(uint32_t field_id, Proto64Bit value) override;"
         protected_content.insert(0, prot)
 
-    # Generate custom decode() override for messages with FixedVector fields
-    if fixed_vector_fields:
+    # Generate custom decode() override for messages with FixedVector or null_terminate fields
+    if fixed_vector_fields or null_terminate_fields:
         # Generate the decode() implementation in cpp
         o = f"void {desc.name}::decode(const uint8_t *buffer, size_t length) {{\n"
         # Count and init each FixedVector field
@@ -2178,6 +2184,13 @@ def build_message_type(
             o += f"  this->{field_name}.init(count_{field_name});\n"
         # Call parent decode to populate the fields
         o += "  ProtoDecodableMessage::decode(buffer, length);\n"
+        # Null-terminate fields marked with (null_terminate) = true in-place.
+        # Safe: decode is complete, byte after string was already parsed (next field tag)
+        # or is the +1 reserved byte at end of rx_buf_.
+        for field_name in null_terminate_fields:
+            o += f"  if (!this->{field_name}.empty()) {{\n"
+            o += f"    const_cast<char *>(this->{field_name}.c_str())[this->{field_name}.size()] = '\\0';\n"
+            o += "  }\n"
         o += "}\n"
         cpp += o
         # Generate the decode() declaration in header (public method)

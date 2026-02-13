@@ -953,6 +953,12 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
   }
   return true;
 }
+void HomeAssistantStateResponse::decode(const uint8_t *buffer, size_t length) {
+  ProtoDecodableMessage::decode(buffer, length);
+  if (!this->state.empty()) {
+    const_cast<char *>(this->state.c_str())[this->state.size()] = '\0';
+  }
+}
 #endif
 bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
@@ -1057,6 +1063,9 @@ void ExecuteServiceArgument::decode(const uint8_t *buffer, size_t length) {
   uint32_t count_string_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 9);
   this->string_array.init(count_string_array);
   ProtoDecodableMessage::decode(buffer, length);
+  if (!this->string_.empty()) {
+    const_cast<char *>(this->string_.c_str())[this->string_.size()] = '\0';
+  }
 }
 bool ExecuteServiceRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {

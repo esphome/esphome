@@ -1683,31 +1683,18 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
   }
 
   for (auto &it : this->parent_->get_state_subs()) {
-    // Compare entity_id: check length matches and content matches
-    size_t entity_id_len = strlen(it.entity_id);
-    if (entity_id_len != msg.entity_id.size() ||
-        memcmp(it.entity_id, msg.entity_id.c_str(), msg.entity_id.size()) != 0) {
+    if (msg.entity_id != it.entity_id) {
       continue;
     }
 
     // Compare attribute: either both have matching attribute, or both have none
-    size_t sub_attr_len = it.attribute != nullptr ? strlen(it.attribute) : 0;
-    if (sub_attr_len != msg.attribute.size() ||
-        (sub_attr_len > 0 && memcmp(it.attribute, msg.attribute.c_str(), sub_attr_len) != 0)) {
+    // it.attribute can be nullptr (meaning no attribute filter)
+    if (it.attribute != nullptr ? msg.attribute != it.attribute : !msg.attribute.empty()) {
       continue;
     }
 
-    // Create null-terminated state for callback (parse_number needs null-termination)
-    // HA state max length is 255 characters, but attributes can be much longer
-    // Use stack buffer for common case (states), heap fallback for large attributes
-    size_t state_len = msg.state.size();
-    SmallBufferWithHeapFallback<MAX_STATE_LEN + 1> state_buf_alloc(state_len + 1);
-    char *state_buf = reinterpret_cast<char *>(state_buf_alloc.get());
-    if (state_len > 0) {
-      memcpy(state_buf, msg.state.c_str(), state_len);
-    }
-    state_buf[state_len] = '\0';
-    it.callback(StringRef(state_buf, state_len));
+    // msg.state is already null-terminated in-place after protobuf decode
+    it.callback(msg.state);
   }
 }
 #endif

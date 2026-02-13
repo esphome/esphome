@@ -90,4 +90,13 @@ extend google.protobuf.FieldOptions {
     //   - uint16_t <field>_length_{0};
     //   - uint16_t <field>_count_{0};
     optional bool packed_buffer = 50015 [default=false];
+
+    // null_terminate: Write a null byte after string data in the decode buffer.
+    // When set on a string field in a SOURCE_CLIENT (decodable) message, the
+    // generated decode() override writes '\0' at data[length] after decoding.
+    // This makes the StringRef safe for c_str() usage without copying.
+    // Safe because: (1) frame helpers reserve +1 byte in rx_buf_, and
+    // (2) the overwritten byte was already consumed during decode.
+    // Only mark fields that actually need null-terminated access.
+    optional bool null_terminate = 50016 [default=false];
 }

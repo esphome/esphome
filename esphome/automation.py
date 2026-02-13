@@ -57,8 +57,14 @@ def maybe_conf(conf, *validators):
     return validate
 
 
-def register_action(name: str, action_type: MockObjClass, schema: cv.Schema):
-    return ACTION_REGISTRY.register(name, action_type, schema)
+def register_action(
+    name: str,
+    action_type: MockObjClass,
+    schema: cv.Schema,
+    *,
+    deferred: bool = False,
+):
+    return ACTION_REGISTRY.register(name, action_type, schema, deferred=deferred)
 
 
 def register_condition(name: str, condition_type: MockObjClass, schema: cv.Schema):
@@ -335,7 +341,10 @@ async def component_is_idle_condition_to_code(
 
 
 @register_action(
-    "delay", DelayAction, cv.templatable(cv.positive_time_period_milliseconds)
+    "delay",
+    DelayAction,
+    cv.templatable(cv.positive_time_period_milliseconds),
+    deferred=True,
 )
 async def delay_action_to_code(
     config: ConfigType,
@@ -445,7 +454,7 @@ _validate_wait_until = cv.maybe_simple_value(
 )
 
 
-@register_action("wait_until", WaitUntilAction, _validate_wait_until)
+@register_action("wait_until", WaitUntilAction, _validate_wait_until, deferred=True)
 async def wait_until_action_to_code(
     config: ConfigType,
     action_id: ID,
@@ -576,6 +585,26 @@ async def build_condition_list(
         condition = await build_condition(conf, templ, args)
         conditions.append(condition)
     return conditions
+
+
+def has_deferred_actions(actions: ConfigType) -> bool:
+    """Check if a validated action list contains any deferred actions.
+
+    Deferred actions (delay, wait_until, script.wait) store trigger args
+    for later execution, making non-owning types like StringRef unsafe.
+    """
+    if isinstance(actions, list):
+        return any(has_deferred_actions(item) for item in actions)
+    if isinstance(actions, dict):
+        for key in actions:
+            if key in ACTION_REGISTRY and ACTION_REGISTRY[key].deferred:
+                return True
+        return any(
+            has_deferred_actions(v)
+            for v in actions.values()
+            if isinstance(v, (list, dict))
+        )
+    return False
 
 
 async def build_automation(
