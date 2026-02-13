@@ -103,6 +103,42 @@ inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && st
  *   - ESP-IDF: blocking reads, 0 only returned when all content read
  *   - Arduino: non-blocking, 0 means "no data yet" or "all content read"
  *
+ * Chunked responses that complete in a reasonable time work correctly on both
+ * platforms. The limitation below applies only to *streaming* chunked
+ * responses where data arrives slowly over a long period.
+ *
+ * Streaming chunked responses are NOT supported (all platforms):
+ *   The read helpers (http_read_loop_result, http_read_fully) block the main
+ *   event loop until all response data is received. For streaming responses
+ *   where data trickles in slowly (e.g., TTS streaming via ffmpeg proxy),
+ *   this starves the event loop on both ESP-IDF and Arduino. If data arrives
+ *   just often enough to avoid the caller's timeout, the loop runs
+ *   indefinitely. If data stops entirely, ESP-IDF fails with
+ *   -ESP_ERR_HTTP_EAGAIN (transport timeout) while Arduino spins with
+ *   delay(1) until the caller's timeout fires. Supporting streaming requires
+ *   a non-blocking incremental read pattern that yields back to the event
+ *   loop between chunks. Components that need streaming should use
+ *   esp_http_client directly on a separate FreeRTOS task with
+ *   esp_http_client_is_complete_data_received() for completion detection
+ *   (see audio_reader.cpp for an example).
+ *
+ * Chunked transfer encoding - platform differences:
+ *   - ESP-IDF HttpContainer:
+ *       HttpContainerIDF overrides is_read_complete() to call
+ *       esp_http_client_is_complete_data_received(), which is the
+ *       authoritative completion check for both chunked and non-chunked
+ *       transfers. When esp_http_client_read() returns 0 for a completed
+ *       chunked response, read() returns 0 and is_read_complete() returns
+ *       true, so callers get COMPLETE from http_read_loop_result().
+ *
+ *   - Arduino HttpContainer:
+ *       Chunked responses are decoded internally (see
+ *       HttpContainerArduino::read_chunked_()). When the final chunk arrives,
+ *       is_chunked_ is cleared and content_length is set to bytes_read_.
+ *       Completion is then detected via is_read_complete(), and a subsequent
+ *       read() returns 0 to indicate "all content read" (not
+ *       HTTP_ERROR_CONNECTION_CLOSED).
+ *
  * Use the helper functions below instead of checking return values directly:
  *   - http_read_loop_result(): for manual loops with per-chunk processing
  *   - http_read_fully(): for simple "read N bytes into buffer" operations
@@ -204,9 +240,13 @@ class HttpContainer : public Parented<HttpRequestComponent> {
 
   size_t get_bytes_read() const { return this->bytes_read_; }
 
-  /// Check if all expected content has been read
-  /// For chunked responses, returns false (completion detected via read() returning error/EOF)
-  bool is_read_complete() const {
+  /// Check if all expected content has been read.
+  /// Base implementation handles non-chunked responses and status-code-based no-body checks.
+  /// Platform implementations may override for chunked completion detection:
+  ///   - ESP-IDF: overrides to call esp_http_client_is_complete_data_received() for chunked.
+  ///   - Arduino: read_chunked_() clears is_chunked_ and sets content_length on the final
+  ///     chunk, after which the base implementation detects completion.
+  virtual bool is_read_complete() const {
     // Per RFC 9112, these responses have no body:
     // - 1xx (Informational), 204 No Content, 205 Reset Content, 304 Not Modified
     if ((this->status_code >= 100 && this->status_code < 200) || this->status_code == HTTP_STATUS_NO_CONTENT ||
