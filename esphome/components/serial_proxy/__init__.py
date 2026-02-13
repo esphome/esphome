@@ -17,6 +17,8 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NAME
+from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["api", "uart"]
@@ -38,7 +40,7 @@ CONF_DTR_PIN = "dtr_pin"
 CONF_PORT_TYPE = "port_type"
 CONF_RTS_PIN = "rts_pin"
 
-_serial_proxy_count = []
+KEY_SERIAL_PROXY_COUNT = "serial_proxy_count"
 
 
 CONFIG_SCHEMA = (
@@ -56,6 +58,14 @@ CONFIG_SCHEMA = (
 )
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_serial_proxy_count_define():
+    """Emit the SERIAL_PROXY_COUNT define once with the final instance count."""
+    count = CORE.data.get(KEY_SERIAL_PROXY_COUNT, 0)
+    if count > 0:
+        cg.add_define("SERIAL_PROXY_COUNT", count)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -64,9 +74,13 @@ async def to_code(config):
     cg.add(var.set_name(config[CONF_NAME]))
     cg.add(var.set_port_type(config[CONF_PORT_TYPE]))
     cg.add_define("USE_SERIAL_PROXY")
-    # Track instance count — last define wins, so the final value is the total count
-    _serial_proxy_count.append(var)
-    cg.add_define("SERIAL_PROXY_COUNT", len(_serial_proxy_count))
+
+    # Track instance count for the FINAL priority define
+    count = CORE.data.setdefault(KEY_SERIAL_PROXY_COUNT, 0)
+    CORE.data[KEY_SERIAL_PROXY_COUNT] = count + 1
+    if count == 0:
+        # Schedule the count define job only once (on the first instance)
+        CORE.add_job(_add_serial_proxy_count_define)
 
     if CONF_RTS_PIN in config:
         rts_pin = await cg.gpio_pin_expression(config[CONF_RTS_PIN])
