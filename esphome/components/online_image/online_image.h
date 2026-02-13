@@ -65,13 +65,6 @@ class OnlineImage : public PollingComponent,
    */
   void release();
 
-  /**
-   * Resize the download buffer
-   *
-   * @param size The new size for the download buffer.
-   */
-  size_t resize_download_buffer(size_t size) { return this->download_buffer_.resize(size); }
-
   void add_on_finished_callback(std::function<void(bool)> &&callback);
   void add_on_error_callback(std::function<void()> &&callback);
 
