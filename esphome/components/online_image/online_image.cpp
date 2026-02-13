@@ -215,9 +215,10 @@ void OnlineImage::loop() {
 }
 
 void OnlineImage::end_connection_() {
-  // Abort any in-progress decode to free decoder resources
+  // Abort any in-progress decode to free decoder resources.
+  // Use RuntimeImage::release() directly to avoid recursion with OnlineImage::release().
   if (this->is_decoding()) {
-    this->release();
+    RuntimeImage::release();
   }
   if (this->downloader_) {
     this->downloader_->end();
