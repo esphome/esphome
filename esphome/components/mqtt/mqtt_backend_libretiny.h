@@ -6,8 +6,7 @@
 
 #include <AsyncMqttClient.h>
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTBackendLibreTiny final : public MQTTBackend {
  public:
@@ -67,8 +66,7 @@ class MQTTBackendLibreTiny final : public MQTTBackend {
   AsyncMqttClient mqtt_client_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // defined(USE_LIBRETINY)
 #endif

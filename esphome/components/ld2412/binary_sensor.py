@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_HAS_MOVING_TARGET,
     CONF_HAS_STILL_TARGET,
     CONF_HAS_TARGET,
+    CONF_ID,
     DEVICE_CLASS_MOTION,
     DEVICE_CLASS_OCCUPANCY,
     DEVICE_CLASS_RUNNING,
@@ -20,6 +21,7 @@ DEPENDENCIES = ["ld2412"]
 CONF_DYNAMIC_BACKGROUND_CORRECTION_STATUS = "dynamic_background_correction_status"
 
 CONFIG_SCHEMA = {
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
     cv.Optional(
         CONF_DYNAMIC_BACKGROUND_CORRECTION_STATUS

@@ -1,0 +1,180 @@
+esphome:
+  name: test-delta-filters
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+sensor:
+  - platform: template
+    name: "Source Sensor 1"
+    id: source_sensor_1
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Source Sensor 2"
+    id: source_sensor_2
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Source Sensor 3"
+    id: source_sensor_3
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Source Sensor 4"
+    id: source_sensor_4
+    accuracy_decimals: 1
+
+  - platform: copy
+    source_id: source_sensor_1
+    name: "Filter Min"
+    id: filter_min
+    filters:
+      - delta:
+          min_value: 10
+
+  - platform: copy
+    source_id: source_sensor_2
+    name: "Filter Max"
+    id: filter_max
+    filters:
+      - delta:
+          max_value: 10
+
+  - platform: copy
+    source_id: source_sensor_3
+    id: test_3_baseline
+    filters:
+      - median:
+          window_size: 6
+          send_every: 1
+          send_first_at: 1
+
+  - platform: copy
+    source_id: source_sensor_3
+    name: "Filter Baseline Max"
+    id: filter_baseline_max
+    filters:
+      - delta:
+          max_value: 10
+          baseline: !lambda return id(test_3_baseline).state;
+
+  - platform: copy
+    source_id: source_sensor_4
+    name: "Filter Zero Delta"
+    id: filter_zero_delta
+    filters:
+      - delta: 0
+
+script:
+  - id: test_filter_min
+    then:
+      - sensor.template.publish:
+          id: source_sensor_1
+          state: 1.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_1
+          state: 5.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_1
+          state: 12.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_1
+          state: 8.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_1
+          state: -2.0
+
+  - id: test_filter_max
+    then:
+      - sensor.template.publish:
+          id: source_sensor_2
+          state: 1.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_2
+          state: 5.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_2
+          state: 40.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_2
+          state: 10.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_2
+          state: -40.0  # Filtered out
+
+  - id: test_filter_baseline_max
+    then:
+      - sensor.template.publish:
+          id: source_sensor_3
+          state: 1.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_3
+          state: 2.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_3
+          state: 3.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_3
+          state: 40.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_3
+          state: 20.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_3
+          state: 20.0
+
+  - id: test_filter_zero_delta
+    then:
+      - sensor.template.publish:
+          id: source_sensor_4
+          state: 1.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_4
+          state: 1.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_4
+          state: 2.0
+
+button:
+  - platform: template
+    name: "Test Filter Min"
+    id: btn_filter_min
+    on_press:
+      - script.execute: test_filter_min
+
+  - platform: template
+    name: "Test Filter Max"
+    id: btn_filter_max
+    on_press:
+      - script.execute: test_filter_max
+
+  - platform: template
+    name: "Test Filter Baseline Max"
+    id: btn_filter_baseline_max
+    on_press:
+      - script.execute: test_filter_baseline_max
+
+  - platform: template
+    name: "Test Filter Zero Delta"
+    id: btn_filter_zero_delta
+    on_press:
+      - script.execute: test_filter_zero_delta

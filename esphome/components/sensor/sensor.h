@@ -9,8 +9,7 @@
 #include <initializer_list>
 #include <memory>
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *obj);
 
@@ -33,6 +32,7 @@ enum StateClass : uint8_t {
   STATE_CLASS_TOTAL = 3,
   STATE_CLASS_MEASUREMENT_ANGLE = 4
 };
+constexpr uint8_t STATE_CLASS_LAST = static_cast<uint8_t>(STATE_CLASS_MEASUREMENT_ANGLE);
 
 const LogString *state_class_to_string(StateClass state_class);
 
@@ -143,5 +143,4 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   } sensor_flags_{};
 };
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor

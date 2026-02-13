@@ -362,13 +362,13 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
   return true;
 }
 
-bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std::string &address) {
+bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const char *address) {
   if (!result.has_value()) {
     ESP_LOGVV(TAG, "report_xiaomi_results(): no results available.");
     return false;
   }
 
-  ESP_LOGD(TAG, "Got Xiaomi %s (%s):", result->name.c_str(), address.c_str());
+  ESP_LOGD(TAG, "Got Xiaomi %s (%s):", result->name.c_str(), address);
 
   if (result->temperature.has_value()) {
     ESP_LOGD(TAG, "  Temperature: %.1f°C", *result->temperature);

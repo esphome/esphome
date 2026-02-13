@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "select_call.h"
 #include "select_traits.h"
 
@@ -11,9 +12,7 @@ namespace esphome::select {
 #define LOG_SELECT(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon_ref().c_str()); \
-    } \
+    LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
   }
 
 #define SUB_SELECT(name) \
@@ -33,8 +32,8 @@ class Select : public EntityBase {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  /// @deprecated Use current_option() instead. This member will be removed in ESPHome 2026.5.0.
-  ESPDEPRECATED("Use current_option() instead of .state. Will be removed in 2026.5.0", "2025.11.0")
+  /// @deprecated Use current_option() instead. This member will be removed in ESPHome 2026.7.0.
+  ESPDEPRECATED("Use current_option() instead of .state. Will be removed in 2026.7.0", "2026.1.0")
   std::string state{};
 
   Select() = default;
@@ -45,8 +44,10 @@ class Select : public EntityBase {
   void publish_state(const char *state);
   void publish_state(size_t index);
 
-  /// Return the currently selected option (as const char* from flash).
-  const char *current_option() const;
+  /// Return the currently selected option, or empty StringRef if no state.
+  /// The returned StringRef points to string literals from codegen (static storage).
+  /// Traits are set once at startup and valid for the lifetime of the program.
+  StringRef current_option() const;
 
   /// Instantiate a SelectCall object to modify this select component's state.
   SelectCall make_call() { return SelectCall(this); }

@@ -10,6 +10,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
 #ifdef USE_LOGGER
@@ -184,6 +185,9 @@ class APIServer : public Component,
 #ifdef USE_ZWAVE_PROXY
   void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
 #endif
+#ifdef USE_IR_RF
+  void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
+#endif
 
   bool is_connected(bool state_subscription_only = false) const;
 
@@ -191,7 +195,7 @@ class APIServer : public Component,
   struct HomeAssistantStateSubscription {
     const char *entity_id;  // Pointer to flash (internal) or heap (external)
     const char *attribute;  // Pointer to flash or nullptr (nullptr means no attribute)
-    std::function<void(std::string)> callback;
+    std::function<void(StringRef)> callback;
     bool once;
 
     // Dynamic storage for external components using std::string API (custom_api_device.h)
@@ -201,14 +205,20 @@ class APIServer : public Component,
   };
 
   // New const char* overload (for internal components - zero allocation)
-  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(std::string)> f);
-  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(std::string)> f);
+  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> f);
+  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> f);
 
-  // Existing std::string overload (for custom_api_device.h - heap allocation)
+  // std::string overload with StringRef callback (for custom_api_device.h with zero-allocation callback)
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                      std::function<void(std::string)> f);
+                                      std::function<void(StringRef)> f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                std::function<void(std::string)> f);
+                                std::function<void(StringRef)> f);
+
+  // Legacy std::string overload (for custom_api_device.h - converts StringRef to std::string for callback)
+  void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
+                                      std::function<void(const std::string &)> f);
+  void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
+                                std::function<void(const std::string &)> f);
 
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
 #endif
@@ -217,33 +227,39 @@ class APIServer : public Component,
 #endif
 
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
+  Trigger<std::string, std::string> *get_client_connected_trigger() { return &this->client_connected_trigger_; }
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_disconnected_trigger() const {
-    return this->client_disconnected_trigger_;
-  }
+  Trigger<std::string, std::string> *get_client_disconnected_trigger() { return &this->client_disconnected_trigger_; }
 #endif
 
  protected:
+  // Accept incoming socket connections. Only called when socket has pending connections.
+  void __attribute__((noinline)) accept_new_connections_();
+  // Remove a disconnected client by index. Swaps with last element and pops.
+  void __attribute__((noinline)) remove_client_(size_t client_index);
+
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
                          const psk_t &active_psk, bool make_active);
 #endif  // USE_API_NOISE
 #ifdef USE_API_HOMEASSISTANT_STATES
   // Helper methods to reduce code duplication
-  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(std::string)> f,
+  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> f,
                                bool once);
+  void add_state_subscription_(std::string entity_id, optional<std::string> attribute, std::function<void(StringRef)> f,
+                               bool once);
+  // Legacy helper: wraps std::string callback and delegates to StringRef version
   void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                               std::function<void(std::string)> f, bool once);
+                               std::function<void(const std::string &)> f, bool once);
 #endif  // USE_API_HOMEASSISTANT_STATES
   // Pointers and pointer-like types first (4 bytes each)
   std::unique_ptr<socket::Socket> socket_ = nullptr;
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<std::string, std::string> client_connected_trigger_;
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> *client_disconnected_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<std::string, std::string> client_disconnected_trigger_;
 #endif
 
   // 4-byte aligned types
