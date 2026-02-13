@@ -16,6 +16,250 @@ import ImgTable from "@components/ImgTable.astro";
 
 {/* markdownlint-disable MD013 */}
 
+## Release Overview
+
+{/* RELEASE_OVERVIEW_START */}
+ESPHome 2026.2.0 is a performance and stability release. The focus is on making your devices compile faster, run leaner, and stay reliable over months of uptime.
+
+**Faster builds, smaller firmware.** ESP32 Arduino builds compile 36% faster and produce 44% less flash and 50% less static RAM. ESP-IDF compiles are ~22% faster. A streamlined certificate bundle saves another 51KB of flash.
+
+**More stable, more responsive devices.** CPU usage is down across the board: the BLE tracker loop uses ~85% less CPU, MQTT consolidation saves ~6.5% total device CPU, and the scheduler is 25% smaller. Unnecessary memory allocations have been eliminated from dozens of components, and ESP8266 devices recover significant RAM by moving strings to flash.
+
+This release also introduces 3 new components (DLMS smart meter, CH423 I/O expander, SY6970 battery management), adds 7 new display models including ESP32-P4 Waveshare panels, expands the Zigbee platform, and hardens security with constant-time authentication and cryptographic random generation.
+{/* RELEASE_OVERVIEW_END */}
+
+## Upgrade Checklist
+
+- If you use `bmp581`, update your configuration to use `bmp581_i2c` as the platform
+- If you use `on_open` in cover automations, rename it to `on_opened`
+- If you have DSMR `fw_core_version` or `fw_module_version` under `sensor:`, move them to `text_sensor:`
+- If you call Arduino library APIs directly in lambdas (e.g., `Preferences`, `WiFi`), add them to `esphome: libraries:`
+- If you connect to HTTPS servers using uncommon CAs, add `use_full_certificate_bundle: true` under `esp32: framework: advanced:`
+- If you use BL0942 sensors, expect readings to change after recalibration to match corrected reference values
+
+{/* FEATURE_HIGHLIGHTS_START */}
+## ESP32 Build Size and Compile Time Optimizations
+
+ESP32 builds are faster and produce smaller firmware in this release, meaning shorter compile times and more room on your devices.
+
+| Improvement | Savings | Details |
+|---|---|---|
+| Arduino selective compilation ([#13623](https://github.com/esphome/esphome/pull/13623)) | **36% faster builds, 44% less flash, 50% less static RAM** | Unused Arduino libraries are no longer compiled or linked |
+| ESP-IDF component exclusion ([#13610](https://github.com/esphome/esphome/pull/13610), [#13664](https://github.com/esphome/esphome/pull/13664)) | **~22% faster ESP-IDF compiles** | Unused ESP-IDF components are excluded at build time instead of compiled and discarded by the linker |
+| Streamlined certificate bundle ([#13574](https://github.com/esphome/esphome/pull/13574)) | **~51KB flash saved** | Default switched to Common CAs (~99% of websites); full bundle available via config |
+| Skip precompiled Arduino libs ([#13775](https://github.com/esphome/esphome/pull/13775)) | **~40% faster first build, ~2GB disk saved** | Stub replaces the ~270MB precompiled library download that isn't needed when building from source |
+| sdkconfig defaults ([#13611](https://github.com/esphome/esphome/pull/13611)) | Additional flash savings | Unused ESP-IDF features (debug stubs, PKCS#7, FAT) disabled by default |
+
+*Arduino numbers measured on an ESP32 Arduino build comparing before and after this release. ESP-IDF compile time measured across multiple optimization PRs. Actual savings depend on your configuration.*
+
+**How it works:** ESPHome now only compiles the parts of Arduino and ESP-IDF that your configuration actually uses. Built-in components automatically re-enable the libraries they need, so most users get these savings with zero configuration changes.
+
+> **Who benefits most?** Everyone on ESP32. If your firmware was close to flash limits, this may free enough space to add more components. If you were waiting on long compiles, expect noticeably faster builds. Users on ESP-IDF see the ~22% compile time improvement automatically. Arduino users see all three improvements.
+
+External components that call `cg.add_library()` in their code generation work automatically. If you use external components or lambdas that rely on Arduino libraries without declaring them, you can add them to `esphome: libraries:`. See [Breaking Changes](#breaking-changes) for details.
+
+## Runtime Memory and Performance
+
+Your devices should be more responsive and more stable after this update. Across all platforms, we've reduced CPU usage, freed up RAM, and eliminated sources of memory fragmentation that can cause crashes after weeks or months of uptime.
+
+### ESP8266 RAM Recovery
+
+ESP8266 devices have only 80KB of RAM, so every byte matters. This release moves constant strings and lookup tables from RAM to flash across **19+ components**, freeing up heap for actual device operation. Components updated include [web_server](/components/web_server) ([#13315](https://github.com/esphome/esphome/pull/13315)), [light](/components/light) ([#13314](https://github.com/esphome/esphome/pull/13314)), [mqtt](/components/mqtt) ([#13546](https://github.com/esphome/esphome/pull/13546)), [wifi](/components/wifi) ([#13349](https://github.com/esphome/esphome/pull/13349)), [debug](/components/debug) ([#13352](https://github.com/esphome/esphome/pull/13352)), and **13 more** via a new flash-based string table pattern ([#13659](https://github.com/esphome/esphome/pull/13659)) applied to [uart](/components/uart) ([#13805](https://github.com/esphome/esphome/pull/13805)), [sprinkler](/components/sprinkler) ([#13806](https://github.com/esphome/esphome/pull/13806)), [ssd1306](/components/display/ssd1306) ([#13814](https://github.com/esphome/esphome/pull/13814)), and others.
+
+### Long-Term Stability
+
+Devices that run for months can crash when repeated memory allocations fragment the heap. This release eliminates unnecessary runtime memory allocations across the codebase, including [api](/components/api) ([#13399](https://github.com/esphome/esphome/pull/13399)), [mqtt](/components/mqtt) ([#13434](https://github.com/esphome/esphome/pull/13434)), [thermostat](/components/climate/thermostat) ([#13692](https://github.com/esphome/esphome/pull/13692)), [sprinkler](/components/sprinkler) ([#13705](https://github.com/esphome/esphome/pull/13705)), [voice_assistant](/components/voice_assistant) ([#13689](https://github.com/esphome/esphome/pull/13689)), and many others. On ESP8266, format strings are also moved to flash as part of these changes ([#13258](https://github.com/esphome/esphome/pull/13258)).
+
+### UART Batch Reads
+
+**16 UART-based components** now read all available serial data at once instead of one byte per loop, reducing CPU overhead. Updated components include [modbus](/components/modbus) ([#13822](https://github.com/esphome/esphome/pull/13822)), [nextion](/components/display/nextion) ([#13823](https://github.com/esphome/esphome/pull/13823)), [tuya](/components/tuya) ([#13827](https://github.com/esphome/esphome/pull/13827)), [ld2410](/components/sensor/ld2410) ([#13820](https://github.com/esphome/esphome/pull/13820)), [dsmr](/components/sensor/dsmr) ([#13826](https://github.com/esphome/esphome/pull/13826)), and [ld2450](/components/sensor/ld2450) ([#13818](https://github.com/esphome/esphome/pull/13818)).
+
+### CPU and Loop Optimizations
+
+The [esp32_ble_tracker](/components/esp32_ble_tracker) loop uses **~85% less CPU** thanks to state change tracking ([#13337](https://github.com/esphome/esphome/pull/13337)). Components like [status](/components/binary_sensor/status) ([#13342](https://github.com/esphome/esphome/pull/13342)) and [globals](/components/globals) ([#13345](https://github.com/esphome/esphome/pull/13345)) no longer run every loop iteration. The [api](/components/api) ([#13901](https://github.com/esphome/esphome/pull/13901)) and core loop ([#13900](https://github.com/esphome/esphome/pull/13900)) were also tightened up, and [mDNS](/components/mdns) polling was throttled on ESP8266 and RP2040 ([#13917](https://github.com/esphome/esphome/pull/13917)).
+
+## Scheduler Improvements
+
+The scheduler runs on every device and drives all timers and intervals. This release makes it smaller and more efficient: the core timer code is **25% smaller** ([#13899](https://github.com/esphome/esphome/pull/13899)), memory allocations were removed from cleanup operations ([#13837](https://github.com/esphome/esphome/pull/13837)), and flash usage was reduced ([#13214](https://github.com/esphome/esphome/pull/13214)). Timer IDs are now type-safe to prevent collisions between components ([#13882](https://github.com/esphome/esphome/pull/13882)), and the `set_retry` API was deprecated in favor of `set_interval`/`set_timeout` ([#13845](https://github.com/esphome/esphome/pull/13845)).
+
+## MQTT Optimizations
+
+If you use MQTT, your devices will use noticeably less CPU and memory. Previously, every MQTT entity ran its own loop and rebuilt topic strings every iteration, causing thousands of unnecessary memory allocations per minute. This has been consolidated so entities are processed centrally ([#13356](https://github.com/esphome/esphome/pull/13356)), saving roughly **6.5% total device CPU** with savings scaling with entity count.
+
+Memory allocations were also removed from discovery messages ([#13216](https://github.com/esphome/esphome/pull/13216)), publish paths ([#13372](https://github.com/esphome/esphome/pull/13372)), topic building ([#13434](https://github.com/esphome/esphome/pull/13434), [#13812](https://github.com/esphome/esphome/pull/13812)), and log forwarding ([#13809](https://github.com/esphome/esphome/pull/13809)).
+
+> **Who benefits most?** Users running MQTT instead of the native API, especially devices with many entities. The more entities you expose over MQTT, the bigger the improvement. If you've noticed high CPU usage or instability on MQTT devices, this update should help.
+
+## Security Hardening
+
+Our first internal security audit in [2025.10.0](/changelog/2025.10.0/#security-enhancements) led to several deprecations, most of which were completed in [2026.1.0](/changelog/2026.1.0/). This release started a new review cycle. No issues requiring deprecation were found, but we identified several additional hardening opportunities.
+
+- **Constant-time authentication** - The dashboard ([#13865](https://github.com/esphome/esphome/pull/13865)) and web server ([#13868](https://github.com/esphome/esphome/pull/13868)) now use constant-time string comparisons for Basic Auth credential checks, preventing timing-based side-channel attacks
+- **Cryptographic random generation** - The OTA component ([#13863](https://github.com/esphome/esphome/pull/13863)) and setup wizard ([#13864](https://github.com/esphome/esphome/pull/13864)) now use Python's `secrets` module for generating authentication nonces and fallback AP passwords, replacing less secure random sources
+- **Protobuf parsing hardening** - The API protobuf parser now guards against overlong varint encodings ([#13870](https://github.com/esphome/esphome/pull/13870))
+- **Download path validation** - The dashboard binary download handler now uses `Path.resolve()` and `relative_to()` for path validation instead of string replacement ([#13867](https://github.com/esphome/esphome/pull/13867))
+- **Auth header validation** - The dashboard gracefully handles malformed Basic Auth headers instead of raising exceptions ([#13866](https://github.com/esphome/esphome/pull/13866))
+
+## New Components
+
+### DLMS/COSEM Smart Meter
+
+The new [dlms_meter](/components/sensor/dlms_meter) component adds support for smart meters using the DLMS/COSEM protocol, commonly used by European energy providers ([#8009](https://github.com/esphome/esphome/pull/8009)). The component connects via UART to an M-Bus adapter and supports encrypted communication with configurable decryption keys. Available sensors include voltage, current, and active power per phase, as well as energy totals and timestamps. Multiple provider-specific configurations are supported, including Netz NOE and EVN.
+
+### CH423 I/O Expander
+
+The new [ch423](/components/ch423) component provides support for the CH423 I/O expander with 24 GPIO pins: 8 bidirectional I/O pins and 16 output-only pins ([#13079](https://github.com/esphome/esphome/pull/13079)). Based on the CH422G driver architecture, it communicates over I2C and can be used with standard GPIO binary sensors, switches, and outputs.
+
+### SY6970 Battery Management IC
+
+The new [sy6970](/components/sensor/sy6970) component supports the SY6970 battery management IC, commonly found in devices like the LilyGo T-Display S3 Pro ([#13311](https://github.com/esphome/esphome/pull/13311)). It provides:
+
+- **Voltage sensors** - VBUS, battery, and system voltage monitoring
+- **Current sensors** - Charge and precharge current measurement
+- **Binary sensors** - Charging status, VBUS connection, and charge completion
+- **Text sensors** - Bus status, charge status, and NTC temperature status
+- **Configurable charging** - Set charge voltage, current limits, and enable/disable charging
+
+## Expanded Display Support
+
+This release adds support for **7 new display models** across multiple display platforms, with a particular focus on ESP32-P4 displays.
+
+**MIPI DSI displays:**
+
+- **Waveshare ESP32-P4-WIFI6-TOUCH-LCD-7B** - 7" touchscreen for the ESP32-P4 ([#13608](https://github.com/esphome/esphome/pull/13608))
+- **Waveshare ESP32-P4-WIFI6-TOUCH-LCD-3.4C** - 800x800 circular display ([#13840](https://github.com/esphome/esphome/pull/13840))
+- **Waveshare ESP32-P4-WIFI6-TOUCH-LCD-4C** - 720x720 circular display ([#13840](https://github.com/esphome/esphome/pull/13840))
+- **Guition JC8012P4A1** - An affordable display panel ([#13241](https://github.com/esphome/esphome/pull/13241))
+- **M5Stack Tab5 V2** - Updated revision using the ST7123 integrated display-touch driver ([#12074](https://github.com/esphome/esphome/pull/12074))
+
+**MIPI SPI displays:**
+
+- **ESP32-2432S028 variants** - Added support for ILI9342, ILI9342A, and ST7789V driver chip variants of the popular Sunton board ([#13340](https://github.com/esphome/esphome/pull/13340))
+
+**HUB75 LED matrix:**
+
+- **Huidu HD-WF1** - Added pin configuration for the WF1 version of the Huidu board ([#13341](https://github.com/esphome/esphome/pull/13341))
+
+**E-Paper:**
+
+- **Waveshare 1.54-G** - 4-color e-paper display based on the JD79660 controller ([#13758](https://github.com/esphome/esphome/pull/13758))
+
+## Zigbee and nRF52 Platform Enhancements
+
+The Zigbee integration on nRF52 receives several important improvements in this release.
+
+- **Time synchronization** - Zigbee end devices can now synchronize their clocks from the Zigbee coordinator, enabling time-based automations on battery-powered devices ([#12236](https://github.com/esphome/esphome/pull/12236))
+- **Number component support** - ESPHome number entities can now be exposed over Zigbee, expanding the set of entity types available for Zigbee-connected devices ([#13581](https://github.com/esphome/esphome/pull/13581))
+- **Custom vendor OUI** - Configure the IEEE 802.15.4 Vendor Organizationally Unique Identifier to replace Nordic Semiconductor's default company ID with your own, or use a random address during development ([#13580](https://github.com/esphome/esphome/pull/13580))
+- **Thread-safe task log buffer** - A new `TaskLogBuffer` implementation for nRF52/Zephyr using Zephyr's native `mpsc_pbuf` enables reliable multi-threaded logging, matching the capabilities already available on ESP32, Host, and LibreTiny ([#13862](https://github.com/esphome/esphome/pull/13862))
+
+## LibreTiny Platform Update
+
+LibreTiny has been updated from v1.10.x to v1.12.1 ([#13512](https://github.com/esphome/esphome/pull/13512), [#13851](https://github.com/esphome/esphome/pull/13851)), bringing new board support (WBR3, generic RTL8720CM, CR3L), a refactored Serial library with dynamic RX/TX pin changes, static IP support for Realtek AMB WiFi, improved OTA for Realtek AMBZ2, Beken BDK 3.0.78 support, and several WiFi stability fixes including watchdog resets during connection attempts on BK72xx.
+
+## Cover Component: Operation-Based Triggers and Conditions
+
+The cover component gains new triggers that fire based on movement state, making cover automations much more natural to write ([#13471](https://github.com/esphome/esphome/pull/13471)).
+
+**New triggers:**
+
+- **`on_opening`** - Fires when the cover starts opening
+- **`on_closing`** - Fires when the cover starts closing
+- **`on_idle`** - Fires when the cover stops moving
+
+**New conditions:**
+
+- **`cover.is_open`** - Check if a cover is fully open
+- **`cover.is_closed`** - Check if a cover is fully closed
+
+The existing `on_open` trigger has been renamed to `on_opened` (the old name is deprecated until 2026.8.0). Additionally, `on_opened` and `on_closed` now only fire on *transitions* to the fully open/closed state, fixing unintended repeated trigger firing that occurred on every state update.
+
+## New Sensor Features and Hardware Support
+
+**New hardware support:**
+
+- **Plantower PMS1003, PMS3003, PMS9003M** - Three additional particle sensor models are now supported by the [pmsx003](/components/sensor/pmsx003) component ([#13640](https://github.com/esphome/esphome/pull/13640))
+- **Resol DeltaSol BS/2** - The [vbus](/components/vbus) component now supports this solar controller with temperature, pump speed, heat quantity, and error sensors ([#13762](https://github.com/esphome/esphome/pull/13762))
+- **BMP581 I2C/SPI split** - The BMP581 pressure sensor has been split into `bmp581_base` and `bmp581_i2c` components, preparing the way for future SPI support. Existing users will need to update their platform from `bmp581` to `bmp581_i2c` ([#12485](https://github.com/esphome/esphome/pull/12485))
+
+**Sensor filter improvements:**
+
+- **`max_delta` filter** - A new filter that rejects measurement differences exceeding a configurable threshold, effectively removing outliers from sensor readings ([#12605](https://github.com/esphome/esphome/pull/12605))
+
+**Debug component:**
+
+- **`min_free` heap sensor** - Reports the minimum free heap size since boot for ESP32 and LibreTiny platforms, useful for detecting memory high-water-mark usage ([#13231](https://github.com/esphome/esphome/pull/13231))
+- **`fragmentation` sensor** - Now available on ESP32 in addition to ESP8266 ([#13231](https://github.com/esphome/esphome/pull/13231))
+
+## Additional Component Enhancements
+
+- **HTTP request custom CA certificates** - ESP32 devices can now use `ca_certificate_path` to specify a PEM file for SSL verification, enabling HTTPS connections to servers with self-signed or custom CA certificates ([#13552](https://github.com/esphome/esphome/pull/13552))
+- **BTHome encrypted beacons** - The bthome_mithermometer component now supports decrypting encrypted BTHome beacons from PVVX firmware using a bindkey, preventing spoofing with fake data over the air ([#13428](https://github.com/esphome/esphome/pull/13428))
+- **Ethernet `on_connect`/`on_disconnect` triggers** - The [ethernet](/components/ethernet) component now supports connection triggers, matching the functionality already available for WiFi ([#13677](https://github.com/esphome/esphome/pull/13677))
+- **HeatpumpIR ESP-IDF support** - The heatpumpir component now works with the ESP-IDF framework, not just Arduino ([#13042](https://github.com/esphome/esphome/pull/13042))
+- **Select condition** - A new `select.is` condition allows checking the value of a select entity in automations ([#13267](https://github.com/esphome/esphome/pull/13267))
+- **MQTT cover JSON state payload** - Covers can now publish position, tilt, and state as a single JSON payload on one topic, reducing MQTT message volume ([#12639](https://github.com/esphome/esphome/pull/12639))
+- **Key collector text sensor** - The [key_collector](/components/key_collector) component now supports a text sensor platform and accepts multiple key input sources ([#13617](https://github.com/esphome/esphome/pull/13617))
+- **Template water heater improvements** - Added `target_temperature` lambda ([#13661](https://github.com/esphome/esphome/pull/13661)) and On/Off and Away mode support ([#13839](https://github.com/esphome/esphome/pull/13839))
+- **Nextion configurable timeouts** - The `startup_override_ms` and `max_queue_age` constants are now configurable via YAML, allowing users to tune timing for their specific displays ([#11098](https://github.com/esphome/esphome/pull/11098))
+- **Voice assistant timer optimization** - Timer storage switched from `unordered_map` to `vector`, eliminating per-tick heap allocation and string copies for the hot path that runs every second ([#13857](https://github.com/esphome/esphome/pull/13857))
+
+## Looking Ahead
+
+This release continues the work that began in [2025.10.0](/changelog/2025.10.0/) and accelerated in [2026.1.0](/changelog/2026.1.0/): making ESPHome leaner and more reliable on every platform. Fewer heap allocations, smaller firmware, and lower CPU usage all contribute to devices that stay stable for months and years. That focus on memory discipline and long-term stability will continue in future releases as we extend these improvements to more components and platforms.
+
+On the documentation side, [esphome.io](https://esphome.io) has migrated from Hugo to [Starlight](https://starlight.astro.build/), bringing faster page loads, improved search, and a modern documentation framework that will make it easier to maintain and contribute to the docs going forward.
+{/* FEATURE_HIGHLIGHTS_END */}
+
+## Breaking Changes
+
+Most users can update without any configuration changes. The items below are grouped by whether you need to take action.
+
+{/* BREAKING_CHANGES_USERS_START */}
+### Action required (if you use these components)
+
+- **BMP581**: Update your platform from `bmp581` to `bmp581_i2c`. The component has been split to prepare for future SPI support. [#12485](https://github.com/esphome/esphome/pull/12485)
+
+- **Cover triggers**: Rename `on_open` to `on_opened` in your cover automations (the old name is deprecated until 2026.8.0). Additionally, `on_opened` and `on_closed` now only fire on *transitions* to the fully open/closed state, not on every state update. Automations that relied on repeated firing will need to be adjusted. [#13471](https://github.com/esphome/esphome/pull/13471)
+
+- **DSMR**: Move `fw_core_version` and `fw_module_version` from `sensor:` to `text_sensor:`. The meter returns version strings (e.g., `(ER11)`), not numbers. [#13780](https://github.com/esphome/esphome/pull/13780)
+
+- **Arduino library APIs in lambdas**: If you directly call Arduino library APIs in lambdas (e.g., `Preferences`, `WiFi`, `Wire`), add them to your config. ESPHome's built-in components handle this automatically, so this only affects custom lambda code. [#13623](https://github.com/esphome/esphome/pull/13623)
+
+  ```yaml
+  esphome:
+    libraries:
+      - Preferences  # Add any Arduino libraries you use directly
+  ```
+
+- **Voice Assistant timers**: If you use lambdas that iterate timers with map pair semantics (`.second`), update them to access `Timer` fields directly. See the PR description for before/after examples. [#13857](https://github.com/esphome/esphome/pull/13857)
+
+### Most users unaffected
+
+These changes improve correctness or save resources. They only require action if you depend on the previous behavior.
+
+- **ESP32 certificate bundle**: The default TLS bundle now includes only Common CAs (~99% of websites), saving ~51KB of flash. If you connect to HTTPS services using uncommon CAs, add `use_full_certificate_bundle: true` under `esp32: framework: advanced:`. [#13574](https://github.com/esphome/esphome/pull/13574)
+
+- **BL0942**: Calibration reference values have been corrected to match datasheet formulas. Sensor readings will change. Users with custom calibration may need to re-calibrate. [#12867](https://github.com/esphome/esphome/pull/12867)
+
+- **Sensor clamp filter**: The `clamp` filter now handles infinity and NaN instead of passing them through. [#13457](https://github.com/esphome/esphome/pull/13457)
+
+- **Water Heater**: On/Off and Away state control now requires both Home Assistant 2026.3.0 and ESPHome 2026.2.0. [#13892](https://github.com/esphome/esphome/pull/13892)
+{/* BREAKING_CHANGES_USERS_END */}
+
+### Breaking Changes for Developers
+
+{/* BREAKING_CHANGES_DEVELOPERS_START */}
+- **ESP32 Arduino selective compilation**: Arduino libraries are now disabled by default. External components that use Arduino libraries must call `cg.add_library("LibraryName", None)` in their `to_code()` to enable them. [#13623](https://github.com/esphome/esphome/pull/13623)
+- **Voice Assistant `get_timers()` return type**: `get_timers()` now returns `const std::vector<Timer> &` instead of `const std::unordered_map<std::string, Timer> &`. Code using map pair semantics (`.second`) must be updated to iterate `Timer` directly. The `on_timer_tick` automation arg type is now `const std::vector<Timer> &`. [#13857](https://github.com/esphome/esphome/pull/13857)
+- **Cover `on_open` renamed to `on_opened`**: The `CoverOpenTrigger` now tracks transitions instead of firing on every state update. The old `on_open` name is deprecated until 2026.8.0. [#13471](https://github.com/esphome/esphome/pull/13471)
+- **Water Heater API**: `WATER_HEATER_COMMAND_HAS_STATE` is deprecated in favor of `WATER_HEATER_COMMAND_HAS_ON_STATE` and `WATER_HEATER_COMMAND_HAS_AWAY_STATE` for granular on/off and away control. [#13892](https://github.com/esphome/esphome/pull/13892)
+
+For detailed migration guides and API documentation, see the [ESPHome Developers Documentation](https://developers.esphome.io/).
+{/* BREAKING_CHANGES_DEVELOPERS_END */}
+
+{/* markdownlint-disable MD013 */}
+
 ## Full list of changes
 
 The lists below are grouped by tag and may contain duplicates across sections.
@@ -416,7 +660,6 @@ The lists below are grouped by tag and may contain duplicates across sections.
 - [nrf52,zigee] print reporting status [esphome#13890](https://github.com/esphome/esphome/pull/13890) by [@tomaszduda23](https://github.com/tomaszduda23)
 - [uart] Change available() return type from int to size_t [esphome#13893](https://github.com/esphome/esphome/pull/13893) by [@swoboda1337](https://github.com/swoboda1337)
 - [mipi_dsi] Add WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD 3.4C and 4C [esphome#13840](https://github.com/esphome/esphome/pull/13840) by [@gtjoseph](https://github.com/gtjoseph) (new-feature)
-- [scheduler] Make core timer ID collisions impossible with type-safe internal IDs [esphome#13882](https://github.com/esphome/esphome/pull/13882) by [@bdraco](https://github.com/bdraco)
 - [scheduler] Make core timer ID collisions impossible with type-safe internal IDs [esphome#13882](https://github.com/esphome/esphome/pull/13882) by [@bdraco](https://github.com/bdraco)
 - [uart] Convert parity_to_str to PROGMEM_STRING_TABLE [esphome#13805](https://github.com/esphome/esphome/pull/13805) by [@bdraco](https://github.com/bdraco)
 - [logger] Resolve thread name once and pass through logging chain [esphome#13836](https://github.com/esphome/esphome/pull/13836) by [@bdraco](https://github.com/bdraco)
