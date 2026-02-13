@@ -31,10 +31,10 @@ RuntimeImage::RuntimeImage(ImageFormat format, image::ImageType type, image::Tra
                            image::Image *placeholder, bool is_big_endian, int fixed_width, int fixed_height)
     : Image(nullptr, 0, 0, type, transparency),
       format_(format),
-      is_big_endian_(is_big_endian),
       fixed_width_(fixed_width),
       fixed_height_(fixed_height),
-      placeholder_(placeholder) {}
+      placeholder_(placeholder),
+      is_big_endian_(is_big_endian) {}
 
 RuntimeImage::~RuntimeImage() { this->release(); }
 
