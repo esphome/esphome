@@ -3,7 +3,7 @@ from typing import Any
 
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.components.esp32 import only_on_variant, validate_custom_partition
+from esphome.components.esp32 import only_on_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
@@ -107,8 +107,6 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    validate_custom_partition("zb_storage", "data", "fat", 0x4000),
-    validate_custom_partition("zb_fct", "data", "fat", 0x400),
     zigbee_require_vfs_select,
     zigbee_set_core_data,
     cv.Any(

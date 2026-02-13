@@ -4,8 +4,10 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components.esp32 import (
+    CONF_PARTITIONS,
     add_idf_component,
     add_idf_sdkconfig_option,
+    add_partition,
     require_vfs_select,
 )
 import esphome.config_validation as cv
@@ -93,6 +95,30 @@ def validate_attributes(config: ConfigType) -> ConfigType:
 def final_validate_esp32(config: ConfigType) -> ConfigType:
     if CONF_WIFI in fv.full_config.get() and CONF_AP in fv.full_config.get()[CONF_WIFI]:
         raise cv.Invalid("Zigbee can't be used together with a Wifi Access Point.")
+    if CONF_PARTITIONS in fv.full_config.get() and not isinstance(
+        fv.full_config.get()[CONF_PARTITIONS], list
+    ):
+        with open(
+            CORE.relative_config_path(fv.full_config.get()[CONF_PARTITIONS]),
+            encoding="utf8",
+        ) as f:
+            partitions_tab = f.read()
+            for partition, types in [
+                ("zb_storage", {"type": "data", "subtype": "fat", "size": 0x4000}),
+                ("zb_fct", {"type": "data", "subtype": "fat", "size": 0x400}),
+            ]:
+                if partition not in partitions_tab:
+                    cv.Invalid(
+                        f"Add '{partition}, {types['type']}, {types['subtype']},   , {types['size']},' to your custom partition table."
+                    )
+                elif not re.search(
+                    rf"^{partition},\s*{types['type']},\s*{types['subtype']}",
+                    partitions_tab,
+                    re.MULTILINE,
+                ):
+                    cv.Invalid(
+                        f"Partition '{partition}' in your custom partition table has wrong format. It should be: '{partition}, {types['type']}, {types['subtype']},   , {types['size']},'"
+                    )
     return config
 
 
@@ -197,6 +223,10 @@ async def esp32_to_code(config: ConfigType) -> None:
     if CONF_WIFI in CORE.config:
         add_idf_sdkconfig_option("CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE", 4096)
         cg.add_define("CONFIG_WIFI_COEX")
+
+    # add partitions for zigbee
+    add_partition("zb_storage", "data", "fat", 0x4000)
+    add_partition("zb_fct", "data", "fat", 0x400)
 
     # create endpoints
     zb_data = CORE.data.get(KEY_ZIGBEE, {})
