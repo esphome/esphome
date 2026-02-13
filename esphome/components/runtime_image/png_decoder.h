@@ -30,7 +30,7 @@ class PngDecoder : public ImageDecoder {
 
  protected:
   RAMAllocator<pngle_t> allocator_;
-  pngle_t *pngle_;
+  pngle_t *pngle_{nullptr};
   uint32_t pixels_decoded_{0};
 };
 
