@@ -212,6 +212,14 @@ bool RuntimeImage::end_decode() {
 }
 
 void RuntimeImage::release() {
+  this->release_buffer_();
+  // Reset decoder separately — release() can be called from within the decoder
+  // (via set_size -> resize -> resize_buffer_), so we must not destroy the decoder here.
+  // The decoder lifecycle is managed by begin_decode()/end_decode().
+  this->decoder_ = nullptr;
+}
+
+void RuntimeImage::release_buffer_() {
   if (this->buffer_) {
     ESP_LOGV(TAG, "Releasing buffer of size %zu", this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
     this->allocator_.deallocate(this->buffer_, this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
@@ -222,7 +230,6 @@ void RuntimeImage::release() {
     this->buffer_width_ = 0;
     this->buffer_height_ = 0;
   }
-  this->decoder_ = nullptr;
 }
 
 size_t RuntimeImage::resize_buffer_(int width, int height) {
@@ -235,7 +242,7 @@ size_t RuntimeImage::resize_buffer_(int width, int height) {
 
   // Release old buffer if dimensions changed
   if (this->buffer_) {
-    this->release();
+    this->release_buffer_();
   }
 
   ESP_LOGD(TAG, "Allocating buffer: %dx%d, %zu bytes", width, height, new_size);

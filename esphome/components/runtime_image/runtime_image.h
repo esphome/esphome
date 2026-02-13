@@ -135,6 +135,13 @@ class RuntimeImage : public image::Image {
   size_t resize_buffer_(int width, int height);
 
   /**
+   * @brief Release only the image buffer without resetting the decoder.
+   *
+   * This is safe to call from within the decoder (e.g., during resize).
+   */
+  void release_buffer_();
+
+  /**
    * @brief Get the buffer size in bytes for given dimensions.
    */
   size_t get_buffer_size_(int width, int height) const;
