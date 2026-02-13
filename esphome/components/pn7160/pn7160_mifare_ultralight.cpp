@@ -159,10 +159,10 @@ uint8_t PN7160::clean_mifare_ultralight_() {
   uint32_t capacity = this->read_mifare_ultralight_capacity_();
   uint8_t pages = (capacity / nfc::MIFARE_ULTRALIGHT_PAGE_SIZE) + nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE;
 
-  static constexpr std::array<uint8_t, nfc::MIFARE_ULTRALIGHT_PAGE_SIZE> blank_data = {0x00, 0x00, 0x00, 0x00};
+  static constexpr std::array<uint8_t, nfc::MIFARE_ULTRALIGHT_PAGE_SIZE> BLANK_DATA = {0x00, 0x00, 0x00, 0x00};
 
   for (int i = nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE; i < pages; i++) {
-    if (this->write_mifare_ultralight_page_(i, blank_data.data(), blank_data.size()) != nfc::STATUS_OK) {
+    if (this->write_mifare_ultralight_page_(i, BLANK_DATA.data(), BLANK_DATA.size()) != nfc::STATUS_OK) {
       return nfc::STATUS_FAILED;
     }
   }
