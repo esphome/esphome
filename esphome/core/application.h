@@ -101,6 +101,10 @@
 #include "esphome/components/update/update_entity.h"
 #endif
 
+namespace esphome::socket {
+class Socket;
+}  // namespace esphome::socket
+
 namespace esphome {
 
 // Teardown timeout constant (in milliseconds)
@@ -491,7 +495,8 @@ class Application {
   void unregister_socket_fd(int fd);
   /// Check if there's data available on a socket without blocking
   /// This function is thread-safe for reading, but should be called after select() has run
-  bool is_socket_ready(int fd) const;
+  /// The read_fds_ is only modified by select() in the main loop
+  bool is_socket_ready(int fd) const { return fd >= 0 && this->is_socket_ready_(fd); }
 
 #ifdef USE_WAKE_LOOP_THREADSAFE
   /// Wake the main event loop from a FreeRTOS task
@@ -503,6 +508,15 @@ class Application {
 
  protected:
   friend Component;
+  friend class socket::Socket;
+
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  /// Fast path for Socket::ready() via friendship - skips negative fd check.
+  /// Safe because: fd was validated in register_socket_fd() at registration time,
+  /// and Socket::ready() only calls this when loop_monitored_ is true (registration succeeded).
+  /// FD_ISSET may include its own upper bounds check depending on platform.
+  bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
+#endif
 
   void register_component_(Component *comp);
 
@@ -518,6 +532,11 @@ class Application {
   void activate_looping_component_(uint16_t index);
   void before_loop_tasks_(uint32_t loop_start_time);
   void after_loop_tasks_();
+
+  /// Process dump_config output one component per loop iteration.
+  /// Extracted from loop() to keep cold startup/reconnect logging out of the hot path.
+  /// Caller must ensure dump_config_at_ < components_.size().
+  void __attribute__((noinline)) process_dump_config_();
 
   void feed_wdt_arch_();
 

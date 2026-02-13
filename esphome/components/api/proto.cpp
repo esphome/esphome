@@ -133,7 +133,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
         break;
       }
       default:
-        ESP_LOGV(TAG, "Invalid field type %u at offset %ld", field_type, (long) (ptr - buffer));
+        ESP_LOGV(TAG, "Invalid field type %" PRIu32 " at offset %ld", field_type, (long) (ptr - buffer));
         return;
     }
   }
