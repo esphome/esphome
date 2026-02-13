@@ -225,7 +225,12 @@ void SpeakerMediaPlayer::watch_media_commands_() {
         case media_player::MEDIA_PLAYER_COMMAND_STOP:
           // Pipelines do not stop immediately after calling the stop command, so confirm its stopped before unpausing.
           // This avoids an audible short segment playing after receiving the stop command in a paused state.
-          if (this->single_pipeline_() || this->announcement_pipeline_state_ != AudioPipelineState::STOPPED) {
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+          if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value()) ||
+              (this->is_turn_off_ && this->announcement_pipeline_state_ != AudioPipelineState::STOPPED)) {
+#else
+          if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
+#endif
             if (this->announcement_pipeline_ != nullptr) {
               this->cancel_timeout("next_ann");
               this->announcement_playlist_.clear();
