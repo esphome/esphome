@@ -66,7 +66,7 @@ void SEN6XComponent::setup() {
     // Reset the sensor to ensure a clean state regardless of prior commands or power issues
     if (!this->write_command(SEN6X_CMD_RESET)) {
       ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
 
@@ -75,7 +75,7 @@ void SEN6XComponent::setup() {
       uint16_t raw_serial_number[16];
       if (!this->get_register(SEN6X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 16, 20)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
       this->serial_number_.clear();
@@ -90,12 +90,12 @@ void SEN6XComponent::setup() {
           break;
         this->serial_number_.push_back(c2);
       }
-      ESP_LOGD(TAG, "Serial number %s", this->serial_number_.c_str());
+      ESP_LOGI(TAG, "Serial number: %s", this->serial_number_.c_str());
 
       uint16_t raw_product_name[16];
       if (!this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
 
@@ -115,52 +115,42 @@ void SEN6XComponent::setup() {
       if (this->sen6x_type_ == UNKNOWN) {
         this->sen6x_type_ = inferred_type;
         if (inferred_type == UNKNOWN) {
-          ESP_LOGE(TAG, "Unable to infer sensor type from product name '%s'. Please specify 'type' in configuration.",
-                   this->product_name_.c_str());
+          ESP_LOGE(TAG, "Unknown product '%s'", this->product_name_.c_str());
           this->mark_failed();
           return;
         }
-        ESP_LOGD(TAG, "Sensor type inferred from product name: %s", this->product_name_.c_str());
+        ESP_LOGD(TAG, "Type inferred from product: %s", this->product_name_.c_str());
       } else if (this->sen6x_type_ != inferred_type && inferred_type != UNKNOWN) {
-        ESP_LOGW(TAG,
-                 "Configured sensor type does not match product name '%s'. "
-                 "Using configured type, but this may cause issues.",
-                 this->product_name_.c_str());
+        ESP_LOGW(TAG, "Configured type (used) mismatches product '%s'", this->product_name_.c_str());
       }
-      ESP_LOGD(TAG, "Product name: %s", this->product_name_.c_str());
+      ESP_LOGI(TAG, "Product: %s", this->product_name_.c_str());
 
       uint16_t raw_firmware_version = 0;
       if (!this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, raw_firmware_version, 20)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
       this->firmware_version_major_ = (raw_firmware_version >> 8) & 0xFF;
       this->firmware_version_minor_ = raw_firmware_version & 0xFF;
-      ESP_LOGD(TAG, "Firmware version %u.%u", this->firmware_version_major_, this->firmware_version_minor_);
+      ESP_LOGI(TAG, "Firmware: %u.%u", this->firmware_version_major_, this->firmware_version_minor_);
 
       if (!this->write_command(SEN6X_CMD_START_MEASUREMENTS)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
 
       this->startup_stable_after_ = App.get_loop_component_start_time() + 60000;
       this->initialized_ = true;
-      ESP_LOGD(TAG, "Sensor initialized");
+      ESP_LOGD(TAG, "Initialized");
     });
   });
 }
 
 void SEN6XComponent::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "sen6x:\n"
-                "  Product: %s\n"
-                "  Serial: %s\n"
-                "  Firmware: %u.%u\n"
-                "  Address: 0x%02X",
-                this->product_name_.c_str(), this->serial_number_.c_str(), this->firmware_version_major_,
-                this->firmware_version_minor_, this->address_);
+  ESP_LOGCONFIG(TAG, "sen6x:");
+  LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
@@ -198,7 +188,7 @@ void SEN6XComponent::update() {
     if ((raw_read_status & 0x0001) == 0) {
       if (retries_left == 0) {
         this->status_set_warning();
-        ESP_LOGD(TAG, "data not ready in time");
+        ESP_LOGD(TAG, "Data not ready");
         return;
       }
       this->set_timeout(50, [poll_ready, retries_left]() { (*poll_ready)(retries_left - 1); });
@@ -207,7 +197,7 @@ void SEN6XComponent::update() {
 
     if (!this->write_command(read_cmd)) {
       this->status_set_warning();
-      ESP_LOGD(TAG, "write error read measurement (%d)", this->last_error_);
+      ESP_LOGD(TAG, "Read measurement failed (%d)", this->last_error_);
       return;
     }
 
@@ -216,7 +206,7 @@ void SEN6XComponent::update() {
 
       if (!this->read_data(measurements, read_words)) {
         this->status_set_warning();
-        ESP_LOGD(TAG, "read data error (%d)", this->last_error_);
+        ESP_LOGD(TAG, "Read data failed (%d)", this->last_error_);
         return;
       }
       int8_t voc_index = -1;
@@ -313,7 +303,7 @@ void SEN6XComponent::update() {
 
       const uint32_t now = App.get_loop_component_start_time();
       if (now < this->startup_stable_after_) {
-        ESP_LOGD(TAG, "Startup delay active, ignoring sensor values");
+        ESP_LOGD(TAG, "Startup delay, ignoring values");
         this->status_clear_warning();
         return;
       }
