@@ -13,7 +13,7 @@ rem Check that the defined Python exists
 if errorlevel 1 (
     echo Error: The defined Python executable was not found.
     echo PYTHON_EXE: %PYTHON_EXE%
-	echo Please ensure Python 3.11.x is installed and either in PATH or set the full path in PYTHON_EXE.
+    echo Please ensure Python 3.11.x is installed and either in PATH or set the full path in PYTHON_EXE.
     pause
     exit /b 1
 )
@@ -29,7 +29,7 @@ if not "%MAJOR_MINOR%" == "3.11." (
     echo PYTHON_EXE:     %PYTHON_EXE%
     echo Python version: %PYVER%
     echo .
-	echo Please ensure Python 3.11.x is installed and either in PATH or set the full path in PYTHON_EXE.
+    echo Please ensure Python 3.11.x is installed and either in PATH or set the full path in PYTHON_EXE.
     pause
     exit /b 1
 )
