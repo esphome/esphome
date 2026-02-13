@@ -141,7 +141,7 @@ class RuntimeImageSettings:
     width: int
     height: int
     format_enum: cg.MockObj
-    image_type_enum: cg.MockObj | None
+    image_type_enum: cg.MockObj
     transparent: cg.MockObj
     byte_order_big_endian: bool
     placeholder: cg.MockObj | None
@@ -166,10 +166,8 @@ async def process_runtime_image_config(config: dict) -> RuntimeImageSettings:
         format_name = "JPEG"
     format_enum = getattr(ImageFormat, format_name.upper())
 
-    # Get image type enum if specified
-    image_type_enum = None
-    if image_type := config.get(CONF_TYPE):
-        image_type_enum = get_image_type_enum(image_type)
+    # Get image type enum
+    image_type_enum = get_image_type_enum(config[CONF_TYPE])
 
     # Get transparency enum
     transparent = get_transparency_enum(config.get(CONF_TRANSPARENCY, "OPAQUE"))
