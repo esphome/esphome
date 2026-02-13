@@ -247,16 +247,16 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   struct station_config conf {};
   memset(&conf, 0, sizeof(conf));
-  if (ap.get_ssid().size() > sizeof(conf.ssid)) {
+  if (ap.ssid_.size() > sizeof(conf.ssid)) {
     ESP_LOGE(TAG, "SSID too long");
     return false;
   }
-  if (ap.get_password().size() > sizeof(conf.password)) {
+  if (ap.password_.size() > sizeof(conf.password)) {
     ESP_LOGE(TAG, "Password too long");
     return false;
   }
-  memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
-  memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
+  memcpy(reinterpret_cast<char *>(conf.ssid), ap.ssid_.c_str(), ap.ssid_.size());
+  memcpy(reinterpret_cast<char *>(conf.password), ap.password_.c_str(), ap.password_.size());
 
   if (ap.has_bssid()) {
     conf.bssid_set = 1;
@@ -266,7 +266,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
-  if (ap.get_password().empty()) {
+  if (ap.password_.empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
     // Set threshold based on configured minimum auth mode
@@ -738,8 +738,8 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     const char *ssid_cstr = reinterpret_cast<const char *>(it->ssid);
     if (needs_full || this->matches_configured_network_(ssid_cstr, it->bssid)) {
       this->scan_result_.emplace_back(
-          bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
-          std::string(ssid_cstr, it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN, it->is_hidden != 0);
+          bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]}, ssid_cstr,
+          it->ssid_len, it->channel, it->rssi, it->authmode != AUTH_OPEN, it->is_hidden != 0);
     } else {
       this->log_discarded_scan_result_(ssid_cstr, it->bssid, it->rssi, it->channel);
     }
@@ -832,27 +832,27 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
 
   struct softap_config conf {};
-  if (ap.get_ssid().size() > sizeof(conf.ssid)) {
+  if (ap.ssid_.size() > sizeof(conf.ssid)) {
     ESP_LOGE(TAG, "AP SSID too long");
     return false;
   }
-  memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
-  conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
+  memcpy(reinterpret_cast<char *>(conf.ssid), ap.ssid_.c_str(), ap.ssid_.size());
+  conf.ssid_len = static_cast<uint8>(ap.ssid_.size());
   conf.channel = ap.has_channel() ? ap.get_channel() : 1;
   conf.ssid_hidden = ap.get_hidden();
   conf.max_connection = 5;
   conf.beacon_interval = 100;
 
-  if (ap.get_password().empty()) {
+  if (ap.password_.empty()) {
     conf.authmode = AUTH_OPEN;
     *conf.password = 0;
   } else {
     conf.authmode = AUTH_WPA2_PSK;
-    if (ap.get_password().size() > sizeof(conf.password)) {
+    if (ap.password_.size() > sizeof(conf.password)) {
       ESP_LOGE(TAG, "AP password too long");
       return false;
     }
-    memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
+    memcpy(reinterpret_cast<char *>(conf.password), ap.password_.c_str(), ap.password_.size());
   }
 
   ETS_UART_INTR_DISABLE();
