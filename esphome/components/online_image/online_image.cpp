@@ -41,6 +41,31 @@ void OnlineImage::update() {
   ESP_LOGD(TAG, "Updating image from %s", this->url_.c_str());
 
   std::list<http_request::Header> headers;
+
+  // Add Accept header based on image format
+  const char *accept_mime_type;
+  switch (this->get_format()) {
+#ifdef USE_RUNTIME_IMAGE_BMP
+    case runtime_image::BMP:
+      accept_mime_type = "image/bmp,*/*;q=0.8";
+      break;
+#endif
+#ifdef USE_RUNTIME_IMAGE_JPEG
+    case runtime_image::JPEG:
+      accept_mime_type = "image/jpeg,*/*;q=0.8";
+      break;
+#endif
+#ifdef USE_RUNTIME_IMAGE_PNG
+    case runtime_image::PNG:
+      accept_mime_type = "image/png,*/*;q=0.8";
+      break;
+#endif
+    default:
+      accept_mime_type = "image/*,*/*;q=0.8";
+      break;
+  }
+  headers.push_back({"Accept", accept_mime_type});
+
   for (auto &header : this->request_headers_) {
     headers.push_back(http_request::Header{header.first, header.second.value()});
   }
