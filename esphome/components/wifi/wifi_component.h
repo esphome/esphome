@@ -488,20 +488,11 @@ class WiFiComponent : public Component {
     }
     return 0;
   }
-  void set_sta_priority(const bssid_t bssid, int8_t priority) {
-    for (auto &it : this->sta_priorities_) {
-      if (it.bssid == bssid) {
-        it.priority = priority;
-        return;
-      }
-    }
-    this->sta_priorities_.push_back(WiFiSTAPriority{
-        .bssid = bssid,
-        .priority = priority,
-    });
-  }
+  void set_sta_priority(bssid_t bssid, int8_t priority);
 
   network::IPAddresses wifi_sta_ip_addresses();
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use wifi_ssid_to() instead. Removed in 2026.9.0", "2026.3.0")
   std::string wifi_ssid();
   /// Write SSID to buffer without heap allocation.
   /// Returns pointer to buffer, or empty string if not connected.
