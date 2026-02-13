@@ -92,6 +92,7 @@ void SEN6XComponent::setup() {
 
     // After reset the sensor needs 100 ms to become ready
     this->set_timeout(100, [this]() {
+      // Step 1: Read serial number (~25ms with I2C delay)
       uint16_t raw_serial_number[16];
       if (!this->get_register(SEN6X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 16, 20)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -112,73 +113,79 @@ void SEN6XComponent::setup() {
       }
       ESP_LOGI(TAG, "Serial number: %s", this->serial_number_.c_str());
 
-      uint16_t raw_product_name[16];
-      if (!this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
-        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-        return;
-      }
-
-      this->product_name_.clear();
-      for (const uint16_t word : raw_product_name) {
-        const char c1 = static_cast<char>(word >> 8);
-        const char c2 = static_cast<char>(word & 0xFF);
-        if (c1 == '\0')
-          break;
-        this->product_name_.push_back(c1);
-        if (c2 == '\0')
-          break;
-        this->product_name_.push_back(c2);
-      }
-
-      Sen6xType inferred_type = this->infer_type_from_product_name_(this->product_name_);
-      if (this->sen6x_type_ == UNKNOWN) {
-        this->sen6x_type_ = inferred_type;
-        if (inferred_type == UNKNOWN) {
-          ESP_LOGE(TAG, "Unknown product '%s'", this->product_name_.c_str());
-          this->mark_failed();
+      // Step 2: Read product name in next loop iteration
+      this->set_timeout(0, [this]() {
+        uint16_t raw_product_name[16];
+        if (!this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
+          ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+          this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
-        ESP_LOGD(TAG, "Type inferred from product: %s", this->product_name_.c_str());
-      } else if (this->sen6x_type_ != inferred_type && inferred_type != UNKNOWN) {
-        ESP_LOGW(TAG, "Configured type (used) mismatches product '%s'", this->product_name_.c_str());
-      }
-      ESP_LOGI(TAG, "Product: %s", this->product_name_.c_str());
 
-      uint16_t raw_firmware_version = 0;
-      if (!this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, raw_firmware_version, 20)) {
-        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-        return;
-      }
-      this->firmware_version_major_ = (raw_firmware_version >> 8) & 0xFF;
-      this->firmware_version_minor_ = raw_firmware_version & 0xFF;
-      ESP_LOGI(TAG, "Firmware: %u.%u", this->firmware_version_major_, this->firmware_version_minor_);
+        this->product_name_.clear();
+        for (const uint16_t word : raw_product_name) {
+          const char c1 = static_cast<char>(word >> 8);
+          const char c2 = static_cast<char>(word & 0xFF);
+          if (c1 == '\0')
+            break;
+          this->product_name_.push_back(c1);
+          if (c2 == '\0')
+            break;
+          this->product_name_.push_back(c2);
+        }
 
-      if (this->voc_sensor_ && this->store_baseline_) {
-        // Use a stable hash based only on serial number to avoid NVS accumulation
-        // Config version is stored inside the struct to detect when to invalidate
-        uint32_t hash = fnv1a_hash_extend(fnv1a_hash("sen6x_voc_baseline"), this->serial_number_.c_str());
-        this->pref_ = global_preferences->make_preference<Sen6xVocBaseline>(hash, true);
-        this->voc_baseline_time_ = App.get_loop_component_start_time();
-
-        uint32_t current_config_hash = App.get_config_version_hash();
-        if (this->pref_.load(&this->voc_baselines_storage_)) {
-          if (this->voc_baselines_storage_.config_hash != current_config_hash) {
-            ESP_LOGI(TAG, "Config changed, discarding old VOC baseline");
-            this->voc_baselines_storage_ = {};
+        Sen6xType inferred_type = this->infer_type_from_product_name_(this->product_name_);
+        if (this->sen6x_type_ == UNKNOWN) {
+          this->sen6x_type_ = inferred_type;
+          if (inferred_type == UNKNOWN) {
+            ESP_LOGE(TAG, "Unknown product '%s'", this->product_name_.c_str());
+            this->mark_failed();
+            return;
           }
+          ESP_LOGD(TAG, "Type inferred from product: %s", this->product_name_.c_str());
+        } else if (this->sen6x_type_ != inferred_type && inferred_type != UNKNOWN) {
+          ESP_LOGW(TAG, "Configured type (used) mismatches product '%s'", this->product_name_.c_str());
         }
-        this->voc_baselines_storage_.config_hash = current_config_hash;
+        ESP_LOGI(TAG, "Product: %s", this->product_name_.c_str());
 
-        if (!this->write_command(SEN6X_CMD_VOC_ALGORITHM_STATE, this->voc_baselines_storage_.state, 4)) {
-          ESP_LOGE(TAG, "VOC Baseline State write to sensor failed");
-        } else {
-          ESP_LOGV(TAG, "VOC Baseline State loaded");
-          delay(20);
-        }
-      }
-      this->schedule_post_setup_commands_();
+        // Step 3: Read firmware version and start measurements in next loop iteration
+        this->set_timeout(0, [this]() {
+          uint16_t raw_firmware_version = 0;
+          if (!this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, raw_firmware_version, 20)) {
+            ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+            this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+            return;
+          }
+          this->firmware_version_major_ = (raw_firmware_version >> 8) & 0xFF;
+          this->firmware_version_minor_ = raw_firmware_version & 0xFF;
+          ESP_LOGI(TAG, "Firmware: %u.%u", this->firmware_version_major_, this->firmware_version_minor_);
+
+          if (this->voc_sensor_ && this->store_baseline_) {
+            // Use a stable hash based only on serial number to avoid NVS accumulation
+            // Config version is stored inside the struct to detect when to invalidate
+            uint32_t hash = fnv1a_hash_extend(fnv1a_hash("sen6x_voc_baseline"), this->serial_number_.c_str());
+            this->pref_ = global_preferences->make_preference<Sen6xVocBaseline>(hash, true);
+            this->voc_baseline_time_ = App.get_loop_component_start_time();
+
+            uint32_t current_config_hash = App.get_config_version_hash();
+            if (this->pref_.load(&this->voc_baselines_storage_)) {
+              if (this->voc_baselines_storage_.config_hash != current_config_hash) {
+                ESP_LOGI(TAG, "Config changed, discarding old VOC baseline");
+                this->voc_baselines_storage_ = {};
+              }
+            }
+            this->voc_baselines_storage_.config_hash = current_config_hash;
+
+            if (!this->write_command(SEN6X_CMD_VOC_ALGORITHM_STATE, this->voc_baselines_storage_.state, 4)) {
+              ESP_LOGE(TAG, "VOC Baseline State write to sensor failed");
+            } else {
+              ESP_LOGV(TAG, "VOC Baseline State loaded");
+              delay(20);
+            }
+          }
+          this->schedule_post_setup_commands_();
+        });
+      });
     });
   });
 }
@@ -412,195 +419,204 @@ void SEN6XComponent::update() {
   *poll_ready = [this, poll_ready, read_cmd, read_words](uint8_t retries_left) {
     const uint8_t attempt = static_cast<uint8_t>(poll_retries - retries_left + 1);
     ESP_LOGV(TAG, "Data ready polling attempt %u", attempt);
-    uint16_t raw_read_status;
-    if (!this->get_register(SEN6X_CMD_GET_DATA_READY_STATUS, raw_read_status, 20)) {
+
+    if (!this->write_command(SEN6X_CMD_GET_DATA_READY_STATUS)) {
       this->status_set_warning();
-      ESP_LOGD(TAG, "read data ready status error (%d)", this->last_error_);
+      ESP_LOGD(TAG, "write data ready status error (%d)", this->last_error_);
       return;
     }
 
-    if ((raw_read_status & 0x0001) == 0) {
-      if (retries_left == 0) {
+    this->set_timeout(20, [this, poll_ready, retries_left, read_cmd, read_words]() {
+      uint16_t raw_read_status;
+      if (!this->read_data(&raw_read_status, 1)) {
         this->status_set_warning();
-        ESP_LOGD(TAG, "Data not ready");
-        return;
-      }
-      this->set_timeout(50, [poll_ready, retries_left]() { (*poll_ready)(retries_left - 1); });
-      return;
-    }
-
-    if (!this->write_command(read_cmd)) {
-      this->status_set_warning();
-      ESP_LOGD(TAG, "Read measurement failed (%d)", this->last_error_);
-      return;
-    }
-
-    this->set_timeout(20, [this, read_words]() {
-      uint16_t measurements[10];
-
-      if (!this->read_data(measurements, read_words)) {
-        this->status_set_warning();
-        ESP_LOGD(TAG, "Read data failed (%d)", this->last_error_);
-        return;
-      }
-      int8_t voc_index = -1;
-      int8_t nox_index = -1;
-      int8_t hcho_index = -1;
-      int8_t co2_index = -1;
-      bool co2_uint16 = false;
-      switch (this->sen6x_type_) {
-        case SEN62:
-          break;
-        case SEN63C:
-          co2_index = 6;
-          break;
-        case SEN65:
-          voc_index = 6;
-          nox_index = 7;
-          break;
-        case SEN66:
-          voc_index = 6;
-          nox_index = 7;
-          co2_index = 8;
-          co2_uint16 = true;
-          break;
-        case SEN68:
-          voc_index = 6;
-          nox_index = 7;
-          hcho_index = 8;
-          break;
-        case SEN69C:
-          voc_index = 6;
-          nox_index = 7;
-          hcho_index = 8;
-          co2_index = 9;
-          break;
-        default:
-          break;
-      }
-
-      float pm_1_0 = measurements[0] / 10.0f;
-      if (measurements[0] == 0xFFFF)
-        pm_1_0 = NAN;
-      float pm_2_5 = measurements[1] / 10.0f;
-      if (measurements[1] == 0xFFFF)
-        pm_2_5 = NAN;
-      float pm_4_0 = measurements[2] / 10.0f;
-      if (measurements[2] == 0xFFFF)
-        pm_4_0 = NAN;
-      float pm_10_0 = measurements[3] / 10.0f;
-      if (measurements[3] == 0xFFFF)
-        pm_10_0 = NAN;
-      float humidity = static_cast<int16_t>(measurements[4]) / 100.0f;
-      if (measurements[4] == 0x7FFF)
-        humidity = NAN;
-      float temperature = static_cast<int16_t>(measurements[5]) / 200.0f;
-      if (measurements[5] == 0x7FFF)
-        temperature = NAN;
-
-      float voc = NAN;
-      float nox = NAN;
-      float hcho = NAN;
-      float co2 = NAN;
-
-      if (voc_index >= 0) {
-        voc = static_cast<int16_t>(measurements[voc_index]) / 10.0f;
-        if (measurements[voc_index] == 0x7FFF)
-          voc = NAN;
-      }
-      if (nox_index >= 0) {
-        nox = static_cast<int16_t>(measurements[nox_index]) / 10.0f;
-        if (measurements[nox_index] == 0x7FFF)
-          nox = NAN;
-      }
-
-      if (hcho_index >= 0) {
-        const uint16_t hcho_raw = measurements[hcho_index];
-        hcho = hcho_raw / 10.0f;
-        if (hcho_raw == 0xFFFF)
-          hcho = NAN;
-      }
-
-      if (co2_index >= 0) {
-        if (co2_uint16) {
-          const uint16_t co2_raw = measurements[co2_index];
-          co2 = static_cast<float>(co2_raw);
-          if (co2_raw == 0xFFFF)
-            co2 = NAN;
-        } else {
-          const int16_t co2_raw = static_cast<int16_t>(measurements[co2_index]);
-          co2 = static_cast<float>(co2_raw);
-          if (co2_raw == 0x7FFF)
-            co2 = NAN;
-        }
-      }
-
-      this->last_pm_1_0_ = pm_1_0;
-      this->last_pm_2_5_ = pm_2_5;
-      this->last_pm_4_0_ = pm_4_0;
-      this->last_pm_10_0_ = pm_10_0;
-      this->last_temperature_ = temperature;
-      this->last_humidity_ = humidity;
-      this->last_voc_ = voc;
-      this->last_nox_ = nox;
-      this->last_hcho_ = hcho;
-      this->last_co2_ = co2;
-      this->has_last_values_ = true;
-
-      const uint32_t check_time = App.get_loop_component_start_time();
-      if (check_time < this->startup_stable_after_) {
-        ESP_LOGV(TAG, "Startup stabilization in progress, skipping publish");
-        const uint32_t remaining_ms = this->startup_stable_after_ - check_time;
-        const uint32_t remaining_ms_clamped = remaining_ms < 1000 ? 0 : remaining_ms;
-        ESP_LOGD(TAG, "Startup delay (%u ms left), ignoring values", static_cast<unsigned>(remaining_ms_clamped));
-        this->status_clear_warning();
+        ESP_LOGD(TAG, "read data ready status error (%d)", this->last_error_);
         return;
       }
 
-      if (this->pm_1_0_sensor_ != nullptr)
-        this->pm_1_0_sensor_->publish_state(pm_1_0);
-      if (this->pm_2_5_sensor_ != nullptr)
-        this->pm_2_5_sensor_->publish_state(pm_2_5);
-      if (this->pm_4_0_sensor_ != nullptr)
-        this->pm_4_0_sensor_->publish_state(pm_4_0);
-      if (this->pm_10_0_sensor_ != nullptr)
-        this->pm_10_0_sensor_->publish_state(pm_10_0);
-      if (this->temperature_sensor_ != nullptr)
-        this->temperature_sensor_->publish_state(temperature);
-      if (this->humidity_sensor_ != nullptr)
-        this->humidity_sensor_->publish_state(humidity);
-      if (this->voc_sensor_ != nullptr && voc_index >= 0)
-        this->voc_sensor_->publish_state(voc);
-      if (this->nox_sensor_ != nullptr && nox_index >= 0)
-        this->nox_sensor_->publish_state(nox);
-      if (this->hcho_sensor_ != nullptr && hcho_index >= 0)
-        this->hcho_sensor_->publish_state(hcho);
-      if (this->co2_sensor_ != nullptr && co2_index >= 0)
-        this->co2_sensor_->publish_state(co2);
-
-      // Store VOC baseline periodically to flash (after measurement reads to avoid I2C conflicts)
-      if (!this->voc_sensor_ || !this->store_baseline_ ||
-          (App.get_loop_component_start_time() - this->voc_baseline_time_) < SHORTEST_BASELINE_STORE_INTERVAL_MS) {
-        this->status_clear_warning();
-      } else {
-        this->voc_baseline_time_ = App.get_loop_component_start_time();
-        if (!this->write_command(SEN6X_CMD_VOC_ALGORITHM_STATE)) {
+      if ((raw_read_status & 0x0001) == 0) {
+        if (retries_left == 0) {
           this->status_set_warning();
-          ESP_LOGW(TAG, "VOC baseline state read command failed");
-        } else {
-          this->set_timeout(20, [this]() {
-            if (!this->read_data(this->voc_baselines_storage_.state, 4)) {
-              this->status_set_warning();
-              ESP_LOGW(TAG, "VOC baseline state read failed");
-            } else {
-              if (this->pref_.save(&this->voc_baselines_storage_)) {
-                ESP_LOGD(TAG, "VOC Baseline State saved");
-              }
-              this->status_clear_warning();
-            }
-          });
+          ESP_LOGD(TAG, "Data not ready");
+          return;
         }
+        this->set_timeout(50, [poll_ready, retries_left]() { (*poll_ready)(retries_left - 1); });
+        return;
       }
+
+      if (!this->write_command(read_cmd)) {
+        this->status_set_warning();
+        ESP_LOGD(TAG, "Read measurement failed (%d)", this->last_error_);
+        return;
+      }
+
+      this->set_timeout(20, [this, read_words]() {
+        uint16_t measurements[10];
+
+        if (!this->read_data(measurements, read_words)) {
+          this->status_set_warning();
+          ESP_LOGD(TAG, "Read data failed (%d)", this->last_error_);
+          return;
+        }
+        int8_t voc_index = -1;
+        int8_t nox_index = -1;
+        int8_t hcho_index = -1;
+        int8_t co2_index = -1;
+        bool co2_uint16 = false;
+        switch (this->sen6x_type_) {
+          case SEN62:
+            break;
+          case SEN63C:
+            co2_index = 6;
+            break;
+          case SEN65:
+            voc_index = 6;
+            nox_index = 7;
+            break;
+          case SEN66:
+            voc_index = 6;
+            nox_index = 7;
+            co2_index = 8;
+            co2_uint16 = true;
+            break;
+          case SEN68:
+            voc_index = 6;
+            nox_index = 7;
+            hcho_index = 8;
+            break;
+          case SEN69C:
+            voc_index = 6;
+            nox_index = 7;
+            hcho_index = 8;
+            co2_index = 9;
+            break;
+          default:
+            break;
+        }
+
+        float pm_1_0 = measurements[0] / 10.0f;
+        if (measurements[0] == 0xFFFF)
+          pm_1_0 = NAN;
+        float pm_2_5 = measurements[1] / 10.0f;
+        if (measurements[1] == 0xFFFF)
+          pm_2_5 = NAN;
+        float pm_4_0 = measurements[2] / 10.0f;
+        if (measurements[2] == 0xFFFF)
+          pm_4_0 = NAN;
+        float pm_10_0 = measurements[3] / 10.0f;
+        if (measurements[3] == 0xFFFF)
+          pm_10_0 = NAN;
+        float humidity = static_cast<int16_t>(measurements[4]) / 100.0f;
+        if (measurements[4] == 0x7FFF)
+          humidity = NAN;
+        float temperature = static_cast<int16_t>(measurements[5]) / 200.0f;
+        if (measurements[5] == 0x7FFF)
+          temperature = NAN;
+
+        float voc = NAN;
+        float nox = NAN;
+        float hcho = NAN;
+        float co2 = NAN;
+
+        if (voc_index >= 0) {
+          voc = static_cast<int16_t>(measurements[voc_index]) / 10.0f;
+          if (measurements[voc_index] == 0x7FFF)
+            voc = NAN;
+        }
+        if (nox_index >= 0) {
+          nox = static_cast<int16_t>(measurements[nox_index]) / 10.0f;
+          if (measurements[nox_index] == 0x7FFF)
+            nox = NAN;
+        }
+
+        if (hcho_index >= 0) {
+          const uint16_t hcho_raw = measurements[hcho_index];
+          hcho = hcho_raw / 10.0f;
+          if (hcho_raw == 0xFFFF)
+            hcho = NAN;
+        }
+
+        if (co2_index >= 0) {
+          if (co2_uint16) {
+            const uint16_t co2_raw = measurements[co2_index];
+            co2 = static_cast<float>(co2_raw);
+            if (co2_raw == 0xFFFF)
+              co2 = NAN;
+          } else {
+            const int16_t co2_raw = static_cast<int16_t>(measurements[co2_index]);
+            co2 = static_cast<float>(co2_raw);
+            if (co2_raw == 0x7FFF)
+              co2 = NAN;
+          }
+        }
+
+        this->last_pm_1_0_ = pm_1_0;
+        this->last_pm_2_5_ = pm_2_5;
+        this->last_pm_4_0_ = pm_4_0;
+        this->last_pm_10_0_ = pm_10_0;
+        this->last_temperature_ = temperature;
+        this->last_humidity_ = humidity;
+        this->last_voc_ = voc;
+        this->last_nox_ = nox;
+        this->last_hcho_ = hcho;
+        this->last_co2_ = co2;
+        this->has_last_values_ = true;
+
+        const uint32_t check_time = App.get_loop_component_start_time();
+        if (check_time < this->startup_stable_after_) {
+          ESP_LOGV(TAG, "Startup stabilization in progress, skipping publish");
+          const uint32_t remaining_ms = this->startup_stable_after_ - check_time;
+          const uint32_t remaining_ms_clamped = remaining_ms < 1000 ? 0 : remaining_ms;
+          ESP_LOGD(TAG, "Startup delay (%u ms left), ignoring values", static_cast<unsigned>(remaining_ms_clamped));
+          this->status_clear_warning();
+          return;
+        }
+
+        if (this->pm_1_0_sensor_ != nullptr)
+          this->pm_1_0_sensor_->publish_state(pm_1_0);
+        if (this->pm_2_5_sensor_ != nullptr)
+          this->pm_2_5_sensor_->publish_state(pm_2_5);
+        if (this->pm_4_0_sensor_ != nullptr)
+          this->pm_4_0_sensor_->publish_state(pm_4_0);
+        if (this->pm_10_0_sensor_ != nullptr)
+          this->pm_10_0_sensor_->publish_state(pm_10_0);
+        if (this->temperature_sensor_ != nullptr)
+          this->temperature_sensor_->publish_state(temperature);
+        if (this->humidity_sensor_ != nullptr)
+          this->humidity_sensor_->publish_state(humidity);
+        if (this->voc_sensor_ != nullptr && voc_index >= 0)
+          this->voc_sensor_->publish_state(voc);
+        if (this->nox_sensor_ != nullptr && nox_index >= 0)
+          this->nox_sensor_->publish_state(nox);
+        if (this->hcho_sensor_ != nullptr && hcho_index >= 0)
+          this->hcho_sensor_->publish_state(hcho);
+        if (this->co2_sensor_ != nullptr && co2_index >= 0)
+          this->co2_sensor_->publish_state(co2);
+
+        // Store VOC baseline periodically to flash (after measurement reads to avoid I2C conflicts)
+        if (!this->voc_sensor_ || !this->store_baseline_ ||
+            (App.get_loop_component_start_time() - this->voc_baseline_time_) < SHORTEST_BASELINE_STORE_INTERVAL_MS) {
+          this->status_clear_warning();
+        } else {
+          this->voc_baseline_time_ = App.get_loop_component_start_time();
+          if (!this->write_command(SEN6X_CMD_VOC_ALGORITHM_STATE)) {
+            this->status_set_warning();
+            ESP_LOGW(TAG, "VOC baseline state read command failed");
+          } else {
+            this->set_timeout(20, [this]() {
+              if (!this->read_data(this->voc_baselines_storage_.state, 4)) {
+                this->status_set_warning();
+                ESP_LOGW(TAG, "VOC baseline state read failed");
+              } else {
+                if (this->pref_.save(&this->voc_baselines_storage_)) {
+                  ESP_LOGD(TAG, "VOC Baseline State saved");
+                }
+                this->status_clear_warning();
+              }
+            });
+          }
+        }
+      });
     });
   };
 
