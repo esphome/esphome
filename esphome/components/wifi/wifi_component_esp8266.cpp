@@ -16,7 +16,8 @@ extern "C" {
 #include "lwip/err.h"
 #include "lwip/dns.h"
 #include "lwip/dhcp.h"
-#include "lwip/init.h"  // LWIP_VERSION_
+#include "lwip/prot/dhcp.h"  // DHCP_STATE_BOUND
+#include "lwip/init.h"       // LWIP_VERSION_
 #include "lwip/apps/sntp.h"
 #include "lwip/netif.h"  // struct netif
 #include <AddrList.h>
@@ -224,13 +225,14 @@ bool WiFiComponent::wifi_apply_hostname_() {
 #else
     intf->hostname = wifi_station_get_hostname();
 #endif
-    if (netif_dhcp_data(intf) != nullptr && netif_is_link_up(intf)) {
-      // Renew already started DHCP leases to inform server of hostname change.
-      // Only attempt when the interface has link — calling dhcp_renew() without
-      // an active connection corrupts lwIP's DHCP state machine (it unconditionally
-      // sets state to RENEWING before attempting to send, and never rolls back on
-      // failure). This causes dhcp_network_changed() to call dhcp_reboot() instead
-      // of dhcp_discover() when WiFi later connects, sending a bogus DHCP REQUEST
+    struct dhcp *dhcp_data = netif_dhcp_data(intf);
+    if (dhcp_data != nullptr && dhcp_data->state == DHCP_STATE_BOUND) {
+      // Renew already-bound DHCP leases to inform server of hostname change.
+      // Only attempt when DHCP is BOUND — calling dhcp_renew() in any other
+      // state corrupts lwIP's DHCP state machine (it unconditionally sets state
+      // to RENEWING before attempting to send, and never rolls back on failure).
+      // This causes dhcp_network_changed() to call dhcp_reboot() instead of
+      // dhcp_discover() when WiFi later connects, sending a bogus DHCP REQUEST
       // for IP 0.0.0.0 that can put some routers into a persistent bad state.
       err_t lwipret = dhcp_renew(intf);
       if (lwipret != ERR_OK) {
