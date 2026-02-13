@@ -28,6 +28,10 @@ bool OnlineImage::validate_url_(const std::string &url) {
     ESP_LOGE(TAG, "URL is too long");
     return false;
   }
+  if (url.compare(0, 7, "http://") != 0 && url.compare(0, 8, "https://") != 0) {
+    ESP_LOGE(TAG, "URL must start with http:// or https://");
+    return false;
+  }
   return true;
 }
 
