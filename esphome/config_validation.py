@@ -1403,6 +1403,17 @@ def requires_component(comp):
     return validator
 
 
+def conflicts_with_component(comp):
+    """Validate that this option cannot be specified when the component `comp` is loaded."""
+
+    def validator(value):
+        if comp in CORE.loaded_integrations:
+            raise Invalid(f"This option is not compatible with component {comp}")
+        return value
+
+    return validator
+
+
 uint8_t = int_range(min=0, max=255)
 uint16_t = int_range(min=0, max=65535)
 uint32_t = int_range(min=0, max=4294967295)

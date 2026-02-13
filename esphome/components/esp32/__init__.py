@@ -135,6 +135,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
     "esp_driver_mcpwm",  # MCPWM driver - ESPHome doesn't use motor control PWM
+    "esp_driver_pcnt",  # PCNT driver - only needed by pulse_counter, hlw8012 components
     "esp_driver_rmt",  # RMT driver - only needed by remote_transmitter/receiver, neopixelbus
     "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
     "esp_driver_twai",  # TWAI/CAN driver - only needed by esp32_can component
@@ -644,11 +645,12 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 6),
-    "latest": cv.Version(3, 3, 6),
-    "dev": cv.Version(3, 3, 6),
+    "recommended": cv.Version(3, 3, 7),
+    "latest": cv.Version(3, 3, 7),
+    "dev": cv.Version(3, 3, 7),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(3, 3, 7): cv.Version(55, 3, 37),
     cv.Version(3, 3, 6): cv.Version(55, 3, 36),
     cv.Version(3, 3, 5): cv.Version(55, 3, 35),
     cv.Version(3, 3, 4): cv.Version(55, 3, 31, "2"),
@@ -667,6 +669,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
+    cv.Version(3, 3, 7): cv.Version(5, 5, 2),
     cv.Version(3, 3, 6): cv.Version(5, 5, 2),
     cv.Version(3, 3, 5): cv.Version(5, 5, 2),
     cv.Version(3, 3, 4): cv.Version(5, 5, 1),
@@ -690,7 +693,7 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(5, 5, 2),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
-    cv.Version(5, 5, 2): cv.Version(55, 3, 36),
+    cv.Version(5, 5, 2): cv.Version(55, 3, 37),
     cv.Version(5, 5, 1): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 5, 0): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 4, 3): cv.Version(55, 3, 32),
@@ -707,8 +710,8 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 36),
-    "latest": cv.Version(55, 3, 36),
+    "recommended": cv.Version(55, 3, 37),
+    "latest": cv.Version(55, 3, 37),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
@@ -1467,7 +1470,7 @@ async def to_code(config):
                     [_format_framework_espidf_version(idf_ver, None)],
                 )
                 # Use stub package to skip downloading precompiled libs
-                stubs_dir = CORE.relative_build_path("arduino-libs-stub")
+                stubs_dir = CORE.relative_build_path("arduino_libs_stub")
                 cg.add_platformio_option(
                     "platform_packages", [f"{ARDUINO_LIBS_PKG}@file://{stubs_dir}"]
                 )

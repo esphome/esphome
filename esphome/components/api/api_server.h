@@ -237,6 +237,11 @@ class APIServer : public Component,
   uint32_t get_server_keepalive_interval() { return this->server_keepalive_interval_; }
 
  protected:
+  // Accept incoming socket connections. Only called when socket has pending connections.
+  void __attribute__((noinline)) accept_new_connections_();
+  // Remove a disconnected client by index. Swaps with last element and pops.
+  void __attribute__((noinline)) remove_client_(size_t client_index);
+
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
                          const psk_t &active_psk, bool make_active);
