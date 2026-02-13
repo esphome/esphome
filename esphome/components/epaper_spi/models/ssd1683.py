@@ -13,7 +13,6 @@ class SSD1683(EpaperModel):
         _width, height = self.get_dimensions(config)
         return (
             (0x01, (height - 1) % 256, (height - 1) // 256, 0x00),    # Set column gate limit
-            (0x3C, 0x01),    # Set border waveform
             (0x18, 0x80),    # Select internal Temp sensor
             (0x11, 0x03),      # Set transform
         )
