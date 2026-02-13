@@ -148,6 +148,7 @@ export default defineConfig({
   redirects: {
     "/changelog/": `/changelog/${latestChangelog}/`,
     "/changelog/index/": `/changelog/${latestChangelog}/`,
+    "/guides/changelog/": `/changelog/${latestChangelog}/`,
   },
   vite: {
     resolve: {
