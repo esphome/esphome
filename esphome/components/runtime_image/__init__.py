@@ -112,7 +112,7 @@ def enable_format(format_name: str) -> Format | None:
 
 
 # Runtime image configuration schema base - to be extended by components
-def runtime_image_schema(image_class=RuntimeImage):
+def runtime_image_schema(image_class: cg.MockObjClass = RuntimeImage) -> cv.Schema:
     """Create a runtime image schema with the specified image class."""
     return cv.Schema(
         {
@@ -147,7 +147,7 @@ class RuntimeImageSettings:
     placeholder: cg.Pvariable | None
 
 
-async def process_runtime_image_config(config) -> RuntimeImageSettings:
+async def process_runtime_image_config(config: dict) -> RuntimeImageSettings:
     """
     Helper function to process common runtime image configuration parameters.
     Handles format enabling and returns all necessary enums and parameters.
