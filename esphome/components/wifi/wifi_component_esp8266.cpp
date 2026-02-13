@@ -224,8 +224,14 @@ bool WiFiComponent::wifi_apply_hostname_() {
 #else
     intf->hostname = wifi_station_get_hostname();
 #endif
-    if (netif_dhcp_data(intf) != nullptr) {
-      // renew already started DHCP leases
+    if (netif_dhcp_data(intf) != nullptr && netif_is_link_up(intf)) {
+      // Renew already started DHCP leases to inform server of hostname change.
+      // Only attempt when the interface has link — calling dhcp_renew() without
+      // an active connection corrupts lwIP's DHCP state machine (it unconditionally
+      // sets state to RENEWING before attempting to send, and never rolls back on
+      // failure). This causes dhcp_network_changed() to call dhcp_reboot() instead
+      // of dhcp_discover() when WiFi later connects, sending a bogus DHCP REQUEST
+      // for IP 0.0.0.0 that can put some routers into a persistent bad state.
       err_t lwipret = dhcp_renew(intf);
       if (lwipret != ERR_OK) {
         ESP_LOGW(TAG, "wifi_apply_hostname_(%s): lwIP error %d on interface %c%c (index %d)", intf->hostname,
