@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import esphome.codegen as cg
 from esphome.components.const import CONF_BYTE_ORDER
 from esphome.components.image import (
@@ -132,11 +134,23 @@ def validate_runtime_image_settings(config):
     return validate_settings(config)
 
 
-async def process_runtime_image_config(config):
+@dataclass
+class RuntimeImageSettings:
+    """Processed runtime image configuration parameters."""
+
+    width: int
+    height: int
+    format_enum: cg.EnumValue
+    image_type_enum: cg.EnumValue | None
+    transparent: cg.EnumValue
+    byte_order_big_endian: bool
+    placeholder: cg.Pvariable | None
+
+
+async def process_runtime_image_config(config) -> RuntimeImageSettings:
     """
     Helper function to process common runtime image configuration parameters.
     Handles format enabling and returns all necessary enums and parameters.
-    Returns a tuple of (width, height, format_enum, image_type_enum, transparent_enum, byte_order_big_endian, placeholder)
     """
     from esphome.components.image import get_image_type_enum, get_transparency_enum
 
@@ -147,7 +161,6 @@ async def process_runtime_image_config(config):
     format_name = config[CONF_FORMAT]
     # Enable the format in the runtime_image component
     enable_format(format_name)
-    # Get the enum value for the format
     # Map format names to enum values (handle JPG as alias for JPEG)
     if format_name.upper() == "JPG":
         format_name = "JPEG"
@@ -169,12 +182,12 @@ async def process_runtime_image_config(config):
     if placeholder_id := config.get(CONF_PLACEHOLDER):
         placeholder = await cg.get_variable(placeholder_id)
 
-    return (
-        width,
-        height,
-        format_enum,
-        image_type_enum,
-        transparent,
-        byte_order_big_endian,
-        placeholder,
+    return RuntimeImageSettings(
+        width=width,
+        height=height,
+        format_enum=format_enum,
+        image_type_enum=image_type_enum,
+        transparent=transparent,
+        byte_order_big_endian=byte_order_big_endian,
+        placeholder=placeholder,
     )

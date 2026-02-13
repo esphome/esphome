@@ -125,28 +125,20 @@ async def online_image_action_to_code(config, action_id, template_arg, args):
 
 async def to_code(config):
     # Use the enhanced helper function to get all runtime image parameters
-    (
-        width,
-        height,
-        format_enum,
-        image_type_enum,
-        transparent,
-        byte_order_big_endian,
-        placeholder,
-    ) = await runtime_image.process_runtime_image_config(config)
+    settings = await runtime_image.process_runtime_image_config(config)
 
     url = config[CONF_URL]
     var = cg.new_Pvariable(
         config[CONF_ID],
         url,
-        width,
-        height,
-        format_enum,
-        image_type_enum,
-        transparent,
-        placeholder or cg.nullptr,
+        settings.width,
+        settings.height,
+        settings.format_enum,
+        settings.image_type_enum,
+        settings.transparent,
+        settings.placeholder or cg.nullptr,
         config[CONF_BUFFER_SIZE],
-        byte_order_big_endian,
+        settings.byte_order_big_endian,
     )
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
