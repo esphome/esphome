@@ -1,0 +1,187 @@
+---
+description: "Instructions for setting up generic outputs in ESPHome"
+title: "Output Component"
+sidebar:
+  label: "Output Component"
+---
+import APIRef from '@components/APIRef.astro';
+
+Each platform of the `output` domain exposes some output to
+ESPHome. These are grouped into two categories: `binary` outputs
+(that can only be ON/OFF) and `float` outputs (like PWM, can output
+any rational value between 0 and 1).
+
+<span id="config-output"></span>
+
+## Base Output Configuration
+
+Each output platform extends this configuration schema.
+
+```yaml
+# Example configuration entry
+output:
+  - platform: ...
+    id: my_output_id
+    power_supply: power_supply_id
+    inverted: false
+    min_power: 0.01
+    max_power: 0.75
+```
+
+Configuration variables:
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this output component.
+- **power_supply** (*Optional*, [ID](/guides/configuration-types#id)): The [power supply](/components/power_supply/) to connect to
+  this output. When the output is enabled, the power supply will
+  automatically be switched on too.
+
+- **inverted** (*Optional*, boolean): If the output should be treated
+  as inverted. Defaults to `false`.
+
+Float outputs only:
+
+- **min_power** (*Optional*, float): Sets the minimum output value of this output platform.
+  Must be in range from 0 to max_power. Defaults to `0`. If zero_means_zero is `false` this will be output value when the entity is turned off.
+
+- **max_power** (*Optional*, float): Sets the maximum output value of this output platform.
+  Must be in range from min_power to 1. Defaults to `1`.
+
+- **zero_means_zero** (*Optional*, boolean): Sets the output to use actual 0 instead of `min_power`.
+  Defaults to `false`.
+
+> [!NOTE]
+> The `min_power` and `max_power` values are automatically clamped to ensure `0.0 ≤ min_power ≤ max_power ≤ 1.0`.
+> This prevents invalid configurations and ensures stable output behavior.
+
+<span id="output-turn_on_action"></span>
+
+### `output.turn_on` Action
+
+This action turns the output with the given ID on when executed.
+
+```yaml
+on_...:
+  then:
+    - output.turn_on: light_1
+```
+
+> [!NOTE]
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
+>
+> ```cpp
+> id(light_1).turn_on();
+> ```
+
+<span id="output-turn_off_action"></span>
+
+### `output.turn_off` Action
+
+This action turns the output with the given ID off when executed.
+
+```yaml
+on_...:
+  then:
+    - output.turn_off: light_1
+```
+
+> [!NOTE]
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
+>
+> ```cpp
+> id(light_1).turn_off();
+> ```
+
+<span id="output-set_level_action"></span>
+
+### `output.set_level` Action
+
+This action sets the float output to the given level when executed.
+
+> [!NOTE]
+> This only works with floating point outputs like [Ac Dimmer](/components/output/ac_dimmer/),
+> [Esp8266 Pwm](/components/output/esp8266_pwm/), [Ledc](/components/output/ledc/),
+> [Sigma Delta Output](/components/output/sigma_delta_output/), [Slow Pwm](/components/output/slow_pwm/).
+
+```yaml
+on_...:
+  then:
+    - output.set_level:
+        id: light_1
+        level: 50%
+```
+
+> [!NOTE]
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
+>
+> ```cpp
+> // range is 0.0 (off) to 1.0 (on)
+> id(light_1).set_level(0.5);
+> ```
+
+<span id="output-set_min_power_action"></span>
+
+### `output.set_min_power` Action
+
+This action sets the minimum output power level for the specified float output platform.
+It allows you to dynamically adjust the `min_power` configuration variable at runtime.
+
+> [!NOTE]
+> This only works with floating point outputs like [Ac Dimmer](/components/output/ac_dimmer/),
+> [Esp8266 Pwm](/components/output/esp8266_pwm/), [Ledc](/components/output/ledc/),
+> [Sigma Delta Output](/components/output/sigma_delta_output/), [Slow Pwm](/components/output/slow_pwm/).
+
+```yaml
+on_...:
+  then:
+    - output.set_min_power:
+        id: light_1
+        min_power: 20%
+```
+
+> [!NOTE]
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
+>
+> ```cpp
+> // range is 0.0 (off) to 1.0 (on)
+> id(light_1).set_min_power(0.2);
+> ```
+
+<span id="output-set_max_power_action"></span>
+
+### `output.set_max_power` Action
+
+This action sets the maximum output power level for the specified float output platform.
+It allows you to dynamically adjust the `max_power` configuration variable at runtime.
+
+> [!NOTE]
+> This only works with floating point outputs like [Ac Dimmer](/components/output/ac_dimmer/),
+> [Esp8266 Pwm](/components/output/esp8266_pwm/), [Ledc](/components/output/ledc/),
+> [Sigma Delta Output](/components/output/sigma_delta_output/), [Slow Pwm](/components/output/slow_pwm/).
+
+```yaml
+on_...:
+  then:
+    - output.set_max_power:
+        id: light_1
+        max_power: 80%
+```
+
+> [!NOTE]
+> This action can also be expressed in [lambdas](/automations/templates#config-lambda):
+>
+> ```cpp
+> // range is 0.0 (off) to 1.0 (on)
+> id(light_1).set_max_power(0.8);
+> ```
+
+## See Also
+
+- [Generic Output Switch](/components/switch/output/)
+- [Power Supply Component](/components/power_supply/)
+- [Binary Light](/components/light/binary/)
+- [Monochromatic Light](/components/light/monochromatic/)
+- [RGB Light](/components/light/rgb/)
+- [Binary Fan](/components/fan/binary/)
+- [Speed Fan](/components/fan/speed/)
+- <APIRef text="binary_output.h" path="output/binary_output.h" />
+- <APIRef text="float_output.h" path="output/float_output.h" />

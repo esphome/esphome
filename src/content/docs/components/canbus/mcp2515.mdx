@@ -1,0 +1,81 @@
+---
+description: "Instructions for setting up the MCP2515 CAN bus platform in ESPHome"
+title: "MCP2515"
+---
+
+import { Image } from 'astro:assets';
+import canbusMcp2515ResistorImg from './images/canbus_mcp2515_resistor.png';
+import canbusMcp2515Txs0108eImg from './images/canbus_mcp2515_txs0108e.png';
+import APIRef from '@components/APIRef.astro';
+
+The MCP2515 communicates with ESPHome via the [SPI bus](/components/spi); to use it, you must have at least one
+[SPI bus](/components/spi) with both the `mosi_pin` and `miso_pin` defined in your ESPHome configuration.
+
+The [Wiring options](#mcp2515-wiring) section below illustrates how to wire up your MCP2515.
+
+```yaml
+# Example configuration entry
+canbus:
+  - platform: mcp2515
+    cs_pin: GPIOXX
+    can_id: 4
+    bit_rate: 50kbps
+    on_frame:
+    - can_id: 500
+        then:
+        - lambda: |-
+            std::string b(x.begin(), x.end());
+            ESP_LOGD("canid 500", "%s", &b[0] );
+        - light.turn_off: light_1
+    - can_id: 501
+        then:
+        - light.turn_on:
+            id: light_1
+            brightness: !lambda "return (x.size() > 0) ? (float) x[0]/255 : 0;"
+```
+
+> [!NOTE]
+> The MCP2515 only provides two receive buffers which are read once per loop cycle.
+> This means, if more than two CAN frames arrive within a loop cycle (typically 16ms, possibly longer), frames are dropped.
+>
+> This limitation makes the MCP2515 unsuitable for moderate- to high-speed CAN buses, especially automotive ones.
+> Use the [esp32_can](/components/canbus/esp32_can#esp32-can) component where possible.
+
+## Configuration variables
+
+- **cs_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Is used to signal to a SPI device when it should
+  listen for data on the SPI bus. Each SPI device has its own `CS` line. Sometimes also called `SS`.
+
+- **clock** (*Optional*, enum): The frequency of the clock crystal used on the MCP2515 device. One of `8MHZ`,
+  `12MHZ`, `16MHZ` or `20MHZ`. Defaults to `8MHZ`.
+
+- **mode** (*Optional*, enum): Operating mode. One of:
+
+  - `NORMAL`  : Normal operation. *(default)*
+  - `LOOPBACK`  : Loopback mode is useful for testing your connections to/from the device.
+  - `LISTENONLY`  : Receive data only.
+
+- All other options from [Canbus](/components/canbus#config-canbus).
+
+> [!NOTE]
+> Not all combinations of clock and bitrate are supported. An unsupported combination will not be flagged at
+> compile time. Check your ESPHome device's logs for a message like `Invalid frequency/bitrate combination`
+> if you suspect this is an issue.
+
+<span id="mcp2515-wiring"></span>
+
+## Wiring options
+
+The easiest approach is to use fully assembled boards and just add one resistor on the MISO line. This runs MOSI, SCK
+and CS out of specification which is rarely a problem.
+
+<Image src={canbusMcp2515ResistorImg} layout="constrained" alt="" />
+
+A more complex option is to properly convert the 3.3V and 5V logic levels with a level shifter.
+
+<Image src={canbusMcp2515Txs0108eImg} layout="constrained" alt="" />
+
+## See Also
+
+- [Canbus Component](/components/canbus/)
+- <APIRef text="canbus.h" path="canbus/canbus.h" />

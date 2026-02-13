@@ -1,0 +1,151 @@
+---
+import EditLink from 'virtual:starlight/components/EditLink';
+import LastUpdated from 'virtual:starlight/components/LastUpdated';
+
+const footerLinks = [
+  {
+    name: 'Documentation',
+    children: [
+      { name: 'Components', url: '/components/' },
+      { name: 'Guides', url: '/guides/' },
+      { name: 'Automations', url: '/automations/' },
+      { name: 'Cookbook', url: '/cookbook/' },
+    ],
+  },
+  {
+    name: 'Community',
+    children: [
+      { name: 'Discord', url: 'https://discord.gg/KhAMKrd' },
+      { name: 'GitHub', url: 'https://github.com/esphome/esphome' },
+      { name: 'Forum', url: 'https://community.home-assistant.io/c/esphome/' },
+    ],
+  },
+  {
+    name: 'Resources',
+    children: [
+      { name: 'Changelog', url: '/changelog/' },
+      { name: 'Device Database', url: 'https://devices.esphome.io' },
+      { name: 'Development', url: 'https://developers.esphome.io' },
+    ],
+  },
+];
+---
+
+<footer class="sl-flex">
+  <div class="meta sl-flex">
+    <EditLink />
+    <LastUpdated />
+  </div>
+
+  <div class="site-footer not-content">
+    <div class="footer-links">
+      {footerLinks.map((section) => (
+        <div class="footer-column">
+          <div class="footer-heading">{section.name}</div>
+          <ul>
+            {section.children.map((link) => (
+              <li><a href={link.url} {...(link.url.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{link.name}</a></li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+
+    <div class="footer-bottom">
+      <a href="https://www.openhomefoundation.org/" target="_blank" rel="noopener noreferrer" class="ohf-link">
+        <span>ESPHome is a project from the</span>
+        <img class="ohf-dark" src="/images/icons/ohf-logo-on-dark.svg" alt="Open Home Foundation" width="200" height="44" />
+        <img class="ohf-light" src="/images/icons/ohf-logo-on-light.svg" alt="Open Home Foundation" width="200" height="44" />
+      </a>
+    </div>
+  </div>
+</footer>
+
+<style>
+  footer {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .meta {
+    gap: 0.75rem 3rem;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin-top: 3rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+  .meta > :global(p:only-child) {
+    margin-inline-start: auto;
+  }
+
+  .site-footer {
+    border-top: 1px solid var(--sl-color-gray-5);
+    margin-top: 1.5rem;
+    padding-top: 2rem;
+  }
+
+  .footer-links {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  @media (max-width: 480px) {
+    .footer-links {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .footer-heading {
+    font-weight: 600;
+    font-size: var(--sl-text-sm);
+    margin-bottom: 0.75rem;
+    color: var(--sl-color-white);
+  }
+
+  .footer-column ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .footer-column li {
+    margin-bottom: 0.4rem;
+  }
+
+  .footer-column a {
+    color: var(--sl-color-gray-3);
+    text-decoration: none;
+    font-size: var(--sl-text-sm);
+  }
+
+  .footer-column a:hover {
+    color: var(--sl-color-white);
+  }
+
+  .footer-bottom {
+    text-align: center;
+    padding: 1rem 0;
+    border-top: 1px solid var(--sl-color-gray-6);
+  }
+
+  .ohf-link {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-xs);
+  }
+
+  .ohf-link:hover {
+    color: var(--sl-color-white);
+  }
+
+  :root[data-theme='dark'] .ohf-light { display: none; }
+  :root[data-theme='dark'] .ohf-dark { display: inline; }
+  :root:not([data-theme='dark']) .ohf-dark { display: none; }
+  :root:not([data-theme='dark']) .ohf-light { display: inline; }
+</style>

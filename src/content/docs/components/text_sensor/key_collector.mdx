@@ -1,0 +1,43 @@
+---
+description: "Instructions for setting up key collector text sensors."
+title: "Key Collector Text Sensor"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+The `key_collector` text sensor platform publishes the collected key sequence
+when the [Key Collector](/components/key_collector/) component
+successfully completes a key collection (either by reaching `max_length` or
+when an `end_key` is pressed).
+
+This is useful for displaying the entered PIN code or passkey on a display,
+sending it to Home Assistant, or using it in other automations without having
+to write lambda code.
+
+```yaml
+# Example configuration entry
+key_collector:
+  - id: pincode_reader
+    source_id: mykeypad
+    min_length: 4
+    max_length: 4
+    end_keys: "#"
+    allowed_keys: "0123456789"
+
+text_sensor:
+  - platform: key_collector
+    name: "Entered PIN Code"
+    source_id: pincode_reader
+```
+
+## Configuration variables
+
+- **source_id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the
+  key collector component to monitor.
+- All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
+
+## See Also
+
+- [Key collector component](/components/key_collector/)
+- [Text Sensor Component](/components/text_sensor/)
+- <APIRef text="key_collector_text_sensor.h" path="key_collector/text_sensor/key_collector_text_sensor.h" />

@@ -1,0 +1,34 @@
+{
+  "name": "esphome-docs",
+  "version": "2.0.0",
+  "description": "ESPHome Documentation",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --host",
+    "build": "astro build",
+    "preview": "astro preview",
+    "lint": "node lint.mjs"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.37.6",
+    "astro": "^5.16.15",
+    "katex": "^0.16.28",
+    "rehype-katex": "^7.0.1",
+    "remark-github-blockquote-alert": "^2.0.1",
+    "remark-math": "^6.0.0",
+    "sharp": "^0.33.5",
+    "starlight-blog": "^0.25.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/esphome/esphome-docs.git"
+  },
+  "license": "CC-BY-4.0",
+  "bugs": {
+    "url": "https://github.com/esphome/esphome-docs/issues"
+  },
+  "homepage": "https://esphome.io",
+  "devDependencies": {
+    "jsdom": "^28.0.0"
+  }
+}

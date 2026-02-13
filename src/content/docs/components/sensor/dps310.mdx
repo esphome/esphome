@@ -1,0 +1,57 @@
+---
+description: "Instructions for setting up DPS310 atmospheric pressure sensors"
+title: "DPS310 Atmospheric Pressure Sensor"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+import dps310FullImg from './images/dps310-full.jpg';
+import APIRef from '@components/APIRef.astro';
+
+The `dps310` sensor platform allows you to use both the temperature and pressure sensors on
+your DPS310 atmospheric pressure sensor ([Adafruit](https://www.adafruit.com/product/4494))
+with ESPHome. The [I²C](/components/i2c) component is required to be set up in your configuration.
+
+<Figure
+  src={dps310FullImg}
+  alt=""
+  caption="DPS310 Atmospheric Pressure Sensor board from [Adafruit](https://www.adafruit.com/product/4494)"
+  layout="constrained"
+/>
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: dps310
+    temperature:
+      name: "Outside Temperature"
+    pressure:
+      name: "Outside Pressure"
+    address: 0x77
+    update_interval: 60s
+```
+
+## Configuration variables
+
+- **pressure** (*Optional*): The information for the pressure sensor.
+
+  - All options from [Sensor](/components/sensor).
+
+- **temperature** (*Optional*): The information for the temperature.
+  sensor
+
+  - All options from [Sensor](/components/sensor).
+
+- **address** (*Optional*, int): Manually specify the I²C address of
+  the sensor. Defaults to `0x77`.
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
+  sensor. Defaults to `60s`.
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [BMP280 Temperature+Pressure Sensor](/components/sensor/bmp280/)
+- [BME680 Temperature+Pressure+Humidity+Gas Sensor](/components/sensor/bme680/)
+- [BMP085 Temperature+Pressure Sensor](/components/sensor/bmp085/)
+- <APIRef text="dps310.h" path="dps310/dps310.h" />

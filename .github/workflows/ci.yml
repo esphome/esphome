@@ -16,30 +16,20 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - name: Install pagefind
-        uses: jaxxstorm/action-install-gh-release@6096f2a2bbfee498ced520b6922ac2c06e990ed2 # v2.1.0
-        with:
-          repo: cloudcannon/pagefind
-
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up Hugo
-        uses: peaceiris/actions-hugo@75d2e84710de30f6ff7268e08f310b60ef14033f # v3.0.0
+      - name: Set up Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
-          hugo-version: 'latest'
-          extended: true
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: 3.12
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Install Python dependencies
-        run: pip install -r requirements_test.txt
-
-      - name: Run production build
-        run: make production
+      - name: Build
+        run: npm run build
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -47,17 +37,14 @@ jobs:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-    - name: Set up Python 3.12
-      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+    - name: Set up Node.js
+      uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
       with:
-        python-version: 3.12
+        node-version: '20'
+        cache: 'npm'
 
     - name: Install dependencies
-      run: pip install -r requirements_test.txt
-
-    - name: Register problem matchers
-      run: |
-        echo "::add-matcher::.github/workflows/matchers/ci-custom.json"
+      run: npm ci
 
     - name: markdownlint-cli
       uses: nosborn/github-action-markdown-cli@508d6cefd8f0cc99eab5d2d4685b1d5f470042c1 # v3.5.0
@@ -66,4 +53,4 @@ jobs:
         files: .
 
     - name: Lint
-      run: python lint.py
+      run: npm run lint

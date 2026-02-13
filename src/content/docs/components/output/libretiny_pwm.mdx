@@ -1,0 +1,63 @@
+---
+description: "Instructions for setting up LibreTiny hardware PWMs."
+title: "LibreTiny PWM Output"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+The LibreTiny PWM platform allows you to use a hardware PWM on BK72xx and RTL87xx chips.
+Refer to [LibreTiny/Boards](https://docs.libretiny.eu/link/boards) to find your board
+and which PWM pins it supports.
+
+```yaml
+# Example configuration entry
+output:
+  - platform: libretiny_pwm
+    pin: P8
+    frequency: 1kHz
+    id: pwm_output
+
+# Example usage in a light
+light:
+  - platform: monochromatic
+    output: pwm_output
+    name: "Kitchen Light"
+```
+
+## Configuration variables
+
+- **pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The pin to use PWM on.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this output component.
+- **frequency** (*Optional*, frequency): The frequency to run the PWM with. Lower frequencies
+  have more visual artifacts, but can represent much more colors. Defaults to `1kHz`.
+
+- All other options from [Output](/components/output#config-output).
+
+<span id="output-libretiny_pwm-set_frequency_action"></span>
+
+## `output.libretiny_pwm.set_frequency` Action
+
+This [Action](/automations/actions#all-actions) allows you to manually change the frequency of a LibreTiny PWM
+channel at runtime. Use cases include controlling a passive buzzer (for pitch control).
+
+```yaml
+on_...:
+  - output.libretiny_pwm.set_frequency:
+      id: pwm_output
+      frequency: 100Hz
+```
+
+Configuration variables:
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the PWM output to change.
+- **frequency** (**Required**, [templatable](/automations/templates), frequency): The frequency
+  to set in Hz.
+
+## See Also
+
+- [LibreTiny Platform](/components/libretiny/)
+- [Output Component](/components/output/)
+- [Monochromatic Light](/components/light/monochromatic/)
+- [Speed Fan](/components/fan/speed/)
+- [Power Supply Component](/components/power_supply/)
+- <APIRef text="libretiny_pwm.h" path="libretiny_pwm/libretiny_pwm.h" />

@@ -1,0 +1,186 @@
+---
+description: "Changelog for ESPHome 2023.3.0."
+title: "ESPHome 2023.3.0 - 15th March 2023"
+pagefind: false
+slug: "changelog/2023.3.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Internal Temperature","/components/sensor/internal_temperature","thermometer.svg","dark-invert"],
+  ["Mopeka Standard Check LP","/components/sensor/mopeka_std_check","mopeka_std_check.jpg"],
+  ["Person Sensor (SEN21231)","/components/sensor/sen21231","sen21231.png"],
+  ["Haier Climate","/components/climate/haier","haier.svg"],
+  ["FS3000","/components/sensor/fs3000","fs3000.jpg"],
+  ["Absolute Humidity","/components/sensor/absolute_humidity","water-drop.svg","dark-invert"],
+  ["AS7341","/components/sensor/as7341","as7341.jpg","Spectral Color Sensor"]
+]} />
+
+## Sprinkler updates
+
+The sprinkler component has had a big update thanks to [@kbx81](https://github.com/kbx81).
+The method `time_remaining()` has been renamed to `time_remaining_active_valve()` for clarity.
+If you use this to display time remaining, simply update the name of the method in your code/lambda(s).
+
+## Tuya lights
+
+Tuya Lights have had a configuration change and replaced `rgb_datapoint` and `hsv_datapoint` with a new
+combination of `color_datapoint` and `color_type`. See the updated documentation
+([Tuya](/components/light/tuya/)) for more information.
+
+## SN74HC165
+
+The pin/bit order has been reversed per shift register so that `pin 0` is now `input A`.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2023.3.1 - March 22
+
+- climate: brown paper bag fix for on_configure [esphome#4573](https://github.com/esphome/esphome/pull/4573) by [@nwf](https://github.com/nwf)
+- rp2040: Use fake Mutex lock [esphome#4602](https://github.com/esphome/esphome/pull/4602) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.3.2 - March 27
+
+- Fix compile error on pzemdc.h [esphome#4583](https://github.com/esphome/esphome/pull/4583) by [@KG3RK3N](https://github.com/KG3RK3N)
+- Swap curly brackets for round on LockGuard [esphome#4610](https://github.com/esphome/esphome/pull/4610) by [@jesserockz](https://github.com/jesserockz)
+- Fix animation resizing [esphome#4608](https://github.com/esphome/esphome/pull/4608) by [@guillempages](https://github.com/guillempages)
+- SX1509 minimum loop period (fixes esphome/issues#4325) [esphome#4613](https://github.com/esphome/esphome/pull/4613) by [@tracestep](https://github.com/tracestep)
+
+## Full list of changes
+
+### New Components
+
+- Add internal_temperature component [esphome#4330](https://github.com/esphome/esphome/pull/4330) by [@Mat931](https://github.com/Mat931) (new-integration)
+- Support Mopeka Standard LPG tank bluetooth sensor [esphome#4351](https://github.com/esphome/esphome/pull/4351) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt) (new-integration)
+- add person sensor (SEN21231) from usefulsensors [esphome#4454](https://github.com/esphome/esphome/pull/4454) by [@shreyaskarnik](https://github.com/shreyaskarnik) (new-integration)
+- add kuntze component [esphome#4411](https://github.com/esphome/esphome/pull/4411) by [@ssieb](https://github.com/ssieb) (new-integration)
+- Add Haier climate component [esphome#4001](https://github.com/esphome/esphome/pull/4001) by [@Yarikx](https://github.com/Yarikx) (new-integration)
+- FS3000 sensor [esphome#4502](https://github.com/esphome/esphome/pull/4502) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- Add absolute humidity component [esphome#4519](https://github.com/esphome/esphome/pull/4519) by [@DAVe3283](https://github.com/DAVe3283) (new-integration)
+- Add AS7341 spectral color sensor [esphome#4331](https://github.com/esphome/esphome/pull/4331) by [@mrgnr](https://github.com/mrgnr) (new-integration)
+- Renaming and extending the ili9341 to the ili9xxx component [esphome#4275](https://github.com/esphome/esphome/pull/4275) by [@nielsnl68](https://github.com/nielsnl68) (new-integration) (breaking-change)
+
+### Breaking Changes
+
+- Add configurable color datapoint [esphome#4383](https://github.com/esphome/esphome/pull/4383) by [@irtimaled](https://github.com/irtimaled) (breaking-change)
+- Sprinkler "v2" updates [esphome#4159](https://github.com/esphome/esphome/pull/4159) by [@kbx81](https://github.com/kbx81) (breaking-change)
+- sn74hc165 fixes [esphome#4457](https://github.com/esphome/esphome/pull/4457) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Renaming and extending the ili9341 to the ili9xxx component [esphome#4275](https://github.com/esphome/esphome/pull/4275) by [@nielsnl68](https://github.com/nielsnl68) (new-integration) (breaking-change)
+
+### Beta Changes
+
+- Fix ethernet clk_mode for GPIO0_OUT [esphome#4307](https://github.com/esphome/esphome/pull/4307) by [@jorticus](https://github.com/jorticus)
+- Add ESP32-S3 support in NeoPixelBus component [esphome#4114](https://github.com/esphome/esphome/pull/4114) by [@rcloran](https://github.com/rcloran)
+- Renaming and extending the ili9341 to the ili9xxx component [esphome#4275](https://github.com/esphome/esphome/pull/4275) by [@nielsnl68](https://github.com/nielsnl68) (new-integration) (breaking-change)
+- Drop unused, broken logging macros [esphome#4534](https://github.com/esphome/esphome/pull/4534) by [@oxan](https://github.com/oxan)
+- Revert storing Font glyphs in manually-allocated memory [esphome#4516](https://github.com/esphome/esphome/pull/4516) by [@oxan](https://github.com/oxan)
+- Correct BME680 gas calculation and heater_off [esphome#4498](https://github.com/esphome/esphome/pull/4498) by [@CarlosGS](https://github.com/CarlosGS)
+- Add support for new mpu6050 clones responding with 0x70 address [esphome#4546](https://github.com/esphome/esphome/pull/4546) by [@jakehdk](https://github.com/jakehdk)
+- Add carbon dioxide device class to scd30 sensor schema. [esphome#4547](https://github.com/esphome/esphome/pull/4547) by [@murrayma](https://github.com/murrayma)
+- Feat: add support for hex color in color component [esphome#4493](https://github.com/esphome/esphome/pull/4493) by [@dorianim](https://github.com/dorianim)
+- Allow AUTO_LOAD to be a function [esphome#4550](https://github.com/esphome/esphome/pull/4550) by [@jesserockz](https://github.com/jesserockz)
+- On the ILI9xxx display's enable the psram on esp32 and allow big screen [esphome#4551](https://github.com/esphome/esphome/pull/4551) by [@nielsnl68](https://github.com/nielsnl68)
+- Map gpio pins for touch on esp32-s2/s3 [esphome#4552](https://github.com/esphome/esphome/pull/4552) by [@jesserockz](https://github.com/jesserockz)
+- pipsolar component. Correct the sscanf format for QPIG command parsin… [esphome#4165](https://github.com/esphome/esphome/pull/4165) by [@eroldan](https://github.com/eroldan)
+- Add state class back to uptime sensor [esphome#4557](https://github.com/esphome/esphome/pull/4557) by [@DAVe3283](https://github.com/DAVe3283)
+- Added response for Tuya RSSI command [esphome#4549](https://github.com/esphome/esphome/pull/4549) by [@catalin2402](https://github.com/catalin2402)
+- Remove switch actions during config; bump setup priority [esphome#4563](https://github.com/esphome/esphome/pull/4563) by [@kbx81](https://github.com/kbx81)
+- Mark esp32_touch supported only on standard esp32 variant [esphome#4562](https://github.com/esphome/esphome/pull/4562) by [@jesserockz](https://github.com/jesserockz)
+- fixing `shrink` and `extend` functions of the displaybuffer's Rect class [esphome#4565](https://github.com/esphome/esphome/pull/4565) by [@nielsnl68](https://github.com/nielsnl68)
+
+### All changes
+
+- socket: Format IPv4-mapped IPv6 addresses as regular IPv4 address [esphome#4382](https://github.com/esphome/esphome/pull/4382) by [@oxan](https://github.com/oxan)
+- Bump frenck/action-yamllint from 1.3.1 to 1.4.0 [esphome#4289](https://github.com/esphome/esphome/pull/4289) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pyupgrade from 3.3.0 to 3.3.1 [esphome#4160](https://github.com/esphome/esphome/pull/4160) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump black from 22.12.0 to 23.1.0 [esphome#4375](https://github.com/esphome/esphome/pull/4375) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Improve tuya network status command [esphome#4415](https://github.com/esphome/esphome/pull/4415) by [@Rjevski](https://github.com/Rjevski)
+- Gracefully reject vacuum map upload requests [esphome#4414](https://github.com/esphome/esphome/pull/4414) by [@Rjevski](https://github.com/Rjevski)
+- Fixed PlatformIO Build on DEV [esphome#4422](https://github.com/esphome/esphome/pull/4422) by [@Expaso](https://github.com/Expaso)
+- Bump platformio from 6.1.5 to 6.1.6 [esphome#4341](https://github.com/esphome/esphome/pull/4341) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pylint from 2.15.10 to 2.16.2 [esphome#4426](https://github.com/esphome/esphome/pull/4426) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 13.1.0 to 13.3.1 [esphome#4427](https://github.com/esphome/esphome/pull/4427) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add concurrency limit to ci-docker [esphome#4407](https://github.com/esphome/esphome/pull/4407) by [@jesserockz](https://github.com/jesserockz)
+- Add final job so branch protection can require matrix ci steps [esphome#4432](https://github.com/esphome/esphome/pull/4432) by [@jesserockz](https://github.com/jesserockz)
+- Deep Sleep capable ports for ESP32S3 [esphome#4230](https://github.com/esphome/esphome/pull/4230) by [@LeDominik](https://github.com/LeDominik)
+- Initialize all fields in ESPTime in PCF85063 [esphome#4439](https://github.com/esphome/esphome/pull/4439) by [@oxan](https://github.com/oxan)
+- Bump zeroconf from 0.47.1 to 0.47.3 [esphome#4437](https://github.com/esphome/esphome/pull/4437) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Automate syncing device classes with HA [esphome#4438](https://github.com/esphome/esphome/pull/4438) by [@oxan](https://github.com/oxan)
+- NeoPixel - Add support for ESP32-S3 [esphome#4435](https://github.com/esphome/esphome/pull/4435) by [@ajacques](https://github.com/ajacques)
+- add SUB_BINARY_SENSOR macro to binary sensor [esphome#4447](https://github.com/esphome/esphome/pull/4447) by [@regevbr](https://github.com/regevbr)
+- add SUB_TEXT_SENSOR macro to text sensor [esphome#4448](https://github.com/esphome/esphome/pull/4448) by [@regevbr](https://github.com/regevbr)
+- Simplify sensor schema generation [esphome#4462](https://github.com/esphome/esphome/pull/4462) by [@balloob](https://github.com/balloob)
+- add SUB_NUMBER macro and schema to number [esphome#4449](https://github.com/esphome/esphome/pull/4449) by [@regevbr](https://github.com/regevbr)
+- add SUB_BUTTON macro and ability to button schema to define the class [esphome#4450](https://github.com/esphome/esphome/pull/4450) by [@regevbr](https://github.com/regevbr)
+- Simplify number_schema function [esphome#4467](https://github.com/esphome/esphome/pull/4467) by [@jesserockz](https://github.com/jesserockz)
+- Simplify button_schema function [esphome#4468](https://github.com/esphome/esphome/pull/4468) by [@jesserockz](https://github.com/jesserockz)
+- Simplify binary_sensor_schema function [esphome#4469](https://github.com/esphome/esphome/pull/4469) by [@jesserockz](https://github.com/jesserockz)
+- Add configurable color datapoint [esphome#4383](https://github.com/esphome/esphome/pull/4383) by [@irtimaled](https://github.com/irtimaled) (breaking-change)
+- Add internal_temperature component [esphome#4330](https://github.com/esphome/esphome/pull/4330) by [@Mat931](https://github.com/Mat931) (new-integration)
+- Move remaining SENSOR_SCHEMA to use sensor_schema() [esphome#4471](https://github.com/esphome/esphome/pull/4471) by [@jesserockz](https://github.com/jesserockz)
+- Allow specifying target and current visual steps for climate [esphome#4440](https://github.com/esphome/esphome/pull/4440) by [@jesserockz](https://github.com/jesserockz)
+- Bump aioesphomeapi from 13.3.1 to 13.4.0 [esphome#4472](https://github.com/esphome/esphome/pull/4472) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- toshiba: add support for quiet fan mode [esphome#4283](https://github.com/esphome/esphome/pull/4283) by [@MichaelMure](https://github.com/MichaelMure)
+- Bump esptool from 4.4 to 4.5 [esphome#4428](https://github.com/esphome/esphome/pull/4428) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Support Mopeka Standard LPG tank bluetooth sensor [esphome#4351](https://github.com/esphome/esphome/pull/4351) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt) (new-integration)
+- fix library override logic [esphome#4474](https://github.com/esphome/esphome/pull/4474) by [@mzakharo](https://github.com/mzakharo)
+- Sprinkler "v2" updates [esphome#4159](https://github.com/esphome/esphome/pull/4159) by [@kbx81](https://github.com/kbx81) (breaking-change)
+- add person sensor (SEN21231) from usefulsensors [esphome#4454](https://github.com/esphome/esphome/pull/4454) by [@shreyaskarnik](https://github.com/shreyaskarnik) (new-integration)
+- Initial stab at importing idf components [esphome#4000](https://github.com/esphome/esphome/pull/4000) by [@jesserockz](https://github.com/jesserockz)
+- add kuntze component [esphome#4411](https://github.com/esphome/esphome/pull/4411) by [@ssieb](https://github.com/ssieb) (new-integration)
+- Add Haier climate component [esphome#4001](https://github.com/esphome/esphome/pull/4001) by [@Yarikx](https://github.com/Yarikx) (new-integration)
+- Bump esp-idf to 4.4.3 via platformio/espressif32 @ 5.3.0 [esphome#4254](https://github.com/esphome/esphome/pull/4254) by [@bdraco](https://github.com/bdraco)
+- Add energy to pzemdc [esphome#3626](https://github.com/esphome/esphome/pull/3626) by [@andreashergert1984](https://github.com/andreashergert1984)
+- Update esp32 esp-idf dev and latest version numbers [esphome#4479](https://github.com/esphome/esphome/pull/4479) by [@jesserockz](https://github.com/jesserockz)
+- [ExternalRAMAllocator] Use same `heap_caps_malloc` parameter as `ps_malloc`. [esphome#4484](https://github.com/esphome/esphome/pull/4484) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Lock scheduler items while modifying them [esphome#4410](https://github.com/esphome/esphome/pull/4410) by [@oxan](https://github.com/oxan)
+- Move Font glyphs to SPI RAM. [esphome#4485](https://github.com/esphome/esphome/pull/4485) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Run CI on merge group [esphome#4489](https://github.com/esphome/esphome/pull/4489) by [@jesserockz](https://github.com/jesserockz)
+- Fix parallel invocations of repeat action [esphome#4480](https://github.com/esphome/esphome/pull/4480) by [@oxan](https://github.com/oxan)
+- Make test3 use huge_app [esphome#4488](https://github.com/esphome/esphome/pull/4488) by [@jesserockz](https://github.com/jesserockz)
+- Change variable "skip_updates" and "skip_updates_counter" type from "uint8_t" to "uint16_t" [esphome#4487](https://github.com/esphome/esphome/pull/4487) by [@GitforZhangXL](https://github.com/GitforZhangXL)
+- Fix copy-pasta mistake [esphome#4492](https://github.com/esphome/esphome/pull/4492) by [@jesserockz](https://github.com/jesserockz)
+- Add int16 to codegen [esphome#4507](https://github.com/esphome/esphome/pull/4507) by [@jesserockz](https://github.com/jesserockz)
+- Update __init__.py [esphome#4514](https://github.com/esphome/esphome/pull/4514) by [@dashkhaneh](https://github.com/dashkhaneh)
+- Remove idf components before checking if any in config [esphome#4506](https://github.com/esphome/esphome/pull/4506) by [@jesserockz](https://github.com/jesserockz)
+- substitutions: Don't warn when passwords look like a substitution [esphome#4161](https://github.com/esphome/esphome/pull/4161) by [@tljuniper](https://github.com/tljuniper)
+- Fix typo [esphome#4515](https://github.com/esphome/esphome/pull/4515) by [@oxan](https://github.com/oxan)
+- implement pairing for bluetooth proxy [esphome#4475](https://github.com/esphome/esphome/pull/4475) by [@jagheterfredrik](https://github.com/jagheterfredrik)
+- Bump docker dependencies [esphome#4526](https://github.com/esphome/esphome/pull/4526) by [@jesserockz](https://github.com/jesserockz)
+- Bump aioesphomeapi from 13.4.0 to 13.5.0 [esphome#4525](https://github.com/esphome/esphome/pull/4525) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Ensure component is ready before update. [esphome#4523](https://github.com/esphome/esphome/pull/4523) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- climate: add on_control callbacks [esphome#4511](https://github.com/esphome/esphome/pull/4511) by [@nwf](https://github.com/nwf)
+- FS3000 sensor [esphome#4502](https://github.com/esphome/esphome/pull/4502) by [@kahrendt](https://github.com/kahrendt) (new-integration)
+- Bump esptool from 4.5 to 4.5.1 [esphome#4497](https://github.com/esphome/esphome/pull/4497) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add support for multiple devices in bme680_bsec [esphome#3550](https://github.com/esphome/esphome/pull/3550) by [@bisbastuner](https://github.com/bisbastuner)
+- Bump pytest from 7.2.1 to 7.2.2 [esphome#4505](https://github.com/esphome/esphome/pull/4505) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pylint from 2.16.2 to 2.16.4 [esphome#4524](https://github.com/esphome/esphome/pull/4524) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add absolute humidity component [esphome#4519](https://github.com/esphome/esphome/pull/4519) by [@DAVe3283](https://github.com/DAVe3283) (new-integration)
+- Add ability to await safe mode in codegen [esphome#4529](https://github.com/esphome/esphome/pull/4529) by [@oxan](https://github.com/oxan)
+- sn74hc165 fixes [esphome#4457](https://github.com/esphome/esphome/pull/4457) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Add AS7341 spectral color sensor [esphome#4331](https://github.com/esphome/esphome/pull/4331) by [@mrgnr](https://github.com/mrgnr) (new-integration)
+- Fix ethernet driver setting gpio 5 high when no power pin defined [esphome#4531](https://github.com/esphome/esphome/pull/4531) by [@jesserockz](https://github.com/jesserockz)
+- Use PSRam for BLE scan results. [esphome#4486](https://github.com/esphome/esphome/pull/4486) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Bump esp-idf to 4.4.4 [esphome#4528](https://github.com/esphome/esphome/pull/4528) by [@bdraco](https://github.com/bdraco)
+- Added pzemdc reset energy action [esphome#4481](https://github.com/esphome/esphome/pull/4481) by [@KG3RK3N](https://github.com/KG3RK3N)
+- Fix ethernet clk_mode for GPIO0_OUT [esphome#4307](https://github.com/esphome/esphome/pull/4307) by [@jorticus](https://github.com/jorticus)
+- Add ESP32-S3 support in NeoPixelBus component [esphome#4114](https://github.com/esphome/esphome/pull/4114) by [@rcloran](https://github.com/rcloran)
+- Renaming and extending the ili9341 to the ili9xxx component [esphome#4275](https://github.com/esphome/esphome/pull/4275) by [@nielsnl68](https://github.com/nielsnl68) (new-integration) (breaking-change)
+- Drop unused, broken logging macros [esphome#4534](https://github.com/esphome/esphome/pull/4534) by [@oxan](https://github.com/oxan)
+- Revert storing Font glyphs in manually-allocated memory [esphome#4516](https://github.com/esphome/esphome/pull/4516) by [@oxan](https://github.com/oxan)
+- Correct BME680 gas calculation and heater_off [esphome#4498](https://github.com/esphome/esphome/pull/4498) by [@CarlosGS](https://github.com/CarlosGS)
+- Add support for new mpu6050 clones responding with 0x70 address [esphome#4546](https://github.com/esphome/esphome/pull/4546) by [@jakehdk](https://github.com/jakehdk)
+- Add carbon dioxide device class to scd30 sensor schema. [esphome#4547](https://github.com/esphome/esphome/pull/4547) by [@murrayma](https://github.com/murrayma)
+- Feat: add support for hex color in color component [esphome#4493](https://github.com/esphome/esphome/pull/4493) by [@dorianim](https://github.com/dorianim)
+- Allow AUTO_LOAD to be a function [esphome#4550](https://github.com/esphome/esphome/pull/4550) by [@jesserockz](https://github.com/jesserockz)
+- On the ILI9xxx display's enable the psram on esp32 and allow big screen [esphome#4551](https://github.com/esphome/esphome/pull/4551) by [@nielsnl68](https://github.com/nielsnl68)
+- Map gpio pins for touch on esp32-s2/s3 [esphome#4552](https://github.com/esphome/esphome/pull/4552) by [@jesserockz](https://github.com/jesserockz)
+- pipsolar component. Correct the sscanf format for QPIG command parsin… [esphome#4165](https://github.com/esphome/esphome/pull/4165) by [@eroldan](https://github.com/eroldan)
+- Add state class back to uptime sensor [esphome#4557](https://github.com/esphome/esphome/pull/4557) by [@DAVe3283](https://github.com/DAVe3283)
+- Added response for Tuya RSSI command [esphome#4549](https://github.com/esphome/esphome/pull/4549) by [@catalin2402](https://github.com/catalin2402)
+- Remove switch actions during config; bump setup priority [esphome#4563](https://github.com/esphome/esphome/pull/4563) by [@kbx81](https://github.com/kbx81)
+- Mark esp32_touch supported only on standard esp32 variant [esphome#4562](https://github.com/esphome/esphome/pull/4562) by [@jesserockz](https://github.com/jesserockz)
+- fixing `shrink` and `extend` functions of the displaybuffer's Rect class [esphome#4565](https://github.com/esphome/esphome/pull/4565) by [@nielsnl68](https://github.com/nielsnl68)
+
+{/* markdownlint-enable MD013 */}

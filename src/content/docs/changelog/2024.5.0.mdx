@@ -1,0 +1,261 @@
+---
+description: "Changelog for ESPHome 2024.5.0."
+title: "ESPHome 2024.5.0 - 15th May 2024"
+pagefind: false
+slug: "changelog/2024.5.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Valve Core","/components/valve/index","folder-open.svg","dark-invert"],
+  ["Template Valve","/components/valve/template","description.svg","dark-invert"],
+  ["Event Core","/components/event/index","folder-open.svg","dark-invert"],
+  ["Template Event","/components/event/template","description.svg","dark-invert"],
+  ["Template Time","/components/datetime/template","description.svg","dark-invert"],
+  ["Template Datetime","/components/datetime/template","description.svg","dark-invert"],
+  ["WeiKai SPI/I²C UART/IO Expander","/components/weikai","wk2168.jpg"]
+]} />
+
+## Valves, Events, and More
+
+This release brings a new `Valve` component, which can be used to control valves.
+A `Valve` can be opened, closed, or a specific position set if supported.
+
+`Event` entities were added to Home Assistant in [2023.8](https://www.home-assistant.io/blog/2023/08/02/release-20238/#introducing-the-event-entity).
+They allow better structure and also history and logging of the events sent from ESPHome to Home Assistant compared
+to just using publishing events onto the Home Assistant event bus with the `homeassistant.event` action.
+
+The `datetime` component has also been extended with `DateTime` and `Time` entity types this release.
+
+## ESP32 ADC Attenuation
+
+The attenuation configuration option for ESP32 `adc` sensors has had a deprecation in the underlying ESP-IDF
+framework with the `11dB` option. The value to replace `11dB` with is `12dB`. There are no functionality changes
+otherwise. There will be a warning in the logs when installing if you are using `11dB` and it will be
+removed in **2024.8.0**.
+
+## Remote Receiver tolerance
+
+The `tolerance` option in the `remote_receiver` component has been extended to allow time values, but at the
+same time the validation is now more strict.
+If you were using a raw value with no unit before 2024.5.0, for example `25`, you will need to change it to `25%`.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2024.5.1 - May 20
+
+- Add device_class to valve core config [esphome#6765](https://github.com/esphome/esphome/pull/6765) by [@acshef](https://github.com/acshef)
+- Synchronise Device Classes from Home Assistant [esphome#6768](https://github.com/esphome/esphome/pull/6768) by [@esphomebot](https://github.com/esphomebot)
+- Fix Upload from Dashboard with MQTT discovery. [esphome#6774](https://github.com/esphome/esphome/pull/6774) by [@Links2004](https://github.com/Links2004)
+- Fix MQTT dashboard discovery (Exception in MqttStatusThread). [esphome#6775](https://github.com/esphome/esphome/pull/6775) by [@Links2004](https://github.com/Links2004)
+
+## Release 2024.5.2 - May 21
+
+- Revert "Fix MQTT dashboard discovery (Exception in MqttStatusThread)." [esphome#6782](https://github.com/esphome/esphome/pull/6782) by [@bdraco](https://github.com/bdraco)
+- Fix DashboardEntries.all() call [esphome#6783](https://github.com/esphome/esphome/pull/6783) by [@bdraco](https://github.com/bdraco)
+- [remote_receiver] Add better error message for tolerance breaking change [esphome#6784](https://github.com/esphome/esphome/pull/6784) by [@jesserockz](https://github.com/jesserockz)
+- Update webserver local assets to 20240519-215627 [esphome#6779](https://github.com/esphome/esphome/pull/6779) by [@esphomebot](https://github.com/esphomebot)
+
+## Release 2024.5.3 - May 25
+
+- [voice_assistant] Don't allocate buffers until starting the microphone for the first time [esphome#6800](https://github.com/esphome/esphome/pull/6800) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2024.5.4 - May 28
+
+- [web_server_base] Bump ESPAsyncWebServer-esphome to 3.2.2 [esphome#6797](https://github.com/esphome/esphome/pull/6797) by [@jesserockz](https://github.com/jesserockz)
+- [helpers] Move Base64 string to cpp [esphome#6819](https://github.com/esphome/esphome/pull/6819) by [@gabest11](https://github.com/gabest11)
+
+## Release 2024.5.5 - June 5
+
+- [voice_assistant] Half the microphone ringbuffer size [esphome#6830](https://github.com/esphome/esphome/pull/6830) by [@jesserockz](https://github.com/jesserockz)
+- [i2s_speaker] Add buffer allocation failure checks [esphome#6829](https://github.com/esphome/esphome/pull/6829) by [@jesserockz](https://github.com/jesserockz)
+- [improv_serial] Fix for IDF 4.4.7 [esphome#6855](https://github.com/esphome/esphome/pull/6855) by [@kbx81](https://github.com/kbx81)
+
+## Full list of changes
+
+### New Components
+
+- Add valve component [esphome#6447](https://github.com/esphome/esphome/pull/6447) by [@kbx81](https://github.com/kbx81) (new-integration)
+- Add the WeiKai SPI/I2C UART/IO Expander components to esphome [esphome#5218](https://github.com/esphome/esphome/pull/5218) by [@DrCoolzic](https://github.com/DrCoolzic) (new-integration)
+- Event entity support [esphome#6451](https://github.com/esphome/esphome/pull/6451) by [@nohat](https://github.com/nohat) (new-integration)
+- SPI and I2C for BMP390 and BMP380 [esphome#6652](https://github.com/esphome/esphome/pull/6652) by [@latonita](https://github.com/latonita) (new-integration) (breaking-change)
+
+### Breaking Changes
+
+- Add DNS sensor and simplify format [esphome#6450](https://github.com/esphome/esphome/pull/6450) by [@HeMan](https://github.com/HeMan) (breaking-change)
+- SM2135 - Use standard channel ordering. [esphome#6573](https://github.com/esphome/esphome/pull/6573) by [@Cossid](https://github.com/Cossid) (breaking-change)
+- [sn74hc595] Enforce type field to distinguish gpio vs spi mode [esphome#6609](https://github.com/esphome/esphome/pull/6609) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Add datetime entities [esphome#6513](https://github.com/esphome/esphome/pull/6513) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- SPI and I2C for BMP390 and BMP380 [esphome#6652](https://github.com/esphome/esphome/pull/6652) by [@latonita](https://github.com/latonita) (new-integration) (breaking-change)
+
+### Beta Changes
+
+- [github] Upgrade to actions/[upload,download]-artifact v4 [esphome#6698](https://github.com/esphome/esphome/pull/6698) by [@jesserockz](https://github.com/jesserockz)
+- [nextion] Replace flags to `USE_ARDUINO` [esphome#6700](https://github.com/esphome/esphome/pull/6700) by [@edwardtfn](https://github.com/edwardtfn)
+- [remote_receiver, remote_transmitter] Improve error messages on the ESP32 [esphome#6701](https://github.com/esphome/esphome/pull/6701) by [@Mat931](https://github.com/Mat931)
+- [ethernet] Use constexpr instead of inline define for KSZ80XX_PC2R_REG_ADDR [esphome#6705](https://github.com/esphome/esphome/pull/6705) by [@jesserockz](https://github.com/jesserockz)
+- Add PHY register writes to enable external clock on Ethernet with RTL8201 [esphome#6704](https://github.com/esphome/esphome/pull/6704) by [@heythisisnate](https://github.com/heythisisnate)
+- Bump recommended ESP-IDF to 4.4.7 [esphome#6703](https://github.com/esphome/esphome/pull/6703) by [@bdraco](https://github.com/bdraco)
+- [core] Ensure that a generated ID name is distinct from its type. [esphome#6706](https://github.com/esphome/esphome/pull/6706) by [@clydebarrow](https://github.com/clydebarrow)
+- [color] Fix crash when hex color parses as int, improve error reporting. [esphome#6707](https://github.com/esphome/esphome/pull/6707) by [@clydebarrow](https://github.com/clydebarrow)
+- [github] Fix digest artifact name [esphome#6710](https://github.com/esphome/esphome/pull/6710) by [@jesserockz](https://github.com/jesserockz)
+- fix(ltr390): stuck ALS values when configured for ALS+UV readings [esphome#6723](https://github.com/esphome/esphome/pull/6723) by [@CodeInPolish](https://github.com/CodeInPolish)
+- Set FEATURE_API_AUDIO flag also if the speaker component is not used [esphome#6712](https://github.com/esphome/esphome/pull/6712) by [@gnumpi](https://github.com/gnumpi)
+- Bump platformio from 6.1.13 to 6.1.15 [esphome#6634](https://github.com/esphome/esphome/pull/6634) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix ESPHOME_PROJECT_VERSION_30 [esphome#6731](https://github.com/esphome/esphome/pull/6731) by [@jesserockz](https://github.com/jesserockz)
+- Voice-Assistant: Start-order change for VAD disabled: start va-pipeline when microphon… [esphome#6391](https://github.com/esphome/esphome/pull/6391) by [@gnumpi](https://github.com/gnumpi)
+- Add ANNOUNCING state to media_player. [esphome#6691](https://github.com/esphome/esphome/pull/6691) by [@gnumpi](https://github.com/gnumpi)
+- [adc] Fix 11db deprecation warning [esphome#6749](https://github.com/esphome/esphome/pull/6749) by [@jesserockz](https://github.com/jesserockz) (notable-change)
+
+### Notable Changes
+
+- [adc] Fix 11db deprecation warning [esphome#6749](https://github.com/esphome/esphome/pull/6749) by [@jesserockz](https://github.com/jesserockz) (notable-change)
+
+### All changes
+
+- Add some components to the new testing framework (H) [esphome#6179](https://github.com/esphome/esphome/pull/6179) by [@kbx81](https://github.com/kbx81)
+- Added Htu21d model option [esphome#6511](https://github.com/esphome/esphome/pull/6511) by [@MRemy2](https://github.com/MRemy2)
+- Add bk72xx base test file [esphome#6522](https://github.com/esphome/esphome/pull/6522) by [@jesserockz](https://github.com/jesserockz)
+- Add "log" alias for "logs" command [esphome#6519](https://github.com/esphome/esphome/pull/6519) by [@pzich](https://github.com/pzich)
+- Add DNS sensor and simplify format [esphome#6450](https://github.com/esphome/esphome/pull/6450) by [@HeMan](https://github.com/HeMan) (breaking-change)
+- Add all missing `remote_receiver` `on_...` tests [esphome#6524](https://github.com/esphome/esphome/pull/6524) by [@kbx81](https://github.com/kbx81)
+- Add actions to http_request tests [esphome#6529](https://github.com/esphome/esphome/pull/6529) by [@kbx81](https://github.com/kbx81)
+- Update homeassistant component tests with actions [esphome#6528](https://github.com/esphome/esphome/pull/6528) by [@kbx81](https://github.com/kbx81)
+- Define `USE_PSRAM` [esphome#6526](https://github.com/esphome/esphome/pull/6526) by [@edwardtfn](https://github.com/edwardtfn)
+- Bump black from 24.2.0 to 24.4.0 [esphome#6539](https://github.com/esphome/esphome/pull/6539) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump peter-evans/create-pull-request from 6.0.2 to 6.0.3 [esphome#6525](https://github.com/esphome/esphome/pull/6525) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump python version in sync-device-classes workflow to 3.12 for HA [esphome#6541](https://github.com/esphome/esphome/pull/6541) by [@jesserockz](https://github.com/jesserockz)
+- Bump pylint from 3.0.3 to 3.1.0 [esphome#6287](https://github.com/esphome/esphome/pull/6287) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 23.2.0 to 24.0.0 [esphome#6544](https://github.com/esphome/esphome/pull/6544) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pyupgrade from 3.15.1 to 3.15.2 [esphome#6543](https://github.com/esphome/esphome/pull/6543) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add enum option to typed_schema [esphome#6546](https://github.com/esphome/esphome/pull/6546) by [@jesserockz](https://github.com/jesserockz)
+- Move esphome-fork startup script to main repo. [esphome#6523](https://github.com/esphome/esphome/pull/6523) by [@jesserockz](https://github.com/jesserockz)
+- Call workflow for addon with dev version [esphome#6549](https://github.com/esphome/esphome/pull/6549) by [@jesserockz](https://github.com/jesserockz)
+- Use trusted publishing token for pypi [esphome#6545](https://github.com/esphome/esphome/pull/6545) by [@jesserockz](https://github.com/jesserockz)
+- Fix uart to work with new enum definition in esp-idf-v5.2.1 [esphome#6487](https://github.com/esphome/esphome/pull/6487) by [@luar123](https://github.com/luar123)
+- Housecleaning: Use walrus operator in datetime [esphome#6552](https://github.com/esphome/esphome/pull/6552) by [@jesserockz](https://github.com/jesserockz)
+- Housecleaning: Use walrus operator in text [esphome#6560](https://github.com/esphome/esphome/pull/6560) by [@jesserockz](https://github.com/jesserockz)
+- Housecleaning: Use walrus operator in light [esphome#6556](https://github.com/esphome/esphome/pull/6556) by [@jesserockz](https://github.com/jesserockz)
+- Housecleaning: Use walrus operator in select [esphome#6557](https://github.com/esphome/esphome/pull/6557) by [@jesserockz](https://github.com/jesserockz)
+- Housecleaning: Use walrus operator in number [esphome#6561](https://github.com/esphome/esphome/pull/6561) by [@jesserockz](https://github.com/jesserockz)
+- Housecleaning: Use walrus operator in cover [esphome#6562](https://github.com/esphome/esphome/pull/6562) by [@jesserockz](https://github.com/jesserockz)
+- Housecleaning: Use walrus operator in climate [esphome#6551](https://github.com/esphome/esphome/pull/6551) by [@jesserockz](https://github.com/jesserockz)
+- Housecleaning: Use walrus operator in fan [esphome#6555](https://github.com/esphome/esphome/pull/6555) by [@jesserockz](https://github.com/jesserockz)
+- Housecleaning: Use walrus operator in text_sensor [esphome#6559](https://github.com/esphome/esphome/pull/6559) by [@jesserockz](https://github.com/jesserockz)
+- Bump zeroconf to 0.132.2 [esphome#6548](https://github.com/esphome/esphome/pull/6548) by [@bdraco](https://github.com/bdraco)
+- Housecleaning: Use walrus operator in switch [esphome#6558](https://github.com/esphome/esphome/pull/6558) by [@jesserockz](https://github.com/jesserockz)
+- Housecleaning: Use walrus operator in lock [esphome#6554](https://github.com/esphome/esphome/pull/6554) by [@jesserockz](https://github.com/jesserockz)
+- Housecleaning: Use walrus operator in sensor [esphome#6553](https://github.com/esphome/esphome/pull/6553) by [@jesserockz](https://github.com/jesserockz)
+- Bump pytest-mock from 3.12.0 to 3.14.0 [esphome#6572](https://github.com/esphome/esphome/pull/6572) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump peter-evans/create-pull-request from 6.0.3 to 6.0.4 [esphome#6569](https://github.com/esphome/esphome/pull/6569) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Nextion - Review set_protocol_reparse_mode() [esphome#6567](https://github.com/esphome/esphome/pull/6567) by [@edwardtfn](https://github.com/edwardtfn)
+- Allow component final_validate [esphome#6475](https://github.com/esphome/esphome/pull/6475) by [@kbx81](https://github.com/kbx81)
+- SM2135 - Use standard channel ordering. [esphome#6573](https://github.com/esphome/esphome/pull/6573) by [@Cossid](https://github.com/Cossid) (breaking-change)
+- Nextion - Do not refresh sensors while updating [esphome#6566](https://github.com/esphome/esphome/pull/6566) by [@edwardtfn](https://github.com/edwardtfn)
+- Nextion - Review types [esphome#6565](https://github.com/esphome/esphome/pull/6565) by [@edwardtfn](https://github.com/edwardtfn)
+- On failure, dump the output of preceding jobs in CI status [esphome#6564](https://github.com/esphome/esphome/pull/6564) by [@clydebarrow](https://github.com/clydebarrow)
+- Nextion `send_command` method [esphome#6540](https://github.com/esphome/esphome/pull/6540) by [@edwardtfn](https://github.com/edwardtfn)
+- Fix some printf formats for size_t. [esphome#6542](https://github.com/esphome/esphome/pull/6542) by [@clydebarrow](https://github.com/clydebarrow)
+- remove delay from tmp102 [esphome#6577](https://github.com/esphome/esphome/pull/6577) by [@ssieb](https://github.com/ssieb)
+- Create `component_dir` substitution for local files to be included in… [esphome#6575](https://github.com/esphome/esphome/pull/6575) by [@jesserockz](https://github.com/jesserockz)
+- Define `USE_ESP32_BLE` [esphome#6585](https://github.com/esphome/esphome/pull/6585) by [@edwardtfn](https://github.com/edwardtfn)
+- Bump aioesphomeapi from 24.0.0 to 24.3.0 [esphome#6602](https://github.com/esphome/esphome/pull/6602) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add yamllint and clang-format to pre-commit hooks [esphome#6578](https://github.com/esphome/esphome/pull/6578) by [@clydebarrow](https://github.com/clydebarrow)
+- Use clang-format version from requirements_dev file [esphome#6606](https://github.com/esphome/esphome/pull/6606) by [@jesserockz](https://github.com/jesserockz)
+- Add some components to the new testing framework (P) [esphome#6213](https://github.com/esphome/esphome/pull/6213) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (M part 1) [esphome#6207](https://github.com/esphome/esphome/pull/6207) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (M part 2) [esphome#6208](https://github.com/esphome/esphome/pull/6208) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (O) [esphome#6211](https://github.com/esphome/esphome/pull/6211) by [@kbx81](https://github.com/kbx81)
+- [mopeka_std_check] Fix test file indentation [esphome#6610](https://github.com/esphome/esphome/pull/6610) by [@jesserockz](https://github.com/jesserockz)
+- Add valve component [esphome#6447](https://github.com/esphome/esphome/pull/6447) by [@kbx81](https://github.com/kbx81) (new-integration)
+- Add some components to the new testing framework (R) [esphome#6219](https://github.com/esphome/esphome/pull/6219) by [@kbx81](https://github.com/kbx81)
+- [sn74hc595] Enforce type field to distinguish gpio vs spi mode [esphome#6609](https://github.com/esphome/esphome/pull/6609) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- [tests] Run yaml tests in groups if over 100 to run [esphome#6612](https://github.com/esphome/esphome/pull/6612) by [@jesserockz](https://github.com/jesserockz)
+- Add some components to the new testing framework (I) [esphome#6185](https://github.com/esphome/esphome/pull/6185) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (T) [esphome#6229](https://github.com/esphome/esphome/pull/6229) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (S part 1) [esphome#6224](https://github.com/esphome/esphome/pull/6224) by [@kbx81](https://github.com/kbx81)
+- Add some components to the new testing framework (S part 2) [esphome#6227](https://github.com/esphome/esphome/pull/6227) by [@kbx81](https://github.com/kbx81)
+- `graphical_display_menu` requires a Display, not DisplayBuffer [esphome#6614](https://github.com/esphome/esphome/pull/6614) by [@clydebarrow](https://github.com/clydebarrow)
+- Add null GPIO pin [esphome#6611](https://github.com/esphome/esphome/pull/6611) by [@clydebarrow](https://github.com/clydebarrow)
+- Allow UART to be AUTO LOADed [esphome#6617](https://github.com/esphome/esphome/pull/6617) by [@jesserockz](https://github.com/jesserockz)
+- Add the WeiKai SPI/I2C UART/IO Expander components to esphome [esphome#5218](https://github.com/esphome/esphome/pull/5218) by [@DrCoolzic](https://github.com/DrCoolzic) (new-integration)
+- Sort mqtt_const alphabetically [esphome#6619](https://github.com/esphome/esphome/pull/6619) by [@jesserockz](https://github.com/jesserockz)
+- Limit Rx wait loop time to 3 seconds. [esphome#6594](https://github.com/esphome/esphome/pull/6594) by [@descipher](https://github.com/descipher)
+- Event entity support [esphome#6451](https://github.com/esphome/esphome/pull/6451) by [@nohat](https://github.com/nohat) (new-integration)
+- Only check c/c++ files with clang-format [esphome#6620](https://github.com/esphome/esphome/pull/6620) by [@jesserockz](https://github.com/jesserockz)
+- Added base64 helper [esphome#4866](https://github.com/esphome/esphome/pull/4866) by [@freekode](https://github.com/freekode)
+- Add Roomba IR protocol [esphome#4595](https://github.com/esphome/esphome/pull/4595) by [@rforro](https://github.com/rforro)
+- Fix issue when setting cw/ww brightness via temperature [esphome#5976](https://github.com/esphome/esphome/pull/5976) by [@patagonaa](https://github.com/patagonaa)
+- Add get/set color temperature functions in Kelvin [esphome#5006](https://github.com/esphome/esphome/pull/5006) by [@danielkent-net](https://github.com/danielkent-net)
+- Move CONF_PLATFORM_VERSION to global const.py [esphome#6629](https://github.com/esphome/esphome/pull/6629) by [@tomaszduda23](https://github.com/tomaszduda23)
+- Ble client fixes for proxy [esphome#6596](https://github.com/esphome/esphome/pull/6596) by [@elupus](https://github.com/elupus)
+- Fix for #6614- use background_color, improve anti-aliasing [esphome#6618](https://github.com/esphome/esphome/pull/6618) by [@clydebarrow](https://github.com/clydebarrow)
+- Fix graph hangs when y ≤ 0 [esphome#6593](https://github.com/esphome/esphome/pull/6593) by [@chiahsing](https://github.com/chiahsing)
+- Feature add last_operation to time based cover [esphome#6084](https://github.com/esphome/esphome/pull/6084) by [@xprofiler](https://github.com/xprofiler)
+- Add `event`, `text_sensor` and `valve` device classes to sync script [esphome#6624](https://github.com/esphome/esphome/pull/6624) by [@kbx81](https://github.com/kbx81)
+- Add datetime entities [esphome#6513](https://github.com/esphome/esphome/pull/6513) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Multiple Daly-BMS support [esphome#6615](https://github.com/esphome/esphome/pull/6615) by [@latonita](https://github.com/latonita)
+- Remove text_sensor from sync-device-class job [esphome#6637](https://github.com/esphome/esphome/pull/6637) by [@kbx81](https://github.com/kbx81)
+- Synchronise Device Classes from Home Assistant [esphome#6638](https://github.com/esphome/esphome/pull/6638) by [@esphomebot](https://github.com/esphomebot)
+- Display: add diagnostic test_card option [esphome#6608](https://github.com/esphome/esphome/pull/6608) by [@nielsnl68](https://github.com/nielsnl68)
+- waveshare_epaper: Add 2.90in-dke [esphome#6492](https://github.com/esphome/esphome/pull/6492) by [@polyfloyd](https://github.com/polyfloyd)
+- Extract core comments from #6241 [esphome#6643](https://github.com/esphome/esphome/pull/6643) by [@javawizard](https://github.com/javawizard)
+- [hm3301] Updated the AQI based on the airnow document [esphome#6004](https://github.com/esphome/esphome/pull/6004) by [@optimusprimespace](https://github.com/optimusprimespace)
+- Fix command line substitutions without any yaml substitutions [esphome#6644](https://github.com/esphome/esphome/pull/6644) by [@jesserockz](https://github.com/jesserockz)
+- Allow platform dependencies [esphome#6623](https://github.com/esphome/esphome/pull/6623) by [@kbx81](https://github.com/kbx81)
+- [light] Add transition_length to strobe effect. [esphome#6595](https://github.com/esphome/esphome/pull/6595) by [@lhartmann](https://github.com/lhartmann)
+- Fixed the issue that graph draws out of the boundary. [esphome#6651](https://github.com/esphome/esphome/pull/6651) by [@chiahsing](https://github.com/chiahsing)
+- Fix upload command. MQTT user and password is missing from configuration. #5093 [esphome#5766](https://github.com/esphome/esphome/pull/5766) by [@dylan09](https://github.com/dylan09)
+- patch esphome cli to skip mqtt based device discovery if --device option is specified [esphome#6371](https://github.com/esphome/esphome/pull/6371) by [@quigleymd](https://github.com/quigleymd)
+- Fix for #4866 - inconsistent arguments [esphome#6639](https://github.com/esphome/esphome/pull/6639) by [@clydebarrow](https://github.com/clydebarrow)
+- [template/text] Fix lambda config [esphome#6655](https://github.com/esphome/esphome/pull/6655) by [@asergunov](https://github.com/asergunov)
+- web_server: Add support for v3 local server_index [esphome#6563](https://github.com/esphome/esphome/pull/6563) by [@pzich](https://github.com/pzich)
+- Update webserver local assets to 20240429-211523 [esphome#6657](https://github.com/esphome/esphome/pull/6657) by [@esphomebot](https://github.com/esphomebot)
+- [nextion] Exit reparse before update TFT [esphome#6589](https://github.com/esphome/esphome/pull/6589) by [@edwardtfn](https://github.com/edwardtfn)
+- [nextion] Set alternative TFT update baud rate [esphome#6587](https://github.com/esphome/esphome/pull/6587) by [@edwardtfn](https://github.com/edwardtfn)
+- [TM1637] Let turn off the display [esphome#6656](https://github.com/esphome/esphome/pull/6656) by [@asergunov](https://github.com/asergunov)
+- [nextion] Use persistent http connection for TFT upload (Arduino) [esphome#6582](https://github.com/esphome/esphome/pull/6582) by [@edwardtfn](https://github.com/edwardtfn)
+- Extend MQTT tests [esphome#6648](https://github.com/esphome/esphome/pull/6648) by [@kbx81](https://github.com/kbx81)
+- Extend and consolidate `script` tests [esphome#6663](https://github.com/esphome/esphome/pull/6663) by [@kbx81](https://github.com/kbx81)
+- [nextion] Use persistent http connection for TFT upload (ESP-IDF) [esphome#6576](https://github.com/esphome/esphome/pull/6576) by [@edwardtfn](https://github.com/edwardtfn)
+- Add a function to return the loop_interval [esphome#6666](https://github.com/esphome/esphome/pull/6666) by [@tronikos](https://github.com/tronikos)
+- Remote receiver improvements [esphome#4642](https://github.com/esphome/esphome/pull/4642) by [@Mat931](https://github.com/Mat931)
+- Make fast update intervals in qmc5883l work [esphome#6647](https://github.com/esphome/esphome/pull/6647) by [@tronikos](https://github.com/tronikos)
+- SPI and I2C for BMP390 and BMP380 [esphome#6652](https://github.com/esphome/esphome/pull/6652) by [@latonita](https://github.com/latonita) (new-integration) (breaking-change)
+- Set `CONF_` CI counter to fail on 3 or more definitions [esphome#6668](https://github.com/esphome/esphome/pull/6668) by [@jesserockz](https://github.com/jesserockz)
+- [core] Rename ALWAYS_INLINE to ESPHOME_ALWAYS_INLINE [esphome#6636](https://github.com/esphome/esphome/pull/6636) by [@tomaszduda23](https://github.com/tomaszduda23)
+- print task name if logger is called from other than main thread [esphome#6630](https://github.com/esphome/esphome/pull/6630) by [@tomaszduda23](https://github.com/tomaszduda23)
+- Fix recent definitions into `defines.h` [esphome#6667](https://github.com/esphome/esphome/pull/6667) by [@edwardtfn](https://github.com/edwardtfn)
+- Add fast update to HMC5883L [esphome#6669](https://github.com/esphome/esphome/pull/6669) by [@mkmer](https://github.com/mkmer)
+- Minor tidy up of BME280 code [esphome#6672](https://github.com/esphome/esphome/pull/6672) by [@latonita](https://github.com/latonita)
+- External components: optional configurable path for git source [esphome#6677](https://github.com/esphome/esphome/pull/6677) by [@twasilczyk](https://github.com/twasilczyk)
+- Use clang-apply-replacements when clang-apply-replacements-14 does not exist [esphome#6684](https://github.com/esphome/esphome/pull/6684) by [@Links2004](https://github.com/Links2004)
+- fix conflict with EMPTY macro in zephyr [esphome#6679](https://github.com/esphome/esphome/pull/6679) by [@tomaszduda23](https://github.com/tomaszduda23)
+- Bump actions/checkout from 4.1.1 to 4.1.5 [esphome#6685](https://github.com/esphome/esphome/pull/6685) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix Datetime-Datetime compiler error [esphome#6686](https://github.com/esphome/esphome/pull/6686) by [@RFDarter](https://github.com/RFDarter)
+- Bump esphome/ESPAsyncWebServer-esphome to 3.2.0 [esphome#6687](https://github.com/esphome/esphome/pull/6687) by [@jesserockz](https://github.com/jesserockz)
+- fix date_time validation [esphome#6688](https://github.com/esphome/esphome/pull/6688) by [@RFDarter](https://github.com/RFDarter)
+- proceed if AP mode is set up [esphome#6631](https://github.com/esphome/esphome/pull/6631) by [@ssieb](https://github.com/ssieb)
+- Migrate some constants to core code [esphome#6692](https://github.com/esphome/esphome/pull/6692) by [@clydebarrow](https://github.com/clydebarrow)
+- Consolidate test files where all tests are identical [esphome#6690](https://github.com/esphome/esphome/pull/6690) by [@kbx81](https://github.com/kbx81)
+- Make `pulse_meter` PULSE filter report the pulse as soon as it can [esphome#6014](https://github.com/esphome/esphome/pull/6014) by [@TrentHouliston](https://github.com/TrentHouliston)
+- Update webserver local assets to 20240507-231331 [esphome#6696](https://github.com/esphome/esphome/pull/6696) by [@esphomebot](https://github.com/esphomebot)
+- [github] Upgrade to actions/[upload,download]-artifact v4 [esphome#6698](https://github.com/esphome/esphome/pull/6698) by [@jesserockz](https://github.com/jesserockz)
+- [nextion] Replace flags to `USE_ARDUINO` [esphome#6700](https://github.com/esphome/esphome/pull/6700) by [@edwardtfn](https://github.com/edwardtfn)
+- [remote_receiver, remote_transmitter] Improve error messages on the ESP32 [esphome#6701](https://github.com/esphome/esphome/pull/6701) by [@Mat931](https://github.com/Mat931)
+- [ethernet] Use constexpr instead of inline define for KSZ80XX_PC2R_REG_ADDR [esphome#6705](https://github.com/esphome/esphome/pull/6705) by [@jesserockz](https://github.com/jesserockz)
+- Add PHY register writes to enable external clock on Ethernet with RTL8201 [esphome#6704](https://github.com/esphome/esphome/pull/6704) by [@heythisisnate](https://github.com/heythisisnate)
+- Bump recommended ESP-IDF to 4.4.7 [esphome#6703](https://github.com/esphome/esphome/pull/6703) by [@bdraco](https://github.com/bdraco)
+- [core] Ensure that a generated ID name is distinct from its type. [esphome#6706](https://github.com/esphome/esphome/pull/6706) by [@clydebarrow](https://github.com/clydebarrow)
+- [color] Fix crash when hex color parses as int, improve error reporting. [esphome#6707](https://github.com/esphome/esphome/pull/6707) by [@clydebarrow](https://github.com/clydebarrow)
+- [github] Fix digest artifact name [esphome#6710](https://github.com/esphome/esphome/pull/6710) by [@jesserockz](https://github.com/jesserockz)
+- fix(ltr390): stuck ALS values when configured for ALS+UV readings [esphome#6723](https://github.com/esphome/esphome/pull/6723) by [@CodeInPolish](https://github.com/CodeInPolish)
+- Set FEATURE_API_AUDIO flag also if the speaker component is not used [esphome#6712](https://github.com/esphome/esphome/pull/6712) by [@gnumpi](https://github.com/gnumpi)
+- Bump platformio from 6.1.13 to 6.1.15 [esphome#6634](https://github.com/esphome/esphome/pull/6634) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix ESPHOME_PROJECT_VERSION_30 [esphome#6731](https://github.com/esphome/esphome/pull/6731) by [@jesserockz](https://github.com/jesserockz)
+- Voice-Assistant: Start-order change for VAD disabled: start va-pipeline when microphon… [esphome#6391](https://github.com/esphome/esphome/pull/6391) by [@gnumpi](https://github.com/gnumpi)
+- Add ANNOUNCING state to media_player. [esphome#6691](https://github.com/esphome/esphome/pull/6691) by [@gnumpi](https://github.com/gnumpi)
+- [adc] Fix 11db deprecation warning [esphome#6749](https://github.com/esphome/esphome/pull/6749) by [@jesserockz](https://github.com/jesserockz) (notable-change)
+
+{/* markdownlint-enable MD013 */}

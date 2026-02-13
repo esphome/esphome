@@ -18,372 +18,194 @@
   </picture>
 </a>
 
-This repository contains source for the documentation site for ESPHome.
+This repository contains the source for the documentation site for ESPHome, built with [Astro](https://astro.build/) and [Starlight](https://starlight.astro.build/).
 
 ## Project Structure
 
-The project follows a standard directory structure:
+The project follows the Astro/Starlight directory structure:
 
-``` text
+```text
 esphome-docs/
-├── archetypes/        # Content templates
-├── assets/            # Source files for CSS, JS, etc.
-├── content/           # Markdown content files
-├── data/              # Data files for templates
-├── layouts/           # HTML templates
-├── static/            # Static files
-│   └── images/        # Image files
-├── themes/            # Custom theme for ESPHome
-│   └── esphome-theme/ # The ESPHome custom theme
-├── hugo.yaml          # Hugo configuration
-└── README.md          # This file
+├── src/
+│   ├── assets/           # Static assets (logos, etc.)
+│   ├── components/       # Astro components
+│   ├── content/
+│   │   └── docs/         # MDX documentation files
+│   ├── lib/              # Utility functions
+│   └── styles/           # CSS files
+├── public/
+│   └── images/           # Shared images (multi-use, ImgTable)
+├── astro.config.mjs      # Astro configuration
+├── tsconfig.json         # TypeScript configuration
+└── package.json          # Node.js dependencies
 ```
 
 ## Image File Resolution
 
-Images in the Hugo site referred to in `img` shortcodes are handled using a specific search strategy:
+Images in the Astro/Starlight site are handled in two ways:
 
-### Relative paths
+### Imported Local Images (Single-use images)
 
-- When using relative paths in the `img` shortcode (e.g., `{{< img src="dht22.jpg" >}}`),
-  Hugo will first look in a local `images/` subdirectory.
-  For example, an image referenced in `content/components/sensor/dht.md` will first be
-  searched for in `content/components/sensor/images/`.
+For images used in only one document:
 
-- If the image is not found in the local directory, Hugo will then look in the global `/static/images/` directory.
+```jsx
+import { Image } from 'astro:assets';
+import myImageImg from './images/my-image.jpg';
 
-### Absolute paths
-
-When using absolute paths (starting with `/`), Hugo will look directly in the specified location
-relative to the `/static/` directory.
-
-This strategy allows component documentation to have its own images while also supporting shared images across the site.
-
-## Custom Theme
-
-The site uses a custom theme called `esphome-theme` which is designed to match the look and feel of the original
-ESPHome documentation. The theme includes:
-
-- Responsive design for mobile and desktop
-- Dark mode support
-- Custom shortcodes for documentation features
-- Navigation sidebar
-- Search functionality
-
-## Markdown
-
-Hugo uses Markdown files as input. The Markdown processor in use is Goldmark.
-
-## Hugo Template System
-
-Hugo uses a templating system to generate HTML from Markdown content. Understanding the following concepts is helpful
-when working with or modifying the theme:
-
-### Templates
-
-Templates are HTML files with Go templating syntax that define the structure and layout of pages. Hugo uses different
-types of templates:
-
-- **Base Templates**: Define the overall structure of the site (found in `layouts/_default/baseof.html`)
-- **List Templates**: Used for section pages that list multiple content items
-- **Single Templates**: Used for individual content pages
-- **Home Template**: Specifically for the homepage
-
-Templates use blocks (like `{{ block "main" . }}{{ end }}`) that can be overridden by other templates.
-
-### Partials
-
-Partials are reusable template components that can be included in other templates. They help maintain DRY (Don't Repeat
-Yourself) code by extracting common elements:
-
-``` text
-{{ partial "header.html" . }}
+<Image src={myImageImg} alt="Description" layout="constrained" />
 ```
 
-The dot (`.`) passes the current context to the partial. Partials are stored in the `layouts/partials/` directory.
+- Images are stored in a local `images/` directory next to the MDX file
+- They are imported at the top of the file
+- Astro automatically optimizes these images during build
+- Variable names follow camelCase convention with `Img` suffix
 
-### Shortcodes
+### Absolute Paths (Multi-use images and ImgTable)
 
-Shortcodes are special tags you can use within Markdown content to insert complex elements or custom HTML.
-They bridge the gap between the simplicity of Markdown and the need for more complex formatting.
+For images used in multiple documents or in ImgTable components:
 
-``` text
-{{< shortcode-name param1="value" param2="value" >}}
+```jsx
+<Image src="/images/shared-image.jpg" alt="Description" layout="constrained" />
 ```
 
-Shortcodes can be self-closing or can wrap content:
+- Images are stored in `/public/images/`
+- Referenced using absolute paths starting with `/images/`
+- **Important**: All images used in ImgTable components MUST remain in `/public/images/`
 
-``` text
-{{< shortcode-name >}}
-  Content to be processed
-{{< /shortcode-name >}}
+### ImgTable Component
+
+The ImgTable component creates grids of component cards (commonly used on index pages):
+
+```jsx
+<ImgTable items={[
+  ["Title", "/path/to/page/", "image.png"],
+  ["Title 2", "/path/to/page2/", "image2.png", "caption"],
+  ["Title 3", "/path/to/page3/", "image3.png", "caption", "dark-invert"],
+]} />
 ```
 
-Shortcode templates are stored in the `layouts/shortcodes/` directory.
+All images referenced in ImgTable **must** be in `/public/images/` as the component resolves them to `/images/filename.png`.
 
-## Shortcodes
+## Starlight Framework
 
-Hugo has a number of [built-in shortcodes](https://gohugo.io/content-management/shortcodes/) and the ESPHome theme
-also defines several custom shortcodes:
+The site uses [Starlight](https://starlight.astro.build/), a documentation framework built on Astro. Key features include:
 
-### `anchor`
+- Built-in responsive design
+- Automatic dark mode support
+- Search functionality via Pagefind
+- Sidebar navigation
+- Right-hand table of contents
+- SEO optimization
+- Accessibility features
 
-Creates an HTML anchor point that can be linked to with fragment identifiers.
+## MDX Format
 
-``` text
-{{< anchor "my-anchor-id" >}}
+Content is written in [MDX](https://mdxjs.com/), which allows you to use JSX components within Markdown:
+
+```mdx
+---
+title: "My Page Title"
+description: "Page description for SEO"
+---
+
+import { Image } from 'astro:assets';
+import myImageImg from './images/my-image.jpg';
+
+# Heading
+
+Regular Markdown content here.
+
+<Image src={myImageImg} alt="Description" layout="constrained" />
 ```
 
-NOTE: Headings automatically create anchors, so it is not necessary to insert `anchor` shortcodes for them.
+## Custom Components
 
-### `collapse`
+### Astro Components
 
-Creates a collapsible section with a title that can be clicked to show/hide content.
+Custom components are located in `src/components/` and can be imported into MDX files:
 
-``` text
-{{< collapse true >}}
-This content will be hidden by default and can be expanded by clicking the header.
-You can include any Markdown content here, including lists, code blocks, etc.
-the parameter, if present and set to true, will have the content initially opened. Note that False is a truthy string, not a boolean
-{{< /collapse >}}
+- **APIRef**: Links to C++ API documentation
+- **ImgTable**: Grid of component cards with images
+- **Figure**: Images with optional captions
+- **Footer**: Custom footer component
+
+### Using Components
+
+Import and use components in MDX files:
+
+```jsx
+import APIRef from '@components/APIRef.astro';
+import Figure from '@components/Figure.astro';
+import myImageImg from './images/my-image.jpg';
+
+<APIRef text="component.h" path="component/component.h" />
+
+<Figure src={myImageImg} alt="Description" caption="Optional caption" />
 ```
 
-### `docref`
+## Alert Boxes
 
-Creates a link to another page in the documentation with proper handling of anchors.
-
-``` text
-{{< docref "/components/sensor/dht" >}}                     <!-- Uses the target page title as link text -->
-{{< docref "/components/sensor/dht" "DHT Sensor Guide" >}}  <!-- Uses custom text for the link -->
-{{< docref "/components/sensor/dht#configuration" >}}       <!-- Links to a specific anchor on the page -->
-```
-
-### `img`
-
-Displays an image with optional caption, width, height, and CSS class.
-
-``` text
-{{< img src="example.jpg" alt="Example image" caption="This is an example" width="500" class="center" >}}
-```
-
-### `imgtable`
-
-Creates a component card with an image, title, and optional description that links to another page.
-
-``` text
-  {{< imgtable >}}
-  Title 1, path/to/page1, image1.png
-  Title 1, path/to/page1, image1.png, "sub-caption"
-  Title 2, path/to/page2, image2.png, dark-invert
-  Title 2, path/to/page2, image2.png, "sub-caption", dark-invert
-  {{< /imgtable >}}
-  
-```
-
-### `seo`
-
-Adds SEO metadata tags to the page for better search engine optimization and social media sharing.
-
-``` text
-{{< seo description="Detailed guide for setting up the DHT sensor with ESPHome" image="dht-sensor.jpg" >}}
-```
-
-### `apiref`
-
-Creates a link to a C++ API header file.
-
-``` text
-{{< apiref "Component" "esphome/core/component.h" >}}
-```
-
-### `apiclass`
-
-Creates a link specifically to a C++ class in the API documentation.
-
-``` text
-{{< apiclass "ClimateDevice" "esphome::climate::ClimateDevice" >}}
-{{< apiclass "WiFiComponent" "esphome::wifi::WiFiComponent" >}}
-```
-
-### `apistruct`
-
-Creates a link specifically to a C++ struct in the API documentation.
-
-``` text
-{{< apistruct "SensorStateClass" "esphome::sensor::SensorStateClass" >}}
-{{< apistruct "GPIOOutputPin" "esphome::output::GPIOOutputPin" >}}
-```
-
-### `api-key-input`
-
-Creates an input field with a randomly generated API key and a copy button.
-
-``` text
-{{< api-key-input >}}
-```
-
-### `ghuser`
-
-Creates a link to a GitHub user profile.
-
-``` text
-{{< ghuser name="octocat" >}}                <!-- Links to @octocat -->
-{{< ghuser name="octocat" text="GitHub" >}}  <!-- Links to @octocat but displays "GitHub" -->
-```
-
-### `html_file`
-
-Reads a file from the static directory and inserts it as HTML.
-
-``` text
-{{< html_file file="example.html" class="example-class" >}}
-```
-
-### `option`
-
-Creates an option block for documenting command-line options or configuration parameters.
-
-``` text
-{{< option "--help|-h" >}}
-This is the help option.
-{{< /option >}}
-```
-
-### `pr`
-
-Creates a link to a GitHub pull request.
-
-``` text
-{{< pr number="123" >}}                <!-- Links to esphome/esphome#123 -->
-{{< pr number="123" repo="esphome-docs" >}}    <!-- Links to esphome/esphome-docs#123 -->
-```
-
-### `redirect`
-
-Creates a page that automatically redirects to another URL.
-
-``` text
-{{< redirect url="/some/path" >}}
-```
-
-## Markdown features
-
-### `note`
-
-Creates a note blockquote/alert box to highlight important information.
-
-> [!NOTE]
-> This is important information that the reader should pay attention to.
-> You can include **Markdown** formatting within the block.
+Use GitHub-flavored alert syntax for callouts:
 
 ```markdown
 > [!NOTE]
-> This is important information that the reader should pay attention to.
-> You can include **Markdown** formatting within the block.
-```
-
-### `important`
-
-Creates an important blockquote/alert box to highlight helpful information.
+> This is important information that readers should pay attention to.
 
 > [!IMPORTANT]
-> This is helpful information that the reader should be aware of.
-> You can include **Markdown** formatting within the block.
-
-```markdown
-> [!IMPORTANT]
-> This is helpful information that the reader should be aware of.
-> You can include **Markdown** formatting within the block.
-```
-
-### `tip`
-
-Creates a tip blockquote/alert box to highlight helpful advice or best practices.
+> This is helpful information that readers should be aware of.
 
 > [!TIP]
-> For best results, place the sensor away from heat sources.
-> You can include **Markdown** formatting within the block.
-
-```markdown
-> [!TIP]
-> For best results, place the sensor away from heat sources.
-> You can include **Markdown** formatting within the block.
-```
-
-### `warning`
-
-Creates a warning blockquote/alert box to highlight important warnings or potential issues.
+> Helpful advice or best practices.
 
 > [!WARNING]
-> Incorrect wiring may damage your device. Double-check connections before powering on.
-> You can include **Markdown** formatting within the block.
-
-```markdown
-> [!WARNING]
-> Incorrect wiring may damage your device. Double-check connections before powering on.
-> You can include **Markdown** formatting within the block.
-```
-
-### `caution`
-
-Creates a caution blockquote/alert box to highlight important cautions or potential issues.
+> Important warnings or potential issues.
 
 > [!CAUTION]
-> Incorrect wiring may damage your device. Double-check connections before powering on.
-> You can include **Markdown** formatting within the block.
+> Critical cautions that could cause damage.
+```
+
+## Mathematical Expressions
+
+LaTeX equations are supported using KaTeX:
+
+Inline math: `$E = mc^2$`
+
+Block equations:
 
 ```markdown
-> [!CAUTION]
-> Incorrect wiring may damage your device. Double-check connections before powering on.
-> You can include **Markdown** formatting within the block.
+$$
+\text{formula} = \frac{a}{b}
+$$
 ```
-
-## Conversion Scripts
-
-A Python script is included to help with the conversion process from RST:
-
-`script/convert_rst_to_md.py` - Converts Sphinx RST files to Hugo Markdown format
-Available options for convert_rst_to_md.py:
-
-``` text
-positional arguments:
-  input_dir             Input directory containing RST files
-  output_dir            Output directory for Markdown files
-
-optional arguments:
-  --single FILENAME     Process a single file (relative to input_dir)
-  --no-images           Skip image processing
-```
-
-The script performs the following operations:
-
-- Builds an anchor map to maintain internal links
-- Converts RST formatting to Markdown
-- Processes special directives like notes, warnings, and tips
-- Converts RST tables to Markdown format
-- Handles image references and copies images to appropriate locations
-- Processes inline markup and references
-
-### Converting a PR that was written with RST
-
-See the `script/convert-pr.sh` script for converting a PR that was written with RST.
 
 ## Development
 
 To run the site locally:
 
-1. Install Hugo: <https://gohugo.io/installation/>
-1. Install NodeJS (simplest way to run pagefind)
+1. Install Node.js (v18 or later recommended)
 1. Clone this repository
-1. Navigate to the repository directory
-1. Run `make live-html`
-1. Open your browser to <http://localhost:8000/>
+1. Install dependencies: `npm install`
+1. Run development server: `npm run dev`
+1. Open your browser to `http://localhost:4321/`
+
+### Available Commands
+
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run preview      # Preview production build locally
+npm run astro        # Run Astro CLI commands
+```
 
 ## Building for Production
 
-See the GitHub workflows in `.github/workflows`
+```bash
+npm run build
+```
 
-The built site will be in the `public` directory.
+The built site will be in the `dist/` directory.
+
+See the GitHub workflows in `.github/workflows` for CI/CD configuration.
 
 ## Contributing
 
@@ -391,8 +213,17 @@ Contributions to improve the documentation are welcome! Please follow these step
 
 1. Fork the repository
 1. Create a new branch for your changes
-1. Make your changes
+1. Make your changes following the conventions described above
+1. Test your changes locally with `npm run dev`
 1. Submit a pull request
+
+### Image Guidelines
+
+- Use local imported images for single-use images (one file only)
+- Keep multi-use images in `/public/images/` with absolute paths
+- All ImgTable images must remain in `/public/images/`
+- Use descriptive alt text for accessibility
+- Include `layout="constrained"` for responsive images
 
 ## License
 

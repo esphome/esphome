@@ -1,0 +1,34 @@
+---
+description: "Instructions for setting up switches that can remotely shut down the ESP."
+title: "Shutdown Switch"
+---
+
+import { Image } from 'astro:assets';
+import APIRef from '@components/APIRef.astro';
+
+The `shutdown` switch platform allows you to shutdown your node remotely
+through Home Assistant. It does this by putting the node into deep sleep mode with no
+wakeup source selected. After enabling, the only way to startup the ESP again is by
+pressing the reset button or restarting the power supply.
+
+<Image src="/images/shutdown-ui.png" width={452} height={80} layout="constrained" alt="" />
+
+```yaml
+# Example configuration entry
+switch:
+  - platform: shutdown
+    name: "Living Room Shutdown"
+```
+
+## Configuration variables
+
+- All options from [Switch](/components/switch#config-switch).
+
+## See Also
+
+- [Restart Switch](/components/switch/restart/)
+- [Safe Mode Switch](/components/switch/safe_mode/)
+- [Factory Reset Switch](/components/switch/factory_reset/)
+- [Shutdown Button](/components/button/shutdown/)
+- [Template Switch](/components/switch/template/)
+- <APIRef text="shutdown_switch.h" path="shutdown/shutdown_switch.h" />

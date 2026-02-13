@@ -1,0 +1,162 @@
+---
+description: "Configuration for the ESP8266 platform for ESPHome."
+title: "ESP8266 Platform"
+---
+
+This component contains platform-specific options for the ESP8266 platform.
+
+```yaml
+# Example configuration entry
+esp8266:
+  board: nodemcuv2
+  framework:
+    version: recommended
+```
+
+## Configuration variables
+
+- **board** (**Required**, string): The PlatformIO board ID that should
+  be used. Choose the appropriate board from
+  [this list](https://registry.platformio.org/platforms/platformio/espressif8266/boards) (the icon next to the
+  name can be used to copy the board ID). *This only affects pin aliases, flash size and some internal settings*, if unsure
+  choose a generic board from Espressif such as `esp01_1m`.
+
+- **framework** (*Optional*): Options for the underlying framework used by ESPHome.
+
+  - **version** (*Optional*, string): The base framework version number to use, from
+    [esp8266 arduino releases](https://github.com/esp8266/Arduino/releases). Defaults to `recommended`. Additional values
+
+    - `dev`  : Use the latest commit from [https://github.com/esp8266/Arduino](https://github.com/esp8266/Arduino), note this may break at any time
+    - `latest`  : Use the latest *release* from [https://github.com/esp8266/Arduino/releases](https://github.com/esp8266/Arduino/releases), even if it hasn't been recommended yet.
+    - `recommended`  : Use the recommended framework version.
+
+  - **source** (*Optional*, string): The PlatformIO package or repository to use for the framework. This can be used to use a custom or patched version of the framework.
+  - **platform_version** (*Optional*, string): The version of the [platformio/espressif8266](https://github.com/platformio/platform-espressif8266/releases/) package to use.
+
+- **restore_from_flash** (*Optional*, boolean): Whether to store some persistent preferences in flash memory. Defaults to `false`.
+- **board_flash_mode** (*Optional*, string): The SPI mode of the flash chip. One of `qio`, `qout`, `dio` and `dout`. Defaults to `dout` for compatibility with all chips. Note: on the next OTA update the actual flash mode is automatically detected and changed to the appropriate one.
+- **early_pin_init** (*Optional*, boolean): Specifies whether pins should be initialised as early as possible to known values. Recommended value is `false` where switches are involved, as these will toggle when updating the firmware or when restarting the device. Defaults to `true`.
+- **enable_serial** (*Optional*, boolean): Force-enable the Arduino `Serial` object (UART0) for use in lambdas or external libraries. Most users will never need this option, as the `logger` and `uart` components automatically enable the required Serial objects. Only use this if you directly access `Serial` in a lambda and get a compilation error. Use the [UART component](/components/uart) instead when possible, as it works across all platforms. Defaults to automatic detection.
+- **enable_serial1** (*Optional*, boolean): Force-enable the Arduino `Serial1` object (UART1) for use in lambdas or external libraries. Most users will never need this option, as the `logger` and `uart` components automatically enable the required Serial objects. Only use this if you directly access `Serial1` in a lambda and get a compilation error. Use the [UART component](/components/uart) instead when possible, as it works across all platforms. Defaults to automatic detection.
+
+## GPIO Pin Numbering
+
+Many boards have a pin numbering for the exposed pins that is different from the internally used
+ones. ESPHome tries to map the silk-screen pin numbers into the internal pin numbers with a few
+boards, but for generic ESP8266 boards it is often required to just use the internal pin numbers.
+To do this, just prefix all pins with `GPIO`, for example `GPIO0` for the pin with the internal pin
+number 0.
+
+Some notes on the pins:
+
+- `GPIO6` - `GPIO11`, `GPIO0`, `GPIO2` and `GPIO15` are often already used by the internal
+  flash interface and boot mode detection. So it's best to avoid using these pins.
+
+- `GPIO17` additionally has an ADC connected to it. See the [Adc](/components/sensor/adc/)
+  to read voltages (in the range from 0 to 1.0V) on this pin.
+
+```yaml
+# Example configuration entry
+esphome:
+  name: livingroom
+
+esp8266:
+  board: nodemcuv2
+
+binary_sensor:
+  - platform: gpio
+    name: "Pin GPIO17"
+    pin: GPIO17
+```
+
+### Special Pins
+
+| `GPIO0`           | Controls Boot Mode                                                       |
+| ----------------- | ------------------------------------------------------------------------ |
+| `GPIO1`           | UART TX pin                                                              |
+| `GPIO2`           | Controls Boot Mode                                                       |
+| `GPIO3`           | UART RX pin |
+| `GPIO6`           | SDIO/Flash CLK pin |
+| `GPIO7`           | SDIO/Flash Data 0 pin |
+| `GPIO8`           | SDIO/Flash Data 1 pin |
+| `GPIO9`           | SDIO/Flash Data 2 pin (qio/qout only) |
+| `GPIO10`          | SDIO/Flash Data 3 pin (qio/qout only) |
+| `GPIO11`          | SDIO/Flash CMD pin |
+| `GPIO12`          | Attached to Hardware SPI controller MISO |
+| `GPIO13`          | Attached to Hardware SPI controller MOSI |
+| `GPIO14`          | Attached to Hardware SPI controller CLK |
+| `GPIO15`          | Controls Boot Mode; Attached to Hardware SPI controller CS |
+| `GPIO16`          | Special pin that can be accessed from RTC, and is Deep-Sleep wakeup pin |
+| TOUT aka `GPIO17` | ADC pin for measuring voltages, can only be used as analog input pin |
+
+This means effectively only the following pins can be used as general purpose GPIO:
+
+| **Pin**  | **Restrictions**                         | **State after Reset** |
+| -------- | ---------------------------------------- | --------------------- |
+| `GPIO0`  | If HIGH on boot                          | Weak Pull Up          |
+| `GPIO2`  | If HIGH on boot                          | Weak Pull Up          |
+| `GPIO4`  | | High Impedance |
+| `GPIO5`  | | High Impedance |
+| `GPIO6`  | | Weak Pull Up |
+| `GPIO12` | | Weak Pull Up |
+| `GPIO13` | | Weak Pull Up |
+| `GPIO14` | | Weak Pull Up |
+| `GPIO15` | If LOW on boot | Weak Pull Up |
+| `GPIO16` | Has pull-down (but no pull-up) resistor | Weak Pull Down |
+
+## Boot Modes
+
+On each boot, the ESP8266 will check three pins to determine in which boot mode to enter.
+There are three boot modes:
+
+| **Mode**                 | `GPIO0` | `GPIO2` | `GPIO15` | `boot mode:` |
+| ------------------------ | ------- | ------- | -------- | ------------ |
+| Boot from Flash (normal) | HIGH    | HIGH    | LOW      | 3            |
+| Download Code from UART  | LOW     | HIGH    | LOW      | 1            |
+| Boot from SD-Card | ANY | ANY | HIGH | 4-7 |
+
+You can identify these on boot-up by looking at the UART output, the first number
+in the `boot mode:` line tells you what mode was selected
+
+```text
+ets Jan  8 2013,rst cause:4, boot mode:(3,6)
+```
+
+The first lines when viewing the UART logs might have unrecognized characters. This is
+because the effective baudrate of the ESP8266 bootloader is 74800, whereas the program uses 115200.
+
+## Reset Causes
+
+Additionally, the first line also contains the **reset cause**.
+These reset causes [are documented](https://www.espressif.com/sites/default/files/documentation/esp8266_reset_causes_and_common_fatal_exception_causes_en.pdf):
+
+| 0   | Undefined                           |
+| --- | ----------------------------------- |
+| 1   | Power On Reboot                     |
+| 2   | External reset or deep-sleep wakeup |
+| 4 | Hardware WDT reset |
+
+After a software reset, the reset cause will not change.
+
+## Electrical Characteristics
+
+| **Parameter**                                      | **Min.**  | **Typical** | **Max.**  | **Unit** |
+| -------------------------------------------------- | --------- | ----------- | --------- | -------- |
+| Operating Temperature                              | -40       |             | 125       | °C       |
+| Working Voltage `V_IO`                             | 2.5       | 3.3         | 3.6       | V        |
+| `V_IL` - INPUT voltage level to be considered LOW | -0.3 | | 0.25*V_IO | V |
+| `V_IH` - INPUT voltage level to be considered HIGH | 0.75*V_IO | | 3.6 | V |
+| `V_OL` - OUTPUT voltage level for LOW | | | 0.1*V_IO | V |
+| `V_OH` - OUTPUT voltage level for HIGH | 0.8*V_IO | | | V |
+| `I_MAX` - Maximum current for GPIO | | | 12 | mA |
+| Power Consumption in Deep Sleep | | 20 | | µA |
+| Power Consumption in Active Mode | | 120 | | mA |
+
+Source: [ESP8266EX datasheet](https://www.espressif.com/sites/default/files/documentation/0a-esp8266ex_datasheet_en.pdf)
+
+The internal pull up/down resistors have values of 30kΩ to 100kΩ
+([source](https://bbs.espressif.com/viewtopic.php?t=1079)).
+
+## See Also
+
+- [ESPHome Core Configuration](/components/esphome/)

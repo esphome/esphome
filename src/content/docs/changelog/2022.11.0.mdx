@@ -1,0 +1,230 @@
+---
+description: "Changelog for ESPHome 2022.11.0."
+title: "ESPHome 2022.11.0 - 16th November 2022"
+pagefind: false
+slug: "changelog/2022.11.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["RP2040","/components/rp2040","rp2040.svg"],
+  ["WL-134 Pet Tag Sensor","/components/text_sensor/wl_134","fingerprint.svg","dark-invert"],
+  ["Ethernet Info","/components/text_sensor/ethernet_info","ethernet.svg","dark-invert"],
+  ["Atlas Scientific Peristaltic Pump","/components/ezo_pmp","ezo-pmp.jpg"],
+  ["ADC128S102","/components/sensor/adc128s102","adc128s102.png"],
+  ["Daikin BRC","/components/climate/climate_ir","air-conditioner-ir.svg","dark-invert"],
+  ["Display Menu Core","/components/display_menu/index","folder-open.svg","dark-invert"],
+  ["LCD Menu","/components/display_menu/lcd_menu","lcd_menu.png"]
+]} />
+
+## Raspberry Pi Pico-W
+
+What can I say... I (Jesse) started working on making ESPHome run on the original Raspberry Pi
+Pico one random weekend just for fun with no real intention of taking it further myself.
+Little did I know there would be a Raspberry Pi Pico-W released earlier this year which sparked
+up interest in continuing that PR and almost fully implementing RP2040 and the Pico-W as
+a supported platform in ESPHome.
+
+There are things that have not been tested, and most likely things that will not work, so
+please [create or search for an issue](https://github.com/esphome/esphome/issues) if this is the case.
+
+Looking forward to seeing peoples projects built on these boards running ESPHome.
+
+## Script Parameters
+
+Thanks [@jimtng](https://github.com/jimtng) for taking the time to implement a feature requested by many people over time.
+Parameters on scripts are now a thing.
+
+```yaml
+script:
+  - id: push_button
+    parameters:
+      button: int
+    then:
+      - logger.log:
+          format: "Button %d pressed"
+          args: [ button ]
+
+on_...:
+  - script.execute:
+      id: push_button
+      button: 1
+
+on_...:
+  - script.execute:
+      id: push_button
+      button: 2
+```
+
+## LCD Menu
+
+Another great feature added this release is the LCD Menu. This allows a user to build a simple (or complex)
+menu system on an lcd display within ESPHome YAML, with support for switches, numbers, selects etc.
+Thanks [@numo68](https://github.com/numo68).
+
+## Preserving User WiFi Credentials
+
+If you purchase a device, or install ESPHome on a device that does not have Wi-Fi credentials pre-configured from YAML,
+ESPHome will now preserve any credentials entered via the [Captive Portal](/components/captive_portal/),
+[Improv Serial](/components/improv_serial/) or [Esp32 Improv](/components/esp32_improv/) components after an OTA
+update of the firmeware is done. It is possible they can survive flashing via serial, but only if the flash was
+not erased first, which it is in the case of using ESPHome to flash.
+
+Products that use [ESP Web Tools](https://esphome.github.io/esp-web-tools) are able to specify in the manifest
+that the flash should not be erased when installing the firmware and this is a way to provide updates for a device
+that was sold.
+
+## Running ESPHome on lower powered machines
+
+People have noticed that trying to compile their projects on machine such as the Raspberry Pi 3 would crash either
+the whole machine or the ESPHome add-on, or Home Assistant. This is due to having less RAM and CPU power available
+to run all of the things at the same time. A new config option has been added as per the example below that should
+help to allow compiling on machines such as Raspberry Pi 3. By default ESPHome tries to compile using all of the
+processor cores, and this allows you to limit it to a lower amount.
+
+```yaml
+esphome:
+  ...
+  compile_process_limit: 1
+```
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2022.11.1 - November 17
+
+- Support ADC on RP2040 [esphome#4040](https://github.com/esphome/esphome/pull/4040) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2022.11.2 - November 23
+
+- Fix rp2040 pwm to use pico-sdk, not mbed [esphome#4059](https://github.com/esphome/esphome/pull/4059) by [@jesserockz](https://github.com/jesserockz)
+- Update web_server index [esphome#4060](https://github.com/esphome/esphome/pull/4060) by [@jesserockz](https://github.com/jesserockz)
+- rp2040_pwm frequency is per pair of pins [esphome#4061](https://github.com/esphome/esphome/pull/4061) by [@jesserockz](https://github.com/jesserockz)
+- Avoid 128bit uuid loop for 16/32 bit uuids [esphome#4068](https://github.com/esphome/esphome/pull/4068) by [@bdraco](https://github.com/bdraco)
+- Avoid creating a new espbt::ESPBTUUID each loop when registering for notify [esphome#4069](https://github.com/esphome/esphome/pull/4069) by [@bdraco](https://github.com/bdraco)
+
+## Release 2022.11.3 - November 24
+
+- fix missing library [esphome#4051](https://github.com/esphome/esphome/pull/4051) by [@ssieb](https://github.com/ssieb)
+- Fix units for refresh: never [esphome#4048](https://github.com/esphome/esphome/pull/4048) by [@bkaufx](https://github.com/bkaufx)
+- Don't convert climate temperature step [esphome#4082](https://github.com/esphome/esphome/pull/4082) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2022.11.4 - December 1
+
+- current-based cover fix copy paste mistake [esphome#4124](https://github.com/esphome/esphome/pull/4124) by [@jesserockz](https://github.com/jesserockz)
+- Dashboard fix relative url after login [esphome#4103](https://github.com/esphome/esphome/pull/4103) by [@ngraziano](https://github.com/ngraziano)
+- Fix queuing scripts not compiling [esphome#4077](https://github.com/esphome/esphome/pull/4077) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2022.11.5 - December 6
+
+- Fix board pin alias lookup [esphome#4147](https://github.com/esphome/esphome/pull/4147) by [@jesserockz](https://github.com/jesserockz)
+
+## Full list of changes
+
+### New Features
+
+- Allow preserving WiFi credentials entered with captive_portal [esphome#3813](https://github.com/esphome/esphome/pull/3813) by [@kuba2k2](https://github.com/kuba2k2) (new-feature)
+
+### New Components
+
+- Add support for wl-134 [esphome#3569](https://github.com/esphome/esphome/pull/3569) by [@hobbypunk90](https://github.com/hobbypunk90) (new-integration)
+- New platform ethernet_info from component text_sensor [esphome#3811](https://github.com/esphome/esphome/pull/3811) by [@gtjadsonsantos](https://github.com/gtjadsonsantos) (new-integration)
+- Implementation for Atlas Scientific Peristaltic Pump [esphome#3528](https://github.com/esphome/esphome/pull/3528) by [@carlos-sarmiento](https://github.com/carlos-sarmiento) (new-integration)
+- Add adc128s102 sensor [esphome#3822](https://github.com/esphome/esphome/pull/3822) by [@DeerMaximum](https://github.com/DeerMaximum) (new-integration)
+- Added component Daikin BRC to support ceiling cassette heatpumps [esphome#3743](https://github.com/esphome/esphome/pull/3743) by [@hagak](https://github.com/hagak) (new-integration)
+- Initial Support for RP2040 platform [esphome#3284](https://github.com/esphome/esphome/pull/3284) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Implement a simple LCD menu [esphome#3406](https://github.com/esphome/esphome/pull/3406) by [@numo68](https://github.com/numo68) (new-integration)
+
+### Breaking Changes
+
+- Don't Use Base Network Manual IP for WiFi AP [esphome#3902](https://github.com/esphome/esphome/pull/3902) by [@bkaufx](https://github.com/bkaufx) (breaking-change)
+
+### Beta Changes
+
+- Update set-output to use new GITHUB_OUTPUT [esphome#4008](https://github.com/esphome/esphome/pull/4008) by [@jesserockz](https://github.com/jesserockz)
+- Add cover toggle support to current based cover [esphome#3950](https://github.com/esphome/esphome/pull/3950) by [@maringeph](https://github.com/maringeph)
+- Add option for dashboard command to only generate the project and supporting files [esphome#3981](https://github.com/esphome/esphome/pull/3981) by [@jesserockz](https://github.com/jesserockz)
+- Fix local webserver based on esphome/esphome-webserver#17 [esphome#3958](https://github.com/esphome/esphome/pull/3958) by [@RoboMagus](https://github.com/RoboMagus)
+- fix to_lower filter [esphome#4015](https://github.com/esphome/esphome/pull/4015) by [@ssieb](https://github.com/ssieb)
+- Mark webserver and captive portal as not available on rp2040 [esphome#4023](https://github.com/esphome/esphome/pull/4023) by [@jesserockz](https://github.com/jesserockz)
+- Fix time components on rp2040 [esphome#4024](https://github.com/esphome/esphome/pull/4024) by [@jesserockz](https://github.com/jesserockz)
+- Mark mqtt as unavailable on rp2040 [esphome#4025](https://github.com/esphome/esphome/pull/4025) by [@jesserockz](https://github.com/jesserockz)
+- Update_interval less that 1 second in QMC5883L integration [esphome#4031](https://github.com/esphome/esphome/pull/4031) by [@2mikrobi](https://github.com/2mikrobi)
+- Always save user wifi credentials if non in config [esphome#4036](https://github.com/esphome/esphome/pull/4036) by [@jesserockz](https://github.com/jesserockz)
+- bump nginx-light 1.18.0-6.1+deb11u2 to 1.18.0-6.1+deb11u3 [esphome#4034](https://github.com/esphome/esphome/pull/4034) by [@johnmoxley](https://github.com/johnmoxley)
+
+### All changes
+
+- Update the ibeacon code [esphome#3859](https://github.com/esphome/esphome/pull/3859) by [@fhriley](https://github.com/fhriley)
+- Don't Use Base Network Manual IP for WiFi AP [esphome#3902](https://github.com/esphome/esphome/pull/3902) by [@bkaufx](https://github.com/bkaufx) (breaking-change)
+- Allow preserving WiFi credentials entered with captive_portal [esphome#3813](https://github.com/esphome/esphome/pull/3813) by [@kuba2k2](https://github.com/kuba2k2) (new-feature)
+- Add support for wl-134 [esphome#3569](https://github.com/esphome/esphome/pull/3569) by [@hobbypunk90](https://github.com/hobbypunk90) (new-integration)
+- New platform ethernet_info from component text_sensor [esphome#3811](https://github.com/esphome/esphome/pull/3811) by [@gtjadsonsantos](https://github.com/gtjadsonsantos) (new-integration)
+- Implementation for Atlas Scientific Peristaltic Pump [esphome#3528](https://github.com/esphome/esphome/pull/3528) by [@carlos-sarmiento](https://github.com/carlos-sarmiento) (new-integration)
+- Add adc128s102 sensor [esphome#3822](https://github.com/esphome/esphome/pull/3822) by [@DeerMaximum](https://github.com/DeerMaximum) (new-integration)
+- Added component Daikin BRC to support ceiling cassette heatpumps [esphome#3743](https://github.com/esphome/esphome/pull/3743) by [@hagak](https://github.com/hagak) (new-integration)
+- Bump platformio from 6.0.2 to 6.1.4 [esphome#3711](https://github.com/esphome/esphome/pull/3711) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add API interface to request a complete device config as JSON. [esphome#3911](https://github.com/esphome/esphome/pull/3911) by [@RoboMagus](https://github.com/RoboMagus)
+- Initial Support for RP2040 platform [esphome#3284](https://github.com/esphome/esphome/pull/3284) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Bump esphome-dashboard to 20221020.0 [esphome#3920](https://github.com/esphome/esphome/pull/3920) by [@jesserockz](https://github.com/jesserockz)
+- Fix missing dependencies for heatpumpir [esphome#3933](https://github.com/esphome/esphome/pull/3933) by [@jesserockz](https://github.com/jesserockz)
+- Update the PR template [esphome#3934](https://github.com/esphome/esphome/pull/3934) by [@jesserockz](https://github.com/jesserockz)
+- Fix error with require_framework_version and rp2040 [esphome#3923](https://github.com/esphome/esphome/pull/3923) by [@jesserockz](https://github.com/jesserockz)
+- Make mDNS on rp2040 work [esphome#3936](https://github.com/esphome/esphome/pull/3936) by [@jesserockz](https://github.com/jesserockz)
+- Send manufacturer name via API [esphome#3938](https://github.com/esphome/esphome/pull/3938) by [@jesserockz](https://github.com/jesserockz)
+- Update base platformio board for rp2040 [esphome#3937](https://github.com/esphome/esphome/pull/3937) by [@jesserockz](https://github.com/jesserockz)
+- Implement different random for rp2040 [esphome#3939](https://github.com/esphome/esphome/pull/3939) by [@jesserockz](https://github.com/jesserockz)
+- add proper device class to uptime [esphome#3928](https://github.com/esphome/esphome/pull/3928) by [@nagyrobi](https://github.com/nagyrobi)
+- Show local mac when scanning wifi [esphome#3635](https://github.com/esphome/esphome/pull/3635) by [@cvwillegen](https://github.com/cvwillegen)
+- Prefix devcontainer image with ghcr.io [esphome#3942](https://github.com/esphome/esphome/pull/3942) by [@jesserockz](https://github.com/jesserockz)
+- Implement InterruptLock for RP2040 [esphome#3945](https://github.com/esphome/esphome/pull/3945) by [@jesserockz](https://github.com/jesserockz)
+- Implement RP2040 preferences [esphome#3946](https://github.com/esphome/esphome/pull/3946) by [@jesserockz](https://github.com/jesserockz)
+- Fix filesystem size for RP2040 OTA [esphome#3947](https://github.com/esphome/esphome/pull/3947) by [@jesserockz](https://github.com/jesserockz)
+- Bump esphome/Improv to 1.2.3 [esphome#3948](https://github.com/esphome/esphome/pull/3948) by [@jesserockz](https://github.com/jesserockz)
+- Add core config option to limit compile process count [esphome#3952](https://github.com/esphome/esphome/pull/3952) by [@jesserockz](https://github.com/jesserockz)
+- Some RP2040 wifi changes for AP mode [esphome#3953](https://github.com/esphome/esphome/pull/3953) by [@jesserockz](https://github.com/jesserockz)
+- Update rp2040 to latest framework release from GitHub [esphome#3954](https://github.com/esphome/esphome/pull/3954) by [@jesserockz](https://github.com/jesserockz)
+- [SM300D2] Reduce log severity for successful reads [esphome#3955](https://github.com/esphome/esphome/pull/3955) by [@pauln](https://github.com/pauln)
+- Fix imports for rp2040 with no wifi [esphome#3956](https://github.com/esphome/esphome/pull/3956) by [@jesserockz](https://github.com/jesserockz)
+- Allow using LED pin on rpi pico-w [esphome#3957](https://github.com/esphome/esphome/pull/3957) by [@jesserockz](https://github.com/jesserockz)
+- Fix RP2040 SPISettings [esphome#3960](https://github.com/esphome/esphome/pull/3960) by [@jesserockz](https://github.com/jesserockz)
+- Make some minor changes to I²C so rp2040 works [esphome#3959](https://github.com/esphome/esphome/pull/3959) by [@jesserockz](https://github.com/jesserockz)
+- Bump tornado from 6.1 to 6.2 [esphome#3620](https://github.com/esphome/esphome/pull/3620) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-cov from 3.0.0 to 4.0.0 [esphome#3922](https://github.com/esphome/esphome/pull/3922) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Remove gitpod [esphome#3964](https://github.com/esphome/esphome/pull/3964) by [@balloob](https://github.com/balloob)
+- Bump pyupgrade from 3.0.0 to 3.2.0 [esphome#3973](https://github.com/esphome/esphome/pull/3973) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest from 7.1.3 to 7.2.0 [esphome#3966](https://github.com/esphome/esphome/pull/3966) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/stale from 5 to 6 [esphome#3841](https://github.com/esphome/esphome/pull/3841) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pylint from 2.15.3 to 2.15.5 [esphome#3978](https://github.com/esphome/esphome/pull/3978) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-mock from 3.8.2 to 3.10.0 [esphome#3877](https://github.com/esphome/esphome/pull/3877) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Allow multiple bluetooth proxy connections [esphome#3971](https://github.com/esphome/esphome/pull/3971) by [@jesserockz](https://github.com/jesserockz)
+- Always use gh releases in base platformio file for rp2040 [esphome#3988](https://github.com/esphome/esphome/pull/3988) by [@jesserockz](https://github.com/jesserockz)
+- Allow the use of multiple RDM6300 devices [esphome#3989](https://github.com/esphome/esphome/pull/3989) by [@mbardeen](https://github.com/mbardeen)
+- Bump aioesphomeapi from 10.13.0 to 11.4.2 [esphome#3987](https://github.com/esphome/esphome/pull/3987) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- rp2040: Set watchdog to reboot properly [esphome#3991](https://github.com/esphome/esphome/pull/3991) by [@jesserockz](https://github.com/jesserockz)
+- RP2040 uart support [esphome#3990](https://github.com/esphome/esphome/pull/3990) by [@jesserockz](https://github.com/jesserockz)
+- add uart number to LOGCONFIG [esphome#3996](https://github.com/esphome/esphome/pull/3996) by [@tomaszduda23](https://github.com/tomaszduda23)
+- Implement a simple LCD menu [esphome#3406](https://github.com/esphome/esphome/pull/3406) by [@numo68](https://github.com/numo68) (new-integration)
+- Lint updates [esphome#3992](https://github.com/esphome/esphome/pull/3992) by [@jesserockz](https://github.com/jesserockz)
+- Bump zeroconf from 0.39.1 to 0.39.4 [esphome#3979](https://github.com/esphome/esphome/pull/3979) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump black from 22.8.0 to 22.10.0 [esphome#3986](https://github.com/esphome/esphome/pull/3986) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Skip validation of defined pins [esphome#3999](https://github.com/esphome/esphome/pull/3999) by [@jenscski](https://github.com/jenscski)
+- Bump pytest-asyncio from 0.19.0 to 0.20.1 [esphome#4003](https://github.com/esphome/esphome/pull/4003) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 11.4.2 to 11.4.3 [esphome#4002](https://github.com/esphome/esphome/pull/4002) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump platformio from 6.1.4 to 6.1.5 [esphome#4004](https://github.com/esphome/esphome/pull/4004) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Enable calibration, callbacks and custom commands for EZO sensors [esphome#3910](https://github.com/esphome/esphome/pull/3910) by [@gvdhoven](https://github.com/gvdhoven)
+- Bump esphome-dashboard to 20221109.0 [esphome#4006](https://github.com/esphome/esphome/pull/4006) by [@jesserockz](https://github.com/jesserockz)
+- Add support for parameters in scripts [esphome#3538](https://github.com/esphome/esphome/pull/3538) by [@jimtng](https://github.com/jimtng)
+- Update set-output to use new GITHUB_OUTPUT [esphome#4008](https://github.com/esphome/esphome/pull/4008) by [@jesserockz](https://github.com/jesserockz)
+- Add cover toggle support to current based cover [esphome#3950](https://github.com/esphome/esphome/pull/3950) by [@maringeph](https://github.com/maringeph)
+- Add option for dashboard command to only generate the project and supporting files [esphome#3981](https://github.com/esphome/esphome/pull/3981) by [@jesserockz](https://github.com/jesserockz)
+- Fix local webserver based on esphome/esphome-webserver#17 [esphome#3958](https://github.com/esphome/esphome/pull/3958) by [@RoboMagus](https://github.com/RoboMagus)
+- fix to_lower filter [esphome#4015](https://github.com/esphome/esphome/pull/4015) by [@ssieb](https://github.com/ssieb)
+- Mark webserver and captive portal as not available on rp2040 [esphome#4023](https://github.com/esphome/esphome/pull/4023) by [@jesserockz](https://github.com/jesserockz)
+- Fix time components on rp2040 [esphome#4024](https://github.com/esphome/esphome/pull/4024) by [@jesserockz](https://github.com/jesserockz)
+- Mark mqtt as unavailable on rp2040 [esphome#4025](https://github.com/esphome/esphome/pull/4025) by [@jesserockz](https://github.com/jesserockz)
+- Update_interval less that 1 second in QMC5883L integration [esphome#4031](https://github.com/esphome/esphome/pull/4031) by [@2mikrobi](https://github.com/2mikrobi)
+- Always save user wifi credentials if non in config [esphome#4036](https://github.com/esphome/esphome/pull/4036) by [@jesserockz](https://github.com/jesserockz)
+- bump nginx-light 1.18.0-6.1+deb11u2 to 1.18.0-6.1+deb11u3 [esphome#4034](https://github.com/esphome/esphome/pull/4034) by [@johnmoxley](https://github.com/johnmoxley)
+
+{/* markdownlint-enable MD013 */}

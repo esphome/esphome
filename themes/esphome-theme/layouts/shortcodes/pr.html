@@ -1,9 +1,0 @@
-{{/*
-    Shortcode: pr
-    Usage: {{< pr number="123" repo="esphome" >}}
-    Output: A link to the specified pull request
-    Optional param: repo (default: "esphome")
-*/}}
-{{- $number := .Get "number" -}}
-{{- $repo := .Get "repo" | default "esphome" -}}
-<a href="https://github.com/esphome/{{ $repo }}/pull/{{ $number }}" target="_blank" rel="noopener noreferrer">{{ $repo }}#{{ $number }}</a>

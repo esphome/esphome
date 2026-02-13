@@ -1,0 +1,248 @@
+---
+description: "Changelog for ESPHome 2024.3.0."
+title: "ESPHome 2024.3.0 - 20th March 2024"
+pagefind: false
+slug: "changelog/2024.3.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Datetime Core","/components/datetime/index","clock-outline.svg","dark-invert"],
+  ["Template Datetime","/components/datetime/template","description.svg","dark-invert"],
+  ["AM2315C","/components/sensor/am2315c","am2315c.jpg"],
+  ["HTU31D","/components/sensor/htu31d","htu31d.jpg"],
+  ["MS8607","/components/sensor/ms8607","ms8607.jpg"],
+  ["AGS10","/components/sensor/ags10","ags10.jpg"],
+  ["VEML6030","/components/sensor/veml7700","veml6030.jpg"],
+  ["VEML7700","/components/sensor/veml7700","veml7700.jpg"],
+  ["MR24HPC1 mmWave","/components/seeed_mr24hpc1","seeed-mr24hpc1.jpg"],
+  ["ADS1118","/components/sensor/ads1118","ads1118.jpg"],
+  ["CST816","/components/touchscreen/cst816","cst816.jpg"],
+  ["CST226","/components/touchscreen/cst226","t4-s3.jpg"],
+  ["RPI_DPI_RGB","/components/display/rpi_dpi_rgb","waveshare_touch-s3.jpg"],
+  ["Quad SPI AMOLED","/components/display/qspi_amoled","t4-s3.jpg"],
+  ["ST7701S","/components/display/st7701s","indicator.jpg"],
+  ["ADE7880","/components/sensor/ade7880","ade7880.svg"],
+  ["Emmeti","/components/climate/climate_ir","air-conditioner-ir.svg","dark-invert"],
+  ["Uponor Smatrix","/components/uponor_smatrix","uponor.svg"],
+  ["Kamstrup KMP","/components/sensor/kamstrup_kmp","kamstrup_kmp.jpg"],
+  ["Template Fan","/components/fan/template","description.svg","dark-invert"]
+]} />
+
+## Dates
+
+ESPHome now has support for `date` entities that can be set from the frontend (like Home Assistant) for
+you to check against and execute automations in the future.
+
+ESPHome Dates require Home Assistant 2024.4 or later.
+
+## IPv6
+
+ESPHome is now prepared for the future! The future that is the old IPv6 that is.
+Dualstack is added and it could now have up to 5 ip addresses of any type, and communication with Home assistant,
+MQTT and NTP works with IPv6. ESPHome still depends on IPv4, but the crystal ball shows sign of IPv6-only networks.
+
+If you are building an [External Components](/components/external_components/) or you use
+`network::get_ip_address()`, `wifi::global_wifi_component->get_ip_address()` or
+`ethernet::global_eth_component->get_ip_address()`, these functions have been renamed to
+`::get_ip_addresses()` respectively and now return a list of all IP addresses.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2024.3.1 - March 27
+
+- AHT10: Fix bug [esphome#6409](https://github.com/esphome/esphome/pull/6409) by [@clydebarrow](https://github.com/clydebarrow)
+- microWakeWord: Fix model path joining [esphome#6426](https://github.com/esphome/esphome/pull/6426) by [@ebw44](https://github.com/ebw44)
+- Don't compile strptime unless its required [esphome#6424](https://github.com/esphome/esphome/pull/6424) by [@gabest11](https://github.com/gabest11)
+- Fix editor live validation [esphome#6431](https://github.com/esphome/esphome/pull/6431) by [@bdraco](https://github.com/bdraco)
+
+## Release 2024.3.2 - April 4
+
+- Fix logger compile error on ESP32-C6 [esphome#6323](https://github.com/esphome/esphome/pull/6323) by [@DAVe3283](https://github.com/DAVe3283)
+- Add missing ethernet types [esphome#6444](https://github.com/esphome/esphome/pull/6444) by [@ssieb](https://github.com/ssieb)
+- fix: changing the content source when playing is paused blocks the player [esphome#6454](https://github.com/esphome/esphome/pull/6454) by [@NewoPL](https://github.com/NewoPL)
+
+## Thank you for your support
+
+We would like to thank all Home Assistant Cloud subscribers for their support. It allows [Nabu Casa](https://nabucasa.com/) to
+employ two developers to maintain and further develop the ESPHome project.
+
+## Full list of changes
+
+### New Components
+
+- New component: ADE7880 voltage/current/power/energy sensor [esphome#5242](https://github.com/esphome/esphome/pull/5242) by [@kpfleming](https://github.com/kpfleming) (new-integration)
+- Add Uponor Smatrix component [esphome#5769](https://github.com/esphome/esphome/pull/5769) by [@kroimon](https://github.com/kroimon) (new-integration)
+- Support for MS8607 PHT (Pressure Humidity Temperature) sensor [esphome#3307](https://github.com/esphome/esphome/pull/3307) by [@e28eta](https://github.com/e28eta) (new-integration)
+- Add datetime date entities [esphome#6191](https://github.com/esphome/esphome/pull/6191) by [@RFDarter](https://github.com/RFDarter) (new-integration)
+- Add AGS10 Sensor [esphome#6070](https://github.com/esphome/esphome/pull/6070) by [@mak-42](https://github.com/mak-42) (new-integration)
+- ads1118 component [esphome#5711](https://github.com/esphome/esphome/pull/5711) by [@solomondg1](https://github.com/solomondg1) (new-integration)
+- Add CST816 touchscreen driver [esphome#5941](https://github.com/esphome/esphome/pull/5941) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- AM2315C Temperature + Humidity Sensor [esphome#6266](https://github.com/esphome/esphome/pull/6266) by [@swoboda1337](https://github.com/swoboda1337) (new-integration)
+- Touchscreen: add support for CST226 controller chip [esphome#6151](https://github.com/esphome/esphome/pull/6151) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- Drivers for RGB 16 bit parallel displays [esphome#5872](https://github.com/esphome/esphome/pull/5872) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- VEML7700 and VEML6030 light sensors [esphome#6067](https://github.com/esphome/esphome/pull/6067) by [@latonita](https://github.com/latonita) (new-integration)
+- Add Seeed Studio mmWave Kit MR24HPC1 [esphome#5761](https://github.com/esphome/esphome/pull/5761) by [@limengdu](https://github.com/limengdu) (new-integration)
+- Add driver for quad SPI AMOLED displays [esphome#6354](https://github.com/esphome/esphome/pull/6354) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- feat: Add HTU31D Support [esphome#5805](https://github.com/esphome/esphome/pull/5805) by [@betterengineering](https://github.com/betterengineering) (new-integration)
+- Emmeti infrared climate support [esphome#5197](https://github.com/esphome/esphome/pull/5197) by [@E440QF](https://github.com/E440QF) (new-integration)
+- Added Kamstrup Multical 40x component [esphome#4200](https://github.com/esphome/esphome/pull/4200) by [@cfeenstra1024](https://github.com/cfeenstra1024) (new-integration)
+
+### New Platforms
+
+- Additional sensors and binary sensors support for Haier Climate [esphome#6257](https://github.com/esphome/esphome/pull/6257) by [@paveldn](https://github.com/paveldn) (breaking-change) (new-platform)
+- add template fan [esphome#6310](https://github.com/esphome/esphome/pull/6310) by [@ssieb](https://github.com/ssieb) (breaking-change) (new-platform)
+
+### Breaking Changes
+
+- LTR390 - Multiple bugfixes [esphome#6161](https://github.com/esphome/esphome/pull/6161) by [@sjtrny](https://github.com/sjtrny) (breaking-change)
+- Touchscreen component and driver fixes [esphome#5997](https://github.com/esphome/esphome/pull/5997) by [@nielsnl68](https://github.com/nielsnl68) (breaking-change)
+- Additional sensors and binary sensors support for Haier Climate [esphome#6257](https://github.com/esphome/esphome/pull/6257) by [@paveldn](https://github.com/paveldn) (breaking-change) (new-platform)
+- add template fan [esphome#6310](https://github.com/esphome/esphome/pull/6310) by [@ssieb](https://github.com/ssieb) (breaking-change) (new-platform)
+
+### Beta Changes
+
+- SPI: Revert clk_pin to standard output pin schema [esphome#6368](https://github.com/esphome/esphome/pull/6368) by [@clydebarrow](https://github.com/clydebarrow)
+- Allow actions in web_server to be executed via GET method [esphome#5938](https://github.com/esphome/esphome/pull/5938) by [@afarago](https://github.com/afarago)
+- fix servo restore [esphome#6370](https://github.com/esphome/esphome/pull/6370) by [@ssieb](https://github.com/ssieb)
+- Don't try to get IPv6 addresses when disabled [esphome#6366](https://github.com/esphome/esphome/pull/6366) by [@HeMan](https://github.com/HeMan)
+- Use AQI device class [esphome#6376](https://github.com/esphome/esphome/pull/6376) by [@fgsch](https://github.com/fgsch)
+- Fix list-components when PR is not targeting dev [esphome#6375](https://github.com/esphome/esphome/pull/6375) by [@jesserockz](https://github.com/jesserockz)
+- allow negative ppm for sensair [esphome#6385](https://github.com/esphome/esphome/pull/6385) by [@ssieb](https://github.com/ssieb)
+- microWakeWord - add new ops and small improvements [esphome#6360](https://github.com/esphome/esphome/pull/6360) by [@kahrendt](https://github.com/kahrendt)
+- Fix compilation for uponor_smatrix without time component [esphome#6389](https://github.com/esphome/esphome/pull/6389) by [@kroimon](https://github.com/kroimon)
+- Shows component operation time in `ms` [esphome#6388](https://github.com/esphome/esphome/pull/6388) by [@edwardtfn](https://github.com/edwardtfn)
+- IPv6 can't be enabled for libretiny [esphome#6387](https://github.com/esphome/esphome/pull/6387) by [@HeMan](https://github.com/HeMan)
+- Replace name and friendly name in full adopted configs [esphome#4456](https://github.com/esphome/esphome/pull/4456) by [@jesserockz](https://github.com/jesserockz)
+- Fix bug in `remote_base` conditional [esphome#6281](https://github.com/esphome/esphome/pull/6281) by [@swoboda1337](https://github.com/swoboda1337)
+- Fix sending packets to uponor_smatrix devices [esphome#6392](https://github.com/esphome/esphome/pull/6392) by [@kroimon](https://github.com/kroimon)
+- Fix wrong initialization of vectors in ade7953_i2c [esphome#6393](https://github.com/esphome/esphome/pull/6393) by [@kroimon](https://github.com/kroimon)
+- ld2420: Firmware v1.5.4+ bug workaround [esphome#6168](https://github.com/esphome/esphome/pull/6168) by [@descipher](https://github.com/descipher)
+- Require xsrf/csrf when using a password [esphome#6396](https://github.com/esphome/esphome/pull/6396) by [@jesserockz](https://github.com/jesserockz)
+- AHT10: Use state machine to avoid blocking delay [esphome#6401](https://github.com/esphome/esphome/pull/6401) by [@clydebarrow](https://github.com/clydebarrow)
+- Show component warnings and errors in the log; [esphome#6400](https://github.com/esphome/esphome/pull/6400) by [@clydebarrow](https://github.com/clydebarrow)
+- web_server support for v3 [esphome#6203](https://github.com/esphome/esphome/pull/6203) by [@RFDarter](https://github.com/RFDarter)
+
+### All changes
+
+- Bump openssh-client to 1:9.2p1-2+deb12u2 [esphome#6216](https://github.com/esphome/esphome/pull/6216) by [@jesserockz](https://github.com/jesserockz)
+- Add support for 1.8V-powered devices [esphome#6234](https://github.com/esphome/esphome/pull/6234) by [@bisbastuner](https://github.com/bisbastuner)
+- Adjust HeatpumpIR dependency [esphome#6222](https://github.com/esphome/esphome/pull/6222) by [@ivankravets](https://github.com/ivankravets)
+- INA226 - fixed improper work with signed values, added configurable ADC parameters [esphome#6172](https://github.com/esphome/esphome/pull/6172) by [@latonita](https://github.com/latonita)
+- Prevent network config on rpipico board [esphome#5832](https://github.com/esphome/esphome/pull/5832) by [@carlosV2](https://github.com/carlosV2)
+- Bump pytest-asyncio from 0.23.3 to 0.23.5 [esphome#6201](https://github.com/esphome/esphome/pull/6201) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- New component: ADE7880 voltage/current/power/energy sensor [esphome#5242](https://github.com/esphome/esphome/pull/5242) by [@kpfleming](https://github.com/kpfleming) (new-integration)
+- Add some components to the new testing framework (D) [esphome#6175](https://github.com/esphome/esphome/pull/6175) by [@kbx81](https://github.com/kbx81)
+- Provide example devcontainer config for mdns and USB passthrough [esphome#6094](https://github.com/esphome/esphome/pull/6094) by [@linkedupbits](https://github.com/linkedupbits)
+- Bump black from 23.12.1 to 24.2.0 [esphome#6221](https://github.com/esphome/esphome/pull/6221) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest from 7.4.4 to 8.0.1 [esphome#6246](https://github.com/esphome/esphome/pull/6246) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump codecov/codecov-action from 3 to 4 [esphome#6160](https://github.com/esphome/esphome/pull/6160) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump peter-evans/create-pull-request from 5.0.2 to 6.0.0 [esphome#6159](https://github.com/esphome/esphome/pull/6159) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump frenck/action-yamllint from 1.4.2 to 1.5.0 [esphome#6236](https://github.com/esphome/esphome/pull/6236) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump voluptuous from 0.14.1 to 0.14.2 [esphome#6181](https://github.com/esphome/esphome/pull/6181) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pyupgrade from 3.15.0 to 3.15.1 [esphome#6247](https://github.com/esphome/esphome/pull/6247) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- LTR390 - Multiple bugfixes [esphome#6161](https://github.com/esphome/esphome/pull/6161) by [@sjtrny](https://github.com/sjtrny) (breaking-change)
+- Fix yamllint [esphome#6253](https://github.com/esphome/esphome/pull/6253) by [@jesserockz](https://github.com/jesserockz)
+- Improve the error message on OTA version mismatch [esphome#6259](https://github.com/esphome/esphome/pull/6259) by [@sybrenstuvel](https://github.com/sybrenstuvel)
+- Bump aioesphomeapi from 21.0.2 to 22.0.0 [esphome#6263](https://github.com/esphome/esphome/pull/6263) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Allow ESP8266 to use multiple i2c busses [esphome#6145](https://github.com/esphome/esphome/pull/6145) by [@LouDou](https://github.com/LouDou)
+- Add Uponor Smatrix component [esphome#5769](https://github.com/esphome/esphome/pull/5769) by [@kroimon](https://github.com/kroimon) (new-integration)
+- Fix test_build_components for macOS sed [esphome#6278](https://github.com/esphome/esphome/pull/6278) by [@kbx81](https://github.com/kbx81)
+- Allow to specify global build directory [esphome#6276](https://github.com/esphome/esphome/pull/6276) by [@werwolfby](https://github.com/werwolfby)
+- Add device class support to text sensor [esphome#6202](https://github.com/esphome/esphome/pull/6202) by [@dougiteixeira](https://github.com/dougiteixeira)
+- Bump pytest from 8.0.1 to 8.0.2 [esphome#6288](https://github.com/esphome/esphome/pull/6288) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Improve dualstack and IPv6 support [esphome#5449](https://github.com/esphome/esphome/pull/5449) by [@HeMan](https://github.com/HeMan)
+- Waveshare e-ink 2IN9_V2 - fix full and partial update based on vendor… [esphome#5481](https://github.com/esphome/esphome/pull/5481) by [@darianndd](https://github.com/darianndd)
+- Add RTTTL volume control. [esphome#5968](https://github.com/esphome/esphome/pull/5968) by [@nielsnl68](https://github.com/nielsnl68)
+- Touchscreen component and driver fixes [esphome#5997](https://github.com/esphome/esphome/pull/5997) by [@nielsnl68](https://github.com/nielsnl68) (breaking-change)
+- Add `on_update` trigger for Project versions [esphome#6298](https://github.com/esphome/esphome/pull/6298) by [@jesserockz](https://github.com/jesserockz)
+- Bump peter-evans/create-pull-request from 6.0.0 to 6.0.1 [esphome#6302](https://github.com/esphome/esphome/pull/6302) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- CSE7766 Apparent Power & Power Factor calculations [esphome#6292](https://github.com/esphome/esphome/pull/6292) by [@DAVe3283](https://github.com/DAVe3283)
+- Adding W5500 support to ethernet component [esphome#4424](https://github.com/esphome/esphome/pull/4424) by [@JeroenVanOort](https://github.com/JeroenVanOort)
+- Fix numbering of ip_address sensors [esphome#6305](https://github.com/esphome/esphome/pull/6305) by [@HeMan](https://github.com/HeMan)
+- Bump aioesphomeapi from 22.0.0 to 23.0.0 [esphome#6293](https://github.com/esphome/esphome/pull/6293) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add regular polygon shapes to display component [esphome#6108](https://github.com/esphome/esphome/pull/6108) by [@mathieu-mp](https://github.com/mathieu-mp)
+- Fix return value in `core/automation.h` [esphome#6314](https://github.com/esphome/esphome/pull/6314) by [@FlyingFeng2021](https://github.com/FlyingFeng2021)
+- aht10: Added new CMD and renamed existing CMD to match datasheet [esphome#6303](https://github.com/esphome/esphome/pull/6303) by [@cptskippy](https://github.com/cptskippy)
+- handling with the negative temperature in the sensor tmp102 [esphome#6316](https://github.com/esphome/esphome/pull/6316) by [@FlyingFeng2021](https://github.com/FlyingFeng2021)
+- x9c: fix off by 1 error [esphome#6318](https://github.com/esphome/esphome/pull/6318) by [@andynumber2](https://github.com/andynumber2)
+- Support for MS8607 PHT (Pressure Humidity Temperature) sensor [esphome#3307](https://github.com/esphome/esphome/pull/3307) by [@e28eta](https://github.com/e28eta) (new-integration)
+- Separate logger implementations for each hardware platform into different files [esphome#6167](https://github.com/esphome/esphome/pull/6167) by [@tomaszduda23](https://github.com/tomaszduda23)
+- Additional sensors and binary sensors support for Haier Climate [esphome#6257](https://github.com/esphome/esphome/pull/6257) by [@paveldn](https://github.com/paveldn) (breaking-change) (new-platform)
+- Add toggle command to cover web_server endpoint [esphome#6319](https://github.com/esphome/esphome/pull/6319) by [@heythisisnate](https://github.com/heythisisnate)
+- Improv: support connecting to hidden networks [esphome#6322](https://github.com/esphome/esphome/pull/6322) by [@jesserockz](https://github.com/jesserockz)
+- Update mDNS for IDF ≥ 5.0 [esphome#6328](https://github.com/esphome/esphome/pull/6328) by [@HeMan](https://github.com/HeMan)
+- DFPlayer: refix Bug created with PR 4758 [esphome#5861](https://github.com/esphome/esphome/pull/5861) by [@sandronidi](https://github.com/sandronidi)
+- Fix build failures on host platform caused by #6167 [esphome#6338](https://github.com/esphome/esphome/pull/6338) by [@clydebarrow](https://github.com/clydebarrow)
+- Update bang_bang to log two decimal places in config dump [esphome#6304](https://github.com/esphome/esphome/pull/6304) by [@rafalw1277](https://github.com/rafalw1277)
+- Add datetime date entities [esphome#6191](https://github.com/esphome/esphome/pull/6191) by [@RFDarter](https://github.com/RFDarter) (new-integration)
+- Add AGS10 Sensor [esphome#6070](https://github.com/esphome/esphome/pull/6070) by [@mak-42](https://github.com/mak-42) (new-integration)
+- Bump aioesphomeapi from 23.0.0 to 23.1.0 [esphome#6332](https://github.com/esphome/esphome/pull/6332) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-asyncio from 0.23.5 to 0.23.5.post1 [esphome#6334](https://github.com/esphome/esphome/pull/6334) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker/setup-buildx-action from 3.0.0 to 3.1.0 [esphome#6295](https://github.com/esphome/esphome/pull/6295) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Set dependabot to look at composite actions versions [esphome#6343](https://github.com/esphome/esphome/pull/6343) by [@jesserockz](https://github.com/jesserockz)
+- ads1118 component [esphome#5711](https://github.com/esphome/esphome/pull/5711) by [@solomondg1](https://github.com/solomondg1) (new-integration)
+- Bump actions/cache from 4.0.0 to 4.0.1 [esphome#6306](https://github.com/esphome/esphome/pull/6306) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker/build-push-action from 5.0.0 to 5.2.0 in /.github/actions/build-image [esphome#6347](https://github.com/esphome/esphome/pull/6347) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- fix: modbus_textsensor response is too long in some cases [esphome#6333](https://github.com/esphome/esphome/pull/6333) by [@NewoPL](https://github.com/NewoPL)
+- add template fan [esphome#6310](https://github.com/esphome/esphome/pull/6310) by [@ssieb](https://github.com/ssieb) (breaking-change) (new-platform)
+- dump config after logging CDC port is opened by host [esphome#6169](https://github.com/esphome/esphome/pull/6169) by [@tomaszduda23](https://github.com/tomaszduda23)
+- Add IRK support to allow tracking of devices with random MAC addresses [esphome#6335](https://github.com/esphome/esphome/pull/6335) by [@chbmuc](https://github.com/chbmuc)
+- [Fingerprint_grow] Implements Sleep Mode feature [esphome#6116](https://github.com/esphome/esphome/pull/6116) by [@alexborro](https://github.com/alexborro)
+- cleanup ili9xxx component by removing data rate define [esphome#6350](https://github.com/esphome/esphome/pull/6350) by [@nielsnl68](https://github.com/nielsnl68)
+- web_server_idf: support x-www-form-urlencoded POST requests [esphome#6037](https://github.com/esphome/esphome/pull/6037) by [@dentra](https://github.com/dentra)
+- feat(MQTT): Add QoS option for each MQTT component [esphome#6279](https://github.com/esphome/esphome/pull/6279) by [@Rapsssito](https://github.com/Rapsssito)
+- Check permissions [esphome#6255](https://github.com/esphome/esphome/pull/6255) by [@OdileVidrine](https://github.com/OdileVidrine)
+- Add CST816 touchscreen driver [esphome#5941](https://github.com/esphome/esphome/pull/5941) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- ILI9XXX: Lazily allocate buffer [esphome#6352](https://github.com/esphome/esphome/pull/6352) by [@clydebarrow](https://github.com/clydebarrow)
+- AM2315C Temperature + Humidity Sensor [esphome#6266](https://github.com/esphome/esphome/pull/6266) by [@swoboda1337](https://github.com/swoboda1337) (new-integration)
+- Add ble_presence binary sensor timeout config value. [esphome#6024](https://github.com/esphome/esphome/pull/6024) by [@clydebarrow](https://github.com/clydebarrow)
+- Add state listeners to `rotary_encoder` [esphome#6035](https://github.com/esphome/esphome/pull/6035) by [@clydebarrow](https://github.com/clydebarrow)
+- ili9xxx: Add support for GC9A01A display [esphome#6351](https://github.com/esphome/esphome/pull/6351) by [@clydebarrow](https://github.com/clydebarrow)
+- Touchscreen: add support for CST226 controller chip [esphome#6151](https://github.com/esphome/esphome/pull/6151) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- font: add anti-aliasing and other features [esphome#6198](https://github.com/esphome/esphome/pull/6198) by [@clydebarrow](https://github.com/clydebarrow)
+- Mhz19 warmup [esphome#6214](https://github.com/esphome/esphome/pull/6214) by [@fornellas](https://github.com/fornellas)
+- Refactor ATM90E32 to reduce blocking time and improve accuracy. [esphome#5670](https://github.com/esphome/esphome/pull/5670) by [@descipher](https://github.com/descipher)
+- Bump aioesphomeapi from 23.1.0 to 23.1.1 [esphome#6348](https://github.com/esphome/esphome/pull/6348) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest from 8.0.2 to 8.1.1 [esphome#6346](https://github.com/esphome/esphome/pull/6346) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add support for Waveshare 2.13" V2 display [esphome#6337](https://github.com/esphome/esphome/pull/6337) by [@manuelkasper](https://github.com/manuelkasper)
+- Mitsubishi Climate updates [esphome#3886](https://github.com/esphome/esphome/pull/3886) by [@RubyBailey](https://github.com/RubyBailey)
+- Drivers for RGB 16 bit parallel displays [esphome#5872](https://github.com/esphome/esphome/pull/5872) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- hydreon_rgxx - add resolution option [esphome#6077](https://github.com/esphome/esphome/pull/6077) by [@mrtoy-me](https://github.com/mrtoy-me)
+- SPI schema now uses typed_schema with `type` key [esphome#6353](https://github.com/esphome/esphome/pull/6353) by [@clydebarrow](https://github.com/clydebarrow)
+- VEML7700 and VEML6030 light sensors [esphome#6067](https://github.com/esphome/esphome/pull/6067) by [@latonita](https://github.com/latonita) (new-integration)
+- Add Seeed Studio mmWave Kit MR24HPC1 [esphome#5761](https://github.com/esphome/esphome/pull/5761) by [@limengdu](https://github.com/limengdu) (new-integration)
+- Add getter for font glyph data [esphome#6355](https://github.com/esphome/esphome/pull/6355) by [@clydebarrow](https://github.com/clydebarrow)
+- Require reset_pin for certain waveshare_epaper models in YAML validation [esphome#6357](https://github.com/esphome/esphome/pull/6357) by [@manuelkasper](https://github.com/manuelkasper)
+- touchscreen driver fixes [esphome#6356](https://github.com/esphome/esphome/pull/6356) by [@clydebarrow](https://github.com/clydebarrow)
+- Make USE_HOST compilable on msys2 [esphome#6359](https://github.com/esphome/esphome/pull/6359) by [@maruel](https://github.com/maruel)
+- download font from url on build [esphome#5254](https://github.com/esphome/esphome/pull/5254) by [@landonr](https://github.com/landonr)
+- Add driver for quad SPI AMOLED displays [esphome#6354](https://github.com/esphome/esphome/pull/6354) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- ADE7953: Add the ability to use accumulating energy registers, more precise power reporting [esphome#6311](https://github.com/esphome/esphome/pull/6311) by [@isorin](https://github.com/isorin)
+- feat: Add HTU31D Support [esphome#5805](https://github.com/esphome/esphome/pull/5805) by [@betterengineering](https://github.com/betterengineering) (new-integration)
+- Emmeti infrared climate support [esphome#5197](https://github.com/esphome/esphome/pull/5197) by [@E440QF](https://github.com/E440QF) (new-integration)
+- Added Kamstrup Multical 40x component [esphome#4200](https://github.com/esphome/esphome/pull/4200) by [@cfeenstra1024](https://github.com/cfeenstra1024) (new-integration)
+- add possibility to provide different conversion times for Bus Voltage… [esphome#6327](https://github.com/esphome/esphome/pull/6327) by [@kev300](https://github.com/kev300)
+- SPI: Revert clk_pin to standard output pin schema [esphome#6368](https://github.com/esphome/esphome/pull/6368) by [@clydebarrow](https://github.com/clydebarrow)
+- Allow actions in web_server to be executed via GET method [esphome#5938](https://github.com/esphome/esphome/pull/5938) by [@afarago](https://github.com/afarago)
+- fix servo restore [esphome#6370](https://github.com/esphome/esphome/pull/6370) by [@ssieb](https://github.com/ssieb)
+- Don't try to get IPv6 addresses when disabled [esphome#6366](https://github.com/esphome/esphome/pull/6366) by [@HeMan](https://github.com/HeMan)
+- Use AQI device class [esphome#6376](https://github.com/esphome/esphome/pull/6376) by [@fgsch](https://github.com/fgsch)
+- Fix list-components when PR is not targeting dev [esphome#6375](https://github.com/esphome/esphome/pull/6375) by [@jesserockz](https://github.com/jesserockz)
+- allow negative ppm for sensair [esphome#6385](https://github.com/esphome/esphome/pull/6385) by [@ssieb](https://github.com/ssieb)
+- microWakeWord - add new ops and small improvements [esphome#6360](https://github.com/esphome/esphome/pull/6360) by [@kahrendt](https://github.com/kahrendt)
+- Fix compilation for uponor_smatrix without time component [esphome#6389](https://github.com/esphome/esphome/pull/6389) by [@kroimon](https://github.com/kroimon)
+- Shows component operation time in `ms` [esphome#6388](https://github.com/esphome/esphome/pull/6388) by [@edwardtfn](https://github.com/edwardtfn)
+- IPv6 can't be enabled for libretiny [esphome#6387](https://github.com/esphome/esphome/pull/6387) by [@HeMan](https://github.com/HeMan)
+- Replace name and friendly name in full adopted configs [esphome#4456](https://github.com/esphome/esphome/pull/4456) by [@jesserockz](https://github.com/jesserockz)
+- Fix bug in `remote_base` conditional [esphome#6281](https://github.com/esphome/esphome/pull/6281) by [@swoboda1337](https://github.com/swoboda1337)
+- Fix sending packets to uponor_smatrix devices [esphome#6392](https://github.com/esphome/esphome/pull/6392) by [@kroimon](https://github.com/kroimon)
+- Fix wrong initialization of vectors in ade7953_i2c [esphome#6393](https://github.com/esphome/esphome/pull/6393) by [@kroimon](https://github.com/kroimon)
+- ld2420: Firmware v1.5.4+ bug workaround [esphome#6168](https://github.com/esphome/esphome/pull/6168) by [@descipher](https://github.com/descipher)
+- Require xsrf/csrf when using a password [esphome#6396](https://github.com/esphome/esphome/pull/6396) by [@jesserockz](https://github.com/jesserockz)
+- AHT10: Use state machine to avoid blocking delay [esphome#6401](https://github.com/esphome/esphome/pull/6401) by [@clydebarrow](https://github.com/clydebarrow)
+- Show component warnings and errors in the log; [esphome#6400](https://github.com/esphome/esphome/pull/6400) by [@clydebarrow](https://github.com/clydebarrow)
+- web_server support for v3 [esphome#6203](https://github.com/esphome/esphome/pull/6203) by [@RFDarter](https://github.com/RFDarter)
+
+{/* markdownlint-enable MD013 */}

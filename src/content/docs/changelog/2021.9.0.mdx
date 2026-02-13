@@ -1,0 +1,206 @@
+---
+description: "Changelog for ESPHome 2021.9.0."
+title: "ESPHome 2021.9.0 - 15th September 2021"
+pagefind: false
+slug: "changelog/2021.9.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["AirThings BLE","/components/sensor/airthings_ble","airthings_logo.png"],
+  ["H-bridge Fan","/components/fan/hbridge","fan.svg","dark-invert"],
+  ["ST7920","/components/display/st7920","st7920.jpg"]
+]} />
+
+## Web Server Vulnerability
+
+It was brought to our attention by [@andir](https://github.com/andir) that the [Web Server](/components/web_server/)
+had a vulnerability in that the OTA form could be POST'd to without the basic auth credentials set in the `web_server`
+configuration. If you use the `web_server` and rely on the credentials for security, then you need to upgrade
+to 2021.9.2 or disable the `web_server` completely. The [Security Advisory on GitHub](https://github.com/esphome/esphome/security/advisories/GHSA-48mj-p7x2-5jfm)
+has been given `CVE-2021-41104`.
+
+## [Home Assistant Yellow](https://home-assistant.io/yellow)
+
+You get the most out of your ESPHome devices when you combine it with Home Assistant,
+which offers a seamless and local integration to control and manage all your ESPHome devices.
+Today Home Assistant launched a crowdfunding campaign for the [Home Assistant Yellow](https://home-assistant.io/yellow),
+the easiest way to get started with Home Assistant and a privacy focused smart home.
+
+## API Encryption
+
+[@OttoWinter](https://github.com/OttoWinter) has been hard at work adding a layer of encryption to the API which utilises the
+`noise` protocol. This releases adds the capabilities to ESPHome devices, but Home Assistant (or other clients)
+will need to upgrade their client libraries (e.g. `aioesphomeapi`  ) before they can connect and communicate to
+devices with encryption. This is scheduled to be available in Home Assistant 2021.10.
+
+## Git Packages
+
+[Packages](/components/packages#config-git_packages) have been extended to allow loading (multiple) YAML file(s) from a git repo.
+Take a look at the examples to see how to use them.
+
+## Midea AC
+
+`platform: midea_ac` has been changed to `platform: midea` in this release and has
+quite a few upgrades. Check the docs for the new features. [Midea](/components/climate/midea/)
+
+## SDM Meters
+
+[SDM Meters](/components/sensor/sdm_meter/) have been fixed to use kWh instead of Wh
+as the energy unit of measurement.
+
+## Template Select/Number/Switch
+
+The template selects, numbers and switches now have more validations on them preventing weird usage.
+If you do not set a `lambda` then you are required to make them either `optimistic: true`, or
+utilise the `set_action` (select/number) / `turn_on_trigger` (switch).
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2021.9.1 - September 20
+
+- Fix MQTT discovery for sensor state_class [esphome#2331](https://github.com/esphome/esphome/pull/2331) by [@paulmonigatti](https://github.com/paulmonigatti)
+- Light transition fixes [esphome#2320](https://github.com/esphome/esphome/pull/2320) by [@oxan](https://github.com/oxan)
+- Cease using deprecated Cover methods in automations [esphome#2326](https://github.com/esphome/esphome/pull/2326) by [@oxan](https://github.com/oxan)
+- Apply color brightness to addressable light effects [esphome#2321](https://github.com/esphome/esphome/pull/2321) by [@oxan](https://github.com/oxan)
+- Add readv and writev for more efficient API packets [esphome#2342](https://github.com/esphome/esphome/pull/2342) by [@OttoWinter](https://github.com/OttoWinter)
+- Clean-up sensor integration [esphome#2275](https://github.com/esphome/esphome/pull/2275) by [@oxan](https://github.com/oxan)
+
+## Release 2021.9.2 - September 28
+
+- Bump aioesphomeapi to 9.1.1 [esphome#2350](https://github.com/esphome/esphome/pull/2350) by [@OttoWinter](https://github.com/OttoWinter)
+- Midea fix [esphome#2395](https://github.com/esphome/esphome/pull/2395) by [@dudanov](https://github.com/dudanov)
+- Move web_server auth to web_server_base [be965a6](https://github.com/esphome/esphome/commit/be965a60eba6bb769e2a5afdbc8eed132f077a59) by [@OttoWinter](https://github.com/OttoWinter)
+- Fix lint issues in web_server_base [esphome#2409](https://github.com/esphome/esphome/pull/2409) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2021.9.3 - October 7
+
+- Re-enable TCP nodelay for ESP32 [esphome#2390](https://github.com/esphome/esphome/pull/2390) by [@OttoWinter](https://github.com/OttoWinter)
+- Bump aioesphomeapi from 9.1.1 to 9.1.2 [esphome#2426](https://github.com/esphome/esphome/pull/2426) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix socket abstraction for ESP-IDF v4 [esphome#2434](https://github.com/esphome/esphome/pull/2434) by [@agners](https://github.com/agners)
+- Bump aioesphomeapi from 9.1.2 to 9.1.4 [esphome#2443](https://github.com/esphome/esphome/pull/2443) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add log line to show if API encryption is being used [esphome#2450](https://github.com/esphome/esphome/pull/2450) by [@jesserockz](https://github.com/jesserockz)
+- API encryption switch to libsodium backend [esphome#2456](https://github.com/esphome/esphome/pull/2456) by [@OttoWinter](https://github.com/OttoWinter)
+
+## Full list of changes
+
+### New Features
+
+- Add H-Bridge fan component [esphome#2212](https://github.com/esphome/esphome/pull/2212) by [@WeekendWarrior1](https://github.com/WeekendWarrior1) (new-feature)
+- Allow using a git source for a package [esphome#2193](https://github.com/esphome/esphome/pull/2193) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+
+### New Components
+
+- Add st7920 display, [esphome#1440](https://github.com/esphome/esphome/pull/1440) by [@marsjan155](https://github.com/marsjan155) (new-integration)
+- Support for the AirThings Wave Plus [esphome#1656](https://github.com/esphome/esphome/pull/1656) by [@jeromelaban](https://github.com/jeromelaban) (new-integration)
+
+### Breaking Changes
+
+- Fix SDM energy units to be KILO... [esphome#2206](https://github.com/esphome/esphome/pull/2206) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Reject template select/number/switches that don't handle user input [esphome#2230](https://github.com/esphome/esphome/pull/2230) by [@oxan](https://github.com/oxan) (breaking-change)
+- Remove last_reset_type and convert all those sensors to TOTAL_INCREASING [esphome#2233](https://github.com/esphome/esphome/pull/2233) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Midea support v2 [esphome#2188](https://github.com/esphome/esphome/pull/2188) by [@dudanov](https://github.com/dudanov) (breaking-change)
+
+### Beta Fixes
+
+- Fix a few ESP32-C3 compiler issues [esphome#2265](https://github.com/esphome/esphome/pull/2265) by [@jesserockz](https://github.com/jesserockz)
+- sm300d2: Accept (undocumented) 0x80 checksum offset. [esphome#2263](https://github.com/esphome/esphome/pull/2263) by [@poptix](https://github.com/poptix)
+- Disable automatic usage of SNTP servers from DHCP [esphome#2273](https://github.com/esphome/esphome/pull/2273) by [@oxan](https://github.com/oxan)
+- Only try compat parsing after regular parsing fails [esphome#2269](https://github.com/esphome/esphome/pull/2269) by [@oxan](https://github.com/oxan)
+- Suppress excessive warnings about deprecated Fan interfaces [esphome#2270](https://github.com/esphome/esphome/pull/2270) by [@oxan](https://github.com/oxan)
+- t6615: tolerate sensor dropping commands [esphome#2255](https://github.com/esphome/esphome/pull/2255) by [@jasstrong](https://github.com/jasstrong)
+- Fix API socket issues [esphome#2288](https://github.com/esphome/esphome/pull/2288) by [@OttoWinter](https://github.com/OttoWinter)
+- Bump platformio to 5.2.0 [esphome#2291](https://github.com/esphome/esphome/pull/2291) by [@OttoWinter](https://github.com/OttoWinter)
+- API Noise logging [esphome#2298](https://github.com/esphome/esphome/pull/2298) by [@OttoWinter](https://github.com/OttoWinter)
+- Fix api noise explicit reject [esphome#2297](https://github.com/esphome/esphome/pull/2297) by [@OttoWinter](https://github.com/OttoWinter)
+- Allow simple hostname for sntp servers [esphome#2300](https://github.com/esphome/esphome/pull/2300) by [@jesserockz](https://github.com/jesserockz)
+- Fix binary strobe [esphome#2301](https://github.com/esphome/esphome/pull/2301) by [@jesserockz](https://github.com/jesserockz)
+- Fix unit of measurement fields for DSMR power consumed/delivered fields [esphome#2304](https://github.com/esphome/esphome/pull/2304) by [@jsuanet](https://github.com/jsuanet)
+- Simple time.sleep in place of threading wait due to upgraded zeroconf [esphome#2307](https://github.com/esphome/esphome/pull/2307) by [@jesserockz](https://github.com/jesserockz)
+- Fix aioesphomeapi API logger with explicit API port config [esphome#2310](https://github.com/esphome/esphome/pull/2310) by [@mmakaay](https://github.com/mmakaay)
+- Start a wifi scan after saving station details [esphome#2315](https://github.com/esphome/esphome/pull/2315) by [@jesserockz](https://github.com/jesserockz)
+
+### All changes
+
+- Minor code cleanup in light components [esphome#2162](https://github.com/esphome/esphome/pull/2162) by [@mmakaay](https://github.com/mmakaay)
+- Add device class update to binary sensor [esphome#2170](https://github.com/esphome/esphome/pull/2170) by [@frenck](https://github.com/frenck)
+- Total daily energy methods [esphome#2163](https://github.com/esphome/esphome/pull/2163) by [@nuttytree](https://github.com/nuttytree)
+- Set SDM voltage state class to measurement [esphome#2181](https://github.com/esphome/esphome/pull/2181) by [@jesserockz](https://github.com/jesserockz)
+- Add macros header with more usable Arduino version defines [esphome#2145](https://github.com/esphome/esphome/pull/2145) by [@oxan](https://github.com/oxan)
+- Clean-up constant definitions [esphome#2148](https://github.com/esphome/esphome/pull/2148) by [@oxan](https://github.com/oxan)
+- Remove double scheduling from addressable lights [esphome#1963](https://github.com/esphome/esphome/pull/1963) by [@oxan](https://github.com/oxan)
+- Reduce static RAM usage [esphome#2140](https://github.com/esphome/esphome/pull/2140) by [@oxan](https://github.com/oxan)
+- Fix template select log message mentioning number [esphome#2194](https://github.com/esphome/esphome/pull/2194) by [@jesserockz](https://github.com/jesserockz)
+- Add deprecated attribute to some deprecated types/methods [esphome#2185](https://github.com/esphome/esphome/pull/2185) by [@oxan](https://github.com/oxan)
+- Store source package in Component for debugging [esphome#2070](https://github.com/esphome/esphome/pull/2070) by [@OttoWinter](https://github.com/OttoWinter)
+- ST7789V: Make backlight_pin optional [esphome#2180](https://github.com/esphome/esphome/pull/2180) by [@speijnik](https://github.com/speijnik)
+- Fix SDM energy units to be KILO... [esphome#2206](https://github.com/esphome/esphome/pull/2206) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Optionally set direction on fan.turn_on action [esphome#2171](https://github.com/esphome/esphome/pull/2171) by [@WeekendWarrior1](https://github.com/WeekendWarrior1)
+- Add st7920 display, [esphome#1440](https://github.com/esphome/esphome/pull/1440) by [@marsjan155](https://github.com/marsjan155) (new-integration)
+- Fix css/js file loading for webserver when esphome not executed form config directory [esphome#2207](https://github.com/esphome/esphome/pull/2207) by [@jesserockz](https://github.com/jesserockz)
+- cs_pin made optional for ili9341 [esphome#2219](https://github.com/esphome/esphome/pull/2219) by [@a13ssandr0](https://github.com/a13ssandr0)
+- Fix Packages when using MQTT [esphome#2210](https://github.com/esphome/esphome/pull/2210) by [@paulmonigatti](https://github.com/paulmonigatti)
+- Update known boards [esphome#2190](https://github.com/esphome/esphome/pull/2190) by [@oxan](https://github.com/oxan)
+- Bump dashboard to 20210826.0 [esphome#2211](https://github.com/esphome/esphome/pull/2211) by [@jesserockz](https://github.com/jesserockz)
+- Remove footer validation for fujitsu_general [esphome#2196](https://github.com/esphome/esphome/pull/2196) by [@marciogranzotto](https://github.com/marciogranzotto)
+- Glmnet schema 202105 [esphome#2220](https://github.com/esphome/esphome/pull/2220) by [@glmnet](https://github.com/glmnet)
+- Add H-Bridge fan component [esphome#2212](https://github.com/esphome/esphome/pull/2212) by [@WeekendWarrior1](https://github.com/WeekendWarrior1) (new-feature)
+- Bump black from 21.7b0 to 21.8b0 [esphome#2222](https://github.com/esphome/esphome/pull/2222) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest from 6.2.4 to 6.2.5 [esphome#2223](https://github.com/esphome/esphome/pull/2223) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Support for the AirThings Wave Plus [esphome#1656](https://github.com/esphome/esphome/pull/1656) by [@jeromelaban](https://github.com/jeromelaban) (new-integration)
+- Fix some lint errors in pylint 2.10.2 [esphome#2226](https://github.com/esphome/esphome/pull/2226) by [@jesserockz](https://github.com/jesserockz)
+- Add transitions to light flash [esphome#2201](https://github.com/esphome/esphome/pull/2201) by [@alexyao2015](https://github.com/alexyao2015)
+- iBeacon support for ble_presence [esphome#1627](https://github.com/esphome/esphome/pull/1627) by [@ignisf](https://github.com/ignisf)
+- Cleanup flash transitions [esphome#2227](https://github.com/esphome/esphome/pull/2227) by [@alexyao2015](https://github.com/alexyao2015)
+- Add is_on and is_off conditions for the fan component [esphome#2225](https://github.com/esphome/esphome/pull/2225) by [@nuttytree](https://github.com/nuttytree)
+- Bump pylint from 2.9.6 to 2.10.2 [esphome#2197](https://github.com/esphome/esphome/pull/2197) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- mqtt_sensor: properly send state_class via MQTT [esphome#2228](https://github.com/esphome/esphome/pull/2228) by [@ayufan](https://github.com/ayufan)
+- Change uptime's state_class to total_increasing (esphome/issues#2337) [esphome#2205](https://github.com/esphome/esphome/pull/2205) by [@DAVe3283](https://github.com/DAVe3283)
+- Expose WHITE/CWWW/RGBCT color modes over MQTT [esphome#2231](https://github.com/esphome/esphome/pull/2231) by [@oxan](https://github.com/oxan)
+- Reject template select/number/switches that don't handle user input [esphome#2230](https://github.com/esphome/esphome/pull/2230) by [@oxan](https://github.com/oxan) (breaking-change)
+- Fix UARTComponent hardware vs software UART0 conflict [esphome#2229](https://github.com/esphome/esphome/pull/2229) by [@ferbar](https://github.com/ferbar)
+- Move to use zeroconf library instead of inline copy [esphome#2192](https://github.com/esphome/esphome/pull/2192) by [@jesserockz](https://github.com/jesserockz)
+- Allow using a git source for a package [esphome#2193](https://github.com/esphome/esphome/pull/2193) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Remove last_reset_type and convert all those sensors to TOTAL_INCREASING [esphome#2233](https://github.com/esphome/esphome/pull/2233) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Dont dump legacy fields [esphome#2241](https://github.com/esphome/esphome/pull/2241) by [@jesserockz](https://github.com/jesserockz)
+- Fix encoding bug [esphome#2242](https://github.com/esphome/esphome/pull/2242) by [@jesserockz](https://github.com/jesserockz)
+- Light: include ON_OFF capability to BRIGHTNESS ColorMode [esphome#2204](https://github.com/esphome/esphome/pull/2204) by [@jesserockz](https://github.com/jesserockz)
+- LOG_UPDATE_INTERVAL: correctly report "never" [esphome#2240](https://github.com/esphome/esphome/pull/2240) by [@Habbie](https://github.com/Habbie)
+- Fix runtime exception due to dict typing [esphome#2243](https://github.com/esphome/esphome/pull/2243) by [@alexyao2015](https://github.com/alexyao2015)
+- template: select: fix initial_value cannot be used with lambda [esphome#2244](https://github.com/esphome/esphome/pull/2244) by [@ayufan](https://github.com/ayufan)
+- Add device classes new in HA 2021.9 [esphome#2248](https://github.com/esphome/esphome/pull/2248) by [@oxan](https://github.com/oxan)
+- Logger prevent recursive logging [esphome#2251](https://github.com/esphome/esphome/pull/2251) by [@OttoWinter](https://github.com/OttoWinter)
+- Add new trigger to fan component `on_speed_set` [esphome#2246](https://github.com/esphome/esphome/pull/2246) by [@dgtal1](https://github.com/dgtal1)
+- Fix fan speed restore issue on boot [esphome#1867](https://github.com/esphome/esphome/pull/1867) by [@wifwucite](https://github.com/wifwucite)
+- Template sensors always publish on update interval [esphome#2224](https://github.com/esphome/esphome/pull/2224) by [@nuttytree](https://github.com/nuttytree)
+- Socket component [esphome#2250](https://github.com/esphome/esphome/pull/2250) by [@OttoWinter](https://github.com/OttoWinter)
+- Allow .yml files in dashboard [esphome#2257](https://github.com/esphome/esphome/pull/2257) by [@jesserockz](https://github.com/jesserockz)
+- Bump dashboard to 20210908.0 and fix card names for yml [esphome#2258](https://github.com/esphome/esphome/pull/2258) by [@jesserockz](https://github.com/jesserockz)
+- Fix socket not setting callbacks early enough [esphome#2260](https://github.com/esphome/esphome/pull/2260) by [@OttoWinter](https://github.com/OttoWinter)
+- Convert API to use sockets [esphome#2253](https://github.com/esphome/esphome/pull/2253) by [@OttoWinter](https://github.com/OttoWinter)
+- Midea support v2 [esphome#2188](https://github.com/esphome/esphome/pull/2188) by [@dudanov](https://github.com/dudanov) (breaking-change)
+- ccs811: publish firmware version; log bootloader and HW version; fix a bug [esphome#2006](https://github.com/esphome/esphome/pull/2006) by [@Habbie](https://github.com/Habbie)
+- API encryption [esphome#2254](https://github.com/esphome/esphome/pull/2254) by [@OttoWinter](https://github.com/OttoWinter)
+- Revert "Dont dump legacy fields" [esphome#2259](https://github.com/esphome/esphome/pull/2259) by [@jesserockz](https://github.com/jesserockz)
+- pm1006: add support for sending a measurement request [esphome#2214](https://github.com/esphome/esphome/pull/2214) by [@Habbie](https://github.com/Habbie)
+- SGP40 sensor start-up fix [esphome#2178](https://github.com/esphome/esphome/pull/2178) by [@kbx81](https://github.com/kbx81)
+- PMSA003i Update state_class and async [esphome#2216](https://github.com/esphome/esphome/pull/2216) by [@sjtrny](https://github.com/sjtrny)
+- Fix a few ESP32-C3 compiler issues [esphome#2265](https://github.com/esphome/esphome/pull/2265) by [@jesserockz](https://github.com/jesserockz)
+- sm300d2: Accept (undocumented) 0x80 checksum offset. [esphome#2263](https://github.com/esphome/esphome/pull/2263) by [@poptix](https://github.com/poptix)
+- Disable automatic usage of SNTP servers from DHCP [esphome#2273](https://github.com/esphome/esphome/pull/2273) by [@oxan](https://github.com/oxan)
+- Only try compat parsing after regular parsing fails [esphome#2269](https://github.com/esphome/esphome/pull/2269) by [@oxan](https://github.com/oxan)
+- Suppress excessive warnings about deprecated Fan interfaces [esphome#2270](https://github.com/esphome/esphome/pull/2270) by [@oxan](https://github.com/oxan)
+- t6615: tolerate sensor dropping commands [esphome#2255](https://github.com/esphome/esphome/pull/2255) by [@jasstrong](https://github.com/jasstrong)
+- Fix API socket issues [esphome#2288](https://github.com/esphome/esphome/pull/2288) by [@OttoWinter](https://github.com/OttoWinter)
+- Bump platformio to 5.2.0 [esphome#2291](https://github.com/esphome/esphome/pull/2291) by [@OttoWinter](https://github.com/OttoWinter)
+- API Noise logging [esphome#2298](https://github.com/esphome/esphome/pull/2298) by [@OttoWinter](https://github.com/OttoWinter)
+- Fix api noise explicit reject [esphome#2297](https://github.com/esphome/esphome/pull/2297) by [@OttoWinter](https://github.com/OttoWinter)
+- Allow simple hostname for sntp servers [esphome#2300](https://github.com/esphome/esphome/pull/2300) by [@jesserockz](https://github.com/jesserockz)
+- Fix binary strobe [esphome#2301](https://github.com/esphome/esphome/pull/2301) by [@jesserockz](https://github.com/jesserockz)
+- Fix unit of measurement fields for DSMR power consumed/delivered fields [esphome#2304](https://github.com/esphome/esphome/pull/2304) by [@jsuanet](https://github.com/jsuanet)
+- Simple time.sleep in place of threading wait due to upgraded zeroconf [esphome#2307](https://github.com/esphome/esphome/pull/2307) by [@jesserockz](https://github.com/jesserockz)
+- Fix aioesphomeapi API logger with explicit API port config [esphome#2310](https://github.com/esphome/esphome/pull/2310) by [@mmakaay](https://github.com/mmakaay)
+- Start a wifi scan after saving station details [esphome#2315](https://github.com/esphome/esphome/pull/2315) by [@jesserockz](https://github.com/jesserockz)
+
+{/* markdownlint-enable MD013 */}

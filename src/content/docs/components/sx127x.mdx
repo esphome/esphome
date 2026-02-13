@@ -1,0 +1,419 @@
+---
+description: "Instructions for setting up SX1276/SX1277/SX1278/SX1279 transceivers."
+title: "SX127x Component"
+---
+
+import { Image } from 'astro:assets';
+import sx127xFullImg from './images/sx127x-full.png';
+import APIRef from '@components/APIRef.astro';
+
+<span id="sx127x"></span>
+
+The SX127x component allows you to configure the SX1276, SX1277, SX1278 and SX1279 transceivers
+([datasheet](https://www.semtech.com/products/wireless-rf/lora-connect/sx1278#documentation)) in
+ESPHome. Transceivers are connected via the [SPI Bus](/components/spi). Supported frequencies range from
+137 MHz to 1020 MHz, including the popular 315 MHz, 433 MHz, 868 MHz, and 915 MHz ISM bands.
+Supported modulations include LoRa, OOK, FSK, GFSK, MSK and GMSK. The SX127x
+component may be used as a platform for the [Packet Transport Component](/components/packet_transport#packet-transport) component, enabling sensor data
+to be sent directly from one ESPHome node to another.
+
+<Image src={sx127xFullImg} layout="constrained" alt="" />
+
+```yaml
+# Example configuration entry
+sx127x:
+  cs_pin: GPIO18
+  rst_pin: GPIO23
+  bandwidth: 50_0kHz
+  frequency: 433.92MHz
+  modulation: OOK
+  packet_mode: false
+  rx_start: true
+  rx_floor: -90
+```
+
+## Configuration variables
+
+- **cs_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): SPI chip select pin.
+- **rst_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Reset pin.
+- **dio0_pin** (**Optional**, [Pin Schema](/guides/configuration-types#pin-schema)): Digital IO pin 0.
+- **auto_cal** (**Optional**, bool): Enable automatic image calibration on temperature changes. Defaults to `true`.
+- **frequency** (**Required**, frequency): Frequency in Hz of the transceiver.
+- **modulation** (**Required**, enum): Modulation can be `OOK`, `FSK` or `LORA`  `.
+- **pa_pin** (**Optional**, enum): Transmitter output pin, can be `BOOST` or `RFO`.
+- **pa_power** (**Optional**, int): Transmitter power, range is from 2 to 17 dBm when `pa_pin` is `BOOST` and
+  0 to 15 dBm when using `RFO`.
+
+- **pa_ramp** (**Optional**, enum): Transmitter PA ramp, can be `10us`, `12us`, `15us`,
+  `20us`, `25us`, `31us`, `40us`, `50us`, `62us`, `100us`, `125us`, `250us`, `500us`,
+  `1000us`, `2000us` or `3400us`.
+
+- **rx_start** (**Optional**, bool): Start the receiver automatically on boot or after transmitting.
+
+### LoRa configuration variables
+
+- **bandwidth** (**Optional**, enum): Bandwidth can be `7_8kHz`, `10_4kHz`, `15_6kHz`, `20_8kHz`,
+  `31_3kHz`, `41_7kHz`, `62_5kHz`, `125_0kHz`, `250_0kHz` or `500_0kHz`.
+
+- **payload_length** (**Optional**, int): If greater than zero implicit header mode is enabled and the
+  packet size is fixed. If not configured explicit header mode is enabled and variable packet sizes can
+  be used. Maximum length is 256. Must be greater than zero when using a `spreading_factor` of 6.
+
+- **crc_enable** (**Optional**, bool): Enables a payload CRC calculation/check.
+- **preamble_size** (**Required**, int): Length of the preamble in symbols, minimum of 6.
+- **spreading_factor** (**Optional**, int): Spreading factor, values range from 6 to 12. Defaults to 7.
+- **coding_rate** (**Optional**, enum): Coding rate, values can be `CR_4_5`, `CR_4_6`, `CR_4_7`
+  or `CR_4_8`. Defaults to `CR_4_5`.
+
+- **sync_value** (**Optional**, int): Synchronization word, limited to a single byte. The value 0x34 is
+  reserved for LoRaWAN networks and the value 0x12 is meant for private networks. It is recommended to use
+  only 0x12 or 0x34. Defaults to 0x12.
+
+### FSK/OOK configuration variables
+
+- **bandwidth** (**Optional**, enum): Bandwidth can be `2_6kHz`, `3_1kHz`, `3_9kHz`,
+  `5_2kHz`, `6_3kHz`, `7_8kHz`, `10_4kHz`, `12_5kHz`, `15_6kHz`, `20_8kHz`, `25_0kHz`,
+  `31_3kHz`, `41_7kHz`, `50_0kHz`, `62_5kHz`, `83_3kHz`, `100_0kHz`, `125_0kHz`,
+  `166_7kHz`, `200_0kHz` or `250_0kHz`.
+
+- **packet_mode** (**Required**, bool): In packet mode bytes are sent via the `send_packet`
+  automation and received with the `on_packet` trigger. If not enabled continuous mode is
+  used and raw data is sent and received on DIO2.
+
+- **payload_length** (**Optional**, int): Length of the payload in packet mode. If not configured then
+  the variable length packet format is used. Maximum length is 64.
+
+- **crc_enable** (**Optional**, bool): Enables a 16 bit CRC calculation/check in packet mode.
+- **bitrate** (**Optional**, int): Bit rate of the signal. Required in packet mode and recommended
+  in continuous mode. Normally the inverse of the bit duration, eg 1 / 208 us is 4800 bps.
+
+- **bitsync** (**Required**, bool): Enables the receive bit synchronizer. Required in packet mode.
+  Recommended in continuous mode, however if there is no preamble plus high noise it may be better to
+  turn it off.
+
+- **preamble_polarity** (**Optional**, int): Polarity of the preamble, either 0xAA or 0x55.
+- **preamble_size** (**Optional**, int): Length of the preamble, in bytes, to be sent by the transmitter.
+  This value should be larger than `preamble_detect` on the receive side to allow time for the receiver’s
+  AFC and AGC to adjust.
+
+- **preamble_detect** (**Optional**, int): Minimum length of the preamble in bytes required by the receiver.
+  Preamble detector is disabled if the size is 0 and its value capped at 3.
+
+- **preamble_errors** (**Optional**, int): Number of chip errors tolerated in the receiver.
+- **sync_value** (**Optional**, list): Synchronization bytes, list of 1 to 8 bytes, found after the preamble and
+  before the payload.
+
+- **rx_floor** (**Optional**, float): When receiving OOK `rx_floor` should be set appropriately for your
+  environment. If set too high (ie closer to 0) the radio will ignore everything. If set too low
+  (ie closer to -128) too much noise will get through. When receiving FSK without a preamble configured
+  `rx_floor` is used to trigger the receiver.
+
+- **deviation** (**Optional**, frequency): Transmitter FSK frequency deviation, values range from 0 to 100 kHz. Defaults to `5kHz`.
+- **shaping** (**Optional**, enum): Transmitter data shaping. In OOK can be `CUTOFF_BR_X_2`,
+  `CUTOFF_BR_X_1` or `NONE`. In FSK can be `GAUSSIAN_BT_0_3`, `GAUSSIAN_BT_0_5`,
+  `GAUSSIAN_BT_1_0` or `NONE`. Not recommended in continuous mode as the data on DIO2
+  must to be synchronized with the bit clock on DIO1.
+
+> [!NOTE]
+> Configuration variables can be changed at runtime using lambdas. Settings will only be applied
+> after calling `configure`. See <APIRef text="sx127x.h" path="sx127x/sx127x.h" />.
+
+### Triggers
+
+- **on_packet** (*Optional*, [Automation](/automations)): An automation to perform in packet mode
+  when a packet has been decoded. A variable x of type `std::vector<uint8_t>` is passed to the automation
+  for use in lambdas. In LoRa mode the variables snr and rssi are also available.
+
+```yaml
+sx127x:
+  ...
+  on_packet:
+    then:
+      - lambda: |-
+          char hex[256];  // Size appropriately for your data
+          ESP_LOGD("lambda", "packet %s", format_hex_to(hex, x));
+          ESP_LOGD("lambda", "rssi %.2f", rssi);
+          ESP_LOGD("lambda", "snr %.2f", snr);
+```
+
+## Actions
+
+### `sx127x.run_image_cal` Action
+
+This [action](/automations/actions#all-actions) runs the `sx127x` image calibration, must be in standby mode.
+
+```yaml
+interval:
+  - interval: 10min
+    then:
+      - sx127x.set_mode_standby
+      - sx127x.run_image_cal
+      - sx127x.set_mode_rx
+```
+
+### `sx127x.set_mode_tx` Action
+
+This [action](/automations/actions#all-actions) sets the `sx127x` mode to tx.
+
+```yaml
+on_...:
+  - sx127x.set_mode_tx
+```
+
+### `sx127x.set_mode_rx` Action
+
+This [action](/automations/actions#all-actions) sets the `sx127x` mode to rx.
+
+```yaml
+on_...:
+  - sx127x.set_mode_rx
+```
+
+### `sx127x.set_mode_sleep` Action
+
+This [action](/automations/actions#all-actions) sets the `sx127x` mode to sleep.
+
+```yaml
+on_...:
+  - sx127x.set_mode_sleep
+```
+
+### `sx127x.set_mode_standby` Action
+
+This [action](/automations/actions#all-actions) sets the `sx127x` mode to standby.
+
+```yaml
+on_...:
+  - sx127x.set_mode_standby
+```
+
+### `sx127x.send_packet` Action
+
+This [action](/automations/actions#all-actions) sends a packet, the `sx127x` needs to be in packet mode.
+
+```yaml
+on_...:
+  - sx127x.send_packet:
+      data: [0x1F, 0x3E, 0x06, 0x5F, 0x4F, 0x5F, 0xAC, 0xB1]
+```
+
+### Configuration variables
+
+- **data** (**Required**, list): The packet to send, length should match the configured
+  payload_length.
+
+## LoRa
+
+LoRa example using an explicit header, spreading factor 7 and coding rate 4/5.
+
+```yaml
+# Example configuration entry
+sx127x:
+  dio0_pin: GPIO26
+  cs_pin: GPIO18
+  rst_pin: GPIO23
+  pa_pin: BOOST
+  pa_power: 4
+  bandwidth: 125_0kHz
+  crc_enable: true
+  frequency: 433.92MHz
+  modulation: LORA
+  rx_start: true
+  sync_value: 0x33
+  spreading_factor: 7
+  coding_rate: CR_4_5
+  on_packet:
+    then:
+      - lambda: |-
+          char hex[256];  // Size appropriately for your data
+          ESP_LOGD("lambda", "packet %s", format_hex_to(hex, x));
+          ESP_LOGD("lambda", "rssi %.2f", rssi);
+          ESP_LOGD("lambda", "snr %.2f", snr);
+
+  button:
+    - platform: template
+      name: "Transmit Packet"
+      on_press:
+        then:
+          - sx127x.send_packet:
+             data: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]
+```
+
+## FSK/OOK Packet Mode
+
+FSK packet mode example using a bit rate of 4800.
+
+```yaml
+# Example configuration entry
+sx127x:
+  cs_pin: GPIO18
+  rst_pin: GPIO23
+  dio0_pin: GPIO26
+  pa_pin: BOOST
+  pa_power: 17
+  bitrate: 4800
+  bitsync: true
+  crc_enable: true
+  frequency: 433.92MHz
+  modulation: FSK
+  packet_mode: true
+  payload_length: 8
+  rx_start: true
+  sync_value: [0x33, 0x33]
+  preamble_size: 4
+  preamble_detect: 2
+  preamble_errors: 8
+  preamble_polarity: 0x55
+  on_packet:
+    then:
+      - lambda: |-
+          char hex[256];  // Size appropriately for your data
+          ESP_LOGD("lambda", "packet %s", format_hex_to(hex, x));
+
+  button:
+    - platform: template
+      name: "Transmit Packet"
+      on_press:
+        then:
+          - sx127x.send_packet:
+             data: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]
+```
+
+## FSK/OOK Continuous Mode
+
+### As a Receiver
+
+The `sx127x` will output demodulated data onto DIO2 and
+[remote_receiver](/components/remote_receiver/) should be used to receive
+this data on `pin` (must be wired to DIO2).
+
+```yaml
+# Example configuration entry
+sx127x:
+  cs_pin: GPIO18
+  rst_pin: GPIO23
+  bandwidth: 50_0kHz
+  frequency: 433.92MHz
+  modulation: OOK
+  packet_mode: false
+  rx_start: true
+  rx_floor: -90
+
+remote_receiver:
+  pin: GPIO32
+  dump: raw
+```
+
+> [!NOTE]
+> It is not recommended to receive FSK in continuous mode as there will be too
+> much noise. Use packet mode instead.
+
+### As a Transmitter
+
+The `sx127x` expects raw data to be transmitted on DIO2,
+[remote_transmitter](/components/remote_transmitter/) should be used to transmit
+this data on `pin` (must be wired to DIO2). The `sx127x` mode must be set appropriately
+before and after transmit using the `on_transmit` and `on_complete` automations.
+
+```yaml
+# Example configuration entry
+sx127x:
+  cs_pin: GPIO18
+  rst_pin: GPIO23
+  bandwidth: 50_0kHz
+  frequency: 433.92MHz
+  modulation: OOK
+  packet_mode: false
+  rx_start: false
+  pa_pin: BOOST
+  pa_power: 17
+
+remote_transmitter:
+  pin: GPIO32
+  carrier_duty_percent: 100%
+  on_transmit:
+    then:
+      - sx127x.set_mode_tx
+  on_complete:
+    then:
+      - sx127x.set_mode_standby
+
+button:
+  - platform: template
+    name: "Transmit Raw"
+    on_press:
+      then:
+        - remote_transmitter.transmit_raw:
+            code: [614, -614, 600, -614, 614, -614, 601, -614]
+```
+
+### As a Transmitter & Receiver
+
+The shared `pin` should to be set to open-drain with a pullup. In
+[remote_transmitter](/components/remote_transmitter/) `eot_level` should be set to
+`false`. In addition to setting the `sx127x` mode in `on_transmit` / `on_complete`
+the pin should be driven low before `set_mode_tx` and pulled high / released before
+`set_mode_rx`.
+
+```yaml
+# Example configuration entry
+sx127x:
+  cs_pin: GPIO18
+  rst_pin: GPIO23
+  bandwidth: 50_0kHz
+  frequency: 433.92MHz
+  modulation: OOK
+  packet_mode: false
+  rx_start: true
+  rx_floor: -90
+  pa_pin: BOOST
+  pa_power: 17
+
+remote_receiver:
+  pin:
+    number: GPIO32
+    mode:
+      input: true
+      output: true
+      pullup: true
+      open_drain: true
+    allow_other_uses: true
+  dump: raw
+
+remote_transmitter:
+  pin:
+    number: GPIO32
+    mode:
+      input: true
+      output: true
+      pullup: true
+      open_drain: true
+    allow_other_uses: true
+  eot_level: false
+  carrier_duty_percent: 100%
+  on_transmit:
+    then:
+      - sx127x.set_mode_standby
+      - remote_transmitter.digital_write: false
+      - sx127x.set_mode_tx
+  on_complete:
+    then:
+      - sx127x.set_mode_standby
+      - remote_transmitter.digital_write: true
+      - sx127x.set_mode_rx
+
+button:
+  - platform: template
+    name: "Transmit Raw"
+    on_press:
+      then:
+        - remote_transmitter.transmit_raw:
+            code: [614, -614, 600, -614, 614, -614, 601, -614]
+```
+
+## See Also
+
+- [SX127x Packet Transport Platform](/components/packet_transport/sx127x/)
+- [Remote Transmitter](/components/remote_transmitter/)
+- [Remote Receiver](/components/remote_receiver/)
+- <APIRef text="sx127x.h" path="sx127x/sx127x.h" />

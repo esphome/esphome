@@ -1,0 +1,260 @@
+---
+description: "Changelog for ESPHome 2021.8.0."
+title: "ESPHome 2021.8.0 - 18th August 2021"
+pagefind: false
+slug: "changelog/2021.8.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["AM43","/components/sensor/am43","am43.jpg"],
+  ["AM43 Cover","/components/cover/am43","am43.jpg"],
+  ["Color Temperature Light","/components/light/color_temperature","brightness-medium.svg","dark-invert"],
+  ["Demo","/components/demo","description.svg","dark-invert"],
+  ["DSMR","/components/sensor/dsmr","dsmr.svg"],
+  ["HRXL MaxSonar WR","/components/sensor/hrxl_maxsonar_wr","hrxl_maxsonar_wr.jpg"],
+  ["PipSolar - compatible PV Inverter","/components/pipsolar","pipsolar.jpg"],
+  ["PM1006 Sensor","/components/sensor/pm1006","pm1006.jpg"],
+  ["PMSA003I","/components/sensor/pmsa003i","pmsa003i.jpg"],
+  ["RGBCT Light","/components/light/rgbct","rgbw.png"],
+  ["SDP3x","/components/sensor/sdp3x","sdp31.jpg"],
+  ["Selec Meter","/components/sensor/selec_meter","selec_meter_em2m.jpg"],
+  ["T6613/15","/components/sensor/t6615","t6615.jpg"],
+  ["TLC5947","/components/output/tlc5947","tlc5947.jpg"],
+  ["Select Core","/components/select/index","folder-open.svg","dark-invert"],
+  ["Template Select","/components/select/template","description.svg","dark-invert"],
+  ["TSL2591","/components/sensor/tsl2591","tsl2591.jpg"]
+]} />
+
+Since starting monthly cycles, it just made sense to make this release, **ESPHome 2021.8.0**. From now ESPHome will
+be versioned according to the year and month of the release. We hope that this will not confuse everyone too much =).
+
+There are a bunch of new integrations this release as seen above and a few breaking changes below. Hopefully nothing
+has been missed out.
+
+Also, look at that nice sorted and categorized home page of sensors. Thanks to [@patfelst](https://github.com/patfelst) for
+doing this.
+
+## Select Entities
+
+ESPHome devices can now create [Select](/components/select/) entities in Home Assistant.
+This allows you to not have to create `input_select` from HA and then import the current option into ESPHome.
+The chosen option can be updated from both sides and will be reflected accordingly.
+
+## Light Color Modes
+
+[@oxan](https://github.com/oxan) has been at it working hard on getting the all of the light code up to scratch and working
+really well with the latest changes to Home Assistant. This is mostly an internal change, but ESPHome has
+been updated to properly support Home Assistant's color modes for lights. For the most part it mainly
+fixes issues that have come up with the color mode on Home Assistant not doing what people expected in ESPHome.
+
+## DSMR
+
+[@glmnet](https://github.com/glmnet) and [@zuidwijk](https://github.com/zuidwijk) have worked together to bring DSMR support to ESPHome.
+This platform allows you to read your DSMR smart meter via the P1 port. Check out the
+[repo](https://github.com/zuidwijk/dsmr) with more info on the hardware required for this.
+
+## Thermostat Breaking changes
+
+[@kbx81](https://github.com/kbx81) Has made a few changes to the [thermostat](/components/climate/thermostat/)
+climate platform in [esphome#2032](https://github.com/esphome/esphome/pull/2032), [esphome#2073](https://github.com/esphome/esphome/pull/2073) and
+[esphome#2114](https://github.com/esphome/esphome/pull/2114) to allow for the many different use cases that everyone has.
+Unfortunately this means you might need to make some changes to your YAML configuration to utilize the new code.
+
+- `hysteresis` has been replaced with `cool_deadband`, `cool_overrun`, `heat_deadband` and `heat_overrun`.
+- Climate action timers now govern how quickly climate actions may be called:
+
+- `min_idle_time` is required for all configurations.
+- `min_cooling_off_time` and `min_cooling_run_time` are required where cool_action or dry_action is used.
+- `min_heating_off_time` and `min_heating_run_time` are required where heat_action is used.
+- `min_fanning_off_time` and `min_fanning_run_time` are required where fan_only_action is used.
+- `min_fan_mode_switching_time` is required where any `fan_mode` actions (ex.: `fan_mode_auto_action`,
+  `fan_mode_on_action`  ) are used.
+
+## Anova Souve
+
+There is a change with the [Anova BLE Souve](/components/climate/anova/) climate platform
+that has a new **required** config option: `unit_of_measurement`.
+
+## Home Assistant Add-on
+
+For a while there has been an option in the Add-on to allow specifying the `esphome_version`
+which would allow the addon to download a specific version to use. This has been removed
+in this release as it causes more issues than it solves. It may be added back to the `development` addon
+**only** in the future if there is demand, but the stable add-ons should stay stable. If you
+need to downgrade the esphome version because a new version does not work the way you expect, then you
+should be using the snapshot/backup feature built into Home Assistant Supervisor to rollback.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2021.8.1 - August 24
+
+- Fix pypi download url [esphome#2177](https://github.com/esphome/esphome/pull/2177) by [@jesserockz](https://github.com/jesserockz)
+- Light: include ON_OFF capability to BRIGHTNESS ColorMode [esphome#2186](https://github.com/esphome/esphome/pull/2186) by [@puuu](https://github.com/puuu)
+- Fix addressable light control without transitions & effects with transitions [esphome#2187](https://github.com/esphome/esphome/pull/2187) by [@oxan](https://github.com/oxan)
+- mqtt_light: remove legacy API config that is not compatible with HA 2021.8 [esphome#2183](https://github.com/esphome/esphome/pull/2183) by [@puuu](https://github.com/puuu)
+- Tuya fan component uses enum datapoint type for speed instead of integer [esphome#2182](https://github.com/esphome/esphome/pull/2182) by [@nuttytree](https://github.com/nuttytree)
+- Fix template select lambda [esphome#2198](https://github.com/esphome/esphome/pull/2198) by [@ssieb](https://github.com/ssieb)
+- Send Celsius temperature unit in MQTT discovery message [esphome#1840](https://github.com/esphome/esphome/pull/1840) by [@mtl010957](https://github.com/mtl010957)
+
+## Release 2021.8.2 - August 25
+
+- Revert "Light: include ON_OFF capability to BRIGHTNESS ColorMode" [esphome#2202](https://github.com/esphome/esphome/pull/2202) by [@jesserockz](https://github.com/jesserockz)
+
+## Full list of changes
+
+### New Features
+
+- Allow entities to be disabled by default in HA [esphome#2113](https://github.com/esphome/esphome/pull/2113) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+
+### New Components
+
+- Added support for pvvx_mithermometer sensor [esphome#1546](https://github.com/esphome/esphome/pull/1546) by [@pasiz](https://github.com/pasiz) (new-integration)
+- Added support for Selec Energy Meter [esphome#1993](https://github.com/esphome/esphome/pull/1993) by [@sourabhjaiswal](https://github.com/sourabhjaiswal) (new-integration)
+- pm1006: add rx-only support [esphome#2038](https://github.com/esphome/esphome/pull/2038) by [@Habbie](https://github.com/Habbie) (new-integration)
+- Add SDP3x sensor [esphome#2064](https://github.com/esphome/esphome/pull/2064) by [@Azimath](https://github.com/Azimath) (new-integration)
+- Add support for the TLC5947 24-Channel, 12-Bit PWM LED Driver [esphome#2066](https://github.com/esphome/esphome/pull/2066) by [@rnauber](https://github.com/rnauber) (new-integration)
+- Add T6615 [esphome#1170](https://github.com/esphome/esphome/pull/1170) by [@tylermenezes](https://github.com/tylermenezes) (new-integration)
+- Add support for the HRXL MaxSonar WR series sensors [esphome#2020](https://github.com/esphome/esphome/pull/2020) by [@netmikey](https://github.com/netmikey) (new-integration)
+- Add demo integration [esphome#2085](https://github.com/esphome/esphome/pull/2085) by [@OttoWinter](https://github.com/OttoWinter) (new-integration)
+- Add select entities and implement template select [esphome#2067](https://github.com/esphome/esphome/pull/2067) by [@jesserockz](https://github.com/jesserockz) (new-integration) (notable-change)
+- Added support for Hitachi AC424 remote type [esphome#2101](https://github.com/esphome/esphome/pull/2101) by [@sourabhjaiswal](https://github.com/sourabhjaiswal) (new-integration)
+- Adds CGPR1 - Qingping Motion & Ambient light sensor support [esphome#1675](https://github.com/esphome/esphome/pull/1675) by [@Tommatheussen](https://github.com/Tommatheussen) (new-integration)
+- Dsmr component [esphome#1881](https://github.com/esphome/esphome/pull/1881) by [@glmnet](https://github.com/glmnet) (new-integration)
+- Support component tsl2591 [esphome#2131](https://github.com/esphome/esphome/pull/2131) by [@wjcarpenter](https://github.com/wjcarpenter) (new-integration)
+- Add support for PMSA003i [esphome#1501](https://github.com/esphome/esphome/pull/1501) by [@sjtrny](https://github.com/sjtrny) (new-integration)
+- Add rgbct and color_temperature light platforms [esphome#2138](https://github.com/esphome/esphome/pull/2138) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Feature pipsolar anh [esphome#1664](https://github.com/esphome/esphome/pull/1664) by [@andreashergert1984](https://github.com/andreashergert1984) (new-integration)
+- Support for AM43 BLE blind motors [esphome#1744](https://github.com/esphome/esphome/pull/1744) by [@buxtronix](https://github.com/buxtronix) (new-integration)
+
+### Breaking Changes
+
+- Merge build flags from platformio_options [esphome#1651](https://github.com/esphome/esphome/pull/1651) by [@trvrnrth](https://github.com/trvrnrth) (breaking-change)
+- Color mode implementation [esphome#2012](https://github.com/esphome/esphome/pull/2012) by [@oxan](https://github.com/oxan) (notable-change) (breaking-change)
+- Fix parity bit calculation for ESP8266SoftwareSerial [esphome#1873](https://github.com/esphome/esphome/pull/1873) by [@esev](https://github.com/esev) (breaking-change)
+- Dont force 0 state instead of min_power unless explicit config set [esphome#2107](https://github.com/esphome/esphome/pull/2107) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Anova fahrenheit support [esphome#2126](https://github.com/esphome/esphome/pull/2126) by [@buxtronix](https://github.com/buxtronix) (breaking-change)
+- Tidy HA addon [esphome#1937](https://github.com/esphome/esphome/pull/1937) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Thermostat enhancements 2 [esphome#2114](https://github.com/esphome/esphome/pull/2114) by [@kbx81](https://github.com/kbx81) (breaking-change)
+
+### Beta Fixes
+
+- Always send all light state values in API [esphome#2150](https://github.com/esphome/esphome/pull/2150) by [@oxan](https://github.com/oxan)
+- Let sensors announce their state_class via mqtt [esphome#2155](https://github.com/esphome/esphome/pull/2155) by [@puuu](https://github.com/puuu)
+- Thermostat delayed fan mode fix [esphome#2158](https://github.com/esphome/esphome/pull/2158) by [@kbx81](https://github.com/kbx81)
+- Fix native API log level enum values [esphome#2151](https://github.com/esphome/esphome/pull/2151) by [@OttoWinter](https://github.com/OttoWinter)
+- Initialize color temperature to value within range if possible [esphome#2168](https://github.com/esphome/esphome/pull/2168) by [@oxan](https://github.com/oxan)
+- Add a dummy color temp [esphome#2161](https://github.com/esphome/esphome/pull/2161) by [@DotNetDann](https://github.com/DotNetDann)
+- Add Gas device class to DSMR component [esphome#2169](https://github.com/esphome/esphome/pull/2169) by [@frenck](https://github.com/frenck)
+- Send dirty states when screen wakes up [esphome#2167](https://github.com/esphome/esphome/pull/2167) by [@jesserockz](https://github.com/jesserockz)
+- Remove specified accuracy_decimals from total_daily_energy [esphome#2174](https://github.com/esphome/esphome/pull/2174) by [@jesserockz](https://github.com/jesserockz)
+- Add new total_increasing state-class for Home Assistant 2021.9+ [esphome#2166](https://github.com/esphome/esphome/pull/2166) by [@jesserockz](https://github.com/jesserockz)
+
+### Notable Changes
+
+- Color mode implementation [esphome#2012](https://github.com/esphome/esphome/pull/2012) by [@oxan](https://github.com/oxan) (notable-change) (breaking-change)
+- Add select entities and implement template select [esphome#2067](https://github.com/esphome/esphome/pull/2067) by [@jesserockz](https://github.com/jesserockz) (new-integration) (notable-change)
+
+### All changes
+
+- Always tick mdns in ethernet component [esphome#2018](https://github.com/esphome/esphome/pull/2018) by [@flacjacket](https://github.com/flacjacket)
+- Bump black from 21.6b0 to 21.7b0 [esphome#2031](https://github.com/esphome/esphome/pull/2031) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Convert Arduino boolean to bool [esphome#2042](https://github.com/esphome/esphome/pull/2042) by [@jesserockz](https://github.com/jesserockz)
+- Fix ESP32-C3 using v2.0.0-alpha1 support [esphome#2035](https://github.com/esphome/esphome/pull/2035) by [@agners](https://github.com/agners)
+- Bump pylint from 2.8.2 to 2.9.4 [esphome#2047](https://github.com/esphome/esphome/pull/2047) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pylint from 2.9.4 to 2.9.5 [esphome#2050](https://github.com/esphome/esphome/pull/2050) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Thermostat fixes+updates 1 [esphome#2032](https://github.com/esphome/esphome/pull/2032) by [@kbx81](https://github.com/kbx81)
+- Add test5 back to CI [esphome#2052](https://github.com/esphome/esphome/pull/2052) by [@jesserockz](https://github.com/jesserockz)
+- Added support for pvvx_mithermometer sensor [esphome#1546](https://github.com/esphome/esphome/pull/1546) by [@pasiz](https://github.com/pasiz) (new-integration)
+- Added support for Selec Energy Meter [esphome#1993](https://github.com/esphome/esphome/pull/1993) by [@sourabhjaiswal](https://github.com/sourabhjaiswal) (new-integration)
+- Add TAG to all compile units [esphome#2060](https://github.com/esphome/esphome/pull/2060) by [@agners](https://github.com/agners)
+- Fix minor build issues with Arduino ESP32 2.0.0-rc1 [esphome#2057](https://github.com/esphome/esphome/pull/2057) by [@agners](https://github.com/agners)
+- Fix clang-format script behaviour without -i + code cleanup [esphome#2002](https://github.com/esphome/esphome/pull/2002) by [@oxan](https://github.com/oxan)
+- Merge build flags from platformio_options [esphome#1651](https://github.com/esphome/esphome/pull/1651) by [@trvrnrth](https://github.com/trvrnrth) (breaking-change)
+- Print BLE 128-bit UUIDs according to spec [esphome#2061](https://github.com/esphome/esphome/pull/2061) by [@agners](https://github.com/agners)
+- Support library override using named library with repository [esphome#2056](https://github.com/esphome/esphome/pull/2056) by [@agners](https://github.com/agners)
+- Initial ESP32-C3-DevKitM-1 board support [esphome#2062](https://github.com/esphome/esphome/pull/2062) by [@agners](https://github.com/agners)
+- Fix a bunch of typos [esphome#2058](https://github.com/esphome/esphome/pull/2058) by [@oxan](https://github.com/oxan)
+- pm1006: add rx-only support [esphome#2038](https://github.com/esphome/esphome/pull/2038) by [@Habbie](https://github.com/Habbie) (new-integration)
+- Add sensor monetary device_class [esphome#2083](https://github.com/esphome/esphome/pull/2083) by [@OttoWinter](https://github.com/OttoWinter)
+- Make light.addressable_set color parameters behave as documented & consistent with elsewhere [esphome#2009](https://github.com/esphome/esphome/pull/2009) by [@oxan](https://github.com/oxan)
+- Bump pylint from 2.9.5 to 2.9.6 [esphome#2087](https://github.com/esphome/esphome/pull/2087) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump ESPAsyncWebServer-esphome to 1.3.0 [esphome#2075](https://github.com/esphome/esphome/pull/2075) by [@agners](https://github.com/agners)
+- Add SDP3x sensor [esphome#2064](https://github.com/esphome/esphome/pull/2064) by [@Azimath](https://github.com/Azimath) (new-integration)
+- Add support for the TLC5947 24-Channel, 12-Bit PWM LED Driver [esphome#2066](https://github.com/esphome/esphome/pull/2066) by [@rnauber](https://github.com/rnauber) (new-integration)
+- Add T6615 [esphome#1170](https://github.com/esphome/esphome/pull/1170) by [@tylermenezes](https://github.com/tylermenezes) (new-integration)
+- Add support for the HRXL MaxSonar WR series sensors [esphome#2020](https://github.com/esphome/esphome/pull/2020) by [@netmikey](https://github.com/netmikey) (new-integration)
+- Pull ESP32 Wifi fixes from arduino-esp32 [esphome#2069](https://github.com/esphome/esphome/pull/2069) by [@OttoWinter](https://github.com/OttoWinter)
+- Add demo integration [esphome#2085](https://github.com/esphome/esphome/pull/2085) by [@OttoWinter](https://github.com/OttoWinter) (new-integration)
+- Add device class support to MQTT cover [esphome#2092](https://github.com/esphome/esphome/pull/2092) by [@krconv](https://github.com/krconv)
+- Color mode implementation [esphome#2012](https://github.com/esphome/esphome/pull/2012) by [@oxan](https://github.com/oxan) (notable-change) (breaking-change)
+- Convert more code to async-def syntax [esphome#2095](https://github.com/esphome/esphome/pull/2095) by [@OttoWinter](https://github.com/OttoWinter)
+- Fix parity bit calculation for ESP8266SoftwareSerial [esphome#1873](https://github.com/esphome/esphome/pull/1873) by [@esev](https://github.com/esev) (breaking-change)
+- Convert sensor_schema to use kwargs [esphome#2094](https://github.com/esphome/esphome/pull/2094) by [@OttoWinter](https://github.com/OttoWinter)
+- Fix MQTT light include [esphome#2104](https://github.com/esphome/esphome/pull/2104) by [@OttoWinter](https://github.com/OttoWinter)
+- Fix missing include in light_traits.h [esphome#2105](https://github.com/esphome/esphome/pull/2105) by [@jkl1337](https://github.com/jkl1337)
+- Add select entities and implement template select [esphome#2067](https://github.com/esphome/esphome/pull/2067) by [@jesserockz](https://github.com/jesserockz) (new-integration) (notable-change)
+- pmsx003: add standard particle, particle counts [esphome#1694](https://github.com/esphome/esphome/pull/1694) by [@warthog9](https://github.com/warthog9)
+- Dont force 0 state instead of min_power unless explicit config set [esphome#2107](https://github.com/esphome/esphome/pull/2107) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Fix import [esphome#2108](https://github.com/esphome/esphome/pull/2108) by [@jesserockz](https://github.com/jesserockz)
+- Thermostat enhancements and code clean-up [esphome#2073](https://github.com/esphome/esphome/pull/2073) by [@kbx81](https://github.com/kbx81)
+- Bump esptool from 2.8 to 3.1 [esphome#1839](https://github.com/esphome/esphome/pull/1839) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add min_save_interval to total_energy/integration for memory wear [esphome#1665](https://github.com/esphome/esphome/pull/1665) by [@andreashergert1984](https://github.com/andreashergert1984)
+- Add support for Waveshare E-Paper 4.2" B V2 [esphome#1610](https://github.com/esphome/esphome/pull/1610) by [@brettp](https://github.com/brettp)
+- Add SM16703 to supported FastLED chipsets [esphome#1751](https://github.com/esphome/esphome/pull/1751) by [@robgridley](https://github.com/robgridley)
+- Migrate COLOR constants to Color class & disallow implicit conversions to Color [esphome#2093](https://github.com/esphome/esphome/pull/2093) by [@oxan](https://github.com/oxan)
+- Add version argument to ESPDEPRECATED macro [esphome#2116](https://github.com/esphome/esphome/pull/2116) by [@oxan](https://github.com/oxan)
+- Fix mixup between ColorMode and ColorCapability [esphome#2121](https://github.com/esphome/esphome/pull/2121) by [@oxan](https://github.com/oxan)
+- Various follow-up fixes to color mode changes [esphome#2118](https://github.com/esphome/esphome/pull/2118) by [@oxan](https://github.com/oxan)
+- Fix crash when using addressable_set with out-of-range indices [esphome#2120](https://github.com/esphome/esphome/pull/2120) by [@oxan](https://github.com/oxan)
+- Add state classes to pvvx_mithermometer [esphome#2125](https://github.com/esphome/esphome/pull/2125) by [@jesserockz](https://github.com/jesserockz)
+- Add support for ESP8266 Arduino v3.0.1 [esphome#2128](https://github.com/esphome/esphome/pull/2128) by [@oxan](https://github.com/oxan)
+- Drop legacy esphomeyaml command wrapper code [esphome#2130](https://github.com/esphome/esphome/pull/2130) by [@oxan](https://github.com/oxan)
+- Allow multiple unnamed libraries [esphome#2132](https://github.com/esphome/esphome/pull/2132) by [@agners](https://github.com/agners)
+- Don't stop effects if brightness goes to zero [esphome#2134](https://github.com/esphome/esphome/pull/2134) by [@oxan](https://github.com/oxan)
+- Added support for Hitachi AC424 remote type [esphome#2101](https://github.com/esphome/esphome/pull/2101) by [@sourabhjaiswal](https://github.com/sourabhjaiswal) (new-integration)
+- Anova fahrenheit support [esphome#2126](https://github.com/esphome/esphome/pull/2126) by [@buxtronix](https://github.com/buxtronix) (breaking-change)
+- Tidy HA addon [esphome#1937](https://github.com/esphome/esphome/pull/1937) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Removed unused arguments from rgbww code [esphome#2137](https://github.com/esphome/esphome/pull/2137) by [@jesserockz](https://github.com/jesserockz)
+- Only compile protobuf dumping when very verbose logging is enabled [esphome#2139](https://github.com/esphome/esphome/pull/2139) by [@oxan](https://github.com/oxan)
+- Refactor clang-tidy script to use actual compiler flags and includes [esphome#2133](https://github.com/esphome/esphome/pull/2133) by [@oxan](https://github.com/oxan)
+- Add Toshiba AC generic IR remote protocol [esphome#2019](https://github.com/esphome/esphome/pull/2019) by [@kbx81](https://github.com/kbx81)
+- Add new Toshiba AC unit protocol [esphome#1987](https://github.com/esphome/esphome/pull/1987) by [@kbx81](https://github.com/kbx81)
+- Add Dish Network protocol [esphome#2117](https://github.com/esphome/esphome/pull/2117) by [@ianchi](https://github.com/ianchi)
+- Fix some issues with deprecated argv syntax detection [esphome#2127](https://github.com/esphome/esphome/pull/2127) by [@OttoWinter](https://github.com/OttoWinter)
+- Don't discard cold/warm white brightness in constant brightness mode [esphome#2136](https://github.com/esphome/esphome/pull/2136) by [@oxan](https://github.com/oxan)
+- Allow entities to be disabled by default in HA [esphome#2113](https://github.com/esphome/esphome/pull/2113) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Adds CGPR1 - Qingping Motion & Ambient light sensor support [esphome#1675](https://github.com/esphome/esphome/pull/1675) by [@Tommatheussen](https://github.com/Tommatheussen) (new-integration)
+- Don't mark COLOR_* constants as static in header [esphome#2141](https://github.com/esphome/esphome/pull/2141) by [@oxan](https://github.com/oxan)
+- RFC: status_led: allow to share single light [esphome#1974](https://github.com/esphome/esphome/pull/1974) by [@ianchi](https://github.com/ianchi)
+- waveshare_epaper: add support for ttgo t5 b74 variant display [esphome#1869](https://github.com/esphome/esphome/pull/1869) by [@osresearch](https://github.com/osresearch)
+- Thermostat enhancements 2 [esphome#2114](https://github.com/esphome/esphome/pull/2114) by [@kbx81](https://github.com/kbx81) (breaking-change)
+- Dsmr component [esphome#1881](https://github.com/esphome/esphome/pull/1881) by [@glmnet](https://github.com/glmnet) (new-integration)
+- Always abort on allocation when out-of-memory [esphome#2129](https://github.com/esphome/esphome/pull/2129) by [@oxan](https://github.com/oxan)
+- Support component tsl2591 [esphome#2131](https://github.com/esphome/esphome/pull/2131) by [@wjcarpenter](https://github.com/wjcarpenter) (new-integration)
+- Add support for PMSA003i [esphome#1501](https://github.com/esphome/esphome/pull/1501) by [@sjtrny](https://github.com/sjtrny) (new-integration)
+- Increase task wdt timeout for ESP32/ESP32-C3 [esphome#2096](https://github.com/esphome/esphome/pull/2096) by [@agners](https://github.com/agners)
+- Format dev temp idedata [esphome#2142](https://github.com/esphome/esphome/pull/2142) by [@OttoWinter](https://github.com/OttoWinter)
+- Add rgbct and color_temperature light platforms [esphome#2138](https://github.com/esphome/esphome/pull/2138) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Warn if underscore character is used in hostname [esphome#2079](https://github.com/esphome/esphome/pull/2079) by [@davet2001](https://github.com/davet2001)
+- Break the Tuya set_datapoint_value method into separate methods per datapoint type [esphome#2059](https://github.com/esphome/esphome/pull/2059) by [@nuttytree](https://github.com/nuttytree)
+- Feature pipsolar anh [esphome#1664](https://github.com/esphome/esphome/pull/1664) by [@andreashergert1984](https://github.com/andreashergert1984) (new-integration)
+- Add deassert_rts_dtr option to force RTS/DTR low when using miniterm [esphome#2089](https://github.com/esphome/esphome/pull/2089) by [@agners](https://github.com/agners)
+- Support for AM43 BLE blind motors [esphome#1744](https://github.com/esphome/esphome/pull/1744) by [@buxtronix](https://github.com/buxtronix) (new-integration)
+- Fix format warning in Tuya component [esphome#1954](https://github.com/esphome/esphome/pull/1954) by [@agners](https://github.com/agners)
+- Modular light transformers [esphome#2124](https://github.com/esphome/esphome/pull/2124) by [@oxan](https://github.com/oxan)
+- Support for the DKE screen version of LilyGo-TTGO-T5 V2.3 [esphome#1969](https://github.com/esphome/esphome/pull/1969) by [@blambov](https://github.com/blambov)
+- Support multiple configuration directories for update-all subcommand [esphome#1925](https://github.com/esphome/esphome/pull/1925) by [@oxan](https://github.com/oxan)
+- Always send all light state values in API [esphome#2150](https://github.com/esphome/esphome/pull/2150) by [@oxan](https://github.com/oxan)
+- Let sensors announce their state_class via mqtt [esphome#2155](https://github.com/esphome/esphome/pull/2155) by [@puuu](https://github.com/puuu)
+- Thermostat delayed fan mode fix [esphome#2158](https://github.com/esphome/esphome/pull/2158) by [@kbx81](https://github.com/kbx81)
+- Fix native API log level enum values [esphome#2151](https://github.com/esphome/esphome/pull/2151) by [@OttoWinter](https://github.com/OttoWinter)
+- Initialize color temperature to value within range if possible [esphome#2168](https://github.com/esphome/esphome/pull/2168) by [@oxan](https://github.com/oxan)
+- Add a dummy color temp [esphome#2161](https://github.com/esphome/esphome/pull/2161) by [@DotNetDann](https://github.com/DotNetDann)
+- Add Gas device class to DSMR component [esphome#2169](https://github.com/esphome/esphome/pull/2169) by [@frenck](https://github.com/frenck)
+- Send dirty states when screen wakes up [esphome#2167](https://github.com/esphome/esphome/pull/2167) by [@jesserockz](https://github.com/jesserockz)
+- Remove specified accuracy_decimals from total_daily_energy [esphome#2174](https://github.com/esphome/esphome/pull/2174) by [@jesserockz](https://github.com/jesserockz)
+- Add new total_increasing state-class for Home Assistant 2021.9+ [esphome#2166](https://github.com/esphome/esphome/pull/2166) by [@jesserockz](https://github.com/jesserockz)
+
+{/* markdownlint-enable MD013 */}

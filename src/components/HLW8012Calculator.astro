@@ -1,0 +1,204 @@
+---
+// HLW8012 Calibration Calculator Component
+---
+
+<div class="hlw8012-calculator not-content">
+  <table>
+    <thead>
+      <tr><th colspan="2">Calibration values on the ESP</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>voltage_divider</td>
+        <td><input type="text" inputmode="decimal" value="2351" id="voltage-divider" /></td>
+      </tr>
+      <tr>
+        <td>current_resistor</td>
+        <td><input type="text" inputmode="decimal" value="0.001" id="current-resistor" /></td>
+      </tr>
+      <tr>
+        <td>current_multiply</td>
+        <td><input type="text" inputmode="decimal" value="1" id="current-multiply" /></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table>
+    <thead>
+      <tr><th colspan="2">ESP measurements</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Voltage</td>
+        <td><input type="text" inputmode="decimal" id="sensor-voltage" /> V</td>
+      </tr>
+      <tr>
+        <td>Power</td>
+        <td><input type="text" inputmode="decimal" id="sensor-power" /> W</td>
+      </tr>
+      <tr>
+        <td>Current</td>
+        <td><input type="text" inputmode="decimal" id="sensor-current" /> A</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table>
+    <thead>
+      <tr><th colspan="2">Power meter measurements</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Voltage</td>
+        <td><input type="text" inputmode="decimal" id="real-voltage" /> V</td>
+      </tr>
+      <tr>
+        <td>Power</td>
+        <td><input type="text" inputmode="decimal" id="real-power" /> W</td>
+      </tr>
+      <tr>
+        <td>Current</td>
+        <td><input type="text" inputmode="decimal" id="real-current" /> A</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table>
+    <thead>
+      <tr><th colspan="2">New calibration values</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>voltage_divider</td>
+        <td><input type="text" id="voltage-divider-new" readonly /></td>
+      </tr>
+      <tr>
+        <td>current_resistor</td>
+        <td><input type="text" id="current-resistor-new" readonly /></td>
+      </tr>
+      <tr>
+        <td>current_multiply</td>
+        <td><input type="text" id="current-multiply-new" readonly /></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table>
+    <thead>
+      <tr><th colspan="2">New ESP measurements</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Voltage</td>
+        <td><input type="text" id="sensor-voltage-new" readonly /> V</td>
+      </tr>
+      <tr>
+        <td>Power</td>
+        <td><input type="text" id="sensor-power-new" readonly /> W</td>
+      </tr>
+      <tr>
+        <td>Current</td>
+        <td><input type="text" id="sensor-current-new" readonly /> A</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .hlw8012-calculator {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+  .hlw8012-calculator table {
+    border-collapse: collapse;
+    flex: 1 1 300px;
+  }
+  .hlw8012-calculator th,
+  .hlw8012-calculator td {
+    border: 1px solid var(--sl-color-gray-5);
+    padding: 0.5rem;
+    text-align: left;
+  }
+  .hlw8012-calculator th {
+    background: var(--sl-color-gray-6);
+  }
+  .hlw8012-calculator input {
+    width: 100px;
+    max-width: 75vw;
+    padding: 0.25rem;
+    border: 1px solid var(--sl-color-gray-4);
+    border-radius: 4px;
+    background: var(--sl-color-bg);
+    color: var(--sl-color-text);
+  }
+  .hlw8012-calculator input[readonly] {
+    background: var(--sl-color-gray-6);
+    cursor: pointer;
+  }
+</style>
+
+<script>
+  function calc() {
+    const voltage_divider = parseFloat((document.getElementById("voltage-divider") as HTMLInputElement).value.replace(",", "."));
+    const current_resistor = parseFloat((document.getElementById("current-resistor") as HTMLInputElement).value.replace(",", "."));
+    const current_multiply = parseFloat((document.getElementById("current-multiply") as HTMLInputElement).value.replace(",", "."));
+    const real_voltage = parseFloat((document.getElementById("real-voltage") as HTMLInputElement).value.replace(",", "."));
+    const real_power = parseFloat((document.getElementById("real-power") as HTMLInputElement).value.replace(",", "."));
+    const real_current = parseFloat((document.getElementById("real-current") as HTMLInputElement).value.replace(",", "."));
+    const sensor_voltage = parseFloat((document.getElementById("sensor-voltage") as HTMLInputElement).value.replace(",", "."));
+    const sensor_power = parseFloat((document.getElementById("sensor-power") as HTMLInputElement).value.replace(",", "."));
+    const sensor_current = parseFloat((document.getElementById("sensor-current") as HTMLInputElement).value.replace(",", "."));
+
+    const calc_voltage = (document.getElementById("real-voltage") as HTMLInputElement).value !== "" || (document.getElementById("sensor-voltage") as HTMLInputElement).value !== "";
+    const calc_power = (document.getElementById("real-power") as HTMLInputElement).value !== "" || (document.getElementById("sensor-power") as HTMLInputElement).value !== "";
+    const calc_current = (document.getElementById("real-current") as HTMLInputElement).value !== "" || (document.getElementById("sensor-current") as HTMLInputElement).value !== "";
+
+    let voltage_divider_new = voltage_divider;
+    let current_resistor_new = current_resistor;
+    let current_multiply_new = current_multiply;
+
+    if (calc_voltage) {
+      voltage_divider_new *= real_voltage / sensor_voltage;
+    }
+    if (calc_power) {
+      if (calc_voltage) {
+        current_resistor_new *= (sensor_power / sensor_voltage) / (real_power / real_voltage);
+      } else {
+        current_resistor_new *= sensor_power / real_power;
+      }
+    }
+    if (calc_current) {
+      if (calc_power) {
+        current_multiply_new *= (real_current / sensor_current) * (current_resistor_new / current_resistor);
+      } else {
+        current_resistor_new *= sensor_current / real_current;
+      }
+    }
+
+    (document.getElementById("voltage-divider-new") as HTMLInputElement).value = String(voltage_divider_new);
+    (document.getElementById("current-resistor-new") as HTMLInputElement).value = String(current_resistor_new);
+    (document.getElementById("current-multiply-new") as HTMLInputElement).value = String(current_multiply_new);
+
+    const sensor_voltage_new = sensor_voltage * voltage_divider_new / voltage_divider;
+    const sensor_power_new = sensor_power * (voltage_divider_new / current_resistor_new) / (voltage_divider / current_resistor);
+    const sensor_current_new = sensor_current * (current_multiply_new / current_resistor_new) / (current_multiply / current_resistor);
+
+    (document.getElementById("sensor-voltage-new") as HTMLInputElement).value = String(Number(sensor_voltage_new.toFixed(8)));
+    (document.getElementById("sensor-power-new") as HTMLInputElement).value = String(Number(sensor_power_new.toFixed(8)));
+    (document.getElementById("sensor-current-new") as HTMLInputElement).value = String(Number(sensor_current_new.toFixed(8)));
+  }
+
+  // Add event listeners to all input fields
+  document.querySelectorAll('.hlw8012-calculator input:not([readonly])').forEach(input => {
+    input.addEventListener('input', calc);
+  });
+
+  // Add click-to-select for readonly fields
+  document.querySelectorAll('.hlw8012-calculator input[readonly]').forEach(input => {
+    input.addEventListener('click', (e) => {
+      (e.target as HTMLInputElement).select();
+    });
+  });
+</script>

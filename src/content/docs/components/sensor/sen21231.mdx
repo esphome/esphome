@@ -1,0 +1,37 @@
+---
+description: "Instructions for setting up a SEN21231 Person Sensor from Useful Sensors with ESPHome."
+title: "SEN21231 Person Sensor from Useful Sensors"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+import APIRef from '@components/APIRef.astro';
+
+[Person Sensor (SEN21231) from Useful Sensors](https://www.sparkfun.com/person-sensor-by-useful-sensors.html) has built in facial recognition that can detect how many people are facing the sensor and relative positions of the faces.
+
+<Figure
+  src="/images/sen21231.png"
+  alt=""
+  caption="Person Sensor"
+  layout="constrained"
+  width={300}
+  height={300}
+/>
+
+This sensor requires an [I2C](/components/i2c/). The I2C address is `0x62`
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: sen21231
+    id: person_sensor
+```
+
+## Configuration variables
+
+- All options from [Sensor](/components/sensor).
+
+## See Also
+
+- [Sensor Component](/components/sensor/)
+- <APIRef text="sen21231.h" path="sen21231/sen21231.h" />

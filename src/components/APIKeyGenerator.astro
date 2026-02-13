@@ -1,0 +1,86 @@
+---
+// API Key Generator Component
+// Generates a random 32-byte base64-encoded encryption key using crypto.getRandomValues()
+---
+
+<div class="api-key-generator not-content">
+  <code id="api-key-output"></code>
+  <button id="api-key-copy" type="button" title="Copy to clipboard">Copy</button>
+  <button id="api-key-regen" type="button" title="Generate new key">Regenerate</button>
+</div>
+
+<style>
+  .api-key-generator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 1rem 0;
+    flex-wrap: wrap;
+  }
+  .api-key-generator code {
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    background: var(--sl-color-gray-6);
+    border: 1px solid var(--sl-color-gray-5);
+    font-size: 0.9rem;
+    word-break: break-all;
+    flex: 1 1 auto;
+    min-width: 200px;
+  }
+  .api-key-generator button {
+    padding: 0.4rem 0.75rem;
+    border-radius: 4px;
+    border: 1px solid var(--sl-color-gray-4);
+    background: var(--sl-color-gray-6);
+    color: var(--sl-color-text);
+    cursor: pointer;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+  .api-key-generator button:hover {
+    background: var(--sl-color-gray-5);
+  }
+</style>
+
+<script>
+  function generateApiKey(): string {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    // Convert to base64
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  const output = document.getElementById('api-key-output')!;
+  const copyBtn = document.getElementById('api-key-copy')!;
+  const regenBtn = document.getElementById('api-key-regen')!;
+
+  // Generate initial key
+  output.textContent = generateApiKey();
+
+  copyBtn.addEventListener('click', async () => {
+    const key = output.textContent || '';
+    try {
+      await navigator.clipboard.writeText(key);
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = key;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+    }
+  });
+
+  regenBtn.addEventListener('click', () => {
+    output.textContent = generateApiKey();
+  });
+</script>

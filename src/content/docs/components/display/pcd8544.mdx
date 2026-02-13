@@ -1,0 +1,71 @@
+---
+description: "Instructions for setting up PCD8544 display drivers."
+title: "PCD 8544 Display (Nokia 5110/3310)"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+import pcd8544FullImg from './images/pcd8544-full.jpg';
+import APIRef from '@components/APIRef.astro';
+
+<span id="pcd8544"></span>
+
+## Usage
+
+The `pcd8544` display platform allows you to use
+PCD8544 ([Adafruit](https://www.adafruit.com/product/338))
+displays with ESPHome. Connection to this display is made using the 4-Wire [SPI bus](/components/spi).
+
+It's a monochrome LCD display was used in old Nokia 5110/3310 cell phones.
+
+The resolution of the display is 84x48 pixels.
+
+<Figure
+  src={pcd8544FullImg}
+  alt=""
+  caption="PCD8544 Display"
+  layout="constrained"
+/>
+
+Connect CLK, DIN, CS (CE), DC, and RST to pins on your ESP. For power, connect
+VCC to 3.3V and GND to GND.
+
+```yaml
+# Example configuration entry
+spi:
+  clk_pin: D5
+  mosi_pin: D7
+
+display:
+  - platform: pcd8544
+    reset_pin: D0
+    cs_pin: D8
+    dc_pin: D1
+    contrast: 0x7f
+    lambda: |-
+      it.print(0, 0, id(font), "Hello World!");
+```
+
+### Backlight
+
+To use a backlight LIGHT pin needs to be connected to ground. If connected to GPIO pin it can be controlled from ESPHome. See [Monochromatic](/components/light/monochromatic/).
+
+### Configuration variables
+
+- **reset_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The RESET pin.
+- **cs_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The CS pin.
+- **dc_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The DC pin.
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for rendering the content on the display.
+  See [Display Rendering Engine](/components/display#display-engine) for more information.
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen. Defaults to `5s`.
+- **pages** (*Optional*, list): Show pages instead of a single lambda. See [Display Pages](/components/display#display-pages).
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
+- **contrast** (*Optional*, int): Set screen contrast (0-255). Defaults to `0x7f`.
+
+## See Also
+
+- [Display Component](/components/display/)
+- [Tutorial from Adafruit](https://learn.adafruit.com/nokia-5110-3310-monochrome-lcd)
+- [PCD8544 Library](https://github.com/adafruit/Adafruit-PCD8544-Nokia-5110-LCD-library) by [Adafruit](https://www.adafruit.com/)
+- <APIRef text="pcd_8544.h" path="pcd8544/pcd_8544.h" />
