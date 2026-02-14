@@ -7,11 +7,11 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.epaper_spi.display import (
-    CONF_CS1_PIN,
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
     MODELS,
 )
+from esphome.components.epaper_spi.models.t133a01 import CONF_CS1_PIN
 from esphome.components.esp32 import (
     KEY_BOARD,
     KEY_VARIANT,
