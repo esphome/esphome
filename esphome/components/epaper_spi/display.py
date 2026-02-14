@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_DATA_RATE,
     CONF_DC_PIN,
     CONF_DIMENSIONS,
+    CONF_ENABLE_PIN,
     CONF_FULL_UPDATE_EVERY,
     CONF_HEIGHT,
     CONF_ID,
@@ -105,6 +106,9 @@ def model_schema(config):
                 cv.GenerateID(): cv.declare_id(class_name),
                 cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
                 cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
+                model.option(CONF_ENABLE_PIN): cv.ensure_list(
+                    pins.gpio_output_pin_schema
+                ),
                 model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
                     map_sequence
                 ),
