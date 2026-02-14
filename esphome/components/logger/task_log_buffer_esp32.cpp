@@ -31,8 +31,8 @@ TaskLogBuffer::~TaskLogBuffer() {
   }
 }
 
-bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **text, void **received_token) {
-  if (message == nullptr || text == nullptr || received_token == nullptr) {
+bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &text_length) {
+  if (this->current_token_) {
     return false;
   }
 
@@ -43,23 +43,24 @@ bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **
   }
 
   LogMessage *msg = static_cast<LogMessage *>(received_item);
-  *message = msg;
-  *text = msg->text_data();
-  *received_token = received_item;
+  message = msg;
+  text_length = msg->text_length;
+  this->current_token_ = received_item;
 
   return true;
 }
 
-void TaskLogBuffer::release_message_main_loop(void *token) {
-  if (token == nullptr) {
+void TaskLogBuffer::release_message_main_loop() {
+  if (this->current_token_ == nullptr) {
     return;
   }
-  vRingbufferReturnItem(ring_buffer_, token);
+  vRingbufferReturnItem(ring_buffer_, this->current_token_);
+  this->current_token_ = nullptr;
   // Update counter to mark all messages as processed
   last_processed_counter_ = message_counter_.load(std::memory_order_relaxed);
 }
 
-bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, TaskHandle_t task_handle,
+bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
                                              const char *format, va_list args) {
   // First, calculate the exact length needed using a null buffer (no actual writing)
   va_list args_copy;
@@ -95,7 +96,6 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
   // Store the thread name now instead of waiting until main loop processing
   // This avoids crashes if the task completes or is deleted between when this message
   // is enqueued and when it's processed by the main loop
-  const char *thread_name = pcTaskGetName(task_handle);
   if (thread_name != nullptr) {
     strncpy(msg->thread_name, thread_name, sizeof(msg->thread_name) - 1);
     msg->thread_name[sizeof(msg->thread_name) - 1] = '\0';  // Ensure null termination

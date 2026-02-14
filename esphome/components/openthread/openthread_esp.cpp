@@ -104,7 +104,7 @@ void OpenThreadComponent::ot_main() {
   esp_cli_custom_command_init();
 #endif  // CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
 
-  otLinkModeConfig link_mode_config = {0};
+  otLinkModeConfig link_mode_config{};
 #if CONFIG_OPENTHREAD_FTD
   link_mode_config.mRxOnWhenIdle = true;
   link_mode_config.mDeviceType = true;

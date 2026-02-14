@@ -1686,6 +1686,10 @@ BOARDS = {
         "name": "Espressif ESP32-C6-DevKitM-1",
         "variant": VARIANT_ESP32C6,
     },
+    "esp32-c61-devkitc1": {
+        "name": "Espressif ESP32-C61-DevKitC-1 (4 MB Flash)",
+        "variant": VARIANT_ESP32C61,
+    },
     "esp32-c61-devkitc1-n8r2": {
         "name": "Espressif ESP32-C61-DevKitC-1 N8R2 (8 MB Flash Quad, 2 MB PSRAM Quad)",
         "variant": VARIANT_ESP32C61,
@@ -1716,6 +1720,10 @@ BOARDS = {
     },
     "esp32-p4_r3": {
         "name": "Espressif ESP32-P4 rev.300 generic",
+        "variant": VARIANT_ESP32P4,
+    },
+    "esp32-p4_r3-evboard": {
+        "name": "Espressif ESP32-P4 Function EV Board v1.6 (rev.301)",
         "variant": VARIANT_ESP32P4,
     },
     "esp32-pico-devkitm-2": {
@@ -2554,12 +2562,20 @@ BOARDS = {
         "name": "XinaBox CW02",
         "variant": VARIANT_ESP32,
     },
+    "yb_esp32s3_amp": {
+        "name": "YelloByte YB-ESP32-S3-AMP",
+        "variant": VARIANT_ESP32S3,
+    },
     "yb_esp32s3_amp_v2": {
         "name": "YelloByte YB-ESP32-S3-AMP (Rev.2)",
         "variant": VARIANT_ESP32S3,
     },
     "yb_esp32s3_amp_v3": {
         "name": "YelloByte YB-ESP32-S3-AMP (Rev.3)",
+        "variant": VARIANT_ESP32S3,
+    },
+    "yb_esp32s3_dac": {
+        "name": "YelloByte YB-ESP32-S3-DAC",
         "variant": VARIANT_ESP32S3,
     },
     "yb_esp32s3_drv": {

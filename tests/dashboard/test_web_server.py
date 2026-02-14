@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from argparse import Namespace
 import asyncio
+import base64
 from collections.abc import Generator
 from contextlib import asynccontextmanager
 import gzip
 import json
 import os
 from pathlib import Path
+import sys
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -421,7 +423,7 @@ async def test_download_binary_handler_idedata_fallback(
 
     # Mock idedata response
     mock_image = Mock()
-    mock_image.path = str(bootloader_file)
+    mock_image.path = bootloader_file
     mock_idedata_instance = Mock()
     mock_idedata_instance.extra_flash_images = [mock_image]
     mock_idedata.return_value = mock_idedata_instance
@@ -528,14 +530,22 @@ async def test_download_binary_handler_subdirectory_file_url_encoded(
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_ext_storage_path")
 @pytest.mark.parametrize(
-    "attack_path",
+    ("attack_path", "expected_code"),
     [
-        pytest.param("../../../secrets.yaml", id="basic_traversal"),
-        pytest.param("..%2F..%2F..%2Fsecrets.yaml", id="url_encoded"),
-        pytest.param("zephyr/../../../secrets.yaml", id="traversal_with_prefix"),
-        pytest.param("/etc/passwd", id="absolute_path"),
-        pytest.param("//etc/passwd", id="double_slash_absolute"),
-        pytest.param("....//secrets.yaml", id="multiple_dots"),
+        pytest.param("../../../secrets.yaml", 403, id="basic_traversal"),
+        pytest.param("..%2F..%2F..%2Fsecrets.yaml", 403, id="url_encoded"),
+        pytest.param("zephyr/../../../secrets.yaml", 403, id="traversal_with_prefix"),
+        pytest.param("/etc/passwd", 403, id="absolute_path"),
+        pytest.param("//etc/passwd", 403, id="double_slash_absolute"),
+        pytest.param(
+            "....//secrets.yaml",
+            # On Windows, Path.resolve() treats "..." and "...." as parent
+            # traversal (like ".."), so the path escapes base_dir -> 403.
+            # On Unix, "...." is a literal directory name that stays inside
+            # base_dir but doesn't exist -> 404.
+            403 if sys.platform == "win32" else 404,
+            id="multiple_dots",
+        ),
     ],
 )
 async def test_download_binary_handler_path_traversal_protection(
@@ -543,11 +553,14 @@ async def test_download_binary_handler_path_traversal_protection(
     tmp_path: Path,
     mock_storage_json: MagicMock,
     attack_path: str,
+    expected_code: int,
 ) -> None:
     """Test that DownloadBinaryRequestHandler prevents path traversal attacks.
 
-    Verifies that attempts to use '..' in file paths are sanitized to prevent
-    accessing files outside the build directory. Tests multiple attack vectors.
+    Verifies that attempts to escape the build directory via '..' are rejected
+    using resolve()/relative_to() validation. Tests multiple attack vectors.
+    Real traversals that escape the base directory get 403. Paths like '....'
+    that resolve inside the base directory but don't exist get 404.
     """
     # Create build structure
     build_dir = get_build_path(tmp_path, "test")
@@ -565,14 +578,67 @@ async def test_download_binary_handler_path_traversal_protection(
     mock_storage.firmware_bin_path = firmware_file
     mock_storage_json.load.return_value = mock_storage
 
-    # Attempt path traversal attack - should be blocked
-    with pytest.raises(HTTPClientError) as exc_info:
+    # Mock async_run_system_command so paths that pass validation but don't exist
+    # return 404 deterministically without spawning a real subprocess.
+    with (
+        patch(
+            "esphome.dashboard.web_server.async_run_system_command",
+            new_callable=AsyncMock,
+            return_value=(2, "", ""),
+        ),
+        pytest.raises(HTTPClientError) as exc_info,
+    ):
         await dashboard.fetch(
             f"/download.bin?configuration=test.yaml&file={attack_path}",
             method="GET",
         )
-    # Should get 404 (file not found after sanitization) or 500 (idedata fails)
-    assert exc_info.value.code in (404, 500)
+    assert exc_info.value.code == expected_code
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_no_firmware_bin_path(
+    dashboard: DashboardTestHelper,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test that download returns 404 when firmware_bin_path is None.
+
+    This covers configs created by StorageJSON.from_wizard() where no
+    firmware has been compiled yet.
+    """
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = None
+    mock_storage_json.load.return_value = mock_storage
+
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch(
+            "/download.bin?configuration=test.yaml&file=firmware.bin",
+            method="GET",
+        )
+    assert exc_info.value.code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+@pytest.mark.parametrize("file_value", ["", "%20%20", "%20"])
+async def test_download_binary_handler_empty_file_name(
+    dashboard: DashboardTestHelper,
+    mock_storage_json: MagicMock,
+    file_value: str,
+) -> None:
+    """Test that download returns 400 for empty or whitespace-only file names."""
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = Path("/fake/firmware.bin")
+    mock_storage_json.load.return_value = mock_storage
+
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch(
+            f"/download.bin?configuration=test.yaml&file={file_value}",
+            method="GET",
+        )
+    assert exc_info.value.code == 400
 
 
 @pytest.mark.asyncio
@@ -1676,3 +1742,85 @@ def test_proc_on_exit_skips_when_already_closed() -> None:
 
     handler.write_message.assert_not_called()
     handler.close.assert_not_called()
+
+
+def _make_auth_handler(auth_header: str | None = None) -> Mock:
+    """Create a mock handler with the given Authorization header."""
+    handler = Mock()
+    handler.request = Mock()
+    if auth_header is not None:
+        handler.request.headers = {"Authorization": auth_header}
+    else:
+        handler.request.headers = {}
+    handler.get_secure_cookie = Mock(return_value=None)
+    return handler
+
+
+@pytest.fixture
+def mock_auth_settings(mock_dashboard_settings: MagicMock) -> MagicMock:
+    """Fixture to configure mock dashboard settings with auth enabled."""
+    mock_dashboard_settings.using_auth = True
+    mock_dashboard_settings.on_ha_addon = False
+    return mock_dashboard_settings
+
+
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_malformed_base64() -> None:
+    """Test that invalid base64 in Authorization header returns False."""
+    handler = _make_auth_handler("Basic !!!not-valid-base64!!!")
+    assert web_server.is_authenticated(handler) is False
+
+
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_bad_base64_padding() -> None:
+    """Test that incorrect base64 padding (binascii.Error) returns False."""
+    handler = _make_auth_handler("Basic abc")
+    assert web_server.is_authenticated(handler) is False
+
+
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_invalid_utf8() -> None:
+    """Test that base64 decoding to invalid UTF-8 returns False."""
+    # \xff\xfe is invalid UTF-8
+    bad_payload = base64.b64encode(b"\xff\xfe").decode("ascii")
+    handler = _make_auth_handler(f"Basic {bad_payload}")
+    assert web_server.is_authenticated(handler) is False
+
+
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_no_colon() -> None:
+    """Test that base64 payload without ':' separator returns False."""
+    no_colon = base64.b64encode(b"nocolonhere").decode("ascii")
+    handler = _make_auth_handler(f"Basic {no_colon}")
+    assert web_server.is_authenticated(handler) is False
+
+
+def test_is_authenticated_valid_credentials(
+    mock_auth_settings: MagicMock,
+) -> None:
+    """Test that valid Basic auth credentials are checked."""
+    creds = base64.b64encode(b"admin:secret").decode("ascii")
+    mock_auth_settings.check_password.return_value = True
+    handler = _make_auth_handler(f"Basic {creds}")
+    assert web_server.is_authenticated(handler) is True
+    mock_auth_settings.check_password.assert_called_once_with("admin", "secret")
+
+
+def test_is_authenticated_wrong_credentials(
+    mock_auth_settings: MagicMock,
+) -> None:
+    """Test that valid Basic auth with wrong credentials returns False."""
+    creds = base64.b64encode(b"admin:wrong").decode("ascii")
+    mock_auth_settings.check_password.return_value = False
+    handler = _make_auth_handler(f"Basic {creds}")
+    assert web_server.is_authenticated(handler) is False
+
+
+def test_is_authenticated_no_auth_configured(
+    mock_dashboard_settings: MagicMock,
+) -> None:
+    """Test that requests pass when auth is not configured."""
+    mock_dashboard_settings.using_auth = False
+    mock_dashboard_settings.on_ha_addon = False
+    handler = _make_auth_handler()
+    assert web_server.is_authenticated(handler) is True

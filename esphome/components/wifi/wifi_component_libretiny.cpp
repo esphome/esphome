@@ -193,7 +193,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
 
   String ssid = WiFi.SSID();
-  if (ssid && strcmp(ssid.c_str(), ap.get_ssid().c_str()) != 0) {
+  if (ssid && strcmp(ssid.c_str(), ap.ssid_.c_str()) != 0) {
     WiFi.disconnect();
   }
 
@@ -213,7 +213,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   s_sta_state = LTWiFiSTAState::CONNECTING;
   s_ignored_disconnect_count = 0;
 
-  WiFiStatus status = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
+  WiFiStatus status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
                                  ap.get_channel(),  // 0 = auto
                                  ap.has_bssid() ? ap.get_bssid().data() : NULL);
   if (status != WL_CONNECTED) {
@@ -688,7 +688,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
       auto &ap = scan->ap[i];
       this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
                                               ap.bssid.addr[4], ap.bssid.addr[5]},
-                                      std::string(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
+                                      ssid_cstr, strlen(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
                                       ssid_cstr[0] == '\0');
     } else {
       auto &ap = scan->ap[i];
@@ -735,7 +735,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   yield();
 
-  return WiFi.softAP(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
+  return WiFi.softAP(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
                      ap.has_channel() ? ap.get_channel() : 1, ap.get_hidden());
 }
 
