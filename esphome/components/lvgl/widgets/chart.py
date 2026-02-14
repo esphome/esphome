@@ -109,7 +109,7 @@ def validate_chart(config):
         values = series.get(CONF_VALUES, ())
         if len(values) > point_count:
             raise cv.Invalid(
-                f"A chart series can't have more than {CONF_POINT_COUNT} values"
+                f"A chart series can't have more than {point_count} values"
             )
     return config
 
