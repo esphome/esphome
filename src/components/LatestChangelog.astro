@@ -1,0 +1,36 @@
+---
+import { getCollection, render } from "astro:content";
+
+const allDocs = await getCollection("docs");
+
+// Filter to changelog entries (excluding the index)
+const changelogs = allDocs.filter(
+  (entry) =>
+    entry.id.startsWith("changelog/") &&
+    entry.id !== "changelog/" &&
+    entry.id !== "changelog/index"
+);
+
+// Parse version and find the latest
+let latest = { sortValue: 0, entry: null as (typeof changelogs)[0] | null };
+for (const entry of changelogs) {
+  // Match 2021.x.x style IDs
+  const match = entry.id.match(/changelog\/(\d{4})\.(\d+)\.(\d+)/);
+  if (match) {
+    const [, year, month, patch] = match;
+    const sortValue =
+      parseInt(year) * 10000 + parseInt(month) * 100 + parseInt(patch);
+    if (sortValue > latest.sortValue) {
+      latest = { sortValue, entry };
+    }
+  }
+}
+
+const rendered = latest.entry ? await render(latest.entry) : null;
+const Content = rendered?.Content;
+const slug = latest.entry?.data.slug ?? latest.entry?.id;
+const redirectUrl = slug ? `/${slug}/` : null;
+---
+
+{redirectUrl && <script define:vars={{ redirectUrl }}>window.location.replace(redirectUrl);</script>}
+{Content && <Content />}
