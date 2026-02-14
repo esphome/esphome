@@ -488,18 +488,7 @@ class WiFiComponent : public Component {
     }
     return 0;
   }
-  void set_sta_priority(const bssid_t bssid, int8_t priority) {
-    for (auto &it : this->sta_priorities_) {
-      if (it.bssid == bssid) {
-        it.priority = priority;
-        return;
-      }
-    }
-    this->sta_priorities_.push_back(WiFiSTAPriority{
-        .bssid = bssid,
-        .priority = priority,
-    });
-  }
+  void set_sta_priority(bssid_t bssid, int8_t priority);
 
   network::IPAddresses wifi_sta_ip_addresses();
   // Remove before 2026.9.0
