@@ -32,6 +32,12 @@ class EpaperModel:
             return cv.Required(name)
         return cv.Optional(name, default=self.get_default(name, fallback))
 
+    def get_config_schema(self) -> dict:
+        return {}
+
+    async def to_code(self, config: dict, var) -> None:
+        return None
+
     def get_constructor_args(self, config) -> tuple:
         return ()
 

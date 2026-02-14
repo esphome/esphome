@@ -14,7 +14,6 @@ from esphome.const import (
     CONF_DATA_RATE,
     CONF_DC_PIN,
     CONF_DIMENSIONS,
-    CONF_ENABLE_PIN,
     CONF_FULL_UPDATE_EVERY,
     CONF_HEIGHT,
     CONF_ID,
@@ -77,46 +76,45 @@ def model_schema(config):
         model.get_default(CONF_MINIMUM_UPDATE_INTERVAL, "1s")
     )
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
-    return display.FULL_DISPLAY_SCHEMA.extend(
-        spi.spi_device_schema(
-            cs_pin_required=False,
-            default_mode="MODE0",
-            default_data_rate=model.get_default(CONF_DATA_RATE, 10_000_000),
+    return (
+        display.FULL_DISPLAY_SCHEMA.extend(
+            spi.spi_device_schema(
+                cs_pin_required=False,
+                default_mode="MODE0",
+                default_data_rate=model.get_default(CONF_DATA_RATE, 10_000_000),
+            )
         )
-    ).extend(
-        {
-            cv.Optional(CONF_ROTATION, default=0): validate_rotation,
-            cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
-            cv.Optional(CONF_UPDATE_INTERVAL, default=cv.UNDEFINED): cv.All(
-                update_interval, cv.Range(min=minimum_update_interval)
-            ),
-            cv.Optional(CONF_TRANSFORM): cv.Schema(
-                {
-                    cv.Required(CONF_MIRROR_X): cv.boolean,
-                    cv.Required(CONF_MIRROR_Y): cv.boolean,
-                }
-            ),
-            cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
-            model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
-            model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(
-                CONF_CS1_PIN,
-                default=model.get_default(CONF_CS1_PIN, cv.UNDEFINED),
-            ): pins.gpio_output_pin_schema,
-            model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
-            model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-            cv.GenerateID(): cv.declare_id(class_name),
-            cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
-            cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
-            model.option(CONF_ENABLE_PIN): cv.ensure_list(pins.gpio_output_pin_schema),
-            model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
-                map_sequence
-            ),
-            model.option(CONF_RESET_DURATION, cv.UNDEFINED): cv.All(
-                cv.positive_time_period_milliseconds,
-                cv.Range(max=core.TimePeriod(milliseconds=500)),
-            ),
-        }
+        .extend(
+            {
+                cv.Optional(CONF_ROTATION, default=0): validate_rotation,
+                cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
+                cv.Optional(CONF_UPDATE_INTERVAL, default=cv.UNDEFINED): cv.All(
+                    update_interval, cv.Range(min=minimum_update_interval)
+                ),
+                cv.Optional(CONF_TRANSFORM): cv.Schema(
+                    {
+                        cv.Required(CONF_MIRROR_X): cv.boolean,
+                        cv.Required(CONF_MIRROR_Y): cv.boolean,
+                    }
+                ),
+                cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
+                model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
+                model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
+                model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
+                model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+                cv.GenerateID(): cv.declare_id(class_name),
+                cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
+                cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
+                model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
+                    map_sequence
+                ),
+                model.option(CONF_RESET_DURATION, cv.UNDEFINED): cv.All(
+                    cv.positive_time_period_milliseconds,
+                    cv.Range(max=core.TimePeriod(milliseconds=500)),
+                ),
+            }
+        )
+        .extend(model.get_config_schema())
     )
 
 
@@ -206,17 +204,7 @@ async def to_code(config):
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
 
-    if cs1_pin := config.get(CONF_CS1_PIN):
-        cs1 = await cg.gpio_pin_expression(cs1_pin)
-        cg.add(var.set_cs1_pin(cs1))
-
-    if model.class_name == "EPaperT133A01" and (
-        enable_pin := config.get(CONF_ENABLE_PIN)
-    ):
-        if isinstance(enable_pin, list):
-            enable_pin = enable_pin[0]
-        enable = await cg.gpio_pin_expression(enable_pin)
-        cg.add(var.set_enable_pin(enable))
+    await model.to_code(config, var)
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(

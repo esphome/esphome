@@ -1,4 +1,11 @@
+from esphome import pins
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import CONF_ENABLE_PIN
+
 from . import EpaperModel
+
+CONF_CS1_PIN = "cs1_pin"
 
 
 class T133A01(EpaperModel):
@@ -10,6 +17,23 @@ class T133A01(EpaperModel):
         **defaults,
     ):
         super().__init__(name, class_name, initsequence=tuple(initsequence), **defaults)
+
+    def get_config_schema(self) -> dict:
+        return {
+            cv.Optional(
+                CONF_CS1_PIN,
+                default=self.get_default(CONF_CS1_PIN, cv.UNDEFINED),
+            ): pins.gpio_output_pin_schema,
+            self.option(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
+        }
+
+    async def to_code(self, config: dict, var) -> None:
+        if cs1_pin := config.get(CONF_CS1_PIN):
+            cs1 = await cg.gpio_pin_expression(cs1_pin)
+            cg.add(var.set_cs1_pin(cs1))
+        if enable_pin := config.get(CONF_ENABLE_PIN):
+            enable = await cg.gpio_pin_expression(enable_pin)
+            cg.add(var.set_enable_pin(enable))
 
     # fmt: off
     def get_init_sequence(self, config: dict):
