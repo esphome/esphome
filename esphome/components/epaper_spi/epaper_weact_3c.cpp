@@ -17,7 +17,7 @@ void EPaperWeAct3C::draw_pixel_at(int x, int y, Color color) {
     return;
 
   // Calculate position in the 1-bit buffer
-  const uint32_t pos = (x + y * this->width_) / 8u;
+  const uint32_t pos = (x / 8) + (y * this->row_width_);
   const uint8_t bit = 0x80 >> (x & 0x07);
   const uint32_t red_offset = this->buffer_length_ / 2u;
 
