@@ -108,12 +108,9 @@ void EPaperT133A01::setup() {
   if (this->is_failed())
     return;
 
-  for (uint8_t i = 0; i < this->enable_pins_count_; i++) {
-    auto *pin = this->enable_pins_[i];
-    if (pin == nullptr)
-      continue;
-    pin->setup();
-    pin->digital_write(true);
+  if (this->enable_pin_ != nullptr) {
+    this->enable_pin_->setup();
+    this->enable_pin_->digital_write(true);
   }
 
   if (this->cs1_pin_ == nullptr) {
@@ -157,8 +154,8 @@ void EPaperT133A01::cs1_cmd_data_(uint8_t command, const uint8_t *data, size_t l
 void EPaperT133A01::dump_config() {
   EPaperBase::dump_config();
   LOG_PIN("  CS1 Pin: ", this->cs1_pin_);
-  for (uint8_t i = 0; i < this->enable_pins_count_; i++) {
-    LOG_PIN("  Enable Pin: ", this->enable_pins_[i]);
+  if (this->enable_pin_ != nullptr) {
+    LOG_PIN("  Enable Pin: ", this->enable_pin_);
   }
 }
 

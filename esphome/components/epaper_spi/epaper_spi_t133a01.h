@@ -12,12 +12,6 @@ class EPaperT133A01 : public EPaperBase {
     this->buffer_length_ = width * height / 2;  // 2 pixels per byte
   }
 
-  void add_enable_pin(GPIOPin *enable_pin) {
-    if (this->enable_pins_count_ < MAX_ENABLE_PINS) {
-      this->enable_pins_[this->enable_pins_count_++] = enable_pin;
-    }
-  }
-
   void set_cs1_pin(GPIOPin *cs1_pin) { this->cs1_pin_ = cs1_pin; }
 
   void setup() override;
@@ -47,10 +41,6 @@ class EPaperT133A01 : public EPaperBase {
   GPIOPin *cs1_pin_{};
   spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ>
       cs1_device_{};
-
-  static constexpr uint8_t MAX_ENABLE_PINS = 4;
-  GPIOPin *enable_pins_[MAX_ENABLE_PINS]{};
-  uint8_t enable_pins_count_{0};
 
   // Transfer state (T133A01 uses two controllers/chip-selects; each row is pushed in 2 halves)
   size_t transfer_index_{0};

@@ -211,12 +211,12 @@ async def to_code(config):
         cg.add(var.set_cs1_pin(cs1))
 
     if model.class_name == "EPaperT133A01" and (
-        enable_pins := config.get(CONF_ENABLE_PIN)
+        enable_pin := config.get(CONF_ENABLE_PIN)
     ):
-        pins_list = enable_pins if isinstance(enable_pins, list) else [enable_pins]
-        for pin in pins_list:
-            enable = await cg.gpio_pin_expression(pin)
-            cg.add(var.add_enable_pin(enable))
+        if isinstance(enable_pin, list):
+            enable_pin = enable_pin[0]
+        enable = await cg.gpio_pin_expression(enable_pin)
+        cg.add(var.set_enable_pin(enable))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
