@@ -17,6 +17,7 @@ _LOGGER = logging.getLogger(__name__)
 # Components can request high performance networking and this configures lwip and WiFi settings
 KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
+CONF_ENABLE_IPV4 = "enable_ipv4"
 
 network_ns = cg.esphome_ns.namespace("network")
 IPAddress = network_ns.class_("IPAddress")
@@ -107,6 +108,7 @@ def has_high_performance_networking() -> bool:
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.Optional(CONF_ENABLE_IPV4, default=True): cv.boolean,
         cv.SplitDefault(
             CONF_ENABLE_IPV6,
             esp8266=False,
@@ -202,6 +204,20 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
 
+    # IP4
+    enable_ipv4 = config.get(CONF_ENABLE_IPV4, True)
+    # Can only compile out for ESP32 IDF without Arduino on top (latter cannot disable IP4)
+    if CORE.is_esp32:
+        if CORE.using_arduino:
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", True)
+            cg.add_define("USE_NETWORK_IPV4", True)
+        else:
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", enable_ipv4)
+            cg.add_define("USE_NETWORK_IPV4", enable_ipv4)
+    else:
+        cg.add_define("USE_NETWORK_IPV4", True)
+
+    # IP6
     if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
         cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
         if enable_ipv6:

@@ -457,6 +457,8 @@ float EthernetComponent::get_setup_priority() const { return setup_priority::WIF
 
 network::IPAddresses EthernetComponent::get_ip_addresses() {
   network::IPAddresses addresses;
+  int offset = 0;
+#if USE_NETWORK_IP4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(this->eth_netif_, &ip);
   if (err != ESP_OK) {
@@ -464,15 +466,16 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
     // TODO: do something smarter
     // return false;
   } else {
-    addresses[0] = network::IPAddress(&ip.ip);
+    addresses[offset++] = network::IPAddress(&ip.ip);
   }
+#endif
 #if USE_NETWORK_IPV6
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
   uint8_t count = 0;
   count = esp_netif_get_all_ip6(this->eth_netif_, if_ip6s);
   assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
   for (int i = 0; i < count; i++) {
-    addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
+    addresses[i + offset] = network::IPAddress(&if_ip6s[i]);
   }
 #endif /* USE_NETWORK_IPV6 */
 

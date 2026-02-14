@@ -17,10 +17,12 @@ bool Socket::ready() const { return !this->loop_monitored_ || App.is_socket_read
 // Platform-specific inet_ntop wrappers
 #if defined(USE_SOCKET_IMPL_LWIP_TCP)
 // LWIP raw TCP (ESP8266) uses inet_ntoa_r which takes struct by value
+#if USE_NETWORK_IPV4
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   inet_ntoa_r(*reinterpret_cast<const struct in_addr *>(addr), buf, size);
   return buf;
 }
+#endif
 #if USE_NETWORK_IPV6
 static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
   inet6_ntoa_r(*reinterpret_cast<const ip6_addr_t *>(addr), buf, size);
@@ -29,9 +31,11 @@ static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t
 #endif
 #elif defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 // LWIP sockets (LibreTiny, ESP32 Arduino)
+#if USE_NETWORK_IPV4
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   return lwip_inet_ntop(AF_INET, addr, buf, size);
 }
+#endif
 #if USE_NETWORK_IPV6
 static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
   return lwip_inet_ntop(AF_INET6, addr, buf, size);
@@ -39,9 +43,11 @@ static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t
 #endif
 #else
 // BSD sockets (host, ESP32-IDF)
+#if USE_NETWORK_IPV4
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   return inet_ntop(AF_INET, addr, buf, size);
 }
+#endif
 #if USE_NETWORK_IPV6
 static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
   return inet_ntop(AF_INET6, addr, buf, size);
@@ -51,21 +57,25 @@ static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t
 
 // Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf) {
+#if USE_NETWORK_IPV4
   if (addr_ptr->sa_family == AF_INET && len >= sizeof(const struct sockaddr_in)) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in *>(addr_ptr);
     if (esphome_inet_ntop4(&addr->sin_addr, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
   }
+#endif
 #if USE_NETWORK_IPV6
-  else if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
+  if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(addr_ptr);
 #ifndef USE_SOCKET_IMPL_LWIP_TCP
+#if USE_NETWORK_IPV4
     // Format IPv4-mapped IPv6 addresses as regular IPv4 (not supported on ESP8266 raw TCP)
     if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
         addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
         esphome_inet_ntop4(&addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
       return strlen(buf.data());
     }
+#endif
 #endif
     if (esphome_inet_ntop6(&addr->sin6_addr, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
@@ -138,6 +148,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
     return sizeof(sockaddr_in6);
   }
 #endif /* USE_NETWORK_IPV6 */
+#if USE_NETWORK_IPV4
   if (addrlen < sizeof(sockaddr_in)) {
     errno = EINVAL;
     return 0;
@@ -148,6 +159,11 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   server->sin_addr.s_addr = inet_addr(ip_address);
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);
+#else
+  // Only IP6 without IP4 configured, but did not find IP6 separator
+  errno = EINVAL;
+  return 0;
+#endif /* USE_NETWORK_IPV4 */
 }
 
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port) {

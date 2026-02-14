@@ -887,11 +887,13 @@ network::IPAddresses WiFiComponent::get_ip_addresses() {
 
   return {};
 }
+#if USE_NETWORK_IPV4
 network::IPAddress WiFiComponent::get_dns_address(int num) {
   if (this->has_sta())
     return this->wifi_dns_ip_(num);
   return {};
 }
+#endif /* USE_NETWORK_IPV4 */
 // set_use_address() is guaranteed to be called during component setup by Python code generation,
 // so use_address_ will always be valid when get_use_address() is called - no fallback needed.
 const char *WiFiComponent::get_use_address() const { return this->use_address_; }

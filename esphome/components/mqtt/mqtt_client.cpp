@@ -224,13 +224,20 @@ void MQTTClientComponent::start_dnslookup_() {
   err_t err;
   {
     LwIPLock lock;
+    // Resolution type depending on IP6/IP4 build config
+    // Note there is LWIP_DNS_ADDRTYPE_DEFAULT. But latter has different order (IP46 not IP64)
+    constexpr u8_t dns_addrtype =
 #if USE_NETWORK_IPV6
-    err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, MQTTClientComponent::dns_found_callback,
-                                     this, LWIP_DNS_ADDRTYPE_IPV6_IPV4);
+#if USE_NETWORK_IPV4
+      LWIP_DNS_ADDRTYPE_IPV6_IPV4; // Dual: IP6 first, then IP4
 #else
-    err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, MQTTClientComponent::dns_found_callback,
-                                     this, LWIP_DNS_ADDRTYPE_IPV4);
+      LWIP_DNS_ADDRTYPE_IPV6; // IP6 only
+#endif /* USE_NETWORK_IPV4 */
+      LWIP_DNS_ADDRTYPE_IPV4; // IP4 only
 #endif /* USE_NETWORK_IPV6 */
+
+    err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, MQTTClientComponent::dns_found_callback,
+                                     this, dns_addrtype);
   }
   switch (err) {
     case ERR_OK: {

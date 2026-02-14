@@ -652,7 +652,9 @@ class WiFiComponent : public Component {
   bool wifi_sta_pre_setup_();
   bool wifi_apply_output_power_(float output_power);
   bool wifi_apply_power_save_();
+#if USE_NETWORK_IPV4
   bool wifi_sta_ip_config_(const optional<ManualIP> &manual_ip);
+#endif
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
@@ -666,9 +668,11 @@ class WiFiComponent : public Component {
 
   bool wifi_disconnect_();
 
+#if USE_NETWORK_IPV4
   network::IPAddress wifi_subnet_mask_();
   network::IPAddress wifi_gateway_ip_();
   network::IPAddress wifi_dns_ip_(int num);
+#endif /* USE_NETWORK_IPV4 */
 
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
@@ -825,7 +829,9 @@ class WiFiComponent : public Component {
   bool rrm_{false};
 #endif
   bool enable_on_boot_{true};
+#if USE_NETWORK_IPV4
   bool got_ipv4_address_{false};
+#endif /* USE_NETWORK_IPV4 */
   bool keep_scan_results_{false};
   bool has_completed_scan_after_captive_portal_start_{
       false};  // Tracks if we've completed a scan after captive portal started

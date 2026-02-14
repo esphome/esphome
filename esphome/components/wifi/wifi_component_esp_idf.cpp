@@ -387,6 +387,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
   }
 
+#if USE_NETWORK_IPV4
 #ifdef USE_WIFI_MANUAL_IP
   if (!this->wifi_sta_ip_config_(ap.get_manual_ip())) {
     return false;
@@ -396,6 +397,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
   }
 #endif
+#endif /* USE_NETWORK_IPV4 */
 
   // setup enterprise authentication if required
 #ifdef USE_WIFI_WPA2_EAP
@@ -484,9 +486,11 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   s_sta_connected = false;
   s_sta_connect_error = false;
   s_sta_connect_not_found = false;
+#if USE_NETWORK_IPV4
   // Reset IP address flags - ensures we don't report connected before DHCP completes
   // (IP_EVENT_STA_LOST_IP doesn't always fire on disconnect)
   this->got_ipv4_address_ = false;
+#endif
 #if USE_NETWORK_IPV6
   this->num_ipv6_addresses_ = 0;
 #endif
@@ -500,6 +504,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   return true;
 }
 
+#if USE_NETWORK_IPV4
 bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
@@ -561,11 +566,14 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
 
   return true;
 }
+#endif /* USE_NETWORK_IPV4 */
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
   network::IPAddresses addresses;
+  int offset = 0;
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
   if (err != ESP_OK) {
@@ -573,15 +581,16 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
     // TODO: do something smarter
     // return false;
   } else {
-    addresses[0] = network::IPAddress(&ip.ip);
+    addresses[offset++] = network::IPAddress(&ip.ip);
   }
+#endif
 #if USE_NETWORK_IPV6
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
   uint8_t count = 0;
   count = esp_netif_get_all_ip6(s_sta_netif, if_ip6s);
   assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
   for (int i = 0; i < count; i++) {
-    addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
+    addresses[i + offset] = network::IPAddress(&if_ip6s[i]);
   }
 #endif /* USE_NETWORK_IPV6 */
   return addresses;
@@ -780,6 +789,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     this->notify_disconnect_state_listeners_();
 #endif
 
+#if USE_NETWORK_IPV4
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
 #if USE_NETWORK_IPV6
@@ -790,6 +800,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
 #endif
+#endif /* USE_NETWORK_IPV4 */
 
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
@@ -801,9 +812,11 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
 #endif /* USE_NETWORK_IPV6 */
 
+#if USE_NETWORK_IPV4
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_LOST_IP) {
     ESP_LOGV(TAG, "Lost IP");
     this->got_ipv4_address_ = false;
+#endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_SCAN_DONE) {
     const auto &it = data->data.sta_scan_done;
@@ -915,7 +928,11 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
-  if (s_sta_connected && this->got_ipv4_address_) {
+  if (s_sta_connected
+#if USE_NETWORK_IPV4
+          && this->got_ipv4_address_
+#endif /* USE_NETWORK_IPV4 */
+    ) {
 #if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
     if (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT) {
       return WiFiSTAConnectStatus::CONNECTED;
@@ -1166,6 +1183,7 @@ int32_t WiFiComponent::get_wifi_channel() {
   }
   return primary;
 }
+#if USE_NETWORK_IPV4
 network::IPAddress WiFiComponent::wifi_subnet_mask_() {
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
@@ -1188,6 +1206,7 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
   return network::IPAddress(dns_ip);
 }
+#endif /* USE_NETWORK_IPV4 */
 
 }  // namespace esphome::wifi
 #endif  // USE_ESP32

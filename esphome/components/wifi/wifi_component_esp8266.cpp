@@ -116,6 +116,8 @@ bool WiFiComponent::wifi_apply_power_save_() {
   return success;
 }
 
+#if USE_NETWORK_IPV4
+
 #if LWIP_VERSION_MAJOR != 1
 /*
   lwip v2 needs to be notified of IP changes, see also
@@ -198,6 +200,7 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
 #endif
   return ret;
 }
+#endif /* USE_NETWORK_IPV4 */
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
@@ -286,6 +289,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
   }
 
+#if USE_NETWORK_IPV4
 #ifdef USE_WIFI_MANUAL_IP
   if (!this->wifi_sta_ip_config_(ap.get_manual_ip())) {
     return false;
@@ -295,6 +299,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
   }
 #endif
+#endif /* USE_NETWORK_IPV4 */
 
   // setup enterprise authentication if required
 #ifdef USE_WIFI_WPA2_EAP
@@ -917,6 +922,7 @@ int8_t WiFiComponent::wifi_rssi() {
   return rssi >= 31 ? WIFI_RSSI_DISCONNECTED : rssi;
 }
 int32_t WiFiComponent::get_wifi_channel() { return wifi_get_channel(); }
+#if USE_NETWORK_IPV4
 network::IPAddress WiFiComponent::wifi_subnet_mask_() {
   struct ip_info ip {};
   wifi_get_ip_info(STATION_IF, &ip);
@@ -928,6 +934,7 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() {
   return network::IPAddress(&ip.gw);
 }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddress(dns_getserver(num)); }
+#endif /* USE_NETWORK_IPV4 */
 void WiFiComponent::wifi_loop_() { this->process_pending_callbacks_(); }
 
 void WiFiComponent::process_pending_callbacks_() {

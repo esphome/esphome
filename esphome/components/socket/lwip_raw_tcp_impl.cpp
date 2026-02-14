@@ -90,7 +90,9 @@ class LWIPRawImpl : public Socket {
     }
     ip_addr_t ip;
     in_port_t port;
-#if LWIP_IPV6
+    // Configured can be IP4 only, IP6 only, or dual IP46
+    // Check IP4 first, IP6 second, then fail if nothing matched
+#if LWIP_IPV4
     if (family_ == AF_INET) {
       if (addrlen < sizeof(sockaddr_in)) {
         errno = EINVAL;
@@ -98,32 +100,32 @@ class LWIPRawImpl : public Socket {
       }
       auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
       port = ntohs(addr4->sin_port);
-      ip.type = IPADDR_TYPE_V4;
-      ip.u_addr.ip4.addr = addr4->sin_addr.s_addr;
-      LWIP_LOG("tcp_bind(%p ip=%s port=%u)", pcb_, ip4addr_ntoa(&ip.u_addr.ip4), port);
-    } else if (family_ == AF_INET6) {
-      if (addrlen < sizeof(sockaddr_in6)) {
+      IP_SET_TYPE_VAL(ip, IPADDR_TYPE_V4);
+      ip_2_ip4(&ip)->addr = addr4->sin_addr.s_addr;
+      LWIP_LOG("tcp_bind(%p ip=%s port=%u)", pcb_, ip4addr_ntoa(ip_2_ip4(&ip)), port);
+    } else {
+#endif
+#if LWIP_IPV6
+      if (family_ == AF_INET6) {
+        if (addrlen < sizeof(sockaddr_in6)) {
+          errno = EINVAL;
+          return -1;
+        }
+        auto *addr6 = reinterpret_cast<const sockaddr_in6 *>(name);
+        port = ntohs(addr6->sin6_port);
+        IP_SET_TYPE_VAL(ip, IPADDR_TYPE_ANY);
+        memcpy(&ip_2_ip6(&ip)->addr, &addr6->sin6_addr.un.u8_addr, 16);
+        LWIP_LOG("tcp_bind(%p ip=%s port=%u)", pcb_, ip6addr_ntoa(ip_2_ip6(&ip)), port);
+      } else {
+#endif
+        // No supported family matched
         errno = EINVAL;
         return -1;
+#if LWIP_IPV6
       }
-      auto *addr6 = reinterpret_cast<const sockaddr_in6 *>(name);
-      port = ntohs(addr6->sin6_port);
-      ip.type = IPADDR_TYPE_ANY;
-      memcpy(&ip.u_addr.ip6.addr, &addr6->sin6_addr.un.u8_addr, 16);
-      LWIP_LOG("tcp_bind(%p ip=%s port=%u)", pcb_, ip6addr_ntoa(&ip.u_addr.ip6), port);
-    } else {
-      errno = EINVAL;
-      return -1;
+#endif
+#if LWIP_IPV4
     }
-#else
-    if (family_ != AF_INET) {
-      errno = EINVAL;
-      return -1;
-    }
-    auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
-    port = ntohs(addr4->sin_port);
-    ip.addr = addr4->sin_addr.s_addr;
-    LWIP_LOG("tcp_bind(%p ip=%u port=%u)", pcb_, ip.addr, port);
 #endif
     err_t err = tcp_bind(pcb_, &ip, port);
     if (err == ERR_USE) {
@@ -514,6 +516,7 @@ class LWIPRawImpl : public Socket {
 
  protected:
   int ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen) {
+#if LWIP_IPV4
     if (family_ == AF_INET) {
       if (*addrlen < sizeof(struct sockaddr_in)) {
         errno = EINVAL;
@@ -527,8 +530,9 @@ class LWIPRawImpl : public Socket {
       inet_addr_from_ip4addr(&addr->sin_addr, ip_2_ip4(ip));
       return 0;
     }
+#endif
 #if LWIP_IPV6
-    else if (family_ == AF_INET6) {
+    if (family_ == AF_INET6) {
       if (*addrlen < sizeof(struct sockaddr_in6)) {
         errno = EINVAL;
         return -1;
@@ -539,12 +543,15 @@ class LWIPRawImpl : public Socket {
       *addrlen = addr->sin6_len = sizeof(struct sockaddr_in6);
       addr->sin6_port = port;
 
+#if LWIP_IPV4
       // AF_INET6 sockets are bound to IPv4 as well, so we may encounter IPv4 addresses that must be converted to IPv6.
       if (IP_IS_V4(ip)) {
         ip_addr_t mapped;
         ip4_2_ipv4_mapped_ipv6(ip_2_ip6(&mapped), ip_2_ip4(ip));
         inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&mapped));
-      } else {
+      } else
+#endif
+      {
         inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(ip));
       }
       return 0;
