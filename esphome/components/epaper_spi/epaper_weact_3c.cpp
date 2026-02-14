@@ -80,7 +80,7 @@ void EPaperWeAct3C::clear() {
   this->fill(COLOR_ON);
 }
 
-void EPaperWeAct3C::set_window() {
+void EPaperWeAct3C::set_window_() {
   // For full screen refresh, we always start from (0,0)
   // The y_low_/y_high_ values track the dirty region for optimization,
   // but for display refresh we need to write from the beginning
@@ -121,7 +121,7 @@ bool HOT EPaperWeAct3C::transfer_data() {
   if (this->current_data_index_ < half_buffer) {
     if (this->current_data_index_ == 0) {
       ESP_LOGV(TAG, "transfer_data: sending RED buffer (0x26)");
-      this->set_window();  // Reset RAM X/Y counters to start position
+      this->set_window_();  // Reset RAM X/Y counters to start position
       this->command(0x26);
     }
 
