@@ -19,8 +19,10 @@ namespace esphome::http_request {
 static const char *const TAG = "http_request.arduino";
 static constexpr int RX_BUFFER_SIZE = 512;
 static constexpr int TX_BUFFER_SIZE = 512;
+#ifdef USE_ESP8266
 // ESP8266 Arduino core (WiFiClientSecureBearSSL.cpp) returns -1000 on OOM
 static constexpr int BR_ERR_OOM = -1000;
+#endif
 
 std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &url, const std::string &method,
                                                            const std::string &body,
