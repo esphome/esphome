@@ -4,6 +4,9 @@ import asyncio
 import logging
 from pathlib import Path
 import subprocess
+import time
+
+import serial
 
 from esphome import pins
 import esphome.codegen as cg
@@ -357,6 +360,16 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         and config["nrf52"][KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT
     ):
         check_permissions(host)
+        try:
+            if "://" in host:
+                serial.serial_for_url(host, baudrate=1200)
+            else:
+                serial.Serial(host, baudrate=1200)
+        except serial.serialutil.SerialException:
+            pass
+        # let USB enumerate after reset
+        time.sleep(1)
+
         subprocess.run(
             [
                 "adafruit-nrfutil",
@@ -366,8 +379,6 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 CORE.relative_pioenvs_path(CORE.name, DFU_PATH),
                 "-p",
                 host,
-                "-t",
-                "1200",
             ],
             check=True,
         )
