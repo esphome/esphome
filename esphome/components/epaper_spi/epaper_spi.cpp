@@ -313,7 +313,6 @@ void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
   } else {
     this->buffer_[byte_position] = original | pixel_bit;
   }
-  App.feed_wdt();
 }
 
 void EPaperBase::dump_config() {
@@ -332,6 +331,7 @@ void EPaperBase::dump_config() {
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_PIN("  CS Pin: ", this->cs_);
+  LOG_PIN("  Enable Pin: ", this->enable_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
 

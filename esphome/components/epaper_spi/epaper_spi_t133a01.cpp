@@ -119,9 +119,6 @@ void EPaperT133A01::cs1_cmd_data_(uint8_t command, const uint8_t *data, size_t l
 void EPaperT133A01::dump_config() {
   EPaperBase::dump_config();
   LOG_PIN("  CS1 Pin: ", this->cs1_pin_);
-  if (this->enable_pin_ != nullptr) {
-    LOG_PIN("  Enable Pin: ", this->enable_pin_);
-  }
 }
 
 bool EPaperT133A01::reset() {
