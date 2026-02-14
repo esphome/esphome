@@ -116,26 +116,18 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     cg.add_define("USE_SENDSPIN_ARTWORK", True)
 
-    # Use the enhanced helper function to get all runtime image parameters
-    (
-        width,
-        height,
-        format_enum,
-        image_type_enum,
-        transparent,
-        byte_order_big_endian,
-        placeholder,
-    ) = await runtime_image.process_runtime_image_config(config)
+    # Use the helper function to get all runtime image parameters
+    settings = await runtime_image.process_runtime_image_config(config)
 
     var = cg.new_Pvariable(
         config[CONF_ID],
-        width,
-        height,
-        format_enum,
-        image_type_enum,
-        transparent,
-        byte_order_big_endian,
-        placeholder,
+        settings.width,
+        settings.height,
+        settings.format_enum,
+        settings.image_type_enum,
+        settings.transparent,
+        settings.byte_order_big_endian,
+        settings.placeholder,
     )
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_SENDSPIN_ID])
