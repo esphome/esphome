@@ -124,19 +124,19 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
       int last_error = secure_client->getLastSSLError();
 
       if (last_error != 0) {
-        const char *error_msg;
+        const LogString *error_msg;
         switch (last_error) {
           case ESP8266_SSL_ERR_OOM:
-            error_msg = "Unable to allocate buffer memory";
+            error_msg = LOG_STR("Unable to allocate buffer memory");
             break;
           case BR_ERR_TOO_LARGE:
-            error_msg = "Incoming TLS record does not fit in receive buffer (BR_ERR_TOO_LARGE)";
+            error_msg = LOG_STR("Incoming TLS record does not fit in receive buffer (BR_ERR_TOO_LARGE)");
             break;
           default:
-            error_msg = "Unknown SSL error";
+            error_msg = LOG_STR("Unknown SSL error");
             break;
         }
-        ESP_LOGW(TAG, "SSL failure: %s (Code: %d)", error_msg, last_error);
+        ESP_LOGW(TAG, "SSL failure: %s (Code: %d)", LOG_STR_ARG(error_msg), last_error);
         if (last_error == ESP8266_SSL_ERR_OOM) {
           ESP_LOGW(TAG, "Heap free: %u bytes, configured buffer sizes: %u bytes", ESP.getFreeHeap(),
                    static_cast<unsigned int>(RX_BUFFER_SIZE + TX_BUFFER_SIZE));
