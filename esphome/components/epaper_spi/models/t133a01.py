@@ -17,6 +17,17 @@ class T133A01(EpaperModel):
     ):
         super().__init__(name, class_name, initsequence=tuple(initsequence), **defaults)
 
+    def get_config_validator(self):
+        def validator(config):
+            width, _ = self.get_dimensions(config)
+            if width % 4 != 0:
+                raise cv.Invalid(
+                    "T133A01 requires the display width to be divisible by 4"
+                )
+            return config
+
+        return validator
+
     def get_config_schema(self) -> dict:
         return {
             cv.Optional(

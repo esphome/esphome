@@ -35,6 +35,9 @@ class EpaperModel:
     def get_config_schema(self) -> dict:
         return {}
 
+    def get_config_validator(self) -> None:
+        return None
+
     async def to_code(self, config: dict, var) -> None:
         return None
 

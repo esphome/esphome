@@ -147,18 +147,10 @@ def _final_validate(config):
     )(config)
 
     model = MODELS[config[CONF_MODEL]]
-    supports_cs1 = model.class_name == "EPaperT133A01"
-    if CONF_CS1_PIN in config and not supports_cs1:
-        raise cv.Invalid(
-            "'cs1_pin' is only supported by T133A01-based epaper_spi models"
-        )
-    if supports_cs1 and CONF_CS1_PIN not in config:
-        raise cv.Invalid("'cs1_pin' is required for this epaper_spi model")
 
-    if model.class_name == "EPaperT133A01":
-        width, _ = model.get_dimensions(config)
-        if width % 4 != 0:
-            raise cv.Invalid("T133A01 requires the display width to be divisible by 4")
+    validator = model.get_config_validator()
+    if validator is not None:
+        config = validator(config)
 
     global_config = full_config.get()
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN

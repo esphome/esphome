@@ -2,7 +2,6 @@
 
 #include <algorithm>
 
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
