@@ -226,12 +226,16 @@ bool WiFiComponent::wifi_apply_hostname_() {
     intf->hostname = wifi_station_get_hostname();
 #endif
     struct dhcp *dhcp_data = netif_dhcp_data(intf);
-    if (dhcp_data != nullptr && dhcp_data->state == DHCP_STATE_BOUND) {
+    if (dhcp_data != nullptr && dhcp_data->state == DHCP_STATE_BOUND && netif_is_link_up(intf)) {
       // Renew already-bound DHCP leases to inform server of hostname change.
-      // Only attempt when DHCP is BOUND — calling dhcp_renew() in any other
-      // state corrupts lwIP's DHCP state machine (it unconditionally sets state
-      // to RENEWING before attempting to send, and never rolls back on failure).
-      // This causes dhcp_network_changed() to call dhcp_reboot() instead of
+      // Both conditions are required:
+      //  - DHCP must be BOUND (have an active lease to renew)
+      //  - Interface must have link (able to send packets)
+      // During reconnection, DHCP can remain BOUND from a previous connection
+      // while the link is down. Calling dhcp_renew() without link corrupts
+      // lwIP's DHCP state machine (it unconditionally sets state to RENEWING
+      // before attempting to send, and never rolls back on failure). This
+      // causes dhcp_network_changed() to call dhcp_reboot() instead of
       // dhcp_discover() when WiFi later connects, sending a bogus DHCP REQUEST
       // for IP 0.0.0.0 that can put some routers into a persistent bad state.
       err_t lwipret = dhcp_renew(intf);
