@@ -1,0 +1,57 @@
+---
+description: "Instructions for setting up DHT12 temperature and humidity sensors"
+title: "DHT12 Temperature+Humidity Sensor"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+import dht12FullImg from './images/dht12-full.jpg';
+import temperatureHumidityImg from './images/temperature-humidity.png';
+import APIRef from '@components/APIRef.astro';
+
+The `dht12` Temperature+Humidity sensor allows you to use your DHT12
+([datasheet](http://www.robototehnika.ru/file/DHT12.pdf),
+[electrodragon](http://www.electrodragon.com/product/dht12/)) I²C-based sensor with ESPHome. This sensor is also called AM2320 by some sellers.
+
+<Figure
+  src={dht12FullImg}
+  alt=""
+  caption="DHT12 Temperature & Humidity Sensor."
+  layout="constrained"
+/>
+
+<Image src={temperatureHumidityImg} layout="constrained" alt="" />
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: dht12
+    temperature:
+      name: "Living Room Temperature"
+    humidity:
+      name: "Living Room Humidity"
+    update_interval: 60s
+```
+
+## Configuration variables
+
+- **temperature** (**Required**): The information for the temperature sensor.
+
+  - All options from [Sensor](/components/sensor).
+
+- **humidity** (**Required**): The information for the humidity sensor
+
+  - All options from [Sensor](/components/sensor).
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [Absolute Humidity](/components/sensor/absolute_humidity/)
+- [DHT Temperature+Humidity Sensor](/components/sensor/dht/)
+- [HDC1080 Temperature+Humidity Sensor](/components/sensor/hdc1080/)
+- [HTU21D | Si7021 | SHT21 Temperature & Humidity Sensor](/components/sensor/htu21d/)
+- [SHT3X-D Temperature+Humidity Sensor](/components/sensor/sht3xd/)
+- [DHT12 Library](https://github.com/dplasa/dht) by [Daniel Plasa](https://github.com/dplasa)
+- <APIRef text="dht12.h" path="dht12/dht12.h" />

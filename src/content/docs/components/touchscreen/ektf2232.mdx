@@ -1,0 +1,32 @@
+---
+description: "Instructions for setting up EKTF2232 touchscreen controller with ESPHome"
+title: "EKTF2232 Touchscreen Controller"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+The `ektf2232` component allows using the touchscreen controller
+found in the [Inkplate 6 Plus](/components/display/inkplate/) with ESPHome.
+The [I²C](/components/i2c) is required to be set up in your configuration for this sensor to work.
+
+```yaml
+# Example configuration entry
+touchscreen:
+  - platform: ektf2232
+    interrupt_pin: GPIOXX
+    reset_pin: GPIOXX
+```
+
+## Configuration variables
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually set the ID of this touchscreen.
+- **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The reset pin of the controller.
+- **interrupt_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The touch detection pin.
+
+- All other options from [Base Touchscreen Configuration](/components/touchscreen#config-touchscreen).
+
+## See Also
+
+- [Touchscreen Component](/components/touchscreen/)
+- [Inkplate 6 Plus](/components/display/inkplate/)
+- <APIRef text="ektf2232.h" path="ektf2232/ektf2232.h" />

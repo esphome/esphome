@@ -1,0 +1,301 @@
+---
+description: "Instructions for setting up ADE7880 energy metering sensors"
+title: "ADE7880 Power Sensor"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+The `ade7880` sensor platform allows you to use ADE7880
+voltage/current/power sensors ([datasheet](https://www.analog.com/media/en/technical-documentation/data-sheets/ADE7880.pdf)) with ESPHome. This sensor
+chip is commonly found in Shelly 3EM and 3EM Pro devices.
+
+Communication with the chip is over an [I2C bus](/components/i2c), so
+you need to have an `i2c:` entry in your configuration with both
+`sda` and `scl` set. It is also recommended to set the I2C
+`frequency` to `200kHz` or higher, if the board containing the
+chip can support it (this speed has been verified to work in the
+Shelly 3EM). While this is not necessary, if a significant number of
+the `ade7880` individual sensors (e.g. more than six) are enabled,
+the time consumed by the I2C transactions can be substantial and
+result in warning messages in the ESPHome logs.
+
+The ADE7880 chip can measure up to three power phases, along with a
+neutral. Current can be measured on all four inputs, while voltage and
+power can be measured on the power phases. Current is measured using
+CT clamps.
+
+While the chip is designed for 3-phase AC power, the phase inputs are
+independent of each other, so the chip can be used with single-phase
+and two-phase AC power circuits as well (or a mixture of them).
+
+## Instantaneous vs. Accumulated Sensors
+
+The digital signal processor (DSP) in the ADE7880 executes its
+computations 8,000 times per second. As a result, each sensor listed
+below as 'instantaneous' reports the computed value from the most
+recent DSP cycle; it does not report an average over the time period
+since the last update.
+
+Each sensor listed as 'accumulated' below reports the sum of all
+computed values since the last update.
+
+The update interval defaults to 60 seconds, but can be lowered if you
+wish to have more frequent readings; this will increase the load (and
+database growth) of the connected Home Assistant correspondingly.
+
+## Configuration Variables
+
+- **irq1_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)):
+  The GPIO pin that the ADE7880's IRQ1 output is connected to. The
+  `ade7880` component uses this input to determine when the ADE7880
+  chip has completed its power-up and reset cycles.
+
+- **irq0_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)):
+  The GPIO pin that the ADE7880's IRQ0 output is connected to, if
+  any. The `ade7880` component does not use this input, but if the
+  IRQ0 output is connected to a GPIO and that GPIO is *not* configured
+  as an `input`, the chip will produce excessive heat and its
+  lifetime could be shortened. The simplest way to ensure that the
+  GPIO pin is properly connected is to supply it here, but if you wish
+  to configure it elsewhere in your configuration that is a reasonable
+  alternative.
+
+- **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)):
+  The GPIO pin that the ADE7880's RESET input is connected to, if
+  any. If this pin is configured, the `ade7880` component will use
+  it to initiate a 'hardware reset' of the chip when needed; if this
+  pin is not configured, the component will attempt to initiate a
+  'software reset' of the chip when needed, but this could fail if the
+  chip is not responding properly to the I2C bus.
+
+- **frequency** (*Optional*, frequency): The AC line frequency of the
+  supply voltage. The supported range is `45Hz` to
+  `66Hz`. Defaults to `50Hz`.
+
+- **phase_a** (*Optional*): The configuration variables for the 'A'
+  phase inputs of the chip. Refer to the configuration examples below
+  for the `simple` and `detailed` sensor configuration options.
+
+  - **name** (*Optional*, string): The name of the phase, which will
+    be used a prefix in the names of all of the phase's sensors.
+
+  - **voltage** (instantaneous) (*Optional*): Report the RMS voltage
+    value of this phase in volts (V). In detailed configuration mode,
+    all options from [Sensor](/components/sensor) are supported.
+
+  - **current** (instantaneous) (*Optional*): Report the RMS current
+    value of this phase in amperes (A). In detailed configuration
+    mode, all options from [Sensor](/components/sensor) are
+    supported.
+
+  - **active_power** (instantaneous) (*Optional*): Report the active
+    (consumed) power value of this phase in watts (W). In detailed
+    configuration mode, all options from [Sensor](/components/sensor)
+    are supported.
+
+  - **apparent_power** (instantaneous) (*Optional*): Report the
+    apparent (voltage multiplied by current) power value of this phase
+    in volt-amperes (VA). In detailed configuration mode, all options
+    from [Sensor](/components/sensor) are supported.
+
+  - **power_factor** (instantaneous) (*Optional*): Report the power
+    factor value of this phase as a percentage (%). In detailed
+    configuration mode, all options from [Sensor](/components/sensor)
+    are supported.
+
+  - **forward_active_energy** (accumulated) (*Optional*): Report the
+    forward active energy value of this phase in watt-hours (Wh). In
+    detailed configuration mode, all options from [Sensor](/components/sensor) are supported.
+
+  - **reverse_active_energy** (accumulated) (*Optional*): Report the
+    reverse active energy value of this phase in
+    volt-ampere-reactive-hours (VARh). In detailed configuration mode,
+    all options from [Sensor](/components/sensor) are supported.
+
+  - **calibration** (**Required**): The calibration values necessary
+    for this phase's sensors to report correct values.
+
+    - **current_gain** (**Required**, integer): The value for the
+      `AIGAIN` calibration register.
+
+    - **voltage_gain** (**Required**, integer): The value for the
+      `AVGAIN` calibration register.
+
+    - **power_gain** (**Required**, integer): The value for the
+      `APGAIN` calibration register.
+
+    - **phase_angle** (**Required**, integer): The value for the
+      `APHCAL` calibration register.
+
+- **phase_b** (*Optional*): The configuration variables for the 'B'
+  phase inputs of the chip. Identical to `phase_a`.
+
+- **phase_c** (*Optional*): The configuration variables for the 'C'
+  phase inputs of the chip. Identical to `phase_a`.
+
+- **neutral** (*Optional*): The configuration variables for the
+  'neutral' phase of the chip.
+
+  - **name** (*Optional*, string): The name of the phase, which will
+    be used a prefix in the names of all of the phase's sensors.
+
+  - **current** (instantaneous) (**Required**): Report the RMS current
+    value of the neutral in amperes (A). In detailed configuration
+    mode, all options from [Sensor](/components/sensor) are
+    supported.
+
+  - **calibration** (**Required**): The calibration values necessary
+    for this phase's sensors to report correct values.
+
+    - **current_gain** (**Required**, integer): The value for the
+      `NIGAIN` calibration register.
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval
+  to report the sensor values. Defaults to `60s`.
+
+- **i2c_id** (*Optional*, [ID](/guides/configuration-types#id)): Specify the ID of the
+  [I2C Component](/components/i2c) if your configuration includes multiple
+  I2C buses.
+
+## Calibration
+
+These sensors needs calibration to report correct values. For the
+Shelly 3EM and 3EM Pro devices, the calibration is performed during
+manufacturing, and the calibration data is included in the firmware
+stored in the device. See the [Shelly 3EM](https://devices.esphome.io/devices/Shelly-3EM) section of the ESPHome
+Devices site for details on how to obtain the calibration data for a
+3EM device.
+
+## Configuration Examples
+
+There are two sensor configuration modes supported: *simple* and
+*detailed*. The mode can be chosen for each sensor indepedently from
+all other sensors.
+
+The *simple* mode is useful when you have no need to provide IDs for
+sensors, or to override any of the default sensor settings (unit of
+measurement, device class, state class, decimal accuracy). The value
+provided for each sensor variable will be the sensor's name
+(optionally prefixed with the phase name, if it has been
+configured).
+
+```yaml
+# Example simple sensor configuration mode
+sensor:
+  - platform: ade7880
+    irq0_pin:
+      number: GPIOXX
+    irq1_pin:
+      number: GPIOXX
+    phase_a:
+      name: Room Heater
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3116628
+        voltage_gain: -757178
+        power_gain: -1344457
+        phase_angle: 188
+```
+
+Because the phase name 'Room Heater' was configured, the resulting
+names for the various sensors will be 'Room Heater Voltage', 'Room
+Heater Current', etc.
+
+```yaml
+# Example detailed sensor configuration mode
+sensor:
+  - platform: ade7880
+    irq0_pin:
+      number: GPIOXX
+    irq1_pin:
+      number: GPIOXX
+    phase_a:
+      voltage: Voltage
+      current:
+        name: Current
+        accuracy_decimals: 0
+      active_power: Active Power
+      power_factor:
+        id: ade_power_factor
+        name: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3116628
+        voltage_gain: -757178
+        power_gain: -1344457
+        phase_angle: 188
+```
+
+In this example, the `accuracy_decimals` variable for the
+`current` sensor has been specified (overriding the default), and an
+`ID` has been specified for the `power_factor` sensor. The
+remaining sensors for the 'A' phase are configured using 'simple'
+configuration mode.
+
+```yaml
+# Example full platform configuration
+sensor:
+  - platform: ade7880
+    irq0_pin:
+      number: GPIOXX
+    irq1_pin:
+      number: GPIOXX
+    reset_pin:
+      number: GPIOXX
+    frequency: 60Hz
+    phase_a:
+      name: Phase A
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3116628
+        voltage_gain: -757178
+        power_gain: -1344457
+        phase_angle: 188
+    phase_b:
+      name: Phase B
+      voltage: Voltage
+      current: Current
+      active_power:: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3133655
+        voltage_gain: -755235
+        power_gain: -1345638
+        phase_angle: 188
+    phase_c:
+      name: Phase C
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
+      calibration:
+        current_gain: 3111158
+        voltage_gain: -743813
+        power_gain: -1351437
+        phase_angle: 180
+    neutral:
+      name: Test 3 Unused
+      current: Current
+      calibration:
+        current_gain: 3011156
+```
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- <APIRef text="ade7880.h" path="ade7880/ade7880.h" />

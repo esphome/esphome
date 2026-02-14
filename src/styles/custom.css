@@ -1,0 +1,267 @@
+/* ESPHome Documentation Custom Styles */
+
+/* Tighten line height and widen content area */
+:root {
+  --sl-line-height: 1.6;
+  --sl-content-width: 55rem;
+}
+
+/* Limit logo height in header */
+.site-title img {
+  max-height: 30px;
+  width: auto;
+}
+
+/* Remove search blur overlay */
+dialog::backdrop {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Component grid for imgtable */
+.component-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.component-card {
+  text-align: center;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--sl-color-gray-5);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  min-height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.component-card:hover {
+  background-color: var(--sl-color-gray-6);
+  border-color: var(--sl-color-gray-4);
+}
+
+.component-card a {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.component-icon {
+  width: 70px;
+  min-height: 70px;
+  margin: 0 auto 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.component-icon img {
+  width: 100%;
+  object-fit: contain;
+}
+
+.component-name {
+  font-weight: 500;
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.component-caption {
+  font-size: 0.75rem;
+  color: var(--sl-color-gray-3);
+  margin-top: 0.25rem;
+}
+
+/* Dark mode image inversion */
+:root[data-theme='dark'] .dark-invert img {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Feature grid styles */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.feature-card {
+  padding: 1.5rem;
+  border-radius: 8px;
+  background-color: var(--sl-color-gray-6);
+}
+
+.feature-icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 1rem;
+}
+
+.feature-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.feature-text {
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Getting started grid */
+.getting-started-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.getting-started-heading {
+  font-weight: 600;
+  font-size: 1.2rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Button styles */
+.btn {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 500;
+  margin-top: 1rem;
+}
+
+.btn-primary {
+  background-color: var(--sl-color-accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background-color: var(--sl-color-accent-high);
+  color: #fff;
+}
+
+/* Sidebar nav item spacing */
+.sidebar-content ul li summary {
+  padding-block: 0.5em;
+}
+
+.sidebar-content ul li > a {
+  padding-block: 0.5em;
+}
+
+/* Anchor styling */
+.anchor {
+  display: block;
+  position: relative;
+  top: -5rem;
+  visibility: hidden;
+}
+
+/* GitHub Alerts - Custom ESPHome Colors (matching Hugo theme style) */
+.markdown-alert {
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  border-left: 0.25em solid;
+  background-color: var(--sl-color-gray-6);
+  border-radius: 0 4px 4px 0;
+}
+
+.markdown-alert-title {
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.markdown-alert-title svg,
+.markdown-alert-title .octicon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  fill: currentColor;
+}
+
+.markdown-alert p {
+  margin: 0;
+}
+
+.markdown-alert p:not(:last-child) {
+  margin-bottom: 0.5rem;
+}
+
+/* Note - Blue */
+.markdown-alert-note {
+  border-left-color: #5dade2;
+}
+
+.markdown-alert-note .markdown-alert-title {
+  color: #5dade2;
+}
+
+/* Tip - Green */
+.markdown-alert-tip {
+  border-left-color: #7cb342;
+}
+
+.markdown-alert-tip .markdown-alert-title {
+  color: #7cb342;
+}
+
+/* Warning - Yellow */
+.markdown-alert-warning {
+  border-left-color: #ffcc32;
+}
+
+.markdown-alert-warning .markdown-alert-title {
+  color: #ffcc32;
+}
+
+/* Caution - Red */
+.markdown-alert-caution {
+  border-left-color: #ff0000;
+}
+
+.markdown-alert-caution .markdown-alert-title {
+  color: #ff0000;
+}
+
+/* Important - Teal */
+.markdown-alert-important {
+  border-left-color: #00979d;
+}
+
+.markdown-alert-important .markdown-alert-title {
+  color: #00979d;
+}
+
+/* Dark mode adjustments */
+:root[data-theme='dark'] .markdown-alert {
+  background-color: #23272e;
+}
+
+/* Center images that are not full width */
+.sl-markdown-content img {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Ensure Image component wrapper centers its content */
+.sl-markdown-content > p > img,
+.sl-markdown-content > img {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Transparent background pattern for badges */
+.transparent-background img {
+  background: repeating-conic-gradient(#999 0% 25%, transparent 10% 50%) 50% / 10px 10px;
+}

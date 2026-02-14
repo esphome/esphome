@@ -1,0 +1,131 @@
+---
+description: "Changelog for ESPHome 2022.3.0."
+title: "ESPHome 2022.3.0 - 16th March 2022"
+pagefind: false
+slug: "changelog/2022.3.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Analog Threshold","/components/binary_sensor/analog_threshold","analog_threshold.svg","dark-invert"],
+  ["MAX44009","/components/sensor/max44009","max44009.svg"],
+  ["Copy","/components/copy","content-copy.svg","dark-invert"],
+  ["MPU6886","/components/sensor/mpu6886","mpu6886.jpg"],
+  ["MCP4728","/components/output/mcp4728","mcp4728.jpg"],
+  ["Honeywell ABP","/components/sensor/honeywellabp","honeywellabp.jpg"],
+  ["Mopeka Pro Check LP","/components/sensor/mopeka_pro_check","mopeka_pro_check.jpg"]
+]} />
+
+## Python 3.8 Minimum
+
+This release sets the minimum Python version to 3.8. Please upgrade your local python if you are unable
+to update further.
+
+## Webserver
+
+Thanks to [@wilberforce](https://github.com/wilberforce) for doing a massive bunch of work on giving new life to the frontend of
+the [webserver](/components/web_server/).
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2022.3.1 - March 23
+
+- Fix WDT reset during dallas search algorithm [esphome#3293](https://github.com/esphome/esphome/pull/3293) by [@wysiwyng](https://github.com/wysiwyng)
+- Webserver utilize Component Iterator to not overload eventstream [esphome#3310](https://github.com/esphome/esphome/pull/3310) by [@jesserockz](https://github.com/jesserockz)
+- Reserve less memory for json [esphome#3289](https://github.com/esphome/esphome/pull/3289) by [@jesserockz](https://github.com/jesserockz)
+- Add small delay before setting up app in safe mode [esphome#3323](https://github.com/esphome/esphome/pull/3323) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2022.3.2 - March 30
+
+- Actually increase request memory for json parsing [esphome#3331](https://github.com/esphome/esphome/pull/3331) by [@jesserockz](https://github.com/jesserockz)
+
+## Full list of changes
+
+### New Features
+
+- support for waveshare 7.50in-hd-b [esphome#3239](https://github.com/esphome/esphome/pull/3239) by [@Michanord](https://github.com/Michanord) (new-feature)
+- Add optional display page for touchscreen binary sensors [esphome#3247](https://github.com/esphome/esphome/pull/3247) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+
+### New Components
+
+- Analog threshold [esphome#3190](https://github.com/esphome/esphome/pull/3190) by [@ianchi](https://github.com/ianchi) (new-integration)
+- Add sensor support: MAX44009 [esphome#3125](https://github.com/esphome/esphome/pull/3125) by [@berfenger](https://github.com/berfenger) (new-integration)
+- Add copy integration [esphome#3241](https://github.com/esphome/esphome/pull/3241) by [@OttoWinter](https://github.com/OttoWinter) (new-integration)
+- Add support for MPU-6886 [esphome#3183](https://github.com/esphome/esphome/pull/3183) by [@fabaff](https://github.com/fabaff) (new-integration)
+- Add device support: MCP4728 [esphome#3174](https://github.com/esphome/esphome/pull/3174) by [@berfenger](https://github.com/berfenger) (new-integration)
+- Add sensor support: Honeywell ABP (SPI version) [esphome#3164](https://github.com/esphome/esphome/pull/3164) by [@RubyBailey](https://github.com/RubyBailey) (new-integration)
+- Add Mopeka BLE and Mopeka Pro Check BLE Sensor [esphome#2618](https://github.com/esphome/esphome/pull/2618) by [@spbrogan](https://github.com/spbrogan) (new-integration)
+
+### Breaking Changes
+
+- Raise minimum python version to 3.8 [esphome#3176](https://github.com/esphome/esphome/pull/3176) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Add class as first positional arg to sensor_schema [esphome#3216](https://github.com/esphome/esphome/pull/3216) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- BH1750 dynamically calculate options [esphome#3214](https://github.com/esphome/esphome/pull/3214) by [@OttoWinter](https://github.com/OttoWinter) (breaking-change)
+
+### Beta Changes
+
+- Add optimistic config flag to modbus select. [esphome#3267](https://github.com/esphome/esphome/pull/3267) by [@stegm](https://github.com/stegm)
+- Add helper overloads for hex print 16-bit [esphome#3297](https://github.com/esphome/esphome/pull/3297) by [@jesserockz](https://github.com/jesserockz)
+- Allow custom register type for modbus number [esphome#3202](https://github.com/esphome/esphome/pull/3202) by [@jesserockz](https://github.com/jesserockz)
+
+### Notable Changes
+
+- Webserver v2 [esphome#2688](https://github.com/esphome/esphome/pull/2688) by [@wilberforce](https://github.com/wilberforce) (notable-change)
+
+### All changes
+
+- Remove unused obj attribute from AssignmentExpression [esphome#3145](https://github.com/esphome/esphome/pull/3145) by [@OttoWinter](https://github.com/OttoWinter)
+- Remove spurious Zeroconf instance from api client [esphome#3143](https://github.com/esphome/esphome/pull/3143) by [@OttoWinter](https://github.com/OttoWinter)
+- Raise minimum python version to 3.8 [esphome#3176](https://github.com/esphome/esphome/pull/3176) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Improve dallas timing [esphome#3181](https://github.com/esphome/esphome/pull/3181) by [@OttoWinter](https://github.com/OttoWinter)
+- Bump pytest-asyncio from 0.18.0 to 0.18.1 [esphome#3187](https://github.com/esphome/esphome/pull/3187) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest from 7.0.0 to 7.0.1 [esphome#3189](https://github.com/esphome/esphome/pull/3189) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- add sim800l diagnostics [esphome#3136](https://github.com/esphome/esphome/pull/3136) by [@glmnet](https://github.com/glmnet)
+- Docker move deps install into base [esphome#3207](https://github.com/esphome/esphome/pull/3207) by [@OttoWinter](https://github.com/OttoWinter)
+- Remove redundant name from binary_sensor constructor [esphome#3213](https://github.com/esphome/esphome/pull/3213) by [@jesserockz](https://github.com/jesserockz)
+- ESP8266 early init for pins [esphome#3144](https://github.com/esphome/esphome/pull/3144) by [@OttoWinter](https://github.com/OttoWinter)
+- CAN bus: read all queued messages [esphome#3194](https://github.com/esphome/esphome/pull/3194) by [@felixstorm](https://github.com/felixstorm)
+- CAN bus: support bit mask for on_frame can_id [esphome#3196](https://github.com/esphome/esphome/pull/3196) by [@felixstorm](https://github.com/felixstorm)
+- Simplify captive portal to compressed single page [esphome#2872](https://github.com/esphome/esphome/pull/2872) by [@wilberforce](https://github.com/wilberforce)
+- HttpRequestComponent::get_string - avoid copy [esphome#2988](https://github.com/esphome/esphome/pull/2988) by [@roitagar](https://github.com/roitagar)
+- Docker ha-addon switch to nginx-light [esphome#3218](https://github.com/esphome/esphome/pull/3218) by [@OttoWinter](https://github.com/OttoWinter)
+- Analog threshold [esphome#3190](https://github.com/esphome/esphome/pull/3190) by [@ianchi](https://github.com/ianchi) (new-integration)
+- Fix pm1006 polling component definition [esphome#3210](https://github.com/esphome/esphome/pull/3210) by [@mipa87](https://github.com/mipa87)
+- Add class as first positional arg to sensor_schema [esphome#3216](https://github.com/esphome/esphome/pull/3216) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Binary Sensor codegen tidyup [esphome#3217](https://github.com/esphome/esphome/pull/3217) by [@jesserockz](https://github.com/jesserockz)
+- Read all cell voltages from DalyBMS [esphome#3203](https://github.com/esphome/esphome/pull/3203) by [@zigman79](https://github.com/zigman79)
+- Remote magiquest protocol [esphome#2963](https://github.com/esphome/esphome/pull/2963) by [@ImSorryButWho](https://github.com/ImSorryButWho)
+- Implement text_sensor based on ble_client [esphome#3079](https://github.com/esphome/esphome/pull/3079) by [@ashald](https://github.com/ashald)
+- Add sensor support: MAX44009 [esphome#3125](https://github.com/esphome/esphome/pull/3125) by [@berfenger](https://github.com/berfenger) (new-integration)
+- Fix for api disconnect detection. [esphome#2909](https://github.com/esphome/esphome/pull/2909) by [@peter-valkov](https://github.com/peter-valkov)
+- [miscale] Add flag to clear last impedance reading if the newly received reading only contains weight [esphome#3132](https://github.com/esphome/esphome/pull/3132) by [@mknjc](https://github.com/mknjc)
+- Add ESP32 variant config validator function [esphome#3088](https://github.com/esphome/esphome/pull/3088) by [@oxan](https://github.com/oxan)
+- Fix warning in test1.yaml [esphome#3228](https://github.com/esphome/esphome/pull/3228) by [@OttoWinter](https://github.com/OttoWinter)
+- Lint trailing whitespace [esphome#3230](https://github.com/esphome/esphome/pull/3230) by [@OttoWinter](https://github.com/OttoWinter)
+- Add ESP32C3 and ESP32S2 support to dashboard [esphome#3152](https://github.com/esphome/esphome/pull/3152) by [@OttoWinter](https://github.com/OttoWinter)
+- BH1750 dynamically calculate options [esphome#3214](https://github.com/esphome/esphome/pull/3214) by [@OttoWinter](https://github.com/OttoWinter) (breaking-change)
+- Bump esphome-dashboard from 20220209.0 to 20220219.0 [esphome#3231](https://github.com/esphome/esphome/pull/3231) by [@OttoWinter](https://github.com/OttoWinter)
+- Add copy integration [esphome#3241](https://github.com/esphome/esphome/pull/3241) by [@OttoWinter](https://github.com/OttoWinter) (new-integration)
+- Button code cleanup [esphome#3242](https://github.com/esphome/esphome/pull/3242) by [@OttoWinter](https://github.com/OttoWinter)
+- Pulse meter internal filter mode [esphome#3082](https://github.com/esphome/esphome/pull/3082) by [@cstaahl](https://github.com/cstaahl)
+- Add support for MPU-6886 [esphome#3183](https://github.com/esphome/esphome/pull/3183) by [@fabaff](https://github.com/fabaff) (new-integration)
+- light: add RESTORE_AND_OFF/RESTORE_AND_ON LightRestoreMode [esphome#3238](https://github.com/esphome/esphome/pull/3238) by [@Niorix](https://github.com/Niorix)
+- Implement send_first_at for exponential_moving_average [esphome#3240](https://github.com/esphome/esphome/pull/3240) by [@EdJoPaTo](https://github.com/EdJoPaTo)
+- Add device support: MCP4728 [esphome#3174](https://github.com/esphome/esphome/pull/3174) by [@berfenger](https://github.com/berfenger) (new-integration)
+- support for waveshare 7.50in-hd-b [esphome#3239](https://github.com/esphome/esphome/pull/3239) by [@Michanord](https://github.com/Michanord) (new-feature)
+- Fix template button after abstract press_action [esphome#3250](https://github.com/esphome/esphome/pull/3250) by [@jesserockz](https://github.com/jesserockz)
+- Store platform as uppercase [esphome#3251](https://github.com/esphome/esphome/pull/3251) by [@jesserockz](https://github.com/jesserockz)
+- Add sensor support: Honeywell ABP (SPI version) [esphome#3164](https://github.com/esphome/esphome/pull/3164) by [@RubyBailey](https://github.com/RubyBailey) (new-integration)
+- Add optional display page for touchscreen binary sensors [esphome#3247](https://github.com/esphome/esphome/pull/3247) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Add Mopeka BLE and Mopeka Pro Check BLE Sensor [esphome#2618](https://github.com/esphome/esphome/pull/2618) by [@spbrogan](https://github.com/spbrogan) (new-integration)
+- Remove stray define [esphome#3260](https://github.com/esphome/esphome/pull/3260) by [@jesserockz](https://github.com/jesserockz)
+- Webserver v2 [esphome#2688](https://github.com/esphome/esphome/pull/2688) by [@wilberforce](https://github.com/wilberforce) (notable-change)
+- Add entity_category_diagnostics to SGP30 baseline sensors [esphome#3272](https://github.com/esphome/esphome/pull/3272) by [@JasperPlant](https://github.com/JasperPlant)
+- Bump esphome-dashboard to 20220309.0 [esphome#3277](https://github.com/esphome/esphome/pull/3277) by [@jesserockz](https://github.com/jesserockz)
+- Add visual step/min/max for webserver climate [esphome#3275](https://github.com/esphome/esphome/pull/3275) by [@wilberforce](https://github.com/wilberforce)
+- Add optimistic config flag to modbus select. [esphome#3267](https://github.com/esphome/esphome/pull/3267) by [@stegm](https://github.com/stegm)
+- Add helper overloads for hex print 16-bit [esphome#3297](https://github.com/esphome/esphome/pull/3297) by [@jesserockz](https://github.com/jesserockz)
+- Allow custom register type for modbus number [esphome#3202](https://github.com/esphome/esphome/pull/3202) by [@jesserockz](https://github.com/jesserockz)
+
+{/* markdownlint-enable MD013 */}

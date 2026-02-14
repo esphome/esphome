@@ -1,0 +1,59 @@
+---
+description: "Instructions for setting up HTU31D temperature and humidity sensors."
+title: "HTU31D Temperature & Humidity Sensor"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+import temperatureHumidityImg from './images/temperature-humidity.png';
+import APIRef from '@components/APIRef.astro';
+
+The HTU31D Temperature & Humidity component allows you to use HTU31D sensors with
+ESPHome. The [I²C Bus](/components/i2c) is required to be set up in your configuration for this sensor to work.
+
+Example sensors:
+
+- ([Adafruit](https://www.adafruit.com/product/4832))
+
+<Figure
+  src="/images/htu31d.jpg"
+  alt=""
+  caption="HTU31D Temperature & Humidity Sensor. Image by [Adafruit](https://www.adafruit.com)."
+  layout="constrained"
+  width={300}
+  height={219}
+/>
+
+<Image src={temperatureHumidityImg} layout="constrained" alt="" />
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: htu31d
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidity"
+```
+
+## Configuration variables
+
+- **temperature** (*Optional*): The information for the temperature sensor.
+  All options from [Sensor](/components/sensor).
+
+- **humidity** (*Optional*): The information for the humidity sensor.
+  All options from [Sensor](/components/sensor).
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [Absolute Humidity](/components/sensor/absolute_humidity/)
+- [HTU21D | Si7021 | SHT21 Temperature & Humidity Sensor](/components/sensor/htu21d/)
+- [DHT Temperature+Humidity Sensor](/components/sensor/dht/)
+- [DHT12 Temperature+Humidity Sensor](/components/sensor/dht12/)
+- [HDC1080 Temperature+Humidity Sensor](/components/sensor/hdc1080/)
+- [SHT3X-D Temperature+Humidity Sensor](/components/sensor/sht3xd/)
+- [i2cdevlib](https://github.com/jrowberg/i2cdevlib) by [Jeff Rowberg](https://github.com/jrowberg)
+- <APIRef text="htu31d.h" path="htu31d/htu31d.h" />

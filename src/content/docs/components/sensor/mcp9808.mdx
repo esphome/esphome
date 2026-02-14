@@ -1,0 +1,47 @@
+---
+description: "Instructions for setting up MCP9808 temperature sensor."
+title: "MCP9808 Temperature Sensor"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+import mcp9808FullImg from './images/mcp9808-full.jpg';
+import APIRef from '@components/APIRef.astro';
+
+The MCP9808 Temperature sensor allows you to use your MCP9808
+([datasheet](http://ww1.microchip.com/downloads/en/DeviceDoc/25095A.pdf),
+[Adafruit](https://www.adafruit.com/product/1782)) sensors with
+ESPHome. The [I²C Bus](/components/i2c) is
+required to be set up in your configuration for this sensor to work.
+
+<Figure
+  src={mcp9808FullImg}
+  alt=""
+  caption="MCP9808 Temperature Sensor. Image by [Adafruit](https://www.adafruit.com)."
+  layout="constrained"
+/>
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: mcp9808
+    name: "Living Room Temperature"
+    update_interval: 60s
+```
+
+## Configuration variables
+
+- **address** (*Optional*, int): Manually specify the I²C address of the sensor. Defaults to `0x18`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
+- All other options from [Sensor](/components/sensor).
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [DHT Temperature+Humidity Sensor](/components/sensor/dht/)
+- [DHT12 Temperature+Humidity Sensor](/components/sensor/dht12/)
+- [HTU21D | Si7021 | SHT21 Temperature & Humidity Sensor](/components/sensor/htu21d/)
+- [SHT3X-D Temperature+Humidity Sensor](/components/sensor/sht3xd/)
+- [HDC1080 Temperature+Humidity Sensor](/components/sensor/hdc1080/)
+- [MCP9808 Library](https://github.com/adafruit/Adafruit_MCP9808_Library) by [AdaFruit](https://www.adafruit.com/)
+- <APIRef text="mcp9808.h" path="mcp9808/mcp9808.h" />

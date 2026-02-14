@@ -1,0 +1,51 @@
+---
+description: "Instructions for setting up monochromatic (brightness-only) lights."
+title: "Monochromatic Light"
+---
+
+import { Image } from 'astro:assets';
+import monochromaticStripImg from './images/monochromatic-strip.jpg';
+import kitchenLightsImg from './images/kitchen-lights.png';
+import monochromaticDetailImg from './images/monochromatic-detail.jpg';
+import APIRef from '@components/APIRef.astro';
+import Figure from '@components/Figure.astro';
+
+The `monochromatic` light platform creates a simple brightness-only light from a
+[float output component](/components/output/).
+
+<Figure
+  src={monochromaticStripImg}
+  caption="Example of a brightness-only LED strip that can be used with this component."
+  layout="constrained"
+  alt=""
+/>
+
+<Image src={kitchenLightsImg} layout="constrained" alt="" />
+
+```yaml
+# Example configuration entry
+light:
+  - platform: monochromatic
+    name: "Kitchen Lights"
+    output: output_component1
+```
+
+## Configuration variables
+
+- **output** (**Required**, [ID](/guides/configuration-types#id)): The id of the float [Output Component](/components/output/) to use for this light.
+- All other options from [Light](/components/light#config-light).
+
+## See Also
+
+<Image src={monochromaticDetailImg} layout="constrained" alt="" />
+
+- [Output Component](/components/output/)
+- [Light Component](/components/light/)
+- [Binary Light](/components/light/binary/)
+- [Power Supply Component](/components/power_supply/)
+- [ESP32 LEDC Output](/components/output/ledc/)
+- [ESP8266 Software PWM Output](/components/output/esp8266_pwm/)
+- [PCA9685](/components/output/pca9685/)
+- [TLC59208F](/components/output/tlc59208f/)
+- [MY9231/MY9291 LED driver](/components/output/my9231/)
+- <APIRef text="monochromatic_light_output.h" path="monochromatic/monochromatic_light_output.h" />

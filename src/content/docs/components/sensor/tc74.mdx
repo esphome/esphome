@@ -1,0 +1,50 @@
+---
+description: "Instructions for setting up the TC74 temperature sensors."
+title: "TC74 Temperature Sensor"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+import tc74FullImg from './images/tc74-full.jpg';
+import APIRef from '@components/APIRef.astro';
+
+The TC74 sensor platform allows you to use your TC74 ([datasheet](https://ww1.microchip.com/downloads/en/DeviceDoc/21462D.pdf), [Adafruit](https://www.adafruit.com/product/4375)) temperature sensors with ESPHome.
+The [I²C Bus](/components/i2c) is required to be set up in your configuration for this
+sensor to work.
+
+<Figure
+  src={tc74FullImg}
+  alt=""
+  caption="TC74 Temperature Sensor."
+  layout="constrained"
+/>
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: tc74
+    name: "Living Room Temperature"
+```
+
+## Configuration variables
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check
+  the sensor. Defaults to `60s`.
+
+- **address** (*Optional*, int): The I²C address of the sensor. Defaults to
+  `0x48`, the address of the TC74A0. For suffixes other than `A0` add the
+  final digit to `0x48` to calculate the address. For example, the TC74A5 has
+  I²C address `0x4D`.
+
+- All other options from [Sensor](/components/sensor).
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [DHT Temperature+Humidity Sensor](/components/sensor/dht/)
+- [DHT12 Temperature+Humidity Sensor](/components/sensor/dht12/)
+- [HDC1080 Temperature+Humidity Sensor](/components/sensor/hdc1080/)
+- [SHT3X-D Temperature+Humidity Sensor](/components/sensor/sht3xd/)
+- [HTU21D | Si7021 | SHT21 Temperature & Humidity Sensor](/components/sensor/htu21d/)
+- [TMP102 Temperature Sensor](/components/sensor/tmp102/)
+- <APIRef text="tc74.h" path="tc74/tc74.h" />

@@ -1,19 +1,45 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.177.0/containers/typescript-node
 {
-  "name": "ESPHome - docs",
-  "image": "mcr.microsoft.com/devcontainers/python:3.13",
-  "postCreateCommand": ".devcontainer/postCreate.sh",
-  "postAttachCommand": "make live-html",
+  "name": "ESPHome Astro Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:22-bookworm",
   "forwardPorts": [
-    8000
+    4321
   ],
-  "features": {
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+  "portsAttributes": {
+    "4321": {
+      "label": "Preview"
+    }
   },
+  // Add the IDs of extensions you want installed when the container is created.
   "customizations": {
     "vscode": {
       "extensions": [
-        "ms-python.python"
-      ]
+        "astro-build.astro-vscode",
+        "vunguyentuan.vscode-css-variables",
+        "esbenp.prettier-vscode",
+        "yzhang.markdown-all-in-one",
+        "davidanson.vscode-markdownlint",
+        "jock.svg"
+      ],
+      "settings": {
+        "files.eol": "\n",
+        "editor.tabSize": 2,
+        "editor.formatOnPaste": false,
+        "editor.formatOnSave": true,
+        "editor.formatOnType": true,
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[javascript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "files.trimTrailingWhitespace": true
+      }
     }
-  }
+  },
+  "postCreateCommand": "npm install",
+  // Comment out connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
+  "remoteUser": "node"
+  // moved settings under customizations.vscode.settings
 }

@@ -1,0 +1,62 @@
+---
+description: "Instructions for setting up BMP085 temperature and temperature sensors"
+title: "BMP085 Temperature+Pressure Sensor"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+import bmp180FullImg from './images/bmp180-full.jpg';
+import temperaturePressureImg from './images/temperature-pressure.png';
+import APIRef from '@components/APIRef.astro';
+
+The BMP085 sensor platform allows you to use your BMP085
+([datasheet](https://www.sparkfun.com/datasheets/Components/General/BST-BMP085-DS000-05.pdf),
+[Adafruit](https://www.adafruit.com/product/391)) and BMP180
+([datasheet](https://cdn-shop.adafruit.com/datasheets/BST-BMP180-DS000-09.pdf),
+[Adafruit](https://www.adafruit.com/product/1603)) temperature and
+pressure sensors with ESPHome. The [I²C](/components/i2c) is required to be set up in
+your configuration for this sensor to work.
+
+<Figure
+  src={bmp180FullImg}
+  alt=""
+  caption="BMP180 Temperature & Pressure Sensor."
+  layout="constrained"
+/>
+
+<Image src={temperaturePressureImg} layout="constrained" alt="" />
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: bmp085
+    temperature:
+      name: "Outside Temperature"
+    pressure:
+      name: "Outside Pressure"
+    update_interval: 60s
+```
+
+## Configuration variables
+
+- **temperature** (*Optional*): The information for the temperature sensor.
+
+  - All options from [Sensor](/components/sensor).
+
+- **pressure** (*Optional*): The information for the pressure sensor.
+
+  - All options from [Sensor](/components/sensor).
+
+- **address** (*Optional*, int): Manually specify the I²C address of
+   the sensor. Defaults to `0x77`.
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
+   sensor. Defaults to `60s`.
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [BME280 Temperature+Pressure+Humidity Sensor](/components/sensor/bme280/)
+- [BME680 Temperature+Pressure+Humidity+Gas Sensor](/components/sensor/bme680/)
+- [i2cdevlib](https://github.com/jrowberg/i2cdevlib) by [Jeff Rowberg](https://github.com/jrowberg)
+- <APIRef text="bmp085.h" path="bmp085/bmp085.h" />

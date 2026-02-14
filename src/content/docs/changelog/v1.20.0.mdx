@@ -1,0 +1,221 @@
+---
+description: "Changelog for ESPHome version 1.20.0."
+title: "Changelog - Version 1.20.0 - 21st July 2021"
+pagefind: false
+slug: "changelog/v1.20.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Number Core","/components/number/index","folder-open.svg","dark-invert"],
+  ["Template Number","/components/number/template","description.svg","dark-invert"],
+  ["Havells Inverter","/components/sensor/havells_solar","havellsgti5000d_s.jpg"],
+  ["Anova Cooker","/components/climate/anova","anova.png"]
+]} />
+
+
+import { Image } from 'astro:assets';
+import onlineIndicatorImg from './images/online-indicator.png';
+
+{/* markdownlint-disable MD013 */}
+
+Here's to another timely release bringing a few new components and a whole bunch of changes under
+the hood to existing ones.
+
+## Number Entities
+
+Creating `number` entities in Home Assistant from ESPHome is now supported. This basically replaces
+creating an `input_number` and then importing that sensor into ESPHome as a sensor with
+`platform: homeassistant`. The state of the number can also be updated directly on the ESPHome device
+and will be reflected in Home Assistant.
+
+I would like to see what other platforms people can come up with for the number component,
+I have a few ideas myself.
+
+## Light Changes
+
+Unfortunately, some breaking changes had to be made:
+
+- For addressable RGBW lights, the brightness now also applies to the white channel (this was already the case for
+  non-addressable RGBW lights). If you want to control only the brightness of the color channel, use the new `color_brightness` option.
+
+- For RGBW lights, the white channel is no longer normalized by the color intensity in the `light.turn_on` and
+  `light.control` actions. In previous versions, if the red value was set to 60% and the white value to 30%, this
+  would result in the white channel being at 50% brightness. Starting with this version, this will result in the
+  white channel being set to 30%, as expected.
+
+## ESPHome Dashboard
+
+Thanks [@balloob](https://github.com/balloob) for making a small, but very significant change to the dashboard cards so now people who suffer from color-blindness
+will know whether or not the node is online.
+
+<Image src={onlineIndicatorImg} layout="constrained" alt="" />
+
+## Nextion
+
+The Nextion component has had a major rewrite this release bringing many more features to those that use the displays.
+I am not sure how to describe the changes except for listing the main change points from the PR and linking to the docs
+for you to read yourself. [Nextion](/components/display/nextion/)
+
+- Sensors/binary sensors/switch/text sensors and touch have all been added.
+- Over the air TFT file upload
+- Polling has been added to all the components
+- Display on_wake/on_sleep
+- Many API helpers (get_string/get_int) have been added
+
+## Release 1.20.1 - July 27
+
+- Fix git pull for external_components [esphome#2055](https://github.com/esphome/esphome/pull/2055) by [@mmakaay](https://github.com/mmakaay)
+- midea_ac: fix presets implementation [esphome#2054](https://github.com/esphome/esphome/pull/2054) by [@dudanov](https://github.com/dudanov)
+- Fixes new auto mode COOL and HEAT after [esphome#1994](https://github.com/esphome/esphome/pull/1994) [esphome#2053](https://github.com/esphome/esphome/pull/2053) by [@carstenschroeder](https://github.com/carstenschroeder)
+- Log warning about lack of support for Anova nano [esphome#2063](https://github.com/esphome/esphome/pull/2063) by [@buxtronix](https://github.com/buxtronix)
+- Couple more updates for the Tuya component [esphome#2065](https://github.com/esphome/esphome/pull/2065) by [@nuttytree](https://github.com/nuttytree)
+- Fix MQTT climate custom fan modes without regular ones [esphome#2071](https://github.com/esphome/esphome/pull/2071) by [@OttoWinter](https://github.com/OttoWinter)
+
+## Release 1.20.2 - July 29
+
+- More Tuya MCU robustness [esphome#2080](https://github.com/esphome/esphome/pull/2080) by [@jkl1337](https://github.com/jkl1337)
+- Bump esphome dashboard to 20210728.0 [esphome#2081](https://github.com/esphome/esphome/pull/2081) by [@jesserockz](https://github.com/jesserockz)
+- HLW8012 - Dump energy sensor config [esphome#2082](https://github.com/esphome/esphome/pull/2082) by [@jesserockz](https://github.com/jesserockz)
+- Use sensor_schema for total_daily_energy [esphome#2090](https://github.com/esphome/esphome/pull/2090) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 1.20.3 - July 30
+
+- Set pulse meter total to use state class measurement and last reset type auto [esphome#2097](https://github.com/esphome/esphome/pull/2097) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 1.20.4 - August 4
+
+- Correctly invert esp32 RMT TX [esphome#2022](https://github.com/esphome/esphome/pull/2022) by [@WeekendWarrior1](https://github.com/WeekendWarrior1)
+- Move configure_rmt() into setup() [esphome#2028](https://github.com/esphome/esphome/pull/2028) by [@WeekendWarrior1](https://github.com/WeekendWarrior1)
+- Fix climate restore schema changed resulting in invalid restore [esphome#2068](https://github.com/esphome/esphome/pull/2068) by [@OttoWinter](https://github.com/OttoWinter)
+- Fix PID climate breaks when restoring old modes [esphome#2086](https://github.com/esphome/esphome/pull/2086) by [@OttoWinter](https://github.com/OttoWinter)
+- fix diplay trigger missing base class [esphome#2099](https://github.com/esphome/esphome/pull/2099) by [@glmnet](https://github.com/glmnet)
+- Fix min/max keys in MQTT Number to match Home Assistant [esphome#2102](https://github.com/esphome/esphome/pull/2102) by [@paulmonigatti](https://github.com/paulmonigatti)
+- Use proper schema for the analog pin shorthand [esphome#2103](https://github.com/esphome/esphome/pull/2103) by [@nonameplum](https://github.com/nonameplum)
+- [duty_cycle] initialize two missing variables [esphome#2088](https://github.com/esphome/esphome/pull/2088) by [@CarlosGS](https://github.com/CarlosGS)
+- Fix time.on_time triggering if time jumped back [esphome#1806](https://github.com/esphome/esphome/pull/1806) by [@brambo123](https://github.com/brambo123)
+- Fix external components not refreshing with default or high refresh time [esphome#2122](https://github.com/esphome/esphome/pull/2122) by [@OttoWinter](https://github.com/OttoWinter)
+
+## Full list of changes
+
+### New Features
+
+- Allow WiFi AP to use device name [esphome#1990](https://github.com/esphome/esphome/pull/1990) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Add Number entities (from Home Assistant) [esphome#1971](https://github.com/esphome/esphome/pull/1971) by [@jesserockz](https://github.com/jesserockz) (new-feature) (new-integration) (notable-change)
+- Nextion upload and sensors [esphome#1464](https://github.com/esphome/esphome/pull/1464) by [@SenexCrenshaw](https://github.com/SenexCrenshaw) (cherry-picked) (new-feature) (notable-change)
+- Adding last_reset_type to sensors that should support it. [esphome#2039](https://github.com/esphome/esphome/pull/2039) by [@jesserockz](https://github.com/jesserockz) (cherry-picked) (new-feature)
+
+### New Components
+
+- Climate component for Ballu air conditioners with remote model YKR-K/002E [esphome#1939](https://github.com/esphome/esphome/pull/1939) by [@bazuchan](https://github.com/bazuchan) (new-integration)
+- Anova ble component [esphome#1752](https://github.com/esphome/esphome/pull/1752) by [@buxtronix](https://github.com/buxtronix) (new-integration)
+- Add Number entities (from Home Assistant) [esphome#1971](https://github.com/esphome/esphome/pull/1971) by [@jesserockz](https://github.com/jesserockz) (new-feature) (new-integration) (notable-change)
+- Added support for havells_solar sensor [esphome#1988](https://github.com/esphome/esphome/pull/1988) by [@sourabhjaiswal](https://github.com/sourabhjaiswal) (new-integration)
+
+### Breaking Changes
+
+- remote_receiver use config parent receiver for registering dumpers [esphome#1980](https://github.com/esphome/esphome/pull/1980) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Change color model to fix white channel issues [esphome#1895](https://github.com/esphome/esphome/pull/1895) by [@oxan](https://github.com/oxan) (breaking-change)
+- Remove a whole bunch of deprecated/removed stuff [esphome#1981](https://github.com/esphome/esphome/pull/1981) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- catch 0.0 in float set_level pre-adjustment [esphome#2013](https://github.com/esphome/esphome/pull/2013) by [@WeekendWarrior1](https://github.com/WeekendWarrior1) (breaking-change)
+- Climate mode meaning was changed [esphome#1995](https://github.com/esphome/esphome/pull/1995) by [@OttoWinter](https://github.com/OttoWinter) (breaking-change)
+
+### Beta Fixes
+
+- Nextion upload and sensors [esphome#1464](https://github.com/esphome/esphome/pull/1464) by [@SenexCrenshaw](https://github.com/SenexCrenshaw) (cherry-picked) (new-feature) (notable-change)
+- Fix ethernet component hostname handling [esphome#2010](https://github.com/esphome/esphome/pull/2010) by [@flacjacket](https://github.com/flacjacket) (cherry-picked)
+- Refactor docker build system and workflows [esphome#2023](https://github.com/esphome/esphome/pull/2023) by [@OttoWinter](https://github.com/OttoWinter) (cherry-picked)
+- GH Actions CI use GHCR [esphome#2027](https://github.com/esphome/esphome/pull/2027) by [@OttoWinter](https://github.com/OttoWinter) (cherry-picked)
+- Dashboard disable assets caching [esphome#2025](https://github.com/esphome/esphome/pull/2025) by [@OttoWinter](https://github.com/OttoWinter) (cherry-picked)
+- Improve external components error messages [esphome#2026](https://github.com/esphome/esphome/pull/2026) by [@OttoWinter](https://github.com/OttoWinter) (cherry-picked)
+- Number and Template Number updates [esphome#2036](https://github.com/esphome/esphome/pull/2036) by [@jesserockz](https://github.com/jesserockz) (cherry-picked)
+- Add restore_value to template number [esphome#2041](https://github.com/esphome/esphome/pull/2041) by [@jesserockz](https://github.com/jesserockz) (cherry-picked)
+- midea_ac: Fix turbo boost mode. Preset PRESET_BOOST. [esphome#2029](https://github.com/esphome/esphome/pull/2029) by [@dudanov](https://github.com/dudanov) (cherry-picked)
+- Bump dashboard to 20210719.0 [esphome#2043](https://github.com/esphome/esphome/pull/2043) by [@balloob](https://github.com/balloob) (cherry-picked)
+- Correct ADS1115 handling of multiple sensors in continuous mode [esphome#2016](https://github.com/esphome/esphome/pull/2016) by [@flacjacket](https://github.com/flacjacket) (cherry-picked)
+- ESP32 ADC use esp-idf [esphome#2024](https://github.com/esphome/esphome/pull/2024) by [@OttoWinter](https://github.com/OttoWinter) (cherry-picked)
+- Fix white value transition for addressable lights [esphome#2045](https://github.com/esphome/esphome/pull/2045) by [@oxan](https://github.com/oxan) (cherry-picked)
+- Adding last_reset_type to sensors that should support it. [esphome#2039](https://github.com/esphome/esphome/pull/2039) by [@jesserockz](https://github.com/jesserockz) (cherry-picked) (new-feature)
+- Remove superfluous polling on ADS1115 [esphome#2015](https://github.com/esphome/esphome/pull/2015) by [@flacjacket](https://github.com/flacjacket) (cherry-picked)
+
+### Notable Changes
+
+- Add Number entities (from Home Assistant) [esphome#1971](https://github.com/esphome/esphome/pull/1971) by [@jesserockz](https://github.com/jesserockz) (new-feature) (new-integration) (notable-change)
+- Nextion upload and sensors [esphome#1464](https://github.com/esphome/esphome/pull/1464) by [@SenexCrenshaw](https://github.com/SenexCrenshaw) (cherry-picked) (new-feature) (notable-change)
+
+### All changes
+
+- Update ambiguous command [esphome#1889](https://github.com/esphome/esphome/pull/1889) by [@jesserockz](https://github.com/jesserockz)
+- Configure clang-format for consistent pointer alignment [esphome#1890](https://github.com/esphome/esphome/pull/1890) by [@OttoWinter](https://github.com/OttoWinter)
+- Activate some clang-tidy checks [esphome#1884](https://github.com/esphome/esphome/pull/1884) by [@OttoWinter](https://github.com/OttoWinter)
+- Avoid non-const globals and enable clang-tidy check [esphome#1892](https://github.com/esphome/esphome/pull/1892) by [@agners](https://github.com/agners)
+- Convert st7735.cpp to use Unix line separators [esphome#1894](https://github.com/esphome/esphome/pull/1894) by [@oxan](https://github.com/oxan)
+- Split files in light component [esphome#1893](https://github.com/esphome/esphome/pull/1893) by [@oxan](https://github.com/oxan)
+- Fix CI by avoiding non-const global [esphome#1907](https://github.com/esphome/esphome/pull/1907) by [@oxan](https://github.com/oxan)
+- Adds support cpp to vscode [esphome#1828](https://github.com/esphome/esphome/pull/1828) by [@dentra](https://github.com/dentra)
+- Support ESP8266 Arduino 3.0.0 [esphome#1897](https://github.com/esphome/esphome/pull/1897) by [@agners](https://github.com/agners)
+- Run script/setup in devcontainer instead of pip install [esphome#1913](https://github.com/esphome/esphome/pull/1913) by [@OttoWinter](https://github.com/OttoWinter)
+- Fix typo in test3.yaml [esphome#1928](https://github.com/esphome/esphome/pull/1928) by [@loongyh](https://github.com/loongyh)
+- Fix error print in script/helpers.py [esphome#1935](https://github.com/esphome/esphome/pull/1935) by [@agners](https://github.com/agners)
+- Add variable bit width for Samsung protocol [esphome#1927](https://github.com/esphome/esphome/pull/1927) by [@kbx81](https://github.com/kbx81)
+- Add data sizes to log message [esphome#1938](https://github.com/esphome/esphome/pull/1938) by [@jesserockz](https://github.com/jesserockz)
+- Update generation script to add const [esphome#1945](https://github.com/esphome/esphome/pull/1945) by [@jesserockz](https://github.com/jesserockz)
+- Bump dashboard to 20210621.0 [esphome#1946](https://github.com/esphome/esphome/pull/1946) by [@balloob](https://github.com/balloob)
+- Improve DHT read timings [esphome#1901](https://github.com/esphome/esphome/pull/1901) by [@agners](https://github.com/agners)
+- More VSCode devcontainer improvements [esphome#1934](https://github.com/esphome/esphome/pull/1934) by [@agners](https://github.com/agners)
+- Validate color temperature values for RGBWW/CWWW lights [esphome#1957](https://github.com/esphome/esphome/pull/1957) by [@oxan](https://github.com/oxan)
+- Fix on_multi_click min_length [esphome#1960](https://github.com/esphome/esphome/pull/1960) by [@jesserockz](https://github.com/jesserockz)
+- Climate component for Ballu air conditioners with remote model YKR-K/002E [esphome#1939](https://github.com/esphome/esphome/pull/1939) by [@bazuchan](https://github.com/bazuchan) (new-integration)
+- Simplify initializing glyph_data [esphome#1970](https://github.com/esphome/esphome/pull/1970) by [@gladhorn](https://github.com/gladhorn)
+- Add device_class support for MQTT integration [esphome#1832](https://github.com/esphome/esphome/pull/1832) by [@definitio](https://github.com/definitio)
+- Rename master branch to release [esphome#1976](https://github.com/esphome/esphome/pull/1976) by [@OttoWinter](https://github.com/OttoWinter)
+- Fix tuya fan speed send [esphome#1978](https://github.com/esphome/esphome/pull/1978) by [@trvrnrth](https://github.com/trvrnrth)
+- Time Based Cover: Fixed apparent race condition on ESP32 chips [esphome#1984](https://github.com/esphome/esphome/pull/1984) by [@pdoidge](https://github.com/pdoidge)
+- Fix invalid escape sequences in regex (fix pytest warning) [esphome#1814](https://github.com/esphome/esphome/pull/1814) by [@oxan](https://github.com/oxan)
+- Bump hypothesis from 5.21.0 to 5.49.0 [esphome#1753](https://github.com/esphome/esphome/pull/1753) by [@mweinelt](https://github.com/mweinelt)
+- Bump pytest-mock from 3.5.1 to 3.6.1 [esphome#1754](https://github.com/esphome/esphome/pull/1754) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- hlw8012: fix constants for BL0937 [esphome#1973](https://github.com/esphome/esphome/pull/1973) by [@ianchi](https://github.com/ianchi)
+- Anova ble component [esphome#1752](https://github.com/esphome/esphome/pull/1752) by [@buxtronix](https://github.com/buxtronix) (new-integration)
+- Add stepper.set_acceleration and stepper.set_deceleration to stepper component [esphome#1977](https://github.com/esphome/esphome/pull/1977) by [@WeekendWarrior1](https://github.com/WeekendWarrior1)
+- remote_receiver use config parent receiver for registering dumpers [esphome#1980](https://github.com/esphome/esphome/pull/1980) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Don't try compat parsing for "esphome version" [esphome#1966](https://github.com/esphome/esphome/pull/1966) by [@oxan](https://github.com/oxan)
+- Change color model to fix white channel issues [esphome#1895](https://github.com/esphome/esphome/pull/1895) by [@oxan](https://github.com/oxan) (breaking-change)
+- Allow WiFi AP to use device name [esphome#1990](https://github.com/esphome/esphome/pull/1990) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Support custom fan modes in mqtt_climate [esphome#1989](https://github.com/esphome/esphome/pull/1989) by [@mgorven](https://github.com/mgorven)
+- Bump protobuf from 3.17.0 to 3.17.3 [esphome#1986](https://github.com/esphome/esphome/pull/1986) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-cov from 2.11.1 to 2.12.1 [esphome#1855](https://github.com/esphome/esphome/pull/1855) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-asyncio from 0.14.0 to 0.15.1 [esphome#1793](https://github.com/esphome/esphome/pull/1793) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Improve climate mode code docs [esphome#1995](https://github.com/esphome/esphome/pull/1995) by [@OttoWinter](https://github.com/OttoWinter)
+- Climate modes COOL and HEAT are auto modes [esphome#1994](https://github.com/esphome/esphome/pull/1994) by [@carstenschroeder](https://github.com/carstenschroeder)
+- Add state callback to ota component [esphome#1816](https://github.com/esphome/esphome/pull/1816) by [@mmakaay](https://github.com/mmakaay)
+- Fix deprecation message for old climate swing mode methods [esphome#2003](https://github.com/esphome/esphome/pull/2003) by [@oxan](https://github.com/oxan)
+- Add Number entities (from Home Assistant) [esphome#1971](https://github.com/esphome/esphome/pull/1971) by [@jesserockz](https://github.com/jesserockz) (new-feature) (new-integration) (notable-change)
+- Fixed lolin32 lite key [esphome#2001](https://github.com/esphome/esphome/pull/2001) by [@monkeyclass](https://github.com/monkeyclass)
+- Add support for IBS-TH1 External Sensor [esphome#1983](https://github.com/esphome/esphome/pull/1983) by [@MikkoTervala](https://github.com/MikkoTervala)
+- Bang bang climate new mode meanings [esphome#1996](https://github.com/esphome/esphome/pull/1996) by [@OttoWinter](https://github.com/OttoWinter)
+- Sgp30 sensor improvements [esphome#1510](https://github.com/esphome/esphome/pull/1510) by [@huubeikens](https://github.com/huubeikens)
+- Color brightness fixes [esphome#2008](https://github.com/esphome/esphome/pull/2008) by [@oxan](https://github.com/oxan)
+- Bump black from 21.5b1 to 21.6b0 [esphome#2011](https://github.com/esphome/esphome/pull/2011) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Added support for havells_solar sensor [esphome#1988](https://github.com/esphome/esphome/pull/1988) by [@sourabhjaiswal](https://github.com/sourabhjaiswal) (new-integration)
+- Remove a whole bunch of deprecated/removed stuff [esphome#1981](https://github.com/esphome/esphome/pull/1981) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- catch 0.0 in float set_level pre-adjustment [esphome#2013](https://github.com/esphome/esphome/pull/2013) by [@WeekendWarrior1](https://github.com/WeekendWarrior1) (breaking-change)
+- Introduce clamp as a template function [esphome#1953](https://github.com/esphome/esphome/pull/1953) by [@agners](https://github.com/agners)
+- [Teleinfo] do not stop parsing frame if there is only a CRC error on … [esphome#1999](https://github.com/esphome/esphome/pull/1999) by [@St4n](https://github.com/St4n)
+- Nextion upload and sensors [esphome#1464](https://github.com/esphome/esphome/pull/1464) by [@SenexCrenshaw](https://github.com/SenexCrenshaw) (cherry-picked) (new-feature) (notable-change)
+- Fix ethernet component hostname handling [esphome#2010](https://github.com/esphome/esphome/pull/2010) by [@flacjacket](https://github.com/flacjacket) (cherry-picked)
+- Refactor docker build system and workflows [esphome#2023](https://github.com/esphome/esphome/pull/2023) by [@OttoWinter](https://github.com/OttoWinter) (cherry-picked)
+- GH Actions CI use GHCR [esphome#2027](https://github.com/esphome/esphome/pull/2027) by [@OttoWinter](https://github.com/OttoWinter) (cherry-picked)
+- Dashboard disable assets caching [esphome#2025](https://github.com/esphome/esphome/pull/2025) by [@OttoWinter](https://github.com/OttoWinter) (cherry-picked)
+- Improve external components error messages [esphome#2026](https://github.com/esphome/esphome/pull/2026) by [@OttoWinter](https://github.com/OttoWinter) (cherry-picked)
+- Number and Template Number updates [esphome#2036](https://github.com/esphome/esphome/pull/2036) by [@jesserockz](https://github.com/jesserockz) (cherry-picked)
+- Add restore_value to template number [esphome#2041](https://github.com/esphome/esphome/pull/2041) by [@jesserockz](https://github.com/jesserockz) (cherry-picked)
+- midea_ac: Fix turbo boost mode. Preset PRESET_BOOST. [esphome#2029](https://github.com/esphome/esphome/pull/2029) by [@dudanov](https://github.com/dudanov) (cherry-picked)
+- Bump dashboard to 20210719.0 [esphome#2043](https://github.com/esphome/esphome/pull/2043) by [@balloob](https://github.com/balloob) (cherry-picked)
+- Correct ADS1115 handling of multiple sensors in continuous mode [esphome#2016](https://github.com/esphome/esphome/pull/2016) by [@flacjacket](https://github.com/flacjacket) (cherry-picked)
+- ESP32 ADC use esp-idf [esphome#2024](https://github.com/esphome/esphome/pull/2024) by [@OttoWinter](https://github.com/OttoWinter) (cherry-picked)
+- Fix white value transition for addressable lights [esphome#2045](https://github.com/esphome/esphome/pull/2045) by [@oxan](https://github.com/oxan) (cherry-picked)
+- Adding last_reset_type to sensors that should support it. [esphome#2039](https://github.com/esphome/esphome/pull/2039) by [@jesserockz](https://github.com/jesserockz) (cherry-picked) (new-feature)
+- Remove superfluous polling on ADS1115 [esphome#2015](https://github.com/esphome/esphome/pull/2015) by [@flacjacket](https://github.com/flacjacket) (cherry-picked)
+
+{/* markdownlint-enable MD013 */}

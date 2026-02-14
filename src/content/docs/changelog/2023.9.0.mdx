@@ -1,0 +1,229 @@
+---
+description: "Changelog for ESPHome 2023.9.0."
+title: "ESPHome 2023.9.0 - 27th September 2023"
+pagefind: false
+slug: "changelog/2023.9.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["BK72xx","/components/libretiny","bk72xx.svg"],
+  ["RTL87xx","/components/libretiny","rtl87xx.svg"],
+  ["WireGuard","/components/wireguard","wireguard_custom_logo.svg","dark-invert"],
+  ["PMWCS3","/components/sensor/pmwcs3","pmwcs3.jpg"],
+  ["SEN0321","/components/sensor/sen0321","sen0321.jpg"],
+  ["LightWaveRF","/components/lightwaverf","brightness-medium.svg","dark-invert"],
+  ["BMI160","/components/sensor/bmi160","bmi160.jpg"],
+  ["SPI LED Strips","/components/light/spi_led_strip","apa102.jpg"]
+]} />
+
+## LibreTiny
+
+[LibreTiny](/components/libretiny/) is a platform for the RTL87xx and BK72xx family of chips. ESPHome
+leverages this platform and brings the powerful yet simple YAML configuration to these chips.
+
+It has been months in the making, and many back and forwards with [@kuba2k2](https://github.com/kuba2k2)
+(and all of the contributors to LibreTiny), but we finally got there and merged it in.
+
+## Wireguard
+
+[WireGuard](/components/wireguard/) is a new component that allows you to connect to a WireGuard® Peer.
+
+## LED Strips
+
+Following on from the previously added [Esp32 Rmt Led Strip](/components/light/esp32_rmt_led_strip/), we now have
+[SPI LED Strips](/components/light/spi_led_strip/). These are replacement components for
+[Neopixelbus](/components/light/neopixelbus/) and [Fastled](/components/light/fastled/) that
+do not rely on the Arduino framework.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2023.9.1 - September 28
+
+- Tuya Number Scaling [esphome#5108](https://github.com/esphome/esphome/pull/5108) by [@InvncibiltyCloak](https://github.com/InvncibiltyCloak)
+- Migrate dashboard json files to /data folder instead of wiping out [esphome#5441](https://github.com/esphome/esphome/pull/5441) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.9.2 - October 2
+
+- SPI fixes for buggy components [esphome#5446](https://github.com/esphome/esphome/pull/5446) by [@clydebarrow](https://github.com/clydebarrow)
+- Fix an Issue with IR Remote Climate and Whirlpool protocol toggle [esphome#5447](https://github.com/esphome/esphome/pull/5447) by [@the-mentor](https://github.com/the-mentor)
+- Fix SPI support for second bus on 2023.9.1 [esphome#5456](https://github.com/esphome/esphome/pull/5456) by [@angelnu](https://github.com/angelnu)
+- Ensure esphome directory exists on addon startup [esphome#5464](https://github.com/esphome/esphome/pull/5464) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.9.3 - October 3
+
+- Bump zeroconf from 0.112.0 to 0.115.0 [esphome#5432](https://github.com/esphome/esphome/pull/5432) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- add pin config for denky_d4 [esphome#5471](https://github.com/esphome/esphome/pull/5471) by [@alucryd](https://github.com/alucryd)
+- Support RP2040 hardware SPI [esphome#5466](https://github.com/esphome/esphome/pull/5466) by [@clydebarrow](https://github.com/clydebarrow)
+- Bump zeroconf from 0.115.0 to 0.115.1 [esphome#5470](https://github.com/esphome/esphome/pull/5470) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Sleep mode fix for BP5758D driver [esphome#5461](https://github.com/esphome/esphome/pull/5461) by [@dwildstr](https://github.com/dwildstr)
+- Tuya Number: split "multiply" to a separate option [esphome#5458](https://github.com/esphome/esphome/pull/5458) by [@paravoid](https://github.com/paravoid)
+
+## Breaking Changes
+
+### Home Assistant Add-on
+
+The `/config/esphome/.esphome` folder has been removed and replaced with `/data` when running ESPHome as a Home Assistant add-on.
+This was done because it is exactly what the add-on `/data` folder was made for and there were many files in the `.esphome` folder
+that were making the Home Assistant Backup larger for no reason at all. All files in there are generated or sourced from online based
+on your configurations files which have not been touched.
+
+> [!NOTE]
+> 2023.9.1 makes a further small change that moves the `json` files used by the dashboard into the new `/data` folder.
+> If you had already updated to 2023.9.0 though, the files would have already been removed and they will be re-generated
+> next time you install each device.
+
+### Enum device class
+
+The `enum` device class was removed from ESPHome to keep in sync with Home Assistant. The class was already not able to be used by
+any of the built in components and only potentially used by `external_components`.
+
+## Full list of changes
+
+### New Components
+
+- Add pmwcs3 capacitive soil moisture & temperature sensor component [esphome#4624](https://github.com/esphome/esphome/pull/4624) by [@SeByDocKy](https://github.com/SeByDocKy) (new-integration)
+- Support for LibreTiny platform (RTL8710, BK7231 & other modules) [esphome#3509](https://github.com/esphome/esphome/pull/3509) by [@kuba2k2](https://github.com/kuba2k2) (new-integration)
+- Adding DFRobot Ozone Sensor Support (sen0321) [esphome#4782](https://github.com/esphome/esphome/pull/4782) by [@notjj](https://github.com/notjj) (new-integration)
+- Integration LightwaveRF switches [esphome#4812](https://github.com/esphome/esphome/pull/4812) by [@max246](https://github.com/max246) (new-integration)
+- Refactor SPI code; Add ESP-IDF hardware support [esphome#5311](https://github.com/esphome/esphome/pull/5311) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- Add BMI160 support [esphome#5143](https://github.com/esphome/esphome/pull/5143) by [@flaviut](https://github.com/flaviut) (new-integration)
+- Native SPI RGB LED component [esphome#5288](https://github.com/esphome/esphome/pull/5288) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- Wireguard component [esphome#4256](https://github.com/esphome/esphome/pull/4256) by [@lhoracek](https://github.com/lhoracek) (new-integration)
+
+### Breaking Changes
+
+- Synchronise Device Classes from Home Assistant [esphome#5328](https://github.com/esphome/esphome/pull/5328) by [@esphomebot](https://github.com/esphomebot) (breaking-change)
+- Use /data directory for .esphome folder when running as HA add-on [esphome#5374](https://github.com/esphome/esphome/pull/5374) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+
+### Beta Changes
+
+- Add patch to apt install [esphome#5389](https://github.com/esphome/esphome/pull/5389) by [@synesthesiam](https://github.com/synesthesiam)
+- Fix Waveshare 7.5v2 epaper screens are always powered on [esphome#5283](https://github.com/esphome/esphome/pull/5283) by [@phoenixswiss](https://github.com/phoenixswiss)
+- Update radon_eye_listener.cpp [esphome#5401](https://github.com/esphome/esphome/pull/5401) by [@rmmacias](https://github.com/rmmacias)
+- Add shelly-dimmer-stm32 51.7 to known versions [esphome#5400](https://github.com/esphome/esphome/pull/5400) by [@trvrnrth](https://github.com/trvrnrth)
+- Add E-Trailer Gaslevel support to Mopeka Std Check [esphome#5397](https://github.com/esphome/esphome/pull/5397) by [@Phhere](https://github.com/Phhere)
+- fix disabled wifi power on 8266 [esphome#5409](https://github.com/esphome/esphome/pull/5409) by [@ssieb](https://github.com/ssieb)
+- fix handling of web server version [esphome#5405](https://github.com/esphome/esphome/pull/5405) by [@ssieb](https://github.com/ssieb)
+- Climate preset fix [esphome#5407](https://github.com/esphome/esphome/pull/5407) by [@Jorre05](https://github.com/Jorre05)
+- Remove Wi-Fi dependency from Midea component [esphome#5394](https://github.com/esphome/esphome/pull/5394) by [@AnthonyMaiorani](https://github.com/AnthonyMaiorani)
+- http_request: Cleanups and safety improvements [esphome#5360](https://github.com/esphome/esphome/pull/5360) by [@kpfleming](https://github.com/kpfleming)
+- Make the pulse meter timeout on startup when no pulses are received [esphome#5388](https://github.com/esphome/esphome/pull/5388) by [@TrentHouliston](https://github.com/TrentHouliston)
+- Wizard: fix colored text in input prompts [esphome#5313](https://github.com/esphome/esphome/pull/5313) by [@kuba2k2](https://github.com/kuba2k2)
+- support keypads with pulldowns [esphome#5404](https://github.com/esphome/esphome/pull/5404) by [@ssieb](https://github.com/ssieb)
+- Fix SPI inverted clock on ESP8266 [esphome#5416](https://github.com/esphome/esphome/pull/5416) by [@clydebarrow](https://github.com/clydebarrow)
+- [RP2040W] Fix WiFi bootloop upon LibreTiny support [esphome#5414](https://github.com/esphome/esphome/pull/5414) by [@hostcc](https://github.com/hostcc)
+- dallas: limit addresses to 64 bits [esphome#5413](https://github.com/esphome/esphome/pull/5413) by [@oddstr13](https://github.com/oddstr13)
+- Bump zeroconf from 0.108.0 to 0.112.0 [esphome#5392](https://github.com/esphome/esphome/pull/5392) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- LibreTiny: enable MQTT, bump to v1.4.1 [esphome#5419](https://github.com/esphome/esphome/pull/5419) by [@kuba2k2](https://github.com/kuba2k2)
+- Wireguard keepalive remove uint16 type [esphome#5430](https://github.com/esphome/esphome/pull/5430) by [@glmnet](https://github.com/glmnet)
+- Fix #4896 and #4903 [esphome#5433](https://github.com/esphome/esphome/pull/5433) by [@clydebarrow](https://github.com/clydebarrow)
+
+### All changes
+
+- Updated my username in Code Owners [esphome#5247](https://github.com/esphome/esphome/pull/5247) by [@mreditor97](https://github.com/mreditor97)
+- remote_base: change dumpers log level [esphome#5253](https://github.com/esphome/esphome/pull/5253) by [@dudanov](https://github.com/dudanov)
+- Add `libfreetype-dev` Debian package for armv7 Docker builds [esphome#5262](https://github.com/esphome/esphome/pull/5262) by [@pierlon](https://github.com/pierlon)
+- Add delay before enabling ipv6 [esphome#5256](https://github.com/esphome/esphome/pull/5256) by [@HeMan](https://github.com/HeMan)
+- Bump zeroconf from 0.74.0 to 0.80.0 [esphome#5260](https://github.com/esphome/esphome/pull/5260) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump click from 8.1.6 to 8.1.7 [esphome#5272](https://github.com/esphome/esphome/pull/5272) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Remove support for ESP-IDF version < 4 [esphome#5261](https://github.com/esphome/esphome/pull/5261) by [@HeMan](https://github.com/HeMan)
+- Add pmwcs3 capacitive soil moisture & temperature sensor component [esphome#4624](https://github.com/esphome/esphome/pull/4624) by [@SeByDocKy](https://github.com/SeByDocKy) (new-integration)
+- Add manufacturer data config to BLE server [esphome#5251](https://github.com/esphome/esphome/pull/5251) by [@clydebarrow](https://github.com/clydebarrow)
+- Add support for `ESP32-{S2,S3,C3}` to debug component [esphome#4731](https://github.com/esphome/esphome/pull/4731) by [@jayme-github](https://github.com/jayme-github)
+- Support for ESP32-C2 & ESP32-C6 [esphome#4377](https://github.com/esphome/esphome/pull/4377) by [@vidplace7](https://github.com/vidplace7)
+- Bump arduino-heatpumpir to v1.0.23 [esphome#5269](https://github.com/esphome/esphome/pull/5269) by [@rob-deutsch](https://github.com/rob-deutsch)
+- Fix equality check when setting current-based cover position [esphome#5167](https://github.com/esphome/esphome/pull/5167) by [@kroimon](https://github.com/kroimon)
+- Bump platformio from 6.1.9 to 6.1.10 [esphome#5237](https://github.com/esphome/esphome/pull/5237) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add Invert method for SSD1306 [esphome#5292](https://github.com/esphome/esphome/pull/5292) by [@max246](https://github.com/max246)
+- Update PSRAM config params for IDF4+ [esphome#5298](https://github.com/esphome/esphome/pull/5298) by [@kbx81](https://github.com/kbx81)
+- Fix legacy zeroconf record update method [esphome#5294](https://github.com/esphome/esphome/pull/5294) by [@bdraco](https://github.com/bdraco)
+- Bump zeroconf from 0.80.0 to 0.86.0 [esphome#5308](https://github.com/esphome/esphome/pull/5308) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add PSRAM mode and speed config [esphome#5312](https://github.com/esphome/esphome/pull/5312) by [@kbx81](https://github.com/kbx81)
+- Add extra SLPOUT for waking up some ST7789 chips [esphome#5319](https://github.com/esphome/esphome/pull/5319) by [@clydebarrow](https://github.com/clydebarrow)
+- 7789 controller fixes take 2 [esphome#5320](https://github.com/esphome/esphome/pull/5320) by [@clydebarrow](https://github.com/clydebarrow)
+- Bump Arduino Pico to 3.4.0 [esphome#5321](https://github.com/esphome/esphome/pull/5321) by [@HeMan](https://github.com/HeMan)
+- Use gzip compression for the web server component's static resources [esphome#5291](https://github.com/esphome/esphome/pull/5291) by [@EternityForest](https://github.com/EternityForest)
+- Bump zeroconf from 0.86.0 to 0.88.0 [esphome#5315](https://github.com/esphome/esphome/pull/5315) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Adding heating coil and fan icons, enum device_class [esphome#5325](https://github.com/esphome/esphome/pull/5325) by [@barndawgie](https://github.com/barndawgie)
+- Add dashboard API to get firmware binaries [esphome#4675](https://github.com/esphome/esphome/pull/4675) by [@kuba2k2](https://github.com/kuba2k2)
+- Make uart error message go away [esphome#5329](https://github.com/esphome/esphome/pull/5329) by [@clydebarrow](https://github.com/clydebarrow)
+- add heating functionality to SI7021 [esphome#4828](https://github.com/esphome/esphome/pull/4828) by [@max246](https://github.com/max246)
+- Bump esphome-dashboard to 20230904.0 [esphome#5339](https://github.com/esphome/esphome/pull/5339) by [@jesserockz](https://github.com/jesserockz)
+- Added Handling for Nack "file not found" [esphome#5338](https://github.com/esphome/esphome/pull/5338) by [@croessi](https://github.com/croessi)
+- Prepare api and time for ESP-IDF ≥ 5 [esphome#5332](https://github.com/esphome/esphome/pull/5332) by [@HeMan](https://github.com/HeMan)
+- Tweak Improv serial to build in IDF 5 [esphome#5331](https://github.com/esphome/esphome/pull/5331) by [@kbx81](https://github.com/kbx81)
+- Support for LibreTiny platform (RTL8710, BK7231 & other modules) [esphome#3509](https://github.com/esphome/esphome/pull/3509) by [@kuba2k2](https://github.com/kuba2k2) (new-integration)
+- Extend ESP32 CAN bit rates /bus speed support [esphome#5280](https://github.com/esphome/esphome/pull/5280) by [@mkaiser](https://github.com/mkaiser)
+- Debug component: add free PSRAM sensor [esphome#5334](https://github.com/esphome/esphome/pull/5334) by [@kahrendt](https://github.com/kahrendt)
+- libretiny: fix uart_port framework config [esphome#5343](https://github.com/esphome/esphome/pull/5343) by [@jesserockz](https://github.com/jesserockz)
+- Bump actions/checkout from 3 to 4 [esphome#5341](https://github.com/esphome/esphome/pull/5341) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add Lilygo T-Embed to st7789v display config. [esphome#5337](https://github.com/esphome/esphome/pull/5337) by [@clydebarrow](https://github.com/clydebarrow)
+- Disable IPv6 when config explicitly says false [esphome#5310](https://github.com/esphome/esphome/pull/5310) by [@HeMan](https://github.com/HeMan)
+- Add defines.h to ethernet_component.h for ENABLE_IPV6 [esphome#5344](https://github.com/esphome/esphome/pull/5344) by [@kbx81](https://github.com/kbx81)
+- Synchronise Device Classes from Home Assistant [esphome#5328](https://github.com/esphome/esphome/pull/5328) by [@esphomebot](https://github.com/esphomebot) (breaking-change)
+- Bump pytest from 7.4.0 to 7.4.1 [esphome#5342](https://github.com/esphome/esphome/pull/5342) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fixed default temperature step values for haier climate [esphome#5330](https://github.com/esphome/esphome/pull/5330) by [@paveldn](https://github.com/paveldn)
+- Add debug component to all tests [esphome#5333](https://github.com/esphome/esphome/pull/5333) by [@HeMan](https://github.com/HeMan)
+- Support MaxBotix XL in addition to HRXL [esphome#4510](https://github.com/esphome/esphome/pull/4510) by [@notjj](https://github.com/notjj)
+- Adding DFRobot Ozone Sensor Support (sen0321) [esphome#4782](https://github.com/esphome/esphome/pull/4782) by [@notjj](https://github.com/notjj) (new-integration)
+- mdns: bump IDF mdns component to 1.2.0 [esphome#5217](https://github.com/esphome/esphome/pull/5217) by [@stintel](https://github.com/stintel)
+- Integration LightwaveRF switches [esphome#4812](https://github.com/esphome/esphome/pull/4812) by [@max246](https://github.com/max246) (new-integration)
+- Bump flake8 from 6.0.0 to 6.1.0 [esphome#5171](https://github.com/esphome/esphome/pull/5171) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump tornado from 6.3.2 to 6.3.3 [esphome#5236](https://github.com/esphome/esphome/pull/5236) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump platformio from 6.1.10 to 6.1.11 [esphome#5323](https://github.com/esphome/esphome/pull/5323) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Only run ci-docker when ci-docker workflow changes [esphome#5347](https://github.com/esphome/esphome/pull/5347) by [@jesserockz](https://github.com/jesserockz)
+- esp32: Extra build customization [esphome#5322](https://github.com/esphome/esphome/pull/5322) by [@jesserockz](https://github.com/jesserockz)
+- Allow upload command to flash file via serial [esphome#5274](https://github.com/esphome/esphome/pull/5274) by [@jesserockz](https://github.com/jesserockz)
+- Allow "--device SERIAL" on cli to flash only via serial [esphome#5351](https://github.com/esphome/esphome/pull/5351) by [@jesserockz](https://github.com/jesserockz)
+- Fix PN532 for IDF 5 and ultralight enhancements [esphome#5352](https://github.com/esphome/esphome/pull/5352) by [@kbx81](https://github.com/kbx81)
+- Fix cpu_ll_get_cycle_count() deprecated warning [esphome#5353](https://github.com/esphome/esphome/pull/5353) by [@kbx81](https://github.com/kbx81)
+- Refactor SPI code; Add ESP-IDF hardware support [esphome#5311](https://github.com/esphome/esphome/pull/5311) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- Bump actions/cache from 3.3.1 to 3.3.2 [esphome#5367](https://github.com/esphome/esphome/pull/5367) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump zeroconf from 0.88.0 to 0.102.0 [esphome#5368](https://github.com/esphome/esphome/pull/5368) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix repeat.count = 0 case [esphome#5364](https://github.com/esphome/esphome/pull/5364) by [@Xmister](https://github.com/Xmister)
+- Fix dashboard download for ESP32 variants [esphome#5355](https://github.com/esphome/esphome/pull/5355) by [@kuba2k2](https://github.com/kuba2k2)
+- Bump pytest from 7.4.1 to 7.4.2 [esphome#5357](https://github.com/esphome/esphome/pull/5357) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [ADC] Support measuring VCC on Raspberry Pico (W) [esphome#5335](https://github.com/esphome/esphome/pull/5335) by [@hostcc](https://github.com/hostcc)
+- Move CONF_PHASE_A/B/C constants to const.py. [esphome#5304](https://github.com/esphome/esphome/pull/5304) by [@kpfleming](https://github.com/kpfleming)
+- Add BMI160 support [esphome#5143](https://github.com/esphome/esphome/pull/5143) by [@flaviut](https://github.com/flaviut) (new-integration)
+- Use black-pre-commit-mirror to speed up pre-commit runs. [esphome#5372](https://github.com/esphome/esphome/pull/5372) by [@kpfleming](https://github.com/kpfleming)
+- Native SPI RGB LED component [esphome#5288](https://github.com/esphome/esphome/pull/5288) by [@clydebarrow](https://github.com/clydebarrow) (new-integration)
+- Wireguard component [esphome#4256](https://github.com/esphome/esphome/pull/4256) by [@lhoracek](https://github.com/lhoracek) (new-integration)
+- Bump LibreTiny version to 1.4.0 [esphome#5375](https://github.com/esphome/esphome/pull/5375) by [@kuba2k2](https://github.com/kuba2k2)
+- time: Make `std::string` version of strftime() avoid runaway memory allocations [esphome#5348](https://github.com/esphome/esphome/pull/5348) by [@kpfleming](https://github.com/kpfleming)
+- Fix disabled wifi crash on boot [esphome#5370](https://github.com/esphome/esphome/pull/5370) by [@Xmister](https://github.com/Xmister)
+- debug: add ESP32-C6 support [esphome#5354](https://github.com/esphome/esphome/pull/5354) by [@stintel](https://github.com/stintel)
+- Make string globals persist-able using fixed size allocations [esphome#5296](https://github.com/esphome/esphome/pull/5296) by [@EternityForest](https://github.com/EternityForest)
+- Use /data directory for .esphome folder when running as HA add-on [esphome#5374](https://github.com/esphome/esphome/pull/5374) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Bump zeroconf from 0.102.0 to 0.108.0 [esphome#5376](https://github.com/esphome/esphome/pull/5376) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump black from 23.7.0 to 23.9.1 [esphome#5377](https://github.com/esphome/esphome/pull/5377) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Attempt to fix rp2040 adc with vcc [esphome#5378](https://github.com/esphome/esphome/pull/5378) by [@jesserockz](https://github.com/jesserockz)
+- Enable IPv6 for ESP8266 and Raspberry pi pico w (RP2040) [esphome#4759](https://github.com/esphome/esphome/pull/4759) by [@HeMan](https://github.com/HeMan)
+- Workflow updates [esphome#5384](https://github.com/esphome/esphome/pull/5384) by [@jesserockz](https://github.com/jesserockz)
+- Modbus Controller added some features [esphome#5318](https://github.com/esphome/esphome/pull/5318) by [@0x3333](https://github.com/0x3333)
+- Force heater off on setup [esphome#5161](https://github.com/esphome/esphome/pull/5161) by [@rufuswilson](https://github.com/rufuswilson)
+- Add IDF 5 test yaml, add adc to IDF tests, fix adc for IDF 5 [esphome#5379](https://github.com/esphome/esphome/pull/5379) by [@kbx81](https://github.com/kbx81)
+- Add patch to apt install [esphome#5389](https://github.com/esphome/esphome/pull/5389) by [@synesthesiam](https://github.com/synesthesiam)
+- Fix Waveshare 7.5v2 epaper screens are always powered on [esphome#5283](https://github.com/esphome/esphome/pull/5283) by [@phoenixswiss](https://github.com/phoenixswiss)
+- Update radon_eye_listener.cpp [esphome#5401](https://github.com/esphome/esphome/pull/5401) by [@rmmacias](https://github.com/rmmacias)
+- Add shelly-dimmer-stm32 51.7 to known versions [esphome#5400](https://github.com/esphome/esphome/pull/5400) by [@trvrnrth](https://github.com/trvrnrth)
+- Add E-Trailer Gaslevel support to Mopeka Std Check [esphome#5397](https://github.com/esphome/esphome/pull/5397) by [@Phhere](https://github.com/Phhere)
+- fix disabled wifi power on 8266 [esphome#5409](https://github.com/esphome/esphome/pull/5409) by [@ssieb](https://github.com/ssieb)
+- fix handling of web server version [esphome#5405](https://github.com/esphome/esphome/pull/5405) by [@ssieb](https://github.com/ssieb)
+- Climate preset fix [esphome#5407](https://github.com/esphome/esphome/pull/5407) by [@Jorre05](https://github.com/Jorre05)
+- Remove Wi-Fi dependency from Midea component [esphome#5394](https://github.com/esphome/esphome/pull/5394) by [@AnthonyMaiorani](https://github.com/AnthonyMaiorani)
+- http_request: Cleanups and safety improvements [esphome#5360](https://github.com/esphome/esphome/pull/5360) by [@kpfleming](https://github.com/kpfleming)
+- Make the pulse meter timeout on startup when no pulses are received [esphome#5388](https://github.com/esphome/esphome/pull/5388) by [@TrentHouliston](https://github.com/TrentHouliston)
+- Wizard: fix colored text in input prompts [esphome#5313](https://github.com/esphome/esphome/pull/5313) by [@kuba2k2](https://github.com/kuba2k2)
+- support keypads with pulldowns [esphome#5404](https://github.com/esphome/esphome/pull/5404) by [@ssieb](https://github.com/ssieb)
+- Fix SPI inverted clock on ESP8266 [esphome#5416](https://github.com/esphome/esphome/pull/5416) by [@clydebarrow](https://github.com/clydebarrow)
+- [RP2040W] Fix WiFi bootloop upon LibreTiny support [esphome#5414](https://github.com/esphome/esphome/pull/5414) by [@hostcc](https://github.com/hostcc)
+- dallas: limit addresses to 64 bits [esphome#5413](https://github.com/esphome/esphome/pull/5413) by [@oddstr13](https://github.com/oddstr13)
+- Bump zeroconf from 0.108.0 to 0.112.0 [esphome#5392](https://github.com/esphome/esphome/pull/5392) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- LibreTiny: enable MQTT, bump to v1.4.1 [esphome#5419](https://github.com/esphome/esphome/pull/5419) by [@kuba2k2](https://github.com/kuba2k2)
+- Wireguard keepalive remove uint16 type [esphome#5430](https://github.com/esphome/esphome/pull/5430) by [@glmnet](https://github.com/glmnet)
+- Fix #4896 and #4903 [esphome#5433](https://github.com/esphome/esphome/pull/5433) by [@clydebarrow](https://github.com/clydebarrow)
+
+{/* markdownlint-enable MD013 */}

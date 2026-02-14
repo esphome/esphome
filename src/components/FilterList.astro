@@ -1,0 +1,24 @@
+---
+// Dynamically import all filter MDX files as components
+const filterModules = import.meta.glob('../content/docs/components/sensor/filter/*.mdx', { eager: true });
+
+// Sort and prepare entries
+const sortedFilters = Object.entries(filterModules)
+  .sort(([pathA], [pathB]) => pathA.localeCompare(pathB))
+  .map(([path, module]) => ({
+    path,
+    Component: (module as any).default
+  }));
+---
+
+{sortedFilters.map(({ path, Component }) => (
+  <div key={path} class="filter-section">
+    <Component />
+  </div>
+))}
+
+<style>
+  .filter-section {
+    margin-bottom: 2rem;
+  }
+</style>

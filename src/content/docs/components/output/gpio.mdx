@@ -1,0 +1,40 @@
+---
+description: "Instructions for setting up binary outputs for GPIO pins."
+title: "GPIO Output"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+The GPIO output component is quite simple: It exposes a single GPIO pin
+as an output component. Note that output components are **not** switches and
+will not show up in Home Assistant. See [Gpio](/components/switch/gpio/).
+
+```yaml
+# Example configuration entry
+output:
+  - platform: gpio
+    pin: GPIOXX
+    id: gpio_d1
+```
+
+## Configuration variables
+
+- **pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The pin to turn on and off.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this output component.
+- All other options from [Output](/components/output#config-output).
+
+> [!WARNING]
+> This is an **output component** and will not be visible from the frontend. Output components are intermediary
+> components that can be attached to for example lights. To have a GPIO pin in the Home Assistant frontend, please
+> see the [Gpio](/components/switch/gpio/).
+
+## See Also
+
+- [GPIO Switch](/components/switch/gpio/)
+- [Output Component](/components/output/)
+- [ESP8266 Software PWM Output](/components/output/esp8266_pwm/)
+- [ESP32 LEDC Output](/components/output/ledc/)
+- [Binary Light](/components/light/binary/)
+- [Binary Fan](/components/fan/binary/)
+- [Power Supply Component](/components/power_supply/)
+- <APIRef text="gpio_binary_output.h" path="gpio/output/gpio_binary_output.h" />

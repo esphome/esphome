@@ -1,16 +1,19 @@
 [build]
-  publish = "public"
-  command = "make netlify"
-  environment = { HUGO_BASEURL = "https://esphome.io", HUGOxPARAMSxAPI_DOCS_URL = "https://api-docs.esphome.io", PYTHON_VERSION = "3.12", HUGO_VERSION = "0.147.8" }
+  publish = "dist"
+  command = "sed -i \"s|{{API_DOCS_URL}}|${API_DOCS_URL}|g\" netlify.toml && npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+  API_DOCS_URL = "https://api-docs.esphome.io"
 
 [context.beta]
-  environment = { HUGO_BASEURL = "https://beta.esphome.io", HUGOxPARAMSxAPI_DOCS_URL = "https://api-docs-beta.esphome.io" }
+  environment = { SITE_URL = "https://beta.esphome.io", API_DOCS_URL = "https://api-docs-beta.esphome.io" }
 
 [context.next]
-  environment = { HUGO_BASEURL = "https://next.esphome.io", HUGOxPARAMSxAPI_DOCS_URL = "https://api-docs-dev.esphome.io" }
+  environment = { SITE_URL = "https://next.esphome.io", API_DOCS_URL = "https://api-docs-dev.esphome.io" }
 
 [context.production]
-  environment = { HUGO_BASEURL = "https://esphome.io", HUGOxPARAMSxAPI_DOCS_URL = "https://api-docs.esphome.io" }
+  environment = { SITE_URL = "https://esphome.io", API_DOCS_URL = "https://api-docs.esphome.io" }
 
 
 # Caching HTML - 1 week
@@ -24,6 +27,17 @@
   for = "/*.{png,jpg,jpeg,gif,webp,svg,css,js}"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# Hugo taxonomy pages - redirect to homepage
+[[redirects]]
+  from = "/categories/*"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/tags/*"
+  to = "/"
+  status = 301
 
 [[redirects]]
 from = "/_images/*"
@@ -41,11 +55,10 @@ status = 301
   to = "https://discord.gg/KhAMKrd"
   status = 301
 
-# This redirect is for the api docs that have been moved.
-# It is replaced by sed in the makefile when netlify is building the site.
+# API docs redirect - substituted per environment by build command
 [[redirects]]
   from = "/api/*"
-  to = "{{HUGOxPARAMSxAPI_DOCS_URL}}/:splat"
+  to = "{{API_DOCS_URL}}/:splat"
   status = 301
 
 # Webserver files
@@ -327,4 +340,11 @@ status = 301
 [[redirects]]
   from = "/components/display/qspi_amoled.html"
   to = "/components/display/mipi_spi.html"
+  status = 301
+
+# Starlight URL compatibility - trailing slash redirects
+# Hugo used .html extensions, Starlight uses trailing slashes
+[[redirects]]
+  from = "/*.html"
+  to = "/:splat/"
   status = 301

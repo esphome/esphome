@@ -1,0 +1,200 @@
+---
+description: "Changelog for ESPHome 2022.6.0."
+title: "ESPHome 2022.6.0 - 15th June 2022"
+pagefind: false
+slug: "changelog/2022.6.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Tuya Select","/components/select/tuya","tuya.png"],
+  ["SGP41","/components/sensor/sgp4x","sgp40.jpg"],
+  ["Media Player Core","/components/media_player/index","folder-open.svg","dark-invert"],
+  ["I2S Audio","/components/media_player/i2s_audio","i2s_audio.svg"]
+]} />
+
+We are almost half way through 2022 already! My, how fast time flies when we
+are having fun with ESPHome. This release is kind of small, but packs some big features.
+There will be no 2022.7.0 (July) release next month as I ([@jesserockz](https://github.com/jesserockz)) will be away
+around that time. So lets hope we can make 2022.8.0 worth the wait.
+
+## 🎶🎶🎶 Media Players
+
+ESPHome can now become a media player target for Home Assistant. This allows users to buy or build
+ESP32 based speakers and place them around the house.
+
+We made a small website showing you a few tested [Media Players](https://esphome.github.io/media-players) and you can
+install ESPHome directly to them via the browser using ESP Web Tools.
+
+Join us in a live stream all about Audio in the Open Home!
+
+When: Thursday, June 16, at 7pm UTC / 12pm PST / 9pm CET
+
+{/* markdownlint-disable-next-line MD033 */}
+<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/SEH-DxOsywg"
+        title="YouTube video player" frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen>
+</iframe>
+
+## Includes with vars
+
+[@jimtng](https://github.com/jimtng) is a newcomer to ESPHome. While migrating everything from a certain other
+firmware, they found that they had to duplicate lots of yaml configuration for their many devices.
+Basically, they decided to upgrade the `!include` yaml "directive" to allow variables.
+
+```yaml
+# device.yaml
+binary_sensor:
+  - <<: !include
+      file: bin-sensor.yaml
+      vars:
+        pin: GPIO1
+        name: "Binary Sensor 1"
+        switch: my_switch_1_id
+        delay: 10s
+  - <<: !include
+      file: bin-sensor.yaml
+      vars:
+        pin: GPIO1
+        name: "Binary Sensor 2"
+        switch: my_switch_2_id
+        delay: 60s
+
+# bin-sensor.yaml
+platform: gpio
+pin: ${pin}
+name: ${name}
+on_press:
+  - switch.turn_on: ${switch}
+  - delay: ${delay}
+  - switch.turn_off: ${switch}
+```
+
+Now while this is probably not the best example, the variables act as `substitutions`
+and can be used anywhere in the underlying yaml file and can very much DRY out your configurations.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2022.6.1 - June 18
+
+- Setup the mute pin if configured [esphome#3568](https://github.com/esphome/esphome/pull/3568) by [@jesserockz](https://github.com/jesserockz)
+- Bugfix for ExternalRAMAllocator copy constructor [esphome#3571](https://github.com/esphome/esphome/pull/3571) by [@bnw](https://github.com/bnw)
+- Media Player: added triggers [esphome#3576](https://github.com/esphome/esphome/pull/3576) by [@dudanov](https://github.com/dudanov)
+
+## Release 2022.6.2 - June 23
+
+- Move gas mbus config option being a define to being a build flag [esphome#3575](https://github.com/esphome/esphome/pull/3575) by [@lkomurcu](https://github.com/lkomurcu)
+- Fix: Make MQTT over TLS actually work [esphome#3580](https://github.com/esphome/esphome/pull/3580) by [@ShellAddicted](https://github.com/ShellAddicted)
+- Fix wrong type for voc_state*_ in sgp4x component [esphome#3581](https://github.com/esphome/esphome/pull/3581) by [@kahrendt](https://github.com/kahrendt)
+- Media Player: added play_media action [esphome#3579](https://github.com/esphome/esphome/pull/3579) by [@dudanov](https://github.com/dudanov)
+- Fix 2 small issues in BLEClient [esphome#3544](https://github.com/esphome/esphome/pull/3544) by [@jhansche](https://github.com/jhansche)
+
+## Release 2022.6.3 - August 8
+
+- FIX: Modbus queue deduplicator deleting custom commands [esphome#3650](https://github.com/esphome/esphome/pull/3650) by [@jpeletier](https://github.com/jpeletier)
+- Update inkbird_ibsth1_mini.cpp [esphome#3664](https://github.com/esphome/esphome/pull/3664) by [@ssieb](https://github.com/ssieb)
+- Add CO device class to binary_sensor [esphome#3656](https://github.com/esphome/esphome/pull/3656) by [@berg](https://github.com/berg)
+- Use application/json instead of text/json [esphome#3671](https://github.com/esphome/esphome/pull/3671) by [@ssieb](https://github.com/ssieb)
+- Use correct struct members. [esphome#3672](https://github.com/esphome/esphome/pull/3672) by [@ssieb](https://github.com/ssieb)
+
+## Breaking Changes
+
+### TCS34725 integration time
+
+The sampling settings for the TCS34725 have had a new option `auto` added and set as the default. This allows for better accuracy.
+You are able to set it back to the previous default value by specifying `integration_time: 2.4ms` in your configuration.
+
+### SGP40 moved
+
+While adding support for the SGP41 chip, the SGP40 was moved and they were both combined into a new `sgp4x` component.
+
+### MQTT fan speeds
+
+[esphome#3397](https://github.com/esphome/esphome/pull/3397) removes deprecated MQTT fan speed state and speed command topics.
+These were replaced with speed level state and command topics in ESPHome 2021.10.0.
+
+### AC Dimmer
+
+Due to an output power calculation the perceived power might vary slightly specially in the lower and upper regions.
+
+### DisplayBuffer
+
+A new virtual method was added to the DisplayBuffer class for specifying the display type. This change only affects `external_components`.
+See [esphome#3430](https://github.com/esphome/esphome/pull/3430) for more details.
+
+## Full list of changes
+
+### New Components
+
+- Add Tuya select [esphome#3469](https://github.com/esphome/esphome/pull/3469) by [@bearpawmaxim](https://github.com/bearpawmaxim) (new-integration)
+- Add support for SGP41 [esphome#3382](https://github.com/esphome/esphome/pull/3382) by [@martgras](https://github.com/martgras) (new-integration) (breaking-change)
+- Implement Media Player and I2S Media player [esphome#3487](https://github.com/esphome/esphome/pull/3487) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+
+### Breaking Changes
+
+- Tcs34725 automatic sampling settings for improved dynamics and accuracy [esphome#3258](https://github.com/esphome/esphome/pull/3258) by [@swifty99](https://github.com/swifty99) (breaking-change)
+- Add support for SGP41 [esphome#3382](https://github.com/esphome/esphome/pull/3382) by [@martgras](https://github.com/martgras) (new-integration) (breaking-change)
+- Remove deprecated fan speeds [esphome#3397](https://github.com/esphome/esphome/pull/3397) by [@kbickar](https://github.com/kbickar) (breaking-change)
+- Output a true RMS voltage % [esphome#3494](https://github.com/esphome/esphome/pull/3494) by [@josephdouce](https://github.com/josephdouce) (breaking-change)
+- Add display_type property to DisplayBuffer [esphome#3430](https://github.com/esphome/esphome/pull/3430) by [@guillempages](https://github.com/guillempages) (breaking-change)
+
+### Beta Changes
+
+- publish fan speed count for discovery [esphome#3537](https://github.com/esphome/esphome/pull/3537) by [@ssieb](https://github.com/ssieb)
+- Nextion brightness setting requires an assignment [esphome#3533](https://github.com/esphome/esphome/pull/3533) by [@nagyv](https://github.com/nagyv)
+- Implement media player volume actions [esphome#3551](https://github.com/esphome/esphome/pull/3551) by [@jesserockz](https://github.com/jesserockz)
+- Fix compilation with ESP32-S3 [esphome#3543](https://github.com/esphome/esphome/pull/3543) by [@misery](https://github.com/misery)
+- Bm3xx: Fix typo [esphome#3559](https://github.com/esphome/esphome/pull/3559) by [@martgras](https://github.com/martgras)
+
+### Notable Changes
+
+- Add variable substitutions for !include [esphome#3510](https://github.com/esphome/esphome/pull/3510) by [@jimtng](https://github.com/jimtng) (notable-change)
+
+### All changes
+
+- Tcs34725 automatic sampling settings for improved dynamics and accuracy [esphome#3258](https://github.com/esphome/esphome/pull/3258) by [@swifty99](https://github.com/swifty99) (breaking-change)
+- Remove duplicate convert_to_8bit_color function. [esphome#2469](https://github.com/esphome/esphome/pull/2469) by [@davet2001](https://github.com/davet2001)
+- Bump esptool from 3.3 to 3.3.1 [esphome#3468](https://github.com/esphome/esphome/pull/3468) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pylint from 2.13.8 to 2.13.9 [esphome#3470](https://github.com/esphome/esphome/pull/3470) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Tuya status gpio support [esphome#3466](https://github.com/esphome/esphome/pull/3466) by [@bearpawmaxim](https://github.com/bearpawmaxim)
+- Add Tuya select [esphome#3469](https://github.com/esphome/esphome/pull/3469) by [@bearpawmaxim](https://github.com/bearpawmaxim) (new-integration)
+- MQTT cover: send state even if position is available [esphome#3473](https://github.com/esphome/esphome/pull/3473) by [@pyos](https://github.com/pyos)
+- Ili9341 8bit indexed mode pt1 [esphome#2490](https://github.com/esphome/esphome/pull/2490) by [@davet2001](https://github.com/davet2001)
+- feat: esp32-camera add stream event [esphome#3285](https://github.com/esphome/esphome/pull/3285) by [@myml](https://github.com/myml)
+- Add support for SGP41 [esphome#3382](https://github.com/esphome/esphome/pull/3382) by [@martgras](https://github.com/martgras) (new-integration) (breaking-change)
+- add support user-defined modbus functions [esphome#3461](https://github.com/esphome/esphome/pull/3461) by [@gazoodle](https://github.com/gazoodle)
+- Remove deprecated fan speeds [esphome#3397](https://github.com/esphome/esphome/pull/3397) by [@kbickar](https://github.com/kbickar) (breaking-change)
+- Fix compile issues on windows [esphome#3491](https://github.com/esphome/esphome/pull/3491) by [@jesserockz](https://github.com/jesserockz)
+- midea: New power_toggle action. Auto-use remote transmitter. [esphome#3496](https://github.com/esphome/esphome/pull/3496) by [@dudanov](https://github.com/dudanov)
+- Output a true RMS voltage % [esphome#3494](https://github.com/esphome/esphome/pull/3494) by [@josephdouce](https://github.com/josephdouce) (breaking-change)
+- [scd4x] Fix not passing arguments to templatable value for perform_forced_calibration [esphome#3495](https://github.com/esphome/esphome/pull/3495) by [@Wumpf](https://github.com/Wumpf)
+- Thermostat preset with modes [esphome#3298](https://github.com/esphome/esphome/pull/3298) by [@MrMDavidson](https://github.com/MrMDavidson)
+- Allow Prometheus component to export internal components [esphome#3508](https://github.com/esphome/esphome/pull/3508) by [@jangrewe](https://github.com/jangrewe)
+- [BedJet] Add configurable heating strategy [esphome#3519](https://github.com/esphome/esphome/pull/3519) by [@jhansche](https://github.com/jhansche)
+- Add variable substitutions for !include [esphome#3510](https://github.com/esphome/esphome/pull/3510) by [@jimtng](https://github.com/jimtng) (notable-change)
+- Change rain intensity sensor string [esphome#3511](https://github.com/esphome/esphome/pull/3511) by [@wtremmel](https://github.com/wtremmel)
+- Implement Media Player and I2S Media player [esphome#3487](https://github.com/esphome/esphome/pull/3487) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add mqtt.on_connect and mqtt.on_disconnect triggers [esphome#3520](https://github.com/esphome/esphome/pull/3520) by [@jimtng](https://github.com/jimtng)
+- Refactor clock syncing [esphome#3503](https://github.com/esphome/esphome/pull/3503) by [@jhansche](https://github.com/jhansche)
+- Added RC6 protocol support [esphome#3514](https://github.com/esphome/esphome/pull/3514) by [@Emrvb](https://github.com/Emrvb)
+- Add display_type property to DisplayBuffer [esphome#3430](https://github.com/esphome/esphome/pull/3430) by [@guillempages](https://github.com/guillempages) (breaking-change)
+- Correct ADC auto-range for ESP32-S2 variant (13 bit adc) [esphome#3158](https://github.com/esphome/esphome/pull/3158) by [@CarlosGS](https://github.com/CarlosGS)
+- Suppress first rotary encoder event [esphome#3532](https://github.com/esphome/esphome/pull/3532) by [@mmakaay](https://github.com/mmakaay)
+- Fix endless 'WiFi Unknown connection status 0' loop [esphome#3530](https://github.com/esphome/esphome/pull/3530) by [@mmakaay](https://github.com/mmakaay)
+- support rotated ILI9341 (ILI9342) [esphome#3526](https://github.com/esphome/esphome/pull/3526) by [@ssieb](https://github.com/ssieb)
+- Fix sdp3x error checking [esphome#3531](https://github.com/esphome/esphome/pull/3531) by [@Azimath](https://github.com/Azimath)
+- Fix percentage validation for wrong data type input [esphome#3524](https://github.com/esphome/esphome/pull/3524) by [@mmakaay](https://github.com/mmakaay)
+- Block Tuya light from reacting to dp changes if transitioning [esphome#3076](https://github.com/esphome/esphome/pull/3076) by [@VitaliyKurokhtin](https://github.com/VitaliyKurokhtin)
+- Cleanup deprecated EntityBase::hash_base() [esphome#3525](https://github.com/esphome/esphome/pull/3525) by [@mmakaay](https://github.com/mmakaay)
+- Fix bogus reading on no communication with MAX31865 [esphome#3505](https://github.com/esphome/esphome/pull/3505) by [@DAVe3283](https://github.com/DAVe3283)
+- Implement the media player actions [esphome#3534](https://github.com/esphome/esphome/pull/3534) by [@jesserockz](https://github.com/jesserockz)
+- RG15 data is float/double, not int [esphome#3512](https://github.com/esphome/esphome/pull/3512) by [@wtremmel](https://github.com/wtremmel)
+- publish fan speed count for discovery [esphome#3537](https://github.com/esphome/esphome/pull/3537) by [@ssieb](https://github.com/ssieb)
+- Nextion brightness setting requires an assignment [esphome#3533](https://github.com/esphome/esphome/pull/3533) by [@nagyv](https://github.com/nagyv)
+- Implement media player volume actions [esphome#3551](https://github.com/esphome/esphome/pull/3551) by [@jesserockz](https://github.com/jesserockz)
+- Fix compilation with ESP32-S3 [esphome#3543](https://github.com/esphome/esphome/pull/3543) by [@misery](https://github.com/misery)
+- Bm3xx: Fix typo [esphome#3559](https://github.com/esphome/esphome/pull/3559) by [@martgras](https://github.com/martgras)
+
+{/* markdownlint-enable MD013 */}

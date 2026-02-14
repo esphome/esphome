@@ -1,0 +1,50 @@
+---
+description: "Instructions for setting up TMP102 temperature sensors."
+title: "TMP102 Temperature Sensor"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+import tmp102FullImg from './images/tmp102-full.jpg';
+import temperatureImg from './images/temperature.png';
+import APIRef from '@components/APIRef.astro';
+
+The TMP102 Temperature sensor allows you to use your TMP102
+([Sparkfun](https://www.sparkfun.com/products/13314)) and LM75 sensors with
+ESPHome. The [I²C Bus](/components/i2c) is required to be set up in your
+configuration for this sensor to work.
+
+<Figure
+  src={tmp102FullImg}
+  alt=""
+  caption="TMP102 Temperature Sensor."
+  layout="constrained"
+/>
+
+<Image src={temperatureImg} layout="constrained" alt="" />
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: tmp102
+    name: "Living Room Temperature"
+    update_interval: 60s
+```
+
+## Configuration variables
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
+- **address** (*Optional*, int): The I²C address of the sensor. Defaults to `0x48`.
+  See [I²C Addresses](/components/sensor/tmp117#tmp117_i2c_addresses) for more information.
+
+- All other options from [Sensor](/components/sensor).
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [DHT Temperature+Humidity Sensor](/components/sensor/dht/)
+- [DHT12 Temperature+Humidity Sensor](/components/sensor/dht12/)
+- [HDC1080 Temperature+Humidity Sensor](/components/sensor/hdc1080/)
+- [SHT3X-D Temperature+Humidity Sensor](/components/sensor/sht3xd/)
+- [HTU21D | Si7021 | SHT21 Temperature & Humidity Sensor](/components/sensor/htu21d/)
+- <APIRef text="tmp102.h" path="tmp102/tmp102.h" />

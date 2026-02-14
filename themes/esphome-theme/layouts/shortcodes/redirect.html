@@ -1,8 +1,0 @@
-{{/*
-  redirect shortcode: usage {{< redirect url="/some/path" >}}
-  Outputs a meta refresh and canonical link for SEO-friendly redirects.
-*/}}
-{{ $url := .Get "url" | strings.TrimSuffix "index.html" | strings.TrimSuffix ".html" }}
-<meta http-equiv="refresh" content="0; url={{ $url }}">
-<link rel="canonical" href="{{ $url }}">
-<p>You are being redirected to <a href="{{ $url }}">{{ $url }}</a>...</p>

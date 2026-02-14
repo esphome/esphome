@@ -1,0 +1,184 @@
+---
+description: "Changelog for ESPHome 2024.10.0."
+title: "ESPHome 2024.10.0 - 16th October 2024"
+pagefind: false
+slug: "changelog/2024.10.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Audio DAC Core","/components/audio_dac/index","audio_dac.svg"],
+  ["AIC3204","/components/audio_dac/aic3204","aic3204.svg"],
+  ["GP2Y1010AU0F","/components/sensor/gp2y1010au0f","gp2y1010au0f.png"],
+  ["Grove Gas V2","/components/sensor/grove_gas_mc_v2","grove-gas-mc-v2.png"],
+  ["NAU7802","/components/sensor/nau7802","nau7802.jpg"],
+  ["NPI-19","/components/sensor/npi19","npi19.jpg"],
+  ["TCA9555","/components/tca9555","tca9555.svg"],
+  ["TE-M3200","/components/sensor/tem3200","tem3200.jpg"]
+]} />
+
+## Web Server Grouping
+
+For those that use the [Web Server](/components/web_server/) with version 3, there is a new
+grouping feature that allows for custom/user defined groups of entities.
+
+This is also a breaking change as the previous `web_server_sorting_weight` has been moved into a new
+`web_server` -> `sorting_weight` configuration entry for the entity.
+
+Please see [Entity sorting](/components/web_server#config-webserver-sorting) for the latest documentation on these features.
+
+## ESP32 Advanced MAC Address Configuration
+
+ESPHome now supports reading a custom MAC address from the ESP32 eFuse blocks and will read and use it by default if
+there is data burned into the eFuses. If you would like to disable this, or the eFuse has data burned that is not a
+MAC address into those eFuses, then you can add `ignore_efuse_custom_mac: true` to your ESP32 `advanced`
+configuration. See [ESP32 Advanced Configuration](/components/esp32#esp32-advanced_configuration) for more details.
+
+## CSE7766 Breaking Changes
+
+The [Cse7766](/components/sensor/cse7766/) now requires even parity in configuration. There are some chips that
+work without `EVEN`, but the majority of newer chips seem to require it and the older ones work fine with it set as
+well so to make it consistent across all devices the component now requires it.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2024.10.1 - October 22
+
+- [config] Fix crash with empty substitutions block [esphome#7612](https://github.com/esphome/esphome/pull/7612) by [@clydebarrow](https://github.com/clydebarrow)
+- Fix broken ibeacon_uuid config in ble_rssi [esphome#7640](https://github.com/esphome/esphome/pull/7640) by [@lennart-k](https://github.com/lennart-k)
+- auto-load preferences [esphome#7642](https://github.com/esphome/esphome/pull/7642) by [@ssieb](https://github.com/ssieb)
+- [wifi] Support custom MAC on Arduino, too [esphome#7644](https://github.com/esphome/esphome/pull/7644) by [@kbx81](https://github.com/kbx81)
+- [config] Ensure user-supplied build flags don't get silently overwritten [esphome#7622](https://github.com/esphome/esphome/pull/7622) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Remove states from style definitions (Bugfix) [esphome#7645](https://github.com/esphome/esphome/pull/7645) by [@clydebarrow](https://github.com/clydebarrow)
+- Move setting global voice assistant to constructor [esphome#7630](https://github.com/esphome/esphome/pull/7630) by [@synesthesiam](https://github.com/synesthesiam)
+
+## Release 2024.10.2 - October 24
+
+- Humanized the missing MQTT log topic error message [esphome#7634](https://github.com/esphome/esphome/pull/7634) by [@solarkennedy](https://github.com/solarkennedy)
+- [lvgl] Some properties were not templatable (Bugfix) [esphome#7655](https://github.com/esphome/esphome/pull/7655) by [@clydebarrow](https://github.com/clydebarrow)
+- [voice_assistant] Bugfix: Fix crash on start [esphome#7662](https://github.com/esphome/esphome/pull/7662) by [@kahrendt](https://github.com/kahrendt)
+
+## Release 2024.10.3 - November 8
+
+- [rpi_dpi_rgb] Fix get_width and height (Bugfix) [esphome#7675](https://github.com/esphome/esphome/pull/7675) by [@clydebarrow](https://github.com/clydebarrow)
+- Fixes modbus timing error [esphome#7674](https://github.com/esphome/esphome/pull/7674) by [@exciton](https://github.com/exciton)
+- [lvgl] Ensure images are configured before using them. (Bugfix) [esphome#7721](https://github.com/esphome/esphome/pull/7721) by [@clydebarrow](https://github.com/clydebarrow)
+
+## Full list of changes
+
+### New Components
+
+- Add tca9555 GPIO driver [esphome#7146](https://github.com/esphome/esphome/pull/7146) by [@mobrembski](https://github.com/mobrembski) (new-integration)
+- Add support for Sharp GP2Y1010AU0F PM2.5 sensor [esphome#6007](https://github.com/esphome/esphome/pull/6007) by [@zry98](https://github.com/zry98) (new-integration)
+- [audio_dac] [aic3204] Add new component + platform [esphome#7505](https://github.com/esphome/esphome/pull/7505) by [@kbx81](https://github.com/kbx81) (new-integration)
+- Feature/add seeed grove gmxxx multichannel gas support [esphome#4304](https://github.com/esphome/esphome/pull/4304) by [@YorkshireIoT](https://github.com/YorkshireIoT) (new-integration)
+- Add Initial TE-M3200 pressure sensor support [esphome#6862](https://github.com/esphome/esphome/pull/6862) by [@bakerkj](https://github.com/bakerkj) (new-integration)
+- Add Initial NPI-19 pressure sensor support [esphome#7181](https://github.com/esphome/esphome/pull/7181) by [@bakerkj](https://github.com/bakerkj) (new-integration)
+- nau7802: new component [esphome#6291](https://github.com/esphome/esphome/pull/6291) by [@cujomalainey](https://github.com/cujomalainey) (new-integration)
+
+### New Platforms
+
+- Haier climate integration update [esphome#7416](https://github.com/esphome/esphome/pull/7416) by [@paveldn](https://github.com/paveldn) (breaking-change) (new-platform)
+
+### Breaking Changes
+
+- Haier climate integration update [esphome#7416](https://github.com/esphome/esphome/pull/7416) by [@paveldn](https://github.com/paveldn) (breaking-change) (new-platform)
+- [ch422g] Add support for pins 8-11; make input work. [esphome#7467](https://github.com/esphome/esphome/pull/7467) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- CSE7766 needs even parity [esphome#7549](https://github.com/esphome/esphome/pull/7549) by [@ssieb](https://github.com/ssieb) (breaking-change)
+- [web_server] v3 entity grouping [esphome#6833](https://github.com/esphome/esphome/pull/6833) by [@RFDarter](https://github.com/RFDarter) (breaking-change)
+
+### Beta Changes
+
+- fix uart settings check [esphome#7573](https://github.com/esphome/esphome/pull/7573) by [@ssieb](https://github.com/ssieb)
+- [web_server] Event component grouping [esphome#7586](https://github.com/esphome/esphome/pull/7586) by [@RFDarter](https://github.com/RFDarter)
+- [touchscreen] Fix coordinates when using rotation [esphome#7591](https://github.com/esphome/esphome/pull/7591) by [@clydebarrow](https://github.com/clydebarrow)
+- Fix update sequence when update is set to false (#5225) [esphome#7407](https://github.com/esphome/esphome/pull/7407) by [@edge90](https://github.com/edge90)
+
+### All changes
+
+- Bump peter-evans/create-pull-request from 7.0.0 to 7.0.2 [esphome#7437](https://github.com/esphome/esphome/pull/7437) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump recommended ESP-IDF to 4.4.8 [esphome#7349](https://github.com/esphome/esphome/pull/7349) by [@bdraco](https://github.com/bdraco)
+- [tm1638] Fix linting and formatting issues [esphome#7443](https://github.com/esphome/esphome/pull/7443) by [@jesserockz](https://github.com/jesserockz)
+- [image] Fix linting and formatting issues [esphome#7440](https://github.com/esphome/esphome/pull/7440) by [@jesserockz](https://github.com/jesserockz)
+- [animation] Fix linting and formatting issues [esphome#7439](https://github.com/esphome/esphome/pull/7439) by [@jesserockz](https://github.com/jesserockz)
+- [thermostat] Fix linting and formatting issues [esphome#7442](https://github.com/esphome/esphome/pull/7442) by [@jesserockz](https://github.com/jesserockz)
+- Add OpenTherm component (part 1: communication layer and hub) [esphome#6645](https://github.com/esphome/esphome/pull/6645) by [@olegtarasov](https://github.com/olegtarasov) (new-integration)
+- [st7701s] Make use of IDF5.x to speed up display operations [esphome#7447](https://github.com/esphome/esphome/pull/7447) by [@clydebarrow](https://github.com/clydebarrow)
+- [modbus_controller] Fix linting and formatting issues [esphome#7441](https://github.com/esphome/esphome/pull/7441) by [@jesserockz](https://github.com/jesserockz)
+- Bump pylint from 3.1.0 to 3.2.7 [esphome#7438](https://github.com/esphome/esphome/pull/7438) by [@jesserockz](https://github.com/jesserockz)
+- Bump peter-evans/create-pull-request from 7.0.2 to 7.0.3 [esphome#7457](https://github.com/esphome/esphome/pull/7457) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- openeth ethernet / qemu support [esphome#7020](https://github.com/esphome/esphome/pull/7020) by [@apbodrov](https://github.com/apbodrov)
+- [nextion] Optionally skip connection handshake [esphome#6905](https://github.com/esphome/esphome/pull/6905) by [@edwardtfn](https://github.com/edwardtfn)
+- Haier climate integration update [esphome#7416](https://github.com/esphome/esphome/pull/7416) by [@paveldn](https://github.com/paveldn) (breaking-change) (new-platform)
+- Added i2s_comm_fmt parameter to i2s speaker component [esphome#7449](https://github.com/esphome/esphome/pull/7449) by [@PxPert](https://github.com/PxPert)
+- [lvgl] Enhancements [esphome#7453](https://github.com/esphome/esphome/pull/7453) by [@clydebarrow](https://github.com/clydebarrow)
+- Add tca9555 GPIO driver [esphome#7146](https://github.com/esphome/esphome/pull/7146) by [@mobrembski](https://github.com/mobrembski) (new-integration)
+- [st7701s] Fix initialisation race [esphome#7462](https://github.com/esphome/esphome/pull/7462) by [@clydebarrow](https://github.com/clydebarrow)
+- add "fan_mode" and "swing_mode" to REST API [esphome#7476](https://github.com/esphome/esphome/pull/7476) by [@Tarik2142](https://github.com/Tarik2142)
+- [esp32_improv] Add triggers for various states [esphome#7461](https://github.com/esphome/esphome/pull/7461) by [@kbx81](https://github.com/kbx81)
+- [micro_wake_word] Workaround for failing IDF 5+ tests [esphome#7484](https://github.com/esphome/esphome/pull/7484) by [@kbx81](https://github.com/kbx81)
+- Bump peter-evans/create-pull-request from 7.0.3 to 7.0.5 [esphome#7469](https://github.com/esphome/esphome/pull/7469) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add CSE7766 reactive power [esphome#7301](https://github.com/esphome/esphome/pull/7301) by [@nkinnan](https://github.com/nkinnan)
+- Support inkplate 5 and 5 V2 [esphome#7448](https://github.com/esphome/esphome/pull/7448) by [@DavidSichau](https://github.com/DavidSichau)
+- Add remote transmitter triggers [esphome#7483](https://github.com/esphome/esphome/pull/7483) by [@swoboda1337](https://github.com/swoboda1337)
+- tcs34725: fix color/clear channel percentage calculations on long exposures [esphome#7493](https://github.com/esphome/esphome/pull/7493) by [@RubenKelevra](https://github.com/RubenKelevra)
+- tcs34725: Add check for Division by Zero [esphome#7485](https://github.com/esphome/esphome/pull/7485) by [@RubenKelevra](https://github.com/RubenKelevra)
+- [core] add ring buffer destructor [esphome#7500](https://github.com/esphome/esphome/pull/7500) by [@kahrendt](https://github.com/kahrendt)
+- [ch422g] Add support for pins 8-11; make input work. [esphome#7467](https://github.com/esphome/esphome/pull/7467) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- Add clean_session as configurable option to the MQTT component [esphome#7501](https://github.com/esphome/esphome/pull/7501) by [@victorclaessen](https://github.com/victorclaessen)
+- [wifi] Use custom MAC address if programmed [esphome#7498](https://github.com/esphome/esphome/pull/7498) by [@kbx81](https://github.com/kbx81)
+- Add support for Sharp GP2Y1010AU0F PM2.5 sensor [esphome#6007](https://github.com/esphome/esphome/pull/6007) by [@zry98](https://github.com/zry98) (new-integration)
+- Make time dependency optional [esphome#7425](https://github.com/esphome/esphome/pull/7425) by [@nkinnan](https://github.com/nkinnan)
+- Add OHF logo to README [esphome#7509](https://github.com/esphome/esphome/pull/7509) by [@mrdarrengriffin](https://github.com/mrdarrengriffin)
+- Bump pypa/gh-action-pypi-publish from 1.10.1 to 1.10.2 [esphome#7487](https://github.com/esphome/esphome/pull/7487) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- tcs34725: optimize fetch time with burst read for RGB and clear values [esphome#7494](https://github.com/esphome/esphome/pull/7494) by [@RubenKelevra](https://github.com/RubenKelevra)
+- tcs34725: Remove IR compensation and improve illuminance and color temperature handling in extreme conditions [esphome#7492](https://github.com/esphome/esphome/pull/7492) by [@RubenKelevra](https://github.com/RubenKelevra)
+- [CI] Remove `sorted` from library include dirs [esphome#7526](https://github.com/esphome/esphome/pull/7526) by [@kbx81](https://github.com/kbx81)
+- [wifi] Fix error message when no custom MAC is set [esphome#7515](https://github.com/esphome/esphome/pull/7515) by [@kbx81](https://github.com/kbx81)
+- [esp32] Add `ignore_efuse_custom_mac` config var [esphome#7527](https://github.com/esphome/esphome/pull/7527) by [@kbx81](https://github.com/kbx81)
+- [mics_4514] Move consts to consts.py [esphome#7528](https://github.com/esphome/esphome/pull/7528) by [@jesserockz](https://github.com/jesserockz)
+- Fix parsing of µs time periods in config [esphome#7495](https://github.com/esphome/esphome/pull/7495) by [@dwmw2](https://github.com/dwmw2)
+- [web_server] Expose detail=all on all components [esphome#7531](https://github.com/esphome/esphome/pull/7531) by [@RFDarter](https://github.com/RFDarter)
+- [CI] Use a list when reading idedata for includes [esphome#7535](https://github.com/esphome/esphome/pull/7535) by [@kbx81](https://github.com/kbx81)
+- Use "puremagic" instead of "magic" python module [esphome#7536](https://github.com/esphome/esphome/pull/7536) by [@guillempages](https://github.com/guillempages)
+- [lvgl] Remap image to img in "set_style_*" [esphome#7546](https://github.com/esphome/esphome/pull/7546) by [@guillempages](https://github.com/guillempages)
+- CSE7766 needs even parity [esphome#7549](https://github.com/esphome/esphome/pull/7549) by [@ssieb](https://github.com/ssieb) (breaking-change)
+- Allow use of all pulse count unit channels if needed. [esphome#7550](https://github.com/esphome/esphome/pull/7550) by [@ToSa27](https://github.com/ToSa27)
+- [bang-bang] Remove `assert()` [esphome#7533](https://github.com/esphome/esphome/pull/7533) by [@kbx81](https://github.com/kbx81)
+- [thermostat] Remove `assert()` [esphome#7544](https://github.com/esphome/esphome/pull/7544) by [@kbx81](https://github.com/kbx81)
+- [bedjet_codec] Remove `assert()` [esphome#7543](https://github.com/esphome/esphome/pull/7543) by [@kbx81](https://github.com/kbx81)
+- [audio_dac] [aic3204] Add new component + platform [esphome#7505](https://github.com/esphome/esphome/pull/7505) by [@kbx81](https://github.com/kbx81) (new-integration)
+- [wifi] Replace `USE_ESP32_IGNORE_EFUSE_MAC_CRC` with IDF's `CONFIG_ESP_MAC_IGNORE_MAC_CRC_ERROR` [esphome#7502](https://github.com/esphome/esphome/pull/7502) by [@kbx81](https://github.com/kbx81)
+- Bump docker/setup-buildx-action from 3.6.1 to 3.7.1 in the docker-actions group across 1 directory [esphome#7542](https://github.com/esphome/esphome/pull/7542) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pypa/gh-action-pypi-publish from 1.10.2 to 1.10.3 [esphome#7541](https://github.com/esphome/esphome/pull/7541) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker/build-push-action from 6.7.0 to 6.9.0 in /.github/actions/build-image [esphome#7511](https://github.com/esphome/esphome/pull/7511) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [code-quality] fix clang-tidy md5 and hmac_md5 [esphome#7325](https://github.com/esphome/esphome/pull/7325) by [@tomaszduda23](https://github.com/tomaszduda23)
+- [code-quality] fix clang-tidy api [esphome#7279](https://github.com/esphome/esphome/pull/7279) by [@tomaszduda23](https://github.com/tomaszduda23)
+- [lvgl] Bugfixes #3 [esphome#7472](https://github.com/esphome/esphome/pull/7472) by [@clydebarrow](https://github.com/clydebarrow)
+- Feature/add seeed grove gmxxx multichannel gas support [esphome#4304](https://github.com/esphome/esphome/pull/4304) by [@YorkshireIoT](https://github.com/YorkshireIoT) (new-integration)
+- [lvgl] Fix: allow full range of styles on dropdown list. [esphome#7552](https://github.com/esphome/esphome/pull/7552) by [@clydebarrow](https://github.com/clydebarrow)
+- [web_server] v3 entity grouping [esphome#6833](https://github.com/esphome/esphome/pull/6833) by [@RFDarter](https://github.com/RFDarter) (breaking-change)
+- Add Initial TE-M3200 pressure sensor support [esphome#6862](https://github.com/esphome/esphome/pull/6862) by [@bakerkj](https://github.com/bakerkj) (new-integration)
+- Add Initial NPI-19 pressure sensor support [esphome#7181](https://github.com/esphome/esphome/pull/7181) by [@bakerkj](https://github.com/bakerkj) (new-integration)
+- nau7802: new component [esphome#6291](https://github.com/esphome/esphome/pull/6291) by [@cujomalainey](https://github.com/cujomalainey) (new-integration)
+- Update webserver local assets to 20241007-025551 [esphome#7553](https://github.com/esphome/esphome/pull/7553) by [@esphomebot](https://github.com/esphomebot)
+- [online_image] Bugfix: Use `std::string` instead of const char * [esphome#7556](https://github.com/esphome/esphome/pull/7556) by [@clydebarrow](https://github.com/clydebarrow)
+- [ili9xxx] Put display into sleep mode on shutdown. [esphome#7555](https://github.com/esphome/esphome/pull/7555) by [@clydebarrow](https://github.com/clydebarrow)
+- Bump actions/upload-artifact from 4.4.0 to 4.4.1 [esphome#7559](https://github.com/esphome/esphome/pull/7559) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/cache from 4.0.2 to 4.1.0 in /.github/actions/restore-python [esphome#7560](https://github.com/esphome/esphome/pull/7560) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/cache from 4.0.2 to 4.1.0 [esphome#7558](https://github.com/esphome/esphome/pull/7558) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Update radon_eye_listener.cpp for more possible variants [esphome#7567](https://github.com/esphome/esphome/pull/7567) by [@baldisos](https://github.com/baldisos)
+- [cst816] Allow skipping i2c probe [esphome#7557](https://github.com/esphome/esphome/pull/7557) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Fix text component [esphome#7563](https://github.com/esphome/esphome/pull/7563) by [@clydebarrow](https://github.com/clydebarrow)
+- [template/binary_sensor] Implement `condition:` option as alternative to lambda. [esphome#7561](https://github.com/esphome/esphome/pull/7561) by [@clydebarrow](https://github.com/clydebarrow)
+- Bump actions/upload-artifact from 4.4.1 to 4.4.2 [esphome#7569](https://github.com/esphome/esphome/pull/7569) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/cache from 4.1.0 to 4.1.1 [esphome#7570](https://github.com/esphome/esphome/pull/7570) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/cache from 4.1.0 to 4.1.1 in /.github/actions/restore-python [esphome#7571](https://github.com/esphome/esphome/pull/7571) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- fix uart settings check [esphome#7573](https://github.com/esphome/esphome/pull/7573) by [@ssieb](https://github.com/ssieb)
+- [CI] failures when installing using apt-get. [esphome#7593](https://github.com/esphome/esphome/pull/7593) by [@clydebarrow](https://github.com/clydebarrow)
+- [web_server] Event component grouping [esphome#7586](https://github.com/esphome/esphome/pull/7586) by [@RFDarter](https://github.com/RFDarter)
+- [touchscreen] Fix coordinates when using rotation [esphome#7591](https://github.com/esphome/esphome/pull/7591) by [@clydebarrow](https://github.com/clydebarrow)
+- Fix update sequence when update is set to false (#5225) [esphome#7407](https://github.com/esphome/esphome/pull/7407) by [@edge90](https://github.com/edge90)
+
+{/* markdownlint-enable MD013 */}

@@ -1,0 +1,34 @@
+---
+description: "Instructions for setting up binary ON/OFF lights in ESPHome."
+title: "Binary Light"
+---
+
+import { Image } from 'astro:assets';
+import binaryUiImg from './images/binary-ui.png';
+import APIRef from '@components/APIRef.astro';
+
+The `binary` light platform creates a simple ON/OFF-only light from a
+[binary output component](/components/output/).
+
+<Image src={binaryUiImg} layout="constrained" alt="" />
+
+```yaml
+# Example configuration entry
+light:
+  - platform: binary
+    name: "Desk Lamp"
+    output: light_output
+```
+
+## Configuration variables
+
+- **output** (**Required**, [ID](/guides/configuration-types#id)): The id of the binary [Output Component](/components/output/) to use for this light.
+- All other options from [Light](/components/light#config-light).
+
+## See Also
+
+- [Output Component](/components/output/)
+- [Light Component](/components/light/)
+- [GPIO Output](/components/output/gpio/)
+- [Power Supply Component](/components/power_supply/)
+- <APIRef text="binary_light_output.h" path="binary/light/binary_light_output.h" />

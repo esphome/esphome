@@ -1,0 +1,69 @@
+---
+description: "Instructions for setting up SMT100 soil moisture and temperature sensor"
+title: "SMT100 Soil Moisture Sensor"
+---
+
+import { Image } from 'astro:assets';
+import APIRef from '@components/APIRef.astro';
+
+The SMT100 sensor platform allows you to use the SMT100 soil moisture and temperature with ESPHome.
+
+<Image src="/images/smt100.jpg" width={300} height={200} layout="constrained" alt="" />
+
+The communication with this component is done via a [UART](/components/uart) using a simple ASCII protocol. You must
+therefore have a `uart:` entry in your configuration with both the TX and RX pins set to some pins on your
+board and the baud rate set to 9600.
+
+```yaml
+# Example configuration entry
+uart:
+  tx_pin: TX
+  rx_pin: RX
+  baud_rate: 9600
+
+sensor:
+  - platform: smt100
+    counts:
+        name: "Counts"
+    permittivity:
+        name: "Permittivity"
+    temperature:
+        name: "Temperature"
+    moisture:
+        name: "Moisture"
+    voltage:
+        name: "Voltage"
+```
+
+## Configuration variables
+
+- **counts** (*Optional*): Raw measurement data from the sensor electronics (dimensionless quantity). Higher counts mean less moisture. May be used for material specific calibrations.
+
+  - All options from [Sensor](/components/sensor).
+
+- **permittivity** (*Optional*): Dielectric coefficient or permittivity of the material to be measured (dimensionless quantity). Higher permittivity means higher water content. May be used for material specific calibration.
+
+  - All options from [Sensor](/components/sensor).
+
+- **temperature** (*Optional*): Soil temperature in degrees Celsius. Please note that the temperature sensor is inside the black sensor enclosure and requires some time to equilibrate with the soil temperature.
+
+  - All options from [Sensor](/components/sensor).
+
+- **moisture** (*Optional*): Soil moisture (volumetric water content in %).
+
+  - All options from [Sensor](/components/sensor).
+
+- **voltage** (*Optional*): Supply voltage of the sensor in Volt.
+
+  - All options from [Sensor](/components/sensor).
+
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the [UART Component](/components/uart) if you want
+  to use multiple UART buses.
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to poll the sensor. Defaults is 60s.
+
+## See Also
+
+- [SMT100 Soil Moisture Sensor](/components/sensor/smt100/)
+- [Sensor Filters](/components/sensor#sensor-filters)
+- <APIRef text="smt100.h" path="smt100/smt100.h" />

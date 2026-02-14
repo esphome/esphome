@@ -1,0 +1,218 @@
+---
+description: "Changelog for ESPHome 2023.4.0."
+title: "ESPHome 2023.4.0 - 19th April 2023"
+pagefind: false
+slug: "changelog/2023.4.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Voice Assistant","/components/voice_assistant","voice-assistant.svg","dark-invert"],
+  ["Microphone Core","/components/microphone/index","microphone.svg","dark-invert"],
+  ["I2S Microphone","/components/microphone/i2s_audio","i2s_audio.svg"],
+  ["MMC5603","/components/sensor/mmc5603","mmc5603.jpg"],
+  ["KSZ8081 Ethernet","/components/ethernet","ethernet.svg","dark-invert"]
+]} />
+
+## Voice Assistant
+
+This year is the Year of the Voice for Home Assistant, and ESPHome is charging ahead with this in mind.
+We've added a new [Voice Assistant](/components/voice_assistant/) component that allows you to use ESPHome devices
+as an input for [assist](https://www.home-assistant.io/voice_control/) in Home Assistant **2023.5 or later**.
+
+With this also comes preliminary [microphone](/components/microphone/) support, which has been
+built in a way that multiple components, like `voice_assistant` can request start / stop of the microphone and get
+the data. We hope this leads to more interesting use cases for the microphone in the future.
+
+Home Assistant is hosting a live stream all about the Year of the Voice - Chapter 2.
+
+{/* markdownlint-disable-next-line MD033 */}
+<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/Tk-pnm7FY7c"
+        title="YouTube video player" frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen>
+</iframe>
+
+## Keith joins Nabu Casa
+
+Nabu Casa is pleased to announce that long time contributor Keith Burzinski ([@kbx81](https://github.com/kbx81)) is joining the
+team as a full time developer to help out on ESPHome. Keith created the [Sprinkler](/components/sprinkler/),
+[Thermostat](/components/climate/thermostat/), a bunch of the `ssd` display components and a few other components
+as well as fixing many bug along the way. I expect his house climate and garden area are kept well in line.
+
+Looking forward to working with you Keith.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2023.4.1 - April 24
+
+- fix flip_x [esphome#4727](https://github.com/esphome/esphome/pull/4727) by [@ssieb](https://github.com/ssieb)
+- Use proper schema for delta filter [esphome#4723](https://github.com/esphome/esphome/pull/4723) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.4.2 - April 27
+
+- I2c scan recovery reset fix [esphome#4724](https://github.com/esphome/esphome/pull/4724) by [@gcopeland](https://github.com/gcopeland)
+- Debug component doesn't work on RP2040 [esphome#4728](https://github.com/esphome/esphome/pull/4728) by [@HeMan](https://github.com/HeMan)
+- Only request VA port from first client that is subscribed [esphome#4747](https://github.com/esphome/esphome/pull/4747) by [@jesserockz](https://github.com/jesserockz)
+- Don't allow fingerprint_grow enroll cancellation when no enrollment started [esphome#4745](https://github.com/esphome/esphome/pull/4745) by [@itpeters](https://github.com/itpeters)
+
+## Release 2023.4.3 - May 2
+
+- Fix sprinkler switch restore_mode [esphome#4756](https://github.com/esphome/esphome/pull/4756) by [@kbx81](https://github.com/kbx81)
+- Fix i2s media player on devices with no internal DAC [esphome#4768](https://github.com/esphome/esphome/pull/4768) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.4.4 - May 4
+
+- Fixes for Arduino 2.7.4 (for FastLED) [esphome#4777](https://github.com/esphome/esphome/pull/4777) by [@timn](https://github.com/timn)
+
+## Breaking Changes
+
+### I²S Media Player
+
+With the introduction of the [I2S Audio](/components/microphone/i2s_audio/), the media player platform has some
+required breaking changes to the YAML configuration. This involves moving the `i2s_lrclk_pin` and
+`i2s_bclk_pin` to a new [I2S Audio](/components/i2s_audio/) component.
+
+```yaml
+# Before
+media_player:
+  - platform: i2s_audio
+    name: ESPHome I2S Media Player
+    dac_type: external
+    i2s_lrclk_pin: GPIO33
+    i2s_bclk_pin: GPIO19
+    i2s_dout_pin: GPIO22
+    mode: mono
+
+# After
+i2s_audio:
+  i2s_lrclk_pin: GPIO33
+  i2s_bclk_pin: GPIO19
+
+media_player:
+  - platform: i2s_audio
+    name: ESPHome I2S Media Player
+    dac_type: external
+    i2s_dout_pin: GPIO22
+    mode: mono
+```
+
+### Default restore mode for Switches, Fans and Lights
+
+The default `restore_mode` for switches, fans and lights has been changed
+from `RESTORE_DEFAULT_OFF` to `ALWAYS_OFF` with the intention that restoring values
+from flash should be manually specified by a user if desired in their YAML configuration.
+
+### Number `step`
+
+The `number` components have always internally set a `step` required in config,
+but allowed it to be not specified at all. This caused issues on the Home Assistant side
+of things. This is only a breaking change for external components that have a `number` platform.
+
+### UART ids
+
+Due to `uart0` / `uart1` / `uart2` being defined in some of the platform code ESPHome uses,
+ESPHome will now disallow these ids from being used in the config. You can simply change them to
+`uart_0` to continue using.
+
+## Full list of changes
+
+### New Components
+
+- Added in mmc5603 code [esphome#4175](https://github.com/esphome/esphome/pull/4175) by [@benhoff](https://github.com/benhoff) (new-integration)
+- Add push to talk voice assistant [esphome#4648](https://github.com/esphome/esphome/pull/4648) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+
+### Breaking Changes
+
+- Disallow uart0/1/2 as ids in config [esphome#4446](https://github.com/esphome/esphome/pull/4446) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Require step to be set when calling register_number [esphome#4622](https://github.com/esphome/esphome/pull/4622) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Fix restore [esphome#4655](https://github.com/esphome/esphome/pull/4655) by [@spacemanspiff2007](https://github.com/spacemanspiff2007) (breaking-change)
+
+### Beta Changes
+
+- debug component, allow without debug logging [esphome#4685](https://github.com/esphome/esphome/pull/4685) by [@jesserockz](https://github.com/jesserockz)
+- Fixed dns2 for ethernet [esphome#4698](https://github.com/esphome/esphome/pull/4698) by [@HeMan](https://github.com/HeMan)
+- Add timeout to i2c write error logs [esphome#4697](https://github.com/esphome/esphome/pull/4697) by [@Szewcson](https://github.com/Szewcson)
+- Add event triggers to voice_assistant [esphome#4699](https://github.com/esphome/esphome/pull/4699) by [@jesserockz](https://github.com/jesserockz)
+- Call on_error if no api client connected that handles voice [esphome#4709](https://github.com/esphome/esphome/pull/4709) by [@jesserockz](https://github.com/jesserockz)
+- Add ethernet powerdown (fixes esphome/issues#4420) [esphome#4706](https://github.com/esphome/esphome/pull/4706) by [@tracestep](https://github.com/tracestep)
+- Bump arduino platform version to 5.3.0 [esphome#4713](https://github.com/esphome/esphome/pull/4713) by [@jesserockz](https://github.com/jesserockz)
+
+### All changes
+
+- Mark unique_id() virtual method as deprecated [esphome#4538](https://github.com/esphome/esphome/pull/4538) by [@oxan](https://github.com/oxan)
+- Drop deprecated entity property base methods [esphome#4539](https://github.com/esphome/esphome/pull/4539) by [@oxan](https://github.com/oxan)
+- Format test files [esphome#4541](https://github.com/esphome/esphome/pull/4541) by [@jesserockz](https://github.com/jesserockz)
+- EntityBase: Icon string can stay in flash. [esphome#4566](https://github.com/esphome/esphome/pull/4566) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Update the delta filter to be able to take a percentage change [esphome#4391](https://github.com/esphome/esphome/pull/4391) by [@TrentHouliston](https://github.com/TrentHouliston)
+- Added missing PM_1_0 and PM_10_0 for PMS5003T and PMS5003ST [esphome#4560](https://github.com/esphome/esphome/pull/4560) by [@genestealer](https://github.com/genestealer)
+- Add an option to force SPI into software mode [esphome#4556](https://github.com/esphome/esphome/pull/4556) by [@wupeka](https://github.com/wupeka)
+- allow using a binary output for the status led [esphome#4532](https://github.com/esphome/esphome/pull/4532) by [@ssieb](https://github.com/ssieb)
+- Add option flip_x [esphome#4555](https://github.com/esphome/esphome/pull/4555) by [@rafal83](https://github.com/rafal83)
+- Bump aioesphomeapi from 13.5.0 to 13.5.1 [esphome#4572](https://github.com/esphome/esphome/pull/4572) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Verbose output of define. [esphome#4576](https://github.com/esphome/esphome/pull/4576) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Add support for ESP32 CAM 3MP and 5MP resolutions and arbitrary camera clock. [esphome#4580](https://github.com/esphome/esphome/pull/4580) by [@peterhalicky](https://github.com/peterhalicky)
+- Add a simple 'skip_initial' filter [esphome#4582](https://github.com/esphome/esphome/pull/4582) by [@sybrenstuvel](https://github.com/sybrenstuvel)
+- Fix outdated filter string in platformio_api [esphome#4587](https://github.com/esphome/esphome/pull/4587) by [@LordMike](https://github.com/LordMike)
+- Split test3.yaml [esphome#4591](https://github.com/esphome/esphome/pull/4591) by [@jesserockz](https://github.com/jesserockz)
+- Disallow uart0/1/2 as ids in config [esphome#4446](https://github.com/esphome/esphome/pull/4446) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Upgrade clang-format to v13 [esphome#4535](https://github.com/esphome/esphome/pull/4535) by [@oxan](https://github.com/oxan)
+- B/W support for GooDisplay GDEY029T94 (as used on Adafruit MagTag) [esphome#4222](https://github.com/esphome/esphome/pull/4222) by [@AaronJackson](https://github.com/AaronJackson)
+- Fix negative sqrt root in ct_clamp_sensor.cpp [esphome#4236](https://github.com/esphome/esphome/pull/4236) by [@jerome992](https://github.com/jerome992)
+- Wrap ipv6 code a bit more [esphome#4574](https://github.com/esphome/esphome/pull/4574) by [@jesserockz](https://github.com/jesserockz)
+- Remove EntityBase from sprinkler [esphome#4606](https://github.com/esphome/esphome/pull/4606) by [@jesserockz](https://github.com/jesserockz)
+- Fix wrong port multiplexer name in dump GPIO function of sx1509 [esphome#4592](https://github.com/esphome/esphome/pull/4592) by [@skaldo](https://github.com/skaldo)
+- Bump zeroconf from 0.47.3 to 0.47.4 [esphome#4597](https://github.com/esphome/esphome/pull/4597) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-asyncio from 0.20.3 to 0.21.0 [esphome#4599](https://github.com/esphome/esphome/pull/4599) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Limit range on filter time period for remote_receiver [esphome#4604](https://github.com/esphome/esphome/pull/4604) by [@RoboMagus](https://github.com/RoboMagus)
+- add select_schema to select component [esphome#4545](https://github.com/esphome/esphome/pull/4545) by [@regevbr](https://github.com/regevbr)
+- Add ability to clear the gatt cache [esphome#4621](https://github.com/esphome/esphome/pull/4621) by [@bdraco](https://github.com/bdraco)
+- Bump actions/stale from 7 to 8 [esphome#4615](https://github.com/esphome/esphome/pull/4615) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Require step to be set when calling register_number [esphome#4622](https://github.com/esphome/esphome/pull/4622) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Lower range of CONF_FREQUENCY [esphome#4619](https://github.com/esphome/esphome/pull/4619) by [@berendhaan](https://github.com/berendhaan)
+- Allow entity names to be set to None [esphome#4607](https://github.com/esphome/esphome/pull/4607) by [@jesserockz](https://github.com/jesserockz)
+- Fix platform restriction for bme680_bsec [esphome#4616](https://github.com/esphome/esphome/pull/4616) by [@jesserockz](https://github.com/jesserockz)
+- Fix EzoCommandType enum [esphome#4593](https://github.com/esphome/esphome/pull/4593) by [@alfredopironti](https://github.com/alfredopironti)
+- `EntityBase` Name can stay in flash. [esphome#4594](https://github.com/esphome/esphome/pull/4594) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- feat: Add support to unsubscribe from BLE advertisements [esphome#4620](https://github.com/esphome/esphome/pull/4620) by [@richardhopton](https://github.com/richardhopton)
+- EntityBase: Move ObjectId to Flash [esphome#4569](https://github.com/esphome/esphome/pull/4569) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Add workflow to sync device classes with HA dev [esphome#4629](https://github.com/esphome/esphome/pull/4629) by [@jesserockz](https://github.com/jesserockz)
+- Synchronise Device Classes from Home Assistant [esphome#4633](https://github.com/esphome/esphome/pull/4633) by [@github-actions[bot]](https://github.com/github-actions[bot])
+- Remove AUTO_LOAD from as3935 [esphome#4630](https://github.com/esphome/esphome/pull/4630) by [@jesserockz](https://github.com/jesserockz)
+- Add ifdef to new bt proxy unsubscribe [esphome#4634](https://github.com/esphome/esphome/pull/4634) by [@jesserockz](https://github.com/jesserockz)
+- add bluetooth mac address in dump_config() [esphome#4628](https://github.com/esphome/esphome/pull/4628) by [@felixlungu](https://github.com/felixlungu)
+- Binary map bugfixes [esphome#4636](https://github.com/esphome/esphome/pull/4636) by [@kahrendt](https://github.com/kahrendt)
+- entity_base avoid padding bytes. [esphome#4637](https://github.com/esphome/esphome/pull/4637) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Avoid sensor padding. [esphome#4638](https://github.com/esphome/esphome/pull/4638) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Support advanced UART customization [esphome#4465](https://github.com/esphome/esphome/pull/4465) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Log calibration results at level INFO [esphome#4240](https://github.com/esphome/esphome/pull/4240) by [@Duckle29](https://github.com/Duckle29)
+- Number step not optional [esphome#4649](https://github.com/esphome/esphome/pull/4649) by [@RoboMagus](https://github.com/RoboMagus)
+- VSCode / devcontainer updates [esphome#4647](https://github.com/esphome/esphome/pull/4647) by [@jesserockz](https://github.com/jesserockz)
+- Retry PN532_COMMAND_VERSION_DATA on setup() (fixes esphome/issues#3823) [esphome#4651](https://github.com/esphome/esphome/pull/4651) by [@tracestep](https://github.com/tracestep)
+- Bump pylint from 2.16.4 to 2.17.2 [esphome#4650](https://github.com/esphome/esphome/pull/4650) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump black from 23.1.0 to 23.3.0 [esphome#4635](https://github.com/esphome/esphome/pull/4635) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Added in mmc5603 code [esphome#4175](https://github.com/esphome/esphome/pull/4175) by [@benhoff](https://github.com/benhoff) (new-integration)
+- fix compilation with latest esp-idf [esphome#4671](https://github.com/esphome/esphome/pull/4671) by [@Mic92](https://github.com/Mic92)
+- Bump zeroconf from 0.47.4 to 0.56.0 [esphome#4674](https://github.com/esphome/esphome/pull/4674) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest from 7.2.2 to 7.3.0 [esphome#4673](https://github.com/esphome/esphome/pull/4673) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add push to talk voice assistant [esphome#4648](https://github.com/esphome/esphome/pull/4648) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Fix ESP32 SPI hardware assignment in Arduino fw [esphome#4669](https://github.com/esphome/esphome/pull/4669) by [@kbx81](https://github.com/kbx81)
+- Fix some NFC/PN532 crashes [esphome#4678](https://github.com/esphome/esphome/pull/4678) by [@kbx81](https://github.com/kbx81)
+- Add support for SSD1306 72x40 displays [esphome#4659](https://github.com/esphome/esphome/pull/4659) by [@johnsto](https://github.com/johnsto)
+- Fix pin schema for i2s microphone [esphome#4680](https://github.com/esphome/esphome/pull/4680) by [@jesserockz](https://github.com/jesserockz)
+- Fix BedJet setup priority [fixes esphome/issues#3807] [esphome#4677](https://github.com/esphome/esphome/pull/4677) by [@jhansche](https://github.com/jhansche)
+- Add always trigger stop [esphome#4249](https://github.com/esphome/esphome/pull/4249) by [@X-Ryl669](https://github.com/X-Ryl669)
+- Fix graph limits for negative values and other corner cases [esphome#4253](https://github.com/esphome/esphome/pull/4253) by [@unhold](https://github.com/unhold)
+- Fix cut-off on 2.13" waveshare/ttgo epaper displays [esphome#4255](https://github.com/esphome/esphome/pull/4255) by [@unhold](https://github.com/unhold)
+- [Ethernet] Add PHY KSZ8081 support [esphome#4668](https://github.com/esphome/esphome/pull/4668) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Fix restore [esphome#4655](https://github.com/esphome/esphome/pull/4655) by [@spacemanspiff2007](https://github.com/spacemanspiff2007) (breaking-change)
+- debug component, allow without debug logging [esphome#4685](https://github.com/esphome/esphome/pull/4685) by [@jesserockz](https://github.com/jesserockz)
+- Fixed dns2 for ethernet [esphome#4698](https://github.com/esphome/esphome/pull/4698) by [@HeMan](https://github.com/HeMan)
+- Add timeout to i2c write error logs [esphome#4697](https://github.com/esphome/esphome/pull/4697) by [@Szewcson](https://github.com/Szewcson)
+- Add event triggers to voice_assistant [esphome#4699](https://github.com/esphome/esphome/pull/4699) by [@jesserockz](https://github.com/jesserockz)
+- Call on_error if no api client connected that handles voice [esphome#4709](https://github.com/esphome/esphome/pull/4709) by [@jesserockz](https://github.com/jesserockz)
+- Add ethernet powerdown (fixes esphome/issues#4420) [esphome#4706](https://github.com/esphome/esphome/pull/4706) by [@tracestep](https://github.com/tracestep)
+- Bump arduino platform version to 5.3.0 [esphome#4713](https://github.com/esphome/esphome/pull/4713) by [@jesserockz](https://github.com/jesserockz)
+
+{/* markdownlint-enable MD013 */}

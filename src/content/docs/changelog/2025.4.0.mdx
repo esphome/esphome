@@ -1,0 +1,163 @@
+---
+description: "Changelog for ESPHome 2025.4.0."
+title: "ESPHome 2025.4.0 - 16th April 2025"
+pagefind: false
+slug: "changelog/2025.4.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["MCP4661","/components/output/mcp4461","mcp4461.jpg"]
+]} />
+
+Another small release out this month. I (Jesse) will be back full-time next week and so hopefully we can
+get the project picking up some steam again.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2025.4.1 - April 29
+
+- Fix psram below idf 5 [esphome#8584](https://github.com/esphome/esphome/pull/8584) by [@jesserockz](https://github.com/jesserockz)
+- [lvgl] Ensure pages are created on the correct display [esphome#8596](https://github.com/esphome/esphome/pull/8596) by [@clydebarrow](https://github.com/clydebarrow)
+- Fix BLE connection loop caused by timeout and pending disconnect race [esphome#8597](https://github.com/esphome/esphome/pull/8597) by [@bdraco](https://github.com/bdraco)
+- [online_image] Fix printf format; comment fixes [esphome#8607](https://github.com/esphome/esphome/pull/8607) by [@clydebarrow](https://github.com/clydebarrow)
+- [watchdog] Fix for variants with single core [esphome#8602](https://github.com/esphome/esphome/pull/8602) by [@jesserockz](https://github.com/jesserockz)
+- [core] Fix setting of log level/verbose [esphome#8600](https://github.com/esphome/esphome/pull/8600) by [@clydebarrow](https://github.com/clydebarrow)
+- Update ens160_base.cpp – fix wrong double negative [esphome#8639](https://github.com/esphome/esphome/pull/8639) by [@steffenbanhardt](https://github.com/steffenbanhardt)
+
+## Release 2025.4.2 - May 12
+
+- Fix unexpected widget update behavior [esphome#8260](https://github.com/esphome/esphome/pull/8260) by [@bdm310](https://github.com/bdm310)
+- [esp32_ble] Remove explicit and now incorrect ble override for esp32-c6 [esphome#8643](https://github.com/esphome/esphome/pull/8643) by [@jesserockz](https://github.com/jesserockz)
+- [media_player] Fix actions with id as value [esphome#8654](https://github.com/esphome/esphome/pull/8654) by [@jesserockz](https://github.com/jesserockz)
+- Fix typo preventing tt21100 from autosetting the touchscreen res. [esphome#8662](https://github.com/esphome/esphome/pull/8662) by [@raineth](https://github.com/raineth)
+- Fix HLW8012 sensor not returning values if change_mode_every is set to never [esphome#8456](https://github.com/esphome/esphome/pull/8456) by [@SuperPlusUser](https://github.com/SuperPlusUser)
+- [display] Fix Rect::inside [esphome#8679](https://github.com/esphome/esphome/pull/8679) by [@clydebarrow](https://github.com/clydebarrow)
+- [as3935_i2c] Remove redundant includes [esphome#8677](https://github.com/esphome/esphome/pull/8677) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Allow padding to be negative [esphome#8671](https://github.com/esphome/esphome/pull/8671) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Fix image property processing [esphome#8691](https://github.com/esphome/esphome/pull/8691) by [@clydebarrow](https://github.com/clydebarrow)
+
+## Full list of changes
+
+### New Components
+
+- Add support for MCP4461 quad i2c digipot/rheostat [esphome#8180](https://github.com/esphome/esphome/pull/8180) by [@p1ngb4ck](https://github.com/p1ngb4ck) (new-integration)
+
+### Breaking Changes
+
+- Rework max connections for BLE to avoid exceeding the hard limit [esphome#8303](https://github.com/esphome/esphome/pull/8303) by [@bdraco](https://github.com/bdraco) (breaking-change)
+
+### Beta Changes
+
+- [lvgl] Fix use of image without canvas (Bugfix) [esphome#8540](https://github.com/esphome/esphome/pull/8540) by [@clydebarrow](https://github.com/clydebarrow)
+- Include MAC address in noise hello [esphome#8551](https://github.com/esphome/esphome/pull/8551) by [@bdraco](https://github.com/bdraco)
+- [axs15231] Don't overwrite manual dimensions [esphome#8553](https://github.com/esphome/esphome/pull/8553) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Fix initial focus on roller [esphome#8547](https://github.com/esphome/esphome/pull/8547) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Add restore_value to select and number [esphome#8494](https://github.com/esphome/esphome/pull/8494) by [@clydebarrow](https://github.com/clydebarrow)
+- Speaker-Media-Player: Fix potential deadlock in audio pipeline [esphome#8548](https://github.com/esphome/esphome/pull/8548) by [@gnumpi](https://github.com/gnumpi)
+- [lvgl] Ensure captured lambdas are in correct order [esphome#8560](https://github.com/esphome/esphome/pull/8560) by [@clydebarrow](https://github.com/clydebarrow)
+- Bump aioesphomeapi from 29.9.0 to 29.10.0 [esphome#8562](https://github.com/esphome/esphome/pull/8562) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump zeroconf from 0.146.3 to 0.146.4 [esphome#8563](https://github.com/esphome/esphome/pull/8563) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump esphome-dashboard to 20250415.0 [esphome#8565](https://github.com/esphome/esphome/pull/8565) by [@swoboda1337](https://github.com/swoboda1337)
+- Fix '--device MQTT' for devices with static IP [esphome#8535](https://github.com/esphome/esphome/pull/8535) by [@dwmw2](https://github.com/dwmw2)
+- [am2315c] Use warning not fail during update [esphome#8499](https://github.com/esphome/esphome/pull/8499) by [@swoboda1337](https://github.com/swoboda1337)
+- Bump zeroconf from 0.146.4 to 0.146.5 [esphome#8569](https://github.com/esphome/esphome/pull/8569) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix vscode validation not showing error squiggles [esphome#8500](https://github.com/esphome/esphome/pull/8500) by [@glmnet](https://github.com/glmnet)
+- SML runtime optimizations [esphome#8571](https://github.com/esphome/esphome/pull/8571) by [@mariusgreuel](https://github.com/mariusgreuel)
+
+### All changes
+
+<details open>
+<summary></summary>
+
+
+
+- [esp32] Allow pioarduino versions 5.3.2 and 5.4.0 [esphome#8440](https://github.com/esphome/esphome/pull/8440) by [@swoboda1337](https://github.com/swoboda1337)
+- [cli] Add `--reset` and `--upload_speed` options [esphome#8380](https://github.com/esphome/esphome/pull/8380) by [@clydebarrow](https://github.com/clydebarrow)
+- [core] Fix 5.4.0 build issue [esphome#8455](https://github.com/esphome/esphome/pull/8455) by [@swoboda1337](https://github.com/swoboda1337)
+- [core] Fix s2 build after crc header fix [esphome#8459](https://github.com/esphome/esphome/pull/8459) by [@swoboda1337](https://github.com/swoboda1337)
+- [esp32_can] Configurable enqueue timeout [esphome#8453](https://github.com/esphome/esphome/pull/8453) by [@patagonaa](https://github.com/patagonaa)
+- [scheduler] Properly handle millis() overflow [esphome#8197](https://github.com/esphome/esphome/pull/8197) by [@clydebarrow](https://github.com/clydebarrow)
+- [esp32] Allow pioarduino version 5.4.1 [esphome#8480](https://github.com/esphome/esphome/pull/8480) by [@swoboda1337](https://github.com/swoboda1337)
+- [psram] 120MHz does not work in octal mode [esphome#8477](https://github.com/esphome/esphome/pull/8477) by [@clydebarrow](https://github.com/clydebarrow)
+- Move CONF_DEFAULT to const.py [esphome#8497](https://github.com/esphome/esphome/pull/8497) by [@nielsnl68](https://github.com/nielsnl68)
+- [lvgl] Add some defines [esphome#8501](https://github.com/esphome/esphome/pull/8501) by [@clydebarrow](https://github.com/clydebarrow)
+- Add support for MCP4461 quad i2c digipot/rheostat [esphome#8180](https://github.com/esphome/esphome/pull/8180) by [@p1ngb4ck](https://github.com/p1ngb4ck) (new-integration)
+- Bump platformio to 6.1.18 [esphome#8430](https://github.com/esphome/esphome/pull/8430) by [@shvmm](https://github.com/shvmm)
+- Update emails from nabucasa to OHF [esphome#8508](https://github.com/esphome/esphome/pull/8508) by [@jesserockz](https://github.com/jesserockz)
+- [nau7802] fix bad blocking code (#6395) [esphome#8070](https://github.com/esphome/esphome/pull/8070) by [@cujomalainey](https://github.com/cujomalainey)
+- [core, qspi_dbi] Clang tidy fixes for 5.3.2 [esphome#8509](https://github.com/esphome/esphome/pull/8509) by [@swoboda1337](https://github.com/swoboda1337)
+- [CI] Clang tidy fixes for 5.3.2 [esphome#8510](https://github.com/esphome/esphome/pull/8510) by [@swoboda1337](https://github.com/swoboda1337)
+- [ethernet_info] return actual ethernet MAC address [esphome#8492](https://github.com/esphome/esphome/pull/8492) by [@victorclaessen](https://github.com/victorclaessen)
+- Rework max connections for BLE to avoid exceeding the hard limit [esphome#8303](https://github.com/esphome/esphome/pull/8303) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- [component] Show error message for failed component [esphome#8478](https://github.com/esphome/esphome/pull/8478) by [@clydebarrow](https://github.com/clydebarrow)
+- [psram] Allow use of experimental 120MHz octal mode [esphome#8519](https://github.com/esphome/esphome/pull/8519) by [@clydebarrow](https://github.com/clydebarrow)
+- Ensure plaintext responds with bad indicator byte before dropping the connection [esphome#8521](https://github.com/esphome/esphome/pull/8521) by [@bdraco](https://github.com/bdraco)
+- Bump aioesphomeapi to 29.9.0 [esphome#8522](https://github.com/esphome/esphome/pull/8522) by [@bdraco](https://github.com/bdraco)
+- [lvgl] add on_boot trigger [esphome#8498](https://github.com/esphome/esphome/pull/8498) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Make line points templatable [esphome#8502](https://github.com/esphome/esphome/pull/8502) by [@clydebarrow](https://github.com/clydebarrow)
+- [spi] Implement octal mode [esphome#8386](https://github.com/esphome/esphome/pull/8386) by [@clydebarrow](https://github.com/clydebarrow)
+- real_time_clock: Apply timezone immediately in set_timezone() [esphome#8531](https://github.com/esphome/esphome/pull/8531) by [@dwmw2](https://github.com/dwmw2)
+- [lvgl] Implement canvas widget [esphome#8504](https://github.com/esphome/esphome/pull/8504) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Fix use of image without canvas (Bugfix) [esphome#8540](https://github.com/esphome/esphome/pull/8540) by [@clydebarrow](https://github.com/clydebarrow)
+- Include MAC address in noise hello [esphome#8551](https://github.com/esphome/esphome/pull/8551) by [@bdraco](https://github.com/bdraco)
+- [axs15231] Don't overwrite manual dimensions [esphome#8553](https://github.com/esphome/esphome/pull/8553) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Fix initial focus on roller [esphome#8547](https://github.com/esphome/esphome/pull/8547) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Add restore_value to select and number [esphome#8494](https://github.com/esphome/esphome/pull/8494) by [@clydebarrow](https://github.com/clydebarrow)
+- Speaker-Media-Player: Fix potential deadlock in audio pipeline [esphome#8548](https://github.com/esphome/esphome/pull/8548) by [@gnumpi](https://github.com/gnumpi)
+- [lvgl] Ensure captured lambdas are in correct order [esphome#8560](https://github.com/esphome/esphome/pull/8560) by [@clydebarrow](https://github.com/clydebarrow)
+- Bump esphome-dashboard to 20250415.0 [esphome#8565](https://github.com/esphome/esphome/pull/8565) by [@swoboda1337](https://github.com/swoboda1337)
+- Fix '--device MQTT' for devices with static IP [esphome#8535](https://github.com/esphome/esphome/pull/8535) by [@dwmw2](https://github.com/dwmw2)
+- [am2315c] Use warning not fail during update [esphome#8499](https://github.com/esphome/esphome/pull/8499) by [@swoboda1337](https://github.com/swoboda1337)
+- Fix vscode validation not showing error squiggles [esphome#8500](https://github.com/esphome/esphome/pull/8500) by [@glmnet](https://github.com/glmnet)
+- SML runtime optimizations [esphome#8571](https://github.com/esphome/esphome/pull/8571) by [@mariusgreuel](https://github.com/mariusgreuel)
+
+
+</details>
+
+### Dependency Changes
+
+<details>
+<summary></summary>
+
+
+
+- Bump setuptools from 69.2.0 to 76.0.0 [esphome#8405](https://github.com/esphome/esphome/pull/8405) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump puremagic from 1.27 to 1.28 [esphome#8406](https://github.com/esphome/esphome/pull/8406) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump esphome-glyphsets from 0.1.0 to 0.2.0 [esphome#8403](https://github.com/esphome/esphome/pull/8403) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/cache from 4.2.2 to 4.2.3 in /.github/actions/restore-python [esphome#8437](https://github.com/esphome/esphome/pull/8437) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/cache from 4.2.2 to 4.2.3 [esphome#8433](https://github.com/esphome/esphome/pull/8433) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump ruff from 0.9.2 to 0.11.0 [esphome#8409](https://github.com/esphome/esphome/pull/8409) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pylint from 3.2.7 to 3.3.6 [esphome#8441](https://github.com/esphome/esphome/pull/8441) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Update wheel requirement from \~=0.43.0 to \>=0.43,\<0.46 [esphome#8421](https://github.com/esphome/esphome/pull/8421) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump tzlocal from 5.2 to 5.3.1 [esphome#8423](https://github.com/esphome/esphome/pull/8423) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 29.6.0 to 29.7.0 [esphome#8448](https://github.com/esphome/esphome/pull/8448) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-asyncio from 0.23.6 to 0.25.3 [esphome#8447](https://github.com/esphome/esphome/pull/8447) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump ruff from 0.11.0 to 0.11.2 [esphome#8461](https://github.com/esphome/esphome/pull/8461) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/setup-python from 5.4.0 to 5.5.0 [esphome#8468](https://github.com/esphome/esphome/pull/8468) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/setup-python from 5.4.0 to 5.5.0 in /.github/actions/restore-python [esphome#8467](https://github.com/esphome/esphome/pull/8467) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-cov from 5.0.0 to 6.0.0 [esphome#8462](https://github.com/esphome/esphome/pull/8462) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest-asyncio from 0.25.3 to 0.26.0 [esphome#8490](https://github.com/esphome/esphome/pull/8490) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump async-timeout from 4.0.3 to 5.0.1 [esphome#8491](https://github.com/esphome/esphome/pull/8491) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump platformio from 6.1.16 to 6.1.18 [esphome#8449](https://github.com/esphome/esphome/pull/8449) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump peter-evans/create-pull-request from 7.0.7 to 7.0.8 [esphome#8362](https://github.com/esphome/esphome/pull/8362) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker/login-action from 3.3.0 to 3.4.0 in the docker-actions group [esphome#8408](https://github.com/esphome/esphome/pull/8408) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/download-artifact from 4.1.9 to 4.2.1 [esphome#8434](https://github.com/esphome/esphome/pull/8434) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/upload-artifact from 4.6.1 to 4.6.2 [esphome#8435](https://github.com/esphome/esphome/pull/8435) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump ruamel-yaml from 0.18.6 to 0.18.10 [esphome#8446](https://github.com/esphome/esphome/pull/8446) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump yamllint from 1.35.1 to 1.37.0 [esphome#8495](https://github.com/esphome/esphome/pull/8495) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pyupgrade from 3.15.2 to 3.19.1 [esphome#8496](https://github.com/esphome/esphome/pull/8496) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump voluptuous from 0.14.2 to 0.15.2 [esphome#8506](https://github.com/esphome/esphome/pull/8506) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump zeroconf from 0.146.1 to 0.146.3 [esphome#8507](https://github.com/esphome/esphome/pull/8507) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump setuptools from 76.0.0 to 78.1.0 [esphome#8512](https://github.com/esphome/esphome/pull/8512) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump flake8 from 7.0.0 to 7.2.0 [esphome#8493](https://github.com/esphome/esphome/pull/8493) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest from 8.2.0 to 8.3.5 [esphome#8528](https://github.com/esphome/esphome/pull/8528) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 29.9.0 to 29.10.0 [esphome#8562](https://github.com/esphome/esphome/pull/8562) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump zeroconf from 0.146.3 to 0.146.4 [esphome#8563](https://github.com/esphome/esphome/pull/8563) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump zeroconf from 0.146.4 to 0.146.5 [esphome#8569](https://github.com/esphome/esphome/pull/8569) by [@dependabot[bot]](https://github.com/dependabot[bot])
+
+
+</details>
+
+{/* markdownlint-enable MD013 */}
