@@ -184,13 +184,16 @@ void ESP32Camera::loop() {
   // check if we can return the image
   if (this->can_return_image_()) {
     // return image
+#ifdef USE_ESP32_CAMERA_JPEG_CONVERSION
     if (this->config_.pixel_format != PIXFORMAT_JPEG && this->config_.jpeg_quality > 0) {
       // for non-JPEG format, we need to free the data and raw buffer
       auto *jpg_buf = this->current_image_->get_data_buffer();
       free(jpg_buf);  // NOLINT(cppcoreguidelines-no-malloc)
       auto *fb = this->current_image_->get_raw_buffer();
       this->fb_allocator_.deallocate(fb, 1);
-    } else {
+    } else
+#endif
+    {
       auto *fb = this->current_image_->get_raw_buffer();
       xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
     }
@@ -221,8 +224,9 @@ void ESP32Camera::loop() {
     return;
   }
 
-  // for non-JPEG format, we need to convert the frame to JPEG
+#ifdef USE_ESP32_CAMERA_JPEG_CONVERSION
   if (this->config_.pixel_format != PIXFORMAT_JPEG && this->config_.jpeg_quality > 0) {
+    // for non-JPEG format, we need to convert the frame to JPEG
     uint8_t *jpg_buf;
     size_t jpg_buf_len;
     size_t width = fb->width;
@@ -250,6 +254,7 @@ void ESP32Camera::loop() {
     fb->format = PIXFORMAT_JPEG;
     fb->timestamp = timestamp;
   }
+#endif
   this->current_image_ = std::make_shared<ESP32CameraImage>(fb, this->single_requesters_ | this->stream_requesters_);
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
