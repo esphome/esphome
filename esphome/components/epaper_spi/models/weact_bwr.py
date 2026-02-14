@@ -24,7 +24,7 @@ class WeActBWR(EpaperModel):
         The initialization sequence is based on SSD1680 and SSD1683 controller datasheet
         and the WeAct display specifications.
         """
-        width, height = self.get_dimensions(config)
+        _, height = self.get_dimensions(config)
         # DRV_OUT_CTL: MSB of (height-1), LSB of (height-1), gate setting (0x00)
         height_minus_1 = height - 1
         msb = height_minus_1 >> 8
