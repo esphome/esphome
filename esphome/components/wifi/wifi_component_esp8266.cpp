@@ -217,30 +217,16 @@ bool WiFiComponent::wifi_apply_hostname_() {
     ESP_LOGV(TAG, "Set hostname failed");
   }
 
-  // inform dhcp server of hostname change using dhcp_renew()
+  // Update hostname on all lwIP interfaces so DHCP packets include it.
+  // lwIP includes the hostname in DHCP DISCOVER/REQUEST automatically
+  // via LWIP_NETIF_HOSTNAME — no dhcp_renew() needed. The hostname is
+  // fixed at compile time and never changes at runtime.
   for (netif *intf = netif_list; intf; intf = intf->next) {
-    // unconditionally update all known interfaces
 #if LWIP_VERSION_MAJOR == 1
     intf->hostname = (char *) wifi_station_get_hostname();
 #else
     intf->hostname = wifi_station_get_hostname();
 #endif
-    struct dhcp *dhcp_data = netif_dhcp_data(intf);
-    if (dhcp_data != nullptr && dhcp_data->state == DHCP_STATE_BOUND) {
-      // Renew already-bound DHCP leases to inform server of hostname change.
-      // Only attempt when DHCP is BOUND — calling dhcp_renew() in any other
-      // state corrupts lwIP's DHCP state machine (it unconditionally sets state
-      // to RENEWING before attempting to send, and never rolls back on failure).
-      // This causes dhcp_network_changed() to call dhcp_reboot() instead of
-      // dhcp_discover() when WiFi later connects, sending a bogus DHCP REQUEST
-      // for IP 0.0.0.0 that can put some routers into a persistent bad state.
-      err_t lwipret = dhcp_renew(intf);
-      if (lwipret != ERR_OK) {
-        ESP_LOGW(TAG, "wifi_apply_hostname_(%s): lwIP error %d on interface %c%c (index %d)", intf->hostname,
-                 (int) lwipret, intf->name[0], intf->name[1], intf->num);
-        ret = false;
-      }
-    }
   }
 
   return ret;
