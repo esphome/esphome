@@ -126,6 +126,37 @@ void ESP32Camera::dump_config() {
     default:
       break;
   }
+  switch (this->config_.pixel_format) {
+    case PIXFORMAT_RGB565:
+      ESP_LOGCONFIG(TAG, "  Pixel Format: RGB565");
+      break;
+    case PIXFORMAT_YUV422:
+      ESP_LOGCONFIG(TAG, "  Pixel Format: YUV422");
+      break;
+    case PIXFORMAT_YUV420:
+      ESP_LOGCONFIG(TAG, "  Pixel Format: YUV420");
+      break;
+    case PIXFORMAT_GRAYSCALE:
+      ESP_LOGCONFIG(TAG, "  Pixel Format: GRAYSCALE");
+      break;
+    case PIXFORMAT_JPEG:
+      ESP_LOGCONFIG(TAG, "  Pixel Format: JPEG");
+      break;
+    case PIXFORMAT_RGB888:
+      ESP_LOGCONFIG(TAG, "  Pixel Format: RGB888");
+      break;
+    case PIXFORMAT_RAW:
+      ESP_LOGCONFIG(TAG, "  Pixel Format: RAW");
+      break;
+    case PIXFORMAT_RGB444:
+      ESP_LOGCONFIG(TAG, "  Pixel Format: RGB444");
+      break;
+    case PIXFORMAT_RGB555:
+      ESP_LOGCONFIG(TAG, "  Pixel Format: RGB555");
+      break;
+    default:
+      break;
+  }
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "  Setup Failed: %s", esp_err_to_name(this->init_error_));
