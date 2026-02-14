@@ -476,7 +476,7 @@ bool BMP581Component::reset_() {
   // - returns the Power-On-Reboot interrupt status, which is asserted if successful
 
   // Activates protocol if necessary (i.e., SPI)
-  this->activate_protocol_();
+  this->activate_protocol();
   // writes reset command to BMP's command register
   if (!this->bmp_write_byte(BMP581_COMMAND, RESET_COMMAND)) {
     ESP_LOGE(TAG, "Failed to write reset command");
@@ -488,7 +488,7 @@ bool BMP581Component::reset_() {
   delay(3);
 
   // Activates protocol if necessary (i.e., SPI)
-  this->activate_protocol_();
+  this->activate_protocol();
 
   // read interrupt status register
   if (!this->bmp_read_byte(BMP581_INT_STATUS, &this->int_status_.reg)) {

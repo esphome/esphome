@@ -20,7 +20,7 @@ class BMP581I2CComponent : public esphome::bmp581_base::BMP581Component, public 
   }
   void dump_config() override;
   // This function isn't required in I2C mode, make it a no-op
-  void activate_protocol_(){};
+  void activate_protocol() override{};
 };
 
 }  // namespace esphome::bmp581_i2c
