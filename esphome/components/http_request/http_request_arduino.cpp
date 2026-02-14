@@ -138,8 +138,8 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
         }
         ESP_LOGW(TAG, "SSL failure: %s (Code: %d)", error_msg, last_error);
         if (last_error == ESP8266_SSL_ERR_OOM) {
-          // Avoid ESP.getFreeHeap() here — it pulls in umm_info symbols (+128 RAM, +400 flash)
-          ESP_LOGW(TAG, "Enable debug component for heap diagnostics");
+          ESP_LOGW(TAG, "Heap free: %u bytes, configured buffer sizes: %u bytes", ESP.getFreeHeap(),
+                   static_cast<unsigned int>(RX_BUFFER_SIZE + TX_BUFFER_SIZE));
         }
       } else {
         ESP_LOGW(TAG, "Connection failure with no error code");
