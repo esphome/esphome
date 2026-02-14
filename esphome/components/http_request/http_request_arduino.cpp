@@ -17,11 +17,11 @@
 namespace esphome::http_request {
 
 static const char *const TAG = "http_request.arduino";
+#ifdef USE_ESP8266
 static constexpr int RX_BUFFER_SIZE = 512;
 static constexpr int TX_BUFFER_SIZE = 512;
-#ifdef USE_ESP8266
 // ESP8266 Arduino core (WiFiClientSecureBearSSL.cpp) returns -1000 on OOM
-static constexpr int BR_ERR_OOM = -1000;
+static constexpr int ESP8266_SSL_ERR_OOM = -1000;
 #endif
 
 std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &url, const std::string &method,
@@ -126,7 +126,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
       if (last_error != 0) {
         const char *error_msg;
         switch (last_error) {
-          case BR_ERR_OOM:
+          case ESP8266_SSL_ERR_OOM:
             error_msg = "Unable to allocate buffer memory";
             break;
           case BR_ERR_TOO_LARGE:
@@ -137,9 +137,9 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
             break;
         }
         ESP_LOGW(TAG, "SSL failure: %s (Code: %d)", error_msg, last_error);
-        if (last_error == BR_ERR_OOM) {
+        if (last_error == ESP8266_SSL_ERR_OOM) {
           ESP_LOGW(TAG, "Heap free: %u bytes, configured buffer sizes: %u bytes. Enable debug component for more info",
-                   ESP.getFreeHeap(), RX_BUFFER_SIZE + TX_BUFFER_SIZE);
+                   ESP.getFreeHeap(), static_cast<unsigned int>(RX_BUFFER_SIZE + TX_BUFFER_SIZE));
         }
       } else {
         ESP_LOGW(TAG, "Connection failure with no error code");
