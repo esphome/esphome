@@ -136,8 +136,8 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
         }
         ESP_LOGW(TAG, "SSL failure: %s (Code: %d)", error_msg, last_error);
         if (last_error == BR_ERR_OOM) {
-          ESP_LOGW(TAG, "Heap free: %u bytes, max block: %u bytes, configured buffer sizes: %u bytes",
-                   ESP.getFreeHeap(), ESP.getMaxFreeBlockSize(), RX_BUFFER_SIZE + TX_BUFFER_SIZE);
+          ESP_LOGW(TAG, "Heap free: %u bytes, configured buffer sizes: %u bytes. Enable debug component for more info",
+                   ESP.getFreeHeap(), RX_BUFFER_SIZE + TX_BUFFER_SIZE);
         }
       } else {
         ESP_LOGW(TAG, "Connection failure with no error code");
