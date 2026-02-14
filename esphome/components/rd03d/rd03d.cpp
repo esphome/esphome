@@ -82,10 +82,10 @@ void RD03DComponent::dump_config() {
 
 void RD03DComponent::loop() {
   // Read all available bytes in batches to reduce UART call overhead.
-  int avail = this->available();
+  size_t avail = this->available();
   uint8_t buf[64];
   while (avail > 0) {
-    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    size_t to_read = std::min(avail, sizeof(buf));
     if (!this->read_array(buf, to_read)) {
       break;
     }
