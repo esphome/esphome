@@ -6,7 +6,6 @@
 
 namespace esphome::bmp581_spi {
 
-static const uint8_t DUMMY_SPI_DATA[2] = {0x00, 0x00};
 static const char *const TAG = "bmp581_spi";
 
 uint8_t set_bit(uint8_t num, uint8_t position) {
@@ -24,32 +23,11 @@ void BMP581SPIComponent::setup() {
   BMP581Component::setup();
 }
 
-// In order for the BMP581 to enter SPI mode, we need to set the SPI pin low for
-// at least 16 clock cycles. We do this by doing a dummy read before sending the
-// initial soft reset (in case it's in I2C/I3C mode), then perform the soft
-// reset, then do a dummy read again.
-bool BMP581SPIComponent::reset_() {
-  this->write_array(DUMMY_SPI_DATA, 2);
-  delay(3);
-  if (!this->bmp_write_byte(bmp581_base::BMP581_COMMAND, bmp581_base::RESET_COMMAND)) {
-    ESP_LOGE(TAG, "Failed to write reset command");
-
-    return false;
-  }
-
-  // t_{soft_res} = 2ms (page 11 of datasheet); time it takes to enter standby mode
-  //  - round up to 3 ms
-  delay(3);
-
-  // read interrupt status register
-  if (!this->bmp_read_byte(bmp581_base::BMP581_INT_STATUS, &this->int_status_.reg)) {
-    ESP_LOGE(TAG, "Failed to read interrupt status register");
-
-    return false;
-  }
-
-  // Power-On-Reboot bit is asserted if sensor successfully reset
-  return this->int_status_.bit.por;
+void BMP581SPIComponent::activate_protocol_() {
+  // - forces the device into SPI mode using a dummy read
+  uint8_t dummy_read = 0;
+  this->bmp_read_byte(bmp581_base::BMP581_CHIP_ID, &dummy_read);
+  return;
 }
 
 // In SPI mode, only 7 bits of the register addresses are used; the MSB of register address is not used
@@ -89,5 +67,4 @@ bool BMP581SPIComponent::bmp_write_bytes(uint8_t a_register, uint8_t *data, size
   this->disable();
   return true;
 }
-
 }  // namespace esphome::bmp581_spi

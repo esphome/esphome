@@ -8,5 +8,4 @@ void BMP581I2CComponent::dump_config() {
   LOG_I2C_DEVICE(this);
   BMP581Component::dump_config();
 }
-
 }  // namespace esphome::bmp581_i2c

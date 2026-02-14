@@ -13,9 +13,7 @@ class BMP581SPIComponent : public esphome::bmp581_base::BMP581Component,
   bool bmp_write_byte(uint8_t a_register, uint8_t data) override;
   bool bmp_read_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
   bool bmp_write_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
-
- protected:
-  bool reset_();
+  void activate_protocol_();
 };
 
 }  // namespace esphome::bmp581_spi
