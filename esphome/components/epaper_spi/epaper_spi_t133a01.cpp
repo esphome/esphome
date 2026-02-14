@@ -218,11 +218,6 @@ void EPaperT133A01::send_init_sequence_dual_(const uint8_t *sequence, size_t len
     }
     const uint8_t cmd = sequence[index++];
     const uint8_t len_or_flag = sequence[index++];
-    if (len_or_flag == DELAY_FLAG) {
-      ESP_LOGV(TAG, "Delay %dms", cmd);
-      delay(cmd);
-      continue;
-    }
 
     const uint8_t num_args = len_or_flag & 0x7F;
     if (length - index < num_args) {
@@ -276,7 +271,6 @@ void EPaperT133A01::power_on() {
   this->command(R04_PON);
   this->wait_for_idle_with_timeout_(PON_BUSY_TIMEOUT_MS, "PON");
   this->cs1_pin_->digital_write(true);
-  delay(30);
 }
 
 void EPaperT133A01::refresh_screen(bool partial) {
@@ -290,7 +284,6 @@ void EPaperT133A01::refresh_screen(bool partial) {
   this->cmd_data(R12_DRF, DRF_V, sizeof(DRF_V));
   this->wait_for_idle_with_timeout_(DRF_BUSY_TIMEOUT_MS, "DRF");
   this->cs1_pin_->digital_write(true);
-  delay(30);
 }
 
 void EPaperT133A01::power_off() {
@@ -303,7 +296,6 @@ void EPaperT133A01::power_off() {
   this->cmd_data(R02_POF, POF_V, sizeof(POF_V));
   this->wait_for_idle_with_timeout_(POF_BUSY_TIMEOUT_MS, "POF");
   this->cs1_pin_->digital_write(true);
-  delay(30);
 }
 
 void EPaperT133A01::deep_sleep() {

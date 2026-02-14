@@ -1,5 +1,3 @@
-from esphome.components.mipi import delay
-
 from . import EpaperModel
 
 
@@ -15,39 +13,22 @@ class T133A01(EpaperModel):
 
     # fmt: off
     def get_init_sequence(self, config: dict):
-        # Sequence adapted from Seeed_GFX (T133A01_Defines.h / EPD_INIT).
-        # Some commands need to be mirrored to the second controller (CS1) in C++.
         return (
             (0x74, 0xC0, 0x1C, 0x1C, 0xCC, 0xCC, 0xCC, 0x15, 0x15, 0x55),
-            delay(10),
             (0xF0, 0x49, 0x55, 0x13, 0x5D, 0x05, 0x10),
-            delay(10),
             (0x00, 0xDF, 0x69),
-            delay(10),
             (0x50, 0x37),
-            delay(10),
             (0x60, 0x03, 0x03),
-            delay(10),
             (0x86, 0x10),
-            delay(10),
             (0xE3, 0x22),
-            delay(10),
             (0x61, 0x04, 0xB0, 0x03, 0x20),
-            delay(10),
             (0x01, 0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38),
-            delay(10),
             (0xB6, 0x07),
-            delay(10),
             (0x06, 0xD8, 0x18),
-            delay(10),
             (0xB7, 0x01),
-            delay(10),
             (0x05, 0xD8, 0x18),
-            delay(10),
             (0xB0, 0x01),
-            delay(10),
             (0xB1, 0x02),
-            delay(10),
         )
 
 
