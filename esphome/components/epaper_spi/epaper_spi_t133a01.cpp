@@ -1,6 +1,7 @@
 #include "epaper_spi_t133a01.h"
 
 #include <algorithm>
+#include "esphome/components/epaper_spi/colorconv.h"
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -8,7 +9,6 @@
 namespace esphome::epaper_spi {
 
 static constexpr const char *const TAG = "epaper_spi.t133a01";
-static constexpr uint8_t GRAY_THRESHOLD = 50;
 
 // --- T133A01 controller register/command constants ---
 static constexpr uint8_t R00_PSR = 0x00;
@@ -42,44 +42,9 @@ static constexpr uint8_t TFT_BLUE = 0xD;
 static constexpr uint8_t TFT_BLACK = 0xF;
 
 static uint8_t color_to_palette(Color color) {
-  unsigned char max_rgb = std::max({color.r, color.g, color.b});
-  unsigned char min_rgb = std::min({color.r, color.g, color.b});
-
-  if ((max_rgb - min_rgb) < GRAY_THRESHOLD) {
-    if ((static_cast<int>(color.r) + color.g + color.b) > 382) {
-      return TFT_WHITE;
-    }
-    return TFT_BLACK;
-  }
-
-  bool r_on = (color.r > 128);
-  bool g_on = (color.g > 128);
-  bool b_on = (color.b > 128);
-
-  if (r_on && g_on && !b_on) {
-    return TFT_YELLOW;
-  }
-  if (r_on && !g_on && !b_on) {
-    return TFT_RED;
-  }
-  if (!r_on && g_on && !b_on) {
-    return TFT_GREEN;
-  }
-  if (!r_on && !g_on && b_on) {
-    return TFT_BLUE;
-  }
-  if (!r_on && g_on && b_on) {
-    // Cyan -> closest is Green
-    return TFT_GREEN;
-  }
-  if (r_on && !g_on) {
-    // Magenta -> closest is Red
-    return TFT_RED;
-  }
-  if (r_on) {
-    return TFT_WHITE;
-  }
-  return TFT_BLACK;
+  // Use the 6-color mapping helper for T133A01
+  return esphome::epaper_spi::color_to_bgrwy<uint8_t>(color, TFT_BLACK, TFT_GREEN, TFT_RED, TFT_WHITE, TFT_YELLOW,
+                                                      TFT_BLUE);
 }
 
 static constexpr uint8_t color_get(uint8_t nibble) {
