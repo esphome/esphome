@@ -14,9 +14,9 @@ bool justbooted = true;
 
 using namespace std;
 string CxREG_MODE[3] = {"CREG", "CEREG", "CGREG"};
-uint8_t  NETWORK_TYPE[3] = {2, 4, 3};
+uint8_t NETWORK_TYPE[3] = {2, 4, 3};
 
-uint8_t CxREG_INDEX = 0;          // can be initialized with another value if another mode is preferred : 0=GSM, 1=LTE, 2=GPRS
+uint8_t CxREG_INDEX = 0;  // can be initialized with another value if another mode is preferred : 0=GSM, 1=LTE, 2=GPRS
 
 void Sim7600Component::update() {
   if (this->watch_dog_++ == 2) {
@@ -52,11 +52,11 @@ void Sim7600Component::update() {
       return;
     } else {
       this->send_cmd_("AT");
-	  if (justbooted == true) {
-		this->send_cmd_("AT+CMGD=0,4");   							                      //DCO
-		justbooted = false;
-		ESP_LOGI(TAG, "first loop, all remaining stored rx/tx SMS flushed");
-      } 	    
+      if (justbooted == true) {
+        this->send_cmd_("AT+CMGD=0,4");  // DCO
+        justbooted = false;
+        ESP_LOGI(TAG, "first loop, all remaining stored rx/tx SMS flushed");
+      }
       this->state_ = STATE_SETUP_CMGF;
     }
     this->expect_ack_ = true;
@@ -153,17 +153,17 @@ void Sim7600Component::parse_cmd_(std::string message) {
       break;
     case STATE_SETUP_CMGF:
       send_cmd_("AT+CMGF=1");
-      //this->state_ = STATE_SETUP_CLIP;  // skip setup clip not supported on 7670G
-      //this->state_ = STATE_SETUP_COPS;;  // maybe not needed
+      // this->state_ = STATE_SETUP_CLIP;  // skip setup clip not supported on 7670G
+      // this->state_ = STATE_SETUP_COPS;;  // maybe not needed
       this->state_ = STATE_CxREG;
       this->expect_ack_ = true;
       break;
     case STATE_SETUP_COPS:
       send_cmd_("AT+COPS=0");
-      //this->state_ = STATE_CxREG;
+      // this->state_ = STATE_CxREG;
       this->state_ = STATE_CSQ;
       this->expect_ack_ = true;
-      break;    
+      break;
     case STATE_SETUP_CLIP:  // skip setup clip not supported on 7670G
       send_cmd_("AT+CLIP=1");
       this->state_ = STATE_CxREG;
@@ -210,87 +210,91 @@ void Sim7600Component::parse_cmd_(std::string message) {
         this->state_ = STATE_INIT;
       break;
 
-//    +CREG vs. +CGREG vs. +CEREG
-//    What are the differences between +CREG, +CGREG, and +CEREG?
-//
-//    https://onomondo.com/blog/at-command-cereg/#defined-values
-//
-//    +CREG queries the registration to the circuit switched network, aka GSM networks.
-//    +CGREG and +CEREG query registration to the packet switched networks, aka networks which allow access to the internet.
-//    +CGREG queries the registration to GPRS network.
-//    +CEREG queries the registration to LTE or newer network technologies.
-//    If you are using modems with both GPRS and LTE technologies, use both AT+CGREG? and AT+CEREG?. The modem will report x,4 to the technology that is currently not active.
-//    Defined values
-//    <n> = Network registration unsolicited result code mode.
-//    
-//    0 = Unsubscribe unsolicited result codes
-//    1 = Subscribe unsolicited result codes +CEREG:<stat>
-//    2 = Subscribe unsolicited result codes +CEREG:<stat>[,<tac>,<ci>,<AcT>]
-//    3 = Subscribe unsolicited result codes +CEREG:<stat>[,<tac>,<ci>,<AcT>[,<cause_type>,<reject_cause>]]
-//    4 = Subscribe unsolicited result codes +CEREG: <stat>[,[<tac>],[<ci>],[<AcT>][,,[,[<Active-Time>],[<Periodic-TAU>]]]]
-//    5 = Subscribe unsolicited result codes +CEREG: <stat>[,[<tac>],[<ci>],[<AcT>][,[<cause_type>],[<reject_cause>][,[<Active-Time>],[<Periodic-TAU>]]]]
-//    
-//    <stat> = Current network registration status.
-//    
-//    0 = Not registered. User Equipment (UE) is not currently searching for an operator to register to.
-//    1 = Registered, home network
-//    2 = Not registered, but UE is currently trying to attach or searching an operator to register to
-//    3 = Registration denied
-//    4 = Unknown (for example, out of Evolved Terrestrial Radio Access Network (E-UTRAN) coverage)
-//    5 = Registered, roaming
-//    90 = Not registered due to Universal Integrated Circuit Card (UICC) failure
-//      
-    
-    
+      //    +CREG vs. +CGREG vs. +CEREG
+      //    What are the differences between +CREG, +CGREG, and +CEREG?
+      //
+      //    https://onomondo.com/blog/at-command-cereg/#defined-values
+      //
+      //    +CREG queries the registration to the circuit switched network, aka GSM networks.
+      //    +CGREG and +CEREG query registration to the packet switched networks, aka networks which allow access to the
+      //    internet. +CGREG queries the registration to GPRS network. +CEREG queries the registration to LTE or newer
+      //    network technologies. If you are using modems with both GPRS and LTE technologies, use both AT+CGREG? and
+      //    AT+CEREG?. The modem will report x,4 to the technology that is currently not active. Defined values <n> =
+      //    Network registration unsolicited result code mode.
+      //
+      //    0 = Unsubscribe unsolicited result codes
+      //    1 = Subscribe unsolicited result codes +CEREG:<stat>
+      //    2 = Subscribe unsolicited result codes +CEREG:<stat>[,<tac>,<ci>,<AcT>]
+      //    3 = Subscribe unsolicited result codes +CEREG:<stat>[,<tac>,<ci>,<AcT>[,<cause_type>,<reject_cause>]]
+      //    4 = Subscribe unsolicited result codes +CEREG:
+      //    <stat>[,[<tac>],[<ci>],[<AcT>][,,[,[<Active-Time>],[<Periodic-TAU>]]]] 5 = Subscribe unsolicited result
+      //    codes +CEREG:
+      //    <stat>[,[<tac>],[<ci>],[<AcT>][,[<cause_type>],[<reject_cause>][,[<Active-Time>],[<Periodic-TAU>]]]]
+      //
+      //    <stat> = Current network registration status.
+      //
+      //    0 = Not registered. User Equipment (UE) is not currently searching for an operator to register to.
+      //    1 = Registered, home network
+      //    2 = Not registered, but UE is currently trying to attach or searching an operator to register to
+      //    3 = Registration denied
+      //    4 = Unknown (for example, out of Evolved Terrestrial Radio Access Network (E-UTRAN) coverage)
+      //    5 = Registered, roaming
+      //    90 = Not registered due to Universal Integrated Circuit Card (UICC) failure
+      //
+
     case STATE_CxREG:
-      send_cmd_("AT+" + CxREG_MODE[CxREG_INDEX] + "?");                    
+      send_cmd_("AT+" + CxREG_MODE[CxREG_INDEX] + "?");
       this->state_ = STATE_CxREG_WAIT;
       break;
-	  
-    case STATE_CxREG_WAIT:{
+
+    case STATE_CxREG_WAIT: {
       // Response: "+CxREG: 0,1"  means registered ok
       //           "+CxREG: *,4"  means technology not available, try another one
       //           "+CxREG: -,-"  means not registered ok
-      
-	  uint8_t INDEX_SHIFT = CxREG_MODE[CxREG_INDEX].length();
-      bool registered = message.compare(1, INDEX_SHIFT, CxREG_MODE[CxREG_INDEX]) == 0 && (message[5+INDEX_SHIFT] == '1' || message[5+INDEX_SHIFT] == '5'  || message[5+INDEX_SHIFT] == '6');     
+
+      uint8_t INDEX_SHIFT = CxREG_MODE[CxREG_INDEX].length();
+      bool registered =
+          message.compare(1, INDEX_SHIFT, CxREG_MODE[CxREG_INDEX]) == 0 &&
+          (message[5 + INDEX_SHIFT] == '1' || message[5 + INDEX_SHIFT] == '5' || message[5 + INDEX_SHIFT] == '6');
 
       if (registered) {
         if (!this->registered_) {
-          ESP_LOGI(TAG,  "%dG registered OK [%s]",  NETWORK_TYPE[CxREG_INDEX],  CxREG_MODE[CxREG_INDEX].c_str());
+          ESP_LOGI(TAG, "%dG registered OK [%s]", NETWORK_TYPE[CxREG_INDEX], CxREG_MODE[CxREG_INDEX].c_str());
         }
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
-		
+
 #ifdef USE_SENSOR
         if (this->network_sensor_ != nullptr) {
           this->network_sensor_->publish_state(NETWORK_TYPE[CxREG_INDEX]);
-	    }
+        }
 #endif
       } else {
-       		if (message[3+INDEX_SHIFT] == '0') {           // Network registration is disabled, enable it   
-                ESP_LOGD(TAG, "%s network registration is disabled, enable it", CxREG_MODE[CxREG_INDEX].c_str() );
-                send_cmd_("AT+" + CxREG_MODE[CxREG_INDEX] + "=1");                        
-                this->expect_ack_ = true;
-                this->state_ = STATE_SETUP_CMGF;
-      		//  break;
-      		} else if (message[5+INDEX_SHIFT] == '4')  {          // not available, trying next one
-                ESP_LOGD(TAG, "%s network registration is not available, trying %s", CxREG_MODE[CxREG_INDEX].c_str() , CxREG_MODE[(CxREG_INDEX+1) % 3].c_str());
-                CxREG_INDEX = (CxREG_INDEX + 1) % 3;
-                this->state_ = STATE_CxREG;
-                this->expect_ack_ = true;
-              //  break;			
-          } else {
-            // Keep waiting registration           
-                ESP_LOGD(TAG, "%s network registration failed, trying %s", CxREG_MODE[CxREG_INDEX].c_str(), CxREG_MODE[(CxREG_INDEX+1) % 3].c_str() );
-                CxREG_INDEX = (CxREG_INDEX + 1) % 3;
-                this->state_ = STATE_INIT;
-          }
+        if (message[3 + INDEX_SHIFT] == '0') {  // Network registration is disabled, enable it
+          ESP_LOGD(TAG, "%s network registration is disabled, enable it", CxREG_MODE[CxREG_INDEX].c_str());
+          send_cmd_("AT+" + CxREG_MODE[CxREG_INDEX] + "=1");
+          this->expect_ack_ = true;
+          this->state_ = STATE_SETUP_CMGF;
+          //  break;
+        } else if (message[5 + INDEX_SHIFT] == '4') {  // not available, trying next one
+          ESP_LOGD(TAG, "%s network registration is not available, trying %s", CxREG_MODE[CxREG_INDEX].c_str(),
+                   CxREG_MODE[(CxREG_INDEX + 1) % 3].c_str());
+          CxREG_INDEX = (CxREG_INDEX + 1) % 3;
+          this->state_ = STATE_CxREG;
+          this->expect_ack_ = true;
+          //  break;
+        } else {
+          // Keep waiting registration
+          ESP_LOGD(TAG, "%s network registration failed, trying %s", CxREG_MODE[CxREG_INDEX].c_str(),
+                   CxREG_MODE[(CxREG_INDEX + 1) % 3].c_str());
+          CxREG_INDEX = (CxREG_INDEX + 1) % 3;
+          this->state_ = STATE_INIT;
+        }
       }
       set_registered_(registered);
       break;
     }
-	
+
     case STATE_CSQ:
       send_cmd_("AT+CSQ");
       this->state_ = STATE_CSQ_RESPONSE;
@@ -301,22 +305,21 @@ void Sim7600Component::parse_cmd_(std::string message) {
         if (comma != 6) {
           int rssi = parse_number<int>(message.substr(6, comma - 6)).value_or(0);
 
-   #ifdef USE_SENSOR
+#ifdef USE_SENSOR
           if (this->rssi_sensor_ != nullptr) {
             this->rssi_sensor_->publish_state(rssi);
           } else {
-             ESP_LOGD(TAG, "RSSI: %d", rssi);
+            ESP_LOGD(TAG, "RSSI: %d", rssi);
           }
-  #else
+#else
           ESP_LOGD(TAG, "RSSI: %d", rssi);
-  #endif
+#endif
         }
       }
       this->expect_ack_ = true;
       this->state_ = STATE_CHECK_SMS;
       break;
 
-    
     case STATE_PARSE_SMS_RESPONSE:
       if (message.compare(0, 6, "+CMGL:") == 0 && this->parse_index_ == 0) {
         size_t start = 7;
@@ -348,15 +351,14 @@ void Sim7600Component::parse_cmd_(std::string message) {
       }
       // Otherwise we receive another OK
       if (ok) {
-        //send_cmd_("AT+CLCC");
+        // send_cmd_("AT+CLCC");
         send_cmd_("AT+CPAS");
         this->state_ = STATE_CHECK_CALL;
       }
       break;
 
-    
     case STATE_CHECK_CALL:
-      if (message.compare(0, 6, "+CPAS:") == 0 && this->parse_index_ == 0) {    // was "+CLCC:"
+      if (message.compare(0, 6, "+CPAS:") == 0 && this->parse_index_ == 0) {  // was "+CLCC:"
         this->expect_ack_ = true;
         size_t start = 7;
         size_t end = message.find(',', start);
@@ -395,8 +397,6 @@ void Sim7600Component::parse_cmd_(std::string message) {
       this->state_ = STATE_INIT;
       break;
 
-
-    
     case STATE_RECEIVE_SMS:
       /* Our recipient is set and the message body is in message
         kick ESPHome callback now

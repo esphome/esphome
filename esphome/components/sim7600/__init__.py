@@ -1,11 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import (
-    CONF_ID,
-    CONF_TRIGGER_ID,
-)
+import esphome.codegen as cg
 from esphome.components import uart
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_TRIGGER_ID
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@chino-lu"]
@@ -43,7 +40,9 @@ Sim7600SendSmsAction = sim7600_ns.class_(
 Sim7600SendUssdAction = sim7600_ns.class_(
     "Sim7600SendUssdAction", automation.Action, cg.Component
 )
-Sim7600DialAction = sim7600_ns.class_("Sim7600DialAction", automation.Action, cg.Component)
+Sim7600DialAction = sim7600_ns.class_(
+    "Sim7600DialAction", automation.Action, cg.Component
+)
 Sim7600ConnectAction = sim7600_ns.class_(
     "Sim7600ConnectAction", automation.Action, cg.Component
 )
@@ -150,7 +149,9 @@ SIM7600_SEND_SMS_SCHEMA = cv.Schema(
 async def sim7600_send_sms_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    recipient_template = await cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
+    recipient_template = await cg.templatable(
+        config[CONF_RECIPIENT], args, cg.std_string
+    )
     cg.add(var.set_recipient(recipient_template))
     message_template = await cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
     cg.add(var.set_message(message_template))
@@ -169,7 +170,9 @@ SIM7600_DIAL_SCHEMA = cv.Schema(
 async def sim7600_dial_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    recipient_template = await cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
+    recipient_template = await cg.templatable(
+        config[CONF_RECIPIENT], args, cg.std_string
+    )
     cg.add(var.set_recipient(recipient_template))
     return var
 
