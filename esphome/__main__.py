@@ -456,7 +456,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         try:
             with ser:
                 buffer = b""
-                ser.timeout = 1  # 100ms timeout for non-blocking reads
+                ser.timeout = 0.1  # 100ms timeout for non-blocking reads
                 while True:
                     try:
                         # Read all available data and timestamp it
