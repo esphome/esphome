@@ -1490,7 +1490,7 @@ def parse_args(argv):
         "--address",
         help="The address to bind to.",
         type=str,
-        default="0.0.0.0",
+        default="localhost",
     )
     parser_dashboard.add_argument(
         "--username",
