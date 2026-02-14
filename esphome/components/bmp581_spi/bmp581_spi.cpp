@@ -27,7 +27,6 @@ void BMP581SPIComponent::activate_protocol() {
   // - forces the device into SPI mode using a dummy read
   uint8_t dummy_read = 0;
   this->bmp_read_byte(bmp581_base::BMP581_CHIP_ID, &dummy_read);
-  return;
 }
 
 // In SPI mode, only 7 bits of the register addresses are used; the MSB of register address is not used
