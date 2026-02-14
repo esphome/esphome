@@ -94,13 +94,14 @@ const float LATE = -100.0f;
 
 }  // namespace setup_priority
 
-// Component state uses bits 0-2 (8 states, 5 used)
+// Component state uses bits 0-2 (8 states, 6 used)
 const uint8_t COMPONENT_STATE_MASK = 0x07;
 const uint8_t COMPONENT_STATE_CONSTRUCTION = 0x00;
 const uint8_t COMPONENT_STATE_SETUP = 0x01;
 const uint8_t COMPONENT_STATE_LOOP = 0x02;
 const uint8_t COMPONENT_STATE_FAILED = 0x03;
 const uint8_t COMPONENT_STATE_LOOP_DONE = 0x04;
+const uint8_t COMPONENT_STATE_SUPPRESSED = 0x05;
 // Status LED uses bits 3-4
 const uint8_t STATUS_LED_MASK = 0x18;
 const uint8_t STATUS_LED_OK = 0x00;
@@ -237,6 +238,8 @@ bool Component::cancel_retry(uint32_t id) {
 void Component::call_loop() { this->loop(); }
 void Component::call_setup() { this->setup(); }
 void Component::call_dump_config() {
+  if (this->is_suppressed())
+    return;
   this->dump_config();
   if (this->is_failed()) {
     // Look up error message from global vector
@@ -295,6 +298,8 @@ void Component::call() {
       // State failed: Do nothing
     case COMPONENT_STATE_LOOP_DONE:
       // State loop done: Do nothing, component has finished its work
+    case COMPONENT_STATE_SUPPRESSED:
+      // State suppressed: Do nothing, component setup has been suppressed
     default:
       break;
   }
@@ -360,6 +365,21 @@ void Component::reset_to_construction_state() {
     // Clear error status when resetting
     this->status_clear_error();
   }
+}
+void Component::suppress() {
+  if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_CONSTRUCTION) {
+    ESP_LOGVV(TAG, "%s is being suppressed", LOG_STR_ARG(this->get_component_log_str()));
+    this->set_component_state_(COMPONENT_STATE_SUPPRESSED);
+  }
+}
+void Component::unsuppress() {
+  if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SUPPRESSED) {
+    ESP_LOGVV(TAG, "%s is being unsuppressed", LOG_STR_ARG(this->get_component_log_str()));
+    this->set_component_state_(COMPONENT_STATE_CONSTRUCTION);
+  }
+}
+bool Component::is_suppressed() const {
+  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SUPPRESSED;
 }
 bool Component::is_in_loop_state() const {
   return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP;

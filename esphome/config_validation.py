@@ -54,6 +54,7 @@ from esphome.const import (
     CONF_SETUP_PRIORITY,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
+    CONF_SUPPRESSED,
     CONF_TOPIC,
     CONF_TYPE,
     CONF_TYPE_ID,
@@ -2076,7 +2077,12 @@ ENTITY_BASE_SCHEMA = Schema(
 
 ENTITY_BASE_SCHEMA.add_extra(_entity_base_validator)
 
-COMPONENT_SCHEMA = Schema({Optional(CONF_SETUP_PRIORITY): float_})
+COMPONENT_SCHEMA = Schema(
+    {
+        Optional(CONF_SETUP_PRIORITY): float_,
+        Optional(CONF_SUPPRESSED): boolean,
+    }
+)
 
 
 def polling_component_schema(default_update_interval):

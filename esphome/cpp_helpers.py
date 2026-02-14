@@ -3,6 +3,7 @@ import logging
 from esphome.const import (
     CONF_SAFE_MODE,
     CONF_SETUP_PRIORITY,
+    CONF_SUPPRESSED,
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
     KEY_PAST_SAFE_MODE,
@@ -50,6 +51,8 @@ async def register_component(var, config):
     CORE.component_ids.remove(id_)
     if CONF_SETUP_PRIORITY in config:
         add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))
+    if CONF_SUPPRESSED in config and config[CONF_SUPPRESSED]:
+        add(var.suppress())
     if CONF_UPDATE_INTERVAL in config:
         add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 

@@ -71,6 +71,7 @@ extern const uint8_t COMPONENT_STATE_SETUP;
 extern const uint8_t COMPONENT_STATE_LOOP;
 extern const uint8_t COMPONENT_STATE_FAILED;
 extern const uint8_t COMPONENT_STATE_LOOP_DONE;
+extern const uint8_t COMPONENT_STATE_SUPPRESSED;
 extern const uint8_t STATUS_LED_MASK;
 extern const uint8_t STATUS_LED_OK;
 extern const uint8_t STATUS_LED_WARNING;
@@ -144,6 +145,24 @@ class Component {
    * This can be used by components that have recoverable failures to attempt setup again.
    */
   void reset_to_construction_state();
+
+  /** Transition this component from the construction state to the suppressed state.
+   *
+   * This method prevents this component from being setup.
+   */
+  void suppress();
+
+  /** Transition this component from the suppressed state to the construction state.
+   *
+   * This method allows this component to proceed with setup.
+   */
+  void unsuppress();
+
+  /** Check if this component has been prevented from being setup.
+   *
+   * @return True if in the suppressed state, false otherwise.
+   */
+  bool is_suppressed() const;
 
   /** Check if this component has completed setup and is in the loop state.
    *
