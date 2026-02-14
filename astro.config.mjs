@@ -55,27 +55,6 @@ function getChangelogItems() {
   }));
 }
 
-// Get the latest changelog version for redirects
-function getLatestChangelog() {
-  const changelogDir = path.join(__dirname, "src/content/docs/changelog");
-  const files = fs
-    .readdirSync(changelogDir)
-    .filter((f) => f.endsWith(".mdx") && f !== "index.mdx");
-
-  let latest = { sortValue: 0, slug: "" };
-  for (const f of files) {
-    const match = f.match(/^(\d{4})\.(\d+)\.(\d+)\.mdx$/);
-    if (match) {
-      const [, year, month, patch] = match;
-      const sortValue =
-        parseInt(year) * 10000 + parseInt(month) * 100 + parseInt(patch);
-      if (sortValue > latest.sortValue) {
-        latest = { sortValue, slug: `${year}.${month}.${patch}` };
-      }
-    }
-  }
-  return latest.slug;
-}
 
 // Generate component sidebar items with proper labels
 function getComponentItems() {
@@ -141,15 +120,8 @@ function getComponentItems() {
   return items.map(({ sort, ...item }) => item);
 }
 
-const latestChangelog = getLatestChangelog();
-
 export default defineConfig({
   site: "https://esphome.io",
-  redirects: {
-    "/changelog/": `/changelog/${latestChangelog}/`,
-    "/changelog/index/": `/changelog/${latestChangelog}/`,
-    "/guides/changelog/": `/changelog/${latestChangelog}/`,
-  },
   vite: {
     resolve: {
       alias: {
