@@ -24,13 +24,10 @@ enum State {
   STATE_IDLE = 0,
   STATE_INIT,
   STATE_SETUP_CMGF,
+  STATE_SETUP_COPS,
   STATE_SETUP_CLIP,
-  STATE_CEREG,
-  STATE_CEREG_WAIT,
-  STATE_CGREG,
-  STATE_CGREG_WAIT,
-  STATE_CREG,
-  STATE_CREG_WAIT,
+  STATE_CxREG,
+  STATE_CxREG_WAIT,
   STATE_CSQ,
   STATE_CSQ_RESPONSE,
   STATE_SENDING_SMS_1,
@@ -167,67 +164,67 @@ class Sim7600ReceivedUssdTrigger : public Trigger<std::string> {
   }
 };
 
-template<typename... Ts> class Sim7600SendSmsAction : public Action<Ts...> {
+template<typename... Ts> class Sim7600SendSmsAction : public Action<Ts...>, public Component {
  public:
-  Sim7600SendSmsAction(Sim7600Component *parent) : parent_(parent) {}
+  void set_parent(Sim7600Component *parent) { this->parent_ = parent; }
   TEMPLATABLE_VALUE(std::string, recipient)
   TEMPLATABLE_VALUE(std::string, message)
 
-  void play(Ts... x) {
+  void play(const Ts &...x) override {
     auto recipient = this->recipient_.value(x...);
     auto message = this->message_.value(x...);
     this->parent_->send_sms(recipient, message);
   }
 
  protected:
-  Sim7600Component *parent_;
+  Sim7600Component *parent_{nullptr};
 };
 
-template<typename... Ts> class Sim7600SendUssdAction : public Action<Ts...> {
+template<typename... Ts> class Sim7600SendUssdAction : public Action<Ts...>, public Component {
  public:
-  Sim7600SendUssdAction(Sim7600Component *parent) : parent_(parent) {}
+  void set_parent(Sim7600Component *parent) { this->parent_ = parent; }
   TEMPLATABLE_VALUE(std::string, ussd)
 
-  void play(Ts... x) {
+  void play(const Ts &...x) override {
     auto ussd_code = this->ussd_.value(x...);
     this->parent_->send_ussd(ussd_code);
   }
 
  protected:
-  Sim7600Component *parent_;
+  Sim7600Component *parent_{nullptr};
 };
 
-template<typename... Ts> class Sim7600DialAction : public Action<Ts...> {
+template<typename... Ts> class Sim7600DialAction : public Action<Ts...>, public Component {
  public:
-  Sim7600DialAction(Sim7600Component *parent) : parent_(parent) {}
+  void set_parent(Sim7600Component *parent) { this->parent_ = parent; }
   TEMPLATABLE_VALUE(std::string, recipient)
 
-  void play(Ts... x) {
+  void play(const Ts &...x) override {
     auto recipient = this->recipient_.value(x...);
     this->parent_->dial(recipient);
   }
 
  protected:
-  Sim7600Component *parent_;
+  Sim7600Component *parent_{nullptr};
 };
-template<typename... Ts> class Sim7600ConnectAction : public Action<Ts...> {
+template<typename... Ts> class Sim7600ConnectAction : public Action<Ts...>, public Component {
  public:
-  Sim7600ConnectAction(Sim7600Component *parent) : parent_(parent) {}
+  void set_parent(Sim7600Component *parent) { this->parent_ = parent; }
 
-  void play(Ts... x) { this->parent_->connect(); }
+  void play(const Ts &...x) override { this->parent_->connect(); }
 
  protected:
-  Sim7600Component *parent_;
+  Sim7600Component *parent_{nullptr};
 };
 
-template<typename... Ts> class Sim7600DisconnectAction : public Action<Ts...> {
+template<typename... Ts> class Sim7600DisconnectAction : public Action<Ts...>, public Component {
  public:
-  Sim7600DisconnectAction(Sim7600Component *parent) : parent_(parent) {}
+  void set_parent(Sim7600Component *parent) { this->parent_ = parent; }
 
-  void play(Ts... x) { this->parent_->disconnect(); }
+  void play(const Ts &...x) override { this->parent_->disconnect(); }
 
  protected:
-  Sim7600Component *parent_;
+  Sim7600Component *parent_{nullptr};
 };
 
 }  // namespace sim7600

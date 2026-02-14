@@ -37,12 +37,18 @@ Sim7600ReceivedUssdTrigger = sim7600_ns.class_(
 )
 
 # Actions
-Sim7600SendSmsAction = sim7600_ns.class_("Sim7600SendSmsAction", automation.Action)
-Sim7600SendUssdAction = sim7600_ns.class_("Sim7600SendUssdAction", automation.Action)
-Sim7600DialAction = sim7600_ns.class_("Sim7600DialAction", automation.Action)
-Sim7600ConnectAction = sim7600_ns.class_("Sim7600ConnectAction", automation.Action)
+Sim7600SendSmsAction = sim7600_ns.class_(
+    "Sim7600SendSmsAction", automation.Action, cg.Component
+)
+Sim7600SendUssdAction = sim7600_ns.class_(
+    "Sim7600SendUssdAction", automation.Action, cg.Component
+)
+Sim7600DialAction = sim7600_ns.class_("Sim7600DialAction", automation.Action, cg.Component)
+Sim7600ConnectAction = sim7600_ns.class_(
+    "Sim7600ConnectAction", automation.Action, cg.Component
+)
 Sim7600DisconnectAction = sim7600_ns.class_(
-    "Sim7600DisconnectAction", automation.Action
+    "Sim7600DisconnectAction", automation.Action, cg.Component
 )
 
 CONF_SIM7600_ID = "sim7600_id"
@@ -96,7 +102,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     )
-    .extend(cv.polling_component_schema("30s"))
+    .extend(cv.polling_component_schema("5s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
@@ -142,12 +148,12 @@ SIM7600_SEND_SMS_SCHEMA = cv.Schema(
     "sim7600.send_sms", Sim7600SendSmsAction, SIM7600_SEND_SMS_SCHEMA
 )
 async def sim7600_send_sms_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
-    cg.add(var.set_recipient(template_))
-    template_ = await cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
-    cg.add(var.set_message(template_))
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    recipient_template = await cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
+    cg.add(var.set_recipient(recipient_template))
+    message_template = await cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
+    cg.add(var.set_message(message_template))
     return var
 
 
@@ -161,10 +167,10 @@ SIM7600_DIAL_SCHEMA = cv.Schema(
 
 @automation.register_action("sim7600.dial", Sim7600DialAction, SIM7600_DIAL_SCHEMA)
 async def sim7600_dial_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
-    cg.add(var.set_recipient(template_))
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    recipient_template = await cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
+    cg.add(var.set_recipient(recipient_template))
     return var
 
 
@@ -174,8 +180,8 @@ async def sim7600_dial_to_code(config, action_id, template_arg, args):
     cv.Schema({cv.GenerateID(): cv.use_id(Sim7600Component)}),
 )
 async def sim7600_connect_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
     return var
 
 
@@ -191,10 +197,10 @@ SIM7600_SEND_USSD_SCHEMA = cv.Schema(
     "sim7600.send_ussd", Sim7600SendUssdAction, SIM7600_SEND_USSD_SCHEMA
 )
 async def sim7600_send_ussd_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_USSD], args, cg.std_string)
-    cg.add(var.set_ussd(template_))
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    ussd_template = await cg.templatable(config[CONF_USSD], args, cg.std_string)
+    cg.add(var.set_ussd(ussd_template))
     return var
 
 
@@ -204,6 +210,6 @@ async def sim7600_send_ussd_to_code(config, action_id, template_arg, args):
     cv.Schema({cv.GenerateID(): cv.use_id(Sim7600Component)}),
 )
 async def sim7600_disconnect_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
     return var
