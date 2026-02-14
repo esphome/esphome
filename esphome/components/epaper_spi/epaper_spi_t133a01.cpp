@@ -1,7 +1,7 @@
 #include "epaper_spi_t133a01.h"
 
 #include <algorithm>
-#include "esphome/components/epaper_spi/colorconv.h"
+#include "colorconv.h"
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
