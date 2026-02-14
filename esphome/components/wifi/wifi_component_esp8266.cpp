@@ -217,10 +217,9 @@ bool WiFiComponent::wifi_apply_hostname_() {
   }
 
   // Update hostname on all lwIP interfaces so DHCP packets include it.
-  // No dhcp_renew() call here — the hostname is fixed at compile time and
-  // this function is only called during setup() or wifi_sta_connect_() when
-  // the interface is always disconnected. lwIP includes the hostname in
-  // DHCP DISCOVER/REQUEST automatically via LWIP_NETIF_HOSTNAME.
+  // lwIP includes the hostname in DHCP DISCOVER/REQUEST automatically
+  // via LWIP_NETIF_HOSTNAME — no dhcp_renew() needed. The hostname is
+  // fixed at compile time and never changes at runtime.
   for (netif *intf = netif_list; intf; intf = intf->next) {
 #if LWIP_VERSION_MAJOR == 1
     intf->hostname = (char *) wifi_station_get_hostname();
