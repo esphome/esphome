@@ -366,6 +366,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             else:
                 serial.Serial(host, baudrate=1200)
         except serial.serialutil.SerialException:
+            # It triggers cpu reset. It can fail randomly.
             pass
         # let USB enumerate after reset
         time.sleep(1)
