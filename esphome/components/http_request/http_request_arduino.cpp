@@ -9,16 +9,18 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
-// Include BearSSL for error code constants
+// Include BearSSL error constants for TLS failure diagnostics
 #ifdef USE_ESP8266
-#include <bearssl/bearssl.h>
+#include <bearssl/bearssl_ssl.h>
 #endif
 
 namespace esphome::http_request {
 
 static const char *const TAG = "http_request.arduino";
-static const int RX_BUFFER_SIZE = 512;
-static const int TX_BUFFER_SIZE = 512;
+static constexpr int RX_BUFFER_SIZE = 512;
+static constexpr int TX_BUFFER_SIZE = 512;
+// ESP8266 Arduino core (WiFiClientSecureBearSSL.cpp) returns -1000 on OOM
+static constexpr int BR_ERR_OOM = -1000;
 
 std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &url, const std::string &method,
                                                            const std::string &body,
@@ -115,24 +117,27 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   App.feed_wdt();
   if (container->status_code < 0) {
 #if defined(USE_ESP8266) && defined(USE_HTTP_REQUEST_ESP8266_HTTPS)
-    if (secure && stream_ptr) {
+    if (secure) {
       WiFiClientSecure *secure_client = static_cast<WiFiClientSecure *>(stream_ptr.get());
       int last_error = secure_client->getLastSSLError();
 
       if (last_error != 0) {
-        const char *error_msg = "";
+        const char *error_msg;
         switch (last_error) {
-          case -1000:  // The ESP8266 Arduino core sets this error code in case of OOM
+          case BR_ERR_OOM:
             error_msg = "Unable to allocate buffer memory";
             break;
           case BR_ERR_TOO_LARGE:
             error_msg = "Incoming TLS record does not fit in receive buffer (BR_ERR_TOO_LARGE)";
             break;
+          default:
+            error_msg = "Unknown SSL error";
+            break;
         }
         ESP_LOGW(TAG, "SSL failure: %s (Code: %d)", error_msg, last_error);
-        if (last_error == -1000) {
-          ESP_LOGW(TAG, "Heap free: %u bytes, max block: %u bytes, buffers needed: %u bytes", ESP.getFreeHeap(),
-                   ESP.getMaxFreeBlockSize(), RX_BUFFER_SIZE + TX_BUFFER_SIZE);
+        if (last_error == BR_ERR_OOM) {
+          ESP_LOGW(TAG, "Heap free: %u bytes, max block: %u bytes, configured buffer sizes: %u bytes",
+                   ESP.getFreeHeap(), ESP.getMaxFreeBlockSize(), RX_BUFFER_SIZE + TX_BUFFER_SIZE);
         }
       } else {
         ESP_LOGW(TAG, "Connection failure with no error code");
