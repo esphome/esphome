@@ -1071,6 +1071,51 @@ lvgl:
                                 color: 0xA0A0A0
                                 r_mod: -20
                                 opa: 0%
+                  - chart:
+                      id: lv_chart_id
+                      width: 200
+                      height: 120
+                      point_count: 5
+                      type: line
+                      update_mode: shift
+                      div_line_count: [4, 4]
+                      y_axis:
+                        min_value: 0
+                        max_value: 100
+                      secondary_y_axis:
+                        min_value: 0
+                        max_value: 100
+                      series:
+                        - id: lv_chart_primary
+                          color: 0xFF0000
+                          y_axis: primary_y
+                          values: [10, 30, 20, 50, 40]
+                        - id: lv_chart_secondary
+                          color: 0x00FF00
+                          y_axis: secondary_y
+                          values: [50, 20, 80, 10, 60]
+                  - button:
+                      id: chart_update_button
+                      on_click:
+                        - lvgl.chart.series.update:
+                            id: lv_chart_primary
+                            value: !lambda return random_uint32() % 100;
+                        - lvgl.chart.series.update:
+                            id: lv_chart_secondary
+                            values:
+                              - !lambda return random_uint32() % 100;
+                              - !lambda return random_uint32() % 100;
+                              - !lambda return random_uint32() % 100;
+                              - !lambda return random_uint32() % 100;
+                              - !lambda return random_uint32() % 100;
+                        - lvgl.chart.update:
+                            id: lv_chart_id
+                            type: line
+                            update_mode: circular
+                            point_count: 5
+                      widgets:
+                        - label:
+                            text: "Update chart"
     - id: page3
       layout: Horizontal
       pad_all: 6px
