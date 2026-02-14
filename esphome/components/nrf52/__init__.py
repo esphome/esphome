@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
+import subprocess
 
 from esphome import pins
 import esphome.codegen as cg
@@ -283,11 +284,13 @@ def copy_files() -> None:
     zephyr_copy_files()
 
 
+DFU_PATH = "firmware.zip"
+
+
 def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     """Get the download types for the firmware."""
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
-    DFU_PATH = "firmware.zip"
     HEX_PATH = "zephyr/zephyr.hex"
     HEX_MERGED_PATH = "zephyr/merged.hex"
     APP_IMAGE_PATH = "zephyr/app_update.bin"
@@ -349,9 +352,25 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
     result = 0
     handled = False
 
-    if get_port_type(host) == "SERIAL":
+    if (
+        get_port_type(host) == "SERIAL"
+        and config["nrf52"][KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT
+    ):
         check_permissions(host)
-        result = _upload_using_platformio(config, host, ["-t", "upload"])
+        subprocess.run(
+            [
+                "adafruit-nrfutil",
+                "dfu",
+                "serial",
+                "-pkg",
+                CORE.relative_pioenvs_path(CORE.name, DFU_PATH),
+                "-p",
+                host,
+                "-t",
+                "1200",
+            ],
+            check=True,
+        )
         handled = True
 
     if host == "PYOCD":

@@ -407,7 +407,12 @@ def get_port_type(port: str) -> PortType:
         PortType.MQTTIP for MQTT IP lookup
         PortType.NETWORK for IP addresses, hostnames, or mDNS names
     """
-    if port.startswith("/") or port.startswith("COM"):
+    if (
+        port.startswith("/")
+        or port.startswith("COM")
+        or port.startswith("rfc2217://")
+        or port.startswith("socket://")
+    ):
         return PortType.SERIAL
     if port == "MQTT":
         return PortType.MQTT
@@ -433,8 +438,11 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
 
     backtrace_state = False
     ser = serial.Serial()
+    if "://" in port:
+        ser = serial.serial_for_url(port, do_not_open=True)
+    else:
+        ser.port = port
     ser.baudrate = baud_rate
-    ser.port = port
 
     # We can't set to False by default since it leads to toggling and hence
     # ESP32 resets on some platforms.
@@ -448,7 +456,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         try:
             with ser:
                 buffer = b""
-                ser.timeout = 0.1  # 100ms timeout for non-blocking reads
+                ser.timeout = 1  # 100ms timeout for non-blocking reads
                 while True:
                     try:
                         # Read all available data and timestamp it
@@ -691,7 +699,11 @@ def upload_using_platformio(config: ConfigType, port: str):
 
 
 def check_permissions(port: str):
-    if os.name == "posix" and get_port_type(port) == PortType.SERIAL:
+    if (
+        os.name == "posix"
+        and get_port_type(port) == PortType.SERIAL
+        and "://" not in port
+    ):
         # Check if we can open selected serial port
         if not os.access(port, os.F_OK):
             raise EsphomeError(
