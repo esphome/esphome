@@ -1,15 +1,14 @@
-#include "png_image.h"
-#ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
+#include "png_decoder.h"
+#ifdef USE_RUNTIME_IMAGE_PNG
 
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-static const char *const TAG = "online_image.png";
+static const char *const TAG = "image_decoder.png";
 
-namespace esphome {
-namespace online_image {
+namespace esphome::runtime_image {
 
 /**
  * @brief Callback method that will be called by the PNGLE engine when the basic
@@ -49,7 +48,7 @@ static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, ui
   }
 }
 
-PngDecoder::PngDecoder(OnlineImage *image) : ImageDecoder(image) {
+PngDecoder::PngDecoder(RuntimeImage *image) : ImageDecoder(image) {
   {
     pngle_t *pngle = this->allocator_.allocate(1, PNGLE_T_SIZE);
     if (!pngle) {
@@ -69,8 +68,8 @@ PngDecoder::~PngDecoder() {
   }
 }
 
-int PngDecoder::prepare(size_t download_size) {
-  ImageDecoder::prepare(download_size);
+int PngDecoder::prepare(size_t expected_size) {
+  ImageDecoder::prepare(expected_size);
   if (!this->pngle_) {
     ESP_LOGE(TAG, "PNG decoder engine not initialized!");
     return DECODE_ERROR_OUT_OF_MEMORY;
@@ -86,8 +85,9 @@ int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
     ESP_LOGE(TAG, "PNG decoder engine not initialized!");
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
-  if (size < 256 && size < this->download_size_ - this->decoded_bytes_) {
-    ESP_LOGD(TAG, "Waiting for data");
+  // PNG can be decoded progressively, but wait for a reasonable chunk
+  if (size < 256 && this->expected_size_ > 0 && size < this->expected_size_ - this->decoded_bytes_) {
+    ESP_LOGD(TAG, "Waiting for more data");
     return 0;
   }
   auto fed = pngle_feed(this->pngle_, buffer, size);
@@ -99,7 +99,6 @@ int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
   return fed;
 }
 
-}  // namespace online_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image
 
-#endif  // USE_ONLINE_IMAGE_PNG_SUPPORT
+#endif  // USE_RUNTIME_IMAGE_PNG
