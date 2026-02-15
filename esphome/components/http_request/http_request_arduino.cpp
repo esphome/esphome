@@ -9,9 +9,20 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
+// Include BearSSL error constants for TLS failure diagnostics
+#ifdef USE_ESP8266
+#include <bearssl/bearssl_ssl.h>
+#endif
+
 namespace esphome::http_request {
 
 static const char *const TAG = "http_request.arduino";
+#ifdef USE_ESP8266
+static constexpr int RX_BUFFER_SIZE = 512;
+static constexpr int TX_BUFFER_SIZE = 512;
+// ESP8266 Arduino core (WiFiClientSecureBearSSL.cpp) returns -1000 on OOM
+static constexpr int ESP8266_SSL_ERR_OOM = -1000;
+#endif
 
 std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &url, const std::string &method,
                                                            const std::string &body,
@@ -47,7 +58,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
     ESP_LOGV(TAG, "ESP8266 HTTPS connection with WiFiClientSecure");
     stream_ptr = std::make_unique<WiFiClientSecure>();
     WiFiClientSecure *secure_client = static_cast<WiFiClientSecure *>(stream_ptr.get());
-    secure_client->setBufferSizes(512, 512);
+    secure_client->setBufferSizes(RX_BUFFER_SIZE, TX_BUFFER_SIZE);
     secure_client->setInsecure();
   } else {
     stream_ptr = std::make_unique<WiFiClient>();
@@ -107,13 +118,42 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   container->status_code = container->client_.sendRequest(method.c_str(), body.c_str());
   App.feed_wdt();
   if (container->status_code < 0) {
+#if defined(USE_ESP8266) && defined(USE_HTTP_REQUEST_ESP8266_HTTPS)
+    if (secure) {
+      WiFiClientSecure *secure_client = static_cast<WiFiClientSecure *>(stream_ptr.get());
+      int last_error = secure_client->getLastSSLError();
+
+      if (last_error != 0) {
+        const LogString *error_msg;
+        switch (last_error) {
+          case ESP8266_SSL_ERR_OOM:
+            error_msg = LOG_STR("Unable to allocate buffer memory");
+            break;
+          case BR_ERR_TOO_LARGE:
+            error_msg = LOG_STR("Incoming TLS record does not fit in receive buffer (BR_ERR_TOO_LARGE)");
+            break;
+          default:
+            error_msg = LOG_STR("Unknown SSL error");
+            break;
+        }
+        ESP_LOGW(TAG, "SSL failure: %s (Code: %d)", LOG_STR_ARG(error_msg), last_error);
+        if (last_error == ESP8266_SSL_ERR_OOM) {
+          ESP_LOGW(TAG, "Heap free: %u bytes, configured buffer sizes: %u bytes", ESP.getFreeHeap(),
+                   static_cast<unsigned int>(RX_BUFFER_SIZE + TX_BUFFER_SIZE));
+        }
+      } else {
+        ESP_LOGW(TAG, "Connection failure with no error code");
+      }
+    }
+#endif
+
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", url.c_str(),
              HTTPClient::errorToString(container->status_code).c_str());
+
     this->status_momentary_error("failed", 1000);
     container->end();
     return nullptr;
   }
-
   if (!is_success(container->status_code)) {
     ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), container->status_code);
     this->status_momentary_error("failed", 1000);
