@@ -62,25 +62,10 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
 )
 
 
-_RMT_ONLY_KEYS = {
-    CONF_CLOCK_RESOLUTION,
-    CONF_USE_DMA,
-    CONF_RMT_SYMBOLS,
-    CONF_FILTER_SYMBOLS,
-    CONF_RECEIVE_SYMBOLS,
-    CONF_CARRIER_DUTY_PERCENT,
-    CONF_CARRIER_FREQUENCY,
-}
-
-
 def validate_config(config):
     if CORE.is_esp32:
         variant = esp32.get_esp32_variant()
         if variant in esp32_rmt.VARIANTS_NO_RMT:
-            unsupported = _RMT_ONLY_KEYS.intersection(config)
-            if unsupported:
-                keys = ", ".join(sorted(f"'{k}'" for k in unsupported))
-                raise cv.Invalid(f"{keys} not available on {variant} (no RMT hardware)")
             return config
         if variant in (esp32.VARIANT_ESP32, esp32.VARIANT_ESP32S2):
             max_idle = 65535
@@ -194,6 +179,19 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
+    .add_extra(
+        esp32_rmt.validate_rmt_not_supported(
+            [
+                CONF_CLOCK_RESOLUTION,
+                CONF_USE_DMA,
+                CONF_RMT_SYMBOLS,
+                CONF_FILTER_SYMBOLS,
+                CONF_RECEIVE_SYMBOLS,
+                CONF_CARRIER_DUTY_PERCENT,
+                CONF_CARRIER_FREQUENCY,
+            ]
+        )
+    )
     .add_extra(validate_config)
 )
 
