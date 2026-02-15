@@ -160,7 +160,7 @@ void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {
   }
   auto recv_len = ring_buf_put(&this->tx_ringbuf_, data, len);
   if (recv_len < len) {
-    ESP_LOGE(TAG, "TX ring buffer full. Dropping %d bytes", len - recv_len);
+    ESP_LOGE(TAG, "TX ring buffer full. Dropping %zu bytes", len - recv_len);
   }
   uart_irq_tx_enable(this->uart_dev_);
 #ifdef USE_UART_DEBUGGER
