@@ -19,10 +19,10 @@ uint8_t ze15_co_checksum(const uint8_t *command) {
 
 void ZE15COComponent::dump_config() {
   LOG_SENSOR("", "ZE15-CO Sensor", this);
-  ESP_LOGCONFIG(TAG, "  Mode: %s\n"
-  "  Warmup time: %" PRIu32 " s", 
-  this->mode_ == Mode::QA ? "qa" : "stream",
-  this->warmup_seconds_);
+  ESP_LOGCONFIG(TAG,
+                "  Mode: %s\n"
+                "  Warmup time: %" PRIu32 " s",
+                this->mode_ == Mode::QA ? "qa" : "stream", this->warmup_seconds_);
 }
 
 void ZE15COComponent::update() {
