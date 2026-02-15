@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -o pipefail
+
 # If /cache is mounted, use that as PIO's coredir
 # otherwise use path in /config (so that PIO packages aren't downloaded on each compile)
 
@@ -28,8 +30,13 @@ if [[ -d /build ]]; then
 fi
 
 # If DASHBOARD_LISTENING_NETWORK_INTERFACE is set, bind the dashboard to the IP of that interface
-if [[ -n $DASHBOARD_LISTENING_NETWORK_INTERFACE ]]; then
-    set -- "$@" --address `python -c "import ifaddr; print(next((a for a in ifaddr.get_adapters() if a.name == '$DASHBOARD_LISTENING_NETWORK_INTERFACE')).ips[0].ip)"`
+if [[ -n "${DASHBOARD_LISTENING_NETWORK_INTERFACE}" ]]; then
+    binding_ip_addr=$(ip -j -p -4 addr show dev "${DASHBOARD_LISTENING_NETWORK_INTERFACE}" | jq -er '.[0].addr_info[0].local') || {
+        echo "Could not read IPv4 address for ${DASHBOARD_LISTENING_NETWORK_INTERFACE}" >&2
+        exit 1
+    }
+
+    set -- "$@" --address "${binding_ip_addr}"
 fi
 
 exec esphome "$@"

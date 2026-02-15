@@ -68,6 +68,13 @@ COPY docker/docker_entrypoint.sh /entrypoint.sh
 # The directory the user should mount their configuration files to
 VOLUME /config
 WORKDIR /config
+RUN if command -v apk > /dev/null; then \
+        apk add --no-cache iproute2 jq; \
+    else \
+        apt-get update \
+        && apt-get install -y --no-install-recommends iproute2 jq \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 # Set entrypoint to esphome (via a script) so that the user doesn't have to type 'esphome'
 # in every docker command twice
 ENTRYPOINT ["/entrypoint.sh"]
