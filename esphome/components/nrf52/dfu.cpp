@@ -15,7 +15,7 @@ static const uint32_t DFU_DBL_RESET_MAGIC = 0x5A1AD5;  // SALADS
 void DeviceFirmwareUpdate::setup() {
   this->reset_pin_->setup();
 #if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT)
-  zephyr::global_cdc_acm.add_on_rate_callback([this](const device *dev, uint32_t rate) {
+  zephyr::global_cdc_acm.add_on_rate_callback([this](const device *, uint32_t rate) {
     if (rate == 1200) {
       this->goto_dfu_ = true;
     }

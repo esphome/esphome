@@ -77,10 +77,12 @@ async def to_code(config: ConfigType) -> None:
 
     num_interfaces = len(config[CONF_INTERFACES])
     cg.add_define("ESPHOME_MAX_USB_CDC_INSTANCES", num_interfaces)
+    all_port_disabled = True
     # Create and register interface instances
     for interface_index, interface_conf in enumerate(config[CONF_INTERFACES]):
         if interface_conf[CONF_DISABLED]:
             continue
+        all_port_disabled = False
         interface = None
         if CORE.using_zephyr:
             port = f"cdc_acm_uart{interface_index}"
@@ -97,10 +99,15 @@ async def to_code(config: ConfigType) -> None:
         if CONF_DEBUG in interface_conf:
             await debug_to_code(interface_conf[CONF_DEBUG], interface)
     if CORE.using_zephyr:
-        zephyr_add_prj_conf("UART_LINE_CTRL", True)
-        zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
-        cg.add_define("ESPHOME_CDC_RX_RING_BUFFER_SIZE", config[CONF_RX_BUFFER_SIZE])
-        cg.add_define("ESPHOME_CDC_TX_RING_BUFFER_SIZE", config[CONF_TX_BUFFER_SIZE])
+        if not all_port_disabled:
+            zephyr_add_prj_conf("UART_LINE_CTRL", True)
+            zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+            cg.add_define(
+                "ESPHOME_CDC_RX_RING_BUFFER_SIZE", config[CONF_RX_BUFFER_SIZE]
+            )
+            cg.add_define(
+                "ESPHOME_CDC_TX_RING_BUFFER_SIZE", config[CONF_TX_BUFFER_SIZE]
+            )
     else:
         # Configure TinyUSB with the correct number of CDC interfaces
         add_idf_sdkconfig_option("CONFIG_TINYUSB_CDC_ENABLED", True)
