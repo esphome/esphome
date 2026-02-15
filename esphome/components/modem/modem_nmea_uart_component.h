@@ -17,7 +17,7 @@ class ModemNMEAUARTComponent : public uart::UARTComponent, public PollingCompone
 
   bool read_array(uint8_t *data, size_t len) override;
 
-  int available() override { return this->nmea_buffer_size_ - this->read_ptr_; }
+  size_t available() override { return this->nmea_buffer_size_ - this->read_ptr_; }
 
   void flush() override {}
 
