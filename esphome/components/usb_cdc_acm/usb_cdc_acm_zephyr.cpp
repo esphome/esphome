@@ -29,15 +29,17 @@ void USBCDCACMInstance::uart_tx_process_() {
 void USBCDCACMInstance::uart_rx_process_() {
   uint8_t *data;
 
-  auto recv_len = ring_buf_put_claim(&this->rx_ringbuf_, &data, this->rx_ringbuf_.size);
+  uint32_t total_size = 0;
+  uint32_t recv_len = ring_buf_put_claim(&this->rx_ringbuf_, &data, UINT32_MAX);
   if (recv_len) {
-    recv_len = uart_fifo_read(this->uart_dev_, data, recv_len);
-    if (recv_len < 0) {
+    int rx = uart_fifo_read(this->uart_dev_, data, recv_len);
+    if (rx < 0) {
       ESP_LOGE(TAG, "Failed to read UART FIFO, err %d", recv_len);
     } else {
-      ring_buf_put_finish(&this->rx_ringbuf_, recv_len);
+      total_size += rx;
     }
   }
+  ring_buf_put_finish(&this->rx_ringbuf_, total_size);
 }
 
 void USBCDCACMInstance::uart_irq_handler(const device *dev, void *instance) {
@@ -130,7 +132,7 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   if (len == 0) {
     return true;
   }
-  if (available() + this->has_peek_ ? 1 : 0 < len) {
+  if ((available() + (this->has_peek_ ? 1 : 0)) < len) {
     return false;
   }
 
