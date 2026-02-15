@@ -1,8 +1,7 @@
 #pragma once
 #include "esphome/core/color.h"
 
-namespace esphome {
-namespace online_image {
+namespace esphome::runtime_image {
 
 enum DecodeError : int {
   DECODE_ERROR_INVALID_TYPE = -1,
@@ -10,7 +9,7 @@ enum DecodeError : int {
   DECODE_ERROR_OUT_OF_MEMORY = -3,
 };
 
-class OnlineImage;
+class RuntimeImage;
 
 /**
  * @brief Class to abstract decoding different image formats.
@@ -20,19 +19,19 @@ class ImageDecoder {
   /**
    * @brief Construct a new Image Decoder object
    *
-   * @param image The image to decode the stream into.
+   * @param image The RuntimeImage to decode the stream into.
    */
-  ImageDecoder(OnlineImage *image) : image_(image) {}
+  ImageDecoder(RuntimeImage *image) : image_(image) {}
   virtual ~ImageDecoder() = default;
 
   /**
    * @brief Initialize the decoder.
    *
-   * @param download_size The total number of bytes that need to be downloaded for the image.
+   * @param expected_size Hint about the expected data size (0 if unknown).
    * @return int          Returns 0 on success, a {@see DecodeError} value in case of an error.
    */
-  virtual int prepare(size_t download_size) {
-    this->download_size_ = download_size;
+  virtual int prepare(size_t expected_size) {
+    this->expected_size_ = expected_size;
     return 0;
   }
 
@@ -73,49 +72,26 @@ class ImageDecoder {
    */
   void draw(int x, int y, int w, int h, const Color &color);
 
-  bool is_finished() const { return this->decoded_bytes_ == this->download_size_; }
+  /**
+   * @brief Check if the decoder has finished processing.
+   *
+   * This should be overridden by decoders that can detect completion
+   * based on format-specific markers rather than byte counts.
+   */
+  virtual bool is_finished() const {
+    if (this->expected_size_ > 0) {
+      return this->decoded_bytes_ >= this->expected_size_;
+    }
+    // If size is unknown, derived classes should override this
+    return false;
+  }
 
  protected:
-  OnlineImage *image_;
-  // Initializing to 1, to ensure it is distinguishable from initial "decoded_bytes_".
-  // Will be overwritten anyway once the download size is known.
-  size_t download_size_ = 1;
-  size_t decoded_bytes_ = 0;
+  RuntimeImage *image_;
+  size_t expected_size_ = 0;  // Expected data size (0 if unknown)
+  size_t decoded_bytes_ = 0;  // Bytes processed so far
   double x_scale_ = 1.0;
   double y_scale_ = 1.0;
 };
 
-class DownloadBuffer {
- public:
-  DownloadBuffer(size_t size);
-
-  virtual ~DownloadBuffer() { this->allocator_.deallocate(this->buffer_, this->size_); }
-
-  uint8_t *data(size_t offset = 0);
-
-  uint8_t *append() { return this->data(this->unread_); }
-
-  size_t unread() const { return this->unread_; }
-  size_t size() const { return this->size_; }
-  size_t free_capacity() const { return this->size_ - this->unread_; }
-
-  size_t read(size_t len);
-  size_t write(size_t len) {
-    this->unread_ += len;
-    return this->unread_;
-  }
-
-  void reset() { this->unread_ = 0; }
-
-  size_t resize(size_t size);
-
- protected:
-  RAMAllocator<uint8_t> allocator_{};
-  uint8_t *buffer_;
-  size_t size_;
-  /** Total number of downloaded bytes not yet read. */
-  size_t unread_;
-};
-
-}  // namespace online_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image
