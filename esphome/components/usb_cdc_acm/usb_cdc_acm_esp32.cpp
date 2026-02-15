@@ -255,21 +255,6 @@ void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {
   }
 }
 
-bool USBCDCACMInstance::peek_byte(uint8_t *data) {
-  if (this->has_peek_) {
-    *data = this->peek_buffer_;
-    return true;
-  }
-
-  if (this->read_byte(&this->peek_buffer_)) {
-    *data = this->peek_buffer_;
-    this->has_peek_ = true;
-    return true;
-  }
-
-  return false;
-}
-
 bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   if (len == 0) {
     return true;

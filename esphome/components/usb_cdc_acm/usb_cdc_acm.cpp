@@ -127,6 +127,21 @@ void USBCDCACMInstance::process_events_() {
   }
 }
 
+bool USBCDCACMInstance::peek_byte(uint8_t *data) {
+  if (this->has_peek_) {
+    *data = this->peek_buffer_;
+    return true;
+  }
+
+  if (this->read_byte(&this->peek_buffer_)) {
+    *data = this->peek_buffer_;
+    this->has_peek_ = true;
+    return true;
+  }
+
+  return false;
+}
+
 //==============================================================================
 // USBCDCACMComponent Implementation
 //==============================================================================

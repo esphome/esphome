@@ -120,31 +120,37 @@ void USBCDCACMInstance::check_logger_conflict() {
 #endif
 }
 
-int USBCDCACMInstance::available() {
+size_t USBCDCACMInstance::available() {
   int size = ring_buf_size_get(&this->rx_ringbuf_);
   ESP_LOGVV(TAG, "UART Bus %s: available %d", this->uart_dev_->name, size);
   return size;
 }
 
 bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
-  if (available() >= len) {
-    ring_buf_get(&this->rx_ringbuf_, data, len);
-#ifdef USE_UART_DEBUGGER
-    for (size_t i = 0; i < len; i++) {
-      this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
-    }
-#endif
+  if (len == 0) {
     return true;
   }
-  return false;
-}
+  if (available() + this->has_peek_ ? 1 : 0 < len) {
+    return false;
+  }
 
-bool USBCDCACMInstance::peek_byte(uint8_t *data) {
-  if (available()) {
-    read_array(data, 1);
-    return true;
+  // First, use the peek buffer if available
+  if (this->has_peek_) {
+    data[0] = this->peek_buffer_;
+    this->has_peek_ = false;
+    data++;
+    if (--len == 0) {  // Decrement len first, then check it...
+      return true;     // No more to read
+    }
   }
-  return false;
+
+  ring_buf_get(&this->rx_ringbuf_, data, len);
+#ifdef USE_UART_DEBUGGER
+  for (size_t i = 0; i < len; i++) {
+    this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
+  }
+#endif
+  return true;
 }
 
 void USBCDCACMInstance::flush() {

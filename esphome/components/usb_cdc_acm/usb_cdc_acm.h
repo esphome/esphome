@@ -116,10 +116,10 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
 
   RingbufHandle_t usb_tx_ringbuf_{nullptr};
   RingbufHandle_t usb_rx_ringbuf_{nullptr};
+#endif
   // RX buffer for peek functionality
   uint8_t peek_buffer_{0};
   bool has_peek_{false};
-#endif
   uint8_t itf_{0};
   // User-registered callbacks (called from main loop)
   LineCodingCallback line_coding_callback_{nullptr};
