@@ -374,7 +374,7 @@ FileDecoderState AudioDecoder::decode_opus_() {
           audio::AudioStreamInfo(this->opus_decoder_->get_bit_depth(), this->opus_decoder_->get_channels(),
                                  this->opus_decoder_->get_sample_rate());
     }
-    if (samples_decoded > 0) {
+    if (samples_decoded > 0 && this->audio_stream_info_.has_value()) {
       // Some audio was processed
       this->output_transfer_buffer_->increase_buffer_length(
           this->audio_stream_info_.value().frames_to_bytes(samples_decoded));
