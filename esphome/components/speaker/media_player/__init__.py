@@ -281,7 +281,8 @@ def _final_validate(config):
         if codec_mode == CODEC_SUPPORT_NEEDED:
             for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
                 if str(media_file_type) == str(fmt_enum):
-                    needed_formats.add(fmt_name)
+                    if fmt_name not in ("WAV", "NONE"):
+                        needed_formats.add(fmt_name)
                     break
 
     # Request codec support
