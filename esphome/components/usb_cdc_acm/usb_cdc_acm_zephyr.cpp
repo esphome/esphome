@@ -17,7 +17,7 @@ static const char *const TAG = "usb_cdc_acm";
 
 void USBCDCACMInstance::uart_tx_process_() {
   uint8_t *data;
-  auto send_len = ring_buf_get_claim(&this->tx_ringbuf_, &data, this->tx_ringbuf_.size);
+  uint32_t send_len = ring_buf_get_claim(&this->tx_ringbuf_, &data, UINT32_MAX);
   if (send_len) {
     send_len = uart_fifo_fill(this->uart_dev_, data, send_len);
     ring_buf_get_finish(&this->tx_ringbuf_, send_len);
@@ -123,8 +123,8 @@ void USBCDCACMInstance::check_logger_conflict() {
 }
 
 size_t USBCDCACMInstance::available() {
-  int size = ring_buf_size_get(&this->rx_ringbuf_);
-  ESP_LOGVV(TAG, "UART Bus %s: available %d", this->uart_dev_->name, size);
+  uint32_t size = ring_buf_size_get(&this->rx_ringbuf_);
+  ESP_LOGVV(TAG, "UART Bus %s: available %u", this->uart_dev_->name, size);
   return size;
 }
 
