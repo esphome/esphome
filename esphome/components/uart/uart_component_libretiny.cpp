@@ -169,7 +169,7 @@ bool LibreTinyUARTComponent::read_array(uint8_t *data, size_t len) {
   return true;
 }
 
-int LibreTinyUARTComponent::available() { return this->serial_->available(); }
+size_t LibreTinyUARTComponent::available() { return this->serial_->available(); }
 void LibreTinyUARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
   this->serial_->flush();

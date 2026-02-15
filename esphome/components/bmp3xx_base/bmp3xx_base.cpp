@@ -6,8 +6,9 @@
 */
 
 #include "bmp3xx_base.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <cinttypes>
 
 namespace esphome {
@@ -26,46 +27,18 @@ static const LogString *chip_type_to_str(uint8_t chip_type) {
   }
 }
 
+// Oversampling strings indexed by Oversampling enum (0-5): NONE, X2, X4, X8, X16, X32
+PROGMEM_STRING_TABLE(OversamplingStrings, "None", "2x", "4x", "8x", "16x", "32x", "");
+
 static const LogString *oversampling_to_str(Oversampling oversampling) {
-  switch (oversampling) {
-    case Oversampling::OVERSAMPLING_NONE:
-      return LOG_STR("None");
-    case Oversampling::OVERSAMPLING_X2:
-      return LOG_STR("2x");
-    case Oversampling::OVERSAMPLING_X4:
-      return LOG_STR("4x");
-    case Oversampling::OVERSAMPLING_X8:
-      return LOG_STR("8x");
-    case Oversampling::OVERSAMPLING_X16:
-      return LOG_STR("16x");
-    case Oversampling::OVERSAMPLING_X32:
-      return LOG_STR("32x");
-    default:
-      return LOG_STR("");
-  }
+  return OversamplingStrings::get_log_str(static_cast<uint8_t>(oversampling), OversamplingStrings::LAST_INDEX);
 }
 
+// IIR filter strings indexed by IIRFilter enum (0-7): OFF, 2, 4, 8, 16, 32, 64, 128
+PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "");
+
 static const LogString *iir_filter_to_str(IIRFilter filter) {
-  switch (filter) {
-    case IIRFilter::IIR_FILTER_OFF:
-      return LOG_STR("OFF");
-    case IIRFilter::IIR_FILTER_2:
-      return LOG_STR("2x");
-    case IIRFilter::IIR_FILTER_4:
-      return LOG_STR("4x");
-    case IIRFilter::IIR_FILTER_8:
-      return LOG_STR("8x");
-    case IIRFilter::IIR_FILTER_16:
-      return LOG_STR("16x");
-    case IIRFilter::IIR_FILTER_32:
-      return LOG_STR("32x");
-    case IIRFilter::IIR_FILTER_64:
-      return LOG_STR("64x");
-    case IIRFilter::IIR_FILTER_128:
-      return LOG_STR("128x");
-    default:
-      return LOG_STR("");
-  }
+  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(filter), IIRFilterStrings::LAST_INDEX);
 }
 
 void BMP3XXComponent::setup() {

@@ -288,11 +288,6 @@ def _validate(config):
         config = config.copy()
         config[CONF_NETWORKS] = []
 
-    if config.get(CONF_FAST_CONNECT, False):
-        networks = config.get(CONF_NETWORKS, [])
-        if not networks:
-            raise cv.Invalid("At least one network required for fast_connect!")
-
     if CONF_USE_ADDRESS not in config:
         use_address = CORE.name + config[CONF_DOMAIN]
         if CONF_MANUAL_IP in config:
