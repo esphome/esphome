@@ -12,8 +12,7 @@
 #endif  // SOC_RMT_SUPPORTED
 #endif  // USE_ESP32
 
-namespace esphome {
-namespace remote_transmitter {
+namespace esphome::remote_transmitter {
 
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
@@ -103,5 +102,4 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   Trigger<> complete_trigger_;
 };
 
-}  // namespace remote_transmitter
-}  // namespace esphome
+}  // namespace esphome::remote_transmitter

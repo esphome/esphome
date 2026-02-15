@@ -22,8 +22,6 @@ from esphome.const import (
 )
 from esphome.core import CORE, TimePeriod
 
-_VARIANTS_NO_RMT = [esp32.VARIANT_ESP32C2, esp32.VARIANT_ESP32C61]
-
 CONF_FILTER_SYMBOLS = "filter_symbols"
 CONF_RECEIVE_SYMBOLS = "receive_symbols"
 
@@ -64,23 +62,25 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
 )
 
 
+_RMT_ONLY_KEYS = {
+    CONF_CLOCK_RESOLUTION,
+    CONF_USE_DMA,
+    CONF_RMT_SYMBOLS,
+    CONF_FILTER_SYMBOLS,
+    CONF_RECEIVE_SYMBOLS,
+    CONF_CARRIER_DUTY_PERCENT,
+    CONF_CARRIER_FREQUENCY,
+}
+
+
 def validate_config(config):
     if CORE.is_esp32:
         variant = esp32.get_esp32_variant()
-        if variant in _VARIANTS_NO_RMT:
-            for conf in (
-                CONF_CLOCK_RESOLUTION,
-                CONF_USE_DMA,
-                CONF_RMT_SYMBOLS,
-                CONF_FILTER_SYMBOLS,
-                CONF_RECEIVE_SYMBOLS,
-                CONF_CARRIER_DUTY_PERCENT,
-                CONF_CARRIER_FREQUENCY,
-            ):
-                if conf in config:
-                    raise cv.Invalid(
-                        f"'{conf}' is not available on {variant} (no RMT hardware)"
-                    )
+        if variant in esp32_rmt.VARIANTS_NO_RMT:
+            unsupported = _RMT_ONLY_KEYS.intersection(config)
+            if unsupported:
+                keys = ", ".join(sorted(f"'{k}'" for k in unsupported))
+                raise cv.Invalid(f"{keys} not available on {variant} (no RMT hardware)")
             return config
         if variant in (esp32.VARIANT_ESP32, esp32.VARIANT_ESP32S2):
             max_idle = 65535
@@ -200,7 +200,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
 
 async def to_code(config):
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    if CORE.is_esp32 and esp32.get_esp32_variant() not in _VARIANTS_NO_RMT:
+    if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
         # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
         esp32.include_builtin_idf_component("esp_driver_rmt")
 

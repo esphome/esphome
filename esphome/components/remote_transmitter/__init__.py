@@ -24,8 +24,6 @@ _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["remote_base"]
 
-_VARIANTS_NO_RMT = [esp32.VARIANT_ESP32C2, esp32.VARIANT_ESP32C61]
-
 CONF_EOT_LEVEL = "eot_level"
 CONF_NON_BLOCKING = "non_blocking"
 CONF_ON_TRANSMIT = "on_transmit"
@@ -41,24 +39,6 @@ DigitalWriteAction = remote_transmitter_ns.class_(
     automation.Action,
     cg.Parented.template(RemoteTransmitterComponent),
 )
-
-
-def _validate_rmt(config):
-    if CORE.is_esp32:
-        variant = esp32.get_esp32_variant()
-        if variant in _VARIANTS_NO_RMT:
-            for conf in (
-                CONF_CLOCK_RESOLUTION,
-                CONF_EOT_LEVEL,
-                CONF_USE_DMA,
-                CONF_RMT_SYMBOLS,
-                CONF_NON_BLOCKING,
-            ):
-                if conf in config:
-                    raise cv.Invalid(
-                        f"'{conf}' is not available on {variant} (no RMT hardware)"
-                    )
-    return config
 
 
 MULTI_CONF = True
@@ -100,14 +80,24 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .add_extra(_validate_rmt)
+    .add_extra(
+        esp32_rmt.validate_rmt_not_supported(
+            [
+                CONF_CLOCK_RESOLUTION,
+                CONF_EOT_LEVEL,
+                CONF_USE_DMA,
+                CONF_RMT_SYMBOLS,
+                CONF_NON_BLOCKING,
+            ]
+        )
+    )
 )
 
 
 def _validate_non_blocking(config):
     if (
         CORE.is_esp32
-        and esp32.get_esp32_variant() not in _VARIANTS_NO_RMT
+        and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT
         and CONF_NON_BLOCKING not in config
     ):
         _LOGGER.warning(
@@ -142,7 +132,7 @@ async def digital_write_action_to_code(config, action_id, template_arg, args):
 
 async def to_code(config):
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    if CORE.is_esp32 and esp32.get_esp32_variant() not in _VARIANTS_NO_RMT:
+    if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
         # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
         esp32.include_builtin_idf_component("esp_driver_rmt")
 
