@@ -229,12 +229,12 @@ void MQTTClientComponent::start_dnslookup_() {
     constexpr u8_t dns_addrtype =
 #if USE_NETWORK_IPV6
 #if USE_NETWORK_IPV4
-      LWIP_DNS_ADDRTYPE_IPV6_IPV4; // Dual: IP6 first, then IP4
+        LWIP_DNS_ADDRTYPE_IPV6_IPV4;  // Dual: IP6 first, then IP4
 #else
-      LWIP_DNS_ADDRTYPE_IPV6; // IP6 only
-#endif /* USE_NETWORK_IPV4 */
-      LWIP_DNS_ADDRTYPE_IPV4; // IP4 only
-#endif /* USE_NETWORK_IPV6 */
+        LWIP_DNS_ADDRTYPE_IPV6;  // IP6 only
+#endif                       /* USE_NETWORK_IPV4 */
+    LWIP_DNS_ADDRTYPE_IPV4;  // IP4 only
+#endif                       /* USE_NETWORK_IPV6 */
 
     err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, MQTTClientComponent::dns_found_callback,
                                      this, dns_addrtype);
