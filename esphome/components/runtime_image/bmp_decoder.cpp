@@ -1,15 +1,14 @@
-#include "bmp_image.h"
+#include "bmp_decoder.h"
 
-#ifdef USE_ONLINE_IMAGE_BMP_SUPPORT
+#ifdef USE_RUNTIME_IMAGE_BMP
 
 #include "esphome/components/display/display.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace online_image {
+namespace esphome::runtime_image {
 
-static const char *const TAG = "online_image.bmp";
+static const char *const TAG = "image_decoder.bmp";
 
 int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
   size_t index = 0;
@@ -30,7 +29,11 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
       return DECODE_ERROR_INVALID_TYPE;
     }
 
-    this->download_size_ = encode_uint32(buffer[5], buffer[4], buffer[3], buffer[2]);
+    // BMP file contains its own size in the header
+    size_t file_size = encode_uint32(buffer[5], buffer[4], buffer[3], buffer[2]);
+    if (this->expected_size_ == 0) {
+      this->expected_size_ = file_size;  // Use file header size if not provided
+    }
     this->data_offset_ = encode_uint32(buffer[13], buffer[12], buffer[11], buffer[10]);
 
     this->current_index_ = 14;
@@ -90,8 +93,8 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
       while (index < size) {
         uint8_t current_byte = buffer[index];
         for (uint8_t i = 0; i < 8; i++) {
-          size_t x = (this->paint_index_ % this->width_) + i;
-          size_t y = (this->height_ - 1) - (this->paint_index_ / this->width_);
+          size_t x = (this->paint_index_ % static_cast<size_t>(this->width_)) + i;
+          size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / static_cast<size_t>(this->width_));
           Color c = (current_byte & (1 << (7 - i))) ? display::COLOR_ON : display::COLOR_OFF;
           this->draw(x, y, 1, 1, c);
         }
@@ -110,8 +113,8 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         uint8_t b = buffer[index];
         uint8_t g = buffer[index + 1];
         uint8_t r = buffer[index + 2];
-        size_t x = this->paint_index_ % this->width_;
-        size_t y = (this->height_ - 1) - (this->paint_index_ / this->width_);
+        size_t x = this->paint_index_ % static_cast<size_t>(this->width_);
+        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / static_cast<size_t>(this->width_));
         Color c = Color(r, g, b);
         this->draw(x, y, 1, 1, c);
         this->paint_index_++;
@@ -133,7 +136,6 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
   return size;
 };
 
-}  // namespace online_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image
 
-#endif  // USE_ONLINE_IMAGE_BMP_SUPPORT
+#endif  // USE_RUNTIME_IMAGE_BMP
