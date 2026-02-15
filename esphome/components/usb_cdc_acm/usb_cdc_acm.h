@@ -16,6 +16,10 @@
 #include "tusb_cdc_acm.h"
 #endif
 
+#ifdef USE_UART_DEBUGGER
+using namespace esphome::uart;
+#endif
+
 namespace esphome::usb_cdc_acm {
 
 static const uint8_t EVENT_QUEUE_SIZE = 12;
