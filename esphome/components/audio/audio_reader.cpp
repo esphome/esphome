@@ -247,6 +247,11 @@ AudioFileType AudioReader::get_audio_type(const char *content_type) {
     return AudioFileType::FLAC;
   }
 #endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+  if (strcasecmp(content_type, "audio/ogg; codecs=opus") == 0) {
+    return AudioFileType::OPUS;
+  }
+#endif
   return AudioFileType::NONE;
 }
 
