@@ -3,6 +3,8 @@
 #include "esphome/core/application.h"
 
 #ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 #include <driver/gpio.h>
 
 namespace esphome {
@@ -361,4 +363,5 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 }  // namespace remote_transmitter
 }  // namespace esphome
 
-#endif
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32

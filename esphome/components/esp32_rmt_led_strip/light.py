@@ -71,6 +71,10 @@ CONF_RESET_LOW = "reset_low"
 
 
 CONFIG_SCHEMA = cv.All(
+    esp32.only_on_variant(
+        unsupported=[esp32.VARIANT_ESP32C2, esp32.VARIANT_ESP32C61],
+        msg_prefix="ESP32 RMT LED strip",
+    ),
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ESP32RMTLEDStripLightOutput),
