@@ -249,9 +249,6 @@ def _final_validate(config):
         codec_mode = CODEC_SUPPORT_NONE
 
     use_codec = codec_mode != CODEC_SUPPORT_NONE
-    conf_id = config[CONF_ID].id
-    core_data = CORE.data.setdefault(DOMAIN, {conf_id: {}})
-    core_data[conf_id][CONF_CODEC_SUPPORT_ENABLED] = use_codec
 
     # In "needed" mode, collect formats from pipelines and files
     needed_formats = set()
