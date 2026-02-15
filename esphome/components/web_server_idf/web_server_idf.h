@@ -116,7 +116,8 @@ class AsyncWebServerRequest {
   /// Write URL (without query string) to buffer, returns StringRef pointing to buffer.
   /// URL is decoded (e.g., %20 -> space).
   StringRef url_to(std::span<char, URL_BUF_SIZE> buffer) const;
-  /// Get URL as std::string. Prefer url_to() to avoid heap allocation.
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use url_to() instead. Removed in 2026.9.0", "2026.3.0")
   std::string url() const {
     char buffer[URL_BUF_SIZE];
     return std::string(this->url_to(buffer));
@@ -170,14 +171,8 @@ class AsyncWebServerRequest {
   AsyncWebParameter *getParam(const std::string &name) { return this->getParam(name.c_str()); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  bool hasArg(const char *name) { return this->hasParam(name); }
-  std::string arg(const char *name) {
-    auto *param = this->getParam(name);
-    if (param) {
-      return param->value();
-    }
-    return {};
-  }
+  bool hasArg(const char *name);
+  std::string arg(const char *name);
   std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
   operator httpd_req_t *() const { return this->req_; }
@@ -192,6 +187,7 @@ class AsyncWebServerRequest {
   // is faster than tree/hash overhead. AsyncWebParameter stores both name and value to avoid
   // duplicate storage. Only successful lookups are cached to prevent cache pollution when
   // handlers check for optional parameters that don't exist.
+  optional<std::string> find_query_value_(const char *name) const;
   std::vector<AsyncWebParameter *> params_;
   std::string post_query_;
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}

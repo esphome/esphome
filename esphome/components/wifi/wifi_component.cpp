@@ -487,6 +487,19 @@ bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t 
   return false;
 }
 
+void __attribute__((flatten)) WiFiComponent::set_sta_priority(bssid_t bssid, int8_t priority) {
+  for (auto &it : this->sta_priorities_) {
+    if (it.bssid == bssid) {
+      it.priority = priority;
+      return;
+    }
+  }
+  this->sta_priorities_.push_back(WiFiSTAPriority{
+      .bssid = bssid,
+      .priority = priority,
+  });
+}
+
 void WiFiComponent::log_discarded_scan_result_(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   // Skip logging during roaming scans to avoid log buffer overflow
