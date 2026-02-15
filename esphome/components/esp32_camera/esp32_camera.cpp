@@ -16,6 +16,74 @@ static constexpr size_t FRAMEBUFFER_TASK_STACK_SIZE = 1792;
 static constexpr uint32_t FRAME_LOG_INTERVAL_MS = 60000;
 #endif
 
+static const char *frame_size_to_str(framesize_t size) {
+  switch (size) {
+    case FRAMESIZE_QQVGA:
+      return "160x120 (QQVGA)";
+    case FRAMESIZE_QCIF:
+      return "176x155 (QCIF)";
+    case FRAMESIZE_HQVGA:
+      return "240x176 (HQVGA)";
+    case FRAMESIZE_QVGA:
+      return "320x240 (QVGA)";
+    case FRAMESIZE_CIF:
+      return "400x296 (CIF)";
+    case FRAMESIZE_VGA:
+      return "640x480 (VGA)";
+    case FRAMESIZE_SVGA:
+      return "800x600 (SVGA)";
+    case FRAMESIZE_XGA:
+      return "1024x768 (XGA)";
+    case FRAMESIZE_SXGA:
+      return "1280x1024 (SXGA)";
+    case FRAMESIZE_UXGA:
+      return "1600x1200 (UXGA)";
+    case FRAMESIZE_FHD:
+      return "1920x1080 (FHD)";
+    case FRAMESIZE_P_HD:
+      return "720x1280 (P_HD)";
+    case FRAMESIZE_P_3MP:
+      return "864x1536 (P_3MP)";
+    case FRAMESIZE_QXGA:
+      return "2048x1536 (QXGA)";
+    case FRAMESIZE_QHD:
+      return "2560x1440 (QHD)";
+    case FRAMESIZE_WQXGA:
+      return "2560x1600 (WQXGA)";
+    case FRAMESIZE_P_FHD:
+      return "1080x1920 (P_FHD)";
+    case FRAMESIZE_QSXGA:
+      return "2560x1920 (QSXGA)";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+static const char *pixel_format_to_str(pixformat_t format) {
+  switch (format) {
+    case PIXFORMAT_RGB565:
+      return "RGB565";
+    case PIXFORMAT_YUV422:
+      return "YUV422";
+    case PIXFORMAT_YUV420:
+      return "YUV420";
+    case PIXFORMAT_GRAYSCALE:
+      return "GRAYSCALE";
+    case PIXFORMAT_JPEG:
+      return "JPEG";
+    case PIXFORMAT_RGB888:
+      return "RGB888";
+    case PIXFORMAT_RAW:
+      return "RAW";
+    case PIXFORMAT_RGB444:
+      return "RGB444";
+    case PIXFORMAT_RGB555:
+      return "RGB555";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 /* ---------------- public API (derivated) ---------------- */
 void ESP32Camera::setup() {
 #ifdef USE_I2C
@@ -68,95 +136,9 @@ void ESP32Camera::dump_config() {
                 this->name_.c_str(), YESNO(this->is_internal()), conf.pin_d0, conf.pin_d1, conf.pin_d2, conf.pin_d3,
                 conf.pin_d4, conf.pin_d5, conf.pin_d6, conf.pin_d7, conf.pin_vsync, conf.pin_href, conf.pin_pclk,
                 conf.pin_xclk, conf.xclk_freq_hz, conf.pin_sccb_sda, conf.pin_sccb_scl, conf.pin_reset);
-  switch (this->config_.frame_size) {
-    case FRAMESIZE_QQVGA:
-      ESP_LOGCONFIG(TAG, "  Resolution: 160x120 (QQVGA)");
-      break;
-    case FRAMESIZE_QCIF:
-      ESP_LOGCONFIG(TAG, "  Resolution: 176x155 (QCIF)");
-      break;
-    case FRAMESIZE_HQVGA:
-      ESP_LOGCONFIG(TAG, "  Resolution: 240x176 (HQVGA)");
-      break;
-    case FRAMESIZE_QVGA:
-      ESP_LOGCONFIG(TAG, "  Resolution: 320x240 (QVGA)");
-      break;
-    case FRAMESIZE_CIF:
-      ESP_LOGCONFIG(TAG, "  Resolution: 400x296 (CIF)");
-      break;
-    case FRAMESIZE_VGA:
-      ESP_LOGCONFIG(TAG, "  Resolution: 640x480 (VGA)");
-      break;
-    case FRAMESIZE_SVGA:
-      ESP_LOGCONFIG(TAG, "  Resolution: 800x600 (SVGA)");
-      break;
-    case FRAMESIZE_XGA:
-      ESP_LOGCONFIG(TAG, "  Resolution: 1024x768 (XGA)");
-      break;
-    case FRAMESIZE_SXGA:
-      ESP_LOGCONFIG(TAG, "  Resolution: 1280x1024 (SXGA)");
-      break;
-    case FRAMESIZE_UXGA:
-      ESP_LOGCONFIG(TAG, "  Resolution: 1600x1200 (UXGA)");
-      break;
-    case FRAMESIZE_FHD:
-      ESP_LOGCONFIG(TAG, "  Resolution: 1920x1080 (FHD)");
-      break;
-    case FRAMESIZE_P_HD:
-      ESP_LOGCONFIG(TAG, "  Resolution: 720x1280 (P_HD)");
-      break;
-    case FRAMESIZE_P_3MP:
-      ESP_LOGCONFIG(TAG, "  Resolution: 864x1536 (P_3MP)");
-      break;
-    case FRAMESIZE_QXGA:
-      ESP_LOGCONFIG(TAG, "  Resolution: 2048x1536 (QXGA)");
-      break;
-    case FRAMESIZE_QHD:
-      ESP_LOGCONFIG(TAG, "  Resolution: 2560x1440 (QHD)");
-      break;
-    case FRAMESIZE_WQXGA:
-      ESP_LOGCONFIG(TAG, "  Resolution: 2560x1600 (WQXGA)");
-      break;
-    case FRAMESIZE_P_FHD:
-      ESP_LOGCONFIG(TAG, "  Resolution: 1080x1920 (P_FHD)");
-      break;
-    case FRAMESIZE_QSXGA:
-      ESP_LOGCONFIG(TAG, "  Resolution: 2560x1920 (QSXGA)");
-      break;
-    default:
-      break;
-  }
-  switch (this->config_.pixel_format) {
-    case PIXFORMAT_RGB565:
-      ESP_LOGCONFIG(TAG, "  Pixel Format: RGB565");
-      break;
-    case PIXFORMAT_YUV422:
-      ESP_LOGCONFIG(TAG, "  Pixel Format: YUV422");
-      break;
-    case PIXFORMAT_YUV420:
-      ESP_LOGCONFIG(TAG, "  Pixel Format: YUV420");
-      break;
-    case PIXFORMAT_GRAYSCALE:
-      ESP_LOGCONFIG(TAG, "  Pixel Format: GRAYSCALE");
-      break;
-    case PIXFORMAT_JPEG:
-      ESP_LOGCONFIG(TAG, "  Pixel Format: JPEG");
-      break;
-    case PIXFORMAT_RGB888:
-      ESP_LOGCONFIG(TAG, "  Pixel Format: RGB888");
-      break;
-    case PIXFORMAT_RAW:
-      ESP_LOGCONFIG(TAG, "  Pixel Format: RAW");
-      break;
-    case PIXFORMAT_RGB444:
-      ESP_LOGCONFIG(TAG, "  Pixel Format: RGB444");
-      break;
-    case PIXFORMAT_RGB555:
-      ESP_LOGCONFIG(TAG, "  Pixel Format: RGB555");
-      break;
-    default:
-      break;
-  }
+
+  ESP_LOGCONFIG(TAG, "  Resolution: %s", frame_size_to_str(this->config_.frame_size));
+  ESP_LOGCONFIG(TAG, "  Pixel Format: %s", pixel_format_to_str(this->config_.pixel_format));
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "  Setup Failed: %s", esp_err_to_name(this->init_error_));
