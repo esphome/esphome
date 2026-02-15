@@ -9,6 +9,7 @@
 #include <cinttypes>
 #include <cstring>
 #include <atomic>
+#include <span>
 namespace esphome {
 namespace usb_host {
 
@@ -142,18 +143,23 @@ static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc
   } while (next_desc != NULL);
 }
 #endif
-static std::string get_descriptor_string(const usb_str_desc_t *desc) {
-  char buffer[256];
-  if (desc == nullptr)
+// USB string descriptors: bLength (uint8_t, max 255) includes the 2-byte header (bLength and bDescriptorType).
+// Character count = (bLength - 2) / 2, max 126 chars + null terminator.
+static constexpr size_t DESC_STRING_BUF_SIZE = 128;
+
+static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
+  if (desc == nullptr || desc->bLength < 2)
     return "(unspecified)";
-  char *p = buffer;
-  for (int i = 0; i != desc->bLength / 2; i++) {
+  int char_count = (desc->bLength - 2) / 2;
+  char *p = buffer.data();
+  char *end = p + buffer.size() - 1;
+  for (int i = 0; i != char_count && p < end; i++) {
     auto c = desc->wData[i];
     if (c < 0x100)
       *p++ = static_cast<char>(c);
   }
   *p = '\0';
-  return {buffer};
+  return buffer.data();
 }
 
 // CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
@@ -259,60 +265,63 @@ void USBClient::loop() {
     ESP_LOGW(TAG, "Dropped %u USB events due to queue overflow", dropped);
   }
 
-  switch (this->state_) {
-    case USB_CLIENT_OPEN: {
-      int err;
-      ESP_LOGD(TAG, "Open device %d", this->device_addr_);
-      err = usb_host_device_open(this->handle_, this->device_addr_, &this->device_handle_);
-      if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Device open failed: %s", esp_err_to_name(err));
-        this->state_ = USB_CLIENT_INIT;
-        break;
-      }
-      ESP_LOGD(TAG, "Get descriptor device %d", this->device_addr_);
-      const usb_device_desc_t *desc;
-      err = usb_host_get_device_descriptor(this->device_handle_, &desc);
-      if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Device get_desc failed: %s", esp_err_to_name(err));
-        this->disconnect();
-      } else {
-        ESP_LOGD(TAG, "Device descriptor: vid %X pid %X", desc->idVendor, desc->idProduct);
-        if (desc->idVendor == this->vid_ && desc->idProduct == this->pid_ || this->vid_ == 0 && this->pid_ == 0) {
-          usb_device_info_t dev_info;
-          err = usb_host_device_info(this->device_handle_, &dev_info);
-          if (err != ESP_OK) {
-            ESP_LOGW(TAG, "Device info failed: %s", esp_err_to_name(err));
-            this->disconnect();
-            break;
-          }
-          this->state_ = USB_CLIENT_CONNECTED;
-          ESP_LOGD(TAG, "Device connected: Manuf: %s; Prod: %s; Serial: %s",
-                   get_descriptor_string(dev_info.str_desc_manufacturer).c_str(),
-                   get_descriptor_string(dev_info.str_desc_product).c_str(),
-                   get_descriptor_string(dev_info.str_desc_serial_num).c_str());
+  if (this->state_ == USB_CLIENT_OPEN) {
+    this->handle_open_state_();
+  }
+}
+
+void USBClient::handle_open_state_() {
+  int err;
+  ESP_LOGD(TAG, "Open device %d", this->device_addr_);
+  err = usb_host_device_open(this->handle_, this->device_addr_, &this->device_handle_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Device open failed: %s", esp_err_to_name(err));
+    this->state_ = USB_CLIENT_INIT;
+    return;
+  }
+  ESP_LOGD(TAG, "Get descriptor device %d", this->device_addr_);
+  const usb_device_desc_t *desc;
+  err = usb_host_get_device_descriptor(this->device_handle_, &desc);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Device get_desc failed: %s", esp_err_to_name(err));
+    this->disconnect();
+    return;
+  }
+  ESP_LOGD(TAG, "Device descriptor: vid %X pid %X", desc->idVendor, desc->idProduct);
+  if (desc->idVendor != this->vid_ || desc->idProduct != this->pid_) {
+    if (this->vid_ != 0 || this->pid_ != 0) {
+      ESP_LOGD(TAG, "Not our device, closing");
+      this->disconnect();
+      return;
+    }
+  }
+  usb_device_info_t dev_info;
+  err = usb_host_device_info(this->device_handle_, &dev_info);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Device info failed: %s", esp_err_to_name(err));
+    this->disconnect();
+    return;
+  }
+  this->state_ = USB_CLIENT_CONNECTED;
+  char buf_manuf[DESC_STRING_BUF_SIZE];
+  char buf_product[DESC_STRING_BUF_SIZE];
+  char buf_serial[DESC_STRING_BUF_SIZE];
+  ESP_LOGD(TAG, "Device connected: Manuf: %s; Prod: %s; Serial: %s",
+           get_descriptor_string(dev_info.str_desc_manufacturer, buf_manuf),
+           get_descriptor_string(dev_info.str_desc_product, buf_product),
+           get_descriptor_string(dev_info.str_desc_serial_num, buf_serial));
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-          const usb_device_desc_t *device_desc;
-          err = usb_host_get_device_descriptor(this->device_handle_, &device_desc);
-          if (err == ESP_OK)
-            usb_client_print_device_descriptor(device_desc);
-          const usb_config_desc_t *config_desc;
-          err = usb_host_get_active_config_descriptor(this->device_handle_, &config_desc);
-          if (err == ESP_OK)
-            usb_client_print_config_descriptor(config_desc, nullptr);
+  const usb_device_desc_t *device_desc;
+  err = usb_host_get_device_descriptor(this->device_handle_, &device_desc);
+  if (err == ESP_OK)
+    usb_client_print_device_descriptor(device_desc);
+  const usb_config_desc_t *config_desc;
+  err = usb_host_get_active_config_descriptor(this->device_handle_, &config_desc);
+  if (err == ESP_OK)
+    usb_client_print_config_descriptor(config_desc, nullptr);
 #endif
-          this->on_connected();
-        } else {
-          ESP_LOGD(TAG, "Not our device, closing");
-          this->disconnect();
-        }
-      }
-      break;
-    }
-
-    default:
-      break;
-  }
+  this->on_connected();
 }
 
 void USBClient::on_opened(uint8_t addr) {
