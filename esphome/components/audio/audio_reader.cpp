@@ -248,7 +248,10 @@ AudioFileType AudioReader::get_audio_type(const char *content_type) {
   }
 #endif
 #ifdef USE_AUDIO_OPUS_SUPPORT
-  if (strcasecmp(content_type, "audio/ogg; codecs=opus") == 0) {
+  // Match "audio/ogg" with a codecs parameter containing "opus"
+  // Valid forms: audio/ogg;codecs=opus, audio/ogg; codecs="opus", etc.
+  // Plain "audio/ogg" without a codecs parameter is not matched, as those are almost always Ogg Vorbis streams
+  if (strncasecmp(content_type, "audio/ogg", 9) == 0 && strcasestr(content_type + 9, "opus") != nullptr) {
     return AudioFileType::OPUS;
   }
 #endif
