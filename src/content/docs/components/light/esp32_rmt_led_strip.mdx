@@ -7,6 +7,9 @@ import APIRef from '@components/APIRef.astro';
 
 This is a component using the ESP32 RMT peripheral to drive most addressable LED strips.
 
+> [!NOTE]
+> The ESP32-C2 and ESP32-C61 do not have RMT hardware and are not supported by this component.
+
 ```yaml
 light:
   - platform: esp32_rmt_led_strip
@@ -59,7 +62,6 @@ light:
 | ESP32-C3      | 96 symbols       | 48 symbols |
 | ESP32-C5      | 96 symbols       | 48 symbols |
 | ESP32-C6      | 96 symbols       | 48 symbols |
-| ESP32-C61     | 96 symbols       | 48 symbols |
 | ESP32-H2      | 96 symbols       | 48 symbols |
 | ESP32-P4      | 192 symbols      | 48 symbols |
 | ESP32-S2      | 256 symbols      | 64 symbols |

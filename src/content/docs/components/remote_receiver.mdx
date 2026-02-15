@@ -88,16 +88,20 @@ Multiple remote receivers can be configured as a list of dict definitions within
   be considered complete. Defaults to `10ms`. The maximum allowable value is:
 
   - `65536us` on the `ESP32` and `ESP32-S2` variants
-  - `32767us` on all other ESP32 variants
-  - `4294967295us` on all other platforms
+  - `32767us` on other ESP32 variants with RMT hardware
+  - `4294967295us` on all other platforms (including ESP32-C2 and ESP32-C61 which use a software implementation)
 
-  Note: The ESP32 values listed above assume the default `clock_resolution`. If a different `clock_resolution` is used,
-  the values are scaled by 1000000 / `clock_resolution`.
+  Note: The ESP32 RMT values listed above assume the default `clock_resolution`. If a different `clock_resolution` is
+  used, the values are scaled by 1000000 / `clock_resolution`.
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation. Useful when multiple
   receivers are configured on a single device.
 
-### ESP32 configuration variables
+### ESP32 RMT configuration variables
+
+> [!NOTE]
+> The following options apply only to ESP32 variants with RMT hardware. They are not available on the ESP32-C2 and
+> ESP32-C61, which use a software implementation.
 
 - **rmt_symbols** (*Optional*, int): When `use_dma` is enabled, this sets the size of the driver's internal DMA
   buffer. When DMA is disabled, it specifies how much RMT memory is allocated to the component. RMT memory is shared
@@ -110,7 +114,6 @@ Multiple remote receivers can be configured as a list of dict definitions within
 | ESP32-C3      | 96 symbols       | 48 symbols |
 | ESP32-C5      | 96 symbols       | 48 symbols |
 | ESP32-C6      | 96 symbols       | 48 symbols |
-| ESP32-C61     | 96 symbols       | 48 symbols |
 | ESP32-H2      | 96 symbols       | 48 symbols |
 | ESP32-P4      | 192 symbols      | 48 symbols |
 | ESP32-S2      | 256 symbols      | 64 symbols |
