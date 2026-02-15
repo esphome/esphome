@@ -8,11 +8,13 @@
 namespace esphome::zephyr {
 
 CdcAcm::CdcAcm() {
+#if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
   const struct device *cdc_dev[] = {DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, DEVICE_AND_COMMA)};
   for (auto &idx : cdc_dev) {
     // only one global callback can be registered
     cdc_acm_dte_rate_callback_set(idx, CdcAcm::cdc_dte_rate_callback_);
   }
+#endif  // DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
 }
 
 void CdcAcm::cdc_dte_rate_callback_(const struct device *device, uint32_t rate) {
