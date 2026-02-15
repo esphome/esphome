@@ -32,5 +32,5 @@ const slug = latest.entry?.data.slug ?? latest.entry?.id;
 const redirectUrl = slug ? `/${slug}/` : null;
 ---
 
-{redirectUrl && <script define:vars={{ redirectUrl }}>window.location.replace(redirectUrl);</script>}
+{redirectUrl && <script define:vars={{ redirectUrl }}>window.location.replace(redirectUrl + window.location.hash);</script>}
 {Content && <Content />}
