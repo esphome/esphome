@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace ze15_co {
+namespace esphome::ze15_co {
 
 static const char *const TAG = "ze15_co";
 static const uint8_t ZE15_CO_REQUEST_LENGTH = 8;
@@ -19,14 +18,16 @@ uint8_t ze15_co_checksum(const uint8_t *command) {
 }
 
 void ZE15COComponent::dump_config() {
-  LOG_SENSOR("  ", "ZE15-CO Sensor", this);
-  ESP_LOGCONFIG(TAG, "  Mode: %s", this->mode_ == QA ? "qa" : "stream");
-  ESP_LOGCONFIG(TAG, "  Warmup time: %" PRIu32 " s", this->warmup_seconds_);
+  LOG_SENSOR("", "ZE15-CO Sensor", this);
+  ESP_LOGCONFIG(TAG, "  Mode: %s\n"
+  "  Warmup time: %" PRIu32 " s", 
+  this->mode_ == Mode::QA ? "qa" : "stream",
+  this->warmup_seconds_);
 }
 
 void ZE15COComponent::update() {
   // This event is exclusive for the QA mode
-  if (mode_ != QA)
+  if (this->mode_ != Mode::QA)
     return;
 
   // Check if we are in the warming period
@@ -80,7 +81,7 @@ void ZE15COComponent::update() {
 
 void ZE15COComponent::loop() {
   // This event is exclusive for the STREAM mode
-  if (mode_ != STREAM)
+  if (this->mode_ != Mode::STREAM)
     return;
 
   // Read data from UART
@@ -156,5 +157,4 @@ bool ZE15COComponent::ze15_co_write_command_(const uint8_t *command, uint8_t *re
   return this->read_array(response, ZE15_CO_RESPONSE_LENGTH);
 }
 
-}  // namespace ze15_co
-}  // namespace esphome
+}  // namespace esphome::ze15_co

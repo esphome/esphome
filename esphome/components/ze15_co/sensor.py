@@ -10,17 +10,15 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@maikeljkwak"]
-DEPENDENCIES = ["uart"]
 
 ICON_MOLECULE_CO = "mdi:molecule-co"
-CONF_CO = "co"
 
 ze15_ns = cg.esphome_ns.namespace("ze15_co")
 ZE15COComponent = ze15_ns.class_(
     "ZE15COComponent", sensor.Sensor, cg.PollingComponent, uart.UARTDevice
 )
 
-Mode = ze15_ns.enum("Mode")
+Mode = ze15_ns.enum("Mode", is_class=True)
 MODE = {
     "qa": Mode.QA,
     "stream": Mode.STREAM,

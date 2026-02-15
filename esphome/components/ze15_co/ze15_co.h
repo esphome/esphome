@@ -4,25 +4,24 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace ze15_co {
+namespace esphome::ze15_co {
 
-enum Mode {
+enum class Mode {
   QA,
   STREAM,
 };
 
 class ZE15COComponent : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
  public:
-  void set_mode(Mode mode) { mode_ = mode; }
-  void set_warmup_seconds(uint32_t seconds) { warmup_seconds_ = seconds; }
+  void set_mode(Mode mode) { this->mode_ = mode; }
+  void set_warmup_seconds(uint32_t seconds) { this->warmup_seconds_ = seconds; }
 
   void dump_config() override;
   void update() override;
   void loop() override;
 
  protected:
-  Mode mode_{QA};
+  Mode mode_{Mode::QA};
   uint32_t warmup_seconds_{30};
 
   uint8_t buffer_[9];
@@ -32,5 +31,4 @@ class ZE15COComponent : public sensor::Sensor, public PollingComponent, public u
   bool ze15_co_write_command_(const uint8_t *command, uint8_t *response);
 };
 
-}  // namespace ze15_co
-}  // namespace esphome
+}  // namespace esphome::ze15_co
