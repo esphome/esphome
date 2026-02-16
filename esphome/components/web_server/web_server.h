@@ -42,13 +42,12 @@ using ParamNameType = const __FlashStringHelper *;
 using ParamNameType = const char *;
 #endif
 
-// ESP8266 is single-threaded, so actions can execute directly in request context.
-// Multi-core platforms need to defer to main loop thread for thread safety.
-#ifdef USE_ESP8266
-#define DEFER_ACTION(capture, action) action
-#else
+// All platforms need to defer actions to main loop thread.
+// Multi-core platforms need this for thread safety.
+// ESP8266 needs this because ESPAsyncWebServer callbacks run in "sys" context
+// (SDK system context), not "cont" context (continuation/main loop). Calling
+// yield() from sys context causes a panic in the Arduino core.
 #define DEFER_ACTION(capture, action) this->defer([capture]() mutable { action; })
-#endif
 
 /// Result of matching a URL against an entity
 struct EntityMatchResult {
@@ -113,10 +112,10 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   /*
     This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
     that will lazily generate that event.  The two pointers allow dedup in the deferred queue if multiple publishes for
-    the same component are backed up, and take up only 8 bytes of memory.  The entry in the deferred queue (a
-    std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only 8 bytes per
-    entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors publishing
-    because of dedup) would take up only 0.8 kB.
+    the same component are backed up, and take up only two pointers of memory.  The entry in the deferred queue (a
+    std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only two
+    pointers per entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors
+    publishing because of dedup) would take up only 0.8 kB.
   */
   struct DeferredEvent {
     friend class DeferredUpdateEventSource;
@@ -131,7 +130,9 @@ class DeferredUpdateEventSource : public AsyncEventSource {
     bool operator==(const DeferredEvent &test) const {
       return (source_ == test.source_ && message_generator_ == test.message_generator_);
     }
-  } __attribute__((packed));
+  };
+  static_assert(sizeof(DeferredEvent) == sizeof(void *) + sizeof(message_generator_t *),
+                "DeferredEvent should have no padding");
 
  protected:
   // surface a couple methods from the base class
@@ -512,11 +513,9 @@ class WebServer : public Controller,
   template<typename T, typename Ret>
   void parse_light_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(float),
                           float scale = 1.0f) {
-    if (request->hasParam(param_name)) {
-      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
-      if (value.has_value()) {
-        (call.*setter)(*value / scale);
-      }
+    auto value = parse_number<float>(request->arg(param_name).c_str());
+    if (value.has_value()) {
+      (call.*setter)(*value / scale);
     }
   }
 
@@ -524,34 +523,19 @@ class WebServer : public Controller,
   template<typename T, typename Ret>
   void parse_light_param_uint_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
                                Ret (T::*setter)(uint32_t), uint32_t scale = 1) {
-    if (request->hasParam(param_name)) {
-      auto value = parse_number<uint32_t>(request->getParam(param_name)->value().c_str());
-      if (value.has_value()) {
-        (call.*setter)(*value * scale);
-      }
+    auto value = parse_number<uint32_t>(request->arg(param_name).c_str());
+    if (value.has_value()) {
+      (call.*setter)(*value * scale);
     }
   }
 #endif
 
-  // Generic helper to parse and apply a float parameter
-  template<typename T, typename Ret>
-  void parse_float_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(float)) {
-    if (request->hasParam(param_name)) {
-      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
-      if (value.has_value()) {
-        (call.*setter)(*value);
-      }
-    }
-  }
-
-  // Generic helper to parse and apply an int parameter
-  template<typename T, typename Ret>
-  void parse_int_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(int)) {
-    if (request->hasParam(param_name)) {
-      auto value = parse_number<int>(request->getParam(param_name)->value().c_str());
-      if (value.has_value()) {
-        (call.*setter)(*value);
-      }
+  // Generic helper to parse and apply a numeric parameter
+  template<typename NumT, typename T, typename Ret>
+  void parse_num_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(NumT)) {
+    auto value = parse_number<NumT>(request->arg(param_name).c_str());
+    if (value.has_value()) {
+      (call.*setter)(*value);
     }
   }
 
@@ -559,10 +543,9 @@ class WebServer : public Controller,
   template<typename T, typename Ret>
   void parse_string_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
                            Ret (T::*setter)(const std::string &)) {
-    if (request->hasParam(param_name)) {
-      // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
-      std::string value = request->getParam(param_name)->value().c_str();  // NOLINT(readability-redundant-string-cstr)
-      (call.*setter)(value);
+    if (request->hasArg(param_name)) {
+      const auto &value = request->arg(param_name);
+      (call.*setter)(std::string(value.c_str(), value.length()));
     }
   }
 
@@ -572,8 +555,9 @@ class WebServer : public Controller,
   // Invalid values are ignored (setter not called)
   template<typename T, typename Ret>
   void parse_bool_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(bool)) {
-    if (request->hasParam(param_name)) {
-      auto param_value = request->getParam(param_name)->value();
+    const auto &param_value = request->arg(param_name);
+    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
+    if (param_value.length() > 0) {  // NOLINT(readability-container-size-empty)
       // First check on/off (default), then true/false (custom)
       auto val = parse_on_off(param_value.c_str());
       if (val == PARSE_NONE) {

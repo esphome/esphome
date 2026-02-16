@@ -338,8 +338,8 @@ void ESP32ImprovComponent::process_incoming_data_() {
           return;
         }
         wifi::WiFiAP sta{};
-        sta.set_ssid(command.ssid);
-        sta.set_password(command.password);
+        sta.set_ssid(command.ssid.c_str());
+        sta.set_password(command.password.c_str());
         this->connecting_sta_ = sta;
 
         wifi::global_wifi_component->set_sta(sta);

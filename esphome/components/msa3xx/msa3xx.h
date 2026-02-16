@@ -220,8 +220,6 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   void loop() override;
   void update() override;
 
-  float get_setup_priority() const override;
-
   void set_model(Model model) { this->model_ = model; }
   void set_offset(float offset_x, float offset_y, float offset_z);
   void set_range(Range range) { this->range_ = range; }

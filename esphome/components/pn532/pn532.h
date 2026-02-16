@@ -35,7 +35,6 @@ class PN532 : public PollingComponent {
   void dump_config() override;
 
   void update() override;
-  float get_setup_priority() const override;
 
   void loop() override;
   void on_powerdown() override { powerdown(); }
@@ -77,7 +76,7 @@ class PN532 : public PollingComponent {
 
   std::unique_ptr<nfc::NfcTag> read_mifare_classic_tag_(nfc::NfcTagUid &uid);
   bool read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
-  bool write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
+  bool write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, size_t len);
   bool auth_mifare_classic_block_(nfc::NfcTagUid &uid, uint8_t block_num, uint8_t key_num, const uint8_t *key);
   bool format_mifare_classic_mifare_(nfc::NfcTagUid &uid);
   bool format_mifare_classic_ndef_(nfc::NfcTagUid &uid);
@@ -89,7 +88,7 @@ class PN532 : public PollingComponent {
   uint16_t read_mifare_ultralight_capacity_();
   bool find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
                                     uint8_t &message_start_index);
-  bool write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &write_data);
+  bool write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len);
   bool write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
   bool clean_mifare_ultralight_();
 

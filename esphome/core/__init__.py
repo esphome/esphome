@@ -892,6 +892,16 @@ class EsphomeCore:
             library.name if "/" not in library.name else library.name.split("/")[-1]
         )
 
+        # Auto-enable Arduino libraries on ESP32 Arduino builds
+        if self.is_esp32 and self.using_arduino:
+            from esphome.components.esp32 import (
+                ARDUINO_DISABLED_LIBRARIES,
+                _enable_arduino_library,
+            )
+
+            if short_name in ARDUINO_DISABLED_LIBRARIES:
+                _enable_arduino_library(short_name)
+
         if short_name not in self.platformio_libraries:
             _LOGGER.debug("Adding library: %s", library)
             self.platformio_libraries[short_name] = library
