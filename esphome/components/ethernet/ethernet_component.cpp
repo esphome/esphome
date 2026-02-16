@@ -19,6 +19,8 @@
 #include <driver/spi_master.h>
 #endif
 
+#include "esphome/components/network/esp_utils.h"
+
 namespace esphome {
 namespace ethernet {
 
@@ -102,10 +104,12 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "SPI bus initialize error");
 #endif
 
-  err = esp_netif_init();
-  ESPHL_ERROR_CHECK(err, "ETH netif init error");
-  err = esp_event_loop_create_default();
-  ESPHL_ERROR_CHECK(err, "ETH event loop error");
+  bool success = network::esp_init();
+  if (!success) {
+    ESP_LOGE(TAG, "Failed to initialize network interface");
+    this->mark_failed();
+    return;
+  }
 
   esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
   this->eth_netif_ = esp_netif_new(&cfg);
