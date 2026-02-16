@@ -732,8 +732,8 @@ async def lg_action(var, config, args):
 
 MAGIQUEST_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_WAND_ID): cv.hex_uint32_t,
-        cv.Optional(CONF_MAGNITUDE, default=0xFFFF): cv.hex_uint16_t,
+        cv.Optional(CONF_WAND_ID, default=0x00000000): cv.hex_uint32_t,
+        cv.Optional(CONF_MAGNITUDE, default=0x0000): cv.hex_uint16_t,
     }
 )
 
