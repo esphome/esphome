@@ -11,7 +11,12 @@ namespace network {
 
 static const char *const TAG = "network_esp";
 
+static bool initialized = false;
+
 bool esp_init() {
+  if (initialized) {
+    return true;
+  }
   esp_err_t err;
   err = esp_netif_init();
   if (err != ESP_OK) {
@@ -19,12 +24,11 @@ bool esp_init() {
     return false;
   }
   err = esp_event_loop_create_default();
-  // ESP_ERR_INVALID_STATE is returned if the default loop already exists,
-  // which is fine since we just want to make sure it exists
-  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+  if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_event_loop_create_default failed: (%d) %s", err, esp_err_to_name(err));
     return false;
   }
+  initialized = true;
   return true;
 }
 
