@@ -277,7 +277,6 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
 
       if (!param->write.is_prep) {
         if (this->on_write_callback_) {
-          ESP_LOGE(TAG, "Sending write callback, value is %s", format_hex_pretty(this->value_).c_str());
           (*this->on_write_callback_)(this->value_, param->write.conn_id);
         }
       }
@@ -291,7 +290,6 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       this->write_event_ = false;
       if (param->exec_write.exec_write_flag == ESP_GATT_PREP_WRITE_EXEC) {
         if (this->on_write_callback_) {
-          ESP_LOGE(TAG, "Sending write callback after prep, value is %s", format_hex_pretty(this->value_).c_str());
           (*this->on_write_callback_)(this->value_, param->exec_write.conn_id);
         }
       }
