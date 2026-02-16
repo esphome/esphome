@@ -12,7 +12,10 @@ void EPaperSSD1683::refresh_screen(bool partial) {
   this->cmd_data(0x3C, {partial ? (uint8_t) 0x80 : (uint8_t) 0x01});
   // On partial update, set red RAM to inverse to remove BW ghosting
   this->cmd_data(0x21, {partial ? (uint8_t) 0x80 : (uint8_t) 0x40, (uint8_t) 0x00});
-  this->cmd_data(0x22, {partial ? (uint8_t) 0xFC : (uint8_t) 0xD7});
+  // Set full update to 0xD7 for fast update, 0xF7 for normal
+  // Fast update is not actually faster, it takes the same amount of time but flashes less
+  // Manufacturer recommends not using fast update all the time, TODO expose this to the user
+  this->cmd_data(0x22, {partial ? (uint8_t) 0xFC : (uint8_t) 0xF7});
   this->command(0x20);
 }
 
@@ -33,9 +36,9 @@ void EPaperSSD1683::set_window() {
   // round x-coordinates to byte boundaries
   this->x_low_ &= ~7;
   this->x_high_ += 7;
-  this->x_high_ &= ~7;
+  this->x_high_ /= 8;
 
-  this->cmd_data(0x44, {(uint8_t) this->x_low_, (uint8_t) (this->x_high_ / 8 - 1)});
+  this->cmd_data(0x44, {(uint8_t) this->x_low_, (uint8_t) (this->x_high_ - 1)});
   this->cmd_data(0x45, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256), (uint8_t) (this->y_high_ - 1),
                         (uint8_t) ((this->y_high_ - 1) / 256)});
   this->cmd_data(0x4E, {(uint8_t) this->x_low_});
@@ -54,13 +57,13 @@ bool HOT EPaperSSD1683::transfer_data() {
     this->command(this->send_red_ ? 0x26 : 0x24);
     this->current_data_index_ = this->y_low_;  // actually current line
   }
-  size_t row_length = (this->x_high_ - this->x_low_) / 8;
+  size_t row_length = this->x_high_ - this->x_low_;
   FixedVector<uint8_t> bytes_to_send{};
   bytes_to_send.init(row_length);
   ESP_LOGV(TAG, "Writing %u bytes at line %zu at %ums", row_length, this->current_data_index_, (unsigned) millis());
   this->start_data_();
   while (this->current_data_index_ != this->y_high_) {
-    size_t data_idx = this->current_data_index_ * this->row_width_ + this->x_low_ / 8;
+    size_t data_idx = this->current_data_index_ * this->row_width_ + this->x_low_;
     for (size_t i = 0; i != row_length; i++) {
       bytes_to_send[i] = this->buffer_[data_idx++];
     }
