@@ -79,6 +79,44 @@ bool MQTTBackendESP32::initialize_() {
   }
 }
 
+void MQTTBackendESP32::disable() {
+  if (!this->is_initalized_) {
+    return;
+  }
+
+  esp_mqtt_client_handle_t client = this->handler_.get();
+  if (client != nullptr) {
+    esp_mqtt_client_disconnect(client);
+    esp_mqtt_client_stop(client);
+    esp_mqtt_client_unregister_event(client, MQTT_EVENT_ANY, mqtt_event_handler);
+  }
+
+#if defined(USE_MQTT_IDF_ENQUEUE)
+  // Stop async MQTT task before releasing resources it may use.
+  this->mqtt_queue_.set_task_to_notify(nullptr);
+  if (this->task_handle_ != nullptr) {
+    vTaskDelete(this->task_handle_);
+    this->task_handle_ = nullptr;
+  }
+
+  // Release any queued elements that were not processed.
+  struct QueueElement *elem;
+  while ((elem = this->mqtt_queue_.pop()) != nullptr) {
+    this->mqtt_event_pool_.release(elem);
+  }
+
+  this->last_dropped_log_time_ = 0;
+#endif
+
+  while (!this->mqtt_events_.empty()) {
+    this->mqtt_events_.pop();
+  }
+
+  this->handler_.reset();
+  this->is_connected_ = false;
+  this->is_initalized_ = false;
+}
+
 void MQTTBackendESP32::loop() {
   // process new events
   // handle only 1 message per loop iteration

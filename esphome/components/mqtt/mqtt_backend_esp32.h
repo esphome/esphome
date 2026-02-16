@@ -178,6 +178,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
     if (is_initalized_)
       esp_mqtt_client_disconnect(handler_.get());
   }
+  void disable() final;
 
   bool subscribe(const char *topic, uint8_t qos) final {
 #if defined(USE_MQTT_IDF_ENQUEUE)

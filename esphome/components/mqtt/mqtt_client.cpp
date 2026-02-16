@@ -733,7 +733,7 @@ void MQTTClientComponent::on_shutdown() {
     this->publish(this->shutdown_message_);
     yield();
   }
-  this->mqtt_backend_.disconnect();
+  this->mqtt_backend_.disable();
 }
 
 void MQTTClientComponent::set_on_connect(mqtt_on_connect_callback_t &&callback) {
