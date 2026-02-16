@@ -19,7 +19,9 @@ namespace hdmi_cec {
 
 class MessageTrigger;
 
-class Frame : public std::vector<uint8_t> {
+constexpr static int MAX_FRAME_LENGTH = 16;  // max length of a message from HDMI CEC standard 1.4
+
+class Frame : public std::array<uint8_t, MAX_FRAME_LENGTH> {
  public:
   Frame() = default;
   Frame(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload);
@@ -27,8 +29,17 @@ class Frame : public std::vector<uint8_t> {
   uint8_t destination_addr() const { return this->at(0) & 0xf; }
   uint8_t opcode() const { return (this->size() >= 2) ? this->at(1) : 0; }
   bool is_broadcast() const { return this->destination_addr() == 0xf; }
-  std::string to_string() const;         // NOLINT
-  constexpr static int MAX_LENGTH = 16;  // from HDMI CEC standard 1.4
+  uint8_t size() const { return size_; }
+  void clear() { size_ = 0; }
+  void push_back(uint8_t data) {
+    if (size_ < MAX_FRAME_LENGTH) {
+      this->at(size_++) = data;
+    }
+  }
+  std::string to_string() const;  // NOLINT
+
+ protected:
+  uint8_t size_{0};
 };
 
 /**
@@ -45,7 +56,6 @@ template<unsigned int SIZE> class FrameRingBuffer {
   FrameRingBuffer() : front_inx_{0}, back_inx_{0}, store_{} {
     for (auto &t : store_) {
       t = new Frame;
-      t->reserve(Frame::MAX_LENGTH);
     }
   }
   ~FrameRingBuffer() {

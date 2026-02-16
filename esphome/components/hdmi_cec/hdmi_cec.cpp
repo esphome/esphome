@@ -36,10 +36,10 @@ static const char *const TAG = "hdmi_cec";
 static constexpr gpio::Flags PIN_MODE_FLAGS =
     gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 
-Frame::Frame(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload)
-    : std::vector<uint8_t>(1 + payload.size(), (uint8_t) (0)) {
-  this->at(0) = ((initiator_addr & 0xf) << 4) | (target_addr & 0xf);
-  std::memcpy(this->data() + 1, payload.data(), payload.size());
+Frame::Frame(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload) {
+  this->at(0) = ((initiator_addr & 0xf) << 4) | (target_addr & 0xf);  // header byte
+  size_ = std::min((int) (1 + payload.size()), MAX_FRAME_LENGTH);
+  std::memcpy(this->data() + 1, payload.data(), size_ - 1);  // payload bytes, not exceeding capacity
 }
 
 std::string Frame::to_string() const {
