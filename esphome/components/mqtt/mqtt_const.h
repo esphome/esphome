@@ -84,6 +84,7 @@
   X(MQTT_DEVICE_HW_VERSION, "hw", "hw_version") \
   X(MQTT_DIRECTION_COMMAND_TOPIC, "dir_cmd_t", "direction_command_topic") \
   X(MQTT_DIRECTION_STATE_TOPIC, "dir_stat_t", "direction_state_topic") \
+  X(MQTT_DISPLAY_PRECISION, "dsp_prc", "display_precision") \
   X(MQTT_DOCKED_TEMPLATE, "dock_tpl", "docked_template") \
   X(MQTT_DOCKED_TOPIC, "dock_t", "docked_topic") \
   X(MQTT_EFFECT_COMMAND_TOPIC, "fx_cmd_t", "effect_command_topic") \
