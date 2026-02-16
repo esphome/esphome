@@ -64,6 +64,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
 
   void set_rgb_order(RGBOrder rgb_order) { this->rgb_order_ = rgb_order; }
   void set_rmt_symbols(uint32_t rmt_symbols) { this->rmt_symbols_ = rmt_symbols; }
+  void set_intr_priority(uint8_t priority) { this->intr_priority_ = priority; }
 
   void clear_effect_data() override {
     for (int i = 0; i < this->size(); i++)
@@ -88,6 +89,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   rmt_symbol_word_t *rmt_buf_{nullptr};
 #endif
   uint32_t rmt_symbols_{48};
+  uint8_t intr_priority_{0};
   uint8_t pin_;
   uint16_t num_leds_;
   bool is_rgbw_{false};

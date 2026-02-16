@@ -61,6 +61,7 @@ CHIPSETS = {
     "SM16703": LEDStripTimings(300, 900, 900, 300, 0, 0),
 }
 
+CONF_INTR_PRIORITY = "intr_priority"
 CONF_IS_WRGB = "is_wrgb"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
@@ -102,6 +103,7 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 cv.boolean,
             ),
+            cv.Optional(CONF_INTR_PRIORITY, default=0): cv.int_range(min=0, max=3),
             cv.Optional(CONF_USE_PSRAM, default=True): cv.boolean,
             cv.Inclusive(
                 CONF_BIT0_HIGH,
@@ -178,5 +180,6 @@ async def to_code(config):
     cg.add(var.set_is_wrgb(config[CONF_IS_WRGB]))
     cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
     cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
+    cg.add(var.set_intr_priority(config[CONF_INTR_PRIORITY]))
     if CONF_USE_DMA in config:
         cg.add(var.set_use_dma(config[CONF_USE_DMA]))

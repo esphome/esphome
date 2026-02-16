@@ -103,7 +103,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
   channel.flags.io_od_mode = 0;
   channel.flags.invert_out = this->invert_out_;
   channel.flags.with_dma = this->use_dma_;
-  channel.intr_priority = 0;
+  channel.intr_priority = this->intr_priority_;
   if (rmt_new_tx_channel(&channel, &this->channel_) != ESP_OK) {
     ESP_LOGE(TAG, "Channel creation failed");
     this->mark_failed();

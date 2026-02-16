@@ -5,6 +5,7 @@ light:
     num_leds: 60
     rgb_order: GRB
     chipset: ws2812
+    intr_priority: 2
   - platform: esp32_rmt_led_strip
     id: led_strip2
     pin: ${pin2}
