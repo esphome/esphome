@@ -10,7 +10,6 @@
 #include "esp_task_wdt.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/components/network/esp_utils.h"
 
 #include "esp_err.h"
 #include "esp_event.h"
@@ -35,13 +34,8 @@ void OpenThreadComponent::setup() {
   esp_vfs_eventfd_config_t eventfd_config = {
       .max_fds = 3,
   };
+  // Network interface setup handled by network component
   ESP_ERROR_CHECK(nvs_flash_init());
-  bool success = network::esp_init();
-  if (!success) {
-    ESP_LOGE(TAG, "Failed to initialize network interface");
-    this->mark_failed();
-    return;
-  }
   ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
 
   xTaskCreate(

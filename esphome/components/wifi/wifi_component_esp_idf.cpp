@@ -31,7 +31,6 @@
 #ifdef USE_CAPTIVE_PORTAL
 #include "esphome/components/captive_portal/captive_portal.h"
 #endif
-#include "esphome/components/network/esp_utils.h"
 
 #include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
@@ -139,12 +138,7 @@ void WiFiComponent::wifi_pre_setup_() {
     get_mac_address_raw(mac);
     set_mac_address(mac);
   }
-  bool success = network::esp_init();
-  if (!success) {
-    ESP_LOGE(TAG, "Failed to initialize network interface");
-    this->mark_failed();
-    return;
-  }
+  // Network interface setup handled by network component
   s_wifi_event_group = xEventGroupCreate();
   if (s_wifi_event_group == nullptr) {
     ESP_LOGE(TAG, "xEventGroupCreate failed");

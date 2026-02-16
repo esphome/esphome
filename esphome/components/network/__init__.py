@@ -5,7 +5,7 @@ import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 import esphome.config_validation as cv
-from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT
+from esphome.const import CONF_ENABLE_IPV6, CONF_ID, CONF_MIN_IPV6_ADDR_COUNT
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
@@ -19,6 +19,7 @@ KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 
 network_ns = cg.esphome_ns.namespace("network")
+NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
 IPAddress = network_ns.class_("IPAddress")
 
 
@@ -107,6 +108,7 @@ def has_high_performance_networking() -> bool:
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(): cv.declare_id(NetworkComponent),
         cv.SplitDefault(
             CONF_ENABLE_IPV6,
             esp8266=False,
@@ -224,3 +226,11 @@ async def to_code(config):
                 cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
             if CORE.is_bk72xx:
                 cg.add_build_flag("-DCONFIG_IPV6")
+
+    CORE.add_job(network_component_to_code, config)
+
+
+@coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
+async def network_component_to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)

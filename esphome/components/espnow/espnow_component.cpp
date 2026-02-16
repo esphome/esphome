@@ -21,7 +21,6 @@
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
 #endif
-#include "esphome/components/network/esp_utils.h"
 
 namespace esphome::espnow {
 
@@ -151,12 +150,7 @@ bool ESPNowComponent::is_wifi_enabled() {
 
 void ESPNowComponent::setup() {
   // Initialize LwIP stack for wake_loop_threadsafe() socket support
-  bool success = network::esp_init();
-  if (!success) {
-    ESP_LOGE(TAG, "Failed to initialize network interface");
-    this->mark_failed();
-    return;
-  }
+  // Network interface setup handled by network component
 
   if (this->enable_on_boot_) {
     this->enable_();
