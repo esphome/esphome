@@ -50,7 +50,7 @@ void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   }
 
   if (this->sensor_->has_accuracy_decimals()) {
-    root[MQTT_DISPLAY_PRECISION] = this->sensor_->get_accuracy_decimals();
+    root[MQTT_SUGGESTED_DISPLAY_PRECISION] = this->sensor_->get_accuracy_decimals();
   }
 
   const auto unit_of_measurement = this->sensor_->get_unit_of_measurement_ref();
