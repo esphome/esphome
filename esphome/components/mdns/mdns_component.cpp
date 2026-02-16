@@ -156,14 +156,14 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 
 #ifdef USE_SENDSPIN
   MDNS_STATIC_CONST_CHAR(SERVICE_SENDSPIN, "_sendspin");
-  MDNS_STATIC_CONST_CHAR(TXT_PATH, "path");
-  MDNS_STATIC_CONST_CHAR(VALUE_PATH, "/sendspin");
+  MDNS_STATIC_CONST_CHAR(TXT_SENDSPIN_PATH, "path");
+  MDNS_STATIC_CONST_CHAR(VALUE_SENDSPIN_PATH, "/sendspin");
 
   auto &sendspin_service = services.emplace_next();
   sendspin_service.service_type = MDNS_STR(SERVICE_SENDSPIN);
   sendspin_service.proto = MDNS_STR(SERVICE_TCP);
   sendspin_service.port = USE_SENDSPIN_PORT;
-  sendspin_service.txt_records = {{MDNS_STR(TXT_PATH), MDNS_STR(VALUE_PATH)}};
+  sendspin_service.txt_records = {{MDNS_STR(TXT_SENDSPIN_PATH), MDNS_STR(VALUE_SENDSPIN_PATH)}};
 #endif
 
 #ifdef USE_WEBSERVER
