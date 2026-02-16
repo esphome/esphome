@@ -268,7 +268,6 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
           if (this->value_.size() < new_size) {
             this->value_.resize(new_size);
           }
-          ESP_LOGE(TAG, "Prepared write: offset=%zu, len=%zu, new_size=%zu", offset, write_len, new_size);
           memcpy(this->value_.data() + offset, param->write.value, write_len);
         }
       } else {
