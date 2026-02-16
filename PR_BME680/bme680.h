@@ -19,6 +19,9 @@ class BME680Component : public PollingComponent, public i2c::I2CDevice {
   void set_pressure_sensor(sensor::Sensor *pressure) { this->pressure_sensor_ = pressure; }
   void set_humidity_sensor(sensor::Sensor *humidity) { this->humidity_sensor_ = humidity; }
   void set_gas_resistance_sensor(sensor::Sensor *gas) { this->gas_resistance_sensor_ = gas; }
+  
+  void turn_off_heater() { this->heater_off_ = true; }
+  bool is_heater_off() { return this->heater_off_; }
 
   void setup() override;
   void update() override;
@@ -29,7 +32,8 @@ class BME680Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pressure_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
   sensor::Sensor *gas_resistance_sensor_{nullptr};
-
+  
+  bool heater_off_{false};
   struct bme680_dev dev;
   TwoWire *wire{nullptr};
 };

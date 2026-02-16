@@ -22,4 +22,4 @@ FINAL_VALIDATE_SCHEMA = i2c.final_validate_device_schema("bme680", require_sda=F
     automation.Schema({}),
 )
 async def bme680_heater_off(_, parent, args):
-    await parent
+    await parent.turn_off_heater()
