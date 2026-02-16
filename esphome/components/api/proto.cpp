@@ -78,6 +78,13 @@ void ProtoWriteBuffer::debug_check_bounds_(size_t bytes, const char *caller) {
     abort();
   }
 }
+void ProtoWriteBuffer::debug_check_size_(uint32_t expected, uint32_t actual, const char *caller) {
+  if (expected != actual) {
+    ESP_LOGE(TAG, "ProtoWriteBuffer size mismatch in %s: expected=%" PRIu32 " actual=%" PRIu32, caller, expected,
+             actual);
+    abort();
+  }
+}
 #endif
 
 void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {

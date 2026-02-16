@@ -359,7 +359,8 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
   // Pre-resize buffer to include payload, then encode through raw pointer
   size_t write_start = shared_buf.size();
   shared_buf.resize(write_start + calculated_size);
-  msg.encode(ProtoWriteBuffer{&shared_buf, write_start});
+  ProtoWriteBuffer buf{&shared_buf, write_start};
+  msg.encode(buf);
 
   // Return total size (header + payload + footer)
   return static_cast<uint16_t>(header_padding + calculated_size + footer_size);
@@ -1824,7 +1825,8 @@ bool APIConnection::send_message_impl(const ProtoMessage &msg, uint8_t message_t
   this->prepare_first_message_buffer(shared_buf, payload_size);
   size_t write_start = shared_buf.size();
   shared_buf.resize(write_start + payload_size);
-  msg.encode(ProtoWriteBuffer{&shared_buf, write_start});
+  ProtoWriteBuffer buf{&shared_buf, write_start};
+  msg.encode(buf);
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
