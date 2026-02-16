@@ -690,6 +690,14 @@ class MessageType(TypeInfo):
         return "encode_message"
 
     @property
+    def encode_content(self) -> str:
+        # Singular message fields pass force=false (skip empty messages)
+        # The default for encode_nested_message is force=true (for repeated fields)
+        return (
+            f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, false);"
+        )
+
+    @property
     def decode_length(self) -> str:
         # Override to return None for message types because we can't use template-based
         # decoding when the specific message type isn't known at compile time.
