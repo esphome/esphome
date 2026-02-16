@@ -350,6 +350,7 @@ class ProtoWriteBuffer {
  protected:
 #ifdef ESPHOME_DEBUG_API
   void debug_check_bounds_(size_t bytes, const char *caller = __builtin_FUNCTION());
+  void debug_check_encode_size_(uint32_t field_id, uint32_t expected, ptrdiff_t actual);
 #else
   void debug_check_bounds_([[maybe_unused]] size_t bytes) {}
 #endif
@@ -943,14 +944,11 @@ inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessa
   // Encode nested message - pos_ advances directly through the reference
 #ifdef ESPHOME_DEBUG_API
   uint8_t *start = this->pos_;
-#endif
   value.encode(*this);
-#ifdef ESPHOME_DEBUG_API
-  if (static_cast<uint32_t>(this->pos_ - start) != msg_length_bytes) {
-    ESP_LOGE(TAG, "encode_message: size mismatch for field %" PRIu32 ": calculated=%" PRIu32 " actual=%td", field_id,
-             msg_length_bytes, this->pos_ - start);
-    abort();
-  }
+  if (static_cast<uint32_t>(this->pos_ - start) != msg_length_bytes)
+    this->debug_check_encode_size_(field_id, msg_length_bytes, this->pos_ - start);
+#else
+  value.encode(*this);
 #endif
 }
 

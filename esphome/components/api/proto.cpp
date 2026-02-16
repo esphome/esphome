@@ -78,6 +78,11 @@ void ProtoWriteBuffer::debug_check_bounds_(size_t bytes, const char *caller) {
     abort();
   }
 }
+void ProtoWriteBuffer::debug_check_encode_size_(uint32_t field_id, uint32_t expected, ptrdiff_t actual) {
+  ESP_LOGE(TAG, "encode_message: size mismatch for field %" PRIu32 ": calculated=%" PRIu32 " actual=%td", field_id,
+           expected, actual);
+  abort();
+}
 #endif
 
 void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
