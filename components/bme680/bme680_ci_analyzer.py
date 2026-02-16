@@ -4,19 +4,16 @@ BME680 PR CI Issue Analyzer and Fixer
 Analyzes CI failures and generates fix suggestions.
 """
 
-import json
-import subprocess
-import sys
 from datetime import datetime
 from pathlib import Path
 
 
 def analyze_pytest_failures():
     """Analyze pytest failure patterns."""
-    
+
     print("🔍 BME680 PR CI 問題分析")
     print("=" * 50)
-    
+
     # CI Check Summary
     checks = [
         ("CI Status", "fail", "整體 CI 狀態"),
@@ -31,18 +28,18 @@ def analyze_pytest_failures():
         ("script/ci-custom", "fail", "自訂 CI 腳本"),
         ("pre-commit.ci lite", "fail", "Pre-commit 檢查"),
     ]
-    
+
     print("\n📊 CI 檢查狀態：")
     print("-" * 50)
     for name, status, desc in checks:
         icon = "X" if status == "fail" else "S"
         print(f"  [{icon}] {name}: {status}")
         print(f"     +-- {desc}")
-    
+
     # Root cause analysis
     print("\n[?] 根本原因分析：")
     print("-" * 50)
-    
+
     root_causes = """
 1. Pre-commit 失敗 (可能性: 60%)
    - 代碼風格、格式問題
@@ -56,21 +53,21 @@ def analyze_pytest_failures():
 
 3. pytest 連鎖失敗 (結果, 非原因)
 """
-    
+
     print(root_causes)
-    
+
     return {
         "analyzed_at": datetime.now().isoformat(),
         "pr_number": 13925,
         "failed_checks": len([c for c in checks if c[1] == "fail"]),
-        "root_causes": ["pre-commit", "ci-custom"]
+        "root_causes": ["pre-commit", "ci-custom"],
     }
 
 
 def generate_fix_script():
     """Generate a fix script for the BME680 PR."""
-    
-    script = '''#!/bin/bash
+
+    script = """#!/bin/bash
 # BME680 PR CI Fix Script
 
 set -e
@@ -100,32 +97,33 @@ else
 fi
 
 echo "[*] 完成！請檢查 git status 並 push"
-'''
-    
+"""
+
     script_path = Path("/Users/pc/.openclaw/workspace/PR_BME680/fix-ci.sh")
     script_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    with open(script_path, 'w') as f:
+
+    with open(script_path, "w") as f:
         f.write(script)
-    
+
     import os
+
     os.chmod(str(script_path), 0o755)
-    
+
     return script_path
 
 
 def main():
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="BME680 PR CI Analyzer")
     parser.add_argument("--analyze", action="store_true", help="Analyze CI issues")
     parser.add_argument("--fix-script", action="store_true", help="Generate fix script")
-    
+
     args = parser.parse_args()
-    
+
     if args.analyze:
         analyze_pytest_failures()
-    
+
     if args.fix_script:
         script_path = generate_fix_script()
         print(f"[OK] 修復腳本: {script_path}")
