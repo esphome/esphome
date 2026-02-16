@@ -19,19 +19,6 @@ void EPaperSSD1683::refresh_screen(bool partial) {
   this->command(0x20);
 }
 
-void EPaperSSD1683::deep_sleep() {
-  ESP_LOGV(TAG, "Deep sleep");
-  this->command(0x10);
-}
-
-bool EPaperSSD1683::reset() {
-  if (EPaperBase::reset()) {
-    this->command(0x12);
-    return true;
-  }
-  return false;
-}
-
 void EPaperSSD1683::set_window() {
   // round x-coordinates to byte boundaries
   this->x_low_ &= ~7;
