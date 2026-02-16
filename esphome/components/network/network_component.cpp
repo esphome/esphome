@@ -14,7 +14,7 @@ namespace network {
 static const char *const TAG = "network";
 
 void NetworkComponent::setup() {
-  // Initialize ESP-IDF network interfaces and ensure the default event loop exists.
+  // Initialize ESP-IDF network interfaces and ensure the default event loop exists
 #ifdef USE_ESP32
   esp_err_t err;
   err = esp_netif_init();
@@ -24,7 +24,9 @@ void NetworkComponent::setup() {
     return;
   }
   err = esp_event_loop_create_default();
-  if (err != ESP_OK) {
+  // ESP_ERR_INVALID_STATE is returned if the default loop already exists,
+  // which is fine since we just want to make sure it exists
+  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
     ESP_LOGE(TAG, "esp_event_loop_create_default failed: (%d) %s", err, esp_err_to_name(err));
     this->mark_failed();
     return;

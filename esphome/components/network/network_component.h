@@ -1,6 +1,7 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK
+#include "esphome/core/component.h"
 
 #ifdef USE_ESP32
 #include "esp_netif.h"
