@@ -68,7 +68,7 @@ void KamstrupKMPComponent::loop() {
   switch (this->state_) {
     case STATE_IDLE:
       if (!this->command_queue_.empty()) {
-	this->current_command_ = this->command_queue_.front();
+        this->current_command_ = this->command_queue_.front();
         this->clear_uart_rx_buffer_();
         this->send_command_(current_command_);
         this->command_queue_.pop();
@@ -84,34 +84,34 @@ void KamstrupKMPComponent::loop() {
       // Handle RX non-blockingly
       while (this->available()) {
         uint8_t data = this->read();
-        this->last_read_time_ = millis(); // Reset timeout on new data
+        this->last_read_time_ = millis();  // Reset timeout on new data
 
-	// 0x40 always restarts the current frame.
-	if (data == 0x40) {
-	  this->rx_buffer_.clear();
-	  this->state_ = STATE_READING;
-	  continue;
-	}
-	if (this->state_ == STATE_SEARCHING) {
+        // 0x40 always restarts the current frame.
+        if (data == 0x40) {
+          this->rx_buffer_.clear();
+          this->state_ = STATE_READING;
           continue;
-	}
-        
-	if (this->state_ == STATE_READ_ESCAPE) {
+        }
+        if (this->state_ == STATE_SEARCHING) {
+          continue;
+        }
+
+        if (this->state_ == STATE_READ_ESCAPE) {
           this->rx_buffer_.push_back(data ^ 0xFF);
           this->state_ = STATE_READING;
-	} else if (data == 0x1B) { // ESCape
+        } else if (data == 0x1B) {  // ESCape
           this->state_ = STATE_READ_ESCAPE;
-	} else if (data == 0x0D) { // End of Message
+        } else if (data == 0x0D) {  // End of Message
           this->parse_command_message_(current_command_, rx_buffer_.data(), rx_buffer_.size());
           this->state_ = STATE_IDLE;
           return;
         } else if (this->rx_buffer_.size() > 32) {
-	  ESP_LOGW(TAG, "Buffer overflow, resetting.");
+          ESP_LOGW(TAG, "Buffer overflow, resetting.");
           this->rx_buffer_.clear();
           this->state_ = STATE_SEARCHING;
-	} else {
-	  this->rx_buffer_.push_back(data);
-	}
+        } else {
+          this->rx_buffer_.push_back(data);
+        }
       }
 
       // Handle Timeout
