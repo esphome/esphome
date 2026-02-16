@@ -21,7 +21,7 @@ void EPaperSSD1683::refresh_screen(bool partial) {
 
 void EPaperSSD1683::set_window() {
   // round x-coordinates to byte boundaries
-  this->x_low_ &= ~7;
+  this->x_low_ /= 8;
   this->x_high_ += 7;
   this->x_high_ /= 8;
 
