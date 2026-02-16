@@ -149,12 +149,12 @@ void KamstrupKMPComponent::send_command_(uint16_t command) {
   tx_msg[0] = 0x80;  // PREFIX
 
   // 4. Single-pass stuffing: move from 'frame' to 'tx_msg'
-  for (int i = 0; i < sizeof(frame); i++) {
-    if (frame[i] == 0x06 || frame[i] == 0x0d || frame[i] == 0x1b || frame[i] == 0x40 || frame[i] == 0x80) {
+  for (unsigned char ch : frame) {
+    if (ch == 0x06 || ch == 0x0d || ch == 0x1b || ch == 0x40 || ch == 0x80) {
       tx_msg[tx_msg_len++] = 0x1b;
-      tx_msg[tx_msg_len++] = frame[i] ^ 0xff;
+      tx_msg[tx_msg_len++] = ch ^ 0xff;
     } else {
-      tx_msg[tx_msg_len++] = frame[i];
+      tx_msg[tx_msg_len++] = ch;
     }
   }
 
