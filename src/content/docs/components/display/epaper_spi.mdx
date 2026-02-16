@@ -45,6 +45,7 @@ the pins used to interface to the display to be specified.
 | Waveshare-1.54in-G  | Waveshare    | [https://www.waveshare.com/1.54inch-e-paper-g.htm](https://www.waveshare.com/1.54inch-e-paper-g.htm) |
 | Waveshare-2.13in-v3 | Waveshare    | [https://www.waveshare.com/pico-epaper-2.13.htm](https://www.waveshare.com/pico-epaper-2.13.htm)   |
 | Waveshare-4.26in    | Waveshare    | [https://www.waveshare.com/4.26inch-e-paper.htm](https://www.waveshare.com/4.26inch-e-paper.htm)   |
+| Waveshare-7.5in-H   | Waveshare    | [https://www.waveshare.com/7.5inch-e-paper-hat-h.htm](https://www.waveshare.com/7.5inch-e-paper-hat-h.htm) |
 | WeAct-2.13in-3c     | WeAct        | 2.13" 3-color e-paper (250x122, SSD1683)           |
 | WeAct-2.9in-3c      | WeAct        | 2.9" 3-color e-paper (128x296, SSD1683)           |
 | WeAct-4.2in-3c      | WeAct        | 4.2" 3-color e-paper (400x300, SSD1683)           |
@@ -68,6 +69,11 @@ but can be overridden if needed.
 - **cs_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The CS pin. Predefined for integrated boards.
 - **dc_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The DC pin. Predefined for integrated boards.
 - **busy_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The BUSY pin, if used.
+
+  > [!NOTE]
+  > Some displays use inverted busy pin polarity (LOW = busy, HIGH = idle). For these models, set `inverted: true`
+  > on the busy pin. This applies to: `Waveshare-1.54in-G`, `Waveshare-7.5in-H`.
+
 - **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The RESET pin, if used.
   Make sure you pull this pin high (by connecting it to 3.3V with a resistor) if not connected to a GPIO pin.
 - **dimensions** (**Required**, dict): Dimensions of the screen, specified either as *width* **x** *height* (e.g `320x240`  )
@@ -114,6 +120,38 @@ display:
     dc_pin: GPIOXX
     reset_pin: GPIOXX
     busy_pin: { number: GPIOXX, inverted: False, mode: { input: True, pulldown: True } }
+```
+
+### 4-color display example
+
+Some displays support 4 colors (black, white, red, yellow). Colors are mapped from RGB automatically.
+Full refresh times for 4-color displays are typically around 20 seconds.
+
+```yaml
+spi:
+  clk_pin: GPIO13
+  mosi_pin: GPIO14
+
+display:
+  - platform: epaper_spi
+    model: Waveshare-7.5in-H
+    cs_pin: GPIO15
+    dc_pin: GPIO27
+    reset_pin: GPIO26
+    busy_pin:
+      number: GPIO25
+      inverted: true
+    update_interval: 5min
+    lambda: |-
+      auto BLACK = Color(0, 0, 0);
+      auto WHITE = Color(255, 255, 255);
+      auto RED = Color(255, 0, 0);
+      auto YELLOW = Color(255, 255, 0);
+
+      it.fill(WHITE);
+      it.filled_rectangle(50, 50, 80, 80, BLACK);
+      it.filled_rectangle(150, 50, 80, 80, RED);
+      it.filled_rectangle(250, 50, 80, 80, YELLOW);
 ```
 
 ## See Also
