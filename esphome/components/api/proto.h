@@ -349,10 +349,8 @@ class ProtoWriteBuffer {
  protected:
 #ifdef ESPHOME_DEBUG_API
   void debug_check_bounds_(size_t bytes, const char *caller = __builtin_FUNCTION());
-  void debug_check_size_(uint32_t expected, uint32_t actual, const char *caller = __builtin_FUNCTION());
 #else
   void debug_check_bounds_(size_t bytes, const char *caller = __builtin_FUNCTION()) {}
-  void debug_check_size_(uint32_t expected, uint32_t actual, const char *caller = __builtin_FUNCTION()) {}
 #endif
 
   std::vector<uint8_t> *buffer_;
@@ -434,7 +432,7 @@ class ProtoMessage {
  public:
   virtual ~ProtoMessage() = default;
   // Default implementation for messages with no fields
-  virtual void encode(ProtoWriteBuffer &buffer) const {}
+  virtual void encode(ProtoWriteBuffer buffer) const {}
   // Default implementation for messages with no fields
   virtual void calculate_size(ProtoSize &size) const {}
   // Convenience: calculate and return size directly (defined after ProtoSize)
@@ -941,14 +939,12 @@ inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessa
   // Write the length varint directly through pos_
   this->encode_varint_raw(msg_length_bytes);
 
-  // Encode nested message - child writes directly through our pos_ (passed by reference)
-#ifdef ESPHOME_DEBUG_API
-  uint8_t *pos_before = this->pos_;
-#endif
+  // Encode nested message - value.encode() gets a copy of *this with current pos_.
+  // The copy writes msg_length_bytes bytes starting from our current pos_.
+  // We then advance our pos_ by the known message size.
   value.encode(*this);
-#ifdef ESPHOME_DEBUG_API
-  this->debug_check_size_(msg_length_bytes, static_cast<uint32_t>(this->pos_ - pos_before));
-#endif
+  this->debug_check_bounds_(msg_length_bytes);
+  this->pos_ += msg_length_bytes;
 }
 
 // Implementation of decode_to_message - must be after ProtoDecodableMessage is defined

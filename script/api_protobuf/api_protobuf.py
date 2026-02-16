@@ -2194,7 +2194,7 @@ def build_message_type(
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
-        o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{"
+        o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{"
         if len(encode) == 1 and len(encode[0]) + len(o) + 3 < 120:
             o += f" {encode[0]} }}\n"
         else:
@@ -2202,7 +2202,7 @@ def build_message_type(
             o += indent("\n".join(encode)) + "\n"
             o += "}\n"
         cpp += o
-        prot = "void encode(ProtoWriteBuffer &buffer) const override;"
+        prot = "void encode(ProtoWriteBuffer buffer) const override;"
         public_content.append(prot)
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
