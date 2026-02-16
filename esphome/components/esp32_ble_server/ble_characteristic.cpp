@@ -246,6 +246,8 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       if (this->handle_ != param->write.handle)
         break;
 
+      esp_gatt_status_t status = ESP_GATT_OK;
+
       if (param->write.is_prep) {
         // Clean the buffer on the first prepared write event,
         // but not on subsequent ones (since they are part of the same write)
@@ -253,7 +255,22 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
           this->value_.clear();
           this->write_event_ = true;
         }
-        this->value_.insert(this->value_.end(), param->write.value, param->write.value + param->write.len);
+
+        const size_t offset = param->write.offset;
+        const size_t write_len = param->write.len;
+        const size_t new_size = offset + write_len;
+
+        if (offset > ESP_GATT_MAX_ATTR_LEN) {
+          status = ESP_GATT_INVALID_OFFSET;
+        } else if (new_size > ESP_GATT_MAX_ATTR_LEN) {
+          status = ESP_GATT_INVALID_ATTR_LEN;
+        } else {
+          if (this->value_.size() < new_size) {
+            this->value_.resize(new_size);
+          }
+          ESP_LOGE(TAG, "Prepared write: offset=%zu, len=%zu, new_size=%zu", offset, write_len, new_size);
+          memcpy(this->value_.data() + offset, param->write.value, write_len);
+        }
       } else {
         this->set_value(ByteBuffer::wrap(param->write.value, param->write.len));
       }
@@ -268,7 +285,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
         memcpy(response.attr_value.value, param->write.value, param->write.len);
 
         esp_err_t err =
-            esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, &response);
+            esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, status, &response);
 
         if (err != ESP_OK) {
           ESP_LOGE(TAG, "esp_ble_gatts_send_response failed: %d", err);
