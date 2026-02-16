@@ -291,6 +291,7 @@ class ProtoWriteBuffer {
     this->debug_check_bounds_(1);
     *this->pos_++ = value ? 0x01 : 0x00;
   }
+  // noinline: 51 call sites; inlining causes net code growth vs a single out-of-line copy
   __attribute__((noinline)) void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
       return;
@@ -349,8 +350,9 @@ class ProtoWriteBuffer {
  protected:
 #ifdef ESPHOME_DEBUG_API
   void debug_check_bounds_(size_t bytes, const char *caller = __builtin_FUNCTION());
+  void debug_check_encode_size_(uint32_t field_id, uint32_t expected, ptrdiff_t actual);
 #else
-  void debug_check_bounds_(size_t bytes, const char *caller = __builtin_FUNCTION()) {}
+  void debug_check_bounds_([[maybe_unused]] size_t bytes) {}
 #endif
 
   std::vector<uint8_t> *buffer_;
@@ -432,7 +434,7 @@ class ProtoMessage {
  public:
   virtual ~ProtoMessage() = default;
   // Default implementation for messages with no fields
-  virtual void encode(ProtoWriteBuffer buffer) const {}
+  virtual void encode(ProtoWriteBuffer &buffer) const {}
   // Default implementation for messages with no fields
   virtual void calculate_size(ProtoSize &size) const {}
   // Convenience: calculate and return size directly (defined after ProtoSize)
@@ -939,12 +941,15 @@ inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessa
   // Write the length varint directly through pos_
   this->encode_varint_raw(msg_length_bytes);
 
-  // Encode nested message - value.encode() gets a copy of *this with current pos_.
-  // The copy writes msg_length_bytes bytes starting from our current pos_.
-  // We then advance our pos_ by the known message size.
+  // Encode nested message - pos_ advances directly through the reference
+#ifdef ESPHOME_DEBUG_API
+  uint8_t *start = this->pos_;
   value.encode(*this);
-  this->debug_check_bounds_(msg_length_bytes);
-  this->pos_ += msg_length_bytes;
+  if (static_cast<uint32_t>(this->pos_ - start) != msg_length_bytes)
+    this->debug_check_encode_size_(field_id, msg_length_bytes, this->pos_ - start);
+#else
+  value.encode(*this);
+#endif
 }
 
 // Implementation of decode_to_message - must be after ProtoDecodableMessage is defined
