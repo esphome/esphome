@@ -28,8 +28,9 @@ void NetworkComponent::setup() {
     ESP_LOGE(TAG, "esp_event_loop_create_default failed: (%d) %s", err, esp_err_to_name(err));
     this->mark_failed();
     return;
-#endif
   }
+#endif
+}
 }  // namespace network
 }  // namespace esphome
 #endif
