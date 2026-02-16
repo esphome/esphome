@@ -291,6 +291,7 @@ class ProtoWriteBuffer {
     this->debug_check_bounds_(1);
     *this->pos_++ = value ? 0x01 : 0x00;
   }
+  // noinline: 51 call sites; inlining causes net code growth vs a single out-of-line copy
   __attribute__((noinline)) void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
       return;
@@ -350,7 +351,7 @@ class ProtoWriteBuffer {
 #ifdef ESPHOME_DEBUG_API
   void debug_check_bounds_(size_t bytes, const char *caller = __builtin_FUNCTION());
 #else
-  void debug_check_bounds_(size_t bytes, const char *caller = __builtin_FUNCTION()) {}
+  void debug_check_bounds_([[maybe_unused]] size_t bytes) {}
 #endif
 
   std::vector<uint8_t> *buffer_;
