@@ -265,30 +265,30 @@ void Modbus::send_next_frame_() {
   if (this->tx_blocked())
     return;
 
-  const std::vector<uint8_t> &data = this->tx_buffer_.front();
+  const ModbusDeviceCommand &frame = this->tx_buffer_.front();
 
   if (this->role == ModbusRole::CLIENT) {
-    this->waiting_for_response_ = data[0];
+    this->waiting_for_response_ = frame.data.get()[0];
   }
 
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->digital_write(true);
-    this->write_array(data);
+    this->write_array(frame.data.get(), frame.size);
     this->flush();
     this->flow_control_pin_->digital_write(false);
     this->last_send_tx_offset_ = 0;
   } else {
-    this->write_array(data);
-    this->last_send_tx_offset_ = data.size() * 11 * 1000 / this->parent_->get_baud_rate() + 1;
+    this->write_array(frame.data.get(), frame.size);
+    this->last_send_tx_offset_ = frame.size * 11 * 1000 / this->parent_->get_baud_rate() + 1;
   }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-  ESP_LOGV(TAG, "Write: %s %dms after last send", format_hex_pretty_to(hex_buf, data.data(), data.size()),
+  ESP_LOGV(TAG, "Write: %s %dms after last send", format_hex_pretty_to(hex_buf, frame.data.get(), frame.size),
            millis() - this->last_send_);
   this->last_send_ = millis();
-  this->tx_buffer_.pop();
+  this->tx_buffer_.pop_front();
   if (!this->tx_buffer_.empty()) {
     ESP_LOGV(TAG, "Write queue contains %d items.", this->tx_buffer_.size());
   }
@@ -356,19 +356,27 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   if (payload.empty()) {
     return;
   }
-  std::vector<uint8_t> data = payload;
+  // Use stack buffer - Modbus frames are small and bounded
+  uint8_t data[MAX_FRAME_SIZE];
+  // Frame size: payload + CRC(2)
+  size_t frame_size = payload.size() + 2;
+  if (frame_size > MAX_FRAME_SIZE) {
+    ESP_LOGE(TAG, "Attempted to send frame larger than max frame size of %d bytes", MAX_FRAME_SIZE);
+    return;
+  }
 
-  auto crc = crc16(data.data(), data.size());
-  data.push_back(crc >> 0);
-  data.push_back(crc >> 8);
+  std::memcpy(data, payload.data(), payload.size());
+  auto crc = crc16(data, payload.size());
+  data[payload.size() + 0] = crc >> 0;
+  data[payload.size() + 1] = crc >> 8;
 
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
-    this->tx_buffer_.push(std::move(data));
+    this->tx_buffer_.emplace_back(data, frame_size);
   } else {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-    ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty_to(hex_buf, data.data(), data.size()));
+    ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty_to(hex_buf, data, frame_size));
   }
 }
 
