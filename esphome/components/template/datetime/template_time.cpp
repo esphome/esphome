@@ -18,8 +18,7 @@ void TemplateTime::setup() {
     state = this->initial_value_;
   } else {
     datetime::TimeEntityRestoreState temp;
-    this->pref_ =
-        global_preferences->make_preference<datetime::TimeEntityRestoreState>(194434060U ^ this->get_preference_hash());
+    this->pref_ = this->make_entity_preference<datetime::TimeEntityRestoreState>(194434060U);
     if (this->pref_.load(&temp)) {
       temp.apply(this);
       return;
@@ -63,7 +62,7 @@ void TemplateTime::control(const datetime::TimeCall &call) {
   if (has_second)
     value.second = *call.get_second();
 
-  this->set_trigger_->trigger(value);
+  this->set_trigger_.trigger(value);
 
   if (this->optimistic_) {
     if (has_hour)

@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 class SensorStateTrigger : public Trigger<float> {
  public:
@@ -40,7 +39,7 @@ class ValueRangeTrigger : public Trigger<float>, public Component {
   template<typename V> void set_max(V max) { this->max_ = max; }
 
   void setup() override {
-    this->rtc_ = global_preferences->make_preference<bool>(this->parent_->get_preference_hash());
+    this->rtc_ = this->parent_->make_entity_preference<bool>();
     bool initial_state;
     if (this->rtc_.load(&initial_state)) {
       this->previous_in_range_ = initial_state;
@@ -107,5 +106,4 @@ template<typename... Ts> class SensorInRangeCondition : public Condition<Ts...> 
   float max_{NAN};
 };
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor

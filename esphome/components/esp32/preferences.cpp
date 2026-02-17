@@ -124,14 +124,11 @@ class ESP32Preferences : public ESPPreferences {
       return true;
 
     ESP_LOGV(TAG, "Saving %zu items...", s_pending_save.size());
-    // goal try write all pending saves even if one fails
     int cached = 0, written = 0, failed = 0;
     esp_err_t last_err = ESP_OK;
     uint32_t last_key = 0;
 
-    // go through vector from back to front (makes erase easier/more efficient)
-    for (ssize_t i = s_pending_save.size() - 1; i >= 0; i--) {
-      const auto &save = s_pending_save[i];
+    for (const auto &save : s_pending_save) {
       char key_str[KEY_BUFFER_SIZE];
       snprintf(key_str, sizeof(key_str), "%" PRIu32, save.key);
       ESP_LOGVV(TAG, "Checking if NVS data %s has changed", key_str);
@@ -150,8 +147,9 @@ class ESP32Preferences : public ESPPreferences {
         ESP_LOGV(TAG, "NVS data not changed skipping %" PRIu32 "  len=%zu", save.key, save.len);
         cached++;
       }
-      s_pending_save.erase(s_pending_save.begin() + i);
     }
+    s_pending_save.clear();
+
     ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
              failed);
     if (failed > 0) {
@@ -181,7 +179,8 @@ class ESP32Preferences : public ESPPreferences {
     if (actual_len != to_save.len) {
       return true;
     }
-    auto stored_data = std::make_unique<uint8_t[]>(actual_len);
+    // Most preferences are small, use stack buffer with heap fallback for large ones
+    SmallBufferWithHeapFallback<256> stored_data(actual_len);
     err = nvs_get_blob(nvs_handle, key_str, stored_data.get(), &actual_len);
     if (err != 0) {
       ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", key_str, esp_err_to_name(err));
@@ -202,10 +201,11 @@ class ESP32Preferences : public ESPPreferences {
   }
 };
 
+static ESP32Preferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void setup_preferences() {
-  auto *prefs = new ESP32Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  prefs->open();
-  global_preferences = prefs;
+  s_preferences.open();
+  global_preferences = &s_preferences;
 }
 
 }  // namespace esp32

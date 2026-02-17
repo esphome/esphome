@@ -5,7 +5,10 @@ wifi:
 udp:
   id: my_udp
   listen_address: 239.0.60.53
-  addresses: ["239.0.60.53"]
+  addresses:
+    - "239.0.60.53"
+    - "192.168.1.255"
+    - "10.0.0.255"
   on_receive:
     - logger.log:
         format: "Received %d bytes"

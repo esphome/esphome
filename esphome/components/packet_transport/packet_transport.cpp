@@ -274,7 +274,7 @@ void PacketTransport::flush_() {
 
 void PacketTransport::add_binary_data_(uint8_t key, const char *id, bool data) {
   auto len = 1 + 1 + 1 + strlen(id);
-  if (len + this->header_.size() + this->data_.size() > this->get_max_packet_size()) {
+  if (round4(this->header_.size()) + round4(this->data_.size() + len) > this->get_max_packet_size()) {
     this->flush_();
     this->init_data_();
   }
@@ -289,7 +289,7 @@ void PacketTransport::add_data_(uint8_t key, const char *id, float data) {
 
 void PacketTransport::add_data_(uint8_t key, const char *id, uint32_t data) {
   auto len = 4 + 1 + 1 + strlen(id);
-  if (len + this->header_.size() + this->data_.size() > this->get_max_packet_size()) {
+  if (round4(this->header_.size()) + round4(this->data_.size() + len) > this->get_max_packet_size()) {
     this->flush_();
     this->init_data_();
   }
@@ -396,9 +396,9 @@ static bool process_rolling_code(Provider &provider, PacketDecoder &decoder) {
 /**
  * Process a received packet
  */
-void PacketTransport::process_(const std::vector<uint8_t> &data) {
+void PacketTransport::process_(std::span<const uint8_t> data) {
   auto ping_key_seen = !this->ping_pong_enable_;
-  PacketDecoder decoder((data.data()), data.size());
+  PacketDecoder decoder(data.data(), data.size());
   char namebuf[256]{};
   uint8_t byte;
   FuData rdata{};

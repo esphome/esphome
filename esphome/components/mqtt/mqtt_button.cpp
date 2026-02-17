@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_BUTTON
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.button";
 
@@ -40,11 +39,10 @@ void MQTTButtonComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
-std::string MQTTButtonComponent::component_type() const { return "button"; }
+MQTT_COMPONENT_TYPE(MQTTButtonComponent, "button")
 const EntityBase *MQTTButtonComponent::get_entity() const { return this->button_; }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

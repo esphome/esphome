@@ -114,6 +114,14 @@ class CoroPriority(enum.IntEnum):
     # Examples: web_server_ota (52)
     WEB_SERVER_OTA = 52
 
+    # Preferences - must run before APPLICATION (safe_mode) because safe_mode
+    # uses an early return when entering safe mode, skipping all lower priority
+    # component registration. Without IntervalSyncer registered, preferences
+    # cannot be synced during shutdown in safe mode, causing issues like the
+    # boot counter never being cleared and devices getting stuck in safe mode.
+    # Examples: preferences (51)
+    PREFERENCES = 51
+
     # Application-level services
     # Examples: safe_mode (50)
     APPLICATION = 50

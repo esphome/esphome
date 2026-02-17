@@ -185,6 +185,9 @@ class APIServer : public Component,
 #ifdef USE_ZWAVE_PROXY
   void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
 #endif
+#ifdef USE_IR_RF
+  void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
+#endif
 
   bool is_connected(bool state_subscription_only = false) const;
 
@@ -224,15 +227,18 @@ class APIServer : public Component,
 #endif
 
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
+  Trigger<std::string, std::string> *get_client_connected_trigger() { return &this->client_connected_trigger_; }
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_disconnected_trigger() const {
-    return this->client_disconnected_trigger_;
-  }
+  Trigger<std::string, std::string> *get_client_disconnected_trigger() { return &this->client_disconnected_trigger_; }
 #endif
 
  protected:
+  // Accept incoming socket connections. Only called when socket has pending connections.
+  void __attribute__((noinline)) accept_new_connections_();
+  // Remove a disconnected client by index. Swaps with last element and pops.
+  void __attribute__((noinline)) remove_client_(size_t client_index);
+
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
                          const psk_t &active_psk, bool make_active);
@@ -250,10 +256,10 @@ class APIServer : public Component,
   // Pointers and pointer-like types first (4 bytes each)
   std::unique_ptr<socket::Socket> socket_ = nullptr;
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<std::string, std::string> client_connected_trigger_;
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> *client_disconnected_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<std::string, std::string> client_disconnected_trigger_;
 #endif
 
   // 4-byte aligned types
@@ -262,7 +268,11 @@ class APIServer : public Component,
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
-  std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
+  // Shared proto write buffer for all connections.
+  // Not pre-allocated: all send paths call prepare_first_message_buffer() which
+  // reserves the exact needed size. Pre-allocating here would cause heap fragmentation
+  // since the buffer would almost always reallocate on first use.
+  std::vector<uint8_t> shared_write_buffer_;
 #ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
 #endif

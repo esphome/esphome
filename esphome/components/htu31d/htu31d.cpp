@@ -259,11 +259,5 @@ void HTU31DComponent::set_heater_state(bool desired) {
   }
 }
 
-/**
- * Sets the startup priority for this component.
- *
- * @returns The startup priority
- */
-float HTU31DComponent::get_setup_priority() const { return setup_priority::DATA; }
 }  // namespace htu31d
 }  // namespace esphome

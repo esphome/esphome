@@ -55,8 +55,6 @@ void EE895Component::dump_config() {
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
 }
 
-float EE895Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void EE895Component::update() {
   write_command_(TEMPERATURE_ADDRESS, 2);
   this->set_timeout(50, [this]() {

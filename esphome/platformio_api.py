@@ -133,6 +133,8 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     )
     # Suppress Python syntax warnings from third-party scripts during compilation
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
+    # Increase uv retry count to handle transient network errors (default is 3)
+    os.environ.setdefault("UV_HTTP_RETRIES", "10")
     cmd = ["platformio"] + list(args)
 
     if not CORE.verbose:
@@ -420,3 +422,8 @@ class IDEData:
             if path.endswith(".exe")
             else f"{path[:-3]}readelf"
         )
+
+    @property
+    def defines(self) -> list[str]:
+        """Return the list of preprocessor defines from idedata."""
+        return self.raw.get("defines", [])

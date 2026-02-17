@@ -1,6 +1,7 @@
 #include "web_server.h"
 #ifdef USE_WEBSERVER
 #include "esphome/components/json/json_util.h"
+#include "esphome/core/progmem.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
@@ -26,6 +27,18 @@
 
 #ifdef USE_CLIMATE
 #include "esphome/components/climate/climate.h"
+#endif
+
+#ifdef USE_UPDATE
+#include "esphome/components/update/update_entity.h"
+#endif
+
+#ifdef USE_WATER_HEATER
+#include "esphome/components/water_heater/water_heater.h"
+#endif
+
+#ifdef USE_INFRARED
+#include "esphome/components/infrared/infrared.h"
 #endif
 
 #ifdef USE_WEBSERVER_LOCAL
@@ -185,7 +198,8 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
 
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
 // helper for allowing only unique entries in the queue
-void DeferredUpdateEventSource::deq_push_back_with_dedup_(void *source, message_generator_t *message_generator) {
+void __attribute__((flatten))
+DeferredUpdateEventSource::deq_push_back_with_dedup_(void *source, message_generator_t *message_generator) {
   DeferredEvent item(source, message_generator);
 
   // Use range-based for loop instead of std::find_if to reduce template instantiation overhead and binary size
@@ -422,7 +436,11 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #else
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
 #endif
+#ifdef USE_WEBSERVER_GZIP
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
+#else
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("br"));
+#endif
   request->send(response);
 }
 #elif USE_WEBSERVER_VERSION >= 2
@@ -441,7 +459,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
-  AsyncWebServerResponse *response = request->beginResponse(200, "");
+  AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F(""));
   response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
   response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
   char mac_s[18];
@@ -494,14 +512,16 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
 
   // Build id into stack buffer - ArduinoJson copies the string
   // Format: {prefix}/{device?}/{name}
-  // Buffer size guaranteed by schema validation (NAME_MAX_LENGTH=120):
-  //   With devices: domain(20) + "/" + device(120) + "/" + name(120) + null = 263, rounded up to 280 for safety margin
-  //   Without devices: domain(20) + "/" + name(120) + null = 142, rounded up to 150 for safety margin
+  // Buffer sizes use constants from entity_base.h validated in core/config.py
+  // Note: Device name uses ESPHOME_FRIENDLY_NAME_MAX_LEN (sub-device max 120), not ESPHOME_DEVICE_NAME_MAX_LEN
+  // (hostname)
 #ifdef USE_DEVICES
-  char id_buf[280];
+  static constexpr size_t ID_BUF_SIZE =
+      ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
 #else
-  char id_buf[150];
+  static constexpr size_t ID_BUF_SIZE = ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
 #endif
+  char id_buf[ID_BUF_SIZE];
   char *p = id_buf;
   memcpy(p, prefix, prefix_len);
   p += prefix_len;
@@ -516,7 +536,19 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
   memcpy(p, name.c_str(), name_len);
   p[name_len] = '\0';
 
-  root[ESPHOME_F("id")] = id_buf;
+  // name_id: new format {prefix}/{device?}/{name} - frontend should prefer this
+  // Remove in 2026.8.0 when id switches to new format permanently
+  root[ESPHOME_F("name_id")] = id_buf;
+
+  // id: old format {prefix}-{object_id} for backward compatibility
+  // Will switch to new format in 2026.8.0
+  char legacy_buf[ESPHOME_DOMAIN_MAX_LEN + 1 + OBJECT_ID_MAX_LEN];
+  char *lp = legacy_buf;
+  memcpy(lp, prefix, prefix_len);
+  lp += prefix_len;
+  *lp++ = '-';
+  obj->write_object_id_to(lp, sizeof(legacy_buf) - (lp - legacy_buf));
+  root[ESPHOME_F("id")] = legacy_buf;
 
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("domain")] = prefix;
@@ -526,7 +558,9 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
       root[ESPHOME_F("device")] = device_name;
     }
 #endif
+#ifdef USE_ENTITY_ICON
     root[ESPHOME_F("icon")] = obj->get_icon_ref();
+#endif
     root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();
     if (is_disabled)
@@ -552,8 +586,7 @@ static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const c
 
 // Helper to get request detail parameter
 static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
-  auto *param = request->getParam("detail");
-  return (param && param->value() == "all") ? DETAIL_ALL : DETAIL_STATE;
+  return request->arg(ESPHOME_F("detail")) == "all" ? DETAIL_ALL : DETAIL_STATE;
 }
 
 #ifdef USE_SENSOR
@@ -647,6 +680,24 @@ std::string WebServer::text_sensor_json_(text_sensor::TextSensor *obj, const std
 #endif
 
 #ifdef USE_SWITCH
+enum SwitchAction : uint8_t { SWITCH_ACTION_NONE, SWITCH_ACTION_TOGGLE, SWITCH_ACTION_TURN_ON, SWITCH_ACTION_TURN_OFF };
+
+static void execute_switch_action(switch_::Switch *obj, SwitchAction action) {
+  switch (action) {
+    case SWITCH_ACTION_TOGGLE:
+      obj->toggle();
+      break;
+    case SWITCH_ACTION_TURN_ON:
+      obj->turn_on();
+      break;
+    case SWITCH_ACTION_TURN_OFF:
+      obj->turn_off();
+      break;
+    default:
+      break;
+  }
+}
+
 void WebServer::on_switch_update(switch_::Switch *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
@@ -665,34 +716,18 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
       return;
     }
 
-    // Handle action methods with single defer and response
-    enum SwitchAction { NONE, TOGGLE, TURN_ON, TURN_OFF };
-    SwitchAction action = NONE;
+    SwitchAction action = SWITCH_ACTION_NONE;
 
-    if (match.method_equals("toggle")) {
-      action = TOGGLE;
-    } else if (match.method_equals("turn_on")) {
-      action = TURN_ON;
-    } else if (match.method_equals("turn_off")) {
-      action = TURN_OFF;
+    if (match.method_equals(ESPHOME_F("toggle"))) {
+      action = SWITCH_ACTION_TOGGLE;
+    } else if (match.method_equals(ESPHOME_F("turn_on"))) {
+      action = SWITCH_ACTION_TURN_ON;
+    } else if (match.method_equals(ESPHOME_F("turn_off"))) {
+      action = SWITCH_ACTION_TURN_OFF;
     }
 
-    if (action != NONE) {
-      this->defer([obj, action]() {
-        switch (action) {
-          case TOGGLE:
-            obj->toggle();
-            break;
-          case TURN_ON:
-            obj->turn_on();
-            break;
-          case TURN_OFF:
-            obj->turn_off();
-            break;
-          default:
-            break;
-        }
-      });
+    if (action != SWITCH_ACTION_NONE) {
+      this->defer([obj, action]() { execute_switch_action(obj, action); });
       request->send(200);
     } else {
       request->send(404);
@@ -731,8 +766,8 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
       auto detail = get_request_detail(request);
       std::string data = this->button_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
-    } else if (match.method_equals("press")) {
-      this->defer([obj]() { obj->press(); });
+    } else if (match.method_equals(ESPHOME_F("press"))) {
+      DEFER_ACTION(obj, obj->press());
       request->send(200);
       return;
     } else {
@@ -741,9 +776,6 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
     return;
   }
   request->send(404);
-}
-std::string WebServer::button_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->button_json_((button::Button *) (source), DETAIL_STATE);
 }
 std::string WebServer::button_all_json_generator(WebServer *web_server, void *source) {
   return web_server->button_json_((button::Button *) (source), DETAIL_ALL);
@@ -819,22 +851,22 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       auto detail = get_request_detail(request);
       std::string data = this->fan_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
-    } else if (match.method_equals("toggle")) {
-      this->defer([obj]() { obj->toggle().perform(); });
+    } else if (match.method_equals(ESPHOME_F("toggle"))) {
+      DEFER_ACTION(obj, obj->toggle().perform());
       request->send(200);
     } else {
-      bool is_on = match.method_equals("turn_on");
-      bool is_off = match.method_equals("turn_off");
+      bool is_on = match.method_equals(ESPHOME_F("turn_on"));
+      bool is_off = match.method_equals(ESPHOME_F("turn_off"));
       if (!is_on && !is_off) {
         request->send(404);
         return;
       }
       auto call = is_on ? obj->turn_on() : obj->turn_off();
 
-      parse_int_param_(request, "speed_level", call, &decltype(call)::set_speed);
+      parse_num_param_(request, ESPHOME_F("speed_level"), call, &decltype(call)::set_speed);
 
-      if (request->hasParam("oscillation")) {
-        auto speed = request->getParam("oscillation")->value();
+      if (request->hasArg(ESPHOME_F("oscillation"))) {
+        auto speed = request->arg(ESPHOME_F("oscillation"));
         auto val = parse_on_off(speed.c_str());
         switch (val) {
           case PARSE_ON:
@@ -851,7 +883,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
             return;
         }
       }
-      this->defer([call]() mutable { call.perform(); });
+      DEFER_ACTION(call, call.perform());
       request->send(200);
     }
     return;
@@ -900,12 +932,12 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
       auto detail = get_request_detail(request);
       std::string data = this->light_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
-    } else if (match.method_equals("toggle")) {
-      this->defer([obj]() { obj->toggle().perform(); });
+    } else if (match.method_equals(ESPHOME_F("toggle"))) {
+      DEFER_ACTION(obj, obj->toggle().perform());
       request->send(200);
     } else {
-      bool is_on = match.method_equals("turn_on");
-      bool is_off = match.method_equals("turn_off");
+      bool is_on = match.method_equals(ESPHOME_F("turn_on"));
+      bool is_off = match.method_equals(ESPHOME_F("turn_off"));
       if (!is_on && !is_off) {
         request->send(404);
         return;
@@ -914,23 +946,23 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
 
       if (is_on) {
         // Parse color parameters
-        parse_light_param_(request, "brightness", call, &decltype(call)::set_brightness, 255.0f);
-        parse_light_param_(request, "r", call, &decltype(call)::set_red, 255.0f);
-        parse_light_param_(request, "g", call, &decltype(call)::set_green, 255.0f);
-        parse_light_param_(request, "b", call, &decltype(call)::set_blue, 255.0f);
-        parse_light_param_(request, "white_value", call, &decltype(call)::set_white, 255.0f);
-        parse_light_param_(request, "color_temp", call, &decltype(call)::set_color_temperature);
+        parse_light_param_(request, ESPHOME_F("brightness"), call, &decltype(call)::set_brightness, 255.0f);
+        parse_light_param_(request, ESPHOME_F("r"), call, &decltype(call)::set_red, 255.0f);
+        parse_light_param_(request, ESPHOME_F("g"), call, &decltype(call)::set_green, 255.0f);
+        parse_light_param_(request, ESPHOME_F("b"), call, &decltype(call)::set_blue, 255.0f);
+        parse_light_param_(request, ESPHOME_F("white_value"), call, &decltype(call)::set_white, 255.0f);
+        parse_light_param_(request, ESPHOME_F("color_temp"), call, &decltype(call)::set_color_temperature);
 
         // Parse timing parameters
-        parse_light_param_uint_(request, "flash", call, &decltype(call)::set_flash_length, 1000);
+        parse_light_param_uint_(request, ESPHOME_F("flash"), call, &decltype(call)::set_flash_length, 1000);
       }
-      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
+      parse_light_param_uint_(request, ESPHOME_F("transition"), call, &decltype(call)::set_transition_length, 1000);
 
       if (is_on) {
-        parse_string_param_(request, "effect", call, &decltype(call)::set_effect);
+        parse_string_param_(request, ESPHOME_F("effect"), call, &decltype(call)::set_effect);
       }
 
-      this->defer([call]() mutable { call.perform(); });
+      DEFER_ACTION(call, call.perform());
       request->send(200);
     }
     return;
@@ -1004,22 +1036,22 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       }
     }
 
-    if (!found && !match.method_equals("set")) {
+    if (!found && !match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto traits = obj->get_traits();
-    if ((request->hasParam("position") && !traits.get_supports_position()) ||
-        (request->hasParam("tilt") && !traits.get_supports_tilt())) {
+    if ((request->hasArg(ESPHOME_F("position")) && !traits.get_supports_position()) ||
+        (request->hasArg(ESPHOME_F("tilt")) && !traits.get_supports_tilt())) {
       request->send(409);
       return;
     }
 
-    parse_float_param_(request, "position", call, &decltype(call)::set_position);
-    parse_float_param_(request, "tilt", call, &decltype(call)::set_tilt);
+    parse_num_param_(request, ESPHOME_F("position"), call, &decltype(call)::set_position);
+    parse_num_param_(request, ESPHOME_F("tilt"), call, &decltype(call)::set_tilt);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1070,15 +1102,15 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto call = obj->make_call();
-    parse_float_param_(request, "value", call, &decltype(call)::set_value);
+    parse_num_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_value);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1137,21 +1169,22 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto call = obj->make_call();
 
-    if (!request->hasParam("value")) {
+    const auto &value = request->arg(ESPHOME_F("value"));
+    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
+    if (value.length() == 0) {  // NOLINT(readability-container-size-empty)
       request->send(409);
       return;
     }
+    call.set_date(value.c_str(), value.length());
 
-    parse_string_param_(request, "value", call, &decltype(call)::set_date);
-
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1170,11 +1203,7 @@ std::string WebServer::date_json_(datetime::DateEntity *obj, JsonDetail start_co
 
   // Format: YYYY-MM-DD (max 10 chars + null)
   char value[12];
-#ifdef USE_ESP8266
-  snprintf_P(value, sizeof(value), PSTR("%d-%02d-%02d"), obj->year, obj->month, obj->day);
-#else
-  snprintf(value, sizeof(value), "%d-%02d-%02d", obj->year, obj->month, obj->day);
-#endif
+  buf_append_printf(value, sizeof(value), 0, "%d-%02d-%02d", obj->year, obj->month, obj->day);
   set_json_icon_state_value(root, obj, "date", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1201,21 +1230,22 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto call = obj->make_call();
 
-    if (!request->hasParam("value")) {
+    const auto &value = request->arg(ESPHOME_F("value"));
+    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
+    if (value.length() == 0) {  // NOLINT(readability-container-size-empty)
       request->send(409);
       return;
     }
+    call.set_time(value.c_str(), value.length());
 
-    parse_string_param_(request, "value", call, &decltype(call)::set_time);
-
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1233,11 +1263,7 @@ std::string WebServer::time_json_(datetime::TimeEntity *obj, JsonDetail start_co
 
   // Format: HH:MM:SS (8 chars + null)
   char value[12];
-#ifdef USE_ESP8266
-  snprintf_P(value, sizeof(value), PSTR("%02d:%02d:%02d"), obj->hour, obj->minute, obj->second);
-#else
-  snprintf(value, sizeof(value), "%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
-#endif
+  buf_append_printf(value, sizeof(value), 0, "%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
   set_json_icon_state_value(root, obj, "time", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1264,21 +1290,22 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto call = obj->make_call();
 
-    if (!request->hasParam("value")) {
+    const auto &value = request->arg(ESPHOME_F("value"));
+    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
+    if (value.length() == 0) {  // NOLINT(readability-container-size-empty)
       request->send(409);
       return;
     }
+    call.set_datetime(value.c_str(), value.length());
 
-    parse_string_param_(request, "value", call, &decltype(call)::set_datetime);
-
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1296,13 +1323,8 @@ std::string WebServer::datetime_json_(datetime::DateTimeEntity *obj, JsonDetail 
 
   // Format: YYYY-MM-DD HH:MM:SS (max 19 chars + null)
   char value[24];
-#ifdef USE_ESP8266
-  snprintf_P(value, sizeof(value), PSTR("%d-%02d-%02d %02d:%02d:%02d"), obj->year, obj->month, obj->day, obj->hour,
-             obj->minute, obj->second);
-#else
-  snprintf(value, sizeof(value), "%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour, obj->minute,
-           obj->second);
-#endif
+  buf_append_printf(value, sizeof(value), 0, "%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour,
+                    obj->minute, obj->second);
   set_json_icon_state_value(root, obj, "datetime", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1330,15 +1352,15 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto call = obj->make_call();
-    parse_string_param_(request, "value", call, &decltype(call)::set_value);
+    parse_string_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_value);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1383,20 +1405,20 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
-      std::string data = this->select_json_(obj, obj->has_state() ? obj->current_option() : "", detail);
+      std::string data = this->select_json_(obj, obj->has_state() ? obj->current_option() : StringRef(), detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
 
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto call = obj->make_call();
-    parse_string_param_(request, "option", call, &decltype(call)::set_option);
+    parse_string_param_(request, ESPHOME_F("option"), call, &decltype(call)::set_option);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1404,17 +1426,18 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 }
 std::string WebServer::select_state_json_generator(WebServer *web_server, void *source) {
   auto *obj = (select::Select *) (source);
-  return web_server->select_json_(obj, obj->has_state() ? obj->current_option() : "", DETAIL_STATE);
+  return web_server->select_json_(obj, obj->has_state() ? obj->current_option() : StringRef(), DETAIL_STATE);
 }
 std::string WebServer::select_all_json_generator(WebServer *web_server, void *source) {
   auto *obj = (select::Select *) (source);
-  return web_server->select_json_(obj, obj->has_state() ? obj->current_option() : "", DETAIL_ALL);
+  return web_server->select_json_(obj, obj->has_state() ? obj->current_option() : StringRef(), DETAIL_ALL);
 }
-std::string WebServer::select_json_(select::Select *obj, const char *value, JsonDetail start_config) {
+std::string WebServer::select_json_(select::Select *obj, StringRef value, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "select", value, value, start_config);
+  // value points to null-terminated string literals from codegen (via current_option())
+  set_json_icon_state_value(root, obj, "select", value.c_str(), value.c_str(), start_config);
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("option")].to<JsonArray>();
     for (auto &option : obj->traits.get_options()) {
@@ -1446,7 +1469,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
       return;
     }
 
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -1454,16 +1477,21 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     auto call = obj->make_call();
 
     // Parse string mode parameters
-    parse_string_param_(request, "mode", call, &decltype(call)::set_mode);
-    parse_string_param_(request, "fan_mode", call, &decltype(call)::set_fan_mode);
-    parse_string_param_(request, "swing_mode", call, &decltype(call)::set_swing_mode);
+    parse_string_param_(request, ESPHOME_F("mode"), call, &decltype(call)::set_mode);
+    parse_string_param_(request, ESPHOME_F("fan_mode"), call, &decltype(call)::set_fan_mode);
+    parse_string_param_(request, ESPHOME_F("swing_mode"), call, &decltype(call)::set_swing_mode);
 
     // Parse temperature parameters
-    parse_float_param_(request, "target_temperature_high", call, &decltype(call)::set_target_temperature_high);
-    parse_float_param_(request, "target_temperature_low", call, &decltype(call)::set_target_temperature_low);
-    parse_float_param_(request, "target_temperature", call, &decltype(call)::set_target_temperature);
+    // static_cast needed to disambiguate overloaded setters (float vs optional<float>)
+    using ClimateCall = decltype(call);
+    parse_num_param_(request, ESPHOME_F("target_temperature_high"), call,
+                     static_cast<ClimateCall &(ClimateCall::*) (float)>(&ClimateCall::set_target_temperature_high));
+    parse_num_param_(request, ESPHOME_F("target_temperature_low"), call,
+                     static_cast<ClimateCall &(ClimateCall::*) (float)>(&ClimateCall::set_target_temperature_low));
+    parse_num_param_(request, ESPHOME_F("target_temperature"), call,
+                     static_cast<ClimateCall &(ClimateCall::*) (float)>(&ClimateCall::set_target_temperature));
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1579,6 +1607,24 @@ std::string WebServer::climate_json_(climate::Climate *obj, JsonDetail start_con
 #endif
 
 #ifdef USE_LOCK
+enum LockAction : uint8_t { LOCK_ACTION_NONE, LOCK_ACTION_LOCK, LOCK_ACTION_UNLOCK, LOCK_ACTION_OPEN };
+
+static void execute_lock_action(lock::Lock *obj, LockAction action) {
+  switch (action) {
+    case LOCK_ACTION_LOCK:
+      obj->lock();
+      break;
+    case LOCK_ACTION_UNLOCK:
+      obj->unlock();
+      break;
+    case LOCK_ACTION_OPEN:
+      obj->open();
+      break;
+    default:
+      break;
+  }
+}
+
 void WebServer::on_lock_update(lock::Lock *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
@@ -1597,34 +1643,18 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
       return;
     }
 
-    // Handle action methods with single defer and response
-    enum LockAction { NONE, LOCK, UNLOCK, OPEN };
-    LockAction action = NONE;
+    LockAction action = LOCK_ACTION_NONE;
 
-    if (match.method_equals("lock")) {
-      action = LOCK;
-    } else if (match.method_equals("unlock")) {
-      action = UNLOCK;
-    } else if (match.method_equals("open")) {
-      action = OPEN;
+    if (match.method_equals(ESPHOME_F("lock"))) {
+      action = LOCK_ACTION_LOCK;
+    } else if (match.method_equals(ESPHOME_F("unlock"))) {
+      action = LOCK_ACTION_UNLOCK;
+    } else if (match.method_equals(ESPHOME_F("open"))) {
+      action = LOCK_ACTION_OPEN;
     }
 
-    if (action != NONE) {
-      this->defer([obj, action]() {
-        switch (action) {
-          case LOCK:
-            obj->lock();
-            break;
-          case UNLOCK:
-            obj->unlock();
-            break;
-          case OPEN:
-            obj->open();
-            break;
-          default:
-            break;
-        }
-      });
+    if (action != LOCK_ACTION_NONE) {
+      this->defer([obj, action]() { execute_lock_action(obj, action); });
       request->send(200);
     } else {
       request->send(404);
@@ -1694,20 +1724,20 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
       }
     }
 
-    if (!found && !match.method_equals("set")) {
+    if (!found && !match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto traits = obj->get_traits();
-    if (request->hasParam("position") && !traits.get_supports_position()) {
+    if (request->hasArg(ESPHOME_F("position")) && !traits.get_supports_position()) {
       request->send(409);
       return;
     }
 
-    parse_float_param_(request, "position", call, &decltype(call)::set_position);
+    parse_num_param_(request, ESPHOME_F("position"), call, &decltype(call)::set_position);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1758,7 +1788,7 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
     }
 
     auto call = obj->make_call();
-    parse_string_param_(request, "code", call, &decltype(call)::set_code);
+    parse_string_param_(request, ESPHOME_F("code"), call, &decltype(call)::set_code);
 
     // Lookup table for alarm control panel methods
     static const struct {
@@ -1786,7 +1816,7 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
       return;
     }
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1819,6 +1849,210 @@ std::string WebServer::alarm_control_panel_json_(alarm_control_panel::AlarmContr
 }
 #endif
 
+#ifdef USE_WATER_HEATER
+void WebServer::on_water_heater_update(water_heater::WaterHeater *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
+  this->events_.deferrable_send_state(obj, "state", water_heater_state_json_generator);
+}
+void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (water_heater::WaterHeater *obj : App.get_water_heaters()) {
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
+      continue;
+
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
+      auto detail = get_request_detail(request);
+      std::string data = this->water_heater_json_(obj, detail);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+    if (!match.method_equals(ESPHOME_F("set"))) {
+      request->send(404);
+      return;
+    }
+    auto call = obj->make_call();
+    // Use base class reference for template deduction (make_call returns WaterHeaterCallInternal)
+    water_heater::WaterHeaterCall &base_call = call;
+
+    // Parse mode parameter
+    parse_string_param_(request, ESPHOME_F("mode"), base_call, &water_heater::WaterHeaterCall::set_mode);
+
+    // Parse temperature parameters
+    parse_num_param_(request, ESPHOME_F("target_temperature"), base_call,
+                     &water_heater::WaterHeaterCall::set_target_temperature);
+    parse_num_param_(request, ESPHOME_F("target_temperature_low"), base_call,
+                     &water_heater::WaterHeaterCall::set_target_temperature_low);
+    parse_num_param_(request, ESPHOME_F("target_temperature_high"), base_call,
+                     &water_heater::WaterHeaterCall::set_target_temperature_high);
+
+    // Parse away mode parameter
+    parse_bool_param_(request, ESPHOME_F("away"), base_call, &water_heater::WaterHeaterCall::set_away);
+
+    // Parse on/off parameter
+    parse_bool_param_(request, ESPHOME_F("is_on"), base_call, &water_heater::WaterHeaterCall::set_on);
+
+    DEFER_ACTION(call, call.perform());
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+std::string WebServer::water_heater_state_json_generator(WebServer *web_server, void *source) {
+  return web_server->water_heater_json_(static_cast<water_heater::WaterHeater *>(source), DETAIL_STATE);
+}
+std::string WebServer::water_heater_all_json_generator(WebServer *web_server, void *source) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  return web_server->water_heater_json_(static_cast<water_heater::WaterHeater *>(source), DETAIL_ALL);
+}
+std::string WebServer::water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config) {
+  json::JsonBuilder builder;
+  JsonObject root = builder.root();
+  char buf[PSTR_LOCAL_SIZE];
+
+  const auto mode = obj->get_mode();
+  const char *mode_s = PSTR_LOCAL(water_heater::water_heater_mode_to_string(mode));
+
+  set_json_icon_state_value(root, obj, "water_heater", mode_s, mode, start_config);
+
+  auto traits = obj->get_traits();
+
+  if (start_config == DETAIL_ALL) {
+    JsonArray modes = root[ESPHOME_F("modes")].to<JsonArray>();
+    for (auto m : traits.get_supported_modes())
+      modes.add(PSTR_LOCAL(water_heater::water_heater_mode_to_string(m)));
+    this->add_sorting_info_(root, obj);
+  }
+
+  if (traits.get_supports_current_temperature()) {
+    float current = obj->get_current_temperature();
+    if (!std::isnan(current))
+      root[ESPHOME_F("current_temperature")] = current;
+  }
+
+  if (traits.get_supports_two_point_target_temperature()) {
+    float low = obj->get_target_temperature_low();
+    float high = obj->get_target_temperature_high();
+    if (!std::isnan(low))
+      root[ESPHOME_F("target_temperature_low")] = low;
+    if (!std::isnan(high))
+      root[ESPHOME_F("target_temperature_high")] = high;
+  } else {
+    float target = obj->get_target_temperature();
+    if (!std::isnan(target))
+      root[ESPHOME_F("target_temperature")] = target;
+  }
+
+  root[ESPHOME_F("min_temperature")] = traits.get_min_temperature();
+  root[ESPHOME_F("max_temperature")] = traits.get_max_temperature();
+  root[ESPHOME_F("step")] = traits.get_target_temperature_step();
+
+  if (traits.get_supports_away_mode()) {
+    root[ESPHOME_F("away")] = obj->is_away();
+  }
+
+  if (traits.has_feature_flags(water_heater::WATER_HEATER_SUPPORTS_ON_OFF)) {
+    root[ESPHOME_F("is_on")] = obj->is_on();
+  }
+
+  return builder.serialize();
+}
+#endif
+
+#ifdef USE_INFRARED
+void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (infrared::Infrared *obj : App.get_infrareds()) {
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
+      continue;
+
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
+      auto detail = get_request_detail(request);
+      std::string data = this->infrared_json_(obj, detail);
+      request->send(200, ESPHOME_F("application/json"), data.c_str());
+      return;
+    }
+    if (!match.method_equals(ESPHOME_F("transmit"))) {
+      request->send(404);
+      return;
+    }
+
+    // Only allow transmit if the device supports it
+    if (!obj->has_transmitter()) {
+      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Device does not support transmission"));
+      return;
+    }
+
+    // Parse parameters
+    auto call = obj->make_call();
+
+    // Parse carrier frequency (optional)
+    {
+      auto value = parse_number<uint32_t>(request->arg(ESPHOME_F("carrier_frequency")).c_str());
+      if (value.has_value()) {
+        call.set_carrier_frequency(*value);
+      }
+    }
+
+    // Parse repeat count (optional, defaults to 1)
+    {
+      auto value = parse_number<uint32_t>(request->arg(ESPHOME_F("repeat_count")).c_str());
+      if (value.has_value()) {
+        call.set_repeat_count(*value);
+      }
+    }
+
+    // Parse base64url-encoded raw timings (required)
+    // Base64url is URL-safe: uses A-Za-z0-9-_ (no special characters needing escaping)
+    const auto &data_arg = request->arg(ESPHOME_F("data"));
+
+    // Validate base64url is not empty (also catches missing parameter since arg() returns empty string)
+    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
+    if (data_arg.length() == 0) {  // NOLINT(readability-container-size-empty)
+      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Missing or empty 'data' parameter"));
+      return;
+    }
+
+    // Defer to main loop for thread safety. Move encoded string into lambda to ensure
+    // it outlives the call - set_raw_timings_base64url stores a pointer, so the string
+    // must remain valid until perform() completes.
+    // ESP8266 also needs this because ESPAsyncWebServer callbacks run in "sys" context.
+    this->defer([call, encoded = std::string(data_arg.c_str(), data_arg.length())]() mutable {
+      call.set_raw_timings_base64url(encoded);
+      call.perform();
+    });
+
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+std::string WebServer::infrared_all_json_generator(WebServer *web_server, void *source) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  return web_server->infrared_json_(static_cast<infrared::Infrared *>(source), DETAIL_ALL);
+}
+
+std::string WebServer::infrared_json_(infrared::Infrared *obj, JsonDetail start_config) {
+  json::JsonBuilder builder;
+  JsonObject root = builder.root();
+
+  set_json_icon_state_value(root, obj, "infrared", "", 0, start_config);
+
+  auto traits = obj->get_traits();
+
+  root[ESPHOME_F("supports_transmitter")] = traits.get_supports_transmitter();
+  root[ESPHOME_F("supports_receiver")] = traits.get_supports_receiver();
+
+  if (start_config == DETAIL_ALL) {
+    this->add_sorting_info_(root, obj);
+  }
+
+  return builder.serialize();
+}
+#endif
+
 #ifdef USE_EVENT
 void WebServer::on_event(event::Event *obj) {
   if (!this->include_internal_ && obj->is_internal())
@@ -1835,7 +2069,7 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
     // Note: request->method() is always HTTP_GET here (canHandle ensures this)
     if (entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
-      std::string data = this->event_json_(obj, "", detail);
+      std::string data = this->event_json_(obj, StringRef(), detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1843,10 +2077,7 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 
-static std::string get_event_type(event::Event *event) {
-  const char *last_type = event ? event->get_last_event_type() : nullptr;
-  return last_type ? last_type : "";
-}
+static StringRef get_event_type(event::Event *event) { return event ? event->get_last_event_type() : StringRef(); }
 
 std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
   auto *event = static_cast<event::Event *>(source);
@@ -1857,7 +2088,7 @@ std::string WebServer::event_all_json_generator(WebServer *web_server, void *sou
   auto *event = static_cast<event::Event *>(source);
   return web_server->event_json_(event, get_event_type(event), DETAIL_ALL);
 }
-std::string WebServer::event_json_(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
+std::string WebServer::event_json_(event::Event *obj, StringRef event_type, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -1880,19 +2111,6 @@ std::string WebServer::event_json_(event::Event *obj, const std::string &event_t
 #endif
 
 #ifdef USE_UPDATE
-static const LogString *update_state_to_string(update::UpdateState state) {
-  switch (state) {
-    case update::UPDATE_STATE_NO_UPDATE:
-      return LOG_STR("NO UPDATE");
-    case update::UPDATE_STATE_AVAILABLE:
-      return LOG_STR("UPDATE AVAILABLE");
-    case update::UPDATE_STATE_INSTALLING:
-      return LOG_STR("INSTALLING");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-}
-
 void WebServer::on_update(update::UpdateEntity *obj) {
   this->events_.deferrable_send_state(obj, "state", update_state_json_generator);
 }
@@ -1909,12 +2127,12 @@ void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlM
       return;
     }
 
-    if (!match.method_equals("install")) {
+    if (!match.method_equals(ESPHOME_F("install"))) {
       request->send(404);
       return;
     }
 
-    this->defer([obj]() mutable { obj->perform(); });
+    DEFER_ACTION(obj, obj->perform());
     request->send(200);
     return;
   }
@@ -1934,7 +2152,7 @@ std::string WebServer::update_json_(update::UpdateEntity *obj, JsonDetail start_
   JsonObject root = builder.root();
 
   char buf[PSTR_LOCAL_SIZE];
-  set_json_icon_state_value(root, obj, "update", PSTR_LOCAL(update_state_to_string(obj->state)),
+  set_json_icon_state_value(root, obj, "update", PSTR_LOCAL(update::update_state_to_string(obj->state)),
                             obj->update_info.latest_version, start_config);
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("current_version")] = obj->update_info.current_version;
@@ -1950,27 +2168,29 @@ std::string WebServer::update_json_(update::UpdateEntity *obj, JsonDetail start_
 #endif
 
 bool WebServer::canHandle(AsyncWebServerRequest *request) const {
+#ifdef USE_ESP32
+  char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  StringRef url = request->url_to(url_buf);
+#else
   const auto &url = request->url();
+#endif
   const auto method = request->method();
 
-  // Static URL checks
-  static const char *const STATIC_URLS[] = {
-    "/",
+  // Static URL checks - use ESPHOME_F to keep strings in flash on ESP8266
+  if (url == ESPHOME_F("/"))
+    return true;
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
-    "/events",
+  if (url == ESPHOME_F("/events"))
+    return true;
 #endif
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-    "/0.css",
+  if (url == ESPHOME_F("/0.css"))
+    return true;
 #endif
 #ifdef USE_WEBSERVER_JS_INCLUDE
-    "/0.js",
+  if (url == ESPHOME_F("/0.js"))
+    return true;
 #endif
-  };
-
-  for (const auto &static_url : STATIC_URLS) {
-    if (url == static_url)
-      return true;
-  }
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
   if (method == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network")))
@@ -1990,116 +2210,134 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   if (!is_get_or_post)
     return false;
 
-  // Use lookup tables for domain checks
-  static const char *const GET_ONLY_DOMAINS[] = {
+  // Check GET-only domains - use ESPHOME_F to keep strings in flash on ESP8266
+  if (is_get) {
 #ifdef USE_SENSOR
-      "sensor",
+    if (match.domain_equals(ESPHOME_F("sensor")))
+      return true;
 #endif
 #ifdef USE_BINARY_SENSOR
-      "binary_sensor",
+    if (match.domain_equals(ESPHOME_F("binary_sensor")))
+      return true;
 #endif
 #ifdef USE_TEXT_SENSOR
-      "text_sensor",
+    if (match.domain_equals(ESPHOME_F("text_sensor")))
+      return true;
 #endif
 #ifdef USE_EVENT
-      "event",
+    if (match.domain_equals(ESPHOME_F("event")))
+      return true;
 #endif
-  };
-
-  static const char *const GET_POST_DOMAINS[] = {
-#ifdef USE_SWITCH
-      "switch",
-#endif
-#ifdef USE_BUTTON
-      "button",
-#endif
-#ifdef USE_FAN
-      "fan",
-#endif
-#ifdef USE_LIGHT
-      "light",
-#endif
-#ifdef USE_COVER
-      "cover",
-#endif
-#ifdef USE_NUMBER
-      "number",
-#endif
-#ifdef USE_DATETIME_DATE
-      "date",
-#endif
-#ifdef USE_DATETIME_TIME
-      "time",
-#endif
-#ifdef USE_DATETIME_DATETIME
-      "datetime",
-#endif
-#ifdef USE_TEXT
-      "text",
-#endif
-#ifdef USE_SELECT
-      "select",
-#endif
-#ifdef USE_CLIMATE
-      "climate",
-#endif
-#ifdef USE_LOCK
-      "lock",
-#endif
-#ifdef USE_VALVE
-      "valve",
-#endif
-#ifdef USE_ALARM_CONTROL_PANEL
-      "alarm_control_panel",
-#endif
-#ifdef USE_UPDATE
-      "update",
-#endif
-  };
-
-  // Check GET-only domains
-  if (is_get) {
-    for (const auto &domain : GET_ONLY_DOMAINS) {
-      if (match.domain_equals(domain))
-        return true;
-    }
   }
 
   // Check GET+POST domains
   if (is_get_or_post) {
-    for (const auto &domain : GET_POST_DOMAINS) {
-      if (match.domain_equals(domain))
-        return true;
-    }
+#ifdef USE_SWITCH
+    if (match.domain_equals(ESPHOME_F("switch")))
+      return true;
+#endif
+#ifdef USE_BUTTON
+    if (match.domain_equals(ESPHOME_F("button")))
+      return true;
+#endif
+#ifdef USE_FAN
+    if (match.domain_equals(ESPHOME_F("fan")))
+      return true;
+#endif
+#ifdef USE_LIGHT
+    if (match.domain_equals(ESPHOME_F("light")))
+      return true;
+#endif
+#ifdef USE_COVER
+    if (match.domain_equals(ESPHOME_F("cover")))
+      return true;
+#endif
+#ifdef USE_NUMBER
+    if (match.domain_equals(ESPHOME_F("number")))
+      return true;
+#endif
+#ifdef USE_DATETIME_DATE
+    if (match.domain_equals(ESPHOME_F("date")))
+      return true;
+#endif
+#ifdef USE_DATETIME_TIME
+    if (match.domain_equals(ESPHOME_F("time")))
+      return true;
+#endif
+#ifdef USE_DATETIME_DATETIME
+    if (match.domain_equals(ESPHOME_F("datetime")))
+      return true;
+#endif
+#ifdef USE_TEXT
+    if (match.domain_equals(ESPHOME_F("text")))
+      return true;
+#endif
+#ifdef USE_SELECT
+    if (match.domain_equals(ESPHOME_F("select")))
+      return true;
+#endif
+#ifdef USE_CLIMATE
+    if (match.domain_equals(ESPHOME_F("climate")))
+      return true;
+#endif
+#ifdef USE_LOCK
+    if (match.domain_equals(ESPHOME_F("lock")))
+      return true;
+#endif
+#ifdef USE_VALVE
+    if (match.domain_equals(ESPHOME_F("valve")))
+      return true;
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+    if (match.domain_equals(ESPHOME_F("alarm_control_panel")))
+      return true;
+#endif
+#ifdef USE_UPDATE
+    if (match.domain_equals(ESPHOME_F("update")))
+      return true;
+#endif
+#ifdef USE_WATER_HEATER
+    if (match.domain_equals(ESPHOME_F("water_heater")))
+      return true;
+#endif
+#ifdef USE_INFRARED
+    if (match.domain_equals(ESPHOME_F("infrared")))
+      return true;
+#endif
   }
 
   return false;
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
+#ifdef USE_ESP32
+  char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  StringRef url = request->url_to(url_buf);
+#else
   const auto &url = request->url();
+#endif
 
   // Handle static routes first
-  if (url == "/") {
+  if (url == ESPHOME_F("/")) {
     this->handle_index_request(request);
     return;
   }
 
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
-  if (url == "/events") {
+  if (url == ESPHOME_F("/events")) {
     this->events_.add_new_client(this, request);
     return;
   }
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-  if (url == "/0.css") {
+  if (url == ESPHOME_F("/0.css")) {
     this->handle_css_request(request);
     return;
   }
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
-  if (url == "/0.js") {
+  if (url == ESPHOME_F("/0.js")) {
     this->handle_js_request(request);
     return;
   }
@@ -2121,104 +2359,114 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   if (false) {  // Start chain for else-if macro pattern
   }
 #ifdef USE_SENSOR
-  else if (match.domain_equals("sensor")) {
+  else if (match.domain_equals(ESPHOME_F("sensor"))) {
     this->handle_sensor_request(request, match);
   }
 #endif
 #ifdef USE_SWITCH
-  else if (match.domain_equals("switch")) {
+  else if (match.domain_equals(ESPHOME_F("switch"))) {
     this->handle_switch_request(request, match);
   }
 #endif
 #ifdef USE_BUTTON
-  else if (match.domain_equals("button")) {
+  else if (match.domain_equals(ESPHOME_F("button"))) {
     this->handle_button_request(request, match);
   }
 #endif
 #ifdef USE_BINARY_SENSOR
-  else if (match.domain_equals("binary_sensor")) {
+  else if (match.domain_equals(ESPHOME_F("binary_sensor"))) {
     this->handle_binary_sensor_request(request, match);
   }
 #endif
 #ifdef USE_FAN
-  else if (match.domain_equals("fan")) {
+  else if (match.domain_equals(ESPHOME_F("fan"))) {
     this->handle_fan_request(request, match);
   }
 #endif
 #ifdef USE_LIGHT
-  else if (match.domain_equals("light")) {
+  else if (match.domain_equals(ESPHOME_F("light"))) {
     this->handle_light_request(request, match);
   }
 #endif
 #ifdef USE_TEXT_SENSOR
-  else if (match.domain_equals("text_sensor")) {
+  else if (match.domain_equals(ESPHOME_F("text_sensor"))) {
     this->handle_text_sensor_request(request, match);
   }
 #endif
 #ifdef USE_COVER
-  else if (match.domain_equals("cover")) {
+  else if (match.domain_equals(ESPHOME_F("cover"))) {
     this->handle_cover_request(request, match);
   }
 #endif
 #ifdef USE_NUMBER
-  else if (match.domain_equals("number")) {
+  else if (match.domain_equals(ESPHOME_F("number"))) {
     this->handle_number_request(request, match);
   }
 #endif
 #ifdef USE_DATETIME_DATE
-  else if (match.domain_equals("date")) {
+  else if (match.domain_equals(ESPHOME_F("date"))) {
     this->handle_date_request(request, match);
   }
 #endif
 #ifdef USE_DATETIME_TIME
-  else if (match.domain_equals("time")) {
+  else if (match.domain_equals(ESPHOME_F("time"))) {
     this->handle_time_request(request, match);
   }
 #endif
 #ifdef USE_DATETIME_DATETIME
-  else if (match.domain_equals("datetime")) {
+  else if (match.domain_equals(ESPHOME_F("datetime"))) {
     this->handle_datetime_request(request, match);
   }
 #endif
 #ifdef USE_TEXT
-  else if (match.domain_equals("text")) {
+  else if (match.domain_equals(ESPHOME_F("text"))) {
     this->handle_text_request(request, match);
   }
 #endif
 #ifdef USE_SELECT
-  else if (match.domain_equals("select")) {
+  else if (match.domain_equals(ESPHOME_F("select"))) {
     this->handle_select_request(request, match);
   }
 #endif
 #ifdef USE_CLIMATE
-  else if (match.domain_equals("climate")) {
+  else if (match.domain_equals(ESPHOME_F("climate"))) {
     this->handle_climate_request(request, match);
   }
 #endif
 #ifdef USE_LOCK
-  else if (match.domain_equals("lock")) {
+  else if (match.domain_equals(ESPHOME_F("lock"))) {
     this->handle_lock_request(request, match);
   }
 #endif
 #ifdef USE_VALVE
-  else if (match.domain_equals("valve")) {
+  else if (match.domain_equals(ESPHOME_F("valve"))) {
     this->handle_valve_request(request, match);
   }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-  else if (match.domain_equals("alarm_control_panel")) {
+  else if (match.domain_equals(ESPHOME_F("alarm_control_panel"))) {
     this->handle_alarm_control_panel_request(request, match);
   }
 #endif
 #ifdef USE_UPDATE
-  else if (match.domain_equals("update")) {
+  else if (match.domain_equals(ESPHOME_F("update"))) {
     this->handle_update_request(request, match);
+  }
+#endif
+#ifdef USE_WATER_HEATER
+  else if (match.domain_equals(ESPHOME_F("water_heater"))) {
+    this->handle_water_heater_request(request, match);
+  }
+#endif
+#ifdef USE_INFRARED
+  else if (match.domain_equals(ESPHOME_F("infrared"))) {
+    this->handle_infrared_request(request, match);
   }
 #endif
   else {
     // No matching handler found - send 404
     ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
-    request->send(404, "text/plain", "Not Found");
+    request->send(404, ESPHOME_F("text/plain"), ESPHOME_F("Not Found"));
   }
 }
 

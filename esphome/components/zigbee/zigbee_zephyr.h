@@ -28,16 +28,15 @@ extern "C" {
   ESPHOME_CAT7(zb_af_simple_desc_, ep_name, _, in_num, _, out_num, _t)
 
 // needed to use ESPHOME_ZB_DECLARE_SIMPLE_DESC
-#define ESPHOME_ZB_ZCL_DECLARE_SIMPLE_DESC(ep_name, ep_id, in_clust_num, out_clust_num, ...) \
+#define ESPHOME_ZB_ZCL_DECLARE_SIMPLE_DESC(ep_name, ep_id, in_clust_num, out_clust_num, app_device_id, ...) \
   ESPHOME_ZB_DECLARE_SIMPLE_DESC(ep_name, in_clust_num, out_clust_num); \
   ESPHOME_ZB_AF_SIMPLE_DESC_TYPE(ep_name, in_clust_num, out_clust_num) \
-  simple_desc_##ep_name = {ep_id,         ZB_AF_HA_PROFILE_ID, ZB_HA_SIMPLE_SENSOR_DEVICE_ID, 0, 0, in_clust_num, \
-                           out_clust_num, {__VA_ARGS__}}
+  simple_desc_##ep_name = {ep_id, ZB_AF_HA_PROFILE_ID, app_device_id, 0, 0, in_clust_num, out_clust_num, {__VA_ARGS__}}
 
 // needed to use ESPHOME_ZB_ZCL_DECLARE_SIMPLE_DESC
 #define ESPHOME_ZB_HA_DECLARE_EP(ep_name, ep_id, cluster_list, in_cluster_num, out_cluster_num, report_attr_count, \
-                                 ...) \
-  ESPHOME_ZB_ZCL_DECLARE_SIMPLE_DESC(ep_name, ep_id, in_cluster_num, out_cluster_num, __VA_ARGS__); \
+                                 app_device_id, ...) \
+  ESPHOME_ZB_ZCL_DECLARE_SIMPLE_DESC(ep_name, ep_id, in_cluster_num, out_cluster_num, app_device_id, __VA_ARGS__); \
   ZBOSS_DEVICE_DECLARE_REPORTING_CTX(reporting_info##ep_name, report_attr_count); \
   ZB_AF_DECLARE_ENDPOINT_DESC(ep_name, ep_id, ZB_AF_HA_PROFILE_ID, 0, NULL, \
                               ZB_ZCL_ARRAY_SIZE(cluster_list, zb_zcl_cluster_desc_t), cluster_list, \
@@ -57,7 +56,11 @@ struct AnalogAttrs {
   zb_bool_t out_of_service;
   float present_value;
   zb_uint8_t status_flags;
+  zb_uint16_t engineering_units;
   zb_uchar_t description[ZB_ZCL_MAX_STRING_SIZE];
+};
+
+struct AnalogAttrsOutput : AnalogAttrs {
   float max_present_value;
   float min_present_value;
   float resolution;
@@ -75,7 +78,7 @@ class ZigbeeComponent : public Component {
   void zboss_signal_handler_esphome(zb_bufid_t bufid);
   void factory_reset();
   Trigger<> *get_join_trigger() { return &this->join_trigger_; };
-  void flush();
+  void force_report();
   void loop() override;
 
  protected:
@@ -84,19 +87,22 @@ class ZigbeeComponent : public Component {
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
   void erase_flash_(int area);
 #endif
-  StaticVector<std::function<void(zb_bufid_t bufid)>, ZIGBEE_ENDPOINTS_COUNT> callbacks_;
+  void dump_reporting_();
+  std::array<std::function<void(zb_bufid_t bufid)>, ZIGBEE_ENDPOINTS_COUNT> callbacks_{};
   CallbackManager<void()> join_cb_;
   Trigger<> join_trigger_;
-  bool need_flush_{false};
+  bool force_report_{false};
+  uint32_t sleep_time_{};
+  uint32_t sleep_remainder_{};
 };
 
 class ZigbeeEntity {
  public:
   void set_parent(ZigbeeComponent *parent) { this->parent_ = parent; }
-  void set_end_point(zb_uint8_t end_point) { this->end_point_ = end_point; }
+  void set_endpoint(zb_uint8_t endpoint) { this->endpoint_ = endpoint; }
 
  protected:
-  zb_uint8_t end_point_{0};
+  zb_uint8_t endpoint_{0};
   ZigbeeComponent *parent_{nullptr};
 };
 

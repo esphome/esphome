@@ -1,6 +1,5 @@
 #include "api_frame_helper.h"
 #ifdef USE_API
-#include "api_connection.h"  // For ClientInfo struct
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -16,8 +15,16 @@ static const char *const TAG = "api.frame_helper";
 // Maximum bytes to log in hex format (168 * 3 = 504, under TX buffer size of 512)
 static constexpr size_t API_MAX_LOG_BYTES = 168;
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
 #define HELPER_LOG(msg, ...) \
-  ESP_LOGVV(TAG, "%s (%s): " msg, this->client_info_->name.c_str(), this->client_info_->peername.c_str(), ##__VA_ARGS__)
+  do { \
+    char peername_buf[socket::SOCKADDR_STR_LEN]; \
+    this->get_peername_to(peername_buf); \
+    ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, peername_buf, ##__VA_ARGS__); \
+  } while (0)
+#else
+#define HELPER_LOG(msg, ...) ((void) 0)
+#endif
 
 #ifdef HELPER_LOG_PACKETS
 #define LOG_PACKET_RECEIVED(buffer) \
@@ -236,6 +243,15 @@ APIError APIFrameHelper::try_send_tx_buf_() {
   }
 
   return APIError::OK;  // All buffers sent successfully
+}
+
+const char *APIFrameHelper::get_peername_to(std::span<char, socket::SOCKADDR_STR_LEN> buf) const {
+  if (this->socket_) {
+    this->socket_->getpeername_to(buf);
+  } else {
+    buf[0] = '\0';
+  }
+  return buf.data();
 }
 
 APIError APIFrameHelper::init_common_() {

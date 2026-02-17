@@ -136,22 +136,12 @@ class ABBWelcomeData {
     this->data_[1] = 0xff;
     this->data_[this->size() - 1] = this->calc_cs_();
   }
-  std::string to_string(uint8_t max_print_bytes = 255) const {
-    std::string info;
-    if (this->is_valid()) {
-      info = str_sprintf(this->get_three_byte_address() ? "[%06" PRIX32 " %s %06" PRIX32 "] Type: %02X"
-                                                        : "[%04" PRIX32 " %s %04" PRIX32 "] Type: %02X",
-                         this->get_source_address(), this->get_retransmission() ? "»" : ">",
-                         this->get_destination_address(), this->get_message_type());
-      if (this->get_data_size())
-        info += str_sprintf(", Data: %s", format_hex_pretty(this->get_data()).c_str());
-    } else {
-      info = "[Invalid]";
-    }
-    uint8_t print_bytes = std::min(this->size(), max_print_bytes);
-    if (print_bytes)
-      info = str_sprintf("%s %s", format_hex_pretty(this->data_.data(), print_bytes).c_str(), info.c_str());
-    return info;
+  // Buffer size: max raw hex output (27*3-1=80) + space(1) + type_info(27) + data(52) + null(1) = 161, rounded up
+  static constexpr size_t FORMAT_BUFFER_SIZE = 192;
+
+  template<size_t N> char *format_to(char (&buffer)[N], uint8_t max_print_bytes = 255) const {
+    static_assert(N >= FORMAT_BUFFER_SIZE, "Buffer too small for format_to()");
+    return this->format_to_internal_(buffer, max_print_bytes);
   }
   bool operator==(const ABBWelcomeData &rhs) const {
     if (std::equal(this->data_.begin(), this->data_.begin() + this->size(), rhs.data_.begin()))
@@ -168,6 +158,36 @@ class ABBWelcomeData {
   std::array<uint8_t, 12 + MAX_DATA_LENGTH> data_;
   // Calculate checksum
   uint8_t calc_cs_() const;
+  // Internal format implementation - buffer guaranteed >= FORMAT_BUFFER_SIZE by caller
+  char *format_to_internal_(char *buffer, uint8_t max_print_bytes) const {
+    char *ptr = buffer;
+    char *end = buffer + FORMAT_BUFFER_SIZE;
+
+    uint8_t print_bytes = std::min(this->size(), max_print_bytes);
+    if (print_bytes) {
+      char raw_hex[format_hex_pretty_size(12 + MAX_DATA_LENGTH)];
+      format_hex_pretty_to(raw_hex, this->data_.data(), print_bytes, '.');
+      ptr += snprintf(ptr, end - ptr, "%s ", raw_hex);
+    }
+
+    if (this->is_valid()) {
+      ptr += snprintf(ptr, end - ptr,
+                      this->get_three_byte_address() ? "[%06" PRIX32 " %s %06" PRIX32 "] Type: %02X"
+                                                     : "[%04" PRIX32 " %s %04" PRIX32 "] Type: %02X",
+                      this->get_source_address(), this->get_retransmission() ? "»" : ">",
+                      this->get_destination_address(), this->get_message_type());
+      if (this->get_data_size()) {
+        char data_hex[format_hex_pretty_size(MAX_DATA_LENGTH)];
+        format_hex_pretty_to(data_hex, this->data_.data() + 5 + 2 * this->get_address_length(), this->get_data_size(),
+                             '.');
+        snprintf(ptr, end - ptr, ", Data: %s", data_hex);
+      }
+    } else {
+      snprintf(ptr, end - ptr, "[Invalid]");
+    }
+
+    return buffer;
+  }
 };
 
 class ABBWelcomeProtocol : public RemoteProtocol<ABBWelcomeData> {
