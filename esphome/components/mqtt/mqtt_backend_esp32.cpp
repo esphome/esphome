@@ -58,6 +58,7 @@ bool MQTTBackendESP32::initialize_() {
     is_initalized_ = true;
     esp_mqtt_client_register_event(mqtt_client, MQTT_EVENT_ANY, mqtt_event_handler, this);
 #if defined(USE_MQTT_IDF_ENQUEUE)
+    this->task_shutdown_requested_.store(false, std::memory_order_release);
     // Create the task only after MQTT client is initialized successfully
     // Use larger stack size when TLS is enabled
     size_t stack_size = this->ca_certificate_.has_value() ? TASK_STACK_SIZE_TLS : TASK_STACK_SIZE;
@@ -95,7 +96,21 @@ void MQTTBackendESP32::disable() {
   // Stop async MQTT task before releasing resources it may use.
   this->mqtt_queue_.set_task_to_notify(nullptr);
   if (this->task_handle_ != nullptr) {
-    vTaskDelete(this->task_handle_);
+    this->task_shutdown_requested_.store(true, std::memory_order_release);
+    xTaskNotifyGive(this->task_handle_);
+
+    constexpr TickType_t max_wait_ticks = pdMS_TO_TICKS(100);
+    TickType_t waited_ticks = 0;
+    while (eTaskGetState(this->task_handle_) != eDeleted && waited_ticks < max_wait_ticks) {
+      vTaskDelay(1);
+      waited_ticks++;
+    }
+
+    if (eTaskGetState(this->task_handle_) != eDeleted) {
+      ESP_LOGW(TAG, "MQTT task did not exit cleanly, forcing delete");
+      vTaskDelete(this->task_handle_);
+    }
+
     this->task_handle_ = nullptr;
   }
 
@@ -106,6 +121,7 @@ void MQTTBackendESP32::disable() {
   }
 
   this->last_dropped_log_time_ = 0;
+  this->task_shutdown_requested_.store(false, std::memory_order_release);
 #endif
 
   while (!this->mqtt_events_.empty()) {
@@ -245,9 +261,18 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
     // Wait for notification indefinitely
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
+    if (this_mqtt->task_shutdown_requested_.load(std::memory_order_acquire)) {
+      break;
+    }
+
     // Process all queued items
     struct QueueElement *elem;
     while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
+      if (this_mqtt->task_shutdown_requested_.load(std::memory_order_acquire)) {
+        this_mqtt->mqtt_event_pool_.release(elem);
+        break;
+      }
+
       if (this_mqtt->is_connected_) {
         switch (elem->type) {
           case MQTT_QUEUE_TYPE_SUBSCRIBE:
@@ -271,10 +296,16 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
       this_mqtt->mqtt_event_pool_.release(elem);
     }
   }
+
+  vTaskDelete(nullptr);
 }
 
 bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos, bool retain, const char *payload,
                                 size_t len) {
+  if (this->task_shutdown_requested_.load(std::memory_order_acquire)) {
+    return false;
+  }
+
   auto *elem = this->mqtt_event_pool_.allocate();
 
   if (!elem) {
