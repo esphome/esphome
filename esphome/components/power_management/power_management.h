@@ -26,6 +26,7 @@ class PowerManagement : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BUS; }
   void setup() override;
+  void loop() override;
   void dump_config() override;
   void set_max_freq_mhz(uint32_t max_freq_mhz) { this->max_freq_mhz_ = max_freq_mhz; }
   void set_min_freq_mhz(uint32_t min_freq_mhz) { this->min_freq_mhz_ = min_freq_mhz; }
@@ -36,9 +37,14 @@ class PowerManagement : public Component {
   static const uint8_t PM_LOCK_ARRAY_SIZE = 3;
 #endif
 #endif
- protected:
-#ifdef USE_POWER_MANAGEMENT
 #ifdef USE_ESP32
+  TaskHandle_t task_handle{nullptr};
+  bool is_delay_aborted{false};
+#endif
+ protected:
+#ifdef USE_ESP32
+  int8_t count_pm_locks_();
+#ifdef USE_POWER_MANAGEMENT
   mutable std::mutex pm_lock_mutex_;
   esp_pm_lock_handle_t pm_lock_handles_[PM_LOCK_ARRAY_SIZE];
   // match with PowerManagementLockType

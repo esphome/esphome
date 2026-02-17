@@ -1,10 +1,21 @@
 #include "power_management.h"
 #ifdef USE_ESP32
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include <stdio.h>
 
 namespace esphome::power_management {
 
 static const char *const TAG = "power_management";
+
+#if CONFIG_PM_LIGHT_SLEEP_CALLBACKS
+esp_err_t pm_after_wake_up_callback(int64_t sleep_time_us, void *arg) {
+  PowerManagement *obj = (PowerManagement *) arg;
+  obj->is_delay_aborted = true;
+  xTaskNotifyGive(obj->task_handle);
+  return ESP_OK;
+}
+#endif
 
 void PowerManagement::setup() {
   esp_err_t rc = ESP_OK;
@@ -43,6 +54,61 @@ void PowerManagement::setup() {
     }
   }
 #endif
+
+#if CONFIG_PM_LIGHT_SLEEP_CALLBACKS
+  task_handle = xTaskGetCurrentTaskHandle();
+  esp_pm_sleep_cbs_register_config_t pm_callbacks = {
+      .enter_cb = NULL,
+      .exit_cb = pm_after_wake_up_callback,
+      .enter_cb_user_arg = NULL,
+      .exit_cb_user_arg = this,
+      .enter_cb_prior = 1,
+      .exit_cb_prior = 1,
+  };
+
+  rc = esp_pm_light_sleep_register_cbs(&pm_callbacks);
+  if (rc != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register power management callbacks: %s", esp_err_to_name(rc));
+  }
+  App.set_loop_interval(0);
+#endif
+}
+
+void PowerManagement::loop() {
+  int8_t acquired = this->count_pm_locks_();
+  if (acquired == 0 || acquired == 1) {
+    this->is_delay_aborted = false;
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(60000));
+    if (this->is_delay_aborted) {
+      esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+      switch (wakeup_reason) {
+        case ESP_SLEEP_WAKEUP_EXT0:
+          ESP_LOGV(TAG, "light sleep wakeup: RTC_IO (EXT0 - single pad)");
+          break;
+        case ESP_SLEEP_WAKEUP_EXT1:
+          ESP_LOGV(TAG, "light sleep wakeup: RTC_IO (EXT1 - multiple pads)");
+          break;
+        case ESP_SLEEP_WAKEUP_TIMER:
+          ESP_LOGV(TAG, "light sleep wakeup: Timer");
+          break;
+        case ESP_SLEEP_WAKEUP_TOUCHPAD:
+          ESP_LOGV(TAG, "light sleep wakeup: Touchpad");
+          break;
+        case ESP_SLEEP_WAKEUP_ULP:
+          ESP_LOGV(TAG, "light sleep wakeup: ULP program");
+          break;
+        case ESP_SLEEP_WAKEUP_GPIO:
+          ESP_LOGV(TAG, "light sleep wakeup: GPIO (Light Sleep only)");
+          break;
+        case ESP_SLEEP_WAKEUP_UART:
+          ESP_LOGV(TAG, "light sleep wakeup: UART");
+          break;
+        default:
+          ESP_LOGV(TAG, "light sleep wakeup unknown: %d", wakeup_reason);
+          break;
+      }
+    }
+  }
 }
 
 #ifdef USE_POWER_MANAGEMENT
@@ -96,6 +162,71 @@ void PowerManagement::dump_config() {
   ESP_LOGCONFIG(TAG, "  PM Trace Enabled");
 #endif
 #endif
+}
+
+#define PM_BUF_SIZE 1024
+static char pm_buffer[PM_BUF_SIZE];
+
+// TBD Fix to also work with profile: true
+int8_t PowerManagement::count_pm_locks_() {
+  int8_t acquired = 0;
+
+  FILE *f = fmemopen(pm_buffer, PM_BUF_SIZE, "w");
+  if (f == NULL) {
+    ESP_LOGE(TAG, "count_pm_locks, fmemopen failed %d", errno);
+    return -1;
+  }
+
+  esp_pm_dump_locks(f);
+  fclose(f);
+
+  if (pm_buffer[0] == '\0') {
+    ESP_LOGE(TAG, "esp_pm_dump_locks produced no output");
+    return -1;
+  }
+
+  char *line = strtok(pm_buffer, "\n");
+
+  while (line != NULL) {
+    if (strncmp(line, "Mode", 4) == 0) {
+      break;
+    }
+    if (strncmp(line, "Name", 4) != 0 && strncmp(line, "Lock", 4) != 0) {
+      // Name            Type            Arg    Active
+      // ot_sleep        APB_FREQ_MAX    0      1
+      char *p = line;
+      // Start of Name
+      while (*p && isspace((unsigned char) *p))
+        p++;
+      // End of Name
+      while (*p && !isspace((unsigned char) *p))
+        p++;
+      // Start of Type
+      while (*p && isspace((unsigned char) *p))
+        p++;
+      // End of Type
+      while (*p && !isspace((unsigned char) *p))
+        p++;
+      // Start of Arg
+      while (*p && isspace((unsigned char) *p))
+        p++;
+      // End of Arg
+      while (*p && !isspace((unsigned char) *p))
+        p++;
+      if (*p != '\0') {
+        int8_t count = atoi(p);
+        acquired += count;
+      }
+    }
+
+    line = strtok(NULL, "\n");  // NULL tells strtok to continue from last position
+
+    /*
+
+    }
+    */
+  }
+  return acquired;
 }
 
 }  // namespace esphome::power_management
