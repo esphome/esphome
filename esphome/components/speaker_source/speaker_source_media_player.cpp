@@ -452,14 +452,15 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
         ps.shuffle_indices.push_back(ps.playlist.size() - 1);
       }
 
-      if (was_empty) {
-        ps.playlist_index = 0;  // Reset index when adding to empty playlist
-      }
-
-      // If nothing was playing, queue PLAY_CURRENT to start
+      // If nothing is playing and no upcoming items are queued, start the new item.
+      // The index check (>= size - 1) ensures we only queue PLAY_CURRENT once when
+      // multiple items are enqueued rapidly: the first enqueue starts playback at index 0,
+      // and subsequent enqueues just append without restarting.
+      // This also handles the case where a previous playlist finished (index past end).
       bool nothing_playing =
           (active_source == nullptr) || (active_source->get_state(pipeline) == media_source::MediaSourceState::IDLE);
-      if (was_empty && nothing_playing) {
+      if (nothing_playing && ps.playlist_index >= ps.playlist.size() - 1) {
+        ps.playlist_index = ps.playlist.size() - 1;  // Point to newly added item
         this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
       }
       command_executed = true;
