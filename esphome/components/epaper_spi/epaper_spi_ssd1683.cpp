@@ -13,7 +13,7 @@ void EPaperSSD1683::refresh_screen(bool partial) {
   // On partial update, set red RAM to inverse to remove BW ghosting
   this->cmd_data(0x21, {partial ? (uint8_t) 0x80 : (uint8_t) 0x40, (uint8_t) 0x00});
   // Set full update to 0xD7 for fast update, 0xF7 for normal
-  // Fast update is not actually faster, it takes the same amount of time but flashes less
+  // Fast update flashes less and draws sooner but is in busy state for the same amount of time
   // Manufacturer recommends not using fast update all the time, TODO expose this to the user
   this->cmd_data(0x22, {partial ? (uint8_t) 0xFC : (uint8_t) 0xF7});
   this->command(0x20);
