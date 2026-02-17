@@ -118,15 +118,15 @@ void MQTTBackendESP32::disable() {
   this->task_shutdown_requested_.store(false, std::memory_order_release);
 #endif
 
-  while (!this->mqtt_events_.empty()) {
-    this->mqtt_events_.pop();
-  }
-
   esp_mqtt_client_handle_t client = this->handler_.get();
   if (client != nullptr) {
     esp_mqtt_client_unregister_event(client, MQTT_EVENT_ANY, mqtt_event_handler);
     esp_mqtt_client_disconnect(client);
     esp_mqtt_client_stop(client);
+  }
+
+  while (!this->mqtt_events_.empty()) {
+    this->mqtt_events_.pop();
   }
 
   this->handler_.reset();
