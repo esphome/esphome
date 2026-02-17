@@ -8,6 +8,20 @@
 namespace esphome {
 namespace sendspin {
 
+namespace {
+struct AudioSinkAdapter : public audio::AudioSinkCallback {
+  media_source::MediaSourceListener *listener;
+  media_source::MediaSource *source;
+  audio::AudioStreamInfo stream_info;
+  size_t pipeline;
+
+  size_t audio_sink_write(uint8_t *data, size_t length, TickType_t ticks_to_wait) override {
+    return this->listener->on_media_output(this->source, data, length, ticks_to_wait, this->stream_info,
+                                           this->pipeline);
+  }
+};
+}  // namespace
+
 /*
  * TODO:
  *  - Clean up the stream infos, its duplicated in multiple places and is probably not necessary
@@ -130,7 +144,9 @@ void SendspinMediaSource::setup() {
       case SendspinControls::START:  // Intentional fallthrough
         // TODO: This should be pipeline specific, not hardcoded to pipelone 0
         this->sendspin_pipelines_[0].pending_start = true;
-        this->play_uri_request_callback_("sendspin://current", 0);
+        if (this->listener_ != nullptr) {
+          this->listener_->on_play_uri_request(this, "sendspin://current", 0);
+        }
         break;
       case SendspinControls::STOP: {
         // TODO: Is there really a distinction here btween STOP and CLEAR? I guess clear assumes it will resume again
@@ -150,11 +166,15 @@ void SendspinMediaSource::setup() {
         break;
       }
       case SendspinControls::VOLUME_UPDATE: {
-        this->volume_request_callback_(this->parent_->get_volume() / 100.0f);
+        if (this->listener_ != nullptr) {
+          this->listener_->on_volume_request(this, this->parent_->get_volume() / 100.0f);
+        }
         break;
       }
       case SendspinControls::MUTE_UPDATE: {
-        this->mute_request_callback_(this->parent_->get_muted());
+        if (this->listener_ != nullptr) {
+          this->listener_->on_mute_request(this, this->parent_->get_muted());
+        }
         break;
       }
       default:
@@ -592,10 +612,9 @@ DecodeResult SendspinMediaSource::sync_decode_audio_(SyncContext &sync_context,
       size_t needed = sync_context.decoder->get_maximum_decoded_size();
       if (sync_context.decode_buffer == nullptr) {
         sync_context.decode_buffer = audio::AudioSinkTransferBuffer::create(needed);
-        sync_context.decode_buffer->set_sink([this, &sync_context](uint8_t *data, size_t len, TickType_t ticks) {
-          return this->output_callback_(data, len, ticks, sync_context.current_stream_info,
-                                        sync_context.pipeline_index);
-        });
+        if (sync_context.audio_sink != nullptr) {
+          sync_context.decode_buffer->set_sink(sync_context.audio_sink);
+        }
       } else if (needed > sync_context.decode_buffer->capacity()) {
         sync_context.decode_buffer->reallocate(needed);
       }
@@ -630,15 +649,6 @@ DecodeResult SendspinMediaSource::sync_decode_audio_(SyncContext &sync_context,
   sync_context.encoded_entry = nullptr;
 
   return DecodeResult::SUCCESS;
-}
-
-void SendspinMediaSource::set_transfer_callbacks_(SyncContext &sync_context, int pipeline) {
-  sync_context.pipeline_index = pipeline;
-  std::function<size_t(uint8_t *, size_t, TickType_t)> wrapped_callback =
-      [this, &sync_context](uint8_t *data, size_t len, TickType_t ticks) {
-        return this->output_callback_(data, len, ticks, sync_context.current_stream_info, sync_context.pipeline_index);
-      };
-  sync_context.interpolation_transfer_buffer->set_sink(std::move(wrapped_callback));
 }
 
 SyncTaskState SendspinMediaSource::sync_handle_initial_sync_(SyncContext &sync_context) {
@@ -797,7 +807,16 @@ void SendspinMediaSource::sync_task(void *params) {
     sync_context.interpolation_transfer_buffer = audio::AudioSinkTransferBuffer::create(
         sync_context.current_stream_info.ms_to_bytes(INITIAL_SYNC_ZEROS_DURATION_MS));
 
-    this_source->set_transfer_callbacks_(sync_context, pipeline);
+    AudioSinkAdapter audio_sink;
+    if (this_source->get_listener() != nullptr) {
+      audio_sink.listener = this_source->get_listener();
+      audio_sink.source = this_source;
+      audio_sink.stream_info = sync_context.current_stream_info;
+      audio_sink.pipeline = pipeline;
+      sync_context.audio_sink = &audio_sink;
+      sync_context.interpolation_transfer_buffer->set_sink(&audio_sink);
+    }
+    sync_context.pipeline_index = pipeline;
     sync_context.decoder = std::make_unique<SendspinDecoder>();
 
     sync_context.release_chunk = true;

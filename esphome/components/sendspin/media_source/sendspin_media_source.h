@@ -57,6 +57,7 @@ struct SyncContext {
   int64_t decoded_timestamp{0};                                   // Timestamp for decoded audio
   std::unique_ptr<audio::AudioSinkTransferBuffer> interpolation_transfer_buffer;
   std::unique_ptr<SendspinDecoder> decoder;
+  audio::AudioSinkCallback *audio_sink{nullptr};  // Owned by task stack, outlives this context
   size_t pipeline_index;
   bool release_chunk;
   bool initial_decode;
@@ -156,8 +157,6 @@ class SendspinMediaSource : public Component, public media_source::MediaSource, 
 
   /// @brief Processes playback progress messages from the speaker to update buffered_frames and playtime.
   void sync_process_playback_progress_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
-
-  void set_transfer_callbacks_(SyncContext &sync_context, int pipeline);
 
   FixedVector<SendspinMediaSourcePipeline> sendspin_pipelines_;
   bool task_stack_in_psram_{false};
