@@ -353,6 +353,7 @@ class HttpRequestComponent : public Component {
 
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::list<Header> &request_headers) {
+    // Call perform() directly to avoid ambiguity with the std::set overload
     return this->perform(url, method, body, request_headers, {});
   }
 
