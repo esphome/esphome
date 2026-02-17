@@ -9,39 +9,38 @@ namespace esphome::libretiny {
 
 struct UartManager {
   FixedVector<uint8_t> get_available_uarts() const {
-    return FixedVector<uint8_t> {
+    return FixedVector<uint8_t>{
 #if LT_HW_UART0
-      0,
+        0,
 #endif
 #if LT_HW_UART1
-          1,
+        1,
 #endif
 #if LT_HW_UART2
-          2,
+        2,
 #endif
     };
   }
 
   void deinit_all();
-  const FixedVector<pin_size_t> &get_tx_pins_for_uart(const uint8_t uart_number) const;
-  const FixedVector<pin_size_t> &get_rx_pins_for_uart(const uint8_t uart_number) const;
+  const FixedVector<pin_size_t> &get_tx_pins_for_uart(uint8_t uart_number) const;
+  const FixedVector<pin_size_t> &get_rx_pins_for_uart(uint8_t uart_number) const;
   HardwareSerial *get_hw_serial_by_number(const uint8_t uart_number);
 
   uint8_t get_default_uart_number() const;
-  bool validate_pins(const uint8_t uart_number, const uint8_t rx_pin, const uint8_t tx_pin) const;
-  bool init_uart(const uint8_t uart_number, uint32_t baud_rate, const uint16_t config);
-  bool init_uart(const uint8_t uart_number, uint32_t baud_rate, const uint16_t config, const uint8_t rx_pin,
-                 const uint8_t tx_pin);
-  bool init_uart_for_logger(const uint8_t uart_number, uint32_t baud_rate);
-  void deinit_uart(const uint8_t uart_number);
+  bool validate_pins(uint8_t uart_number, uint8_t rx_pin, uint8_t tx_pin) const;
+  bool init_uart(uint8_t uart_number, uint32_t baud_rate, uint16_t config);
+  bool init_uart(uint8_t uart_number, uint32_t baud_rate, uint16_t config, uint8_t rx_pin, uint8_t tx_pin);
+  bool init_uart_for_logger(uint8_t uart_number, uint32_t baud_rate);
+  void deinit_uart(uint8_t uart_number);
 
  private:
   static const FixedVector<pin_size_t> &get_empty_pins() {
-    static const FixedVector<pin_size_t> s_empty_pins;
-    return s_empty_pins;
+    static const FixedVector<pin_size_t> S_EMPTY_PINS;
+    return S_EMPTY_PINS;
   }
 
-  static constexpr size_t s_max_uarts = 3;
+  static constexpr size_t S_MAX_UARTS = 3;
 
   struct UartInfo {
     ::SerialClass &hw_serial;
@@ -72,7 +71,7 @@ struct UartManager {
     }
   };
 
-  std::array<std::optional<UartInfo>, s_max_uarts> uarts_ = {
+  std::array<std::optional<UartInfo>, S_MAX_UARTS> uarts_ = {
 #if LT_HW_UART0
 #ifndef PINS_SERIAL0_TX
 #define PINS_SERIAL0_TX \
@@ -114,8 +113,8 @@ struct UartManager {
 #endif
   };
 
-  UartInfo *get_uart_by_number_(const uint8_t uart_number);
-  const UartInfo *get_uart_by_number_(const uint8_t uart_number) const;
+  UartInfo *get_uart_by_number_(uint8_t uart_number);
+  const UartInfo *get_uart_by_number_(uint8_t uart_number) const;
 };
 
 }  // namespace esphome::libretiny

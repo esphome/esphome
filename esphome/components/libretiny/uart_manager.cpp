@@ -51,7 +51,7 @@ bool UartManager::validate_pins(const uint8_t uart_number, const uint8_t rx_pin,
  * @param config Configuration (data bits, parity, stop bits)
  * @return true on success
  */
-bool UartManager::init_uart(const uint8_t uart_number, uint32_t baud_rate, const uint16_t config) {
+bool UartManager::init_uart(const uint8_t uart_number, const uint32_t baud_rate, const uint16_t config) {
   auto *uart = get_uart_by_number_(uart_number);
   if (!uart) {
     return false;
@@ -71,8 +71,8 @@ bool UartManager::init_uart(const uint8_t uart_number, uint32_t baud_rate, const
  * @param tx_pin pin number to use for TX
  * @return true on success
  */
-bool UartManager::init_uart(const uint8_t uart_number, uint32_t baud_rate, const uint16_t config, const uint8_t rx_pin,
-                            const uint8_t tx_pin) {
+bool UartManager::init_uart(const uint8_t uart_number, const uint32_t baud_rate, const uint16_t config,
+                            const uint8_t rx_pin, const uint8_t tx_pin) {
   auto *uart = get_uart_by_number_(uart_number);
   if (!uart) {
     return false;
@@ -86,7 +86,7 @@ bool UartManager::init_uart(const uint8_t uart_number, uint32_t baud_rate, const
   return true;
 }
 
-bool UartManager::init_uart_for_logger(const uint8_t uart_number, uint32_t baud_rate) {
+bool UartManager::init_uart_for_logger(const uint8_t uart_number, const uint32_t baud_rate) {
   auto *uart = get_uart_by_number_(uart_number);
   if (!uart) {
     return false;
@@ -107,14 +107,14 @@ void UartManager::deinit_uart(const uint8_t uart_number) {
 }
 
 UartManager::UartInfo *UartManager::get_uart_by_number_(const uint8_t uart_number) {
-  if ((uart_number >= s_max_uarts) || (!uarts_[uart_number].has_value())) {
+  if ((uart_number >= S_MAX_UARTS) || (!uarts_[uart_number].has_value())) {
     return nullptr;
   }
   return &uarts_[uart_number].value();
 }
 
 const UartManager::UartInfo *UartManager::get_uart_by_number_(const uint8_t uart_number) const {
-  if ((uart_number >= s_max_uarts) || (!uarts_[uart_number].has_value())) {
+  if ((uart_number >= S_MAX_UARTS) || (!uarts_[uart_number].has_value())) {
     return nullptr;
   }
   return &uarts_[uart_number].value();
