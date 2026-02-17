@@ -11,7 +11,6 @@ namespace esphome::esp32_touch {
 
 static const char *const TAG = "esp32_touch";
 
-// ==================== Callbacks ====================
 // V1: called from esp_timer context (software filter)
 // V2/V3: called from ISR context
 // xQueueSendFromISR is safe from both contexts.
@@ -35,8 +34,6 @@ bool IRAM_ATTR ESP32TouchComponent::on_inactive_cb(touch_sensor_handle_t handle,
   comp->enable_loop_soon_any_context();
   return higher == pdTRUE;
 }
-
-// ==================== Setup ====================
 
 void ESP32TouchComponent::setup() {
   if (!this->create_touch_queue_()) {
@@ -226,8 +223,6 @@ void ESP32TouchComponent::setup() {
   this->release_check_interval_ms_ = this->release_timeout_ms_ / 4;
 }
 
-// ==================== Dump Config ====================
-
 void ESP32TouchComponent::dump_config() {
   this->dump_config_base_();
 
@@ -362,8 +357,6 @@ void ESP32TouchComponent::dump_config() {
   this->dump_config_sensors_();
 }
 
-// ==================== Loop ====================
-
 void ESP32TouchComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
 
@@ -455,8 +448,6 @@ void ESP32TouchComponent::loop() {
   this->check_and_disable_loop_if_all_released_(pads_off);
 }
 
-// ==================== Shutdown ====================
-
 void ESP32TouchComponent::on_shutdown() {
   if (this->sens_handle_ == nullptr)
     return;
@@ -476,8 +467,6 @@ void ESP32TouchComponent::on_shutdown() {
 
   this->cleanup_touch_queue_();
 }
-
-// ==================== Helpers ====================
 
 void ESP32TouchComponent::dump_config_base_() {
 #if !defined(USE_ESP32_VARIANT_ESP32P4)

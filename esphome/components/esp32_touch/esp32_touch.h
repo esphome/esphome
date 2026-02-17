@@ -152,8 +152,6 @@ class ESP32TouchComponent : public Component {
   // Common constants
   static constexpr uint32_t MINIMUM_RELEASE_TIME_MS = 100;
 
-  // ==================== PLATFORM SPECIFIC ====================
-
 #ifdef USE_ESP32_VARIANT_ESP32
   // ESP32 v1 specific
   uint32_t iir_filter_{0};
