@@ -89,6 +89,16 @@ inline bool should_collect_header(const std::vector<std::string> &collect_header
   return false;
 }
 
+/// Lowercase a range of strings into a vector
+template<typename Iter> inline std::vector<std::string> lowercase_headers(Iter begin, Iter end) {
+  std::vector<std::string> result;
+  result.reserve(std::distance(begin, end));
+  for (auto it = begin; it != end; ++it) {
+    result.push_back(str_lower_case(*it));
+  }
+  return result;
+}
+
 /*
  * HTTP Container Read Semantics
  * =============================
@@ -363,19 +373,15 @@ class HttpRequestComponent : public Component {
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::list<Header> &request_headers,
                                        const std::set<std::string> &collect_headers) {
-    return this->start(url, method, body, request_headers,
-                       std::vector<std::string>(collect_headers.begin(), collect_headers.end()));
+    return this->perform(url, method, body, request_headers,
+                         lowercase_headers(collect_headers.begin(), collect_headers.end()));
   }
 
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::list<Header> &request_headers,
                                        const std::vector<std::string> &collect_headers) {
-    std::vector<std::string> lower_case_collect_headers;
-    lower_case_collect_headers.reserve(collect_headers.size());
-    for (const auto &header : collect_headers) {
-      lower_case_collect_headers.push_back(str_lower_case(header));
-    }
-    return this->perform(url, method, body, request_headers, lower_case_collect_headers);
+    return this->perform(url, method, body, request_headers,
+                         lowercase_headers(collect_headers.begin(), collect_headers.end()));
   }
 
  protected:
