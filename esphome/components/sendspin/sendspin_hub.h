@@ -59,7 +59,7 @@ struct ImageSlotPreference {
 
 struct ImageSlotCallback {
   uint8_t slot;
-  CallbackManager<void(const uint8_t *, size_t, SendspinImageFormat)> callbacks;
+  CallbackManager<void(const uint8_t *, size_t, SendspinImageFormat, int64_t)> callbacks;
 };
 #endif
 
@@ -186,7 +186,7 @@ class SendspinHub : public Component {
 
 #ifdef USE_SENDSPIN_ARTWORK
   void add_image_slot_callback(uint8_t slot,
-                               std::function<void(const uint8_t *, size_t, SendspinImageFormat)> &&callback) {
+                               std::function<void(const uint8_t *, size_t, SendspinImageFormat, int64_t)> &&callback) {
     // Linear search for existing slot
     for (auto &entry : this->image_slot_callbacks_) {
       if (entry.slot == slot) {

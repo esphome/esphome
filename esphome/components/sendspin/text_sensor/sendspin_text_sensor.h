@@ -30,6 +30,7 @@ class SendspinTextSensor : public Component, public text_sensor::TextSensor, pub
 
  protected:
   void publish_if_changed_(const std::string &value);
+  void schedule_publish_(const ServerMetadataStateObject &metadata, const std::string &value);
 
   SendspinMetadataTypes metadata_type_;
 };

@@ -11,6 +11,8 @@
 
 #include "esphome/core/component.h"
 
+#include <atomic>
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -47,6 +49,8 @@ class SendspinImage : public Component, public runtime_image::RuntimeImage, publ
   uint8_t slot_{0};
 
   TaskHandle_t decode_task_handle_{nullptr};
+  int64_t server_timestamp_{0};
+  std::atomic<bool> decode_active_{false};
 };
 
 // Automation trigger classes

@@ -595,7 +595,7 @@ void SendspinHub::process_binary_message_(uint8_t *payload, size_t len) {
       for (auto &entry : this->image_slot_callbacks_) {
         if (entry.slot == slot) {
           entry.callbacks.call(payload + SENDSPIN_BINARY_CHUNK_HEADER_SIZE, len - SENDSPIN_BINARY_CHUNK_HEADER_SIZE,
-                               image_format);
+                               image_format, (int64_t) server_timestamp);
           found_callback = true;
           break;
         }
