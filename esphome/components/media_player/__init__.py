@@ -35,16 +35,14 @@ MEDIA_PLAYER_FORMAT_PURPOSE_ENUM = {
     "announcement": MediaPlayerFormatPurpose.PURPOSE_ANNOUNCEMENT,
 }
 
-
-PlayMediaAction = media_player_ns.class_(
-    "PlayMediaAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-VolumeSetAction = media_player_ns.class_(
-    "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
+# Local config key constants
+CONF_ANNOUNCEMENT = "announcement"
+CONF_ON_PLAY = "on_play"
+CONF_ON_PAUSE = "on_pause"
+CONF_ON_ANNOUNCEMENT = "on_announcement"
+CONF_MEDIA_URL = "media_url"
 
 # Command actions that all share the same schema and codegen handler
-# Maps YAML action name suffix to C++ class name
 _COMMAND_ACTIONS = [
     "play",
     "pause",
@@ -66,12 +64,6 @@ _COMMAND_ACTIONS = [
     "group_join",
 ]
 
-CONF_ANNOUNCEMENT = "announcement"
-CONF_ON_PLAY = "on_play"
-CONF_ON_PAUSE = "on_pause"
-CONF_ON_ANNOUNCEMENT = "on_announcement"
-CONF_MEDIA_URL = "media_url"
-
 # State triggers: (config_key, C++ class name)
 _STATE_TRIGGERS = [
     (CONF_ON_STATE, "StateTrigger"),
@@ -82,8 +74,8 @@ _STATE_TRIGGERS = [
     (CONF_ON_TURN_ON, "OnTrigger"),
     (CONF_ON_TURN_OFF, "OffTrigger"),
 ]
+
 # State conditions that all share the same schema and codegen handler
-# Maps YAML condition name suffix to C++ class name
 _STATE_CONDITIONS = [
     "idle",
     "paused",
@@ -93,6 +85,14 @@ _STATE_CONDITIONS = [
     "off",
     "muted",
 ]
+
+# Special action classes with custom schemas/handlers
+PlayMediaAction = media_player_ns.class_(
+    "PlayMediaAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+VolumeSetAction = media_player_ns.class_(
+    "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
 
 
 async def setup_media_player_core_(var, config):
