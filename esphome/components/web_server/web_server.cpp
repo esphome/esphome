@@ -1480,6 +1480,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     parse_string_param_(request, ESPHOME_F("mode"), call, &decltype(call)::set_mode);
     parse_string_param_(request, ESPHOME_F("fan_mode"), call, &decltype(call)::set_fan_mode);
     parse_string_param_(request, ESPHOME_F("swing_mode"), call, &decltype(call)::set_swing_mode);
+    parse_string_param_(request, ESPHOME_F("preset"), call, &decltype(call)::set_preset);
 
     // Parse temperature parameters
     // static_cast needed to disambiguate overloaded setters (float vs optional<float>)
@@ -1536,12 +1537,12 @@ std::string WebServer::climate_json_(climate::Climate *obj, JsonDetail start_con
       for (auto swing_mode : traits.get_supported_swing_modes())
         opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
     }
-    if (traits.get_supports_presets() && obj->preset.has_value()) {
+    if (traits.get_supports_presets()) {
       JsonArray opt = root[ESPHOME_F("presets")].to<JsonArray>();
       for (climate::ClimatePreset m : traits.get_supported_presets())
         opt.add(PSTR_LOCAL(climate::climate_preset_to_string(m)));
     }
-    if (!traits.get_supported_custom_presets().empty() && obj->has_custom_preset()) {
+    if (!traits.get_supported_custom_presets().empty()) {
       JsonArray opt = root[ESPHOME_F("custom_presets")].to<JsonArray>();
       for (auto const &custom_preset : traits.get_supported_custom_presets())
         opt.add(custom_preset);
