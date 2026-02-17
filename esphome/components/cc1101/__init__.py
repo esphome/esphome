@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_DATA,
     CONF_FREQUENCY,
     CONF_ID,
+    CONF_VALUE,
     CONF_WAIT_TIME,
 )
 from esphome.core import ID
@@ -280,6 +281,47 @@ SetIdleAction = ns.class_("SetIdleAction", automation.Action)
 SendPacketAction = ns.class_(
     "SendPacketAction", automation.Action, cg.Parented.template(CC1101Component)
 )
+SetFrequencyAction = ns.class_(
+    "SetFrequencyAction", automation.Action, cg.Parented.template(CC1101Component)
+)
+SetOutputPowerAction = ns.class_(
+    "SetOutputPowerAction", automation.Action, cg.Parented.template(CC1101Component)
+)
+SetModulationTypeAction = ns.class_(
+    "SetModulationTypeAction", automation.Action, cg.Parented.template(CC1101Component)
+)
+SetSymbolRateAction = ns.class_(
+    "SetSymbolRateAction", automation.Action, cg.Parented.template(CC1101Component)
+)
+SetRxAttenuationAction = ns.class_(
+    "SetRxAttenuationAction", automation.Action, cg.Parented.template(CC1101Component)
+)
+SetDcBlockingFilterAction = ns.class_(
+    "SetDcBlockingFilterAction",
+    automation.Action,
+    cg.Parented.template(CC1101Component),
+)
+SetManchesterAction = ns.class_(
+    "SetManchesterAction", automation.Action, cg.Parented.template(CC1101Component)
+)
+SetFilterBandwidthAction = ns.class_(
+    "SetFilterBandwidthAction", automation.Action, cg.Parented.template(CC1101Component)
+)
+SetFskDeviationAction = ns.class_(
+    "SetFskDeviationAction", automation.Action, cg.Parented.template(CC1101Component)
+)
+SetMskDeviationAction = ns.class_(
+    "SetMskDeviationAction", automation.Action, cg.Parented.template(CC1101Component)
+)
+SetChannelAction = ns.class_(
+    "SetChannelAction", automation.Action, cg.Parented.template(CC1101Component)
+)
+SetChannelSpacingAction = ns.class_(
+    "SetChannelSpacingAction", automation.Action, cg.Parented.template(CC1101Component)
+)
+SetIfFrequencyAction = ns.class_(
+    "SetIfFrequencyAction", automation.Action, cg.Parented.template(CC1101Component)
+)
 
 CC1101_ACTION_SCHEMA = cv.Schema(
     maybe_simple_id({cv.GenerateID(CONF_ID): cv.use_id(CC1101Component)})
@@ -332,4 +374,336 @@ async def send_packet_action_to_code(config, action_id, template_arg, args):
         arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
         cg.add(var.set_data_static(arr, len(data)))
+    return var
+
+
+SET_FREQUENCY_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_VALUE): cv.templatable(
+            cv.All(cv.frequency, cv.float_range(min=300.0e6, max=928.0e6))
+        ),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "cc1101.set_frequency", SetFrequencyAction, SET_FREQUENCY_ACTION_SCHEMA
+)
+async def set_frequency_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_VALUE]
+    if cg.is_template(data):
+        templ_ = await cg.templatable(data, args, float)
+        cg.add(var.set_frequency(templ_))
+    else:
+        cg.add(var.set_frequency(data))
+    return var
+
+
+SET_OUTPUT_POWER_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_VALUE): cv.templatable(cv.float_range(min=-30.0, max=11.0)),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "cc1101.set_output_power", SetOutputPowerAction, SET_OUTPUT_POWER_ACTION_SCHEMA
+)
+async def set_output_power_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_VALUE]
+    if cg.is_template(data):
+        templ_ = await cg.templatable(data, args, float)
+        cg.add(var.set_output_power(templ_))
+    else:
+        cg.add(var.set_output_power(data))
+    return var
+
+
+SET_MODULATION_TYPE_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_VALUE): cv.templatable(cv.enum(MODULATION, upper=False)),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "cc1101.set_modulation_type",
+    SetModulationTypeAction,
+    SET_MODULATION_TYPE_ACTION_SCHEMA,
+)
+async def set_modulation_type_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_VALUE]
+    if cg.is_template(data):
+        templ_ = await cg.templatable(data, args, Modulation)
+        cg.add(var.set_modulation_type(templ_))
+    else:
+        cg.add(var.set_modulation_type(MODULATION[data]))
+    return var
+
+
+SET_SYMBOL_RATE_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_VALUE): cv.templatable(cv.float_range(min=600, max=500000)),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "cc1101.set_symbol_rate", SetSymbolRateAction, SET_SYMBOL_RATE_ACTION_SCHEMA
+)
+async def set_symbol_rate_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_VALUE]
+    if cg.is_template(data):
+        templ_ = await cg.templatable(data, args, float)
+        cg.add(var.set_symbol_rate(templ_))
+    else:
+        cg.add(var.set_symbol_rate(data))
+    return var
+
+
+SET_RX_ATTENUATION_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_VALUE): cv.templatable(cv.enum(RX_ATTENUATION, upper=False)),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "cc1101.set_rx_attenuation",
+    SetRxAttenuationAction,
+    SET_RX_ATTENUATION_ACTION_SCHEMA,
+)
+async def set_rx_attenuation_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_VALUE]
+    if cg.is_template(data):
+        templ_ = await cg.templatable(data, args, RxAttenuation)
+        cg.add(var.set_rx_attenuation(templ_))
+    else:
+        cg.add(var.set_rx_attenuation(RX_ATTENUATION[data]))
+    return var
+
+
+SET_DC_BLOCKING_FILTER_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_VALUE): cv.templatable(cv.boolean),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "cc1101.set_dc_blocking_filter",
+    SetDcBlockingFilterAction,
+    SET_DC_BLOCKING_FILTER_ACTION_SCHEMA,
+)
+async def set_dc_blocking_filter_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_VALUE]
+    if cg.is_template(data):
+        templ_ = await cg.templatable(data, args, bool)
+        cg.add(var.set_dc_blocking_filter(templ_))
+    else:
+        cg.add(var.set_dc_blocking_filter(data))
+    return var
+
+
+SET_MANCHESTER_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_VALUE): cv.templatable(cv.boolean),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "cc1101.set_manchester", SetManchesterAction, SET_MANCHESTER_ACTION_SCHEMA
+)
+async def set_manchester_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_VALUE]
+    if cg.is_template(data):
+        templ_ = await cg.templatable(data, args, bool)
+        cg.add(var.set_manchester(templ_))
+    else:
+        cg.add(var.set_manchester(data))
+    return var
+
+
+SET_FILTER_BANDWIDTH_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_VALUE): cv.templatable(
+            cv.All(cv.frequency, cv.float_range(min=58000, max=812000))
+        ),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "cc1101.set_filter_bandwidth",
+    SetFilterBandwidthAction,
+    SET_FILTER_BANDWIDTH_ACTION_SCHEMA,
+)
+async def set_filter_bandwidth_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_VALUE]
+    if cg.is_template(data):
+        templ_ = await cg.templatable(data, args, float)
+        cg.add(var.set_filter_bandwidth(templ_))
+    else:
+        cg.add(var.set_filter_bandwidth(data))
+    return var
+
+
+SET_FSK_DEVIATION_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_VALUE): cv.templatable(
+            cv.All(cv.frequency, cv.float_range(min=1500, max=381000))
+        ),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "cc1101.set_fsk_deviation", SetFskDeviationAction, SET_FSK_DEVIATION_ACTION_SCHEMA
+)
+async def set_fsk_deviation_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_VALUE]
+    if cg.is_template(data):
+        templ_ = await cg.templatable(data, args, float)
+        cg.add(var.set_fsk_deviation(templ_))
+    else:
+        cg.add(var.set_fsk_deviation(data))
+    return var
+
+
+SET_MSK_DEVIATION_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_VALUE): cv.templatable(cv.int_range(min=1, max=8)),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "cc1101.set_msk_deviation", SetMskDeviationAction, SET_MSK_DEVIATION_ACTION_SCHEMA
+)
+async def set_msk_deviation_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_VALUE]
+    if cg.is_template(data):
+        templ_ = await cg.templatable(data, args, int)
+        cg.add(var.set_msk_deviation(templ_))
+    else:
+        cg.add(var.set_msk_deviation(data))
+    return var
+
+
+SET_CHANNEL_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_VALUE): cv.templatable(cv.uint8_t),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "cc1101.set_channel", SetChannelAction, SET_CHANNEL_ACTION_SCHEMA
+)
+async def set_channel_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_VALUE]
+    if cg.is_template(data):
+        templ_ = await cg.templatable(data, args, int)
+        cg.add(var.set_channel(templ_))
+    else:
+        cg.add(var.set_channel(data))
+    return var
+
+
+SET_CHANNEL_SPACING_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_VALUE): cv.templatable(
+            cv.All(cv.frequency, cv.float_range(min=25000, max=405000))
+        ),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "cc1101.set_channel_spacing",
+    SetChannelSpacingAction,
+    SET_CHANNEL_SPACING_ACTION_SCHEMA,
+)
+async def set_channel_spacing_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_VALUE]
+    if cg.is_template(data):
+        templ_ = await cg.templatable(data, args, float)
+        cg.add(var.set_channel_spacing(templ_))
+    else:
+        cg.add(var.set_channel_spacing(data))
+    return var
+
+
+SET_IF_FREQUENCY_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_VALUE): cv.templatable(
+            cv.All(cv.frequency, cv.float_range(min=25000, max=788000))
+        ),
+    },
+    key=CONF_VALUE,
+)
+
+
+@automation.register_action(
+    "cc1101.set_if_frequency", SetIfFrequencyAction, SET_IF_FREQUENCY_ACTION_SCHEMA
+)
+async def set_if_frequency_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_VALUE]
+    if cg.is_template(data):
+        templ_ = await cg.templatable(data, args, float)
+        cg.add(var.set_if_frequency(templ_))
+    else:
+        cg.add(var.set_if_frequency(data))
     return var
