@@ -31,8 +31,6 @@ processedPath = processedPath.replace(/([A-Z])/g, (match) => `_${match.toLowerCa
 const baseUrl = 'https://api-docs.esphome.io';
 const url = `${baseUrl}/${processedPath}`;
 
-// Display text defaults to "API Reference" if same as path
-const displayText = text === path ? 'API Reference' : text;
 ---
 
-<a href={url}>{displayText}</a>
+<a href={url}>API Reference: {text}</a>

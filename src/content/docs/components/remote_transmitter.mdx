@@ -16,8 +16,9 @@ The component is split into two parts:
 **See** [Setting up IR Devices](/guides/setting_up_rmt_devices#remote-setting-up-infrared) **and** [Setting up RF Devices](/guides/setting_up_rmt_devices#remote-setting-up-rf) **for details.**
 
 > [!NOTE]
-> This component performs best with an ESP32 or variant; they have a dedicated hardware peripheral which ensures
-> accurate signal timing.
+> This component performs best with an ESP32 or variant; most have a dedicated RMT hardware peripheral which ensures
+> accurate signal timing. The ESP32-C2 and ESP32-C61 lack RMT hardware and use a software (GPIO bitbang)
+> implementation instead.
 
 ```yaml
 # Example configuration entry
@@ -36,7 +37,11 @@ remote_transmitter:
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation. Useful when multiple
   transmitters are connected to a single device.
 
-### ESP32 configuration variables
+### ESP32 RMT configuration variables
+
+> [!NOTE]
+> The following options apply only to ESP32 variants with RMT hardware. They are not available on the ESP32-C2 and
+> ESP32-C61, which use a software implementation.
 
 - **rmt_symbols** (*Optional*, int): When `use_dma` is enabled, this sets the size of the driver's internal DMA
   buffer. When DMA is disabled, it specifies how much RMT memory is allocated to the component. RMT memory is shared
@@ -49,7 +54,6 @@ remote_transmitter:
 | ESP32-C3      | 96 symbols       | 48 symbols |
 | ESP32-C5      | 96 symbols       | 48 symbols |
 | ESP32-C6      | 96 symbols       | 48 symbols |
-| ESP32-C61     | 96 symbols       | 48 symbols |
 | ESP32-H2      | 96 symbols       | 48 symbols |
 | ESP32-P4      | 192 symbols      | 48 symbols |
 | ESP32-S2      | 256 symbols      | 64 symbols |

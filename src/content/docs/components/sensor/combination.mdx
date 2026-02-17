@@ -37,7 +37,7 @@ sensor:
 ```
 
 - `LINEAR` combination: This type sums all source sensors after multiplying each by
-  a configured coeffecient.
+  a configured coefficient.
 
 ```yaml
 # Example configuration entry
@@ -47,9 +47,9 @@ sensor:
     name: "Balance Power"
     sources:
       - source: total_power
-        coeffecient: 1.0
+        coefficient: 1.0
       - source: circuit_1_power
-        coeffecient: -1.0
+        coefficient: -1.0
 ```
 
 - `MAXIMUM`, `MEAN`, `MEDIAN`, `MINIMUM`, `MOST_RECENTLY_UPDATED`,
@@ -84,8 +84,8 @@ sensor:
     parameter, with low values marking accurate data. If implemented as a template, the
     measurement is in parameter `x`.
 
-  - **coeffecient** (**Required**, only for `LINEAR` type, float, [templatable](/automations/templates)):
-    The coeffecient to multiply the sensor's state by before summing all source sensor states.
+  - **coefficient** (**Required**, only for `LINEAR` type, float, [templatable](/automations/templates)):
+    The coefficient to multiply the sensor's state by before summing all source sensor states.
     If implemented as a template, the measurement is in parameter `x`.
 
 - **process_std_dev** (**Required**, only for `KALMAN` type, float): The standard deviation of the
