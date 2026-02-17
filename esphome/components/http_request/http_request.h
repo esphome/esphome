@@ -371,12 +371,12 @@ class HttpRequestComponent : public Component {
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::list<Header> &request_headers,
                                        const std::vector<std::string> &collect_headers) {
-    std::vector<std::string> lower;
-    lower.reserve(collect_headers.size());
-    for (const auto &h : collect_headers) {
-      lower.push_back(str_lower_case(h));
+    std::vector<std::string> lower_case_collect_headers;
+    lower_case_collect_headers.reserve(collect_headers.size());
+    for (const auto &header : collect_headers) {
+      lower_case_collect_headers.push_back(str_lower_case(header));
     }
-    return this->perform(url, method, body, request_headers, lower);
+    return this->perform(url, method, body, request_headers, lower_case_collect_headers);
   }
 
  protected:
