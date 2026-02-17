@@ -81,7 +81,7 @@ struct MediaPlayerSupportedFormat {
 };
 
 // Base features always reported for all media players
-static const uint32_t BASE_MEDIA_PLAYER_FEATURES =
+static constexpr uint32_t BASE_MEDIA_PLAYER_FEATURES =
     MediaPlayerEntityFeature::PLAY_MEDIA | MediaPlayerEntityFeature::BROWSE_MEDIA | MediaPlayerEntityFeature::STOP |
     MediaPlayerEntityFeature::VOLUME_SET | MediaPlayerEntityFeature::VOLUME_MUTE |
     MediaPlayerEntityFeature::MEDIA_ANNOUNCE;
