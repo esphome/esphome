@@ -23,6 +23,8 @@ media_player:
       - media_player.stop:
       - media_player.stop:
           announcement: true
+    on_announcement:
+      - media_player.play:
     on_pause:
       - media_player.toggle:
       - media_player.turn_on:
