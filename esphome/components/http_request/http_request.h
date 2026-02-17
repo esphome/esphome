@@ -81,9 +81,10 @@ inline bool is_redirect(int const status) {
 inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && status < HTTP_STATUS_MULTIPLE_CHOICES; }
 
 /// Check if a header name should be collected (linear scan, fine for small lists)
-inline bool should_collect_header(const std::vector<std::string> &collect_headers, const std::string &header_name) {
+inline bool should_collect_header(const std::vector<std::string> &collect_headers,
+                                  const std::string &lower_header_name) {
   for (const auto &h : collect_headers) {
-    if (h == header_name)
+    if (h == lower_header_name)
       return true;
   }
   return false;
