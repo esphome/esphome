@@ -2030,7 +2030,7 @@ on_...:
 As outlined in the sections above, each widget type supports several of its own, unique actions.
 Several universal actions are also available for all widgets, these are outlined below.
 
-#### `lvgl.widget.update`
+#### `lvgl.widget.update` Action
 
 This powerful [action](/automations/actions#actions-action) allows changing/updating any widget's common [style property](/components/lvgl#lvgl-styling), state (templatable) or [flag](#lvgl-widget-flags) on the fly.
 
@@ -2059,7 +2059,7 @@ Check out in the Cookbook [Remote light button](/cookbook/lvgl#lvgl-cookbook-bin
 
 <span id="lvgl-automation-shorthands"></span>
 
-#### `lvgl.widget.hide`, `lvgl.widget.show`
+#### `lvgl.widget.hide` / `lvgl.widget.show` Action
 
 These [actions](/automations/actions#actions-action) are shorthands for toggling the `hidden` [flag](#lvgl-widget-flags) of any widget.
 
@@ -2077,7 +2077,7 @@ on_...:
         - id: [my_button_1, my_button_2]
 ```
 
-#### `lvgl.widget.disable`, `lvgl.widget.enable`
+#### `lvgl.widget.disable` / `lvgl.widget.enable` Action
 
 These [actions](/automations/actions#actions-action) are shorthands for toggling the `disabled` state of any widget (which controls the appearance of the corresponding *disabled* style set of the theme):
 

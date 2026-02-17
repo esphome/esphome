@@ -241,7 +241,7 @@ above configuration.
 
 The following actions are available.
 
-### `wireguard.disable`
+### `wireguard.disable` Action
 
 This action drops down the active VPN link (if any) and disables the component.
 
@@ -257,7 +257,7 @@ The lambda equivalent is `id(wireguard_id).disable()`.
 > To disable WireGuard® since device boot you can execute this action
 > in the [`on_boot`](/components/esphome#esphome-on_boot) step.
 
-### `wireguard.enable`
+### `wireguard.enable` Action
 
 This action enables the component and starts the connection to the remote peer.
 
@@ -275,7 +275,7 @@ The lambda equivalent is `id(wireguard_id).enable()`.
 
 The following conditions are available.
 
-### `wireguard.enabled`
+### `wireguard.enabled` Condition
 
 This condition checks if WireGuard® is currently enabled or not.
 
@@ -291,7 +291,7 @@ on_...:
 
 The lambda equivalent is `id(wireguard_id).is_enabled()`.
 
-### `wireguard.peer_online`
+### `wireguard.peer_online` Condition
 
 This condition checks if the remote peer is *online*.
 

@@ -510,7 +510,9 @@ display:
 
 You can then switch between these with three different actions:
 
-**show_next** / **show_previous**: Shows the next or previous page, wraps around at the end.
+### `display.page.show_next` / `display.page.show_previous` Action
+
+Shows the next or previous page, wraps around at the end.
 
 ```yaml
 on_...:
@@ -525,7 +527,9 @@ interval:
       - component.update: my_display
 ```
 
-**display.page.show**: Show a specific page
+### `display.page.show` Action
+
+Show a specific page.
 
 ```yaml
 on_...:
@@ -555,7 +559,9 @@ on_...:
 
 <span id="display-is_displaying_page-condition"></span>
 
-**display.is_displaying_page**: This condition returns true while the specified page is being shown.
+### `display.is_displaying_page` Condition
+
+This condition returns true while the specified page is being shown.
 
 ```yaml
 # In some trigger:

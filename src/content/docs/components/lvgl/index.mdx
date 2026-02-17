@@ -485,7 +485,7 @@ Feel free to experiment to discover inheritance and precedence of the styles bas
 
 [Theme and style definitions](/cookbook/lvgl#lvgl-cookbook-theme) The Cookbook contains an example which demonstrates how to implement a gradient style for your widgets.
 
-### `lvgl.style.update`
+### `lvgl.style.update` Action
 
 This [action](/automations/actions#actions-action) allows changing/updating the properties of a style at run time. This can be used to
 implement dynamic themes, e.g. light/dark mode, or to change the appearance of widgets based on user interaction.
@@ -559,7 +559,7 @@ Several actions are available for the LVGL component itself, these are outlined 
 
 <span id="lvgl-redraw-action"></span>
 
-### `lvgl.widget.redraw`
+### `lvgl.widget.redraw` Action
 
 This [action](/automations/actions#actions-action) redraws the entire screen, or optionally only selected widgets. It does not change
 any widget properties. It is mostly useful to redraw the screen after resuming LVGL from the paused state.
@@ -576,7 +576,7 @@ on_...:
 
 <span id="lvgl-refresh-action"></span>
 
-### `lvgl.widget.refresh`
+### `lvgl.widget.refresh` Action
 
 This [action](/automations/actions#actions-action) re-evaluates all properties specified with lambdas in the specified widget's configuration. This offers
 an alternative technique to using the `lvgl.widget.update` action, which updates specified properties.
@@ -598,7 +598,7 @@ on_...:
 
 <span id="lvgl-pause-action"></span>
 
-### `lvgl.pause`
+### `lvgl.pause` Action
 
 This [action](/automations/actions#actions-action) pauses the activity of LVGL, including rendering.
 
@@ -614,7 +614,7 @@ on_...:
 
 <span id="lvgl-resume-action"></span>
 
-### `lvgl.resume`
+### `lvgl.resume` Action
 
 This [action](/automations/actions#actions-action) resumes the activity of LVGL, including rendering.
 
@@ -626,7 +626,7 @@ on_...:
     - lvgl.resume:
 ```
 
-### `lvgl.update`
+### `lvgl.update` Action
 
 This [action](/automations/actions#actions-action) allows changing/updating the `disp_bg_color` or `disp_bg_image` configuration variables of the main component, making it possible to change the background color or wallpaper at any time.
 
@@ -642,7 +642,7 @@ on_...:
 
 <span id="lvgl-page-next-previous-action"></span>
 
-### `lvgl.page.next`, `lvgl.page.previous`
+### `lvgl.page.next` / `lvgl.page.previous` Action
 
 This [action](/automations/actions#actions-action) changes the page to the next/previous based on the configuration (pages with their `skip` option enabled are...skipped). Page changes will wrap around at the end.
 
@@ -665,7 +665,7 @@ on_...:
 
 <span id="lvgl-page-show-action"></span>
 
-### `lvgl.page.show`
+### `lvgl.page.show` Action
 
 This [action](/automations/actions#actions-action) shows a specific page (including pages with their `skip` option enabled).
 
@@ -686,7 +686,7 @@ on_...:
 
 <span id="lvgl-widget-focus-action"></span>
 
-### `lvgl.widget.focus`
+### `lvgl.widget.focus` Action
 
 This [action](/automations/actions#actions-action) moves the input focus to the nominated widget. Used mainly with encoder inputs
 to select a specific widget to receive input events. It may also allow the focus to be frozen on that widget,
@@ -737,7 +737,7 @@ on_...:
 
 <span id="lvgl-is-idle-condition"></span>
 
-### `lvgl.is_idle`
+### `lvgl.is_idle` Condition
 
 This [condition](/automations/actions#common_conditions) checks if the amount of time specified has passed since the last touch event.
 
@@ -760,7 +760,7 @@ on_...:
 
 <span id="lvgl-is-paused-condition"></span>
 
-### `lvgl.is_paused`
+### `lvgl.is_paused` Condition
 
 This [condition](/automations/actions#common_conditions) checks if LVGL is in the paused state or not.
 
@@ -776,7 +776,7 @@ on_...:
           - lvgl.resume:
 ```
 
-### `lvgl.page.is_showing`
+### `lvgl.page.is_showing` Condition
 
 This [condition](/automations/actions#common_conditions) checks if the nominated page is the one currently showing.
 
