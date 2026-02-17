@@ -398,12 +398,14 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(bool, capture_response)
 #endif
 
+  void init_request_headers(size_t count) { this->request_headers_.init(count); }
   void add_request_header(const char *key, TemplatableValue<const char *, Ts...> value) {
     this->request_headers_.push_back({key, value});
   }
 
   void add_collect_header(const char *value) { this->lower_case_collect_headers_.push_back(value); }
 
+  void init_json(size_t count) { this->json_.init(count); }
   void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.push_back({key, value}); }
 
   void set_json(std::function<void(Ts..., JsonObject)> json_func) { this->json_func_ = json_func; }
@@ -506,9 +508,9 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   }
   void encode_json_func_(Ts... x, JsonObject root) { this->json_func_(x..., root); }
   HttpRequestComponent *parent_;
-  std::vector<std::pair<const char *, TemplatableValue<const char *, Ts...>>> request_headers_{};
+  FixedVector<std::pair<const char *, TemplatableValue<const char *, Ts...>>> request_headers_{};
   std::vector<std::string> lower_case_collect_headers_{"content-type", "content-length"};
-  std::vector<std::pair<const char *, TemplatableValue<std::string, Ts...>>> json_{};
+  FixedVector<std::pair<const char *, TemplatableValue<std::string, Ts...>>> json_{};
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};
 #ifdef USE_HTTP_REQUEST_RESPONSE
   Trigger<std::shared_ptr<HttpContainer>, std::string &, Ts...> success_trigger_with_response_;
