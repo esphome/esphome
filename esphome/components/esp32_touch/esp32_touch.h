@@ -11,8 +11,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-namespace esphome {
-namespace esp32_touch {
+namespace esphome::esp32_touch {
 
 // IMPORTANT: Touch detection logic differs between ESP32 variants:
 // - ESP32 v1 (original): Touch detected when value < threshold (absolute threshold, capacitance increase causes
@@ -254,7 +253,6 @@ class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
   bool initial_state_published_{false};
 };
 
-}  // namespace esp32_touch
-}  // namespace esphome
+}  // namespace esphome::esp32_touch
 
 #endif

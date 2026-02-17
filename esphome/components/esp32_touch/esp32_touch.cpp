@@ -7,8 +7,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace esp32_touch {
+namespace esphome::esp32_touch {
 
 static const char *const TAG = "esp32_touch";
 
@@ -632,7 +631,6 @@ void ESP32TouchComponent::check_and_disable_loop_if_all_released_(size_t pads_of
   }
 }
 
-}  // namespace esp32_touch
-}  // namespace esphome
+}  // namespace esphome::esp32_touch
 
 #endif  // USE_ESP32
