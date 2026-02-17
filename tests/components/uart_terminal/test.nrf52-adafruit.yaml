@@ -1,7 +1,0 @@
-display:
-  - platform: uart_terminal
-    uart_id: uart_uart
-    id: my_lcd
-    dimensions: 20x4
-    lambda: |-
-      it.print("Uart terminal");
