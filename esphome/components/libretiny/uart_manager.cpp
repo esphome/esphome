@@ -124,4 +124,4 @@ const UartManager::UartInfo *UartManager::get_uart_by_number_(const uint8_t uart
 
 }  // namespace esphome::libretiny
 
-#endif // USE_LIBRETINY
+#endif  // USE_LIBRETINY

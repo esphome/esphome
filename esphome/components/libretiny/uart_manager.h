@@ -121,4 +121,4 @@ struct UartManager {
 
 }  // namespace esphome::libretiny
 
-#endif // USE_LIBRETINY
+#endif  // USE_LIBRETINY
