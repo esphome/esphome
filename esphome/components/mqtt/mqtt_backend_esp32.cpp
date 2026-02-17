@@ -86,9 +86,9 @@ void MQTTBackendESP32::disable() {
 
   esp_mqtt_client_handle_t client = this->handler_.get();
   if (client != nullptr) {
+    esp_mqtt_client_unregister_event(client, MQTT_EVENT_ANY, mqtt_event_handler);
     esp_mqtt_client_disconnect(client);
     esp_mqtt_client_stop(client);
-    esp_mqtt_client_unregister_event(client, MQTT_EVENT_ANY, mqtt_event_handler);
   }
 
 #if defined(USE_MQTT_IDF_ENQUEUE)
