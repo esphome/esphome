@@ -409,7 +409,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     this->request_headers_.insert({key, value});
   }
 
-  void add_collect_header(const char *value) { this->collect_headers_.push_back(str_lower_case(value)); }
+  void add_collect_header(const char *value) { this->collect_headers_.push_back(value); }
 
   void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.insert({key, value}); }
 
