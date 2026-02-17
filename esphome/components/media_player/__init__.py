@@ -188,42 +188,48 @@ async def media_player_play_media_action(config, action_id, template_arg, args):
     return var
 
 
-async def _media_player_command_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
-    cg.add(var.set_announcement(announcement))
-    return var
-
-
 def _snake_to_camel(name):
     return "".join(word.capitalize() for word in name.split("_"))
 
 
-for _action_name in _COMMAND_ACTIONS:
-    _class_name = f"{_snake_to_camel(_action_name)}Action"
-    _action_class = media_player_ns.class_(
-        _class_name, automation.Action, cg.Parented.template(MediaPlayer)
-    )
-    automation.register_action(
-        f"media_player.{_action_name}", _action_class, MEDIA_PLAYER_ACTION_SCHEMA
-    )(_media_player_command_action)
+def _register_command_actions():
+    async def handler(config, action_id, template_arg, args):
+        var = cg.new_Pvariable(action_id, template_arg)
+        await cg.register_parented(var, config[CONF_ID])
+        announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
+        cg.add(var.set_announcement(announcement))
+        return var
+
+    for action_name in _COMMAND_ACTIONS:
+        class_name = f"{_snake_to_camel(action_name)}Action"
+        action_class = media_player_ns.class_(
+            class_name, automation.Action, cg.Parented.template(MediaPlayer)
+        )
+        automation.register_action(
+            f"media_player.{action_name}", action_class, MEDIA_PLAYER_ACTION_SCHEMA
+        )(handler)
 
 
-async def _media_player_condition(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+_register_command_actions()
 
 
-for _condition_name in _STATE_CONDITIONS:
-    _class_name = f"Is{_snake_to_camel(_condition_name)}Condition"
-    _condition_class = media_player_ns.class_(_class_name, automation.Condition)
-    automation.register_condition(
-        f"media_player.is_{_condition_name}",
-        _condition_class,
-        MEDIA_PLAYER_CONDITION_SCHEMA,
-    )(_media_player_condition)
+def _register_state_conditions():
+    async def handler(config, action_id, template_arg, args):
+        var = cg.new_Pvariable(action_id, template_arg)
+        await cg.register_parented(var, config[CONF_ID])
+        return var
+
+    for condition_name in _STATE_CONDITIONS:
+        class_name = f"Is{_snake_to_camel(condition_name)}Condition"
+        condition_class = media_player_ns.class_(class_name, automation.Condition)
+        automation.register_condition(
+            f"media_player.is_{condition_name}",
+            condition_class,
+            MEDIA_PLAYER_CONDITION_SCHEMA,
+        )(handler)
+
+
+_register_state_conditions()
 
 
 @automation.register_action(
