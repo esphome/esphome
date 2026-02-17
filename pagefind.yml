@@ -1,8 +1,0 @@
-site: public
-output_path: pagefind
-exclude_selectors:
-  - "a.headerlink"
-  - ".toctree-wrapper"
-  - ".sphinxsidebar"
-  - ".breadcrumbs"
-glob: "{components,cookbook,guides,projects,web-api}/**/*.html"
