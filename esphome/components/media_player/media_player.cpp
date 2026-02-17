@@ -153,6 +153,30 @@ MediaPlayerCall &MediaPlayerCall::set_command(const char *command) {
     this->set_command(MEDIA_PLAYER_COMMAND_TURN_ON);
   } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TURN_OFF")) == 0) {
     this->set_command(MEDIA_PLAYER_COMMAND_TURN_OFF);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("VOLUME_UP")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_VOLUME_UP);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("VOLUME_DOWN")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_VOLUME_DOWN);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("ENQUEUE")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_ENQUEUE);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("REPEAT_ONE")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_REPEAT_ONE);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("REPEAT_OFF")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_REPEAT_OFF);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("REPEAT_ALL")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_REPEAT_ALL);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("CLEAR_PLAYLIST")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("NEXT")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_NEXT);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("PREVIOUS")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_PREVIOUS);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("SHUFFLE")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_SHUFFLE);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("UNSHUFFLE")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_UNSHUFFLE);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("GROUP_JOIN")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_GROUP_JOIN);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
   }
