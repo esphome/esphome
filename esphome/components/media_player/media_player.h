@@ -86,64 +86,29 @@ class MediaPlayerTraits {
  public:
   MediaPlayerTraits() = default;
 
-  void set_supports_pause(bool supports_pause) { this->supports_pause_ = supports_pause; }
-  bool get_supports_pause() const { return this->supports_pause_; }
+  // Base features always reported for all media players
+  static constexpr uint32_t BASE_FEATURES =
+      MediaPlayerEntityFeature::PLAY_MEDIA | MediaPlayerEntityFeature::BROWSE_MEDIA | MediaPlayerEntityFeature::STOP |
+      MediaPlayerEntityFeature::VOLUME_SET | MediaPlayerEntityFeature::VOLUME_MUTE |
+      MediaPlayerEntityFeature::MEDIA_ANNOUNCE;
 
-  void set_supports_turn_off_on(bool supports_turn_off_on) { this->supports_turn_off_on_ = supports_turn_off_on; }
-  bool get_supports_turn_off_on() const { return this->supports_turn_off_on_; }
-
-  void set_supports_next_previous(bool supports_next_previous) {
-    this->supports_next_previous_ = supports_next_previous;
-  }
-  bool get_supports_next_previous() const { return this->supports_next_previous_; }
-
-  void set_supports_repeat(bool supports_repeat) { this->supports_repeat_ = supports_repeat; }
-  bool get_supports_repeat() const { return this->supports_repeat_; }
-
-  void set_supports_shuffle(bool supports_shuffle) { this->supports_shuffle_ = supports_shuffle; }
-  bool get_supports_shuffle() const { return this->supports_shuffle_; }
-
-  void set_supports_clear_playlist(bool supports_clear_playlist) {
-    this->supports_clear_playlist_ = supports_clear_playlist;
-  }
-  bool get_supports_clear_playlist() const { return this->supports_clear_playlist_; }
+  void set_feature(MediaPlayerEntityFeature feature) { this->features_ |= feature; }
+  void clear_feature(MediaPlayerEntityFeature feature) { this->features_ &= ~feature; }
+  bool supports(MediaPlayerEntityFeature feature) const { return (this->features_ & feature) != 0; }
+  uint32_t get_feature_flags() const { return BASE_FEATURES | this->features_; }
 
   std::vector<MediaPlayerSupportedFormat> &get_supported_formats() { return this->supported_formats_; }
 
-  uint32_t get_feature_flags() const {
-    uint32_t flags = 0;
-    flags |= MediaPlayerEntityFeature::PLAY_MEDIA | MediaPlayerEntityFeature::BROWSE_MEDIA |
-             MediaPlayerEntityFeature::STOP | MediaPlayerEntityFeature::VOLUME_SET |
-             MediaPlayerEntityFeature::VOLUME_MUTE | MediaPlayerEntityFeature::MEDIA_ANNOUNCE;
-    if (this->get_supports_pause()) {
-      flags |= MediaPlayerEntityFeature::PAUSE | MediaPlayerEntityFeature::PLAY;
-    }
-    if (this->get_supports_turn_off_on()) {
-      flags |= MediaPlayerEntityFeature::TURN_OFF | MediaPlayerEntityFeature::TURN_ON;
-    }
-    if (this->get_supports_next_previous()) {
-      flags |= MediaPlayerEntityFeature::NEXT_TRACK | MediaPlayerEntityFeature::PREVIOUS_TRACK;
-    }
-    if (this->get_supports_repeat()) {
-      flags |= MediaPlayerEntityFeature::REPEAT_SET;
-    }
-    if (this->get_supports_shuffle()) {
-      flags |= MediaPlayerEntityFeature::SHUFFLE_SET;
-    }
-    if (this->get_supports_clear_playlist()) {
-      flags |= MediaPlayerEntityFeature::CLEAR_PLAYLIST;
-    }
-    return flags;
-  }
+  // Legacy setters/getters — kept for backward compatibility
+  void set_supports_pause(bool supports_pause);
+  bool get_supports_pause() const { return this->supports(MediaPlayerEntityFeature::PAUSE); }
+
+  void set_supports_turn_off_on(bool supports_turn_off_on);
+  bool get_supports_turn_off_on() const { return this->supports(MediaPlayerEntityFeature::TURN_ON); }
 
  protected:
   std::vector<MediaPlayerSupportedFormat> supported_formats_{};
-  bool supports_pause_{false};
-  bool supports_turn_off_on_{false};
-  bool supports_next_previous_{false};
-  bool supports_repeat_{false};
-  bool supports_shuffle_{false};
-  bool supports_clear_playlist_{false};
+  uint32_t features_{0};
 };
 
 class MediaPlayerCall {
