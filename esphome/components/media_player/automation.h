@@ -52,6 +52,8 @@ template<typename... Ts>
 using UnshuffleAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_UNSHUFFLE, Ts...>;
 template<typename... Ts>
 using GroupJoinAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_GROUP_JOIN, Ts...>;
+template<typename... Ts>
+using ClearPlaylistAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST, Ts...>;
 
 template<typename... Ts> class PlayMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(std::string, media_url)

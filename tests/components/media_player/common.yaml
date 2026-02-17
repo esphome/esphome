@@ -37,6 +37,7 @@ media_player:
       - media_player.shuffle:
       - media_player.unshuffle:
       - media_player.group_join:
+      - media_player.clear_playlist:
       - wait_until:
           media_player.is_idle:
       - wait_until:

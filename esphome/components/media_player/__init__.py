@@ -62,6 +62,7 @@ _COMMAND_ACTIONS = [
     "shuffle",
     "unshuffle",
     "group_join",
+    "clear_playlist",
 ]
 
 # State triggers: (config_key, C++ class name)
