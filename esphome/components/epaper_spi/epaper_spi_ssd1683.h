@@ -14,7 +14,7 @@ class EPaperSSD1683 : public EPaperMono {
 
  protected:
   void refresh_screen(bool partial) override;
-  virtual void set_window();
+  void set_window() override;
   bool transfer_data() override;
 };
 
