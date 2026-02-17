@@ -104,7 +104,9 @@ class MediaPlayerTraits {
   bool get_supports_pause() const { return this->has_feature_flags(MediaPlayerEntityFeature::PAUSE); }
 
   void set_supports_turn_off_on(bool supports_turn_off_on);
-  bool get_supports_turn_off_on() const { return this->has_feature_flags(MediaPlayerEntityFeature::TURN_ON); }
+  bool get_supports_turn_off_on() const {
+    return this->has_feature_flags(MediaPlayerEntityFeature::TURN_ON | MediaPlayerEntityFeature::TURN_OFF);
+  }
 
  protected:
   std::vector<MediaPlayerSupportedFormat> supported_formats_{};
