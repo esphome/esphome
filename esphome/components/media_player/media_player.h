@@ -80,22 +80,22 @@ struct MediaPlayerSupportedFormat {
   uint32_t sample_bytes;
 };
 
+// Base features always reported for all media players
+static constexpr uint32_t BASE_MEDIA_PLAYER_FEATURES =
+    MediaPlayerEntityFeature::PLAY_MEDIA | MediaPlayerEntityFeature::BROWSE_MEDIA | MediaPlayerEntityFeature::STOP |
+    MediaPlayerEntityFeature::VOLUME_SET | MediaPlayerEntityFeature::VOLUME_MUTE |
+    MediaPlayerEntityFeature::MEDIA_ANNOUNCE;
+
 class MediaPlayer;
 
 class MediaPlayerTraits {
  public:
   MediaPlayerTraits() = default;
 
-  // Base features always reported for all media players
-  static constexpr uint32_t BASE_FEATURES =
-      MediaPlayerEntityFeature::PLAY_MEDIA | MediaPlayerEntityFeature::BROWSE_MEDIA | MediaPlayerEntityFeature::STOP |
-      MediaPlayerEntityFeature::VOLUME_SET | MediaPlayerEntityFeature::VOLUME_MUTE |
-      MediaPlayerEntityFeature::MEDIA_ANNOUNCE;
-
   void set_feature(MediaPlayerEntityFeature feature) { this->features_ |= feature; }
   void clear_feature(MediaPlayerEntityFeature feature) { this->features_ &= ~feature; }
   bool supports(MediaPlayerEntityFeature feature) const { return (this->features_ & feature) != 0; }
-  uint32_t get_feature_flags() const { return BASE_FEATURES | this->features_; }
+  uint32_t get_feature_flags() const { return BASE_MEDIA_PLAYER_FEATURES | this->features_; }
 
   std::vector<MediaPlayerSupportedFormat> &get_supported_formats() { return this->supported_formats_; }
 
