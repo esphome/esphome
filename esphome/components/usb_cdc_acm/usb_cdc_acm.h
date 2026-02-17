@@ -17,7 +17,7 @@
 #endif
 
 #ifdef USE_UART_DEBUGGER
-using namespace esphome::uart;
+using namespace esphome::uart;  // NOLINT(google-global-names-in-headers)
 #endif
 
 namespace esphome::usb_cdc_acm {
