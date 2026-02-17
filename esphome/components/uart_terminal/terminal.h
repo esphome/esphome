@@ -14,6 +14,7 @@ class Terminal : public text_display::TextDisplay, public uart::UARTDevice {
  public:
   void set_writer(terminal_writer_t &&writer) { this->writer_ = std::move(writer); }
   void display() override;
+  void setup() override;
 
  protected:
   void call_writer() override { this->writer_(*this); }

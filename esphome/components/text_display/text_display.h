@@ -36,7 +36,6 @@ class TextDisplay : public PollingComponent {
   uint8_t columns_;
   uint8_t rows_;
   uint8_t *buffer_{nullptr};
-  void init_();
 };
 
 }  // namespace esphome::text_display
