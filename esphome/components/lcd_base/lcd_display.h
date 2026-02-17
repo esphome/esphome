@@ -18,6 +18,7 @@ class LCDDisplay : public text_display::TextDisplay {
 
   void setup() override;
   float get_setup_priority() const override;
+  void display() override;
 
   /// Evaluate the strftime-format and print the text at the specified column and row.
   void strftime(uint8_t column, uint8_t row, const char *format, ESPTime time) __attribute__((format(strftime, 4, 0)));

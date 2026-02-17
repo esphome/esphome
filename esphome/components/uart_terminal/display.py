@@ -7,9 +7,7 @@ AUTO_LOAD = ["text_display"]
 
 
 uart_terminal = cg.esphome_ns.namespace("uart_terminal")
-Terminal = uart_terminal.class_(
-    "Terminal", cg.PollingComponent, text_display.TextDisplay
-)
+Terminal = uart_terminal.class_("Terminal", text_display.TextDisplay)
 
 
 def validate_dimensions(value):
