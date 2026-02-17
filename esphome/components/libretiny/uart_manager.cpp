@@ -1,5 +1,7 @@
 #include "uart_manager.h"
 
+#ifdef USE_LIBRETINY
+
 namespace esphome::libretiny {
 
 void UartManager::deinit_all() {
@@ -121,3 +123,5 @@ const UartManager::UartInfo *UartManager::get_uart_by_number_(const uint8_t uart
 }
 
 }  // namespace esphome::libretiny
+
+#endif // USE_LIBRETINY

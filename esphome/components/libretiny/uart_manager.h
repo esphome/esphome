@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_LIBRETINY
+
 #include "esphome/core/helpers.h"
 
 #include <optional>
@@ -118,3 +120,5 @@ struct UartManager {
 };
 
 }  // namespace esphome::libretiny
+
+#endif // USE_LIBRETINY
