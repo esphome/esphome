@@ -16,8 +16,8 @@ static const char *const TAG = "esp32_touch";
 // V2/V3: called from ISR context
 // xQueueSendFromISR is safe from both contexts.
 
-bool IRAM_ATTR ESP32TouchComponent::on_active_cb_(touch_sensor_handle_t handle, const touch_active_event_data_t *event,
-                                                  void *ctx) {
+bool IRAM_ATTR ESP32TouchComponent::on_active_cb(touch_sensor_handle_t handle, const touch_active_event_data_t *event,
+                                                 void *ctx) {
   auto *comp = static_cast<ESP32TouchComponent *>(ctx);
   TouchEvent te{event->chan_id, true};
   BaseType_t higher = pdFALSE;
@@ -26,8 +26,8 @@ bool IRAM_ATTR ESP32TouchComponent::on_active_cb_(touch_sensor_handle_t handle, 
   return higher == pdTRUE;
 }
 
-bool IRAM_ATTR ESP32TouchComponent::on_inactive_cb_(touch_sensor_handle_t handle,
-                                                    const touch_inactive_event_data_t *event, void *ctx) {
+bool IRAM_ATTR ESP32TouchComponent::on_inactive_cb(touch_sensor_handle_t handle,
+                                                   const touch_inactive_event_data_t *event, void *ctx) {
   auto *comp = static_cast<ESP32TouchComponent *>(ctx);
   TouchEvent te{event->chan_id, false};
   BaseType_t higher = pdFALSE;
@@ -187,8 +187,8 @@ void ESP32TouchComponent::setup() {
 
   // Register callbacks
   touch_event_callbacks_t cbs = {};
-  cbs.on_active = on_active_cb_;
-  cbs.on_inactive = on_inactive_cb_;
+  cbs.on_active = on_active_cb;
+  cbs.on_inactive = on_inactive_cb;
   err = touch_sensor_register_callbacks(this->sens_handle_, &cbs, this);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to register callbacks: %s", esp_err_to_name(err));

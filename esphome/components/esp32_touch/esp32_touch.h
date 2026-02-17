@@ -120,8 +120,8 @@ class ESP32TouchComponent : public Component {
   void check_and_disable_loop_if_all_released_(size_t pads_off);
 
   // Unified callbacks for new API
-  static bool on_active_cb_(touch_sensor_handle_t handle, const touch_active_event_data_t *event, void *ctx);
-  static bool on_inactive_cb_(touch_sensor_handle_t handle, const touch_inactive_event_data_t *event, void *ctx);
+  static bool on_active_cb(touch_sensor_handle_t handle, const touch_active_event_data_t *event, void *ctx);
+  static bool on_inactive_cb(touch_sensor_handle_t handle, const touch_inactive_event_data_t *event, void *ctx);
 
   // Common members
   std::vector<ESP32TouchBinarySensor *> children_;
