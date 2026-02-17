@@ -202,7 +202,7 @@ template<> bool Decoder::do_operand_<Decoder::FEATURE_OPCODE>() {
 
 template<> bool Decoder::do_operand_<Decoder::OSD_STRING>() {
   char line[20];  // frame size() is at most 16
-  int i;
+  unsigned int i;
   for (i = 0; i < frame_.size() - offset_; i++) {
     line[i] = (char) (frame_[offset_ + i]);
   }
