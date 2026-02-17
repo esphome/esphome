@@ -15,8 +15,8 @@ class UARTBinarySensor : public uart::UARTDevice, public binary_sensor::BinarySe
  protected:
   void read_data_();
   std::vector<uint8_t> data_;
-  static size_t max_data_size_;
-  static std::vector<uint8_t> buffer_;
+  static size_t max_data_size;
+  static std::vector<uint8_t> buffer;
   bool first_entity_{};
 };
 

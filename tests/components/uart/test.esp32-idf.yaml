@@ -83,3 +83,8 @@ event:
     event_types:
       - "string_event_A": "*A#"
       - "bytes_event_B": [0x2A, 0x42, 0x23]
+
+binary_sensor:
+  - platform: uart
+    id: up
+    data: [0x1B, 0x5B, 0x41]
