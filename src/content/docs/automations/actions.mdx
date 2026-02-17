@@ -3,8 +3,7 @@ description: "Guide for building automations in ESPHome"
 title: "Actions, Triggers, Conditions"
 ---
 
-import { Content as AllActionsContent } from './all_actions.mdx';
-import { Content as AllConditionsContent } from './all_conditions.mdx';
+import AutomationList from "@components/AutomationList.astro";
 
 <span id="actions-triggers"></span>
 
@@ -497,13 +496,13 @@ on_...:
 
 ## All Actions
 
-<AllActionsContent />
+<AutomationList type="Action" />
 
 <span id="config-condition"></span>
 
 ## All Conditions
 
-<AllConditionsContent />
+<AutomationList type="Condition" />
 
 <span id="tips-and-tricks"></span>
 

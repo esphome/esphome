@@ -79,18 +79,24 @@ Additionally, you can use the `animation.next_frame`, `animation.prev_frame` or 
 
 ## Actions
 
-- **animation.next_frame**: Moves the animation to the next frame. This is equivalent to the
-  `id(my_animation).next_frame();` lambda call.
+### `animation.next_frame` Action
 
-  - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the animation to animate.
+Moves the animation to the next frame. This is equivalent to the
+`id(my_animation).next_frame();` lambda call.
 
-- **animation.prev_frame**: Moves the animation to the previous frame. This is equivalent to the
-  `id(my_animation).prev_frame();` lambda call.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the animation to animate.
 
-  - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the animation to animate.
+### `animation.prev_frame` Action
 
-- **animation.set_frame**: Moves the animation to a specific frame. This is equivalent to the
-  `id(my_animation).set_frame(frame);` lambda call.
+Moves the animation to the previous frame. This is equivalent to the
+`id(my_animation).prev_frame();` lambda call.
 
-  - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the animation to animate.
-  - **frame** (**Required**, int): The frame index to show next.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the animation to animate.
+
+### `animation.set_frame` Action
+
+Moves the animation to a specific frame. This is equivalent to the
+`id(my_animation).set_frame(frame);` lambda call.
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the animation to animate.
+- **frame** (**Required**, int): The frame index to show next.
