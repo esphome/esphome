@@ -120,6 +120,7 @@ IsAnnouncingCondition = media_player_ns.class_(
 )
 IsOnCondition = media_player_ns.class_("IsOnCondition", automation.Condition)
 IsOffCondition = media_player_ns.class_("IsOffCondition", automation.Condition)
+IsMutedCondition = media_player_ns.class_("IsMutedCondition", automation.Condition)
 
 
 async def setup_media_player_core_(var, config):
@@ -329,6 +330,9 @@ async def media_player_action(config, action_id, template_arg, args):
 )
 @automation.register_condition(
     "media_player.is_off", IsOffCondition, MEDIA_PLAYER_CONDITION_SCHEMA
+)
+@automation.register_condition(
+    "media_player.is_muted", IsMutedCondition, MEDIA_PLAYER_CONDITION_SCHEMA
 )
 async def media_player_condition(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

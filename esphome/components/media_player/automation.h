@@ -125,5 +125,10 @@ template<typename... Ts> class IsOffCondition : public Condition<Ts...>, public 
   bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_OFF; }
 };
 
+template<typename... Ts> class IsMutedCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+ public:
+  bool check(const Ts &...x) override { return this->parent_->is_muted(); }
+};
+
 }  // namespace media_player
 }  // namespace esphome
