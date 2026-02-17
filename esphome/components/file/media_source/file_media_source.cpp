@@ -5,6 +5,20 @@
 namespace esphome {
 namespace file {
 
+namespace {
+struct AudioSinkAdapter : public audio::AudioSinkCallback {
+  media_source::MediaSourceListener *listener;
+  media_source::MediaSource *source;
+  audio::AudioStreamInfo stream_info;
+  size_t pipeline;
+
+  size_t audio_sink_write(uint8_t *data, size_t length, TickType_t ticks_to_wait) override {
+    return this->listener->on_media_output(this->source, data, length, ticks_to_wait, this->stream_info,
+                                           this->pipeline);
+  }
+};
+}  // namespace
+
 static const uint32_t DECODE_TASK_STACK_SIZE = 3 * 1024;
 
 static const char *const TAG = "file_media_source";
@@ -302,6 +316,7 @@ void FileMediaSource::decode_task(void *params) {
 
     xEventGroupSetBits(ctx.event_group, EventGroupBits::TASK_RUNNING);
 
+    AudioSinkAdapter audio_sink;
     bool has_stream_info = false;
 
     while (true) {
@@ -343,15 +358,12 @@ void FileMediaSource::decode_task(void *params) {
           ESP_LOGD(TAG, "Pipeline %zu: Bits per sample: %d, Channels: %d, Sample rate: %d", pipeline,
                    stream_info.get_bits_per_sample(), stream_info.get_channels(), stream_info.get_sample_rate());
 
-          // Check if callback is set before using it
-          if (this_source->output_callback_) {
-            // Wrap the output callback to include stream info and pipeline
-            // The decoder's add_sink expects a 3-parameter callback, so we wrap it to add the 4th and 5th parameters
-            std::function<size_t(uint8_t *, size_t, TickType_t)> decoder_callback =
-                [this_source, stream_info, pipeline](uint8_t *data, size_t len, TickType_t ticks) {
-                  return this_source->output_callback_(data, len, ticks, stream_info, pipeline);
-                };
-            esp_err_t err = decoder->add_sink(std::move(decoder_callback));
+          if (this_source->get_listener() != nullptr) {
+            audio_sink.listener = this_source->get_listener();
+            audio_sink.source = this_source;
+            audio_sink.stream_info = stream_info;
+            audio_sink.pipeline = pipeline;
+            esp_err_t err = decoder->add_sink(&audio_sink);
             if (err != ESP_OK) {
               ESP_LOGE(TAG, "Pipeline %zu: Failed to add sink to decoder: %s", pipeline, esp_err_to_name(err));
               break;
@@ -359,7 +371,7 @@ void FileMediaSource::decode_task(void *params) {
             ESP_LOGD(TAG, "Pipeline %zu: Successfully added callback sink to decoder", pipeline);
           } else {
             ESP_LOGE(TAG,
-                     "Pipeline %zu: Output callback is not set! Make sure the FileMediaSource is added to "
+                     "Pipeline %zu: Listener is not set! Make sure the FileMediaSource is added to "
                      "media_sources in your YAML config",
                      pipeline);
             break;

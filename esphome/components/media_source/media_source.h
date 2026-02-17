@@ -4,7 +4,6 @@
 #include "esphome/core/helpers.h"
 
 #include <cstdint>
-#include <functional>
 #include <string>
 
 #ifdef USE_ESP32
@@ -50,6 +49,22 @@ struct MediaSourceCapabilities {
   bool supports_volume_control{false};  // Source needs volume notifications
   bool has_internal_playlist{false};    // Source manages its own playlist
   bool supports_group_join{false};      // Can join a group
+};
+
+// Forward declaration
+class MediaSource;
+
+/// @brief Interface for receiving callbacks from a MediaSource.
+/// Replaces std::function callbacks with a single listener pointer to minimize overhead.
+class MediaSourceListener {
+ public:
+  virtual size_t on_media_output(MediaSource *source, uint8_t *data, size_t length, TickType_t ticks_to_wait,
+                                 audio::AudioStreamInfo stream_info, size_t pipeline) = 0;
+  virtual void on_media_state_changed(MediaSource *source, MediaSourceState state, size_t pipeline) = 0;
+  virtual void on_capabilities_changed(MediaSource *source, MediaSourceCapabilities capabilities) = 0;
+  virtual void on_volume_request(MediaSource *source, float volume) = 0;
+  virtual void on_mute_request(MediaSource *source, bool is_muted) = 0;
+  virtual void on_play_uri_request(MediaSource *source, const std::string &uri, size_t pipeline) = 0;
 };
 
 /// @brief Abstract base class for media sources
@@ -121,59 +136,14 @@ class MediaSource {
   /// @brief Get the URI prefix this source handles
   const std::string &get_uri_prefix() const { return this->uri_prefix_; }
 
-  // === Callbacks: Source → Player ===
+  // === Listener: Source → Player ===
 
-  /// @brief Set callback for audio data output
-  /// Called when source has PCM audio data ready to play
-  /// @param callback Function that writes data to speaker, includes stream info and pipeline, returns bytes written
-  void set_output_callback(
-      std::function<size_t(MediaSource *, uint8_t *, size_t, TickType_t, audio::AudioStreamInfo, size_t)> &&callback) {
-    this->output_callback_ = [callback, this](uint8_t *data, size_t len, TickType_t ticks, audio::AudioStreamInfo info,
-                                              size_t pipeline) {
-      return callback(this, data, len, ticks, info, pipeline);
-    };
-  }
+  /// @brief Set the listener that receives callbacks from this source
+  /// @param listener Pointer to the MediaSourceListener implementation. Caller must ensure it outlives this source.
+  void set_listener(MediaSourceListener *listener) { this->listener_ = listener; }
 
-  /// @brief Set callback for state changes
-  /// Called whenever playback state changes (IDLE → PLAYING, etc.)
-  /// @param callback Function receiving source, new state, and pipeline index
-  void set_state_callback(std::function<void(MediaSource *, MediaSourceState, size_t)> &&callback) {
-    this->state_callback_ = [callback, this](MediaSourceState state, size_t pipeline) {
-      callback(this, state, pipeline);
-    };
-  }
-
-  /// @brief Set callback for capability changes
-  /// Called when source capabilities change dynamically
-  void set_capabilities_callback(std::function<void(MediaSource *, MediaSourceCapabilities)> &&callback) {
-    this->capabilities_callback_ = [callback, this](MediaSourceCapabilities caps) { callback(this, caps); };
-  }
-
-  // === Callbacks: Source → Player (Smart Sources Only) ===
-
-  /// @brief Set callback for volume change requests
-  /// Used by smart sources (e.g., snapcast) to request volume changes from the player
-  /// The player will then call notify_volume_changed() on all sources
-  void set_volume_request_callback(std::function<void(MediaSource *, float)> &&callback) {
-    this->volume_request_callback_ = [callback, this](float volume) { callback(this, volume); };
-  }
-
-  /// @brief Set callback for mute state change requests
-  /// Used by smart sources (e.g., snapcast) to request mute state changes from the player
-  /// The player will then call notify_mute_changed() on all sources
-  void set_mute_request_callback(std::function<void(MediaSource *, bool)> &&callback) {
-    this->mute_request_callback_ = [callback, this](bool is_muted) { callback(this, is_muted); };
-  }
-
-  /// @brief Set callback for play URI requests
-  /// Used by smart sources to request the player start playing a specific URI
-  /// The URI may be routed to a different source (e.g., server requests HTTP stream)
-  /// @param callback Function receiving source, URI string, and pipeline index
-  void set_play_uri_request_callback(std::function<void(MediaSource *, const std::string &, size_t)> &&callback) {
-    this->play_uri_request_callback_ = [callback, this](const std::string &uri, size_t pipeline) {
-      callback(this, uri, pipeline);
-    };
-  }
+  /// @brief Get the current listener
+  MediaSourceListener *get_listener() const { return this->listener_; }
 
   // === Callbacks: Player → Source ===
 
@@ -197,7 +167,7 @@ class MediaSource {
   virtual void notify_audio_played(uint32_t frames, int64_t timestamp, size_t pipeline) {}
 
  protected:
-  /// @brief Helper to update state and trigger callback for a specific pipeline
+  /// @brief Helper to update state and notify listener for a specific pipeline
   /// Sources should use this instead of directly modifying pipeline_states_
   /// @param state New state to set
   /// @param pipeline Pipeline index to update
@@ -205,8 +175,8 @@ class MediaSource {
     if (pipeline < this->pipeline_states_.size()) {
       if (this->pipeline_states_[pipeline] != state) {
         this->pipeline_states_[pipeline] = state;
-        if (this->state_callback_) {
-          this->state_callback_(state, pipeline);
+        if (this->listener_ != nullptr) {
+          this->listener_->on_media_state_changed(this, state, pipeline);
         }
       }
     }
@@ -214,14 +184,7 @@ class MediaSource {
 
   std::string uri_prefix_;
   FixedVector<MediaSourceState> pipeline_states_;
-
-  // Callbacks to MediaPlayer
-  std::function<size_t(uint8_t *, size_t, TickType_t, audio::AudioStreamInfo, size_t)> output_callback_;
-  std::function<void(MediaSourceState, size_t)> state_callback_;
-  std::function<void(MediaSourceCapabilities)> capabilities_callback_;
-  std::function<void(float)> volume_request_callback_;
-  std::function<void(bool)> mute_request_callback_;
-  std::function<void(const std::string &, size_t)> play_uri_request_callback_;
+  MediaSourceListener *listener_{nullptr};
 };
 
 }  // namespace media_source

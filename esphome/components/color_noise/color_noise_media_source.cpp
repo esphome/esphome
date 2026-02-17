@@ -7,6 +7,20 @@
 namespace esphome {
 namespace color_noise {
 
+namespace {
+struct AudioSinkAdapter : public audio::AudioSinkCallback {
+  media_source::MediaSourceListener *listener;
+  media_source::MediaSource *source;
+  audio::AudioStreamInfo stream_info;
+  size_t pipeline;
+
+  size_t audio_sink_write(uint8_t *data, size_t length, TickType_t ticks_to_wait) override {
+    return this->listener->on_media_output(this->source, data, length, ticks_to_wait, this->stream_info,
+                                           this->pipeline);
+  }
+};
+}  // namespace
+
 static const uint32_t GENERATE_TASK_STACK_SIZE = 3 * 1024;
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;
 
@@ -454,10 +468,10 @@ void ColorNoiseMediaSource::generate_task(void *params) {
     ESP_LOGD(TAG, "Pipeline %zu: Bits per sample: %d, Channels: %d, Sample rate: %u", pipeline,
              stream_info.get_bits_per_sample(), stream_info.get_channels(), stream_info.get_sample_rate());
 
-    // Check if callback is set before using it
-    if (!this_source->output_callback_) {
+    // Check if listener is set before using it
+    if (this_source->get_listener() == nullptr) {
       ESP_LOGE(TAG,
-               "Pipeline %zu: Output callback is not set! Make sure the ColorNoiseMediaSource is added to "
+               "Pipeline %zu: Listener is not set! Make sure the ColorNoiseMediaSource is added to "
                "media_sources in your YAML config",
                pipeline);
       xEventGroupSetBits(ctx.event_group, EventGroupBits::TASK_STOPPED);
@@ -477,12 +491,12 @@ void ColorNoiseMediaSource::generate_task(void *params) {
       }
     }
 
-    // Wrap the output callback to include stream info and pipeline
-    std::function<size_t(uint8_t *, size_t, TickType_t)> wrapped_callback =
-        [this_source, stream_info, pipeline](uint8_t *data, size_t len, TickType_t ticks) {
-          return this_source->output_callback_(data, len, ticks, stream_info, pipeline);
-        };
-    output_buffer->set_sink(std::move(wrapped_callback));
+    AudioSinkAdapter audio_sink;
+    audio_sink.listener = this_source->get_listener();
+    audio_sink.source = this_source;
+    audio_sink.stream_info = stream_info;
+    audio_sink.pipeline = pipeline;
+    output_buffer->set_sink(&audio_sink);
 
     // Initialize PRNG state with seed
     uint32_t prng_state = ctx.seed;

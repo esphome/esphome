@@ -89,7 +89,9 @@ struct VolumeRestoreState {
   bool is_muted;
 };
 
-class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPlayer {
+class SpeakerSourceMediaPlayer : public Component,
+                                 public media_player::MediaPlayer,
+                                 public media_source::MediaSourceListener {
  public:
   float get_setup_priority() const override { return esphome::setup_priority::PROCESSOR; }
   void setup() override;
@@ -98,6 +100,17 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   // MediaPlayer implementations
   media_player::MediaPlayerTraits get_traits() override;
   bool is_muted() const override { return this->is_muted_; }
+
+  // MediaSourceListener implementations
+  size_t on_media_output(media_source::MediaSource *source, uint8_t *data, size_t length, TickType_t ticks,
+                         audio::AudioStreamInfo stream_info, size_t pipeline) override;
+  void on_media_state_changed(media_source::MediaSource *source, media_source::MediaSourceState state,
+                              size_t pipeline) override;
+  void on_capabilities_changed(media_source::MediaSource *source,
+                               media_source::MediaSourceCapabilities capabilities) override;
+  void on_volume_request(media_source::MediaSource *source, float volume) override;
+  void on_mute_request(media_source::MediaSource *source, bool is_muted) override;
+  void on_play_uri_request(media_source::MediaSource *source, const std::string &uri, size_t pipeline) override;
 
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
@@ -124,14 +137,7 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   void set_playlist_delay_ms(size_t pipeline, uint32_t delay_ms);
 
  protected:
-  size_t handle_media_output_callback_(media_source::MediaSource *source, uint8_t *data, size_t length,
-                                       TickType_t ticks, audio::AudioStreamInfo stream_info, size_t pipeline);
-  void handle_media_state_callback_(media_source::MediaSource *source, media_source::MediaSourceState state,
-                                    size_t pipeline);
   void handle_speaker_playback_callback_(uint32_t frames, int64_t timestamp, size_t pipeline);
-  void handle_volume_request_(media_source::MediaSource *source, float volume);
-  void handle_mute_request_(media_source::MediaSource *source, bool is_muted);
-  void handle_play_uri_request_(media_source::MediaSource *source, const std::string &uri, size_t pipeline);
 
   // Receives commands from HA or from the voice assistant component
   // Sends commands to the media_control_commanda_queue_

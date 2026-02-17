@@ -38,31 +38,10 @@ void SpeakerSourceMediaPlayer::setup() {
     pipeline_count = 2;
   }
 
-  // Initialize all sources with the pipeline count
+  // Initialize all sources with the pipeline count and register this player as their listener
   for (auto *media_source : this->media_sources_) {
     media_source->init_pipelines(pipeline_count);
-
-    media_source->set_output_callback([this](media_source::MediaSource *src, uint8_t *data, size_t len,
-                                             TickType_t ticks, audio::AudioStreamInfo stream_info, size_t pipeline) {
-      return this->handle_media_output_callback_(src, data, len, ticks, stream_info, pipeline);
-    });
-    media_source->set_state_callback(
-        [this](media_source::MediaSource *src, media_source::MediaSourceState state, size_t pipeline) {
-          this->handle_media_state_callback_(src, state, pipeline);
-        });
-
-    // Set volume and mute request callbacks for sources that support volume control
-    if (media_source->get_capabilities().supports_volume_control) {
-      media_source->set_volume_request_callback(
-          [this](media_source::MediaSource *src, float volume) { this->handle_volume_request_(src, volume); });
-      media_source->set_mute_request_callback(
-          [this](media_source::MediaSource *src, bool is_muted) { this->handle_mute_request_(src, is_muted); });
-    }
-
-    media_source->set_play_uri_request_callback(
-        [this](media_source::MediaSource *src, const std::string &uri, size_t pipeline) {
-          this->handle_play_uri_request_(src, uri, pipeline);
-        });
+    media_source->set_listener(this);
   }
 
   // Register callbacks to receive playback notifications from speakers
@@ -105,20 +84,20 @@ void SpeakerSourceMediaPlayer::handle_speaker_playback_callback_(uint32_t frames
   }
 }
 
-void SpeakerSourceMediaPlayer::handle_volume_request_(media_source::MediaSource *source, float volume) {
+void SpeakerSourceMediaPlayer::on_volume_request(media_source::MediaSource *source, float volume) {
   // Update the media player's volume
   this->set_volume_(volume);
   this->publish_state();
 }
 
-void SpeakerSourceMediaPlayer::handle_mute_request_(media_source::MediaSource *source, bool is_muted) {
+void SpeakerSourceMediaPlayer::on_mute_request(media_source::MediaSource *source, bool is_muted) {
   // Update the media player's mute state
   this->set_mute_state_(is_muted);
   this->publish_state();
 }
 
-void SpeakerSourceMediaPlayer::handle_play_uri_request_(media_source::MediaSource *source, const std::string &uri,
-                                                        size_t pipeline) {
+void SpeakerSourceMediaPlayer::on_play_uri_request(media_source::MediaSource *source, const std::string &uri,
+                                                   size_t pipeline) {
   // Smart source is requesting the player to play a different URI
   // This may route to a different source based on URI prefix
   auto call = this->make_call();
@@ -127,8 +106,13 @@ void SpeakerSourceMediaPlayer::handle_play_uri_request_(media_source::MediaSourc
   call.perform();
 }
 
-void SpeakerSourceMediaPlayer::handle_media_state_callback_(media_source::MediaSource *source,
-                                                            media_source::MediaSourceState state, size_t pipeline) {
+void SpeakerSourceMediaPlayer::on_capabilities_changed(media_source::MediaSource *source,
+                                                       media_source::MediaSourceCapabilities capabilities) {
+  // Currently unused - capabilities are queried on demand
+}
+
+void SpeakerSourceMediaPlayer::on_media_state_changed(media_source::MediaSource *source,
+                                                      media_source::MediaSourceState state, size_t pipeline) {
   PipelineState &ps = this->pipelines_[pipeline];
 
   if (state == media_source::MediaSourceState::IDLE) {
@@ -159,9 +143,9 @@ void SpeakerSourceMediaPlayer::handle_media_state_callback_(media_source::MediaS
   }
 }
 
-size_t SpeakerSourceMediaPlayer::handle_media_output_callback_(media_source::MediaSource *source, uint8_t *data,
-                                                               size_t length, TickType_t ticks,
-                                                               audio::AudioStreamInfo stream_info, size_t pipeline) {
+size_t SpeakerSourceMediaPlayer::on_media_output(media_source::MediaSource *source, uint8_t *data, size_t length,
+                                                 TickType_t ticks, audio::AudioStreamInfo stream_info,
+                                                 size_t pipeline) {
   PipelineState &ps = this->pipelines_[pipeline];
 
   if (!ps.is_configured()) {
