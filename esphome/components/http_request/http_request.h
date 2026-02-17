@@ -363,12 +363,8 @@ class HttpRequestComponent : public Component {
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::list<Header> &request_headers,
                                        const std::set<std::string> &collect_headers) {
-    std::vector<std::string> lower_case_collect_headers;
-    lower_case_collect_headers.reserve(collect_headers.size());
-    for (const std::string &collect_header : collect_headers) {
-      lower_case_collect_headers.push_back(str_lower_case(collect_header));
-    }
-    return this->perform(url, method, body, request_headers, lower_case_collect_headers);
+    return this->start(url, method, body, request_headers,
+                       std::vector<std::string>(collect_headers.begin(), collect_headers.end()));
   }
 
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
