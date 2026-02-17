@@ -19,7 +19,7 @@ static const char *const TAG = "http_request.host";
 std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, const std::string &method,
                                                         const std::string &body,
                                                         const std::list<Header> &request_headers,
-                                                        const std::vector<std::string> &response_headers) {
+                                                        const std::vector<std::string> &collect_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
@@ -116,7 +116,7 @@ std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, 
   for (auto header : response.headers) {
     ESP_LOGD(TAG, "Header: %s: %s", header.first.c_str(), header.second.c_str());
     auto lower_name = str_lower_case(header.first);
-    if (should_collect_header(response_headers, lower_name)) {
+    if (should_collect_header(collect_headers, lower_name)) {
       container->response_headers_.push_back({lower_name, header.second});
     }
   }
