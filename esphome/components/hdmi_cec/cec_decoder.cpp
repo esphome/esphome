@@ -202,9 +202,12 @@ template<> bool Decoder::do_operand_<Decoder::FEATURE_OPCODE>() {
 
 template<> bool Decoder::do_operand_<Decoder::OSD_STRING>() {
   char line[20];  // frame size() is at most 16
-  // copy with typecast and append '\0' char to terminate string
-  std::snprintf(line, frame_.size() - offset_ + 1, "%s", reinterpret_cast<const char *>(frame_.data() + offset_));
-  offset_ = frame_.size();
+  int i;
+  for (i = 0; i < frame_.size() - offset_; i++) {
+    line[i] = (char) (frame_[offset_ + i]);
+  }
+  line[i] = '\0';           // append '\0' termination: that is likely NOT part of the frame
+  offset_ = frame_.size();  // no useful data further in this frame
   return append_operand_(line);
 }
 
@@ -237,11 +240,11 @@ template<> bool Decoder::do_operand_<Decoder::SHORT_AUDIO_DESCRIPTOR>() {
   uint32_t pos = 0;
   bool ok = true;
   while (ok && (offset_ + 2 < frame_.size())) {
-    const uint8_t *descriptor = frame_.data() + offset_;
-    uint8_t format = (descriptor[0] >> 3) & 0x0F;
+    const uint8_t descriptor = frame_[offset_];
+    uint8_t format = (descriptor >> 3) & 0x0F;
     pos = buf_append_printf(&line[0], line.size(), 0, "%s", AUDIO_FORMATS[format]);
-    pos = buf_append_printf(&line[0], line.size(), pos, ",num_channels=%d", (descriptor[0] & 0x07));
-    uint8_t rates = descriptor[1];
+    pos = buf_append_printf(&line[0], line.size(), pos, ",num_channels=%d", (descriptor & 0x07));
+    uint8_t rates = frame_[offset_ + 1];
     for (int bit = 0; rates; bit++, rates >>= 1) {
       if (rates & 0x1) {
         // show support of various audio sample rates
@@ -250,7 +253,7 @@ template<> bool Decoder::do_operand_<Decoder::SHORT_AUDIO_DESCRIPTOR>() {
     }
     if (format == 1) {
       // for LPCM format
-      uint8_t widths = descriptor[2] & 0x7;
+      uint8_t widths = frame_[offset_ + 2] & 0x7;
       for (int i = 0; widths; i++, widths >>= 1) {
         if (widths & 0x1) {
           // show support of audio samble bit widths of 16, 20, and/or 24

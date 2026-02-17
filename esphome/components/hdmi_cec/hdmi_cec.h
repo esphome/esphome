@@ -19,26 +19,37 @@ namespace hdmi_cec {
 
 class MessageTrigger;
 
-constexpr static int MAX_FRAME_LENGTH = 16;  // max length of a message from HDMI CEC standard 1.4
-
-class Frame : public std::array<uint8_t, MAX_FRAME_LENGTH> {
+/**
+ * A Frame stores an HDMI-CEC bus message as sequence of bytes with variable length.
+ * Such bus message is either received or to be transmitted.
+ * The naming 'frame' corresponds to the nomenclature in the HDMI-CEC standard.
+ * A frame contains one 'header' byte and a variable number of 'payload' bytes.
+ * The HDMI CEC standard 1.4 specifies a maximum length of 16 for any frame.
+ * Filling a frame with 'push_back' in an ISR shall not cause dynamic memory allocation.
+ */
+class Frame {
  public:
   Frame() = default;
   Frame(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload);
-  uint8_t initiator_addr() const { return (this->at(0) >> 4) & 0xf; }
-  uint8_t destination_addr() const { return this->at(0) & 0xf; }
-  uint8_t opcode() const { return (this->size() >= 2) ? this->at(1) : 0; }
+  void set_header(uint8_t initiator_addr, uint8_t target_addr);
+  uint8_t initiator_addr() const { return (data_[0] >> 4) & 0xf; }
+  uint8_t destination_addr() const { return data_[0] & 0xf; }
+  uint8_t opcode() const { return (this->size() >= 2) ? data_[1] : 0; }
   bool is_broadcast() const { return this->destination_addr() == 0xf; }
   uint8_t size() const { return size_; }
+  uint8_t at(unsigned int i) const { return (i < size_) ? data_[i] : 0; }
+  uint8_t operator[](unsigned int i) const { return at(i); }
   void clear() { size_ = 0; }
   void push_back(uint8_t data) {
-    if (size_ < MAX_FRAME_LENGTH) {
-      this->at(size_++) = data;
+    if (size_ < data_.size()) {
+      data_[size_++] = data;
     }
   }
   std::string to_string() const;  // NOLINT
+  constexpr static int MAX_LENGTH = 16;
 
  protected:
+  std::array<uint8_t, MAX_LENGTH> data_;
   uint8_t size_{0};
 };
 

@@ -37,20 +37,26 @@ static constexpr gpio::Flags PIN_MODE_FLAGS =
     gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 
 Frame::Frame(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload) {
-  this->at(0) = ((initiator_addr & 0xf) << 4) | (target_addr & 0xf);  // header byte
-  size_ = std::min((int) (1 + payload.size()), MAX_FRAME_LENGTH);
-  std::memcpy(this->data() + 1, payload.data(), size_ - 1);  // payload bytes, not exceeding capacity
+  this->set_header(initiator_addr, target_addr);
+  size_ = std::min(1 + payload.size(), data_.size());  // size of header plus payload in frame
+  for (int i = 1; i < size_; i++)
+    data_[i] = payload[i - 1];
+}
+
+void Frame::set_header(uint8_t initiator_addr, uint8_t target_addr) {
+  data_[0] = ((initiator_addr & 0xf) << 4) | (target_addr & 0xf);
+  if (size_ < 1)
+    size_ = 1;
 }
 
 std::string Frame::to_string() const {
   std::string result;
   char part_buffer[3];
-  for (auto it = this->cbegin(); it != this->cend(); it++) {
-    uint8_t byte_value = *it;
-    snprintf(part_buffer, sizeof(part_buffer), "%02X", byte_value);
+  for (int i = 0; i < size_; i++) {
+    snprintf(part_buffer, sizeof(part_buffer), "%02X", this->at(i));
     result += part_buffer;
 
-    if (it != (this->end() - 1)) {
+    if (i < size_ - 1) {
       result += ":";
     }
   }
@@ -109,7 +115,9 @@ void HDMICEC::handle_received_message_(const Frame *frame) {
   auto frame_str = frame->to_string();
   ESP_LOGD(TAG, "Received: %s", frame_str.c_str());
 
-  std::vector<uint8_t> data(frame->begin() + 1, frame->end());
+  std::vector<uint8_t> data(frame->size() - 1);
+  for (int i = 1; i < frame->size(); i++)
+    data[i - 1] = frame->at(i);
 
   // Process on_message triggers
   bool handled_by_trigger = false;
@@ -405,11 +413,11 @@ bool CECTransmit::transmit_my_address_(const uint8_t initiator_addr) {
 
 void CECTransmit::transmit_message_on_gpio_(const Frame &frame) {
   // for each byte of the frame:
-  for (auto it = frame.begin(); it != frame.end(); ++it) {
-    uint8_t current_byte = *it;
+  for (int byte_inx = 0; byte_inx < frame.size(); byte_inx++) {
+    uint8_t current_byte = frame.at(byte_inx);
 
     // 1. send the current byte
-    bool partial_first_byte = (it == frame.begin());
+    bool partial_first_byte = (byte_inx == 0);
     for (int8_t i = (partial_first_byte ? 3 : 7); i >= 0; i--) {
       // send MSB (Most Significant Bit) first
       bool bit_value = ((current_byte >> i) & 0b1);
@@ -417,7 +425,7 @@ void CECTransmit::transmit_message_on_gpio_(const Frame &frame) {
     }
 
     // 2. send EOM (End Of Frame) bit (logic 1 if this is the last byte of the frame)
-    bool is_eom = (it == (frame.end() - 1));
+    bool is_eom = (byte_inx == frame.size() - 1);
     send_bit_(is_eom);
 
     // 3. send ACK (Acknowledge) bit
