@@ -42,7 +42,7 @@ class GPIOLCDDisplay : public lcd_base::LCDDisplay {
   void write_n_bits(uint8_t value, uint8_t n) override;
   void send(uint8_t value, bool rs) override;
 
-  void call_writer_() override { this->writer_(*this); }
+  void call_writer() override { this->writer_(*this); }
 
   GPIOPin *rs_pin_{nullptr};
   GPIOPin *rw_pin_{nullptr};

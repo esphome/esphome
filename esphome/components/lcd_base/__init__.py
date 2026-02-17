@@ -3,6 +3,8 @@ from esphome.components import display
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_DIMENSIONS, CONF_POSITION
 
+AUTO_LOAD = "text_display"
+
 CONF_USER_CHARACTERS = "user_characters"
 
 lcd_base_ns = cg.esphome_ns.namespace("lcd_base")
