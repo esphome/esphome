@@ -81,7 +81,7 @@ struct MediaPlayerSupportedFormat {
 };
 
 // Base features always reported for all media players
-static constexpr uint32_t BASE_MEDIA_PLAYER_FEATURES =
+static const uint32_t BASE_MEDIA_PLAYER_FEATURES =
     MediaPlayerEntityFeature::PLAY_MEDIA | MediaPlayerEntityFeature::BROWSE_MEDIA | MediaPlayerEntityFeature::STOP |
     MediaPlayerEntityFeature::VOLUME_SET | MediaPlayerEntityFeature::VOLUME_MUTE |
     MediaPlayerEntityFeature::MEDIA_ANNOUNCE;
@@ -99,7 +99,7 @@ class MediaPlayerTraits {
 
   std::vector<MediaPlayerSupportedFormat> &get_supported_formats() { return this->supported_formats_; }
 
-  // Legacy setters/getters — kept for backward compatibility
+  // Legacy setters/getters are kept for backward compatibility
   void set_supports_pause(bool supports_pause);
   bool get_supports_pause() const { return this->supports(MediaPlayerEntityFeature::PAUSE); }
 
