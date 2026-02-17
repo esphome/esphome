@@ -189,6 +189,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   void loop() override;
   void dump_config() override;
   void update() override;
+  void set_warnings_update_interval(uint32_t interval) { this->warnings_update_interval_ = interval; }
 
  protected:
   static const size_t PIPSOLAR_READ_BUFFER_LENGTH = 128;  // maximum supported answer length
@@ -222,6 +223,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   void read_int_sensor_(const char *message, size_t *pos, sensor::Sensor *sensor);
 
   void publish_binary_sensor_(esphome::optional<bool> b, binary_sensor::BinarySensor *sensor);
+  void request_poll_update_(ENUMPollingCommand polling_command);
 
   esphome::optional<bool> get_bit_(std::string bits, uint8_t bit_pos);
 
@@ -243,6 +245,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
 
   uint8_t last_polling_command_ = 0;
   PollingCommand enabled_polling_commands_[POLLING_COMMANDS_MAX];
+  uint32_t warnings_update_interval_{0};
 };
 
 }  // namespace esphome::pipsolar
