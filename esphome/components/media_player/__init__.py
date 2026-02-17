@@ -36,66 +36,35 @@ MEDIA_PLAYER_FORMAT_PURPOSE_ENUM = {
 }
 
 
-PlayAction = media_player_ns.class_(
-    "PlayAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
 PlayMediaAction = media_player_ns.class_(
     "PlayMediaAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-ToggleAction = media_player_ns.class_(
-    "ToggleAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-PauseAction = media_player_ns.class_(
-    "PauseAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-StopAction = media_player_ns.class_(
-    "StopAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-VolumeUpAction = media_player_ns.class_(
-    "VolumeUpAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-VolumeDownAction = media_player_ns.class_(
-    "VolumeDownAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
 VolumeSetAction = media_player_ns.class_(
     "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
-TurnOnAction = media_player_ns.class_(
-    "TurnOnAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-TurnOffAction = media_player_ns.class_(
-    "TurnOffAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-NextAction = media_player_ns.class_(
-    "NextAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-PreviousAction = media_player_ns.class_(
-    "PreviousAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-MuteAction = media_player_ns.class_(
-    "MuteAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-UnmuteAction = media_player_ns.class_(
-    "UnmuteAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-RepeatOffAction = media_player_ns.class_(
-    "RepeatOffAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-RepeatOneAction = media_player_ns.class_(
-    "RepeatOneAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-RepeatAllAction = media_player_ns.class_(
-    "RepeatAllAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-ShuffleAction = media_player_ns.class_(
-    "ShuffleAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-UnshuffleAction = media_player_ns.class_(
-    "UnshuffleAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-GroupJoinAction = media_player_ns.class_(
-    "GroupJoinAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
+
+# Command actions that all share the same schema and codegen handler
+# Maps YAML action name suffix to C++ class name
+_COMMAND_ACTIONS = [
+    "play",
+    "pause",
+    "stop",
+    "toggle",
+    "volume_up",
+    "volume_down",
+    "turn_on",
+    "turn_off",
+    "next",
+    "previous",
+    "mute",
+    "unmute",
+    "repeat_off",
+    "repeat_one",
+    "repeat_all",
+    "shuffle",
+    "unshuffle",
+    "group_join",
+]
 
 CONF_ANNOUNCEMENT = "announcement"
 CONF_ON_PLAY = "on_play"
@@ -112,15 +81,17 @@ AnnoucementTrigger = media_player_ns.class_(
 )
 OnTrigger = media_player_ns.class_("OnTrigger", automation.Trigger.template())
 OffTrigger = media_player_ns.class_("OffTrigger", automation.Trigger.template())
-IsIdleCondition = media_player_ns.class_("IsIdleCondition", automation.Condition)
-IsPausedCondition = media_player_ns.class_("IsPausedCondition", automation.Condition)
-IsPlayingCondition = media_player_ns.class_("IsPlayingCondition", automation.Condition)
-IsAnnouncingCondition = media_player_ns.class_(
-    "IsAnnouncingCondition", automation.Condition
-)
-IsOnCondition = media_player_ns.class_("IsOnCondition", automation.Condition)
-IsOffCondition = media_player_ns.class_("IsOffCondition", automation.Condition)
-IsMutedCondition = media_player_ns.class_("IsMutedCondition", automation.Condition)
+# State conditions that all share the same schema and codegen handler
+# Maps YAML condition name suffix to C++ class name
+_STATE_CONDITIONS = [
+    "idle",
+    "paused",
+    "playing",
+    "announcing",
+    "on",
+    "off",
+    "muted",
+]
 
 
 async def setup_media_player_core_(var, config):
@@ -259,53 +230,7 @@ async def media_player_play_media_action(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action("media_player.play", PlayAction, MEDIA_PLAYER_ACTION_SCHEMA)
-@automation.register_action(
-    "media_player.toggle", ToggleAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.pause", PauseAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action("media_player.stop", StopAction, MEDIA_PLAYER_ACTION_SCHEMA)
-@automation.register_action(
-    "media_player.volume_up", VolumeUpAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.volume_down", VolumeDownAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.turn_on", TurnOnAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.turn_off", TurnOffAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action("media_player.next", NextAction, MEDIA_PLAYER_ACTION_SCHEMA)
-@automation.register_action(
-    "media_player.previous", PreviousAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action("media_player.mute", MuteAction, MEDIA_PLAYER_ACTION_SCHEMA)
-@automation.register_action(
-    "media_player.unmute", UnmuteAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.repeat_off", RepeatOffAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.repeat_one", RepeatOneAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.repeat_all", RepeatAllAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.shuffle", ShuffleAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.unshuffle", UnshuffleAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.group_join", GroupJoinAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-async def media_player_action(config, action_id, template_arg, args):
+async def _media_player_command_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
@@ -313,31 +238,34 @@ async def media_player_action(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_condition(
-    "media_player.is_idle", IsIdleCondition, MEDIA_PLAYER_CONDITION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_paused", IsPausedCondition, MEDIA_PLAYER_CONDITION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_playing", IsPlayingCondition, MEDIA_PLAYER_CONDITION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_announcing", IsAnnouncingCondition, MEDIA_PLAYER_CONDITION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_on", IsOnCondition, MEDIA_PLAYER_CONDITION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_off", IsOffCondition, MEDIA_PLAYER_CONDITION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_muted", IsMutedCondition, MEDIA_PLAYER_CONDITION_SCHEMA
-)
-async def media_player_condition(config, action_id, template_arg, args):
+def _snake_to_camel(name):
+    return "".join(word.capitalize() for word in name.split("_"))
+
+
+for _action_name in _COMMAND_ACTIONS:
+    _class_name = f"{_snake_to_camel(_action_name)}Action"
+    _action_class = media_player_ns.class_(
+        _class_name, automation.Action, cg.Parented.template(MediaPlayer)
+    )
+    automation.register_action(
+        f"media_player.{_action_name}", _action_class, MEDIA_PLAYER_ACTION_SCHEMA
+    )(_media_player_command_action)
+
+
+async def _media_player_condition(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
+
+
+for _condition_name in _STATE_CONDITIONS:
+    _class_name = f"Is{_snake_to_camel(_condition_name)}Condition"
+    _condition_class = media_player_ns.class_(_class_name, automation.Condition)
+    automation.register_condition(
+        f"media_player.is_{_condition_name}",
+        _condition_class,
+        MEDIA_PLAYER_CONDITION_SCHEMA,
+    )(_media_player_condition)
 
 
 @automation.register_action(
