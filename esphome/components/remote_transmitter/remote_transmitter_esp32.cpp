@@ -3,10 +3,11 @@
 #include "esphome/core/application.h"
 
 #ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 #include <driver/gpio.h>
 
-namespace esphome {
-namespace remote_transmitter {
+namespace esphome::remote_transmitter {
 
 static const char *const TAG = "remote_transmitter";
 
@@ -358,7 +359,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 }
 #endif
 
-}  // namespace remote_transmitter
-}  // namespace esphome
+}  // namespace esphome::remote_transmitter
 
-#endif
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32

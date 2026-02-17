@@ -28,11 +28,7 @@ static const char *const TAG = "api";
 // APIServer
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-APIServer::APIServer() {
-  global_api_server = this;
-  // Pre-allocate shared write buffer
-  shared_write_buffer_.reserve(64);
-}
+APIServer::APIServer() { global_api_server = this; }
 
 void APIServer::setup() {
   ControllerRegistry::register_controller(this);
@@ -117,37 +113,7 @@ void APIServer::setup() {
 void APIServer::loop() {
   // Accept new clients only if the socket exists and has incoming connections
   if (this->socket_ && this->socket_->ready()) {
-    while (true) {
-      struct sockaddr_storage source_addr;
-      socklen_t addr_len = sizeof(source_addr);
-
-      auto sock = this->socket_->accept_loop_monitored((struct sockaddr *) &source_addr, &addr_len);
-      if (!sock)
-        break;
-
-      char peername[socket::SOCKADDR_STR_LEN];
-      sock->getpeername_to(peername);
-
-      // Check if we're at the connection limit
-      if (this->clients_.size() >= this->max_connections_) {
-        ESP_LOGW(TAG, "Max connections (%d), rejecting %s", this->max_connections_, peername);
-        // Immediately close - socket destructor will handle cleanup
-        sock.reset();
-        continue;
-      }
-
-      ESP_LOGD(TAG, "Accept %s", peername);
-
-      auto *conn = new APIConnection(std::move(sock), this);
-      this->clients_.emplace_back(conn);
-      conn->start();
-
-      // First client connected - clear warning and update timestamp
-      if (this->clients_.size() == 1 && this->reboot_timeout_ != 0) {
-        this->status_clear_warning();
-        this->last_connected_ = App.get_loop_component_start_time();
-      }
-    }
+    this->accept_new_connections_();
   }
 
   if (this->clients_.empty()) {
@@ -178,42 +144,88 @@ void APIServer::loop() {
   while (client_index < this->clients_.size()) {
     auto &client = this->clients_[client_index];
 
+    // Common case: process active client
     if (!client->flags_.remove) {
-      // Common case: process active client
       client->loop();
+    }
+    // Handle disconnection promptly - close socket to free LWIP PCB
+    // resources and prevent retransmit crashes on ESP8266.
+    if (client->flags_.remove) {
+      // Rare case: handle disconnection (don't increment - swapped element needs processing)
+      this->remove_client_(client_index);
+    } else {
       client_index++;
+    }
+  }
+}
+
+void APIServer::remove_client_(size_t client_index) {
+  auto &client = this->clients_[client_index];
+
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  this->unregister_active_action_calls_for_connection(client.get());
+#endif
+  ESP_LOGV(TAG, "Remove connection %s", client->get_name());
+
+#ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
+  // Save client info before closing socket and removal for the trigger
+  char peername_buf[socket::SOCKADDR_STR_LEN];
+  std::string client_name(client->get_name());
+  std::string client_peername(client->get_peername_to(peername_buf));
+#endif
+
+  // Close socket now (was deferred from on_fatal_error to allow getpeername)
+  client->helper_->close();
+
+  // Swap with the last element and pop (avoids expensive vector shifts)
+  if (client_index < this->clients_.size() - 1) {
+    std::swap(this->clients_[client_index], this->clients_.back());
+  }
+  this->clients_.pop_back();
+
+  // Last client disconnected - set warning and start tracking for reboot timeout
+  if (this->clients_.empty() && this->reboot_timeout_ != 0) {
+    this->status_set_warning();
+    this->last_connected_ = App.get_loop_component_start_time();
+  }
+
+#ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
+  // Fire trigger after client is removed so api.connected reflects the true state
+  this->client_disconnected_trigger_.trigger(client_name, client_peername);
+#endif
+}
+
+void __attribute__((flatten)) APIServer::accept_new_connections_() {
+  while (true) {
+    struct sockaddr_storage source_addr;
+    socklen_t addr_len = sizeof(source_addr);
+
+    auto sock = this->socket_->accept_loop_monitored((struct sockaddr *) &source_addr, &addr_len);
+    if (!sock)
+      break;
+
+    char peername[socket::SOCKADDR_STR_LEN];
+    sock->getpeername_to(peername);
+
+    // Check if we're at the connection limit
+    if (this->clients_.size() >= this->max_connections_) {
+      ESP_LOGW(TAG, "Max connections (%d), rejecting %s", this->max_connections_, peername);
+      // Immediately close - socket destructor will handle cleanup
+      sock.reset();
       continue;
     }
 
-    // Rare case: handle disconnection
-#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-    this->unregister_active_action_calls_for_connection(client.get());
-#endif
-    ESP_LOGV(TAG, "Remove connection %s", client->get_name());
+    ESP_LOGD(TAG, "Accept %s", peername);
 
-#ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-    // Save client info before removal for the trigger
-    std::string client_name(client->get_name());
-    std::string client_peername(client->get_peername());
-#endif
+    auto *conn = new APIConnection(std::move(sock), this);
+    this->clients_.emplace_back(conn);
+    conn->start();
 
-    // Swap with the last element and pop (avoids expensive vector shifts)
-    if (client_index < this->clients_.size() - 1) {
-      std::swap(this->clients_[client_index], this->clients_.back());
-    }
-    this->clients_.pop_back();
-
-    // Last client disconnected - set warning and start tracking for reboot timeout
-    if (this->clients_.empty() && this->reboot_timeout_ != 0) {
-      this->status_set_warning();
+    // First client connected - clear warning and update timestamp
+    if (this->clients_.size() == 1 && this->reboot_timeout_ != 0) {
+      this->status_clear_warning();
       this->last_connected_ = App.get_loop_component_start_time();
     }
-
-#ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-    // Fire trigger after client is removed so api.connected reflects the true state
-    this->client_disconnected_trigger_.trigger(client_name, client_peername);
-#endif
-    // Don't increment client_index since we need to process the swapped element
   }
 }
 

@@ -116,7 +116,8 @@ class AsyncWebServerRequest {
   /// Write URL (without query string) to buffer, returns StringRef pointing to buffer.
   /// URL is decoded (e.g., %20 -> space).
   StringRef url_to(std::span<char, URL_BUF_SIZE> buffer) const;
-  /// Get URL as std::string. Prefer url_to() to avoid heap allocation.
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use url_to() instead. Removed in 2026.9.0", "2026.3.0")
   std::string url() const {
     char buffer[URL_BUF_SIZE];
     return std::string(this->url_to(buffer));
@@ -170,14 +171,8 @@ class AsyncWebServerRequest {
   AsyncWebParameter *getParam(const std::string &name) { return this->getParam(name.c_str()); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  bool hasArg(const char *name) { return this->hasParam(name); }
-  std::string arg(const char *name) {
-    auto *param = this->getParam(name);
-    if (param) {
-      return param->value();
-    }
-    return {};
-  }
+  bool hasArg(const char *name);
+  std::string arg(const char *name);
   std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
   operator httpd_req_t *() const { return this->req_; }
@@ -192,6 +187,7 @@ class AsyncWebServerRequest {
   // is faster than tree/hash overhead. AsyncWebParameter stores both name and value to avoid
   // duplicate storage. Only successful lookups are cached to prevent cache pollution when
   // handlers check for optional parameters that don't exist.
+  optional<std::string> find_query_value_(const char *name) const;
   std::vector<AsyncWebParameter *> params_;
   std::string post_query_;
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
@@ -259,9 +255,9 @@ using message_generator_t = std::string(esphome::web_server::WebServer *, void *
 /*
   This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
   that will lazily generate that event.  The two pointers allow dedup in the deferred queue if multiple publishes for
-  the same component are backed up, and take up only 8 bytes of memory.  The entry in the deferred queue (a
-  std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only 8 bytes per
-  entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors publishing
+  the same component are backed up, and take up only two pointers of memory.  The entry in the deferred queue (a
+  std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only two pointers
+  per entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors publishing
   because of dedup) would take up only 0.8 kB.
 */
 struct DeferredEvent {
@@ -277,7 +273,9 @@ struct DeferredEvent {
   bool operator==(const DeferredEvent &test) const {
     return (source_ == test.source_ && message_generator_ == test.message_generator_);
   }
-} __attribute__((packed));
+};
+static_assert(sizeof(DeferredEvent) == sizeof(void *) + sizeof(message_generator_t *),
+              "DeferredEvent should have no padding");
 
 class AsyncEventSourceResponse {
   friend class AsyncEventSource;
