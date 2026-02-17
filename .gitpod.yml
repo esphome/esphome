@@ -1,6 +1,7 @@
 ports:
-- port: 8000
+- port: 4321
   onOpen: open-preview
 
 tasks:
-- command: make live-html
+- init: npm install
+  command: npm run dev
