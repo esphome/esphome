@@ -9,15 +9,15 @@ namespace esphome::libretiny {
 
 struct UartManager {
   FixedVector<uint8_t> get_available_uarts() const {
-    return FixedVector<uint8_t>{
+    return FixedVector<uint8_t> {
 #if LT_HW_UART0
-        0,
+      0,
 #endif
 #if LT_HW_UART1
-        1,
+          1,
 #endif
 #if LT_HW_UART2
-        2,
+          2,
 #endif
     };
   }
