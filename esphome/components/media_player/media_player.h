@@ -92,23 +92,23 @@ class MediaPlayerTraits {
  public:
   MediaPlayerTraits() = default;
 
-  void set_feature(MediaPlayerEntityFeature feature) { this->features_ |= feature; }
-  void clear_feature(MediaPlayerEntityFeature feature) { this->features_ &= ~feature; }
-  bool supports(MediaPlayerEntityFeature feature) const { return (this->features_ & feature) != 0; }
-  uint32_t get_feature_flags() const { return BASE_MEDIA_PLAYER_FEATURES | this->features_; }
+  uint32_t get_feature_flags() const { return this->feature_flags_; }
+  void add_feature_flags(uint32_t feature_flags) { this->feature_flags_ |= feature_flags; }
+  void clear_feature_flags(uint32_t feature_flags) { this->feature_flags_ &= ~feature_flags; }
+  bool has_feature_flags(uint32_t feature_flags) const { return this->feature_flags_ & feature_flags; }
 
   std::vector<MediaPlayerSupportedFormat> &get_supported_formats() { return this->supported_formats_; }
 
   // Legacy setters/getters are kept for backward compatibility
   void set_supports_pause(bool supports_pause);
-  bool get_supports_pause() const { return this->supports(MediaPlayerEntityFeature::PAUSE); }
+  bool get_supports_pause() const { return this->has_feature_flags(MediaPlayerEntityFeature::PAUSE); }
 
   void set_supports_turn_off_on(bool supports_turn_off_on);
-  bool get_supports_turn_off_on() const { return this->supports(MediaPlayerEntityFeature::TURN_ON); }
+  bool get_supports_turn_off_on() const { return this->has_feature_flags(MediaPlayerEntityFeature::TURN_ON); }
 
  protected:
   std::vector<MediaPlayerSupportedFormat> supported_formats_{};
-  uint32_t features_{0};
+  uint32_t feature_flags_{BASE_MEDIA_PLAYER_FEATURES};
 };
 
 class MediaPlayerCall {
