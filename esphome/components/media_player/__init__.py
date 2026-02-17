@@ -72,15 +72,16 @@ CONF_ON_PAUSE = "on_pause"
 CONF_ON_ANNOUNCEMENT = "on_announcement"
 CONF_MEDIA_URL = "media_url"
 
-StateTrigger = media_player_ns.class_("StateTrigger", automation.Trigger.template())
-IdleTrigger = media_player_ns.class_("IdleTrigger", automation.Trigger.template())
-PlayTrigger = media_player_ns.class_("PlayTrigger", automation.Trigger.template())
-PauseTrigger = media_player_ns.class_("PauseTrigger", automation.Trigger.template())
-AnnoucementTrigger = media_player_ns.class_(
-    "AnnouncementTrigger", automation.Trigger.template()
-)
-OnTrigger = media_player_ns.class_("OnTrigger", automation.Trigger.template())
-OffTrigger = media_player_ns.class_("OffTrigger", automation.Trigger.template())
+# State triggers: (config_key, C++ class name)
+_STATE_TRIGGERS = [
+    (CONF_ON_STATE, "StateTrigger"),
+    (CONF_ON_IDLE, "IdleTrigger"),
+    (CONF_ON_PLAY, "PlayTrigger"),
+    (CONF_ON_PAUSE, "PauseTrigger"),
+    (CONF_ON_ANNOUNCEMENT, "AnnouncementTrigger"),
+    (CONF_ON_TURN_ON, "OnTrigger"),
+    (CONF_ON_TURN_OFF, "OffTrigger"),
+]
 # State conditions that all share the same schema and codegen handler
 # Maps YAML condition name suffix to C++ class name
 _STATE_CONDITIONS = [
@@ -96,27 +97,10 @@ _STATE_CONDITIONS = [
 
 async def setup_media_player_core_(var, config):
     await setup_entity(var, config, "media_player")
-    for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_IDLE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_PLAY, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_PAUSE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_ANNOUNCEMENT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_TURN_ON, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_TURN_OFF, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    for conf_key, _ in _STATE_TRIGGERS:
+        for conf in config.get(conf_key, []):
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+            await automation.build_automation(trigger, [], conf)
 
 
 async def register_media_player(var, config):
@@ -135,41 +119,14 @@ async def new_media_player(config, *args):
 
 _MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     {
-        cv.Optional(CONF_ON_STATE): automation.validate_automation(
+        cv.Optional(conf_key): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    media_player_ns.class_(class_name, automation.Trigger.template())
+                ),
             }
-        ),
-        cv.Optional(CONF_ON_IDLE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(IdleTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_PLAY): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlayTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_PAUSE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PauseTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_ANNOUNCEMENT): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(AnnoucementTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OffTrigger),
-            }
-        ),
+        )
+        for conf_key, class_name in _STATE_TRIGGERS
     }
 )
 
