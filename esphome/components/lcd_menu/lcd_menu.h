@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/components/lcd_base/lcd_display.h"
 #include "esphome/components/display_menu_base/display_menu_base.h"
+#include "esphome/components/text_display/text_display.h"
 
 #include <forward_list>
 #include <vector>
@@ -14,7 +14,7 @@ namespace lcd_menu {
  */
 class LCDCharacterMenuComponent : public display_menu_base::DisplayMenuComponent {
  public:
-  void set_display(lcd_base::LCDDisplay *display) { this->display_ = display; }
+  void set_display(text_display::TextDisplay *display) { this->display_ = display; }
   void set_dimensions(uint8_t columns, uint8_t rows) {
     this->columns_ = columns;
     set_rows(rows);
@@ -33,7 +33,7 @@ class LCDCharacterMenuComponent : public display_menu_base::DisplayMenuComponent
   void draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) override;
   void update() override { this->display_->update(); }
 
-  lcd_base::LCDDisplay *display_;
+  text_display::TextDisplay *display_;
   uint8_t columns_;
   char mark_selected_;
   char mark_editing_;

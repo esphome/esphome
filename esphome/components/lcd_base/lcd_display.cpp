@@ -30,9 +30,7 @@ static const uint8_t LCD_DISPLAY_FUNCTION_2_LINE = 0x08;
 static const uint8_t LCD_DISPLAY_FUNCTION_5X10_DOTS = 0x04;
 
 void LCDDisplay::setup() {
-  this->buffer_ = new uint8_t[this->rows_ * this->columns_];  // NOLINT
-  for (uint8_t i = 0; i < this->rows_ * this->columns_; i++)
-    this->buffer_[i] = ' ';
+  init_();
 
   uint8_t display_function = 0;
 
@@ -111,53 +109,9 @@ void HOT LCDDisplay::display() {
     }
   }
 }
-void LCDDisplay::update() {
-  this->clear();
-  this->call_writer();
-  this->display();
-}
-void LCDDisplay::command_(uint8_t value) { this->send(value, false); }
-void LCDDisplay::print(uint8_t column, uint8_t row, const char *str) {
-  uint8_t pos = column + row * this->columns_;
-  for (; *str != '\0'; str++) {
-    if (*str == '\n') {
-      pos = ((pos / this->columns_) + 1) * this->columns_;
-      continue;
-    }
-    if (pos >= this->rows_ * this->columns_) {
-      ESP_LOGW(TAG, "LCDDisplay writing out of range!");
-      break;
-    }
 
-    this->buffer_[pos] = *reinterpret_cast<const uint8_t *>(str);
-    pos++;
-  }
-}
-void LCDDisplay::print(uint8_t column, uint8_t row, const std::string &str) { this->print(column, row, str.c_str()); }
-void LCDDisplay::print(const char *str) { this->print(0, 0, str); }
-void LCDDisplay::print(const std::string &str) { this->print(0, 0, str.c_str()); }
-void LCDDisplay::printf(uint8_t column, uint8_t row, const char *format, ...) {
-  va_list arg;
-  va_start(arg, format);
-  char buffer[256];
-  int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
-  va_end(arg);
-  if (ret > 0)
-    this->print(column, row, buffer);
-}
-void LCDDisplay::printf(const char *format, ...) {
-  va_list arg;
-  va_start(arg, format);
-  char buffer[256];
-  int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
-  va_end(arg);
-  if (ret > 0)
-    this->print(0, 0, buffer);
-}
-void LCDDisplay::clear() {
-  for (uint8_t i = 0; i < this->rows_ * this->columns_; i++)
-    this->buffer_[i] = ' ';
-}
+void LCDDisplay::command_(uint8_t value) { this->send(value, false); }
+
 void LCDDisplay::strftime(uint8_t column, uint8_t row, const char *format, ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
