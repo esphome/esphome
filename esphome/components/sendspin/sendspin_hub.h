@@ -205,11 +205,17 @@ class SendspinHub : public Component {
 #endif
 
  protected:
-  /// @brief Attempt to send the hello message with retry support.
+  /// @brief Schedules hello message sending with exponential backoff.
+  /// @param conn The connection to send the hello message to.
+  /// @param delay_ms Delay before the next attempt in milliseconds.
+  /// @param attempts_remaining Number of attempts remaining.
+  void try_send_hello_(SendspinConnection *conn, uint32_t delay_ms, uint8_t attempts_remaining);
+
+  /// @brief Attempt to send the hello message.
   /// @param remaining_attempts Number of retry attempts remaining.
   /// @param conn The connection to send the hello message to.
-  /// @return RetryResult::DONE to stop retrying, RetryResult::RETRY to continue.
-  RetryResult send_hello_message_(uint8_t remaining_attempts, SendspinConnection *conn);
+  /// @return true if done (success or non-recoverable), false if should retry.
+  bool send_hello_message_(uint8_t remaining_attempts, SendspinConnection *conn);
 
 #ifdef USE_SENDSPIN_PLAYER
   bool send_audio_chunk_(const uint8_t *data, size_t data_size, int64_t timestamp, ChunkType chunk_type,

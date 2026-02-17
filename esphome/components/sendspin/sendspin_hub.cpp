@@ -189,21 +189,32 @@ void SendspinHub::connect_to_server(const std::string &url) {
 }
 
 void SendspinHub::start(SendspinConnection *conn) {
-  // Use built-in retry with exponential backoff: 100ms initial, 3 attempts, 2x backoff
-  this->set_retry(
-      "hello", 100, 3, [this, conn](uint8_t remaining) { return this->send_hello_message_(remaining, conn); }, 2.0f);
+  // Send hello with exponential backoff: 100ms initial, 3 attempts, 2x backoff
+  this->try_send_hello_(conn, 100, 3);
 }
 
-RetryResult SendspinHub::send_hello_message_(uint8_t remaining_attempts, SendspinConnection *conn) {
+void SendspinHub::try_send_hello_(SendspinConnection *conn, uint32_t delay_ms, uint8_t attempts_remaining) {
+  this->set_timeout("hello", delay_ms, [this, conn, delay_ms, attempts_remaining]() {
+    if (this->send_hello_message_(attempts_remaining - 1, conn)) {
+      return;  // Done or non-recoverable, stop retrying
+    }
+    // Transient failure - retry with exponential backoff if attempts remain
+    if (attempts_remaining > 1) {
+      this->try_send_hello_(conn, delay_ms * 2, attempts_remaining - 1);
+    }
+  });
+}
+
+bool SendspinHub::send_hello_message_(uint8_t remaining_attempts, SendspinConnection *conn) {
   // Verify the connection is still one of our managed connections (it may have been destroyed between retries)
   if (conn != this->current_connection_.get() && conn != this->pending_connection_.get()) {
     ESP_LOGW(TAG, "Connection no longer valid for hello message");
-    return RetryResult::DONE;
+    return true;
   }
 
   if (conn == nullptr || !conn->is_connected()) {
     ESP_LOGW(TAG, "Cannot send hello - not connected");
-    return RetryResult::DONE;  // Stop retrying, no point if disconnected
+    return true;  // Stop retrying, no point if disconnected
   }
 
   ClientHelloMessage msg;
@@ -282,17 +293,17 @@ RetryResult SendspinHub::send_hello_message_(uint8_t remaining_attempts, Sendspi
   });
 
   if (err == ESP_OK) {
-    return RetryResult::DONE;  // Successfully queued
+    return true;  // Successfully queued
   }
 
   if (err == ESP_ERR_INVALID_STATE) {
     ESP_LOGW(TAG, "No client connected for hello message");
-    return RetryResult::DONE;  // Don't retry - wait for reconnection
+    return true;  // Don't retry - wait for reconnection
   }
 
   // ESP_ERR_NO_MEM or ESP_FAIL - transient failure, retry
   ESP_LOGW(TAG, "Failed to queue hello message (err=%d), %d attempts remaining", err, remaining_attempts);
-  return RetryResult::RETRY;
+  return false;
 }
 
 #ifdef USE_SENDSPIN_CONTROLLER
