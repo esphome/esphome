@@ -84,13 +84,7 @@ void MQTTBackendESP32::disable() {
   if (!this->is_initalized_) {
     return;
   }
-
-  esp_mqtt_client_handle_t client = this->handler_.get();
-  if (client != nullptr) {
-    esp_mqtt_client_unregister_event(client, MQTT_EVENT_ANY, mqtt_event_handler);
-    esp_mqtt_client_disconnect(client);
-    esp_mqtt_client_stop(client);
-  }
+  this->is_connected_ = false;
 
 #if defined(USE_MQTT_IDF_ENQUEUE)
   // Stop async MQTT task before releasing resources it may use.
@@ -128,8 +122,14 @@ void MQTTBackendESP32::disable() {
     this->mqtt_events_.pop();
   }
 
+  esp_mqtt_client_handle_t client = this->handler_.get();
+  if (client != nullptr) {
+    esp_mqtt_client_unregister_event(client, MQTT_EVENT_ANY, mqtt_event_handler);
+    esp_mqtt_client_disconnect(client);
+    esp_mqtt_client_stop(client);
+  }
+
   this->handler_.reset();
-  this->is_connected_ = false;
   this->is_initalized_ = false;
 }
 
@@ -302,9 +302,8 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
 
 bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos, bool retain, const char *payload,
                                 size_t len) {
-  if (this->task_shutdown_requested_.load(std::memory_order_acquire)) {
-    return false;
-  }
+  // Note: We can enqueue even if disabled or not connected,
+  // as the queue will be processed when connection is available
 
   auto *elem = this->mqtt_event_pool_.allocate();
 
