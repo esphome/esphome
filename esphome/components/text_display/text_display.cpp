@@ -10,7 +10,7 @@ void TextDisplay::setup() { init_(); }
 
 void TextDisplay::update() {
   this->clear();
-  this->call_writer();
+  this->call_writer_();
   this->display();
 }
 

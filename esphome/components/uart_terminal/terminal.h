@@ -16,7 +16,7 @@ class Terminal : public text_display::TextDisplay, public uart::UARTDevice {
   void display() override;
 
  protected:
-  void call_writer() override { this->writer_(*this); }
+  void call_writer_() override { this->writer_(*this); }
   terminal_writer_t writer_;
 };
 }  // namespace esphome::uart_terminal

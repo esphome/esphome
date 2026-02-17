@@ -32,7 +32,7 @@ class TextDisplay : public PollingComponent {
   void printf(const char *format, ...) __attribute__((format(printf, 2, 3)));
 
  protected:
-  virtual void call_writer() = 0;
+  virtual void call_writer_() = 0;
   uint8_t columns_;
   uint8_t rows_;
   uint8_t *buffer_{nullptr};
