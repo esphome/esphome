@@ -238,7 +238,7 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_
 
   Frame frame(source, destination, data_bytes);
   ESP_LOGV(TAG, "Queing frame to send: %s", frame.to_string().c_str());
-  xmit_.queue_for_send(std::move(frame));
+  xmit_.queue_for_send(frame);
   return true;
 }
 
@@ -280,9 +280,9 @@ void CECTransmit::dump_config() {
   ESP_LOGCONFIG(TAG, "  has UART: %s", (uart_ ? "yes" : "no"));
 }
 
-void CECTransmit::queue_for_send(Frame &&frame) {
+void CECTransmit::queue_for_send(const Frame &frame) {
   LockGuard send_lock(send_mutex_);  // prevent simultaneous modifications to the queue
-  send_queue_.push(std::move(frame));
+  send_queue_.push(frame);
 }
 
 std::string CECTransmit::get_state() const {

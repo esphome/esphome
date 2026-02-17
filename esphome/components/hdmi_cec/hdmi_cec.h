@@ -114,7 +114,7 @@ class CECTransmit {
  public:
   void setup(InternalGPIOPin *pin);
   void dump_config();
-  void queue_for_send(Frame &&frame);
+  void queue_for_send(const Frame &frame);
   bool is_idle() const { return send_queue_.empty() && (transmit_state_ == TransmitState::IDLE); }
   void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
   bool has_uart() const { return uart_ != nullptr; }
