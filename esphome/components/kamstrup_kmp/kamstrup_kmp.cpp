@@ -69,12 +69,11 @@ void KamstrupKMPComponent::loop() {
     case STATE_IDLE:
       if (!this->command_queue_.empty()) {
         this->current_command_ = this->command_queue_.front();
+        this->command_queue_.pop();
         this->clear_uart_rx_buffer_();
         this->send_command_(current_command_);
-        this->command_queue_.pop();
-        this->state_ = STATE_READING;
+        this->state_ = STATE_SEARCHING;
         this->last_read_time_ = millis();
-        this->rx_buffer_.clear();
       }
       break;
 
