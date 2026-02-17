@@ -95,7 +95,10 @@ class MediaPlayerTraits {
   uint32_t get_feature_flags() const { return this->feature_flags_; }
   void add_feature_flags(uint32_t feature_flags) { this->feature_flags_ |= feature_flags; }
   void clear_feature_flags(uint32_t feature_flags) { this->feature_flags_ &= ~feature_flags; }
-  bool has_feature_flags(uint32_t feature_flags) const { return this->feature_flags_ & feature_flags; }
+  // Returns true only if all specified flags are set
+  bool has_feature_flags(uint32_t feature_flags) const {
+    return (this->feature_flags_ & feature_flags) == feature_flags;
+  }
 
   std::vector<MediaPlayerSupportedFormat> &get_supported_formats() { return this->supported_formats_; }
 
