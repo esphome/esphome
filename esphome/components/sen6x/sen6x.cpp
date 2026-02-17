@@ -156,8 +156,14 @@ void SEN6XComponent::setup() {
 }
 
 void SEN6XComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "sen6x:");
-  LOG_I2C_DEVICE(this);
+  ESP_LOGCONFIG(TAG,
+                "sen6x:\n"
+                "  Product: %s\n"
+                "  Serial: %s\n"
+                "  Firmware: %u.%u\n"
+                "  Address: 0x%02X",
+                this->product_name_.c_str(), this->serial_number_.c_str(), this->firmware_version_major_,
+                this->firmware_version_minor_, this->address_);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
