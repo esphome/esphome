@@ -102,6 +102,7 @@ class ATM90E32Component : public PollingComponent,
   void clear_gain_calibrations();
   void set_enable_offset_calibration(bool flag) { enable_offset_calibration_ = flag; }
   void set_enable_gain_calibration(bool flag) { enable_gain_calibration_ = flag; }
+  void set_instance_id(const char *id) { instance_id_ = id; }
   int16_t calibrate_offset(uint8_t phase, bool voltage);
   int16_t calibrate_power_offset(uint8_t phase, bool reactive);
   void run_gain_calibrations();
@@ -184,6 +185,7 @@ class ATM90E32Component : public PollingComponent,
   bool verify_gain_writes_();
   bool validate_spi_read_(uint16_t expected, const char *context = nullptr);
   void log_calibration_status_();
+  const char *get_calibration_id_(std::span<char, GPIO_SUMMARY_MAX_LEN> fallback_buffer);
   void get_cs_summary_(std::span<char, GPIO_SUMMARY_MAX_LEN> buffer);
 
   struct ATM90E32Phase {
@@ -248,8 +250,11 @@ class ATM90E32Component : public PollingComponent,
   bool has_config_current_gain_[3]{false, false, false};
 
   ESPPreferenceObject offset_pref_;
+  ESPPreferenceObject legacy_offset_pref_;
   ESPPreferenceObject power_offset_pref_;
+  ESPPreferenceObject legacy_power_offset_pref_;
   ESPPreferenceObject gain_calibration_pref_;
+  ESPPreferenceObject legacy_gain_calibration_pref_;
 
   sensor::Sensor *freq_sensor_{nullptr};
 #ifdef USE_TEXT_SENSOR
@@ -264,6 +269,7 @@ class ATM90E32Component : public PollingComponent,
   bool peak_current_signed_{false};
   bool enable_offset_calibration_{false};
   bool enable_gain_calibration_{false};
+  const char *instance_id_{nullptr};
   bool restored_offset_calibration_{false};
   bool restored_power_offset_calibration_{false};
   bool restored_gain_calibration_{false};
