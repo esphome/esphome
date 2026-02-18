@@ -201,6 +201,30 @@ class ESP32TouchComponent : public Component {
 
   static const char *get_high_voltage_reference_str(touch_volt_lim_h_t ref) {
     switch (ref) {
+      case TOUCH_VOLT_LIM_H_0V9:
+        return "0.9V";
+      case TOUCH_VOLT_LIM_H_1V0:
+        return "1.0V";
+      case TOUCH_VOLT_LIM_H_1V1:
+        return "1.1V";
+      case TOUCH_VOLT_LIM_H_1V2:
+        return "1.2V";
+      case TOUCH_VOLT_LIM_H_1V4:
+        return "1.4V";
+      case TOUCH_VOLT_LIM_H_1V5:
+        return "1.5V";
+      case TOUCH_VOLT_LIM_H_1V6:
+        return "1.6V";
+      case TOUCH_VOLT_LIM_H_1V7:
+        return "1.7V";
+      case TOUCH_VOLT_LIM_H_1V9:
+        return "1.9V";
+      case TOUCH_VOLT_LIM_H_2V0:
+        return "2.0V";
+      case TOUCH_VOLT_LIM_H_2V1:
+        return "2.1V";
+      case TOUCH_VOLT_LIM_H_2V2:
+        return "2.2V";
       case TOUCH_VOLT_LIM_H_2V4:
         return "2.4V";
       case TOUCH_VOLT_LIM_H_2V5:

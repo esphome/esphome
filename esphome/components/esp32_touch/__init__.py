@@ -156,6 +156,29 @@ HIGH_VOLTAGE_REFERENCE = {
     "2.6V": cg.global_ns.TOUCH_VOLT_LIM_H_2V6,
     "2.7V": cg.global_ns.TOUCH_VOLT_LIM_H_2V7,
 }
+VOLTAGE_ATTENUATION = {"1.5V", "1V", "0.5V", "0V"}
+
+# ESP32 V1: The new API's touch_volt_lim_h_t combines the old high_voltage_reference
+# and voltage_attenuation into a single enum representing the effective upper voltage.
+# Effective voltage = high_voltage_reference - voltage_attenuation
+EFFECTIVE_HIGH_VOLTAGE = {
+    ("2.4V", "1.5V"): cg.global_ns.TOUCH_VOLT_LIM_H_0V9,
+    ("2.5V", "1.5V"): cg.global_ns.TOUCH_VOLT_LIM_H_1V0,
+    ("2.6V", "1.5V"): cg.global_ns.TOUCH_VOLT_LIM_H_1V1,
+    ("2.7V", "1.5V"): cg.global_ns.TOUCH_VOLT_LIM_H_1V2,
+    ("2.4V", "1V"): cg.global_ns.TOUCH_VOLT_LIM_H_1V4,
+    ("2.5V", "1V"): cg.global_ns.TOUCH_VOLT_LIM_H_1V5,
+    ("2.6V", "1V"): cg.global_ns.TOUCH_VOLT_LIM_H_1V6,
+    ("2.7V", "1V"): cg.global_ns.TOUCH_VOLT_LIM_H_1V7,
+    ("2.4V", "0.5V"): cg.global_ns.TOUCH_VOLT_LIM_H_1V9,
+    ("2.5V", "0.5V"): cg.global_ns.TOUCH_VOLT_LIM_H_2V0,
+    ("2.6V", "0.5V"): cg.global_ns.TOUCH_VOLT_LIM_H_2V1,
+    ("2.7V", "0.5V"): cg.global_ns.TOUCH_VOLT_LIM_H_2V2,
+    ("2.4V", "0V"): cg.global_ns.TOUCH_VOLT_LIM_H_2V4,
+    ("2.5V", "0V"): cg.global_ns.TOUCH_VOLT_LIM_H_2V5,
+    ("2.6V", "0V"): cg.global_ns.TOUCH_VOLT_LIM_H_2V6,
+    ("2.7V", "0V"): cg.global_ns.TOUCH_VOLT_LIM_H_2V7,
+}
 
 
 def validate_touch_pad(value):
@@ -197,15 +220,6 @@ def validate_variant_vars(config):
                         f"{vvar} is not valid on {VARIANT_ESP32P4} (denoise not supported)"
                     )
 
-    # Remove deprecated voltage_attenuation with warning
-    if CONF_VOLTAGE_ATTENUATION in config:
-        # Remove before 2026.6.0
-        _LOGGER.warning(
-            "'%s' is deprecated and has no effect with the new touch sensor driver. "
-            "It will be removed in a future version.",
-            CONF_VOLTAGE_ATTENUATION,
-        )
-
     return config
 
 
@@ -239,10 +253,14 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_HIGH_VOLTAGE_REFERENCE, default="2.7V"): validate_voltage(
                 HIGH_VOLTAGE_REFERENCE
             ),
-            # Deprecated - accepted but ignored
-            cv.Optional(CONF_VOLTAGE_ATTENUATION): validate_voltage(
-                {"1.5V": None, "1V": None, "0.5V": None, "0V": None}
-            ),
+            # ESP32 V1 only: attenuates the high voltage reference
+            cv.SplitDefault(
+                CONF_VOLTAGE_ATTENUATION,
+                esp32="0V",
+                esp32_s2=cv.UNDEFINED,
+                esp32_s3=cv.UNDEFINED,
+                esp32_p4=cv.UNDEFINED,
+            ): validate_voltage(VOLTAGE_ATTENUATION),
             # ESP32 only
             cv.Optional(CONF_IIR_FILTER): cv.positive_time_period_milliseconds,
             # ESP32-S2/S3/P4 only
@@ -326,13 +344,22 @@ async def to_code(config):
                 )
             )
         if CONF_HIGH_VOLTAGE_REFERENCE in config:
-            cg.add(
-                touch.set_high_voltage_reference(
-                    HIGH_VOLTAGE_REFERENCE[config[CONF_HIGH_VOLTAGE_REFERENCE]]
+            if variant == VARIANT_ESP32:
+                # V1: combine high_voltage_reference with voltage_attenuation
+                high_ref = config[CONF_HIGH_VOLTAGE_REFERENCE]
+                atten = config[CONF_VOLTAGE_ATTENUATION]
+                cg.add(
+                    touch.set_high_voltage_reference(
+                        EFFECTIVE_HIGH_VOLTAGE[(high_ref, atten)]
+                    )
                 )
-            )
-
-    # voltage_attenuation is deprecated - just ignore it (warning already printed)
+            else:
+                # V2/V3: no attenuation concept, use directly
+                cg.add(
+                    touch.set_high_voltage_reference(
+                        HIGH_VOLTAGE_REFERENCE[config[CONF_HIGH_VOLTAGE_REFERENCE]]
+                    )
+                )
 
     if variant == VARIANT_ESP32 and CONF_IIR_FILTER in config:
         cg.add(touch.set_iir_filter(config[CONF_IIR_FILTER]))
