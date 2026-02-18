@@ -165,9 +165,9 @@ void PowerManagement::dump_config() {
 #endif
 }
 
-#define PM_BUF_SIZE 1024
+static const uint8_t PM_BUF_SIZE = 1024;
 static char pm_buffer[PM_BUF_SIZE];
-
+// TBD replace with pm functions when they are available
 // TBD Fix to also work with profile: true
 int8_t PowerManagement::count_pm_locks_() {
   int8_t acquired = 0;
