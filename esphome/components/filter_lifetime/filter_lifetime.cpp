@@ -57,6 +57,12 @@ void FilterLifetime::update() {
   bool is_on = this->get_is_on_();
   float speed = this->get_current_speed_();
 
+  // Guard against NaN or out-of-range speed values
+  if (std::isnan(speed)) {
+    speed = 0.0f;
+  }
+  speed = std::max(0.0f, std::min(100.0f, speed));
+
   ESP_LOGV(TAG, "Update: elapsed=%.2f min, is_on=%d, speed=%.1f%%", elapsed_minutes, is_on, speed);
 
   // Add runtime if device is on, scaled by speed percentage

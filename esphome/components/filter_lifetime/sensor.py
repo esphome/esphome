@@ -1,7 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
-from esphome.const import DEVICE_CLASS_DURATION, STATE_CLASS_TOTAL_INCREASING, UNIT_HOUR
+from esphome.const import (
+    DEVICE_CLASS_DURATION,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
+    UNIT_HOUR,
+)
 
 from . import filter_lifetime_ns
 
@@ -46,11 +51,11 @@ CONFIG_SCHEMA = cv.All(
         unit_of_measurement="%",
         accuracy_decimals=2,
         icon="mdi:air-filter",
-        state_class="measurement",
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {
-            cv.Required(CONF_MAX_LIFETIME): cv.positive_int,
+            cv.Required(CONF_MAX_LIFETIME): cv.int_range(min=1),
             cv.Optional(CONF_IS_ON): cv.returning_lambda,
             cv.Optional(CONF_IS_ON_SENSOR): cv.use_id(binary_sensor.BinarySensor),
             cv.Optional(CONF_CURRENT_SPEED): cv.returning_lambda,
