@@ -1521,7 +1521,7 @@ std::string WebServer::climate_json_(climate::Climate *obj, JsonDetail start_con
     JsonArray opt = root[ESPHOME_F("modes")].to<JsonArray>();
     for (climate::ClimateMode m : traits.get_supported_modes())
       opt.add(PSTR_LOCAL(climate::climate_mode_to_string(m)));
-    if (!traits.get_supported_custom_fan_modes().empty()) {
+    if (traits.get_supports_fan_modes()) {
       JsonArray opt = root[ESPHOME_F("fan_modes")].to<JsonArray>();
       for (climate::ClimateFanMode m : traits.get_supported_fan_modes())
         opt.add(PSTR_LOCAL(climate::climate_fan_mode_to_string(m)));
@@ -1562,11 +1562,16 @@ std::string WebServer::climate_json_(climate::Climate *obj, JsonDetail start_con
     root[ESPHOME_F("state")] = root[ESPHOME_F("action")];
     has_state = true;
   }
-  if (traits.get_supports_fan_modes() && obj->fan_mode.has_value()) {
-    root[ESPHOME_F("fan_mode")] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
+  if (traits.get_supports_fan_modes()) {
+    root[ESPHOME_F("fan_mode")] =
+        obj->fan_mode.has_value() ? PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value())) : "";
   }
-  if (!traits.get_supported_custom_fan_modes().empty() && obj->has_custom_fan_mode()) {
-    root[ESPHOME_F("custom_fan_mode")] = obj->get_custom_fan_mode();
+  if (!traits.get_supported_custom_fan_modes().empty()) {
+    if (obj->has_custom_fan_mode()) {
+      root[ESPHOME_F("custom_fan_mode")] = obj->get_custom_fan_mode();
+    } else {
+      root[ESPHOME_F("custom_fan_mode")] = "";
+    }
   }
   if (traits.get_supports_presets()) {
     root[ESPHOME_F("preset")] =
