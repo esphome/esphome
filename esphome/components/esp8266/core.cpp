@@ -27,7 +27,7 @@ void arch_restart() {
   }
 }
 void arch_init() {}
-void IRAM_ATTR HOT arch_feed_wdt() { system_soft_wdt_feed(); }
+void HOT arch_feed_wdt() { system_soft_wdt_feed(); }
 
 uint8_t progmem_read_byte(const uint8_t *addr) {
   return pgm_read_byte(addr);  // NOLINT

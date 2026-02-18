@@ -48,7 +48,7 @@ void arch_restart() { exit(0); }
 void arch_init() {
   // pass
 }
-void IRAM_ATTR HOT arch_feed_wdt() {
+void HOT arch_feed_wdt() {
   // pass
 }
 
