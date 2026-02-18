@@ -108,18 +108,26 @@ class ProtoVarInt {
 #ifdef ESPHOME_DEBUG_API
     assert(consumed != nullptr);
 #endif
-    // 32-bit phase: shifts 0, 7, 14, 21 are native on 32-bit platforms.
-    // Without USE_API_VARINT64: also cover byte 4 (shift 28) — the uint32_t
-    // shift truncates upper bits but those are always zero for valid uint32 values.
-    // With USE_API_VARINT64: stop at byte 3 so parse_wide handles byte 4+
-    // with full 64-bit arithmetic (avoids truncating values > UINT32_MAX).
-    uint32_t result32 = 0;
+    if (len == 0)
+      return {};
+    // Fast path: single-byte varints (0-127) are the most common case
+    // (booleans, small enums, field tags). Avoid loop overhead entirely.
+    if ((buffer[0] & 0x80) == 0) {
+      *consumed = 1;
+      return ProtoVarInt(buffer[0]);
+    }
+    // 32-bit phase: process remaining bytes with native 32-bit shifts.
+    // Without USE_API_VARINT64: cover bytes 1-4 (shifts 7, 14, 21, 28) — the uint32_t
+    // shift at byte 4 truncates upper bits but those are always zero for valid uint32 values.
+    // With USE_API_VARINT64: cover bytes 1-3 (shifts 7, 14, 21) so parse_wide handles
+    // byte 4+ with full 64-bit arithmetic (avoids truncating values > UINT32_MAX).
+    uint32_t result32 = buffer[0] & 0x7F;
 #ifdef USE_API_VARINT64
     uint32_t limit = std::min(len, uint32_t(4));
 #else
     uint32_t limit = std::min(len, uint32_t(5));
 #endif
-    for (uint32_t i = 0; i < limit; i++) {
+    for (uint32_t i = 1; i < limit; i++) {
       uint8_t val = buffer[i];
       result32 |= uint32_t(val & 0x7F) << (i * 7);
       if ((val & 0x80) == 0) {
