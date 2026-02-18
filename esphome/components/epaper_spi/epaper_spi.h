@@ -24,9 +24,11 @@ enum class EPaperState : uint8_t {
 };
 
 enum class EPaperRefreshType : uint8_t {
-  FULL,
-  PARTIAL,
-  FULL_FAST,
+  FULL,     // The default refresh type, performs a safe, slow full screen update
+  PARTIAL,  // Quickly update a part of the display. Often leaves ghosting artifacts and can lead to burn-in if used too
+            // often, read manufacturer specs
+  FULL_FAST,  // A variant of the full update that flashes black/white less and draws faster. Can cause ghosting if used
+              // at cold temperatures, and could lead to burn-in when used long-term (years)
 };
 
 static constexpr uint8_t NONE = 0;
