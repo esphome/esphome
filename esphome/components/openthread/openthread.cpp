@@ -195,7 +195,7 @@ void OpenThreadSrpComponent::setup() {
     // Make new pool entry with service array
     const size_t list_idx = &service - &mdns_services[0];
     auto &pool_pos = this->memory_pool_[list_idx];
-    pool_pos = std::make_unique<otDnsTxtEntry[]>(size);
+    pool_pos = std::make_unique<otDnsTxtEntry[]>(service.txt_records.size());
     otDnsTxtEntry *txt_entries = pool_pos.get();
 
     // Set TXT records
