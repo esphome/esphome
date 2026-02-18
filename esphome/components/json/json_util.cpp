@@ -93,9 +93,13 @@ SerializationBuffer<> JsonBuilder::serialize() {
   //   - Test: objdump -d -C firmware.elf | grep "SerializationBuffer.*SerializationBuffer"
   //     Should show only destructor, NOT move constructor
   //
-  // Why we avoid measureJson(): It instantiates DummyWriter templates adding ~1KB flash.
-  // Instead, try stack buffer first. 512 bytes covers 99.9% of JSON payloads (sensors ~200B,
+  // Try stack buffer first. 512 bytes covers 99.9% of JSON payloads (sensors ~200B,
   // lights ~170B, climate ~700B). Only entities with 40+ options exceed this.
+  //
+  // IMPORTANT: ArduinoJson's serializeJson() with a bounded buffer returns the actual
+  // bytes written (truncated count), NOT the would-be size like snprintf(). When the
+  // payload exceeds the buffer, the return value equals the buffer capacity. The heap
+  // fallback uses measureJson() to get the exact size for allocation.
   //
   // ===========================================================================================
   constexpr size_t buf_size = SerializationBuffer<>::BUFFER_SIZE;
@@ -118,9 +122,13 @@ SerializationBuffer<> JsonBuilder::serialize() {
     return result;
   }
 
-  // Needs heap allocation - reallocate and serialize again with exact size
+  // Payload exceeded stack buffer. ArduinoJson's serializeJson() with a bounded
+  // buffer returns the actual bytes written (truncated), NOT the would-be size.
+  // Use measureJson() to get the exact size for heap allocation.
+  size = measureJson(doc_);
   result.reallocate_heap_(size);
   serializeJson(doc_, result.data_writable_(), size + 1);
+  result.set_size_(size);
   return result;
 }
 
