@@ -33,6 +33,10 @@ static constexpr uint32_t MAX_PREFERENCE_WORDS = 255;
 
 #define ESP_RTC_USER_MEM ((uint32_t *) ESP_RTC_USER_MEM_START)
 
+// Flash storage size depends on esp8266 -> restore_from_flash YAML option (default: false).
+// When enabled (USE_ESP8266_PREFERENCES_FLASH), all preferences default to flash and need
+// 128 words (512 bytes). When disabled, only explicit flash prefs use this storage so
+// 64 words (256 bytes) suffices since most preferences go to RTC memory instead.
 #ifdef USE_ESP8266_PREFERENCES_FLASH
 static constexpr uint32_t ESP8266_FLASH_STORAGE_SIZE = 128;
 #else
@@ -127,9 +131,11 @@ static bool load_from_rtc(size_t offset, uint32_t *data, size_t len) {
   return true;
 }
 
-// Stack buffer size - 16 words total: up to 15 words of preference data + 1 word CRC (60 bytes of preference data)
-// This handles virtually all real-world preferences without heap allocation
-static constexpr size_t PREF_BUFFER_WORDS = 16;
+// Maximum buffer for any single preference - bounded by storage sizes.
+// Flash prefs: bounded by ESP8266_FLASH_STORAGE_SIZE (128 or 64 words).
+// RTC prefs: bounded by RTC_NORMAL_REGION_WORDS (96) - a single pref can't span both RTC regions.
+static constexpr size_t PREF_MAX_BUFFER_WORDS =
+    ESP8266_FLASH_STORAGE_SIZE > RTC_NORMAL_REGION_WORDS ? ESP8266_FLASH_STORAGE_SIZE : RTC_NORMAL_REGION_WORDS;
 
 class ESP8266PreferenceBackend : public ESPPreferenceBackend {
  public:
@@ -141,15 +147,13 @@ class ESP8266PreferenceBackend : public ESPPreferenceBackend {
   bool save(const uint8_t *data, size_t len) override {
     if (bytes_to_words(len) != this->length_words)
       return false;
-
     const size_t buffer_size = static_cast<size_t>(this->length_words) + 1;
-    SmallBufferWithHeapFallback<PREF_BUFFER_WORDS, uint32_t> buffer_alloc(buffer_size);
-    uint32_t *buffer = buffer_alloc.get();
+    if (buffer_size > PREF_MAX_BUFFER_WORDS)
+      return false;
+    uint32_t buffer[PREF_MAX_BUFFER_WORDS];
     memset(buffer, 0, buffer_size * sizeof(uint32_t));
-
     memcpy(buffer, data, len);
     buffer[this->length_words] = calculate_crc(buffer, buffer + this->length_words, this->type);
-
     return this->in_flash ? save_to_flash(this->offset, buffer, buffer_size)
                           : save_to_rtc(this->offset, buffer, buffer_size);
   }
@@ -157,19 +161,16 @@ class ESP8266PreferenceBackend : public ESPPreferenceBackend {
   bool load(uint8_t *data, size_t len) override {
     if (bytes_to_words(len) != this->length_words)
       return false;
-
     const size_t buffer_size = static_cast<size_t>(this->length_words) + 1;
-    SmallBufferWithHeapFallback<PREF_BUFFER_WORDS, uint32_t> buffer_alloc(buffer_size);
-    uint32_t *buffer = buffer_alloc.get();
-
+    if (buffer_size > PREF_MAX_BUFFER_WORDS)
+      return false;
+    uint32_t buffer[PREF_MAX_BUFFER_WORDS];
     bool ret = this->in_flash ? load_from_flash(this->offset, buffer, buffer_size)
                               : load_from_rtc(this->offset, buffer, buffer_size);
     if (!ret)
       return false;
-
     if (buffer[this->length_words] != calculate_crc(buffer, buffer + this->length_words, this->type))
       return false;
-
     memcpy(data, buffer, len);
     return true;
   }

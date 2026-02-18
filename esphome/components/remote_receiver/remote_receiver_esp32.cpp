@@ -2,6 +2,8 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 #include <driver/gpio.h>
 #include <esp_clk_tree.h>
 
@@ -248,4 +250,5 @@ void RemoteReceiverComponent::decode_rmt_(rmt_symbol_word_t *item, size_t item_c
 
 }  // namespace esphome::remote_receiver
 
-#endif
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32
