@@ -1,0 +1,167 @@
+---
+description: "Instructions for setting up PCA9685 LED PWM drivers."
+title: "PCA9685"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+import pca9685FullImg from './images/pca9685-full.jpg';
+import APIRef from '@components/APIRef.astro';
+
+<span id="pca9685-component"></span>
+
+## Component/Hub
+
+The PCA9685 component represents a PCA9685 12-bit PWM driver
+([datasheet](https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf),
+[adafruit](https://www.adafruit.com/product/815)) in ESPHome. It
+uses [I²C Bus](/components/i2c) for communication.
+
+To use the channels of this components, you first need to setup the
+global `pca9685` hub and give it an id, and then define the
+[individual output channels](#pca9685-output).
+
+```yaml
+# Example configuration entry
+pca9685:
+  - id: pca9685_hub1
+    frequency: 500
+
+# Individual outputs
+output:
+  - platform: pca9685
+    pca9685_id: 'pca9685_hub1'
+    channel: 0
+```
+
+```yaml
+# Example configuration entry with external clock enable and clock source from ESP32
+pca9685:
+  - id: pca9685_hub1
+    external_clock_input: true
+
+# Individual outputs
+output:
+    # generate PWM from ESP32 ledc
+  - platform: ledc
+    pin: GPIOXX
+    id: extclk
+    min_power: 1
+    frequency: 40MHz
+
+  - platform: pca9685
+    pca9685_id: 'pca9685_hub1'
+    channel: 0
+```
+
+```yaml
+# Example configuration entry with disabled phase_balancer
+pca9685:
+  - id: pca9685_hub1
+    phase_balancer: none
+
+# Individual outputs
+output:
+  - platform: pca9685
+    pca9685_id: 'pca9685_hub1'
+    channel: 0
+  - platform: pca9685
+    pca9685_id: 'pca9685_hub1'
+    channel: 1
+```
+
+### Configuration variables
+
+- **frequency** (*Optional*, frequency): The frequency to let the
+   component drive all PWM outputs at. Must be in range from `23.84Hz` to
+   `1525.88Hz`. Defaults to `1kHz`.
+
+- **external_clock_input** (*Optional*, bool): Enable external clock input. PRE_SCALE register will by set to 3. Default to `false`.
+- **address** (*Optional*, int): The I²C address of the driver.
+   Defaults to `0x40`.
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The id to use for
+   this pca9685 component. Use this if you have multiple PCA9685s connected at the same time
+
+- **phase_balancer** (*Optional*, string): The phase balancer algorithm to use.
+  See [Phase Balancer](#phase-balancer) below.
+
+### Phase Balancer
+
+The PCA9685 allows setting different phase angles on each output. The following algorithms can be used
+to set the phase angle of each output:
+
+- `linear` (default): The phase angle is set by distributing all defined outputs equally among 360°.
+  So with 3 outputs the first would have 0°, the second 120° and the last 240°. This algorithm can
+  cause flickering when animating the light, because the PCA9685 chip will need an additional frame
+  where no PWM is generated if the start angle is higher than the stop angle.
+- `none`: The phase angle is always 0°. This is the safer option if you control LED lights.
+
+<span id="pca9685-output"></span>
+
+## PCA9685 Output
+
+The PCA9685 output component exposes a PCA9685 PWM channel of a global
+[PCA9685 hub](#pca9685-component) as a float
+output.
+
+<Figure
+  src={pca9685FullImg}
+  alt=""
+  caption="PCA9685 16-Channel PWM Driver."
+  layout="constrained"
+/>
+
+```yaml
+# Example configuration entry
+pca9685:
+  - frequency: 500
+
+# Individual outputs
+output:
+  - platform: pca9685
+    id: 'pca9685_output1'
+    channel: 0
+```
+
+### Configuration variables
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this output component.
+- **channel** (**Required**, int): Choose the channel of the PCA9685 of
+  this output component. Must be in range from 0 to 15.
+
+- **pca9685_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the
+  [PCA9685 hub](#pca9685-component).
+  Use this if you have multiple PCA9685s you want to use at the same time.
+
+- All other options from [Output](/components/output#config-output).
+
+## Examples
+
+This output can be used for different PWM functions. E.g. output for light, fan etc.
+
+```yaml
+pca9685:
+  frequency: 500
+
+output:
+  - platform: pca9685
+    channel: 0
+    id: pwm01
+
+light:
+  - platform: monochromatic
+    name: 'main light'
+    output: pwm01
+```
+
+## See Also
+
+- [Output Component](/components/output/)
+- [ESP8266 Software PWM Output](/components/output/esp8266_pwm/)
+- [ESP32 LEDC Output](/components/output/ledc/)
+- [Monochromatic Light](/components/light/monochromatic/)
+- [Speed Fan](/components/fan/speed/)
+- [Power Supply Component](/components/power_supply/)
+- [PCA9685 Arduino Library](https://github.com/NachtRaveVL/PCA9685-Arduino) by [@NachtRaveVL](https://github.com/NachtRaveVL)
+- <APIRef text="pca9685_output.h" path="pca9685/pca9685_output.h" />

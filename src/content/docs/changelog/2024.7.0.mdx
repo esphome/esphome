@@ -1,0 +1,169 @@
+---
+description: "Changelog for ESPHome 2024.7.0."
+title: "ESPHome 2024.7.0 - 17th July 2024"
+pagefind: false
+slug: "changelog/2024.7.0"
+---
+
+## microWakeWord
+
+The `micro_wake_word` component has been updated to "version 2".
+This brings the capability to configure multiple models per device and has a `vad` model for
+voice activity detection.
+
+The configuration has a breaking change to support these new features.
+
+```yaml
+micro_wake_word:
+  model: okay_nabu
+```
+
+needs to be changed to the following:
+
+```yaml
+micro_wake_word:
+  models:
+    - okay_nabu
+```
+
+Please see the [Documentation](/components/micro_wake_word/) for the full configuration.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2024.7.1 - July 22
+
+- Prevent rename from deleting new config [esphome#7104](https://github.com/esphome/esphome/pull/7104) by [@acortelyou](https://github.com/acortelyou)
+- [i2s_microphone] Partially revert #7092 so microphone volume doesn't change [esphome#7109](https://github.com/esphome/esphome/pull/7109) by [@kahrendt](https://github.com/kahrendt)
+- [heatpumpir] Fix BK72XX Compile error with IRremoteESP8266 [esphome#6955](https://github.com/esphome/esphome/pull/6955) by [@dianlight](https://github.com/dianlight)
+- [http_request] allow basic auth for idf [esphome#7086](https://github.com/esphome/esphome/pull/7086) by [@oarcher](https://github.com/oarcher)
+- Fixes sml parser to process extended length lists with a number of items that is dividable by 16 [esphome#6148](https://github.com/esphome/esphome/pull/6148) by [@irgendwienet](https://github.com/irgendwienet)
+
+## Release 2024.7.2 - July 25
+
+- [http_request] Change default timeout to 4.5s [esphome#7123](https://github.com/esphome/esphome/pull/7123) by [@jesserockz](https://github.com/jesserockz)
+- [http_request] Fix ESP-IDF follow redirect [esphome#7101](https://github.com/esphome/esphome/pull/7101) by [@dentra](https://github.com/dentra)
+
+## Release 2024.7.3 - August 1
+
+- [pmwcs3] Add delay after sending REG_READ_START [esphome#7130](https://github.com/esphome/esphome/pull/7130) by [@thevogoncoder](https://github.com/thevogoncoder)
+- Fix for Mitsubishi units that only support cooling [esphome#7143](https://github.com/esphome/esphome/pull/7143) by [@RubyBailey](https://github.com/RubyBailey)
+- [micro_wake_word] Fix VAD detection and modify detection computation [esphome#7164](https://github.com/esphome/esphome/pull/7164) by [@kahrendt](https://github.com/kahrendt)
+
+## Full list of changes
+
+### New Features
+
+- [uptime] Add new timestamp type for uptime sensor [esphome#7029](https://github.com/esphome/esphome/pull/7029) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+
+### Breaking Changes
+
+- [dooya] Flip bit timings [esphome#6947](https://github.com/esphome/esphome/pull/6947) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- [modbus_text_sensor] new default ANSI encoding type [esphome#6975](https://github.com/esphome/esphome/pull/6975) by [@dudanov](https://github.com/dudanov) (breaking-change)
+- [micro_wake_word] Version 2 [esphome#7032](https://github.com/esphome/esphome/pull/7032) by [@kahrendt](https://github.com/kahrendt) (breaking-change)
+
+### Beta Changes
+
+- helpers.cpp: Fix GLIBCXX_RELEASE check < 8 [esphome#7062](https://github.com/esphome/esphome/pull/7062) by [@ferbar](https://github.com/ferbar)
+- Fix pmsa003i cold boot marked as failed on ESP32 et al [esphome#7064](https://github.com/esphome/esphome/pull/7064) by [@z3liff](https://github.com/z3liff)
+- [http_request] Fix follow_redirects on arduino [esphome#7054](https://github.com/esphome/esphome/pull/7054) by [@guillempages](https://github.com/guillempages)
+- [ethernet] Fix compile warning for IPv6 [esphome#7048](https://github.com/esphome/esphome/pull/7048) by [@HeMan](https://github.com/HeMan)
+- Update webserver local assets to 20240704-081526 [esphome#7041](https://github.com/esphome/esphome/pull/7041) by [@esphomebot](https://github.com/esphomebot)
+- Add braces to if statement to avoid compiler warning. [esphome#7036](https://github.com/esphome/esphome/pull/7036) by [@colmbuckley](https://github.com/colmbuckley)
+- [mitsubishi] Fix current temperature [esphome#6909](https://github.com/esphome/esphome/pull/6909) by [@ttaborda](https://github.com/ttaborda)
+- [climate] fix dump output of unsupported features [esphome#7005](https://github.com/esphome/esphome/pull/7005) by [@dudanov](https://github.com/dudanov)
+- [climate-traits] improved performance [esphome#7006](https://github.com/esphome/esphome/pull/7006) by [@dudanov](https://github.com/dudanov)
+- Add default icon to restart button [esphome#7076](https://github.com/esphome/esphome/pull/7076) by [@leejoow](https://github.com/leejoow)
+- Add support for the Gree YAC1FB9 in climate_ir [esphome#7056](https://github.com/esphome/esphome/pull/7056) by [@topeju](https://github.com/topeju)
+- add ESP32-C6 support to esp32_can [esphome#7063](https://github.com/esphome/esphome/pull/7063) by [@Adminius](https://github.com/Adminius)
+- Fix voice assistant crash when no speaker configured [esphome#7075](https://github.com/esphome/esphome/pull/7075) by [@kevdliu](https://github.com/kevdliu)
+- Bump HeatpumpIR, add protocols, remove IRremoteESP8266 [esphome#6996](https://github.com/esphome/esphome/pull/6996) by [@nagyrobi](https://github.com/nagyrobi)
+- LTR390 separate ALS and UV gain and resolution [esphome#7026](https://github.com/esphome/esphome/pull/7026) by [@latonita](https://github.com/latonita)
+- [improv_serial] Fix linker error created in #6998 [esphome#7082](https://github.com/esphome/esphome/pull/7082) by [@kbx81](https://github.com/kbx81)
+- [i2s_audio] Allow config for primary/secondary i2s mode [esphome#7092](https://github.com/esphome/esphome/pull/7092) by [@jesserockz](https://github.com/jesserockz)
+- [micro_wake_word] Allow simpler model config [esphome#7094](https://github.com/esphome/esphome/pull/7094) by [@jesserockz](https://github.com/jesserockz)
+- [ota] Print Arduino update errors [esphome#7096](https://github.com/esphome/esphome/pull/7096) by [@jesserockz](https://github.com/jesserockz)
+
+### All changes
+
+- [CI] Update device class sync script for update entities [esphome#6895](https://github.com/esphome/esphome/pull/6895) by [@jesserockz](https://github.com/jesserockz)
+- X9c operation speed [esphome#6898](https://github.com/esphome/esphome/pull/6898) by [@oliverhihn](https://github.com/oliverhihn)
+- Bump actions/checkout from 4.1.6 to 4.1.7 [esphome#6900](https://github.com/esphome/esphome/pull/6900) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [CI] Allow clang-tidy to see IDF components [esphome#6903](https://github.com/esphome/esphome/pull/6903) by [@kbx81](https://github.com/kbx81)
+- [esp32_camera] Use newer library version (for #6802) [esphome#6809](https://github.com/esphome/esphome/pull/6809) by [@kbx81](https://github.com/kbx81)
+- [micro_wake_word] Pin to esp-tflite-micro v1.3.1 [esphome#6906](https://github.com/esphome/esphome/pull/6906) by [@kbx81](https://github.com/kbx81)
+- VEML7700 Fix GCC build warnings [esphome#6881](https://github.com/esphome/esphome/pull/6881) by [@latonita](https://github.com/latonita)
+- IDF 5 fixes for #6802 [esphome#6911](https://github.com/esphome/esphome/pull/6911) by [@kbx81](https://github.com/kbx81)
+- [CI-ethernet] Add/fix/organize/clean up ethernet component tests [esphome#6916](https://github.com/esphome/esphome/pull/6916) by [@kbx81](https://github.com/kbx81)
+- [CI-a01nyub] Consolidate test files [esphome#6917](https://github.com/esphome/esphome/pull/6917) by [@kbx81](https://github.com/kbx81)
+- [CI-api] Test fix for IDF 5+ [esphome#6918](https://github.com/esphome/esphome/pull/6918) by [@kbx81](https://github.com/kbx81)
+- [CI-http_request] Test fix for IDF 5+ [esphome#6919](https://github.com/esphome/esphome/pull/6919) by [@kbx81](https://github.com/kbx81)
+- [CI-wireguard] Test file consolidation [esphome#6920](https://github.com/esphome/esphome/pull/6920) by [@kbx81](https://github.com/kbx81)
+- [CI-esp32_hall] Remove IDF test [esphome#6921](https://github.com/esphome/esphome/pull/6921) by [@kbx81](https://github.com/kbx81)
+- [CI] Introduce testing for IDF 5 (and other arbitrary framework versions) [esphome#6802](https://github.com/esphome/esphome/pull/6802) by [@kbx81](https://github.com/kbx81)
+- uart: allow setting the UART id in final_validate_device_schema [esphome#6923](https://github.com/esphome/esphome/pull/6923) by [@paravoid](https://github.com/paravoid)
+- Bump peter-evans/create-pull-request from 6.0.5 to 6.1.0 [esphome#6935](https://github.com/esphome/esphome/pull/6935) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix garbled graphics on LILYGO T4-S3 display [esphome#6910](https://github.com/esphome/esphome/pull/6910) by [@manuelkasper](https://github.com/manuelkasper)
+- Update cover.h for open() and close() compiler warnings [esphome#6936](https://github.com/esphome/esphome/pull/6936) by [@peter--s](https://github.com/peter--s)
+- [CI] Add debug component test for LibreTiny [esphome#6945](https://github.com/esphome/esphome/pull/6945) by [@kbx81](https://github.com/kbx81)
+- [dooya] Flip bit timings [esphome#6947](https://github.com/esphome/esphome/pull/6947) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- [qspi_amoled] Fix display remaining blank after update() before setup completion [esphome#6958](https://github.com/esphome/esphome/pull/6958) by [@manuelkasper](https://github.com/manuelkasper)
+- Bump docker/build-push-action from 6.0.1 to 6.1.0 in /.github/actions/build-image [esphome#6962](https://github.com/esphome/esphome/pull/6962) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Synchronise Device Classes from Home Assistant [esphome#6966](https://github.com/esphome/esphome/pull/6966) by [@esphomebot](https://github.com/esphomebot)
+- [qspi_amoled] Fix clear/fill with rotation [esphome#6960](https://github.com/esphome/esphome/pull/6960) by [@manuelkasper](https://github.com/manuelkasper)
+- [script] allow template parameters [esphome#6972](https://github.com/esphome/esphome/pull/6972) by [@ssieb](https://github.com/ssieb)
+- [haier] climate ID auto generation [esphome#6949](https://github.com/esphome/esphome/pull/6949) by [@dudanov](https://github.com/dudanov)
+- [core] Add script to extract actions, conditions, and pin_providers [esphome#6929](https://github.com/esphome/esphome/pull/6929) by [@jesserockz](https://github.com/jesserockz)
+- [external_files] Move common `download_content` function to `external_files.py` [esphome#6982](https://github.com/esphome/esphome/pull/6982) by [@jesserockz](https://github.com/jesserockz)
+- Do not build mDNS when mDNS is disabled via yaml [esphome#6979](https://github.com/esphome/esphome/pull/6979) by [@Links2004](https://github.com/Links2004)
+- Bump HeatpumpIR and IRremoteESP8266 [esphome#6948](https://github.com/esphome/esphome/pull/6948) by [@nagyrobi](https://github.com/nagyrobi)
+- [CI] Add more mdns and safe_mode tests [esphome#6990](https://github.com/esphome/esphome/pull/6990) by [@kbx81](https://github.com/kbx81)
+- [CI] Remove old test yamls from CI runs [esphome#6991](https://github.com/esphome/esphome/pull/6991) by [@kbx81](https://github.com/kbx81)
+- [CI] Update tests to run against IDF 5.1 [esphome#6992](https://github.com/esphome/esphome/pull/6992) by [@kbx81](https://github.com/kbx81)
+- Bump docker/build-push-action from 6.1.0 to 6.2.0 in /.github/actions/build-image [esphome#6999](https://github.com/esphome/esphome/pull/6999) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- [tuya] implement command 0x22 - datapoint-async [esphome#6980](https://github.com/esphome/esphome/pull/6980) by [@christiaanderidder](https://github.com/christiaanderidder)
+- Allow wireguard to bind to PPP interface [esphome#6989](https://github.com/esphome/esphome/pull/6989) by [@droscy](https://github.com/droscy)
+- [modbus_text_sensor] new default ANSI encoding type [esphome#6975](https://github.com/esphome/esphome/pull/6975) by [@dudanov](https://github.com/dudanov) (breaking-change)
+- [CI] Remove old test yaml files [esphome#7002](https://github.com/esphome/esphome/pull/7002) by [@kbx81](https://github.com/kbx81)
+- Revert "[CI] Update tests to run against IDF 5.1" [esphome#7003](https://github.com/esphome/esphome/pull/7003) by [@jesserockz](https://github.com/jesserockz)
+- Enable devcontainer linters [esphome#7019](https://github.com/esphome/esphome/pull/7019) by [@orland0m](https://github.com/orland0m)
+- 'uart' and 'improv_serial' need to understand non-UART logger configurations [esphome#6998](https://github.com/esphome/esphome/pull/6998) by [@kpfleming](https://github.com/kpfleming)
+- Make crc8 const-correct [esphome#7027](https://github.com/esphome/esphome/pull/7027) by [@nattgris](https://github.com/nattgris)
+- [CI] Run all tests when a base test changes [esphome#7010](https://github.com/esphome/esphome/pull/7010) by [@kbx81](https://github.com/kbx81)
+- [CI] Update tests to run against IDF 5.1 [esphome#7011](https://github.com/esphome/esphome/pull/7011) by [@kbx81](https://github.com/kbx81)
+- [uptime] Add new timestamp type for uptime sensor [esphome#7029](https://github.com/esphome/esphome/pull/7029) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- Fix compile errors on ESP32-C6 with W5500 SPI ethernet [esphome#7030](https://github.com/esphome/esphome/pull/7030) by [@LeeHanYeong](https://github.com/LeeHanYeong)
+- Bump docker/setup-buildx-action from 3.3.0 to 3.4.0 [esphome#7043](https://github.com/esphome/esphome/pull/7043) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker/build-push-action from 6.2.0 to 6.3.0 in /.github/actions/build-image [esphome#7038](https://github.com/esphome/esphome/pull/7038) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker/setup-qemu-action from 3.0.0 to 3.1.0 [esphome#7039](https://github.com/esphome/esphome/pull/7039) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/upload-artifact from 4.3.3 to 4.3.4 [esphome#7047](https://github.com/esphome/esphome/pull/7047) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump actions/download-artifact from 4.1.7 to 4.1.8 [esphome#7046](https://github.com/esphome/esphome/pull/7046) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix display of update state in webinterfae [esphome#7045](https://github.com/esphome/esphome/pull/7045) by [@leejoow](https://github.com/leejoow)
+- Haier component update to support more protocol variations [esphome#7040](https://github.com/esphome/esphome/pull/7040) by [@paveldn](https://github.com/paveldn)
+- Don't test for IPv6 addresses when min_ipv6_addr_count is 0 [esphome#7037](https://github.com/esphome/esphome/pull/7037) by [@colmbuckley](https://github.com/colmbuckley)
+- [CI] Allow running specific target test(s) only [esphome#7051](https://github.com/esphome/esphome/pull/7051) by [@tomaszduda23](https://github.com/tomaszduda23)
+- Bump actions/setup-python from 5.1.0 to 5.1.1 in /.github/actions/restore-python [esphome#7071](https://github.com/esphome/esphome/pull/7071) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix RC Switch protocol not transmitting correctly via IR [esphome#5411](https://github.com/esphome/esphome/pull/5411) by [@michd](https://github.com/michd)
+- [micro_wake_word] Version 2 [esphome#7032](https://github.com/esphome/esphome/pull/7032) by [@kahrendt](https://github.com/kahrendt) (breaking-change)
+- UART component support added for host platform [esphome#6912](https://github.com/esphome/esphome/pull/6912) by [@paveldn](https://github.com/paveldn)
+- Configure ap ip for RP2040 [esphome#7065](https://github.com/esphome/esphome/pull/7065) by [@HeMan](https://github.com/HeMan)
+- helpers.cpp: Fix GLIBCXX_RELEASE check < 8 [esphome#7062](https://github.com/esphome/esphome/pull/7062) by [@ferbar](https://github.com/ferbar)
+- Fix pmsa003i cold boot marked as failed on ESP32 et al [esphome#7064](https://github.com/esphome/esphome/pull/7064) by [@z3liff](https://github.com/z3liff)
+- [http_request] Fix follow_redirects on arduino [esphome#7054](https://github.com/esphome/esphome/pull/7054) by [@guillempages](https://github.com/guillempages)
+- [ethernet] Fix compile warning for IPv6 [esphome#7048](https://github.com/esphome/esphome/pull/7048) by [@HeMan](https://github.com/HeMan)
+- Update webserver local assets to 20240704-081526 [esphome#7041](https://github.com/esphome/esphome/pull/7041) by [@esphomebot](https://github.com/esphomebot)
+- Add braces to if statement to avoid compiler warning. [esphome#7036](https://github.com/esphome/esphome/pull/7036) by [@colmbuckley](https://github.com/colmbuckley)
+- [mitsubishi] Fix current temperature [esphome#6909](https://github.com/esphome/esphome/pull/6909) by [@ttaborda](https://github.com/ttaborda)
+- [climate] fix dump output of unsupported features [esphome#7005](https://github.com/esphome/esphome/pull/7005) by [@dudanov](https://github.com/dudanov)
+- [climate-traits] improved performance [esphome#7006](https://github.com/esphome/esphome/pull/7006) by [@dudanov](https://github.com/dudanov)
+- Add default icon to restart button [esphome#7076](https://github.com/esphome/esphome/pull/7076) by [@leejoow](https://github.com/leejoow)
+- Add support for the Gree YAC1FB9 in climate_ir [esphome#7056](https://github.com/esphome/esphome/pull/7056) by [@topeju](https://github.com/topeju)
+- add ESP32-C6 support to esp32_can [esphome#7063](https://github.com/esphome/esphome/pull/7063) by [@Adminius](https://github.com/Adminius)
+- Fix voice assistant crash when no speaker configured [esphome#7075](https://github.com/esphome/esphome/pull/7075) by [@kevdliu](https://github.com/kevdliu)
+- Bump HeatpumpIR, add protocols, remove IRremoteESP8266 [esphome#6996](https://github.com/esphome/esphome/pull/6996) by [@nagyrobi](https://github.com/nagyrobi)
+- LTR390 separate ALS and UV gain and resolution [esphome#7026](https://github.com/esphome/esphome/pull/7026) by [@latonita](https://github.com/latonita)
+- [improv_serial] Fix linker error created in #6998 [esphome#7082](https://github.com/esphome/esphome/pull/7082) by [@kbx81](https://github.com/kbx81)
+- [i2s_audio] Allow config for primary/secondary i2s mode [esphome#7092](https://github.com/esphome/esphome/pull/7092) by [@jesserockz](https://github.com/jesserockz)
+- [micro_wake_word] Allow simpler model config [esphome#7094](https://github.com/esphome/esphome/pull/7094) by [@jesserockz](https://github.com/jesserockz)
+- [ota] Print Arduino update errors [esphome#7096](https://github.com/esphome/esphome/pull/7096) by [@jesserockz](https://github.com/jesserockz)
+
+{/* markdownlint-enable MD013 */}

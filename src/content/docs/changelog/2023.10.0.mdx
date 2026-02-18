@@ -1,0 +1,170 @@
+---
+description: "Changelog for ESPHome 2023.10.0."
+title: "ESPHome 2023.10.0 - 18th October 2023"
+pagefind: false
+slug: "changelog/2023.10.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["MMC5983","/components/sensor/mmc5983","mmc5983.jpg"]
+]} />
+
+This release is quite small as myself ([@jesserockz](https://github.com/jesserockz)) and [@kbx81](https://github.com/kbx81) have been
+focusing on `voice_assistant` updates and preparations for the Year of the Voice - Chapter 4.
+
+Check out the stream replay here:
+
+{/* markdownlint-disable-next-line MD033 */}
+<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/YzgYYkOrnhQ"
+        title="YouTube video player" frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen>
+</iframe>
+
+## XOR Condition
+
+A new `xor` condition has been added to the automation engine. This condition will only be true
+when a single condition in the list is true.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2023.10.1 - October 19
+
+- Fix voice_assistant without a speaker [esphome#5558](https://github.com/esphome/esphome/pull/5558) by [@jesserockz](https://github.com/jesserockz)
+- esp32_improv add timeout [esphome#5556](https://github.com/esphome/esphome/pull/5556) by [@jesserockz](https://github.com/jesserockz)
+- Create IPv4 sockets if ipv6 is not enabled [esphome#5565](https://github.com/esphome/esphome/pull/5565) by [@jesserockz](https://github.com/jesserockz)
+- Incorrect ESP32 Strapping PIN Defined [esphome#5563](https://github.com/esphome/esphome/pull/5563) by [@descipher](https://github.com/descipher)
+
+## Release 2023.10.2 - October 24
+
+- Fix XOR condition [esphome#5567](https://github.com/esphome/esphome/pull/5567) by [@jesserockz](https://github.com/jesserockz)
+- Improv Serial support via USB CDC and JTAG [esphome#5559](https://github.com/esphome/esphome/pull/5559) by [@kbx81](https://github.com/kbx81)
+- Publish the `pulse_meter` total when setting the total [esphome#5475](https://github.com/esphome/esphome/pull/5475) by [@TrentHouliston](https://github.com/TrentHouliston)
+- Remove explicit cast for IPAddress [esphome#5574](https://github.com/esphome/esphome/pull/5574) by [@HeMan](https://github.com/HeMan)
+- Set addr type when copy from ip4_addr_t [esphome#5583](https://github.com/esphome/esphome/pull/5583) by [@HeMan](https://github.com/HeMan)
+- fix canbus send config [esphome#5585](https://github.com/esphome/esphome/pull/5585) by [@ssieb](https://github.com/ssieb)
+- Allow set climate preset to NONE [esphome#5588](https://github.com/esphome/esphome/pull/5588) by [@dentra](https://github.com/dentra)
+
+## Release 2023.10.3 - October 24
+
+- Set IP address `type` only when IPv4 and IPv6 are both enabled [esphome#5595](https://github.com/esphome/esphome/pull/5595) by [@kbx81](https://github.com/kbx81)
+
+## Release 2023.10.4 - October 30
+
+- Update current_based_cover bugfix [esphome#5587](https://github.com/esphome/esphome/pull/5587) by [@rogerbusser](https://github.com/rogerbusser)
+- Fixes ip include on arduino 2.7.4 [esphome#5620](https://github.com/esphome/esphome/pull/5620) by [@HeMan](https://github.com/HeMan)
+- Fix bug when requesting italic gfonts [esphome#5623](https://github.com/esphome/esphome/pull/5623) by [@dewet22](https://github.com/dewet22)
+- Handle enum type in tuya text_sensor [esphome#5626](https://github.com/esphome/esphome/pull/5626) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.10.5 - November 1
+
+- Add connection triggers to api [esphome#5628](https://github.com/esphome/esphome/pull/5628) by [@jesserockz](https://github.com/jesserockz)
+- Add on_client_connected and disconnected to voice assistant [esphome#5629](https://github.com/esphome/esphome/pull/5629) by [@jesserockz](https://github.com/jesserockz)
+- Ensure that all uses of strncpy in wifi component are safe. [esphome#5636](https://github.com/esphome/esphome/pull/5636) by [@kpfleming](https://github.com/kpfleming)
+- Remove some explicit IPAddress casts [esphome#5639](https://github.com/esphome/esphome/pull/5639) by [@HeMan](https://github.com/HeMan)
+
+## Release 2023.10.6 - November 3
+
+- Revert "Ensure that all uses of strncpy in wifi component are safe." [esphome#5662](https://github.com/esphome/esphome/pull/5662) by [@jesserockz](https://github.com/jesserockz)
+
+## Breaking changes
+
+The SHT3x had a `heater_enabled` config option added in the 2023.9.0 release with a default value of `true`.
+This has been flipped this release to be `false` as it started causing issues with various sensors.
+
+The SPS30 number concentration sensors had their units fixed to be `#/cm³` instead of `#/m³`.
+
+## Full list of changes
+
+### New Components
+
+- Implement sensor component for MMC5983 [esphome#5361](https://github.com/esphome/esphome/pull/5361) by [@agoode](https://github.com/agoode) (new-integration)
+
+### Breaking Changes
+
+- Do not enable SHT3x heater by default. Fixes #4886. [esphome#5445](https://github.com/esphome/esphome/pull/5445) by [@jkl1337](https://github.com/jkl1337) (breaking-change)
+- Fix units for SPS30 number concentration sensors [esphome#5452](https://github.com/esphome/esphome/pull/5452) by [@kahrendt](https://github.com/kahrendt) (breaking-change)
+
+### Beta Changes
+
+- Update htu21d.cpp, fix publishing of heater level [esphome#5520](https://github.com/esphome/esphome/pull/5520) by [@Nippey](https://github.com/Nippey)
+- BD5758D - Add delays and ACKs [esphome#5524](https://github.com/esphome/esphome/pull/5524) by [@Cossid](https://github.com/Cossid)
+- Update Improv BLE component [esphome#5518](https://github.com/esphome/esphome/pull/5518) by [@jesserockz](https://github.com/jesserockz)
+- SM10BIT_BASE - Add delays and ACKs, clear all channels before sleeping. [esphome#5526](https://github.com/esphome/esphome/pull/5526) by [@Cossid](https://github.com/Cossid)
+- BP1658CJ - Clear all channels before sleeping. [esphome#5525](https://github.com/esphome/esphome/pull/5525) by [@Cossid](https://github.com/Cossid)
+- Prometheus fix for esp-idf and fix newlines [esphome#5536](https://github.com/esphome/esphome/pull/5536) by [@jesserockz](https://github.com/jesserockz)
+- Make IPAddress's operator!= compare values, not memory addresses. [esphome#5537](https://github.com/esphome/esphome/pull/5537) by [@raineth](https://github.com/raineth)
+- Add change i2c address and allow multi conf for TB6612FNG [esphome#5492](https://github.com/esphome/esphome/pull/5492) by [@max246](https://github.com/max246)
+- Add stream start and end events [esphome#5545](https://github.com/esphome/esphome/pull/5545) by [@jesserockz](https://github.com/jesserockz)
+- Fix esp32_improv authorizer with no binary sensors in config [esphome#5546](https://github.com/esphome/esphome/pull/5546) by [@jesserockz](https://github.com/jesserockz)
+- More voice assistant fixes [esphome#5547](https://github.com/esphome/esphome/pull/5547) by [@jesserockz](https://github.com/jesserockz)
+- Fix default libretiny manufacturer reported to HA [esphome#5549](https://github.com/esphome/esphome/pull/5549) by [@jesserockz](https://github.com/jesserockz)
+- SML: fix incomplete sign extension for abbreviated transmissions [esphome#5544](https://github.com/esphome/esphome/pull/5544) by [@fblaese](https://github.com/fblaese)
+- esp32_improv advertise capabilities and state in ble service data [esphome#5553](https://github.com/esphome/esphome/pull/5553) by [@jesserockz](https://github.com/jesserockz)
+
+### Notable Changes
+
+- Add xor automation condition [esphome#5453](https://github.com/esphome/esphome/pull/5453) by [@kahrendt](https://github.com/kahrendt) (notable-change)
+
+### All changes
+
+- SX1509 component [esphome#5385](https://github.com/esphome/esphome/pull/5385) by [@vr6racer](https://github.com/vr6racer)
+- Ci find YAML tests dynamically [esphome#5399](https://github.com/esphome/esphome/pull/5399) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Make ESPHome data dir configurable [esphome#5417](https://github.com/esphome/esphome/pull/5417) by [@werdnum](https://github.com/werdnum)
+- Bump actions/checkout from 4.0.0 to 4.1.0 [esphome#5420](https://github.com/esphome/esphome/pull/5420) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix typo in documentation [esphome#5425](https://github.com/esphome/esphome/pull/5425) by [@kapily](https://github.com/kapily)
+- Bump pylint from 2.17.5 to 2.17.6 [esphome#5429](https://github.com/esphome/esphome/pull/5429) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Refactor ip address representation [esphome#5252](https://github.com/esphome/esphome/pull/5252) by [@HeMan](https://github.com/HeMan)
+- Fix .esphome path when not using envvar [esphome#5440](https://github.com/esphome/esphome/pull/5440) by [@jesserockz](https://github.com/jesserockz)
+- [BP1658CJ] Missing clock line delays and ack bit [esphome#5448](https://github.com/esphome/esphome/pull/5448) by [@leoshusar](https://github.com/leoshusar)
+- [ssd1351] fix: wait for the component to be at least in setup phase b… [esphome#5454](https://github.com/esphome/esphome/pull/5454) by [@xdecock](https://github.com/xdecock)
+- Do not enable SHT3x heater by default. Fixes #4886. [esphome#5445](https://github.com/esphome/esphome/pull/5445) by [@jkl1337](https://github.com/jkl1337) (breaking-change)
+- Add testcases for multiple SPI buses on ESP32 Arduino [esphome#5457](https://github.com/esphome/esphome/pull/5457) by [@angelnu](https://github.com/angelnu)
+- Feat/component poller suspend [esphome#5423](https://github.com/esphome/esphome/pull/5423) by [@xdecock](https://github.com/xdecock)
+- Bump actions/setup-python from 4.7.0 to 4.7.1 [esphome#5467](https://github.com/esphome/esphome/pull/5467) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add xor automation condition [esphome#5453](https://github.com/esphome/esphome/pull/5453) by [@kahrendt](https://github.com/kahrendt) (notable-change)
+- Fix units for SPS30 number concentration sensors [esphome#5452](https://github.com/esphome/esphome/pull/5452) by [@kahrendt](https://github.com/kahrendt) (breaking-change)
+- ST7789v - Allow predefined backlight pin to be disabled. [esphome#5476](https://github.com/esphome/esphome/pull/5476) by [@clydebarrow](https://github.com/clydebarrow)
+- MAX7219 - Update intensity [esphome#5477](https://github.com/esphome/esphome/pull/5477) by [@clydebarrow](https://github.com/clydebarrow)
+- St7789v and SPI data rate [esphome#5472](https://github.com/esphome/esphome/pull/5472) by [@clydebarrow](https://github.com/clydebarrow)
+- Move CONF_IRQ_PIN into const.py [esphome#5488](https://github.com/esphome/esphome/pull/5488) by [@kbx81](https://github.com/kbx81)
+- Initial ESP32-H2 Support [esphome#5498](https://github.com/esphome/esphome/pull/5498) by [@vidplace7](https://github.com/vidplace7)
+- Increased debug message precision [esphome#5496](https://github.com/esphome/esphome/pull/5496) by [@lukeansell](https://github.com/lukeansell)
+- Support for Haier IR protocol added [esphome#5403](https://github.com/esphome/esphome/pull/5403) by [@paveldn](https://github.com/paveldn)
+- add USE_SPI define [esphome#5500](https://github.com/esphome/esphome/pull/5500) by [@angelnu](https://github.com/angelnu)
+- Implement sensor component for MMC5983 [esphome#5361](https://github.com/esphome/esphome/pull/5361) by [@agoode](https://github.com/agoode) (new-integration)
+- Bump docker dependencies [esphome#5501](https://github.com/esphome/esphome/pull/5501) by [@jesserockz](https://github.com/jesserockz)
+- Move to Pillow 10.x [esphome#5489](https://github.com/esphome/esphome/pull/5489) by [@hostcc](https://github.com/hostcc)
+- [Sprinkler] Initialize timers early to avoid crash [esphome#5499](https://github.com/esphome/esphome/pull/5499) by [@hostcc](https://github.com/hostcc)
+- Deep sleep is only available on esp32 and esp8266 [esphome#5507](https://github.com/esphome/esphome/pull/5507) by [@jesserockz](https://github.com/jesserockz)
+- Use platform consts [esphome#5508](https://github.com/esphome/esphome/pull/5508) by [@jesserockz](https://github.com/jesserockz)
+- Fixed precision for Nextion sensor with float values [esphome#5497](https://github.com/esphome/esphome/pull/5497) by [@olegtarasov](https://github.com/olegtarasov)
+- Remote wake word support for voice assistant [esphome#5229](https://github.com/esphome/esphome/pull/5229) by [@jesserockz](https://github.com/jesserockz)
+- Don't allow entity category "CONFIG" for sensors [esphome#5505](https://github.com/esphome/esphome/pull/5505) by [@edenhaus](https://github.com/edenhaus)
+- Prepare protobuf for ESP-IDF ≥ 5 [esphome#5510](https://github.com/esphome/esphome/pull/5510) by [@HeMan](https://github.com/HeMan)
+- fix build lang schema for spi and i2c [esphome#5509](https://github.com/esphome/esphome/pull/5509) by [@glmnet](https://github.com/glmnet)
+- Added Nextion display error handling during setup [esphome#5493](https://github.com/esphome/esphome/pull/5493) by [@olegtarasov](https://github.com/olegtarasov)
+- Fix e131 and voice_assistant sockets [esphome#5502](https://github.com/esphome/esphome/pull/5502) by [@justdaniel-gh](https://github.com/justdaniel-gh)
+- Allow manual set "Invert_display" [esphome#5494](https://github.com/esphome/esphome/pull/5494) by [@nielsnl68](https://github.com/nielsnl68)
+- As3935 calibration [esphome#5366](https://github.com/esphome/esphome/pull/5366) by [@mveinot](https://github.com/mveinot)
+- Small fixes for voice assistant [esphome#5513](https://github.com/esphome/esphome/pull/5513) by [@synesthesiam](https://github.com/synesthesiam)
+- Add detail param to allow listing of select options in WebServer REST API [esphome#5503](https://github.com/esphome/esphome/pull/5503) by [@DanielBaulig](https://github.com/DanielBaulig)
+- Bump curl to 7.74.0-1.3+deb11u10 [esphome#5517](https://github.com/esphome/esphome/pull/5517) by [@jesserockz](https://github.com/jesserockz)
+- Update htu21d.cpp, fix publishing of heater level [esphome#5520](https://github.com/esphome/esphome/pull/5520) by [@Nippey](https://github.com/Nippey)
+- BD5758D - Add delays and ACKs [esphome#5524](https://github.com/esphome/esphome/pull/5524) by [@Cossid](https://github.com/Cossid)
+- Update Improv BLE component [esphome#5518](https://github.com/esphome/esphome/pull/5518) by [@jesserockz](https://github.com/jesserockz)
+- SM10BIT_BASE - Add delays and ACKs, clear all channels before sleeping. [esphome#5526](https://github.com/esphome/esphome/pull/5526) by [@Cossid](https://github.com/Cossid)
+- BP1658CJ - Clear all channels before sleeping. [esphome#5525](https://github.com/esphome/esphome/pull/5525) by [@Cossid](https://github.com/Cossid)
+- Prometheus fix for esp-idf and fix newlines [esphome#5536](https://github.com/esphome/esphome/pull/5536) by [@jesserockz](https://github.com/jesserockz)
+- Make IPAddress's operator!= compare values, not memory addresses. [esphome#5537](https://github.com/esphome/esphome/pull/5537) by [@raineth](https://github.com/raineth)
+- Add change i2c address and allow multi conf for TB6612FNG [esphome#5492](https://github.com/esphome/esphome/pull/5492) by [@max246](https://github.com/max246)
+- Add stream start and end events [esphome#5545](https://github.com/esphome/esphome/pull/5545) by [@jesserockz](https://github.com/jesserockz)
+- Fix esp32_improv authorizer with no binary sensors in config [esphome#5546](https://github.com/esphome/esphome/pull/5546) by [@jesserockz](https://github.com/jesserockz)
+- More voice assistant fixes [esphome#5547](https://github.com/esphome/esphome/pull/5547) by [@jesserockz](https://github.com/jesserockz)
+- Fix default libretiny manufacturer reported to HA [esphome#5549](https://github.com/esphome/esphome/pull/5549) by [@jesserockz](https://github.com/jesserockz)
+- SML: fix incomplete sign extension for abbreviated transmissions [esphome#5544](https://github.com/esphome/esphome/pull/5544) by [@fblaese](https://github.com/fblaese)
+- esp32_improv advertise capabilities and state in ble service data [esphome#5553](https://github.com/esphome/esphome/pull/5553) by [@jesserockz](https://github.com/jesserockz)
+
+{/* markdownlint-enable MD013 */}

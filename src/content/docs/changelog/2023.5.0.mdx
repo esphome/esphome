@@ -1,0 +1,191 @@
+---
+description: "Changelog for ESPHome 2023.5.0."
+title: "ESPHome 2023.5.0 - 17th May 2023"
+pagefind: false
+slug: "changelog/2023.5.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Speaker Core","/components/speaker/index","speaker.svg","dark-invert"],
+  ["I2S Speaker","/components/speaker/i2s_audio","i2s_audio.svg"],
+  ["MLX90614","/components/sensor/mlx90614","mlx90614.jpg"],
+  ["MAX6956 I/O expander - I²C Bus","/components/max6956","max6956.jpg"],
+  ["PCA6416A I/O Expander","/components/pca6416a","pca6416a.svg"],
+  ["HYT271","/components/sensor/hyt271","hyt271.jpg"],
+  ["GP8403","/components/output/gp8403","gp8403.svg"],
+  ["ESP32 RMT LED Strip","/components/light/esp32_rmt_led_strip","color_lens.svg"]
+]} />
+
+## Speakers
+
+Following on from last months release adding [microphones](/components/microphone/),
+this release adds [speaker](/components/speaker/) support!
+
+These new changes allows the [Voice Assistant](/components/voice_assistant/) to request the raw audio
+stream response from Home Assistant to playback without using a full [Media Player](/components/media_player/).
+This has much lower latency and allows for a much more responsive voice assistant experience.
+
+## More Microphones
+
+This release also adds a bit more configuration for the i2s_audio microphone components.
+There is a breaking-change that requires new configuration fields to be added in YAML.
+See the [microphone documentation](/components/microphone/i2s_audio/) for the configuration details,
+but below is a small example for the M5Stack Atom Echo.
+
+```yaml
+# Old
+microphone:
+  platform: i2s_audio
+  i2s_din_pin: GPIO23
+  id: my_microphone
+
+# New
+microphone:
+  platform: i2s_audio
+  i2s_din_pin: GPIO23
+  adc_type: external
+  pdm: false
+```
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2023.5.1 - May 18
+
+- Remove i2c dependency from ttp229_bsf [esphome#4851](https://github.com/esphome/esphome/pull/4851) by [@jesserockz](https://github.com/jesserockz)
+- Sprinkler fixes [esphome#4816](https://github.com/esphome/esphome/pull/4816) by [@kbx81](https://github.com/kbx81)
+
+## Release 2023.5.2 - May 22
+
+- Fix i2s_audio media_player mutex acquisition [esphome#4867](https://github.com/esphome/esphome/pull/4867) by [@kroimon](https://github.com/kroimon)
+
+## Release 2023.5.3 - May 22
+
+- Allow microphone channel to be specified in config [esphome#4871](https://github.com/esphome/esphome/pull/4871) by [@jesserockz](https://github.com/jesserockz)
+- [PSRam] Change log unit to KB to minimize rounding error. [esphome#4872](https://github.com/esphome/esphome/pull/4872) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+
+## Release 2023.5.4 - May 24
+
+- [internal_temperature] ESP32-S3 needs ESP IDF V4.4.3 or higher [esphome#4873](https://github.com/esphome/esphome/pull/4873) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Update cover.h for compile errors with stop() [esphome#4879](https://github.com/esphome/esphome/pull/4879) by [@Davrosx](https://github.com/Davrosx)
+- Print ESPHome version when running commands [esphome#4883](https://github.com/esphome/esphome/pull/4883) by [@jesserockz](https://github.com/jesserockz)
+- fix modbus sending FP32_R values [esphome#4882](https://github.com/esphome/esphome/pull/4882) by [@ssieb](https://github.com/ssieb)
+- Fix esp32_rmt_led_strip color modes [esphome#4886](https://github.com/esphome/esphome/pull/4886) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2023.5.5 - May 29
+
+- Fix version printing not breaking yaml parsing [esphome#4904](https://github.com/esphome/esphome/pull/4904) by [@jesserockz](https://github.com/jesserockz)
+
+## Full list of changes
+
+### New Components
+
+- Add mlx90614 sensors [esphome#3749](https://github.com/esphome/esphome/pull/3749) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add PCA6416A Support [esphome#4681](https://github.com/esphome/esphome/pull/4681) by [@Mat931](https://github.com/Mat931) (new-integration)
+- Add support for hyt271 [esphome#4282](https://github.com/esphome/esphome/pull/4282) by [@Philippe12](https://github.com/Philippe12) (new-integration)
+- Max6956 support added [esphome#3764](https://github.com/esphome/esphome/pull/3764) by [@looping40](https://github.com/looping40) (new-integration)
+- Speaker support [esphome#4743](https://github.com/esphome/esphome/pull/4743) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add gp8403 output component [esphome#4495](https://github.com/esphome/esphome/pull/4495) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Create esp32 rmt addressable light driver [esphome#4708](https://github.com/esphome/esphome/pull/4708) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add host target platform [esphome#4783](https://github.com/esphome/esphome/pull/4783) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+
+### Breaking Changes
+
+- Remove climate legacy away flags [esphome#4744](https://github.com/esphome/esphome/pull/4744) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Revert "Template sensors always publish on update interval (#2224)" [esphome#4774](https://github.com/esphome/esphome/pull/4774) by [@nuttytree](https://github.com/nuttytree) (breaking-change)
+
+### Beta Changes
+
+- Fixed access point for ESP32 IDF platform [esphome#4784](https://github.com/esphome/esphome/pull/4784) by [@HeMan](https://github.com/HeMan)
+- Remove AUTO_LOAD from apds9960 [esphome#4746](https://github.com/esphome/esphome/pull/4746) by [@jesserockz](https://github.com/jesserockz)
+- Supposed to fix #4069, by changing the default value to 0s (timeunit … [esphome#4806](https://github.com/esphome/esphome/pull/4806) by [@Alex1602](https://github.com/Alex1602)
+- Wording [esphome#4805](https://github.com/esphome/esphome/pull/4805) by [@fgsch](https://github.com/fgsch)
+- Tuya: Prevent loop when setting colors on case-sensitive dps [esphome#4809](https://github.com/esphome/esphome/pull/4809) by [@richardhopton](https://github.com/richardhopton)
+- Fix i2s media player volume control [esphome#4813](https://github.com/esphome/esphome/pull/4813) by [@jesserockz](https://github.com/jesserockz)
+- Dont try stop if not actually started [esphome#4814](https://github.com/esphome/esphome/pull/4814) by [@jesserockz](https://github.com/jesserockz)
+- Fix missing stop trait in send_cover_info [esphome#4826](https://github.com/esphome/esphome/pull/4826) by [@RoboMagus](https://github.com/RoboMagus)
+- Bump aioesphomeapi from 13.7.2 to 13.7.5 [esphome#4830](https://github.com/esphome/esphome/pull/4830) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Update PulseLightEffect with range brightness [esphome#4820](https://github.com/esphome/esphome/pull/4820) by [@max246](https://github.com/max246)
+- Bump esphome-dashboard to 20230516.0 [esphome#4831](https://github.com/esphome/esphome/pull/4831) by [@jesserockz](https://github.com/jesserockz)
+- Fix time period validation for the auto cleaning interval [esphome#4811](https://github.com/esphome/esphome/pull/4811) by [@fgsch](https://github.com/fgsch)
+- Bump tzlocal from 4.2 to 5.0.1 [esphome#4829](https://github.com/esphome/esphome/pull/4829) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Start UART assignment at UART0 if the logger is not enabled or is not configured for hardware logging on ESP32 [esphome#4762](https://github.com/esphome/esphome/pull/4762) by [@spectrumjade](https://github.com/spectrumjade)
+- Synchronise Device Classes from Home Assistant [esphome#4825](https://github.com/esphome/esphome/pull/4825) by [@github-actions[bot]](https://github.com/github-actions[bot])
+- support sending keys to the collector [esphome#4838](https://github.com/esphome/esphome/pull/4838) by [@ssieb](https://github.com/ssieb)
+- handle Wiegand 8-bit keys [esphome#4837](https://github.com/esphome/esphome/pull/4837) by [@ssieb](https://github.com/ssieb)
+
+### All changes
+
+- Only allow 5 jobs from each CI run to be in parallel [esphome#4682](https://github.com/esphome/esphome/pull/4682) by [@jesserockz](https://github.com/jesserockz)
+- Add Bayesian type for binary_sensor_map component [esphome#4640](https://github.com/esphome/esphome/pull/4640) by [@kahrendt](https://github.com/kahrendt)
+- Bump aioesphomeapi from 13.5.1 to 13.7.0 [esphome#4676](https://github.com/esphome/esphome/pull/4676) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump peter-evans/create-pull-request from 4 to 5 [esphome#4661](https://github.com/esphome/esphome/pull/4661) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump docker/build-push-action from 3 to 4 [esphome#4367](https://github.com/esphome/esphome/pull/4367) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Keep Device Class in Flash. [esphome#4639](https://github.com/esphome/esphome/pull/4639) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Add support for passive WiFi scanning [esphome#4666](https://github.com/esphome/esphome/pull/4666) by [@BellaCoola](https://github.com/BellaCoola)
+- Initial attempt at supporting ESP-IDF 5.0.0 [esphome#4364](https://github.com/esphome/esphome/pull/4364) by [@kbx81](https://github.com/kbx81)
+- Get Sunrise & Sunset for a Specific Date [esphome#4712](https://github.com/esphome/esphome/pull/4712) by [@RebbePod](https://github.com/RebbePod)
+- Add `supports_stop` trait to Cover [esphome#3897](https://github.com/esphome/esphome/pull/3897) by [@amomchilov](https://github.com/amomchilov)
+- Bump aioesphomeapi from 13.7.0 to 13.7.1 [esphome#4725](https://github.com/esphome/esphome/pull/4725) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add on_tag_removed trigger for RC522 [esphome#4742](https://github.com/esphome/esphome/pull/4742) by [@kbx81](https://github.com/kbx81)
+- Fix 'blutooth' typo in esp32_ble component [esphome#4738](https://github.com/esphome/esphome/pull/4738) by [@RoboMagus](https://github.com/RoboMagus)
+- Bump pylint from 2.17.2 to 2.17.3 [esphome#4740](https://github.com/esphome/esphome/pull/4740) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump tornado from 6.2 to 6.3.1 [esphome#4741](https://github.com/esphome/esphome/pull/4741) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pytest from 7.3.0 to 7.3.1 [esphome#4686](https://github.com/esphome/esphome/pull/4686) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Expand the platformio dep installer to also install platforms and tools [esphome#4716](https://github.com/esphome/esphome/pull/4716) by [@jesserockz](https://github.com/jesserockz)
+- Remove climate legacy away flags [esphome#4744](https://github.com/esphome/esphome/pull/4744) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Add mlx90614 sensors [esphome#3749](https://github.com/esphome/esphome/pull/3749) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Move am43 sensor code and remove auto load on cover [esphome#4631](https://github.com/esphome/esphome/pull/4631) by [@jesserockz](https://github.com/jesserockz)
+- Fix assumed_state switch webserver [esphome#4259](https://github.com/esphome/esphome/pull/4259) by [@RoboMagus](https://github.com/RoboMagus)
+- Bump aioesphomeapi from 13.7.1 to 13.7.2 [esphome#4753](https://github.com/esphome/esphome/pull/4753) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump git version in Dockerfile [esphome#4763](https://github.com/esphome/esphome/pull/4763) by [@jesserockz](https://github.com/jesserockz)
+- Power down PN532 before deep sleep [esphome#4707](https://github.com/esphome/esphome/pull/4707) by [@tracestep](https://github.com/tracestep)
+- Switch ESPAsyncTCP-esphome to esphome fork [esphome#4764](https://github.com/esphome/esphome/pull/4764) by [@jesserockz](https://github.com/jesserockz)
+- Bump pyupgrade from 3.3.1 to 3.3.2 [esphome#4751](https://github.com/esphome/esphome/pull/4751) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Only pre-install libraries in docker images [esphome#4766](https://github.com/esphome/esphome/pull/4766) by [@jesserockz](https://github.com/jesserockz)
+- Add PCA6416A Support [esphome#4681](https://github.com/esphome/esphome/pull/4681) by [@Mat931](https://github.com/Mat931) (new-integration)
+- play_folder bugfix and addition of play_mp3 [esphome#4758](https://github.com/esphome/esphome/pull/4758) by [@llluis](https://github.com/llluis)
+- RF Codec for Drayton Digistat heating controller [esphome#4494](https://github.com/esphome/esphome/pull/4494) by [@marshn](https://github.com/marshn)
+- Add support for hyt271 [esphome#4282](https://github.com/esphome/esphome/pull/4282) by [@Philippe12](https://github.com/Philippe12) (new-integration)
+- Add support for BLE passkey authentication [esphome#4258](https://github.com/esphome/esphome/pull/4258) by [@Mat931](https://github.com/Mat931)
+- Add support for V2 of the waveshare 5.83in e-paper display. [esphome#3660](https://github.com/esphome/esphome/pull/3660) by [@cooki35](https://github.com/cooki35)
+- Max6956 support added [esphome#3764](https://github.com/esphome/esphome/pull/3764) by [@looping40](https://github.com/looping40) (new-integration)
+- Bump zeroconf from 0.56.0 to 0.60.0 [esphome#4767](https://github.com/esphome/esphome/pull/4767) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Revert "Template sensors always publish on update interval (#2224)" [esphome#4774](https://github.com/esphome/esphome/pull/4774) by [@nuttytree](https://github.com/nuttytree) (breaking-change)
+- update schema gen to 2023.4.0 [esphome#4772](https://github.com/esphome/esphome/pull/4772) by [@glmnet](https://github.com/glmnet)
+- Speaker support [esphome#4743](https://github.com/esphome/esphome/pull/4743) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add gp8403 output component [esphome#4495](https://github.com/esphome/esphome/pull/4495) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Create esp32 rmt addressable light driver [esphome#4708](https://github.com/esphome/esphome/pull/4708) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Bump ESP32-audioI2s to 2.0.7 [esphome#4796](https://github.com/esphome/esphome/pull/4796) by [@jesserockz](https://github.com/jesserockz)
+- SM2135 Add optional current configuration, avoid communication failures. [esphome#3850](https://github.com/esphome/esphome/pull/3850) by [@BoukeHaarsma23](https://github.com/BoukeHaarsma23)
+- Fix ezo parsing [esphome#4792](https://github.com/esphome/esphome/pull/4792) by [@alfredopironti](https://github.com/alfredopironti)
+- [ili9xxx] Improve fill operation performance [esphome#4702](https://github.com/esphome/esphome/pull/4702) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Add host target platform [esphome#4783](https://github.com/esphome/esphome/pull/4783) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Add more envs to root platformio [esphome#4799](https://github.com/esphome/esphome/pull/4799) by [@jesserockz](https://github.com/jesserockz)
+- Keep Unit of Measurement in Flash. [esphome#4719](https://github.com/esphome/esphome/pull/4719) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- [display] Small display print performance improvement [esphome#4788](https://github.com/esphome/esphome/pull/4788) by [@Fabian-Schmidt](https://github.com/Fabian-Schmidt)
+- Fixed calculation of start and end dhcp range [esphome#4785](https://github.com/esphome/esphome/pull/4785) by [@HeMan](https://github.com/HeMan)
+- Add more configuration for microphones - i2s/pdm/adc [esphome#4775](https://github.com/esphome/esphome/pull/4775) by [@jesserockz](https://github.com/jesserockz)
+- Wrap VA code [esphome#4800](https://github.com/esphome/esphome/pull/4800) by [@jesserockz](https://github.com/jesserockz)
+- Make i2s_audio bclk_pin optional [esphome#4801](https://github.com/esphome/esphome/pull/4801) by [@jesserockz](https://github.com/jesserockz)
+- Validate project details are set for dashboard_import [esphome#4802](https://github.com/esphome/esphome/pull/4802) by [@jesserockz](https://github.com/jesserockz)
+- Fixed access point for ESP32 IDF platform [esphome#4784](https://github.com/esphome/esphome/pull/4784) by [@HeMan](https://github.com/HeMan)
+- Remove AUTO_LOAD from apds9960 [esphome#4746](https://github.com/esphome/esphome/pull/4746) by [@jesserockz](https://github.com/jesserockz)
+- Supposed to fix #4069, by changing the default value to 0s (timeunit … [esphome#4806](https://github.com/esphome/esphome/pull/4806) by [@Alex1602](https://github.com/Alex1602)
+- Wording [esphome#4805](https://github.com/esphome/esphome/pull/4805) by [@fgsch](https://github.com/fgsch)
+- Tuya: Prevent loop when setting colors on case-sensitive dps [esphome#4809](https://github.com/esphome/esphome/pull/4809) by [@richardhopton](https://github.com/richardhopton)
+- Fix i2s media player volume control [esphome#4813](https://github.com/esphome/esphome/pull/4813) by [@jesserockz](https://github.com/jesserockz)
+- Dont try stop if not actually started [esphome#4814](https://github.com/esphome/esphome/pull/4814) by [@jesserockz](https://github.com/jesserockz)
+- Fix missing stop trait in send_cover_info [esphome#4826](https://github.com/esphome/esphome/pull/4826) by [@RoboMagus](https://github.com/RoboMagus)
+- Bump aioesphomeapi from 13.7.2 to 13.7.5 [esphome#4830](https://github.com/esphome/esphome/pull/4830) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Update PulseLightEffect with range brightness [esphome#4820](https://github.com/esphome/esphome/pull/4820) by [@max246](https://github.com/max246)
+- Bump esphome-dashboard to 20230516.0 [esphome#4831](https://github.com/esphome/esphome/pull/4831) by [@jesserockz](https://github.com/jesserockz)
+- Fix time period validation for the auto cleaning interval [esphome#4811](https://github.com/esphome/esphome/pull/4811) by [@fgsch](https://github.com/fgsch)
+- Bump tzlocal from 4.2 to 5.0.1 [esphome#4829](https://github.com/esphome/esphome/pull/4829) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Start UART assignment at UART0 if the logger is not enabled or is not configured for hardware logging on ESP32 [esphome#4762](https://github.com/esphome/esphome/pull/4762) by [@spectrumjade](https://github.com/spectrumjade)
+- Synchronise Device Classes from Home Assistant [esphome#4825](https://github.com/esphome/esphome/pull/4825) by [@github-actions[bot]](https://github.com/github-actions[bot])
+- support sending keys to the collector [esphome#4838](https://github.com/esphome/esphome/pull/4838) by [@ssieb](https://github.com/ssieb)
+- handle Wiegand 8-bit keys [esphome#4837](https://github.com/esphome/esphome/pull/4837) by [@ssieb](https://github.com/ssieb)
+
+{/* markdownlint-enable MD013 */}

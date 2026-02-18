@@ -1,33 +1,34 @@
-public/
-esphome-docs
-.hugo_build.lock
-.idea
-/node_modules/
-/pagefind/
-/data/repo.yaml
-/data/anchors.json
-/data/automations
-my-secrets
-resources/_gen
+# Astro build output
+dist/
+.astro/
 
-_build
+# Node
+node_modules/
+
+# IDE
+.idea/
+*.swp
 .DS_Store
 
-.cache/
-.python-version
+# OS
+*.DS_Store
+
+# Python (for scripts)
 __pycache__/
 *.py[cod]
 *$py.class
+venv/
+.python-version
 
-# Release notes generator cache (persistent PR cache + version-specific data)
+# Cache
+.cache/
 script/cache/
 
-venv
+# Environment
+my-secrets
+.env
+.env.*
 
-*.DS_Store
-/.idea/
-
-_pagefind/
-
-# Vim
-*.swp
+# Misc
+_build
+esphome-docs

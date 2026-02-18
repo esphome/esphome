@@ -1,0 +1,41 @@
+---
+/**
+ * FeatureGrid Component
+ * Creates a grid of feature cards with icons, titles, and descriptions.
+ *
+ * Usage in MDX:
+ * <FeatureGrid items={[
+ *   { icon: "code", title: "No Coding Required", description: "Simple YAML configuration" },
+ *   { icon: "wifi", title: "Wireless Updates", description: "OTA updates" },
+ * ]} />
+ */
+
+interface FeatureItem {
+  icon: string;
+  title: string;
+  description: string;
+}
+
+interface Props {
+  items: FeatureItem[];
+}
+
+const { items } = Astro.props;
+
+// Map icon names to SVG paths in public/images/icons
+function getIconPath(icon: string): string {
+  return `/images/icons/${icon}.svg`;
+}
+---
+
+<div class="feature-grid">
+  {items.map((item) => (
+    <div class="feature-card">
+      <div class="feature-icon">
+        <img src={getIconPath(item.icon)} alt="" loading="lazy" />
+      </div>
+      <div class="feature-text">{item.title}</div>
+      <p set:html={item.description} />
+    </div>
+  ))}
+</div>

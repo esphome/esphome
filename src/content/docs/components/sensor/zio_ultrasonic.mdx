@@ -1,0 +1,45 @@
+---
+description: "Instructions for setting up the Zio Ultrasonic Distance sensor."
+title: "Zio Ultrasonic Distance Sensor"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+
+The Zio Ultrasonic Distance sensor allows you to use your compatible
+([datasheet](https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf),
+[sparkfun](https://www.sparkfun.com/products/17777))
+sensors with ESPHome.
+
+<Figure
+  src="/images/zio_ultrasonic.jpg"
+  alt=""
+  caption="Zio Ultrasonic Distance Sensor. (Credit: [Sparkfun](https://www.sparkfun.com/products/17777), image cropped and compressed)"
+  layout="constrained"
+  width={300}
+  height={300}
+/>
+
+The Zio Ultrasonic Distance Sensor is an ultrasonic distance sensor based on the HC-SR04 sensor. Unlike the [Ultrasonic Distance Sensor component](/components/sensor/ultrasonic/), measurements are read over the I²C bus.
+
+To use the sensor, first set up an [I²C Bus](/components/i2c) and connect the sensor to the specified pins.
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: zio_ultrasonic
+    name: "Distance"
+    update_interval: 60s
+```
+
+## Configuration variables
+
+- **address** (*Optional*, int): Manually specify the I²C address of the sensor. Defaults to `0x00`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
+- All other options from [Sensor](/components/sensor).
+
+## See Also
+
+- [Ultrasonic Sensor Component](/components/sensor/ultrasonic/)
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [Template Sensor](/components/sensor/template/)

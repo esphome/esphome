@@ -1,0 +1,238 @@
+---
+description: "Changelog for ESPHome 2022.1.0."
+title: "ESPHome 2022.1.0 - 19th January 2022"
+pagefind: false
+slug: "changelog/2022.1.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["BL0940","/components/sensor/bl0940","bl0940.png"],
+  ["BMP388 and BMP390","/components/sensor/bmp3xx","bmp388.jpg"],
+  ["CD74HC4067","/components/sensor/cd74hc4067","cd74hc4067.jpg"],
+  ["ESP32 Native CAN Bus","/components/canbus","canbus.svg"],
+  ["Growatt Solar","/components/sensor/growatt_solar","growatt.jpg"],
+  ["INA260","/components/sensor/ina260","ina260.jpg"],
+  ["Inkplate 10","/components/display/inkplate6","inkplate6.jpg"],
+  ["Kalman Combinator","/components/sensor/kalman_combinator","function.svg","dark-invert"],
+  ["MCP3204","/components/sensor/mcp3204","mcp3204.jpg"],
+  ["MCP47A1","/components/output/mcp47a1","mcp47a1.svg"],
+  ["Midea IR Climate","/components/climate/climate_ir","air-conditioner-ir.svg","dark-invert"],
+  ["Safe Mode Button","/components/button/safe_mode","restart-alert.svg","dark-invert"],
+  ["Shutdown Button","/components/button/shutdown","power_settings.svg","dark-invert"],
+  ["Tuya Number","/components/number/tuya","tuya.png"]
+]} />
+
+HAPPY NEW YEAR!!
+
+There are a few more new components this release than I expected, yay!!!
+
+## ESPHome Web
+
+Today we're launching a new variant of the ESPHome dashboard: ESPHome Web – [https://web.esphome.io](https://web.esphome.io).
+
+The biggest challenge to getting started with ESPHome is the initial installation of ESPHome on your device.
+This installation needs be done by attaching the device to your computer via a cable. Once installed, updates can
+be installed over-the-air.
+
+Last year we added support to the ESPHome dashboard to do the initial installation via the browser. Browsers
+security require the website to be served over HTTPS to allow device installation. Most people browse it from
+[http://homeassistant.local](http://homeassistant.local) or other local addresses so only users that manually configured external access or
+using Home Assistant Cloud could benefit.
+
+With ESPHome Web we took the installation bits of the ESPHome dashboard and made them available on a website served
+over HTTPS. It works 100% in your browser without a backend or data leaving your computer. Now anyone can easily
+install ESPHome on their devices to get started.
+
+[Visit ESPHome Web](https://web.esphome.io)
+
+## JSON
+
+We upgraded the ArduinoJson library used to parse and build JSON strings to the latest version.
+All of the internal code has been updated to work with the changes, but any custom code or even
+`lambda` might need updating now.
+
+The most noticeble change is that the `&` reference modifier on the `JsonObject` that are
+created in lambdas are no longer required.
+
+Example:
+
+```cpp
+JsonObject &blah = root.createNestedObject("blah");
+
+// This should now be:
+
+JsonObject blah = root.createNestedObject("blah");
+```
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2022.1.1 - January 20
+
+- Add `*.py.script` files to distributions [esphome#3074](https://github.com/esphome/esphome/pull/3074) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2022.1.2 - January 25
+
+- [modbus_controller] fix incorrect start address for number write [esphome#3073](https://github.com/esphome/esphome/pull/3073) by [@martgras](https://github.com/martgras)
+- Set the wrapped single light in light partition to internal [esphome#3092](https://github.com/esphome/esphome/pull/3092) by [@placidorevilla](https://github.com/placidorevilla)
+
+## Release 2022.1.3 - February 2
+
+- Fix backwards string case helpers [esphome#3126](https://github.com/esphome/esphome/pull/3126) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+
+## Release 2022.1.4 - February 9
+
+- Enable mDNS during OTA safe mode [esphome#3146](https://github.com/esphome/esphome/pull/3146) by [@OttoWinter](https://github.com/OttoWinter)
+- Try fix canbus config validation [esphome#3173](https://github.com/esphome/esphome/pull/3173) by [@jesserockz](https://github.com/jesserockz)
+
+## Full list of changes
+
+### New Features
+
+- Support different run duration for non-timer wakeup [esphome#2861](https://github.com/esphome/esphome/pull/2861) by [@jhamhader](https://github.com/jhamhader) (new-feature)
+- Add light.on_state trigger [esphome#2868](https://github.com/esphome/esphome/pull/2868) by [@tony-fav](https://github.com/tony-fav) (new-feature)
+- Support inkplate10 [esphome#2937](https://github.com/esphome/esphome/pull/2937) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+
+### New Components
+
+- Add growatt modbus sensor [esphome#2922](https://github.com/esphome/esphome/pull/2922) by [@leeuwte](https://github.com/leeuwte) (new-integration)
+- Add Tuya Number support [esphome#2765](https://github.com/esphome/esphome/pull/2765) by [@frankiboy1](https://github.com/frankiboy1) (new-integration)
+- Add shutdown and safe_mode button [esphome#2918](https://github.com/esphome/esphome/pull/2918) by [@jsuanet](https://github.com/jsuanet) (new-integration)
+- INA260 Current and Power Sensor support [esphome#2788](https://github.com/esphome/esphome/pull/2788) by [@MrEditor97](https://github.com/MrEditor97) (new-integration)
+- Improve PSRAM support [esphome#2884](https://github.com/esphome/esphome/pull/2884) by [@oxan](https://github.com/oxan) (new-integration)
+- Add bl0940 component used by e.g. tuya devices [esphome#1904](https://github.com/esphome/esphome/pull/1904) by [@tobias-](https://github.com/tobias-) (new-integration)
+- Add support for BMP388 / BMP 390 pressure and temperature sensor [esphome#2716](https://github.com/esphome/esphome/pull/2716) by [@martgras](https://github.com/martgras) (new-integration)
+- Add MCP47A1 DAC output [esphome#3014](https://github.com/esphome/esphome/pull/3014) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Create new kalman_combinator component [esphome#2965](https://github.com/esphome/esphome/pull/2965) by [@Cat-Ion](https://github.com/Cat-Ion) (new-integration)
+- New Midea IR component, improvements and fixes [esphome#2847](https://github.com/esphome/esphome/pull/2847) by [@dudanov](https://github.com/dudanov) (new-integration)
+- MCP3204 4-channel 12-bit ADC component [esphome#2895](https://github.com/esphome/esphome/pull/2895) by [@rsumner](https://github.com/rsumner) (new-integration)
+- Add cd74hc4067 multiplexer [esphome#2431](https://github.com/esphome/esphome/pull/2431) by [@asoehlke](https://github.com/asoehlke) (new-integration)
+- Native ESP32 CAN support [esphome#1629](https://github.com/esphome/esphome/pull/1629) by [@Sympatron](https://github.com/Sympatron) (new-integration)
+
+### Breaking Changes
+
+- Modbus: use multiply for publishing number [esphome#2916](https://github.com/esphome/esphome/pull/2916) by [@martgras](https://github.com/martgras) (breaking-change)
+- Upgrade ArduinoJson to 6.18.5 and migrate code [esphome#2844](https://github.com/esphome/esphome/pull/2844) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Fix backwards string case helpers [esphome#3126](https://github.com/esphome/esphome/pull/3126) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+
+### Beta Changes
+
+- Add factory to download name [esphome#3040](https://github.com/esphome/esphome/pull/3040) by [@balloob](https://github.com/balloob)
+- Bump dashboard to 20220113.2 [esphome#3041](https://github.com/esphome/esphome/pull/3041) by [@balloob](https://github.com/balloob)
+- Disable caching for binary download [esphome#3054](https://github.com/esphome/esphome/pull/3054) by [@lutzky](https://github.com/lutzky)
+- Rename post_build scripts to fix codeowners script [esphome#3057](https://github.com/esphome/esphome/pull/3057) by [@oxan](https://github.com/oxan)
+- Remove deprecated attribute from virtual entity methods [esphome#3056](https://github.com/esphome/esphome/pull/3056) by [@oxan](https://github.com/oxan)
+- Add number setting to web_server/rest_api [esphome#3055](https://github.com/esphome/esphome/pull/3055) by [@jesserockz](https://github.com/jesserockz)
+- bump dashboard to 20220116.0 [esphome#3061](https://github.com/esphome/esphome/pull/3061) by [@balloob](https://github.com/balloob)
+- [modbus_controller] add missing skip_updates [esphome#3063](https://github.com/esphome/esphome/pull/3063) by [@martgras](https://github.com/martgras)
+- Fail hard if no random bytes available for encryption [esphome#3067](https://github.com/esphome/esphome/pull/3067) by [@oxan](https://github.com/oxan)
+
+### All changes
+
+- Add a simple helper to remap values [esphome#2850](https://github.com/esphome/esphome/pull/2850) by [@jesserockz](https://github.com/jesserockz)
+- Bump pylint from 2.12.1 to 2.12.2 [esphome#2858](https://github.com/esphome/esphome/pull/2858) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Support different run duration for non-timer wakeup [esphome#2861](https://github.com/esphome/esphome/pull/2861) by [@jhamhader](https://github.com/jhamhader) (new-feature)
+- Drop len parameter from parse_number() [esphome#2883](https://github.com/esphome/esphome/pull/2883) by [@oxan](https://github.com/oxan)
+- Drop unused xSemaphoreWait define [esphome#2888](https://github.com/esphome/esphome/pull/2888) by [@oxan](https://github.com/oxan)
+- Move i2c scan to setup [esphome#2869](https://github.com/esphome/esphome/pull/2869) by [@martgras](https://github.com/martgras)
+- Introduce hex parsing & formatting helper functions [esphome#2882](https://github.com/esphome/esphome/pull/2882) by [@oxan](https://github.com/oxan)
+- Add light.on_state trigger [esphome#2868](https://github.com/esphome/esphome/pull/2868) by [@tony-fav](https://github.com/tony-fav) (new-feature)
+- Reduce timing noise in duty_cycle [esphome#2881](https://github.com/esphome/esphome/pull/2881) by [@CarlosGS](https://github.com/CarlosGS)
+- Turn verbose a debug statement in bme280 [esphome#2906](https://github.com/esphome/esphome/pull/2906) by [@CarlosGS](https://github.com/CarlosGS)
+- Add reset_duration option for waveshare epaper HAT rev 2.1 [esphome#1481](https://github.com/esphome/esphome/pull/1481) by [@owenb321](https://github.com/owenb321)
+- Log the actual value in modbus number [esphome#2901](https://github.com/esphome/esphome/pull/2901) by [@jesserockz](https://github.com/jesserockz)
+- Add gpio 12 to strapping pin list [esphome#2902](https://github.com/esphome/esphome/pull/2902) by [@martgras](https://github.com/martgras)
+- Added access to ble_scan_result_evt_param as get_scan_result [esphome#2854](https://github.com/esphome/esphome/pull/2854) by [@myhomeiot](https://github.com/myhomeiot)
+- fix multi-line comment warning/error [esphome#2891](https://github.com/esphome/esphome/pull/2891) by [@martgras](https://github.com/martgras)
+- Bump black from 21.11b1 to 21.12b0 [esphome#2879](https://github.com/esphome/esphome/pull/2879) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Adding Pascal unit to constants [esphome#2914](https://github.com/esphome/esphome/pull/2914) by [@jddonovan](https://github.com/jddonovan)
+- quantile filter support [esphome#2900](https://github.com/esphome/esphome/pull/2900) by [@konikvranik](https://github.com/konikvranik)
+- ESP32 CAM add Automatic Exposure Control option [esphome#2892](https://github.com/esphome/esphome/pull/2892) by [@sveip](https://github.com/sveip)
+- Modbus: use multiply for publishing number [esphome#2916](https://github.com/esphome/esphome/pull/2916) by [@martgras](https://github.com/martgras) (breaking-change)
+- Add growatt modbus sensor [esphome#2922](https://github.com/esphome/esphome/pull/2922) by [@leeuwte](https://github.com/leeuwte) (new-integration)
+- Add Tuya Number support [esphome#2765](https://github.com/esphome/esphome/pull/2765) by [@frankiboy1](https://github.com/frankiboy1) (new-integration)
+- Support inverted tm1637 display [esphome#2878](https://github.com/esphome/esphome/pull/2878) by [@jlsjonas](https://github.com/jlsjonas)
+- Fix tm1637 bootloop [esphome#2929](https://github.com/esphome/esphome/pull/2929) by [@jlsjonas](https://github.com/jlsjonas)
+- Add shutdown and safe_mode button [esphome#2918](https://github.com/esphome/esphome/pull/2918) by [@jsuanet](https://github.com/jsuanet) (new-integration)
+- Support inkplate10 [esphome#2937](https://github.com/esphome/esphome/pull/2937) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- bang_bang: respect set cool- and heat-only modes [esphome#2926](https://github.com/esphome/esphome/pull/2926) by [@sairon](https://github.com/sairon)
+- Update curl package version in docker [esphome#2939](https://github.com/esphome/esphome/pull/2939) by [@jesserockz](https://github.com/jesserockz)
+- Change HDC1080 init instruction failure from error to warning [esphome#2927](https://github.com/esphome/esphome/pull/2927) by [@grob6000](https://github.com/grob6000)
+- Add option to load docker image when building [esphome#2938](https://github.com/esphome/esphome/pull/2938) by [@jesserockz](https://github.com/jesserockz)
+- Disable nightly dev build [esphome#2943](https://github.com/esphome/esphome/pull/2943) by [@jesserockz](https://github.com/jesserockz)
+- Revert "Disable nightly dev build" [esphome#2944](https://github.com/esphome/esphome/pull/2944) by [@jesserockz](https://github.com/jesserockz)
+- Remove Content-Length header from camera snapshot response [esphome#2860](https://github.com/esphome/esphome/pull/2860) by [@DotNetDann](https://github.com/DotNetDann)
+- ST7920 ESP32 fix [esphome#2962](https://github.com/esphome/esphome/pull/2962) by [@marsjan155](https://github.com/marsjan155)
+- Fix switch log state if inverted [esphome#2960](https://github.com/esphome/esphome/pull/2960) by [@hobbyquaker](https://github.com/hobbyquaker)
+- Add pin aliases for featheresp32-s2 [esphome#2970](https://github.com/esphome/esphome/pull/2970) by [@arunderwood](https://github.com/arunderwood)
+- INA260 Current and Power Sensor support [esphome#2788](https://github.com/esphome/esphome/pull/2788) by [@MrEditor97](https://github.com/MrEditor97) (new-integration)
+- Upgrade ArduinoJson to 6.18.5 and migrate code [esphome#2844](https://github.com/esphome/esphome/pull/2844) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+- Don't use pyproject.toml for esphome build [esphome#2980](https://github.com/esphome/esphome/pull/2980) by [@agners](https://github.com/agners)
+- Explicitly use overloaded begin() for I2C master initialization [esphome#2978](https://github.com/esphome/esphome/pull/2978) by [@agners](https://github.com/agners)
+- Use template path [esphome#2961](https://github.com/esphome/esphome/pull/2961) by [@balloob](https://github.com/balloob)
+- Fix compile error for idf projects with ArduinoJson 6 [esphome#2979](https://github.com/esphome/esphome/pull/2979) by [@martgras](https://github.com/martgras)
+- Modbus: fix response parsing error for coil write [esphome#2986](https://github.com/esphome/esphome/pull/2986) by [@martgras](https://github.com/martgras)
+- Change unset ESPHOME_LOG_LEVEL fallback to NONE [esphome#2982](https://github.com/esphome/esphome/pull/2982) by [@dbuezas](https://github.com/dbuezas)
+- Add SH1107_128x64 to the ssd1306 component [esphome#2967](https://github.com/esphome/esphome/pull/2967) by [@arunderwood](https://github.com/arunderwood)
+- Add logging for some Nextion errors that didn't have any [esphome#2957](https://github.com/esphome/esphome/pull/2957) by [@masto](https://github.com/masto)
+- Fix HTTPRequestComponent::get_string return value [esphome#2987](https://github.com/esphome/esphome/pull/2987) by [@martgras](https://github.com/martgras)
+- Improve PSRAM support [esphome#2884](https://github.com/esphome/esphome/pull/2884) by [@oxan](https://github.com/oxan) (new-integration)
+- Support ISR based pulse counter on ESP32-C3 [esphome#2983](https://github.com/esphome/esphome/pull/2983) by [@agners](https://github.com/agners)
+- Use to_string() from STL when available [esphome#2992](https://github.com/esphome/esphome/pull/2992) by [@oxan](https://github.com/oxan)
+- Set UTF-8 encoding and version for prometheus /metrics [esphome#2993](https://github.com/esphome/esphome/pull/2993) by [@MyIgel](https://github.com/MyIgel)
+- Introduce bit_cast() backport [esphome#2991](https://github.com/esphome/esphome/pull/2991) by [@oxan](https://github.com/oxan)
+- Apply --no-use-pep517 for docker images [esphome#2985](https://github.com/esphome/esphome/pull/2985) by [@jesserockz](https://github.com/jesserockz)
+- Dont validate baud_rate for sim800l platform [esphome#2945](https://github.com/esphome/esphome/pull/2945) by [@jesserockz](https://github.com/jesserockz)
+- Modbus: add binary output [esphome#2931](https://github.com/esphome/esphome/pull/2931) by [@martgras](https://github.com/martgras)
+- Add bl0940 component used by e.g. tuya devices [esphome#1904](https://github.com/esphome/esphome/pull/1904) by [@tobias-](https://github.com/tobias-) (new-integration)
+- Honor user set values for col/row start for INITR_MINI_160X80. [esphome#2976](https://github.com/esphome/esphome/pull/2976) by [@gonzalop](https://github.com/gonzalop)
+- Fix clang-tidy with multiple ESP32 toolchains installed [esphome#2998](https://github.com/esphome/esphome/pull/2998) by [@oxan](https://github.com/oxan)
+- Set correct include_dir in platformio.ini [esphome#2999](https://github.com/esphome/esphome/pull/2999) by [@oxan](https://github.com/oxan)
+- SGP40 - Reduce delay in measurement [esphome#2996](https://github.com/esphome/esphome/pull/2996) by [@martgras](https://github.com/martgras)
+- atc mithermometer: Add possibility to report signal strength [esphome#3000](https://github.com/esphome/esphome/pull/3000) by [@mknjc](https://github.com/mknjc)
+- Support clang-tidy for ESP32 variants [esphome#3001](https://github.com/esphome/esphome/pull/3001) by [@oxan](https://github.com/oxan)
+- Fix SlowPWM output switch at the end of period [esphome#2984](https://github.com/esphome/esphome/pull/2984) by [@Chupaka](https://github.com/Chupaka)
+- Add support for BMP388 / BMP 390 pressure and temperature sensor [esphome#2716](https://github.com/esphome/esphome/pull/2716) by [@martgras](https://github.com/martgras) (new-integration)
+- Clean-up reverse_bits helpers [esphome#3011](https://github.com/esphome/esphome/pull/3011) by [@oxan](https://github.com/oxan)
+- Convert clamp() helper to backport of std::clamp() [esphome#3010](https://github.com/esphome/esphome/pull/3010) by [@oxan](https://github.com/oxan)
+- Introduce str_lower_case() and str_upper_case() helpers [esphome#3008](https://github.com/esphome/esphome/pull/3008) by [@oxan](https://github.com/oxan)
+- Drop `uint{32,64}_to_string()` helper functions [esphome#3009](https://github.com/esphome/esphome/pull/3009) by [@oxan](https://github.com/oxan)
+- Bump PlatformIO to 5.2.4 and zeroconf to 0.37.0 [esphome#3007](https://github.com/esphome/esphome/pull/3007) by [@oxan](https://github.com/oxan)
+- Offset bugfix in Modbus Text Sensor [esphome#3006](https://github.com/esphome/esphome/pull/3006) by [@stegm](https://github.com/stegm)
+- Add MCP47A1 DAC output [esphome#3014](https://github.com/esphome/esphome/pull/3014) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Bump docker dependencies [esphome#3019](https://github.com/esphome/esphome/pull/3019) by [@OttoWinter](https://github.com/OttoWinter)
+- Fix register ranges in modbus controller [esphome#2981](https://github.com/esphome/esphome/pull/2981) by [@stegm](https://github.com/stegm)
+- Add restore_mode to output switch [esphome#3016](https://github.com/esphome/esphome/pull/3016) by [@joshuaspence](https://github.com/joshuaspence)
+- Add turn_on/off trigger to slow_pwm [esphome#2921](https://github.com/esphome/esphome/pull/2921) by [@martgras](https://github.com/martgras)
+- Convert is_callable to a backport of std::is_invocable [esphome#3023](https://github.com/esphome/esphome/pull/3023) by [@oxan](https://github.com/oxan)
+- Create new kalman_combinator component [esphome#2965](https://github.com/esphome/esphome/pull/2965) by [@Cat-Ion](https://github.com/Cat-Ion) (new-integration)
+- New Midea IR component, improvements and fixes [esphome#2847](https://github.com/esphome/esphome/pull/2847) by [@dudanov](https://github.com/dudanov) (new-integration)
+- Extend esp32_camera with requester to improve performance [esphome#2813](https://github.com/esphome/esphome/pull/2813) by [@ayufan](https://github.com/ayufan)
+- MCP3204 4-channel 12-bit ADC component [esphome#2895](https://github.com/esphome/esphome/pull/2895) by [@rsumner](https://github.com/rsumner) (new-integration)
+- Adding sdm_meter ability to report total power [esphome#2959](https://github.com/esphome/esphome/pull/2959) by [@MiKuBB](https://github.com/MiKuBB)
+- [Modbus_controller] Fix binary sensor lambda [esphome#3020](https://github.com/esphome/esphome/pull/3020) by [@martgras](https://github.com/martgras)
+- Clean-up random helper functions [esphome#3022](https://github.com/esphome/esphome/pull/3022) by [@oxan](https://github.com/oxan)
+- Fix display picture for nextion display [esphome#3018](https://github.com/esphome/esphome/pull/3018) by [@lhoracek](https://github.com/lhoracek)
+- Fix heatpumpir codegen min/max temperatures [esphome#3025](https://github.com/esphome/esphome/pull/3025) by [@jeffborg](https://github.com/jeffborg)
+- Add an action for pzemac to reset the total energy [esphome#2480](https://github.com/esphome/esphome/pull/2480) by [@nuttytree](https://github.com/nuttytree)
+- Nexa 433MHz RF protocol [esphome#2037](https://github.com/esphome/esphome/pull/2037) by [@GruffyPuffy](https://github.com/GruffyPuffy)
+- Deprecate virtual methods to set entity properties [esphome#3021](https://github.com/esphome/esphome/pull/3021) by [@oxan](https://github.com/oxan)
+- Run post scripts for factory binaries for flashing [esphome#3003](https://github.com/esphome/esphome/pull/3003) by [@jesserockz](https://github.com/jesserockz)
+- Add cd74hc4067 multiplexer [esphome#2431](https://github.com/esphome/esphome/pull/2431) by [@asoehlke](https://github.com/asoehlke) (new-integration)
+- Native ESP32 CAN support [esphome#1629](https://github.com/esphome/esphome/pull/1629) by [@Sympatron](https://github.com/Sympatron) (new-integration)
+- [Modbus_controller] Fix duplicate cmd check [esphome#3031](https://github.com/esphome/esphome/pull/3031) by [@martgras](https://github.com/martgras)
+- Introduce big- and little-endian integer types [esphome#2997](https://github.com/esphome/esphome/pull/2997) by [@oxan](https://github.com/oxan)
+- Generate basic config for esphome-web devices [esphome#3036](https://github.com/esphome/esphome/pull/3036) by [@jesserockz](https://github.com/jesserockz)
+- Bump esphome-dashboard to 20220113.1 [esphome#3038](https://github.com/esphome/esphome/pull/3038) by [@jesserockz](https://github.com/jesserockz)
+- Add factory to download name [esphome#3040](https://github.com/esphome/esphome/pull/3040) by [@balloob](https://github.com/balloob)
+- Bump dashboard to 20220113.2 [esphome#3041](https://github.com/esphome/esphome/pull/3041) by [@balloob](https://github.com/balloob)
+- Disable caching for binary download [esphome#3054](https://github.com/esphome/esphome/pull/3054) by [@lutzky](https://github.com/lutzky)
+- Rename post_build scripts to fix codeowners script [esphome#3057](https://github.com/esphome/esphome/pull/3057) by [@oxan](https://github.com/oxan)
+- Remove deprecated attribute from virtual entity methods [esphome#3056](https://github.com/esphome/esphome/pull/3056) by [@oxan](https://github.com/oxan)
+- Add number setting to web_server/rest_api [esphome#3055](https://github.com/esphome/esphome/pull/3055) by [@jesserockz](https://github.com/jesserockz)
+- bump dashboard to 20220116.0 [esphome#3061](https://github.com/esphome/esphome/pull/3061) by [@balloob](https://github.com/balloob)
+- [modbus_controller] add missing skip_updates [esphome#3063](https://github.com/esphome/esphome/pull/3063) by [@martgras](https://github.com/martgras)
+- Fail hard if no random bytes available for encryption [esphome#3067](https://github.com/esphome/esphome/pull/3067) by [@oxan](https://github.com/oxan)
+
+{/* markdownlint-enable MD013 */}

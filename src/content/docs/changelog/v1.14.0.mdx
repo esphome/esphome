@@ -1,0 +1,566 @@
+---
+description: "Changelog for ESPHome version 1.14.0."
+title: "Changelog - Version 1.14.0 - November 1"
+pagefind: false
+slug: "changelog/v1.14.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Captive Portal","/components/captive_portal","wifi-strength-alert-outline.svg","dark-invert"],
+  ["Visual Studio Code Plugin","/https -//marketplace.visualstudio.com/items?itemName=ESPHome.esphome-vscode","visual-studio-code.svg","dark-invert"],
+  ["SIM800L","/components/sim800l","sim800l.jpg"],
+  ["DFPlayer","/components/dfplayer","dfplayer.svg","dark-invert"],
+  ["AS3935","/components/sensor/as3935","as3935.jpg"],
+  ["ATM90E32","/components/sensor/atm90e32","atm90e32.jpg"],
+  ["PZEM004T","/components/sensor/pzem004t","pzem004t.svg"],
+  ["PZEM AC","/components/sensor/pzemac","pzem-ac.jpg"],
+  ["PZEM DC","/components/sensor/pzemdc","pzem-dc.jpg"],
+  ["ADE7953","/components/sensor/ade7953","ade7953.svg"],
+  ["SenseAir","/components/sensor/senseair","senseair_s8.jpg"],
+  ["SCD30","/components/sensor/scd30","scd30.jpg"],
+  ["SHTCx","/components/sensor/shtcx","shtc3.jpg"],
+  ["STS3X","/components/sensor/sts3x","sts3x.jpg"],
+  ["SGP30","/components/sensor/sgp30","sgp30.jpg"],
+  ["Tx20","/components/sensor/tx20","tx20.jpg"],
+  ["VL53L0x","/components/sensor/vl53l0x","vl53l0x.jpg"],
+  ["Xiaomi CGG1","/components/sensor/xiaomi_ble","xiaomi_cgg1.jpg"],
+  ["Xiaomi LYWSD02","/components/sensor/xiaomi_ble","xiaomi_lywsd02.jpg"],
+  ["ZyAura","/components/sensor/zyaura","zgm053.jpg"],
+  ["TLC59208F","/components/output/tlc59208f","tlc59208f.jpg"],
+  ["SM16716","/components/output/sm16716","sm16716.svg"],
+  ["Tuya Dimmer","/components/light/tuya","brightness-medium.svg","dark-invert"],
+  ["SSD1325","/components/display/ssd1325","ssd1325.jpg"],
+  ["Yashima IR Remote","/components/climate/climate_ir","air-conditioner.svg","dark-invert"],
+  ["MCP23008 I/O Expander","/components/mcp230xx","mcp230xx.svg"],
+  ["SX1509 I/O Expander","/components/sx1509","sx1509.jpg"]
+]} />
+
+
+import { Image } from 'astro:assets';
+import vscodeValidationImg from './images/vscode-validation.png';
+import github1000StarsImg from './images/github-1000-stars.png';
+
+{/* markdownlint-disable MD013 */}
+
+So... it's been a while since the last release...
+
+But today - november 1 - the wait has finally ended! We're proud to announce ESPHome 1.14,
+a release with the most features additions to date thanks to a ton of contributors!
+
+## Captive Portal
+
+First, we've heard your feedback in the feature request tracker. One of the highest requested
+features has been to add a WiFi captive portal (also called "WiFiManager") capability to ESPHome.
+
+<Image src="/images/captive_portal-ui.png" width={1406} height={1268} layout="constrained" alt="" />
+
+With the new [captive portal](/components/captive_portal/) component you can set up a fallback
+WiFi hotspot that gets created if the ESP fails to connect to the WiFi network. If you're creating
+a new device this is automatically enabled. To add this feature existing devices check out the
+[captive portal example](/components/captive_portal/).
+
+## VSCode Plugin & New Integrations
+
+[@glmnet](https://github.com/glmnet) has been very active in the ESPHome community - he not only managed a ton
+of bug reports and feature requests, he also implemented some very interesting features:
+
+- ESPHome now has a working VSCode plugin with live config validation support!
+  Check out the [ESPHome plugin on the VSCode marketplace](https://marketplace.visualstudio.com/items?itemName=ESPHome.esphome-vscode).
+
+- The new [SIM800L integration](/components/sim800l/) lets you send SMS and
+  with [DF-Player](/components/dfplayer/) you can play some music from your ESP 🎵
+
+<Image src={vscodeValidationImg} layout="constrained" alt="" />
+
+Thank you [@glmnet](https://github.com/glmnet) for your work!
+
+## New Sensors
+
+As you can see in the grid at the top of this page, there's been no shortage of sensors either!
+There are all kinds of new sensor types here: from [lightning detectors ⚡️](/components/sensor/as3935/),
+the laser distance measuring [vl53l0x](/components/sensor/vl53l0x/) to various environmental
+sensors (thanks [@TheEggi](https://github.com/TheEggi), [@valordk](https://github.com/valordk)!).
+
+In list of supported power measuring chips has grown a lot with the 3-channel [ATM90E32](/components/sensor/atm90e32/),
+various PZEM-004Ts and the power monitoring chip in the [Shelly 2.5](/components/sensor/ade7953/)
+(thanks [@thompsa](https://github.com/thompsa) [@tsunglung](https://github.com/tsunglung)!).
+
+Of course there's a lot more features in this release that didn't fit here anymore.
+Just to name a few: new Xiaomi BLE devices are supported, the
+[Tuya MCU protocol](/components/light/tuya/) (thanks [@ssieb](https://github.com/ssieb) and [@brandond](https://github.com/brandond)!) has been added and major
+architectural parts of the ESPHome native API have changed to allow for faster
+development.
+
+Oh, and before we forget: ESPHome has reached 1.000 stars on GitHub!
+
+<Image src={github1000StarsImg} layout="constrained" alt="" />
+
+As always, thanks to all contributors, bug reporters and patrons! Without you this would not
+be possible!
+
+### Breaking Changes
+
+- We have deprecated support for Python 2 installs. 1.14.x will still work with Python 2,
+  but will print a warning. Starting with 1.15.0, ESPHome will require at least Python 3.6.
+  Note: The Docker/Hass.io addon images already use Python 3 ([esphome#784](https://github.com/esphome/esphome/pull/784), [esphome#774](https://github.com/esphome/esphome/pull/774)).
+
+- The `xiaomi_` BLE platforms have been renamed to match their model numbers ([esphome#755](https://github.com/esphome/esphome/pull/755)).
+
+  - `xiaomi_mijia` -> [xiaomi_lywsdcgq](/components/sensor/xiaomi_lywsdcgq/)
+  - `xiaomi_miflora` -> [xiaomi_hhccjcy01](/components/sensor/xiaomi_hhccjcy01/)
+
+- As part of the addition of the captive portal component, the default `reboot_timeout` for
+  `wifi` has been increased to 15 minutes from the previous 5 minutes ([esphome#624](https://github.com/esphome/esphome/pull/624)).
+
+- The ESP32 LEDC `bit_depth` option has been removed. The best bit depth is now dynamically
+  calculated ([esphome#754](https://github.com/esphome/esphome/pull/754), [docs](/components/output/ledc/)).
+
+- For [pcf8574](/components/pcf8574/), the `INPUT_PULLUP` option has been removed and replaced
+  with `INPUT` ([esphome#828](https://github.com/esphome/esphome/pull/828), [docs](/components/pcf8574/)).
+
+### Release 1.14.1 - November 2
+
+- docs: DIY Examples page [esphome-docs#395](https://github.com/esphome/esphome-docs/pull/395)
+- esphome: refactored xiaomi ble data parsing [esphome#823](https://github.com/esphome/esphome/pull/823) by [@Alex9779](https://github.com/Alex9779)
+- docs: Document UART stop_bits [esphome-docs#396](https://github.com/esphome/esphome-docs/pull/396)
+- esphome: Fix wizard mkdir [esphome#824](https://github.com/esphome/esphome/pull/824)
+- esphome: Move native API enums to new namespace [esphome#825](https://github.com/esphome/esphome/pull/825)
+- esphome: Fix update-all input in dashboard [esphome#826](https://github.com/esphome/esphome/pull/826)
+- esphome: Remove PCF8574 input_pullup mode and cleanup [esphome#828](https://github.com/esphome/esphome/pull/828)
+- esphome: Add servo missing restore option to codegen [esphome#829](https://github.com/esphome/esphome/pull/829)
+- docs: Document missing servo restore option [esphome-docs#398](https://github.com/esphome/esphome-docs/pull/398)
+
+### Release 1.14.2 - November 3
+
+- esphome: Fix weird ESP8266 wifi crashes [esphome#831](https://github.com/esphome/esphome/pull/831)
+
+### Release 1.14.3 - November 17
+
+- docs: Fix typo: as3935 sensor docs [esphome-docs#401](https://github.com/esphome/esphome-docs/pull/401) by [@TheJulianJES](https://github.com/TheJulianJES)
+- docs: Remove references to scan_interval [esphome-docs#400](https://github.com/esphome/esphome-docs/pull/400) by [@marrold](https://github.com/marrold)
+- esphome: ESP8266 remove default opmode check [esphome#835](https://github.com/esphome/esphome/pull/835)
+- esphome: WiFi AP apply manual ip settings [esphome#836](https://github.com/esphome/esphome/pull/836)
+- esphome: Fix ESP32 rotary encoder [esphome#834](https://github.com/esphome/esphome/pull/834)
+- esphome: Fix homeassistant.service schema lambda [esphome#833](https://github.com/esphome/esphome/pull/833)
+- esphome: Update platformio libraries [esphome#837](https://github.com/esphome/esphome/pull/837)
+- docs: Update brilliant-mirabella-genio-smart-plugs.rst - Added Gosund… [esphome-docs#402](https://github.com/esphome/esphome-docs/pull/402) by [@Taigar2015](https://github.com/Taigar2015)
+- esphome: Update variable in scheduler [esphome#838](https://github.com/esphome/esphome/pull/838)
+- esphome: Fix sun calculations for negative sun declination [esphome#839](https://github.com/esphome/esphome/pull/839)
+- docs: Update diy.rst [esphome-docs#404](https://github.com/esphome/esphome-docs/pull/404) by [@kvvoff](https://github.com/kvvoff)
+- docs: DIY Examples : add Custom ESPHome for Wofea Alarm [esphome-docs#405](https://github.com/esphome/esphome-docs/pull/405) by [@nbergont](https://github.com/nbergont)
+- docs: Update Mirabella Genio red LED GPIO [esphome-docs#406](https://github.com/esphome/esphome-docs/pull/406) by [@ankycooper](https://github.com/ankycooper)
+- esphome: fix missing checks of is_playing condition [esphome#844](https://github.com/esphome/esphome/pull/844) by [@glmnet](https://github.com/glmnet)
+- docs: Update lcd_display.rst [esphome-docs#411](https://github.com/esphome/esphome-docs/pull/411) by [@Destix](https://github.com/Destix)
+- esphome: Add wifi output_power setting [esphome#853](https://github.com/esphome/esphome/pull/853)
+- esphome: Add missing state attribute [esphome#851](https://github.com/esphome/esphome/pull/851)
+- esphome: Fix neopixelbus missing method pins [esphome#848](https://github.com/esphome/esphome/pull/848)
+- esphome: Fix sensor force_update native API [esphome#847](https://github.com/esphome/esphome/pull/847)
+- esphome: Web server CORS headers [esphome#840](https://github.com/esphome/esphome/pull/840)
+- esphome: Check DHT sensor exists before publishing [esphome#850](https://github.com/esphome/esphome/pull/850)
+- esphome: Adjust some units [esphome#852](https://github.com/esphome/esphome/pull/852)
+- esphome: Fix PZEM004T v2 [esphome#846](https://github.com/esphome/esphome/pull/846)
+- esphome: Mark python 3.5 support deprecated [esphome#849](https://github.com/esphome/esphome/pull/849)
+- docs: document the new has_position parameter for the template cover [esphome-docs#410](https://github.com/esphome/esphome-docs/pull/410) by [@ssieb](https://github.com/ssieb)
+- esphome: add position reporting to the template cover [esphome#821](https://github.com/esphome/esphome/pull/821) by [@ssieb](https://github.com/ssieb)
+- esphome: Atm90e32 pf fix [esphome#841](https://github.com/esphome/esphome/pull/841) by [@Diramu](https://github.com/Diramu)
+- esphome: Switch to 115200 baud upload if 460800 fails [esphome#856](https://github.com/esphome/esphome/pull/856)
+- esphome: Fix logger uart conflict check [esphome#858](https://github.com/esphome/esphome/pull/858) by [@brandond](https://github.com/brandond)
+- esphome: Tuya: Fix init sequence and handle wifi test command [esphome#820](https://github.com/esphome/esphome/pull/820) by [@brandond](https://github.com/brandond)
+- docs: add Topersun smart plug [esphome-docs#413](https://github.com/esphome/esphome-docs/pull/413) by [@hmoffatt](https://github.com/hmoffatt)
+- esphome: Improve WiFi disconnect messages [esphome#857](https://github.com/esphome/esphome/pull/857)
+- esphome: Fix MQTT python 3 stringify IPAddress Type [esphome#864](https://github.com/esphome/esphome/pull/864)
+- esphome: Revert ESP32 BLE Tracker defaults [esphome#863](https://github.com/esphome/esphome/pull/863)
+- esphome: Change ESP8266 default wifi output power [esphome#862](https://github.com/esphome/esphome/pull/862)
+
+### Release 1.14.4 - June 5
+
+- docs: Added Android Beacon MQTT app [esphome-docs#417](https://github.com/esphome/esphome-docs/pull/417) by [@turbo-lab](https://github.com/turbo-lab)
+- esphome: fix the problem of missing part of advertising packet when activ… [esphome#868](https://github.com/esphome/esphome/pull/868) by [@warpzone](https://github.com/warpzone)
+- docs: dfplayer updates [esphome-docs#421](https://github.com/esphome/esphome-docs/pull/421) by [@glmnet](https://github.com/glmnet)
+- docs: Fix time id conflict [esphome-docs#418](https://github.com/esphome/esphome-docs/pull/418) by [@guiguid](https://github.com/guiguid)
+- docs: Cookbook for Sonoff Light Switches [esphome-docs#407](https://github.com/esphome/esphome-docs/pull/407) by [@bensuffolk](https://github.com/bensuffolk)
+- esphome: fix climate_ir on receive optional [esphome#897](https://github.com/esphome/esphome/pull/897) by [@glmnet](https://github.com/glmnet)
+- esphome: Fix MQTT logs Int or String expected Python 3 [esphome#898](https://github.com/esphome/esphome/pull/898)
+- esphome: web_server call setup_controller [esphome#899](https://github.com/esphome/esphome/pull/899)
+- esphome: Ignore ESP32 Camera unknown framesizes [esphome#901](https://github.com/esphome/esphome/pull/901)
+- esphome: Update ESP32 BLE ADV parse to match BLE spec [esphome#904](https://github.com/esphome/esphome/pull/904)
+- esphome: Add ESP8266 core v2.6.2 [esphome#905](https://github.com/esphome/esphome/pull/905)
+- docs: Add doc for color correction of rgb* lights [esphome-docs#431](https://github.com/esphome/esphome-docs/pull/431) by [@nickw444](https://github.com/nickw444)
+- docs: Use .timestamp instead of .time in time docs [esphome-docs#435](https://github.com/esphome/esphome-docs/pull/435) by [@davidjb](https://github.com/davidjb)
+- docs: DIY Examples : Added SW420 Vibration Sensor with Remote Notifications [esphome-docs#436](https://github.com/esphome/esphome-docs/pull/436) by [@rmooreID](https://github.com/rmooreID)
+- docs: Fix broken link [esphome-docs#437](https://github.com/esphome/esphome-docs/pull/437) by [@richrd](https://github.com/richrd)
+- docs: Update getting_started_command_line.rst [esphome-docs#461](https://github.com/esphome/esphome-docs/pull/461) by [@CyanoFresh](https://github.com/CyanoFresh)
+- docs: Added degree symbol output on ~ for MAX7219 [esphome-docs#376](https://github.com/esphome/esphome-docs/pull/376) by [@cyberplant](https://github.com/cyberplant)
+- docs: change "tracker" to "presence" [esphome-docs#465](https://github.com/esphome/esphome-docs/pull/465) by [@spattinson](https://github.com/spattinson)
+- docs: On_sunrise was listed twice in description. [esphome-docs#464](https://github.com/esphome/esphome-docs/pull/464) by [@Mechotronic](https://github.com/Mechotronic)
+- docs: Patch 3 [esphome-docs#460](https://github.com/esphome/esphome-docs/pull/460) by [@Valcob](https://github.com/Valcob)
+- docs: fixed non working example [esphome-docs#381](https://github.com/esphome/esphome-docs/pull/381) by [@danibjor](https://github.com/danibjor)
+- docs: Added my custom component, now with correct syntax [esphome-docs#454](https://github.com/esphome/esphome-docs/pull/454) by [@nldroid](https://github.com/nldroid)
+- docs: faq reboot_timeout [esphome-docs#472](https://github.com/esphome/esphome-docs/pull/472) by [@glmnet](https://github.com/glmnet)
+- docs: my9231->bit_depth: parameter name and sonoff B1 [esphome-docs#489](https://github.com/esphome/esphome-docs/pull/489) by [@anduchs](https://github.com/anduchs)
+- docs: New DIY project about Cat Feeder [esphome-docs#439](https://github.com/esphome/esphome-docs/pull/439) by [@rubengargar](https://github.com/rubengargar)
+- docs: Update diy.rst [esphome-docs#493](https://github.com/esphome/esphome-docs/pull/493) by [@brianhanifin](https://github.com/brianhanifin)
+- docs: Add my ESPHome configs [esphome-docs#492](https://github.com/esphome/esphome-docs/pull/492) by [@nuttytree](https://github.com/nuttytree)
+- docs: Brightness feature not included in doc. [esphome-docs#445](https://github.com/esphome/esphome-docs/pull/445) by [@tubalainen](https://github.com/tubalainen)
+- docs: remove apostrophe [esphome-docs#504](https://github.com/esphome/esphome-docs/pull/504) by [@perjury](https://github.com/perjury)
+- docs: Add UART-based Mitsibishi HeatPump Component [esphome-docs#506](https://github.com/esphome/esphome-docs/pull/506) by [@geoffdavis](https://github.com/geoffdavis)
+- docs: Update pzemac.rst [esphome-docs#495](https://github.com/esphome/esphome-docs/pull/495) by [@Francisk0](https://github.com/Francisk0)
+- docs: Fix link syntax [esphome-docs#507](https://github.com/esphome/esphome-docs/pull/507) by [@geoffdavis](https://github.com/geoffdavis)
+- docs: Typo fix [esphome-docs#498](https://github.com/esphome/esphome-docs/pull/498) by [@napieraj](https://github.com/napieraj)
+- docs: Fix some typos in Sonoff basic light switch [esphome-docs#480](https://github.com/esphome/esphome-docs/pull/480) by [@kaykayehnn](https://github.com/kaykayehnn)
+- docs: Wrong IC [esphome-docs#499](https://github.com/esphome/esphome-docs/pull/499) by [@Tuckie](https://github.com/Tuckie)
+- docs: small mistype fix [esphome-docs#477](https://github.com/esphome/esphome-docs/pull/477) by [@trylika](https://github.com/trylika)
+- docs: Update sonoff.rst [esphome-docs#470](https://github.com/esphome/esphome-docs/pull/470) by [@TBobsin](https://github.com/TBobsin)
+- docs: Update sonoff-t1-3.rst [esphome-docs#497](https://github.com/esphome/esphome-docs/pull/497) by [@RockBomber](https://github.com/RockBomber)
+- docs: remove uppercase allowed in names [esphome-docs#487](https://github.com/esphome/esphome-docs/pull/487) by [@truglodite](https://github.com/truglodite)
+- docs: Update ssd1306.rst [esphome-docs#481](https://github.com/esphome/esphome-docs/pull/481) by [@Valcob](https://github.com/Valcob)
+- docs: Update board for Sonoff and link to Tasmota [esphome-docs#484](https://github.com/esphome/esphome-docs/pull/484) by [@sillyfrog](https://github.com/sillyfrog)
+- docs: Update migrate_sonoff_tasmota.rst [esphome-docs#483](https://github.com/esphome/esphome-docs/pull/483) by [@jasonehines](https://github.com/jasonehines)
+- docs: added rgbww light using pwm driver [esphome-docs#482](https://github.com/esphome/esphome-docs/pull/482) by [@morph027](https://github.com/morph027)
+- docs: add a note about the log level of dump: all [esphome-docs#475](https://github.com/esphome/esphome-docs/pull/475) by [@drewp](https://github.com/drewp)
+- docs: ifan02 cookbook [esphome-docs#218](https://github.com/esphome/esphome-docs/pull/218) by [@quazzie](https://github.com/quazzie)
+- docs: Add documentation for cwww and rgbww constant_brightness variables. [esphome-docs#530](https://github.com/esphome/esphome-docs/pull/530) by [@kroimon](https://github.com/kroimon)
+- docs: remove link to Adafruit [esphome-docs#531](https://github.com/esphome/esphome-docs/pull/531) by [@ebaschiera](https://github.com/ebaschiera)
+- docs: Revert "Add documentation for cwww and rgbww constant_brightness vari… [esphome-docs#539](https://github.com/esphome/esphome-docs/pull/539) by [@glmnet](https://github.com/glmnet)
+- docs: Add Stepper Motor blinds to diy examples [esphome-docs#534](https://github.com/esphome/esphome-docs/pull/534) by [@icarome](https://github.com/icarome)
+- docs: Update sonoff.rst [esphome-docs#549](https://github.com/esphome/esphome-docs/pull/549) by [@MrZetor](https://github.com/MrZetor)
+- docs: Improve LEDC documentation [esphome-docs#557](https://github.com/esphome/esphome-docs/pull/557) by [@Skaronator](https://github.com/Skaronator)
+- docs: Update wifi.rst [esphome-docs#562](https://github.com/esphome/esphome-docs/pull/562) by [@kbouchard111](https://github.com/kbouchard111)
+- docs: Add unit_of_measurement to make graphing happens [esphome-docs#569](https://github.com/esphome/esphome-docs/pull/569) by [@deftdawg](https://github.com/deftdawg)
+- docs: Simple grammar change. [esphome-docs#578](https://github.com/esphome/esphome-docs/pull/578) by [@mnaz](https://github.com/mnaz)
+- docs: Fix typos [esphome-docs#561](https://github.com/esphome/esphome-docs/pull/561) by [@mje-nz](https://github.com/mje-nz)
+- docs: Adding example of how to use a buzzer [esphome-docs#570](https://github.com/esphome/esphome-docs/pull/570) by [@declanshanaghy](https://github.com/declanshanaghy)
+- docs: Deleted Warning because the component is already tested [esphome-docs#615](https://github.com/esphome/esphome-docs/pull/615) by [@deltazerorsan](https://github.com/deltazerorsan)
+- docs: Update datasheet URL on SHTCX page [esphome-docs#598](https://github.com/esphome/esphome-docs/pull/598) by [@JeffResc](https://github.com/JeffResc)
+- docs: Update datagram URL on TX20 page [esphome-docs#599](https://github.com/esphome/esphome-docs/pull/599) by [@JeffResc](https://github.com/JeffResc)
+- docs: Update datasheet URL on SCD30 page [esphome-docs#600](https://github.com/esphome/esphome-docs/pull/600) by [@JeffResc](https://github.com/JeffResc)
+- docs: Update datasheet URL on STS3X page [esphome-docs#602](https://github.com/esphome/esphome-docs/pull/602) by [@JeffResc](https://github.com/JeffResc)
+- docs: Update datasheet URL on SGP30 page [esphome-docs#601](https://github.com/esphome/esphome-docs/pull/601) by [@JeffResc](https://github.com/JeffResc)
+- docs: Update Home Assistant custom component URL on contributing guide page [esphome-docs#603](https://github.com/esphome/esphome-docs/pull/603) by [@JeffResc](https://github.com/JeffResc)
+- docs: Update WaveShare E-Paper URL on WaveShare E-Paper page [esphome-docs#597](https://github.com/esphome/esphome-docs/pull/597) by [@JeffResc](https://github.com/JeffResc)
+- docs: Fix copy/paste error [esphome-docs#574](https://github.com/esphome/esphome-docs/pull/574) by [@mniess](https://github.com/mniess)
+- docs: Update pulse_counter.rst [esphome-docs#609](https://github.com/esphome/esphome-docs/pull/609) by [@m1ch](https://github.com/m1ch)
+- docs: Add smart intercom blogpost [esphome-docs#621](https://github.com/esphome/esphome-docs/pull/621) by [@frog32](https://github.com/frog32)
+- docs: Minor spelling [esphome-docs#622](https://github.com/esphome/esphome-docs/pull/622) by [@AalianKhan](https://github.com/AalianKhan)
+- docs: Added NEO Coolcam [esphome-docs#496](https://github.com/esphome/esphome-docs/pull/496) by [@nldroid](https://github.com/nldroid)
+- docs: pzemac energy support [esphome-docs#514](https://github.com/esphome/esphome-docs/pull/514) by [@rradar](https://github.com/rradar)
+- docs: Revert "pzemac energy support" [esphome-docs#623](https://github.com/esphome/esphome-docs/pull/623) by [@glmnet](https://github.com/glmnet)
+- docs: Changed miflora platforms [esphome-docs#586](https://github.com/esphome/esphome-docs/pull/586) by [@Guyohms](https://github.com/Guyohms)
+- docs: Update docs to reflect ssd1327 support [esphome-docs#500](https://github.com/esphome/esphome-docs/pull/500) by [@igg](https://github.com/igg)
+- docs: Typo: NEC -> Sony [esphome-docs#624](https://github.com/esphome/esphome-docs/pull/624) by [@gitolicious](https://github.com/gitolicious)
+- docs: Not every nodeMCU board supports 12V [esphome-docs#626](https://github.com/esphome/esphome-docs/pull/626) by [@Laess3r](https://github.com/Laess3r)
+- docs: Revert "Update docs to reflect ssd1327 support" [esphome-docs#634](https://github.com/esphome/esphome-docs/pull/634) by [@glmnet](https://github.com/glmnet)
+
+### Notable Changes & New Features
+
+- Dashboard Interface: Add an "Update all" button ([esphome#615](https://github.com/esphome/esphome/pull/615)).
+- Uploads over USB are now about 4 times faster ([esphome#761](https://github.com/esphome/esphome/pull/761)).
+- [ESPHome-Flasher v1.2.0](https://github.com/esphome/esphome-flasher/releases/tag/v1.2.0) has been
+  released with fixes for ESP32s and faster uploads.
+
+- All [native API](/components/api/) communication stubs are now automatically
+  generated using automated scripts. This is a big step towards making the API more flexible, for
+  example cross-device communication ([esphome#633](https://github.com/esphome/esphome/pull/633)).
+
+- New class  to declare user-defined services straight from custom components.
+  See the updated custom component guide.
+
+- [Sensors](/components/sensor) have a new `force_update` option ([esphome#783](https://github.com/esphome/esphome/pull/783)).
+- Add GPIO Switch [interlock_wait_time](/components/switch/gpio#switch-gpio-interlocking) ([esphome#777](https://github.com/esphome/esphome/pull/777)).
+- Add a configurable priority for WiFi network selection ([esphome#658](https://github.com/esphome/esphome/pull/658), [docs](/components/wifi/)).
+- Add [script.wait](/components/script#script-wait_action) action ([esphome#778](https://github.com/esphome/esphome/pull/778)).
+- Dashboard Interface: Add an interface for editing `secrets.yaml` ([esphome#672](https://github.com/esphome/esphome/pull/672) by [@Anonym-tsk](https://github.com/Anonym-tsk)).
+- Dashboard Interface: Authorization by username and password for non-Hass.io installs
+  ([esphome#668](https://github.com/esphome/esphome/pull/668) by [@Anonym-tsk](https://github.com/Anonym-tsk)).
+
+- Dashboard Interface: The material icons font is now shipped with ESPHome
+  ([esphome#703](https://github.com/esphome/esphome/pull/703) by [@Anonym-tsk](https://github.com/Anonym-tsk)).
+
+- Add [output.ledc.set_frequency](/components/output/ledc#output-ledc-set_frequency_action) action ([esphome#754](https://github.com/esphome/esphome/pull/754)).
+- Changing from an effect to a static color for addressable light now
+  has per-LED transitions ([esphome#750](https://github.com/esphome/esphome/pull/750)).
+
+- Add [rotary_encoder.set_value](/components/sensor/rotary_encoder#sensor-rotary_encoder-set_value_action) action ([esphome#747](https://github.com/esphome/esphome/pull/747)).
+- You can now specify per-device descriptions in the dashboard interface
+  ([esphome#707](https://github.com/esphome/esphome/pull/707) by [@Anonym-tsk](https://github.com/Anonym-tsk), [docs](/components/esphome/)).
+
+- The [SPI bus](/components/spi/) now sends data over the hardware SPI bus if possible.
+  This can result in significant speedups for displays ([esphome#623](https://github.com/esphome/esphome/pull/623)).
+
+- Add `delayed_on_off` binary_sensor filter ([esphome#700](https://github.com/esphome/esphome/pull/700) by [@kepten](https://github.com/kepten),
+  [docs](/components/sensor#sensor-filters)).
+
+- Implement `median` sensor filter ([esphome#697](https://github.com/esphome/esphome/pull/697) by [@jvanderneutstulen](https://github.com/jvanderneutstulen),
+  [docs](/components/sensor#sensor-filters)).
+
+- A function scheduler now handles all of ESPHome's timeout/interval calls, replacing the
+  previous per-component implementation ([esphome#609](https://github.com/esphome/esphome/pull/609)).
+
+- Add support for calibrating MH-Z19 sensors ([esphome#683](https://github.com/esphome/esphome/pull/683) by [@Anonym-tsk](https://github.com/Anonym-tsk), [docs](/components/sensor/mhz19/)).
+- Add BLE scan parameters for improving BLE detection percentage
+  ([esphome#769](https://github.com/esphome/esphome/pull/769), [docs](/components/esp32_ble_tracker/)).
+
+- Add configurable ignore bits to rc_switch_raw codes ([esphome#650](https://github.com/esphome/esphome/pull/650) by [@mtl010957](https://github.com/mtl010957),
+  [docs](/components/remote_receiver/)).
+
+- New `restore` option has been added to [servos](/components/servo/) ([esphome#829](https://github.com/esphome/esphome/pull/829)).
+- Add IR receiver support for coolix climate devices ([esphome#645](https://github.com/esphome/esphome/pull/645) by [@glmnet](https://github.com/glmnet), [docs](/components/climate/climate_ir/)).
+- Add [calibrate_polynomial](/components/sensor/filter/calibrate_polynomial#sensor-filter-calibrate_polynomial) sensor filter ([esphome#642](https://github.com/esphome/esphome/pull/642)).
+- Allow setting the initial mode of HLW8012 sensors ([esphome#611](https://github.com/esphome/esphome/pull/611) by [@brandond](https://github.com/brandond), [docs](/components/sensor/hlw8012/)).
+- Add tilt actions to [template cover](/components/cover/template/) ([esphome#577](https://github.com/esphome/esphome/pull/577) by [@mtl010957](https://github.com/mtl010957)).
+- Add backlight handling for lcd_pcf8574 ([esphome#573](https://github.com/esphome/esphome/pull/573) by [@adarazs](https://github.com/adarazs), [docs](/components/display/lcd_display/)).
+
+### All changes
+
+- esphome: CLI show version better [esphome#581](https://github.com/esphome/esphome/pull/581)
+- esphome: SM16716 support [esphome#541](https://github.com/esphome/esphome/pull/541)
+- docs: Add documentation for SM16716 output component. [esphome-docs#217](https://github.com/esphome/esphome-docs/pull/217) by [@kll](https://github.com/kll)
+- docs: Document the backlight control for lcd_pcf8574 [esphome-docs#261](https://github.com/esphome/esphome-docs/pull/261) by [@adarazs](https://github.com/adarazs)
+- esphome: Add backlight handling for lcd_pcf8574 [esphome#573](https://github.com/esphome/esphome/pull/573) by [@adarazs](https://github.com/adarazs) (new-feature)
+- esphome: clear and disable editor while fetching contents [esphome#603](https://github.com/esphome/esphome/pull/603) by [@gitolicious](https://github.com/gitolicious)
+- esphome: Scan length for AddressableScanEffect [esphome#608](https://github.com/esphome/esphome/pull/608) by [@majorpeter](https://github.com/majorpeter) (new-feature)
+- docs: Scaneffectlength [esphome-docs#264](https://github.com/esphome/esphome-docs/pull/264) by [@majorpeter](https://github.com/majorpeter)
+- esphome: Fix ForCondition time duration check [esphome#610](https://github.com/esphome/esphome/pull/610) by [@ptatrai](https://github.com/ptatrai) (cherry-picked)
+- esphome: DHT22 ignore invalid values [esphome#614](https://github.com/esphome/esphome/pull/614) (cherry-picked)
+- esphome: Template Cover don't auto-set current_operation [esphome#612](https://github.com/esphome/esphome/pull/612) (cherry-picked)
+- esphome: Fix Hass.io addon SSL [esphome#613](https://github.com/esphome/esphome/pull/613) (cherry-picked)
+- esphome: Fix remote_receiver always shows sony [esphome#617](https://github.com/esphome/esphome/pull/617) (cherry-picked)
+- esphome: Make ForCondition a component [esphome#616](https://github.com/esphome/esphome/pull/616) (cherry-picked)
+- esphome: Update docker base image to 1.8.0 [esphome#618](https://github.com/esphome/esphome/pull/618) (cherry-picked)
+- esphome: Fix integration sensor, add test [esphome#619](https://github.com/esphome/esphome/pull/619) (cherry-picked)
+- esphome: Fix sun default elevation [esphome#620](https://github.com/esphome/esphome/pull/620) (cherry-picked)
+- esphome: Allow setting the initial mode of HLW8012 sensors [esphome#611](https://github.com/esphome/esphome/pull/611) by [@brandond](https://github.com/brandond) (new-feature)
+- docs: Allow setting the initial mode of HLW8012 sensors [esphome-docs#268](https://github.com/esphome/esphome-docs/pull/268) by [@brandond](https://github.com/brandond)
+- esphome: Add more efficient SPI implementation [esphome#622](https://github.com/esphome/esphome/pull/622)
+- esphome: Allow id() syntax for custom code [esphome#621](https://github.com/esphome/esphome/pull/621)
+- esphome: Dashboard Update all button [esphome#615](https://github.com/esphome/esphome/pull/615) (new-feature)
+- esphome: Add central function scheduler [esphome#609](https://github.com/esphome/esphome/pull/609)
+- esphome: Update base image to 1.8.3 [esphome#625](https://github.com/esphome/esphome/pull/625) (cherry-picked)
+- esphome: Fix status binary sensor for MQTT [esphome#628](https://github.com/esphome/esphome/pull/628) (cherry-picked)
+- esphome: Work around ESP32 BLE issue [esphome#626](https://github.com/esphome/esphome/pull/626) (cherry-picked)
+- esphome: Work around ESP32 core WiFi Bug [esphome#627](https://github.com/esphome/esphome/pull/627) (cherry-picked)
+- esphome: Add HW SPI support [esphome#623](https://github.com/esphome/esphome/pull/623) (new-feature)
+- esphome: Captive Portal [esphome#624](https://github.com/esphome/esphome/pull/624) (breaking-change)
+- esphome: Fix ESP32 RCSwitch Dump Stack Smash Protection [esphome#636](https://github.com/esphome/esphome/pull/636) (cherry-picked)
+- esphome: Fix russia timezone detection [esphome#637](https://github.com/esphome/esphome/pull/637) (cherry-picked)
+- esphome: Fix globals.set [esphome#635](https://github.com/esphome/esphome/pull/635) (cherry-picked)
+- esphome: Fix version.h file [esphome#630](https://github.com/esphome/esphome/pull/630) (cherry-picked)
+- esphome: Fix remote_receiver raw binary sensor [esphome#639](https://github.com/esphome/esphome/pull/639) (cherry-picked)
+- esphome: Re-add CustomMQTTDevice class [esphome#640](https://github.com/esphome/esphome/pull/640) (cherry-picked)
+- esphome: Yashima climate new component [esphome#634](https://github.com/esphome/esphome/pull/634) by [@diraimondo](https://github.com/diraimondo)
+- docs: Add Yashima Climate component docs [esphome-docs#275](https://github.com/esphome/esphome-docs/pull/275) by [@diraimondo](https://github.com/diraimondo)
+- esphome: Fix home assistant binary sensor initial state [esphome#632](https://github.com/esphome/esphome/pull/632) by [@glmnet](https://github.com/glmnet)
+- esphome: Atmel M90E32AS Energy Metering IC. Found in CircuitSetup 2chan and 6chan energy meterss [esphome#629](https://github.com/esphome/esphome/pull/629) by [@thompsa](https://github.com/thompsa)
+- docs: Add docs for atm90e32 sensor [esphome-docs#271](https://github.com/esphome/esphome-docs/pull/271) by [@thompsa](https://github.com/thompsa)
+- esphome: Add set_threshold and get_value methods to ESP32TouchBinarySensor. [esphome#631](https://github.com/esphome/esphome/pull/631) by [@rnauber](https://github.com/rnauber)
+- esphome: Make logger string memory usage more efficient [esphome#641](https://github.com/esphome/esphome/pull/641)
+- docs: Add SIM800L docs [esphome-docs#257](https://github.com/esphome/esphome-docs/pull/257) by [@glmnet](https://github.com/glmnet)
+- esphome: SMS Sender / Receiver [esphome#522](https://github.com/esphome/esphome/pull/522) by [@glmnet](https://github.com/glmnet)
+- esphome: Create Protobuf Plugin for automatically generating native API stubs [esphome#633](https://github.com/esphome/esphome/pull/633)
+- esphome: Template tilt cover [esphome#577](https://github.com/esphome/esphome/pull/577) by [@mtl010957](https://github.com/mtl010957) (new-feature)
+- esphome: Provide the lights current color to the addressable_lambda_effect. [esphome#646](https://github.com/esphome/esphome/pull/646) by [@rnauber](https://github.com/rnauber)
+- docs: Update sun.rst [esphome-docs#278](https://github.com/esphome/esphome-docs/pull/278) by [@pove](https://github.com/pove)
+- esphome: Fixed rc_switch dump off by one bit [esphome#652](https://github.com/esphome/esphome/pull/652) by [@mtl010957](https://github.com/mtl010957)
+- esphome: Adding ignore bits to narrow compare of received codes [esphome#650](https://github.com/esphome/esphome/pull/650) by [@mtl010957](https://github.com/mtl010957) (new-feature)
+- esphome: Fix remote_transmitter wait time unit [esphome#654](https://github.com/esphome/esphome/pull/654)
+- esphome: Update dependencies [esphome#653](https://github.com/esphome/esphome/pull/653)
+- esphome: CT Clamp ADS1115 Improvements [esphome#647](https://github.com/esphome/esphome/pull/647)
+- esphome: Add calibrate_polynomial sensor filter [esphome#642](https://github.com/esphome/esphome/pull/642) (new-feature)
+- esphome: WIP: ESP8266 work on connection issues [esphome#648](https://github.com/esphome/esphome/pull/648)
+- docs: Added docs for ignore bit setting on rc_switch_raw and fixed ref links [esphome-docs#279](https://github.com/esphome/esphome-docs/pull/279) by [@mtl010957](https://github.com/mtl010957)
+- docs: Absolute humidity calculation description [esphome-docs#283](https://github.com/esphome/esphome-docs/pull/283) by [@tomlut](https://github.com/tomlut)
+- docs: ZyAura CO2 / Temperature / Humidity Sensor [esphome-docs#281](https://github.com/esphome/esphome-docs/pull/281) by [@Anonym-tsk](https://github.com/Anonym-tsk)
+- esphome: ZyAura CO2 / Temperature / Humidity Sensor [esphome#656](https://github.com/esphome/esphome/pull/656) by [@Anonym-tsk](https://github.com/Anonym-tsk)
+- esphome: Fix deep sleep on_shutdown hooks [esphome#660](https://github.com/esphome/esphome/pull/660)
+- esphome: ESP32 Use NVS directly [esphome#659](https://github.com/esphome/esphome/pull/659)
+- docs: Added TX20/TX23 sensor documentation [esphome-docs#150](https://github.com/esphome/esphome-docs/pull/150) by [@TheEggi](https://github.com/TheEggi)
+- esphome: added tx20 wind speed sensor [esphome#275](https://github.com/esphome/esphome/pull/275) by [@TheEggi](https://github.com/TheEggi)
+- docs: Added docs for tilt capability in template cover [esphome-docs#260](https://github.com/esphome/esphome-docs/pull/260) by [@mtl010957](https://github.com/mtl010957)
+- docs: Add description next to title [esphome-docs#227](https://github.com/esphome/esphome-docs/pull/227) by [@jjok](https://github.com/jjok)
+- esphome: WiFi networks priority [esphome#658](https://github.com/esphome/esphome/pull/658) (new-feature)
+- esphome: Change ESP32 default power_save_mode to light [esphome#661](https://github.com/esphome/esphome/pull/661)
+- docs: Added TTGO T-Journal [esphome-docs#289](https://github.com/esphome/esphome-docs/pull/289) by [@bwente](https://github.com/bwente)
+- docs: Updated confusing deep_sleep.prevent documentation [esphome-docs#287](https://github.com/esphome/esphome-docs/pull/287) by [@ofalvai](https://github.com/ofalvai)
+- docs: Fix typo in transmit_sony documentation [esphome-docs#299](https://github.com/esphome/esphome-docs/pull/299) by [@davericher](https://github.com/davericher)
+- esphome: Restore sending "None" effect type [esphome#667](https://github.com/esphome/esphome/pull/667) by [@tribut](https://github.com/tribut)
+- esphome: fix missing schedule call [esphome#690](https://github.com/esphome/esphome/pull/690) by [@glmnet](https://github.com/glmnet)
+- docs: Update logger.rst [esphome-docs#313](https://github.com/esphome/esphome-docs/pull/313) by [@srg74](https://github.com/srg74)
+- esphome: Remove double publish_state in ultrasonic sensor [esphome#696](https://github.com/esphome/esphome/pull/696) by [@brandond](https://github.com/brandond)
+- esphome: Local Material Icons [esphome#703](https://github.com/esphome/esphome/pull/703) by [@Anonym-tsk](https://github.com/Anonym-tsk)
+- esphome: Corrected ESP32 hardware UART pins [esphome#701](https://github.com/esphome/esphome/pull/701) by [@jwozny](https://github.com/jwozny)
+- esphome: Fix mqtt_text_sensor to honor unique_id when set. [esphome#698](https://github.com/esphome/esphome/pull/698) by [@middelink](https://github.com/middelink)
+- docs: Minor changes to the setup steps [esphome-docs#327](https://github.com/esphome/esphome-docs/pull/327) by [@fabaff](https://github.com/fabaff)
+- esphome: Fix duplicate set_update_interval() calls on same component [esphome#693](https://github.com/esphome/esphome/pull/693) by [@middelink](https://github.com/middelink)
+- esphome: MH-Z19 calibration support [esphome#683](https://github.com/esphome/esphome/pull/683) by [@Anonym-tsk](https://github.com/Anonym-tsk) (new-feature)
+- esphome: Implement median filter [esphome#697](https://github.com/esphome/esphome/pull/697) by [@jvanderneutstulen](https://github.com/jvanderneutstulen) (new-feature)
+- docs: Median filter [esphome-docs#319](https://github.com/esphome/esphome-docs/pull/319) by [@jvanderneutstulen](https://github.com/jvanderneutstulen)
+- docs: MH-Z19 calibration support [esphome-docs#312](https://github.com/esphome/esphome-docs/pull/312) by [@Anonym-tsk](https://github.com/Anonym-tsk)
+- docs: Update names [esphome-docs#326](https://github.com/esphome/esphome-docs/pull/326) by [@fabaff](https://github.com/fabaff)
+- docs: Fix header level [esphome-docs#325](https://github.com/esphome/esphome-docs/pull/325) by [@fabaff](https://github.com/fabaff)
+- docs: 7.50in waveshare e-paper works [esphome-docs#321](https://github.com/esphome/esphome-docs/pull/321) by [@rafl](https://github.com/rafl)
+- docs: Fix api.proto url [esphome-docs#310](https://github.com/esphome/esphome-docs/pull/310) by [@pstuifzand](https://github.com/pstuifzand)
+- esphome: add xiaomi BLE Thermometer lywsd02 model support [esphome#664](https://github.com/esphome/esphome/pull/664) by [@junnikokuki](https://github.com/junnikokuki)
+- docs: Add Sonoff Mini to 'Generic Sonoff' page [esphome-docs#320](https://github.com/esphome/esphome-docs/pull/320) by [@Infinitte](https://github.com/Infinitte)
+- esphome: Fix GPS time source. [esphome#704](https://github.com/esphome/esphome/pull/704)
+- docs: Add configuration example for TTGO T-Camera v1.7 [esphome-docs#318](https://github.com/esphome/esphome-docs/pull/318) by [@erichiller](https://github.com/erichiller)
+- esphome: License for Material Design Icons [esphome#708](https://github.com/esphome/esphome/pull/708) by [@Anonym-tsk](https://github.com/Anonym-tsk)
+- docs: LYWSD02 [esphome-docs#292](https://github.com/esphome/esphome-docs/pull/292) by [@G1K](https://github.com/G1K)
+- esphome: add time based cover, has built in endstop [esphome#665](https://github.com/esphome/esphome/pull/665) by [@glmnet](https://github.com/glmnet) (new-feature)
+- esphome: Add delayed_on_off binary_sensor filter [esphome#700](https://github.com/esphome/esphome/pull/700) by [@kepten](https://github.com/kepten) (new-feature)
+- docs: Add doc for delayed_on_off binary_sensor filter [esphome-docs#324](https://github.com/esphome/esphome-docs/pull/324) by [@kepten](https://github.com/kepten)
+- esphome: fix wifi info [esphome#709](https://github.com/esphome/esphome/pull/709) by [@glmnet](https://github.com/glmnet)
+- docs: Add description of id Parameter [esphome-docs#329](https://github.com/esphome/esphome-docs/pull/329) by [@guptamp](https://github.com/guptamp)
+- esphome: fix integration sensor [esphome#711](https://github.com/esphome/esphome/pull/711) by [@glmnet](https://github.com/glmnet)
+- esphome: Add support for Sensirion SCD30 CO2 sensors [esphome#712](https://github.com/esphome/esphome/pull/712) by [@valordk](https://github.com/valordk)
+- docs: Add documentation for Sensirion SCD30 CO2 sensors [esphome-docs#333](https://github.com/esphome/esphome-docs/pull/333) by [@valordk](https://github.com/valordk)
+- esphome: Fixes sim800l [esphome#678](https://github.com/esphome/esphome/pull/678) by [@glmnet](https://github.com/glmnet)
+- docs: Update esp32_camera.rst jpeg quality [esphome-docs#332](https://github.com/esphome/esphome-docs/pull/332) by [@glogiotatidis](https://github.com/glogiotatidis)
+- docs: add has_built_in_endstop docs [esphome-docs#302](https://github.com/esphome/esphome-docs/pull/302) by [@glmnet](https://github.com/glmnet)
+- docs: Update incorrect GPIO pin for Mirabella Genio Cold + Warm White… [esphome-docs#337](https://github.com/esphome/esphome-docs/pull/337) by [@epetousis](https://github.com/epetousis)
+- esphome: Use default format to render FloatLiteral [esphome#717](https://github.com/esphome/esphome/pull/717) by [@fritzm](https://github.com/fritzm)
+- esphome: Add coolix receiver [esphome#645](https://github.com/esphome/esphome/pull/645) by [@glmnet](https://github.com/glmnet) (new-feature)
+- docs: add coolix receiver [esphome-docs#288](https://github.com/esphome/esphome-docs/pull/288) by [@glmnet](https://github.com/glmnet)
+- esphome: Fix [issues#658](https://github.com/esphome/issues/issues/658) [esphome#724](https://github.com/esphome/esphome/pull/724) by [@fake-name](https://github.com/fake-name)
+- docs: Update hdc1080.rst [esphome-docs#343](https://github.com/esphome/esphome-docs/pull/343) by [@magnusja](https://github.com/magnusja)
+- esphome: Update MANIFEST.in to fix esphome/issues#650 [esphome#733](https://github.com/esphome/esphome/pull/733) by [@shbatm](https://github.com/shbatm)
+- docs: Fix link to light-is_on_condition [esphome-docs#345](https://github.com/esphome/esphome-docs/pull/345) by [@myplacedk](https://github.com/myplacedk)
+- esphome: fixes samsung ir [esphome#738](https://github.com/esphome/esphome/pull/738) by [@glmnet](https://github.com/glmnet)
+- esphome: Allow 64 bit codes and add nexa remote support. [esphome#662](https://github.com/esphome/esphome/pull/662) by [@abmantis](https://github.com/abmantis) (new-feature)
+- docs: Fix, optimize mijia [esphome-docs#293](https://github.com/esphome/esphome-docs/pull/293) by [@G1K](https://github.com/G1K)
+- esphome: AS3935 Lightning sensor [esphome#666](https://github.com/esphome/esphome/pull/666) by [@TheEggi](https://github.com/TheEggi)
+- esphome: Full height log window [esphome#673](https://github.com/esphome/esphome/pull/673) by [@Anonym-tsk](https://github.com/Anonym-tsk)
+- docs: Make it clearer that only one deep sleep component is allowed. [esphome-docs#303](https://github.com/esphome/esphome-docs/pull/303) by [@jeff-h](https://github.com/jeff-h)
+- esphome: Secrets editor [esphome#672](https://github.com/esphome/esphome/pull/672) by [@Anonym-tsk](https://github.com/Anonym-tsk) (new-feature)
+- esphome: Authorization by username and password [esphome#668](https://github.com/esphome/esphome/pull/668) by [@Anonym-tsk](https://github.com/Anonym-tsk) (new-feature)
+- esphome: Basic Auth for web_server component [esphome#674](https://github.com/esphome/esphome/pull/674) by [@Anonym-tsk](https://github.com/Anonym-tsk)
+- docs: Basic Auth for web_server component [esphome-docs#304](https://github.com/esphome/esphome-docs/pull/304) by [@Anonym-tsk](https://github.com/Anonym-tsk)
+- esphome: Improve SHT3xD reconnect handling [esphome#675](https://github.com/esphome/esphome/pull/675) by [@valordk](https://github.com/valordk)
+- docs: Fix description of the sensor [esphome-docs#309](https://github.com/esphome/esphome-docs/pull/309) by [@mpettitt](https://github.com/mpettitt)
+- esphome: Device description in dashboard [esphome#707](https://github.com/esphome/esphome/pull/707) by [@Anonym-tsk](https://github.com/Anonym-tsk) (new-feature)
+- docs: Device description in dashboard [esphome-docs#335](https://github.com/esphome/esphome-docs/pull/335) by [@Anonym-tsk](https://github.com/Anonym-tsk)
+- esphome: support for the sx1509 i2c device [esphome#651](https://github.com/esphome/esphome/pull/651) by [@mvturnho](https://github.com/mvturnho)
+- esphome: Add support for TI TLC59208F [esphome#718](https://github.com/esphome/esphome/pull/718) by [@tamisoft](https://github.com/tamisoft)
+- docs: ADD TLC59208F documentation [esphome-docs#338](https://github.com/esphome/esphome-docs/pull/338) by [@tamisoft](https://github.com/tamisoft)
+- docs: Add Xiaomi Cleargrass Sensor Documentation [esphome-docs#346](https://github.com/esphome/esphome-docs/pull/346) by [@sermayoral](https://github.com/sermayoral)
+- esphome: Add Xiaomi Cleargrass Temperature and Humidity Sensor [esphome#735](https://github.com/esphome/esphome/pull/735) by [@sermayoral](https://github.com/sermayoral)
+- docs: The 4.20in display works fine [esphome-docs#359](https://github.com/esphome/esphome-docs/pull/359) by [@fredrike](https://github.com/fredrike)
+- docs: Update sonoff.rst [esphome-docs#341](https://github.com/esphome/esphome-docs/pull/341) by [@ZabojnikM](https://github.com/ZabojnikM)
+- esphome: Fix for PCF8574 output chattering at the start/reboot [esphome#744](https://github.com/esphome/esphome/pull/744) by [@amishv](https://github.com/amishv)
+- esphome: Add ADE7953 Support [esphome#593](https://github.com/esphome/esphome/pull/593)
+- esphome: refactored xiaomi sensors [esphome#755](https://github.com/esphome/esphome/pull/755) by [@Alex9779](https://github.com/Alex9779) (breaking-change)
+- docs: Xiaomi refactor [esphome-docs#361](https://github.com/esphome/esphome-docs/pull/361) by [@Alex9779](https://github.com/Alex9779)
+- esphome: fix CGG1 log message [esphome#757](https://github.com/esphome/esphome/pull/757) by [@Alex9779](https://github.com/Alex9779)
+- docs: Add link to index.rst check list item [esphome-docs#363](https://github.com/esphome/esphome-docs/pull/363) by [@glmnet](https://github.com/glmnet)
+- docs: Added cookbook for Teckin SB50 Bulb [esphome-docs#360](https://github.com/esphome/esphome-docs/pull/360) by [@nebula-it](https://github.com/nebula-it)
+- esphome: Add mcp23008 support [esphome#649](https://github.com/esphome/esphome/pull/649) by [@TomFahey](https://github.com/TomFahey)
+- docs: Adding the IO2 pin to the GPIO pin list [esphome-docs#354](https://github.com/esphome/esphome-docs/pull/354) by [@SqyD](https://github.com/SqyD)
+- docs: Updated MCP23017 Component To Cover 8 & 16 Port Chips [esphome-docs#277](https://github.com/esphome/esphome-docs/pull/277) by [@TomFahey](https://github.com/TomFahey)
+- esphome: Brightness ssd1306 [esphome#723](https://github.com/esphome/esphome/pull/723) by [@glmnet](https://github.com/glmnet)
+- esphome: Fix potential ISR digital_write issue [esphome#753](https://github.com/esphome/esphome/pull/753)
+- esphome: Fix addressable light fade to black function [esphome#752](https://github.com/esphome/esphome/pull/752)
+- esphome: Make UART flush function consistent [esphome#748](https://github.com/esphome/esphome/pull/748)
+- esphome: Update and pin all python requirements [esphome#759](https://github.com/esphome/esphome/pull/759)
+- esphome: Fix MCP23017 setup priority [esphome#751](https://github.com/esphome/esphome/pull/751)
+- esphome: Add rotary_encoder.set_value action [esphome#747](https://github.com/esphome/esphome/pull/747) (new-feature)
+- esphome: Fix strobe/flicker effect not using selected value [esphome#749](https://github.com/esphome/esphome/pull/749)
+- esphome: Add support for TTGO ePaper module [esphome#730](https://github.com/esphome/esphome/pull/730) by [@thomasklingbeil](https://github.com/thomasklingbeil)
+- esphome: BME280: Increase sensor timeout [esphome#727](https://github.com/esphome/esphome/pull/727) by [@lobradov](https://github.com/lobradov)
+- esphome: Base climate ir [esphome#726](https://github.com/esphome/esphome/pull/726) by [@glmnet](https://github.com/glmnet)
+- docs: Add documentation for TTGO ePaper [esphome-docs#342](https://github.com/esphome/esphome-docs/pull/342) by [@thomasklingbeil](https://github.com/thomasklingbeil)
+- esphome: Fix dallas not unknown [esphome#716](https://github.com/esphome/esphome/pull/716)
+- esphome: Integration sensor use double precision [esphome#715](https://github.com/esphome/esphome/pull/715)
+- esphome: calibrate_linear check not all from values same [esphome#714](https://github.com/esphome/esphome/pull/714)
+- esphome: SenseAir S8 CO2 sensor support [esphome#705](https://github.com/esphome/esphome/pull/705) by [@Anonym-tsk](https://github.com/Anonym-tsk)
+- docs: SenseAir S8 CO2 sensor support [esphome-docs#330](https://github.com/esphome/esphome-docs/pull/330) by [@Anonym-tsk](https://github.com/Anonym-tsk)
+- esphome: Fix remote_transmitter type_a encoding [esphome#742](https://github.com/esphome/esphome/pull/742) by [@nicuh](https://github.com/nicuh)
+- esphome: vscode support check file exists [esphome#763](https://github.com/esphome/esphome/pull/763) by [@glmnet](https://github.com/glmnet)
+- docs: Proof reading changes [esphome-docs#364](https://github.com/esphome/esphome-docs/pull/364) by [@thenameiwantedwastaken](https://github.com/thenameiwantedwastaken)
+- docs: add tcl112 receiver docs [esphome-docs#365](https://github.com/esphome/esphome-docs/pull/365) by [@glmnet](https://github.com/glmnet)
+- esphome: add tcl112 receiver [esphome#762](https://github.com/esphome/esphome/pull/762) by [@glmnet](https://github.com/glmnet)
+- esphome: Sensor filter_out rounded [esphome#765](https://github.com/esphome/esphome/pull/765)
+- esphome: Use higher default baudrate for USB upload [esphome#761](https://github.com/esphome/esphome/pull/761)
+- esphome: add support for climate action [esphome#720](https://github.com/esphome/esphome/pull/720) by [@marcelveldt](https://github.com/marcelveldt)
+- esphome: Add LEDC set_frequency action [esphome#754](https://github.com/esphome/esphome/pull/754) (new-feature)
+- esphome: Fork some base libraries [esphome#758](https://github.com/esphome/esphome/pull/758)
+- esphome: Update ESP8266/ESP32 bases [esphome#760](https://github.com/esphome/esphome/pull/760)
+- esphome: Captive portal fixes [esphome#766](https://github.com/esphome/esphome/pull/766)
+- esphome: Fix typo in Component::set_interval [esphome#767](https://github.com/esphome/esphome/pull/767)
+- esphome: Fix platformio monkey patch [esphome#768](https://github.com/esphome/esphome/pull/768)
+- esphome: Addressable light transition [esphome#750](https://github.com/esphome/esphome/pull/750) (new-feature)
+- esphome: Fixes for Python 3 [esphome#702](https://github.com/esphome/esphome/pull/702) by [@fabaff](https://github.com/fabaff)
+- esphome: Add BLE scan parameters [esphome#769](https://github.com/esphome/esphome/pull/769) (new-feature)
+- esphome: Filter some debug lines from PlatformIO in output [esphome#771](https://github.com/esphome/esphome/pull/771)
+- esphome: ESP32 Upgrade AsyncTCP to 1.1.1 [esphome#773](https://github.com/esphome/esphome/pull/773)
+- esphome: Switch to Python 3 for docker installs [esphome#774](https://github.com/esphome/esphome/pull/774)
+- docs: Add script.wait action [esphome-docs#367](https://github.com/esphome/esphome-docs/pull/367) (new-feature)
+- docs: Add ESP32 scan parameters [esphome-docs#368](https://github.com/esphome/esphome-docs/pull/368)
+- docs: Hint how to include HA secrets.yaml instead [esphome-docs#362](https://github.com/esphome/esphome-docs/pull/362) by [@rlowens](https://github.com/rlowens)
+- esphome: Add SSD1325 Display Component [esphome#736](https://github.com/esphome/esphome/pull/736) by [@evandcoleman](https://github.com/evandcoleman) (cherry-picked)
+- docs: Add documentation for SSD1325 OLED displays [esphome-docs#347](https://github.com/esphome/esphome-docs/pull/347) by [@evandcoleman](https://github.com/evandcoleman) (cherry-picked)
+- esphome: Add support for SGP30 eCO2 and TVOC sensors [esphome#679](https://github.com/esphome/esphome/pull/679) by [@valordk](https://github.com/valordk) (cherry-picked)
+- docs: Add documentation for SGP30 eCO2 and TVOC sensors [esphome-docs#308](https://github.com/esphome/esphome-docs/pull/308) by [@valordk](https://github.com/valordk) (cherry-picked)
+- esphome: Add support for SHTCx Temperature sensors [esphome#676](https://github.com/esphome/esphome/pull/676) by [@valordk](https://github.com/valordk) (cherry-picked)
+- esphome: Add support for STS3x Temperature sensors [esphome#669](https://github.com/esphome/esphome/pull/669) by [@valordk](https://github.com/valordk) (cherry-picked)
+- docs: Add documentation for SHTCx Temperature sensors [esphome-docs#305](https://github.com/esphome/esphome-docs/pull/305) by [@valordk](https://github.com/valordk) (cherry-picked)
+- docs: Add documentation for STS3x Temperature sensors [esphome-docs#300](https://github.com/esphome/esphome-docs/pull/300) by [@valordk](https://github.com/valordk) (cherry-picked)
+- esphome: Add dfplayer mini component [esphome#655](https://github.com/esphome/esphome/pull/655) by [@glmnet](https://github.com/glmnet) (cherry-picked)
+- docs: Add DFPlayer docs [esphome-docs#306](https://github.com/esphome/esphome-docs/pull/306) by [@glmnet](https://github.com/glmnet) (cherry-picked)
+- docs: Add rotary_encoder.set_value action [esphome-docs#358](https://github.com/esphome/esphome-docs/pull/358) (cherry-picked)
+- esphome: Add new component for Tuya dimmers [esphome#743](https://github.com/esphome/esphome/pull/743) by [@ssieb](https://github.com/ssieb) (cherry-picked)
+- docs: Add documentation for new Tuya dimmer component [esphome-docs#353](https://github.com/esphome/esphome-docs/pull/353) by [@ssieb](https://github.com/ssieb) (cherry-picked)
+- docs: SX1509 device documentation [esphome-docs#315](https://github.com/esphome/esphome-docs/pull/315) by [@mvturnho](https://github.com/mvturnho) (cherry-picked)
+- docs: Fix typo [esphome-docs#352](https://github.com/esphome/esphome-docs/pull/352) by [@bonanitech](https://github.com/bonanitech)
+- docs: Minor typo [esphome-docs#349](https://github.com/esphome/esphome-docs/pull/349) by [@dannysauer](https://github.com/dannysauer)
+- docs: Clarify NodeMCU ESP8266 VIN pin [esphome-docs#340](https://github.com/esphome/esphome-docs/pull/340) by [@Justahobby01](https://github.com/Justahobby01)
+- docs: Add TorchStar LED controller to 'Generic Sonoff' page [esphome-docs#351](https://github.com/esphome/esphome-docs/pull/351) by [@dale3h](https://github.com/dale3h)
+- docs: Remove references to Python 2 [esphome-docs#328](https://github.com/esphome/esphome-docs/pull/328) by [@fabaff](https://github.com/fabaff) (cherry-picked)
+- docs: Cookbook Guide for Zemismart LED RGBW Downlights [esphome-docs#297](https://github.com/esphome/esphome-docs/pull/297) by [@cryptelli](https://github.com/cryptelli)
+- docs: Authorization by username and password [esphome-docs#296](https://github.com/esphome/esphome-docs/pull/296) by [@Anonym-tsk](https://github.com/Anonym-tsk) (cherry-picked)
+- docs: AS3935 Lightning sensor [esphome-docs#294](https://github.com/esphome/esphome-docs/pull/294) by [@TheEggi](https://github.com/TheEggi) (cherry-picked)
+- docs: Cookbook ape [esphome-docs#334](https://github.com/esphome/esphome-docs/pull/334) by [@glmnet](https://github.com/glmnet)
+- esphome: Add lint check for integer constants [esphome#775](https://github.com/esphome/esphome/pull/775)
+- docs: fix indent on sample [esphome-docs#369](https://github.com/esphome/esphome-docs/pull/369) by [@glmnet](https://github.com/glmnet) (cherry-picked)
+- esphome: Add script.wait action [esphome#778](https://github.com/esphome/esphome/pull/778) (cherry-picked) (new-feature)
+- docs: update esp32camera documentation - note about PWM [esphome-docs#348](https://github.com/esphome/esphome-docs/pull/348) by [@h0--](https://github.com/h0--)
+- esphome: Vl53l0x [esphome#644](https://github.com/esphome/esphome/pull/644) (cherry-picked)
+- esphome: Add GPIO Switch interlock wait time [esphome#777](https://github.com/esphome/esphome/pull/777) (cherry-picked) (new-feature)
+- esphome: Add PZEM004T/PZEMAC/PZEMDC Support [esphome#587](https://github.com/esphome/esphome/pull/587) (cherry-picked)
+- esphome: Update AsyncMQTTClient/ESPAsyncWebServer [esphome#779](https://github.com/esphome/esphome/pull/779) (cherry-picked)
+- esphome: Implementation of LCD Clear [esphome#781](https://github.com/esphome/esphome/pull/781) by [@amishv](https://github.com/amishv) (cherry-picked)
+- docs: fixed typo [esphome-docs#370](https://github.com/esphome/esphome-docs/pull/370) by [@amishv](https://github.com/amishv)
+- esphome: Add sensor force_update option [esphome#783](https://github.com/esphome/esphome/pull/783) (cherry-picked) (new-feature)
+- docs: Add sensor force_update option [esphome-docs#371](https://github.com/esphome/esphome-docs/pull/371) (cherry-picked)
+- docs: Spelling and grammar fixes [esphome-docs#372](https://github.com/esphome/esphome-docs/pull/372) by [@scop](https://github.com/scop)
+- docs: Add missing actual install step in getting started with Hass.io [esphome-docs#373](https://github.com/esphome/esphome-docs/pull/373) by [@scop](https://github.com/scop)
+- esphome: Update docker base image to 2.0.1 [esphome#785](https://github.com/esphome/esphome/pull/785) (cherry-picked)
+- esphome: Fix ledc can't find bit_depth [esphome#786](https://github.com/esphome/esphome/pull/786) (cherry-picked)
+- esphome: web_server_base AUTO_LOAD includes ASYNC_TCP [esphome#788](https://github.com/esphome/esphome/pull/788) by [@Schnilz](https://github.com/Schnilz) (cherry-picked)
+- esphome: Add Python 2 deprecation notice [esphome#784](https://github.com/esphome/esphome/pull/784) (breaking-change) (cherry-picked)
+- docs: Update time.rst to add GPS as source [esphome-docs#375](https://github.com/esphome/esphome-docs/pull/375) by [@mbo18](https://github.com/mbo18)
+- esphome: Fix modbus CRC calculation [esphome#789](https://github.com/esphome/esphome/pull/789) (cherry-picked)
+- esphome: Add additional custom lint checks [esphome#790](https://github.com/esphome/esphome/pull/790) (cherry-picked)
+- esphome: Implement more dump_configs [esphome#791](https://github.com/esphome/esphome/pull/791) (cherry-picked)
+- esphome: Add missing include - fixes missing GPIOPin definition [esphome#794](https://github.com/esphome/esphome/pull/794) by [@cjd](https://github.com/cjd) (cherry-picked)
+- esphome: Fix MQTT not showing logs with Python 3 [esphome#797](https://github.com/esphome/esphome/pull/797) (cherry-picked)
+- esphome: Fix scheduler first execution [esphome#798](https://github.com/esphome/esphome/pull/798) (cherry-picked)
+- esphome: Make file generation saving atomic [esphome#792](https://github.com/esphome/esphome/pull/792) (cherry-picked)
+- esphome: Fujitsu General climate new component [esphome#677](https://github.com/esphome/esphome/pull/677) by [@31337Ghost](https://github.com/31337Ghost) (cherry-picked)
+- esphome: Warn when UART and logger operating on same bus [esphome#803](https://github.com/esphome/esphome/pull/803) (cherry-picked)
+- esphome: Add Tuya message for no datapoints [esphome#804](https://github.com/esphome/esphome/pull/804) (cherry-picked)
+- esphome: AS3935 Use normal pin polling for IRQ [esphome#805](https://github.com/esphome/esphome/pull/805) (cherry-picked)
+- esphome: Fix modbus register [esphome#806](https://github.com/esphome/esphome/pull/806) (cherry-picked)
+- esphome: Fix web server transition length truncated [esphome#807](https://github.com/esphome/esphome/pull/807) (cherry-picked)
+- docs: fix xiaomi docs [esphome-docs#384](https://github.com/esphome/esphome-docs/pull/384) by [@Alex9779](https://github.com/Alex9779) (cherry-picked)
+- esphome: Add check if middle_text is too short [esphome#811](https://github.com/esphome/esphome/pull/811) by [@grea09](https://github.com/grea09) (cherry-picked)
+- esphome: [Hotfix] Dashboard authentication on Py3 [esphome#812](https://github.com/esphome/esphome/pull/812) by [@Anonym-tsk](https://github.com/Anonym-tsk) (cherry-picked)
+- esphome: Uppercase ESPHome [esphome#814](https://github.com/esphome/esphome/pull/814) (cherry-picked)
+- esphome: Print update interval for pulse counter [esphome#816](https://github.com/esphome/esphome/pull/816) (cherry-picked)
+- esphome: Allow TimePeriod for time_period_str_unit [esphome#815](https://github.com/esphome/esphome/pull/815) (cherry-picked)
+- docs: Typo fix pzem004t [esphome-docs#387](https://github.com/esphome/esphome-docs/pull/387) by [@Anonym-tsk](https://github.com/Anonym-tsk) (cherry-picked)
+- esphome: Scheduler fixes [esphome#813](https://github.com/esphome/esphome/pull/813) (cherry-picked)
+- esphome: Fix fan oscillating [esphome#818](https://github.com/esphome/esphome/pull/818) (cherry-picked)
+- esphome: Fix some binary_sensor not having an initial state [esphome#819](https://github.com/esphome/esphome/pull/819) (cherry-picked)
+
+{/* markdownlint-enable MD013 */}

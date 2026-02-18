@@ -1,0 +1,213 @@
+---
+description: "Changelog for ESPHome 2022.12.0."
+title: "ESPHome 2022.12.0 - 14th December 2022"
+pagefind: false
+slug: "changelog/2022.12.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["ESP32","/components/esp32","esp32.svg"],
+  ["Bluetooth Proxy","/components/bluetooth_proxy","bluetooth.svg","dark-invert"],
+  ["SN74HC165 I/O Expander","/components/sn74hc165","sn74hc595.jpg"]
+]} />
+
+The festive holidays are coming early and bring you an ESPHome release 1 week earlier than normal.
+This release does not bring a bunch of new components like most releases, but instead the focus
+has been on upgrading the core Arduino and ESP-IDF versions used for the ESP32 based devices.
+
+## Ethernet
+
+Because these core upgrade have aligned the version of ESP-IDF under the hood, `ethernet`
+is now able to be used when specifying ESP-IDF as your framework of choice.
+
+## Bluetooth Proxy
+
+The Bluetooth Proxy has also had a whole lot of work done by [@bdraco](https://github.com/bdraco) under the hood to
+improve the stability, speed and reliability between Home Assistant and the bluetooth devices
+that get proxied through. Along with some of these bluetooth changes is a change to the
+underlying flash partition table that ESPHome uses. OTA will work, but to fully take advantage
+of the performance increases for bluetooth, it is best to at least one serial flash with ESPHome
+2022.12.0 or later.
+
+## Container images
+
+> [!NOTE]
+> This breaking change only affects you if you use docker containers directly and specify the suffix
+> in your image.
+
+2022.12.6 changes the way the container images are built and published. This is due to something
+breaking somewhere that we could not explain. It has to do with the `docker manifest` command
+which has been around for a while but always been marked as `experimental` so we cannot really
+complain.
+
+From now on there will be no builds with tags for the `-armv7` / `-amd64` / `aarch64` suffixes,
+but the main images (`ghcr.io/esphome/esphome:<version>`  ) will be multi-arch capable and work on the
+3 supported architectures.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2022.12.1 - December 16
+
+- Support non-multiarch toolchains on 32-bit ARM [esphome#4191](https://github.com/esphome/esphome/pull/4191) by [@agners](https://github.com/agners)
+- Mark ESP32-S2 as not having Bluetooth [esphome#4194](https://github.com/esphome/esphome/pull/4194) by [@jesserockz](https://github.com/jesserockz)
+- Fix i2s_audio media_player compiling for esp32-s2 [esphome#4195](https://github.com/esphome/esphome/pull/4195) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2022.12.2 - December 20
+
+- Fix import_full_config for adoption configs [esphome#4197](https://github.com/esphome/esphome/pull/4197) by [@jesserockz](https://github.com/jesserockz)
+- Handle zero padding anywhere in the combined adv data [esphome#4208](https://github.com/esphome/esphome/pull/4208) by [@bdraco](https://github.com/bdraco)
+
+## Release 2022.12.3 - December 20
+
+- Fix ESP32 GPIO when using INPUT PULLUP mode [esphome#4213](https://github.com/esphome/esphome/pull/4213) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2022.12.4 - January 20
+
+- Fix gpio pin mode for ISR pins [esphome#4216](https://github.com/esphome/esphome/pull/4216) by [@jesserockz](https://github.com/jesserockz)
+- Always send the MTU request for BLE v3 cached connections [esphome#4322](https://github.com/esphome/esphome/pull/4322) by [@bdraco](https://github.com/bdraco)
+
+## Release 2022.12.5 - January 23
+
+- Bump nano version in lint docker image [esphome#4218](https://github.com/esphome/esphome/pull/4218) by [@jesserockz](https://github.com/jesserockz)
+
+## Release 2022.12.6 - January 24
+
+- Move from docker manifest command to buildx with platforms [esphome#4320](https://github.com/esphome/esphome/pull/4320) by [@jesserockz](https://github.com/jesserockz) (breaking-change)
+
+## Release 2022.12.7 - January 26
+
+- Add "content" to deploy-ha-addon-repo dispatch [esphome#4349](https://github.com/esphome/esphome/pull/4349) by [@ludeeus](https://github.com/ludeeus)
+- fix stepper jump back with small steps [esphome#4339](https://github.com/esphome/esphome/pull/4339) by [@0xDRRB](https://github.com/0xDRRB)
+- rename esp32 CAN to TWAI, so it compiles again [esphome#4334](https://github.com/esphome/esphome/pull/4334) by [@designer2k2](https://github.com/designer2k2)
+- Fix BME280 initialization before wifi setup [esphome#4190](https://github.com/esphome/esphome/pull/4190) by [@pxe-la](https://github.com/pxe-la)
+- Add a soft reset in setup() for bmp280 [esphome#4329](https://github.com/esphome/esphome/pull/4329) by [@melyux](https://github.com/melyux)
+
+## Release 2022.12.8 - January 27
+
+- Upgrades add-on base image to 6.2.0 [esphome#4310](https://github.com/esphome/esphome/pull/4310) by [@frenck](https://github.com/frenck)
+- Migrate old-style S6 scripts to s6-rc.d [esphome#4311](https://github.com/esphome/esphome/pull/4311) by [@frenck](https://github.com/frenck)
+- Refactor NGINX configuration of Home Assistant Add-on [esphome#4312](https://github.com/esphome/esphome/pull/4312) by [@frenck](https://github.com/frenck)
+- Add Home Assistant integration discovery [esphome#4328](https://github.com/esphome/esphome/pull/4328) by [@frenck](https://github.com/frenck)
+
+## Full list of changes
+
+### New Features
+
+- PID Climate - deadband and output sampling [esphome#3254](https://github.com/esphome/esphome/pull/3254) by [@patrickcollins12](https://github.com/patrickcollins12) (new-feature)
+
+### New Components
+
+- Add sn74hc165 input shift register [esphome#4151](https://github.com/esphome/esphome/pull/4151) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+
+### Breaking Changes
+
+- Update esp32 arduino and platform versions [esphome#3564](https://github.com/esphome/esphome/pull/3564) by [@jesserockz](https://github.com/jesserockz) (notable-change) (breaking-change)
+
+### Beta Changes
+
+- Fix ble parsing with zero padded advertisements [esphome#4162](https://github.com/esphome/esphome/pull/4162) by [@jesserockz](https://github.com/jesserockz)
+- Increase watchdog timeout when starting OTA [esphome#4172](https://github.com/esphome/esphome/pull/4172) by [@jesserockz](https://github.com/jesserockz)
+- Bump esphome-dashboard to 20221213.0 [esphome#4176](https://github.com/esphome/esphome/pull/4176) by [@jesserockz](https://github.com/jesserockz)
+- Remove internal pin restriction from cd74hc4067 [esphome#4179](https://github.com/esphome/esphome/pull/4179) by [@jesserockz](https://github.com/jesserockz)
+- Speed up bluetooth proxy connections when using esp-idf [esphome#4171](https://github.com/esphome/esphome/pull/4171) by [@bdraco](https://github.com/bdraco) (notable-change)
+- Remove warnings when falling through switch cases on purpose [esphome#4181](https://github.com/esphome/esphome/pull/4181) by [@jesserockz](https://github.com/jesserockz)
+- Revert camera config change for esp-idf [esphome#4182](https://github.com/esphome/esphome/pull/4182) by [@jesserockz](https://github.com/jesserockz)
+
+### Notable Changes
+
+- Update esp32 arduino and platform versions [esphome#3564](https://github.com/esphome/esphome/pull/3564) by [@jesserockz](https://github.com/jesserockz) (notable-change) (breaking-change)
+- Update ESP-IDF and platform version [esphome#3565](https://github.com/esphome/esphome/pull/3565) by [@jesserockz](https://github.com/jesserockz) (notable-change)
+- Speed up bluetooth proxy connections when using esp-idf [esphome#4171](https://github.com/esphome/esphome/pull/4171) by [@bdraco](https://github.com/bdraco) (notable-change)
+
+### All changes
+
+- Bump colorama from 0.4.5 to 0.4.6 [esphome#4010](https://github.com/esphome/esphome/pull/4010) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump frenck/action-yamllint from 1.3.0 to 1.3.1 [esphome#4011](https://github.com/esphome/esphome/pull/4011) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- add two new icons [esphome#3963](https://github.com/esphome/esphome/pull/3963) by [@nagyrobi](https://github.com/nagyrobi)
+- Move CONF_INTERRUPT_PIN to const.py [esphome#4014](https://github.com/esphome/esphome/pull/4014) by [@jesserockz](https://github.com/jesserockz)
+- Bump pyupgrade from 3.2.0 to 3.2.2 [esphome#4017](https://github.com/esphome/esphome/pull/4017) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Add reset_reason text sensor to debug component [esphome#3814](https://github.com/esphome/esphome/pull/3814) by [@kuba2k2](https://github.com/kuba2k2)
+- remove unused variable last_save in total_daily_energy [esphome#4039](https://github.com/esphome/esphome/pull/4039) by [@bkaufx](https://github.com/bkaufx)
+- Bump base image versions to latest [esphome#4016](https://github.com/esphome/esphome/pull/4016) by [@jesserockz](https://github.com/jesserockz)
+- Add number device class support [esphome#4042](https://github.com/esphome/esphome/pull/4042) by [@frenck](https://github.com/frenck)
+- Update esp32 arduino and platform versions [esphome#3564](https://github.com/esphome/esphome/pull/3564) by [@jesserockz](https://github.com/jesserockz) (notable-change) (breaking-change)
+- Update esp32 boards list [esphome#4056](https://github.com/esphome/esphome/pull/4056) by [@jesserockz](https://github.com/jesserockz)
+- Add Lolin S2 Mini board [esphome#3264](https://github.com/esphome/esphome/pull/3264) by [@jhamhader](https://github.com/jhamhader)
+- Add pin aliases for upesy boards [esphome#3794](https://github.com/esphome/esphome/pull/3794) by [@uPesy](https://github.com/uPesy)
+- Bump pylint from 2.15.5 to 2.15.6 [esphome#4058](https://github.com/esphome/esphome/pull/4058) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- fix display_menu recursive schema gen [esphome#4045](https://github.com/esphome/esphome/pull/4045) by [@glmnet](https://github.com/glmnet)
+- Remove manual handling of ethernet power pin [esphome#4062](https://github.com/esphome/esphome/pull/4062) by [@jesserockz](https://github.com/jesserockz)
+- Bump aioesphomeapi from 11.4.3 to 12.0.0 [esphome#4070](https://github.com/esphome/esphome/pull/4070) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Update ESP-IDF and platform version [esphome#3565](https://github.com/esphome/esphome/pull/3565) by [@jesserockz](https://github.com/jesserockz) (notable-change)
+- Always use brackets around single log macros [esphome#4072](https://github.com/esphome/esphome/pull/4072) by [@jesserockz](https://github.com/jesserockz)
+- Midea ir templatable code [esphome#4053](https://github.com/esphome/esphome/pull/4053) by [@reidprojects](https://github.com/reidprojects)
+- Boards: Adafruit QT Py ESP32 Pico/C3/S2 [esphome#4064](https://github.com/esphome/esphome/pull/4064) by [@jenscski](https://github.com/jenscski)
+- Dont set esp32 pin drive strength unless pin is set for output [esphome#4075](https://github.com/esphome/esphome/pull/4075) by [@jesserockz](https://github.com/jesserockz)
+- Don't allow debug component if you don't have at least debug logging level [esphome#4076](https://github.com/esphome/esphome/pull/4076) by [@jesserockz](https://github.com/jesserockz)
+- Remove a bunch of unnecessary pylint disabling [esphome#4079](https://github.com/esphome/esphome/pull/4079) by [@jesserockz](https://github.com/jesserockz)
+- Update ESP32-audioI2S library [esphome#4073](https://github.com/esphome/esphome/pull/4073) by [@jesserockz](https://github.com/jesserockz)
+- Add vector includes [esphome#4080](https://github.com/esphome/esphome/pull/4080) by [@jesserockz](https://github.com/jesserockz)
+- Allow manually specifying binary file to OTA [esphome#4054](https://github.com/esphome/esphome/pull/4054) by [@jesserockz](https://github.com/jesserockz)
+- Fix regressed 'esphome run' [esphome#4094](https://github.com/esphome/esphome/pull/4094) by [@mmakaay](https://github.com/mmakaay)
+- Make parse_characteristics and parse_descriptors lazy to reduce memory pressure [esphome#4063](https://github.com/esphome/esphome/pull/4063) by [@bdraco](https://github.com/bdraco)
+- Speed up BLE connections [esphome#4093](https://github.com/esphome/esphome/pull/4093) by [@bdraco](https://github.com/bdraco)
+- Align BLE service logging [esphome#4095](https://github.com/esphome/esphome/pull/4095) by [@bdraco](https://github.com/bdraco)
+- Suppress logging unhandled ESP_BLE_AD_TYPE_INT_RANGE [esphome#4096](https://github.com/esphome/esphome/pull/4096) by [@bdraco](https://github.com/bdraco)
+- Make sure all BLE address strings are uppercase [esphome#4097](https://github.com/esphome/esphome/pull/4097) by [@bdraco](https://github.com/bdraco)
+- Add logging for BLE connection slots [esphome#4098](https://github.com/esphome/esphome/pull/4098) by [@bdraco](https://github.com/bdraco)
+- Fix registering for gatt notify when characteristic only support indicate [esphome#4092](https://github.com/esphome/esphome/pull/4092) by [@bdraco](https://github.com/bdraco)
+- Fix descriptors not being deleted [esphome#4104](https://github.com/esphome/esphome/pull/4104) by [@bdraco](https://github.com/bdraco)
+- Improve reliability of bluetooth active connections [esphome#4049](https://github.com/esphome/esphome/pull/4049) by [@bdraco](https://github.com/bdraco)
+- Always use generated api options from aioesphomeapi [esphome#4116](https://github.com/esphome/esphome/pull/4116) by [@jesserockz](https://github.com/jesserockz)
+- Fix bluetooth_gatt_write_descriptor never getting a response [esphome#4112](https://github.com/esphome/esphome/pull/4112) by [@bdraco](https://github.com/bdraco)
+- Combine the scanner failure check so we only stop the scanner once [esphome#4111](https://github.com/esphome/esphome/pull/4111) by [@bdraco](https://github.com/bdraco)
+- Reduce memory needed to send the services list [esphome#4110](https://github.com/esphome/esphome/pull/4110) by [@bdraco](https://github.com/bdraco)
+- Avoid parsing characteristics and descriptors to reduce memory pressure [esphome#4109](https://github.com/esphome/esphome/pull/4109) by [@bdraco](https://github.com/bdraco)
+- Send device address type alongside ble advertisements [esphome#4115](https://github.com/esphome/esphome/pull/4115) by [@jesserockz](https://github.com/jesserockz)
+- Remove uuid lookups from BLE read/write/notify characteristics [esphome#4102](https://github.com/esphome/esphome/pull/4102) by [@bdraco](https://github.com/bdraco)
+- Active BLE connection v3 [esphome#4113](https://github.com/esphome/esphome/pull/4113) by [@bdraco](https://github.com/bdraco)
+- preprocess out proto_enum_to_string if not needed [esphome#4119](https://github.com/esphome/esphome/pull/4119) by [@jesserockz](https://github.com/jesserockz)
+- Bump aioesphomeapi from 12.0.0 to 12.2.0 [esphome#4120](https://github.com/esphome/esphome/pull/4120) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Avoid parsing services with v3 connections without cache [esphome#4117](https://github.com/esphome/esphome/pull/4117) by [@bdraco](https://github.com/bdraco)
+- FIX: Unnecessary flash writes by ModbusSwitch component [esphome#3648](https://github.com/esphome/esphome/pull/3648) by [@jpeletier](https://github.com/jpeletier)
+- Speed up uuid parsing when fetching the service list [esphome#4121](https://github.com/esphome/esphome/pull/4121) by [@bdraco](https://github.com/bdraco)
+- modbus_switch: honor switch:restore_mode [esphome#4122](https://github.com/esphome/esphome/pull/4122) by [@jpeletier](https://github.com/jpeletier)
+- PID Climate - deadband and output sampling [esphome#3254](https://github.com/esphome/esphome/pull/3254) by [@patrickcollins12](https://github.com/patrickcollins12) (new-feature)
+- Allow auto setting of ble client id if there is only 1 in config [esphome#4125](https://github.com/esphome/esphome/pull/4125) by [@jesserockz](https://github.com/jesserockz)
+- fix RESTORE_INVERTED switch:restore_mode [esphome#4129](https://github.com/esphome/esphome/pull/4129) by [@jpeletier](https://github.com/jpeletier)
+- Bump pylint from 2.15.6 to 2.15.7 [esphome#4127](https://github.com/esphome/esphome/pull/4127) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Allow global setting of compile process limit [esphome#4081](https://github.com/esphome/esphome/pull/4081) by [@jesserockz](https://github.com/jesserockz)
+- Bump flake8 from 5.0.4 to 6.0.0 [esphome#4084](https://github.com/esphome/esphome/pull/4084) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump arduino pico and update wifi methods [esphome#4144](https://github.com/esphome/esphome/pull/4144) by [@jesserockz](https://github.com/jesserockz)
+- Bump aioesphomeapi from 12.2.0 to 12.2.1 [esphome#4133](https://github.com/esphome/esphome/pull/4133) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump esptool from 3.3.1 to 4.4 [esphome#4071](https://github.com/esphome/esphome/pull/4071) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix mismatched flake8 version in pre-commit [esphome#4145](https://github.com/esphome/esphome/pull/4145) by [@jesserockz](https://github.com/jesserockz)
+- Detect BLE stack unrecoverable state [esphome#4128](https://github.com/esphome/esphome/pull/4128) by [@bdraco](https://github.com/bdraco)
+- Bump pylint from 2.15.7 to 2.15.8 [esphome#4148](https://github.com/esphome/esphome/pull/4148) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix crash with bluetooth tracker and esp-idf [esphome#4140](https://github.com/esphome/esphome/pull/4140) by [@bdraco](https://github.com/bdraco)
+- Use ENTITY_CATEGORY_CONFIG for sprinkler config switches. [esphome#4141](https://github.com/esphome/esphome/pull/4141) by [@schinckel](https://github.com/schinckel)
+- fix switch initialization [esphome#4153](https://github.com/esphome/esphome/pull/4153) by [@ssieb](https://github.com/ssieb)
+- Change 4 chip limit on sn74hc595 to 256 [esphome#4108](https://github.com/esphome/esphome/pull/4108) by [@jesserockz](https://github.com/jesserockz)
+- Add reports fahrenheit to tuya climate [esphome#4032](https://github.com/esphome/esphome/pull/4032) by [@jesserockz](https://github.com/jesserockz)
+- Allow dashboard import to pull complete file from github [esphome#3982](https://github.com/esphome/esphome/pull/3982) by [@jesserockz](https://github.com/jesserockz)
+- Invalid config for waveshare models with no full_update_every [esphome#4066](https://github.com/esphome/esphome/pull/4066) by [@Nizzle](https://github.com/Nizzle)
+- Add sn74hc165 input shift register [esphome#4151](https://github.com/esphome/esphome/pull/4151) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Fixed deep sleep for ESP32C3 [esphome#4143](https://github.com/esphome/esphome/pull/4143) by [@pistifonok](https://github.com/pistifonok)
+- ESP32 IDF: Override toolchain-esp32ulp with espressifs own published version [esphome#4155](https://github.com/esphome/esphome/pull/4155) by [@jesserockz](https://github.com/jesserockz)
+- Add API for dashboard to get boards list [esphome#4154](https://github.com/esphome/esphome/pull/4154) by [@jesserockz](https://github.com/jesserockz)
+- Bump pytest-asyncio from 0.20.1 to 0.20.2 [esphome#4019](https://github.com/esphome/esphome/pull/4019) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump pyupgrade from 3.2.2 to 3.3.0 [esphome#4137](https://github.com/esphome/esphome/pull/4137) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump dessant/lock-threads from 3 to 4 [esphome#4150](https://github.com/esphome/esphome/pull/4150) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump aioesphomeapi from 12.2.1 to 13.0.1 [esphome#4149](https://github.com/esphome/esphome/pull/4149) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Bump esphome-dashboard to 20221207.0 [esphome#4156](https://github.com/esphome/esphome/pull/4156) by [@jesserockz](https://github.com/jesserockz)
+- Fix ble parsing with zero padded advertisements [esphome#4162](https://github.com/esphome/esphome/pull/4162) by [@jesserockz](https://github.com/jesserockz)
+- Increase watchdog timeout when starting OTA [esphome#4172](https://github.com/esphome/esphome/pull/4172) by [@jesserockz](https://github.com/jesserockz)
+- Bump esphome-dashboard to 20221213.0 [esphome#4176](https://github.com/esphome/esphome/pull/4176) by [@jesserockz](https://github.com/jesserockz)
+- Remove internal pin restriction from cd74hc4067 [esphome#4179](https://github.com/esphome/esphome/pull/4179) by [@jesserockz](https://github.com/jesserockz)
+- Speed up bluetooth proxy connections when using esp-idf [esphome#4171](https://github.com/esphome/esphome/pull/4171) by [@bdraco](https://github.com/bdraco) (notable-change)
+- Remove warnings when falling through switch cases on purpose [esphome#4181](https://github.com/esphome/esphome/pull/4181) by [@jesserockz](https://github.com/jesserockz)
+- Revert camera config change for esp-idf [esphome#4182](https://github.com/esphome/esphome/pull/4182) by [@jesserockz](https://github.com/jesserockz)
+
+{/* markdownlint-enable MD013 */}

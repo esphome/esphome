@@ -1,0 +1,285 @@
+---
+description: "Instructions for setting up SY6970 Battery Management IC"
+title: "SY6970 Battery Management IC"
+---
+
+The `sy6970` component allows you to use the SY6970 battery management and charging ICs [SY6970 Datasheet](https://github.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/blob/master/datasheet/SY6970%20Datasheet.pdf) with ESPHome.
+
+The SY6970 is a highly integrated battery charger and system power path management device for single-cell
+lithium-ion and lithium-polymer batteries. It features a wide input voltage range, programmable charge
+current and voltage, and comprehensive safety features.
+
+This component is found in the LilyGo T-Display S3 Pro.
+
+The [I²C Bus](/components/i2c) is required in your configuration for this sensor to work.
+
+This implementation was inspired by [lewisxhe/XPowersLib Arduino Library](https://github.com/lewisxhe/XPowersLib/).
+
+## Component/Hub
+
+The SY6970 component must be defined in your configuration to set up the device. All other platforms below refer to this component.
+
+```yaml
+# Example configuration entry
+i2c:
+  - id: bus_a
+    sda: GPIO5
+    scl: GPIO6
+
+sy6970:
+  id: pmu
+  address: 0x6A
+  enable_status_led: true
+  input_current_limit: 1000
+  charge_voltage: 4200
+  charge_current: 500
+  precharge_current: 128
+  charge_enabled: true
+  enable_adc: true
+  update_interval: 1s
+```
+
+## Configuration variables
+
+- **id** (*Optional*, [ID](/guides/configuration-types#config-id)): Manually specify the ID used for code generation.
+- **address** (*Optional*, int): The I²C address of the device. Defaults to `0x6A`.
+- **enable_status_led** (*Optional*, boolean): Enable or disable the status LED on the IC. Defaults to `true`.
+- **input_current_limit** (*Optional*, int): Input current in milliamps. Accepts values between 100 and 3200. Defaults to `500`.
+- **charge_voltage** (*Optional*, int): Charge voltage in millivolts. Accepts values between 3840 and 4608. Defaults to `4208`.
+- **charge_current**  (*Optional*, int): Charge current in milliamps. Accepts values between 0 and 5056. Defaults to `2048`.
+- **precharge_current**  (*Optional*, int): Pre-charge current in milliamps. Accepts values between 64 and 1024. Defaults to `128`.
+- **charge_enabled** (*Optional*, boolean): Enable or disable charging. Defaults to `true`.
+- **enable_adc** (*Optional*, boolean): Enable or disable the ADC. Defaults to `true`.
+- All other options from [I²C Device](/components/i2c).
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#config-time)): The interval to check the sensor. Defaults to `5s`.
+
+## Sensor
+
+The `sy6970` sensor platform exposes voltage and current measurements from the SY6970 IC.
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: sy6970
+    sy6970_id: pmu
+    vbus_voltage:
+      name: "VBUS Voltage"
+    battery_voltage:
+      name: "Battery Voltage"
+    system_voltage:
+      name: "System Voltage"
+    charge_current:
+      name: "Charge Current"
+    precharge_current:
+      name: "Precharge Current"
+```
+
+## Sensor Configuration variables
+
+- **sy6970_id** (*Optional*, [ID](/guides/configuration-types#config-id)): The ID of the SY6970 component. Defaults to the only SY6970 component in your configuration.
+- **vbus_voltage** (*Optional*): The voltage on the VBUS (USB) input in volts.
+  - All options from [Sensor](/components/sensor).
+- **battery_voltage** (*Optional*): The battery voltage in volts.
+  - All options from [Sensor](/components/sensor).
+- **system_voltage** (*Optional*): The system voltage in volts.
+  - All options from [Sensor](/components/sensor).
+- **charge_current** (*Optional*): The charging current in milliamps.
+  - All options from [Sensor](/components/sensor).
+- **precharge_current** (*Optional*): The precharge current in milliamps.
+  - All options from [Sensor](/components/sensor).
+- All other options from [Sensor](/components/sensor).
+
+## Binary Sensor
+
+The `sy6970` binary sensor platform exposes charging state information from the SY6970 IC.
+
+```yaml
+# Example configuration entry
+binary_sensor:
+  - platform: sy6970
+    sy6970_id: pmu
+    vbus_connected:
+      name: "VBUS Connected"
+    charging:
+      name: "Battery Charging"
+    charge_done:
+      name: "Charge Done"
+```
+
+## Binary Sensor Configuration variables
+
+- **sy6970_id** (*Optional*, [ID](/guides/configuration-types#config-id)): The ID of the SY6970 component. Defaults to the only SY6970 component in your configuration.
+- **vbus_connected** (*Optional*): Indicates whether VBUS (USB power) is connected.
+  - All options from [Binary Sensor](/components/binary_sensor).
+- **charging** (*Optional*): Indicates whether the battery is currently charging.
+  - All options from [Binary Sensor](/components/binary_sensor).
+- **charge_done** (*Optional*): Indicates whether charging is complete.
+  - All options from [Binary Sensor](/components/binary_sensor).
+- All other options from [Binary Sensor](/components/binary_sensor).
+
+## Text Sensor
+
+The `sy6970` text sensor platform exposes status information from the SY6970 IC as text.
+
+```yaml
+# Example configuration entry
+text_sensor:
+  - platform: sy6970
+    sy6970_id: pmu
+    bus_status:
+      name: "Power Source Type"
+    charge_status:
+      name: "Charging Status"
+    ntc_status:
+      name: "Battery Temperature"
+```
+
+## Text Sensor Configuration variables
+
+- **sy6970_id** (*Optional*, [ID](/guides/configuration-types#config-id)): The ID of the SY6970 component. Defaults to the only SY6970 component in your configuration.
+- **bus_status** (*Optional*): The type of power source connected. Possible values are:
+  - `No Input` - No power source connected
+  - `USB SDP` - USB Standard Downstream Port
+  - `USB CDP` - USB Charging Downstream Port
+  - `USB DCP` - USB Dedicated Charging Port
+  - `HVDCP` - High Voltage Dedicated Charging Port
+  - `Adapter` - Dedicated adapter
+  - `Non-Standard Adapter` - Non-standard adapter
+  - `OTG` - OTG mode
+  - All options from [Text Sensor](/components/text_sensor).
+- **charge_status** (*Optional*): The current charging status. Possible values are:
+  - `Not Charging` - Battery is not charging
+  - `Pre-charge` - Battery is in pre-charge phase
+  - `Fast Charge` - Battery is in fast charge phase
+  - `Charge Done` - Charging is complete
+  - All options from [Text Sensor](/components/text_sensor).
+- **ntc_status** (*Optional*): The battery temperature status based on NTC thermistor. Possible values are:
+  - `Normal` - Temperature is in normal range
+  - `Warm` - Battery is warm
+  - `Cool` - Battery is cool
+  - `Cold` - Battery is cold
+  - `Hot` - Battery is hot
+  - All options from [Text Sensor](/components/text_sensor).
+- All other options from [Text Sensor](/components/text_sensor).
+
+## Complete Example
+
+Below is a complete example configuration for the LilyGo T-Display S3 Pro v1:
+
+```yaml
+# Complete configuration example for LilyGo T-Display S3 Pro
+i2c:
+  - id: bus_a
+    scan: true
+    sda: GPIO5
+    scl: GPIO6
+
+sy6970:
+  id: pmu
+  address: 0x6A
+  update_interval: 1s
+  enable_status_led: true
+  input_current_limit: 1000
+  charge_voltage: 4200
+  charge_current: 500
+  precharge_current: 128
+  charge_enabled: true
+  enable_adc: true
+
+sensor:
+  - platform: sy6970
+    sy6970_id: pmu
+    vbus_voltage:
+      name: "VBUS Voltage"
+    battery_voltage:
+      name: "Battery Voltage"
+    system_voltage:
+      name: "System Voltage"
+    charge_current:
+      name: "Charge Current"
+    precharge_current:
+      name: "Precharge Current"
+
+text_sensor:
+  - platform: sy6970
+    sy6970_id: pmu
+    bus_status:
+      name: "Power Source Type"
+    charge_status:
+      name: "Charging Status"
+    ntc_status:
+      name: "Battery Temperature"
+
+binary_sensor:
+  - platform: sy6970
+    sy6970_id: pmu
+    charging:
+      name: "Battery Charging"
+    vbus_connected:
+      name: "VBUS Connected"
+    charge_done:
+      name: "Charge Done"
+```
+
+## Advanced Configuration
+
+The SY6970 provides several configuration methods that can be called from automations or scripts:
+
+```yaml
+# Example automation to adjust charging parameters
+automation:
+  - trigger:
+      - platform: homeassistant
+        event: start
+    then:
+      - lambda: |-
+          // Set input current limit to 1500mA
+          id(pmu).set_input_current_limit(1500);
+          // Set charge target voltage to 4200mV
+          id(pmu).set_charge_target_voltage(4200);
+          // Set charge current to 1000mA
+          id(pmu).set_charge_current(1000);
+          // Enable charging
+          id(pmu).set_charge_enabled(true);
+```
+
+## Available Methods
+
+- `set_input_current_limit(uint16_t milliamps)` - Set the input current limit (100-3200mA in 50mA steps)
+- `set_charge_target_voltage(uint16_t millivolts)` - Set the target charging voltage (3840-4608mV in 16mV steps)
+- `set_charge_current(uint16_t milliamps)` - Set the fast charge current (0-5056mA in 64mA steps)
+- `set_precharge_current(uint16_t milliamps)` - Set the precharge current (64-1024mA in 64mA steps)
+- `set_charge_enabled(bool enabled)` - Set battery charging enabled/disabled
+- `set_led_enabled(bool enabled)` - Set status LED to enabled/disabled
+- `set_enable_adc_measure(bool enabled)` - Enable ADC measurements
+
+## Technical Details
+
+The SY6970 is an I²C controlled battery management IC with the following features:
+
+- Single-cell Li-Ion/Li-Polymer battery charger
+- Wide input voltage range: 4.5V to 14V
+- Programmable charge current up to 5A
+- Programmable charge voltage up to 4.608V
+- Battery over-temperature protection via NTC thermistor
+- Automatic power path management
+- Built-in ADC for voltage and current monitoring
+- Status LED output
+
+## Register Implementation
+
+The component directly implements the SY6970 register protocol:
+
+- **REG_0B**: Bus and charge status (bits 7:5 for bus type, bits 4:3 for charge state)
+- **REG_0E**: Battery voltage (base 2304mV, 20mV steps)
+- **REG_11**: VBUS voltage (base 2600mV, 100mV steps)
+- **REG_12**: Charge current (50mA steps)
+- **REG_00-07**: Configuration registers for current limits, charge parameters, and safety timers
+
+## See Also
+
+- [SY6970 Datasheet](https://github.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/blob/master/datasheet/SY6970%20Datasheet.pdf)
+- [Sensor Component](/components/sensor)
+- [Binary Sensor Component](/components/binary_sensor)
+- [Text Sensor Component](/components/text_sensor)
+- [I²C Bus](/components/i2c)

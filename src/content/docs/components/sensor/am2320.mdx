@@ -1,0 +1,70 @@
+---
+description: "Instructions for setting up AM2320 temperature and humidity sensors"
+title: "AM2320 Temperature+Humidity Sensor"
+---
+
+import { Image } from 'astro:assets';
+import am2320FullImg from './images/am2320-full.jpg';
+import temperatureHumidityImg from './images/temperature-humidity.png';
+import APIRef from '@components/APIRef.astro';
+import Figure from '@components/Figure.astro';
+
+The `am2320` Temperature+Humidity sensor allows you to use your AM2320
+([datasheet](https://cdn-shop.adafruit.com/product-files/3721/AM2320.pdf)) I²C-based sensor with
+ESPHome.
+
+<Figure
+  src={am2320FullImg}
+  caption="AM2320 Temperature & Humidity Sensor."
+  layout="constrained"
+  alt=""
+/>
+
+<Image src={temperatureHumidityImg} layout="constrained" alt="" />
+
+> [!NOTE]
+> Logs might include some warnings about receiving a NACK from the sensor.
+> This is due to a wake call to the sensor which the sensor never acknowledges by design.
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: am2320
+    temperature:
+      name: "Living Room Temperature"
+    humidity:
+      name: "Living Room Humidity"
+    update_interval: 60s
+```
+
+## Configuration variables
+
+- **temperature** (**Required**): The information for the temperature sensor.
+
+  - All options from [Sensor](/components/sensor).
+
+- **humidity** (**Required**): The information for the humidity sensor
+
+  - All options from [Sensor](/components/sensor).
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to
+  `60s`.
+
+## Troubleshooting
+
+If you experience communication or reliability issues with the AM2320 sensor, the
+[I2C](/components/i2c/) frequency may be too high. The AM2320 supports I²C standard-mode with a maximum
+clock frequency of 100 kHz.
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [I²C Bus](/components/i2c/)
+- [Absolute Humidity](/components/sensor/absolute_humidity/)
+- [DHT Temperature+Humidity Sensor](/components/sensor/dht/)
+- [DHT12 Temperature+Humidity Sensor](/components/sensor/dht12/)
+- [HDC1080 Temperature+Humidity Sensor](/components/sensor/hdc1080/)
+- [HTU21D | Si7021 | SHT21 Temperature & Humidity Sensor](/components/sensor/htu21d/)
+- [SHT3X-D Temperature+Humidity Sensor](/components/sensor/sht3xd/)
+- [AM2320 Library](https://github.com/EngDial/AM2320) by [Aleksey](https://github.com/EngDial)
+- <APIRef text="am2320.h" path="am2320/am2320.h" />

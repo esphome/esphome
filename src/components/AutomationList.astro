@@ -1,0 +1,102 @@
+---
+import fs from "node:fs";
+import path from "node:path";
+
+interface Props {
+  type: "Action" | "Condition";
+}
+
+const { type } = Astro.props;
+
+const docsDir = path.resolve("src/content/docs");
+
+function collectMdxFiles(dir: string): string[] {
+  const results: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...collectMdxFiles(fullPath));
+    } else if (entry.name.endsWith(".mdx")) {
+      results.push(fullPath);
+    }
+  }
+  return results;
+}
+
+// Match headings like:
+//   ### `switch.toggle` Action
+//   ## `deep_sleep.enter` Action
+//   ### `switch.is_on` / `switch.is_off` Condition
+//   ## `sun.is_above_horizon` / `sun.is_below_horizon` Conditions
+const headingPattern = new RegExp(
+  "^#{2,4}\\s+" +
+  "`([a-z_][a-z0-9_.]*\\.[a-z_][a-z0-9_]*)`" +
+  "(?:\\s+/\\s+`([a-z_][a-z0-9_.]*\\.[a-z_][a-z0-9_]*)`)*" +
+  "\\s+" + type + "s?\\s*$",
+  "mi"
+);
+
+// Also need a global version to find all matches
+const headingPatternGlobal = new RegExp(
+  "^#{2,4}\\s+" +
+  "(`[a-z_][a-z0-9_.]*\\.[a-z_][a-z0-9_]*`)" +
+  "(?:\\s+/\\s+`[a-z_][a-z0-9_.]*\\.[a-z_][a-z0-9_]*`)*" +
+  "\\s+" + type + "s?\\s*$",
+  "gmi"
+);
+
+// Extract individual backticked names from a heading line
+const namePattern = /`([a-z_][a-z0-9_.]*\.[a-z_][a-z0-9_]*)`/g;
+
+// Map: domain -> { names: Set of action/condition names, filePath: source file }
+const domainMap = new Map<string, { names: Set<string>; filePath: string }>();
+
+for (const filePath of collectMdxFiles(docsDir)) {
+  const content = fs.readFileSync(filePath, "utf-8");
+
+  for (const lineMatch of content.matchAll(headingPatternGlobal)) {
+    const line = lineMatch[0];
+    for (const nameMatch of line.matchAll(namePattern)) {
+      const fullName = nameMatch[1];
+      const lastDot = fullName.lastIndexOf(".");
+      const domain = fullName.substring(0, lastDot);
+      const name = fullName.substring(lastDot + 1);
+      if (!domainMap.has(domain)) {
+        domainMap.set(domain, { names: new Set(), filePath });
+      }
+      domainMap.get(domain)!.names.add(name);
+    }
+  }
+}
+
+// Convert a docs file path to a site URL
+function filePathToUrl(filePath: string): string {
+  let rel = path.relative(docsDir, filePath);
+  rel = rel.replace(/index\.mdx$/, "").replace(/\.mdx$/, "");
+  return "/" + rel.replace(/\/$/, "") + "/";
+}
+
+// Sort domains alphabetically, and names within each domain
+const sorted = [...domainMap.entries()]
+  .sort(([a], [b]) => a.localeCompare(b))
+  .map(([domain, { names, filePath }]) => ({
+    domain,
+    names: [...names].sort((a, b) => a.localeCompare(b)),
+    url: filePathToUrl(filePath),
+  }));
+---
+
+{/* markdownlint-disable MD013 */}
+<ul>
+  {sorted.map(({ domain, names, url }) => (
+    <li>
+      <strong><a href={url}>{domain}</a>:</strong>{" "}
+      {names.map((name, i) => (
+        <>
+          <code>{name}</code>{i < names.length - 1 ? ", " : ""}
+        </>
+      ))}
+    </li>
+  ))}
+</ul>
+{/* markdownlint-enable MD013 */}

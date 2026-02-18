@@ -1,0 +1,56 @@
+---
+description: "Instructions for setting up OPT3001 ambient light sensors in ESPHome."
+title: "OPT3001 Ambient Light Sensor"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+import opt3001FullImg from './images/opt3001-full.jpg';
+import APIRef from '@components/APIRef.astro';
+
+<span id="opt3001"></span>
+
+The `opt3001` sensor platform allows you to use your OPT3001
+([datasheet](https://www.ti.com/lit/ds/symlink/opt3001.pdf))
+ambient light sensor with ESPHome. The [I²C bus](/components/i2c) is required to be set up in
+your configuration for this sensor to work.
+
+<Figure
+  src={opt3001FullImg}
+  alt=""
+  caption="OPT3001 Ambient Light Sensor."
+  layout="constrained"
+/>
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: opt3001
+    name: "OPT3001 Illuminance"
+    address: 0x44
+    update_interval: 60s
+```
+
+## Configuration variables
+
+- **name** (**Required**, string): The name for the sensor.
+- **address** (*Optional*, int): Manually specify the I²C address of the sensor.
+  Defaults to `0x44` (address if address pin is pulled low). If the address pin is pulled high,
+  the address is `0x45`. If the address pin is connected to SDA, the address is `0x46`. If the
+  address pin is connected to SCL, the address is `0x47`.
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
+  sensor. Defaults to `60s`.
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code
+  generation.
+
+- All other options from [Sensor](/components/sensor).
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [BH1750 Ambient Light Sensor](/components/sensor/bh1750/)
+- [TSL2561 Ambient Light Sensor](/components/sensor/tsl2561/)
+- [TSL2591 Ambient Light Sensor](/components/sensor/tsl2591/)
+- <APIRef text="opt3001.h" path="opt3001/opt3001.h" />

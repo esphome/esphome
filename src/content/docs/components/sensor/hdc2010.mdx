@@ -1,0 +1,58 @@
+---
+description: "Instructions for setting up HDC2010 temperature and humidity sensors."
+title: "HDC2010 High Precision Temperature and Humidity Sensor"
+---
+
+import { Image } from 'astro:assets';
+import hdc2010FullImg from './images/hdc2010-full.png';
+import temperatureHumidityImg from './images/temperature-humidity.png';
+import APIRef from '@components/APIRef.astro';
+import Figure from '@components/Figure.astro';
+
+The HDC2010 Temperature and Humidity sensor allows you to use your HDC2010
+([datasheet](https://www.ti.com/lit/ds/symlink/hdc2010.pdf),
+[Itbrainpower](https://itbrainpower.net/a-gsm/Arduino-HDC2010-sensor_howto)) sensors with
+ESPHome. The [I2C](/components/i2c/) is
+required to be set up in your configuration for this sensor to work.
+
+<Figure
+  src={hdc2010FullImg}
+  caption="HDC2010 Temperature & Humidity Sensor. Image by Mikroe."
+  layout="constrained"
+  alt=""
+/>
+
+<Image src={temperatureHumidityImg} layout="constrained" alt="" />
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: hdc2010
+    temperature:
+      name: "Living Room Temperature"
+    humidity:
+      name: "Living Room Humidity"
+    update_interval: 60s
+```
+
+## Configuration variables
+
+- **temperature** (**Required**): The information for the temperature sensor.
+
+  - All options from [Sensor](/components/sensor/).
+
+- **humidity** (**Required**): The information for the humidity sensor
+
+  - All options from [Sensor](/components/sensor/).
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
+
+## See Also
+
+- [Sensor Filters](/components/sensor/#sensor-filters)
+- [Absolute Humidity](/components/sensor/absolute_humidity/)
+- [DHT Temperature+Humidity Sensor](/components/sensor/dht/)
+- [DHT12 Temperature+Humidity Sensor](/components/sensor/dht12/)
+- [HTU21D | Si7021 | SHT21 Temperature & Humidity Sensor](/components/sensor/htu21d/)
+- [SHT3X-D Temperature+Humidity Sensor](/components/sensor/sht3xd/)
+- <APIRef text="hdc2010.h" path="hdc2010/hdc2010.h" />

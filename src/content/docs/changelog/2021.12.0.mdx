@@ -1,0 +1,248 @@
+---
+description: "Changelog for ESPHome 2021.12.0."
+title: "ESPHome 2021.12.0 - 11th December 2021"
+pagefind: false
+slug: "changelog/2021.12.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["Button Core","/components/button/index","folder-open.svg","dark-invert"],
+  ["Template Button","/components/button/template","description.svg","dark-invert"],
+  ["Restart Button","/components/button/restart","restart.svg","dark-invert"],
+  ["BLE Binary Output","/components/output/ble_client","bluetooth.svg","dark-invert"],
+  ["Tuya Text Sensor","/components/text_sensor/tuya","tuya.png"],
+  ["SDP800 Series","/components/sensor/sdp3x","sdp31.jpg","Pressure"]
+]} />
+
+## State of the Open Smart Home
+
+Today is the [State of the Open Smart Home](https://www.home-assistant.io/state-of-the-open-home/) hosted by Nabu
+Casa, Home Assistant & ESPHome and we'll be joined by our friends from WLED, Z-Wave JS, Stanford's OVAL lab and
+Northeastern University to talk about our work on making this vision a reality.
+
+Where: YouTube
+
+When: Today, Saturday, December 11, at 11am PST / 8pm CET
+
+{/* markdownlint-disable-next-line MD033 */}
+<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/6ZMXE5PXPqU"
+        title="YouTube video player" frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen>
+</iframe>
+
+## Buttons
+
+This release brings [buttons](/components/button/) from Home Assistant. Many times there have
+been questions on how to simply trigger automations from the Home Assistant frontend with a button so here you go.
+Here is a very simple example:
+
+```yaml
+button:
+  - platform: template
+    name: Test Button
+    on_press:
+      then:
+        - logger.log: "The button was pressed!!!"
+```
+
+## Multiple WiFi networks with static IP
+
+This release has a fix that allows using multiple networks each with their own static IP address configuration.
+When using these options, you **must** also set `wifi` -> `use_address` when installing new firmware as ESPHome
+cannot know which IP address to use automatically.
+
+## The Dashboard and secrets
+
+The ESPHome Dashboard will now save the wifi credentials as secrets (`wifi_ssid` / `wifi_password`  ) for future use.
+If you are already using these secrets, then the dashboard will not ask for credentials and will configure using
+them for you.
+
+The dashboard also now can view the logs straight from a serial connected device via the web browser. It will
+show up as an option when choosing the method to view them.
+
+## NEC remote protocol
+
+In this version, the order of transferring bits was corrected from MSB to LSB in accordance with the NEC standard.
+Therefore, if the configuration file has come from an earlier version of ESPhome, it is necessary to reverse
+the order of the address and command bits when moving to 2021.12 or above.
+For example, address: `0x84ED`, command: `0x13EC` becomes `0xB721` and `0x37C8` respectively.
+
+## Tuya Covers
+
+[esphome#2637](https://github.com/esphome/esphome/pull/2637) adds new functionality to the Tuya cover component, but at the same time
+removes the "soft" inversion of the direction. Instead, it seems that most if not all tuya covers have a "hidden"
+datapoint that sets the direction on the secondary MCU. See the [documentation](/components/cover/tuya/)
+for the new configuration options.
+
+{/* markdownlint-disable MD013 */}
+
+## Release 2021.12.1 - December 15
+
+- Set text sensor state property to filter output [esphome#2893](https://github.com/esphome/esphome/pull/2893) by [@oxan](https://github.com/oxan)
+- Allow button POST on press from web server [esphome#2913](https://github.com/esphome/esphome/pull/2913) by [@wilberforce](https://github.com/wilberforce)
+
+## Release 2021.12.2 - December 21
+
+- Don't disable idle task WDT when it's not enabled [esphome#2856](https://github.com/esphome/esphome/pull/2856) by [@oxan](https://github.com/oxan)
+- Fix MQTT button press action [esphome#2917](https://github.com/esphome/esphome/pull/2917) by [@oxan](https://github.com/oxan)
+
+## Release 2021.12.3 - December 30
+
+- Require arduino in webserver for better validation [esphome#2941](https://github.com/esphome/esphome/pull/2941) by [@jesserockz](https://github.com/jesserockz)
+- Only allow internal pins for dht sensor [esphome#2940](https://github.com/esphome/esphome/pull/2940) by [@jesserockz](https://github.com/jesserockz)
+- Workaround installing as editable package not working [esphome#2936](https://github.com/esphome/esphome/pull/2936) by [@jesserockz](https://github.com/jesserockz)
+- Remove -e for hassio images [esphome#2964](https://github.com/esphome/esphome/pull/2964) by [@jesserockz](https://github.com/jesserockz)
+
+## Full list of changes
+
+### New Features
+
+- pmsx003: add support for new PMS5003S device [esphome#2710](https://github.com/esphome/esphome/pull/2710) by [@NeoAcheron](https://github.com/NeoAcheron) (new-feature)
+- Add climate on_state trigger [esphome#2707](https://github.com/esphome/esphome/pull/2707) by [@dudanov](https://github.com/dudanov) (new-feature)
+- Add greeyac protocol to IR Climate / HeatpumpIR [esphome#2694](https://github.com/esphome/esphome/pull/2694) by [@cmroche](https://github.com/cmroche) (new-feature)
+- Provide an option to select unique_id generator [esphome#2701](https://github.com/esphome/esphome/pull/2701) by [@kbialek](https://github.com/kbialek) (new-feature)
+- Ignore secrets yaml on command line [esphome#2715](https://github.com/esphome/esphome/pull/2715) by [@cvwillegen](https://github.com/cvwillegen) (new-feature)
+- Add max_telegram_length option to dsmr [esphome#2674](https://github.com/esphome/esphome/pull/2674) by [@mmakaay](https://github.com/mmakaay) (new-feature)
+- Relax the icon validator to allow non-mdi icons [esphome#2764](https://github.com/esphome/esphome/pull/2764) by [@paulmonigatti](https://github.com/paulmonigatti) (new-feature)
+- Add support for P1 Data Request pin control [esphome#2676](https://github.com/esphome/esphome/pull/2676) by [@mmakaay](https://github.com/mmakaay) (new-feature)
+- Add support for sdp8xx [esphome#2779](https://github.com/esphome/esphome/pull/2779) by [@martgras](https://github.com/martgras) (new-feature)
+- Add map filter for text sensors [esphome#2761](https://github.com/esphome/esphome/pull/2761) by [@oxan](https://github.com/oxan) (new-feature)
+- Optionally show internal components on the web server [esphome#2627](https://github.com/esphome/esphome/pull/2627) by [@mechanarchy](https://github.com/mechanarchy) (new-feature)
+- cse7766: add energy sensor [esphome#2822](https://github.com/esphome/esphome/pull/2822) by [@ianchi](https://github.com/ianchi) (new-feature)
+- Allow Git credentials to be loaded from secrets [esphome#2825](https://github.com/esphome/esphome/pull/2825) by [@mechanarchy](https://github.com/mechanarchy) (new-feature)
+- Expand uart invert feature to ESP8266 [esphome#1727](https://github.com/esphome/esphome/pull/1727) by [@Lewn](https://github.com/Lewn) (new-feature)
+
+### New Components
+
+- Add ble_client binary_output [esphome#2200](https://github.com/esphome/esphome/pull/2200) by [@tekmaven](https://github.com/tekmaven) (new-integration)
+- Add support for button entities [esphome#2824](https://github.com/esphome/esphome/pull/2824) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+
+### Breaking Changes
+
+- Fix NEC protocol implementation [esphome#2534](https://github.com/esphome/esphome/pull/2534) by [@dudanov](https://github.com/dudanov) (breaking-change)
+- Tuya Cover improvements [esphome#2637](https://github.com/esphome/esphome/pull/2637) by [@pauln](https://github.com/pauln) (breaking-change)
+
+### Beta Changes
+
+- Feed watchdog during OTA [esphome#2852](https://github.com/esphome/esphome/pull/2852) by [@oxan](https://github.com/oxan)
+- Bump esphome-dashboard to 20211206.0 [esphome#2870](https://github.com/esphome/esphome/pull/2870) by [@jesserockz](https://github.com/jesserockz)
+- tlc59208f : fix compilation error [esphome#2867](https://github.com/esphome/esphome/pull/2867) by [@martgras](https://github.com/martgras)
+- ADC: Turn verbose the debugging "got voltage" [esphome#2863](https://github.com/esphome/esphome/pull/2863) by [@CarlosGS](https://github.com/CarlosGS)
+- SPS30 : fix i2c read size [esphome#2866](https://github.com/esphome/esphome/pull/2866) by [@martgras](https://github.com/martgras)
+- Fix MCP23x17 not disabling pullup after config change [esphome#2855](https://github.com/esphome/esphome/pull/2855) by [@oxan](https://github.com/oxan)
+- Ignore already stopped dhcp for ethernet [esphome#2862](https://github.com/esphome/esphome/pull/2862) by [@madron](https://github.com/madron)
+- Add endpoint to fetch secrets keys [esphome#2873](https://github.com/esphome/esphome/pull/2873) by [@jesserockz](https://github.com/jesserockz)
+- Adopt using wifi secrets that should exist at this point [esphome#2874](https://github.com/esphome/esphome/pull/2874) by [@jesserockz](https://github.com/jesserockz)
+- Allow wizard to specify secrets [esphome#2875](https://github.com/esphome/esphome/pull/2875) by [@jesserockz](https://github.com/jesserockz)
+- Feed watchdog when no component loops [esphome#2857](https://github.com/esphome/esphome/pull/2857) by [@oxan](https://github.com/oxan)
+- Bump esphome-dashboard to 20211207.0 [esphome#2877](https://github.com/esphome/esphome/pull/2877) by [@jesserockz](https://github.com/jesserockz)
+- Feed watchdog while setting up OTA [esphome#2876](https://github.com/esphome/esphome/pull/2876) by [@CarlosGS](https://github.com/CarlosGS)
+- Use new platform component config blocks for wizard [esphome#2885](https://github.com/esphome/esphome/pull/2885) by [@jesserockz](https://github.com/jesserockz)
+- Bump esphome-dashboard to 20211208.0 [esphome#2887](https://github.com/esphome/esphome/pull/2887) by [@jesserockz](https://github.com/jesserockz)
+- Fix published state for modbus number [esphome#2894](https://github.com/esphome/esphome/pull/2894) by [@jesserockz](https://github.com/jesserockz)
+- Modbus number/output use write single [esphome#2896](https://github.com/esphome/esphome/pull/2896) by [@glmnet](https://github.com/glmnet)
+- Fix for two points setting when fan_only_cooling is disabled [esphome#2903](https://github.com/esphome/esphome/pull/2903) by [@kbx81](https://github.com/kbx81)
+- Bump esphome-dashboard to 20211211.0 [esphome#2904](https://github.com/esphome/esphome/pull/2904) by [@jesserockz](https://github.com/jesserockz)
+
+### All changes
+
+- Defines tidy [esphome#2696](https://github.com/esphome/esphome/pull/2696) by [@jesserockz](https://github.com/jesserockz)
+- pmsx003: add support for new PMS5003S device [esphome#2710](https://github.com/esphome/esphome/pull/2710) by [@NeoAcheron](https://github.com/NeoAcheron) (new-feature)
+- Add climate on_state trigger [esphome#2707](https://github.com/esphome/esphome/pull/2707) by [@dudanov](https://github.com/dudanov) (new-feature)
+- Add greeyac protocol to IR Climate / HeatpumpIR [esphome#2694](https://github.com/esphome/esphome/pull/2694) by [@cmroche](https://github.com/cmroche) (new-feature)
+- Fix rom/rtc.h deprecation compile warning for debug component [esphome#2520](https://github.com/esphome/esphome/pull/2520) by [@mmakaay](https://github.com/mmakaay)
+- Drop unused constants from const.py [esphome#2718](https://github.com/esphome/esphome/pull/2718) by [@oxan](https://github.com/oxan)
+- Install test requirements in lint Docker image [esphome#2719](https://github.com/esphome/esphome/pull/2719) by [@oxan](https://github.com/oxan)
+- Clean-up MAC address helpers [esphome#2713](https://github.com/esphome/esphome/pull/2713) by [@oxan](https://github.com/oxan)
+- Provide an option to select unique_id generator [esphome#2701](https://github.com/esphome/esphome/pull/2701) by [@kbialek](https://github.com/kbialek) (new-feature)
+- Ignore secrets yaml on command line [esphome#2715](https://github.com/esphome/esphome/pull/2715) by [@cvwillegen](https://github.com/cvwillegen) (new-feature)
+- Allow for subsecond sampling of hmc5883l [esphome#2735](https://github.com/esphome/esphome/pull/2735) by [@jaharkes](https://github.com/jaharkes)
+- Change log level from DEBUG to INFO for sniffing services of `rf_bridge` [esphome#2736](https://github.com/esphome/esphome/pull/2736) by [@nagyrobi](https://github.com/nagyrobi)
+- Add ble_client binary_output [esphome#2200](https://github.com/esphome/esphome/pull/2200) by [@tekmaven](https://github.com/tekmaven) (new-integration)
+- Remove duplicated const data in esp8266 boards [esphome#2740](https://github.com/esphome/esphome/pull/2740) by [@jesserockz](https://github.com/jesserockz)
+- Move to use improv lib from platformio [esphome#2741](https://github.com/esphome/esphome/pull/2741) by [@jesserockz](https://github.com/jesserockz)
+- Add max_telegram_length option to dsmr [esphome#2674](https://github.com/esphome/esphome/pull/2674) by [@mmakaay](https://github.com/mmakaay) (new-feature)
+- Changed LUT for DKE epaper on ttgo t5 2.13inch to improve partial rfresh [esphome#2475](https://github.com/esphome/esphome/pull/2475) by [@spattinson](https://github.com/spattinson)
+- Fix NEC protocol implementation [esphome#2534](https://github.com/esphome/esphome/pull/2534) by [@dudanov](https://github.com/dudanov) (breaking-change)
+- Remove arduino dependency from hm3301 [esphome#2745](https://github.com/esphome/esphome/pull/2745) by [@martgras](https://github.com/martgras)
+- Add retry handler [esphome#2721](https://github.com/esphome/esphome/pull/2721) by [@martgras](https://github.com/martgras)
+- Introduce str_snprintf helper function [esphome#2780](https://github.com/esphome/esphome/pull/2780) by [@oxan](https://github.com/oxan)
+- Prettier date time display after time sync [esphome#2778](https://github.com/esphome/esphome/pull/2778) by [@cvwillegen](https://github.com/cvwillegen)
+- Fix distorted gif frames when resizing [esphome#2774](https://github.com/esphome/esphome/pull/2774) by [@davet2001](https://github.com/davet2001)
+- fixed wrong setup-usage tc9548a [esphome#2766](https://github.com/esphome/esphome/pull/2766) by [@andreashergert1984](https://github.com/andreashergert1984)
+- Relax the icon validator to allow non-mdi icons [esphome#2764](https://github.com/esphome/esphome/pull/2764) by [@paulmonigatti](https://github.com/paulmonigatti) (new-feature)
+- Bump black from 21.10b0 to 21.11b1 [esphome#2760](https://github.com/esphome/esphome/pull/2760) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Update aht10.cpp to address issue #1635 [esphome#2675](https://github.com/esphome/esphome/pull/2675) by [@krunkel](https://github.com/krunkel)
+- Add support for P1 Data Request pin control [esphome#2676](https://github.com/esphome/esphome/pull/2676) by [@mmakaay](https://github.com/mmakaay) (new-feature)
+- Allow specifying the dashboard bind address [esphome#2787](https://github.com/esphome/esphome/pull/2787) by [@jesserockz](https://github.com/jesserockz)
+- remove LEDC_HIGH_SPEED_MODE for C3, S2, S3 [esphome#2791](https://github.com/esphome/esphome/pull/2791) by [@martgras](https://github.com/martgras)
+- Fix LEDC resolution calculation on ESP32-C3/S2/S3 [esphome#2794](https://github.com/esphome/esphome/pull/2794) by [@rsumner](https://github.com/rsumner)
+- Add support for sdp8xx [esphome#2779](https://github.com/esphome/esphome/pull/2779) by [@martgras](https://github.com/martgras) (new-feature)
+- Allow empty UART debug: option, logging in hex format by default [esphome#2771](https://github.com/esphome/esphome/pull/2771) by [@mmakaay](https://github.com/mmakaay)
+- Bump pylint from 2.11.1 to 2.12.1 [esphome#2798](https://github.com/esphome/esphome/pull/2798) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Fix CI cache key for test3.yaml compile [esphome#2757](https://github.com/esphome/esphome/pull/2757) by [@oxan](https://github.com/oxan)
+- Drop obsolete comment from CI workflow file [esphome#2758](https://github.com/esphome/esphome/pull/2758) by [@oxan](https://github.com/oxan)
+- Cache virtualenv instead of pip cache between CI runs [esphome#2759](https://github.com/esphome/esphome/pull/2759) by [@oxan](https://github.com/oxan)
+- Add map filter for text sensors [esphome#2761](https://github.com/esphome/esphome/pull/2761) by [@oxan](https://github.com/oxan) (new-feature)
+- Only match GCC warnings from ESPHome source files in CI [esphome#2756](https://github.com/esphome/esphome/pull/2756) by [@oxan](https://github.com/oxan)
+- Correct constant for dynamic I2S bus in NeoPixelBus [esphome#2797](https://github.com/esphome/esphome/pull/2797) by [@oxan](https://github.com/oxan)
+- Consistently format errors in CI scripts [esphome#2762](https://github.com/esphome/esphome/pull/2762) by [@oxan](https://github.com/oxan)
+- Cancel previous workflows for PRs and branches [esphome#2800](https://github.com/esphome/esphome/pull/2800) by [@jesserockz](https://github.com/jesserockz)
+- total_daily_energy: allow to disable restore mode [esphome#2795](https://github.com/esphome/esphome/pull/2795) by [@ianchi](https://github.com/ianchi)
+- Modbus_controller: Add custom command. [esphome#2680](https://github.com/esphome/esphome/pull/2680) by [@martgras](https://github.com/martgras)
+- Fix usage of deprecated climate method in anova [esphome#2801](https://github.com/esphome/esphome/pull/2801) by [@oxan](https://github.com/oxan)
+- Make clang-tidy suggest stdint.h int types [esphome#2820](https://github.com/esphome/esphome/pull/2820) by [@oxan](https://github.com/oxan)
+- Fixed data type inside fast_random_8() routine [esphome#2818](https://github.com/esphome/esphome/pull/2818) by [@anatoly-savchenkov](https://github.com/anatoly-savchenkov)
+- Improve DSMR read timeout handling [esphome#2699](https://github.com/esphome/esphome/pull/2699) by [@mmakaay](https://github.com/mmakaay)
+- Optionally show internal components on the web server [esphome#2627](https://github.com/esphome/esphome/pull/2627) by [@mechanarchy](https://github.com/mechanarchy) (new-feature)
+- Fix custom mode_state_topic [esphome#2827](https://github.com/esphome/esphome/pull/2827) by [@definitio](https://github.com/definitio)
+- Add support for button entities [esphome#2824](https://github.com/esphome/esphome/pull/2824) by [@jesserockz](https://github.com/jesserockz) (new-integration)
+- Tuya text_sensor and raw data usage [esphome#1812](https://github.com/esphome/esphome/pull/1812) by [@dentra](https://github.com/dentra)
+- Fix 8266 SPI Clock Polarity Setting [esphome#2836](https://github.com/esphome/esphome/pull/2836) by [@kbx81](https://github.com/kbx81)
+- Fix too-broad matcher for custom CI script [esphome#2829](https://github.com/esphome/esphome/pull/2829) by [@oxan](https://github.com/oxan)
+- cse7766: add energy sensor [esphome#2822](https://github.com/esphome/esphome/pull/2822) by [@ianchi](https://github.com/ianchi) (new-feature)
+- Burst read for BME280, to reduce spurious spikes [esphome#2809](https://github.com/esphome/esphome/pull/2809) by [@CarlosGS](https://github.com/CarlosGS)
+- Bump aioesphomeapi from 10.2.0 to 10.6.0 [esphome#2840](https://github.com/esphome/esphome/pull/2840) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- Button device class [esphome#2835](https://github.com/esphome/esphome/pull/2835) by [@jesserockz](https://github.com/jesserockz)
+- Implement unit_of_measurement for number component [esphome#2804](https://github.com/esphome/esphome/pull/2804) by [@puuu](https://github.com/puuu)
+- Number mode [esphome#2838](https://github.com/esphome/esphome/pull/2838) by [@jesserockz](https://github.com/jesserockz)
+- Bump esphome-dashboard to 20211201.0 [esphome#2842](https://github.com/esphome/esphome/pull/2842) by [@jesserockz](https://github.com/jesserockz)
+- Allow Git credentials to be loaded from secrets [esphome#2825](https://github.com/esphome/esphome/pull/2825) by [@mechanarchy](https://github.com/mechanarchy) (new-feature)
+- Fix compile warning in Tuya automations [esphome#2837](https://github.com/esphome/esphome/pull/2837) by [@oxan](https://github.com/oxan)
+- Add problem matcher for Python formatting errors [esphome#2833](https://github.com/esphome/esphome/pull/2833) by [@oxan](https://github.com/oxan)
+- Fix CI check for Windows line endings [esphome#2831](https://github.com/esphome/esphome/pull/2831) by [@oxan](https://github.com/oxan)
+- Don't enable namespace comment clang-tidy check twice [esphome#2830](https://github.com/esphome/esphome/pull/2830) by [@oxan](https://github.com/oxan)
+- ESP32 Deep Sleep: correct level value [esphome#2812](https://github.com/esphome/esphome/pull/2812) by [@jhamhader](https://github.com/jhamhader)
+- Fix OTA updates on esp8266 by declaring arch_get_cpu_cycle_count IRAM_ATTR and HOT [esphome#2843](https://github.com/esphome/esphome/pull/2843) by [@Doridian](https://github.com/Doridian)
+- Fix compilation using subprocesses [esphome#2834](https://github.com/esphome/esphome/pull/2834) by [@oxan](https://github.com/oxan)
+- Expand uart invert feature to ESP8266 [esphome#1727](https://github.com/esphome/esphome/pull/1727) by [@Lewn](https://github.com/Lewn) (new-feature)
+- Support setting manual_ip under networks option [esphome#2839](https://github.com/esphome/esphome/pull/2839) by [@oxan](https://github.com/oxan)
+- Enable a bunch of clang-tidy checks [esphome#2149](https://github.com/esphome/esphome/pull/2149) by [@oxan](https://github.com/oxan)
+- Set ESP32 watchdog to loop task [esphome#2846](https://github.com/esphome/esphome/pull/2846) by [@oxan](https://github.com/oxan)
+- Tuya Cover improvements [esphome#2637](https://github.com/esphome/esphome/pull/2637) by [@pauln](https://github.com/pauln) (breaking-change)
+- Fix wifi not working with manual_ip using esp-idf [esphome#2849](https://github.com/esphome/esphome/pull/2849) by [@Maelstrom96](https://github.com/Maelstrom96)
+- modbus_controller: bugfix: enable overriding calculated register size [esphome#2845](https://github.com/esphome/esphome/pull/2845) by [@martgras](https://github.com/martgras)
+- Feed watchdog during OTA [esphome#2852](https://github.com/esphome/esphome/pull/2852) by [@oxan](https://github.com/oxan)
+- Bump esphome-dashboard to 20211206.0 [esphome#2870](https://github.com/esphome/esphome/pull/2870) by [@jesserockz](https://github.com/jesserockz)
+- tlc59208f : fix compilation error [esphome#2867](https://github.com/esphome/esphome/pull/2867) by [@martgras](https://github.com/martgras)
+- ADC: Turn verbose the debugging "got voltage" [esphome#2863](https://github.com/esphome/esphome/pull/2863) by [@CarlosGS](https://github.com/CarlosGS)
+- SPS30 : fix i2c read size [esphome#2866](https://github.com/esphome/esphome/pull/2866) by [@martgras](https://github.com/martgras)
+- Fix MCP23x17 not disabling pullup after config change [esphome#2855](https://github.com/esphome/esphome/pull/2855) by [@oxan](https://github.com/oxan)
+- Ignore already stopped dhcp for ethernet [esphome#2862](https://github.com/esphome/esphome/pull/2862) by [@madron](https://github.com/madron)
+- Add endpoint to fetch secrets keys [esphome#2873](https://github.com/esphome/esphome/pull/2873) by [@jesserockz](https://github.com/jesserockz)
+- Adopt using wifi secrets that should exist at this point [esphome#2874](https://github.com/esphome/esphome/pull/2874) by [@jesserockz](https://github.com/jesserockz)
+- Allow wizard to specify secrets [esphome#2875](https://github.com/esphome/esphome/pull/2875) by [@jesserockz](https://github.com/jesserockz)
+- Feed watchdog when no component loops [esphome#2857](https://github.com/esphome/esphome/pull/2857) by [@oxan](https://github.com/oxan)
+- Bump esphome-dashboard to 20211207.0 [esphome#2877](https://github.com/esphome/esphome/pull/2877) by [@jesserockz](https://github.com/jesserockz)
+- Feed watchdog while setting up OTA [esphome#2876](https://github.com/esphome/esphome/pull/2876) by [@CarlosGS](https://github.com/CarlosGS)
+- Use new platform component config blocks for wizard [esphome#2885](https://github.com/esphome/esphome/pull/2885) by [@jesserockz](https://github.com/jesserockz)
+- Bump esphome-dashboard to 20211208.0 [esphome#2887](https://github.com/esphome/esphome/pull/2887) by [@jesserockz](https://github.com/jesserockz)
+- Fix published state for modbus number [esphome#2894](https://github.com/esphome/esphome/pull/2894) by [@jesserockz](https://github.com/jesserockz)
+- Modbus number/output use write single [esphome#2896](https://github.com/esphome/esphome/pull/2896) by [@glmnet](https://github.com/glmnet)
+- Fix for two points setting when fan_only_cooling is disabled [esphome#2903](https://github.com/esphome/esphome/pull/2903) by [@kbx81](https://github.com/kbx81)
+- Bump esphome-dashboard to 20211211.0 [esphome#2904](https://github.com/esphome/esphome/pull/2904) by [@jesserockz](https://github.com/jesserockz)
+
+{/* markdownlint-enable MD013 */}

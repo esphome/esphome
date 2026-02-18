@@ -1,0 +1,68 @@
+---
+description: "Instructions for setting up CH423 digital port expanders in ESPHome."
+title: "CH423 I/O Expander"
+---
+
+import APIClass from '@components/APIClass.astro';
+import APIRef from '@components/APIRef.astro';
+
+The CH423 component allows you to use the **CH423** I/O expander in ESPHome.
+It uses an [I²C Bus](/components/i2c) for communication. The I²C address is not configurable as the CH423 has a separate address for each internal register.
+
+Once configured, you can use any of the 24 available GPIO pins in many places a GPIO pin is required.
+Within ESPHome they can be used in place of internal GPIO pins in many of ESPHome's components such as the GPIO Binary Sensor or GPIO Switch. They are not usable for PWM or other situations requiring an internal GPIO pin.
+
+Pins 0-7 correspond to the bidirectional GPIO (IO0-IO7) pins on the CH423. Pins 8-23 correspond to the GPO (OC0-OC15) output-only pins.
+
+```yaml
+# Example configuration entry
+ch423:
+  - id: ch423_hub
+
+# Individual inputs
+binary_sensor:
+  - platform: gpio
+    name: CH423 Input 0
+    pin:
+      ch423: ch423_hub
+      number: 0
+      mode: INPUT
+
+# Individual outputs
+switch:
+  - platform: gpio
+    name: CH423 Output 0
+    pin:
+      ch423: ch423_hub
+      number: 8
+      mode: OUTPUT
+```
+
+## Configuration variables
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this `ch423` component.
+
+## Pin configuration variables
+
+- **ch423** (**Required**, [ID](/guides/configuration-types#id)): The id of the `ch423` component of the pin.
+- **number** (**Required**, int): The pin number. Valid numbers are 0-23.
+- **inverted** (*Optional*, boolean): If the pin state should be inverted. Defaults to `false`.
+- **mode** (*Optional*, string): A pin mode to set the pin at. One of `INPUT`, `OUTPUT`, or `OUTPUT_OPEN_DRAIN`.
+
+## Pin mode restrictions
+
+The CH423 has hardware limitations where certain settings apply globally:
+
+- **Pins 0-7 (GPIO)**: Input is supported only on pins 0-7. All GPIO pins must be configured as input OR all as output - mixed configurations are not allowed due to the global IO_OE control bit.
+- **Pins 8-23 (GPO)**: Output-only pins. Open drain mode is supported only on pins 8-23. All GPO pins must be configured as push-pull OR all as open-drain - mixed configurations are not allowed due to the global OD_EN control bit.
+
+These restrictions are enforced at configuration validation time.
+
+## See Also
+
+- [I²C Bus](/components/i2c)
+- [GPIO Switch](/components/switch/gpio/)
+- [GPIO Binary Sensor](/components/binary_sensor/gpio/)
+- [CH423 datasheet](https://www.wch-ic.com/downloads/CH423DS1_PDF.html)
+- <APIClass text="CH423Component" path="ch423::CH423Component" />
+- <APIRef text="ch423.h" path="ch423/ch423.h" />

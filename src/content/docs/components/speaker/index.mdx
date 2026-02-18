@@ -1,0 +1,156 @@
+---
+description: "Instructions for setting up speakers in ESPHome."
+title: "Speaker Components"
+sidebar:
+  label: "Speaker Components"
+---
+
+The `speaker` domain contains common functionality shared across the
+speaker platforms.
+
+<span id="config-speaker"></span>
+
+## Base Speaker Configuration
+
+```yaml
+speaker:
+  - platform: ...
+```
+
+Configuration variables:
+
+- **audio_dac** (*Optional*, [ID](/guides/configuration-types#id)): The [audio DAC](/components/audio_dac/) to use for volume control.
+
+<span id="speaker-actions"></span>
+
+## Speaker Actions
+
+All `speaker` actions can be used without specifying an `id` if you have only one `speaker` in
+your configuration YAML.
+
+<span id="speaker-play"></span>
+
+### `speaker.play` Action
+
+This action will start playing raw audio data from the speaker.
+
+```yaml
+on_...:
+  # Static raw audio data
+  - speaker.play: [...]
+
+  # Templated, return type is `std::vector<uint8_t>`
+  - speaker.play: !lambda return {...};
+
+  # in case you need to specify the speaker id
+  - speaker.play:
+      id: my_speaker
+      data: [...]
+```
+
+Configuration variables:
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The speaker to control. Defaults to the only one in YAML.
+- **data** (**Required**, list of bytes): The raw audio data to play.
+
+<span id="speaker-stop"></span>
+
+### `speaker.stop` Action
+
+This action will stop playing audio data from the speaker and discard the unplayed data.
+
+Configuration variables:
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The speaker to control. Defaults to the only one in YAML.
+
+<span id="speaker-finish"></span>
+
+### `speaker.finish` Action
+
+This action will stop playing audio data from the speaker after all data **is** played.
+
+Configuration variables:
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The speaker to control. Defaults to the only one in YAML.
+
+<span id="speaker-mute_on"></span>
+
+### `speaker.mute_on` Action
+
+This action will mute the speaker.
+
+Configuration variables:
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The speaker to control. Defaults to the only one in YAML.
+
+<span id="speaker-mute_off"></span>
+
+### `speaker.mute_off` Action
+
+This action will unmute the speaker.
+
+Configuration variables:
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The speaker to control. Defaults to the only one in YAML.
+
+<span id="speaker-volume_set"></span>
+
+### `speaker.volume_set` Action
+
+This action will set the volume of the speaker.
+
+```yaml
+on_...:
+  # Simple
+  - speaker.volume_set: 50%
+
+  # Full
+  - speaker.volume_set:
+      id: speaker_id
+      volume: 50%
+
+  # Simple with lambda
+  -  speaker.volume_set: !lambda "return 0.5;"
+```
+
+Configuration variables:
+
+**volume** (**Required**, percentage): The volume to set the speaker to.
+
+<span id="speaker-conditions"></span>
+
+## Speaker Conditions
+
+All `speaker` conditions can be used without specifying an `id` if you have only one `speaker` in
+your configuration YAML.
+
+<span id="speaker-is_playing"></span>
+
+### `speaker.is_playing` Condition
+
+This condition will check if the speaker is currently playing audio data.
+
+Configuration variables:
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The speaker to check. Defaults to the only one in YAML.
+
+<span id="speaker-is_stopped"></span>
+
+### `speaker.is_stopped` Condition
+
+This condition will check if the speaker is fully stopped audio data and is in idle mode.
+
+.. note:
+
+Between the time `speaker.is_playing` is false and `speaker.is_stopped` is true the 'speaker' component is closing down structures that where used to play the data correctly. *It better to check if the speaker is stopped then that if it plays.*
+
+Configuration variables:
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The speaker to check. Defaults to the only one in YAML.
+
+## Platforms
+
+## See Also
+
+- [Create audio clip files for use with I²S Speakers](/guides/audio_clips_for_i2s/)
+- [I²S Audio Speaker](/components/speaker/i2s_audio/)

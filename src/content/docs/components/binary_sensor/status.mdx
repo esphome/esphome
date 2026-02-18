@@ -1,0 +1,32 @@
+---
+description: "Instructions for setting up status binary sensors."
+title: "Status Binary Sensor"
+---
+
+import { Image } from 'astro:assets';
+import statusUiImg from './images/status-ui.png';
+import APIRef from '@components/APIRef.astro';
+
+The Status Binary Sensor exposes the node state (if it's connected to via MQTT/native API)
+for Home Assistant.
+
+<Image src={statusUiImg} layout="constrained" alt="" />
+
+```yaml
+# Example configuration entry
+binary_sensor:
+  - platform: status
+    name: "Living Room Status"
+```
+
+## Configuration variables
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval
+  to check the connection status. Defaults to `1s`.
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor). (Inverted mode is not supported)
+
+## See Also
+
+- [Binary Sensor Component](/components/binary_sensor/)
+- [MQTT Client Component](/components/mqtt/)
+- <APIRef text="status_binary_sensor.h" path="status/status_binary_sensor.h" />

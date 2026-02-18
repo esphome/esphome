@@ -1,0 +1,56 @@
+---
+description: "Instructions for setting up a sx126x packet transport platform on ESPHome"
+title: "SX126x Packet Transport Platform"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+The [Packet Transport](/components/packet_transport/) platform allows ESPHome nodes to directly communicate with each over a
+communication channel. The [Sx126X](/components/sx126x/) implementation of the platform uses FSK or
+LoRa as a communication medium. See the [Packet Transport](/components/packet_transport/) and [Sx126X](/components/sx126x/) for more information.
+
+## Example Configuration
+
+```yaml
+# Example configuration entry
+sx126x:
+  dio1_pin: GPIO14
+  cs_pin: GPIO8
+  busy_pin: GPIO13
+  rst_pin: GPIO12
+  pa_power: 3
+  bandwidth: 125_0kHz
+  crc_enable: true
+  frequency: 433.92MHz
+  modulation: LORA
+  hw_version: sx1262
+  rf_switch: true
+  sync_value: [0x14, 0x24]
+  preamble_size: 8
+  spreading_factor: 7
+  coding_rate: CR_4_6
+  tcxo_voltage: 1_8V
+  tcxo_delay: 5ms
+
+packet_transport:
+  platform: sx126x
+  sensors:
+    - dht_temp
+
+sensor:
+  - platform: dht
+      id: dht
+      pin: GPIOXX
+      temperature:
+        name: "Temperature"
+        id: dht_temp
+```
+
+## See Also
+
+- [Packet Transport Component](/components/packet_transport/)
+- [SX126x Component](/components/sx126x/)
+- [Packet Transport Binary Sensor](/components/binary_sensor/packet_transport/)
+- [Packet Transport Sensor](/components/sensor/packet_transport/)
+- [Automation](/automations/)
+- <APIRef text="packet_transport.h" path="packet_transport/packet_transport.h" />

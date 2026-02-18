@@ -393,6 +393,7 @@ def encode_doxygen(value):
 
 
 def get_md_file_ref(md_file, ref):
+    # This should mimic the docref short code, see /themes/esphome-theme/layouts/shortcodes/docref.html
     if ref.startswith("/"):
         md_parent = Path(".") / "content"
         ref = ref[1:]
@@ -407,6 +408,10 @@ def get_md_file_ref(md_file, ref):
     ref_md_default = md_parent / ref / "_index.md"
     if ref_md_default.exists():
         return ref_md_default
+    ref_md_default = Path(".") / "content" / "components" / (ref + ".md")
+    if ref_md_default.exists():
+        return ref_md_default
+    return md_file  # go nowhere
 
 
 def convert_links_and_shortcodes(md_file, index, docs):
@@ -470,7 +475,11 @@ def set_schema_doc(md_file, index, schema, prop_name, prop_types, doc):
             type_parts = [part.strip() for part in prop_types.split(",")]
             optionality = type_parts[0].replace("*", "").lower()
             config_optionality = matched_config.get(JSON_KEY, "")
-            if optionality != config_optionality.lower() and args.debug_level > 3:
+            if (
+                prop_name != "id"
+                and optionality != config_optionality.lower()
+                and args.debug_level > 3
+            ):
                 print(
                     f"{md_file}:{index} {prop_name} Key {config_optionality} in ESPHome does not match {optionality} in docs"
                 )
@@ -562,8 +571,6 @@ def process_schema(
                     matched_config = find_schema_prop(parent_schema, prop_name)
                     if matched_config:
                         return index
-                elif lines[index].endswith("Action"):
-                    continue  # this is a breaking title, but many triggers are labeled action
 
         if item_indent < indent:
             return prev_index

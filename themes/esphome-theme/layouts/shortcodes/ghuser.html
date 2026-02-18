@@ -1,9 +1,0 @@
-{{/*
-    Shortcode: ghuser
-    Usage: {{< ghuser name="octocat" >}}
-    Output: A link to the specified GitHub user profile, displaying the username (or custom text if provided).
-    Optional param: text (if you want to show something different than the username)
-*/}}
-{{- $name := .Get "name" -}}
-{{- $text := .Get "text" | default (printf "@%s" $name) -}}
-<a href="https://github.com/{{ $name }}" target="_blank" rel="noopener noreferrer">{{ $text }}</a>

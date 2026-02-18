@@ -1,0 +1,171 @@
+---
+description: "Changelog for ESPHome version 1.18.0."
+title: "Changelog - Version 1.18.0 - 19th May 2021"
+pagefind: false
+slug: "changelog/v1.18.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+<ImgTable items={[
+  ["BME680 via BSEC","/components/sensor/bme680_bsec","bme680.jpg"],
+  ["b-parasite","/components/sensor/b_parasite","b_parasite.jpg"],
+  ["SGP40","/components/sensor/sgp40","sgp40.jpg"],
+  ["SHT4X","/components/sensor/sht4x","sht4x.jpg"],
+  ["TCA9548A I²C Multiplexer","/components/tca9548a","tca9548a.jpg"],
+  ["Grow Fingerprint Reader","/components/fingerprint_grow","fingerprint.svg","dark-invert"],
+  ["TOF10120","/components/sensor/tof10120","tof10120.jpg"],
+  ["SM2135","/components/output/sm2135","sm2135.svg"],
+  ["ESP32 BLE Client","/components/ble_client","bluetooth.svg","dark-invert"],
+  ["BLE Sensor","/components/sensor/ble_sensor","bluetooth.svg","dark-invert"],
+  ["External Components","/components/external_components","external_components.svg","dark-invert"]
+]} />
+
+
+{/* markdownlint-disable MD013 */}
+
+It feels like I was just writing the release notes for 1.17 not long ago, so here's to getting ESPHome going on a regular schedule.
+
+Releases will be set for the 3rd Wednesday of each month, with a beta release starting 1 week earlier for those who would like to test
+that and help make sure it is stable.
+
+Apart from a few new sensors, we now have built in support for [External Components](/components/external_components/), check it out. Thanks [@OttoWinter](https://github.com/OttoWinter) and [@glmnet](https://github.com/glmnet)
+
+Also now, an ESPHome device is able to connect to other BLE devices and become a [Ble Client](/components/ble_client/), reading sensors and controlling switches etc.
+You can read basic sensor values using the [Ble Client](/components/sensor/ble_client/) component or use the data displayed in the logs to build a new native component
+that provides the sensors/switches/etc directly.
+
+Jesse
+
+## New Integrations
+
+- esphome: Add I2CMultiplexer in general and the TCA9548A in special [esphome#1410](https://github.com/esphome/esphome/pull/1410) by [@andreashergert1984](https://github.com/andreashergert1984) (new-integration)
+- esphome: Add BME680 via BSEC integration [esphome#1313](https://github.com/esphome/esphome/pull/1313) by [@trvrnrth](https://github.com/trvrnrth) (new-integration)
+- esphome: Adds support for b-parasite soil moisture sensor [esphome#1666](https://github.com/esphome/esphome/pull/1666) by [@rbaron](https://github.com/rbaron) (new-integration)
+- esphome: Sgp40 [esphome#1513](https://github.com/esphome/esphome/pull/1513) by [@SenexCrenshaw](https://github.com/SenexCrenshaw) (new-integration)
+- esphome: Add support for SHT4X [esphome#1512](https://github.com/esphome/esphome/pull/1512) by [@sjtrny](https://github.com/sjtrny) (new-integration)
+- esphome: Add Grow Fingerprint Reader [esphome#1356](https://github.com/esphome/esphome/pull/1356) by [@loongyh](https://github.com/loongyh) (new-integration)
+- esphome: Support for TOF10120 distance sensor [esphome#1375](https://github.com/esphome/esphome/pull/1375) by [@wstrzalka](https://github.com/wstrzalka) (new-integration)
+- esphome: BLE client support on ESP32 [esphome#1177](https://github.com/esphome/esphome/pull/1177) by [@buxtronix](https://github.com/buxtronix) (new-integration)
+- esphome: Implement external custom components installing from YAML [esphome#1630](https://github.com/esphome/esphome/pull/1630) by [@OttoWinter](https://github.com/OttoWinter) (new-integration)
+- esphome: Add sm2135 component [esphome#1736](https://github.com/esphome/esphome/pull/1736) by [@BoukeHaarsma23](https://github.com/BoukeHaarsma23) (cherry-picked) (new-integration)
+
+## Breaking Changes
+
+- esphome: Raise minimum python version to 3.7 [esphome#1673](https://github.com/esphome/esphome/pull/1673) by [@OttoWinter](https://github.com/OttoWinter) (breaking-change)
+- esphome: Change wifi signal strength unit to dBm [esphome#1734](https://github.com/esphome/esphome/pull/1734) by [@mbo18](https://github.com/mbo18) (breaking-change)
+- esphome: Use core constants for sample duration on bh1750 [esphome#1764](https://github.com/esphome/esphome/pull/1764) by [@yuvalabou](https://github.com/yuvalabou) (breaking-change) (cherry-picked)
+
+## Beta Fixes
+
+- docs: Update allowed characters for node names [esphome-docs#1072](https://github.com/esphome/esphome-docs/pull/1072) by [@pkuehne](https://github.com/pkuehne) (cherry-picked)
+- docs: Fix missed merge conflict [esphome-docs#1155](https://github.com/esphome/esphome-docs/pull/1155) by [@jesserockz](https://github.com/jesserockz) (cherry-picked)
+- docs: Replaced set_password with new_password [esphome-docs#1157](https://github.com/esphome/esphome-docs/pull/1157) by [@PaulAntonDeen](https://github.com/PaulAntonDeen) (cherry-picked)
+- esphome: Fix build issues for idf 4.2 (Support ESP32-S2) [esphome#1433](https://github.com/esphome/esphome/pull/1433) by [@misery](https://github.com/misery) (cherry-picked)
+- esphome: Upgrade the version of AsyncTCP-esphome to v1.2.2 [esphome#1762](https://github.com/esphome/esphome/pull/1762) by [@glmnet](https://github.com/glmnet) (cherry-picked)
+- esphome: Use core constants for sample duration on bh1750 [esphome#1764](https://github.com/esphome/esphome/pull/1764) by [@yuvalabou](https://github.com/yuvalabou) (breaking-change) (cherry-picked)
+- esphome: Add sm2135 component [esphome#1736](https://github.com/esphome/esphome/pull/1736) by [@BoukeHaarsma23](https://github.com/BoukeHaarsma23) (cherry-picked) (new-integration)
+- docs: Add sm2135 component [esphome-docs#1127](https://github.com/esphome/esphome-docs/pull/1127) by [@BoukeHaarsma23](https://github.com/BoukeHaarsma23) (cherry-picked)
+- docs: Some clarification added to external components. [esphome-docs#1165](https://github.com/esphome/esphome-docs/pull/1165) by [@mmakaay](https://github.com/mmakaay) (cherry-picked)
+- esphome: Allow RC522 components to have multiple configurations [esphome#1782](https://github.com/esphome/esphome/pull/1782) by [@jesserockz](https://github.com/jesserockz) (cherry-picked)
+
+## All changes
+
+- esphome: Add I2CMultiplexer in generel and the TCA9548A in special [esphome#1410](https://github.com/esphome/esphome/pull/1410) by [@andreashergert1984](https://github.com/andreashergert1984) (new-integration)
+- docs: Add i2c multiplexer [esphome-docs#897](https://github.com/esphome/esphome-docs/pull/897) by [@andreashergert1984](https://github.com/andreashergert1984)
+- esphome: Add the display.is_displaying_page condition [esphome#1646](https://github.com/esphome/esphome/pull/1646) by [@numo68](https://github.com/numo68)
+- docs: Add documentation for the display.is_displaying_page condition [esphome-docs#1079](https://github.com/esphome/esphome-docs/pull/1079) by [@numo68](https://github.com/numo68)
+- esphome: Add BME680 via BSEC integration [esphome#1313](https://github.com/esphome/esphome/pull/1313) by [@trvrnrth](https://github.com/trvrnrth) (new-integration)
+- docs: Add BME680 BSEC docs [esphome-docs#793](https://github.com/esphome/esphome-docs/pull/793) by [@trvrnrth](https://github.com/trvrnrth)
+- esphome: Fixed CustomComponentConstructor::get_component() [esphome#1653](https://github.com/esphome/esphome/pull/1653) by [@dataway](https://github.com/dataway)
+- esphome: Bump pytest from 6.2.2 to 6.2.3 [esphome#1663](https://github.com/esphome/esphome/pull/1663) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- esphome: Bump protobuf from 3.15.6 to 3.15.7 [esphome#1662](https://github.com/esphome/esphome/pull/1662) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- esphome: Rewrite sun component calculations [esphome#1661](https://github.com/esphome/esphome/pull/1661) by [@OttoWinter](https://github.com/OttoWinter)
+- esphome: Raise minimum python version to 3.7 [esphome#1673](https://github.com/esphome/esphome/pull/1673) by [@OttoWinter](https://github.com/OttoWinter) (breaking-change)
+- esphome: Adds support for b-parasite soil moisture sensor [esphome#1666](https://github.com/esphome/esphome/pull/1666) by [@rbaron](https://github.com/rbaron) (new-integration)
+- docs: Adds docs for the b-parasite soil moisture sensor [esphome-docs#1086](https://github.com/esphome/esphome-docs/pull/1086) by [@rbaron](https://github.com/rbaron)
+- esphome: mqtt_client: Added MQTTClientComponent::unsubscribe() [esphome#1672](https://github.com/esphome/esphome/pull/1672) by [@dataway](https://github.com/dataway)
+- esphome: Disallow _ in node name [esphome#1632](https://github.com/esphome/esphome/pull/1632) by [@pkuehne](https://github.com/pkuehne)
+- esphome: Receive long MQTT payload [esphome#1590](https://github.com/esphome/esphome/pull/1590) by [@gaco79](https://github.com/gaco79)
+- esphome: Daylight Saving Time spelling fix [esphome#1677](https://github.com/esphome/esphome/pull/1677) by [@dashdrum](https://github.com/dashdrum)
+- esphome: Support custom build_flags for bme680_bsec [esphome#1678](https://github.com/esphome/esphome/pull/1678) by [@SenexCrenshaw](https://github.com/SenexCrenshaw)
+- esphome: Add Arduino ESP32 version mapping [esphome#1679](https://github.com/esphome/esphome/pull/1679) by [@OttoWinter](https://github.com/OttoWinter)
+- esphome: Automate building and publishing of esphome-lint docker image [esphome#1680](https://github.com/esphome/esphome/pull/1680) by [@OttoWinter](https://github.com/OttoWinter)
+- esphome: Sgp40 [esphome#1513](https://github.com/esphome/esphome/pull/1513) by [@SenexCrenshaw](https://github.com/SenexCrenshaw) (new-integration)
+- docs: sgp40 [esphome-docs#985](https://github.com/esphome/esphome-docs/pull/985) by [@SenexCrenshaw](https://github.com/SenexCrenshaw)
+- esphome: Bump protobuf from 3.15.7 to 3.15.8 [esphome#1682](https://github.com/esphome/esphome/pull/1682) by [@dependabot[bot]](https://github.com/dependabot[bot])
+- esphome: Implementing the remainder of GPS data for the GPS component. [esphome#1676](https://github.com/esphome/esphome/pull/1676) by [@coogle](https://github.com/coogle)
+- docs: Updating docs for the gps component. [esphome-docs#1094](https://github.com/esphome/esphome-docs/pull/1094) by [@coogle](https://github.com/coogle)
+- esphome: Bump AsyncTCP-esphome to 1.2.1. [esphome#1693](https://github.com/esphome/esphome/pull/1693) by [@mmakaay](https://github.com/mmakaay)
+- esphome: Revert "Bump AsyncTCP-esphome to 1.2.1." [esphome#1709](https://github.com/esphome/esphome/pull/1709) by [@glmnet](https://github.com/glmnet)
+- esphome: Fix name_add_mac_suffix using_ instead of - [esphome#1702](https://github.com/esphome/esphome/pull/1702) by [@glmnet](https://github.com/glmnet)
+- docs: Update name_add_mac_suffix use dash [esphome-docs#1111](https://github.com/esphome/esphome-docs/pull/1111) by [@glmnet](https://github.com/glmnet)
+- esphome: Add monochromatic effects: Pulse, Random [esphome#1616](https://github.com/esphome/esphome/pull/1616) by [@ferbar](https://github.com/ferbar)
+- docs: Add 'pulse' effect doc [esphome-docs#1067](https://github.com/esphome/esphome-docs/pull/1067) by [@ferbar](https://github.com/ferbar)
+- esphome: Add support for SHT4X [esphome#1512](https://github.com/esphome/esphome/pull/1512) by [@sjtrny](https://github.com/sjtrny) (new-integration)
+- docs: Add docs for SHT4X [esphome-docs#1002](https://github.com/esphome/esphome-docs/pull/1002) by [@sjtrny](https://github.com/sjtrny)
+- esphome: Addition of forward and reverse active energy counters to ATM90E32 sensor component [esphome#1271](https://github.com/esphome/esphome/pull/1271) by [@elyorkhakimov](https://github.com/elyorkhakimov)
+- docs: Add Atm90e32 energy docs [esphome-docs#1120](https://github.com/esphome/esphome-docs/pull/1120) by [@jesserockz](https://github.com/jesserockz)
+- esphome: Add Grow Fingerprint Reader [esphome#1356](https://github.com/esphome/esphome/pull/1356) by [@loongyh](https://github.com/loongyh) (new-integration)
+- docs: Add Grow fingerprint reader docs [esphome-docs#835](https://github.com/esphome/esphome-docs/pull/835) by [@loongyh](https://github.com/loongyh)
+- esphome: Support for TOF10120 distance sensor [esphome#1375](https://github.com/esphome/esphome/pull/1375) by [@wstrzalka](https://github.com/wstrzalka) (new-integration)
+- docs: Documentation for TOF10120 support [esphome-docs#846](https://github.com/esphome/esphome-docs/pull/846) by [@wstrzalka](https://github.com/wstrzalka)
+- esphome: Swap fan and swing fields for Fujitu ACs [esphome#1635](https://github.com/esphome/esphome/pull/1635) by [@alex-richards](https://github.com/alex-richards)
+- esphome: BLE client support on ESP32 [esphome#1177](https://github.com/esphome/esphome/pull/1177) by [@buxtronix](https://github.com/buxtronix) (new-integration)
+- docs: Ble client docs [esphome-docs#702](https://github.com/esphome/esphome-docs/pull/702) by [@buxtronix](https://github.com/buxtronix)
+- esphome: Update email addresses [esphome#1733](https://github.com/esphome/esphome/pull/1733) by [@jesserockz](https://github.com/jesserockz)
+- esphome: Ble client fixes [esphome#1739](https://github.com/esphome/esphome/pull/1739) by [@buxtronix](https://github.com/buxtronix)
+- esphome: Fix #1940: Implement speed_count in TuyaFan [esphome#1654](https://github.com/esphome/esphome/pull/1654) by [@0x0a11c0de](https://github.com/0x0a11c0de)
+- docs: Add speed_count to tuya fan [esphome-docs#1080](https://github.com/esphome/esphome-docs/pull/1080) by [@0x0a11c0de](https://github.com/0x0a11c0de)
+- docs: Fix mcp3008 reference [esphome-docs#1131](https://github.com/esphome/esphome-docs/pull/1131) by [@jesserockz](https://github.com/jesserockz)
+- esphome: Add Hyperion Support [esphome#1339](https://github.com/esphome/esphome/pull/1339) by [@d-two](https://github.com/d-two)
+- docs: Add note about hyperion classic udp port [esphome-docs#1135](https://github.com/esphome/esphome-docs/pull/1135) by [@jesserockz](https://github.com/jesserockz)
+- esphome: Call `Stepper::should_step_` every loop iteration [esphome#1373](https://github.com/esphome/esphome/pull/1373) by [@akonradi](https://github.com/akonradi)
+- esphome: Add support for controlling Tuya fan direction [esphome#1409](https://github.com/esphome/esphome/pull/1409) by [@rmounce](https://github.com/rmounce)
+- docs: Document Tuya fan direction datapoint [esphome-docs#877](https://github.com/esphome/esphome-docs/pull/877) by [@rmounce](https://github.com/rmounce)
+- esphome: Change wifi signal strength unit to dBm [esphome#1734](https://github.com/esphome/esphome/pull/1734) by [@mbo18](https://github.com/mbo18) (breaking-change)
+- docs: Change wifi signal strength unit to dBm [esphome-docs#1125](https://github.com/esphome/esphome-docs/pull/1125) by [@mbo18](https://github.com/mbo18)
+- esphome: Added an option to disable mDNS [esphome#1716](https://github.com/esphome/esphome/pull/1716) by [@dnetguru](https://github.com/dnetguru)
+- docs: Added docs for enable_mdns option [esphome-docs#1118](https://github.com/esphome/esphome-docs/pull/1118) by [@dnetguru](https://github.com/dnetguru)
+- docs: add External components docs [esphome-docs#1107](https://github.com/esphome/esphome-docs/pull/1107) by [@glmnet](https://github.com/glmnet)
+- esphome: Implement external custom components installing from YAML [esphome#1630](https://github.com/esphome/esphome/pull/1630) by [@OttoWinter](https://github.com/OttoWinter) (new-integration)
+- esphome: Update copyright year [esphome#1760](https://github.com/esphome/esphome/pull/1760) by [@bonanitech](https://github.com/bonanitech)
+- docs: Fixed datasheet link for RC522 [esphome-docs#1144](https://github.com/esphome/esphome-docs/pull/1144) by [@0nikola1](https://github.com/0nikola1)
+- docs: Added receive for Fujitsu ACs [esphome-docs#1037](https://github.com/esphome/esphome-docs/pull/1037) by [@alex-richards](https://github.com/alex-richards)
+- docs: Update allowed characters for node names [esphome-docs#1072](https://github.com/esphome/esphome-docs/pull/1072) by [@pkuehne](https://github.com/pkuehne) (cherry-picked)
+- docs: Update docs: Add references to alternative ICs to HLW8012 and CSE7766 [esphome-docs#902](https://github.com/esphome/esphome-docs/pull/902) by [@kubik369](https://github.com/kubik369)
+- docs: Update pulse_counter.rst [esphome-docs#1089](https://github.com/esphome/esphome-docs/pull/1089) by [@Chupaka](https://github.com/Chupaka)
+- docs: Remove deprecated board_flash_mode from configuration example [esphome-docs#1149](https://github.com/esphome/esphome-docs/pull/1149) by [@frenck](https://github.com/frenck)
+- docs: Update deep_sleep.rst [esphome-docs#1152](https://github.com/esphome/esphome-docs/pull/1152) by [@theOzzieRat](https://github.com/theOzzieRat)
+- docs: Utalize pip3 for commands [esphome-docs#1143](https://github.com/esphome/esphome-docs/pull/1143) by [@rradar](https://github.com/rradar)
+- docs: FAQ page: Converting from "I" to "we" wording [esphome-docs#1103](https://github.com/esphome/esphome-docs/pull/1103) by [@spacegaier](https://github.com/spacegaier)
+- docs: thermostat min/max temperature clarification [esphome-docs#1057](https://github.com/esphome/esphome-docs/pull/1057) by [@larsonmpdx](https://github.com/larsonmpdx)
+- docs: Added compatibility notes [esphome-docs#1033](https://github.com/esphome/esphome-docs/pull/1033) by [@Dezorian](https://github.com/Dezorian)
+- docs: Specify format for BSSID entries. [esphome-docs#1046](https://github.com/esphome/esphome-docs/pull/1046) by [@marcteale](https://github.com/marcteale)
+- docs: add font to usage example [esphome-docs#1050](https://github.com/esphome/esphome-docs/pull/1050) by [@azrael783](https://github.com/azrael783)
+- docs: Fix missed merge conflict [esphome-docs#1155](https://github.com/esphome/esphome-docs/pull/1155) by [@jesserockz](https://github.com/jesserockz) (cherry-picked)
+- docs: Sample codeblock has incorrect variables [esphome-docs#1156](https://github.com/esphome/esphome-docs/pull/1156) by [@jcallaghan](https://github.com/jcallaghan)
+- docs: Replaced set_password with new_password [esphome-docs#1157](https://github.com/esphome/esphome-docs/pull/1157) by [@PaulAntonDeen](https://github.com/PaulAntonDeen) (cherry-picked)
+- docs: pulse counter: Show how calculations are made [esphome-docs#861](https://github.com/esphome/esphome-docs/pull/861) by [@fredrike](https://github.com/fredrike)
+- esphome: Upgrade the version of AsyncTCP-esphome to v1.2.2 [esphome#1762](https://github.com/esphome/esphome/pull/1762) by [@glmnet](https://github.com/glmnet) (cherry-picked)
+- esphome: Fix build issues for idf 4.2 (Support ESP32-S2) [esphome#1433](https://github.com/esphome/esphome/pull/1433) by [@misery](https://github.com/misery) (cherry-picked)
+- esphome: Use core constants for sample duration on bh1750 [esphome#1764](https://github.com/esphome/esphome/pull/1764) by [@yuvalabou](https://github.com/yuvalabou) (breaking-change) (cherry-picked)
+- docs: Fix docs for inkplate [esphome-docs#1158](https://github.com/esphome/esphome-docs/pull/1158) by [@NobodysNightmare](https://github.com/NobodysNightmare)
+- docs: Fixed wrong link in i2c_id [esphome-docs#1163](https://github.com/esphome/esphome-docs/pull/1163) by [@petrepa](https://github.com/petrepa)
+- docs: Explain where to upload .ttf font files [esphome-docs#1133](https://github.com/esphome/esphome-docs/pull/1133) by [@TheGroundZero](https://github.com/TheGroundZero)
+- esphome: Add sm2135 component [esphome#1736](https://github.com/esphome/esphome/pull/1736) by [@BoukeHaarsma23](https://github.com/BoukeHaarsma23) (cherry-picked) (new-integration)
+- docs: Add sm2135 component [esphome-docs#1127](https://github.com/esphome/esphome-docs/pull/1127) by [@BoukeHaarsma23](https://github.com/BoukeHaarsma23) (cherry-picked)
+- docs: Some clarification added to external components. [esphome-docs#1165](https://github.com/esphome/esphome-docs/pull/1165) by [@mmakaay](https://github.com/mmakaay) (cherry-picked)
+- docs: Add new disconnect reasons to the FAQ. [esphome-docs#1129](https://github.com/esphome/esphome-docs/pull/1129) by [@mmakaay](https://github.com/mmakaay)
+- esphome: Allow RC522 components to have multiple configurations [esphome#1782](https://github.com/esphome/esphome/pull/1782) by [@jesserockz](https://github.com/jesserockz) (cherry-picked)
+- docs: Update max frequency [esphome-docs#1172](https://github.com/esphome/esphome-docs/pull/1172) by [@bookcasey](https://github.com/bookcasey)
+- docs: Update web-api id component [esphome-docs#1168](https://github.com/esphome/esphome-docs/pull/1168) by [@meijerwynand](https://github.com/meijerwynand)
+- docs: Fix docker build failure [esphome-docs#1179](https://github.com/esphome/esphome-docs/pull/1179) by [@martgras](https://github.com/martgras)
+- docs: Update ifan02 example with new fan speed options [esphome-docs#1177](https://github.com/esphome/esphome-docs/pull/1177) by [@workingmanrob](https://github.com/workingmanrob)
+- docs: Document missing use_address in Ethernet component [esphome-docs#1176](https://github.com/esphome/esphome-docs/pull/1176) by [@xsnoopy](https://github.com/xsnoopy)
+- docs: Lambda over multiple lines. added [esphome-docs#1173](https://github.com/esphome/esphome-docs/pull/1173) by [@klenaers](https://github.com/klenaers)
+- docs: changed LG example to existing, working code [esphome-docs#1171](https://github.com/esphome/esphome-docs/pull/1171) by [@qqgg231](https://github.com/qqgg231)
+- docs: GPIO Switch: simplify Momentary Switch example [esphome-docs#1121](https://github.com/esphome/esphome-docs/pull/1121) by [@ianchi](https://github.com/ianchi)
+- docs: Added warning: GPIOs are LIVE in power measurement devices [esphome-docs#583](https://github.com/esphome/esphome-docs/pull/583) by [@CarlosGS](https://github.com/CarlosGS)
+
+{/* markdownlint-enable MD013 */}
