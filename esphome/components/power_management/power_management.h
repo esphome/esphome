@@ -43,7 +43,7 @@ class PowerManagement : public Component {
 #endif
  protected:
 #ifdef USE_ESP32
-  int8_t count_pm_locks_();
+  bool ready_to_sleep_();
 #ifdef USE_POWER_MANAGEMENT
   mutable std::mutex pm_lock_mutex_;
   esp_pm_lock_handle_t pm_lock_handles_[PM_LOCK_ARRAY_SIZE];

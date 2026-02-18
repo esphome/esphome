@@ -2,7 +2,7 @@
 #ifdef USE_ESP32
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
-#include <stdio.h>
+#include <cstdio>
 
 namespace esphome::power_management {
 
@@ -75,8 +75,7 @@ void PowerManagement::setup() {
 
 void PowerManagement::loop() {
 #if CONFIG_PM_LIGHT_SLEEP_CALLBACKS
-  int8_t acquired = this->count_pm_locks_();
-  if (acquired == 0 || acquired == 1) {
+  if (this->ready_to_sleep_()) {
     this->is_delay_aborted = false;
     ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(60000));
     if (this->is_delay_aborted) {
@@ -166,16 +165,15 @@ void PowerManagement::dump_config() {
 }
 
 static const size_t PM_BUF_SIZE = 1024;
-static char pm_buffer[PM_BUF_SIZE];
-// TBD replace with pm functions when they are available
-// TBD Fix to also work with profile: true
-int8_t PowerManagement::count_pm_locks_() {
-  int8_t acquired = 0;
+// Todo: use pm function esp_pm_get_lock_stats_all when they are available.
+bool PowerManagement::ready_to_sleep_() {
+  char pm_buffer[PM_BUF_SIZE];
+  long acquired = 0;
 
   FILE *f = fmemopen(pm_buffer, PM_BUF_SIZE, "w");
   if (f == NULL) {
     ESP_LOGE(TAG, "count_pm_locks, fmemopen failed %d", errno);
-    return -1;
+    return false;
   }
 
   esp_pm_dump_locks(f);
@@ -183,7 +181,7 @@ int8_t PowerManagement::count_pm_locks_() {
 
   if (pm_buffer[0] == '\0') {
     ESP_LOGE(TAG, "esp_pm_dump_locks produced no output");
-    return -1;
+    return false;
   }
 
   char *line = strtok(pm_buffer, "\n");
@@ -214,20 +212,18 @@ int8_t PowerManagement::count_pm_locks_() {
       // End of Arg
       while (*p && !isspace((unsigned char) *p))
         p++;
+      // start of Active
+      while (*p && isspace((unsigned char) *p))
+        p++;
       if (*p != '\0') {
-        int8_t count = atoi(p);
+        long count = strtol(p, NULL, 10);
         acquired += count;
       }
     }
 
     line = strtok(NULL, "\n");  // NULL tells strtok to continue from last position
-
-    /*
-
-    }
-    */
   }
-  return acquired;
+  return (acquired < 2);
 }
 
 }  // namespace esphome::power_management
