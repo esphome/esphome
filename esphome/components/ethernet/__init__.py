@@ -1,6 +1,6 @@
 import logging
 
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     VARIANT_ESP32,
@@ -14,6 +14,7 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    include_builtin_idf_component,
 )
 from esphome.components.network import ip_address_literal
 from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
@@ -34,6 +35,8 @@ from esphome.const import (
     CONF_MODE,
     CONF_MOSI_PIN,
     CONF_NUMBER,
+    CONF_ON_CONNECT,
+    CONF_ON_DISCONNECT,
     CONF_PAGE_ID,
     CONF_PIN,
     CONF_POLLING_INTERVAL,
@@ -127,11 +130,16 @@ ETHERNET_TYPES = {
 }
 
 # PHY types that need compile-time defines for conditional compilation
+# Each RMII PHY type gets a define so unused PHY drivers are excluded by the linker
 _PHY_TYPE_TO_DEFINE = {
+    "LAN8720": "USE_ETHERNET_LAN8720",
+    "RTL8201": "USE_ETHERNET_RTL8201",
+    "DP83848": "USE_ETHERNET_DP83848",
+    "IP101": "USE_ETHERNET_IP101",
+    "JL1101": "USE_ETHERNET_JL1101",
     "KSZ8081": "USE_ETHERNET_KSZ8081",
     "KSZ8081RNA": "USE_ETHERNET_KSZ8081",
     "LAN8670": "USE_ETHERNET_LAN8670",
-    # Add other PHY types here only if they need conditional compilation
 }
 
 SPI_ETHERNET_TYPES = ["W5500", "DM9051"]
@@ -236,6 +244,8 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
+        cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(single=True),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -419,12 +429,24 @@ async def to_code(config):
     # Also disable WiFi/BT coexistence since WiFi is disabled
     add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
 
+    # Re-enable ESP-IDF's Ethernet driver (excluded by default to save compile time)
+    include_builtin_idf_component("esp_eth")
+
     if config[CONF_TYPE] == "LAN8670":
         # Add LAN867x 10BASE-T1S PHY support component
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
 
-    if CORE.using_arduino:
-        cg.add_library("WiFi", None)
+    if on_connect_config := config.get(CONF_ON_CONNECT):
+        cg.add_define("USE_ETHERNET_CONNECT_TRIGGER")
+        await automation.build_automation(
+            var.get_connect_trigger(), [], on_connect_config
+        )
+
+    if on_disconnect_config := config.get(CONF_ON_DISCONNECT):
+        cg.add_define("USE_ETHERNET_DISCONNECT_TRIGGER")
+        await automation.build_automation(
+            var.get_disconnect_trigger(), [], on_disconnect_config
+        )
 
     CORE.add_job(final_step)
 

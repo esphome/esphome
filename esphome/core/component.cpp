@@ -76,41 +76,11 @@ void store_component_error_message(const Component *component, const char *messa
 }
 }  // namespace
 
-namespace setup_priority {
-
-const float BUS = 1000.0f;
-const float IO = 900.0f;
-const float HARDWARE = 800.0f;
-const float DATA = 600.0f;
-const float PROCESSOR = 400.0;
-const float BLUETOOTH = 350.0f;
-const float AFTER_BLUETOOTH = 300.0f;
-const float WIFI = 250.0f;
-const float ETHERNET = 250.0f;
-const float BEFORE_CONNECTION = 220.0f;
-const float AFTER_WIFI = 200.0f;
-const float AFTER_CONNECTION = 100.0f;
-const float LATE = -100.0f;
-
-}  // namespace setup_priority
-
-// Component state uses bits 0-2 (8 states, 5 used)
-const uint8_t COMPONENT_STATE_MASK = 0x07;
-const uint8_t COMPONENT_STATE_CONSTRUCTION = 0x00;
-const uint8_t COMPONENT_STATE_SETUP = 0x01;
-const uint8_t COMPONENT_STATE_LOOP = 0x02;
-const uint8_t COMPONENT_STATE_FAILED = 0x03;
-const uint8_t COMPONENT_STATE_LOOP_DONE = 0x04;
-// Status LED uses bits 3-4
-const uint8_t STATUS_LED_MASK = 0x18;
-const uint8_t STATUS_LED_OK = 0x00;
-const uint8_t STATUS_LED_WARNING = 0x08;  // Bit 3
-const uint8_t STATUS_LED_ERROR = 0x10;    // Bit 4
+// setup_priority, component state, and status LED constants are now
+// constexpr in component.h
 
 const uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;       ///< Initial blocking time allowed without warning
 const uint16_t WARN_IF_BLOCKING_INCREMENT_MS = 10U;  ///< How long the blocking time must be larger to warn again
-
-uint32_t global_state = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 float Component::get_loop_priority() const { return 0.0f; }
 
@@ -152,7 +122,10 @@ void Component::set_retry(const std::string &name, uint32_t initial_wait_time, u
 
 void Component::set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
                           std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+#pragma GCC diagnostic pop
 }
 
 bool Component::cancel_retry(const std::string &name) {  // NOLINT
@@ -163,7 +136,10 @@ bool Component::cancel_retry(const std::string &name) {  // NOLINT
 }
 
 bool Component::cancel_retry(const char *name) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return App.scheduler.cancel_retry(this, name);
+#pragma GCC diagnostic pop
 }
 
 void Component::set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
@@ -195,18 +171,38 @@ void Component::set_timeout(uint32_t id, uint32_t timeout, std::function<void()>
 
 bool Component::cancel_timeout(uint32_t id) { return App.scheduler.cancel_timeout(this, id); }
 
+void Component::set_timeout(InternalSchedulerID id, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_timeout(this, id, timeout, std::move(f));
+}
+
+bool Component::cancel_timeout(InternalSchedulerID id) { return App.scheduler.cancel_timeout(this, id); }
+
 void Component::set_interval(uint32_t id, uint32_t interval, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_interval(this, id, interval, std::move(f));
 }
 
 bool Component::cancel_interval(uint32_t id) { return App.scheduler.cancel_interval(this, id); }
 
-void Component::set_retry(uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
-                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
-  App.scheduler.set_retry(this, id, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+void Component::set_interval(InternalSchedulerID id, uint32_t interval, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_interval(this, id, interval, std::move(f));
 }
 
-bool Component::cancel_retry(uint32_t id) { return App.scheduler.cancel_retry(this, id); }
+bool Component::cancel_interval(InternalSchedulerID id) { return App.scheduler.cancel_interval(this, id); }
+
+void Component::set_retry(uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
+                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  App.scheduler.set_retry(this, id, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+#pragma GCC diagnostic pop
+}
+
+bool Component::cancel_retry(uint32_t id) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  return App.scheduler.cancel_retry(this, id);
+#pragma GCC diagnostic pop
+}
 
 void Component::call_loop() { this->loop(); }
 void Component::call_setup() { this->setup(); }
@@ -359,6 +355,10 @@ void Component::defer(const std::string &name, std::function<void()> &&f) {  // 
 void Component::defer(const char *name, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, name, 0, std::move(f));
 }
+void Component::defer(uint32_t id, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_timeout(this, id, 0, std::move(f));
+}
+bool Component::cancel_defer(uint32_t id) { return App.scheduler.cancel_timeout(this, id); }
 void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, static_cast<const char *>(nullptr), timeout, std::move(f));
 }
@@ -367,7 +367,10 @@ void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  //
 }
 void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,
                           float backoff_increase_factor) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   App.scheduler.set_retry(this, "", initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+#pragma GCC diagnostic pop
 }
 bool Component::is_failed() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 bool Component::is_ready() const {
@@ -512,12 +515,12 @@ void PollingComponent::call_setup() {
 
 void PollingComponent::start_poller() {
   // Register interval.
-  this->set_interval("update", this->get_update_interval(), [this]() { this->update(); });
+  this->set_interval(InternalSchedulerID::POLLING_UPDATE, this->get_update_interval(), [this]() { this->update(); });
 }
 
 void PollingComponent::stop_poller() {
   // Clear the interval to suspend component
-  this->cancel_interval("update");
+  this->cancel_interval(InternalSchedulerID::POLLING_UPDATE);
 }
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }

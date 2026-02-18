@@ -21,33 +21,39 @@ struct LogString;
 namespace setup_priority {
 
 /// For communication buses like i2c/spi
-extern const float BUS;
+inline constexpr float BUS = 1000.0f;
 /// For components that represent GPIO pins like PCF8573
-extern const float IO;
+inline constexpr float IO = 900.0f;
 /// For components that deal with hardware and are very important like GPIO switch
-extern const float HARDWARE;
+inline constexpr float HARDWARE = 800.0f;
 /// For components that import data from directly connected sensors like DHT.
-extern const float DATA;
-/// Alias for DATA (here for compatibility reasons)
-extern const float HARDWARE_LATE;
+inline constexpr float DATA = 600.0f;
 /// For components that use data from sensors like displays
-extern const float PROCESSOR;
-extern const float BLUETOOTH;
-extern const float AFTER_BLUETOOTH;
-extern const float WIFI;
-extern const float ETHERNET;
+inline constexpr float PROCESSOR = 400.0f;
+inline constexpr float BLUETOOTH = 350.0f;
+inline constexpr float AFTER_BLUETOOTH = 300.0f;
+inline constexpr float WIFI = 250.0f;
+inline constexpr float ETHERNET = 250.0f;
 /// For components that should be initialized after WiFi and before API is connected.
-extern const float BEFORE_CONNECTION;
+inline constexpr float BEFORE_CONNECTION = 220.0f;
 /// For components that should be initialized after WiFi is connected.
-extern const float AFTER_WIFI;
+inline constexpr float AFTER_WIFI = 200.0f;
 /// For components that should be initialized after a data connection (API/MQTT) is connected.
-extern const float AFTER_CONNECTION;
+inline constexpr float AFTER_CONNECTION = 100.0f;
 /// For components that should be initialized at the very end of the setup process.
-extern const float LATE;
+inline constexpr float LATE = -100.0f;
 
 }  // namespace setup_priority
 
-static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
+inline constexpr uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
+
+/// Type-safe scheduler IDs for core base classes.
+/// Uses a separate NameType (NUMERIC_ID_INTERNAL) so IDs can never collide
+/// with component-level NUMERIC_ID values, even if the uint32_t values overlap.
+enum class InternalSchedulerID : uint32_t {
+  POLLING_UPDATE = 0,  // PollingComponent interval
+  DELAY_ACTION = 1,    // DelayAction timeout
+};
 
 // Forward declaration
 class PollingComponent;
@@ -57,17 +63,20 @@ void log_update_interval(const char *tag, PollingComponent *component);
 
 #define LOG_UPDATE_INTERVAL(this) log_update_interval(TAG, this)
 
-extern const uint8_t COMPONENT_STATE_MASK;
-extern const uint8_t COMPONENT_STATE_CONSTRUCTION;
-extern const uint8_t COMPONENT_STATE_SETUP;
-extern const uint8_t COMPONENT_STATE_LOOP;
-extern const uint8_t COMPONENT_STATE_FAILED;
-extern const uint8_t COMPONENT_STATE_LOOP_DONE;
-extern const uint8_t STATUS_LED_MASK;
-extern const uint8_t STATUS_LED_OK;
-extern const uint8_t STATUS_LED_WARNING;
-extern const uint8_t STATUS_LED_ERROR;
+// Component state uses bits 0-2 (8 states, 5 used)
+inline constexpr uint8_t COMPONENT_STATE_MASK = 0x07;
+inline constexpr uint8_t COMPONENT_STATE_CONSTRUCTION = 0x00;
+inline constexpr uint8_t COMPONENT_STATE_SETUP = 0x01;
+inline constexpr uint8_t COMPONENT_STATE_LOOP = 0x02;
+inline constexpr uint8_t COMPONENT_STATE_FAILED = 0x03;
+inline constexpr uint8_t COMPONENT_STATE_LOOP_DONE = 0x04;
+// Status LED uses bits 3-4
+inline constexpr uint8_t STATUS_LED_MASK = 0x18;
+inline constexpr uint8_t STATUS_LED_OK = 0x00;
+inline constexpr uint8_t STATUS_LED_WARNING = 0x08;
+inline constexpr uint8_t STATUS_LED_ERROR = 0x10;
 
+// Remove before 2026.8.0
 enum class RetryResult { DONE, RETRY };
 
 extern const uint16_t WARN_IF_BLOCKING_OVER_MS;
@@ -334,6 +343,8 @@ class Component {
    */
   void set_interval(uint32_t id, uint32_t interval, std::function<void()> &&f);  // NOLINT
 
+  void set_interval(InternalSchedulerID id, uint32_t interval, std::function<void()> &&f);  // NOLINT
+
   void set_interval(uint32_t interval, std::function<void()> &&f);  // NOLINT
 
   /** Cancel an interval function.
@@ -346,69 +357,42 @@ class Component {
   bool cancel_interval(const std::string &name);  // NOLINT
   bool cancel_interval(const char *name);         // NOLINT
   bool cancel_interval(uint32_t id);              // NOLINT
+  bool cancel_interval(InternalSchedulerID id);   // NOLINT
 
-  /** Set an retry function with a unique name. Empty name means no cancelling possible.
-   *
-   * This will call the retry function f on the next scheduler loop. f should return RetryResult::DONE if
-   * it is successful and no repeat is required. Otherwise, returning RetryResult::RETRY will call f
-   * again in the future.
-   *
-   * The first retry of f happens after `initial_wait_time` milliseconds. The delay between retries is
-   * increased by multiplying by `backoff_increase_factor` each time. If no backoff_increase_factor is
-   * supplied (default = 1.0), the wait time will stay constant.
-   *
-   * The retry function f needs to accept a single argument: the number of attempts remaining. On the
-   * final retry of f, this value will be 0.
-   *
-   * This retry function can also be cancelled by name via cancel_retry().
-   *
-   * IMPORTANT: Do not rely on this having correct timing. This is only called from
-   * loop() and therefore can be significantly delayed.
-   *
-   * REMARK: It is an error to supply a negative or zero `backoff_increase_factor`, and 1.0 will be used instead.
-   *
-   * REMARK: The interval between retries is stored into a `uint32_t`, so this doesn't behave correctly
-   * if `initial_wait_time * (backoff_increase_factor ** (max_attempts - 2))` overflows.
-   *
-   * @param name The identifier for this retry function.
-   * @param initial_wait_time The time in ms before f is called again
-   * @param max_attempts The maximum number of executions
-   * @param f The function (or lambda) that should be called
-   * @param backoff_increase_factor time between retries is multiplied by this factor on every retry after the first
-   * @see cancel_retry()
-   */
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
+  /// @deprecated set_retry is deprecated. Use set_timeout or set_interval instead. Removed in 2026.8.0.
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,       // NOLINT
                  std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
 
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,              // NOLINT
                  std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
 
-  /** Set a retry function with a numeric ID (zero heap allocation).
-   *
-   * @param id The numeric identifier for this retry function
-   * @param initial_wait_time The wait time after the first execution
-   * @param max_attempts The max number of attempts
-   * @param f The function to call
-   * @param backoff_increase_factor The factor to increase the retry interval by
-   */
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,                   // NOLINT
                  std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
 
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,  // NOLINT
                  float backoff_increase_factor = 1.0f);                                                      // NOLINT
 
-  /** Cancel a retry function.
-   *
-   * @param name The identifier for this retry function.
-   * @return Whether a retry function was deleted.
-   */
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
   bool cancel_retry(const std::string &name);  // NOLINT
-  bool cancel_retry(const char *name);         // NOLINT
-  bool cancel_retry(uint32_t id);              // NOLINT
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
+  bool cancel_retry(const char *name);  // NOLINT
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
+  bool cancel_retry(uint32_t id);  // NOLINT
 
   /** Set a timeout function with a unique name.
    *
@@ -452,6 +436,8 @@ class Component {
    */
   void set_timeout(uint32_t id, uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
+  void set_timeout(InternalSchedulerID id, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+
   void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
   /** Cancel a timeout function.
@@ -464,6 +450,7 @@ class Component {
   bool cancel_timeout(const std::string &name);  // NOLINT
   bool cancel_timeout(const char *name);         // NOLINT
   bool cancel_timeout(uint32_t id);              // NOLINT
+  bool cancel_timeout(InternalSchedulerID id);   // NOLINT
 
   /** Defer a callback to the next loop() call.
    *
@@ -494,11 +481,15 @@ class Component {
   /// Defer a callback to the next loop() call.
   void defer(std::function<void()> &&f);  // NOLINT
 
+  /// Defer a callback with a numeric ID (zero heap allocation)
+  void defer(uint32_t id, std::function<void()> &&f);  // NOLINT
+
   /// Cancel a defer callback using the specified name, name must not be empty.
   // Remove before 2026.7.0
   ESPDEPRECATED("Use const char* overload instead. Removed in 2026.7.0", "2026.1.0")
   bool cancel_defer(const std::string &name);  // NOLINT
   bool cancel_defer(const char *name);         // NOLINT
+  bool cancel_defer(uint32_t id);              // NOLINT
 
   // Ordered for optimal packing on 32-bit systems
   const LogString *component_source_{nullptr};

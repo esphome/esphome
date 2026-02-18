@@ -2,13 +2,11 @@ import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
 import esphome.config_validation as cv
-from esphome.const import CONF_BITS_PER_SAMPLE, CONF_ID
+from esphome.const import CONF_AUDIO_DAC, CONF_BITS_PER_SAMPLE, CONF_ID
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["i2c"]
-
-CONF_AUDIO_DAC = "audio_dac"
 
 es8156_ns = cg.esphome_ns.namespace("es8156")
 ES8156 = es8156_ns.class_("ES8156", AudioDac, cg.Component, i2c.I2CDevice)
