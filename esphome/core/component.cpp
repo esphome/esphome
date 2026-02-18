@@ -76,36 +76,8 @@ void store_component_error_message(const Component *component, const char *messa
 }
 }  // namespace
 
-namespace setup_priority {
-
-const float BUS = 1000.0f;
-const float IO = 900.0f;
-const float HARDWARE = 800.0f;
-const float DATA = 600.0f;
-const float PROCESSOR = 400.0;
-const float BLUETOOTH = 350.0f;
-const float AFTER_BLUETOOTH = 300.0f;
-const float WIFI = 250.0f;
-const float ETHERNET = 250.0f;
-const float BEFORE_CONNECTION = 220.0f;
-const float AFTER_WIFI = 200.0f;
-const float AFTER_CONNECTION = 100.0f;
-const float LATE = -100.0f;
-
-}  // namespace setup_priority
-
-// Component state uses bits 0-2 (8 states, 5 used)
-const uint8_t COMPONENT_STATE_MASK = 0x07;
-const uint8_t COMPONENT_STATE_CONSTRUCTION = 0x00;
-const uint8_t COMPONENT_STATE_SETUP = 0x01;
-const uint8_t COMPONENT_STATE_LOOP = 0x02;
-const uint8_t COMPONENT_STATE_FAILED = 0x03;
-const uint8_t COMPONENT_STATE_LOOP_DONE = 0x04;
-// Status LED uses bits 3-4
-const uint8_t STATUS_LED_MASK = 0x18;
-const uint8_t STATUS_LED_OK = 0x00;
-const uint8_t STATUS_LED_WARNING = 0x08;  // Bit 3
-const uint8_t STATUS_LED_ERROR = 0x10;    // Bit 4
+// setup_priority, component state, and status LED constants are now
+// constexpr in component.h
 
 const uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;       ///< Initial blocking time allowed without warning
 const uint16_t WARN_IF_BLOCKING_INCREMENT_MS = 10U;  ///< How long the blocking time must be larger to warn again
