@@ -123,8 +123,9 @@ SerializationBuffer<> JsonBuilder::serialize() {
   // In practice, one iteration (1024 bytes) covers all known entity types.
   // Payloads exceeding 1024 bytes are not known to exist in real configurations.
   // Cap at 4096 as a safety limit to prevent runaway allocation.
+  constexpr size_t max_heap_size = 4096;
   size_t heap_size = buf_size * 2;
-  while (heap_size <= 4096) {
+  while (heap_size <= max_heap_size) {
     result.reallocate_heap_(heap_size - 1);
     size = serializeJson(doc_, result.data_writable_(), heap_size);
     if (size < heap_size) {
