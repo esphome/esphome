@@ -1913,6 +1913,34 @@ def build_type_usage_map(
     )
 
 
+def get_varint64_ifdef(
+    file_desc: descriptor.FileDescriptorProto,
+    message_ifdef_map: dict[str, str | None],
+) -> tuple[bool, str | None]:
+    """Check if 64-bit varint fields exist and get their common ifdef guard.
+
+    Returns:
+        (has_varint64, ifdef_guard) - has_varint64 is True if any fields exist,
+        ifdef_guard is the common guard or None if unconditional.
+    """
+    varint64_types = {
+        FieldDescriptorProto.TYPE_INT64,
+        FieldDescriptorProto.TYPE_UINT64,
+        FieldDescriptorProto.TYPE_SINT64,
+    }
+    ifdefs: set[str | None] = {
+        message_ifdef_map.get(msg.name)
+        for msg in file_desc.message_type
+        if not msg.options.deprecated
+        for field in msg.field
+        if not field.options.deprecated and field.type in varint64_types
+    }
+    if not ifdefs:
+        return False, None
+    ifdefs.discard(None)
+    return True, ifdefs.pop() if len(ifdefs) == 1 else None
+
+
 def build_enum_type(desc, enum_ifdef_map) -> tuple[str, str, str]:
     """Builds the enum type.
 
@@ -2567,11 +2595,28 @@ def main() -> None:
 
     file = d.file[0]
 
+    # Build dynamic ifdef mappings early so we can emit USE_API_VARINT64 before includes
+    enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
+        build_type_usage_map(file)
+    )
+
+    # Find the ifdef guard for 64-bit varint fields (int64/uint64/sint64).
+    # Emitted before proto.h so parse_wide_() and 64-bit accessors are available.
+    has_varint64, varint64_guard = get_varint64_ifdef(file, message_ifdef_map)
+
     content = FILE_HEADER
     content += """\
 #pragma once
 
 #include "esphome/core/defines.h"
+"""
+    if has_varint64:
+        content += "\n".join(
+            wrap_with_ifdef(["#define USE_API_VARINT64"], varint64_guard)
+        )
+        content += "\n"
+
+    content += """\
 #include "esphome/core/string_ref.h"
 
 #include "proto.h"
@@ -2701,11 +2746,6 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 """
 
     content += "namespace enums {\n\n"
-
-    # Build dynamic ifdef mappings for both enums and messages
-    enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
-        build_type_usage_map(file)
-    )
 
     # Simple grouping of enums by ifdef
     current_ifdef = None
