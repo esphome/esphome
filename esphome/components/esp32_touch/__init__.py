@@ -194,8 +194,9 @@ def validate_touch_pad(value):
 
 def validate_variant_vars(config):
     variant = get_esp32_variant()
+    invalid_vars = set()
     if variant == VARIANT_ESP32:
-        variant_vars = {
+        invalid_vars = {
             CONF_DEBOUNCE_COUNT,
             CONF_DENOISE_GRADE,
             CONF_DENOISE_CAP_LEVEL,
@@ -206,19 +207,14 @@ def validate_variant_vars(config):
             CONF_WATERPROOF_GUARD_RING,
             CONF_WATERPROOF_SHIELD_DRIVER,
         }
-        for vvar in variant_vars:
-            if vvar in config:
-                raise cv.Invalid(f"{vvar} is not valid on {VARIANT_ESP32}")
     elif variant in (VARIANT_ESP32S2, VARIANT_ESP32S3, VARIANT_ESP32P4):
-        if CONF_IIR_FILTER in config:
-            raise cv.Invalid(f"{CONF_IIR_FILTER} is not valid on {variant}")
+        invalid_vars = {CONF_IIR_FILTER}
         if variant == VARIANT_ESP32P4:
-            denoise_vars = {CONF_DENOISE_GRADE, CONF_DENOISE_CAP_LEVEL}
-            for vvar in denoise_vars:
-                if vvar in config:
-                    raise cv.Invalid(
-                        f"{vvar} is not valid on {VARIANT_ESP32P4} (denoise not supported)"
-                    )
+            invalid_vars |= {CONF_DENOISE_GRADE, CONF_DENOISE_CAP_LEVEL}
+    unsupported = invalid_vars.intersection(config)
+    if unsupported:
+        keys = ", ".join(sorted(f"'{k}'" for k in unsupported))
+        raise cv.Invalid(f"{keys} not valid on {variant}")
 
     return config
 
