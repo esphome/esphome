@@ -11,7 +11,21 @@ static const uint32_t TEARDOWN_TIMEOUT_DEEP_SLEEP_MS = 5000;
 
 bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+static DeepSleepComponent *g_deep_sleep_instance = nullptr;
+
+void register_deep_sleep_component(DeepSleepComponent *component) {
+  g_deep_sleep_instance = component;
+}
+
+uint32_t get_wakeup_pin() {
+  if (g_deep_sleep_instance == nullptr) {
+    return UINT32_MAX;
+  }
+  return g_deep_sleep_instance->get_wakeup_pin();
+}
+
 void DeepSleepComponent::setup() {
+  deep_sleep::register_deep_sleep_component(this);
   global_has_deep_sleep = true;
 
   const optional<uint32_t> run_duration = get_run_duration_();
