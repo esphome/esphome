@@ -80,6 +80,16 @@ inline bool is_redirect(int const status) {
  */
 inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && status < HTTP_STATUS_MULTIPLE_CHOICES; }
 
+/// Check if a header name should be collected (linear scan, fine for small lists)
+inline bool should_collect_header(const std::vector<std::string> &lower_case_collect_headers,
+                                  const std::string &lower_header_name) {
+  for (const auto &h : lower_case_collect_headers) {
+    if (h == lower_header_name)
+      return true;
+  }
+  return false;
+}
+
 /*
  * HTTP Container Read Semantics
  * =============================
@@ -258,20 +268,13 @@ class HttpContainer : public Parented<HttpRequestComponent> {
     return !this->is_chunked_ && this->bytes_read_ >= this->content_length;
   }
 
-  /**
-   * @brief Get response headers.
-   *
-   * @return The key is the lower case response header name, the value is the header value.
-   */
-  std::map<std::string, std::list<std::string>> get_response_headers() { return this->response_headers_; }
-
   std::string get_response_header(const std::string &header_name);
 
  protected:
   size_t bytes_read_{0};
   bool secure_{false};
   bool is_chunked_{false};  ///< True if response uses chunked transfer encoding
-  std::map<std::string, std::list<std::string>> response_headers_{};
+  std::vector<Header> response_headers_{};
 };
 
 /// Read data from HTTP container into buffer with timeout handling
@@ -333,8 +336,8 @@ class HttpRequestComponent : public Component {
     return this->start(url, "GET", "", request_headers);
   }
   std::shared_ptr<HttpContainer> get(const std::string &url, const std::list<Header> &request_headers,
-                                     const std::set<std::string> &collect_headers) {
-    return this->start(url, "GET", "", request_headers, collect_headers);
+                                     const std::vector<std::string> &lower_case_collect_headers) {
+    return this->start(url, "GET", "", request_headers, lower_case_collect_headers);
   }
   std::shared_ptr<HttpContainer> post(const std::string &url, const std::string &body) {
     return this->start(url, "POST", body, {});
@@ -345,29 +348,40 @@ class HttpRequestComponent : public Component {
   }
   std::shared_ptr<HttpContainer> post(const std::string &url, const std::string &body,
                                       const std::list<Header> &request_headers,
-                                      const std::set<std::string> &collect_headers) {
-    return this->start(url, "POST", body, request_headers, collect_headers);
+                                      const std::vector<std::string> &lower_case_collect_headers) {
+    return this->start(url, "POST", body, request_headers, lower_case_collect_headers);
   }
 
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::list<Header> &request_headers) {
-    return this->start(url, method, body, request_headers, {});
+    // Call perform() directly to avoid ambiguity with the std::set overload
+    return this->perform(url, method, body, request_headers, {});
+  }
+
+  // Remove before 2027.1.0
+  ESPDEPRECATED("Pass collect_headers as std::vector<std::string> instead of std::set. Removed in 2027.1.0.",
+                "2026.7.0")
+  std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
+                                       const std::list<Header> &request_headers,
+                                       const std::set<std::string> &collect_headers) {
+    std::vector<std::string> lower;
+    lower.reserve(collect_headers.size());
+    for (const auto &h : collect_headers) {
+      lower.push_back(str_lower_case(h));
+    }
+    return this->perform(url, method, body, request_headers, lower);
   }
 
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::list<Header> &request_headers,
-                                       const std::set<std::string> &collect_headers) {
-    std::set<std::string> lower_case_collect_headers;
-    for (const std::string &collect_header : collect_headers) {
-      lower_case_collect_headers.insert(str_lower_case(collect_header));
-    }
+                                       const std::vector<std::string> &lower_case_collect_headers) {
     return this->perform(url, method, body, request_headers, lower_case_collect_headers);
   }
 
  protected:
   virtual std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method,
                                                  const std::string &body, const std::list<Header> &request_headers,
-                                                 const std::set<std::string> &collect_headers) = 0;
+                                                 const std::vector<std::string> &lower_case_collect_headers) = 0;
   const char *useragent_{nullptr};
   bool follow_redirects_{};
   uint16_t redirect_limit_{};
@@ -389,7 +403,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     this->request_headers_.insert({key, value});
   }
 
-  void add_collect_header(const char *value) { this->collect_headers_.insert(value); }
+  void add_collect_header(const char *value) { this->lower_case_collect_headers_.push_back(value); }
 
   void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.insert({key, value}); }
 
@@ -431,7 +445,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     }
 
     auto container = this->parent_->start(this->url_.value(x...), this->method_.value(x...), body, request_headers,
-                                          this->collect_headers_);
+                                          this->lower_case_collect_headers_);
 
     auto captured_args = std::make_tuple(x...);
 
@@ -494,7 +508,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   void encode_json_func_(Ts... x, JsonObject root) { this->json_func_(x..., root); }
   HttpRequestComponent *parent_;
   std::map<const char *, TemplatableValue<const char *, Ts...>> request_headers_{};
-  std::set<std::string> collect_headers_{"content-type", "content-length"};
+  std::vector<std::string> lower_case_collect_headers_{"content-type", "content-length"};
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};
 #ifdef USE_HTTP_REQUEST_RESPONSE

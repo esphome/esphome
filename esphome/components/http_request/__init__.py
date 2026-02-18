@@ -310,7 +310,7 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
         cg.add(var.add_request_header(key, template_))
 
     for value in config.get(CONF_COLLECT_HEADERS, []):
-        cg.add(var.add_collect_header(value))
+        cg.add(var.add_collect_header(value.lower()))
 
     if response_conf := config.get(CONF_ON_RESPONSE):
         if capture_response:
