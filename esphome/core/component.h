@@ -109,7 +109,9 @@ class Component {
 
   float get_actual_setup_priority() const;
 
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
   void set_setup_priority(float priority);
+#endif
 
   /** priority of loop(). higher -> executed earlier
    *
@@ -562,7 +564,9 @@ class WarnIfComponentBlockingGuard {
   Component *component_;
 };
 
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
 // Function to clear setup priority overrides after all components are set up
 void clear_setup_priority_overrides();
+#endif
 
 }  // namespace esphome
