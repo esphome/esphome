@@ -20,7 +20,7 @@ class HttpRequestHost : public HttpRequestComponent {
  public:
   std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method, const std::string &body,
                                          const std::vector<Header> &request_headers,
-                                         const std::vector<std::string> &collect_headers) override;
+                                         const std::vector<std::string> &lower_case_collect_headers) override;
   void set_ca_path(const char *ca_path) { this->ca_path_ = ca_path; }
 
  protected:

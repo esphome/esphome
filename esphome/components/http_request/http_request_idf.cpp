@@ -19,7 +19,7 @@ namespace esphome::http_request {
 static const char *const TAG = "http_request.idf";
 
 struct UserData {
-  const std::vector<std::string> &collect_headers;
+  const std::vector<std::string> &lower_case_collect_headers;
   std::vector<Header> &response_headers;
 };
 
@@ -38,7 +38,7 @@ esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
   switch (evt->event_id) {
     case HTTP_EVENT_ON_HEADER: {
       const std::string header_name = str_lower_case(evt->header_key);
-      if (should_collect_header(user_data->collect_headers, header_name)) {
+      if (should_collect_header(user_data->lower_case_collect_headers, header_name)) {
         const std::string header_value = evt->header_value;
         ESP_LOGD(TAG, "Received response header, name: %s, value: %s", header_name.c_str(), header_value.c_str());
         user_data->response_headers.push_back({header_name, header_value});
@@ -55,7 +55,7 @@ esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
 std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, const std::string &method,
                                                        const std::string &body,
                                                        const std::vector<Header> &request_headers,
-                                                       const std::vector<std::string> &collect_headers) {
+                                                       const std::vector<std::string> &lower_case_collect_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);
     ESP_LOGE(TAG, "HTTP Request failed; Not connected to network");
@@ -118,7 +118,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 
   container->set_secure(secure);
 
-  auto user_data = UserData{collect_headers, container->response_headers_};
+  auto user_data = UserData{lower_case_collect_headers, container->response_headers_};
   esp_http_client_set_user_data(client, static_cast<void *>(&user_data));
 
   for (const auto &header : request_headers) {
