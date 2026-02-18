@@ -161,7 +161,11 @@ class ProtoVarInt {
 #endif
 
  protected:
+#ifdef USE_API_VARINT64
   uint64_t value_;
+#else
+  uint32_t value_;
+#endif
 };
 
 // Forward declarations for decode_to_message, encode_message and encode_packed_sint32
