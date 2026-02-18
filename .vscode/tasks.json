@@ -2,10 +2,10 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Live HTML build",
+      "label": "Dev server",
       "type": "shell",
-      "command": "make live-html",
+      "command": "npm run dev",
       "problemMatcher": []
-    },
+    }
   ]
 }
