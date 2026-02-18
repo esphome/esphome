@@ -1599,9 +1599,9 @@ std::string WebServer::climate_json_(climate::Climate *obj, JsonDetail start_con
             : (value_accuracy_to_buf(temp_buf, obj->current_temperature, current_accuracy), temp_buf);
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY)) {
-    root[ESPHOME_F("current_humidity")] =
-        std::isnan(obj->current_humidity) ? "NA"
-                                          : (value_accuracy_to_buf(temp_buf, obj->current_humidity, 0), temp_buf);
+    root[ESPHOME_F("current_humidity")] = std::isnan(obj->current_humidity)
+                                             ? "NA"
+                                             : (value_accuracy_to_buf(temp_buf, obj->current_humidity, 0), temp_buf);
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
