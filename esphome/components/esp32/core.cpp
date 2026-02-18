@@ -44,7 +44,7 @@ void arch_init() {
   esp_ota_mark_app_valid_cancel_rollback();
 #endif
 }
-void IRAM_ATTR HOT arch_feed_wdt() { esp_task_wdt_reset(); }
+void HOT arch_feed_wdt() { esp_task_wdt_reset(); }
 
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 uint32_t arch_get_cpu_cycle_count() { return esp_cpu_get_cycle_count(); }

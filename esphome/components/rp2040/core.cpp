@@ -27,7 +27,7 @@ void arch_init() {
 #endif
 }
 
-void IRAM_ATTR HOT arch_feed_wdt() { watchdog_update(); }
+void HOT arch_feed_wdt() { watchdog_update(); }
 
 uint8_t progmem_read_byte(const uint8_t *addr) {
   return pgm_read_byte(addr);  // NOLINT
