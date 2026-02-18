@@ -675,6 +675,7 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 #ifndef __GXX_ABI_VERSION
 #error "Application placement new requires Itanium C++ ABI (GCC/Clang)"
 #endif
+static_assert(std::is_default_constructible<Application>::value, "Application must be default-constructible");
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 alignas(Application) char app_storage[sizeof(Application)] asm("_ZN7esphome3AppE");
 

@@ -513,7 +513,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.RawExpression("using std::max"))
 
     # Construct App via placement new — see application.cpp for storage details
-    cg.add_global(cg.RawExpression("#include <new>"))
+    cg.add_global(cg.RawStatement("#include <new>"))
     cg.add(cg.RawExpression("new (&App) Application()"))
     cg.add(
         cg.App.pre_setup(
