@@ -8,8 +8,8 @@ namespace esphome::api {
 static const char *const TAG = "api.proto";
 
 #ifdef USE_API_VARINT64
-optional<ProtoVarInt> ProtoVarInt::parse_wide_(const uint8_t *buffer, uint32_t len, uint32_t *consumed,
-                                               uint32_t result32) {
+optional<ProtoVarInt> ProtoVarInt::parse_wide(const uint8_t *buffer, uint32_t len, uint32_t *consumed,
+                                              uint32_t result32) {
   uint64_t result64 = result32;
   uint32_t limit = std::min(len, uint32_t(10));
   for (uint32_t i = 4; i < limit; i++) {

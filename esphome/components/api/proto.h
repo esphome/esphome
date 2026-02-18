@@ -121,7 +121,7 @@ class ProtoVarInt {
     }
     // 64-bit phase for values > 28 bits (BLE addresses etc.)
 #ifdef USE_API_VARINT64
-    return parse_wide_(buffer, len, consumed, result32);
+    return parse_wide(buffer, len, consumed, result32);
 #else
     return {};
 #endif
@@ -131,7 +131,7 @@ class ProtoVarInt {
  protected:
   /// Continue parsing varint bytes 4-9 with 64-bit arithmetic.
   /// Separated to keep 64-bit shift code (__ashldi3 on 32-bit platforms) out of the common path.
-  static optional<ProtoVarInt> parse_wide_(const uint8_t *buffer, uint32_t len, uint32_t *consumed, uint32_t result32)
+  static optional<ProtoVarInt> parse_wide(const uint8_t *buffer, uint32_t len, uint32_t *consumed, uint32_t result32)
       __attribute__((noinline));
 
  public:
