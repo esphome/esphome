@@ -60,6 +60,11 @@ static constexpr uint8_t MAX_MESSAGES_PER_LOOP = 5;
 static constexpr uint8_t MAX_PING_RETRIES = 60;
 static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
 static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;
+// Timeout for completing the handshake (Noise transport + HelloRequest).
+// A stalled handshake from a buggy client or network glitch holds a connection
+// slot, which can prevent legitimate clients from reconnecting. Also hardens
+// against the less likely case of intentional connection slot exhaustion.
+static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 15000;
 
 static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
 
@@ -221,6 +226,15 @@ void APIConnection::loop() {
 
   if (this->active_iterator_ != ActiveIterator::NONE) {
     this->process_active_iterator_();
+  }
+
+  // Disconnect clients that haven't completed the handshake in time.
+  // Stale half-open connections from buggy clients or network issues can
+  // accumulate and block legitimate clients from reconnecting.
+  if (!this->is_authenticated() && now - this->last_traffic_ > HANDSHAKE_TIMEOUT_MS) {
+    this->on_fatal_error();
+    this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("handshake timeout; disconnecting"));
+    return;
   }
 
   if (this->flags_.sent_ping) {
