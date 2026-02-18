@@ -58,9 +58,89 @@ display:
       number: GPIO4
 
   - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-7.5in-H
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+
+  - platform: epaper_spi
     model: seeed-reterminal-e1002
   - platform: epaper_spi
     model: seeed-ee04-mono-4.26
     # Override pins to avoid conflict with other display configs
     busy_pin: 43
     dc_pin: 42
+
+  # WeAct 2.13" 3-color e-paper (122x250, SSD1680)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: weact-2.13in-3c
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 20, Color::BLACK);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 15, Color(255, 0, 0));
+
+  # WeAct 2.9" 3-color e-paper (128x296, SSD1683)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: weact-2.9in-3c
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 20, Color::BLACK);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 15, Color(255, 0, 0));
+
+  # WeAct 4.2" 3-color e-paper (400x300, SSD1683)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: weact-4.2in-3c
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 30, Color::BLACK);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 20, Color(255, 0, 0));
