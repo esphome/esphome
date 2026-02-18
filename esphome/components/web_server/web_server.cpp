@@ -1564,7 +1564,8 @@ std::string WebServer::climate_json_(climate::Climate *obj, JsonDetail start_con
   }
   if (traits.get_supports_fan_modes()) {
     root[ESPHOME_F("fan_mode")] =
-        obj->fan_mode.has_value() ? PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value())) : "";
+        obj->fan_mode.has_value() ? PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()))
+                                  : PSTR_LOCAL(climate_fan_mode_to_string(climate::CLIMATE_FAN_AUTO));
   }
   if (!traits.get_supported_custom_fan_modes().empty()) {
     if (obj->has_custom_fan_mode()) {
