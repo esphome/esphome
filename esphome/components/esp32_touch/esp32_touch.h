@@ -107,8 +107,6 @@ class ESP32TouchComponent : public Component {
   };
 
   // Common helper methods
-  void dump_config_base_();
-  void dump_config_sensors_();
   bool create_touch_queue_();
   void cleanup_touch_queue_();
   void configure_wakeup_pads_();
@@ -180,63 +178,6 @@ class ESP32TouchComponent : public Component {
   int waterproof_guard_ring_pad_{-1};
   uint32_t waterproof_shield_driver_{0};
   bool waterproof_configured_{false};
-#endif
-
-  // Helper functions for dump_config
-#if !defined(USE_ESP32_VARIANT_ESP32P4)
-  static const char *get_low_voltage_reference_str(touch_volt_lim_l_t ref) {
-    switch (ref) {
-      case TOUCH_VOLT_LIM_L_0V5:
-        return "0.5V";
-      case TOUCH_VOLT_LIM_L_0V6:
-        return "0.6V";
-      case TOUCH_VOLT_LIM_L_0V7:
-        return "0.7V";
-      case TOUCH_VOLT_LIM_L_0V8:
-        return "0.8V";
-      default:
-        return "UNKNOWN";
-    }
-  }
-
-  static const char *get_high_voltage_reference_str(touch_volt_lim_h_t ref) {
-    switch (ref) {
-      case TOUCH_VOLT_LIM_H_0V9:
-        return "0.9V";
-      case TOUCH_VOLT_LIM_H_1V0:
-        return "1.0V";
-      case TOUCH_VOLT_LIM_H_1V1:
-        return "1.1V";
-      case TOUCH_VOLT_LIM_H_1V2:
-        return "1.2V";
-      case TOUCH_VOLT_LIM_H_1V4:
-        return "1.4V";
-      case TOUCH_VOLT_LIM_H_1V5:
-        return "1.5V";
-      case TOUCH_VOLT_LIM_H_1V6:
-        return "1.6V";
-      case TOUCH_VOLT_LIM_H_1V7:
-        return "1.7V";
-      case TOUCH_VOLT_LIM_H_1V9:
-        return "1.9V";
-      case TOUCH_VOLT_LIM_H_2V0:
-        return "2.0V";
-      case TOUCH_VOLT_LIM_H_2V1:
-        return "2.1V";
-      case TOUCH_VOLT_LIM_H_2V2:
-        return "2.2V";
-      case TOUCH_VOLT_LIM_H_2V4:
-        return "2.4V";
-      case TOUCH_VOLT_LIM_H_2V5:
-        return "2.5V";
-      case TOUCH_VOLT_LIM_H_2V6:
-        return "2.6V";
-      case TOUCH_VOLT_LIM_H_2V7:
-        return "2.7V";
-      default:
-        return "UNKNOWN";
-    }
-  }
 #endif
 };
 

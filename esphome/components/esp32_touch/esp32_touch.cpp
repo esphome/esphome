@@ -9,6 +9,10 @@
 
 namespace esphome::esp32_touch {
 
+template<size_t N> static const char *lookup_str(const char *const (&table)[N], size_t index) {
+  return (index < N) ? table[index] : "UNKNOWN";
+}
+
 static const char *const TAG = "esp32_touch";
 
 // V1: called from esp_timer context (software filter)
@@ -224,128 +228,71 @@ void ESP32TouchComponent::setup() {
 }
 
 void ESP32TouchComponent::dump_config() {
-  this->dump_config_base_();
+#if !defined(USE_ESP32_VARIANT_ESP32P4)
+  static constexpr const char *LV_STRS[] = {"0.5V", "0.6V", "0.7V", "0.8V"};
+  static constexpr const char *HV_STRS[] = {"0.9V", "1.0V", "1.1V", "1.2V", "1.4V", "1.5V", "1.6V", "1.7V",
+                                            "1.9V", "2.0V", "2.1V", "2.2V", "2.4V", "2.5V", "2.6V", "2.7V"};
+  const char *lv_s = lookup_str(LV_STRS, this->low_voltage_reference_);
+  const char *hv_s = lookup_str(HV_STRS, this->high_voltage_reference_);
+
+  ESP_LOGCONFIG(TAG,
+                "Config for ESP32 Touch Hub:\n"
+                "  Measurement interval: %.1fus\n"
+                "  Low Voltage Reference: %s\n"
+                "  High Voltage Reference: %s\n"
+                "  Release Timeout: %" PRIu32 "ms",
+                this->meas_interval_us_, lv_s, hv_s, this->release_timeout_ms_);
+#else
+  ESP_LOGCONFIG(TAG,
+                "Config for ESP32 Touch Hub:\n"
+                "  Measurement interval: %.1fus\n"
+                "  Release Timeout: %" PRIu32 "ms",
+                this->meas_interval_us_, this->release_timeout_ms_);
+#endif
 
 #ifdef USE_ESP32_VARIANT_ESP32
   if (this->iir_filter_enabled_()) {
     ESP_LOGCONFIG(TAG, "  IIR Filter: %" PRIu32 "ms", this->iir_filter_);
   } else {
-    ESP_LOGCONFIG(TAG, "  Software Filter: 10ms (default)");
+    ESP_LOGCONFIG(TAG, "  IIR Filter: 10ms (default)");
   }
 #else
   if (this->filter_configured_) {
-    const char *filter_mode_s;
-    switch (this->filter_mode_) {
-      case TOUCH_BM_IIR_FILTER_4:
-        filter_mode_s = "IIR_4";
-        break;
-      case TOUCH_BM_IIR_FILTER_8:
-        filter_mode_s = "IIR_8";
-        break;
-      case TOUCH_BM_IIR_FILTER_16:
-        filter_mode_s = "IIR_16";
-        break;
-      case TOUCH_BM_IIR_FILTER_32:
-        filter_mode_s = "IIR_32";
-        break;
-      case TOUCH_BM_IIR_FILTER_64:
-        filter_mode_s = "IIR_64";
-        break;
-      case TOUCH_BM_IIR_FILTER_128:
-        filter_mode_s = "IIR_128";
-        break;
+    // TOUCH_BM_IIR_FILTER_256 only exists on V2, shifting JITTER's position
+    static constexpr const char *FILTER_STRS[] = {
+      "IIR_4",
+      "IIR_8",
+      "IIR_16",
+      "IIR_32",
+      "IIR_64",
+      "IIR_128",
 #if SOC_TOUCH_SENSOR_VERSION == 2
-      case TOUCH_BM_IIR_FILTER_256:
-        filter_mode_s = "IIR_256";
-        break;
+      "IIR_256",
 #endif
-      case TOUCH_BM_JITTER_FILTER:
-        filter_mode_s = "JITTER";
-        break;
-      default:
-        filter_mode_s = "UNKNOWN";
-        break;
-    }
+      "JITTER",
+    };
+    static constexpr const char *SMOOTH_STRS[] = {"OFF", "IIR_2", "IIR_4", "IIR_8"};
+    const char *filter_s = lookup_str(FILTER_STRS, this->filter_mode_);
+    const char *smooth_s = lookup_str(SMOOTH_STRS, this->smooth_level_);
     ESP_LOGCONFIG(TAG,
                   "  Filter mode: %s\n"
                   "  Debounce count: %" PRIu32 "\n"
                   "  Noise threshold coefficient: %" PRIu32 "\n"
-                  "  Jitter filter step size: %" PRIu32,
-                  filter_mode_s, this->debounce_count_, this->noise_threshold_, this->jitter_step_);
-    const char *smooth_level_s;
-    switch (this->smooth_level_) {
-      case TOUCH_SMOOTH_NO_FILTER:
-        smooth_level_s = "OFF";
-        break;
-      case TOUCH_SMOOTH_IIR_FILTER_2:
-        smooth_level_s = "IIR_2";
-        break;
-      case TOUCH_SMOOTH_IIR_FILTER_4:
-        smooth_level_s = "IIR_4";
-        break;
-      case TOUCH_SMOOTH_IIR_FILTER_8:
-        smooth_level_s = "IIR_8";
-        break;
-      default:
-        smooth_level_s = "UNKNOWN";
-        break;
-    }
-    ESP_LOGCONFIG(TAG, "  Smooth level: %s", smooth_level_s);
+                  "  Jitter filter step size: %" PRIu32 "\n"
+                  "  Smooth level: %s",
+                  filter_s, this->debounce_count_, this->noise_threshold_, this->jitter_step_, smooth_s);
   }
 
 #if SOC_TOUCH_SUPPORT_DENOISE_CHAN
   if (this->denoise_configured_) {
-    const char *grade_s;
-    switch (this->denoise_grade_) {
-      case TOUCH_DENOISE_CHAN_RESOLUTION_BIT12:
-        grade_s = "BIT12";
-        break;
-      case TOUCH_DENOISE_CHAN_RESOLUTION_BIT10:
-        grade_s = "BIT10";
-        break;
-      case TOUCH_DENOISE_CHAN_RESOLUTION_BIT8:
-        grade_s = "BIT8";
-        break;
-      case TOUCH_DENOISE_CHAN_RESOLUTION_BIT4:
-        grade_s = "BIT4";
-        break;
-      default:
-        grade_s = "UNKNOWN";
-        break;
-    }
-    ESP_LOGCONFIG(TAG, "  Denoise grade: %s", grade_s);
-
-    const char *cap_level_s;
-    switch (this->denoise_cap_level_) {
-      case TOUCH_DENOISE_CHAN_CAP_5PF:
-        cap_level_s = "5pF";
-        break;
-      case TOUCH_DENOISE_CHAN_CAP_6PF:
-        cap_level_s = "6.4pF";
-        break;
-      case TOUCH_DENOISE_CHAN_CAP_7PF:
-        cap_level_s = "7.8pF";
-        break;
-      case TOUCH_DENOISE_CHAN_CAP_9PF:
-        cap_level_s = "9.2pF";
-        break;
-      case TOUCH_DENOISE_CHAN_CAP_10PF:
-        cap_level_s = "10.6pF";
-        break;
-      case TOUCH_DENOISE_CHAN_CAP_12PF:
-        cap_level_s = "12pF";
-        break;
-      case TOUCH_DENOISE_CHAN_CAP_13PF:
-        cap_level_s = "13.4pF";
-        break;
-      case TOUCH_DENOISE_CHAN_CAP_14PF:
-        cap_level_s = "14.8pF";
-        break;
-      default:
-        cap_level_s = "UNKNOWN";
-        break;
-    }
-    ESP_LOGCONFIG(TAG, "  Denoise capacitance level: %s", cap_level_s);
+    static constexpr const char *GRADE_STRS[] = {"BIT12", "BIT10", "BIT8", "BIT4"};
+    static constexpr const char *CAP_STRS[] = {"5pF", "6.4pF", "7.8pF", "9.2pF", "10.6pF", "12pF", "13.4pF", "14.8pF"};
+    const char *grade_s = lookup_str(GRADE_STRS, this->denoise_grade_);
+    const char *cap_s = lookup_str(CAP_STRS, this->denoise_cap_level_);
+    ESP_LOGCONFIG(TAG,
+                  "  Denoise grade: %s\n"
+                  "  Denoise capacitance level: %s",
+                  grade_s, cap_s);
   }
 #endif
 #endif  // !USE_ESP32_VARIANT_ESP32
@@ -354,7 +301,14 @@ void ESP32TouchComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Setup Mode ENABLED");
   }
 
-  this->dump_config_sensors_();
+  for (auto *child : this->children_) {
+    LOG_BINARY_SENSOR("  ", "Touch Pad", child);
+    ESP_LOGCONFIG(TAG,
+                  "    Channel: %d\n"
+                  "    Threshold: %" PRIu32 "\n"
+                  "    Benchmark: %" PRIu32,
+                  child->channel_id_, child->threshold_, child->benchmark_);
+  }
 }
 
 void ESP32TouchComponent::loop() {
@@ -466,38 +420,6 @@ void ESP32TouchComponent::on_shutdown() {
   this->sens_handle_ = nullptr;
 
   this->cleanup_touch_queue_();
-}
-
-void ESP32TouchComponent::dump_config_base_() {
-#if !defined(USE_ESP32_VARIANT_ESP32P4)
-  const char *lv_s = get_low_voltage_reference_str(this->low_voltage_reference_);
-  const char *hv_s = get_high_voltage_reference_str(this->high_voltage_reference_);
-
-  ESP_LOGCONFIG(TAG,
-                "Config for ESP32 Touch Hub:\n"
-                "  Measurement interval: %.1fus\n"
-                "  Low Voltage Reference: %s\n"
-                "  High Voltage Reference: %s\n"
-                "  Release Timeout: %" PRIu32 "ms",
-                this->meas_interval_us_, lv_s, hv_s, this->release_timeout_ms_);
-#else
-  ESP_LOGCONFIG(TAG,
-                "Config for ESP32 Touch Hub:\n"
-                "  Measurement interval: %.1fus\n"
-                "  Release Timeout: %" PRIu32 "ms",
-                this->meas_interval_us_, this->release_timeout_ms_);
-#endif
-}
-
-void ESP32TouchComponent::dump_config_sensors_() {
-  for (auto *child : this->children_) {
-    LOG_BINARY_SENSOR("  ", "Touch Pad", child);
-    ESP_LOGCONFIG(TAG,
-                  "    Channel: %d\n"
-                  "    Threshold: %" PRIu32 "\n"
-                  "    Benchmark: %" PRIu32,
-                  child->channel_id_, child->threshold_, child->benchmark_);
-  }
 }
 
 bool ESP32TouchComponent::create_touch_queue_() {
