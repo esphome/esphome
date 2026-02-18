@@ -67,3 +67,4 @@ class GPIOBinarySensor : public binary_sensor::BinarySensor, public Component {
 
 }  // namespace gpio
 }  // namespace esphome
+
