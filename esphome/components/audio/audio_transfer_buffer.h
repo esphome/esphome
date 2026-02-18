@@ -56,6 +56,9 @@ class AudioTransferBuffer {
   /// @return True if there is data, false otherwise.
   virtual bool has_buffered_data() const;
 
+  /// @brief Reallocates the transfer buffer, preserving any existing data.
+  /// @param new_buffer_size The new size in bytes. Must be at least as large as available().
+  /// @return True if successful, false otherwise. On failure, the original buffer remains valid.
   bool reallocate(size_t new_buffer_size);
 
  protected:

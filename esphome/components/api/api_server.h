@@ -268,7 +268,11 @@ class APIServer : public Component,
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
-  std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
+  // Shared proto write buffer for all connections.
+  // Not pre-allocated: all send paths call prepare_first_message_buffer() which
+  // reserves the exact needed size. Pre-allocating here would cause heap fragmentation
+  // since the buffer would almost always reallocate on first use.
+  std::vector<uint8_t> shared_write_buffer_;
 #ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
 #endif
