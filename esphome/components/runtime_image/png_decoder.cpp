@@ -50,7 +50,8 @@ static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, ui
 
 PngDecoder::PngDecoder(RuntimeImage *image) : ImageDecoder(image) {
   {
-    pngle_t *pngle = this->allocator_.allocate(1, PNGLE_T_SIZE);
+    RAMAllocator<pngle_t> allocator;
+    pngle_t *pngle = allocator.allocate(1, PNGLE_T_SIZE);
     if (!pngle) {
       ESP_LOGE(TAG, "Failed to allocate memory for PNGLE engine!");
       return;
@@ -64,7 +65,8 @@ PngDecoder::PngDecoder(RuntimeImage *image) : ImageDecoder(image) {
 PngDecoder::~PngDecoder() {
   if (this->pngle_) {
     pngle_reset(this->pngle_);
-    this->allocator_.deallocate(this->pngle_, PNGLE_T_SIZE);
+    RAMAllocator<pngle_t> allocator;
+    allocator.deallocate(this->pngle_, PNGLE_T_SIZE);
   }
 }
 

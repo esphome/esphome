@@ -77,7 +77,6 @@ class BLECharacteristic {
   }
 
  protected:
-  bool write_event_{false};
   BLEService *service_{};
   ESPBTUUID uuid_;
   esp_gatt_char_prop_t properties_;
