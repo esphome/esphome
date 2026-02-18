@@ -76,7 +76,7 @@ class DeepSleepComponent : public Component {
  public:
   /// Set the duration in ms the component should sleep once it's in deep sleep mode.
   void set_sleep_duration(uint32_t time_ms);
-  
+
   uint32_t get_wakeup_pin() const {
     if (this->wakeup_pin_ != nullptr) {
       return this->wakeup_pin_->get_pin();

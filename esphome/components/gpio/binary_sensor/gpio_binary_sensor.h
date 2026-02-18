@@ -47,7 +47,7 @@ class GPIOBinarySensor : public binary_sensor::BinarySensor, public Component {
   void set_pin(GPIOPin *pin) { pin_ = pin; }
   void set_use_interrupt(bool use_interrupt) { use_interrupt_ = use_interrupt; }
   void set_interrupt_type(gpio::InterruptType type) { interrupt_type_ = type; }
-  
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup pin

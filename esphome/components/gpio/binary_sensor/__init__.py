@@ -1,4 +1,5 @@
 import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import binary_sensor
@@ -11,6 +12,7 @@ from esphome.const import (
     CONF_PIN,
 )
 from esphome.core import CORE
+
 from .. import gpio_ns
 
 _LOGGER = logging.getLogger(__name__)
@@ -85,7 +87,10 @@ async def to_code(config):
                     ext1_config = deep_sleep_config["esp32_ext1_wakeup"]
                     if "pins" in ext1_config:
                         for pin_config in ext1_config["pins"]:
-                            if pin_config.get(CONF_NUMBER) == config[CONF_PIN][CONF_NUMBER]:
+                            if (
+                                pin_config.get(CONF_NUMBER)
+                                == config[CONF_PIN][CONF_NUMBER]
+                            ):
                                 is_deep_sleep_pin = True
                                 break
 

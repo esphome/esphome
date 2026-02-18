@@ -13,9 +13,7 @@ bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const
 
 static DeepSleepComponent *g_deep_sleep_instance = nullptr;
 
-void register_deep_sleep_component(DeepSleepComponent *component) {
-  g_deep_sleep_instance = component;
-}
+void register_deep_sleep_component(DeepSleepComponent *component) { g_deep_sleep_instance = component; }
 
 uint32_t get_wakeup_pin() {
   if (g_deep_sleep_instance == nullptr) {

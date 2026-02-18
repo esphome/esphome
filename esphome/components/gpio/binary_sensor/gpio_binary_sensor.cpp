@@ -6,9 +6,7 @@ namespace esphome {
 namespace deep_sleep {
 
 // Default weak implementation - overridden by deep_sleep component if present
-uint32_t __attribute__((weak)) get_wakeup_pin() {
-  return UINT32_MAX;
-}
+uint32_t __attribute__((weak)) get_wakeup_pin() { return UINT32_MAX; }
 }  // namespace deep_sleep
 
 namespace gpio {
@@ -16,9 +14,7 @@ namespace gpio {
 static const char *const TAG = "gpio.binary_sensor";
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-static const LogString *interrupt_type_to_string(gpio::InterruptType type) {
-  return LOG_STR("INTERRUPT");
-}
+static const LogString *interrupt_type_to_string(gpio::InterruptType type) { return LOG_STR("INTERRUPT"); }
 
 static const LogString *gpio_mode_to_string(bool use_interrupt) {
   return use_interrupt ? LOG_STR("interrupt") : LOG_STR("polling");
@@ -51,12 +47,12 @@ void GPIOBinarySensor::setup() {
     auto *internal_pin = static_cast<InternalGPIOPin *>(this->pin_);
     uint32_t deep_sleep_pin = deep_sleep::get_wakeup_pin();
     uint32_t current_pin = internal_pin->get_pin();
-    
+
     if (current_pin != deep_sleep_pin && deep_sleep_pin != UINT32_MAX) {
       this->use_interrupt_ = false;
     }
   }
-  
+
   if (this->use_interrupt_ && !this->pin_->is_internal()) {
     ESP_LOGD(TAG, "GPIO is not internal, falling back to polling mode");
     this->use_interrupt_ = false;
