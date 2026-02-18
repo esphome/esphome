@@ -119,12 +119,23 @@ class ProtoVarInt {
         return ProtoVarInt(result32);
       }
     }
-    // 64-bit phase for values > 28 bits (BLE addresses etc.)
+    // Byte 4: handles uint32 values >= 2^28 that need 5 varint bytes
+    // Only lower 4 bits contribute to bits 28-31 of the uint32 result
+    if (len > 4) {
+      uint8_t val = buffer[4];
+      result32 |= uint32_t(val & 0x0F) << 28;
+      if ((val & 0x80) == 0) {
+        *consumed = 5;
+        return ProtoVarInt(result32);
+      }
+      // Varint continues past byte 4 — needs 64-bit (BLE addresses etc.)
 #ifdef USE_API_VARINT64
-    return parse_wide(buffer, len, consumed, result32);
+      return parse_wide(buffer, len, consumed, result32);
 #else
-    return {};
+      return {};
 #endif
+    }
+    return {};
   }
 
 #ifdef USE_API_VARINT64
