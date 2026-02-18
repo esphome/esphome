@@ -4,8 +4,12 @@
 
 namespace esphome {
 namespace deep_sleep {
-extern uint32_t get_wakeup_pin();
+
+// Default weak implementation - overridden by deep_sleep component if present
+uint32_t __attribute__((weak)) get_wakeup_pin() {
+  return UINT32_MAX;
 }
+}  // namespace deep_sleep
 
 namespace gpio {
 
