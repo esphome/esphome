@@ -7,9 +7,9 @@
 namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.mono";
 
-void EPaperMono::refresh_screen(bool partial) {
+void EPaperMono::refresh_screen() {
   ESP_LOGV(TAG, "Refresh screen");
-  this->cmd_data(0x22, {partial ? (uint8_t) 0xFF : (uint8_t) 0xF7});
+  this->cmd_data(0x22, {(this->refresh_type_ == EPaperRefreshType::PARTIAL) ? (uint8_t) 0xFF : (uint8_t) 0xF7});
   this->command(0x20);
 }
 

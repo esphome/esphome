@@ -193,7 +193,7 @@ bool EPaperJD79660::transfer_data() {
   return this->transfer_buffer_chunks_();
 }
 
-void EPaperJD79660::refresh_screen([[maybe_unused]] bool partial) {
+void EPaperJD79660::refresh_screen() {
   ESP_LOGV(TAG, "Refresh");
   this->cmd_data(CMD_REFRESH, {(uint8_t) 0x00});
 }

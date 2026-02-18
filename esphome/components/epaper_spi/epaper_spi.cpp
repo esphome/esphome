@@ -14,9 +14,21 @@ static constexpr const char *const EPAPER_STATE_STRINGS[] = {
     "TRANSFER_DATA", "POWER_ON", "REFRESH_SCREEN", "POWER_OFF", "DEEP_SLEEP",
 };
 
+static constexpr const char *const EPAPER_REFRESH_TYPE_STRINGS[] = {
+    "FULL",
+    "PARTIAL",
+    "FULL_FAST",
+};
+
 const char *EPaperBase::epaper_state_to_string_() {
   if (auto idx = static_cast<unsigned>(this->state_); idx < std::size(EPAPER_STATE_STRINGS))
     return EPAPER_STATE_STRINGS[idx];
+  return "Unknown";
+}
+
+const char *EPaperBase::epaper_refresh_type_to_string_() {
+  if (auto idx = static_cast<unsigned>(this->refresh_type_); idx < std::size(EPAPER_REFRESH_TYPE_STRINGS))
+    return EPAPER_REFRESH_TYPE_STRINGS[idx];
   return "Unknown";
 }
 
@@ -98,15 +110,25 @@ bool EPaperBase::reset() {
 }
 
 void EPaperBase::update() {
+  bool success = this->update_control(this->update_count_ == 0 ? EPaperRefreshType::FULL : EPaperRefreshType::PARTIAL);
+  if (success) {
+    this->update_count_ = (this->update_count_ + 1) % this->full_update_every_;
+  }
+}
+
+bool EPaperBase::update_control(EPaperRefreshType refresh) {
   if (this->state_ != EPaperState::IDLE) {
     ESP_LOGE(TAG, "Display already in state %s", epaper_state_to_string_());
-    return;
+    return false;
   }
+  this->refresh_type_ = refresh;
+  ESP_LOGD(TAG, "Performing %s update", epaper_refresh_type_to_string_());
   this->set_state_(EPaperState::UPDATE);
   this->enable_loop();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
   this->update_start_time_ = millis();
 #endif
+  return true;
 }
 
 void EPaperBase::wait_for_idle_(bool should_wait) {
@@ -202,8 +224,7 @@ void EPaperBase::process_state_() {
       this->set_state_(EPaperState::REFRESH_SCREEN);
       break;
     case EPaperState::REFRESH_SCREEN:
-      this->refresh_screen(this->update_count_ != 0);
-      this->update_count_ = (this->update_count_ + 1) % this->full_update_every_;
+      this->refresh_screen();
       this->set_state_(EPaperState::POWER_OFF);
       break;
     case EPaperState::POWER_OFF:

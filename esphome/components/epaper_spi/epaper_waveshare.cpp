@@ -34,14 +34,15 @@ void EpaperWaveshare::set_window() {
   ESP_LOGV(TAG, "Set window X: %u-%u, Y: %u-%u", this->x_low_, this->x_high_, this->y_low_, this->y_high_);
 }
 
-void EpaperWaveshare::refresh_screen(bool partial) {
-  if (partial) {
+void EpaperWaveshare::refresh_screen() {
+  if (this->refresh_type_ == EPaperRefreshType::PARTIAL) {
     this->cmd_data(0x22, {0x0F});
+    this->next_delay_ = 100;
   } else {
     this->cmd_data(0x22, {0xC7});
+    this->next_delay_ = 3000;
   }
   this->command(0x20);
-  this->next_delay_ = partial ? 100 : 3000;
 }
 
 void EpaperWaveshare::deep_sleep() { this->cmd_data(0x10, {0x01}); }

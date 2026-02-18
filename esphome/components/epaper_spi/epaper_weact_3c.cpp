@@ -190,7 +190,7 @@ bool HOT EPaperWeAct3C::transfer_data() {
   return true;
 }
 
-void EPaperWeAct3C::refresh_screen(bool partial) {
+void EPaperWeAct3C::refresh_screen() {
   // SSD1680 refresh sequence:
   // Reset RAM X/Y address counters to 0,0 so display reads from start
   // 0x4E: RAM X counter - 1 byte (X / 8)
