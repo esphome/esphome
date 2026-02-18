@@ -120,7 +120,9 @@ SerializationBuffer<> JsonBuilder::serialize() {
   }
 
   // Payload exceeded stack buffer. Double the buffer and retry until it fits.
-  // Cap at 4096 to prevent runaway allocation on memory-constrained devices.
+  // In practice, one iteration (1024 bytes) covers all known entity types.
+  // Payloads exceeding 1024 bytes are not known to exist in real configurations.
+  // Cap at 4096 as a safety limit to prevent runaway allocation.
   size_t heap_size = buf_size * 2;
   while (heap_size <= 4096) {
     result.reallocate_heap_(heap_size - 1);
