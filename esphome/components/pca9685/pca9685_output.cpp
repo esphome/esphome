@@ -8,11 +8,7 @@ namespace pca9685 {
 
 static const char *const TAG = "pca9685";
 
-const uint8_t PCA9685_MODE_INVERTED = 0x10;
-const uint8_t PCA9685_MODE_OUTPUT_ONACK = 0x08;
-const uint8_t PCA9685_MODE_OUTPUT_TOTEM_POLE = 0x04;
-const uint8_t PCA9685_MODE_OUTNE_HIGHZ = 0x02;
-const uint8_t PCA9685_MODE_OUTNE_LOW = 0x01;
+// PCA9685 mode constants are now inline constexpr in pca9685_output.h
 
 static const uint8_t PCA9685_REGISTER_SOFTWARE_RESET = 0x06;
 static const uint8_t PCA9685_REGISTER_MODE1 = 0x00;
