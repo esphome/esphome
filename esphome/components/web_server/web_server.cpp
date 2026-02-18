@@ -1563,9 +1563,13 @@ std::string WebServer::climate_json_(climate::Climate *obj, JsonDetail start_con
     has_state = true;
   }
   if (traits.get_supports_fan_modes()) {
-    root[ESPHOME_F("fan_mode")] =
-        obj->fan_mode.has_value() ? PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()))
-                                  : PSTR_LOCAL(climate_fan_mode_to_string(climate::CLIMATE_FAN_AUTO));
+    if (obj->fan_mode.has_value()) {
+      root[ESPHOME_F("fan_mode")] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
+    } else if (!obj->has_custom_fan_mode()) {
+      root[ESPHOME_F("fan_mode")] = PSTR_LOCAL(climate_fan_mode_to_string(climate::CLIMATE_FAN_AUTO));
+    } else {
+      root[ESPHOME_F("fan_mode")] = "";
+    }
   }
   if (!traits.get_supported_custom_fan_modes().empty()) {
     if (obj->has_custom_fan_mode()) {
