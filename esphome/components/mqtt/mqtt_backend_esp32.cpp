@@ -7,6 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/components/watchdog/watchdog.h"
 
 namespace esphome::mqtt {
 
@@ -121,14 +122,24 @@ void MQTTBackendESP32::disable() {
   esp_mqtt_client_handle_t client = this->handler_.get();
   if (client != nullptr) {
     esp_mqtt_client_unregister_event(client, MQTT_EVENT_ANY, mqtt_event_handler);
-    esp_mqtt_client_disconnect(client);
-    esp_mqtt_client_stop(client);
   }
 
   while (!this->mqtt_events_.empty()) {
     this->mqtt_events_.pop();
   }
 
+  // We must extend the watchdog before resetting the handler,
+  // as the handler's destructor may block for a while if the MQTT task
+  // is in the middle of trying to connect to a broker that is not responding
+  uint32_t wdt_timeout;
+  if (this->mqtt_cfg_.network.timeout_ms > 0) {
+    wdt_timeout = this->mqtt_cfg_.network.timeout_ms + 1000;
+  } else {
+    wdt_timeout = 15000;  // ESP-IDF default timeout is 10s + 5s margin
+  }
+  watchdog::WatchdogManager wdm(wdt_timeout);
+  // Stops and destroys the client
+  App.feed_wdt();
   this->handler_.reset();
   this->is_initalized_ = false;
 }

@@ -72,7 +72,7 @@ def AUTO_LOAD():
         return ["async_tcp", "json"]
     # ESP32 needs socket for wake_loop_threadsafe()
     if CORE.is_esp32:
-        return ["json", "socket"]
+        return ["json", "socket", "watchdog"]
     return ["json"]
 
 
