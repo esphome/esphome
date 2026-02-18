@@ -82,8 +82,6 @@ void store_component_error_message(const Component *component, const char *messa
 const uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;       ///< Initial blocking time allowed without warning
 const uint16_t WARN_IF_BLOCKING_INCREMENT_MS = 10U;  ///< How long the blocking time must be larger to warn again
 
-uint32_t global_state = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 float Component::get_loop_priority() const { return 0.0f; }
 
 float Component::get_setup_priority() const { return setup_priority::DATA; }
