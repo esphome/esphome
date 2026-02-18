@@ -137,8 +137,10 @@ void Application::setup() {
 
   ESP_LOGI(TAG, "setup() finished successfully!");
 
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Clear setup priority overrides to free memory
   clear_setup_priority_overrides();
+#endif
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   // Set up wake socket for waking main loop from tasks
