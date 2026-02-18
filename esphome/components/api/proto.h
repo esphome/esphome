@@ -108,9 +108,12 @@ class ProtoVarInt {
 #ifdef ESPHOME_DEBUG_API
     assert(consumed != nullptr);
 #endif
-    // 32-bit phase: bytes 0-3 (shifts 0, 7, 14, 21 — all native on 32-bit platforms)
+    // 32-bit phase: bytes 0-4 cover all uint32 varint values
+    // Byte 4 shift (28) may truncate upper 3 bits in uint32, but those are
+    // always zero for valid uint32 values; parse_wide re-processes byte 4
+    // with full 64-bit arithmetic when the varint continues past byte 4.
     uint32_t result32 = 0;
-    uint32_t limit = std::min(len, uint32_t(4));
+    uint32_t limit = std::min(len, uint32_t(5));
     for (uint32_t i = 0; i < limit; i++) {
       uint8_t val = buffer[i];
       result32 |= uint32_t(val & 0x7F) << (i * 7);
@@ -119,23 +122,12 @@ class ProtoVarInt {
         return ProtoVarInt(result32);
       }
     }
-    // Byte 4: handles uint32 values >= 2^28 that need 5 varint bytes
-    // Only lower 4 bits contribute to bits 28-31 of the uint32 result
-    if (len > 4) {
-      uint8_t val = buffer[4];
-      result32 |= uint32_t(val & 0x0F) << 28;
-      if ((val & 0x80) == 0) {
-        *consumed = 5;
-        return ProtoVarInt(result32);
-      }
-      // Varint continues past byte 4 — needs 64-bit (BLE addresses etc.)
+    // 64-bit phase for values > 32 bits (BLE addresses etc.)
 #ifdef USE_API_VARINT64
-      return parse_wide(buffer, len, consumed, result32);
+    return parse_wide(buffer, len, consumed, result32);
 #else
-      return {};
-#endif
-    }
     return {};
+#endif
   }
 
 #ifdef USE_API_VARINT64
