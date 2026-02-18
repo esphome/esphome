@@ -299,6 +299,7 @@ The lists below are grouped by tag and may contain duplicates across sections.
 - [water_heater] Add On/Off and Away mode support to template platform [esphome#13839](https://github.com/esphome/esphome/pull/13839) by [@tronikos](https://github.com/tronikos) (new-feature)
 - [logger] Add nRF52 task log buffer and unify TaskLogBuffer interface [esphome#13862](https://github.com/esphome/esphome/pull/13862) by [@tomaszduda23](https://github.com/tomaszduda23) (new-feature)
 - [mqtt.cover] Add option to publish states as JSON payload [esphome#12639](https://github.com/esphome/esphome/pull/12639) by [@heythisisnate](https://github.com/heythisisnate) (new-feature)
+- [esp32_rmt] Handle ESP32 variants without RMT hardware [esphome#14001](https://github.com/esphome/esphome/pull/14001) by [@swoboda1337](https://github.com/swoboda1337) (new-feature)
 
 ### New Components
 
@@ -326,22 +327,6 @@ The lists below are grouped by tag and may contain duplicates across sections.
 - [voice_assistant] Replace timer unordered_map with vector to eliminate per-tick heap allocation [esphome#13857](https://github.com/esphome/esphome/pull/13857) by [@bdraco](https://github.com/bdraco) (breaking-change)
 - [api] Deprecate WATER_HEATER_COMMAND_HAS_STATE [esphome#13892](https://github.com/esphome/esphome/pull/13892) by [@tronikos](https://github.com/tronikos) (breaking-change)
 - [bl0942] Update reference values [esphome#12867](https://github.com/esphome/esphome/pull/12867) by [@DjordjeMandic](https://github.com/DjordjeMandic) (breaking-change)
-
-# Beta Changes
-
-- [schema-gen] fix Windows: ensure UTF-8 encoding when reading component files [esphome#13952](https://github.com/esphome/esphome/pull/13952) by [@glmnet](https://github.com/glmnet)
-- [uart] Remove redundant mutex, fix flush race, conditional event queue [esphome#13955](https://github.com/esphome/esphome/pull/13955) by [@bdraco](https://github.com/bdraco)
-- [api] Extract cold code from APIServer::loop() hot path [esphome#13902](https://github.com/esphome/esphome/pull/13902) by [@bdraco](https://github.com/bdraco)
-- [pulse_meter] Fix early edge detection [esphome#12360](https://github.com/esphome/esphome/pull/12360) by [@LucasCZE](https://github.com/LucasCZE)
-- [alarm_control_panel] Fix flaky integration test race condition [esphome#13964](https://github.com/esphome/esphome/pull/13964) by [@swoboda1337](https://github.com/swoboda1337)
-- [docker] Suppress git detached HEAD advice [esphome#13962](https://github.com/esphome/esphome/pull/13962) by [@swoboda1337](https://github.com/swoboda1337)
-- [api] Fix ESP8266 noise API handshake deadlock and prompt socket cleanup [esphome#13972](https://github.com/esphome/esphome/pull/13972) by [@bdraco](https://github.com/bdraco)
-- [wifi] Fix ESP8266 DHCP state corruption from premature dhcp_renew() [esphome#13983](https://github.com/esphome/esphome/pull/13983) by [@bdraco](https://github.com/bdraco)
-- [combination] Fix 'coeffecient' typo with backward-compatible deprecation [esphome#14004](https://github.com/esphome/esphome/pull/14004) by [@swoboda1337](https://github.com/swoboda1337)
-- [fan] Fix preset_mode not restored on boot [esphome#14002](https://github.com/esphome/esphome/pull/14002) by [@swoboda1337](https://github.com/swoboda1337)
-- [esp32_rmt] Handle ESP32 variants without RMT hardware [esphome#14001](https://github.com/esphome/esphome/pull/14001) by [@swoboda1337](https://github.com/swoboda1337) (new-feature)
-- [openthread] Fix compiler format warning [esphome#14030](https://github.com/esphome/esphome/pull/14030) by [@schdro](https://github.com/schdro)
-- [external_components] Clean up incomplete clone on failed ref fetch [esphome#14051](https://github.com/esphome/esphome/pull/14051) by [@swoboda1337](https://github.com/swoboda1337)
 
 ### All changes
 
@@ -676,6 +661,7 @@ The lists below are grouped by tag and may contain duplicates across sections.
 - [nrf52,zigee] print reporting status [esphome#13890](https://github.com/esphome/esphome/pull/13890) by [@tomaszduda23](https://github.com/tomaszduda23)
 - [uart] Change available() return type from int to size_t [esphome#13893](https://github.com/esphome/esphome/pull/13893) by [@swoboda1337](https://github.com/swoboda1337)
 - [mipi_dsi] Add WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD 3.4C and 4C [esphome#13840](https://github.com/esphome/esphome/pull/13840) by [@gtjoseph](https://github.com/gtjoseph) (new-feature)
+- [scheduler] Make core timer ID collisions impossible with type-safe internal IDs [esphome#13882](https://github.com/esphome/esphome/pull/13882) by [@bdraco](https://github.com/bdraco)
 - [scheduler] Make core timer ID collisions impossible with type-safe internal IDs [esphome#13882](https://github.com/esphome/esphome/pull/13882) by [@bdraco](https://github.com/bdraco)
 - [uart] Convert parity_to_str to PROGMEM_STRING_TABLE [esphome#13805](https://github.com/esphome/esphome/pull/13805) by [@bdraco](https://github.com/bdraco)
 - [logger] Resolve thread name once and pass through logging chain [esphome#13836](https://github.com/esphome/esphome/pull/13836) by [@bdraco](https://github.com/bdraco)
