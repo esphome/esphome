@@ -7,12 +7,6 @@
 
 #include <cinttypes>
 
-#if defined(USE_ESP32_VARIANT_ESP32) && ESP_IDF_VERSION <= ESP_IDF_VERSION_VAL(5, 5, 2)
-// Workaround for ESP-IDF bug: touch_ll_enable_channel_mask() doesn't apply the
-// channel 8/9 bit swap. Fixed in ESP-IDF v5.5.3 via MR !43531.
-#include <hal/touch_sensor_ll.h>
-#endif
-
 namespace esphome::esp32_touch {
 
 static const char *const TAG = "esp32_touch";
@@ -208,19 +202,6 @@ void ESP32TouchComponent::setup() {
     this->mark_failed();
     return;
   }
-
-#if defined(USE_ESP32_VARIANT_ESP32) && ESP_IDF_VERSION <= ESP_IDF_VERSION_VAL(5, 5, 2)
-  // Workaround for ESP-IDF bug: touch_ll_enable_channel_mask() doesn't apply the
-  // bit swap for channels 8 and 9. The ESP32 hardware has these two channels
-  // physically swapped in the SENS peripheral registers. The legacy API applied
-  // TOUCH_LL_BITS_SWAP() but the new unified API omits it, causing channels 8
-  // (GPIO33) and 9 (GPIO32) to not be enabled for measurement (reads return zero).
-  // Fixed in ESP-IDF v5.5.3 via MR !43531.
-  {
-    uint16_t worken = SENS.sar_touch_enable.touch_pad_worken;
-    SENS.sar_touch_enable.touch_pad_worken = TOUCH_LL_BITS_SWAP(worken);
-  }
-#endif
 
   // Do initial oneshot scans to populate baseline values
   for (int i = 0; i < 3; i++) {
