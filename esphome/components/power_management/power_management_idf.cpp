@@ -70,11 +70,11 @@ void PowerManagement::setup() {
   if (rc != ESP_OK) {
     ESP_LOGE(TAG, "Failed to register power management callbacks: %s", esp_err_to_name(rc));
   }
-  App.set_loop_interval(0);
 #endif
 }
 
 void PowerManagement::loop() {
+#if CONFIG_PM_LIGHT_SLEEP_CALLBACKS
   int8_t acquired = this->count_pm_locks_();
   if (acquired == 0 || acquired == 1) {
     this->is_delay_aborted = false;
@@ -109,6 +109,7 @@ void PowerManagement::loop() {
       }
     }
   }
+#endif
 }
 
 #ifdef USE_POWER_MANAGEMENT

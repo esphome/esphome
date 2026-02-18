@@ -92,7 +92,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     add_idf_sdkconfig_option("CONFIG_PM_ENABLE", True)
-    add_idf_sdkconfig_option("CONFIG_PM_LIGHT_SLEEP_CALLBACKS", True)
 
     if config.get(CONF_ESPHOME_LOCKS):
         cg.add_define("USE_POWER_MANAGEMENT")
@@ -109,6 +108,7 @@ async def to_code(config):
         # this causes automatic light sleep if no tasks are pending
         add_idf_sdkconfig_option("CONFIG_FREERTOS_USE_TICKLESS_IDLE", True)
         add_idf_sdkconfig_option("CONFIG_IEEE802154_SLEEP_ENABLE", True)
+        add_idf_sdkconfig_option("CONFIG_PM_LIGHT_SLEEP_CALLBACKS", True)
         if config.get(CONF_POWER_DOWN_PERIPHERALS):
             # There is a defined set of peripheral's that work with PM
             add_idf_sdkconfig_option(
