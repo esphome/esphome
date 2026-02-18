@@ -1945,6 +1945,9 @@ json::SerializationBuffer<> WebServer::water_heater_json_(water_heater::WaterHea
     JsonArray modes = root[ESPHOME_F("modes")].to<JsonArray>();
     for (auto m : traits.get_supported_modes())
       modes.add(PSTR_LOCAL(water_heater::water_heater_mode_to_string(m)));
+    root[ESPHOME_F("min_temp")] = traits.get_min_temperature();
+    root[ESPHOME_F("max_temp")] = traits.get_max_temperature();
+    root[ESPHOME_F("step")] = traits.get_target_temperature_step();
     this->add_sorting_info_(root, obj);
   }
 
@@ -1966,10 +1969,6 @@ json::SerializationBuffer<> WebServer::water_heater_json_(water_heater::WaterHea
     if (!std::isnan(target))
       root[ESPHOME_F("target_temperature")] = target;
   }
-
-  root[ESPHOME_F("min_temperature")] = traits.get_min_temperature();
-  root[ESPHOME_F("max_temperature")] = traits.get_max_temperature();
-  root[ESPHOME_F("step")] = traits.get_target_temperature_step();
 
   if (traits.get_supports_away_mode()) {
     root[ESPHOME_F("away")] = obj->is_away();
