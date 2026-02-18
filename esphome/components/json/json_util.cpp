@@ -99,7 +99,9 @@ SerializationBuffer<> JsonBuilder::serialize() {
   // IMPORTANT: ArduinoJson's serializeJson() with a bounded buffer returns the actual
   // bytes written (truncated count), NOT the would-be size like snprintf(). When the
   // payload exceeds the buffer, the return value equals the buffer capacity. The heap
-  // fallback uses measureJson() to get the exact size for allocation.
+  // fallback doubles the buffer size until the payload fits. This avoids instantiating
+  // measureJson()'s DummyWriter templates (~736 bytes flash) at the cost of temporarily
+  // over-allocating heap (at most 2x) for the rare payloads that exceed 512 bytes.
   //
   // ===========================================================================================
   constexpr size_t buf_size = SerializationBuffer<>::BUFFER_SIZE;
@@ -122,12 +124,20 @@ SerializationBuffer<> JsonBuilder::serialize() {
     return result;
   }
 
-  // Payload exceeded stack buffer. ArduinoJson's serializeJson() with a bounded
-  // buffer returns the actual bytes written (truncated), NOT the would-be size.
-  // Use measureJson() to get the exact size for heap allocation.
-  size = measureJson(doc_);
-  result.reallocate_heap_(size);
-  serializeJson(doc_, result.data_writable_(), size + 1);
+  // Payload exceeded stack buffer. Double the buffer and retry until it fits.
+  // Cap at 4096 to prevent runaway allocation on memory-constrained devices.
+  size_t heap_size = buf_size * 2;
+  while (heap_size <= 4096) {
+    result.reallocate_heap_(heap_size - 1);
+    size = serializeJson(doc_, result.data_writable_(), heap_size);
+    if (size < heap_size) {
+      result.set_size_(size);
+      return result;
+    }
+    heap_size *= 2;
+  }
+  // Payload exceeds 4096 bytes - return truncated result
+  ESP_LOGW(TAG, "JSON payload too large, truncated to %zu bytes", size);
   result.set_size_(size);
   return result;
 }
