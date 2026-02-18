@@ -1482,6 +1482,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     parse_string_param_(request, ESPHOME_F("mode"), call, &decltype(call)::set_mode);
     parse_string_param_(request, ESPHOME_F("fan_mode"), call, &decltype(call)::set_fan_mode);
     parse_string_param_(request, ESPHOME_F("swing_mode"), call, &decltype(call)::set_swing_mode);
+    parse_string_param_(request, ESPHOME_F("preset"), call, &decltype(call)::set_preset);
 
     // Parse temperature parameters
     // static_cast needed to disambiguate overloaded setters (float vs optional<float>)
@@ -1522,7 +1523,7 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
     JsonArray opt = root[ESPHOME_F("modes")].to<JsonArray>();
     for (climate::ClimateMode m : traits.get_supported_modes())
       opt.add(PSTR_LOCAL(climate::climate_mode_to_string(m)));
-    if (!traits.get_supported_custom_fan_modes().empty()) {
+    if (traits.get_supports_fan_modes()) {
       JsonArray opt = root[ESPHOME_F("fan_modes")].to<JsonArray>();
       for (climate::ClimateFanMode m : traits.get_supported_fan_modes())
         opt.add(PSTR_LOCAL(climate::climate_fan_mode_to_string(m)));
@@ -1538,12 +1539,12 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
       for (auto swing_mode : traits.get_supported_swing_modes())
         opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
     }
-    if (traits.get_supports_presets() && obj->preset.has_value()) {
+    if (traits.get_supports_presets()) {
       JsonArray opt = root[ESPHOME_F("presets")].to<JsonArray>();
       for (climate::ClimatePreset m : traits.get_supported_presets())
         opt.add(PSTR_LOCAL(climate::climate_preset_to_string(m)));
     }
-    if (!traits.get_supported_custom_presets().empty() && obj->has_custom_preset()) {
+    if (!traits.get_supported_custom_presets().empty()) {
       JsonArray opt = root[ESPHOME_F("custom_presets")].to<JsonArray>();
       for (auto const &custom_preset : traits.get_supported_custom_presets())
         opt.add(custom_preset);
@@ -1563,17 +1564,32 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
     root[ESPHOME_F("state")] = root[ESPHOME_F("action")];
     has_state = true;
   }
-  if (traits.get_supports_fan_modes() && obj->fan_mode.has_value()) {
-    root[ESPHOME_F("fan_mode")] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
+  if (traits.get_supports_fan_modes()) {
+    if (obj->fan_mode.has_value()) {
+      root[ESPHOME_F("fan_mode")] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
+    } else if (!obj->has_custom_fan_mode()) {
+      root[ESPHOME_F("fan_mode")] = PSTR_LOCAL(climate_fan_mode_to_string(climate::CLIMATE_FAN_AUTO));
+    } else {
+      root[ESPHOME_F("fan_mode")] = "";
+    }
   }
-  if (!traits.get_supported_custom_fan_modes().empty() && obj->has_custom_fan_mode()) {
-    root[ESPHOME_F("custom_fan_mode")] = obj->get_custom_fan_mode();
+  if (!traits.get_supported_custom_fan_modes().empty()) {
+    if (obj->has_custom_fan_mode()) {
+      root[ESPHOME_F("custom_fan_mode")] = obj->get_custom_fan_mode();
+    } else {
+      root[ESPHOME_F("custom_fan_mode")] = "";
+    }
   }
-  if (traits.get_supports_presets() && obj->preset.has_value()) {
-    root[ESPHOME_F("preset")] = PSTR_LOCAL(climate_preset_to_string(obj->preset.value()));
+  if (traits.get_supports_presets()) {
+    root[ESPHOME_F("preset")] =
+        obj->preset.has_value() ? PSTR_LOCAL(climate_preset_to_string(obj->preset.value())) : "";
   }
-  if (!traits.get_supported_custom_presets().empty() && obj->has_custom_preset()) {
-    root[ESPHOME_F("custom_preset")] = obj->get_custom_preset();
+  if (!traits.get_supported_custom_presets().empty()) {
+    if (obj->has_custom_preset()) {
+      root[ESPHOME_F("custom_preset")] = obj->get_custom_preset();
+    } else {
+      root[ESPHOME_F("custom_preset")] = "";
+    }
   }
   if (traits.get_supports_swing_modes()) {
     root[ESPHOME_F("swing_mode")] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));
@@ -1583,6 +1599,11 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
         std::isnan(obj->current_temperature)
             ? "NA"
             : (value_accuracy_to_buf(temp_buf, obj->current_temperature, current_accuracy), temp_buf);
+  }
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY)) {
+    root[ESPHOME_F("current_humidity")] = std::isnan(obj->current_humidity)
+                                             ? "NA"
+                                             : (value_accuracy_to_buf(temp_buf, obj->current_humidity, 0), temp_buf);
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
