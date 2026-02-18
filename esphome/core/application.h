@@ -582,9 +582,6 @@ class Application {
   std::string name_;
   std::string friendly_name_;
 
-  // size_t members
-  size_t dump_config_at_{SIZE_MAX};
-
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
@@ -594,7 +591,8 @@ class Application {
 #endif
 
   // 2-byte members (grouped together for alignment)
-  uint16_t loop_interval_{16};                 // Loop interval in ms (max 65535ms = 65.5 seconds)
+  uint16_t dump_config_at_{std::numeric_limits<uint16_t>::max()};  // Index into components_ for dump_config progress
+  uint16_t loop_interval_{16};                                     // Loop interval in ms (max 65535ms = 65.5 seconds)
   uint16_t looping_components_active_end_{0};  // Index marking end of active components in looping_components_
   uint16_t current_loop_index_{0};             // For safe reentrant modifications during iteration
 
