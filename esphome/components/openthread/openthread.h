@@ -70,7 +70,7 @@ class OpenThreadSrpComponent : public Component {
                                          void *context);
 
  protected:
-  typedef std::unique_ptr<otDnsTxtEntry[]> TxtEntryListPtr;
+  typedef std::unique_ptr<std::byte[]> TxtEntryListPtr;
   esphome::mdns::MDNSComponent *mdns_{nullptr};
   std::unique_ptr<TxtEntryListPtr[]> memory_pool_;
 };
