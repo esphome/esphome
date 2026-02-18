@@ -162,6 +162,8 @@ void OpenThreadSrpComponent::setup() {
   // Get mdns services and copy their data (strings are copied with strdup below)
   const auto &mdns_services = this->mdns_->get_services();
   ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", mdns_services.size());
+  // Allocate pool upfront, on rare failure not all might be filled below but not fatal
+  memory_pool_ = std::make_unique<TxtEntryListPtr[]>(mdns_services.size());
   for (const auto &service : mdns_services) {
     otSrpClientBuffersServiceEntry *entry = otSrpClientBuffersAllocateService(instance);
     if (!entry) {
@@ -190,8 +192,12 @@ void OpenThreadSrpComponent::setup() {
     // Set port
     entry->mService.mPort = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
 
-    otDnsTxtEntry *txt_entries =
-        reinterpret_cast<otDnsTxtEntry *>(this->pool_alloc_(sizeof(otDnsTxtEntry) * service.txt_records.size()));
+    // Make new pool entry with service array
+    const size_t list_idx = &service - &mdns_services[0];
+    auto &pool_pos = this->memory_pool_[list_idx];
+    pool_pos = std::make_unique<otDnsTxtEntry[]>(size);
+    otDnsTxtEntry *txt_entries = pool_pos.get();
+
     // Set TXT records
     entry->mService.mNumTxtEntries = service.txt_records.size();
     for (size_t i = 0; i < service.txt_records.size(); i++) {
@@ -216,12 +222,6 @@ void OpenThreadSrpComponent::setup() {
 
   otSrpClientEnableAutoStartMode(instance, OpenThreadSrpComponent::srp_start_callback, nullptr);
   ESP_LOGD(TAG, "Finished SRP setup");
-}
-
-void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
-  uint8_t *ptr = new uint8_t[size];
-  this->memory_pool_.emplace_back(std::unique_ptr<uint8_t[]>(ptr));
-  return ptr;
 }
 
 void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }

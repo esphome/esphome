@@ -10,8 +10,8 @@
 #include <openthread/srp_client_buffers.h>
 #include <openthread/thread.h>
 
+#include <memory>
 #include <optional>
-#include <vector>
 
 namespace esphome::openthread {
 
@@ -70,9 +70,9 @@ class OpenThreadSrpComponent : public Component {
                                          void *context);
 
  protected:
+  typedef std::unique_ptr<otDnsTxtEntry[]> TxtEntryListPtr;
   esphome::mdns::MDNSComponent *mdns_{nullptr};
-  std::vector<std::unique_ptr<uint8_t[]>> memory_pool_;
-  void *pool_alloc_(size_t size);
+  std::unique_ptr<TxtEntryListPtr[]> memory_pool_;
 };
 
 class InstanceLock {
