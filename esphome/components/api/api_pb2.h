@@ -3,6 +3,9 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#ifdef USE_BLUETOOTH_PROXY
+#define USE_API_VARINT64
+#endif
 #include "esphome/core/string_ref.h"
 
 #include "proto.h"
