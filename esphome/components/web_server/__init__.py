@@ -144,9 +144,10 @@ def _consume_web_server_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for web_server component."""
     from esphome.components import socket
 
-    # Web server needs 1 listening socket + typically 2 concurrent client connections
-    # (browser makes 2 connections for page + event stream)
-    sockets_needed = 3
+    # Web server needs 1 listening socket + typically 5 concurrent client connections
+    # (browser opens connections for page resources, SSE event stream, and POST
+    # requests for entity control which may linger before closing)
+    sockets_needed = 6
     socket.consume_sockets(sockets_needed, "web_server")(config)
     return config
 
