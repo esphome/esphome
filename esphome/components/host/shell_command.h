@@ -19,7 +19,7 @@ struct ShellCommandResult {
 struct ShellCommandOptions {
   std::string shell{"/bin/sh"};
   std::vector<std::pair<std::string, std::string>> environment;
-  bool use_shell{HOST_SHELL_COMMAND_USE_SHELL_DEFAULT_VALUE};
+  bool use_shell{HOST_SHELL_COMMAND_USE_SHELL_DEFAULT};
 };
 
 ShellCommandResult execute_host_command(const std::string &command, const ShellCommandOptions &options = {});
