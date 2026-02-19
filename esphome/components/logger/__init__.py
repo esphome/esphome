@@ -16,6 +16,8 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S3,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    require_usb_serial_jtag_secondary,
+    require_vfs_termios,
 )
 from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
 from esphome.components.libretiny.const import (
@@ -229,9 +231,16 @@ CONFIG_SCHEMA = cv.All(
                 bk72xx=768,
                 ln882x=768,
                 rtl87xx=768,
+                nrf52=768,
             ): cv.All(
                 cv.only_on(
-                    [PLATFORM_ESP32, PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RTL87XX]
+                    [
+                        PLATFORM_ESP32,
+                        PLATFORM_BK72XX,
+                        PLATFORM_LN882X,
+                        PLATFORM_RTL87XX,
+                        PLATFORM_NRF52,
+                    ]
                 ),
                 cv.validate_bytes,
                 cv.Any(
@@ -311,11 +320,13 @@ async def to_code(config):
     )
     if CORE.is_esp32:
         cg.add(log.create_pthread_key())
-    if CORE.is_esp32 or CORE.is_libretiny:
+    if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
         task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
         if task_log_buffer_size > 0:
             cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
             cg.add(log.init_log_buffer(task_log_buffer_size))
+            if CORE.using_zephyr:
+                zephyr_add_prj_conf("MPSC_PBUF", True)
     elif CORE.is_host:
         cg.add(log.create_pthread_key())
         cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
@@ -397,9 +408,15 @@ async def to_code(config):
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
             cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
+    # Define platform support flags for components that need auto-detection
     try:
         uart_selection(USB_SERIAL_JTAG)
         cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
+        # USB Serial JTAG code is compiled when platform supports it.
+        # Enable secondary USB serial JTAG console so the VFS functions are available.
+        if CORE.is_esp32 and config[CONF_HARDWARE_UART] != USB_SERIAL_JTAG:
+            require_usb_serial_jtag_secondary()
+            require_vfs_termios()
     except cv.Invalid:
         pass
     try:
@@ -409,6 +426,7 @@ async def to_code(config):
         pass
 
     if CORE.is_nrf52:
+        zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
         if config[CONF_HARDWARE_UART] == UART0:
             zephyr_add_overlay("""&uart0 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == UART1:

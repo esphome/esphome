@@ -14,7 +14,7 @@ namespace esphome::logger {
 static const char *const TAG = "logger";
 
 #ifdef USE_LOGGER_USB_CDC
-void Logger::loop() {
+void Logger::cdc_loop_() {
   if (this->uart_ != UART_SELECTION_USB_CDC || this->uart_dev_ == nullptr) {
     return;
   }
@@ -63,17 +63,17 @@ void Logger::pre_setup() {
   ESP_LOGI(TAG, "Log initialized");
 }
 
-void HOT Logger::write_msg_(const char *msg, size_t len) {
+void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   // Single write with newline already in buffer (added by caller)
 #ifdef CONFIG_PRINTK
   // Requires the debug component and an active SWD connection.
   // It is used for pyocd rtt -t nrf52840
-  k_str_out(const_cast<char *>(msg), len);
+  printk("%.*s", static_cast<int>(len), msg);
 #endif
   if (this->uart_dev_ == nullptr) {
     return;
   }
-  for (size_t i = 0; i < len; ++i) {
+  for (uint16_t i = 0; i < len; ++i) {
     uart_poll_out(this->uart_dev_, msg[i]);
   }
 }

@@ -186,31 +186,43 @@ void EthernetComponent::setup() {
     }
 #endif
 #if CONFIG_ETH_USE_ESP32_EMAC
+#ifdef USE_ETHERNET_LAN8720
     case ETHERNET_TYPE_LAN8720: {
       this->phy_ = esp_eth_phy_new_lan87xx(&phy_config);
       break;
     }
+#endif
+#ifdef USE_ETHERNET_RTL8201
     case ETHERNET_TYPE_RTL8201: {
       this->phy_ = esp_eth_phy_new_rtl8201(&phy_config);
       break;
     }
+#endif
+#ifdef USE_ETHERNET_DP83848
     case ETHERNET_TYPE_DP83848: {
       this->phy_ = esp_eth_phy_new_dp83848(&phy_config);
       break;
     }
+#endif
+#ifdef USE_ETHERNET_IP101
     case ETHERNET_TYPE_IP101: {
       this->phy_ = esp_eth_phy_new_ip101(&phy_config);
       break;
     }
+#endif
+#ifdef USE_ETHERNET_JL1101
     case ETHERNET_TYPE_JL1101: {
       this->phy_ = esp_eth_phy_new_jl1101(&phy_config);
       break;
     }
+#endif
+#ifdef USE_ETHERNET_KSZ8081
     case ETHERNET_TYPE_KSZ8081:
     case ETHERNET_TYPE_KSZ8081RNA: {
       this->phy_ = esp_eth_phy_new_ksz80xx(&phy_config);
       break;
     }
+#endif
 #ifdef USE_ETHERNET_LAN8670
     case ETHERNET_TYPE_LAN8670: {
       this->phy_ = esp_eth_phy_new_lan867x(&phy_config);
@@ -309,6 +321,9 @@ void EthernetComponent::loop() {
 
         this->dump_connect_params_();
         this->status_clear_warning();
+#ifdef USE_ETHERNET_CONNECT_TRIGGER
+        this->connect_trigger_.trigger();
+#endif
       } else if (now - this->connect_begin_ > 15000) {
         ESP_LOGW(TAG, "Connecting failed; reconnecting");
         this->start_connect_();
@@ -318,10 +333,16 @@ void EthernetComponent::loop() {
       if (!this->started_) {
         ESP_LOGI(TAG, "Stopped connection");
         this->state_ = EthernetComponentState::STOPPED;
+#ifdef USE_ETHERNET_DISCONNECT_TRIGGER
+        this->disconnect_trigger_.trigger();
+#endif
       } else if (!this->connected_) {
         ESP_LOGW(TAG, "Connection lost; reconnecting");
         this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
+#ifdef USE_ETHERNET_DISCONNECT_TRIGGER
+        this->disconnect_trigger_.trigger();
+#endif
       } else {
         this->finish_connect_();
         // When connected and stable, disable the loop to save CPU cycles
@@ -334,26 +355,32 @@ void EthernetComponent::loop() {
 void EthernetComponent::dump_config() {
   const char *eth_type;
   switch (this->type_) {
+#ifdef USE_ETHERNET_LAN8720
     case ETHERNET_TYPE_LAN8720:
       eth_type = "LAN8720";
       break;
-
+#endif
+#ifdef USE_ETHERNET_RTL8201
     case ETHERNET_TYPE_RTL8201:
       eth_type = "RTL8201";
       break;
-
+#endif
+#ifdef USE_ETHERNET_DP83848
     case ETHERNET_TYPE_DP83848:
       eth_type = "DP83848";
       break;
-
+#endif
+#ifdef USE_ETHERNET_IP101
     case ETHERNET_TYPE_IP101:
       eth_type = "IP101";
       break;
-
+#endif
+#ifdef USE_ETHERNET_JL1101
     case ETHERNET_TYPE_JL1101:
       eth_type = "JL1101";
       break;
-
+#endif
+#ifdef USE_ETHERNET_KSZ8081
     case ETHERNET_TYPE_KSZ8081:
       eth_type = "KSZ8081";
       break;
@@ -361,19 +388,22 @@ void EthernetComponent::dump_config() {
     case ETHERNET_TYPE_KSZ8081RNA:
       eth_type = "KSZ8081RNA";
       break;
-
+#endif
+#if CONFIG_ETH_SPI_ETHERNET_W5500
     case ETHERNET_TYPE_W5500:
       eth_type = "W5500";
       break;
-
-    case ETHERNET_TYPE_OPENETH:
-      eth_type = "OPENETH";
-      break;
-
+#endif
+#if CONFIG_ETH_SPI_ETHERNET_DM9051
     case ETHERNET_TYPE_DM9051:
       eth_type = "DM9051";
       break;
-
+#endif
+#ifdef USE_ETHERNET_OPENETH
+    case ETHERNET_TYPE_OPENETH:
+      eth_type = "OPENETH";
+      break;
+#endif
 #ifdef USE_ETHERNET_LAN8670
     case ETHERNET_TYPE_LAN8670:
       eth_type = "LAN8670";
@@ -677,16 +707,22 @@ void EthernetComponent::dump_connect_params_() {
   char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "  IP Address: %s\n"
                 "  Hostname: '%s'\n"
                 "  Subnet: %s\n"
                 "  Gateway: %s\n"
                 "  DNS1: %s\n"
-                "  DNS2: %s",
+                "  DNS2: %s\n"
+                "  MAC Address: %s\n"
+                "  Is Full Duplex: %s\n"
+                "  Link Speed: %u",
                 network::IPAddress(&ip.ip).str_to(ip_buf), App.get_name().c_str(),
                 network::IPAddress(&ip.netmask).str_to(subnet_buf), network::IPAddress(&ip.gw).str_to(gateway_buf),
-                network::IPAddress(dns_ip1).str_to(dns1_buf), network::IPAddress(dns_ip2).str_to(dns2_buf));
+                network::IPAddress(dns_ip1).str_to(dns1_buf), network::IPAddress(dns_ip2).str_to(dns2_buf),
+                this->get_eth_mac_address_pretty_into_buffer(mac_buf),
+                YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL), this->get_link_speed() == ETH_SPEED_100M ? 100 : 10);
 
 #if USE_NETWORK_IPV6
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
@@ -697,14 +733,6 @@ void EthernetComponent::dump_connect_params_() {
     ESP_LOGCONFIG(TAG, "  IPv6: " IPV6STR, IPV62STR(if_ip6s[i]));
   }
 #endif /* USE_NETWORK_IPV6 */
-
-  char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  ESP_LOGCONFIG(TAG,
-                "  MAC Address: %s\n"
-                "  Is Full Duplex: %s\n"
-                "  Link Speed: %u",
-                this->get_eth_mac_address_pretty_into_buffer(mac_buf),
-                YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL), this->get_link_speed() == ETH_SPEED_100M ? 100 : 10);
 }
 
 #ifdef USE_ETHERNET_SPI
@@ -828,13 +856,15 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
 
 void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data) {
   esp_err_t err;
-  constexpr uint8_t eth_phy_psr_reg_addr = 0x1F;
 
+#ifdef USE_ETHERNET_RTL8201
+  constexpr uint8_t eth_phy_psr_reg_addr = 0x1F;
   if (this->type_ == ETHERNET_TYPE_RTL8201 && register_data.page) {
     ESP_LOGD(TAG, "Select PHY Register Page: 0x%02" PRIX32, register_data.page);
     err = mac->write_phy_reg(mac, this->phy_addr_, eth_phy_psr_reg_addr, register_data.page);
     ESPHL_ERROR_CHECK(err, "Select PHY Register page failed");
   }
+#endif
 
   ESP_LOGD(TAG,
            "Writing to PHY Register Address: 0x%02" PRIX32 "\n"
@@ -843,11 +873,13 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
   err = mac->write_phy_reg(mac, this->phy_addr_, register_data.address, register_data.value);
   ESPHL_ERROR_CHECK(err, "Writing PHY Register failed");
 
+#ifdef USE_ETHERNET_RTL8201
   if (this->type_ == ETHERNET_TYPE_RTL8201 && register_data.page) {
     ESP_LOGD(TAG, "Select PHY Register Page 0x00");
     err = mac->write_phy_reg(mac, this->phy_addr_, eth_phy_psr_reg_addr, 0x0);
     ESPHL_ERROR_CHECK(err, "Select PHY Register Page 0 failed");
   }
+#endif
 }
 
 #endif

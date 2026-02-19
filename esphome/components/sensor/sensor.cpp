@@ -2,6 +2,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::sensor {
 
@@ -22,33 +23,21 @@ void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *o
                 LOG_STR_ARG(state_class_to_string(obj->get_state_class())), prefix,
                 obj->get_unit_of_measurement_ref().c_str(), prefix, obj->get_accuracy_decimals());
 
-  if (!obj->get_device_class_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
-  }
-
-  if (!obj->get_icon_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon_ref().c_str());
-  }
+  LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
+  LOG_ENTITY_ICON(tag, prefix, *obj);
 
   if (obj->get_force_update()) {
     ESP_LOGV(tag, "%s  Force Update: YES", prefix);
   }
 }
 
+// State class strings indexed by StateClass enum (0-4): NONE, MEASUREMENT, TOTAL_INCREASING, TOTAL, MEASUREMENT_ANGLE
+PROGMEM_STRING_TABLE(StateClassStrings, "", "measurement", "total_increasing", "total", "measurement_angle");
+static_assert(StateClassStrings::COUNT == STATE_CLASS_LAST + 1, "StateClassStrings must match StateClass enum");
+
 const LogString *state_class_to_string(StateClass state_class) {
-  switch (state_class) {
-    case STATE_CLASS_MEASUREMENT:
-      return LOG_STR("measurement");
-    case STATE_CLASS_TOTAL_INCREASING:
-      return LOG_STR("total_increasing");
-    case STATE_CLASS_TOTAL:
-      return LOG_STR("total");
-    case STATE_CLASS_MEASUREMENT_ANGLE:
-      return LOG_STR("measurement_angle");
-    case STATE_CLASS_NONE:
-    default:
-      return LOG_STR("");
-  }
+  // Fallback to index 0 (empty string for STATE_CLASS_NONE) if out of range
+  return StateClassStrings::get_log_str(static_cast<uint8_t>(state_class), 0);
 }
 
 Sensor::Sensor() : state(NAN), raw_state(NAN) {}

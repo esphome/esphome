@@ -8,19 +8,23 @@ namespace nfc {
 
 static const char *const TAG = "nfc";
 
-char *format_uid_to(char *buffer, const std::vector<uint8_t> &uid) {
+char *format_uid_to(char *buffer, std::span<const uint8_t> uid) {
   return format_hex_pretty_to(buffer, FORMAT_UID_BUFFER_SIZE, uid.data(), uid.size(), '-');
 }
 
-char *format_bytes_to(char *buffer, const std::vector<uint8_t> &bytes) {
+char *format_bytes_to(char *buffer, std::span<const uint8_t> bytes) {
   return format_hex_pretty_to(buffer, FORMAT_BYTES_BUFFER_SIZE, bytes.data(), bytes.size(), ' ');
 }
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 // Deprecated wrappers intentionally use heap-allocating version for backward compatibility
-std::string format_uid(const std::vector<uint8_t> &uid) { return format_hex_pretty(uid, '-', false); }        // NOLINT
-std::string format_bytes(const std::vector<uint8_t> &bytes) { return format_hex_pretty(bytes, ' ', false); }  // NOLINT
+std::string format_uid(std::span<const uint8_t> uid) {
+  return format_hex_pretty(uid.data(), uid.size(), '-', false);  // NOLINT
+}
+std::string format_bytes(std::span<const uint8_t> bytes) {
+  return format_hex_pretty(bytes.data(), bytes.size(), ' ', false);  // NOLINT
+}
 #pragma GCC diagnostic pop
 
 uint8_t guess_tag_type(uint8_t uid_length) {
