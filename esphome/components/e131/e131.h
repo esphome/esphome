@@ -1,7 +1,11 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #include "esphome/components/socket/socket.h"
+#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
+#include <WiFiUdp.h>
+#endif
 #include "esphome/core/component.h"
 
 #include <cinttypes>
@@ -45,7 +49,11 @@ class E131Component : public esphome::Component {
   void leave_(int universe);
 
   E131ListenMethod listen_method_{E131_MULTICAST};
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   std::unique_ptr<socket::Socket> socket_;
+#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
+  WiFiUDP udp_;
+#endif
   std::vector<E131AddressableLightEffect *> light_effects_;
   std::map<int, int> universe_consumers_;
 };
