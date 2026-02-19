@@ -203,6 +203,7 @@ void ConstAudioSourceBuffer::set_data(const uint8_t *data, size_t length) {
 }
 
 void ConstAudioSourceBuffer::consume(size_t bytes) {
+  bytes = std::min(bytes, this->length_);
   this->length_ -= bytes;
   this->data_start_ += bytes;
 }
