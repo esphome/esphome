@@ -374,7 +374,7 @@ std::string WebServer::get_config_json() {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  root[ESPHOME_F("title")] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
+  root[ESPHOME_F("title")] = App.get_friendly_name().empty() ? App.get_name().c_str() : App.get_friendly_name().c_str();
   char comment_buffer[ESPHOME_COMMENT_SIZE];
   App.get_comment_string(comment_buffer);
   root[ESPHOME_F("comment")] = comment_buffer;
@@ -513,21 +513,27 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
   size_t device_len = device_name ? strlen(device_name) : 0;
 #endif
 
-  // Build id into stack buffer - ArduinoJson copies the string
-  // Format: {prefix}/{device?}/{name}
+  // Single stack buffer for both id formats - ArduinoJson copies the string before we overwrite
   // Buffer sizes use constants from entity_base.h validated in core/config.py
   // Note: Device name uses ESPHOME_FRIENDLY_NAME_MAX_LEN (sub-device max 120), not ESPHOME_DEVICE_NAME_MAX_LEN
   // (hostname)
+  // Without USE_DEVICES: legacy id ({prefix}-{object_id}) is the largest format
+  // With USE_DEVICES: name_id ({prefix}/{device}/{name}) is the largest format
+  static constexpr size_t LEGACY_ID_SIZE = ESPHOME_DOMAIN_MAX_LEN + 1 + OBJECT_ID_MAX_LEN;
 #ifdef USE_DEVICES
   static constexpr size_t ID_BUF_SIZE =
-      ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
+      std::max(ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1,
+               LEGACY_ID_SIZE);
 #else
-  static constexpr size_t ID_BUF_SIZE = ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
+  static constexpr size_t ID_BUF_SIZE =
+      std::max(ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1, LEGACY_ID_SIZE);
 #endif
   char id_buf[ID_BUF_SIZE];
-  char *p = id_buf;
-  memcpy(p, prefix, prefix_len);
-  p += prefix_len;
+  memcpy(id_buf, prefix, prefix_len);  // NOLINT(bugprone-not-null-terminated-result)
+
+  // name_id: new format {prefix}/{device?}/{name} - frontend should prefer this
+  // Remove in 2026.8.0 when id switches to new format permanently
+  char *p = id_buf + prefix_len;
   *p++ = '/';
 #ifdef USE_DEVICES
   if (device_name) {
@@ -538,31 +544,25 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
 #endif
   memcpy(p, name.c_str(), name_len);
   p[name_len] = '\0';
-
-  // name_id: new format {prefix}/{device?}/{name} - frontend should prefer this
-  // Remove in 2026.8.0 when id switches to new format permanently
   root[ESPHOME_F("name_id")] = id_buf;
 
   // id: old format {prefix}-{object_id} for backward compatibility
-  // Will switch to new format in 2026.8.0
-  char legacy_buf[ESPHOME_DOMAIN_MAX_LEN + 1 + OBJECT_ID_MAX_LEN];
-  char *lp = legacy_buf;
-  memcpy(lp, prefix, prefix_len);
-  lp += prefix_len;
-  *lp++ = '-';
-  obj->write_object_id_to(lp, sizeof(legacy_buf) - (lp - legacy_buf));
-  root[ESPHOME_F("id")] = legacy_buf;
+  // Will switch to new format in 2026.8.0 - reuses prefix already in id_buf
+  id_buf[prefix_len] = '-';
+  obj->write_object_id_to(id_buf + prefix_len + 1, ID_BUF_SIZE - prefix_len - 1);
+  root[ESPHOME_F("id")] = id_buf;
 
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("domain")] = prefix;
-    root[ESPHOME_F("name")] = name;
+    // Use .c_str() to avoid instantiating set<StringRef> template (saves ~24B)
+    root[ESPHOME_F("name")] = name.c_str();
 #ifdef USE_DEVICES
     if (device_name) {
       root[ESPHOME_F("device")] = device_name;
     }
 #endif
 #ifdef USE_ENTITY_ICON
-    root[ESPHOME_F("icon")] = obj->get_icon_ref();
+    root[ESPHOME_F("icon")] = obj->get_icon_ref().c_str();
 #endif
     root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();
@@ -632,7 +632,7 @@ std::string WebServer::sensor_json_(sensor::Sensor *obj, float value, JsonDetail
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
     if (!uom_ref.empty())
-      root[ESPHOME_F("uom")] = uom_ref;
+      root[ESPHOME_F("uom")] = uom_ref.c_str();
   }
 
   return builder.serialize();
@@ -1147,7 +1147,7 @@ std::string WebServer::number_json_(number::Number *obj, float value, JsonDetail
     root[ESPHOME_F("step")] = (value_accuracy_to_buf(val_buf, obj->traits.get_step(), accuracy), val_buf);
     root[ESPHOME_F("mode")] = (int) obj->traits.get_mode();
     if (!uom_ref.empty())
-      root[ESPHOME_F("uom")] = uom_ref;
+      root[ESPHOME_F("uom")] = uom_ref.c_str();
     this->add_sorting_info_(root, obj);
   }
 
