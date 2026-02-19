@@ -276,10 +276,10 @@ float LightState::gamma_uncorrect_lut(float value) const {
     return value;
   uint16_t target = static_cast<uint16_t>(value * 65535.0f);
   uint8_t lo = gamma_table_reverse_search(this->gamma_table_, target);
-  // Interpolate between lo and lo+1
-  uint16_t a = progmem_read_uint16(&this->gamma_table_[lo]);
   if (lo >= 255)
     return 1.0f;
+  // Interpolate between lo and lo+1
+  uint16_t a = progmem_read_uint16(&this->gamma_table_[lo]);
   uint16_t b = progmem_read_uint16(&this->gamma_table_[lo + 1]);
   if (b == a)
     return lo / 255.0f;
