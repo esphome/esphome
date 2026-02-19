@@ -7,7 +7,6 @@
 #include <vector>
 #include <future>
 
-
 namespace esphome::host {
 
 struct ShellCommandResult {
