@@ -2,7 +2,7 @@
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import esp32, network, socket, wifi
+from esphome.components import audio, esp32, network, socket, wifi
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -12,7 +12,7 @@ from esphome.const import (
 )
 
 # json handles server messages, mdns for autodiscovering, media player for stream commands (for now is autoloaded), psram for memory
-AUTO_LOAD = ["json", "mdns", "media_player", "psram"]
+AUTO_LOAD = ["audio", "json", "mdns", "media_player", "psram"]
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["network"]
 
@@ -78,18 +78,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _final_validate_codecs(config):
+    audio.request_flac_support()
+    audio.request_opus_support()
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate_codecs
+
+
 async def to_code(config):
     socket.require_wake_loop_threadsafe()
 
     cg.add_define("USE_SENDSPIN", True)  # for MDNS
-
-    # TODO: Opus should be included with the audio component. We should also only define FLAC support if we have components that require the audio stream
-    cg.add_define("USE_AUDIO_FLAC_SUPPORT", True)
-    esp32.add_idf_component(
-        name="micro-opus",
-        repo="https://github.com/esphome-libs/micro-opus.git",
-        ref="v0.3.0",
-    )
 
     # Client mode - enable ESP-IDF WebSocket client
     esp32.add_idf_component(name="espressif/esp_websocket_client", ref="1.6.1")
