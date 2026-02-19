@@ -60,19 +60,19 @@ union E131RawPacket {
 const size_t E131_MIN_PACKET_SIZE = reinterpret_cast<size_t>(&((E131RawPacket *) nullptr)->property_values[1]);
 
 bool E131Component::join_igmp_groups_() {
-  if (listen_method_ != E131_MULTICAST)
+  if (this->listen_method_ != E131_MULTICAST)
     return false;
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   if (this->socket_ == nullptr)
     return false;
 #endif
 
-  for (auto universe : universe_consumers_) {
-    if (!universe.second)
+  for (auto &entry : this->universe_consumers_) {
+    if (!entry.consumers)
       continue;
 
     ip4_addr_t multicast_addr =
-        network::IPAddress(239, 255, ((universe.first >> 8) & 0xff), ((universe.first >> 0) & 0xff));
+        network::IPAddress(239, 255, ((entry.universe >> 8) & 0xff), ((entry.universe >> 0) & 0xff));
 
     err_t err;
     {
@@ -81,34 +81,47 @@ bool E131Component::join_igmp_groups_() {
     }
 
     if (err) {
-      ESP_LOGW(TAG, "IGMP join for %d universe of E1.31 failed. Multicast might not work.", universe.first);
+      ESP_LOGW(TAG, "IGMP join for %d universe of E1.31 failed. Multicast might not work.", entry.universe);
     }
   }
 
   return true;
 }
 
+UniverseConsumer *E131Component::find_universe_(int universe) {
+  for (auto &entry : this->universe_consumers_) {
+    if (entry.universe == universe)
+      return &entry;
+  }
+  return nullptr;
+}
+
 void E131Component::join_(int universe) {
   // store only latest received packet for the given universe
-  auto consumers = ++universe_consumers_[universe];
-
-  if (consumers > 1) {
-    return;  // we already joined before
+  auto *consumer = this->find_universe_(universe);
+  if (consumer != nullptr) {
+    if (consumer->consumers++ > 0) {
+      return;  // we already joined before
+    }
+  } else {
+    this->universe_consumers_.push_back({static_cast<uint16_t>(universe), 1});
   }
 
-  if (join_igmp_groups_()) {
+  if (this->join_igmp_groups_()) {
     ESP_LOGD(TAG, "Joined %d universe for E1.31.", universe);
   }
 }
 
 void E131Component::leave_(int universe) {
-  auto consumers = --universe_consumers_[universe];
+  auto *consumer = this->find_universe_(universe);
+  if (consumer == nullptr)
+    return;
 
-  if (consumers > 0) {
+  if (--consumer->consumers > 0) {
     return;  // we have other consumers of the given universe
   }
 
-  if (listen_method_ == E131_MULTICAST) {
+  if (this->listen_method_ == E131_MULTICAST) {
     ip4_addr_t multicast_addr = network::IPAddress(239, 255, ((universe >> 8) & 0xff), ((universe >> 0) & 0xff));
 
     LwIPLock lock;
