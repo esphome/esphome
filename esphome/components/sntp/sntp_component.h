@@ -19,7 +19,7 @@ namespace sntp {
 class SNTPComponent : public time::RealTimeClock {
  public:
 #if defined(USE_ESP32)
-  SNTPComponent(const std::array<const char *, SNTP_SERVER_COUNT> &servers)
+  SNTPComponent(const std::array<const char *, SNTP_SERVER_COUNT> &servers, bool smooth_sync)
       : servers_(servers), smooth_sync_(smooth_sync) {}
 #else
   SNTPComponent(const std::array<const char *, SNTP_SERVER_COUNT> &servers, bool smooth_sync) : servers_(servers) {}
