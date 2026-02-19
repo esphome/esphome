@@ -49,7 +49,12 @@ void HostPreferences::setup_() {
   ESP_LOGD(TAG, "Using preferences path: %s", this->filename_.c_str());
   FILE *fp = fopen(this->filename_.c_str(), "rb");
   if (fp == nullptr) {
-    ESP_LOGE(TAG, "Failed to open preferences file '%s' for reading: %s", this->filename_.c_str(), strerror(errno));
+    if (errno == ENOENT) {
+      ESP_LOGD(TAG, "Preferences file '%s' does not exist yet; this is expected on first run.",
+               this->filename_.c_str());
+    } else {
+      ESP_LOGE(TAG, "Failed to open preferences file '%s' for reading: %s", this->filename_.c_str(), strerror(errno));
+    }
     this->setup_complete_ = true;
     return;
   }
