@@ -72,9 +72,7 @@ DOMAIN = "light"
 
 @dataclass
 class LightData:
-    gamma_tables: dict = field(
-        default_factory=dict
-    )  # gamma_value -> (fwd_arr, rev_arr)
+    gamma_tables: dict = field(default_factory=dict)  # gamma_value -> fwd_arr
 
 
 def _get_data() -> LightData:
