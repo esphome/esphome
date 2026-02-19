@@ -7,12 +7,6 @@
 #include <vector>
 #include <future>
 
-static constexpr bool HOST_SHELL_COMMAND_USE_SHELL_DEFAULT_VALUE =
-#ifdef HOST_SHELL_COMMAND_USE_SHELL_DEFAULT
-    HOST_SHELL_COMMAND_USE_SHELL_DEFAULT;
-#else
-    false;
-#endif
 
 namespace esphome::host {
 
