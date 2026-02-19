@@ -133,9 +133,6 @@ class ModbusClientDevice {
   }
   inline void clear_tx_queue_for_device() { this->parent_->clear_tx_queue_for_device(this); }
 
-  // If more than one device is connected block sending a new command before a response is received
-  bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(); }
-
  protected:
   ModbusClientHub *parent_;
   uint8_t address_;
