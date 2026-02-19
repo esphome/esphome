@@ -7,8 +7,11 @@
 #include <vector>
 #include <future>
 
-#ifndef HOST_SHELL_COMMAND_USE_SHELL_DEFAULT
-#define HOST_SHELL_COMMAND_USE_SHELL_DEFAULT 0
+static constexpr bool HOST_SHELL_COMMAND_USE_SHELL_DEFAULT_VALUE =
+#ifdef HOST_SHELL_COMMAND_USE_SHELL_DEFAULT
+    HOST_SHELL_COMMAND_USE_SHELL_DEFAULT;
+#else
+    false;
 #endif
 
 namespace esphome::host {
@@ -22,7 +25,7 @@ struct ShellCommandResult {
 struct ShellCommandOptions {
   std::string shell{"/bin/sh"};
   std::vector<std::pair<std::string, std::string>> environment;
-  bool use_shell{HOST_SHELL_COMMAND_USE_SHELL_DEFAULT};
+  bool use_shell{HOST_SHELL_COMMAND_USE_SHELL_DEFAULT_VALUE};
 };
 
 ShellCommandResult execute_host_command(const std::string &command, const ShellCommandOptions &options = {});
