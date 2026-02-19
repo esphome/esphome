@@ -117,7 +117,7 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   }
 
   if (this->filter_us != 0) {
-    uint32_t max_glitch_ns = PCNT_LL_MAX_GLITCH_WIDTH * 1000000u / (uint32_t) esp_clk_apb_freq();
+    uint32_t max_glitch_ns = PCNT_LL_MAX_GLITCH_WIDTH * 1000u / ((uint32_t) esp_clk_apb_freq() / 1000000u);
     pcnt_glitch_filter_config_t filter_config = {
         .max_glitch_ns = std::min(this->filter_us * 1000u, max_glitch_ns),
     };
