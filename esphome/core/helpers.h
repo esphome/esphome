@@ -516,7 +516,7 @@ template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallb
 
 /// Compute 10^exp using iterative multiplication/division.
 /// Avoids pulling in powf/__ieee754_powf (~2.3KB flash) for small integer exponents.
-/// Exact for non-negative exponents up to 10 (powers of 10 up to 10^10 are exact in float).
+/// Matches powf(10, exp) for the int8_t exponent range used by sensor accuracy_decimals.
 inline float pow10_int(int8_t exp) {
   float result = 1.0f;
   if (exp >= 0) {
