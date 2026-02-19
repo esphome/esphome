@@ -32,6 +32,9 @@ void HOT arch_feed_wdt() { system_soft_wdt_feed(); }
 uint8_t progmem_read_byte(const uint8_t *addr) {
   return pgm_read_byte(addr);  // NOLINT
 }
+uint16_t progmem_read_uint16(const uint16_t *addr) {
+  return pgm_read_word(addr);  // NOLINT
+}
 uint32_t IRAM_ATTR HOT arch_get_cpu_cycle_count() { return esp_get_cycle_count(); }
 uint32_t arch_get_cpu_freq_hz() { return F_CPU; }
 

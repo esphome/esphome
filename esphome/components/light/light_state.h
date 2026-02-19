@@ -11,6 +11,7 @@
 #include "light_traits.h"
 #include "light_transformer.h"
 
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include <strings.h>
 #include <vector>
@@ -166,6 +167,17 @@ class LightState : public EntityBase, public Component {
   void set_gamma_correct(float gamma_correct);
   float get_gamma_correct() const { return this->gamma_correct_; }
 
+  /// Set pre-computed gamma forward lookup table (256-entry uint16 PROGMEM array)
+  void set_gamma_table(const uint16_t *forward) { this->gamma_table_ = forward; }
+
+  /// Get the forward gamma lookup table
+  const uint16_t *get_gamma_table() const { return this->gamma_table_; }
+
+  /// Apply gamma correction using the pre-computed forward LUT
+  float gamma_correct_lut(float value) const;
+  /// Reverse gamma correction by binary-searching the forward LUT
+  float gamma_uncorrect_lut(float value) const;
+
   /// Set the restore mode of this light
   void set_restore_mode(LightRestoreMode restore_mode);
 
@@ -297,6 +309,8 @@ class LightState : public EntityBase, public Component {
   uint32_t flash_transition_length_{};
   /// Gamma correction factor for the light.
   float gamma_correct_{};
+  const uint16_t *gamma_table_{nullptr};
+
   /// Whether the light value should be written in the next cycle.
   bool next_write_{true};
   // for effects, true if a transformer (transition) is active.
