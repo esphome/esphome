@@ -286,7 +286,7 @@ class Component {
  protected:
   friend class Application;
 
-  void call_loop();
+  void call_loop_();
   virtual void call_setup();
   virtual void call_dump_config();
 
