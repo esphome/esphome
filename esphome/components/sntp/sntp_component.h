@@ -35,9 +35,14 @@ class SNTPComponent : public time::RealTimeClock {
   // ESP8266: strings in rodata (RAM), but avoids std::string overhead (~24 bytes each)
   // Other platforms: strings in flash
   std::array<const char *, SNTP_SERVER_COUNT> servers_;
-  bool smooth_sync_;
   bool has_time_{false};
+
+#if defined(USE_ESP32)
+  bool smooth_sync_;
   bool is_syncing_{false};
+  uint32_t last_sync_status_check_{0};
+#endif
+
 
 #if defined(USE_ESP32)
  private:

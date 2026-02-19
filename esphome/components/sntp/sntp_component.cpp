@@ -1,5 +1,6 @@
 #include "sntp_component.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 #ifdef USE_ESP32
 #include "esp_sntp.h"
@@ -63,7 +64,9 @@ void SNTPComponent::dump_config() {
   for (auto &server : this->servers_) {
     ESP_LOGCONFIG(TAG, "  Server %zu: '%s'", i++, server);
   }
+#if defined(USE_ESP32)
   ESP_LOGCONFIG(TAG, "  Smooth Sync: %s", YESNO(this->smooth_sync_));
+#endif
   RealTimeClock::dump_config();
 }
 void SNTPComponent::update() {
@@ -91,25 +94,43 @@ void SNTPComponent::loop() {
   if (!this->smooth_sync_ || !this->is_syncing_) {
     this->disable_loop();
   }
-#endif
 
   if (this->has_time_ && !this->is_syncing_)
     return;
 
+#else
+  if (this->has_time_)
+    return;
+
+#endif
   this->time_synced();
 }
 
 void SNTPComponent::time_synced() {
-  // In immediate sync mode, sync status will transition to completed immediatley,
+  // In immediate sync mode, sync status will transition to completed immediately,
   // and the callback will fire as soon as valid time is found.
   // In smooth sync mode, sync status will be in progress, and this function is called
   // repeatedly by the loop to poll for state changes.
+
+#if defined(USE_ESP32)
+
+  // On esp32 platforms (supports smooth sync), avoids checking sync state
+  // frequently in the main loop; limits checks to every 500ms;
+
+  uint32_t now = App.get_loop_component_start_time();
+  if (now - this->last_sync_status_check_ < 500) {
+    return; 
+  }
+  this->last_sync_status_check_ = now;
+
+#endif
+
   auto time = this->now();
   this->has_time_ = time.is_valid();
   if (!this->has_time_)
     return;
 
-    // Check sync status to determine state
+  // Check sync status to determine state
 #if defined(USE_ESP32)
   switch (esp_sntp_get_sync_status()) {
     case SNTP_SYNC_STATUS_COMPLETED:
@@ -133,7 +154,6 @@ void SNTPComponent::time_synced() {
   ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month, time.hour,
            time.minute, time.second);
   this->time_sync_callback_.call();
-  this->is_syncing_ = false;
 #endif
 }
 
