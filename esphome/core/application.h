@@ -101,6 +101,10 @@
 #include "esphome/components/update/update_entity.h"
 #endif
 
+namespace esphome::socket {
+class Socket;
+}  // namespace esphome::socket
+
 namespace esphome {
 
 // Teardown timeout constant (in milliseconds)
@@ -491,7 +495,8 @@ class Application {
   void unregister_socket_fd(int fd);
   /// Check if there's data available on a socket without blocking
   /// This function is thread-safe for reading, but should be called after select() has run
-  bool is_socket_ready(int fd) const;
+  /// The read_fds_ is only modified by select() in the main loop
+  bool is_socket_ready(int fd) const { return fd >= 0 && this->is_socket_ready_(fd); }
 
 #ifdef USE_WAKE_LOOP_THREADSAFE
   /// Wake the main event loop from a FreeRTOS task
@@ -503,6 +508,15 @@ class Application {
 
  protected:
   friend Component;
+  friend class socket::Socket;
+
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  /// Fast path for Socket::ready() via friendship - skips negative fd check.
+  /// Safe because: fd was validated in register_socket_fd() at registration time,
+  /// and Socket::ready() only calls this when loop_monitored_ is true (registration succeeded).
+  /// FD_ISSET may include its own upper bounds check depending on platform.
+  bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
+#endif
 
   void register_component_(Component *comp);
 
@@ -518,6 +532,11 @@ class Application {
   void activate_looping_component_(uint16_t index);
   void before_loop_tasks_(uint32_t loop_start_time);
   void after_loop_tasks_();
+
+  /// Process dump_config output one component per loop iteration.
+  /// Extracted from loop() to keep cold startup/reconnect logging out of the hot path.
+  /// Caller must ensure dump_config_at_ < components_.size().
+  void __attribute__((noinline)) process_dump_config_();
 
   void feed_wdt_arch_();
 
@@ -563,9 +582,6 @@ class Application {
   std::string name_;
   std::string friendly_name_;
 
-  // size_t members
-  size_t dump_config_at_{SIZE_MAX};
-
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
@@ -575,7 +591,8 @@ class Application {
 #endif
 
   // 2-byte members (grouped together for alignment)
-  uint16_t loop_interval_{16};                 // Loop interval in ms (max 65535ms = 65.5 seconds)
+  uint16_t dump_config_at_{std::numeric_limits<uint16_t>::max()};  // Index into components_ for dump_config progress
+  uint16_t loop_interval_{16};                                     // Loop interval in ms (max 65535ms = 65.5 seconds)
   uint16_t looping_components_active_end_{0};  // Index marking end of active components in looping_components_
   uint16_t current_loop_index_{0};             // For safe reentrant modifications during iteration
 
