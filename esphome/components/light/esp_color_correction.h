@@ -11,10 +11,11 @@ inline uint8_t gamma_table_reverse_search(const uint16_t *table, uint16_t target
   uint8_t lo = 0, hi = 255;
   while (lo < hi) {
     uint8_t mid = (lo + hi + 1) / 2;
-    if (progmem_read_uint16(&table[mid]) <= target)
+    if (progmem_read_uint16(&table[mid]) <= target) {
       lo = mid;
-    else
+    } else {
       hi = mid - 1;
+    }
   }
   return lo;
 }
