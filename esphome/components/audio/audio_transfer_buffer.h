@@ -155,7 +155,8 @@ class AudioReadableBuffer {
   /// @param ticks_to_wait FreeRTOS ticks to block while waiting for data
   /// @param pre_shift If true, shifts existing data to the start of the buffer before reading
   /// @return Number of bytes read
-  virtual size_t fill(TickType_t ticks_to_wait, bool pre_shift = true) { return 0; }
+  virtual size_t fill(TickType_t ticks_to_wait, bool pre_shift) { return 0; }
+  size_t fill(TickType_t ticks_to_wait) { return this->fill(ticks_to_wait, true); }
 };
 
 class AudioSourceTransferBuffer : public AudioTransferBuffer, public AudioReadableBuffer {
@@ -187,7 +188,7 @@ class AudioSourceTransferBuffer : public AudioTransferBuffer, public AudioReadab
   size_t free() const override;
   void consume(size_t bytes) override { this->decrease_buffer_length(bytes); }
   bool has_buffered_data() const override;
-  size_t fill(TickType_t ticks_to_wait, bool pre_shift = true) override {
+  size_t fill(TickType_t ticks_to_wait, bool pre_shift) override {
     return this->transfer_data_from_source(ticks_to_wait, pre_shift);
   }
 };
