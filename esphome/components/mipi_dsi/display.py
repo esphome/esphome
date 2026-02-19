@@ -102,7 +102,7 @@ def model_schema(config):
         if model.initsequence is None
         else cv.Optional(CONF_INIT_SEQUENCE)
     )
-    # Dimensions are optional if the model has a default width and the swap_xy transform is not overridden
+    # Dimensions are optional if the model has a default width
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
     pixel_modes = (PIXEL_MODE_16BIT, PIXEL_MODE_24BIT, "16", "24")
     schema = display.FULL_DISPLAY_SCHEMA.extend(
