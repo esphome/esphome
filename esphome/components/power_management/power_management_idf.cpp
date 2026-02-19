@@ -168,7 +168,7 @@ static const size_t PM_BUF_SIZE = 1024;
 // Todo: use pm function esp_pm_get_lock_stats_all when they are available.
 bool PowerManagement::ready_to_sleep_() {
   char pm_buffer[PM_BUF_SIZE];
-  long acquired = 0;
+  int16_t acquired = 0;
 
   FILE *f = fmemopen(pm_buffer, PM_BUF_SIZE, "w");
   if (f == NULL) {
@@ -184,44 +184,23 @@ bool PowerManagement::ready_to_sleep_() {
     return false;
   }
 
-  char *line = strtok(pm_buffer, "\n");
-
-  while (line != NULL) {
+  char *line_saveptr;
+  char *word_saveptr;
+  char *line = strtok_r(pm_buffer, "\n", &line_saveptr);
+  while ((line = strtok_r(NULL, "\n", &line_saveptr)) != NULL) {
     if (strncmp(line, "Mode", 4) == 0) {
       break;
     }
     if (strncmp(line, "Name", 4) != 0 && strncmp(line, "Lock", 4) != 0) {
-      // Name            Type            Arg    Active
-      // ot_sleep        APB_FREQ_MAX    0      1
-      char *p = line;
-      // Start of Name
-      while (*p && isspace((unsigned char) *p))
-        p++;
-      // End of Name
-      while (*p && !isspace((unsigned char) *p))
-        p++;
-      // Start of Type
-      while (*p && isspace((unsigned char) *p))
-        p++;
-      // End of Type
-      while (*p && !isspace((unsigned char) *p))
-        p++;
-      // Start of Arg
-      while (*p && isspace((unsigned char) *p))
-        p++;
-      // End of Arg
-      while (*p && !isspace((unsigned char) *p))
-        p++;
-      // start of Active
-      while (*p && isspace((unsigned char) *p))
-        p++;
-      if (*p != '\0') {
-        long count = strtol(p, NULL, 10);
-        acquired += count;
+      char *word = strtok_r(line, " ", &word_saveptr);
+      for (int i = 0; i < 3; i++) {
+        word = strtok_r(NULL, " ", &word_saveptr);
+      }
+      // at 4th word
+      if (word != NULL) {
+        acquired += atoi(word);
       }
     }
-
-    line = strtok(NULL, "\n");  // NULL tells strtok to continue from last position
   }
   return (acquired < 2);
 }
