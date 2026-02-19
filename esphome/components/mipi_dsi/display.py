@@ -48,6 +48,7 @@ from esphome.const import (
     CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_RESET_PIN,
+    CONF_ROTATION,
     CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_WIDTH,
@@ -208,6 +209,8 @@ async def to_code(config):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
 
+    if model.rotation_as_transform(config):
+        config[CONF_ROTATION] = 0
     await display.register_display(var, config)
     if lamb := config.get(CONF_LAMBDA):
         lambda_ = await cg.process_lambda(
