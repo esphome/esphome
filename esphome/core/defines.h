@@ -125,6 +125,7 @@
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
 #define USE_ZWAVE_PROXY
+#define HOST_SHELL_COMMAND_USE_SHELL_DEFAULT 0
 
 // Feature flags which do not work for zephyr
 #ifndef USE_ZEPHYR
