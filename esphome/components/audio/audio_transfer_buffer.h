@@ -15,6 +15,12 @@
 namespace esphome {
 namespace audio {
 
+/// @brief Abstract interface for writing decoded audio data to a sink.
+class AudioSinkCallback {
+ public:
+  virtual size_t audio_sink_write(uint8_t *data, size_t length, TickType_t ticks_to_wait) = 0;
+};
+
 class AudioTransferBuffer {
   /*
    * @brief Class that facilitates tranferring data between a buffer and an audio source or sink.
@@ -56,6 +62,9 @@ class AudioTransferBuffer {
   /// @return True if there is data, false otherwise.
   virtual bool has_buffered_data() const;
 
+  /// @brief Reallocates the transfer buffer, preserving any existing data.
+  /// @param new_buffer_size The new size in bytes. Must be at least as large as available().
+  /// @return True if successful, false otherwise. On failure, the original buffer remains valid.
   bool reallocate(size_t new_buffer_size);
 
  protected:
@@ -105,6 +114,10 @@ class AudioSinkTransferBuffer : public AudioTransferBuffer {
   void set_sink(speaker::Speaker *speaker) { this->speaker_ = speaker; }
 #endif
 
+  /// @brief Adds a callback as the transfer buffer's sink.
+  /// @param callback Pointer to the AudioSinkCallback implementation
+  void set_sink(AudioSinkCallback *callback) { this->sink_callback_ = callback; }
+
   void clear_buffered_data() override;
 
   bool has_buffered_data() const override;
@@ -113,6 +126,7 @@ class AudioSinkTransferBuffer : public AudioTransferBuffer {
 #ifdef USE_SPEAKER
   speaker::Speaker *speaker_{nullptr};
 #endif
+  AudioSinkCallback *sink_callback_{nullptr};
 };
 
 class AudioSourceTransferBuffer : public AudioTransferBuffer {

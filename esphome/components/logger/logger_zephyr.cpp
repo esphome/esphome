@@ -14,7 +14,7 @@ namespace esphome::logger {
 static const char *const TAG = "logger";
 
 #ifdef USE_LOGGER_USB_CDC
-void Logger::loop() {
+void Logger::cdc_loop_() {
   if (this->uart_ != UART_SELECTION_USB_CDC || this->uart_dev_ == nullptr) {
     return;
   }

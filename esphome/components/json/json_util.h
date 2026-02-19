@@ -18,7 +18,10 @@ namespace json {
 // Build an allocator for the JSON Library using the RAMAllocator class
 // This is only compiled when PSRAM is enabled
 struct SpiRamAllocator : ArduinoJson::Allocator {
-  void *allocate(size_t size) override { return allocator_.allocate(size); }
+  void *allocate(size_t size) override {
+    RAMAllocator<uint8_t> allocator;
+    return allocator.allocate(size);
+  }
 
   void deallocate(void *ptr) override {
     // ArduinoJson's Allocator interface doesn't provide the size parameter in deallocate.
@@ -31,11 +34,9 @@ struct SpiRamAllocator : ArduinoJson::Allocator {
   }
 
   void *reallocate(void *ptr, size_t new_size) override {
-    return allocator_.reallocate(static_cast<uint8_t *>(ptr), new_size);
+    RAMAllocator<uint8_t> allocator;
+    return allocator.reallocate(static_cast<uint8_t *>(ptr), new_size);
   }
-
- protected:
-  RAMAllocator<uint8_t> allocator_{RAMAllocator<uint8_t>::NONE};
 };
 #endif
 

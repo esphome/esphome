@@ -61,9 +61,17 @@ void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
       break;
   }
 
+  auto before = millis();
   auto err = zigbee_default_signal_handler(bufid);
   if (err != RET_OK) {
     ESP_LOGE(TAG, "Zigbee_default_signal_handler ERROR %u [%s]", err, zb_error_to_string_get(err));
+  }
+
+  if (sig == ZB_COMMON_SIGNAL_CAN_SLEEP) {
+    this->sleep_remainder_ += millis() - before;
+    uint32_t seconds = this->sleep_remainder_ / 1000;
+    this->sleep_remainder_ -= seconds * 1000;
+    this->sleep_time_ += seconds;
   }
 
   switch (sig) {
@@ -213,6 +221,7 @@ void ZigbeeComponent::dump_config() {
                 "Zigbee\n"
                 "  Wipe on boot: %s\n"
                 "  Device is joined to the network: %s\n"
+                "  Sleep time: %us\n"
                 "  Current channel: %d\n"
                 "  Current page: %d\n"
                 "  Sleep threshold: %ums\n"
@@ -221,9 +230,9 @@ void ZigbeeComponent::dump_config() {
                 "  Short addr: 0x%04X\n"
                 "  Long pan id: 0x%s\n"
                 "  Short pan id: 0x%04X",
-                get_wipe_on_boot(), YESNO(zb_zdo_joined()), zb_get_current_channel(), zb_get_current_page(),
-                zb_get_sleep_threshold(), role(), ieee_addr_buf, zb_get_short_address(), extended_pan_id_buf,
-                zb_get_pan_id());
+                get_wipe_on_boot(), YESNO(zb_zdo_joined()), this->sleep_time_, zb_get_current_channel(),
+                zb_get_current_page(), zb_get_sleep_threshold(), role(), ieee_addr_buf, zb_get_short_address(),
+                extended_pan_id_buf, zb_get_pan_id());
   dump_reporting_();
 }
 
