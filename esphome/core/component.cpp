@@ -41,20 +41,23 @@ struct ComponentErrorMessage {
   bool is_flash_ptr;
 };
 
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
 struct ComponentPriorityOverride {
   const Component *component;
   float priority;
 };
+
+// Setup priority overrides - freed after setup completes
+// Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::vector<ComponentPriorityOverride> *setup_priority_overrides = nullptr;
+#endif
 
 // Error messages for failed components
 // Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
 // This is never freed as error messages persist for the lifetime of the device
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::vector<ComponentErrorMessage> *component_error_messages = nullptr;
-// Setup priority overrides - freed after setup completes
-// Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::vector<ComponentPriorityOverride> *setup_priority_overrides = nullptr;
 
 // Helper to store error messages - reduces duplication between deprecated and new API
 // Remove before 2026.6.0 when deprecated const char* API is removed
@@ -459,6 +462,7 @@ void log_update_interval(const char *tag, PollingComponent *component) {
   }
 }
 float Component::get_actual_setup_priority() const {
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Check if there's an override in the global vector
   if (setup_priority_overrides) {
     // Linear search is fine for small n (typically < 5 overrides)
@@ -468,14 +472,14 @@ float Component::get_actual_setup_priority() const {
       }
     }
   }
+#endif
   return this->get_setup_priority();
 }
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
 void Component::set_setup_priority(float priority) {
   // Lazy allocate the vector if needed
   if (!setup_priority_overrides) {
     setup_priority_overrides = new std::vector<ComponentPriorityOverride>();
-    // Reserve some space to avoid reallocations (most configs have < 10 overrides)
-    setup_priority_overrides->reserve(10);
   }
 
   // Check if this component already has an override
@@ -489,6 +493,7 @@ void Component::set_setup_priority(float priority) {
   // Add new override
   setup_priority_overrides->emplace_back(ComponentPriorityOverride{this, priority});
 }
+#endif
 
 bool Component::has_overridden_loop() const {
 #if defined(USE_HOST) || defined(CLANG_TIDY)
@@ -557,10 +562,12 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
 
 WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {}
 
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
 void clear_setup_priority_overrides() {
   // Free the setup priority map completely
   delete setup_priority_overrides;
   setup_priority_overrides = nullptr;
 }
+#endif
 
 }  // namespace esphome

@@ -35,8 +35,8 @@ using namespace esp32_ble_client;
 // Version 3: New connection API
 // Version 4: Pairing support
 // Version 5: Cache clear support
-static const uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
-static const uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
+static constexpr uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
+static constexpr uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
 
 enum BluetoothProxyFeature : uint32_t {
   FEATURE_PASSIVE_SCAN = 1 << 0,

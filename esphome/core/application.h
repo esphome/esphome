@@ -111,7 +111,7 @@ namespace esphome {
 // For reboots, it's more important to shut down quickly than disconnect cleanly
 // since we're not entering deep sleep. The only consequence of not shutting down
 // cleanly is a warning in the log.
-static const uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
+static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
 
 class Application {
  public:

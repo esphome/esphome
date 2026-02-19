@@ -563,6 +563,7 @@ class WarnIfComponentBlockingGuard {
 };
 
 // Function to clear setup priority overrides after all components are set up
+// Only has an implementation when USE_SETUP_PRIORITY_OVERRIDE is defined
 void clear_setup_priority_overrides();
 
 }  // namespace esphome
