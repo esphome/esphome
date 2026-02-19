@@ -1549,16 +1549,16 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
       for (auto const &custom_preset : traits.get_supported_custom_presets())
         opt.add(custom_preset);
     }
+    root[ESPHOME_F("max_temp")] =
+        (value_accuracy_to_buf(temp_buf, traits.get_visual_max_temperature(), target_accuracy), temp_buf);
+    root[ESPHOME_F("min_temp")] =
+        (value_accuracy_to_buf(temp_buf, traits.get_visual_min_temperature(), target_accuracy), temp_buf);
+    root[ESPHOME_F("step")] = traits.get_visual_target_temperature_step();
     this->add_sorting_info_(root, obj);
   }
 
   bool has_state = false;
   root[ESPHOME_F("mode")] = PSTR_LOCAL(climate_mode_to_string(obj->mode));
-  root[ESPHOME_F("max_temp")] =
-      (value_accuracy_to_buf(temp_buf, traits.get_visual_max_temperature(), target_accuracy), temp_buf);
-  root[ESPHOME_F("min_temp")] =
-      (value_accuracy_to_buf(temp_buf, traits.get_visual_min_temperature(), target_accuracy), temp_buf);
-  root[ESPHOME_F("step")] = traits.get_visual_target_temperature_step();
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
     root[ESPHOME_F("action")] = PSTR_LOCAL(climate_action_to_string(obj->action));
     root[ESPHOME_F("state")] = root[ESPHOME_F("action")];
@@ -1602,8 +1602,8 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY)) {
     root[ESPHOME_F("current_humidity")] = std::isnan(obj->current_humidity)
-                                             ? "NA"
-                                             : (value_accuracy_to_buf(temp_buf, obj->current_humidity, 0), temp_buf);
+                                              ? "NA"
+                                              : (value_accuracy_to_buf(temp_buf, obj->current_humidity, 0), temp_buf);
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
