@@ -21,7 +21,7 @@ void SpeakerSourceMediaPlayer::setup() {
 
   this->media_control_command_queue_ = xQueueCreate(MEDIA_CONTROLS_QUEUE_LENGTH, sizeof(MediaPlayerControlCommand));
 
-  this->pref_ = global_preferences->make_preference<VolumeRestoreState>(this->get_preference_hash());
+  this->pref_ = this->make_entity_preference<VolumeRestoreState>();
 
   VolumeRestoreState volume_restore_state;
   if (this->pref_.load(&volume_restore_state)) {
