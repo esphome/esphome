@@ -119,7 +119,7 @@ void SNTPComponent::time_synced() {
 
   uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_sync_status_check_ < 500) {
-    return; 
+    return;
   }
   this->last_sync_status_check_ = now;
 
@@ -130,7 +130,7 @@ void SNTPComponent::time_synced() {
   if (!this->has_time_)
     return;
 
-  // Check sync status to determine state
+    // Check sync status to determine state
 #if defined(USE_ESP32)
   switch (esp_sntp_get_sync_status()) {
     case SNTP_SYNC_STATUS_COMPLETED:

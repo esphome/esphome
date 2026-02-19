@@ -43,7 +43,6 @@ class SNTPComponent : public time::RealTimeClock {
   uint32_t last_sync_status_check_{0};
 #endif
 
-
 #if defined(USE_ESP32)
  private:
   static SNTPComponent *instance;
