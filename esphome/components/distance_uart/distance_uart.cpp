@@ -121,7 +121,7 @@ void DistanceUARTSensor::process_frame_() {
     distance_m = NAN;
   } else {
     distance_m = distance_mm / 1000.0f;
-    ESP_LOGD(TAG, "Received valid frame. Distance: %u mm (%.3f m)", distance_mm, distance_m);
+    ESP_LOGV(TAG, "Received valid frame. Distance: %u mm (%.3f m)", distance_mm, distance_m);
   }
 
   if (this->mode_ == MODE_CONTROLLED) {
