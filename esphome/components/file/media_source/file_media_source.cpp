@@ -310,9 +310,8 @@ void FileMediaSource::decode_task(void *params) {
       }
     }
 
-    // Add the file as an inplace buffer source
-    // BAD PRACTICE: removing const qualifier to match API
-    decoder->add_source(const_cast<uint8_t *>(ctx.current_file->data), ctx.current_file->length);
+    // Add the file as an const data source
+    decoder->add_source(ctx.current_file->data, ctx.current_file->length);
 
     xEventGroupSetBits(ctx.event_group, EventGroupBits::TASK_RUNNING);
 
