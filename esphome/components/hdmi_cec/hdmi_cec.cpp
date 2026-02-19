@@ -4,12 +4,12 @@
 #include <array>
 #include <atomic>
 
-#ifdef HAVE_UART
+#ifdef HDMI_CEC_USE_UART
 #include "esphome/components/uart/uart_component.h"
 #endif
 #include "hdmi_cec.h"
 
-#ifdef USE_CEC_DECODER
+#ifdef HDMI_CEC_USE_DECODER
 #include "cec_decoder.h"
 #endif
 
@@ -60,7 +60,7 @@ std::string Frame::to_string() const {
       result += ":";
     }
   }
-#ifdef USE_CEC_DECODER
+#ifdef HDMI_CEC_USE_DECODER
   Decoder decoder(*this);
   result += " => " + decoder.decode();
 #endif
@@ -259,7 +259,7 @@ void CECTransmit::setup(InternalGPIOPin *pin) {
   pin_->setup();
   set_pin_input_high();
 
-#ifdef HAVE_UART
+#ifdef HDMI_CEC_USE_UART
   if (uart_) {
     uart_->set_baud_rate(2083);
     uart_->set_data_bits(8);
@@ -499,8 +499,8 @@ void CECTransmit::transmit_message_on_uart_(const Frame &frame) {
   for (unsigned int i = 0; i < frame.size(); i++) {
     convert_byte_to_uart_(uart_data, frame[i], i == 0, i == (frame.size() - 1));
   }
-#ifdef HAVE_UART
-  uart_->write_array(uart_data);  // if not 'HAVE_UART', the include file is missing and this cannot be compiled
+#ifdef HDMI_CEC_USE_UART
+  uart_->write_array(uart_data);  // if not 'HDMI_CEC_USE_UART', the include file is missing and this cannot be compiled
 #endif
 }
 
@@ -532,7 +532,7 @@ void IRAM_ATTR CECTransmit::send_ack() {
   // This method is called by the receiver (gpio_isr). When receiving a message, this transmitter
   // is expected to be idle. The only exception to that would be the rather abnormal case
   // where we transmit a message to ourselves (address_ == target_address).
-#ifdef HAVE_UART
+#ifdef HDMI_CEC_USE_UART
   if (transmit_state_ == TransmitState::IDLE) {
     // transmit a '0' with 3 'low' uart bit periods, one of which is the uart start-bit.
     // So, the uart byte to send has its 2 least-significant bits 0.

@@ -82,7 +82,7 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
 
 async def to_code(config):
     if config[CONF_DECODE_MESSAGES]:
-        cg.add_define("USE_CEC_DECODER")
+        cg.add_define("HDMI_CEC_USE_DECODER")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -92,7 +92,7 @@ async def to_code(config):
 
     if config.get(CONF_UART_ID) is not None:
         uart_component = await cg.get_variable(config[CONF_UART_ID])
-        cg.add_define("HAVE_UART")
+        cg.add_define("HDMI_CEC_USE_UART")
         cg.add(var.set_uart(uart_component))
 
     cg.add(var.set_address(config[CONF_ADDRESS]))
