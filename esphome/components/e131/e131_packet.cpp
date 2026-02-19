@@ -98,11 +98,12 @@ void E131Component::join_(int universe) {
   // store only latest received packet for the given universe
   auto *consumer = this->find_universe_(universe);
   if (consumer != nullptr) {
-    consumer->consumers++;
-    return;  // we already joined before
+    if (consumer->consumers++ > 0) {
+      return;  // we already joined before
+    }
+  } else {
+    this->universe_consumers_.push_back({static_cast<uint16_t>(universe), 1});
   }
-
-  this->universe_consumers_.push_back({static_cast<uint16_t>(universe), 1});
 
   if (this->join_igmp_groups_()) {
     ESP_LOGD(TAG, "Joined %d universe for E1.31.", universe);
