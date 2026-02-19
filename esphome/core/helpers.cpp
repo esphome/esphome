@@ -468,8 +468,18 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
 
 static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_decimals) {
   if (accuracy_decimals < 0) {
-    auto multiplier = powf(10.0f, accuracy_decimals);
-    value = roundf(value * multiplier) / multiplier;
+    uint32_t divisor;
+    if (accuracy_decimals == -1) {
+      divisor = 10;
+    } else if (accuracy_decimals == -2) {
+      divisor = 100;
+    } else {
+      divisor = 1000;
+      for (int8_t i = accuracy_decimals + 3; i < 0; i++)
+        divisor *= 10;
+    }
+    auto divisor_f = static_cast<float>(divisor);
+    value = roundf(value / divisor_f) * divisor_f;
     accuracy_decimals = 0;
   }
 }
