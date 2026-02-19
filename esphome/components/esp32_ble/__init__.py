@@ -9,6 +9,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import socket
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
+from esphome.components.esp32.const import VARIANT_ESP32C2
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_ON_BOOT,
@@ -386,6 +387,13 @@ def final_validation(config):
             raise cv.Invalid(
                 f"Name '{name}' is too long, maximum length is {max_length} characters"
             )
+
+    # ESP32-C2 has very limited RAM (~272KB). Without releasing BLE IRAM,
+    # esp_bt_controller_init fails with ESP_ERR_NO_MEM.
+    # CONFIG_BT_RELEASE_IRAM frees ~21KB of IRAM by merging BT text/data/bss
+    # into heap when esp_bt_mem_release is called.
+    if get_esp32_variant() == VARIANT_ESP32C2:
+        add_idf_sdkconfig_option("CONFIG_BT_RELEASE_IRAM", True)
 
     # Set GATT Client/Server sdkconfig options based on which components are loaded
     full_config = fv.full_config.get()
