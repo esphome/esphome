@@ -186,14 +186,7 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
  * under the '/light/...', '/sensor/...', ... URLs. A full documentation for this API
  * can be found under https://esphome.io/web-api/.
  */
-class WebServer : public Controller,
-                  public Component,
-                  public AsyncWebHandler
-#ifdef USE_LOGGER
-    ,
-                  public logger::LogListener
-#endif
-{
+class WebServer : public Controller, public Component, public AsyncWebHandler {
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
   friend class DeferredUpdateEventSourceList;
 #endif
@@ -254,7 +247,7 @@ class WebServer : public Controller,
   void dump_config() override;
 
 #ifdef USE_LOGGER
-  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len);
 #endif
 
   /// MQTT setup priority.

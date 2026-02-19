@@ -59,8 +59,14 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
 #if USE_NETWORK_IPV6
   else if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(addr_ptr);
-#ifndef USE_SOCKET_IMPL_LWIP_TCP
-    // Format IPv4-mapped IPv6 addresses as regular IPv4 (not supported on ESP8266 raw TCP)
+#ifdef USE_HOST
+    // Format IPv4-mapped IPv6 addresses as regular IPv4 (POSIX layout, no LWIP union)
+    if (IN6_IS_ADDR_V4MAPPED(&addr->sin6_addr) &&
+        esphome_inet_ntop4(&addr->sin6_addr.s6_addr[12], buf.data(), buf.size()) != nullptr) {
+      return strlen(buf.data());
+    }
+#elif !defined(USE_SOCKET_IMPL_LWIP_TCP)
+    // Format IPv4-mapped IPv6 addresses as regular IPv4 (LWIP layout)
     if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
         addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
         esphome_inet_ntop4(&addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {

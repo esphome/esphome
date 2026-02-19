@@ -20,9 +20,9 @@
 
 namespace esphome::ld2420 {
 
-static const uint8_t CALIBRATE_SAMPLES = 64;
-static const uint8_t MAX_LINE_LENGTH = 46;  // Max characters for serial buffer
-static const uint8_t TOTAL_GATES = 16;
+static constexpr uint8_t CALIBRATE_SAMPLES = 64;
+static constexpr uint8_t MAX_LINE_LENGTH = 46;  // Max characters for serial buffer
+static constexpr uint8_t TOTAL_GATES = 16;
 
 enum OpMode : uint8_t {
   OP_NORMAL_MODE = 1,

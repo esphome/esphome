@@ -137,8 +137,10 @@ void Application::setup() {
 
   ESP_LOGI(TAG, "setup() finished successfully!");
 
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Clear setup priority overrides to free memory
   clear_setup_priority_overrides();
+#endif
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   // Set up wake socket for waking main loop from tasks
@@ -240,7 +242,7 @@ void Application::process_dump_config_() {
   this->dump_config_at_++;
 }
 
-void IRAM_ATTR HOT Application::feed_wdt(uint32_t time) {
+void HOT Application::feed_wdt(uint32_t time) {
   static uint32_t last_feed = 0;
   // Use provided time if available, otherwise get current time
   uint32_t now = time ? time : millis();

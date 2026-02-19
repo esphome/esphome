@@ -113,6 +113,9 @@ enum class AudioFileType : uint8_t {
 #ifdef USE_AUDIO_MP3_SUPPORT
   MP3,
 #endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+  OPUS,
+#endif
   WAV,
 };
 

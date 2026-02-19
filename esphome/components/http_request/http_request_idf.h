@@ -21,11 +21,8 @@ class HttpContainerIDF : public HttpContainer {
   /// @brief Feeds the watchdog timer if the executing task has one attached
   void feed_wdt();
 
-  void set_response_headers(std::map<std::string, std::list<std::string>> &response_headers) {
-    this->response_headers_ = std::move(response_headers);
-  }
-
  protected:
+  friend class HttpRequestIDF;
   esp_http_client_handle_t client_;
 };
 
@@ -41,7 +38,7 @@ class HttpRequestIDF : public HttpRequestComponent {
  protected:
   std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method, const std::string &body,
                                          const std::list<Header> &request_headers,
-                                         const std::set<std::string> &collect_headers) override;
+                                         const std::vector<std::string> &lower_case_collect_headers) override;
   // if zero ESP-IDF will use DEFAULT_HTTP_BUF_SIZE
   uint16_t buffer_size_rx_{};
   uint16_t buffer_size_tx_{};
