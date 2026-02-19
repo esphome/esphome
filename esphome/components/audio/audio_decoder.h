@@ -80,6 +80,17 @@ class AudioDecoder {
   esp_err_t add_sink(speaker::Speaker *speaker);
 #endif
 
+  /// @brief Adds a const data pointer as the source for raw file data. Does not allocate a transfer buffer.
+  /// @param data_pointer Pointer to the const audio data (e.g., stored in flash memory)
+  /// @param length Size of the data in bytes
+  /// @return ESP_OK
+  esp_err_t add_source(const uint8_t *data_pointer, size_t length);
+
+  /// @brief Adds a callback as the sink for decoded audio.
+  /// @param callback Pointer to the AudioSinkCallback implementation
+  /// @return ESP_OK if successful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
+  esp_err_t add_sink(AudioSinkCallback *callback);
+
   /// @brief Sets up decoding the file
   /// @param audio_file_type AudioFileType of the file
   /// @return ESP_OK if successful, ESP_ERR_NO_MEM if the transfer buffers fail to allocate, or ESP_ERR_NOT_SUPPORTED if
@@ -120,25 +131,26 @@ class AudioDecoder {
 #endif
   FileDecoderState decode_wav_();
 
-  std::unique_ptr<AudioSourceTransferBuffer> input_transfer_buffer_;
+  std::unique_ptr<AudioReadableBuffer> input_buffer_;
   std::unique_ptr<AudioSinkTransferBuffer> output_transfer_buffer_;
 
   AudioFileType audio_file_type_{AudioFileType::NONE};
   optional<AudioStreamInfo> audio_stream_info_{};
 
+  size_t input_buffer_size_{0};
   size_t free_buffer_required_{0};
   size_t wav_bytes_left_{0};
 
   uint32_t potentially_failed_count_{0};
+  uint32_t accumulated_frames_written_{0};
+  uint32_t playback_ms_{0};
+
   bool end_of_file_{false};
   bool wav_has_known_end_{false};
 
   bool decoder_buffers_internally_{false};
 
   bool pause_output_{false};
-
-  uint32_t accumulated_frames_written_{0};
-  uint32_t playback_ms_{0};
 };
 }  // namespace audio
 }  // namespace esphome
