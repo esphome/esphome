@@ -18,9 +18,12 @@ namespace sntp {
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
 class SNTPComponent : public time::RealTimeClock {
  public:
-  SNTPComponent(const std::array<const char *, SNTP_SERVER_COUNT> &servers, bool smooth_sync)
+#if defined(USE_ESP32)
+  SNTPComponent(const std::array<const char *, SNTP_SERVER_COUNT> &servers)
       : servers_(servers), smooth_sync_(smooth_sync) {}
-
+#else
+  SNTPComponent(const std::array<const char *, SNTP_SERVER_COUNT> &servers, bool smooth_sync) : servers_(servers) {}
+#endif
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }

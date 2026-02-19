@@ -88,7 +88,7 @@ void SNTPComponent::loop() {
 // component that set the time.
 // ESP-IDF and ESP8266 use callbacks from the SNTP task to trigger the
 // `on_time_sync` trigger on successful sync events.
-#if defined(USE_ESP32) || defined(USE_ESP8266)
+#if defined(USE_ESP32)
   // Keep loop enabled when smooth sync is active on ESP32 platform
   // otherwise disable the loop
   if (!this->smooth_sync_ || !this->is_syncing_) {
@@ -97,11 +97,15 @@ void SNTPComponent::loop() {
 
   if (this->has_time_ && !this->is_syncing_)
     return;
-
-#else
+#elif defined(USE_ESP8266)
+  // Always disable loop on esp8266, callbacks handle state changes and smooth sync not enabled
+  this->disable_loop();
   if (this->has_time_)
     return;
-
+#else
+  // Not esp32 or esp8266
+  if (this->has_time_)
+    return;
 #endif
   this->time_synced();
 }
