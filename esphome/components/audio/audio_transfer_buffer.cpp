@@ -165,6 +165,8 @@ size_t AudioSinkTransferBuffer::transfer_data_to_sink(TickType_t ticks_to_wait, 
         if (this->ring_buffer_.use_count() > 0) {
       bytes_written =
           this->ring_buffer_->write_without_replacement((void *) this->data_start_, this->available(), ticks_to_wait);
+    } else if (this->sink_callback_ != nullptr) {
+      bytes_written = this->sink_callback_->audio_sink_write(this->data_start_, this->available(), ticks_to_wait);
     }
 
     this->decrease_buffer_length(bytes_written);

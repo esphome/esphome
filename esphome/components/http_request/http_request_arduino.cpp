@@ -27,7 +27,7 @@ static constexpr int ESP8266_SSL_ERR_OOM = -1000;
 std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &url, const std::string &method,
                                                            const std::string &body,
                                                            const std::list<Header> &request_headers,
-                                                           const std::set<std::string> &collect_headers) {
+                                                           const std::vector<std::string> &lower_case_collect_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
@@ -107,9 +107,9 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   }
 
   // returned needed headers must be collected before the requests
-  const char *header_keys[collect_headers.size()];
+  const char *header_keys[lower_case_collect_headers.size()];
   int index = 0;
-  for (auto const &header_name : collect_headers) {
+  for (auto const &header_name : lower_case_collect_headers) {
     header_keys[index++] = header_name.c_str();
   }
   container->client_.collectHeaders(header_keys, index);
@@ -160,14 +160,14 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
     // Still return the container, so it can be used to get the status code and error message
   }
 
-  container->response_headers_ = {};
+  container->response_headers_.clear();
   auto header_count = container->client_.headers();
   for (int i = 0; i < header_count; i++) {
     const std::string header_name = str_lower_case(container->client_.headerName(i).c_str());
-    if (collect_headers.count(header_name) > 0) {
+    if (should_collect_header(lower_case_collect_headers, header_name)) {
       std::string header_value = container->client_.header(i).c_str();
       ESP_LOGD(TAG, "Received response header, name: %s, value: %s", header_name.c_str(), header_value.c_str());
-      container->response_headers_[header_name].push_back(header_value);
+      container->response_headers_.push_back({header_name, header_value});
     }
   }
 

@@ -474,7 +474,7 @@ APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, s
     // buf_start[1], buf_start[2] to be set after encryption
 
     // Write message header (to be encrypted)
-    const uint8_t msg_offset = 3;
+    constexpr uint8_t msg_offset = 3;
     buf_start[msg_offset] = static_cast<uint8_t>(msg.message_type >> 8);      // type high byte
     buf_start[msg_offset + 1] = static_cast<uint8_t>(msg.message_type);       // type low byte
     buf_start[msg_offset + 2] = static_cast<uint8_t>(msg.payload_size >> 8);  // data_len high byte
