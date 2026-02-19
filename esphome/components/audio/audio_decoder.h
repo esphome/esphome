@@ -50,8 +50,8 @@ enum class FileDecoderState : uint8_t {
 class AudioDecoder {
   /*
    * @brief Class that facilitates decoding an audio file.
-   * The audio file is read from a ring buffer source, decoded, and sent to an audio sink (ring buffer or speaker
-   * component).
+   * The audio file is read from a source (ring buffer or const data pointer), decoded, and sent to an audio sink
+   * (ring buffer, speaker component, or callback).
    * Supports wav, flac, mp3, and ogg opus formats.
    */
  public:
