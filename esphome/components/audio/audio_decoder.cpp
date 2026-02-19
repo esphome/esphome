@@ -3,9 +3,12 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace audio {
+
+static const char *const TAG = "audio.decoder";
 
 static const uint32_t DECODING_TIMEOUT_MS = 50;    // The decode function will yield after this duration
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;  // Timeout for transferring audio data
@@ -78,6 +81,14 @@ esp_err_t AudioDecoder::start(AudioFileType audio_file_type) {
 
       // Always reallocate the output transfer buffer to the smallest necessary size
       this->output_transfer_buffer_->reallocate(this->free_buffer_required_);
+      break;
+#endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+    case AudioFileType::OPUS:
+      this->opus_decoder_ = make_unique<micro_opus::OggOpusDecoder>();
+      this->free_buffer_required_ =
+          this->output_transfer_buffer_->capacity();  // Adjusted and reallocated after reading the header
+      this->decoder_buffers_internally_ = true;
       break;
 #endif
     case AudioFileType::WAV:
@@ -158,8 +169,9 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
     // Decode more audio
 
     // Only shift data on the first loop iteration to avoid unnecessary, slow moves
-    size_t bytes_read = this->input_transfer_buffer_->transfer_data_from_source(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS),
-                                                                                first_loop_iteration);
+    // If the decoder buffers internally, then never shift
+    size_t bytes_read = this->input_transfer_buffer_->transfer_data_from_source(
+        pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), first_loop_iteration && !this->decoder_buffers_internally_);
 
     if (!first_loop_iteration && (this->input_transfer_buffer_->available() < bytes_processed)) {
       // Less data is available than what was processed in last iteration, so don't attempt to decode.
@@ -194,6 +206,11 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
 #ifdef USE_AUDIO_MP3_SUPPORT
         case AudioFileType::MP3:
           state = this->decode_mp3_();
+          break;
+#endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+        case AudioFileType::OPUS:
+          state = this->decode_opus_();
           break;
 #endif
         case AudioFileType::WAV:
@@ -335,6 +352,45 @@ FileDecoderState AudioDecoder::decode_mp3_() {
     }
   }
 
+  return FileDecoderState::MORE_TO_PROCESS;
+}
+#endif
+
+#ifdef USE_AUDIO_OPUS_SUPPORT
+FileDecoderState AudioDecoder::decode_opus_() {
+  bool processed_header = this->opus_decoder_->is_initialized();
+
+  size_t bytes_consumed, samples_decoded;
+
+  micro_opus::OggOpusResult result = this->opus_decoder_->decode(
+      this->input_transfer_buffer_->get_buffer_start(), this->input_transfer_buffer_->available(),
+      this->output_transfer_buffer_->get_buffer_end(), this->output_transfer_buffer_->free(), bytes_consumed,
+      samples_decoded);
+
+  if (result == micro_opus::OGG_OPUS_OK) {
+    if (!processed_header && this->opus_decoder_->is_initialized()) {
+      // Header processed and stream info is available
+      this->audio_stream_info_ =
+          audio::AudioStreamInfo(this->opus_decoder_->get_bit_depth(), this->opus_decoder_->get_channels(),
+                                 this->opus_decoder_->get_sample_rate());
+    }
+    if (samples_decoded > 0 && this->audio_stream_info_.has_value()) {
+      // Some audio was processed
+      this->output_transfer_buffer_->increase_buffer_length(
+          this->audio_stream_info_.value().frames_to_bytes(samples_decoded));
+    }
+    this->input_transfer_buffer_->decrease_buffer_length(bytes_consumed);
+  } else if (result == micro_opus::OGG_OPUS_OUTPUT_BUFFER_TOO_SMALL) {
+    // Reallocate to decode the packet on the next call
+    this->free_buffer_required_ = this->opus_decoder_->get_required_output_buffer_size();
+    if (!this->output_transfer_buffer_->reallocate(this->free_buffer_required_)) {
+      // Couldn't reallocate output buffer
+      return FileDecoderState::FAILED;
+    }
+  } else {
+    ESP_LOGE(TAG, "Opus decoder failed: %" PRId8, result);
+    return FileDecoderState::POTENTIALLY_FAILED;
+  }
   return FileDecoderState::MORE_TO_PROCESS;
 }
 #endif

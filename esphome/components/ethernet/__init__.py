@@ -130,11 +130,16 @@ ETHERNET_TYPES = {
 }
 
 # PHY types that need compile-time defines for conditional compilation
+# Each RMII PHY type gets a define so unused PHY drivers are excluded by the linker
 _PHY_TYPE_TO_DEFINE = {
+    "LAN8720": "USE_ETHERNET_LAN8720",
+    "RTL8201": "USE_ETHERNET_RTL8201",
+    "DP83848": "USE_ETHERNET_DP83848",
+    "IP101": "USE_ETHERNET_IP101",
+    "JL1101": "USE_ETHERNET_JL1101",
     "KSZ8081": "USE_ETHERNET_KSZ8081",
     "KSZ8081RNA": "USE_ETHERNET_KSZ8081",
     "LAN8670": "USE_ETHERNET_LAN8670",
-    # Add other PHY types here only if they need conditional compilation
 }
 
 SPI_ETHERNET_TYPES = ["W5500", "DM9051"]
@@ -430,9 +435,6 @@ async def to_code(config):
     if config[CONF_TYPE] == "LAN8670":
         # Add LAN867x 10BASE-T1S PHY support component
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
-
-    if CORE.using_arduino:
-        cg.add_library("WiFi", None)
 
     if on_connect_config := config.get(CONF_ON_CONNECT):
         cg.add_define("USE_ETHERNET_CONNECT_TRIGGER")

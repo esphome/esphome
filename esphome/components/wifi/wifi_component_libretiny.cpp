@@ -193,7 +193,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
 
   String ssid = WiFi.SSID();
-  if (ssid && strcmp(ssid.c_str(), ap.get_ssid().c_str()) != 0) {
+  if (ssid && strcmp(ssid.c_str(), ap.ssid_.c_str()) != 0) {
     WiFi.disconnect();
   }
 
@@ -213,7 +213,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   s_sta_state = LTWiFiSTAState::CONNECTING;
   s_ignored_disconnect_count = 0;
 
-  WiFiStatus status = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
+  WiFiStatus status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
                                  ap.get_channel(),  // 0 = auto
                                  ap.has_bssid() ? ap.get_bssid().data() : NULL);
   if (status != WL_CONNECTED) {
@@ -468,9 +468,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
         s_sta_state = LTWiFiSTAState::CONNECTED;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-        for (auto *listener : this->ip_state_listeners_) {
-          listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-        }
+        this->notify_ip_state_listeners_();
 #endif
       }
 #endif
@@ -527,10 +525,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       }
 
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-      static constexpr uint8_t EMPTY_BSSID[6] = {};
-      for (auto *listener : this->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
-      }
+      this->notify_disconnect_state_listeners_();
 #endif
       break;
     }
@@ -553,18 +548,14 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
                network::IPAddress(WiFi.gatewayIP()).str_to(gw_buf));
       s_sta_state = LTWiFiSTAState::CONNECTED;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
+      this->notify_ip_state_listeners_();
 #endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
       ESP_LOGV(TAG, "Got IPv6");
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
+      this->notify_ip_state_listeners_();
 #endif
       break;
     }
@@ -697,7 +688,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
       auto &ap = scan->ap[i];
       this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
                                               ap.bssid.addr[4], ap.bssid.addr[5]},
-                                      std::string(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
+                                      ssid_cstr, strlen(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
                                       ssid_cstr[0] == '\0');
     } else {
       auto &ap = scan->ap[i];
@@ -708,9 +699,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
            needs_full ? "" : " (filtered)");
   WiFi.scanDelete();
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
-  for (auto *listener : this->scan_results_listeners_) {
-    listener->on_wifi_scan_results(this->scan_result_);
-  }
+  this->notify_scan_results_listeners_();
 #endif
 }
 
@@ -746,7 +735,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   yield();
 
-  return WiFi.softAP(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
+  return WiFi.softAP(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
                      ap.has_channel() ? ap.get_channel() : 1, ap.get_hidden());
 }
 

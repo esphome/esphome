@@ -6,12 +6,12 @@ namespace remote_base {
 
 static const char *const TAG = "remote.toto";
 
-static const uint32_t PREAMBLE_HIGH_US = 6200;
-static const uint32_t PREAMBLE_LOW_US = 2800;
-static const uint32_t BIT_HIGH_US = 550;
-static const uint32_t BIT_ONE_LOW_US = 1700;
-static const uint32_t BIT_ZERO_LOW_US = 550;
-static const uint32_t TOTO_HEADER = 0x2008;
+static constexpr uint32_t PREAMBLE_HIGH_US = 6200;
+static constexpr uint32_t PREAMBLE_LOW_US = 2800;
+static constexpr uint32_t BIT_HIGH_US = 550;
+static constexpr uint32_t BIT_ONE_LOW_US = 1700;
+static constexpr uint32_t BIT_ZERO_LOW_US = 550;
+static constexpr uint32_t TOTO_HEADER = 0x2008;
 
 void TotoProtocol::encode(RemoteTransmitData *dst, const TotoData &data) {
   uint32_t payload = 0;

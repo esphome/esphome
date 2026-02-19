@@ -17,7 +17,6 @@ class SHT3XDComponent : public PollingComponent, public sensirion_common::Sensir
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
   void set_heater_enabled(bool heater_enabled) { heater_enabled_ = heater_enabled; }
 

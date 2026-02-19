@@ -1,5 +1,11 @@
 <<: !include common.yaml
 
+wifi:
+  ap:
+
+psram:
+  mode: quad
+
 media_player:
   - platform: speaker
     id: speaker_media_player_id
@@ -10,3 +16,4 @@ media_player:
     volume_max: 0.95
     volume_min: 0.0
     task_stack_in_psram: true
+    codec_support_enabled: all

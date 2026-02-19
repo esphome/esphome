@@ -29,7 +29,12 @@ static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
 static constexpr size_t API_MAX_LOG_BYTES = 168;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-#define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, this->client_peername_, ##__VA_ARGS__)
+#define HELPER_LOG(msg, ...) \
+  do { \
+    char peername_buf[socket::SOCKADDR_STR_LEN]; \
+    this->get_peername_to(peername_buf); \
+    ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, peername_buf, ##__VA_ARGS__); \
+  } while (0)
 #else
 #define HELPER_LOG(msg, ...) ((void) 0)
 #endif
@@ -133,10 +138,12 @@ APIError APINoiseFrameHelper::handle_noise_error_(int err, const LogString *func
 
 /// Run through handshake messages (if in that phase)
 APIError APINoiseFrameHelper::loop() {
-  // During handshake phase, process as many actions as possible until we can't progress
-  // socket_->ready() stays true until next main loop, but state_action() will return
-  // WOULD_BLOCK when no more data is available to read
-  while (state_ != State::DATA && this->socket_->ready()) {
+  // Cache ready() outside the loop. On ESP8266 LWIP raw TCP, ready() returns false once
+  // the rx buffer is consumed. Re-checking each iteration would block handshake writes
+  // that must follow reads, deadlocking the handshake. state_action() will return
+  // WOULD_BLOCK when no more data is available to read.
+  bool socket_ready = this->socket_->ready();
+  while (state_ != State::DATA && socket_ready) {
     APIError err = state_action_();
     if (err == APIError::WOULD_BLOCK) {
       break;
@@ -467,7 +474,7 @@ APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, s
     // buf_start[1], buf_start[2] to be set after encryption
 
     // Write message header (to be encrypted)
-    const uint8_t msg_offset = 3;
+    constexpr uint8_t msg_offset = 3;
     buf_start[msg_offset] = static_cast<uint8_t>(msg.message_type >> 8);      // type high byte
     buf_start[msg_offset + 1] = static_cast<uint8_t>(msg.message_type);       // type low byte
     buf_start[msg_offset + 2] = static_cast<uint8_t>(msg.payload_size >> 8);  // data_len high byte

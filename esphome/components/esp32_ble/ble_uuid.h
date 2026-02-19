@@ -48,7 +48,7 @@ class ESPBTUUID {
 
   // Remove before 2026.8.0
   ESPDEPRECATED("Use to_str() instead. Removed in 2026.8.0", "2026.2.0")
-  std::string to_string() const;
+  std::string to_string() const;  // NOLINT
   const char *to_str(std::span<char, UUID_STR_LEN> output) const;
 
  protected:
