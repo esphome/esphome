@@ -167,6 +167,7 @@ class LightState : public EntityBase, public Component {
   void set_gamma_correct(float gamma_correct);
   float get_gamma_correct() const { return this->gamma_correct_; }
 
+#ifdef USE_LIGHT_GAMMA_LUT
   /// Set pre-computed gamma forward lookup table (256-entry uint16 PROGMEM array)
   void set_gamma_table(const uint16_t *forward) { this->gamma_table_ = forward; }
 
@@ -177,6 +178,11 @@ class LightState : public EntityBase, public Component {
   float gamma_correct_lut(float value) const;
   /// Reverse gamma correction by binary-searching the forward LUT
   float gamma_uncorrect_lut(float value) const;
+#else
+  /// No gamma LUT — passthrough
+  float gamma_correct_lut(float value) const { return value; }
+  float gamma_uncorrect_lut(float value) const { return value; }
+#endif  // USE_LIGHT_GAMMA_LUT
 
   /// Set the restore mode of this light
   void set_restore_mode(LightRestoreMode restore_mode);
@@ -309,7 +315,9 @@ class LightState : public EntityBase, public Component {
   uint32_t flash_transition_length_{};
   /// Gamma correction factor for the light.
   float gamma_correct_{};
+#ifdef USE_LIGHT_GAMMA_LUT
   const uint16_t *gamma_table_{nullptr};
+#endif  // USE_LIGHT_GAMMA_LUT
 
   /// Whether the light value should be written in the next cycle.
   bool next_write_{true};
