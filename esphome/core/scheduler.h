@@ -426,27 +426,17 @@ class Scheduler {
       // Common case: no new items - clear everything
       this->defer_queue_.clear();
     } else {
-      // Rare case: new items were added during processing - compact the vector
-      // This only happens when:
-      // 1. A deferred callback calls defer() again, or
-      // 2. Another thread calls defer() while we're processing
-      //
-      // Move unprocessed items (added during this loop) to the front for next iteration
-      //
-      // SAFETY: Compacted items may include cancelled items (marked for removal via
-      // cancel_item_locked_() during execution). This is safe because should_skip_item_()
-      // checks is_item_removed_() before executing, so cancelled items will be skipped
-      // and recycled on the next loop iteration.
-      size_t remaining = this->defer_queue_.size() - this->defer_queue_front_;
-      for (size_t i = 0; i < remaining; i++) {
-        this->defer_queue_[i] = std::move(this->defer_queue_[this->defer_queue_front_ + i]);
-      }
-      // Use erase() instead of resize() to avoid instantiating _M_default_append
-      // (saves ~156 bytes flash). Erasing from the end is O(1) - no shifting needed.
-      this->defer_queue_.erase(this->defer_queue_.begin() + remaining, this->defer_queue_.end());
+      // Rare case: new items were added during processing - outlined to keep cold code
+      // out of the hot instruction cache lines
+      this->compact_defer_queue_locked_();
     }
     this->defer_queue_front_ = 0;
   }
+
+  // Cold path for compacting defer_queue_ when new items were added during processing.
+  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
+  // IMPORTANT: Must not be inlined - rare path, outlined to keep it out of the hot instruction cache lines.
+  void __attribute__((noinline)) compact_defer_queue_locked_();
 #endif /* not ESPHOME_THREAD_SINGLE */
 
   // Helper to check if item is marked for removal (platform-specific)
