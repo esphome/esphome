@@ -397,7 +397,7 @@ void HTTPMediaSource::read_task(void *params) {
     HttpRequestComponent *http_client = this_source->get_parent();
 
     // Request Content-Type header for file type detection
-    std::set<std::string> collect_headers = {"content-type"};
+    std::vector<std::string> collect_headers = {"content-type"};
 
     // Start HTTP request, retrying on transient failures (e.g., EAGAIN during header fetch)
     std::shared_ptr<HttpContainer> container;
