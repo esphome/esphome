@@ -122,8 +122,8 @@ SerializationBuffer<> JsonBuilder::serialize() {
   // Payload exceeded stack buffer. Double the buffer and retry until it fits.
   // In practice, one iteration (1024 bytes) covers all known entity types.
   // Payloads exceeding 1024 bytes are not known to exist in real configurations.
-  // Cap at 4096 as a safety limit to prevent runaway allocation.
-  constexpr size_t max_heap_size = 4096;
+  // Cap at 5120 as a safety limit to prevent runaway allocation.
+  constexpr size_t max_heap_size = 5120;
   size_t heap_size = buf_size * 2;
   while (heap_size <= max_heap_size) {
     result.reallocate_heap_(heap_size - 1);
@@ -134,7 +134,7 @@ SerializationBuffer<> JsonBuilder::serialize() {
     }
     heap_size *= 2;
   }
-  // Payload exceeds 4096 bytes - return truncated result
+  // Payload exceeds 5120 bytes - return truncated result
   ESP_LOGW(TAG, "JSON payload too large, truncated to %zu bytes", size);
   result.set_size_(size);
   return result;
