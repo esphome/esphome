@@ -108,8 +108,23 @@ Image Settings:
   - `1080x1920` (Portrait FHD, 9:16)
   - `2560x1920` (QSXGA, 4:3)
 
+- **pixel_format** (*Optional*, enum): The pixel format to use for the images.
+  Defaults to ``jpeg`` (JPEG compressed image) which may not be supported by all cameras.
+  Other formats require more CPU and memory and may not be supported by all cameras.
+
+  - ``jpeg``: JPEG compressed image
+  - ``rgb565``: RGB565 uncompressed image
+  - ``yuv422``: YUV422 uncompressed image
+  - ``yuv420``: YUV420 uncompressed image
+  - ``grayscale``: Grayscale uncompressed image
+  - ``rgb888``: RGB888 uncompressed image
+  - ``raw``: Raw uncompressed image
+  - ``rgb444``: RGB444 uncompressed image
+  - ``rgb555``: RGB555 uncompressed image
+
 - **jpeg_quality** (*Optional*, int): The JPEG quality that the camera should encode images with.
-  From 10 (best) to 63 (worst). Defaults to `10`.
+  From 6 (best) to 63 (worst). Defaults to `10`. Set this to ``0`` to disable JPEG compression/conversion.
+  Manual JPEG compression/conversion requires `psram` component to be enabled and configured.
 
 - **vertical_flip** (*Optional*, boolean): Whether to flip the image vertically. Defaults to `true`.
 - **horizontal_mirror** (*Optional*, boolean): Whether to mirror the image horizontally. Defaults to `true`.
@@ -290,6 +305,52 @@ esp32_camera:
   href_pin: GPIO26
   pixel_clock_pin: GPIO21
   reset_pin: GPIO15
+```
+
+**M5Stack AtomS3R-CAM**:
+
+```yaml
+# Example configuration entry
+psram: # required for JPEG compression/conversion
+  mode: octal
+  speed: 80MHz
+
+switch: # required to initialize the camera
+  - platform: gpio
+    name: Activate My Camera
+    pin:
+      number: GPIO18
+      inverted: true
+    restore_mode: ALWAYS_ON
+
+i2c:
+  - id: camera_i2c
+    sda: GPIO12 # CAM_SDA
+    scl: GPIO9 # CAM_SCL
+
+esp32_camera:
+  setup_priority: -200 # delay after GPIO18 was set to low
+  i2c_id: camera_i2c
+  vsync_pin: GPIO10 # VSYNC
+  href_pin: GPIO14 # HREF
+  external_clock: # XCLK
+    pin: GPIO21
+    frequency: 20MHz
+  pixel_clock_pin: GPIO40 # PCLK
+  data_pins: [GPIO3, GPIO42, GPIO46, GPIO48, GPIO4, GPIO17, GPIO11, GPIO13] # Y2-9
+
+  # Image settings
+  name: My Camera
+  max_framerate: 15.0 fps
+  resolution: 320x240
+  frame_buffer_count: 1
+  frame_buffer_location: DRAM
+  pixel_format: YUV422
+  jpeg_quality: 6
+  agc_mode: manual
+  vertical_flip: true
+  horizontal_mirror: false
+  # ...
 ```
 
 **Wrover Kit Boards**:
