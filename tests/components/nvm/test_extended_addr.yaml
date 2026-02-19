@@ -1,0 +1,34 @@
+# Test configuration for NVM component with extended address FRAM models
+#
+# This tests MB85RC512 (17-bit addressing) and MB85RC1M (18-bit addressing)
+# which require extended address handling in the I2C communication.
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: true
+
+nvm:
+  - platform: fram_i2c
+    id: fram_512kb
+    address: 0x50
+    model: MB85RC512
+    partitions:
+      - id: prefs_512
+        type: preferences
+        size: 32kB
+      - id: raw_512
+        type: raw
+        size: 16kB
+
+  - platform: fram_i2c
+    id: fram_1mb
+    address: 0x51
+    model: MB85RC1M
+    partitions:
+      - id: prefs_1m
+        type: raw
+        size: 64kB
+      - id: kv_1m
+        type: key_value
+        size: 32kB

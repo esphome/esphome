@@ -1,0 +1,22 @@
+# Test configuration for NVM component with FRAM I2C platform on RP2040
+
+i2c:
+  sda: GPIO0
+  scl: GPIO1
+  scan: true
+
+nvm:
+  - platform: fram_i2c
+    id: test_fram
+    address: 0x50
+    model: MB85RC256
+    partitions:
+      - id: pref_partition
+        type: preferences
+        size: 4kB
+      - id: raw_partition
+        type: raw
+        size: 8kB
+      - id: kv_partition
+        type: key_value
+        size: 2kB
