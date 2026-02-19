@@ -44,9 +44,9 @@ from esphome.const import (
 from esphome.core import CORE, HexInt, TimePeriod
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
-from esphome.helpers import copy_file_if_changed, write_file_if_changed
+from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
-from esphome.writer import clean_cmake_cache, rmtree
+from esphome.writer import clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
