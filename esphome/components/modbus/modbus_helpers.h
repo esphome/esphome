@@ -42,7 +42,7 @@ inline bool is_register_type_binary(ModbusRegisterType type) {
 
 // Returns the expected length of a server response frame based on the function code
 // If the frame is too short to determine the length, returns the minimum length
-inline uint8_t server_frame_length(const std::vector<uint8_t> &frame) {
+inline uint16_t server_frame_length(const std::vector<uint8_t> &frame) {
   if (frame.size() < 2)
     return MIN_FRAME_SIZE;
   if (is_function_code_exception(frame[1])) {
