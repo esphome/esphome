@@ -1,0 +1,18 @@
+esphome:
+  name: test
+
+wifi:
+  ssid: test
+  password: password
+  power_save_mode: none
+
+api:
+
+uart:
+  - id: zigbee_uart
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 115200
+
+zigbee_proxy:
+  uart_id: zigbee_uart

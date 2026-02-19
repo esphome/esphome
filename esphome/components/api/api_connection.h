@@ -167,6 +167,12 @@ class APIConnection final : public APIServerConnectionBase {
   void on_z_wave_proxy_request(const ZWaveProxyRequest &msg) override;
 #endif
 
+#ifdef USE_ZIGBEE_PROXY
+  void on_zigbee_proxy_frame(const ZigbeeProxyFrame &msg) override;
+  void on_zigbee_proxy_request(const ZigbeeProxyRequest &msg) override;
+  void send_zigbee_proxy_frame(const ZigbeeProxyFrame &msg) { this->send_message(msg, ZigbeeProxyFrame::MESSAGE_TYPE); }
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
   void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) override;

@@ -602,14 +602,25 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
-    case HomeassistantActionResponse::MESSAGE_TYPE: {
-      HomeassistantActionResponse msg;
+#ifdef USE_ZIGBEE_PROXY
+    case ZigbeeProxyFrame::MESSAGE_TYPE: {
+      ZigbeeProxyFrame msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      this->log_receive_message_(LOG_STR("on_homeassistant_action_response"), msg);
+      this->log_receive_message_(LOG_STR("on_zigbee_proxy_frame"), msg);
 #endif
-      this->on_homeassistant_action_response(msg);
+      this->on_zigbee_proxy_frame(msg);
+      break;
+    }
+#endif
+#ifdef USE_ZIGBEE_PROXY
+    case ZigbeeProxyRequest::MESSAGE_TYPE: {
+      ZigbeeProxyRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_zigbee_proxy_request"), msg);
+#endif
+      this->on_zigbee_proxy_request(msg);
       break;
     }
 #endif

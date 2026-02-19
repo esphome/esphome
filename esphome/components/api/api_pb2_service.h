@@ -219,6 +219,12 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_ZWAVE_PROXY
   virtual void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
 #endif
+#ifdef USE_ZIGBEE_PROXY
+  virtual void on_zigbee_proxy_frame(const ZigbeeProxyFrame &value){};
+#endif
+#ifdef USE_ZIGBEE_PROXY
+  virtual void on_zigbee_proxy_request(const ZigbeeProxyRequest &value){};
+#endif
 
 #ifdef USE_IR_RF
   virtual void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &value){};

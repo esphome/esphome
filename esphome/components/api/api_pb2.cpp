@@ -119,6 +119,12 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_ZWAVE_PROXY
   buffer.encode_uint32(24, this->zwave_home_id);
 #endif
+#ifdef USE_ZIGBEE_PROXY
+  buffer.encode_uint32(25, this->zigbee_proxy_feature_flags);
+#endif
+#ifdef USE_ZIGBEE_PROXY
+  buffer.encode_uint64(26, this->zigbee_ieee_address);
+#endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->name.size());
@@ -173,6 +179,12 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #endif
 #ifdef USE_ZWAVE_PROXY
   size.add_uint32(2, this->zwave_home_id);
+#endif
+#ifdef USE_ZIGBEE_PROXY
+  size.add_uint32(2, this->zigbee_proxy_feature_flags);
+#endif
+#ifdef USE_ZIGBEE_PROXY
+  size.add_uint64(2, this->zigbee_ieee_address);
 #endif
 }
 #ifdef USE_BINARY_SENSOR
@@ -3343,6 +3355,52 @@ void ZWaveProxyRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bytes(2, this->data, this->data_len);
 }
 void ZWaveProxyRequest::calculate_size(ProtoSize &size) const {
+  size.add_uint32(1, static_cast<uint32_t>(this->type));
+  size.add_length(1, this->data_len);
+}
+#endif
+#ifdef USE_ZIGBEE_PROXY
+bool ZigbeeProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->data = value.data();
+      this->data_len = value.size();
+      break;
+    }
+    default:
+      return false;
+  }
+  return true;
+}
+void ZigbeeProxyFrame::encode(ProtoWriteBuffer buffer) const { buffer.encode_bytes(1, this->data, this->data_len); }
+void ZigbeeProxyFrame::calculate_size(ProtoSize &size) const { size.add_length(1, this->data_len); }
+bool ZigbeeProxyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->type = static_cast<enums::ZigbeeProxyRequestType>(value.as_uint32());
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool ZigbeeProxyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->data = value.data();
+      this->data_len = value.size();
+      break;
+    }
+    default:
+      return false;
+  }
+  return true;
+}
+void ZigbeeProxyRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint32(1, static_cast<uint32_t>(this->type));
+  buffer.encode_bytes(2, this->data, this->data_len);
+}
+void ZigbeeProxyRequest::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, static_cast<uint32_t>(this->type));
   size.add_length(1, this->data_len);
 }

@@ -260,6 +260,10 @@ message DeviceInfoResponse {
   // Indicates if Z-Wave proxy support is available and features supported
   uint32 zwave_proxy_feature_flags = 23 [(field_ifdef) = "USE_ZWAVE_PROXY"];
   uint32 zwave_home_id = 24 [(field_ifdef) = "USE_ZWAVE_PROXY"];
+
+  // Indicates if Zigbee proxy support is available and features supported
+  uint32 zigbee_proxy_feature_flags = 25 [(field_ifdef) = "USE_ZIGBEE_PROXY"];
+  uint64 zigbee_ieee_address = 26 [(field_ifdef) = "USE_ZIGBEE_PROXY"];
 }
 
 message ListEntitiesRequest {
@@ -2440,6 +2444,32 @@ message ZWaveProxyRequest {
   option (ifdef) = "USE_ZWAVE_PROXY";
 
   ZWaveProxyRequestType type = 1;
+  bytes data = 2;
+}
+
+// ==================== ZIGBEE ====================
+
+message ZigbeeProxyFrame {
+  option (id) = 130;
+  option (source) = SOURCE_BOTH;
+  option (ifdef) = "USE_ZIGBEE_PROXY";
+  option (no_delay) = true;
+
+  bytes data = 1;
+}
+
+enum ZigbeeProxyRequestType {
+  ZIGBEE_PROXY_REQUEST_TYPE_SUBSCRIBE = 0;
+  ZIGBEE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1;
+  ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO = 2;
+}
+
+message ZigbeeProxyRequest {
+  option (id) = 131;
+  option (source) = SOURCE_BOTH;
+  option (ifdef) = "USE_ZIGBEE_PROXY";
+
+  ZigbeeProxyRequestType type = 1;
   bytes data = 2;
 }
 

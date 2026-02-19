@@ -1,0 +1,14 @@
+substitutions:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+
+esp32:
+  board: esp32dev
+
+<<: !include common.yaml
+
+zigbee_proxy:
+  buffer_size: 1024
+  initial_timeout: 1600
+  min_timeout: 400
+  max_timeout: 3200

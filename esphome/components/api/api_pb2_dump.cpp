@@ -736,6 +736,20 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
   }
 }
 #endif
+#ifdef USE_ZIGBEE_PROXY
+template<> const char *proto_enum_to_string<enums::ZigbeeProxyRequestType>(enums::ZigbeeProxyRequestType value) {
+  switch (value) {
+    case enums::ZIGBEE_PROXY_REQUEST_TYPE_SUBSCRIBE:
+      return "ZIGBEE_PROXY_REQUEST_TYPE_SUBSCRIBE";
+    case enums::ZIGBEE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
+      return "ZIGBEE_PROXY_REQUEST_TYPE_UNSUBSCRIBE";
+    case enums::ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO:
+      return "ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
 
 const char *HelloRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "HelloRequest");
@@ -845,6 +859,12 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
 #endif
 #ifdef USE_ZWAVE_PROXY
   dump_field(out, "zwave_home_id", this->zwave_home_id);
+#endif
+#ifdef USE_ZIGBEE_PROXY
+  dump_field(out, "zigbee_proxy_feature_flags", this->zigbee_proxy_feature_flags);
+#endif
+#ifdef USE_ZIGBEE_PROXY
+  dump_field(out, "zigbee_ieee_address", this->zigbee_ieee_address);
 #endif
   return out.c_str();
 }
@@ -2418,6 +2438,19 @@ const char *ZWaveProxyFrame::dump_to(DumpBuffer &out) const {
 const char *ZWaveProxyRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ZWaveProxyRequest");
   dump_field(out, "type", static_cast<enums::ZWaveProxyRequestType>(this->type));
+  dump_bytes_field(out, "data", this->data, this->data_len);
+  return out.c_str();
+}
+#endif
+#ifdef USE_ZIGBEE_PROXY
+const char *ZigbeeProxyFrame::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "ZigbeeProxyFrame");
+  dump_bytes_field(out, "data", this->data, this->data_len);
+  return out.c_str();
+}
+const char *ZigbeeProxyRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "ZigbeeProxyRequest");
+  dump_field(out, "type", static_cast<enums::ZigbeeProxyRequestType>(this->type));
   dump_bytes_field(out, "data", this->data, this->data_len);
   return out.c_str();
 }

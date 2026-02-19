@@ -1,0 +1,11 @@
+substitutions:
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+
+esp8266:
+  board: nodemcuv2
+
+<<: !include common.yaml
+
+zigbee_proxy:
+  buffer_size: 512

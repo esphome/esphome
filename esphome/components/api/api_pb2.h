@@ -311,6 +311,13 @@ enum ZWaveProxyRequestType : uint32_t {
   ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE = 2,
 };
 #endif
+#ifdef USE_ZIGBEE_PROXY
+enum ZigbeeProxyRequestType : uint32_t {
+  ZIGBEE_PROXY_REQUEST_TYPE_SUBSCRIBE = 0,
+  ZIGBEE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1,
+  ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO = 2,
+};
+#endif
 
 }  // namespace enums
 
@@ -474,7 +481,7 @@ class DeviceInfo final : public ProtoMessage {
 class DeviceInfoResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 10;
-  static constexpr uint8_t ESTIMATED_SIZE = 255;
+  static constexpr uint16_t ESTIMATED_SIZE = 265;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "device_info_response"; }
 #endif
@@ -526,6 +533,12 @@ class DeviceInfoResponse final : public ProtoMessage {
 #endif
 #ifdef USE_ZWAVE_PROXY
   uint32_t zwave_home_id{0};
+#endif
+#ifdef USE_ZIGBEE_PROXY
+  uint32_t zigbee_proxy_feature_flags{0};
+#endif
+#ifdef USE_ZIGBEE_PROXY
+  uint64_t zigbee_ieee_address{0};
 #endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -2947,6 +2960,46 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
   const char *message_name() const override { return "z_wave_proxy_request"; }
 #endif
   enums::ZWaveProxyRequestType type{};
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+#endif
+#ifdef USE_ZIGBEE_PROXY
+class ZigbeeProxyFrame final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 130;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "zigbee_proxy_frame"; }
+#endif
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class ZigbeeProxyRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 131;
+  static constexpr uint8_t ESTIMATED_SIZE = 21;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "zigbee_proxy_request"; }
+#endif
+  enums::ZigbeeProxyRequestType type{};
   const uint8_t *data{nullptr};
   uint16_t data_len{0};
   void encode(ProtoWriteBuffer buffer) const override;
