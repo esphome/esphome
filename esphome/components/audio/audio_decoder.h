@@ -55,7 +55,7 @@ class AudioDecoder {
    * Supports wav, flac, mp3, and ogg opus formats.
    */
  public:
-  /// @brief Allocates the input and output transfer buffers
+  /// @brief Allocates the output transfer buffer and stores the input buffer size for later use by add_source()
   /// @param input_buffer_size Size of the input transfer buffer in bytes.
   /// @param output_buffer_size Size of the output transfer buffer in bytes.
   AudioDecoder(size_t input_buffer_size, size_t output_buffer_size);
