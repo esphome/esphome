@@ -719,7 +719,7 @@ async def to_code(config):
             sens = await sensor.new_sensor(config[CONF_VERSION])
             cg.add(var.set_version_sensor(sens))
 
-    if config[CONF_MODEL] == CONF_DELTASOL_CS4:
+    elif config[CONF_MODEL] == CONF_DELTASOL_CS4:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x1122))
         cg.add(var.set_dest(0x0010))
@@ -763,7 +763,7 @@ async def to_code(config):
             sens = await sensor.new_sensor(config[CONF_FLOW_RATE])
             cg.add(var.set_flow_rate_sensor(sens))
 
-    if config[CONF_MODEL] == CONF_DELTASOL_CS_PLUS:
+    elif config[CONF_MODEL] == CONF_DELTASOL_CS_PLUS:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x2211))
         cg.add(var.set_dest(0x0010))
