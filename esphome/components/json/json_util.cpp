@@ -93,15 +93,15 @@ SerializationBuffer<> JsonBuilder::serialize() {
   //   - Test: objdump -d -C firmware.elf | grep "SerializationBuffer.*SerializationBuffer"
   //     Should show only destructor, NOT move constructor
   //
-  // Try stack buffer first. 512 bytes covers 99.9% of JSON payloads (sensors ~200B,
-  // lights ~170B, climate ~700B). Only entities with 40+ options exceed this.
+  // Try stack buffer first. 640 bytes covers 99.9% of JSON payloads (sensors ~200B,
+  // lights ~170B, climate ~500-700B). Only entities with 40+ options exceed this.
   //
   // IMPORTANT: ArduinoJson's serializeJson() with a bounded buffer returns the actual
   // bytes written (truncated count), NOT the would-be size like snprintf(). When the
   // payload exceeds the buffer, the return value equals the buffer capacity. The heap
   // fallback doubles the buffer size until the payload fits. This avoids instantiating
   // measureJson()'s DummyWriter templates (~736 bytes flash) at the cost of temporarily
-  // over-allocating heap (at most 2x) for the rare payloads that exceed 512 bytes.
+  // over-allocating heap (at most 2x) for the rare payloads that exceed 640 bytes.
   //
   // ===========================================================================================
   constexpr size_t buf_size = SerializationBuffer<>::BUFFER_SIZE;
@@ -127,8 +127,8 @@ SerializationBuffer<> JsonBuilder::serialize() {
   // Payload exceeded stack buffer. Double the buffer and retry until it fits.
   // In practice, one iteration (1024 bytes) covers all known entity types.
   // Payloads exceeding 1024 bytes are not known to exist in real configurations.
-  // Cap at 4096 as a safety limit to prevent runaway allocation.
-  constexpr size_t max_heap_size = 4096;
+  // Cap at 5120 as a safety limit to prevent runaway allocation.
+  constexpr size_t max_heap_size = 5120;
   size_t heap_size = buf_size * 2;
   while (heap_size <= max_heap_size) {
     result.reallocate_heap_(heap_size - 1);
@@ -139,7 +139,7 @@ SerializationBuffer<> JsonBuilder::serialize() {
     }
     heap_size *= 2;
   }
-  // Payload exceeds 4096 bytes - return truncated result
+  // Payload exceeds 5120 bytes - return truncated result
   ESP_LOGW(TAG, "JSON payload too large, truncated to %zu bytes", size);
   result.set_size_(size);
   return result;
