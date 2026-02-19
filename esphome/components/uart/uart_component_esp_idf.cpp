@@ -22,7 +22,9 @@ static const char *const TAG = "uart.idf";
 /// Check if a pin number matches one of the default UART0 GPIO pins.
 /// These pins may have residual state from the boot console that requires
 /// explicit reset before UART reconfiguration (ESP-IDF issue #17459).
-static bool is_default_uart0_pin(int8_t pin_num) { return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM; }
+static constexpr bool is_default_uart0_pin(int8_t pin_num) {
+  return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
+}
 
 uart_config_t IDFUARTComponent::get_config_() {
   uart_parity_t parity = UART_PARITY_DISABLE;
