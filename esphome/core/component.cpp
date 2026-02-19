@@ -41,20 +41,23 @@ struct ComponentErrorMessage {
   bool is_flash_ptr;
 };
 
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
 struct ComponentPriorityOverride {
   const Component *component;
   float priority;
 };
+
+// Setup priority overrides - freed after setup completes
+// Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::vector<ComponentPriorityOverride> *setup_priority_overrides = nullptr;
+#endif
 
 // Error messages for failed components
 // Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
 // This is never freed as error messages persist for the lifetime of the device
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::vector<ComponentErrorMessage> *component_error_messages = nullptr;
-// Setup priority overrides - freed after setup completes
-// Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::vector<ComponentPriorityOverride> *setup_priority_overrides = nullptr;
 
 // Helper to store error messages - reduces duplication between deprecated and new API
 // Remove before 2026.6.0 when deprecated const char* API is removed
@@ -76,41 +79,11 @@ void store_component_error_message(const Component *component, const char *messa
 }
 }  // namespace
 
-namespace setup_priority {
-
-const float BUS = 1000.0f;
-const float IO = 900.0f;
-const float HARDWARE = 800.0f;
-const float DATA = 600.0f;
-const float PROCESSOR = 400.0;
-const float BLUETOOTH = 350.0f;
-const float AFTER_BLUETOOTH = 300.0f;
-const float WIFI = 250.0f;
-const float ETHERNET = 250.0f;
-const float BEFORE_CONNECTION = 220.0f;
-const float AFTER_WIFI = 200.0f;
-const float AFTER_CONNECTION = 100.0f;
-const float LATE = -100.0f;
-
-}  // namespace setup_priority
-
-// Component state uses bits 0-2 (8 states, 5 used)
-const uint8_t COMPONENT_STATE_MASK = 0x07;
-const uint8_t COMPONENT_STATE_CONSTRUCTION = 0x00;
-const uint8_t COMPONENT_STATE_SETUP = 0x01;
-const uint8_t COMPONENT_STATE_LOOP = 0x02;
-const uint8_t COMPONENT_STATE_FAILED = 0x03;
-const uint8_t COMPONENT_STATE_LOOP_DONE = 0x04;
-// Status LED uses bits 3-4
-const uint8_t STATUS_LED_MASK = 0x18;
-const uint8_t STATUS_LED_OK = 0x00;
-const uint8_t STATUS_LED_WARNING = 0x08;  // Bit 3
-const uint8_t STATUS_LED_ERROR = 0x10;    // Bit 4
+// setup_priority, component state, and status LED constants are now
+// constexpr in component.h
 
 const uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;       ///< Initial blocking time allowed without warning
 const uint16_t WARN_IF_BLOCKING_INCREMENT_MS = 10U;  ///< How long the blocking time must be larger to warn again
-
-uint32_t global_state = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 float Component::get_loop_priority() const { return 0.0f; }
 
@@ -489,6 +462,7 @@ void log_update_interval(const char *tag, PollingComponent *component) {
   }
 }
 float Component::get_actual_setup_priority() const {
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Check if there's an override in the global vector
   if (setup_priority_overrides) {
     // Linear search is fine for small n (typically < 5 overrides)
@@ -498,14 +472,14 @@ float Component::get_actual_setup_priority() const {
       }
     }
   }
+#endif
   return this->get_setup_priority();
 }
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
 void Component::set_setup_priority(float priority) {
   // Lazy allocate the vector if needed
   if (!setup_priority_overrides) {
     setup_priority_overrides = new std::vector<ComponentPriorityOverride>();
-    // Reserve some space to avoid reallocations (most configs have < 10 overrides)
-    setup_priority_overrides->reserve(10);
   }
 
   // Check if this component already has an override
@@ -519,6 +493,7 @@ void Component::set_setup_priority(float priority) {
   // Add new override
   setup_priority_overrides->emplace_back(ComponentPriorityOverride{this, priority});
 }
+#endif
 
 bool Component::has_overridden_loop() const {
 #if defined(USE_HOST) || defined(CLANG_TIDY)
@@ -587,10 +562,12 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
 
 WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {}
 
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
 void clear_setup_priority_overrides() {
   // Free the setup priority map completely
   delete setup_priority_overrides;
   setup_priority_overrides = nullptr;
 }
+#endif
 
 }  // namespace esphome
