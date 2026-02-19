@@ -207,7 +207,7 @@ bool Component::cancel_retry(uint32_t id) {
 #pragma GCC diagnostic pop
 }
 
-void Component::call_loop() { this->loop(); }
+void Component::call_loop_() { this->loop(); }
 void Component::call_setup() { this->setup(); }
 void Component::call_dump_config() {
   this->dump_config();
@@ -258,11 +258,11 @@ void Component::call() {
     case COMPONENT_STATE_SETUP:
       // State setup: Call first loop and set state to loop
       this->set_component_state_(COMPONENT_STATE_LOOP);
-      this->call_loop();
+      this->call_loop_();
       break;
     case COMPONENT_STATE_LOOP:
       // State loop: Call loop
-      this->call_loop();
+      this->call_loop_();
       break;
     case COMPONENT_STATE_FAILED:
       // State failed: Do nothing
@@ -497,16 +497,14 @@ void Component::set_setup_priority(float priority) {
 
 bool Component::has_overridden_loop() const {
 #if defined(USE_HOST) || defined(CLANG_TIDY)
-  bool loop_overridden = true;
-  bool call_loop_overridden = true;
+  return true;
 #else
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpmf-conversions"
   bool loop_overridden = (void *) (this->*(&Component::loop)) != (void *) (&Component::loop);
-  bool call_loop_overridden = (void *) (this->*(&Component::call_loop)) != (void *) (&Component::call_loop);
 #pragma GCC diagnostic pop
+  return loop_overridden;
 #endif
-  return loop_overridden || call_loop_overridden;
 }
 
 PollingComponent::PollingComponent(uint32_t update_interval) : update_interval_(update_interval) {}
