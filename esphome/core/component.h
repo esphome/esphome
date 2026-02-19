@@ -165,7 +165,7 @@ class Component {
    * For example, i2c based components can check if the remote device is responding and otherwise
    * mark the component as failed. Eventually this will also enable smart status LEDs.
    */
-  virtual void mark_failed();
+  void mark_failed();
 
   // Remove before 2026.6.0
   ESPDEPRECATED("Use mark_failed(LOG_STR(\"static string literal\")) instead. Do NOT use .c_str() from temporary "
@@ -286,7 +286,7 @@ class Component {
  protected:
   friend class Application;
 
-  virtual void call_loop();
+  void call_loop_();
   virtual void call_setup();
   virtual void call_dump_config();
 
