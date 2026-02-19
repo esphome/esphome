@@ -91,8 +91,14 @@ def _read_audio_file_and_type(file_config):
 
     import puremagic
 
-    file_type: str = puremagic.from_string(data)
-    file_type = file_type.removeprefix(".")
+    try:
+        file_type: str = puremagic.from_string(data)
+        file_type = file_type.removeprefix(".")
+    except puremagic.PureError as e:
+        raise cv.Invalid(
+            f"Unable to determine audio file type of '{path}'. "
+            f"Try re-encoding the file into a supported format. Details: {e}"
+        )
 
     media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
     if file_type in ("wav"):
@@ -101,6 +107,13 @@ def _read_audio_file_and_type(file_config):
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["MP3"]
     elif file_type in ("flac"):
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["FLAC"]
+    elif (
+        file_type in ("ogg")
+        and len(data) >= 36
+        and data.startswith(b"OggS")
+        and data[28:36] == b"OpusHead"
+    ):
+        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["OPUS"]
 
     return data, media_file_type
 
@@ -110,6 +123,17 @@ def _validate_supported_local_file(config):
         _, media_file_type = _read_audio_file_and_type(file_config)
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
             raise cv.Invalid("Unsupported local media file")
+
+        for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
+            if str(media_file_type) == str(fmt_enum):
+                if fmt_name not in ("WAV", "NONE"):
+                    if fmt_name == "FLAC":
+                        audio.request_flac_support()
+                    elif fmt_name == "MP3":
+                        audio.request_mp3_support()
+                    elif fmt_name == "OPUS":
+                        audio.request_opus_support()
+                break
 
     return config
 

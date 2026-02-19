@@ -57,6 +57,8 @@ def _get_supported_format_struct(pipeline, pipeline_type):
         args.append(("format", "flac"))
     elif pipeline[CONF_FORMAT] == "MP3":
         args.append(("format", "mp3"))
+    elif pipeline[CONF_FORMAT] == "OPUS":
+        args.append(("format", "opus"))
     elif pipeline[CONF_FORMAT] == "WAV":
         args.append(("format", "wav"))
 
@@ -149,12 +151,43 @@ CONFIG_SCHEMA = (
     .extend(media_player.media_player_schema(SpeakerSourceMediaPlayer))
 )
 
-FINAL_VALIDATE_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_ANNOUNCEMENT_PIPELINE): _validate_pipeline,
-        cv.Optional(CONF_MEDIA_PIPELINE): _validate_pipeline,
-    },
-    extra=cv.ALLOW_EXTRA,
+
+def _final_validate_codecs(config):
+    needed_formats = set()
+    need_all = False
+
+    for pipeline_key in (CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE):
+        if pipeline := config.get(pipeline_key):
+            fmt = pipeline[CONF_FORMAT]
+            if fmt == "NONE":
+                need_all = True
+            else:
+                needed_formats.add(fmt)
+
+    if need_all:
+        audio.request_flac_support()
+        audio.request_mp3_support()
+        audio.request_opus_support()
+    else:
+        if "FLAC" in needed_formats:
+            audio.request_flac_support()
+        if "MP3" in needed_formats:
+            audio.request_mp3_support()
+        if "OPUS" in needed_formats:
+            audio.request_opus_support()
+
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_ANNOUNCEMENT_PIPELINE): _validate_pipeline,
+            cv.Optional(CONF_MEDIA_PIPELINE): _validate_pipeline,
+        },
+        extra=cv.ALLOW_EXTRA,
+    ),
+    _final_validate_codecs,
 )
 
 
@@ -168,10 +201,6 @@ async def to_code(config):
     cg.add(var.set_volume_initial(config[CONF_VOLUME_INITIAL]))
     cg.add(var.set_volume_max(config[CONF_VOLUME_MAX]))
     cg.add(var.set_volume_min(config[CONF_VOLUME_MIN]))
-
-    # TODO: Make this configurable... also the file media source may add files with extensions, we should do some validation
-    cg.add_define("USE_AUDIO_FLAC_SUPPORT", True)
-    cg.add_define("USE_AUDIO_MP3_SUPPORT", True)
 
     if CONF_SOURCES in config:
         for source in config[CONF_SOURCES]:
