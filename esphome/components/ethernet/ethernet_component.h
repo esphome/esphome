@@ -110,6 +110,8 @@ class EthernetComponent : public Component {
   const char *get_use_address() const;
   void set_use_address(const char *use_address);
   void get_eth_mac_address_raw(uint8_t *mac);
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use get_eth_mac_address_pretty_into_buffer() instead. Removed in 2026.9.0", "2026.3.0")
   std::string get_eth_mac_address_pretty();
   const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
   eth_duplex_t get_duplex_mode();

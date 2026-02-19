@@ -527,7 +527,7 @@ async def to_code_characteristic(service_var, char_conf):
                 action_conf,
                 char_conf[CONF_CHAR_VALUE_ACTION_ID_],
                 cg.TemplateArguments(),
-                {},
+                [],
             )
             cg.add(value_action.play())
         else:

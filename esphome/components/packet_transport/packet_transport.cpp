@@ -58,9 +58,9 @@ union FuData {
   float f32;
 };
 
-static const uint16_t MAGIC_NUMBER = 0x4553;
-static const uint16_t MAGIC_PING = 0x5048;
-static const uint32_t PREF_HASH = 0x45535043;
+static constexpr uint16_t MAGIC_NUMBER = 0x4553;
+static constexpr uint16_t MAGIC_PING = 0x5048;
+static constexpr uint32_t PREF_HASH = 0x45535043;
 enum DataKey {
   ZERO_FILL_KEY,
   DATA_KEY,

@@ -452,6 +452,8 @@ class LWIPRawImpl : public Socket {
     errno = ENOSYS;
     return -1;
   }
+  bool ready() const override { return this->rx_buf_ != nullptr || this->rx_closed_ || this->pcb_ == nullptr; }
+
   int setblocking(bool blocking) final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
@@ -576,6 +578,8 @@ class LWIPRawListenImpl final : public LWIPRawImpl {
     tcp_err(pcb_, LWIPRawImpl::s_err_fn);  // Use base class error handler
   }
 
+  bool ready() const override { return this->accepted_socket_count_ > 0; }
+
   std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) override {
     if (pcb_ == nullptr) {
       errno = EBADF;
@@ -676,6 +680,11 @@ class LWIPRawListenImpl final : public LWIPRawImpl {
 };
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
+  if (type != SOCK_STREAM) {
+    ESP_LOGE(TAG, "UDP sockets not supported on this platform, use WiFiUDP");
+    errno = EPROTOTYPE;
+    return nullptr;
+  }
   auto *pcb = tcp_new();
   if (pcb == nullptr)
     return nullptr;
