@@ -62,8 +62,10 @@ const size_t E131_MIN_PACKET_SIZE = reinterpret_cast<size_t>(&((E131RawPacket *)
 bool E131Component::join_igmp_groups_() {
   if (listen_method_ != E131_MULTICAST)
     return false;
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   if (this->socket_ == nullptr)
     return false;
+#endif
 
   for (auto universe : universe_consumers_) {
     if (!universe.second)
