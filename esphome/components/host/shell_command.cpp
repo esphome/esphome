@@ -22,7 +22,9 @@
 #include <vector>
 #include <unistd.h>
 
-extern char **environ;  // Declare the global variable
+// POSIX defines `environ` as a global variable containing the process environment.
+// It is not declared in a standard header on all platforms, so we declare it here.
+extern char **environ;
 
 namespace esphome::host {
 
