@@ -6,7 +6,7 @@
 #include <utility>
 #include <vector>
 #include <future>
-#include "esphome/esphome/core/defines.h"
+#include "esphome/core/defines.h"
 
 namespace esphome::host {
 
