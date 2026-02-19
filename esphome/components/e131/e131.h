@@ -24,7 +24,7 @@ struct E131Packet {
 
 struct UniverseConsumer {
   uint16_t universe;
-  uint8_t consumers;
+  uint16_t consumers;
 };
 
 class E131Component : public esphome::Component {
