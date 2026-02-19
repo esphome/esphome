@@ -116,6 +116,7 @@ void ZigbeeProxy::zigbee_proxy_request(api::APIConnection *api_connection, const
       }
       ESP_LOGI(TAG, "Client subscribed");
       this->api_connection_ = api_connection;
+      this->client_reset_session_();
       break;
 
     case api::enums::ZIGBEE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
@@ -137,13 +138,10 @@ void ZigbeeProxy::zigbee_proxy_frame(api::APIConnection *api_connection, const a
     return;
   }
 
-  if (this->ash_state_ != AshState::CONNECTED) {
-    ESP_LOGW(TAG, "Cannot send frame, NCP not connected");
-    return;
+  // Feed raw bytes into the client-side ASH parser
+  for (size_t i = 0; i < msg.data_len; i++) {
+    this->client_parse_byte_(msg.data[i]);
   }
-
-  // Forward EZSP payload to NCP
-  this->send_frame(msg.data, msg.data_len);
 }
 
 uint64_t ZigbeeProxy::get_ieee_address() const {
@@ -259,9 +257,18 @@ void ZigbeeProxy::handle_rstack_frame_(const uint8_t *data, size_t length) {
     // Now check for WiFi/Zigbee channel conflicts
     this->check_wifi_zigbee_conflict_();
   } else if (this->ash_state_ == AshState::CONNECTING) {
-    // Unexpected but valid RSTACK during connecting
+    // RSTACK during connecting (triggered by client RST forwarding)
     ESP_LOGI(TAG, "Received RSTACK, NCP ready");
     this->ash_state_ = AshState::CONNECTED;
+    // Forward to client if subscribed
+    if (this->api_connection_ != nullptr) {
+      this->forward_ncp_rstack_to_client_(this->rx_buffer_.data() + 1, this->rx_buffer_index_ - 3);
+    }
+  } else if (this->api_connection_ != nullptr) {
+    // Client is subscribed, forward RSTACK
+    ESP_LOGI(TAG, "Forwarding RSTACK to client");
+    this->ash_state_ = AshState::CONNECTED;
+    this->forward_ncp_rstack_to_client_(this->rx_buffer_.data() + 1, this->rx_buffer_index_ - 3);
   } else {
     ESP_LOGW(TAG, "Unexpected RSTACK received (boot_state=%d)", static_cast<int>(this->boot_state_));
   }
@@ -308,9 +315,14 @@ void ZigbeeProxy::handle_error_frame_(const uint8_t *data, size_t length) {
 
   ESP_LOGE(TAG, "NCP ERROR: %s (0x%02X)", error_str, error_code);
 
-  // Attempt recovery
-  ESP_LOGI(TAG, "Attempting recovery...");
-  this->reset_ash_protocol_();
+  if (this->api_connection_ != nullptr) {
+    // Forward error to client
+    this->forward_ncp_error_to_client_(data, length);
+  } else {
+    // No client, attempt recovery ourselves
+    ESP_LOGI(TAG, "Attempting recovery...");
+    this->reset_ash_protocol_();
+  }
 }
 
 bool ZigbeeProxy::send_ack_frame_(uint8_t ack_num) {
@@ -857,6 +869,262 @@ void ZigbeeProxy::process_uart_() {
     ESP_LOGV(TAG, "RX: 0x%02X", byte);
 
     this->parse_byte_(byte);
+  }
+}
+
+// ==================== Client-side ASH session ====================
+
+void ZigbeeProxy::client_reset_session_() {
+  this->client_tx_sequence_ = 0;
+  this->client_rx_sequence_ = 0;
+  this->client_rx_buffer_index_ = 0;
+  this->client_escape_next_byte_ = false;
+  this->client_ash_state_ = AshState::DISCONNECTED;
+  this->client_parsing_state_ = ParsingState::WAIT_FLAG_START;
+  ESP_LOGD(TAG, "Client ASH session reset");
+}
+
+void ZigbeeProxy::send_to_client_(const uint8_t *data, size_t length) {
+  if (this->api_connection_ == nullptr) {
+    return;
+  }
+  this->outgoing_proto_msg_.data = data;
+  this->outgoing_proto_msg_.data_len = length;
+  this->api_connection_->send_zigbee_proxy_frame(this->outgoing_proto_msg_);
+}
+
+void ZigbeeProxy::client_send_raw_frame_(const uint8_t *frame, size_t length) {
+  this->send_to_client_(frame, length);
+}
+
+void ZigbeeProxy::client_send_ack_frame_(uint8_t ack_num) {
+  uint8_t frame[8];
+  size_t length = this->build_frame_(frame, nullptr, 0, AshFrameType::ACK, 0, ack_num);
+  this->client_send_raw_frame_(frame, length);
+  ESP_LOGV(TAG, "Sent client ACK for frame %d", ack_num);
+}
+
+void ZigbeeProxy::client_send_rstack_frame_(uint8_t reset_code) {
+  // RSTACK payload: [version] [reset_code]
+  uint8_t payload[] = {0x02, reset_code};
+  uint8_t frame[16];
+  size_t length = this->build_frame_(frame, payload, sizeof(payload), AshFrameType::RSTACK);
+  this->client_send_raw_frame_(frame, length);
+  ESP_LOGD(TAG, "Sent client RSTACK (code=0x%02X)", reset_code);
+}
+
+void ZigbeeProxy::client_send_data_frame_(const uint8_t *data, size_t length) {
+  uint8_t frame[MAX_ASH_FRAME_SIZE];
+  size_t frame_length = this->build_frame_(frame, data, length, AshFrameType::DATA,
+                                            this->client_tx_sequence_, this->client_rx_sequence_);
+  this->client_tx_sequence_ = (this->client_tx_sequence_ + 1) & ASH_MAX_SEQUENCE;
+  this->client_send_raw_frame_(frame, frame_length);
+  ESP_LOGV(TAG, "Sent client DATA frame, payload %u bytes", length);
+}
+
+void ZigbeeProxy::client_send_error_frame_(uint8_t error_code) {
+  uint8_t payload[] = {0x02, error_code};
+  uint8_t frame[16];
+  size_t length = this->build_frame_(frame, payload, sizeof(payload), AshFrameType::ERROR);
+  this->client_send_raw_frame_(frame, length);
+  ESP_LOGD(TAG, "Sent client ERROR (code=0x%02X)", error_code);
+}
+
+void ZigbeeProxy::forward_ncp_data_to_client_(const uint8_t *payload, size_t length) {
+  this->client_send_data_frame_(payload, length);
+}
+
+void ZigbeeProxy::forward_ncp_rstack_to_client_(const uint8_t *data, size_t length) {
+  // Build and send an RSTACK frame to the client with NCP's RSTACK data
+  uint8_t frame[16];
+  size_t frame_length = this->build_frame_(frame, data, length, AshFrameType::RSTACK);
+  this->client_send_raw_frame_(frame, frame_length);
+
+  // Reset client-side sequence numbers since RSTACK means new session
+  this->client_tx_sequence_ = 0;
+  this->client_rx_sequence_ = 0;
+  this->client_ash_state_ = AshState::CONNECTED;
+  ESP_LOGD(TAG, "Forwarded RSTACK to client");
+}
+
+void ZigbeeProxy::forward_ncp_error_to_client_(const uint8_t *data, size_t length) {
+  uint8_t frame[16];
+  size_t frame_length = this->build_frame_(frame, data, length, AshFrameType::ERROR);
+  this->client_send_raw_frame_(frame, frame_length);
+  ESP_LOGD(TAG, "Forwarded ERROR to client");
+}
+
+void ZigbeeProxy::client_parse_byte_(uint8_t byte) {
+  static constexpr uint8_t ASH_CAN_BYTE = 0x1A;
+
+  // CAN byte resets parser
+  if (byte == ASH_CAN_BYTE) {
+    this->client_rx_buffer_index_ = 0;
+    this->client_escape_next_byte_ = false;
+    this->client_parsing_state_ = ParsingState::WAIT_FLAG_START;
+    return;
+  }
+
+  switch (this->client_parsing_state_) {
+    case ParsingState::WAIT_FLAG_START:
+      if (byte == ASH_ESCAPE_BYTE) {
+        this->client_escape_next_byte_ = true;
+        return;
+      }
+      if (this->client_escape_next_byte_) {
+        byte ^= ASH_XOR_BYTE;
+        this->client_escape_next_byte_ = false;
+      }
+      if (byte == ASH_FLAG_BYTE) {
+        this->client_rx_buffer_index_ = 0;
+        this->client_escape_next_byte_ = false;
+        this->client_parsing_state_ = ParsingState::WAIT_CONTROL;
+      } else if ((byte & 0x80) != 0 || this->client_ash_state_ == AshState::CONNECTED) {
+        // Accept control byte without leading FLAG
+        this->client_rx_buffer_index_ = 0;
+        this->client_rx_buffer_[this->client_rx_buffer_index_++] = byte;
+        this->client_parsing_state_ = ParsingState::WAIT_DATA;
+      }
+      break;
+
+    case ParsingState::WAIT_CONTROL:
+      if (byte == ASH_FLAG_BYTE) {
+        // Empty frame or repeated FLAG
+        this->client_rx_buffer_index_ = 0;
+        return;
+      }
+      if (byte == ASH_ESCAPE_BYTE) {
+        this->client_escape_next_byte_ = true;
+        return;
+      }
+      if (this->client_escape_next_byte_) {
+        byte ^= ASH_XOR_BYTE;
+        this->client_escape_next_byte_ = false;
+      }
+      this->client_rx_buffer_[this->client_rx_buffer_index_++] = byte;
+      this->client_parsing_state_ = ParsingState::WAIT_DATA;
+      break;
+
+    case ParsingState::WAIT_DATA:
+      if (byte == ASH_FLAG_BYTE) {
+        // End of frame - validate and process
+        if (this->client_validate_frame_crc_()) {
+          this->client_parse_control_byte_(this->client_rx_buffer_[0]);
+        } else {
+          ESP_LOGW(TAG, "Client frame CRC failed (%u bytes)", this->client_rx_buffer_index_);
+        }
+        this->client_parsing_state_ = ParsingState::WAIT_FLAG_START;
+        return;
+      }
+      if (byte == ASH_ESCAPE_BYTE) {
+        this->client_escape_next_byte_ = true;
+        return;
+      }
+      if (this->client_escape_next_byte_) {
+        byte ^= ASH_XOR_BYTE;
+        this->client_escape_next_byte_ = false;
+      }
+      if (this->client_rx_buffer_index_ >= MAX_ASH_FRAME_SIZE) {
+        ESP_LOGE(TAG, "Client RX buffer overflow");
+        this->client_parsing_state_ = ParsingState::WAIT_FLAG_START;
+        return;
+      }
+      this->client_rx_buffer_[this->client_rx_buffer_index_++] = byte;
+      break;
+
+    default:
+      this->client_parsing_state_ = ParsingState::WAIT_FLAG_START;
+      break;
+  }
+}
+
+bool ZigbeeProxy::client_validate_frame_crc_() {
+  if (this->client_rx_buffer_index_ < 3) {
+    return false;
+  }
+  uint16_t calculated = this->calculate_crc_(this->client_rx_buffer_.data(), this->client_rx_buffer_index_ - 2);
+  uint16_t received = (static_cast<uint16_t>(this->client_rx_buffer_[this->client_rx_buffer_index_ - 2]) << 8) |
+                      this->client_rx_buffer_[this->client_rx_buffer_index_ - 1];
+  return calculated == received;
+}
+
+void ZigbeeProxy::client_parse_control_byte_(uint8_t control) {
+  AshFrameType frame_type;
+  if ((control & 0x80) == 0) {
+    frame_type = AshFrameType::DATA;
+  } else if ((control & 0xC0) == 0x80) {
+    frame_type = ((control & 0x20) == 0) ? AshFrameType::ACK : AshFrameType::NAK;
+  } else {
+    uint8_t control_bits = control & 0x07;
+    if (control_bits == 0x00) {
+      frame_type = AshFrameType::RST;
+    } else if (control_bits == 0x01) {
+      frame_type = AshFrameType::RSTACK;
+    } else if (control_bits == 0x02) {
+      frame_type = AshFrameType::ERROR;
+    } else {
+      ESP_LOGW(TAG, "Client: unknown control frame type: 0x%02X", control);
+      return;
+    }
+  }
+
+  uint8_t frame_num = (control >> 4) & 0x07;
+  uint8_t ack_num = control & 0x07;
+
+  switch (frame_type) {
+    case AshFrameType::DATA: {
+      // Verify sequence number
+      if (frame_num != this->client_rx_sequence_) {
+        ESP_LOGW(TAG, "Client: out of sequence DATA frame: expected %d, got %d", this->client_rx_sequence_, frame_num);
+        return;
+      }
+
+      this->client_rx_sequence_ = (this->client_rx_sequence_ + 1) & ASH_MAX_SEQUENCE;
+
+      // Extract EZSP payload (skip control byte, exclude CRC)
+      size_t payload_length = this->client_rx_buffer_index_ > 3 ? this->client_rx_buffer_index_ - 3 : 0;
+      const uint8_t *payload = this->client_rx_buffer_.data() + 1;
+
+      if (payload_length > 0) {
+        // Forward EZSP payload to NCP via right-side ASH
+        ESP_LOGV(TAG, "Client DATA → NCP, EZSP payload %u bytes", payload_length);
+        this->send_frame(payload, payload_length);
+      }
+      break;
+    }
+
+    case AshFrameType::ACK:
+      // Client ACKed our data - nothing to retransmit on client side for now
+      ESP_LOGV(TAG, "Client ACK received for frame %d", ack_num);
+      break;
+
+    case AshFrameType::NAK:
+      ESP_LOGW(TAG, "Client NAK received for frame %d", ack_num);
+      break;
+
+    case AshFrameType::RST:
+      // Client wants to reset - forward RST to NCP
+      // Don't use reset_ash_protocol_() as that enters boot sequence
+      ESP_LOGI(TAG, "Client RST → forwarding to NCP");
+      this->ash_state_ = AshState::CONNECTING;
+      this->tx_sequence_ = 0;
+      this->rx_sequence_ = 0;
+      this->tx_buffer_pending_ = false;
+      this->tx_retry_count_ = 0;
+      this->parsing_state_ = ParsingState::WAIT_FLAG_START;
+      this->client_reset_session_();
+      this->send_rst_frame_();
+      break;
+
+    case AshFrameType::RSTACK:
+      // Client shouldn't send RSTACK, ignore
+      ESP_LOGW(TAG, "Client sent unexpected RSTACK");
+      break;
+
+    case AshFrameType::ERROR:
+      // Client sent error, log it
+      ESP_LOGW(TAG, "Client sent ERROR frame");
+      break;
   }
 }
 

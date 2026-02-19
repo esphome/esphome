@@ -85,7 +85,8 @@ static void dump_field(DumpBuffer &out, const char *field_name, const char *valu
   out.append("\n");
 }
 
-template<typename T> static void dump_field(DumpBuffer &out, const char *field_name, T value, int indent = 2) {
+template<typename T>
+static void dump_field(DumpBuffer &out, const char *field_name, T value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append(proto_enum_to_string<T>(value));
   out.append("\n");
@@ -370,8 +371,7 @@ template<> const char *proto_enum_to_string<enums::WaterHeaterMode>(enums::Water
   }
 }
 #endif
-template<>
-const char *proto_enum_to_string<enums::WaterHeaterCommandHasField>(enums::WaterHeaterCommandHasField value) {
+template<> const char *proto_enum_to_string<enums::WaterHeaterCommandHasField>(enums::WaterHeaterCommandHasField value) {
   switch (value) {
     case enums::WATER_HEATER_COMMAND_HAS_NONE:
       return "WATER_HEATER_COMMAND_HAS_NONE";
@@ -506,8 +506,7 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerFormatPurpose>(enu
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-template<>
-const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
+template<> const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
   switch (value) {
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
       return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT";
@@ -556,8 +555,7 @@ template<> const char *proto_enum_to_string<enums::BluetoothScannerMode>(enums::
   }
 }
 #endif
-template<>
-const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::VoiceAssistantSubscribeFlag value) {
+template<> const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::VoiceAssistantSubscribeFlag value) {
   switch (value) {
     case enums::VOICE_ASSISTANT_SUBSCRIBE_NONE:
       return "VOICE_ASSISTANT_SUBSCRIBE_NONE";
@@ -660,8 +658,7 @@ template<> const char *proto_enum_to_string<enums::AlarmControlPanelState>(enums
       return "UNKNOWN";
   }
 }
-template<>
-const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::AlarmControlPanelStateCommand value) {
+template<> const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::AlarmControlPanelStateCommand value) {
   switch (value) {
     case enums::ALARM_CONTROL_PANEL_DISARM:
       return "ALARM_CONTROL_PANEL_DISARM";
@@ -750,6 +747,7 @@ template<> const char *proto_enum_to_string<enums::ZigbeeProxyRequestType>(enums
   }
 }
 #endif
+
 
 const char *HelloRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "HelloRequest");

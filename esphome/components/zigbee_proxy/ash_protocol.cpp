@@ -131,11 +131,9 @@ void ZigbeeProxy::parse_control_byte_(uint8_t control) {
         ESP_LOGD(TAG, "ACK received (piggybacked in DATA), RTT: %u ms", rtt);
       }
 
-      // Send ACK immediately
-      this->send_ack_frame_(frame_num);
-
-      // Increment RX sequence for next frame
+      // Increment RX sequence and send ACK (ack_num = next expected frame)
       this->increment_rx_sequence_();
+      this->send_ack_frame_(this->rx_sequence_);
 
       // Extract payload (skip control byte, exclude CRC)
       size_t payload_length = this->rx_buffer_index_ > 3 ? this->rx_buffer_index_ - 3 : 0;
@@ -145,10 +143,8 @@ void ZigbeeProxy::parse_control_byte_(uint8_t control) {
       if (this->boot_sequence_active_ && payload_length > 0) {
         this->handle_boot_data_frame_(payload, payload_length);
       } else if (this->api_connection_ != nullptr && payload_length > 0) {
-        // Forward EZSP payload to API client
-        this->outgoing_proto_msg_.data = payload;
-        this->outgoing_proto_msg_.data_len = payload_length;
-        this->api_connection_->send_zigbee_proxy_frame(this->outgoing_proto_msg_);
+        // Forward EZSP payload to client via client-side ASH DATA frame
+        this->forward_ncp_data_to_client_(payload, payload_length);
       }
       break;
     }
@@ -350,9 +346,9 @@ size_t ZigbeeProxy::build_frame_(uint8_t *output, const uint8_t *data, size_t le
       break;
   }
 
-  // Add control byte with stuffing
-  if (control == ASH_FLAG_BYTE || control == ASH_ESCAPE_BYTE || control == 0x11 || control == 0x13 || control == 0x93 ||
-      control == 0xA3) {
+  // Add control byte with stuffing (reserved: FLAG, ESCAPE, XON, XOFF, SUB, CAN)
+  if (control == ASH_FLAG_BYTE || control == ASH_ESCAPE_BYTE || control == 0x11 || control == 0x13 ||
+      control == 0x18 || control == 0x1A) {
     output[pos++] = ASH_ESCAPE_BYTE;
     output[pos++] = control ^ ASH_XOR_BYTE;
   } else {
@@ -369,8 +365,8 @@ size_t ZigbeeProxy::build_frame_(uint8_t *output, const uint8_t *data, size_t le
   // Add data payload with stuffing
   for (size_t i = 0; i < length; i++) {
     uint8_t byte = data[i];
-    if (byte == ASH_FLAG_BYTE || byte == ASH_ESCAPE_BYTE || byte == 0x11 || byte == 0x13 || byte == 0x93 ||
-        byte == 0xA3) {
+    if (byte == ASH_FLAG_BYTE || byte == ASH_ESCAPE_BYTE || byte == 0x11 || byte == 0x13 ||
+        byte == 0x18 || byte == 0x1A) {
       output[pos++] = ASH_ESCAPE_BYTE;
       output[pos++] = byte ^ ASH_XOR_BYTE;
     } else {
@@ -386,15 +382,15 @@ size_t ZigbeeProxy::build_frame_(uint8_t *output, const uint8_t *data, size_t le
   uint8_t crc_low = crc & 0xFF;
 
   if (crc_high == ASH_FLAG_BYTE || crc_high == ASH_ESCAPE_BYTE || crc_high == 0x11 || crc_high == 0x13 ||
-      crc_high == 0x93 || crc_high == 0xA3) {
+      crc_high == 0x18 || crc_high == 0x1A) {
     output[pos++] = ASH_ESCAPE_BYTE;
     output[pos++] = crc_high ^ ASH_XOR_BYTE;
   } else {
     output[pos++] = crc_high;
   }
 
-  if (crc_low == ASH_FLAG_BYTE || crc_low == ASH_ESCAPE_BYTE || crc_low == 0x11 || crc_low == 0x13 || crc_low == 0x93 ||
-      crc_low == 0xA3) {
+  if (crc_low == ASH_FLAG_BYTE || crc_low == ASH_ESCAPE_BYTE || crc_low == 0x11 || crc_low == 0x13 ||
+      crc_low == 0x18 || crc_low == 0x1A) {
     output[pos++] = ASH_ESCAPE_BYTE;
     output[pos++] = crc_low ^ ASH_XOR_BYTE;
   } else {

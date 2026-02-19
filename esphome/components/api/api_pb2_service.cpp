@@ -23,9 +23,9 @@ void APIServerConnectionBase::log_receive_message_(const LogString *name) {
 void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {
   // Check authentication/connection requirements
   switch (msg_type) {
-    case HelloRequest::MESSAGE_TYPE:       // No setup required
+    case HelloRequest::MESSAGE_TYPE:  // No setup required
     case DisconnectRequest::MESSAGE_TYPE:  // No setup required
-    case PingRequest::MESSAGE_TYPE:        // No setup required
+    case PingRequest::MESSAGE_TYPE:  // No setup required
       break;
     case 9 /* DeviceInfoRequest is empty */:  // Connection setup only
       if (!this->check_connection_setup_()) {
@@ -602,25 +602,14 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-#ifdef USE_ZIGBEE_PROXY
-    case ZigbeeProxyFrame::MESSAGE_TYPE: {
-      ZigbeeProxyFrame msg;
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+    case HomeassistantActionResponse::MESSAGE_TYPE: {
+      HomeassistantActionResponse msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      this->log_receive_message_(LOG_STR("on_zigbee_proxy_frame"), msg);
+      this->log_receive_message_(LOG_STR("on_homeassistant_action_response"), msg);
 #endif
-      this->on_zigbee_proxy_frame(msg);
-      break;
-    }
-#endif
-#ifdef USE_ZIGBEE_PROXY
-    case ZigbeeProxyRequest::MESSAGE_TYPE: {
-      ZigbeeProxyRequest msg;
-      msg.decode(msg_data, msg_size);
-#ifdef HAS_PROTO_MESSAGE_DUMP
-      this->log_receive_message_(LOG_STR("on_zigbee_proxy_request"), msg);
-#endif
-      this->on_zigbee_proxy_request(msg);
+      this->on_homeassistant_action_response(msg);
       break;
     }
 #endif
@@ -643,6 +632,28 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->log_receive_message_(LOG_STR("on_infrared_rf_transmit_raw_timings_request"), msg);
 #endif
       this->on_infrared_rf_transmit_raw_timings_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_ZIGBEE_PROXY
+    case ZigbeeProxyFrame::MESSAGE_TYPE: {
+      ZigbeeProxyFrame msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_zigbee_proxy_frame"), msg);
+#endif
+      this->on_zigbee_proxy_frame(msg);
+      break;
+    }
+#endif
+#ifdef USE_ZIGBEE_PROXY
+    case ZigbeeProxyRequest::MESSAGE_TYPE: {
+      ZigbeeProxyRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_zigbee_proxy_request"), msg);
+#endif
+      this->on_zigbee_proxy_request(msg);
       break;
     }
 #endif

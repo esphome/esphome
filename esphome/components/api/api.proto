@@ -2450,7 +2450,7 @@ message ZWaveProxyRequest {
 // ==================== ZIGBEE ====================
 
 message ZigbeeProxyFrame {
-  option (id) = 130;
+  option (id) = 138;
   option (source) = SOURCE_BOTH;
   option (ifdef) = "USE_ZIGBEE_PROXY";
   option (no_delay) = true;
@@ -2465,7 +2465,7 @@ enum ZigbeeProxyRequestType {
 }
 
 message ZigbeeProxyRequest {
-  option (id) = 131;
+  option (id) = 139;
   option (source) = SOURCE_BOTH;
   option (ifdef) = "USE_ZIGBEE_PROXY";
 
