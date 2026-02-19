@@ -48,10 +48,8 @@ from esphome.const import (
     CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_RESET_PIN,
-    CONF_ROTATION,
     CONF_SWAP_XY,
     CONF_TRANSFORM,
-    CONF_WIDTH,
 )
 from esphome.final_validate import full_config
 
@@ -87,38 +85,24 @@ COLOR_DEPTHS = {
 
 def model_schema(config):
     model = MODELS[config[CONF_MODEL].upper()]
+    model.defaults[CONF_SWAP_XY] = cv.UNDEFINED
     transform = cv.Schema(
         {
             cv.Required(CONF_MIRROR_X): cv.boolean,
             cv.Required(CONF_MIRROR_Y): cv.boolean,
+            cv.Optional(CONF_SWAP_XY): cv.invalid(
+                "Axis swapping not supported by DSI displays"
+            ),
         }
     )
-    if model.get_default(CONF_SWAP_XY) != cv.UNDEFINED:
-        transform = transform.extend(
-            {
-                cv.Optional(CONF_SWAP_XY): cv.invalid(
-                    "Axis swapping not supported by this model"
-                )
-            }
-        )
-    else:
-        transform = transform.extend(
-            {
-                cv.Required(CONF_SWAP_XY): cv.boolean,
-            }
-        )
     # CUSTOM model will need to provide a custom init sequence
     iseqconf = (
         cv.Required(CONF_INIT_SEQUENCE)
         if model.initsequence is None
         else cv.Optional(CONF_INIT_SEQUENCE)
     )
-    swap_xy = config.get(CONF_TRANSFORM, {}).get(CONF_SWAP_XY, False)
-
     # Dimensions are optional if the model has a default width and the swap_xy transform is not overridden
-    cv_dimensions = (
-        cv.Optional if model.get_default(CONF_WIDTH) and not swap_xy else cv.Required
-    )
+    cv_dimensions = cv.Optional
     pixel_modes = (PIXEL_MODE_16BIT, PIXEL_MODE_24BIT, "16", "24")
     schema = display.FULL_DISPLAY_SCHEMA.extend(
         {
@@ -223,8 +207,6 @@ async def to_code(config):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
 
-    if model.rotation_as_transform(config):
-        config[CONF_ROTATION] = 0
     await display.register_display(var, config)
     if lamb := config.get(CONF_LAMBDA):
         lambda_ = await cg.process_lambda(
