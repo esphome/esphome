@@ -214,7 +214,9 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
       // Failed to decode in last attempt and there is no new data
 
       if ((this->input_buffer_->free() == 0) && first_loop_iteration) {
-        // The input buffer is full. Since it previously failed on the exact same data, we can never recover
+        // The input buffer is full (or read-only, e.g. const flash source). Since it previously failed on the exact
+        // same data, we can never recover. For const sources this is correct: the entire file is already available, so
+        // a decode failure is genuine, not a transient out-of-data condition.
         state = FileDecoderState::FAILED;
       } else {
         // Attempt to get more data next time
