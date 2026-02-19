@@ -5,7 +5,6 @@
 #include "esphome/core/component.h"
 
 #include <cinttypes>
-#include <map>
 #include <memory>
 #include <vector>
 
@@ -21,6 +20,11 @@ const int E131_MAX_PROPERTY_VALUES_COUNT = 513;
 struct E131Packet {
   uint16_t count;
   uint8_t values[E131_MAX_PROPERTY_VALUES_COUNT];
+};
+
+struct UniverseConsumer {
+  uint16_t universe;
+  uint8_t consumers;
 };
 
 class E131Component : public esphome::Component {
@@ -41,13 +45,14 @@ class E131Component : public esphome::Component {
   bool packet_(const uint8_t *data, size_t len, int &universe, E131Packet &packet);
   bool process_(int universe, const E131Packet &packet);
   bool join_igmp_groups_();
+  UniverseConsumer *find_universe_(int universe);
   void join_(int universe);
   void leave_(int universe);
 
   E131ListenMethod listen_method_{E131_MULTICAST};
   std::unique_ptr<socket::Socket> socket_;
   std::vector<E131AddressableLightEffect *> light_effects_;
-  std::map<int, int> universe_consumers_;
+  std::vector<UniverseConsumer> universe_consumers_;
 };
 
 }  // namespace e131
