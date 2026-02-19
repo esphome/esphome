@@ -165,10 +165,10 @@ void PowerManagement::dump_config() {
 }
 
 static const size_t PM_BUF_SIZE = 1024;
-// Todo: use pm function esp_pm_get_lock_stats_all when they are available.
+// Todo: use pm function esp_pm_get_lock_stats_all when it is available.
 bool PowerManagement::ready_to_sleep_() {
   char pm_buffer[PM_BUF_SIZE];
-  int16_t acquired = 0;
+  int32_t acquired = 0;
 
   FILE *f = fmemopen(pm_buffer, PM_BUF_SIZE, "w");
   if (f == NULL) {
@@ -186,7 +186,7 @@ bool PowerManagement::ready_to_sleep_() {
 
   char *line_saveptr;
   char *word_saveptr;
-  char *line = strtok_r(pm_buffer, "\n", &line_saveptr);
+  char *line = strtok_r(pm_buffer, "\n", &line_saveptr);  // NOLINT(clang-analyzer-deadcode.DeadStores)
   while ((line = strtok_r(NULL, "\n", &line_saveptr)) != NULL) {
     if (strncmp(line, "Mode", 4) == 0) {
       break;
@@ -198,7 +198,7 @@ bool PowerManagement::ready_to_sleep_() {
       }
       // at 4th word
       if (word != NULL) {
-        acquired += atoi(word);
+        acquired += strtol(word, NULL, 10);
       }
     }
   }
