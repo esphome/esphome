@@ -160,7 +160,7 @@ void ModbusServerHub::parse_modbus_frames() {
 
 bool Modbus::parse_modbus_server_frame_() {
   size_t size = this->rx_buffer_.size();
-  uint8_t frame_length = server_frame_length(this->rx_buffer_);
+  uint16_t frame_length = server_frame_length(this->rx_buffer_);
 
   if (size < frame_length)
     return true;
@@ -203,7 +203,7 @@ bool Modbus::parse_modbus_server_frame_() {
 
 bool ModbusServerHub::parse_modbus_client_frame_() {
   size_t size = this->rx_buffer_.size();
-  uint8_t frame_length = client_frame_length(this->rx_buffer_);
+  uint16_t frame_length = client_frame_length(this->rx_buffer_);
 
   if (size < frame_length)
     return true;
