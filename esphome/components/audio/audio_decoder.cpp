@@ -85,12 +85,6 @@ esp_err_t AudioDecoder::start(AudioFileType audio_file_type) {
 #ifdef USE_AUDIO_FLAC_SUPPORT
     case AudioFileType::FLAC:
       this->flac_decoder_ = make_unique<esp_audio_libs::flac::FLACDecoder>();
-      // Disable FLAC CRC verification to reduce CPU load and improve decoding throughput on the ESP32.
-      // This means that some forms of bitstream corruption may not be detected by the decoder and could
-      // result in audible glitches or artifacts instead of a hard failure. For ESPHome audio playback the
-      // FLAC data typically originates from local/controlled sources, and occasional minor artifacts are
-      // considered an acceptable trade-off for lower processing overhead and more reliable timing.
-      this->flac_decoder_->set_crc_check_enabled(false);
       this->free_buffer_required_ =
           this->output_transfer_buffer_->capacity();  // Adjusted and reallocated after reading the header
       break;
