@@ -14,6 +14,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
 from esphome.core import ID
 from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["network"]
@@ -66,7 +67,7 @@ RELOCATED = {
 }
 
 
-def _consume_udp_sockets(config: cv.ConfigType) -> cv.ConfigType:
+def _consume_udp_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for UDP component."""
     from esphome.components import socket
 
