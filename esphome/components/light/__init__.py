@@ -276,6 +276,7 @@ async def setup_light_core_(light_var, output_var, config):
         cg.add(light_var.set_gamma_correct(gamma_correct))
         fwd_arr = _get_or_create_gamma_table(gamma_correct)
         cg.add(light_var.set_gamma_table(fwd_arr))
+        cg.add_define("USE_LIGHT_GAMMA_LUT")
     effects = await cg.build_registry_list(
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )

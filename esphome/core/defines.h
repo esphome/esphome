@@ -58,6 +58,7 @@
 #define USE_IR_RF
 #define USE_JSON
 #define USE_LIGHT
+#define USE_LIGHT_GAMMA_LUT
 #define USE_LOCK
 #define USE_LOGGER
 #define USE_LOGGER_LEVEL_LISTENERS

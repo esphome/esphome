@@ -251,6 +251,7 @@ void LightState::current_values_as_ct(float *color_temperature, float *white_bri
   *white_brightness = this->gamma_correct_lut(*white_brightness);
 }
 
+#ifdef USE_LIGHT_GAMMA_LUT
 float LightState::gamma_correct_lut(float value) const {
   if (value <= 0.0f)
     return 0.0f;
@@ -286,6 +287,7 @@ float LightState::gamma_uncorrect_lut(float value) const {
   float frac = static_cast<float>(target - a) / static_cast<float>(b - a);
   return (lo + frac) / 255.0f;
 }
+#endif  // USE_LIGHT_GAMMA_LUT
 
 bool LightState::is_transformer_active() { return this->is_transformer_active_; }
 
