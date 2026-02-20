@@ -310,8 +310,8 @@ class Scheduler {
     // Fixes: https://github.com/esphome/esphome/issues/11940
     if (!item)
       return false;
-    if (item->component != component || item->type != type || (skip_removed && item->remove) ||
-        (match_retry && !item->is_retry)) {
+    if (item->component != component || item->type != type ||
+        (skip_removed && this->is_item_removed_locked_(item.get())) || (match_retry && !item->is_retry)) {
       return false;
     }
     // Name type must match
@@ -459,6 +459,22 @@ class Scheduler {
 #endif
   }
 
+  // Helper to check if item is marked for removal when lock is already held.
+  // Uses relaxed ordering since the mutex provides all necessary synchronization.
+  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
+  bool is_item_removed_locked_(SchedulerItem *item) const {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    // Lock already held - relaxed is sufficient, mutex provides ordering.
+    // Use GCC __atomic_load_n builtin instead of std::atomic::load() because
+    // GCC for Xtensa emits std::atomic<bool>::load() as an out-of-line
+    // libstdc++ call, adding function call overhead that exceeds the memw
+    // barrier savings this optimization aims to eliminate.
+    return __atomic_load_n(reinterpret_cast<const bool *>(&item->remove), __ATOMIC_RELAXED);
+#else
+    return item->remove;
+#endif
+  }
+
   // Helper to set item removal flag (platform-specific)
   // For ESPHOME_THREAD_MULTI_NO_ATOMICS platforms, the caller must hold the scheduler lock before calling this
   // function. Uses memory_order_release when setting to true (for cancellation synchronization),
@@ -515,7 +531,7 @@ class Scheduler {
       // it will iterate over these nullptr items. This check prevents crashes.
       if (!item)
         continue;
-      if (is_item_removed_(item.get()) &&
+      if (this->is_item_removed_locked_(item.get()) &&
           this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, SchedulerItem::TIMEOUT,
                                      match_retry, /* skip_removed= */ false)) {
         return true;
