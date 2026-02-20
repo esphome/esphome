@@ -5,20 +5,20 @@ namespace esphome::epaper_spi {
 
 static constexpr const char *const TAG = "epaper_weact_3c";
 
-static constexpr uint8_t B_W_MASK = 0x01;
-static constexpr uint8_t RED_MASK = 0x02;
-static constexpr uint8_t WHITE_BITS = B_W_MASK;
-static constexpr uint8_t RED_BITS = RED_MASK;
-static constexpr uint8_t BLACK_BITS = 0;
+enum class BwrState : uint8_t {
+  BWR_BLACK = 0,
+  BWR_WHITE = 1,
+  BWR_RED = 2,
+};
 
-static uint8_t color_to_bits(Color color) {
+static BwrState color_to_bwr(Color color) {
   if (color.r > color.g + color.b && color.r > 127) {
-    return RED_BITS;  // red
+    return BwrState::BWR_RED;
   }
   if (color.r + color.g + color.b >= 382) {
-    return WHITE_BITS;
+    return BwrState::BWR_WHITE;
   }
-  return BLACK_BITS;  // black
+  return BwrState::BWR_BLACK;
 }
 // SSD1680 3-color display notes:
 // - Buffer uses 1 bit per pixel, 8 pixels per byte
@@ -38,10 +38,10 @@ void EPaperWeAct3C::draw_pixel_at(int x, int y, Color color) {
 
   // Use luminance threshold for B/W mapping
   // Split at halfway point (382 = (255*3)/2)
-  auto bits = color_to_bits(color);
+  auto bwr = color_to_bwr(color);
 
   // Update black/white plane (first half of buffer)
-  if (bits & B_W_MASK) {
+  if (bwr == BwrState::BWR_WHITE) {
     // White pixel - set bit in black plane
     this->buffer_[pos] |= bit;
   } else {
@@ -51,7 +51,7 @@ void EPaperWeAct3C::draw_pixel_at(int x, int y, Color color) {
 
   // Update red plane (second half of buffer)
   // Red if red component is dominant (r > g+b)
-  if (bits & RED_MASK) {
+  if (bwr == BwrState::BWR_RED) {
     // black or white pixel - set bit in red plane
     this->buffer_[red_offset + pos] |= bit;
   } else {
@@ -68,13 +68,13 @@ void EPaperWeAct3C::fill(Color color) {
   const size_t half_buffer = this->buffer_length_ / 2u;
 
   // Use luminance threshold for B/W mapping
-  auto bits = color_to_bits(color);
+  auto bits = color_to_bwr(color);
 
   // Fill both planes
-  if (bits == 0) {
+  if (bits == BwrState::BWR_BLACK) {
     // Black - both planes = 0x00
     this->buffer_.fill(0x00);
-  } else if (bits == RED_BITS) {
+  } else if (bits == BwrState::BWR_RED) {
     // Red - black plane = 0x00, red plane = 0xFF
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0x00;
@@ -126,7 +126,6 @@ bool HOT EPaperWeAct3C::transfer_data() {
   ESP_LOGV(TAG, "transfer_data: buffer_length=%u, half_buffer=%u", buffer_length, half_buffer);
 
   // Use a local buffer for SPI transfers
-  static constexpr size_t MAX_TRANSFER_SIZE = 128;
   uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
 
   // First, send the RED buffer (0x26 = WRITE_COLOR)
