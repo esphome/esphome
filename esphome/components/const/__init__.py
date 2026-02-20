@@ -17,3 +17,9 @@ CONF_ON_STATE_CHANGE = "on_state_change"
 CONF_REQUEST_HEADERS = "request_headers"
 CONF_ROWS = "rows"
 CONF_USE_PSRAM = "use_psram"
+
+ICON_CURRENT_DC = "mdi:current-dc"
+ICON_SOLAR_PANEL = "mdi:solar-panel"
+ICON_SOLAR_POWER = "mdi:solar-power"
+
+UNIT_AMPERE_HOUR = "Ah"

@@ -4,6 +4,7 @@
 #include "light_state.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::light {
 
@@ -51,26 +52,13 @@ static void log_invalid_parameter(const char *name, const LogString *message) {
     return *this; \
   }
 
+// Color mode human-readable strings indexed by ColorModeBitPolicy::to_bit() (0-9)
+// Index 0 is Unknown (for ColorMode::UNKNOWN), also used as fallback for out-of-range
+PROGMEM_STRING_TABLE(ColorModeHumanStrings, "Unknown", "On/Off", "Brightness", "White", "Color temperature",
+                     "Cold/warm white", "RGB", "RGBW", "RGB + color temperature", "RGB + cold/warm white");
+
 static const LogString *color_mode_to_human(ColorMode color_mode) {
-  if (color_mode == ColorMode::ON_OFF)
-    return LOG_STR("On/Off");
-  if (color_mode == ColorMode::BRIGHTNESS)
-    return LOG_STR("Brightness");
-  if (color_mode == ColorMode::WHITE)
-    return LOG_STR("White");
-  if (color_mode == ColorMode::COLOR_TEMPERATURE)
-    return LOG_STR("Color temperature");
-  if (color_mode == ColorMode::COLD_WARM_WHITE)
-    return LOG_STR("Cold/warm white");
-  if (color_mode == ColorMode::RGB)
-    return LOG_STR("RGB");
-  if (color_mode == ColorMode::RGB_WHITE)
-    return LOG_STR("RGBW");
-  if (color_mode == ColorMode::RGB_COLD_WARM_WHITE)
-    return LOG_STR("RGB + cold/warm white");
-  if (color_mode == ColorMode::RGB_COLOR_TEMPERATURE)
-    return LOG_STR("RGB + color temperature");
-  return LOG_STR("Unknown");
+  return ColorModeHumanStrings::get_log_str(ColorModeBitPolicy::to_bit(color_mode), 0);
 }
 
 // Helper to log percentage values
@@ -282,22 +270,23 @@ LightColorValues LightCall::validate_() {
   if (this->has_state())
     v.set_state(this->state_);
 
-#define VALIDATE_AND_APPLY(field, setter, name_str, ...) \
+    // clamp_and_log_if_invalid already clamps in-place, so assign directly
+    // to avoid redundant clamp code from the setter being inlined.
+#define VALIDATE_AND_APPLY(field, name_str, ...) \
   if (this->has_##field()) { \
     clamp_and_log_if_invalid(name, this->field##_, LOG_STR(name_str), ##__VA_ARGS__); \
-    v.setter(this->field##_); \
+    v.field##_ = this->field##_; \
   }
 
-  VALIDATE_AND_APPLY(brightness, set_brightness, "Brightness")
-  VALIDATE_AND_APPLY(color_brightness, set_color_brightness, "Color brightness")
-  VALIDATE_AND_APPLY(red, set_red, "Red")
-  VALIDATE_AND_APPLY(green, set_green, "Green")
-  VALIDATE_AND_APPLY(blue, set_blue, "Blue")
-  VALIDATE_AND_APPLY(white, set_white, "White")
-  VALIDATE_AND_APPLY(cold_white, set_cold_white, "Cold white")
-  VALIDATE_AND_APPLY(warm_white, set_warm_white, "Warm white")
-  VALIDATE_AND_APPLY(color_temperature, set_color_temperature, "Color temperature", traits.get_min_mireds(),
-                     traits.get_max_mireds())
+  VALIDATE_AND_APPLY(brightness, "Brightness")
+  VALIDATE_AND_APPLY(color_brightness, "Color brightness")
+  VALIDATE_AND_APPLY(red, "Red")
+  VALIDATE_AND_APPLY(green, "Green")
+  VALIDATE_AND_APPLY(blue, "Blue")
+  VALIDATE_AND_APPLY(white, "White")
+  VALIDATE_AND_APPLY(cold_white, "Cold white")
+  VALIDATE_AND_APPLY(warm_white, "Warm white")
+  VALIDATE_AND_APPLY(color_temperature, "Color temperature", traits.get_min_mireds(), traits.get_max_mireds())
 
 #undef VALIDATE_AND_APPLY
 
@@ -457,6 +446,52 @@ ColorMode LightCall::compute_color_mode_() {
            LOG_STR_ARG(color_mode_to_human(color_mode)));
   return color_mode;
 }
+// PROGMEM lookup table for get_suitable_color_modes_mask_().
+// Maps 4-bit key (white | ct<<1 | cwww<<2 | rgb<<3) to color mode bitmask.
+// Packed into uint8_t by right-shifting by PACK_SHIFT since the lower bits
+// (UNKNOWN, ON_OFF, BRIGHTNESS) are never present in suitable mode masks.
+static constexpr unsigned PACK_SHIFT = ColorModeBitPolicy::to_bit(ColorMode::WHITE);
+// clang-format off
+static constexpr uint8_t SUITABLE_COLOR_MODES[] PROGMEM = {
+    // [0] none - all modes with brightness
+    static_cast<uint8_t>(ColorModeMask({ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE,
+        ColorMode::RGB_COLD_WARM_WHITE, ColorMode::RGB, ColorMode::WHITE, ColorMode::COLOR_TEMPERATURE,
+        ColorMode::COLD_WARM_WHITE}).get_mask() >> PACK_SHIFT),
+    // [1] white only
+    static_cast<uint8_t>(ColorModeMask({ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE,
+        ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE}).get_mask() >> PACK_SHIFT),
+    // [2] ct only
+    static_cast<uint8_t>(ColorModeMask({ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE,
+        ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE}).get_mask() >> PACK_SHIFT),
+    // [3] white + ct
+    static_cast<uint8_t>(ColorModeMask({ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLOR_TEMPERATURE,
+        ColorMode::RGB_COLD_WARM_WHITE}).get_mask() >> PACK_SHIFT),
+    // [4] cwww only
+    static_cast<uint8_t>(ColorModeMask({ColorMode::COLD_WARM_WHITE,
+        ColorMode::RGB_COLD_WARM_WHITE}).get_mask() >> PACK_SHIFT),
+    0,  // [5] white + cwww (conflicting)
+    0,  // [6] ct + cwww (conflicting)
+    0,  // [7] white + ct + cwww (conflicting)
+    // [8] rgb only
+    static_cast<uint8_t>(ColorModeMask({ColorMode::RGB, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE,
+        ColorMode::RGB_COLD_WARM_WHITE}).get_mask() >> PACK_SHIFT),
+    // [9] rgb + white
+    static_cast<uint8_t>(ColorModeMask({ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE,
+        ColorMode::RGB_COLD_WARM_WHITE}).get_mask() >> PACK_SHIFT),
+    // [10] rgb + ct
+    static_cast<uint8_t>(ColorModeMask({ColorMode::RGB_COLOR_TEMPERATURE,
+        ColorMode::RGB_COLD_WARM_WHITE}).get_mask() >> PACK_SHIFT),
+    // [11] rgb + white + ct
+    static_cast<uint8_t>(ColorModeMask({ColorMode::RGB_COLOR_TEMPERATURE,
+        ColorMode::RGB_COLD_WARM_WHITE}).get_mask() >> PACK_SHIFT),
+    // [12] rgb + cwww
+    static_cast<uint8_t>(ColorModeMask({ColorMode::RGB_COLD_WARM_WHITE}).get_mask() >> PACK_SHIFT),
+    0,  // [13] rgb + white + cwww (conflicting)
+    0,  // [14] rgb + ct + cwww (conflicting)
+    0,  // [15] all (conflicting)
+};
+// clang-format on
+
 color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
   bool has_white = this->has_white() && this->white_ > 0.0f;
   bool has_ct = this->has_color_temperature();
@@ -466,46 +501,8 @@ color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
                  (this->has_red() || this->has_green() || this->has_blue());
 
   // Build key from flags: [rgb][cwww][ct][white]
-#define KEY(white, ct, cwww, rgb) ((white) << 0 | (ct) << 1 | (cwww) << 2 | (rgb) << 3)
-
-  uint8_t key = KEY(has_white, has_ct, has_cwww, has_rgb);
-
-  switch (key) {
-    case KEY(true, false, false, false):  // white only
-      return ColorModeMask({ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE,
-                            ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE})
-          .get_mask();
-    case KEY(false, true, false, false):  // ct only
-      return ColorModeMask({ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
-                            ColorMode::RGB_COLD_WARM_WHITE})
-          .get_mask();
-    case KEY(true, true, false, false):  // white + ct
-      return ColorModeMask(
-                 {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE})
-          .get_mask();
-    case KEY(false, false, true, false):  // cwww only
-      return ColorModeMask({ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE}).get_mask();
-    case KEY(false, false, false, false):  // none
-      return ColorModeMask({ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE,
-                            ColorMode::RGB, ColorMode::WHITE, ColorMode::COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE})
-          .get_mask();
-    case KEY(true, false, false, true):  // rgb + white
-      return ColorModeMask({ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE})
-          .get_mask();
-    case KEY(false, true, false, true):  // rgb + ct
-    case KEY(true, true, false, true):   // rgb + white + ct
-      return ColorModeMask({ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE}).get_mask();
-    case KEY(false, false, true, true):  // rgb + cwww
-      return ColorModeMask({ColorMode::RGB_COLD_WARM_WHITE}).get_mask();
-    case KEY(false, false, false, true):  // rgb only
-      return ColorModeMask({ColorMode::RGB, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE,
-                            ColorMode::RGB_COLD_WARM_WHITE})
-          .get_mask();
-    default:
-      return 0;  // conflicting flags
-  }
-
-#undef KEY
+  uint8_t key = has_white | (has_ct << 1) | (has_cwww << 2) | (has_rgb << 3);
+  return static_cast<color_mode_bitmask_t>(progmem_read_byte(&SUITABLE_COLOR_MODES[key])) << PACK_SHIFT;
 }
 
 LightCall &LightCall::set_effect(const char *effect, size_t len) {
