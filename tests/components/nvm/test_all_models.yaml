@@ -1,0 +1,74 @@
+# Test configuration for NVM component with all supported FRAM models
+#
+# This tests all five FRAM models to ensure they compile correctly:
+# - MB85RC64:   8KB  (13-bit addressing)
+# - MB85RC128: 16KB  (14-bit addressing)
+# - MB85RC256: 32KB  (15-bit addressing)
+# - MB85RC512: 64KB  (17-bit addressing)
+# - MB85RC1M: 128KB  (18-bit addressing)
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: true
+
+nvm:
+  - platform: fram_i2c
+    id: fram_64kb
+    address: 0x50
+    model: MB85RC64
+    partitions:
+      - id: prefs_64
+        type: preferences
+        size: 2kB
+      - id: raw_64
+        type: raw
+        size: 2kB
+
+  - platform: fram_i2c
+    id: fram_128kb
+    address: 0x51
+    model: MB85RC128
+    partitions:
+      - id: raw_128
+        type: raw
+        size: 4kB
+      - id: kv_128
+        type: key_value
+        size: 4kB
+
+  - platform: fram_i2c
+    id: fram_256kb
+    address: 0x52
+    model: MB85RC256
+    partitions:
+      - id: raw_256
+        type: raw
+        size: 8kB
+      - id: kv_256
+        type: key_value
+        size: 8kB
+
+  - platform: fram_i2c
+    id: fram_512kb
+    address: 0x53
+    model: MB85RC512
+    partitions:
+      - id: raw_512
+        type: raw
+        size: 16kB
+      - id: kv_512
+        type: key_value
+        size: 16kB
+
+  - platform: fram_i2c
+    id: fram_1mb
+    address: 0x54
+    model: MB85RC1M
+    partitions:
+      - id: raw_1m
+        type: raw
+        size: 32kB
+      - id: kv_1m
+        type: key_value
+        size: 32kB
