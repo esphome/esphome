@@ -116,6 +116,9 @@ class Scheduler {
   ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
   bool cancel_retry(Component *component, uint32_t id);
 
+  /// Get 64-bit millisecond timestamp (handles 32-bit millis() rollover)
+  uint64_t millis_64();
+
   // Calculate when the next scheduled item should run
   // @param now Fresh timestamp from millis() - must not be stale/cached
   // Returns the time in milliseconds until the next scheduled item, or nullopt if no items
