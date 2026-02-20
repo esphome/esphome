@@ -317,6 +317,7 @@ class Logger : public Component {
   Stream *hw_serial_{nullptr};
 #endif
 #if defined(USE_ZEPHYR)
+  void dump_crash_();
   const device *uart_dev_{nullptr};
 #endif
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
