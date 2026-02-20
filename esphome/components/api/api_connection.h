@@ -541,6 +541,8 @@ class APIConnection final : public APIServerConnectionBase {
                   uint8_t aux_data_index = AUX_DATA_UNUSED);
     // Add item to the front of the batch (for high priority messages like ping)
     void add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size);
+    // Single push_back site to avoid duplicate _M_realloc_insert instantiation
+    void push_item(const BatchItem &item);
 
     // Clear all items
     void clear() {
@@ -548,8 +550,8 @@ class APIConnection final : public APIServerConnectionBase {
       batch_start_time = 0;
     }
 
-    // Remove processed items from the front
-    void remove_front(size_t count) { items.erase(items.begin(), items.begin() + count); }
+    // Remove processed items from the front — noinline to keep memmove out of warm callers
+    void remove_front(size_t count) __attribute__((noinline)) { items.erase(items.begin(), items.begin() + count); }
 
     bool empty() const { return items.empty(); }
     size_t size() const { return items.size(); }
@@ -621,6 +623,8 @@ class APIConnection final : public APIServerConnectionBase {
 
   bool schedule_batch_();
   void process_batch_();
+  void process_batch_multi_(std::vector<uint8_t> &shared_buf, size_t num_items, uint8_t header_padding,
+                            uint8_t footer_size) __attribute__((noinline));
   void clear_batch_() {
     this->deferred_batch_.clear();
     this->flags_.batch_scheduled = false;

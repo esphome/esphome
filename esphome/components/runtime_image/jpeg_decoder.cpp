@@ -1,16 +1,19 @@
-#include "jpeg_image.h"
-#ifdef USE_ONLINE_IMAGE_JPEG_SUPPORT
+#include "jpeg_decoder.h"
+#ifdef USE_RUNTIME_IMAGE_JPEG
 
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/application.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include "online_image.h"
-static const char *const TAG = "online_image.jpeg";
+#ifdef USE_ESP_IDF
+#include "esp_task_wdt.h"
+#endif
 
-namespace esphome {
-namespace online_image {
+static const char *const TAG = "image_decoder.jpeg";
+
+namespace esphome::runtime_image {
 
 /**
  * @brief Callback method that will be called by the JPEGDEC engine when a chunk
@@ -22,8 +25,14 @@ static int draw_callback(JPEGDRAW *jpeg) {
   ImageDecoder *decoder = (ImageDecoder *) jpeg->pUser;
 
   // Some very big images take too long to decode, so feed the watchdog on each callback
-  // to avoid crashing.
-  App.feed_wdt();
+  // to avoid crashing if the executing task has a watchdog enabled.
+#ifdef USE_ESP_IDF
+  if (esp_task_wdt_status(nullptr) == ESP_OK) {
+#endif
+    App.feed_wdt();
+#ifdef USE_ESP_IDF
+  }
+#endif
   size_t position = 0;
   size_t height = static_cast<size_t>(jpeg->iHeight);
   size_t width = static_cast<size_t>(jpeg->iWidth);
@@ -43,21 +52,22 @@ static int draw_callback(JPEGDRAW *jpeg) {
   return 1;
 }
 
-int JpegDecoder::prepare(size_t download_size) {
-  ImageDecoder::prepare(download_size);
-  auto size = this->image_->resize_download_buffer(download_size);
-  if (size < download_size) {
-    ESP_LOGE(TAG, "Download buffer resize failed!");
-    return DECODE_ERROR_OUT_OF_MEMORY;
-  }
+int JpegDecoder::prepare(size_t expected_size) {
+  ImageDecoder::prepare(expected_size);
+  // JPEG decoder needs complete data before decoding
   return 0;
 }
 
 int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
-  if (size < this->download_size_) {
-    ESP_LOGV(TAG, "Download not complete. Size: %d/%d", size, this->download_size_);
+  // JPEG decoder requires complete data
+  // If we know the expected size, wait for it
+  if (this->expected_size_ > 0 && size < this->expected_size_) {
+    ESP_LOGV(TAG, "Download not complete. Size: %zu/%zu", size, this->expected_size_);
     return 0;
   }
+
+  // If size unknown, try to decode and see if it's valid
+  // The JPEGDEC library will fail gracefully if data is incomplete
 
   if (!this->jpeg_.openRAM(buffer, size, draw_callback)) {
     ESP_LOGE(TAG, "Could not open image for decoding: %d", this->jpeg_.getLastError());
@@ -88,7 +98,6 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   return size;
 }
 
-}  // namespace online_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image
 
-#endif  // USE_ONLINE_IMAGE_JPEG_SUPPORT
+#endif  // USE_RUNTIME_IMAGE_JPEG
