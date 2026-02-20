@@ -13,7 +13,6 @@ class WTS01Sensor : public sensor::Sensor, public uart::UARTDevice, public Compo
  public:
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   uint8_t buffer_[PACKET_SIZE];

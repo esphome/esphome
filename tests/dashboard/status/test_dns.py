@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import time
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+from icmplib import NameLookupError
 import pytest
 
-from esphome.dashboard.dns import DNSCache
+from esphome.dashboard.dns import DNSCache, _async_resolve_wrapper
 
 
 @pytest.fixture
@@ -119,3 +120,80 @@ def test_async_resolve_not_called(dns_cache_fixture: DNSCache) -> None:
         result = dns_cache_fixture.get_cached_addresses("valid.com", now)
         assert result == ["192.168.1.10"]
         mock_resolve.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_wrapper_ip_address() -> None:
+    """Test _async_resolve_wrapper returns IP address directly."""
+    result = await _async_resolve_wrapper("192.168.1.10")
+    assert result == ["192.168.1.10"]
+
+    result = await _async_resolve_wrapper("2001:db8::1")
+    assert result == ["2001:db8::1"]
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_wrapper_local_fallback_success() -> None:
+    """Test _async_resolve_wrapper falls back to bare hostname for .local."""
+    mock_resolve = AsyncMock()
+    # First call (device.local) fails, second call (device) succeeds
+    mock_resolve.side_effect = [
+        NameLookupError("device.local"),
+        ["192.168.1.50"],
+    ]
+
+    with patch("esphome.dashboard.dns.async_resolve", mock_resolve):
+        result = await _async_resolve_wrapper("device.local")
+
+    assert result == ["192.168.1.50"]
+    assert mock_resolve.call_count == 2
+    mock_resolve.assert_any_call("device.local")
+    mock_resolve.assert_any_call("device")
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_wrapper_local_fallback_both_fail() -> None:
+    """Test _async_resolve_wrapper returns exception when both fail."""
+    mock_resolve = AsyncMock()
+    original_exception = NameLookupError("device.local")
+    mock_resolve.side_effect = [
+        original_exception,
+        NameLookupError("device"),
+    ]
+
+    with patch("esphome.dashboard.dns.async_resolve", mock_resolve):
+        result = await _async_resolve_wrapper("device.local")
+
+    # Should return the original exception, not the fallback exception
+    assert result is original_exception
+    assert mock_resolve.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_wrapper_non_local_no_fallback() -> None:
+    """Test _async_resolve_wrapper doesn't fallback for non-.local hostnames."""
+    mock_resolve = AsyncMock()
+    original_exception = NameLookupError("device.example.com")
+    mock_resolve.side_effect = original_exception
+
+    with patch("esphome.dashboard.dns.async_resolve", mock_resolve):
+        result = await _async_resolve_wrapper("device.example.com")
+
+    assert result is original_exception
+    # Should only try the original hostname, no fallback
+    assert mock_resolve.call_count == 1
+    mock_resolve.assert_called_once_with("device.example.com")
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_wrapper_local_success_no_fallback() -> None:
+    """Test _async_resolve_wrapper doesn't fallback when .local succeeds."""
+    mock_resolve = AsyncMock(return_value=["192.168.1.50"])
+
+    with patch("esphome.dashboard.dns.async_resolve", mock_resolve):
+        result = await _async_resolve_wrapper("device.local")
+
+    assert result == ["192.168.1.50"]
+    # Should only try once since it succeeded
+    assert mock_resolve.call_count == 1
+    mock_resolve.assert_called_once_with("device.local")

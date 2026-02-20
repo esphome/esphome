@@ -371,7 +371,12 @@ async def to_code(config):
     if on_timer_tick := config.get(CONF_ON_TIMER_TICK):
         await automation.build_automation(
             var.get_timer_tick_trigger(),
-            [(cg.std_vector.template(Timer), "timers")],
+            [
+                (
+                    cg.std_vector.template(Timer).operator("const").operator("ref"),
+                    "timers",
+                )
+            ],
             on_timer_tick,
         )
         has_timers = True
