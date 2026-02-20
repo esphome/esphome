@@ -2,6 +2,7 @@
 #ifdef USE_ZEPHYR
 #include <climits>
 #include "esphome/core/log.h"
+#include <esphome/components/zephyr/reset_reason.h>
 #include <zephyr/drivers/hwinfo.h>
 #include <hal/nrf_power.h>
 #include <cstdint>
@@ -47,7 +48,7 @@ static inline uint32_t sd_version_get() {
 }
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
-  char *buf = zephyr::get_reset_reason(buffer);
+  const char *buf = zephyr::get_reset_reason(buffer);
   ESP_LOGD(TAG, "Reset Reason: %s", buf);
   return buf;
 }
