@@ -77,6 +77,7 @@ class DeepSleepComponent : public Component {
   /// Set the duration in ms the component should sleep once it's in deep sleep mode.
   void set_sleep_duration(uint32_t time_ms);
 
+#ifdef USE_ESP32
   uint32_t get_wakeup_pin() const {
     if (this->wakeup_pin_ != nullptr) {
       return this->wakeup_pin_->get_pin();
@@ -93,6 +94,9 @@ class DeepSleepComponent : public Component {
 #endif
     return UINT32_MAX;
   }
+#else
+  uint32_t get_wakeup_pin() const { return UINT32_MAX; }
+#endif
 
 #if defined(USE_ESP32)
   /** Set the pin to wake up to on the ESP32 once it's in deep sleep mode.

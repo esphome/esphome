@@ -54,6 +54,29 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
 )
 
+def _pin_is_deep_sleep_wakeup(pin_num: int) -> bool:
+    """Check if pin is configured as deep_sleep wakeup pin."""
+    if not CORE.config or "deep_sleep" not in CORE.config:
+        return False
+
+    deep_sleep_config = CORE.config.get("deep_sleep")
+    if not deep_sleep_config:
+        return False
+
+    # Check single pin wakeup
+    if "wakeup_pin" in deep_sleep_config:
+        return deep_sleep_config["wakeup_pin"][CONF_NUMBER] == pin_num
+
+    # Check esp32_ext1_wakeup pins
+    if "esp32_ext1_wakeup" in deep_sleep_config:
+        ext1_config = deep_sleep_config["esp32_ext1_wakeup"]
+        if "pins" in ext1_config:
+            return any(
+                pin_config.get(CONF_NUMBER) == pin_num
+                for pin_config in ext1_config["pins"]
+            )
+
+    return False
 
 async def to_code(config):
     var = await binary_sensor.new_binary_sensor(config)
@@ -63,6 +86,7 @@ async def to_code(config):
     cg.add(var.set_pin(pin))
 
     use_interrupt = config[CONF_USE_INTERRUPT]
+    pin_num = config[CONF_PIN][CONF_NUMBER]
 
     if use_interrupt and CORE.is_esp8266 and config[CONF_PIN][CONF_NUMBER] == 16:
         _LOGGER.warning(
@@ -72,27 +96,9 @@ async def to_code(config):
         )
         use_interrupt = False
 
+    # Check if pin is shared with other components (allow_other_uses)
     if use_interrupt and config[CONF_PIN].get(CONF_ALLOW_OTHER_USES, False):
-        is_deep_sleep_pin = False
-
-        if CORE.config and "deep_sleep" in CORE.config:
-            deep_sleep_config = CORE.config.get("deep_sleep")
-            if deep_sleep_config:
-                if "wakeup_pin" in deep_sleep_config:
-                    ds_pin = deep_sleep_config["wakeup_pin"][CONF_NUMBER]
-                    if ds_pin == config[CONF_PIN][CONF_NUMBER]:
-                        is_deep_sleep_pin = True
-
-                elif "esp32_ext1_wakeup" in deep_sleep_config:
-                    ext1_config = deep_sleep_config["esp32_ext1_wakeup"]
-                    if "pins" in ext1_config:
-                        for pin_config in ext1_config["pins"]:
-                            if (
-                                pin_config.get(CONF_NUMBER)
-                                == config[CONF_PIN][CONF_NUMBER]
-                            ):
-                                is_deep_sleep_pin = True
-                                break
+        is_deep_sleep_pin = _pin_is_deep_sleep_wakeup(pin_num)
 
         if not is_deep_sleep_pin:
             _LOGGER.info(
