@@ -92,7 +92,10 @@ void APIServer::setup() {
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
-    logger::global_logger->add_log_listener(this);
+    logger::global_logger->add_log_callback(
+        this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
+          static_cast<APIServer *>(self)->on_log(level, tag, message, message_len);
+        });
   }
 #endif
 

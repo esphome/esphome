@@ -40,26 +40,25 @@ struct device;
 
 namespace esphome::logger {
 
-/** Interface for receiving log messages without std::function overhead.
+/** Lightweight callback for receiving log messages without virtual dispatch overhead.
  *
- * Components can implement this interface instead of using lambdas with std::function
- * to reduce flash usage from std::function type erasure machinery.
+ * Replaces the former LogListener virtual interface to eliminate per-implementer
+ * vtable sub-tables and thunk code (~39 bytes saved per class that used LogListener).
  *
  * Usage:
- *   class MyComponent : public Component, public LogListener {
- *    public:
- *     void setup() override {
- *       if (logger::global_logger != nullptr)
- *         logger::global_logger->add_log_listener(this);
- *     }
- *     void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override {
- *       // Handle log message
- *     }
- *   };
+ *   // In your component's setup():
+ *   if (logger::global_logger != nullptr)
+ *     logger::global_logger->add_log_callback(
+ *         this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
+ *           static_cast<MyComponent *>(self)->on_log(level, tag, message, message_len);
+ *         });
  */
-class LogListener {
- public:
-  virtual void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) = 0;
+struct LogCallback {
+  void *instance;
+  void (*fn)(void *, uint8_t, const char *, const char *, size_t);
+  void invoke(uint8_t level, const char *tag, const char *message, size_t message_len) const {
+    this->fn(this->instance, level, tag, message, message_len);
+  }
 };
 
 #ifdef USE_LOGGER_LEVEL_LISTENERS
@@ -187,11 +186,13 @@ class Logger : public Component {
   inline uint8_t level_for(const char *tag);
 
 #ifdef USE_LOG_LISTENERS
-  /// Register a log listener to receive log messages
-  void add_log_listener(LogListener *listener) { this->log_listeners_.push_back(listener); }
+  /// Register a log callback to receive log messages
+  void add_log_callback(void *instance, void (*fn)(void *, uint8_t, const char *, const char *, size_t)) {
+    this->log_callbacks_.push_back(LogCallback{instance, fn});
+  }
 #else
   /// No-op when log listeners are disabled
-  void add_log_listener(LogListener *listener) {}
+  void add_log_callback(void *instance, void (*fn)(void *, uint8_t, const char *, const char *, size_t)) {}
 #endif
 
 #ifdef USE_LOGGER_LEVEL_LISTENERS
@@ -253,11 +254,11 @@ class Logger : public Component {
   }
 #endif
 
-  // Helper to notify log listeners
+  // Helper to notify log callbacks
   inline void HOT notify_listeners_(uint8_t level, const char *tag, const LogBuffer &buf) {
 #ifdef USE_LOG_LISTENERS
-    for (auto *listener : this->log_listeners_)
-      listener->on_log(level, tag, buf.data, buf.pos);
+    for (auto &cb : this->log_callbacks_)
+      cb.invoke(level, tag, buf.data, buf.pos);
 #endif
   }
 
@@ -341,8 +342,8 @@ class Logger : public Component {
   std::map<const char *, uint8_t, CStrCompare> log_levels_{};
 #endif
 #ifdef USE_LOG_LISTENERS
-  StaticVector<LogListener *, ESPHOME_LOG_MAX_LISTENERS>
-      log_listeners_;  // Log message listeners (API, MQTT, syslog, etc.)
+  StaticVector<LogCallback, ESPHOME_LOG_MAX_LISTENERS>
+      log_callbacks_;  // Log message callbacks (API, MQTT, syslog, etc.)
 #endif
 #ifdef USE_LOGGER_LEVEL_LISTENERS
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
@@ -478,15 +479,16 @@ class Logger : public Component {
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *>, public LogListener {
+class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *> {
  public:
-  explicit LoggerMessageTrigger(Logger *parent, uint8_t level) : level_(level) { parent->add_log_listener(this); }
-
-  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override {
-    (void) message_len;
-    if (level <= this->level_) {
-      this->trigger(level, tag, message);
-    }
+  explicit LoggerMessageTrigger(Logger *parent, uint8_t level) : level_(level) {
+    parent->add_log_callback(this,
+                             [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
+                               auto *trigger = static_cast<LoggerMessageTrigger *>(self);
+                               if (level <= trigger->level_) {
+                                 trigger->trigger(level, tag, message);
+                               }
+                             });
   }
 
  protected:
