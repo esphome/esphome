@@ -353,6 +353,7 @@
 
 // Default counts for static analysis
 #define CONTROLLER_REGISTRY_MAX 2
+#define MK2PVROUTER_MAX_LISTENERS 16
 #define ESPHOME_AREA_COUNT 10
 #define ESPHOME_COMPONENT_COUNT 50
 #define ESPHOME_DEVICE_COUNT 10

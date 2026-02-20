@@ -1,8 +1,5 @@
 import esphome.codegen as cg
 from esphome.components import sensor
-
-# Import validators from sensor module
-from esphome.components.sensor import validate_filters, validate_state_class
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
@@ -39,6 +36,12 @@ from .. import (
 Mk2PVRouterSensor = mk2pvrouter_ns.class_(
     "Mk2PVRouterSensor", sensor.Sensor, cg.Component
 )
+
+# Build validators from sensor module's public data structures (STATE_CLASSES,
+# FILTER_REGISTRY) via cv public API, rather than importing the sensor module's
+# private _validate_state_class/_validate_filters helper functions directly.
+_validate_state_class = cv.enum(sensor.STATE_CLASSES, lower=True, space="_")
+_validate_filters = cv.validate_registry("filter", sensor.FILTER_REGISTRY)
 
 # Define common sensor configurations to avoid repetition
 POWER_CONFIG = {
@@ -135,13 +138,13 @@ def apply_tag_defaults(config):
         for key, value in defaults.items():
             if key == CONF_FILTERS:
                 # Validate and prepend default filters to user's filters
-                validated_filters = validate_filters(value)
+                validated_filters = _validate_filters(value)
                 user_filters = config.get(key, [])
                 config[key] = validated_filters + user_filters
             elif key == CONF_STATE_CLASS:
                 # Validate state_class to convert string to enum
                 if key not in config:
-                    config[key] = validate_state_class(value)
+                    config[key] = _validate_state_class(value)
             elif key not in config:
                 config[key] = value
 
@@ -149,7 +152,7 @@ def apply_tag_defaults(config):
     if CONF_ACCURACY_DECIMALS not in config:
         config[CONF_ACCURACY_DECIMALS] = 0
     if CONF_STATE_CLASS not in config:
-        config[CONF_STATE_CLASS] = validate_state_class(STATE_CLASS_MEASUREMENT)
+        config[CONF_STATE_CLASS] = _validate_state_class(STATE_CLASS_MEASUREMENT)
 
     return config
 
