@@ -5,7 +5,12 @@ from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_USE_PSRAM
-from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    const,
+    get_esp32_variant,
+    only_on_variant,
+)
 from esphome.components.network import (
     has_high_performance_networking,
     ip_address_literal,
@@ -64,6 +69,7 @@ _LOGGER = logging.getLogger(__name__)
 
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
+CONF_BAND_MODE = "band_mode"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
 
@@ -88,6 +94,13 @@ WIFI_POWER_SAVE_MODES = {
     "NONE": WiFiPowerSaveMode.WIFI_POWER_SAVE_NONE,
     "LIGHT": WiFiPowerSaveMode.WIFI_POWER_SAVE_LIGHT,
     "HIGH": WiFiPowerSaveMode.WIFI_POWER_SAVE_HIGH,
+}
+
+WiFiBandMode = cg.global_ns.enum("wifi_band_mode_t")
+WIFI_BAND_MODES = {
+    "AUTO": WiFiBandMode.WIFI_BAND_MODE_AUTO,
+    "2.4GHZ": WiFiBandMode.WIFI_BAND_MODE_2G_ONLY,
+    "5GHZ": WiFiBandMode.WIFI_BAND_MODE_5G_ONLY,
 }
 
 WifiMinAuthMode = wifi_ns.enum("WifiMinAuthMode")
@@ -353,6 +366,11 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ENABLE_RRM, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
+            cv.Optional(CONF_BAND_MODE): cv.All(
+                cv.enum(WIFI_BAND_MODES, upper=True),
+                cv.only_on_esp32,
+                only_on_variant(supported=[const.VARIANT_ESP32C5]),
+            ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_POST_CONNECT_ROAMING, default=True): cv.boolean,
@@ -527,6 +545,8 @@ async def to_code(config):
             cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
         if config[CONF_ENABLE_RRM]:
             cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
+        if CONF_BAND_MODE in config:
+            cg.add(var.set_band_mode(config[CONF_BAND_MODE]))
 
     if config.get(CONF_USE_PSRAM):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
