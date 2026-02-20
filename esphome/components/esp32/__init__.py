@@ -25,7 +25,6 @@ from esphome.const import (
     CONF_PLATFORM_VERSION,
     CONF_PLATFORMIO_OPTIONS,
     CONF_REF,
-    CONF_REFRESH,
     CONF_SAFE_MODE,
     CONF_SOURCE,
     CONF_TYPE,
@@ -41,12 +40,12 @@ from esphome.const import (
     ThreadModel,
     __version__,
 )
-from esphome.core import CORE, HexInt, TimePeriod
+from esphome.core import CORE, HexInt
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
-from esphome.helpers import copy_file_if_changed, write_file_if_changed
+from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
-from esphome.writer import clean_cmake_cache, rmtree
+from esphome.writer import clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
@@ -499,49 +498,24 @@ def add_idf_component(
     repo: str | None = None,
     ref: str | None = None,
     path: str | None = None,
-    refresh: TimePeriod | None = None,
-    components: list[str] | None = None,
-    submodules: list[str] | None = None,
 ):
     """Add an esp-idf component to the project."""
     if not repo and not ref and not path:
         raise ValueError("Requires at least one of repo, ref or path")
-    if refresh or submodules or components:
-        _LOGGER.warning(
-            "The refresh, components and submodules parameters in add_idf_component() are "
-            "deprecated and will be removed in ESPHome 2026.1. If you are seeing this, report "
-            "an issue to the external_component author and ask them to update it."
-        )
     components_registry = CORE.data[KEY_ESP32][KEY_COMPONENTS]
-    if components:
-        for comp in components:
-            existing = components_registry.get(comp)
-            if existing and existing.get(KEY_REF) != ref:
-                _LOGGER.warning(
-                    "IDF component %s version conflict %s replaced by %s",
-                    comp,
-                    existing.get(KEY_REF),
-                    ref,
-                )
-            components_registry[comp] = {
-                KEY_REPO: repo,
-                KEY_REF: ref,
-                KEY_PATH: f"{path}/{comp}" if path else comp,
-            }
-    else:
-        existing = components_registry.get(name)
-        if existing and existing.get(KEY_REF) != ref:
-            _LOGGER.warning(
-                "IDF component %s version conflict %s replaced by %s",
-                name,
-                existing.get(KEY_REF),
-                ref,
-            )
-        components_registry[name] = {
-            KEY_REPO: repo,
-            KEY_REF: ref,
-            KEY_PATH: path,
-        }
+    existing = components_registry.get(name)
+    if existing and existing.get(KEY_REF) != ref:
+        _LOGGER.warning(
+            "IDF component %s version conflict %s replaced by %s",
+            name,
+            existing.get(KEY_REF),
+            ref,
+        )
+    components_registry[name] = {
+        KEY_REPO: repo,
+        KEY_REF: ref,
+        KEY_PATH: path,
+    }
 
 
 def exclude_builtin_idf_component(name: str) -> None:
@@ -669,7 +643,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
-    cv.Version(3, 3, 7): cv.Version(5, 5, 2),
+    cv.Version(3, 3, 7): cv.Version(5, 5, 3),
     cv.Version(3, 3, 6): cv.Version(5, 5, 2),
     cv.Version(3, 3, 5): cv.Version(5, 5, 2),
     cv.Version(3, 3, 4): cv.Version(5, 5, 1),
@@ -688,11 +662,12 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 2),
-    "latest": cv.Version(5, 5, 2),
-    "dev": cv.Version(5, 5, 2),
+    "recommended": cv.Version(5, 5, 3),
+    "latest": cv.Version(5, 5, 3),
+    "dev": cv.Version(5, 5, 3),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(5, 5, 3): cv.Version(55, 3, 37),
     cv.Version(5, 5, 2): cv.Version(55, 3, 37),
     cv.Version(5, 5, 1): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 5, 0): cv.Version(55, 3, 31, "2"),
@@ -1037,16 +1012,6 @@ def _parse_idf_component(value: str) -> ConfigType:
     )
 
 
-def _validate_idf_component(config: ConfigType) -> ConfigType:
-    """Validate IDF component config and warn about deprecated options."""
-    if CONF_REFRESH in config:
-        _LOGGER.warning(
-            "The 'refresh' option for IDF components is deprecated and has no effect. "
-            "It will be removed in ESPHome 2026.1. Please remove it from your configuration."
-        )
-    return config
-
-
 FRAMEWORK_ESP_IDF = "esp-idf"
 FRAMEWORK_ARDUINO = "arduino"
 FRAMEWORK_SCHEMA = cv.Schema(
@@ -1135,13 +1100,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                             cv.Optional(CONF_SOURCE): cv.git_ref,
                             cv.Optional(CONF_REF): cv.string,
                             cv.Optional(CONF_PATH): cv.string,
-                            cv.Optional(CONF_REFRESH): cv.All(
-                                cv.string, cv.source_refresh
-                            ),
                         }
                     ),
                 ),
-                _validate_idf_component,
             )
         ),
     }
@@ -1510,6 +1471,14 @@ async def to_code(config):
     add_idf_sdkconfig_option(
         f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
     )
+
+    # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
+    # from y to n. PlatformIO uses sections.ld.in (for rev <3) or
+    # sections.rev3.ld.in (for rev >=3) based on board definition.
+    # Set the sdkconfig option to match the board's revision.
+    if variant == VARIANT_ESP32P4:
+        is_rev3 = "_r3" in config[CONF_BOARD]
+        add_idf_sdkconfig_option("CONFIG_ESP32P4_SELECTS_REV_LESS_V3", not is_rev3)
 
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
