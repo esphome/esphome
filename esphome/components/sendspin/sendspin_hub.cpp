@@ -10,6 +10,8 @@
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
 
+#include <algorithm>
+
 #include "esphome/core/application.h"
 #include "esphome/core/datatypes.h"
 #include "esphome/core/helpers.h"
@@ -944,6 +946,46 @@ bool SendspinHub::send_audio_chunk_(const uint8_t *data, size_t data_size, int64
   }
 
   return this->audio_chunk_callback_(data, data_size, timestamp, chunk_type, ticks_to_wait);
+}
+#endif
+
+#ifdef USE_SENDSPIN_METADATA
+uint32_t SendspinHub::get_track_progress_ms() {
+  if (!this->metadata_.progress.has_value()) {
+    return 0;
+  }
+
+  const auto &progress = this->metadata_.progress.value();
+
+  // If paused (playback_speed == 0), return the snapshot value directly
+  if (progress.playback_speed == 0) {
+    return progress.track_progress;
+  }
+
+  int64_t client_target = this->get_client_time(this->metadata_.timestamp);
+  if (client_target == 0) {
+    return progress.track_progress;
+  }
+
+  // calculated_progress = track_progress + (now - metadata_client_time) * playback_speed / 1_000_000
+  int64_t elapsed_us = esp_timer_get_time() - client_target;
+  int64_t calculated = static_cast<int64_t>(progress.track_progress) +
+                       elapsed_us * static_cast<int64_t>(progress.playback_speed) / 1000000;
+
+  if (progress.track_duration != 0) {
+    calculated = std::max(std::min(calculated, static_cast<int64_t>(progress.track_duration)), (int64_t) 0);
+  } else {
+    calculated = std::max(calculated, (int64_t) 0);
+  }
+
+  return static_cast<uint32_t>(calculated);
+}
+
+uint32_t SendspinHub::get_track_duration_ms() {
+  if (!this->metadata_.progress.has_value()) {
+    return 0;
+  }
+  return this->metadata_.progress.value().track_duration;
 }
 #endif
 

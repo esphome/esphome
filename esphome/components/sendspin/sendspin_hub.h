@@ -40,6 +40,8 @@ enum class SendspinSensorTypes {
   HARD_SYNC_FRAMES_REMOVED,
   SINGLE_SYNC_FRAMES_ADDED,
   SINGLE_SYNC_FRAMES_REMOVED,
+  TRACK_PROGRESS,
+  TRACK_DURATION,
 };
 
 struct SendspinSensorUpdate {
@@ -137,6 +139,14 @@ class SendspinHub : public Component {
   void add_metadata_callback(std::function<void(const ServerMetadataStateObject &)> &&callback) {
     this->metadata_callbacks_.add(std::move(callback));
   }
+
+  /// @brief Returns the interpolated track progress in milliseconds using the spec formula.
+  /// Accounts for playback speed and time elapsed since last server update.
+  /// Returns 0 if no progress data available.
+  uint32_t get_track_progress_ms();
+
+  /// @brief Returns the track duration in milliseconds. 0 means unknown/live.
+  uint32_t get_track_duration_ms();
 #endif
 
 #ifdef USE_SENDSPIN_SENSOR

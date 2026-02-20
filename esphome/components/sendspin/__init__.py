@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_BUFFER_SIZE,
     CONF_ID,
     CONF_TASK_STACK_IN_PSRAM,
+    CONF_THEN,
     PLATFORM_ESP32,
 )
 
@@ -39,6 +40,12 @@ PublishClientSettingsAction = sendspin_ns.class_(
 
 SendSwitchCommandAction = sendspin_ns.class_(
     "SendSwitchCommandAction",
+    automation.Action,
+    cg.Parented.template(SendspinHub),
+)
+
+GetTrackProgressAction = sendspin_ns.class_(
+    "GetTrackProgressAction",
     automation.Action,
     cg.Parented.template(SendspinHub),
 )
@@ -124,4 +131,30 @@ SENDSPIN_SWITCH_ACTION_SCHEMA = cv.Schema(
 async def sendspin_switch_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+SENDSPIN_GET_TRACK_PROGRESS_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(SendspinHub),
+        cv.Required(CONF_THEN): automation.validate_action_list,
+    }
+)
+
+
+@automation.register_action(
+    "sendspin.get_track_progress",
+    GetTrackProgressAction,
+    SENDSPIN_GET_TRACK_PROGRESS_ACTION_SCHEMA,
+)
+async def sendspin_get_track_progress_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_SENDSPIN_METADATA", True)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    actions = await automation.build_action_list(
+        config[CONF_THEN],
+        cg.TemplateArguments(cg.uint32, *template_arg.args),
+        [(cg.uint32, "x"), *args],
+    )
+    cg.add(var.add_then(actions))
     return var

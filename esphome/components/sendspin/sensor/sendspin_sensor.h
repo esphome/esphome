@@ -20,6 +20,11 @@ class SendspinSensor : public Component, public sensor::Sensor, public Parented<
   void set_sensor_type(SendspinSensorTypes sensor_type) { this->sensor_type_ = sensor_type; }
 
  protected:
+#ifdef USE_SENDSPIN_METADATA
+  void publish_if_changed_(float value);
+  void schedule_publish_(const ServerMetadataStateObject &metadata, float value);
+#endif
+
   SendspinSensorTypes sensor_type_;
 };
 

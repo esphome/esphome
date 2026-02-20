@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_TYPE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
+    UNIT_MILLISECOND,
 )
 
 from .. import CONF_SENDSPIN_ID, SendspinHub, sendspin_ns
@@ -22,7 +23,7 @@ SendspinSensor = sendspin_ns.class_(
 )
 
 SendspinSensorTypes = sendspin_ns.enum("SendspinSensorTypes", is_class=True)
-SENDSPIN_SENSOR_TYPES = {
+SENDSPIN_DIAGNOSTIC_SENSOR_TYPES = {
     "kalman_error": SendspinSensorTypes.KALMAN_ERROR,
     "audible_syncs": SendspinSensorTypes.AUDIBLE_SYNCS,
     "hard_sync_frames_added": SendspinSensorTypes.HARD_SYNC_FRAMES_ADDED,
@@ -31,22 +32,50 @@ SENDSPIN_SENSOR_TYPES = {
     "single_sync_frames_removed": SendspinSensorTypes.SINGLE_SYNC_FRAMES_REMOVED,
 }
 
+SENDSPIN_METADATA_SENSOR_TYPES = {
+    "track_progress": SendspinSensorTypes.TRACK_PROGRESS,
+    "track_duration": SendspinSensorTypes.TRACK_DURATION,
+}
 
-CONFIG_SCHEMA = sensor.sensor_schema(
-    accuracy_decimals=0,
-    state_class=STATE_CLASS_MEASUREMENT,
-    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-).extend(
-    {
-        cv.GenerateID(): cv.declare_id(SendspinSensor),
-        cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub),
-        cv.Required(CONF_TYPE): cv.enum(SENDSPIN_SENSOR_TYPES),
-    }
-)
+SENDSPIN_SENSOR_TYPES = {
+    **SENDSPIN_DIAGNOSTIC_SENSOR_TYPES,
+    **SENDSPIN_METADATA_SENSOR_TYPES,
+}
+
+
+def _sensor_schema(value):
+    """Create the appropriate sensor schema based on the sensor type."""
+    sensor_type = value.get(CONF_TYPE)
+    if sensor_type in SENDSPIN_METADATA_SENSOR_TYPES:
+        schema = sensor.sensor_schema(
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+            unit_of_measurement=UNIT_MILLISECOND,
+        )
+    else:
+        schema = sensor.sensor_schema(
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        )
+    schema = schema.extend(
+        {
+            cv.GenerateID(): cv.declare_id(SendspinSensor),
+            cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub),
+            cv.Required(CONF_TYPE): cv.enum(SENDSPIN_SENSOR_TYPES),
+        }
+    )
+    return schema(value)
+
+
+CONFIG_SCHEMA = _sensor_schema
 
 
 async def to_code(config):
     cg.add_define("USE_SENDSPIN_SENSOR", True)
+
+    if config[CONF_TYPE] in SENDSPIN_METADATA_SENSOR_TYPES.values():
+        cg.add_define("USE_SENDSPIN_METADATA", True)
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
