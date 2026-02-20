@@ -84,16 +84,6 @@ void E131Component::loop() {
   }
 }
 
-ssize_t E131Component::read_(uint8_t *buf, size_t len) {
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  return this->socket_->read(buf, len);
-#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
-  if (!this->udp_.parsePacket())
-    return -1;
-  return this->udp_.read(buf, len);
-#endif
-}
-
 void E131Component::add_effect(E131AddressableLightEffect *light_effect) {
   if (std::find(light_effects_.begin(), light_effects_.end(), light_effect) != light_effects_.end()) {
     return;
