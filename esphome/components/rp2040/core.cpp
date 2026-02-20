@@ -9,9 +9,9 @@
 
 namespace esphome {
 
-void IRAM_ATTR HOT yield() { ::yield(); }
+void HOT yield() { ::yield(); }
 uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
-void IRAM_ATTR HOT delay(uint32_t ms) { ::delay(ms); }
+void HOT delay(uint32_t ms) { ::delay(ms); }
 uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 void arch_restart() {
@@ -27,7 +27,7 @@ void arch_init() {
 #endif
 }
 
-void IRAM_ATTR HOT arch_feed_wdt() { watchdog_update(); }
+void HOT arch_feed_wdt() { watchdog_update(); }
 
 uint8_t progmem_read_byte(const uint8_t *addr) {
   return pgm_read_byte(addr);  // NOLINT
