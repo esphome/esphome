@@ -174,8 +174,9 @@ bool MQTTFanComponent::publish_state() {
   }
   auto traits = this->state_->get_traits();
   if (traits.supports_speed()) {
-    std::string payload = to_string(this->state_->speed);
-    bool success = this->publish(this->get_speed_level_state_topic(), payload);
+    char buf[12];
+    int len = snprintf(buf, sizeof(buf), "%d", this->state_->speed);
+    bool success = this->publish(this->get_speed_level_state_topic(), buf, len);
     failed = failed || !success;
   }
   return !failed;

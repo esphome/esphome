@@ -213,18 +213,12 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
-  int bufsize = std::min(max_len, this->content_length - this->bytes_read_);
-
-  if (bufsize == 0) {
-    this->duration_ms += (millis() - start);
-    return 0;
+  this->feed_wdt();
+  int read_len = esp_http_client_read(this->client_, (char *) buf, max_len);
+  this->feed_wdt();
+  if (read_len > 0) {
+    this->bytes_read_ += read_len;
   }
-
-  this->feed_wdt();
-  int read_len = esp_http_client_read(this->client_, (char *) buf, bufsize);
-  this->feed_wdt();
-  this->bytes_read_ += read_len;
-
   this->duration_ms += (millis() - start);
 
   return read_len;

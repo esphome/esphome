@@ -20,9 +20,9 @@ static size_t append_reset_reason(char *buf, size_t size, size_t pos, bool set, 
     return pos;
   }
   if (pos > 0) {
-    pos = buf_append(buf, size, pos, ", ");
+    pos = buf_append_printf(buf, size, pos, ", ");
   }
-  return buf_append(buf, size, pos, "%s", reason);
+  return buf_append_printf(buf, size, pos, "%s", reason);
 }
 
 static inline uint32_t read_mem_u32(uintptr_t addr) {
@@ -140,7 +140,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   const char *supply_status =
       (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_NORMAL) ? "Normal voltage." : "High voltage.";
   ESP_LOGD(TAG, "Main supply status: %s", supply_status);
-  pos = buf_append(buf, size, pos, "|Main supply status: %s", supply_status);
+  pos = buf_append_printf(buf, size, pos, "|Main supply status: %s", supply_status);
 
   // Regulator stage 0
   if (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_HIGH) {
@@ -172,16 +172,16 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
         reg0_voltage = "???V";
     }
     ESP_LOGD(TAG, "Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
-    pos = buf_append(buf, size, pos, "|Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
+    pos = buf_append_printf(buf, size, pos, "|Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
   } else {
     ESP_LOGD(TAG, "Regulator stage 0: disabled");
-    pos = buf_append(buf, size, pos, "|Regulator stage 0: disabled");
+    pos = buf_append_printf(buf, size, pos, "|Regulator stage 0: disabled");
   }
 
   // Regulator stage 1
   const char *reg1_type = nrf_power_dcdcen_get(NRF_POWER) ? "DC/DC" : "LDO";
   ESP_LOGD(TAG, "Regulator stage 1: %s", reg1_type);
-  pos = buf_append(buf, size, pos, "|Regulator stage 1: %s", reg1_type);
+  pos = buf_append_printf(buf, size, pos, "|Regulator stage 1: %s", reg1_type);
 
   // USB power state
   const char *usb_state;
@@ -195,7 +195,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     usb_state = "disconnected";
   }
   ESP_LOGD(TAG, "USB power state: %s", usb_state);
-  pos = buf_append(buf, size, pos, "|USB power state: %s", usb_state);
+  pos = buf_append_printf(buf, size, pos, "|USB power state: %s", usb_state);
 
   // Power-fail comparator
   bool enabled;
@@ -300,14 +300,14 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
           break;
       }
       ESP_LOGD(TAG, "Power-fail comparator: %s, VDDH: %s", pof_voltage, vddh_voltage);
-      pos = buf_append(buf, size, pos, "|Power-fail comparator: %s, VDDH: %s", pof_voltage, vddh_voltage);
+      pos = buf_append_printf(buf, size, pos, "|Power-fail comparator: %s, VDDH: %s", pof_voltage, vddh_voltage);
     } else {
       ESP_LOGD(TAG, "Power-fail comparator: %s", pof_voltage);
-      pos = buf_append(buf, size, pos, "|Power-fail comparator: %s", pof_voltage);
+      pos = buf_append_printf(buf, size, pos, "|Power-fail comparator: %s", pof_voltage);
     }
   } else {
     ESP_LOGD(TAG, "Power-fail comparator: disabled");
-    pos = buf_append(buf, size, pos, "|Power-fail comparator: disabled");
+    pos = buf_append_printf(buf, size, pos, "|Power-fail comparator: disabled");
   }
 
   auto package = [](uint32_t value) {
@@ -322,6 +322,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     return "Unspecified";
   };
 
+  char mac_pretty[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  get_mac_address_pretty_into_buffer(mac_pretty);
   ESP_LOGD(TAG,
            "Code page size: %u, code size: %u, device id: 0x%08x%08x\n"
            "Encryption root: 0x%08x%08x%08x%08x, Identity Root: 0x%08x%08x%08x%08x\n"
@@ -330,10 +332,10 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
            "RAM: %ukB, Flash: %ukB, production test: %sdone",
            NRF_FICR->CODEPAGESIZE, NRF_FICR->CODESIZE, NRF_FICR->DEVICEID[1], NRF_FICR->DEVICEID[0], NRF_FICR->ER[0],
            NRF_FICR->ER[1], NRF_FICR->ER[2], NRF_FICR->ER[3], NRF_FICR->IR[0], NRF_FICR->IR[1], NRF_FICR->IR[2],
-           NRF_FICR->IR[3], (NRF_FICR->DEVICEADDRTYPE & 0x1 ? "Random" : "Public"), get_mac_address_pretty().c_str(),
-           NRF_FICR->INFO.PART, NRF_FICR->INFO.VARIANT >> 24 & 0xFF, NRF_FICR->INFO.VARIANT >> 16 & 0xFF,
-           NRF_FICR->INFO.VARIANT >> 8 & 0xFF, NRF_FICR->INFO.VARIANT & 0xFF, package(NRF_FICR->INFO.PACKAGE),
-           NRF_FICR->INFO.RAM, NRF_FICR->INFO.FLASH, (NRF_FICR->PRODTEST[0] == 0xBB42319F ? "" : "not "));
+           NRF_FICR->IR[3], (NRF_FICR->DEVICEADDRTYPE & 0x1 ? "Random" : "Public"), mac_pretty, NRF_FICR->INFO.PART,
+           NRF_FICR->INFO.VARIANT >> 24 & 0xFF, NRF_FICR->INFO.VARIANT >> 16 & 0xFF, NRF_FICR->INFO.VARIANT >> 8 & 0xFF,
+           NRF_FICR->INFO.VARIANT & 0xFF, package(NRF_FICR->INFO.PACKAGE), NRF_FICR->INFO.RAM, NRF_FICR->INFO.FLASH,
+           (NRF_FICR->PRODTEST[0] == 0xBB42319F ? "" : "not "));
   bool n_reset_enabled = NRF_UICR->PSELRESET[0] == NRF_UICR->PSELRESET[1] &&
                          (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) == UICR_PSELRESET_CONNECT_Connected
                                                                                       << UICR_PSELRESET_CONNECT_Pos;

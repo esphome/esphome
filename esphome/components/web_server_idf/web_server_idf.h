@@ -2,6 +2,7 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include <esp_http_server.h>
 
 #include <atomic>
@@ -12,11 +13,14 @@
 #include <utility>
 #include <vector>
 
+#ifdef USE_WEBSERVER
+#include "esphome/components/web_server/list_entities.h"
+#endif
+
 namespace esphome {
 #ifdef USE_WEBSERVER
 namespace web_server {
 class WebServer;
-class ListEntitiesIterator;
 };  // namespace web_server
 #endif
 namespace web_server_idf {
@@ -80,6 +84,7 @@ class AsyncResponseStream : public AsyncWebServerResponse {
   void print(const std::string &str) { this->content_.append(str); }
   void print(float value);
   void printf(const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+  void write(uint8_t c) { this->content_.push_back(static_cast<char>(c)); }
 
  protected:
   std::string content_;
@@ -282,7 +287,7 @@ class AsyncEventSourceResponse {
   std::atomic<int> fd_{};
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
-  std::unique_ptr<esphome::web_server::ListEntitiesIterator> entities_iterator_;
+  esphome::web_server::ListEntitiesIterator entities_iterator_;
   std::string event_buffer_{""};
   size_t event_bytes_sent_;
   uint16_t consecutive_send_failures_{0};
@@ -326,6 +331,11 @@ class AsyncEventSource : public AsyncWebHandler {
 };
 #endif  // USE_WEBSERVER
 
+struct HttpHeader {
+  const char *name;
+  const char *value;
+};
+
 class DefaultHeaders {
   friend class AsyncWebServerRequest;
 #ifdef USE_WEBSERVER
@@ -334,13 +344,14 @@ class DefaultHeaders {
 
  public:
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void addHeader(const char *name, const char *value) { this->headers_.emplace_back(name, value); }
+  void addHeader(const char *name, const char *value) { this->headers_.push_back({name, value}); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   static DefaultHeaders &Instance();
 
  protected:
-  std::vector<std::pair<std::string, std::string>> headers_;
+  // Stack-allocated, no reallocation machinery. Count defined in web_server_base where headers are added.
+  StaticVector<HttpHeader, WEB_SERVER_DEFAULT_HEADERS_COUNT> headers_;
 };
 
 }  // namespace web_server_idf

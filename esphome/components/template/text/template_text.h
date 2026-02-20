@@ -70,13 +70,15 @@ class TemplateText final : public text::Text, public PollingComponent {
 
   Trigger<std::string> *get_set_trigger() const { return this->set_trigger_; }
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-  void set_initial_value(const std::string &initial_value) { this->initial_value_ = initial_value; }
+  void set_initial_value(const char *initial_value) { this->initial_value_ = initial_value; }
+  /// Prevent accidental use of std::string which would dangle
+  void set_initial_value(const std::string &initial_value) = delete;
   void set_value_saver(TemplateTextSaverBase *restore_value_saver) { this->pref_ = restore_value_saver; }
 
  protected:
   void control(const std::string &value) override;
   bool optimistic_ = false;
-  std::string initial_value_;
+  const char *initial_value_{nullptr};
   Trigger<std::string> *set_trigger_ = new Trigger<std::string>();
   TemplateLambda<std::string> f_{};
 

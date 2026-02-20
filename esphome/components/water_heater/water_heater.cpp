@@ -153,7 +153,7 @@ void WaterHeater::setup() {
 void WaterHeater::publish_state() {
   auto traits = this->get_traits();
   ESP_LOGD(TAG,
-           "'%s' - Sending state:\n"
+           "'%s' >>\n"
            "  Mode: %s",
            this->name_.c_str(), LOG_STR_ARG(water_heater_mode_to_string(this->mode_)));
   if (!std::isnan(this->current_temperature_)) {

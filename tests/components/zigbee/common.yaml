@@ -11,9 +11,7 @@ binary_sensor:
   - platform: template
     name: "Garage Door Open 5"
   - platform: template
-    name: "Garage Door Open 6"
-  - platform: template
-    name: "Garage Door Open 7"
+    name: "Garage Door Internal"
     internal: True
 
 sensor:
@@ -36,3 +34,8 @@ output:
     type: binary
     write_action:
       - zigbee.factory_reset
+
+switch:
+  - platform: template
+    name: "Template Switch"
+    optimistic: true

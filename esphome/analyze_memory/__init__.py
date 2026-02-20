@@ -22,7 +22,7 @@ from .helpers import (
     map_section_name,
     parse_symbol_line,
 )
-from .toolchain import find_tool, run_tool
+from .toolchain import find_tool, resolve_tool_path, run_tool
 
 if TYPE_CHECKING:
     from esphome.platformio_api import IDEData
@@ -131,6 +131,12 @@ class MemoryAnalyzer:
             objdump_path = objdump_path or idedata.objdump_path
             readelf_path = readelf_path or idedata.readelf_path
             _LOGGER.debug("Using toolchain paths from PlatformIO idedata")
+
+        # Validate paths exist, fall back to find_tool if they don't
+        # This handles cases like Zephyr where cc_path doesn't include full path
+        # and the toolchain prefix may differ (e.g., arm-zephyr-eabi- vs arm-none-eabi-)
+        objdump_path = resolve_tool_path("objdump", objdump_path, objdump_path)
+        readelf_path = resolve_tool_path("readelf", readelf_path, objdump_path)
 
         self.objdump_path = objdump_path or "objdump"
         self.readelf_path = readelf_path or "readelf"

@@ -55,7 +55,7 @@ bool WiFiComponent::wifi_apply_power_save_() {
   }
   int ret = cyw43_wifi_pm(&cyw43_state, pm);
   bool success = ret == 0;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_POWER_SAVE_LISTENERS
   if (success) {
     for (auto *listener : this->power_save_listeners_) {
       listener->on_wifi_power_save(this->power_save_);
@@ -245,7 +245,7 @@ void WiFiComponent::wifi_loop_() {
   if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
     this->scan_done_ = true;
     ESP_LOGV(TAG, "Scan done");
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
     for (auto *listener : this->scan_results_listeners_) {
       listener->on_wifi_scan_results(this->scan_result_);
     }
@@ -263,14 +263,15 @@ void WiFiComponent::wifi_loop_() {
     // Just connected
     s_sta_was_connected = true;
     ESP_LOGV(TAG, "Connected");
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     String ssid = WiFi.SSID();
     bssid_t bssid = this->wifi_bssid();
     for (auto *listener : this->connect_state_listeners_) {
       listener->on_wifi_connect_state(StringRef(ssid.c_str(), ssid.length()), bssid);
     }
+#endif
     // For static IP configurations, notify IP listeners immediately as the IP is already configured
-#ifdef USE_WIFI_MANUAL_IP
+#if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
     if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
       s_sta_had_ip = true;
       for (auto *listener : this->ip_state_listeners_) {
@@ -278,13 +279,12 @@ void WiFiComponent::wifi_loop_() {
       }
     }
 #endif
-#endif
   } else if (!is_connected && s_sta_was_connected) {
     // Just disconnected
     s_sta_was_connected = false;
     s_sta_had_ip = false;
     ESP_LOGV(TAG, "Disconnected");
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     static constexpr uint8_t EMPTY_BSSID[6] = {};
     for (auto *listener : this->connect_state_listeners_) {
       listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
@@ -305,7 +305,7 @@ void WiFiComponent::wifi_loop_() {
       // Just got IP address
       s_sta_had_ip = true;
       ESP_LOGV(TAG, "Got IP address");
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_IP_STATE_LISTENERS
       for (auto *listener : this->ip_state_listeners_) {
         listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
       }

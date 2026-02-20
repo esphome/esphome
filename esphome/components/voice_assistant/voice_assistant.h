@@ -81,6 +81,8 @@ struct Timer {
              this->id.c_str(), this->name.c_str(), this->total_seconds, this->seconds_left, YESNO(this->is_active));
     return buffer.data();
   }
+  // Remove before 2026.8.0
+  ESPDEPRECATED("Use to_str() instead. Removed in 2026.8.0", "2026.2.0")
   std::string to_string() const {
     char buffer[TO_STR_BUFFER_SIZE];
     return this->to_str(buffer);

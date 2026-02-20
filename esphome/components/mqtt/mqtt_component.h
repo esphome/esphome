@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/string_ref.h"
@@ -80,8 +81,6 @@ class MQTTComponent : public Component {
   /// Override setup_ so that we can call send_discovery() when needed.
   void call_setup() override;
 
-  void call_loop() override;
-
   void call_dump_config() override;
 
   /// Send discovery info the Home Assistant, override this.
@@ -109,10 +108,13 @@ class MQTTComponent : public Component {
   /// Override this method to return the component type (e.g. "light", "sensor", ...)
   virtual const char *component_type() const = 0;
 
-  /// Set a custom state topic. Set to "" for default behavior.
-  void set_custom_state_topic(const char *custom_state_topic);
-  /// Set a custom command topic. Set to "" for default behavior.
-  void set_custom_command_topic(const char *custom_command_topic);
+  /// Set a custom state topic. Do not set for default behavior.
+  template<typename T> void set_custom_state_topic(T &&custom_state_topic) {
+    this->custom_state_topic_ = std::forward<T>(custom_state_topic);
+  }
+  template<typename T> void set_custom_command_topic(T &&custom_command_topic) {
+    this->custom_command_topic_ = std::forward<T>(custom_command_topic);
+  }
   /// Set whether command message should be retained.
   void set_command_retain(bool command_retain);
 
@@ -129,12 +131,23 @@ class MQTTComponent : public Component {
   /// Internal method for the MQTT client base to schedule a resend of the state on reconnect.
   void schedule_resend_state();
 
+  /// Process pending resend if needed (called by MQTTClientComponent)
+  void process_resend();
+
   /** Send a MQTT message.
    *
    * @param topic The topic.
    * @param payload The payload.
    */
   bool publish(const std::string &topic, const std::string &payload);
+
+  /** Send a MQTT message.
+   *
+   * @param topic The topic.
+   * @param payload The payload buffer.
+   * @param payload_length The length of the payload.
+   */
+  bool publish(const std::string &topic, const char *payload, size_t payload_length);
 
   /** Construct and send a JSON MQTT message.
    *
@@ -203,13 +216,10 @@ class MQTTComponent : public Component {
   /// Get the object ID for this MQTT component, writing to the provided buffer.
   StringRef get_default_object_id_to_(std::span<char, OBJECT_ID_MAX_LEN> buf) const;
 
-  StringRef custom_state_topic_{};
-  StringRef custom_command_topic_{};
+  TemplatableValue<std::string> custom_state_topic_{};
+  TemplatableValue<std::string> custom_command_topic_{};
 
   std::unique_ptr<Availability> availability_;
-
-  bool has_custom_state_topic_{false};
-  bool has_custom_command_topic_{false};
 
   bool command_retain_{false};
   bool retain_{true};

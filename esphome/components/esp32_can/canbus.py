@@ -19,6 +19,7 @@ from esphome.components.esp32 import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_MODE,
     CONF_RX_PIN,
     CONF_RX_QUEUE_LEN,
     CONF_TX_PIN,
@@ -32,6 +33,13 @@ CONF_TX_ENQUEUE_TIMEOUT = "tx_enqueue_timeout"
 
 esp32_can_ns = cg.esphome_ns.namespace("esp32_can")
 esp32_can = esp32_can_ns.class_("ESP32Can", CanbusComponent)
+
+# Mode options - consistent with MCP2515 component
+CanMode = esp32_can_ns.enum("CanMode")
+CAN_MODES = {
+    "NORMAL": CanMode.CAN_MODE_NORMAL,
+    "LISTENONLY": CanMode.CAN_MODE_LISTEN_ONLY,
+}
 
 # Currently the driver only supports a subset of the bit rates defined in canbus
 # The supported bit rates differ between ESP32 variants.
@@ -95,6 +103,7 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
         cv.Optional(CONF_BIT_RATE, default="125KBPS"): validate_bit_rate,
         cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_number,
         cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_MODE, default="NORMAL"): cv.enum(CAN_MODES, upper=True),
         cv.Optional(CONF_RX_QUEUE_LEN): cv.uint32_t,
         cv.Optional(CONF_TX_QUEUE_LEN): cv.uint32_t,
         cv.Optional(CONF_TX_ENQUEUE_TIMEOUT): cv.positive_time_period_milliseconds,
@@ -117,6 +126,7 @@ async def to_code(config):
 
     cg.add(var.set_rx(config[CONF_RX_PIN]))
     cg.add(var.set_tx(config[CONF_TX_PIN]))
+    cg.add(var.set_mode(config[CONF_MODE]))
     if (rx_queue_len := config.get(CONF_RX_QUEUE_LEN)) is not None:
         cg.add(var.set_rx_queue_len(rx_queue_len))
     if (tx_queue_len := config.get(CONF_TX_QUEUE_LEN)) is not None:

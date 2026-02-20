@@ -156,6 +156,9 @@ class Lock : public EntityBase {
  protected:
   friend LockCall;
 
+  /// Helper for lock/unlock convenience methods
+  void set_state_(LockState state);
+
   /** Perform the open latch action with hardware. This method is optional to implement
    * when creating a new lock.
    *

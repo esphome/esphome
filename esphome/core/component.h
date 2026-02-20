@@ -306,6 +306,8 @@ class Component {
    *
    * @see cancel_interval()
    */
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   void set_interval(const std::string &name, uint32_t interval, std::function<void()> &&f);  // NOLINT
 
   /** Set an interval function with a const char* name.
@@ -324,6 +326,14 @@ class Component {
    */
   void set_interval(const char *name, uint32_t interval, std::function<void()> &&f);  // NOLINT
 
+  /** Set an interval function with a numeric ID (zero heap allocation).
+   *
+   * @param id The numeric identifier for this interval function
+   * @param interval The interval in ms
+   * @param f The function to call
+   */
+  void set_interval(uint32_t id, uint32_t interval, std::function<void()> &&f);  // NOLINT
+
   void set_interval(uint32_t interval, std::function<void()> &&f);  // NOLINT
 
   /** Cancel an interval function.
@@ -331,8 +341,11 @@ class Component {
    * @param name The identifier for this interval function.
    * @return Whether an interval functions was deleted.
    */
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   bool cancel_interval(const std::string &name);  // NOLINT
   bool cancel_interval(const char *name);         // NOLINT
+  bool cancel_interval(uint32_t id);              // NOLINT
 
   /** Set an retry function with a unique name. Empty name means no cancelling possible.
    *
@@ -364,10 +377,23 @@ class Component {
    * @param backoff_increase_factor time between retries is multiplied by this factor on every retry after the first
    * @see cancel_retry()
    */
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,       // NOLINT
                  std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
 
   void set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,              // NOLINT
+                 std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
+
+  /** Set a retry function with a numeric ID (zero heap allocation).
+   *
+   * @param id The numeric identifier for this retry function
+   * @param initial_wait_time The wait time after the first execution
+   * @param max_attempts The max number of attempts
+   * @param f The function to call
+   * @param backoff_increase_factor The factor to increase the retry interval by
+   */
+  void set_retry(uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,                   // NOLINT
                  std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
 
   void set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,  // NOLINT
@@ -378,8 +404,11 @@ class Component {
    * @param name The identifier for this retry function.
    * @return Whether a retry function was deleted.
    */
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   bool cancel_retry(const std::string &name);  // NOLINT
   bool cancel_retry(const char *name);         // NOLINT
+  bool cancel_retry(uint32_t id);              // NOLINT
 
   /** Set a timeout function with a unique name.
    *
@@ -395,6 +424,8 @@ class Component {
    *
    * @see cancel_timeout()
    */
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   void set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
   /** Set a timeout function with a const char* name.
@@ -413,6 +444,14 @@ class Component {
    */
   void set_timeout(const char *name, uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
+  /** Set a timeout function with a numeric ID (zero heap allocation).
+   *
+   * @param id The numeric identifier for this timeout function
+   * @param timeout The timeout in ms
+   * @param f The function to call
+   */
+  void set_timeout(uint32_t id, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+
   void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
   /** Cancel a timeout function.
@@ -420,8 +459,11 @@ class Component {
    * @param name The identifier for this timeout function.
    * @return Whether a timeout functions was deleted.
    */
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   bool cancel_timeout(const std::string &name);  // NOLINT
   bool cancel_timeout(const char *name);         // NOLINT
+  bool cancel_timeout(uint32_t id);              // NOLINT
 
   /** Defer a callback to the next loop() call.
    *
@@ -430,6 +472,8 @@ class Component {
    * @param name The name of the defer function.
    * @param f The callback.
    */
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* overload instead. Removed in 2026.7.0", "2026.1.0")
   void defer(const std::string &name, std::function<void()> &&f);  // NOLINT
 
   /** Defer a callback to the next loop() call with a const char* name.
@@ -451,7 +495,10 @@ class Component {
   void defer(std::function<void()> &&f);  // NOLINT
 
   /// Cancel a defer callback using the specified name, name must not be empty.
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* overload instead. Removed in 2026.7.0", "2026.1.0")
   bool cancel_defer(const std::string &name);  // NOLINT
+  bool cancel_defer(const char *name);         // NOLINT
 
   // Ordered for optimal packing on 32-bit systems
   const LogString *component_source_{nullptr};

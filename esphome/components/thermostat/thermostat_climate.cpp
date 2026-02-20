@@ -1218,11 +1218,12 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   }
 }
 
-void ThermostatClimate::change_custom_preset_(const char *custom_preset) {
+void ThermostatClimate::change_custom_preset_(const char *custom_preset, size_t len) {
   // Linear search through custom preset configurations
   const ThermostatClimateTargetTempConfig *config = nullptr;
   for (const auto &entry : this->custom_preset_config_) {
-    if (strcmp(entry.name, custom_preset) == 0) {
+    // Compare first len chars, then verify entry.name ends there (same length)
+    if (strncmp(entry.name, custom_preset, len) == 0 && entry.name[len] == '\0') {
       config = &entry.config;
       break;
     }
@@ -1231,7 +1232,7 @@ void ThermostatClimate::change_custom_preset_(const char *custom_preset) {
   if (config != nullptr) {
     ESP_LOGV(TAG, "Custom preset %s requested", custom_preset);
     if (this->change_preset_internal_(*config) || !this->has_custom_preset() ||
-        strcmp(this->get_custom_preset(), custom_preset) != 0) {
+        this->get_custom_preset() != custom_preset) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       // Use the base class method which handles pointer lookup and preset reset internally

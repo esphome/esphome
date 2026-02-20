@@ -47,18 +47,21 @@ struct ComponentPriorityOverride {
 };
 
 // Error messages for failed components
+// Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
+// This is never freed as error messages persist for the lifetime of the device
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::unique_ptr<std::vector<ComponentErrorMessage>> component_error_messages;
+std::vector<ComponentErrorMessage> *component_error_messages = nullptr;
 // Setup priority overrides - freed after setup completes
+// Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::unique_ptr<std::vector<ComponentPriorityOverride>> setup_priority_overrides;
+std::vector<ComponentPriorityOverride> *setup_priority_overrides = nullptr;
 
 // Helper to store error messages - reduces duplication between deprecated and new API
 // Remove before 2026.6.0 when deprecated const char* API is removed
 void store_component_error_message(const Component *component, const char *message, bool is_flash_ptr) {
   // Lazy allocate the error messages vector if needed
   if (!component_error_messages) {
-    component_error_messages = std::make_unique<std::vector<ComponentErrorMessage>>();
+    component_error_messages = new std::vector<ComponentErrorMessage>();
   }
   // Check if this component already has an error message
   for (auto &entry : *component_error_messages) {
@@ -118,7 +121,10 @@ void Component::setup() {}
 void Component::loop() {}
 
 void Component::set_interval(const std::string &name, uint32_t interval, std::function<void()> &&f) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   App.scheduler.set_interval(this, name, interval, std::move(f));
+#pragma GCC diagnostic pop
 }
 
 void Component::set_interval(const char *name, uint32_t interval, std::function<void()> &&f) {  // NOLINT
@@ -126,7 +132,10 @@ void Component::set_interval(const char *name, uint32_t interval, std::function<
 }
 
 bool Component::cancel_interval(const std::string &name) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return App.scheduler.cancel_interval(this, name);
+#pragma GCC diagnostic pop
 }
 
 bool Component::cancel_interval(const char *name) {  // NOLINT
@@ -135,7 +144,10 @@ bool Component::cancel_interval(const char *name) {  // NOLINT
 
 void Component::set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
                           std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+#pragma GCC diagnostic pop
 }
 
 void Component::set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
@@ -144,7 +156,10 @@ void Component::set_retry(const char *name, uint32_t initial_wait_time, uint8_t 
 }
 
 bool Component::cancel_retry(const std::string &name) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return App.scheduler.cancel_retry(this, name);
+#pragma GCC diagnostic pop
 }
 
 bool Component::cancel_retry(const char *name) {  // NOLINT
@@ -152,7 +167,10 @@ bool Component::cancel_retry(const char *name) {  // NOLINT
 }
 
 void Component::set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   App.scheduler.set_timeout(this, name, timeout, std::move(f));
+#pragma GCC diagnostic pop
 }
 
 void Component::set_timeout(const char *name, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
@@ -160,12 +178,35 @@ void Component::set_timeout(const char *name, uint32_t timeout, std::function<vo
 }
 
 bool Component::cancel_timeout(const std::string &name) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return App.scheduler.cancel_timeout(this, name);
+#pragma GCC diagnostic pop
 }
 
 bool Component::cancel_timeout(const char *name) {  // NOLINT
   return App.scheduler.cancel_timeout(this, name);
 }
+
+// uint32_t (numeric ID) overloads - zero heap allocation
+void Component::set_timeout(uint32_t id, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_timeout(this, id, timeout, std::move(f));
+}
+
+bool Component::cancel_timeout(uint32_t id) { return App.scheduler.cancel_timeout(this, id); }
+
+void Component::set_interval(uint32_t id, uint32_t interval, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_interval(this, id, interval, std::move(f));
+}
+
+bool Component::cancel_interval(uint32_t id) { return App.scheduler.cancel_interval(this, id); }
+
+void Component::set_retry(uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
+                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
+  App.scheduler.set_retry(this, id, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+}
+
+bool Component::cancel_retry(uint32_t id) { return App.scheduler.cancel_retry(this, id); }
 
 void Component::call_loop() { this->loop(); }
 void Component::call_setup() { this->setup(); }
@@ -301,10 +342,19 @@ void Component::defer(std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, static_cast<const char *>(nullptr), 0, std::move(f));
 }
 bool Component::cancel_defer(const std::string &name) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  return App.scheduler.cancel_timeout(this, name);
+#pragma GCC diagnostic pop
+}
+bool Component::cancel_defer(const char *name) {  // NOLINT
   return App.scheduler.cancel_timeout(this, name);
 }
 void Component::defer(const std::string &name, std::function<void()> &&f) {  // NOLINT
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   App.scheduler.set_timeout(this, name, 0, std::move(f));
+#pragma GCC diagnostic pop
 }
 void Component::defer(const char *name, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, name, 0, std::move(f));
@@ -420,7 +470,7 @@ float Component::get_actual_setup_priority() const {
 void Component::set_setup_priority(float priority) {
   // Lazy allocate the vector if needed
   if (!setup_priority_overrides) {
-    setup_priority_overrides = std::make_unique<std::vector<ComponentPriorityOverride>>();
+    setup_priority_overrides = new std::vector<ComponentPriorityOverride>();
     // Reserve some space to avoid reallocations (most configs have < 10 overrides)
     setup_priority_overrides->reserve(10);
   }
@@ -506,7 +556,8 @@ WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {}
 
 void clear_setup_priority_overrides() {
   // Free the setup priority map completely
-  setup_priority_overrides.reset();
+  delete setup_priority_overrides;
+  setup_priority_overrides = nullptr;
 }
 
 }  // namespace esphome

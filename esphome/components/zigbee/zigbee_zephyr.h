@@ -81,7 +81,7 @@ class ZigbeeComponent : public Component {
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
   void erase_flash_(int area);
 #endif
-  StaticVector<std::function<void(zb_bufid_t bufid)>, ZIGBEE_ENDPOINTS_COUNT> callbacks_;
+  std::array<std::function<void(zb_bufid_t bufid)>, ZIGBEE_ENDPOINTS_COUNT> callbacks_{};
   CallbackManager<void()> join_cb_;
   Trigger<> join_trigger_;
   bool need_flush_{false};

@@ -202,7 +202,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         stream.print("<option></option>");
         for (auto const &option : select->traits.get_options()) {
           stream.print("<option>");
-          stream.print(option.c_str());
+          stream.print(option);
           stream.print("</option>");
         }
         stream.print("</select>");

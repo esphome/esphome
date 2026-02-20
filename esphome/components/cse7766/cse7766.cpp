@@ -207,20 +207,24 @@ void CSE7766Component::parse_data_() {
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   {
-    std::string buf = "Parsed:";
+    // Buffer: 7 + 15 + 33 + 15 + 25 = 95 chars max + null, rounded to 128 for safety margin.
+    // Float sizes with %.4f can be up to 11 chars for large values (e.g., 999999.9999).
+    char buf[128];
+    size_t pos = buf_append_printf(buf, sizeof(buf), 0, "Parsed:");
     if (have_voltage) {
-      buf += str_sprintf(" V=%fV", voltage);
+      pos = buf_append_printf(buf, sizeof(buf), pos, " V=%.4fV", voltage);
     }
     if (have_current) {
-      buf += str_sprintf(" I=%fmA (~%fmA)", current * 1000.0f, calculated_current * 1000.0f);
+      pos = buf_append_printf(buf, sizeof(buf), pos, " I=%.4fmA (~%.4fmA)", current * 1000.0f,
+                              calculated_current * 1000.0f);
     }
     if (have_power) {
-      buf += str_sprintf(" P=%fW", power);
+      pos = buf_append_printf(buf, sizeof(buf), pos, " P=%.4fW", power);
     }
     if (energy != 0.0f) {
-      buf += str_sprintf(" E=%fkWh (%u)", energy, cf_pulses);
+      buf_append_printf(buf, sizeof(buf), pos, " E=%.4fkWh (%u)", energy, cf_pulses);
     }
-    ESP_LOGVV(TAG, "%s", buf.c_str());
+    ESP_LOGVV(TAG, "%s", buf);
   }
 #endif
 }

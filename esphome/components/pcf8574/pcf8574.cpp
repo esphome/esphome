@@ -107,7 +107,7 @@ void PCF8574GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this-
 bool PCF8574GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void PCF8574GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
 size_t PCF8574GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "%u via PCF8574", this->pin_);
+  return buf_append_printf(buffer, len, 0, "%u via PCF8574", this->pin_);
 }
 
 }  // namespace pcf8574

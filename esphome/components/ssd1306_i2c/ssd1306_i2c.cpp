@@ -62,9 +62,9 @@ void HOT I2CSSD1306::write_display_data() {
     }
   } else {
     size_t block_size = 16;
-    if ((this->get_buffer_length_() & 8) == 8) {
-      // use smaller block size for e.g. 72x40 displays where buffer size is multiple of 8, not 16
-      block_size = 8;
+    if ((this->get_buffer_length_() % 24) == 0) {
+      // use 24 byte block size for e.g. 72x40 displays where buffer size is multiple of 24, not 16
+      block_size = 24;
     }
 
     for (uint32_t i = 0; i < this->get_buffer_length_();) {

@@ -1,6 +1,7 @@
 #include "nextion.h"
 #include <cinttypes>
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
@@ -1283,8 +1284,9 @@ void Nextion::check_pending_waveform_() {
   size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
                                                                   : 255;  // ADDT command can only send 255
 
-  std::string command = "addt " + to_string(component->get_component_id()) + "," +
-                        to_string(component->get_wave_channel_id()) + "," + to_string(buffer_to_send);
+  char command[24];  // "addt " + uint8 + "," + uint8 + "," + uint8 + null = max 17 chars
+  buf_append_printf(command, sizeof(command), 0, "addt %u,%u,%zu", component->get_component_id(),
+                    component->get_wave_channel_id(), buffer_to_send);
   if (!this->send_command_(command)) {
     delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
     this->waveform_queue_.pop_front();

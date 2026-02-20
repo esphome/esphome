@@ -27,6 +27,7 @@
 - [ ] RP2040
 - [ ] BK72xx
 - [ ] RTL87xx
+- [ ] LN882x
 - [ ] nRF52840
 
 ## Example entry for `config.yaml`:

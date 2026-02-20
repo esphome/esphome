@@ -206,7 +206,13 @@ bool TemplateAlarmControlPanel::is_code_valid_(optional<std::string> code) {
   if (!this->codes_.empty()) {
     if (code.has_value()) {
       ESP_LOGVV(TAG, "Checking code: %s", code.value().c_str());
-      return (std::count(this->codes_.begin(), this->codes_.end(), code.value()) == 1);
+      // Use strcmp for const char* comparison
+      const char *code_cstr = code.value().c_str();
+      for (const char *stored_code : this->codes_) {
+        if (strcmp(stored_code, code_cstr) == 0)
+          return true;
+      }
+      return false;
     }
     ESP_LOGD(TAG, "No code provided");
     return false;

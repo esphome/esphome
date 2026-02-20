@@ -144,7 +144,7 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
 }
 bool WiFiComponent::wifi_apply_power_save_() {
   bool success = WiFi.setSleep(this->power_save_ != WIFI_POWER_SAVE_NONE);
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_POWER_SAVE_LISTENERS
   if (success) {
     for (auto *listener : this->power_save_listeners_) {
       listener->on_wifi_power_save(this->power_save_);
@@ -455,19 +455,19 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       // Note: We don't set CONNECTED state here yet - wait for GOT_IP
       // This matches ESP32 IDF behavior where s_sta_connected is set but
       // wifi_sta_connect_status_() also checks got_ipv4_address_
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
       for (auto *listener : this->connect_state_listeners_) {
         listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
       }
+#endif
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
-#ifdef USE_WIFI_MANUAL_IP
+#if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
       if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
         s_sta_state = LTWiFiSTAState::CONNECTED;
         for (auto *listener : this->ip_state_listeners_) {
           listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
         }
       }
-#endif
 #endif
       break;
     }
@@ -521,7 +521,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
         this->error_from_callback_ = true;
       }
 
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
       static constexpr uint8_t EMPTY_BSSID[6] = {};
       for (auto *listener : this->connect_state_listeners_) {
         listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
@@ -547,7 +547,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       ESP_LOGV(TAG, "static_ip=%s gateway=%s", network::IPAddress(WiFi.localIP()).str_to(ip_buf),
                network::IPAddress(WiFi.gatewayIP()).str_to(gw_buf));
       s_sta_state = LTWiFiSTAState::CONNECTED;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_IP_STATE_LISTENERS
       for (auto *listener : this->ip_state_listeners_) {
         listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
       }
@@ -556,7 +556,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
     }
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
       ESP_LOGV(TAG, "Got IPv6");
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_IP_STATE_LISTENERS
       for (auto *listener : this->ip_state_listeners_) {
         listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
       }
@@ -677,7 +677,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
                                     ssid.length() == 0);
   }
   WiFi.scanDelete();
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
   for (auto *listener : this->scan_results_listeners_) {
     listener->on_wifi_scan_results(this->scan_result_);
   }
