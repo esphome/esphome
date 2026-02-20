@@ -87,6 +87,7 @@ IS_TARGET_PLATFORM = True
 CONF_ASSERTION_LEVEL = "assertion_level"
 CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
+CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
@@ -778,6 +779,15 @@ def _detect_variant(value):
         # variant has already been validated against the known set
         value = value.copy()
         value[CONF_BOARD] = STANDARD_BOARDS[variant]
+        if variant == VARIANT_ESP32P4:
+            engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
+            if engineering_sample is None:
+                _LOGGER.warning(
+                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3). "
+                    "If you have an early engineering sample (pre-rev3), set 'engineering_sample: true'."
+                )
+            elif engineering_sample:
+                value[CONF_BOARD] = "esp32-p4-evboard"
     elif board in BOARDS:
         variant = variant or BOARDS[board][KEY_VARIANT]
         if variant != BOARDS[board][KEY_VARIANT]:
@@ -839,6 +849,28 @@ def final_validate(config):
             cv.Invalid(
                 f"'{CONF_MINIMUM_CHIP_REVISION}' is only supported on {VARIANT_ESP32}",
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_MINIMUM_CHIP_REVISION],
+            )
+        )
+    if (
+        config[CONF_VARIANT] != VARIANT_ESP32P4
+        and config.get(CONF_ENGINEERING_SAMPLE) is not None
+    ):
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_ENGINEERING_SAMPLE}' is only supported on {VARIANT_ESP32P4}",
+                path=[CONF_ENGINEERING_SAMPLE],
+            )
+        )
+    if (
+        config[CONF_VARIANT] == VARIANT_ESP32P4
+        and config.get(CONF_ENGINEERING_SAMPLE)
+        and "_r3" in config[CONF_BOARD]
+    ):
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_ENGINEERING_SAMPLE}' is set to true but board "
+                f"'{config[CONF_BOARD]}' is a rev3 board",
+                path=[CONF_ENGINEERING_SAMPLE],
             )
         )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
@@ -1190,6 +1222,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CPU_FREQUENCY): cv.one_of(
                 *FULL_CPU_FREQUENCIES, upper=True
             ),
+            cv.Optional(CONF_ENGINEERING_SAMPLE): cv.boolean,
             cv.Optional(CONF_FLASH_SIZE, default="4MB"): cv.one_of(
                 *FLASH_SIZES, upper=True
             ),
@@ -1475,10 +1508,14 @@ async def to_code(config):
     # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
     # from y to n. PlatformIO uses sections.ld.in (for rev <3) or
     # sections.rev3.ld.in (for rev >=3) based on board definition.
-    # Set the sdkconfig option to match the board's revision.
+    # Set the sdkconfig option to match the chip's revision.
     if variant == VARIANT_ESP32P4:
-        is_rev3 = "_r3" in config[CONF_BOARD]
-        add_idf_sdkconfig_option("CONFIG_ESP32P4_SELECTS_REV_LESS_V3", not is_rev3)
+        engineering_sample = config.get(CONF_ENGINEERING_SAMPLE)
+        if engineering_sample is not None:
+            is_pre_rev3 = engineering_sample
+        else:
+            is_pre_rev3 = "_r3" not in config[CONF_BOARD]
+        add_idf_sdkconfig_option("CONFIG_ESP32P4_SELECTS_REV_LESS_V3", is_pre_rev3)
 
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
