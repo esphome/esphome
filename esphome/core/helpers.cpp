@@ -590,7 +590,6 @@ size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf
 }
 
 // Decode 4 base64 characters to up to 'count' output bytes, returns true if truncated.
-// char_array_4 entries must be valid base64/base64url characters or 0 (zero-padding from tail).
 static inline bool base64_decode_quad_(uint8_t *char_array_4, int count, uint8_t *buf, size_t buf_len, size_t &out) {
   for (int i = 0; i < 4; i++)
     char_array_4[i] = base64_find_char(char_array_4[i]);
