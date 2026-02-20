@@ -219,7 +219,8 @@ void ATM90E32Component::setup() {
     if (has_distinct_legacy_namespace) {
       uint32_t legacy_g_hash = fnv1_hash("_gain_calibration_");
       legacy_g_hash = fnv1_hash_extend(legacy_g_hash, legacy_cs);
-      this->legacy_gain_calibration_pref_ = global_preferences->make_preference<GainCalibration[3]>(legacy_g_hash, true);
+      this->legacy_gain_calibration_pref_ =
+          global_preferences->make_preference<GainCalibration[3]>(legacy_g_hash, true);
     }
     this->restore_gain_calibrations_();
 
