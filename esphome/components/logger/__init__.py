@@ -210,6 +210,12 @@ def validate_initial_no_higher_than_global(config):
     return config
 
 
+def validate_wait_for_cdc(config):
+    if config.get(CONF_WAIT_FOR_CDC) and config.get(CONF_HARDWARE_UART) != USB_CDC:
+        raise cv.Invalid("wait_for_cdc requires hardware_uart: USB_CDC")
+    return config
+
+
 Logger = logger_ns.class_("Logger", cg.Component)
 LoggerMessageTrigger = logger_ns.class_(
     "LoggerMessageTrigger",
@@ -303,7 +309,8 @@ CONFIG_SCHEMA = cv.All(
                 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH, esp8266=True
             ): cv.All(cv.only_on_esp8266, cv.boolean),
             cv.SplitDefault(CONF_WAIT_FOR_CDC, nrf52=False): cv.All(
-                cv.only_on(PLATFORM_NRF52), cv.boolean
+                cv.only_on(PLATFORM_NRF52),
+                cv.boolean,
             ),
             cv.SplitDefault(CONF_EARLY_MESSAGE, nrf52=False): cv.All(
                 cv.only_on(PLATFORM_NRF52), cv.boolean
@@ -312,6 +319,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     validate_local_no_higher_than_global,
     validate_initial_no_higher_than_global,
+    validate_wait_for_cdc,
 )
 
 
@@ -447,6 +455,7 @@ async def to_code(config):
         if config[CONF_HARDWARE_UART] == UART1:
             zephyr_add_overlay("""&uart1 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == USB_CDC:
+            cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
             zephyr_add_prj_conf("UART_LINE_CTRL", True)
             zephyr_add_cdc_acm(config, 0)
 

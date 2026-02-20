@@ -78,7 +78,7 @@ void Logger::pre_setup() {
       ESP_LOGE(TAG, "%s is not ready.", LOG_STR_ARG(get_uart_selection_()));
     } else {
       this->uart_dev_ = uart_dev;
-#ifdef USE_LOGGER_WAIT_FOR_CDC
+#ifdef USE_LOGGER_UART_SELECTION_USB_CDC
       uint32_t dtr = 0;
       uint32_t count = (10 * 100);  // wait 10 sec for USB CDC to have early logs
       while (dtr == 0 && count-- != 0) {
@@ -174,9 +174,10 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
   auto thread = k_current_get();
   const char *name = k_thread_name_get(thread);
   if (name) {
-    strcpy(crash_buf.thread, name);
+    strncpy(crash_buf.thread, name, sizeof(crash_buf.thread) - 1);
+    crash_buf.thread[sizeof(crash_buf.thread) - 1] = '\0';
   } else {
-    crash_buf.thread[0] = 0;
+    crash_buf.thread[0] = '\0';
   }
 #endif
 
