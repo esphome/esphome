@@ -42,8 +42,10 @@ def slugify(text: str) -> str:
     text = text.encode("ascii", "ignore").decode("ascii")
     # Lowercase
     text = text.lower()
-    # Replace non-alphanumeric sequences with hyphen
-    text = re.sub(r"[^a-z0-9]+", "-", text)
+    # Remove non-word characters (keep alphanumeric, underscores, whitespace, hyphens)
+    text = re.sub(r"[^\w\s-]", "", text)
+    # Replace whitespace and hyphens with single hyphen
+    text = re.sub(r"[-\s]+", "-", text)
     # Trim hyphens from ends
     text = text.strip("-")
     return text
@@ -166,14 +168,19 @@ def mrkdwn_lines(md_file):
 
 
 def fill_anchors(md_files):
-    REGEX_ANCHOR = r'<span\s+id="([^"]*)"'
+    REGEX_SPAN_ANCHOR = r'<span\s+id="([^"]*)"'
+    REGEX_HEADING = r"^#{1,6}\s+(.*)"
     for md_file in md_files:
         lines = mrkdwn_lines(md_file)
         for line in lines:
-            search = re.search(REGEX_ANCHOR, line)
+            search = re.search(REGEX_SPAN_ANCHOR, line)
             if search:
-                anchor = search.group(1)
-                anchors[anchor] = md_file
+                anchors[search.group(1)] = md_file
+            search = re.search(REGEX_HEADING, line)
+            if search:
+                slug = slugify(search.group(1))
+                if slug not in anchors:
+                    anchors[slug] = md_file
 
 
 def get_doc_title(md_file):
