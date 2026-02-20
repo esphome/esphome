@@ -1929,6 +1929,9 @@ def get_varint64_ifdef(
     }
     if not ifdefs:
         return False, None
+    if None in ifdefs:
+        # At least one 64-bit varint field is unconditional, so the guard must be unconditional.
+        return True, None
     ifdefs.discard(None)
     return True, ifdefs.pop() if len(ifdefs) == 1 else None
 
@@ -2603,10 +2606,14 @@ def main() -> None:
     defines_content += "#pragma once\n\n"
     defines_content += '#include "esphome/core/defines.h"\n'
     if has_varint64:
-        defines_content += "\n".join(
-            wrap_with_ifdef(["#define USE_API_VARINT64"], varint64_guard)
-        )
+        lines = [
+            "#ifndef USE_API_VARINT64",
+            "#define USE_API_VARINT64",
+            "#endif",
+        ]
+        defines_content += "\n".join(wrap_with_ifdef(lines, varint64_guard))
         defines_content += "\n"
+    defines_content += "\nnamespace esphome::api {}  // namespace esphome::api\n"
 
     with open(root / "api_pb2_defines.h", "w", encoding="utf-8") as f:
         f.write(defines_content)
