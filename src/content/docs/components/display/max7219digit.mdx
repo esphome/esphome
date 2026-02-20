@@ -85,25 +85,25 @@ display:
 
 The following actions are replicas of the LAMBDA functions shown in the next section.
 
-### `MAX7219.invert_on` & `MAX7219.invert_off` Action
+### `max7219digit.invert_on` / `max7219digit.invert_off` Action
 
-This action `MAX7219.invert_on` will invert the display. So background pixels are on and texts pixels are
-off. `MAX7219.invert_off` sets the display back to normal. The background pixels are only set at the next update, the pixels drawn in
-the various function like print, line, etc. are directly influenced by the invert command.
+This action `max7219digit.invert_on` will invert the display. So background pixels are on and text pixels are
+off. `max7219digit.invert_off` sets the display back to normal. The background pixels are only set at the next update, the pixels drawn in
+the various functions like print, line, etc. are directly influenced by the invert command.
 
-### `MAX7219.turn_on` & `MAX7219.turn_off` Action
+### `max7219digit.turn_on` / `max7219digit.turn_off` Action
 
-The display can be switched on and off "dynamically" with the actions `MAX7219.turn_on` & `MAX7219.turn_off`.
+The display can be switched on and off "dynamically" with the actions `max7219digit.turn_on` / `max7219digit.turn_off`.
 
-## `MAX7219.reverse_on` & `MAX7219.reverse_off` Action
+### `max7219digit.reverse_on` / `max7219digit.reverse_off` Action
 
-With this actions you can reverse the display direction from left to right to right to left.
+With these actions you can reverse the display direction from left-to-right to right-to-left.
 
-## `MAX7219.intensity` Action
+### `max7219digit.intensity` Action
 
-The intensity of the screen can be set "dynamically" within the lambda code with the following command: it.intensity(`0` .. `15`  ).
+The intensity of the screen can be set "dynamically" with this action.
 
-- **intensity** (int): The intensity with which the MAX7219 should drive the outputs. Range is
+- **intensity** (*Optional*, int): The intensity with which the MAX7219 should drive the outputs. Range is
   from `0`, least intense to `15` the brightest. Defaults to `15`.
 
 <span id="display-max7219digit_lambda"></span>
