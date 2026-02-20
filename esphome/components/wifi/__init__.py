@@ -96,7 +96,7 @@ WIFI_POWER_SAVE_MODES = {
     "HIGH": WiFiPowerSaveMode.WIFI_POWER_SAVE_HIGH,
 }
 
-WiFiBandMode = wifi_ns.enum("wifi_band_mode_t")
+WiFiBandMode = cg.global_ns.enum("wifi_band_mode_t")
 WIFI_BAND_MODES = {
     "AUTO": WiFiBandMode.WIFI_BAND_MODE_AUTO,
     "2.4GHZ": WiFiBandMode.WIFI_BAND_MODE_2G_ONLY,
@@ -368,6 +368,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_BAND_MODE): cv.All(
                 cv.enum(WIFI_BAND_MODES, upper=True),
+                cv.only_on_esp32,
                 only_on_variant(supported=[const.VARIANT_ESP32C5]),
             ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
