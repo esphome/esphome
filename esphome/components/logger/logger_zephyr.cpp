@@ -94,7 +94,7 @@ void Logger::pre_setup() {
 #ifdef USE_LOGGER_EARLY_MESSAGE
   char reason_buffer[zephyr::RESET_REASON_BUFFER_SIZE];
   const char *reset_reason = zephyr::get_reset_reason(std::span<char, zephyr::RESET_REASON_BUFFER_SIZE>(reason_buffer));
-  ESP_LOGI(TAG, "reset reason %s", reset_reason);
+  ESP_LOGI(TAG, "Reset reason: %s", reset_reason);
   dump_crash_();
   zephyr_coredump::print_coredump();
 #endif
@@ -180,9 +180,7 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
     crash_buf.thread[0] = '\0';
   }
 #endif
-
-  /* Force reset */
-  NVIC_SystemReset();
+  arch_restart();
 }
 
 }  // namespace esphome::logger

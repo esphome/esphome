@@ -32,21 +32,25 @@ const char *get_reset_reason(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
   }
   size_t pos = 0;
 
-  pos = append_reset_reason(buf, size, pos, cause & RESET_PIN, "External pin");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_SOFTWARE, "Software reset");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_BROWNOUT, "Brownout (drop in voltage)");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_POR, "Power-on reset (POR)");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_WATCHDOG, "Watchdog timer expiration");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_DEBUG, "Debug event");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_SECURITY, "Security violation");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_LOW_POWER_WAKE, "Waking up from low power mode");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_CPU_LOCKUP, "CPU lock-up detected");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_PARITY, "Parity error");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_PLL, "PLL error");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_CLOCK, "Clock error");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_HARDWARE, "Hardware reset");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_USER, "User reset");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_TEMPERATURE, "Temperature reset");
+  if (cause == 0) {
+    pos = append_reset_reason(buf, size, pos, true, "None");
+  } else {
+    pos = append_reset_reason(buf, size, pos, cause & RESET_PIN, "External pin");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_SOFTWARE, "Software reset");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_BROWNOUT, "Brownout (drop in voltage)");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_POR, "Power-on reset (POR)");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_WATCHDOG, "Watchdog timer expiration");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_DEBUG, "Debug event");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_SECURITY, "Security violation");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_LOW_POWER_WAKE, "Waking up from low power mode");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_CPU_LOCKUP, "CPU lock-up detected");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_PARITY, "Parity error");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_PLL, "PLL error");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_CLOCK, "Clock error");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_HARDWARE, "Hardware reset");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_USER, "User reset");
+    pos = append_reset_reason(buf, size, pos, cause & RESET_TEMPERATURE, "Temperature reset");
+  }
 
   // Ensure null termination if nothing was written
   if (pos == 0) {
