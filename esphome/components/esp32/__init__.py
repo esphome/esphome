@@ -863,16 +863,18 @@ def final_validate(config):
         )
     if (
         config[CONF_VARIANT] == VARIANT_ESP32P4
-        and config.get(CONF_ENGINEERING_SAMPLE)
-        and "_r3" in config[CONF_BOARD]
+        and config.get(CONF_ENGINEERING_SAMPLE) is not None
     ):
-        errs.append(
-            cv.Invalid(
-                f"'{CONF_ENGINEERING_SAMPLE}' is set to true but board "
-                f"'{config[CONF_BOARD]}' is a rev3 board",
-                path=[CONF_ENGINEERING_SAMPLE],
-            )
+        board_is_es = BOARDS.get(config[CONF_BOARD], {}).get(
+            "engineering_sample", False
         )
+        if config[CONF_ENGINEERING_SAMPLE] != board_is_es:
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_ENGINEERING_SAMPLE}' does not match board '{config[CONF_BOARD]}'",
+                    path=[CONF_ENGINEERING_SAMPLE],
+                )
+            )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         if config[CONF_VARIANT] != VARIANT_ESP32S3:
             errs.append(
@@ -1508,14 +1510,12 @@ async def to_code(config):
     # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
     # from y to n. PlatformIO uses sections.ld.in (for rev <3) or
     # sections.rev3.ld.in (for rev >=3) based on board definition.
-    # Set the sdkconfig option to match the chip's revision.
+    # Set the sdkconfig option to match the board's chip revision.
     if variant == VARIANT_ESP32P4:
-        engineering_sample = config.get(CONF_ENGINEERING_SAMPLE)
-        if engineering_sample is not None:
-            is_pre_rev3 = engineering_sample
-        else:
-            is_pre_rev3 = "_r3" not in config[CONF_BOARD]
-        add_idf_sdkconfig_option("CONFIG_ESP32P4_SELECTS_REV_LESS_V3", is_pre_rev3)
+        is_eng_sample = BOARDS.get(config[CONF_BOARD], {}).get(
+            "engineering_sample", False
+        )
+        add_idf_sdkconfig_option("CONFIG_ESP32P4_SELECTS_REV_LESS_V3", is_eng_sample)
 
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
