@@ -10,6 +10,10 @@ binary_sensor:
     sensor1_error:
       name: Sensor 1 Error
   - platform: vbus
+    model: deltasol_cs4
+    sensor1_error:
+      name: "DeltaSol CS4 Sensor 1 Error"  
+  - platform: vbus
     model: custom
     command: 0x100
     source: 0x1234
@@ -34,3 +38,7 @@ sensor:
       name: Heat Quantity
     time:
       name: System Time
+  - platform: vbus
+    model: deltasol_cs4
+    temperature_1:
+      name: "DeltaSol CS4 Temperature 1"
