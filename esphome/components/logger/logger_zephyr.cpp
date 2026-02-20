@@ -78,7 +78,7 @@ void Logger::pre_setup() {
       ESP_LOGE(TAG, "%s is not ready.", LOG_STR_ARG(get_uart_selection_()));
     } else {
       this->uart_dev_ = uart_dev;
-#ifdef USE_LOGGER_UART_SELECTION_USB_CDC
+#if defined(USE_LOGGER_WAIT_FOR_CDC) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
       uint32_t dtr = 0;
       uint32_t count = (10 * 100);  // wait 10 sec for USB CDC to have early logs
       while (dtr == 0 && count-- != 0) {
