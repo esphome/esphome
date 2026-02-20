@@ -413,18 +413,21 @@ def final_validation(config):
         add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
         add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
 
-    # Check if BLE Server is needed
-    has_ble_server = "esp32_ble_server" in full_config
-
     # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
     has_ble_client = (
         "esp32_ble_tracker" in full_config or "esp32_ble_client" in full_config
     )
 
-    # ESP-IDF BLE stack requires GATT Server to be enabled when GATT Client is enabled
-    # This is an internal dependency in the Bluedroid stack (tested ESP-IDF 5.4.2-5.5.1)
+    # Always enable GATTS: ESP-IDF 5.5.2.260206 has a bug in gatt_main.c where a
+    # GATT_TRACE_DEBUG references 'msg_len' outside the GATTS_INCLUDED/GATTC_INCLUDED
+    # guard, causing a compile error when both are disabled.
+    # Additionally, when GATT Client is enabled, GATT Server must also be enabled
+    # as an internal dependency in the Bluedroid stack.
     # See: https://github.com/espressif/esp-idf/issues/17724
-    add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", has_ble_server or has_ble_client)
+    # TODO: Revert to conditional once the gatt_main.c bug is fixed upstream:
+    #   has_ble_server = "esp32_ble_server" in full_config
+    #   add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", has_ble_server or has_ble_client)
+    add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", True)
     add_idf_sdkconfig_option("CONFIG_BT_GATTC_ENABLE", has_ble_client)
 
     # Handle max_connections: check for deprecated location in esp32_ble_tracker

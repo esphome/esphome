@@ -643,7 +643,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
-    cv.Version(3, 3, 7): cv.Version(5, 5, 2),
+    cv.Version(3, 3, 7): cv.Version(5, 5, 3),
     cv.Version(3, 3, 6): cv.Version(5, 5, 2),
     cv.Version(3, 3, 5): cv.Version(5, 5, 2),
     cv.Version(3, 3, 4): cv.Version(5, 5, 1),
@@ -662,11 +662,12 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 2),
-    "latest": cv.Version(5, 5, 2),
-    "dev": cv.Version(5, 5, 2),
+    "recommended": cv.Version(5, 5, 3),
+    "latest": cv.Version(5, 5, 3),
+    "dev": cv.Version(5, 5, 3),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(5, 5, 3): cv.Version(55, 3, 37),
     cv.Version(5, 5, 2): cv.Version(55, 3, 37),
     cv.Version(5, 5, 1): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 5, 0): cv.Version(55, 3, 31, "2"),
@@ -1470,6 +1471,14 @@ async def to_code(config):
     add_idf_sdkconfig_option(
         f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
     )
+
+    # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
+    # from y to n. PlatformIO uses sections.ld.in (for rev <3) or
+    # sections.rev3.ld.in (for rev >=3) based on board definition.
+    # Set the sdkconfig option to match the board's revision.
+    if variant == VARIANT_ESP32P4:
+        is_rev3 = "_r3" in config[CONF_BOARD]
+        add_idf_sdkconfig_option("CONFIG_ESP32P4_SELECTS_REV_LESS_V3", not is_rev3)
 
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
