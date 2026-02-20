@@ -56,7 +56,6 @@ void TCS34725Component::dump_config() {
   LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
   LOG_SENSOR("  ", "Color Temperature", this->color_temperature_sensor_);
 }
-float TCS34725Component::get_setup_priority() const { return setup_priority::DATA; }
 
 /*!
  *  @brief  Converts the raw R/G/B values to color temperature in degrees
