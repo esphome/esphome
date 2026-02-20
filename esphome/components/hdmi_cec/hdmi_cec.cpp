@@ -236,10 +236,7 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_
     return false;
   }
 
-  Frame frame(source, destination, data_bytes);
-  ESP_LOGV(TAG, "Queing frame to send: %s", frame.to_string().c_str());
-  xmit_.queue_for_send(frame);
-  return true;
+  return xmit_.queue_for_send(source, destination, data_bytes);
 }
 
 inline void IRAM_ATTR CECTransmit::set_pin_input_high() { pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); }
@@ -280,9 +277,17 @@ void CECTransmit::dump_config() {
   ESP_LOGCONFIG(TAG, "  has UART: %s", (uart_ ? "yes" : "no"));
 }
 
-void CECTransmit::queue_for_send(const Frame &frame) {
-  LockGuard send_lock(send_mutex_);  // prevent simultaneous modifications to the queue
-  send_queue_.push(frame);
+bool CECTransmit::queue_for_send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes) {
+  Frame *frame = send_queue_.back();
+  if (!frame)
+    return false;  // queue is (still) full
+
+  if (1 + data_bytes.size() > Frame::MAX_LENGTH)
+    return false;  // exceeds the cec 1.4 standard max message length
+
+  new (frame) Frame(source, destination, data_bytes);
+  send_queue_.push_back();  // commit the frame obtained from the last 'back()'
+  return true;
 }
 
 std::string CECTransmit::get_state() const {
@@ -294,7 +299,7 @@ std::string CECTransmit::get_state() const {
 }
 
 void CECTransmit::transmit_message() {
-  if (transmit_state_ != TransmitState::IDLE && send_queue_.empty()) {
+  if (transmit_state_ != TransmitState::IDLE && send_queue_.is_empty()) {
     // With a 'busy' transmit, the transmitted frame is always on the queue front
     // Error state: this shall never occur: SW bug or HW line failure?
     ESP_LOGE(TAG, "HDMICEC::transmit_message(): frame error status, force clear!");
@@ -322,15 +327,15 @@ void CECTransmit::transmit_message() {
 
   if (transmit_state_ == TransmitState::EOM_CONFIRMED) {
     // the Frame which is on the queue.front is confirmed to be fully sent out
-    const Frame &frame = send_queue_.front();
-    uint8_t n_acks_expected = frame.is_broadcast() ? 0 : frame.size();  // for broadcast, acknowledge is bad
-    bool sent_ok = (n_bytes_received_ == frame.size()) && (n_acks_received_ == n_acks_expected);
+    const Frame *frame = send_queue_.front();
+    uint8_t n_acks_expected = frame->is_broadcast() ? 0 : frame->size();  // for broadcast, acknowledge is bad
+    bool sent_ok = (n_bytes_received_ == frame->size()) && (n_acks_received_ == n_acks_expected);
     // Create log message for debugging
     if (!sent_ok) {
       // last transmit had a byte count error, or ended without appropriate Acknowledge from recipient
-      if (n_bytes_received_ != frame.size()) {
+      if (n_bytes_received_ != frame->size()) {
         ESP_LOGD(TAG, "Send frame incorrect on attempt %d, saw %d bytes but expected %d bytes", transmit_attempts_,
-                 static_cast<int>(n_bytes_received_), frame.size());
+                 static_cast<int>(n_bytes_received_), frame->size());
       } else {
         ESP_LOGD(TAG, "Send frame NOT acknowledged on attempt %d", transmit_attempts_);
       }
@@ -343,8 +348,7 @@ void CECTransmit::transmit_message() {
     if (sent_ok) {
       allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS;
       transmit_attempts_ = 0;
-      LockGuard send_lock(send_mutex_);
-      send_queue_.pop();
+      send_queue_.push_front();
     } else {
       allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
     }
@@ -358,25 +362,25 @@ void CECTransmit::transmit_message() {
     ESP_LOGD(TAG, "frame was NOT sent correctly after %d attempts, drop frame", transmit_attempts_);
     allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS;
     transmit_attempts_ = 0;
-    LockGuard send_lock(send_mutex_);
-    send_queue_.pop();
+    send_queue_.push_front();
   }
 
-  if (send_queue_.empty() || receiver_is_busy_ || (micros() < allow_xmit_message_us_)) {
-    // maybe it is too early for a transmit, to satisfy the CEC standard bus idle time
+  const Frame *frame = send_queue_.front();  // check for presence of next frame to send (null if queue is empty)
+  if (!frame || receiver_is_busy_ || (micros() < allow_xmit_message_us_)) {
+    // If the receiver is busy, the bus is occupied, and a transmit must wait until the bus is idle
+    // Maybe it is too early for a transmit, to satisfy the CEC standard bus idle time
     return;
   }
 
   // Launch the transmit of the frame that is on the front of the queue
-  const Frame &frame = send_queue_.front();
   transmit_state_ = TransmitState::BUSY;
   transmit_attempts_++;
   if (transmit_attempts_ <= 1) {
-    ESP_LOGD(TAG, "Sending: %s", frame.to_string().c_str());
+    ESP_LOGD(TAG, "Sending: %s", (frame->to_string()).c_str());
   }
   // the 'start_bit' and the first 4 bits of the 'header block' are always sent by software on the GPIO
   // pin to detect a bus collision and allow early termination of the frame transmit
-  if (!send_start_bit_() || !transmit_my_address_(frame.initiator_addr())) {
+  if (!send_start_bit_() || !transmit_my_address_(frame->initiator_addr())) {
     // sending these first bits caused a bus-collision with another initiator.
     // further transmission is stopped immediatly, as the other initiator might not see the collision,
     allow_xmit_message_us_ = micros() + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
@@ -411,10 +415,10 @@ bool CECTransmit::transmit_my_address_(const uint8_t initiator_addr) {
   return ok;
 }
 
-void CECTransmit::transmit_message_on_gpio_(const Frame &frame) {
+void CECTransmit::transmit_message_on_gpio_(const Frame *frame) {
   // for each byte of the frame:
-  for (int byte_inx = 0; byte_inx < frame.size(); byte_inx++) {
-    uint8_t current_byte = frame.at(byte_inx);
+  for (int byte_inx = 0; byte_inx < frame->size(); byte_inx++) {
+    uint8_t current_byte = frame->at(byte_inx);
 
     // 1. send the current byte
     bool partial_first_byte = (byte_inx == 0);
@@ -425,7 +429,7 @@ void CECTransmit::transmit_message_on_gpio_(const Frame &frame) {
     }
 
     // 2. send EOM (End Of Frame) bit (logic 1 if this is the last byte of the frame)
-    bool is_eom = (byte_inx == frame.size() - 1);
+    bool is_eom = (byte_inx == frame->size() - 1);
     send_bit_(is_eom);
 
     // 3. send ACK (Acknowledge) bit
@@ -493,11 +497,11 @@ bool IRAM_ATTR CECTransmit::send_high_and_test_() {
   return value;
 }
 
-void CECTransmit::transmit_message_on_uart_(const Frame &frame) {
+void CECTransmit::transmit_message_on_uart_(const Frame *frame) {
   std::vector<uint8_t> uart_data;
-  uart_data.reserve(5 * frame.size());  // the UART is used with 5x oversampling (5 uart bytes per cec byte)
-  for (unsigned int i = 0; i < frame.size(); i++) {
-    convert_byte_to_uart_(uart_data, frame[i], i == 0, i == (frame.size() - 1));
+  uart_data.reserve(5 * frame->size());  // the UART is used with 5x oversampling (5 uart bytes per cec byte)
+  for (unsigned int i = 0; i < frame->size(); i++) {
+    convert_byte_to_uart_(uart_data, frame->at(i), i == 0, i == (frame->size() - 1));
   }
 #ifdef HDMI_CEC_USE_UART
   uart_->write_array(uart_data);  // if not 'HDMI_CEC_USE_UART', the include file is missing and this cannot be compiled

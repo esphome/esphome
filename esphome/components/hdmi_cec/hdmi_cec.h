@@ -2,7 +2,6 @@
 
 #include <array>
 #include <vector>
-#include <queue>
 #include <atomic>
 
 #include "esphome/core/defines.h"
@@ -74,11 +73,13 @@ template<unsigned int SIZE> class FrameRingBuffer {
       delete t;
     }
   }
-  // 'front' is used to access data, use that, and recycle its memory space for later use.
+  // 'front' is used to access a Frame, and use its content until it is no longer needed
   Frame *front() const { return is_empty() ? nullptr : store_[front_inx_]; }
+  // 'push_front' recycles the storage area of the last 'front()' call.
   void push_front() { cyclic_incr_(front_inx_); }
   // 'back' is used to fetch a free Frame, fill with data, and queue for later pick-up
   Frame *back() const { return is_full() ? nullptr : (store_[back_inx_]->clear(), store_[back_inx_]); }
+  // 'push_back' commits the frame that was earlier obtained by 'back()', presumably it got filled with content
   void push_back() { cyclic_incr_(back_inx_); }
   bool is_empty() const { return count_() == 0; }
   bool is_full() const { return count_() == SIZE; }  // using safe wrap-around of unsignd int
@@ -104,6 +105,15 @@ template<unsigned int SIZE> class FrameRingBuffer {
   std::array<Frame *, SIZE + 1> store_;
 };
 
+/**
+ * class CECTransmit accepts bus messages ("frames") for transmission.
+ * These messages, taken from "queue_for_send" are buffered, because a 'send' on the bus
+ * might take a really long time, which should not be directly consumed in its calling thread:
+ * With the local buffering, 'send' retries are now handled in subsequent time slices.
+ * The 'send' queue has a limited depth, fairly shallow, because in practice an application
+ * is expected not to queue so many 'send's before requesting (waiting for) an
+ * inbound reply message.
+ */
 class CECTransmit {
   enum class TransmitState : uint8_t {
     IDLE,
@@ -114,8 +124,8 @@ class CECTransmit {
  public:
   void setup(InternalGPIOPin *pin);
   void dump_config();
-  void queue_for_send(const Frame &frame);
-  bool is_idle() const { return send_queue_.empty() && (transmit_state_ == TransmitState::IDLE); }
+  bool queue_for_send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes);
+  bool is_idle() const { return send_queue_.is_empty() && (transmit_state_ == TransmitState::IDLE); }
   void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
   bool has_uart() const { return uart_ != nullptr; }
   void set_pin_input_high();
@@ -158,12 +168,12 @@ class CECTransmit {
   bool send_start_bit_();
   void send_bit_(bool bit_value);
   bool send_high_and_test_();
-  void transmit_message_on_gpio_(const Frame &frame);
-  void transmit_message_on_uart_(const Frame &frame);
+  void transmit_message_on_gpio_(const Frame *frame);
+  void transmit_message_on_uart_(const Frame *frame);
   void convert_byte_to_uart_(std::vector<uint8_t> &uart_data, uint8_t byte, bool is_header, bool is_eom);
   bool transmit_my_address_(uint8_t initiator_addr);  // send 4 bits with my address and check for bus collision
 
-  std::queue<Frame> send_queue_;
+  FrameRingBuffer<5> send_queue_;  // queue at most a handful of messages to send
   uint8_t transmit_attempts_{0};
   std::atomic<bool> receiver_is_busy_{false};
   std::atomic<TransmitState> transmit_state_{TransmitState::IDLE};
@@ -173,7 +183,6 @@ class CECTransmit {
   uint32_t allow_xmit_message_us_;
   uart::UARTComponent *uart_{nullptr};
   InternalGPIOPin *pin_{nullptr};
-  Mutex send_mutex_;
 };
 
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
@@ -202,7 +211,7 @@ class CECReceive {
   void gpio_isr_();
   void reset_state_variables_();
 
-  CECTransmit &xmit_;
+  CECTransmit &xmit_;  // the bus 'Receiver' needs to sync with 'sent' messages
   ISRInternalGPIOPin isr_pin_;
   bool promiscuous_mode_{false};
   bool monitor_mode_{false};
