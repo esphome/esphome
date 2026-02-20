@@ -28,11 +28,7 @@ static const char *const TAG = "api";
 // APIServer
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-APIServer::APIServer() {
-  global_api_server = this;
-  // Pre-allocate shared write buffer
-  shared_write_buffer_.reserve(64);
-}
+APIServer::APIServer() { global_api_server = this; }
 
 void APIServer::setup() {
   ControllerRegistry::register_controller(this);
@@ -96,7 +92,10 @@ void APIServer::setup() {
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
-    logger::global_logger->add_log_listener(this);
+    logger::global_logger->add_log_callback(
+        this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
+          static_cast<APIServer *>(self)->on_log(level, tag, message, message_len);
+        });
   }
 #endif
 
