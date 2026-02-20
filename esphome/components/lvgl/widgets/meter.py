@@ -518,13 +518,13 @@ class MeterType(WidgetType):
                 if t == CONF_IMAGE:
                     add_lv_use(CONF_IMAGE)
                     src = v[CONF_SRC]
-                    src_data = CORE.data[IMAGE_DOMAIN][str(src)]
+                    src_data = CORE.data[IMAGE_DOMAIN]["metadata"][str(src)]
                     pivot_x = await pixels.process(v[CONF_PIVOT_X])
                     pivot_y = await pixels.process(
-                        v.get(CONF_PIVOT_Y, src_data[CONF_HEIGHT] // 2)
+                        v.get(CONF_PIVOT_Y, src_data.height // 2)
                     )
                     props = {
-                        CONF_X: src_data[CONF_WIDTH] // 2 - pivot_x,
+                        CONF_X: src_data.width // 2 - pivot_x,
                         "transform_pivot_x": pivot_x,
                         "transform_pivot_y": pivot_y,
                         CONF_SRC: src,
@@ -533,6 +533,7 @@ class MeterType(WidgetType):
                         CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
                     }
                     iw = await widget_to_code(props, image_indicator_type, scale_var)
+                    await iw.set_property(CONF_SRC, await lv_image.process(src))
                     await set_indicator_values(iw, v)
 
         # Add a pivot

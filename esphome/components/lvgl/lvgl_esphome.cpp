@@ -300,6 +300,14 @@ int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int value) {
          360;
 }
 
+void lv_image_set_needle_value(lv_obj_t *obj, int value) {
+  // Rotation is handled by set_style_transform_rotation in the generated code;
+  // this just ensures the image is redrawn.
+  lv_obj_invalidate(obj);
+}
+
+void lv_arc_set_needle_value(lv_obj_t *obj, int value) { lv_obj_invalidate(obj); }
+
 void IndicatorLine::set_obj(lv_obj_t *lv_obj) {
   LvCompound::set_obj(lv_obj);
   lv_line_set_points(lv_obj, this->points_, 2);
@@ -425,7 +433,9 @@ void LvButtonMatrixType::set_obj(lv_obj_t *lv_obj) {
 
 #ifdef USE_LVGL_KEYBOARD
 static const char *const KB_SPECIAL_KEYS[] = {
-    "abc", "ABC", "1#",
+    "abc",
+    "ABC",
+    "1#",
     // maybe add other special keys here
 };
 
