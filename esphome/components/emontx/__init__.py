@@ -112,7 +112,7 @@ def final_validate(config):
         require_tx=require_tx,
         require_rx=True,
         data_bits=8,
-        parity=None,
+        parity="NONE",
         stop_bits=1,
     )
     return schema(config)

@@ -8,8 +8,7 @@
 #include "esphome/components/api/homeassistant_service.h"
 #endif
 
-namespace esphome {
-namespace emontx {
+namespace esphome::emontx {
 
 static const char *const TAG = "emontx";
 
@@ -19,15 +18,14 @@ static const char *const TAG = "emontx";
  * @details Sets up the initial state of the component by:
  * 1. Setting the state machine to OFF
  * 2. Pre-allocating buffer memory to avoid reallocation overhead
- * 3. Logging the component configuration
- * 4. Registering and logging all configured sensors (when sensor support is enabled)
+ * 3. Registering the send_command service (when config_panel is enabled)
  *
  * This method is called once during device startup. After setup completes,
  * the component will wait for update() to be called before starting to
  * process any incoming data.
  */
 void EmonTx::setup() {
-  state_ = ParseState::OFF;
+  this->state_ = ParseState::OFF;
 
   // Pre-allocate buffer to maximum size to prevent reallocation overhead
   // during JSON message collection.
@@ -35,24 +33,12 @@ void EmonTx::setup() {
   // three phases. But go with 1024 just to be sure.
   this->buffer_.reserve(1024);
 
-  ESP_LOGCONFIG(TAG, "Setting up EmonTx component");
-
 #ifdef USE_API_CUSTOM_SERVICES
   // Auto-register send_command service when config_panel is enabled
+  // Uses a lambda wrapper because register_service requires std::string by value
   if (this->config_panel_) {
-    this->register_service(&EmonTx::send_command, "send_command", {"command"});
-    ESP_LOGCONFIG(TAG, "Registered send_command service");
+    this->register_service(&EmonTx::on_send_command_service_, "send_command", {"command"});
   }
-#endif
-
-#ifdef USE_SENSOR
-  // Log sensors at setup time
-  ESP_LOGCONFIG(TAG, "Currently registered sensors: %u", this->sensors_.size());
-  for (const auto &sensor_pair : this->sensors_) {
-    ESP_LOGCONFIG(TAG, "  Sensor '%s' registered", sensor_pair.first.c_str());
-  }
-#else
-  ESP_LOGCONFIG(TAG, "Sensor support: DISABLED");
 #endif
 }
 
@@ -72,12 +58,12 @@ void EmonTx::setup() {
 void EmonTx::update() {
   ESP_LOGD(TAG, "Updating EmonTx state...");
 
-  if (state_ == ParseState::OFF) {
-    buffer_.clear();  // Clear the buffer for new data
-    state_ = ParseState::WAITING_FOR_START;
+  if (this->state_ == ParseState::OFF) {
+    this->buffer_.clear();
+    this->state_ = ParseState::WAITING_FOR_START;
     ESP_LOGD(TAG, "EmonTx activated and ready to receive data.");
   } else {
-    ESP_LOGV(TAG, "EmonTx already active (state: %d)", static_cast<int>(state_));
+    ESP_LOGV(TAG, "EmonTx already active (state: %d)", static_cast<int>(this->state_));
   }
 }
 
@@ -97,21 +83,20 @@ void EmonTx::update() {
  * arrive in quick succession between polling intervals.
  */
 void EmonTx::loop() {
-  if (state_ == ParseState::OFF) {
+  if (this->state_ == ParseState::OFF) {
     return;
   }
 
   // Read all available data to prevent UART buffer overflow
   // No artificial limit - drain the hardware buffer completely each loop
-  while (available() > 0) {
-    uint8_t received = read();
+  while (this->available() > 0) {
+    uint8_t received = this->read();
 
-    // Handle different characters
     if (received == '\r') {
       continue;  // Ignore CR
     } else if (received == '\n') {
       // End of line - process the buffer
-      if (!buffer_.empty()) {
+      if (!this->buffer_.empty()) {
         // Use static string to avoid repeated allocations
         // Reserve same capacity as buffer_ to maintain allocation across swaps
         static std::string line = []() {
@@ -120,9 +105,9 @@ void EmonTx::loop() {
           return s;
         }();
         // Swap pointers with buffer_ (O(1), zero copy, both reuse allocations)
-        line.swap(buffer_);
+        line.swap(this->buffer_);
         // Clear buffer_ for next line (it now contains old line data from previous iteration)
-        buffer_.clear();
+        this->buffer_.clear();
 
         ESP_LOGD(TAG, "Received line: %s", line.c_str());
 
@@ -159,26 +144,22 @@ void EmonTx::loop() {
         }
 #endif
 
-        // Fire data callbacks for ALL received lines (config responses)
-        if (!this->data_callbacks_.empty()) {
-          for (const auto &callback : this->data_callbacks_) {
-            callback(line);
-          }
-        }
+        // Fire data callbacks for all received lines
+        this->data_callbacks_.call(line);
 
         // Check if this line is JSON (starts with '{')
         if (!line.empty() && line[0] == '{') {
           ESP_LOGV(TAG, "Line is JSON, parsing...");
-          parse_json_(line);
+          this->parse_json_(line);
         }
       }
     } else {
       // Regular character - add to buffer
-      if (buffer_.length() >= 1024) {
+      if (this->buffer_.length() >= 1024) {
         ESP_LOGW(TAG, "Buffer overflow (>1024 bytes), discarding buffer");
-        buffer_.clear();
+        this->buffer_.clear();
       } else {
-        buffer_ += received;
+        this->buffer_ += static_cast<char>(received);
       }
     }
   }
@@ -190,11 +171,8 @@ void EmonTx::loop() {
  * @details This method takes a string containing JSON data and attempts to parse it.
  * If parsing is successful, it performs the following operations:
  * 1. Updates all registered sensors that have matching keys in the JSON
- * 2. Fires Home Assistant events with the received data (when enabled)
+ * 2. Fires Home Assistant events with the received data (when config_panel is enabled)
  * 3. Executes all registered JSON callbacks, passing the parsed JsonObject
- *
- * The method handles both sensor updates and general-purpose callbacks, allowing
- * the component to integrate with multiple parts of the ESPHome system.
  *
  * @param data The JSON string to parse
  */
@@ -205,20 +183,20 @@ void EmonTx::parse_json_(const std::string &data) {
 #ifdef USE_SENSOR
     // Update all registered sensors
     for (auto &sensor_pair : this->sensors_) {
-      const std::string &tag = sensor_pair.first;
-      sensor::Sensor *sensor = sensor_pair.second;
+      const char *tag = sensor_pair.first;
+      sensor::Sensor *sensor_ptr = sensor_pair.second;
 
       if (root[tag].is<JsonVariant>()) {
         float value = root[tag];
-        ESP_LOGV(TAG, "Updating sensor '%s' with value: %.2f", tag.c_str(), value);
-        sensor->publish_state(value);
+        ESP_LOGV(TAG, "Updating sensor '%s' with value: %.2f", tag, value);
+        sensor_ptr->publish_state(value);
       }
     }
 #endif
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
     // Fire Home Assistant event with the received data
-    if (api::global_api_server != nullptr && api::global_api_server->is_connected()) {
+    if (this->config_panel_ && api::global_api_server != nullptr && api::global_api_server->is_connected()) {
       static constexpr auto SERVICE_EMONTX_JSON = StringRef::from_lit("esphome.emontx_json");
       static constexpr auto DATA_KEY = StringRef::from_lit("data");
 
@@ -239,14 +217,9 @@ void EmonTx::parse_json_(const std::string &data) {
 #endif
 
     // Execute all registered JSON callbacks
-    if (!this->json_callbacks_.empty()) {
-      ESP_LOGV(TAG, "Executing %d JSON callbacks", (int) this->json_callbacks_.size());
-      for (const auto &callback : this->json_callbacks_) {
-        callback(root, data);  // Pass both JsonObject and raw JSON string
-      }
-    }
+    this->json_callbacks_.call(root, data);
 
-    return true;  // Parsing was handled successfully
+    return true;
   });
 
   if (!success) {
@@ -256,27 +229,15 @@ void EmonTx::parse_json_(const std::string &data) {
 
 /**
  * @brief Logs the EmonTx component configuration details.
- *
- * @details This method is called during startup to output the component's
- * configuration to the log. It provides information about:
- * - The component identification
- * - Number of registered sensors (when sensor support is enabled)
- * - List of all registered sensors with their tag names
- *
- * This information is valuable for debugging and verifying that the
- * component is correctly configured according to the YAML definition.
- * The method is automatically called by ESPHome's core during device startup.
  */
 void EmonTx::dump_config() {
   ESP_LOGCONFIG(TAG, "EmonTx:");
   ESP_LOGCONFIG(TAG, "  Config panel: %s", this->config_panel_ ? "ENABLED" : "DISABLED");
 
 #ifdef USE_SENSOR
-  ESP_LOGCONFIG(TAG, "  Registered sensors: %u", this->sensors_.size());
-
-  // List all registered sensors with their tags
+  ESP_LOGCONFIG(TAG, "  Registered sensors: %zu", this->sensors_.size());
   for (const auto &sensor_pair : this->sensors_) {
-    ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor_pair.first.c_str());
+    ESP_LOGCONFIG(TAG, "    Sensor: %s", sensor_pair.first);
   }
 #else
   ESP_LOGCONFIG(TAG, "  Sensor support: DISABLED");
@@ -288,25 +249,23 @@ void EmonTx::dump_config() {
  *
  * @param command The command string to send (LF will be appended automatically).
  */
-void EmonTx::send_command(std::string command) {
+void EmonTx::send_command(const std::string &command) {
   ESP_LOGD(TAG, "Sending command to emonTx: %s", command.c_str());
-  // Append LF as required by emonTx firmware
-  command += "\n";
   this->write_str(command.c_str());
+  this->write_byte('\n');
 }
 
 #ifdef USE_SENSOR
 /**
  * @brief Registers a sensor to receive updates for a specific JSON tag.
  *
- * @param tag_name The JSON key to monitor for this sensor.
+ * @param tag_name The JSON key to monitor for this sensor (must be a string literal).
  * @param sensor Pointer to the sensor that will receive value updates.
  */
-void EmonTx::register_sensor(const std::string &tag_name, sensor::Sensor *sensor) {
-  ESP_LOGCONFIG(TAG, "Registering sensor for tag: %s", tag_name.c_str());
+void EmonTx::register_sensor(const char *tag_name, sensor::Sensor *sensor) {
+  ESP_LOGCONFIG(TAG, "Registering sensor for tag: %s", tag_name);
   this->sensors_.emplace_back(tag_name, sensor);
 }
 #endif
 
-}  // namespace emontx
-}  // namespace esphome
+}  // namespace esphome::emontx

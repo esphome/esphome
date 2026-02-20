@@ -26,9 +26,6 @@ from esphome.const import (
 
 from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, emontx_ns
 
-# Define USE_SENSOR when this file is loaded
-cg.add_define("USE_SENSOR")
-
 EmonTxSensor = emontx_ns.class_("EmonTxSensor", sensor.Sensor, cg.Component)
 
 # Define sensor type configurations by prefix
@@ -105,19 +102,11 @@ def apply_tag_defaults(config):
     tag_upper = tag.upper()
 
     for pattern, pattern_config in PATTERN_CONFIGS.items():
-        if pattern == "PF" and tag_upper.startswith("PF"):
+        if tag_upper.startswith(pattern):
             # Apply pattern defaults if not overridden by user
             for key, value in pattern_config.items():
                 if key not in config:
                     config[key] = value
-            # Once matched a pattern, don't check prefixes
-            return config
-        if pattern.upper() in tag_upper:
-            # Apply pattern defaults if not overridden by user
-            for key, value in pattern_config.items():
-                if key not in config:
-                    config[key] = value
-            # Once matched a pattern, don't check prefixes
             return config
 
     # Only apply defaults for known prefixes with numeric indices
