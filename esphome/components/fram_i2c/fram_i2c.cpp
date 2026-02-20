@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace nvm {
+namespace nvm {  // NOLINT(bugprone-suspicious-namespace-alias)
 
 static const char *const TAG = "nvm.fram_i2c";
 

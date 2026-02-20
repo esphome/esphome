@@ -4,7 +4,7 @@
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace nvm {
+namespace nvm {  // NOLINT(bugprone-suspicious-namespace-alias)
 
 /// FRAM model definitions
 struct FramModel {

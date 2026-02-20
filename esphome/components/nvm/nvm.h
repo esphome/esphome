@@ -175,7 +175,6 @@ class NvmDataPartition : public NvmPartition {
   static const uint8_t OFF_SIZE = 8;
   static const uint8_t OFF_FIRST_FREE = 12;
 
- protected:
   /// Validate header and check if reinitialization is needed
   /// @param expected_type The expected partition type
   /// @return true if header is valid and matches expected type

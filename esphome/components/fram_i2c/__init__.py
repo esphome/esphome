@@ -23,7 +23,7 @@ Example configuration:
             size: 12KB
 """
 
-from .nvm import CONFIG_SCHEMA as CONFIG_SCHEMA, to_code as to_code
+from .nvm import CONFIG_SCHEMA, to_code
 
 __all__ = ["CONFIG_SCHEMA", "to_code"]
 

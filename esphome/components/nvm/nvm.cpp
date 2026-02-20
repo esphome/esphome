@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 
 #include <array>
+#include <cinttypes>
 #include <cstring>
 #include <utility>
 
@@ -989,7 +990,9 @@ uint32_t NvmPreferenceBackend::find_key_(uint32_t key_hash) {
 }
 
 bool NvmPreferenceBackend::save(const uint8_t *data, size_t len) {
-  uint32_t key_hash = fnv1_hash(std::to_string(this->type_));
+  char type_buf[11];
+  snprintf(type_buf, sizeof(type_buf), "%" PRIu32, this->type_);
+  uint32_t key_hash = fnv1_hash(type_buf);
   ESP_LOGV(TAG, "Save: type=%u, key_hash=0x%08X, len=%u", this->type_, key_hash, len);
 
   uint32_t addr = this->find_key_(key_hash);
@@ -1052,7 +1055,9 @@ bool NvmPreferenceBackend::save(const uint8_t *data, size_t len) {
 }
 
 bool NvmPreferenceBackend::load(uint8_t *data, size_t len) {
-  uint32_t key_hash = fnv1_hash(std::to_string(this->type_));
+  char type_buf[11];
+  snprintf(type_buf, sizeof(type_buf), "%" PRIu32, this->type_);
+  uint32_t key_hash = fnv1_hash(type_buf);
   ESP_LOGV(TAG, "Load: type=%u, key_hash=0x%08X, len=%u", this->type_, key_hash, len);
 
   uint32_t addr = this->find_key_(key_hash);
