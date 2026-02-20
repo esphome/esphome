@@ -437,6 +437,30 @@ Here are some steps that may help mitigate the issue:
   may mitigate disconnections at the expense of increasing power (and possibly battery) usage of other devices also
   using power save modes.
 
+<span id="brownout-detector-was-triggered"></span>
+
+## "Brownout detector was triggered"
+
+This message means your ESP32's voltage dropped below a safe level, usually during a WiFi transmit burst where
+current can spike to 300-500mA. The most common causes:
+
+- **Inadequate power supply** -- USB ports, thin cables, or cheap adapters may not deliver enough current.
+- **Long or thin wiring** -- voltage drops over distance, especially with thin USB cables.
+- **Other peripherals drawing power** -- sensors, LEDs, or relays sharing the same supply.
+
+### Quick fixes
+
+1. **Reduce WiFi transmit power** -- this is the most effective single change:
+
+```yaml
+wifi:
+  output_power: 13dB  # default is 20dB
+```
+
+2. **Use a quality power supply** -- a dedicated 5V/2A supply with a short, thick USB cable.
+
+3. **Add a capacitor** -- a 100-1000µF electrolytic capacitor across the 3.3V and GND pins can absorb brief current spikes.
+
 ## Component states not restored after reboot
 
 Some components, such as `climate` and `switch` components, are able to restore their states following a
