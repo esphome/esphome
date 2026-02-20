@@ -439,6 +439,7 @@ async def to_code(config):
         cg.add_define("USE_LOGGER_EARLY_MESSAGE")
 
     if CORE.is_nrf52:
+        # esphome implement own fatal error handler which save PC/LR before reset
         zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
         if config[CONF_HARDWARE_UART] == UART0:

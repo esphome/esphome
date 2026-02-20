@@ -9,7 +9,7 @@
 #include <zephyr/sys/printk.h>
 #include <zephyr/usb/usb_device.h>
 #ifdef USE_LOGGER_EARLY_MESSAGE
-#include <zephyr/drivers/hwinfo.h>
+#include <esphome/components/zephyr/reset_reason.h>
 #endif
 
 namespace esphome::zephyr_coredump {
@@ -92,10 +92,9 @@ void Logger::pre_setup() {
   global_logger = this;
   ESP_LOGI(TAG, "Log initialized");
 #ifdef USE_LOGGER_EARLY_MESSAGE
-  uint32_t cause;
-  if (hwinfo_get_reset_cause(&cause) == 0) {
-    ESP_LOGI(TAG, "boot reason %u", cause);
-  }
+  char reason_buffer[zephyr::RESET_REASON_BUFFER_SIZE];
+  const char *reset_reason = zephyr::get_reset_reason(std::span<char, zephyr::RESET_REASON_BUFFER_SIZE>(reason_buffer));
+  ESP_LOGI(TAG, "reset reason %s", reset_reason);
   dump_crash_();
   zephyr_coredump::print_coredump();
 #endif
@@ -187,8 +186,11 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
 
 }  // namespace esphome::logger
 
+extern "C" {
+
 void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
   esphome::logger::k_sys_fatal_error_handler(reason, esf);
+}
 }
 
 #endif
