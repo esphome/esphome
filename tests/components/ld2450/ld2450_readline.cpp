@@ -161,8 +161,8 @@ TEST_F(LD2450ReadlineTest, SimulatedRestartGarbageThenFrames) {
   // Partial periodic frame (as if we started reading mid-frame), a stale footer, and more garbage
   std::vector<uint8_t> restart_noise = {
       0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E,  // mid-frame data
-      0x55, 0xCC,                                                              // stale footer bytes
-      0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89,            // more garbage
+      0x55, 0xCC,                                                                                // stale footer bytes
+      0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89,                                // more garbage
   };
 
   this->ld2450_.feed(restart_noise);
