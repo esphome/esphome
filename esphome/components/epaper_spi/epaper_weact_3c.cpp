@@ -5,6 +5,21 @@ namespace esphome::epaper_spi {
 
 static constexpr const char *const TAG = "epaper_weact_3c";
 
+static constexpr uint8_t B_W_MASK = 0x01;
+static constexpr uint8_t RED_MASK = 0x02;
+static constexpr uint8_t WHITE_BITS = B_W_MASK;
+static constexpr uint8_t RED_BITS = RED_MASK;
+static constexpr uint8_t BLACK_BITS = 0;
+
+static uint8_t color_to_bits(Color color) {
+  if (color.r > color.g + color.b && color.r > 127) {
+    return RED_BITS;  // red
+  }
+  if (color.r + color.g + color.b >= 382) {
+    return WHITE_BITS;
+  }
+  return BLACK_BITS;  // black
+}
 // SSD1680 3-color display notes:
 // - Buffer uses 1 bit per pixel, 8 pixels per byte
 // - Buffer first half (black_offset): Black/White plane (1=black, 0=white)
@@ -23,21 +38,21 @@ void EPaperWeAct3C::draw_pixel_at(int x, int y, Color color) {
 
   // Use luminance threshold for B/W mapping
   // Split at halfway point (382 = (255*3)/2)
-  bool is_white = (static_cast<int>(color.r) + color.g + color.b) > 382;
+  auto bits = color_to_bits(color);
 
   // Update black/white plane (first half of buffer)
-  if (is_white) {
-    // White pixel - clear bit in black plane
-    this->buffer_[pos] &= ~bit;
-  } else {
-    // Black pixel - set bit in black plane
+  if (bits & B_W_MASK) {
+    // White pixel - set bit in black plane
     this->buffer_[pos] |= bit;
+  } else {
+    // Black pixel - clear bit in black plane
+    this->buffer_[pos] &= ~bit;
   }
 
   // Update red plane (second half of buffer)
   // Red if red component is dominant (r > g+b)
-  if (color.r > color.g + color.b) {
-    // Red pixel - set bit in red plane
+  if (bits & RED_MASK) {
+    // black or white pixel - set bit in red plane
     this->buffer_[red_offset + pos] |= bit;
   } else {
     // Not red - clear bit in red plane
@@ -53,21 +68,20 @@ void EPaperWeAct3C::fill(Color color) {
   const size_t half_buffer = this->buffer_length_ / 2u;
 
   // Use luminance threshold for B/W mapping
-  bool is_white = (static_cast<int>(color.r) + color.g + color.b) > 382;
-  bool is_red = color.r > color.g + color.b;
+  auto bits = color_to_bits(color);
 
   // Fill both planes
-  if (is_white) {
-    // White - both planes = 0x00
+  if (bits == 0) {
+    // Black - both planes = 0x00
     this->buffer_.fill(0x00);
-  } else if (is_red) {
+  } else if (bits == RED_BITS) {
     // Red - black plane = 0x00, red plane = 0xFF
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0x00;
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[half_buffer + i] = 0xFF;
   } else {
-    // Black - black plane = 0xFF, red plane = 0x00
+    // White - black plane = 0xFF, red plane = 0x00
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0xFF;
     for (size_t i = 0; i < half_buffer; i++)
