@@ -597,10 +597,19 @@ size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf
   return base64_decode(reinterpret_cast<const uint8_t *>(encoded_string.data()), encoded_string.size(), buf, buf_len);
 }
 
+// Convert 4 base64 characters to 3 decoded bytes
+static inline void base64_decode_quad_(uint8_t *char_array_4, uint8_t *char_array_3) {
+  for (int i = 0; i < 4; i++)
+    char_array_4[i] = base64_find_char(char_array_4[i]);
+
+  char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+  char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+  char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+}
+
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len) {
   size_t in_len = encoded_len;
   int i = 0;
-  int j = 0;
   size_t in = 0;
   size_t out = 0;
   uint8_t char_array_4[4], char_array_3[3];
@@ -613,12 +622,7 @@ size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *b
     char_array_4[i++] = encoded_data[in];
     in++;
     if (i == 4) {
-      for (i = 0; i < 4; i++)
-        char_array_4[i] = base64_find_char(char_array_4[i]);
-
-      char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-      char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-      char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+      base64_decode_quad_(char_array_4, char_array_3);
 
       for (i = 0; i < 3; i++) {
         if (out < buf_len) {
@@ -632,17 +636,12 @@ size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *b
   }
 
   if (i) {
-    for (j = i; j < 4; j++)
+    for (int j = i; j < 4; j++)
       char_array_4[j] = 0;
 
-    for (j = 0; j < 4; j++)
-      char_array_4[j] = base64_find_char(char_array_4[j]);
+    base64_decode_quad_(char_array_4, char_array_3);
 
-    char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-    char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-    char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
-
-    for (j = 0; j < i - 1; j++) {
+    for (int j = 0; j < i - 1; j++) {
       if (out < buf_len) {
         buf[out++] = char_array_3[j];
       } else {
