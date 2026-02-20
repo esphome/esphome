@@ -268,7 +268,6 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
-    zephyr_add_prj_conf("REBOOT", True)
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
@@ -384,7 +383,7 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
     return False
 
 
-def _addr2line(addr2line: str, elf: Path, addr: str):
+def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
     result = subprocess.run(
         [addr2line, "-e", elf, addr],
         capture_output=True,
