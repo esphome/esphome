@@ -545,7 +545,7 @@ void HOT Scheduler::call(uint32_t now) {
     // during the function call and know if we were cancelled.
     auto executed_item = this->pop_raw_locked_();
 
-    if (executed_item->remove) {
+    if (this->is_item_removed_locked_(executed_item.get())) {
       // We were removed/cancelled in the function call, recycle and continue
       this->to_remove_--;
       this->recycle_item_main_loop_(std::move(executed_item));
@@ -605,7 +605,7 @@ size_t HOT Scheduler::cleanup_() {
   LockGuard guard{this->lock_};
   while (!this->items_.empty()) {
     auto &item = this->items_[0];
-    if (!item->remove)
+    if (!this->is_item_removed_locked_(item.get()))
       break;
     this->to_remove_--;
     this->recycle_item_main_loop_(this->pop_raw_locked_());
