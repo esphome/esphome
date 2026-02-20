@@ -45,6 +45,10 @@ extern "C" {
 #include <WiFi.h>
 #endif
 
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+#include <esp_wifi_types.h>
+#endif
+
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -436,7 +440,7 @@ class WiFiComponent : public Component {
   void set_min_auth_mode(WifiMinAuthMode min_auth_mode) { min_auth_mode_ = min_auth_mode; }
   void set_output_power(float output_power) { output_power_ = output_power; }
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
-  void set_band_mode(uint8_t band_mode) { this->band_mode_ = band_mode; }
+  void set_band_mode(wifi_band_mode_t band_mode) { this->band_mode_ = band_mode; }
 #endif
 
   void set_passive_scan(bool passive);
@@ -781,7 +785,7 @@ class WiFiComponent : public Component {
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
-  uint8_t band_mode_{0};  // WIFI_BAND_MODE_AUTO
+  wifi_band_mode_t band_mode_{WIFI_BAND_MODE_AUTO};
 #endif
   WifiMinAuthMode min_auth_mode_{WIFI_MIN_AUTH_MODE_WPA2};
   WiFiRetryPhase retry_phase_{WiFiRetryPhase::INITIAL_CONNECT};
