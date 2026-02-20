@@ -2,9 +2,9 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace nvm {  // NOLINT(bugprone-suspicious-namespace-alias)
+namespace fram_i2c {
 
-static const char *const TAG = "nvm.fram_i2c";
+static const char *const TAG = "fram_i2c";
 
 void FramI2cPlatform::setup() {
   // Check if FRAM is connected
@@ -160,5 +160,5 @@ bool FramI2cPlatform::write_bytes_ext_(uint32_t memaddr, const uint8_t *data, si
   return true;
 }
 
-}  // namespace nvm
+}  // namespace fram_i2c
 }  // namespace esphome

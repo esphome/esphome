@@ -4,7 +4,11 @@
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace nvm {  // NOLINT(bugprone-suspicious-namespace-alias)
+namespace fram_i2c {
+
+// Import NvmPlatform from nvm namespace for inheritance
+using nvm::NvmPartition;
+using nvm::NvmPlatform;
 
 /// FRAM model definitions
 struct FramModel {
@@ -78,5 +82,5 @@ class FramI2cPlatform : public NvmPlatform, public i2c::I2CDevice {
   FramModel model_{32 * 1024, 2, "MB85RC256"};  // Default: MB85RC256
 };
 
-}  // namespace nvm
+}  // namespace fram_i2c
 }  // namespace esphome

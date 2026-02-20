@@ -26,8 +26,9 @@ from esphome.const import CONF_ADDRESS, CONF_ID, CONF_MODEL, CONF_SIZE
 CODEOWNERS = ["@pgolawsk"]
 DEPENDENCIES = ["i2c"]
 
-# FRAM I2C platform class
-FramI2cPlatform = nvm.nvm_ns.class_("FramI2cPlatform", nvm.NvmPlatform, i2c.I2CDevice)
+# FRAM I2C namespace and platform class
+fram_i2c_ns = cg.esphome_ns.namespace("fram_i2c")
+FramI2cPlatform = fram_i2c_ns.class_("FramI2cPlatform", nvm.NvmPlatform, i2c.I2CDevice)
 
 # FRAM model definitions (size in bytes)
 # All models use default I²C address 0x50 (configurable via A0-A2 pins to 0x50-0x57)

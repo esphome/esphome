@@ -251,7 +251,7 @@ bool KeyValuePartition::set(const std::string &key, const uint8_t *value, size_t
     }
     // Skip entry: key_len(1) + key + value_len(2) + value
     uint8_t key_len = marker;
-    uint16_t value_len;
+    uint16_t value_len = 0;
     this->read(write_offset + 1 + key_len, reinterpret_cast<uint8_t *>(&value_len), 2);
     write_offset += 1 + key_len + 2 + value_len;
   }
@@ -385,7 +385,7 @@ bool KeyValuePartition::find_key_(const std::string &key, uint32_t &offset, uint
     }
 
     // Skip to next entry
-    uint16_t entry_value_len;
+    uint16_t entry_value_len = 0;
     this->read(current_offset + 1 + key_len, reinterpret_cast<uint8_t *>(&entry_value_len), 2);
     current_offset += 1 + key_len + 2 + entry_value_len;
   }
@@ -427,7 +427,7 @@ uint32_t KeyValuePartition::calculate_used_bytes_() {
     }
 
     // Read value length
-    uint16_t value_len;
+    uint16_t value_len = 0;
     this->read(current_offset + 1 + key_len, reinterpret_cast<uint8_t *>(&value_len), 2);
 
     // Add entry size: key_len(1) + key + value_len(2) + value
@@ -624,11 +624,7 @@ bool NvmDataPartition::validate_header_(PartitionType expected_type) {
 
   uint32_t stored_size = 0;
   this->read(OFF_SIZE, reinterpret_cast<uint8_t *>(&stored_size), 4);
-  if (stored_size != this->get_size()) {
-    return false;
-  }
-
-  return true;
+  return stored_size == this->get_size();
 }
 
 void NvmDataPartition::write_header_(uint32_t partition_size, PartitionType type, uint32_t first_free) {
