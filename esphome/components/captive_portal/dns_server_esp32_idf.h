@@ -1,7 +1,6 @@
 #pragma once
 #ifdef USE_ESP32
 
-#include <memory>
 #include "esphome/core/helpers.h"
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/socket/socket.h"
@@ -15,9 +14,14 @@ class DNSServer {
   void process_next_request();
 
  protected:
+  // Socket destructor calls close() if not already closed
+  inline void close_socket_() {
+    delete this->socket_;
+    this->socket_ = nullptr;
+  }
   static constexpr size_t DNS_BUFFER_SIZE = 192;
 
-  std::unique_ptr<socket::Socket> socket_{nullptr};
+  socket::Socket *socket_{nullptr};
   network::IPAddress server_ip_;
   uint8_t buffer_[DNS_BUFFER_SIZE];
 };

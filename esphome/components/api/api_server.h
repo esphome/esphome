@@ -249,8 +249,14 @@ class APIServer : public Component,
   void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
                                std::function<void(const std::string &)> f, bool once);
 #endif  // USE_API_HOMEASSISTANT_STATES
+  // Socket destructor calls close() if not already closed
+  inline void close_socket_() {
+    delete this->socket_;
+    this->socket_ = nullptr;
+  }
+  void socket_failed_(const LogString *msg);
   // Pointers and pointer-like types first (4 bytes each)
-  std::unique_ptr<socket::Socket> socket_ = nullptr;
+  socket::Socket *socket_{nullptr};
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   Trigger<std::string, std::string> client_connected_trigger_;
 #endif

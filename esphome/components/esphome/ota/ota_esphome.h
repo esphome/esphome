@@ -66,6 +66,7 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
     this->handshake_buf_pos_ = 0;  // Reset buffer position for next state
   }
 
+  void server_failed_(const LogString *msg);
   void log_socket_error_(const LogString *msg);
   void log_read_error_(const LogString *what);
   void log_start_(const LogString *phase);
@@ -83,7 +84,7 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   std::unique_ptr<uint8_t[]> auth_buf_;
 #endif  // USE_OTA_PASSWORD
 
-  std::unique_ptr<socket::Socket> server_;
+  socket::Socket *server_{nullptr};
   std::unique_ptr<socket::Socket> client_;
   std::unique_ptr<ota::OTABackend> backend_;
 
