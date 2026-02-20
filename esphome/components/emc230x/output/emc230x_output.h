@@ -1,14 +1,14 @@
 #pragma once
 
-#include "../emc2303.h"
+#include "../emc230x.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome::emc2303 {
+namespace esphome::emc230x {
 
-// This class allows to control the EMC2303 output.
-class Emc2303Output : public output::FloatOutput {
+// This class allows to control the EMC230X outputs.
+class Emc230xOutput : public output::FloatOutput {
  public:
-  Emc2303Output(Emc2303Component *parent) : parent_(parent) {}
+  Emc230xOutput(Emc230xComponent *parent) : parent_(parent) {}
 
   /** Set the fan number for this output
    *
@@ -22,7 +22,7 @@ class Emc2303Output : public output::FloatOutput {
   /** Used by ESPHome framework. */
   void write_state(float state) override;
 
-  Emc2303Component *parent_;
+  Emc230xComponent *parent_;
 };
 
-}  // namespace esphome::emc2303
+}  // namespace esphome::emc230x

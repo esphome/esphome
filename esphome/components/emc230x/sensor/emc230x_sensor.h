@@ -1,14 +1,14 @@
 #pragma once
 
-#include "../emc2303.h"
+#include "../emc230x.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome::emc2303 {
+namespace esphome::emc230x {
 
-// This class exposes the EMC2303 sensors.
-class Emc2303Sensor : public PollingComponent {
+// This class exposes the EMC230X sensors.
+class Emc230xSensor : public PollingComponent {
  public:
-  Emc2303Sensor(Emc2303Component *parent) : parent_(parent) {}
+  Emc230xSensor(Emc230xComponent *parent) : parent_(parent) {}
 
   /** Set the fan number for this sensor
    *
@@ -25,8 +25,8 @@ class Emc2303Sensor : public PollingComponent {
   uint8_t fan_;
 
  protected:
-  Emc2303Component *parent_;
+  Emc230xComponent *parent_;
   sensor::Sensor *speed_sensor_{nullptr};
 };
 
-}  // namespace esphome::emc2303
+}  // namespace esphome::emc230x
