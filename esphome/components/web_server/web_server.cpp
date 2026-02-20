@@ -15,8 +15,6 @@
 #include "StreamString.h"
 #endif
 
-#include <chrono>
-#include <cinttypes>
 #include <cstdlib>
 
 #ifdef USE_LIGHT
@@ -372,12 +370,6 @@ void WebServer::set_css_include(const char *css_include) { this->css_include_ = 
 void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
 #endif
 
-/// Get uptime in milliseconds using std::chrono::steady_clock (64-bit, no rollover)
-static int64_t get_uptime_ms() {
-  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
-      .count();
-}
-
 json::SerializationBuffer<> WebServer::get_config_json() {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
@@ -393,7 +385,7 @@ json::SerializationBuffer<> WebServer::get_config_json() {
 #endif
   root[ESPHOME_F("log")] = this->expose_log_;
   root[ESPHOME_F("lang")] = "en";
-  root[ESPHOME_F("uptime")] = get_uptime_ms();
+  root[ESPHOME_F("uptime")] = static_cast<uint32_t>(App.scheduler.millis_64() / 1000);
 
   return builder.serialize();
 }
@@ -422,7 +414,8 @@ void WebServer::setup() {
   // getting a lot of events
   this->set_interval(10000, [this]() {
     char buf[32];
-    buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%" PRId64 "}", get_uptime_ms());
+    auto uptime = static_cast<uint32_t>(App.scheduler.millis_64() / 1000);
+    buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%u}", uptime);
     this->events_.try_send_nodefer(buf, "ping", millis(), 30000);
   });
 }
