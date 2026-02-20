@@ -104,7 +104,7 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
   this->safe_mode_enable_time_ = enable_time;
   this->safe_mode_boot_is_good_after_ = boot_is_good_after;
   this->safe_mode_num_attempts_ = num_attempts;
-  this->rtc_ = global_preferences->make_preference<uint32_t>(233825507UL, false);
+  this->rtc_ = global_preferences->make_preference<uint32_t>(RTC_KEY, false);
 
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
   // Check partition state to detect if bootloader supports rollback
