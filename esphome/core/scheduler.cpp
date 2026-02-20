@@ -406,7 +406,7 @@ void Scheduler::full_cleanup_removed_items_() {
   // Compact in-place: move valid items forward, recycle removed ones
   size_t write = 0;
   for (size_t read = 0; read < this->items_.size(); ++read) {
-    if (!is_item_removed_(this->items_[read].get())) {
+    if (!is_item_removed_locked_(this->items_[read].get())) {
       if (write != read) {
         this->items_[write] = std::move(this->items_[read]);
       }
@@ -508,7 +508,7 @@ void HOT Scheduler::call(uint32_t now) {
     // Multi-threaded platforms without atomics: must take lock to safely read remove flag
     {
       LockGuard guard{this->lock_};
-      if (is_item_removed_(item.get())) {
+      if (is_item_removed_locked_(item.get())) {
         this->recycle_item_main_loop_(this->pop_raw_locked_());
         this->to_remove_--;
         continue;
@@ -572,7 +572,7 @@ void HOT Scheduler::call(uint32_t now) {
 void HOT Scheduler::process_to_add() {
   LockGuard guard{this->lock_};
   for (auto &it : this->to_add_) {
-    if (is_item_removed_(it.get())) {
+    if (is_item_removed_locked_(it.get())) {
       // Recycle cancelled items
       this->recycle_item_main_loop_(std::move(it));
       continue;
