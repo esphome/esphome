@@ -58,9 +58,9 @@ union FuData {
   float f32;
 };
 
-static const uint16_t MAGIC_NUMBER = 0x4553;
-static const uint16_t MAGIC_PING = 0x5048;
-static const uint32_t PREF_HASH = 0x45535043;
+static constexpr uint16_t MAGIC_NUMBER = 0x4553;
+static constexpr uint16_t MAGIC_PING = 0x5048;
+static constexpr uint32_t PREF_HASH = 0x45535043;
 enum DataKey {
   ZERO_FILL_KEY,
   DATA_KEY,
@@ -396,9 +396,9 @@ static bool process_rolling_code(Provider &provider, PacketDecoder &decoder) {
 /**
  * Process a received packet
  */
-void PacketTransport::process_(const std::vector<uint8_t> &data) {
+void PacketTransport::process_(std::span<const uint8_t> data) {
   auto ping_key_seen = !this->ping_pong_enable_;
-  PacketDecoder decoder((data.data()), data.size());
+  PacketDecoder decoder(data.data(), data.size());
   char namebuf[256]{};
   uint8_t byte;
   FuData rdata{};

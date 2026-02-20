@@ -11,12 +11,6 @@ namespace i2c {
 static const char *const TAG = "i2c";
 
 void I2CBus::i2c_scan_() {
-  // suppress logs from the IDF I2C library during the scan
-#if defined(USE_ESP32) && defined(USE_LOGGER)
-  auto previous = esp_log_level_get("*");
-  esp_log_level_set("*", ESP_LOG_NONE);
-#endif
-
   for (uint8_t address = 8; address != 120; address++) {
     auto err = write_readv(address, nullptr, 0, nullptr, 0);
     if (err == ERROR_OK) {
@@ -27,9 +21,6 @@ void I2CBus::i2c_scan_() {
     // it takes 16sec to scan on nrf52. It prevents board reset.
     arch_feed_wdt();
   }
-#if defined(USE_ESP32) && defined(USE_LOGGER)
-  esp_log_level_set("*", previous);
-#endif
 }
 
 ErrorCode I2CDevice::read_register(uint8_t a_register, uint8_t *data, size_t len) {

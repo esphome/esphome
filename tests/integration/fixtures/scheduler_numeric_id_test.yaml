@@ -20,6 +20,9 @@ globals:
   - id: retry_counter
     type: int
     initial_value: '0'
+  - id: defer_counter
+    type: int
+    initial_value: '0'
   - id: tests_done
     type: bool
     initial_value: 'false'
@@ -136,11 +139,49 @@ script:
           App.scheduler.cancel_retry(component1, 6002U);
           ESP_LOGI("test", "Cancelled numeric retry 6002");
 
+          // Test 12: defer with numeric ID (Component method)
+          class TestDeferComponent : public Component {
+          public:
+            void test_defer_methods() {
+              // Test defer with uint32_t ID - should execute on next loop
+              this->defer(7001U, []() {
+                ESP_LOGI("test", "Component numeric defer 7001 fired");
+                id(defer_counter) += 1;
+              });
+
+              // Test another defer with numeric ID
+              this->defer(7002U, []() {
+                ESP_LOGI("test", "Component numeric defer 7002 fired");
+                id(defer_counter) += 1;
+              });
+            }
+          };
+
+          static TestDeferComponent test_defer_component;
+          test_defer_component.test_defer_methods();
+
+          // Test 13: cancel_defer with numeric ID (Component method)
+          class TestCancelDeferComponent : public Component {
+          public:
+            void test_cancel_defer() {
+              // Set a defer that should be cancelled
+              this->defer(8001U, []() {
+                ESP_LOGE("test", "ERROR: Numeric defer 8001 should have been cancelled");
+              });
+              // Cancel it immediately
+              bool cancelled = this->cancel_defer(8001U);
+              ESP_LOGI("test", "Cancelled numeric defer 8001: %s", cancelled ? "true" : "false");
+            }
+          };
+
+          static TestCancelDeferComponent test_cancel_defer_component;
+          test_cancel_defer_component.test_cancel_defer();
+
   - id: report_results
     then:
       - lambda: |-
-          ESP_LOGI("test", "Final results - Timeouts: %d, Intervals: %d, Retries: %d",
-                   id(timeout_counter), id(interval_counter), id(retry_counter));
+          ESP_LOGI("test", "Final results - Timeouts: %d, Intervals: %d, Retries: %d, Defers: %d",
+                   id(timeout_counter), id(interval_counter), id(retry_counter), id(defer_counter));
 
 sensor:
   - platform: template

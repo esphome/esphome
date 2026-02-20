@@ -8,7 +8,6 @@
 #include "preferences.h"
 
 #include <cstring>
-#include <vector>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -19,11 +18,15 @@ namespace rp2040 {
 
 static const char *const TAG = "rp2040.preferences";
 
-static bool s_prevent_write = false;        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static uint8_t *s_flash_storage = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_flash_dirty = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static constexpr uint32_t RP2040_FLASH_STORAGE_SIZE = 512;
 
-static const uint32_t RP2040_FLASH_STORAGE_SIZE = 512;
+static bool s_prevent_write = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static uint8_t
+    s_flash_storage[RP2040_FLASH_STORAGE_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_flash_dirty = false;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+// No preference can exceed the total flash storage, so stack buffer covers all cases.
+static constexpr size_t PREF_MAX_BUFFER_SIZE = RP2040_FLASH_STORAGE_SIZE;
 
 extern "C" uint8_t _EEPROM_start;
 
@@ -42,13 +45,15 @@ class RP2040PreferenceBackend : public ESPPreferenceBackend {
   uint32_t type = 0;
 
   bool save(const uint8_t *data, size_t len) override {
-    std::vector<uint8_t> buffer;
-    buffer.resize(len + 1);
-    memcpy(buffer.data(), data, len);
-    buffer[buffer.size() - 1] = calculate_crc(buffer.begin(), buffer.end() - 1, type);
+    const size_t buffer_size = len + 1;
+    if (buffer_size > PREF_MAX_BUFFER_SIZE)
+      return false;
+    uint8_t buffer[PREF_MAX_BUFFER_SIZE];
+    memcpy(buffer, data, len);
+    buffer[len] = calculate_crc(buffer, buffer + len, this->type);
 
-    for (uint32_t i = 0; i < len + 1; i++) {
-      uint32_t j = offset + i;
+    for (size_t i = 0; i < buffer_size; i++) {
+      uint32_t j = this->offset + i;
       if (j >= RP2040_FLASH_STORAGE_SIZE)
         return false;
       uint8_t v = buffer[i];
@@ -60,22 +65,24 @@ class RP2040PreferenceBackend : public ESPPreferenceBackend {
     return true;
   }
   bool load(uint8_t *data, size_t len) override {
-    std::vector<uint8_t> buffer;
-    buffer.resize(len + 1);
+    const size_t buffer_size = len + 1;
+    if (buffer_size > PREF_MAX_BUFFER_SIZE)
+      return false;
+    uint8_t buffer[PREF_MAX_BUFFER_SIZE];
 
-    for (size_t i = 0; i < len + 1; i++) {
-      uint32_t j = offset + i;
+    for (size_t i = 0; i < buffer_size; i++) {
+      uint32_t j = this->offset + i;
       if (j >= RP2040_FLASH_STORAGE_SIZE)
         return false;
       buffer[i] = s_flash_storage[j];
     }
 
-    uint8_t crc = calculate_crc(buffer.begin(), buffer.end() - 1, type);
-    if (buffer[buffer.size() - 1] != crc) {
+    uint8_t crc = calculate_crc(buffer, buffer + len, this->type);
+    if (buffer[len] != crc) {
       return false;
     }
 
-    memcpy(data, buffer.data(), len);
+    memcpy(data, buffer, len);
     return true;
   }
 };
@@ -86,7 +93,6 @@ class RP2040Preferences : public ESPPreferences {
 
   RP2040Preferences() : eeprom_sector_(&_EEPROM_start) {}
   void setup() {
-    s_flash_storage = new uint8_t[RP2040_FLASH_STORAGE_SIZE];  // NOLINT
     ESP_LOGVV(TAG, "Loading preferences from flash");
     memcpy(s_flash_storage, this->eeprom_sector_, RP2040_FLASH_STORAGE_SIZE);
   }
@@ -144,10 +150,11 @@ class RP2040Preferences : public ESPPreferences {
   uint8_t *eeprom_sector_;
 };
 
+static RP2040Preferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void setup_preferences() {
-  auto *prefs = new RP2040Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  prefs->setup();
-  global_preferences = prefs;
+  s_preferences.setup();
+  global_preferences = &s_preferences;
 }
 void preferences_prevent_write(bool prevent) { s_prevent_write = prevent; }
 
