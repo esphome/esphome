@@ -19,22 +19,26 @@ static const uint8_t START_CHARACTER_2 = 0x4D;
 static const uint8_t READ_DATA_RETRY_COUNT = 3;
 
 void PMSA003IComponent::setup() {
-  PM25AQIData data;
-  bool successful_read = this->read_data_(&data);
+  // The PMSA003I needs several seconds after power-on before producing valid
+  // data frames (start bytes 0x42 0x4D), so we wait 3 seconds before trying to read the data.
+  this->set_timeout(3000, [this]() {
+    PM25AQIData data;
+    bool successful_read = this->read_data_(&data);
 
-  if (!successful_read) {
-    for (uint8_t i = 0; i < READ_DATA_RETRY_COUNT; i++) {
-      successful_read = this->read_data_(&data);
-      if (successful_read) {
-        break;
+    if (!successful_read) {
+      for (uint8_t i = 0; i < READ_DATA_RETRY_COUNT; i++) {
+        successful_read = this->read_data_(&data);
+        if (successful_read) {
+          break;
+        }
       }
     }
-  }
 
-  if (!successful_read) {
-    this->mark_failed();
-    return;
-  }
+    if (!successful_read) {
+      this->mark_failed();
+      return;
+    }
+  });
 }
 
 void PMSA003IComponent::dump_config() {
