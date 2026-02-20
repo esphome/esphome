@@ -93,10 +93,7 @@ TEST_F(LD2450ReadlineTest, CmdFooterInGarbageResyncs) {
 TEST_F(LD2450ReadlineTest, OverflowResetsBuffer) {
   // Fill the buffer to capacity with filler that won't match any footer.
   // MAX_LINE_LENGTH is 45, usable is 44. The 45th byte triggers overflow.
-  std::vector<uint8_t> overflow_data;
-  for (int i = 0; i < MAX_LINE_LENGTH; i++) {
-    overflow_data.push_back(0x11);  // Filler that won't match any footer
-  }
+  std::vector<uint8_t> overflow_data(MAX_LINE_LENGTH, 0x11);
   this->ld2450_.feed(overflow_data);
   // After overflow, buffer_pos_ resets to 0 (via the < 4 early return path)
   EXPECT_LT(this->ld2450_.buffer_pos_, 4);
@@ -104,10 +101,7 @@ TEST_F(LD2450ReadlineTest, OverflowResetsBuffer) {
 
 TEST_F(LD2450ReadlineTest, OverflowThenValidFrame) {
   // Overflow, then a valid frame should be processed.
-  std::vector<uint8_t> overflow_data;
-  for (int i = 0; i < MAX_LINE_LENGTH; i++) {
-    overflow_data.push_back(0x11);
-  }
+  std::vector<uint8_t> overflow_data(MAX_LINE_LENGTH, 0x11);
   this->ld2450_.feed(overflow_data);
 
   auto frame = make_periodic_frame();
@@ -119,11 +113,7 @@ TEST_F(LD2450ReadlineTest, BufferLargeEnoughForDesyncedFooter) {
   // The key fix: the buffer (45) is large enough that a desynced periodic frame's
   // footer (at most 30 bytes into the stream) will land inside the buffer before overflow.
   // Simulate starting 10 bytes into a periodic frame, then a full frame follows.
-  std::vector<uint8_t> mid_frame;
-  // 10 bytes of "mid-frame" data (no footer match)
-  for (int i = 0; i < 10; i++) {
-    mid_frame.push_back(0x30 + i);
-  }
+  std::vector<uint8_t> mid_frame = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39};
   // Then a complete periodic frame whose footer will land at position 40 (10 + 30),
   // well within the buffer size of 45.
   auto frame = make_periodic_frame();
