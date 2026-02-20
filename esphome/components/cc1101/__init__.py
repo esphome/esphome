@@ -400,7 +400,7 @@ def _register_setter_actions():
             key=CONF_VALUE,
         )
 
-        async def to_code(
+        async def _setter_action_to_code(
             config,
             action_id,
             template_arg,
@@ -419,7 +419,9 @@ def _register_setter_actions():
                 cg.add(getattr(var, _setter)(_map[data] if _map else data))
             return var
 
-        automation.register_action(f"cc1101.{setter_name}", action_cls, schema)(to_code)
+        automation.register_action(f"cc1101.{setter_name}", action_cls, schema)(
+            _setter_action_to_code
+        )
 
 
 _register_setter_actions()
