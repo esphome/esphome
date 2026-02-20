@@ -506,7 +506,7 @@ void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClient
       bool dropped = false;
       switch (item.priority) {
         case ModbusDeviceCommandPriority::READ_ONCE:
-          item.priority = ModbusDeviceCommandPriority::READ_CONTINUOUS;
+          item.priority = ModbusDeviceCommandPriority::READ_AGAIN;
           ESP_LOGV(TAG, "Frame already in tx queue, scheduled for resend: %s", format_hex_pretty(frame).c_str());
           break;
         case ModbusDeviceCommandPriority::READ_CONTINUOUS:
@@ -534,7 +534,7 @@ void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClient
       bool dropped = false;
       switch (item.priority) {
         case ModbusDeviceCommandPriority::READ_ONCE:
-          item.priority = ModbusDeviceCommandPriority::READ_CONTINUOUS;
+          item.priority = ModbusDeviceCommandPriority::READ_AGAIN;
           ESP_LOGV(TAG, "Frame already in tx queue, scheduled for resend: %s", format_hex_pretty(frame).c_str());
           break;
         case ModbusDeviceCommandPriority::READ_CONTINUOUS:
