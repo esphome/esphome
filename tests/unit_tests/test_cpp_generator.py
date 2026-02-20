@@ -325,7 +325,7 @@ class TestStatements:
             ),
             (
                 cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar"),
-                'static const uint16_t foo[] PROGMEM = "bar"',
+                'static constexpr uint16_t foo[] PROGMEM = "bar"',
             ),
         ),
     )

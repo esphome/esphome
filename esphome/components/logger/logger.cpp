@@ -261,6 +261,9 @@ void Logger::dump_config() {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
   }
 #endif
+#ifdef USE_ZEPHYR
+  dump_crash_();
+#endif
 }
 
 void Logger::set_log_level(uint8_t level) {
