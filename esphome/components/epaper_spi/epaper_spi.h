@@ -3,6 +3,7 @@
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
 namespace esphome::epaper_spi {
@@ -69,6 +70,13 @@ class EPaperBase : public Display,
   void setup() override;
 
   void on_safe_shutdown() override;
+
+  EPaperState get_state() const { return this->state_; }
+  bool is_rendering() const { return this->state_ != EPaperState::IDLE; }
+  bool is_epaper_idle() const { return !this->is_rendering(); }
+  void add_on_state_callback(std::function<void(EPaperState)> &&callback);
+  void add_on_render_start_callback(std::function<void()> &&callback);
+  void add_on_render_end_callback(std::function<void()> &&callback);
 
   DisplayType get_display_type() override { return this->display_type_; };
 
@@ -188,6 +196,42 @@ class EPaperBase : public Display,
   EPaperState state_{EPaperState::IDLE};
   uint32_t reset_duration_{10};
   uint8_t full_update_every_{1};
+  CallbackManager<void(EPaperState)> state_callback_{};
+  CallbackManager<void()> render_start_callback_{};
+  CallbackManager<void()> render_end_callback_{};
 };
+
+class EPaperStateTrigger : public Trigger<EPaperState> {
+ public:
+  explicit EPaperStateTrigger(EPaperBase *parent) {
+    parent->add_on_state_callback([this](EPaperState state) { this->trigger(state); });
+  }
+};
+
+class EPaperRenderStartTrigger : public Trigger<> {
+ public:
+  explicit EPaperRenderStartTrigger(EPaperBase *parent) {
+    parent->add_on_render_start_callback([this]() { this->trigger(); });
+  }
+};
+
+class EPaperRenderEndTrigger : public Trigger<> {
+ public:
+  explicit EPaperRenderEndTrigger(EPaperBase *parent) {
+    parent->add_on_render_end_callback([this]() { this->trigger(); });
+  }
+};
+
+template<bool RENDERING, typename... Ts> class EPaperRenderingCondition : public Condition<Ts...> {
+ public:
+  explicit EPaperRenderingCondition(EPaperBase *parent) : parent_(parent) {}
+  bool check(Ts... x) override { return this->parent_->is_rendering() == RENDERING; }
+
+ protected:
+  EPaperBase *parent_;
+};
+
+template<typename... Ts> using EPaperIsRenderingCondition = EPaperRenderingCondition<true, Ts...>;
+template<typename... Ts> using EPaperIsIdleCondition = EPaperRenderingCondition<false, Ts...>;
 
 }  // namespace esphome::epaper_spi

@@ -1,6 +1,12 @@
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
 
+esphome:
+  on_boot:
+    then:
+      - lambda: |-
+          (void) (id(seeed_reterminal_e1002_display).get_state() == esphome::epaper_spi::EPaperState::IDLE);
+
 display:
   - platform: epaper_spi
     spi_id: spi_bus
@@ -76,6 +82,27 @@ display:
 
   - platform: epaper_spi
     model: seeed-reterminal-e1002
+    id: seeed_reterminal_e1002_display
+    on_state:
+      then:
+        - lambda: |-
+            (void) x;
+    on_render_start:
+      then:
+        - if:
+            condition:
+              display.is_rendering: seeed_reterminal_e1002_display
+            then:
+              - lambda: |-
+                  ;
+    on_render_end:
+      then:
+        - if:
+            condition:
+              display.is_idle: seeed_reterminal_e1002_display
+            then:
+              - lambda: |-
+                  ;
   - platform: epaper_spi
     model: seeed-ee04-mono-4.26
     # Override pins to avoid conflict with other display configs

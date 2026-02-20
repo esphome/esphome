@@ -1,7 +1,8 @@
 import importlib
 import pkgutil
 
-from esphome import core, pins
+from esphome import automation, core, pins
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
@@ -27,8 +28,10 @@ from esphome.const import (
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
     CONF_ROTATION,
+    CONF_ON_STATE,
     CONF_SWAP_XY,
     CONF_TRANSFORM,
+    CONF_TRIGGER_ID,
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
 )
@@ -42,10 +45,28 @@ DEPENDENCIES = ["spi"]
 
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
+CONF_ON_RENDER_START = "on_render_start"
+CONF_ON_RENDER_END = "on_render_end"
 
 epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
     "EPaperBase", cg.PollingComponent, spi.SPIDevice, display.Display
+)
+EPaperState = epaper_spi_ns.enum("EPaperState", is_class=True)
+EPaperStateTrigger = epaper_spi_ns.class_(
+    "EPaperStateTrigger", automation.Trigger.template()
+)
+EPaperRenderStartTrigger = epaper_spi_ns.class_(
+    "EPaperRenderStartTrigger", automation.Trigger.template()
+)
+EPaperRenderEndTrigger = epaper_spi_ns.class_(
+    "EPaperRenderEndTrigger", automation.Trigger.template()
+)
+EPaperIsRenderingCondition = epaper_spi_ns.class_(
+    "EPaperIsRenderingCondition", automation.Condition
+)
+EPaperIsIdleCondition = epaper_spi_ns.class_(
+    "EPaperIsIdleCondition", automation.Condition
 )
 Transform = epaper_spi_ns.enum("Transform")
 
@@ -106,6 +127,25 @@ def model_schema(config):
             model.option(CONF_RESET_DURATION, cv.UNDEFINED): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
+            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EPaperStateTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_RENDER_START): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        EPaperRenderStartTrigger
+                    ),
+                }
+            ),
+            cv.Optional(CONF_ON_RENDER_END): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        EPaperRenderEndTrigger
+                    ),
+                }
             ),
         }
     )
@@ -201,6 +241,17 @@ async def to_code(config):
         transform[CONF_SWAP_XY] = False
     else:
         transform = {x: model.get_default(x, False) for x in TRANSFORM_OPTIONS}
+
+    for conf in config.get(CONF_ON_STATE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(EPaperState, "x")], conf)
+    for conf in config.get(CONF_ON_RENDER_START, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_RENDER_END, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
     rotation = config[CONF_ROTATION]
     if rotation == 180:
         transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
@@ -220,3 +271,31 @@ async def to_code(config):
     )
     if transform_str:
         cg.add(var.set_transform(RawExpression(transform_str)))
+
+
+@automation.register_condition(
+    "display.is_rendering",
+    EPaperIsRenderingCondition,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(EPaperBase),
+        }
+    ),
+)
+async def display_is_rendering_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)
+
+
+@automation.register_condition(
+    "display.is_idle",
+    EPaperIsIdleCondition,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(EPaperBase),
+        }
+    ),
+)
+async def display_is_idle_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)

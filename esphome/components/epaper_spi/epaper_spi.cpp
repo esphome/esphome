@@ -20,6 +20,18 @@ const char *EPaperBase::epaper_state_to_string_() {
   return "Unknown";
 }
 
+void EPaperBase::add_on_state_callback(std::function<void(EPaperState)> &&callback) {
+  this->state_callback_.add(std::move(callback));
+}
+
+void EPaperBase::add_on_render_start_callback(std::function<void()> &&callback) {
+  this->render_start_callback_.add(std::move(callback));
+}
+
+void EPaperBase::add_on_render_end_callback(std::function<void()> &&callback) {
+  this->render_end_callback_.add(std::move(callback));
+}
+
 void EPaperBase::setup() {
   if (!this->init_buffer_(this->buffer_length_)) {
     this->mark_failed(LOG_STR("Failed to initialise buffer"));
@@ -219,8 +231,19 @@ void EPaperBase::process_state_() {
 }
 
 void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
+  auto old_state = this->state_;
+  auto old_rendering = this->is_rendering();
   ESP_LOGV(TAG, "Exit state %s", this->epaper_state_to_string_());
   this->state_ = state;
+  if (old_state != state) {
+    this->state_callback_.call(state);
+  }
+  auto new_rendering = this->is_rendering();
+  if (!old_rendering && new_rendering) {
+    this->render_start_callback_.call();
+  } else if (old_rendering && !new_rendering) {
+    this->render_end_callback_.call();
+  }
   this->wait_for_idle_(state > EPaperState::SHOULD_WAIT);
   // allow subclasses to nominate delays
   if (delay == 0)
