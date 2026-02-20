@@ -1,4 +1,5 @@
 import logging
+import math
 
 from esphome import automation
 from esphome.automation import Condition
@@ -493,6 +494,13 @@ async def to_code(config):
         cg.add(var.set_passive_scan(True))
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
+        if CORE.is_esp32:
+            # Set PHY max TX power to match output_power so calibration also uses
+            # reduced power. This prevents brownout during PHY init on marginal
+            # power supplies, which is critical for OTA updates with rollback enabled.
+            # Kconfig range is 10-20, ESPHome allows 8.5-20.5
+            phy_tx_power = max(10, min(20, math.ceil(config[CONF_OUTPUT_POWER])))
+            add_idf_sdkconfig_option("CONFIG_ESP_PHY_MAX_WIFI_TX_POWER", phy_tx_power)
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))

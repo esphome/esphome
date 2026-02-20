@@ -728,7 +728,7 @@ uint64_t Scheduler::millis_64_(uint32_t now) {
 
   // Define a safe window around the rollover point (10 seconds)
   // This covers any reasonable scheduler delays or thread preemption
-  static const uint32_t ROLLOVER_WINDOW = 10000;  // 10 seconds in milliseconds
+  static constexpr uint32_t ROLLOVER_WINDOW = 10000;  // 10 seconds in milliseconds
 
   // Check if we're near the rollover boundary (close to std::numeric_limits<uint32_t>::max() or just past 0)
   bool near_rollover = (last > (std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW)) || (now < ROLLOVER_WINDOW);
