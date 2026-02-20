@@ -79,7 +79,7 @@ inline constexpr uint8_t STATUS_LED_ERROR = 0x10;
 // Remove before 2026.8.0
 enum class RetryResult { DONE, RETRY };
 
-extern const uint16_t WARN_IF_BLOCKING_OVER_MS;
+inline constexpr uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;
 
 class Component {
  public:
@@ -550,12 +550,13 @@ class PollingComponent : public Component {
 
 class WarnIfComponentBlockingGuard {
  public:
-  WarnIfComponentBlockingGuard(Component *component, uint32_t start_time);
+  WarnIfComponentBlockingGuard(Component *component, uint32_t start_time)
+      : started_(start_time), component_(component) {}
 
   // Finish the timing operation and return the current time
   uint32_t finish();
 
-  ~WarnIfComponentBlockingGuard();
+  ~WarnIfComponentBlockingGuard() = default;
 
  protected:
   uint32_t started_;

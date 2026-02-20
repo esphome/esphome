@@ -543,8 +543,8 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
 }
 
 bool MQTTClientComponent::publish_json(const char *topic, const json::json_build_t &f, uint8_t qos, bool retain) {
-  std::string message = json::build_json(f);
-  return this->publish(topic, message.c_str(), message.length(), qos, retain);
+  auto message = json::build_json(f);
+  return this->publish(topic, message.c_str(), message.size(), qos, retain);
 }
 
 void MQTTClientComponent::enable() {
