@@ -36,7 +36,7 @@ class OpenThreadComponent : public Component {
   const char *get_use_address() const;
   void set_use_address(const char *use_address);
 #if CONFIG_OPENTHREAD_MTD
-  void set_poll_period(uint32_t poll_period) { this->poll_period = poll_period; }
+  void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
 #endif
 
  protected:
@@ -50,7 +50,7 @@ class OpenThreadComponent : public Component {
   // ONLY set from Python-generated code with string literals - never dynamic strings.
   const char *use_address_{""};
 #if CONFIG_OPENTHREAD_MTD
-  uint32_t poll_period{0};
+  uint32_t poll_period_{0};
 #endif
 };
 
