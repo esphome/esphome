@@ -54,6 +54,7 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
 )
 
+
 def _pin_is_deep_sleep_wakeup(pin_num: int) -> bool:
     """Check if pin is configured as deep_sleep wakeup pin."""
     if not CORE.config or "deep_sleep" not in CORE.config:
@@ -77,6 +78,7 @@ def _pin_is_deep_sleep_wakeup(pin_num: int) -> bool:
             )
 
     return False
+
 
 async def to_code(config):
     var = await binary_sensor.new_binary_sensor(config)
