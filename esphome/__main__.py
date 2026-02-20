@@ -43,7 +43,9 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     ENV_NOGITIGNORE,
+    KEY_CORE,
     KEY_NATIVE_IDF,
+    KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -434,8 +436,11 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     process_stacktrace = None
 
     try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        process_stacktrace = getattr(module, "process_stacktrace")
+        core_data = CORE.data.get(KEY_CORE, {})
+        platform = core_data.get(KEY_TARGET_PLATFORM)
+        if platform:
+            module = importlib.import_module("esphome.components." + platform)
+            process_stacktrace = getattr(module, "process_stacktrace")
     except AttributeError:
         pass
 
