@@ -589,14 +589,25 @@ size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf
   return base64_decode(reinterpret_cast<const uint8_t *>(encoded_string.data()), encoded_string.size(), buf, buf_len);
 }
 
-// Convert 4 base64 characters to 3 decoded bytes
-static inline void base64_decode_quad_(uint8_t *char_array_4, uint8_t *char_array_3) {
+// Decode 4 base64 characters to up to 'count' output bytes, returns true if truncated
+static inline bool base64_decode_quad_(uint8_t *char_array_4, int count, uint8_t *buf, size_t buf_len, size_t &out) {
   for (int i = 0; i < 4; i++)
     char_array_4[i] = base64_find_char(char_array_4[i]);
 
+  uint8_t char_array_3[3];
   char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
   char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
   char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+  bool truncated = false;
+  for (int j = 0; j < count; j++) {
+    if (out < buf_len) {
+      buf[out++] = char_array_3[j];
+    } else {
+      truncated = true;
+    }
+  }
+  return truncated;
 }
 
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len) {
@@ -604,7 +615,7 @@ size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *b
   int i = 0;
   size_t in = 0;
   size_t out = 0;
-  uint8_t char_array_4[4], char_array_3[3];
+  uint8_t char_array_4[4];
   bool truncated = false;
 
   // SAFETY: The loop condition checks is_base64() before processing each character.
@@ -614,15 +625,7 @@ size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *b
     char_array_4[i++] = encoded_data[in];
     in++;
     if (i == 4) {
-      base64_decode_quad_(char_array_4, char_array_3);
-
-      for (i = 0; i < 3; i++) {
-        if (out < buf_len) {
-          buf[out++] = char_array_3[i];
-        } else {
-          truncated = true;
-        }
-      }
+      truncated |= base64_decode_quad_(char_array_4, 3, buf, buf_len, out);
       i = 0;
     }
   }
@@ -631,15 +634,7 @@ size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *b
     for (int j = i; j < 4; j++)
       char_array_4[j] = 0;
 
-    base64_decode_quad_(char_array_4, char_array_3);
-
-    for (int j = 0; j < i - 1; j++) {
-      if (out < buf_len) {
-        buf[out++] = char_array_3[j];
-      } else {
-        truncated = true;
-      }
-    }
+    truncated |= base64_decode_quad_(char_array_4, i - 1, buf, buf_len, out);
   }
 
   if (truncated) {
