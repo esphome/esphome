@@ -1,10 +1,10 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 
 #include <cstring>
-#include <vector>
 
 namespace esphome::mk2pvrouter {
 /*
@@ -53,10 +53,10 @@ class Mk2PVRouter : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
  protected:
-  static constexpr size_t CHECKSUM_AREA_END = 1;
+  static constexpr size_t CRC_SUFFIX_LEN = 1;
   static constexpr uint32_t BAUD_RATE = 9600;
 
-  std::vector<Mk2PVRouterListener *> mk2pvrouter_listeners_{};
+  StaticVector<Mk2PVRouterListener *, MK2PVROUTER_MAX_LISTENERS> mk2pvrouter_listeners_{};
   char buf_[MAX_BUF_SIZE];
   size_t buf_index_{0};
   char tag_[MAX_TAG_SIZE];
