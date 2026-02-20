@@ -89,8 +89,8 @@ bool Mk2PVRouter::check_crc_(const char *grp, const char *grp_end) {
 bool Mk2PVRouter::read_chars_until_(bool drop, uint8_t c) {
   size_t j{0};
 
-  while (available() > 0 && j++ < MAX_ITERATIONS) {
-    const auto received = read();
+  while (this->available() > 0 && j++ < MAX_ITERATIONS) {
+    const auto received = this->read();
     if (received == c)
       return true;
     if (drop)
@@ -99,12 +99,12 @@ bool Mk2PVRouter::read_chars_until_(bool drop, uint8_t c) {
      * Internal buffer is full, switch to OFF mode.
      * Data will be retrieved on next update.
      */
-    if (buf_index_ >= (sizeof(buf_) - 1)) {
+    if (this->buf_index_ >= (sizeof(this->buf_) - 1)) {
       ESP_LOGW(TAG, "Internal buffer full");
-      state_ = State::OFF;
+      this->state_ = State::OFF;
       return false;
     }
-    buf_[buf_index_++] = received;
+    this->buf_[this->buf_index_++] = received;
   }
 
   return false;
@@ -113,15 +113,15 @@ bool Mk2PVRouter::read_chars_until_(bool drop, uint8_t c) {
 /**
  * @brief Initializes the Mk2PVRouter by setting the initial state to OFF.
  */
-void Mk2PVRouter::setup() { state_ = State::OFF; }
+void Mk2PVRouter::setup() { this->state_ = State::OFF; }
 
 /**
  * @brief Updates the Mk2PVRouter state. Resets the buffer index and transitions the state from OFF to ON.
  */
 void Mk2PVRouter::update() {
-  if (state_ == State::OFF) {
-    buf_index_ = 0;
-    state_ = State::ON;
+  if (this->state_ == State::OFF) {
+    this->buf_index_ = 0;
+    this->state_ = State::ON;
   }
 }
 
@@ -135,27 +135,33 @@ void Mk2PVRouter::update() {
  * - END_FRAME_RECEIVED: Processes the buffer to extract groups, validate CRC, and publish values.
  */
 void Mk2PVRouter::loop() {
-  switch (state_) {
+  switch (this->state_) {
     case State::OFF:
       break;
     case State::ON:
       ESP_LOGVV(TAG, "State transition: ON -> START_FRAME_RECEIVED");
       /* Dequeue chars until start frame (0x2) */
-      if (read_chars_until_(true, START_FRAME))
-        state_ = State::START_FRAME_RECEIVED;
+      if (this->read_chars_until_(true, START_FRAME))
+        this->state_ = State::START_FRAME_RECEIVED;
       break;
     case State::START_FRAME_RECEIVED:
       ESP_LOGVV(TAG, "State transition: START_FRAME_RECEIVED -> END_FRAME_RECEIVED");
       /* Dequeue chars until end frame (0x3) */
-      if (read_chars_until_(false, END_FRAME))
-        state_ = State::END_FRAME_RECEIVED;
+      if (this->read_chars_until_(false, END_FRAME))
+        this->state_ = State::END_FRAME_RECEIVED;
       break;
     case State::END_FRAME_RECEIVED:
       ESP_LOGVV(TAG, "State transition: END_FRAME_RECEIVED -> DoWork");
+
+      if (this->buf_index_ == 0) {
+        this->state_ = State::OFF;
+        break;
+      }
+
       size_t field_len;
 
-      auto *buf_finger = buf_;
-      auto *buf_end = buf_ + buf_index_;
+      auto *buf_finger = this->buf_;
+      auto *buf_end = this->buf_ + this->buf_index_;
 
       /* Each frame is composed of multiple groups starting by 0xa(Line Feed) and ending by
        * 0xd ('\r').
@@ -166,8 +172,7 @@ void Mk2PVRouter::loop() {
        * Checksum is computed on the above in standard mode.
        *
        */
-      while ((buf_finger = static_cast<char *>(memchr(buf_finger, LINE_FEED, buf_index_ - 1))) &&
-             ((buf_finger - buf_) < buf_index_)) {  // NOLINT(clang-diagnostic-sign-compare)
+      while ((buf_finger = static_cast<char *>(memchr(buf_finger, LINE_FEED, buf_end - buf_finger))) != nullptr) {
         /* Point to the first char of the group after 0xa */
         ++buf_finger;
 
@@ -178,11 +183,11 @@ void Mk2PVRouter::loop() {
           break;
         }
 
-        if (!check_crc_(buf_finger, grp_end))
+        if (!this->check_crc_(buf_finger, grp_end))
           continue;
 
         /* Get tag */
-        field_len = get_field(tag_, buf_finger, grp_end, MAX_TAG_SIZE);
+        field_len = get_field(this->tag_, buf_finger, grp_end, MAX_TAG_SIZE);
         if (!field_len || field_len >= MAX_TAG_SIZE) {
           ESP_LOGE(TAG, "Invalid tag.");
           continue;
@@ -191,9 +196,9 @@ void Mk2PVRouter::loop() {
         /* Advance buf_finger to after the tag and the separator. */
         buf_finger += field_len + 1;
 
-        field_len = get_field(val_, buf_finger, grp_end, MAX_VAL_SIZE);
+        field_len = get_field(this->val_, buf_finger, grp_end, MAX_VAL_SIZE);
         if (!field_len || field_len >= MAX_VAL_SIZE) {
-          ESP_LOGE(TAG, "Invalid value for tag %s", tag_);
+          ESP_LOGE(TAG, "Invalid value for tag %s", this->tag_);
           continue;
         }
 
@@ -201,9 +206,9 @@ void Mk2PVRouter::loop() {
         /* Skip: value field + TAB + CRC + CR */
         buf_finger += field_len + 1 + 1 + 1;
 
-        publish_value_(tag_, val_);
+        this->publish_value_(this->tag_, this->val_);
       }
-      state_ = State::OFF;
+      this->state_ = State::OFF;
       break;
   }
 }
@@ -214,9 +219,9 @@ void Mk2PVRouter::loop() {
  * @param tag The tag associated with the value.
  * @param val The value to publish.
  */
-void Mk2PVRouter::publish_value_(const std::string &tag, const std::string &val) {
+void Mk2PVRouter::publish_value_(const char *tag, const char *val) {
   for (auto *element : this->mk2pvrouter_listeners_) {
-    if (tag != element->get_tag())
+    if (strcmp(tag, element->get_tag()) != 0)
       continue;
     element->publish_val(val);
   }
@@ -229,7 +234,7 @@ void Mk2PVRouter::publish_value_(const std::string &tag, const std::string &val)
  */
 void Mk2PVRouter::dump_config() {
   ESP_LOGCONFIG(TAG, "Mk2PVRouter:");
-  this->check_uart_settings(baud_rate_, 1, uart::UART_CONFIG_PARITY_EVEN, 7);
+  this->check_uart_settings(BAUD_RATE, 1, uart::UART_CONFIG_PARITY_EVEN, 7);
 }
 
 /**
@@ -238,7 +243,7 @@ void Mk2PVRouter::dump_config() {
  * @param listener Pointer to the listener to register.
  */
 void Mk2PVRouter::register_mk2pvrouter_listener(Mk2PVRouterListener *listener) {
-  mk2pvrouter_listeners_.push_back(listener);
+  this->mk2pvrouter_listeners_.push_back(listener);
 }
 
 }  // namespace esphome::mk2pvrouter

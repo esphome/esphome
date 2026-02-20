@@ -1,15 +1,16 @@
 #include "esphome/core/log.h"
 #include "mk2pvrouter_binary_sensor.h"
 
+#include <cstring>
+
 namespace esphome::mk2pvrouter {
 
 static const char *const TAG = "mk2pvrouter_binary_sensor";
 
 Mk2PVRouterBinarySensor::Mk2PVRouterBinarySensor(const char *tag) { this->set_tag(tag); }
 
-void Mk2PVRouterBinarySensor::publish_val(const std::string &val) {
-  // Convert the string value to a boolean (e.g., "1" -> true, "0" -> false)
-  bool state = (val != "0");
+void Mk2PVRouterBinarySensor::publish_val(const char *val) {
+  bool state = (strcmp(val, "0") != 0);
   this->publish_state(state);
 }
 

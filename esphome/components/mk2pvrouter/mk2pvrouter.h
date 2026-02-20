@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
+#include <cstring>
 #include <vector>
 
 namespace esphome::mk2pvrouter {
@@ -27,12 +28,12 @@ static const uint16_t MAX_BUF_SIZE = 256;  // Full frame with all features enabl
  */
 class Mk2PVRouterListener {
  public:
-  void set_tag(const std::string &tag) { this->tag_ = tag; }
-  const std::string &get_tag() const { return this->tag_; }
-  virtual void publish_val(const std::string &val) = 0;
+  void set_tag(const char *tag) { this->tag_ = tag; }
+  const char *get_tag() const { return this->tag_; }
+  virtual void publish_val(const char *val) = 0;
 
  protected:
-  std::string tag_;
+  const char *tag_{nullptr};
 };
 
 /**
@@ -53,9 +54,9 @@ class Mk2PVRouter : public PollingComponent, public uart::UARTDevice {
 
  protected:
   static constexpr size_t CHECKSUM_AREA_END = 1;
+  static constexpr uint32_t BAUD_RATE = 9600;
 
   std::vector<Mk2PVRouterListener *> mk2pvrouter_listeners_{};
-  uint32_t baud_rate_{9600};
   char buf_[MAX_BUF_SIZE];
   size_t buf_index_{0};
   char tag_[MAX_TAG_SIZE];
@@ -73,6 +74,6 @@ class Mk2PVRouter : public PollingComponent, public uart::UARTDevice {
   bool read_chars_until_(bool drop, uint8_t c);
   uint8_t calculate_crc_(const char *grp, size_t grp_len);
   bool check_crc_(const char *grp, const char *grp_end);
-  void publish_value_(const std::string &tag, const std::string &val);
+  void publish_value_(const char *tag, const char *val);
 };
 }  // namespace esphome::mk2pvrouter
