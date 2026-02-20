@@ -75,6 +75,7 @@ void E131Component::loop() {
   // Drain all queued packets so multi-universe frames are applied
   // atomically before the light writes. Without this, each universe
   // packet would trigger a separate full-strip write causing tearing.
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   while ((len = this->read_(buf, sizeof(buf))) > 0) {
     if (!this->packet_(buf, (size_t) len, universe, packet)) {
       ESP_LOGV(TAG, "Invalid packet received of size %d.", (int) len);
