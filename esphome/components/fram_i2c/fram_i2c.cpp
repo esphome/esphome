@@ -62,7 +62,7 @@ bool FramI2cPlatform::read_bytes(uint32_t memaddr, uint8_t *data, size_t len) {
   if (model_.address_width == 2) {
     return this->read_bytes_16(memaddr, data, len);
   } else {
-    return this->read_bytes_ext(memaddr, data, len);
+    return this->read_bytes_ext_(memaddr, data, len);
   }
 }
 
@@ -75,7 +75,7 @@ bool FramI2cPlatform::write_bytes(uint32_t memaddr, const uint8_t *data, size_t 
   if (model_.address_width == 2) {
     return this->write_bytes_16(memaddr, data, len);
   } else {
-    return this->write_bytes_ext(memaddr, data, len);
+    return this->write_bytes_ext_(memaddr, data, len);
   }
 }
 
@@ -116,7 +116,7 @@ bool FramI2cPlatform::write_bytes_16(uint32_t memaddr, const uint8_t *data, size
   return true;
 }
 
-bool FramI2cPlatform::read_bytes_ext(uint32_t memaddr, uint8_t *data, size_t len) {
+bool FramI2cPlatform::read_bytes_ext_(uint32_t memaddr, uint8_t *data, size_t len) {
   // Extended address FRAM (17/18-bit): address high bits go into device address
   // For 17-bit: device address bits [1:0] become address bits [16:15]
   // For 18-bit: device address bits [1:0] become address bits [17:16]
@@ -139,7 +139,7 @@ bool FramI2cPlatform::read_bytes_ext(uint32_t memaddr, uint8_t *data, size_t len
   return true;
 }
 
-bool FramI2cPlatform::write_bytes_ext(uint32_t memaddr, const uint8_t *data, size_t len) {
+bool FramI2cPlatform::write_bytes_ext_(uint32_t memaddr, const uint8_t *data, size_t len) {
   // Extended address FRAM write
   uint8_t addr_high = (memaddr >> 16) & 0x03;
   uint8_t modified_address = (this->address_ & 0xFC) | addr_high;

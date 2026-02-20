@@ -70,10 +70,10 @@ class FramI2cPlatform : public NvmPlatform, public i2c::I2CDevice {
   bool write_bytes_16(uint32_t memaddr, const uint8_t *data, size_t len);
 
   /// Read with extended address (17/18-bit via I2C)
-  bool read_bytes_ext(uint32_t memaddr, uint8_t *data, size_t len);
+  bool read_bytes_ext_(uint32_t memaddr, uint8_t *data, size_t len);
 
   /// Write with extended address (17/18-bit via I2C)
-  bool write_bytes_ext(uint32_t memaddr, const uint8_t *data, size_t len);
+  bool write_bytes_ext_(uint32_t memaddr, const uint8_t *data, size_t len);
 
   FramModel model_{32 * 1024, 2, "MB85RC256"};  // Default: MB85RC256
 };

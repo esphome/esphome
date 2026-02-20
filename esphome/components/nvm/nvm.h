@@ -41,7 +41,7 @@ class NvmPlatform;
 /// interfaces for accessing the underlying storage.
 class NvmPartition {
  public:
-  NvmPartition(NvmPlatform *parent, const PartitionConfig &config);
+  NvmPartition(NvmPlatform *parent, PartitionConfig config);
   virtual ~NvmPartition() = default;
 
   /// Read data from partition
@@ -142,10 +142,10 @@ class NvmPlatform : public Component {
   std::vector<std::unique_ptr<NvmPartition>> partitions_;
 
   /// Check for partition overlaps
-  bool check_partition_overlap(const PartitionConfig &config);
+  bool check_partition_overlap_(const PartitionConfig &config);
 
   /// Calculate automatic offsets for partitions
-  void calculate_partition_offsets();
+  void calculate_partition_offsets_();
 };
 
 /// Base class for data partitions (Preferences and KeyValue)
@@ -153,16 +153,8 @@ class NvmPlatform : public Component {
 /// This class provides common functionality for both partition types,
 /// including header management, validation, and usage tracking.
 class NvmDataPartition : public NvmPartition {
- protected:
-  /// Header offsets
-  static const uint8_t OFF_MAGIC = 0;
-  static const uint8_t OFF_VERSION = 4;
-  static const uint8_t OFF_TYPE = 5;
-  static const uint8_t OFF_RESERVED = 6;
-  static const uint8_t OFF_SIZE = 8;
-  static const uint8_t OFF_FIRST_FREE = 12;
-
-  /// Header constants
+ public:
+  /// Header constants - public for use by backend classes
   static const uint32_t HEADER_SIZE = 16;  ///< magic(4) + version(1) + type(1) + reserved(2) + size(4) + first_free(4)
   static const uint32_t MAGIC = 0x4B565354;  ///< "KVST" - unified magic for all NVM partitions
   static const uint8_t VERSION = 1;          ///< Version 1 - unified across all partitions
@@ -171,9 +163,17 @@ class NvmDataPartition : public NvmPartition {
   static constexpr float WARNING_L1_PERCENT = 80.0f;
   static constexpr float WARNING_L2_PERCENT = 90.0f;
 
- public:
   NvmDataPartition(NvmPlatform *parent, const PartitionConfig &config)
       : NvmPartition(parent, config), initialized_(false), warned_L1_percent_(false) {}
+
+ protected:
+  /// Header offsets
+  static const uint8_t OFF_MAGIC = 0;
+  static const uint8_t OFF_VERSION = 4;
+  static const uint8_t OFF_TYPE = 5;
+  static const uint8_t OFF_RESERVED = 6;
+  static const uint8_t OFF_SIZE = 8;
+  static const uint8_t OFF_FIRST_FREE = 12;
 
  protected:
   /// Validate header and check if reinitialization is needed
@@ -207,7 +207,7 @@ class NvmDataPartition : public NvmPartition {
   void log_mismatch_(const char *issue, uint32_t actual, uint32_t expected);
 
  public:
-  virtual ~NvmDataPartition() = default;
+  ~NvmDataPartition() override = default;
 
   /// Get the percentage of partition space used
   /// @return Usage percentage (0-100)
@@ -386,10 +386,10 @@ class KeyValuePartition : public NvmDataPartition, public Component {
   /// @param value_offset Output: offset where value starts (relative to data area)
   /// @param value_len Output: length of value
   /// @return true if key found
-  bool find_key(const std::string &key, uint32_t &offset, uint32_t &value_offset, uint16_t &value_len);
+  bool find_key_(const std::string &key, uint32_t &offset, uint32_t &value_offset, uint16_t &value_len);
 
   /// Compact storage (remove deleted entries)
-  void compact();
+  void compact_();
 
   /// Calculate used bytes by scanning all entries
   /// @return Total bytes used (including header)

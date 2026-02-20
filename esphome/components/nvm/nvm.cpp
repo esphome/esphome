@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstring>
+#include <utility>
 
 namespace esphome {
 namespace nvm {
@@ -36,7 +37,7 @@ const char *partition_type_to_string(PartitionType type) {
 
 // ========== NvmPartition ==========
 
-NvmPartition::NvmPartition(NvmPlatform *parent, const PartitionConfig &config) : parent_(parent), config_(config) {}
+NvmPartition::NvmPartition(NvmPlatform *parent, PartitionConfig config) : parent_(parent), config_(std::move(config)) {}
 
 bool NvmPartition::read(uint32_t offset, uint8_t *data, size_t len) {
   if (offset + len > config_.size) {
@@ -62,7 +63,7 @@ bool NvmPartition::write(uint32_t offset, const uint8_t *data, size_t len) {
 
 void NvmPlatform::setup() {
   // Calculate automatic offsets for partitions
-  this->calculate_partition_offsets();
+  this->calculate_partition_offsets_();
 
   // Validate all partitions
   for (const auto &partition : partitions_) {
@@ -148,14 +149,14 @@ bool NvmPlatform::validate_partition_config(const PartitionConfig &config) {
   }
 
   // Check for overlap
-  if (!this->check_partition_overlap(config)) {
+  if (!this->check_partition_overlap_(config)) {
     return false;
   }
 
   return true;
 }
 
-bool NvmPlatform::check_partition_overlap(const PartitionConfig &config) {
+bool NvmPlatform::check_partition_overlap_(const PartitionConfig &config) {
   for (const auto &partition : partitions_) {
     // Skip the partition being validated (for updates)
     if (partition->get_id() == config.id) {
@@ -174,7 +175,7 @@ bool NvmPlatform::check_partition_overlap(const PartitionConfig &config) {
   return true;
 }
 
-void NvmPlatform::calculate_partition_offsets() {
+void NvmPlatform::calculate_partition_offsets_() {
   uint32_t current_offset = 0;
 
   for (auto &partition : partitions_) {
@@ -199,7 +200,7 @@ int KeyValuePartition::get(const std::string &key, uint8_t *value, size_t max_le
   uint32_t offset, value_offset;
   uint16_t value_len;
 
-  if (!this->find_key(key, offset, value_offset, value_len)) {
+  if (!this->find_key_(key, offset, value_offset, value_len)) {
     ESP_LOGV(TAG, "KeyValue '%s' get: key='%s' not found", this->get_id().c_str(), key.c_str());
     return -1;  // Key not found
   }
@@ -225,7 +226,7 @@ bool KeyValuePartition::set(const std::string &key, const uint8_t *value, size_t
   uint32_t existing_offset, value_offset;
   uint16_t existing_len;
 
-  if (this->find_key(key, existing_offset, value_offset, existing_len)) {
+  if (this->find_key_(key, existing_offset, value_offset, existing_len)) {
     // Key exists - check if new value fits
     if (len <= existing_len) {
       // Overwrite in place (add HEADER_SIZE to convert from data-relative to absolute)
@@ -239,7 +240,6 @@ bool KeyValuePartition::set(const std::string &key, const uint8_t *value, size_t
   // Find end of storage (start after header)
   uint32_t write_offset = HEADER_SIZE;
   uint8_t marker;
-  bool is_first_entry = (write_offset == HEADER_SIZE);  // Track if this is the first entry
   while (write_offset < this->get_size()) {
     if (!this->read(write_offset, &marker, 1)) {
       break;
@@ -248,7 +248,6 @@ bool KeyValuePartition::set(const std::string &key, const uint8_t *value, size_t
       // Empty slot found
       break;
     }
-    is_first_entry = false;  // Found an existing entry, so not first time
     // Skip entry: key_len(1) + key + value_len(2) + value
     uint8_t key_len = marker;
     uint16_t value_len;
@@ -296,7 +295,7 @@ bool KeyValuePartition::erase(const std::string &key) {
   uint32_t offset, value_offset;
   uint16_t value_len;
 
-  if (!this->find_key(key, offset, value_offset, value_len)) {
+  if (!this->find_key_(key, offset, value_offset, value_len)) {
     ESP_LOGV(TAG, "KeyValue '%s' erase: key='%s' not found", this->get_id().c_str(), key.c_str());
     return false;  // Key not found
   }
@@ -312,7 +311,7 @@ bool KeyValuePartition::erase(const std::string &key) {
 bool KeyValuePartition::has_key(const std::string &key) {
   uint32_t offset, value_offset;
   uint16_t value_len;
-  return this->find_key(key, offset, value_offset, value_len);
+  return this->find_key_(key, offset, value_offset, value_len);
 }
 
 int KeyValuePartition::get_string(const std::string &key, char *buf, size_t buf_len, const char *default_value) {
@@ -353,8 +352,8 @@ bool KeyValuePartition::set_string(const std::string &key, const std::string &va
   return this->set(key, reinterpret_cast<const uint8_t *>(value.c_str()), value.size());
 }
 
-bool KeyValuePartition::find_key(const std::string &key, uint32_t &offset, uint32_t &value_offset,
-                                 uint16_t &value_len) {
+bool KeyValuePartition::find_key_(const std::string &key, uint32_t &offset, uint32_t &value_offset,
+                                  uint16_t &value_len) {
   // Start after header
   uint32_t current_offset = HEADER_SIZE;
 
@@ -393,7 +392,7 @@ bool KeyValuePartition::find_key(const std::string &key, uint32_t &offset, uint3
   return false;
 }
 
-void KeyValuePartition::compact() {
+void KeyValuePartition::compact_() {
   // TODO: Implement compaction to remove deleted entries
   // This would read all valid entries, erase the partition, and rewrite them
 }
@@ -918,7 +917,7 @@ uint32_t PreferencesPartition::calculate_pool_used_() {
     this->read(addr + 4, reinterpret_cast<uint8_t *>(&size), 4);
 
     // Invalid size - return current position
-    if (size > 1024 || size == 0xFFFFFFFF) {
+    if (size > 1024) {
       return addr;
     }
 
@@ -966,7 +965,7 @@ uint32_t NvmPreferenceBackend::find_key_(uint32_t key_hash) {
     this->partition_->read(addr + 4, reinterpret_cast<uint8_t *>(&size_from_nvm), 4);
 
     // Safety check: if size is unreasonably large, clear remaining pool and use this slot
-    if (size_from_nvm > 1024 || size_from_nvm == 0xFFFFFFFF) {
+    if (size_from_nvm > 1024) {
       ESP_LOGW(TAG, "Invalid size %u at offset %u, clearing remaining pool", size_from_nvm, addr);
       // Clear from this address to end of pool
       for (uint32_t i = addr; i < pool_size; i += 32) {
