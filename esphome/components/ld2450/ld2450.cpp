@@ -769,15 +769,33 @@ void LD2450Component::readline_(int readch) {
     return;  // No data available
   }
 
+  // Frame header synchronization: verify first 4 bytes match a known frame header.
+  // This prevents the parser from accumulating mid-frame data after losing sync
+  // (e.g. after module restart or UART noise).
+  if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
+    const uint8_t byte = static_cast<uint8_t>(readch);
+    // Verify header bytes match the frame type established by byte 0
+    if (this->buffer_pos_ > 0) {
+      const uint8_t *expected = (this->buffer_data_[0] == DATA_FRAME_HEADER[0]) ? DATA_FRAME_HEADER : CMD_FRAME_HEADER;
+      if (byte != expected[this->buffer_pos_]) {
+        this->buffer_pos_ = 0;  // Reset and fall through to check if this byte starts a new frame
+      }
+    }
+    // First byte must match start of a data or command frame header
+    if (this->buffer_pos_ == 0 && byte != DATA_FRAME_HEADER[0] && byte != CMD_FRAME_HEADER[0]) {
+      return;
+    }
+  }
+
   if (this->buffer_pos_ < MAX_LINE_LENGTH - 1) {
     this->buffer_data_[this->buffer_pos_++] = readch;
     this->buffer_data_[this->buffer_pos_] = 0;
   } else {
-    // We should never get here, but just in case...
     ESP_LOGW(TAG, "Max command length exceeded; ignoring");
     this->buffer_pos_ = 0;
+    return;
   }
-  if (this->buffer_pos_ < 4) {
+  if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
     return;  // Not enough data to process yet
   }
   if (this->buffer_data_[this->buffer_pos_ - 2] == DATA_FRAME_FOOTER[0] &&
