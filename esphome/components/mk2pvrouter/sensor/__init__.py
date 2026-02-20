@@ -30,7 +30,6 @@ from .. import (
     CONF_TAG_NAME,
     MK2PVROUTER_LISTENER_SCHEMA,
     mk2pvrouter_ns,
-    register_listener,
 )
 
 Mk2PVRouterSensor = mk2pvrouter_ns.class_(
@@ -166,4 +165,3 @@ async def to_code(config):
     await sensor.register_sensor(var, config)
     mk2pvrouter = await cg.get_variable(config[CONF_MK2PVROUTER_ID])
     cg.add(mk2pvrouter.register_mk2pvrouter_listener(var))
-    register_listener()
