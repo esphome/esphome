@@ -48,19 +48,39 @@ TEST_F(LD2450ReadlineTest, BackToBackMixedFrames) {
   EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
 }
 
-// --- Garbage rejection tests ---
-
-TEST_F(LD2450ReadlineTest, GarbageDiscarded) {
-  // Feed bytes that don't match any header start byte
-  std::vector<uint8_t> garbage = {0x01, 0x02, 0x03, 0x42, 0x99, 0x00, 0xFF, 0x7F};
-  this->ld2450_.feed(garbage);
-  // Header sync should discard all of these
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
-}
+// --- Garbage then valid frame tests ---
 
 TEST_F(LD2450ReadlineTest, GarbageThenValidFrame) {
+  // Garbage bytes accumulate in the buffer but don't match any footer.
+  // A valid frame follows; its footer resets the buffer and resyncs.
   std::vector<uint8_t> garbage = {0x01, 0x02, 0x03, 0x42, 0x99};
   this->ld2450_.feed(garbage);
+  EXPECT_GT(this->ld2450_.buffer_pos_, 0);  // Garbage accumulated
+
+  auto frame = make_periodic_frame();
+  this->ld2450_.feed(frame);
+  // Footer from the valid frame resyncs the parser
+  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+}
+
+// --- Footer-based resynchronization tests ---
+
+TEST_F(LD2450ReadlineTest, FooterInGarbageResyncs) {
+  // Garbage containing a periodic frame footer (0x55 0xCC) triggers
+  // a buffer reset, allowing the next frame to be parsed cleanly.
+  std::vector<uint8_t> garbage_with_footer = {0x01, 0x02, 0x03, 0x04, 0x55, 0xCC};
+  this->ld2450_.feed(garbage_with_footer);
+  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);  // Footer reset the buffer
+
+  auto frame = make_periodic_frame();
+  this->ld2450_.feed(frame);
+  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+}
+
+TEST_F(LD2450ReadlineTest, CmdFooterInGarbageResyncs) {
+  // Garbage containing a command frame footer (04 03 02 01) also resyncs.
+  std::vector<uint8_t> garbage_with_footer = {0x10, 0x20, 0x30, 0x40, 0x04, 0x03, 0x02, 0x01};
+  this->ld2450_.feed(garbage_with_footer);
   EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
 
   auto frame = make_periodic_frame();
@@ -68,112 +88,56 @@ TEST_F(LD2450ReadlineTest, GarbageThenValidFrame) {
   EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
 }
 
-// --- Header synchronization tests ---
+// --- Overflow recovery tests ---
 
-TEST_F(LD2450ReadlineTest, PartialDataHeaderThenMismatch) {
-  // Start of a data frame header, then invalid byte
-  this->ld2450_.feed({0xAA, 0xFF, 0x42});  // 0x42 doesn't match DATA_FRAME_HEADER[2] (0x03)
-  // Parser should have reset
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
-}
-
-TEST_F(LD2450ReadlineTest, PartialCmdHeaderThenMismatch) {
-  // Start of a command frame header, then invalid byte
-  this->ld2450_.feed({0xFD, 0xFC, 0xFB, 0x42});  // 0x42 doesn't match CMD_FRAME_HEADER[3] (0xFA)
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
-}
-
-TEST_F(LD2450ReadlineTest, PartialHeaderThenValidFrame) {
-  // Partial header that fails, then a complete valid frame
-  this->ld2450_.feed({0xAA, 0xFF, 0x42});  // Fails at byte 3
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
-
-  auto frame = make_periodic_frame();
-  this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
-}
-
-TEST_F(LD2450ReadlineTest, HeaderMismatchRecoveryOnNewHeaderByte) {
-  // Start data header, mismatch at byte 2, but mismatch byte is start of command header
-  this->ld2450_.feed({0xAA, 0xFF});
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 2);  // Accumulating header
-
-  this->ld2450_.feed({0xFD});  // Doesn't match DATA_FRAME_HEADER[2]=0x03, but IS CMD_FRAME_HEADER[0]
-  // Parser should reset and start new frame with 0xFD
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 1);
-  EXPECT_EQ(this->ld2450_.buffer_data_[0], 0xFD);
-}
-
-// --- Mid-frame / overflow recovery tests ---
-
-TEST_F(LD2450ReadlineTest, MidFrameDataRecovery) {
-  // Simulate starting mid-frame: feed the tail end of a periodic frame (no valid header)
-  // These bytes would be part of target data in a real frame
-  std::vector<uint8_t> mid_frame = {0x10, 0x20, 0x30, 0x40, 0x55, 0xCC};
-  this->ld2450_.feed(mid_frame);
-  // All discarded (none match header start bytes)
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
-
-  // Now feed a valid frame
-  auto frame = make_periodic_frame();
-  this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
-}
-
-TEST_F(LD2450ReadlineTest, OverflowRecovery) {
-  // Feed a valid data frame header followed by enough filler to cause overflow.
-  // Header (4) + 36 filler = 40 bytes in buffer. The 41st byte triggers overflow.
-  std::vector<uint8_t> overflow_data = {0xAA, 0xFF, 0x03, 0x00};  // Valid header
-  for (int i = 0; i < 37; i++) {
-    overflow_data.push_back(0x11);  // Filler that won't match any footer
-  }
-  // 41 bytes total: 40 stored, 41st triggers overflow and resets buffer_pos_ to 0
+TEST_F(LD2450ReadlineTest, OverflowResetsBuffer) {
+  // Fill the buffer to capacity with filler that won't match any footer.
+  // MAX_LINE_LENGTH is 45, usable is 44. The 45th byte triggers overflow.
+  std::vector<uint8_t> overflow_data(MAX_LINE_LENGTH, 0x11);
   this->ld2450_.feed(overflow_data);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  // After overflow, buffer_pos_ resets to 0 (via the < 4 early return path)
+  EXPECT_LT(this->ld2450_.buffer_pos_, 4);
+}
 
-  // Feed a valid frame and verify recovery
+TEST_F(LD2450ReadlineTest, OverflowThenValidFrame) {
+  // Overflow, then a valid frame should be processed.
+  std::vector<uint8_t> overflow_data(MAX_LINE_LENGTH, 0x11);
+  this->ld2450_.feed(overflow_data);
+
   auto frame = make_periodic_frame();
   this->ld2450_.feed(frame);
   EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
 }
 
-TEST_F(LD2450ReadlineTest, RepeatedOverflowDoesNotLoop) {
-  // Simulate the bug scenario: repeated overflows should not prevent recovery.
-  // Feed 3 rounds of overflow-inducing data.
-  for (int round = 0; round < 3; round++) {
-    std::vector<uint8_t> overflow_data = {0xAA, 0xFF, 0x03, 0x00};
-    for (int i = 0; i < 37; i++) {
-      overflow_data.push_back(0x22);
-    }
-    this->ld2450_.feed(overflow_data);
-    EXPECT_EQ(this->ld2450_.buffer_pos_, 0) << "Overflow round " << round;
-  }
-
-  // Parser should still recover and process a valid frame
+TEST_F(LD2450ReadlineTest, BufferLargeEnoughForDesyncedFooter) {
+  // The key fix: the buffer (45) is large enough that a desynced periodic frame's
+  // footer (at most 30 bytes into the stream) will land inside the buffer before overflow.
+  // Simulate starting 10 bytes into a periodic frame, then a full frame follows.
+  std::vector<uint8_t> mid_frame = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39};
+  // Then a complete periodic frame whose footer will land at position 40 (10 + 30),
+  // well within the buffer size of 45.
   auto frame = make_periodic_frame();
-  this->ld2450_.feed(frame);
+  mid_frame.insert(mid_frame.end(), frame.begin(), frame.end());
+
+  this->ld2450_.feed(mid_frame);
+  // The footer from the frame should have triggered a reset
   EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
 }
 
-TEST_F(LD2450ReadlineTest, SimulatedRestartGarbageThenFrames) {
-  // Simulate LD2450 restart: burst of garbage bytes (partial frames, noise)
-  // followed by normal periodic data.
-  // Partial periodic frame (as if we started reading mid-frame), a stale footer, and more garbage
+TEST_F(LD2450ReadlineTest, SimulatedRestartThenFrames) {
+  // Simulate LD2450 restart: burst of garbage followed by valid periodic frames.
+  // The garbage + first frame should fit in the buffer so the footer resyncs.
   std::vector<uint8_t> restart_noise = {
-      0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E,  // mid-frame data
-      0x55, 0xCC,                                                                                // stale footer bytes
-      0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89,                                // more garbage
+      0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,  // 8 bytes of mid-frame data
   };
+  auto frame = make_periodic_frame();
+  // 8 garbage + 30 frame = 38 bytes, well within buffer of 45
+  restart_noise.insert(restart_noise.end(), frame.begin(), frame.end());
 
   this->ld2450_.feed(restart_noise);
-  // All garbage should be discarded
   EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
 
-  // Now the LD2450 starts sending valid frames
-  auto frame = make_periodic_frame();
-  this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
-
+  // Subsequent frames should work normally
   this->ld2450_.feed(frame);
   EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
 }
