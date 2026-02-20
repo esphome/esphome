@@ -1,5 +1,6 @@
 #pragma once
 
+#include "api_pb2_defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"

@@ -2593,22 +2593,28 @@ def main() -> None:
     )
 
     # Find the ifdef guard for 64-bit varint fields (int64/uint64/sint64).
-    # Emitted before proto.h so parse_wide_() and 64-bit accessors are available.
+    # Generated into api_pb2_defines.h so proto.h can include it, ensuring
+    # consistent ProtoVarInt layout across all translation units.
     has_varint64, varint64_guard = get_varint64_ifdef(file, message_ifdef_map)
+
+    # Generate api_pb2_defines.h — included by proto.h to ensure all translation
+    # units see USE_API_VARINT64 consistently (avoids ODR violations in ProtoVarInt).
+    defines_content = FILE_HEADER
+    defines_content += "#pragma once\n\n"
+    defines_content += '#include "esphome/core/defines.h"\n'
+    if has_varint64:
+        defines_content += "\n".join(
+            wrap_with_ifdef(["#define USE_API_VARINT64"], varint64_guard)
+        )
+        defines_content += "\n"
+
+    with open(root / "api_pb2_defines.h", "w", encoding="utf-8") as f:
+        f.write(defines_content)
 
     content = FILE_HEADER
     content += """\
 #pragma once
 
-#include "esphome/core/defines.h"
-"""
-    if has_varint64:
-        content += "\n".join(
-            wrap_with_ifdef(["#define USE_API_VARINT64"], varint64_guard)
-        )
-        content += "\n"
-
-    content += """\
 #include "esphome/core/string_ref.h"
 
 #include "proto.h"
