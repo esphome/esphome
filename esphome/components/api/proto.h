@@ -1,5 +1,6 @@
 #pragma once
 
+#include "api_pb2_defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -118,7 +119,7 @@ class ProtoVarInt {
     }
     // 32-bit phase: process remaining bytes with native 32-bit shifts.
     // Without USE_API_VARINT64: cover bytes 1-4 (shifts 7, 14, 21, 28) — the uint32_t
-    // shift at byte 4 truncates upper bits but those are always zero for valid uint32 values.
+    // shift at byte 4 (shift by 28) may lose bits 32-34, but those are always zero for valid uint32 values.
     // With USE_API_VARINT64: cover bytes 1-3 (shifts 7, 14, 21) so parse_wide handles
     // byte 4+ with full 64-bit arithmetic (avoids truncating values > UINT32_MAX).
     uint32_t result32 = buffer[0] & 0x7F;
