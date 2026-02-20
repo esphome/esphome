@@ -38,9 +38,11 @@ using namespace ld24xx;
 
 // Constants
 static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presense status 5 sec.
-static constexpr uint8_t MAX_LINE_LENGTH = 41;          // Max characters for serial buffer
-static constexpr uint8_t MAX_TARGETS = 3;               // Max 3 Targets in LD2450
-static constexpr uint8_t MAX_ZONES = 3;                 // Max 3 Zones in LD2450
+// Zone query response is 40 bytes; +1 for null terminator, +4 so that a frame footer always
+// lands inside the buffer during footer-based resynchronization after losing sync.
+static constexpr uint8_t MAX_LINE_LENGTH = 45;
+static constexpr uint8_t MAX_TARGETS = 3;  // Max 3 Targets in LD2450
+static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
 
 enum Direction : uint8_t {
   DIRECTION_APPROACHING = 0,
