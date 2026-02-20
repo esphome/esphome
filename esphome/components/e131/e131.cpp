@@ -85,22 +85,6 @@ void E131Component::loop() {
       ESP_LOGV(TAG, "Ignored packet for %d universe of size %d.", universe, packet.count);
     }
   }
-#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
-while (auto packet_size = this->udp_.parsePacket()) {
-  auto len = this->udp_.read(buf, sizeof(buf));
-  if (len <= 0)
-    continue;
-
-  if (!this->packet_(buf, (size_t) len, universe, packet)) {
-    ESP_LOGV(TAG, "Invalid packet received of size %d.", (int) len);
-    continue;
-  }
-
-  if (!this->process_(universe, packet)) {
-    ESP_LOGV(TAG, "Ignored packet for %d universe of size %d.", universe, packet.count);
-  }
-}
-#endif
 }
 
 void E131Component::add_effect(E131AddressableLightEffect *light_effect) {
