@@ -1534,6 +1534,12 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu16 ".%" PRIu16, this->helper_->get_client_name(),
            this->helper_->get_peername_to(peername), this->client_api_version_major_, this->client_api_version_minor_);
 
+  // TODO: Remove before 2026.8.0 (one version after get_object_id backward compat removal)
+  if (!this->client_supports_api_version(1, 14)) {
+    ESP_LOGW(TAG, "'%s' using outdated API %" PRIu16 ".%" PRIu16 ", update to 1.14+", this->helper_->get_client_name(),
+             this->client_api_version_major_, this->client_api_version_minor_);
+  }
+
   HelloResponse resp;
   resp.api_version_major = 1;
   resp.api_version_minor = 14;
