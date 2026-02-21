@@ -360,8 +360,8 @@ def _configure_lwip(config: dict) -> None:
         f"MEMP_NUM_TCP_PCB={tcp_sockets}",  # BK: 12, RTL: 10, LN: 8
         # UDP PCB pool — includes wifi.lwip_internal (DHCP + DNS)
         f"MEMP_NUM_UDP_PCB={udp_sockets}",  # BK: 25, RTL/LN: 7 via LT
-        # Netconn pool — sum of all socket types
-        f"MEMP_NUM_NETCONN={tcp_sockets + listening_tcp + udp_sockets}",
+        # Netconn pool — listening sockets are already counted in tcp_sockets
+        f"MEMP_NUM_NETCONN={tcp_sockets + udp_sockets}",
         # Netbuf pool
         "MEMP_NUM_NETBUF=4",  # BK: 16, RTL: 2 (opt.h), LN: 8
         # Inbound message pool
