@@ -464,6 +464,8 @@ def only_on_variant(*, supported=None, unsupported=None, msg_prefix="This featur
         unsupported = [unsupported]
 
     def validator_(obj):
+        if not CORE.is_esp32:
+            return obj
         variant = get_esp32_variant()
         if supported is not None and variant not in supported:
             raise cv.Invalid(
