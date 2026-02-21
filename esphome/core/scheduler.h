@@ -468,12 +468,8 @@ class Scheduler {
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
   bool is_item_removed_locked_(SchedulerItem *item) const {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    // Lock already held - relaxed is sufficient, mutex provides ordering.
-    // Use GCC __atomic_load_n builtin instead of std::atomic::load() because
-    // GCC for Xtensa emits std::atomic<bool>::load() as an out-of-line
-    // libstdc++ call, adding function call overhead that exceeds the memw
-    // barrier savings this optimization aims to eliminate.
-    return __atomic_load_n(reinterpret_cast<const bool *>(&item->remove), __ATOMIC_RELAXED);
+    // Lock already held - relaxed is sufficient, mutex provides ordering
+    return item->remove.load(std::memory_order_relaxed);
 #else
     return item->remove;
 #endif
