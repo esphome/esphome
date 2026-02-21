@@ -11,6 +11,7 @@ from esphome.config_validation import Invalid
 from esphome.const import (
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
+    CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
@@ -18,6 +19,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
+    _register_string,
     _setup_entity_impl,
     entity_duplicate_validator,
     get_base_entity_object_id,
@@ -894,4 +896,31 @@ async def test_setup_entity_empty_name_no_mac_suffix_no_friendly_name(
     # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
     assert any('set_name("", 0)' in expr for expr in added_expressions), (
         f"Expected set_name with hash 0, got {added_expressions}"
+    )
+
+
+def test_register_string_overflow() -> None:
+    """Test _register_string raises ValueError when max count is exceeded."""
+    category: dict[str, int] = {}
+    for i in range(3):
+        _register_string(f"val_{i}", category, 3, "test")
+    with pytest.raises(ValueError, match="Too many unique test values"):
+        _register_string("overflow", category, 3, "test")
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_with_entity_category(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity sets entity_category correctly."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Temperature",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_ENTITY_CATEGORY: "diagnostic",
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    assert any(
+        'set_entity_category("diagnostic")' in expr for expr in added_expressions
     )

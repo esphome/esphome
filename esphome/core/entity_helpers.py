@@ -60,7 +60,7 @@ class EntityStringPool:
     device_classes: dict[str, int] = field(default_factory=dict)
     units: dict[str, int] = field(default_factory=dict)
     icons: dict[str, int] = field(default_factory=dict)
-    _tables_registered: bool = False
+    tables_registered: bool = False
 
 
 def _get_pool() -> EntityStringPool:
@@ -73,9 +73,9 @@ def _get_pool() -> EntityStringPool:
 def _ensure_tables_registered() -> None:
     """Schedule the table generation job (once)."""
     pool = _get_pool()
-    if pool._tables_registered:
+    if pool.tables_registered:
         return
-    pool._tables_registered = True
+    pool.tables_registered = True
     CORE.add_job(_generate_tables_job)
 
 
