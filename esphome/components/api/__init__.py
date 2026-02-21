@@ -233,8 +233,8 @@ def _consume_api_sockets(config: ConfigType) -> ConfigType:
 
     # API needs 1 listening socket + typically 3 concurrent client connections
     # (not max_connections, which is the upper limit rarely reached)
-    sockets_needed = 1 + 3
-    socket.consume_sockets(sockets_needed, "api")(config)
+    socket.consume_sockets(3, "api")(config)
+    socket.consume_sockets(1, "api", socket.SocketType.TCP_LISTEN)(config)
     return config
 
 
