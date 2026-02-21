@@ -78,7 +78,7 @@ def patch_file_downloader():
                     # Close the session to force a new TCP connection,
                     # potentially routing to a different CDN edge node
                     if hasattr(self, "_http_session"):
-                        self._http_session.close()
+                        self._http_session.close()  # pylint: disable=protected-access
                     time.sleep(delay)
                 else:
                     # Final attempt - re-raise
