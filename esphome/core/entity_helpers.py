@@ -84,13 +84,14 @@ def _generate_blob_and_offsets(
 ) -> tuple[bytes, list[int]]:
     """Build a packed blob and offset list from a string dict.
 
-    Returns (blob_bytes, offsets) where offsets[0] points to "" (empty)
-    and offsets[i] points to the i-th string.
+    Returns (blob_bytes, offsets) where offsets are 1-based (matching the
+    1-based indices returned by _register_string). Index 0 means "not set"
+    and is handled by the caller before reaching the lookup function.
     """
     # Sort by assigned index to ensure deterministic output
     sorted_strings = sorted(strings.items(), key=lambda x: x[1])
-    blob = bytearray(b"\x00")  # Index 0 = offset 0 = empty string
-    offsets = [0]  # offset for index 0 (empty string)
+    blob = bytearray()
+    offsets = []
     for s, _idx in sorted_strings:
         offsets.append(len(blob))
         blob.extend(s.encode("utf-8"))
@@ -104,7 +105,11 @@ def _generate_category_code(
     lookup_fn: str,
     strings: dict[str, int],
 ) -> str:
-    """Generate C++ code for one string category (blob + offsets + lookup)."""
+    """Generate C++ code for one string category (blob + offsets + lookup).
+
+    Index 0 means "not set" and is handled by get_*_ref() before calling
+    the lookup function. The lookup uses 1-based indexing directly.
+    """
     if not strings:
         return ""
 
@@ -116,12 +121,16 @@ def _generate_category_code(
     blob_escaped = cpp_string_escape(blob_bytes)
     offsets_str = ", ".join(str(o) for o in offsets)
 
+    # The blob's last byte is always '\0' (null terminator of last string).
+    # Point there for index 0 ("not set") and out-of-range to return "".
+    empty_offset = len(blob_bytes) - 1
+
     return (
         f"static const char {blob_var}[] = {blob_escaped};\n"
         f"static const {offset_type} {offsets_var}[] PROGMEM = {{{offsets_str}}};\n"
         f"const char *{lookup_fn}(uint16_t index) {{\n"
-        f"  if (index >= {count}) return {blob_var};\n"
-        f"  return &{blob_var}[{read_fn}(&{offsets_var}[index])];\n"
+        f"  if (index == 0 || index > {count}) return &{blob_var}[{empty_offset}];\n"
+        f"  return &{blob_var}[{read_fn}(&{offsets_var}[index - 1])];\n"
         f"}}\n"
     )
 

@@ -50,23 +50,16 @@ __attribute__((weak)) const char *entity_device_class_lookup(uint16_t) { return 
 __attribute__((weak)) const char *entity_uom_lookup(uint16_t) { return ""; }
 __attribute__((weak)) const char *entity_icon_lookup(uint16_t) { return ""; }
 
-static constexpr auto EMPTY_REF = StringRef::from_lit("");
-
 // Entity device class (from packed index)
 StringRef EntityBase::get_device_class_ref() const {
-  uint16_t idx = (this->entity_string_packed_ >> ENTITY_STR_DC_SHIFT) & ENTITY_STR_DC_MASK;
-  if (idx == 0)
-    return EMPTY_REF;
-  return StringRef(entity_device_class_lookup(idx));
+  return StringRef(
+      entity_device_class_lookup((this->entity_string_packed_ >> ENTITY_STR_DC_SHIFT) & ENTITY_STR_DC_MASK));
 }
 std::string EntityBase::get_device_class() const { return std::string(this->get_device_class_ref().c_str()); }
 
 // Entity unit of measurement (from packed index)
 StringRef EntityBase::get_unit_of_measurement_ref() const {
-  uint16_t idx = (this->entity_string_packed_ >> ENTITY_STR_UOM_SHIFT) & ENTITY_STR_UOM_MASK;
-  if (idx == 0)
-    return EMPTY_REF;
-  return StringRef(entity_uom_lookup(idx));
+  return StringRef(entity_uom_lookup((this->entity_string_packed_ >> ENTITY_STR_UOM_SHIFT) & ENTITY_STR_UOM_MASK));
 }
 std::string EntityBase::get_unit_of_measurement() const {
   return std::string(this->get_unit_of_measurement_ref().c_str());
@@ -75,12 +68,9 @@ std::string EntityBase::get_unit_of_measurement() const {
 // Entity icon (from packed index)
 StringRef EntityBase::get_icon_ref() const {
 #ifdef USE_ENTITY_ICON
-  uint16_t idx = (this->entity_string_packed_ >> ENTITY_STR_ICON_SHIFT) & ENTITY_STR_ICON_MASK;
-  if (idx == 0)
-    return EMPTY_REF;
-  return StringRef(entity_icon_lookup(idx));
+  return StringRef(entity_icon_lookup((this->entity_string_packed_ >> ENTITY_STR_ICON_SHIFT) & ENTITY_STR_ICON_MASK));
 #else
-  return EMPTY_REF;
+  return StringRef(entity_icon_lookup(0));
 #endif
 }
 std::string EntityBase::get_icon() const { return std::string(this->get_icon_ref().c_str()); }
