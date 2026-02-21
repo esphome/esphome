@@ -77,9 +77,10 @@ void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
   uart_config.source_clk = UART_SCLK_DEFAULT;
   uart_param_config(uart_num, &uart_config);
-  const int uart_buffer_size = tx_buffer_size;
-  // Install UART driver using an event queue here
-  uart_driver_install(uart_num, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
+  // The logger only writes to UART, never reads, so use the minimum RX buffer.
+  // ESP-IDF requires rx_buffer_size > UART_HW_FIFO_LEN (128 bytes).
+  const int min_rx_buffer_size = UART_HW_FIFO_LEN(uart_num) + 1;
+  uart_driver_install(uart_num, min_rx_buffer_size, tx_buffer_size, 0, nullptr, 0);
 }
 
 void Logger::pre_setup() {

@@ -2951,6 +2951,7 @@ def test_run_miniterm_batches_lines_with_same_timestamp(
 
     mock_serial = MockSerial([chunk, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -2989,6 +2990,7 @@ def test_run_miniterm_different_chunks_different_timestamps(
 
     mock_serial = MockSerial([chunk1, chunk2, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -3019,6 +3021,7 @@ def test_run_miniterm_handles_split_lines() -> None:
 
     mock_serial = MockSerial([chunk1, chunk2, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -3057,6 +3060,7 @@ def test_run_miniterm_backtrace_state_maintained() -> None:
 
     mock_serial = MockSerial([backtrace_chunk, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -3122,6 +3126,7 @@ def test_run_miniterm_handles_empty_reads(
 
     mock_serial = MockSerial([b"", chunk, b"", MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -3194,6 +3199,7 @@ def test_run_miniterm_buffer_limit_prevents_unbounded_growth() -> None:
 
     mock_serial = MockSerial([large_data_no_newline, final_line, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
