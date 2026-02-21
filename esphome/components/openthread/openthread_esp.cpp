@@ -104,7 +104,7 @@ void OpenThreadComponent::ot_main() {
   esp_cli_custom_command_init();
 #endif  // CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
 
-  otLinkModeConfig link_mode_config = {0};
+  otLinkModeConfig link_mode_config{};
 #if CONFIG_OPENTHREAD_FTD
   link_mode_config.mRxOnWhenIdle = true;
   link_mode_config.mDeviceType = true;
@@ -115,7 +115,7 @@ void OpenThreadComponent::ot_main() {
       ESP_LOGE(TAG, "Failed to set OpenThread pollperiod.");
     }
     uint32_t link_polling_period = otLinkGetPollPeriod(esp_openthread_get_instance());
-    ESP_LOGD(TAG, "Link Polling Period: %d", link_polling_period);
+    ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, link_polling_period);
   }
   link_mode_config.mRxOnWhenIdle = this->poll_period == 0;
   link_mode_config.mDeviceType = false;

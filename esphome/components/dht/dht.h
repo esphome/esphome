@@ -51,8 +51,6 @@ class DHT : public PollingComponent {
   void dump_config() override;
   /// Update sensor values and push them to the frontend.
   void update() override;
-  /// HARDWARE_LATE setup priority.
-  float get_setup_priority() const override;
 
  protected:
   bool read_sensor_(float *temperature, float *humidity, bool report_errors);

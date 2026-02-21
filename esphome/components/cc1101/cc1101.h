@@ -79,7 +79,7 @@ class CC1101Component : public Component,
   // Packet mode operations
   CC1101Error transmit_packet(const std::vector<uint8_t> &packet);
   void register_listener(CC1101Listener *listener) { this->listeners_.push_back(listener); }
-  Trigger<std::vector<uint8_t>, float, float, uint8_t> *get_packet_trigger() const { return this->packet_trigger_; }
+  Trigger<std::vector<uint8_t>, float, float, uint8_t> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
   uint16_t chip_id_{0};
@@ -96,8 +96,7 @@ class CC1101Component : public Component,
 
   // Packet handling
   void call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi);
-  Trigger<std::vector<uint8_t>, float, float, uint8_t> *packet_trigger_{
-      new Trigger<std::vector<uint8_t>, float, float, uint8_t>()};
+  Trigger<std::vector<uint8_t>, float, float, uint8_t> packet_trigger_;
   std::vector<uint8_t> packet_;
   std::vector<CC1101Listener *> listeners_;
 

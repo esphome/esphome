@@ -32,8 +32,15 @@ class OTARequestHandler : public AsyncWebHandler {
   void handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index, uint8_t *data,
                     size_t len, bool final) override;
   bool canHandle(AsyncWebServerRequest *request) const override {
-    // Check if this is an OTA update request
-    bool is_ota_request = request->url() == "/update" && request->method() == HTTP_POST;
+    if (request->method() != HTTP_POST)
+      return false;
+      // Check if this is an OTA update request
+#ifdef USE_ESP32
+    char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+    bool is_ota_request = request->url_to(url_buf) == "/update";
+#else
+    bool is_ota_request = request->url() == ESPHOME_F("/update");
+#endif
 
 #if defined(USE_WEBSERVER_OTA_DISABLED) && defined(USE_CAPTIVE_PORTAL)
     // IMPORTANT: USE_WEBSERVER_OTA_DISABLED only disables OTA for the web_server component

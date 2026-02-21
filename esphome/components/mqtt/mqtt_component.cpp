@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/version.h"
 
 #include "mqtt_const.h"
@@ -12,6 +13,9 @@
 namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.component";
+
+// Entity category MQTT strings indexed by EntityCategory enum: NONE(0) is skipped, CONFIG(1), DIAGNOSTIC(2)
+PROGMEM_STRING_TABLE(EntityCategoryMqttStrings, "", "config", "diagnostic");
 
 // Helper functions for building topic strings on stack
 inline char *append_str(char *p, const char *s, size_t len) {
@@ -30,10 +34,7 @@ inline char *append_char(char *p, char c) {
 // MQTT_COMPONENT_TYPE_MAX_LEN, MQTT_SUFFIX_MAX_LEN, and MQTT_DEFAULT_TOPIC_MAX_LEN are in mqtt_component.h.
 // ESPHOME_DEVICE_NAME_MAX_LEN and OBJECT_ID_MAX_LEN are defined in entity_base.h.
 // This ensures the stack buffers below are always large enough.
-static constexpr size_t DISCOVERY_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
-// Format: prefix + "/" + type + "/" + name + "/" + object_id + "/config" + null
-static constexpr size_t DISCOVERY_TOPIC_MAX_LEN = DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 +
-                                                  ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
+// MQTT_DISCOVERY_PREFIX_MAX_LEN and MQTT_DISCOVERY_TOPIC_MAX_LEN are defined in mqtt_component.h
 
 // Function implementation of LOG_MQTT_COMPONENT macro to reduce code size
 void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic) {
@@ -50,15 +51,15 @@ void MQTTComponent::set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos;
 
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
-std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
+StringRef MQTTComponent::get_discovery_topic_to_(std::span<char, MQTT_DISCOVERY_TOPIC_MAX_LEN> buf,
+                                                 const MQTTDiscoveryInfo &discovery_info) const {
   char sanitized_name[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
   str_sanitize_to(sanitized_name, App.get_name().c_str());
   const char *comp_type = this->component_type();
   char object_id_buf[OBJECT_ID_MAX_LEN];
   StringRef object_id = this->get_default_object_id_to_(object_id_buf);
 
-  char buf[DISCOVERY_TOPIC_MAX_LEN];
-  char *p = buf;
+  char *p = buf.data();
 
   p = append_str(p, discovery_info.prefix.data(), discovery_info.prefix.size());
   p = append_char(p, '/');
@@ -68,8 +69,9 @@ std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discove
   p = append_char(p, '/');
   p = append_str(p, object_id.c_str(), object_id.size());
   p = append_str(p, "/config", 7);
+  *p = '\0';
 
-  return std::string(buf, p - buf);
+  return StringRef(buf.data(), p - buf.data());
 }
 
 StringRef MQTTComponent::get_default_topic_for_to_(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf, const char *suffix,
@@ -132,17 +134,45 @@ std::string MQTTComponent::get_command_topic_() const {
 }
 
 bool MQTTComponent::publish(const std::string &topic, const std::string &payload) {
-  return this->publish(topic, payload.data(), payload.size());
+  return this->publish(topic.c_str(), payload.data(), payload.size());
 }
 
 bool MQTTComponent::publish(const std::string &topic, const char *payload, size_t payload_length) {
-  if (topic.empty())
+  return this->publish(topic.c_str(), payload, payload_length);
+}
+
+bool MQTTComponent::publish(const char *topic, const char *payload, size_t payload_length) {
+  if (topic[0] == '\0')
     return false;
   return global_mqtt_client->publish(topic, payload, payload_length, this->qos_, this->retain_);
 }
 
+bool MQTTComponent::publish(const char *topic, const char *payload) {
+  return this->publish(topic, payload, strlen(payload));
+}
+
+#ifdef USE_ESP8266
+bool MQTTComponent::publish(const std::string &topic, ProgmemStr payload) {
+  return this->publish(topic.c_str(), payload);
+}
+
+bool MQTTComponent::publish(const char *topic, ProgmemStr payload) {
+  if (topic[0] == '\0')
+    return false;
+  // On ESP8266, ProgmemStr is __FlashStringHelper* - need to copy from flash
+  char buf[64];
+  strncpy_P(buf, reinterpret_cast<const char *>(payload), sizeof(buf) - 1);
+  buf[sizeof(buf) - 1] = '\0';
+  return global_mqtt_client->publish(topic, buf, strlen(buf), this->qos_, this->retain_);
+}
+#endif
+
 bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
-  if (topic.empty())
+  return this->publish_json(topic.c_str(), f);
+}
+
+bool MQTTComponent::publish_json(const char *topic, const json::json_build_t &f) {
+  if (topic[0] == '\0')
     return false;
   return global_mqtt_client->publish_json(topic, f, this->qos_, this->retain_);
 }
@@ -150,16 +180,19 @@ bool MQTTComponent::publish_json(const std::string &topic, const json::json_buil
 bool MQTTComponent::send_discovery_() {
   const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
 
+  char discovery_topic_buf[MQTT_DISCOVERY_TOPIC_MAX_LEN];
+  StringRef discovery_topic = this->get_discovery_topic_to_(discovery_topic_buf, discovery_info);
+
   if (discovery_info.clean) {
     ESP_LOGV(TAG, "'%s': Cleaning discovery", this->friendly_name_().c_str());
-    return global_mqtt_client->publish(this->get_discovery_topic_(discovery_info), "", 0, this->qos_, true);
+    return global_mqtt_client->publish(discovery_topic.c_str(), "", 0, this->qos_, true);
   }
 
   ESP_LOGV(TAG, "'%s': Sending discovery", this->friendly_name_().c_str());
 
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return global_mqtt_client->publish_json(
-      this->get_discovery_topic_(discovery_info),
+      discovery_topic.c_str(),
       [this](JsonObject root) {
         SendDiscoveryConfig config;
         config.state_topic = true;
@@ -172,7 +205,7 @@ bool MQTTComponent::send_discovery_() {
         }
 
         // Fields from EntityBase
-        root[MQTT_NAME] = this->get_entity()->has_own_name() ? this->friendly_name_() : "";
+        root[MQTT_NAME] = this->get_entity()->has_own_name() ? this->friendly_name_() : StringRef();
 
         if (this->is_disabled_by_default_())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
@@ -184,13 +217,9 @@ bool MQTTComponent::send_discovery_() {
         // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
         const auto entity_category = this->get_entity()->get_entity_category();
-        switch (entity_category) {
-          case ENTITY_CATEGORY_NONE:
-            break;
-          case ENTITY_CATEGORY_CONFIG:
-          case ENTITY_CATEGORY_DIAGNOSTIC:
-            root[MQTT_ENTITY_CATEGORY] = entity_category == ENTITY_CATEGORY_CONFIG ? "config" : "diagnostic";
-            break;
+        if (entity_category != ENTITY_CATEGORY_NONE) {
+          root[MQTT_ENTITY_CATEGORY] = EntityCategoryMqttStrings::get_progmem_str(
+              static_cast<uint8_t>(entity_category), static_cast<uint8_t>(ENTITY_CATEGORY_CONFIG));
         }
 
         if (config.state_topic) {
@@ -220,7 +249,7 @@ bool MQTTComponent::send_discovery_() {
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
           char friendly_name_hash[9];
           buf_append_printf(friendly_name_hash, sizeof(friendly_name_hash), 0, "%08" PRIx32,
-                            fnv1_hash(this->friendly_name_()));
+                            fnv1_hash(this->friendly_name_().c_str()));
           // Format: mac-component_type-hash (e.g. "aabbccddeeff-sensor-12345678")
           // MAC (12) + "-" (1) + domain (max 20) + "-" (1) + hash (8) + null (1) = 43
           char unique_id[MAC_ADDRESS_BUFFER_SIZE + ESPHOME_DOMAIN_MAX_LEN + 11];
@@ -386,7 +415,7 @@ void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
 // Pull these properties from EntityBase if not overridden
-std::string MQTTComponent::friendly_name_() const { return this->get_entity()->get_name(); }
+const StringRef &MQTTComponent::friendly_name_() const { return this->get_entity()->get_name(); }
 StringRef MQTTComponent::get_default_object_id_to_(std::span<char, OBJECT_ID_MAX_LEN> buf) const {
   return this->get_entity()->get_object_id_to(buf);
 }

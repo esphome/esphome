@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.2.0-dev"
+__version__ = "2026.3.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -149,6 +149,7 @@ CONF_ASSUMED_STATE = "assumed_state"
 CONF_AT = "at"
 CONF_ATTENUATION = "attenuation"
 CONF_ATTRIBUTE = "attribute"
+CONF_AUDIO_DAC = "audio_dac"
 CONF_AUTH = "auth"
 CONF_AUTO_CLEAR_ENABLED = "auto_clear_enabled"
 CONF_AUTO_MODE = "auto_mode"
@@ -638,6 +639,7 @@ CONF_MOVEMENT_COUNTER = "movement_counter"
 CONF_MOVING_DISTANCE = "moving_distance"
 CONF_MQTT = "mqtt"
 CONF_MQTT_ID = "mqtt_id"
+CONF_MQTT_JSON_STATE_PAYLOAD = "mqtt_json_state_payload"
 CONF_MULTIPLE = "multiple"
 CONF_MULTIPLEXER = "multiplexer"
 CONF_MULTIPLY = "multiply"
