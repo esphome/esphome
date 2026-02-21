@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_DIMENSIONS, CONF_ID, CONF_LAMBDA
 
 AUTO_LOAD = ["text_display"]
-
+CODEOWNERS = ["@tomaszduda23"]
 
 uart_terminal = cg.esphome_ns.namespace("uart_terminal")
 Terminal = uart_terminal.class_("Terminal", text_display.TextDisplay)

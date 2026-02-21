@@ -60,4 +60,12 @@ void TextDisplay::printf(const char *format, ...) {
     this->print(0, 0, buffer);
 }
 
+void TextDisplay::strftime(uint8_t column, uint8_t row, const char *format, ESPTime time) {
+  char buffer[64];
+  size_t ret = time.strftime(buffer, sizeof(buffer), format);
+  if (ret > 0)
+    this->print(column, row, buffer);
+}
+void TextDisplay::strftime(const char *format, ESPTime time) { this->strftime(0, 0, format, time); }
+
 }  // namespace esphome::text_display

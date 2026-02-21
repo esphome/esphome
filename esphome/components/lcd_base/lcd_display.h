@@ -20,11 +20,6 @@ class LCDDisplay : public text_display::TextDisplay {
   float get_setup_priority() const override;
   void display() override;
 
-  /// Evaluate the strftime-format and print the text at the specified column and row.
-  void strftime(uint8_t column, uint8_t row, const char *format, ESPTime time) __attribute__((format(strftime, 4, 0)));
-  /// Evaluate the strftime-format and print the text at column=0 and row=0.
-  void strftime(const char *format, ESPTime time) __attribute__((format(strftime, 2, 0)));
-
   /// Load custom char to given location
   void loadchar(uint8_t location, uint8_t charmap[]);
 

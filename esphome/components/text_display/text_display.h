@@ -30,6 +30,10 @@ class TextDisplay : public PollingComponent {
   void printf(uint8_t column, uint8_t row, const char *format, ...) __attribute__((format(printf, 4, 5)));
   /// Evaluate the printf-format and print the text at column=0 and row=0.
   void printf(const char *format, ...) __attribute__((format(printf, 2, 3)));
+  /// Evaluate the strftime-format and print the text at the specified column and row.
+  void strftime(uint8_t column, uint8_t row, const char *format, ESPTime time) __attribute__((format(strftime, 4, 0)));
+  /// Evaluate the strftime-format and print the text at column=0 and row=0.
+  void strftime(const char *format, ESPTime time) __attribute__((format(strftime, 2, 0)));
 
  protected:
   virtual void call_writer() = 0;

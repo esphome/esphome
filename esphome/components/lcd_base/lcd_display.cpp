@@ -112,13 +112,6 @@ void HOT LCDDisplay::display() {
 
 void LCDDisplay::command_(uint8_t value) { this->send(value, false); }
 
-void LCDDisplay::strftime(uint8_t column, uint8_t row, const char *format, ESPTime time) {
-  char buffer[64];
-  size_t ret = time.strftime(buffer, sizeof(buffer), format);
-  if (ret > 0)
-    this->print(column, row, buffer);
-}
-void LCDDisplay::strftime(const char *format, ESPTime time) { this->strftime(0, 0, format, time); }
 void LCDDisplay::loadchar(uint8_t location, uint8_t charmap[]) {
   location &= 0x7;  // we only have 8 locations 0-7
   this->command_(LCD_DISPLAY_COMMAND_SET_CGRAM_ADDR | (location << 3));
