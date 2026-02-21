@@ -367,8 +367,8 @@ _SETTER_ACTIONS = [
         float,
         None,
     ),
-    ("set_msk_deviation", cv.int_range(min=1, max=8), int, None),
-    ("set_channel", cv.uint8_t, int, None),
+    ("set_msk_deviation", cv.int_range(min=1, max=8), cg.uint8, None),
+    ("set_channel", cv.uint8_t, cg.uint8, None),
     (
         "set_channel_spacing",
         cv.All(cv.frequency, cv.float_range(min=25000, max=405000)),
