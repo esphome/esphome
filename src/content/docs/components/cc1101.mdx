@@ -184,6 +184,140 @@ on_...:
       data: [0x12, 0x34, 0x56, 0x78]
 ```
 
+### `cc1101.set_frequency` Action
+
+This [action](/automations/actions#all-actions) changes the operating frequency at runtime.
+
+#### Configuration variables
+
+- **value** (**Required**, frequency):
+  The frequency to set. Range: `300MHz` to `928MHz`.
+
+```yaml
+on_...:
+  - cc1101.set_frequency: 433.92MHz
+  - cc1101.set_frequency:
+      value: !lambda "return 868.0e6;"
+```
+
+### `cc1101.set_output_power` Action
+
+This [action](/automations/actions#all-actions) changes the transmission power at runtime.
+
+#### Configuration variables
+
+- **value** (**Required**, float): The output power in dBm. Range: `-30` to `11`.
+
+### `cc1101.set_modulation_type` Action
+
+This [action](/automations/actions#all-actions) changes the modulation type at runtime.
+
+#### Configuration variables
+
+- **value** (**Required**, enum): The modulation type.
+  Options: `ASK/OOK`, `2-FSK`, `4-FSK`, `GFSK`, `MSK`.
+
+```yaml
+on_...:
+  - cc1101.set_modulation_type: "GFSK"
+  - cc1101.set_modulation_type:
+      value: !lambda |-
+        return cc1101::Modulation::MODULATION_2_FSK;
+```
+
+### `cc1101.set_symbol_rate` Action
+
+This [action](/automations/actions#all-actions) changes the symbol rate at runtime.
+
+#### Configuration variables
+
+- **value** (**Required**, float): The symbol rate in baud. Range: `600` to `500000`.
+
+### `cc1101.set_rx_attenuation` Action
+
+This [action](/automations/actions#all-actions) changes the internal RX attenuation at runtime.
+
+#### Configuration variables
+
+- **value** (**Required**, enum): The attenuation level.
+  Options: `0dB`, `6dB`, `12dB`, `18dB`.
+
+```yaml
+on_...:
+  - cc1101.set_rx_attenuation: "12dB"
+  - cc1101.set_rx_attenuation:
+      value: !lambda |-
+        return cc1101::RxAttenuation::RX_ATTENUATION_0DB;
+```
+
+### `cc1101.set_dc_blocking_filter` Action
+
+This [action](/automations/actions#all-actions) enables or disables the DC blocking filter at runtime.
+
+#### Configuration variables
+
+- **value** (**Required**, boolean): `true` to enable, `false` to disable.
+
+### `cc1101.set_manchester` Action
+
+This [action](/automations/actions#all-actions) enables or disables Manchester encoding at runtime.
+
+#### Configuration variables
+
+- **value** (**Required**, boolean): `true` to enable, `false` to disable.
+
+### `cc1101.set_filter_bandwidth` Action
+
+This [action](/automations/actions#all-actions) changes the receive filter bandwidth at runtime.
+
+#### Configuration variables
+
+- **value** (**Required**, frequency):
+  The filter bandwidth. Range: `58kHz` to `812kHz`.
+
+### `cc1101.set_fsk_deviation` Action
+
+This [action](/automations/actions#all-actions) changes the FSK/GFSK frequency deviation at runtime.
+
+#### Configuration variables
+
+- **value** (**Required**, frequency):
+  The frequency deviation. Range: `1.5kHz` to `381kHz`.
+
+### `cc1101.set_msk_deviation` Action
+
+This [action](/automations/actions#all-actions) changes the MSK deviation index at runtime.
+
+#### Configuration variables
+
+- **value** (**Required**, int): The deviation index. Range: `1` to `8`.
+
+### `cc1101.set_channel` Action
+
+This [action](/automations/actions#all-actions) changes the channel number at runtime.
+
+#### Configuration variables
+
+- **value** (**Required**, int): The channel number. Range: `0` to `255`.
+
+### `cc1101.set_channel_spacing` Action
+
+This [action](/automations/actions#all-actions) changes the channel spacing at runtime.
+
+#### Configuration variables
+
+- **value** (**Required**, frequency):
+  The spacing between channels. Range: `25kHz` to `405kHz`.
+
+### `cc1101.set_if_frequency` Action
+
+This [action](/automations/actions#all-actions) changes the intermediate frequency at runtime.
+
+#### Configuration variables
+
+- **value** (**Required**, frequency):
+  The intermediate frequency. Range: `25kHz` to `788kHz`.
+
 ## Integration with Remote Receiver/Transmitter
 
 For ASK/OOK modulation, the CC1101 integrates with Remote Receiver/Transmitter for protocol encoding
