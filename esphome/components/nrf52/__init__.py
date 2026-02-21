@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
+import re
+import subprocess
 
 from esphome import pins
 import esphome.codegen as cg
@@ -379,4 +381,42 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
     if is_mac_address(address):
         asyncio.run(logger_connect(address))
         return True
+    return False
+
+
+def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
+    try:
+        result = subprocess.run(
+            [addr2line, "-e", elf, addr],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip().splitlines()[0]
+    except Exception as err:  # pylint: disable=broad-except
+        _LOGGER.error("Running command failed: %s", err)
+    return ""
+
+
+def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
+    if "Last crash:" in line:
+        return True
+    if backtrace_state:
+        match = re.search(r"PC=(0x[0-9a-fA-F]+)\s+LR=(0x[0-9a-fA-F]+)", line)
+        if match:
+            pc = match.group(1)
+            lr = match.group(2)
+            from esphome.analyze_memory.toolchain import find_tool
+
+            addr2line = find_tool("addr2line")
+            if addr2line is None:
+                return False
+            elf = CORE.relative_pioenvs_path(CORE.name, "firmware.elf")
+            if not elf.exists():
+                _LOGGER.warning("%s does not exists", elf)
+                return False
+            _LOGGER.error("=== CRASH ===")
+            _LOGGER.error("PC: %s", _addr2line(addr2line, elf, pc))
+            _LOGGER.error("LR: %s", _addr2line(addr2line, elf, lr))
+
     return False
