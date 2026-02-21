@@ -385,13 +385,17 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
 
 
 def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
-    result = subprocess.run(
-        [addr2line, "-e", elf, addr],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return result.stdout.strip().splitlines()
+    try:
+        result = subprocess.run(
+            [addr2line, "-e", elf, addr],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip().splitlines()[0]
+    except Exception as err:  # pylint: disable=broad-except
+        _LOGGER.error("Running command failed: %s", err)
+    return ""
 
 
 def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
