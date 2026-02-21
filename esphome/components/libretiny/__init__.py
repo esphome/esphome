@@ -291,8 +291,8 @@ def _configure_lwip(config: dict) -> None:
     ────────────────────────────────────────────────────────────────────────────
     TCP_SND_BUF               2×MSS   4×MSS  10×MSS   5×MSS    7×MSS    4×MSS
     TCP_WND                   4×MSS   4×MSS  10×MSS   2×MSS    3×MSS    4×MSS
-    MEM_LIBC_MALLOC           1       1      0        0        1        1 BK
-    MEMP_MEM_MALLOC           1       1      0        0        0        1 BK
+    MEM_LIBC_MALLOC           1       1      0        0        1        1
+    MEMP_MEM_MALLOC           1       1      0        0        0        1
     MEM_SIZE                  N/A*    N/A*   16/32KB  5KB      N/A*     N/A* BK
     PBUF_POOL_SIZE            10      16     3/10     20       20       10 BK
     MAX_SOCKETS_TCP           5       16     12       —**      —**      dynamic
@@ -371,25 +371,24 @@ def _configure_lwip(config: dict) -> None:
         "MEMP_NUM_TCPIP_MSG_INPKT=8",  # BK: 16, RTL: 8 (opt.h), LN: 12
     ]
 
-    # BK72XX-specific overrides:
+    # Use system heap for all lwIP allocations on all LibreTiny platforms.
     # - MEM_LIBC_MALLOC=1: Use system heap instead of dedicated lwIP heap.
-    #   BK SDK defaults to a 16/32KB dedicated pool (MEM_LIBC_MALLOC=0).
-    #   LN882H already uses MEM_LIBC_MALLOC=1. This eliminates the dedicated
-    #   pool bottleneck that caused OTA slowness due to heap fragmentation.
-    #   Safe because BK SDK wires mem_clib_malloc → os_malloc → pvPortMalloc
-    #   (FreeRTOS thread-safe heap).
+    #   LN882H already ships with this. BK SDK defaults to a 16/32KB dedicated
+    #   pool that fragments during OTA. RTL SDK defaults to a 5KB pool.
+    #   All three SDKs wire malloc → pvPortMalloc (FreeRTOS thread-safe heap).
     # - MEMP_MEM_MALLOC=1: Allocate MEMP pools from heap on demand instead
-    #   of static arrays. Saves ~20KB RAM for unused pool entries. Safe because
-    #   the BK WiFi driver's receive path runs in task context (core_thread),
-    #   not ISR context — the ISR only posts to a queue. ESP32 and ESP8266
+    #   of static arrays. Saves ~20KB RAM on BK72XX. Safe because WiFi
+    #   receive paths run in task context, not ISR context. ESP32 and ESP8266
     #   both ship with MEMP_MEM_MALLOC=1.
-    # - PBUF_POOL_SIZE: BK SDK "reduced plan" sets this to only 3 — too few
-    #   for multiple concurrent connections (API + web_server + OTA).
-    #   BK default plan uses 10; match that. RTL(20) and LN(20) need no override.
-    #   With MEMP_MEM_MALLOC=1, this is a max count (allocated on demand).
+    lwip_opts.append("MEM_LIBC_MALLOC=1")
+    lwip_opts.append("MEMP_MEM_MALLOC=1")
+
+    # BK72XX-specific: PBUF_POOL_SIZE override
+    # BK SDK "reduced plan" sets this to only 3 — too few for multiple
+    # concurrent connections (API + web_server + OTA). BK default plan
+    # uses 10; match that. RTL(20) and LN(20) need no override.
+    # With MEMP_MEM_MALLOC=1, this is a max count (allocated on demand).
     if CORE.is_bk72xx:
-        lwip_opts.append("MEM_LIBC_MALLOC=1")
-        lwip_opts.append("MEMP_MEM_MALLOC=1")
         lwip_opts.append("PBUF_POOL_SIZE=10")
 
     cg.add_platformio_option("custom_options.lwip", lwip_opts)
