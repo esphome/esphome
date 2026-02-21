@@ -8,10 +8,10 @@
 
 #if defined(USE_ESP32)
 #include <soc/soc_caps.h>
-#ifdef SOC_PCNT_SUPPORTED
+#if defined(SOC_PCNT_SUPPORTED) && __has_include(<driver/pulse_cnt.h>)
 #include <driver/pulse_cnt.h>
 #define HAS_PCNT
-#endif  // SOC_PCNT_SUPPORTED
+#endif  // defined(SOC_PCNT_SUPPORTED) && __has_include(<driver/pulse_cnt.h>)
 #endif  // USE_ESP32
 
 namespace esphome {
