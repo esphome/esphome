@@ -29,8 +29,8 @@ void EspLdo::dump_config() {
 }
 
 void EspLdo::adjust_voltage(float voltage) {
-  if (!std::isfinite(voltage) || ((voltage < 0.9f || voltage > 2.7f) && voltage != 3.3f)) {
-    ESP_LOGE(TAG, "Invalid voltage %fV for LDO channel %d (must be 0.9V-2.7V or 3.3V)", voltage, this->channel_);
+  if (!std::isfinite(voltage) || ((voltage < 0.5f || voltage > 2.7f) && voltage != 3.3f)) {
+    ESP_LOGE(TAG, "Invalid voltage %fV for LDO channel %d (must be 0.5V-2.7V or 3.3V)", voltage, this->channel_);
     return;
   }
   auto erro = esp_ldo_channel_adjust_voltage(this->handle_, (int) roundf(voltage * 1000.0f));

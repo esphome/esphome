@@ -29,10 +29,10 @@ def validate_ldo_voltage(value):
     value = cv.voltage(value)
     if abs(value - 3.3) < 0.01:
         return 3.3
-    if 0.9 <= value <= 2.7:
+    if 0.5 <= value <= 2.7:
         return value
     raise cv.Invalid(
-        f"LDO voltage must be in range 0.9V-2.7V or exactly 3.3V (bypass), got {value}V"
+        f"LDO voltage must be in range 0.5V-2.7V or exactly 3.3V (bypass), got {value}V"
     )
 
 
