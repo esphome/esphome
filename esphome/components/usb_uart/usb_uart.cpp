@@ -172,11 +172,12 @@ bool USBUartChannel::read_array(uint8_t *data, size_t len) {
 }
 void USBUartComponent::setup() { USBClient::setup(); }
 void USBUartComponent::loop() {
-  USBClient::loop();
+  bool had_work = this->process_usb_events_();
 
   // Process USB data from the lock-free queue
   UsbDataChunk *chunk;
   while ((chunk = this->usb_data_queue_.pop()) != nullptr) {
+    had_work = true;
     auto *channel = chunk->channel;
 
 #ifdef USE_UART_DEBUGGER
@@ -197,6 +198,11 @@ void USBUartComponent::loop() {
   uint16_t dropped = this->usb_data_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u USB data chunks due to buffer overflow", dropped);
+  }
+
+  // Disable loop when idle. Callbacks re-enable via enable_loop_soon_any_context().
+  if (!had_work) {
+    this->disable_loop();
   }
 }
 void USBUartComponent::dump_config() {
@@ -263,6 +269,9 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       // Push to lock-free queue for main loop processing
       // Push always succeeds because pool size == queue size
       this->usb_data_queue_.push(chunk);
+
+      // Re-enable component loop to process the queued data
+      this->enable_loop_soon_any_context();
 
       // Wake main loop immediately to process USB data instead of waiting for select() timeout
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)

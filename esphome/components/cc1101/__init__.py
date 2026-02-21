@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_DATA,
     CONF_FREQUENCY,
     CONF_ID,
+    CONF_VALUE,
     CONF_WAIT_TIME,
 )
 from esphome.core import ID
@@ -333,3 +334,94 @@ async def send_packet_action_to_code(config, action_id, template_arg, args):
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
         cg.add(var.set_data_static(arr, len(data)))
     return var
+
+
+# Setter action definitions: (setter_name, validator, template_type, enum_map)
+_SETTER_ACTIONS = [
+    (
+        "set_frequency",
+        cv.All(cv.frequency, cv.float_range(min=300.0e6, max=928.0e6)),
+        float,
+        None,
+    ),
+    ("set_output_power", cv.float_range(min=-30.0, max=11.0), float, None),
+    ("set_modulation_type", cv.enum(MODULATION, upper=False), Modulation, MODULATION),
+    ("set_symbol_rate", cv.float_range(min=600, max=500000), float, None),
+    (
+        "set_rx_attenuation",
+        cv.enum(RX_ATTENUATION, upper=False),
+        RxAttenuation,
+        RX_ATTENUATION,
+    ),
+    ("set_dc_blocking_filter", cv.boolean, bool, None),
+    ("set_manchester", cv.boolean, bool, None),
+    (
+        "set_filter_bandwidth",
+        cv.All(cv.frequency, cv.float_range(min=58000, max=812000)),
+        float,
+        None,
+    ),
+    (
+        "set_fsk_deviation",
+        cv.All(cv.frequency, cv.float_range(min=1500, max=381000)),
+        float,
+        None,
+    ),
+    ("set_msk_deviation", cv.int_range(min=1, max=8), cg.uint8, None),
+    ("set_channel", cv.uint8_t, cg.uint8, None),
+    (
+        "set_channel_spacing",
+        cv.All(cv.frequency, cv.float_range(min=25000, max=405000)),
+        float,
+        None,
+    ),
+    (
+        "set_if_frequency",
+        cv.All(cv.frequency, cv.float_range(min=25000, max=788000)),
+        float,
+        None,
+    ),
+]
+
+
+def _register_setter_actions():
+    for setter_name, validator, templ_type, enum_map in _SETTER_ACTIONS:
+        class_name = (
+            "".join(word.capitalize() for word in setter_name.split("_")) + "Action"
+        )
+        action_cls = ns.class_(
+            class_name, automation.Action, cg.Parented.template(CC1101Component)
+        )
+        schema = cv.maybe_simple_value(
+            {
+                cv.GenerateID(): cv.use_id(CC1101Component),
+                cv.Required(CONF_VALUE): cv.templatable(validator),
+            },
+            key=CONF_VALUE,
+        )
+
+        async def _setter_action_to_code(
+            config,
+            action_id,
+            template_arg,
+            args,
+            _setter=setter_name,
+            _type=templ_type,
+            _map=enum_map,
+        ):
+            var = cg.new_Pvariable(action_id, template_arg)
+            await cg.register_parented(var, config[CONF_ID])
+            data = config[CONF_VALUE]
+            if cg.is_template(data):
+                templ_ = await cg.templatable(data, args, _type)
+                cg.add(getattr(var, _setter)(templ_))
+            else:
+                cg.add(getattr(var, _setter)(_map[data] if _map else data))
+            return var
+
+        automation.register_action(f"cc1101.{setter_name}", action_cls, schema)(
+            _setter_action_to_code
+        )
+
+
+_register_setter_actions()
