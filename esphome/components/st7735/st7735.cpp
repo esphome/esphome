@@ -68,7 +68,7 @@ static const uint8_t ST7735_GMCTRP1 = 0xE0;
 static const uint8_t ST7735_GMCTRN1 = 0xE1;
 
 // clang-format off
-static const uint8_t PROGMEM
+static constexpr uint8_t PROGMEM
   BCMD[] = {                        // Init commands for 7735B screens
     18,                             // 18 commands in list:
     ST77XX_SWRESET,   ST_CMD_DELAY, //  1: Software reset, no args, w/delay
