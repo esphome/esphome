@@ -20,7 +20,7 @@ AdjustAction = esp_ldo_ns.class_("AdjustAction", Action)
 CHANNELS = (1, 2, 3, 4)
 CHANNELS_INTERNAL = (1, 2)
 CONF_ADJUSTABLE = "adjustable"
-CONF_ALLOW_INTERNAL = "allow_internal_channel"
+CONF_ALLOW_INTERNAL_CHANNEL = "allow_internal_channel"
 
 adjusted_ids = set()
 
@@ -38,17 +38,17 @@ def validate_ldo_voltage(value):
 
 def validate_ldo_config(config):
     channel = config[CONF_CHANNEL]
-    allow_internal = config.get(CONF_ALLOW_INTERNAL, False)
+    allow_internal = config.get(CONF_ALLOW_INTERNAL_CHANNEL, False)
     if allow_internal and channel not in CHANNELS_INTERNAL:
         raise cv.Invalid(
-            f"'{CONF_ALLOW_INTERNAL}' is only valid for internal channels (1, 2). "
+            f"'{CONF_ALLOW_INTERNAL_CHANNEL}' is only valid for internal channels (1, 2). "
             f"Channel {channel} is a user-configurable channel — its usage depends on your board schematic.",
-            path=[CONF_ALLOW_INTERNAL],
+            path=[CONF_ALLOW_INTERNAL_CHANNEL],
         )
     if channel in CHANNELS_INTERNAL and not allow_internal:
         raise cv.Invalid(
             f"LDO channel {channel} is normally used internally by the chip (flash/PSRAM). "
-            f"Set '{CONF_ALLOW_INTERNAL}: true' to confirm you know what you are doing.",
+            f"Set '{CONF_ALLOW_INTERNAL_CHANNEL}: true' to confirm you know what you are doing.",
             path=[CONF_CHANNEL],
         )
     return config
@@ -63,7 +63,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_VOLTAGE): validate_ldo_voltage,
                     cv.Required(CONF_CHANNEL): cv.one_of(*CHANNELS, int=True),
                     cv.Optional(CONF_ADJUSTABLE, default=False): cv.boolean,
-                    cv.Optional(CONF_ALLOW_INTERNAL, default=False): cv.boolean,
+                    cv.Optional(CONF_ALLOW_INTERNAL_CHANNEL, default=False): cv.boolean,
                 }
             ),
             validate_ldo_config,
@@ -76,7 +76,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(configs):
     for config in configs:
-        if config.get(CONF_ALLOW_INTERNAL, False):
+        if config.get(CONF_ALLOW_INTERNAL_CHANNEL, False):
             _LOGGER.warning(
                 "LDO channel %d is configured with '%s: true'. "
                 "Channels 1 and 2 are normally reserved for internal chip use (flash/PSRAM). "
@@ -84,7 +84,7 @@ async def to_code(configs):
                 "or a permanently bricked device. Only use this if you have verified via "
                 "datasheet and schematics that this channel is unused on your specific board.",
                 config[CONF_CHANNEL],
-                CONF_ALLOW_INTERNAL,
+                CONF_ALLOW_INTERNAL_CHANNEL,
             )
         var = cg.new_Pvariable(config[CONF_ID], config[CONF_CHANNEL])
         await cg.register_component(var, config)
