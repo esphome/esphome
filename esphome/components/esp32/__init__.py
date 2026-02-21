@@ -1263,11 +1263,10 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
     user_max_sockets = conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_LWIP_MAX_SOCKETS")
 
-    # tcp_listen not used on ESP32 — ESP-IDF defaults MEMP_NUM_TCP_PCB_LISTEN
-    # to 16 which is already generous, and CONFIG_LWIP_MAX_SOCKETS is a single
-    # combined VFS socket pool with no separate listening socket limit.
-    tcp_sockets, udp_sockets, _tcp_listen = get_socket_counts()
-    total_sockets = tcp_sockets + udp_sockets
+    # CONFIG_LWIP_MAX_SOCKETS is a single VFS socket pool shared by all socket
+    # types (TCP clients, TCP listeners, and UDP). Include all three counts.
+    tcp_sockets, udp_sockets, tcp_listen = get_socket_counts()
+    total_sockets = tcp_sockets + udp_sockets + tcp_listen
 
     # User specified their own value - respect it but warn if insufficient
     if user_max_sockets is not None:
@@ -1283,12 +1282,14 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
         if user_sockets_int < total_sockets:
             _LOGGER.warning(
                 "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
-                "needs %d sockets (%d TCP + %d UDP). You may experience "
-                "socket exhaustion errors. Consider increasing to at least %d.",
+                "needs %d sockets (%d TCP + %d UDP + %d TCP_LISTEN). You may "
+                "experience socket exhaustion errors. Consider increasing to "
+                "at least %d.",
                 user_sockets_int,
                 total_sockets,
                 tcp_sockets,
                 udp_sockets,
+                tcp_listen,
                 total_sockets,
             )
         # User's value already added via sdkconfig_options processing
@@ -1301,10 +1302,11 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     log_level = logging.INFO if max_sockets > DEFAULT_MAX_SOCKETS else logging.DEBUG
     _LOGGER.log(
         log_level,
-        "Setting CONFIG_LWIP_MAX_SOCKETS to %d (%d TCP + %d UDP)",
+        "Setting CONFIG_LWIP_MAX_SOCKETS to %d (%d TCP + %d UDP + %d TCP_LISTEN)",
         max_sockets,
         tcp_sockets,
         udp_sockets,
+        tcp_listen,
     )
 
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
