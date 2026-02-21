@@ -82,8 +82,8 @@ void store_component_error_message(const Component *component, const char *messa
 // setup_priority, component state, and status LED constants are now
 // constexpr in component.h
 
-const uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;       ///< Initial blocking time allowed without warning
-const uint16_t WARN_IF_BLOCKING_INCREMENT_MS = 10U;  ///< How long the blocking time must be larger to warn again
+static constexpr uint16_t WARN_IF_BLOCKING_INCREMENT_MS =
+    10U;  ///< How long the blocking time must be larger to warn again
 
 float Component::get_loop_priority() const { return 0.0f; }
 
@@ -529,36 +529,34 @@ void PollingComponent::stop_poller() {
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
 void PollingComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
-WarnIfComponentBlockingGuard::WarnIfComponentBlockingGuard(Component *component, uint32_t start_time)
-    : started_(start_time), component_(component) {}
+static void __attribute__((noinline, cold)) warn_blocking(Component *component, uint32_t blocking_time) {
+  bool should_warn;
+  if (component != nullptr) {
+    should_warn = component->should_warn_of_blocking(blocking_time);
+  } else {
+    should_warn = true;  // Already checked > WARN_IF_BLOCKING_OVER_MS in caller
+  }
+  if (should_warn) {
+    ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms), max is 30 ms",
+             component == nullptr ? LOG_STR_LITERAL("<null>") : LOG_STR_ARG(component->get_component_log_str()),
+             blocking_time);
+  }
+}
+
 uint32_t WarnIfComponentBlockingGuard::finish() {
   uint32_t curr_time = millis();
-
   uint32_t blocking_time = curr_time - this->started_;
-
 #ifdef USE_RUNTIME_STATS
   // Record component runtime stats
   if (global_runtime_stats != nullptr) {
     global_runtime_stats->record_component_time(this->component_, blocking_time, curr_time);
   }
 #endif
-  bool should_warn;
-  if (this->component_ != nullptr) {
-    should_warn = this->component_->should_warn_of_blocking(blocking_time);
-  } else {
-    should_warn = blocking_time > WARN_IF_BLOCKING_OVER_MS;
+  if (blocking_time > WARN_IF_BLOCKING_OVER_MS) {
+    warn_blocking(this->component_, blocking_time);
   }
-  if (should_warn) {
-    ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms)",
-             component_ == nullptr ? LOG_STR_LITERAL("<null>") : LOG_STR_ARG(component_->get_component_log_str()),
-             blocking_time);
-    ESP_LOGW(TAG, "Components should block for at most 30 ms");
-  }
-
   return curr_time;
 }
-
-WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {}
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
 void clear_setup_priority_overrides() {
