@@ -82,16 +82,18 @@ def patch_file_downloader():
                     # Close the response and session to free resources
                     # and force a new TCP connection on retry, which may
                     # route to a different CDN edge node
+                    # pylint: disable=protected-access,broad-except
                     try:
                         if (
                             hasattr(self, "_http_response")
                             and self._http_response is not None
                         ):
-                            self._http_response.close()  # pylint: disable=protected-access
+                            self._http_response.close()
                         if hasattr(self, "_http_session"):
-                            self._http_session.close()  # pylint: disable=protected-access
-                    except Exception:  # pylint: disable=broad-except
+                            self._http_session.close()
+                    except Exception:
                         pass
+                    # pylint: enable=protected-access,broad-except
                     time.sleep(delay)
                 else:
                     # Final attempt - re-raise
