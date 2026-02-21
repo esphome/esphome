@@ -26,8 +26,9 @@ void UARTBinarySensor::loop() {
     this->read_data_();
   }
   if (this->buffer.size() >= this->data_.size() &&
-      std::equal(this->data_.begin(), this->data_.end(), this->buffer.begin())) {
+      std::equal(this->data_.begin(), this->data_.end(), this->buffer.end() - this->data_.size())) {
     this->publish_state(true);
+    this->buffer.clear();
   }
 }
 
