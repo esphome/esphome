@@ -784,16 +784,18 @@ def test_patch_file_downloader_raises_after_max_retries() -> None:
         mock_sleep.assert_has_calls([call(2), call(4), call(8), call(16)])
 
 
-def test_patch_file_downloader_closes_session_between_retries() -> None:
-    """Test patch_file_downloader closes HTTP session between retries."""
+def test_patch_file_downloader_closes_session_and_response_between_retries() -> None:
+    """Test patch_file_downloader closes HTTP session and response between retries."""
     mock_exception_cls = type("PackageException", (Exception,), {})
     mock_session = MagicMock()
+    mock_response = MagicMock()
     call_count = 0
 
     def failing_init_with_session(self, *args, **kwargs):
         nonlocal call_count
         call_count += 1
         self._http_session = mock_session
+        self._http_response = mock_response
         if call_count < 2:
             raise mock_exception_cls("502 error")
 
@@ -824,7 +826,8 @@ def test_patch_file_downloader_closes_session_between_retries() -> None:
         instance = object.__new__(FileDownloader)
         FileDownloader.__init__(instance, "http://example.com/file.zip")
 
-        # Session should have been closed between retry 1 and 2
+        # Both response and session should have been closed between retries
+        mock_response.close.assert_called_once()
         mock_session.close.assert_called_once()
 
 
