@@ -398,13 +398,19 @@ def _configure_lwip(config: dict) -> None:
     if CORE.is_bk72xx:
         lwip_opts.append("PBUF_POOL_SIZE=10")
 
+    tcp_min = " (min)" if tcp_sockets > raw_tcp else ""
+    udp_min = " (min)" if udp_sockets > raw_udp else ""
+    listen_min = " (min)" if listening_tcp > raw_tcp_listen else ""
     _LOGGER.info(
-        "Configuring lwIP: TCP=%d [%s], UDP=%d [%s], TCP_LISTEN=%d [%s]",
+        "Configuring lwIP: TCP=%d%s [%s], UDP=%d%s [%s], TCP_LISTEN=%d%s [%s]",
         tcp_sockets,
+        tcp_min,
         tcp_details,
         udp_sockets,
+        udp_min,
         udp_details,
         listening_tcp,
+        listen_min,
         tcp_listen_details,
     )
     cg.add_platformio_option("custom_options.lwip", lwip_opts)
