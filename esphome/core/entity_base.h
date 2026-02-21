@@ -216,16 +216,6 @@ class EntityBase {
   } flags_{};
 };
 
-// Empty shell — methods moved to EntityBase. Kept for backward compatibility.
-// TODO: Remove in 2027.2.0
-class EntityBase_DeviceClass {  // NOLINT(readability-identifier-naming)
-};
-
-// Empty shell — methods moved to EntityBase. Kept for backward compatibility.
-// TODO: Remove in 2027.2.0
-class EntityBase_UnitOfMeasurement {  // NOLINT(readability-identifier-naming)
-};
-
 /// Log entity icon if set (for use in dump_config)
 #ifdef USE_ENTITY_ICON
 #define LOG_ENTITY_ICON(tag, prefix, obj) log_entity_icon(tag, prefix, obj)
