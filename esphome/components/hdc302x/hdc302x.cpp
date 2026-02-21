@@ -50,7 +50,7 @@ void HDC302XComponent::update() {
       this->power_mode_,
   };
   if (this->write(cmd, 2) != i2c::ERROR_OK) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -125,13 +125,13 @@ bool HDC302XComponent::disable_heater_() {
 void HDC302XComponent::read_data_() {
   uint8_t buf[6];
   if (this->read(buf, 6) != i2c::ERROR_OK) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   // Check checksums
   if (crc8(buf, 2, 0xff, 0x31, true) != buf[2] || crc8(buf + 3, 2, 0xff, 0x31, true) != buf[5]) {
-    this->status_set_warning("Read data: invalid CRC");
+    this->status_set_warning(LOG_STR("Read data: invalid CRC"));
     return;
   }
 
