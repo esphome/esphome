@@ -14,7 +14,8 @@ class DNSServer {
   void process_next_request();
 
  protected:
-  // Socket destructor will close or abort depending on platform
+  // No explicit close() needed — listen sockets have no active connections on
+  // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).
   inline void destroy_socket_() {
     delete this->socket_;
     this->socket_ = nullptr;
