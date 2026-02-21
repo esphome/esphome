@@ -119,6 +119,8 @@ class RemoteComponentBase {
 };
 
 #ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 class RemoteRMTChannel {
  public:
   void set_clock_resolution(uint32_t clock_resolution) { this->clock_resolution_ = clock_resolution; }
@@ -137,7 +139,8 @@ class RemoteRMTChannel {
   uint32_t clock_resolution_{1000000};
   uint32_t rmt_symbols_;
 };
-#endif
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32
 
 class RemoteTransmitterBase : public RemoteComponentBase {
  public:
