@@ -30,6 +30,12 @@ APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 APIServer::APIServer() { global_api_server = this; }
 
+void APIServer::socket_failed_(const LogString *msg) {
+  ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
+  this->destroy_socket_();
+  this->mark_failed();
+}
+
 void APIServer::setup() {
   ControllerRegistry::register_controller(this);
 
@@ -48,22 +54,20 @@ void APIServer::setup() {
 #endif
 #endif
 
-  this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
+  this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
   if (this->socket_ == nullptr) {
-    ESP_LOGW(TAG, "Could not create socket");
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("creation"));
     return;
   }
   int enable = 1;
   int err = this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to set reuseaddr: errno %d", err);
+    ESP_LOGW(TAG, "Socket reuseaddr: errno %d", errno);
     // we can still continue
   }
   err = this->socket_->setblocking(false);
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to set nonblocking mode: errno %d", err);
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("nonblocking"));
     return;
   }
 
@@ -71,22 +75,19 @@ void APIServer::setup() {
 
   socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
   if (sl == 0) {
-    ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("set sockaddr"));
     return;
   }
 
   err = this->socket_->bind((struct sockaddr *) &server, sl);
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("bind"));
     return;
   }
 
   err = this->socket_->listen(this->listen_backlog_);
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to listen: errno %d", errno);
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("listen"));
     return;
   }
 
@@ -622,10 +623,7 @@ void APIServer::on_shutdown() {
   this->shutting_down_ = true;
 
   // Close the listening socket to prevent new connections
-  if (this->socket_) {
-    this->socket_->close();
-    this->socket_ = nullptr;
-  }
+  this->destroy_socket_();
 
   // Change batch delay to 5ms for quick flushing during shutdown
   this->batch_delay_ = 5;
