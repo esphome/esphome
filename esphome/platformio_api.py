@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import time
 from typing import Any
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
@@ -44,26 +45,41 @@ def patch_structhash():
 
 
 def patch_file_downloader():
-    """Patch PlatformIO's FileDownloader to retry on PackageException errors."""
+    """Patch PlatformIO's FileDownloader to retry on PackageException errors.
+
+    PlatformIO's FileDownloader uses HTTPSession which lacks built-in retry
+    for 502/503 errors. We add retries with exponential backoff and close the
+    session between attempts to force a fresh TCP connection, which may route
+    to a different CDN edge node.
+    """
     from platformio.package.download import FileDownloader
     from platformio.package.exception import PackageException
 
     original_init = FileDownloader.__init__
 
     def patched_init(self, *args: Any, **kwargs: Any) -> None:
-        max_retries = 3
+        max_retries = 5
 
         for attempt in range(max_retries):
             try:
                 return original_init(self, *args, **kwargs)
             except PackageException as e:
                 if attempt < max_retries - 1:
+                    # Exponential backoff: 2, 4, 8, 16 seconds
+                    delay = 2 ** (attempt + 1)
                     _LOGGER.warning(
-                        "Package download failed: %s. Retrying... (attempt %d/%d)",
+                        "Package download failed: %s. "
+                        "Retrying in %d seconds... (attempt %d/%d)",
                         str(e),
+                        delay,
                         attempt + 1,
                         max_retries,
                     )
+                    # Close the session to force a new TCP connection,
+                    # potentially routing to a different CDN edge node
+                    if hasattr(self, "_http_session"):
+                        self._http_session.close()
+                    time.sleep(delay)
                 else:
                     # Final attempt - re-raise
                     raise
