@@ -19,6 +19,13 @@ namespace esphome::uart {
 
 static const char *const TAG = "uart.idf";
 
+/// Check if a pin number matches one of the default UART0 GPIO pins.
+/// These pins may have residual state from the boot console that requires
+/// explicit reset before UART reconfiguration (ESP-IDF issue #17459).
+static constexpr bool is_default_uart0_pin(int8_t pin_num) {
+  return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
+}
+
 uart_config_t IDFUARTComponent::get_config_() {
   uart_parity_t parity = UART_PARITY_DISABLE;
   if (this->parity_ == UART_CONFIG_PARITY_EVEN) {
@@ -150,20 +157,26 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   // Commit 9ed617fb17 removed gpio_func_sel() calls from uart_set_pin(), which breaks
   // UART on default UART0 pins that may have residual state from boot console.
   // Reset these pins before configuring UART to ensure they're in a clean state.
-  if (tx == U0TXD_GPIO_NUM || tx == U0RXD_GPIO_NUM) {
+  if (is_default_uart0_pin(tx)) {
     gpio_reset_pin(static_cast<gpio_num_t>(tx));
   }
-  if (rx == U0TXD_GPIO_NUM || rx == U0RXD_GPIO_NUM) {
+  if (is_default_uart0_pin(rx)) {
     gpio_reset_pin(static_cast<gpio_num_t>(rx));
   }
 
-  // Setup pins after reset to preserve open drain/pullup/pulldown flags
+  // Setup pins after reset to configure GPIO direction and pull resistors.
+  // For UART0 default pins, setup() must always be called because gpio_reset_pin()
+  // above sets GPIO_MODE_DISABLE which disables the input buffer. Without setup(),
+  // uart_set_pin() on ESP-IDF 5.4.2+ does not re-enable the input buffer for
+  // IOMUX-connected pins, so the RX pin cannot receive data (see issue #10132).
+  // For other pins, only call setup() if pull or open-drain flags are set to avoid
+  // disturbing the default pin state which breaks some external components (#11823).
   auto setup_pin_if_needed = [](InternalGPIOPin *pin) {
     if (!pin) {
       return;
     }
     const auto mask = gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN;
-    if ((pin->get_flags() & mask) != gpio::Flags::FLAG_NONE) {
+    if (is_default_uart0_pin(pin->get_pin()) || (pin->get_flags() & mask) != gpio::Flags::FLAG_NONE) {
       pin->setup();
     }
   };

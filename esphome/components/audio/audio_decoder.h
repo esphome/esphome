@@ -50,12 +50,12 @@ enum class FileDecoderState : uint8_t {
 class AudioDecoder {
   /*
    * @brief Class that facilitates decoding an audio file.
-   * The audio file is read from a ring buffer source, decoded, and sent to an audio sink (ring buffer or speaker
-   * component).
+   * The audio file is read from a source (ring buffer or const data pointer), decoded, and sent to an audio sink
+   * (ring buffer, speaker component, or callback).
    * Supports wav, flac, mp3, and ogg opus formats.
    */
  public:
-  /// @brief Allocates the input and output transfer buffers
+  /// @brief Allocates the output transfer buffer and stores the input buffer size for later use by add_source()
   /// @param input_buffer_size Size of the input transfer buffer in bytes.
   /// @param output_buffer_size Size of the output transfer buffer in bytes.
   AudioDecoder(size_t input_buffer_size, size_t output_buffer_size);
@@ -79,6 +79,17 @@ class AudioDecoder {
   /// @return ESP_OK if successsful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
   esp_err_t add_sink(speaker::Speaker *speaker);
 #endif
+
+  /// @brief Adds a const data pointer as the source for raw file data. Does not allocate a transfer buffer.
+  /// @param data_pointer Pointer to the const audio data (e.g., stored in flash memory)
+  /// @param length Size of the data in bytes
+  /// @return ESP_OK
+  esp_err_t add_source(const uint8_t *data_pointer, size_t length);
+
+  /// @brief Adds a callback as the sink for decoded audio.
+  /// @param callback Pointer to the AudioSinkCallback implementation
+  /// @return ESP_OK if successful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
+  esp_err_t add_sink(AudioSinkCallback *callback);
 
   /// @brief Sets up decoding the file
   /// @param audio_file_type AudioFileType of the file
@@ -120,25 +131,26 @@ class AudioDecoder {
 #endif
   FileDecoderState decode_wav_();
 
-  std::unique_ptr<AudioSourceTransferBuffer> input_transfer_buffer_;
+  std::unique_ptr<AudioReadableBuffer> input_buffer_;
   std::unique_ptr<AudioSinkTransferBuffer> output_transfer_buffer_;
 
   AudioFileType audio_file_type_{AudioFileType::NONE};
   optional<AudioStreamInfo> audio_stream_info_{};
 
+  size_t input_buffer_size_{0};
   size_t free_buffer_required_{0};
   size_t wav_bytes_left_{0};
 
   uint32_t potentially_failed_count_{0};
+  uint32_t accumulated_frames_written_{0};
+  uint32_t playback_ms_{0};
+
   bool end_of_file_{false};
   bool wav_has_known_end_{false};
 
   bool decoder_buffers_internally_{false};
 
   bool pause_output_{false};
-
-  uint32_t accumulated_frames_written_{0};
-  uint32_t playback_ms_{0};
 };
 }  // namespace audio
 }  // namespace esphome
