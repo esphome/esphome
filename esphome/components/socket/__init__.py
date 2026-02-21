@@ -23,10 +23,10 @@ KEY_SOCKET_CONSUMERS_TCP_LISTEN = "socket_consumers_tcp_listen"
 
 # Recommended minimum socket counts to ensure headroom.
 # Platforms should apply these (or their own) on top of get_socket_counts().
-# TCP: Typical setup: api(3) + web_server(5) = 8 registered, +2 headroom for ota-transfer/other = 10 total.
-# UDP: dhcp(1) + dns(1) + mdns(2) + wake_loop(1) = 5 base, +3 headroom.
-MIN_TCP_SOCKETS = 10
-MIN_UDP_SOCKETS = 8
+# TCP: api(3) = 3 base, +5 headroom for ota-transfer/web_server/other.
+# UDP: dhcp(1) + dns(1) + mdns(2) + wake_loop(1) = 5 base, +1 headroom.
+MIN_TCP_SOCKETS = 8
+MIN_UDP_SOCKETS = 6
 
 # Wake loop threadsafe support tracking
 KEY_WAKE_LOOP_THREADSAFE_REQUIRED = "wake_loop_threadsafe_required"
