@@ -3,7 +3,12 @@
     defined(USE_ZEPHYR)
 
 #include "esphome/core/component.h"
+#ifdef USE_ZEPHYR
+#include "event_pool_temp.h"
+#else
+// needs https://github.com/esphome/esphome/pull/14174
 #include "esphome/core/event_pool.h"
+#endif
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/components/uart/uart_component.h"
 
