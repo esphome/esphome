@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/entity_base.h"
-#include "esphome/core/helpers.h"
+#include <cmath>
+#include <cstdint>
 
 namespace esphome::number {
 
@@ -26,16 +26,6 @@ class NumberTraits {
   // Set/get the frontend mode.
   void set_mode(NumberMode mode) { this->mode_ = mode; }
   NumberMode get_mode() const { return this->mode_; }
-
-  // Deprecated: use Number::get_device_class_ref() instead.
-  // Delegates to parent Number's EntityBase via offsetof.
-  ESPDEPRECATED("Use number->get_device_class_ref() instead. Removed in 2027.2.0", "2026.8.0")
-  StringRef get_device_class_ref() const;
-
-  // Deprecated: use Number::get_unit_of_measurement_ref() instead.
-  // Delegates to parent Number's EntityBase via offsetof.
-  ESPDEPRECATED("Use number->get_unit_of_measurement_ref() instead. Removed in 2027.2.0", "2026.8.0")
-  StringRef get_unit_of_measurement_ref() const;
 
  protected:
   float min_value_ = NAN;
