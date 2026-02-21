@@ -99,7 +99,7 @@ class Emc230xComponent : public Component, public i2c::I2CDevice {
   std::array<uint8_t, MAX_FANS> pulses_per_revolution_{};
   std::array<Emc230xMinSpeedMeasurement, MAX_FANS> min_speed_measurements_{};
   // Pre-calculated conversion constants for tachometer reading to RPM for each fan based on the configuration
-  std::array<float, MAX_FANS> rpm_conversion_constants_{};
+  std::array<uint32_t, MAX_FANS> rpm_conversion_constants_{};
 };
 
 }  // namespace esphome::emc230x

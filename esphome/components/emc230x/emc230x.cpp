@@ -11,7 +11,7 @@ namespace esphome::emc230x {
 
 static const char *const TAG = "emc230x.component";
 
-static const float EMC230X_TACH_FREQUENCY = 32768.0f;  // Frequency of the tachometer signal
+static const uint16_t EMC230X_TACH_FREQUENCY = 32768U;  // Frequency of the tachometer signal
 
 static const uint8_t EMC2301_PRODUCT_ID = 0x37;  // EMC2301 Product ID
 static const uint8_t EMC2302_PRODUCT_ID = 0x36;  // EMC2302 Product ID
@@ -187,9 +187,14 @@ void Emc230xComponent::setup() {
     const uint8_t multiplier = 1 << this->min_speed_measurements_[i];
 
     // Calculate the conversion constant from tachometer reading to RPM
-    // RPM = (1 / pulses_per_revolution) * tachometer_frequency * 60 * (edge_count - 1) * multiplier / tach_count
+    // Original formula from datasheet:
+    // RPM = (1/pulses_per_revolution)*((edge_count-1)/(tach_count*(1/multiplier)))*tachometer_frequency*60
+    // Simplified to:
+    // RPM = (60/pulses_per_revolution)*tachometer_frequency*(edge_count-1)*multiplier/tach_count
+    // We pre-calculate everything except the tachometer count since that is what we read from the sensor.
+    // Because pulses_per_revolution can only be 1 - 4, the division is exact and we can use integer math.
     this->rpm_conversion_constants_[i] =
-        (1.0f / this->pulses_per_revolution_[i]) * EMC230X_TACH_FREQUENCY * 60.0f * (edge_count - 1) * multiplier;
+        (60UL / this->pulses_per_revolution_[i]) * EMC230X_TACH_FREQUENCY * (edge_count - 1UL) * multiplier;
   }
 
   // Write the PWM frequency configuration for all fans to the appropriate register
@@ -215,7 +220,7 @@ void Emc230xComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "    Pulses per Revolution: %d", this->pulses_per_revolution_[i]);
     ESP_LOGCONFIG(TAG, "    Minimum speed Measurement: %s",
                   min_speed_measurement_to_str(this->min_speed_measurements_[i]));
-    ESP_LOGCONFIG(TAG, "    RPM Conversion Constant: %.2f", this->rpm_conversion_constants_[i]);
+    ESP_LOGCONFIG(TAG, "    RPM Conversion Constant: %u", this->rpm_conversion_constants_[i]);
   }
 }
 
@@ -257,7 +262,7 @@ float Emc230xComponent::get_speed(uint8_t fan) {
   }
 
   // Calculate RPM and return
-  return this->rpm_conversion_constants_[fan - 1] / tach_count;
+  return static_cast<float>(this->rpm_conversion_constants_[fan - 1]) / tach_count;
 }
 
 }  // namespace esphome::emc230x
