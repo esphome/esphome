@@ -393,6 +393,23 @@ class RawStatement(Statement):
         return self.text
 
 
+class DeferredStatement(Statement):
+    """Statement evaluated lazily at render time (after all to_code() calls).
+
+    Use this to generate code that depends on state accumulated across
+    multiple components' to_code() calls. The resolver callback is only
+    called when the statement is converted to a string during code generation.
+    """
+
+    __slots__ = ("_resolver",)
+
+    def __init__(self, resolver: Callable[[], str]):
+        self._resolver = resolver
+
+    def __str__(self):
+        return self._resolver()
+
+
 class ExpressionStatement(Statement):
     __slots__ = ("expression",)
 

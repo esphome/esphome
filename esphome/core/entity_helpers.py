@@ -1,9 +1,12 @@
 from collections.abc import Callable
+from dataclasses import dataclass, field
+import functools
 import logging
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
     CONF_ENTITY_CATEGORY,
@@ -11,14 +14,183 @@ from esphome.const import (
     CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
+    CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj, add, get_variable
+from esphome.cpp_generator import DeferredStatement, MockObj, add, get_variable
 import esphome.final_validate as fv
-from esphome.helpers import fnv1_hash_object_id, sanitize, snake_case
+from esphome.helpers import cpp_string_escape, fnv1_hash_object_id, sanitize, snake_case
 from esphome.types import ConfigType, EntityMetadata
 
 _LOGGER = logging.getLogger(__name__)
+
+DOMAIN = "entity_string_pool"
+
+# Private config keys for storing registered string indices
+_KEY_DC_IDX = "_entity_dc_idx"
+_KEY_UOM_IDX = "_entity_uom_idx"
+_KEY_ICON_IDX = "_entity_icon_idx"
+
+
+@dataclass
+class EntityStringPool:
+    """Pool of entity string properties packed into contiguous blobs.
+
+    Strings are registered during to_code() and assigned 1-based indices.
+    Index 0 means "not set" (empty string). At render time, the pool
+    generates C++ blob + PROGMEM offset table + lookup function per category.
+    """
+
+    device_classes: dict[str, int] = field(default_factory=dict)
+    units: dict[str, int] = field(default_factory=dict)
+    icons: dict[str, int] = field(default_factory=dict)
+    _tables_registered: bool = False
+
+
+def _get_pool() -> EntityStringPool:
+    """Get or create the entity string pool from CORE.data."""
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = EntityStringPool()
+    return CORE.data[DOMAIN]
+
+
+def _ensure_tables_registered() -> None:
+    """Register the deferred global statement for table generation (once)."""
+    pool = _get_pool()
+    if pool._tables_registered:
+        return
+    pool._tables_registered = True
+    cg.add_global(DeferredStatement(_generate_tables))
+
+
+def _generate_blob_and_offsets(
+    strings: dict[str, int],
+) -> tuple[bytes, list[int]]:
+    """Build a packed blob and offset list from a string dict.
+
+    Returns (blob_bytes, offsets) where offsets[0] points to "" (empty)
+    and offsets[i] points to the i-th string.
+    """
+    # Sort by assigned index to ensure deterministic output
+    sorted_strings = sorted(strings.items(), key=lambda x: x[1])
+    blob = bytearray(b"\x00")  # Index 0 = offset 0 = empty string
+    offsets = [0]  # offset for index 0 (empty string)
+    for s, _idx in sorted_strings:
+        offsets.append(len(blob))
+        blob.extend(s.encode("utf-8"))
+        blob.append(0)  # null terminator
+    return bytes(blob), offsets
+
+
+def _generate_category_code(
+    blob_var: str,
+    offsets_var: str,
+    lookup_fn: str,
+    strings: dict[str, int],
+) -> str:
+    """Generate C++ code for one string category (blob + offsets + lookup)."""
+    if not strings:
+        return ""
+
+    blob_bytes, offsets = _generate_blob_and_offsets(strings)
+    use_uint16 = len(blob_bytes) > 255
+    offset_type = "uint16_t" if use_uint16 else "uint8_t"
+    read_fn = "progmem_read_word" if use_uint16 else "progmem_read_byte"
+    count = len(offsets)
+    blob_escaped = cpp_string_escape(blob_bytes)
+    offsets_str = ", ".join(str(o) for o in offsets)
+
+    return (
+        f"static const char {blob_var}[] = {blob_escaped};\n"
+        f"static const {offset_type} {offsets_var}[] PROGMEM = {{{offsets_str}}};\n"
+        f"const char *{lookup_fn}(uint16_t index) {{\n"
+        f"  if (index >= {count}) return {blob_var};\n"
+        f"  return &{blob_var}[{read_fn}(&{offsets_var}[index])];\n"
+        f"}}\n"
+    )
+
+
+_CATEGORY_CONFIGS = (
+    ("ENTITY_DC", "entity_device_class_lookup", "device_classes"),
+    ("ENTITY_UOM", "entity_uom_lookup", "units"),
+    ("ENTITY_ICON", "entity_icon_lookup", "icons"),
+)
+
+
+def _generate_tables() -> str:
+    """Generate all entity string table C++ code. Called at render time."""
+    pool = _get_pool()
+    parts = ["namespace esphome {"]
+    for prefix, lookup_fn, attr in _CATEGORY_CONFIGS:
+        code = _generate_category_code(
+            f"{prefix}_BLOB", f"{prefix}_OFFSETS", lookup_fn, getattr(pool, attr)
+        )
+        if code:
+            parts.append(code)
+    parts.append("}  // namespace esphome")
+    return "\n".join(parts)
+
+
+def _register_string(
+    value: str, category: dict[str, int], max_count: int, category_name: str
+) -> int:
+    """Register a string in a category dict and return its 1-based index.
+
+    Returns 0 if value is empty/None (meaning "not set").
+    """
+    if not value:
+        return 0
+    if value in category:
+        return category[value]
+    idx = len(category) + 1
+    if idx > max_count:
+        raise ValueError(
+            f"Too many unique {category_name} values (max {max_count}), got {idx}: '{value}'"
+        )
+    category[value] = idx
+    _ensure_tables_registered()
+    return idx
+
+
+def register_device_class(value: str) -> int:
+    """Register a device_class string and return its 1-based index."""
+    return _register_string(value, _get_pool().device_classes, 1023, "device_class")
+
+
+def register_unit_of_measurement(value: str) -> int:
+    """Register a unit_of_measurement string and return its 1-based index."""
+    return _register_string(value, _get_pool().units, 1023, "unit_of_measurement")
+
+
+def register_icon(value: str) -> int:
+    """Register an icon string and return its 1-based index."""
+    return _register_string(value, _get_pool().icons, 4095, "icon")
+
+
+def setup_device_class(config: ConfigType) -> None:
+    """Register config's device_class and store its index for finalize_entity_strings."""
+    config[_KEY_DC_IDX] = register_device_class(config.get(CONF_DEVICE_CLASS, ""))
+
+
+def setup_unit_of_measurement(config: ConfigType) -> None:
+    """Register config's unit_of_measurement and store its index for finalize_entity_strings."""
+    config[_KEY_UOM_IDX] = register_unit_of_measurement(
+        config.get(CONF_UNIT_OF_MEASUREMENT, "")
+    )
+
+
+def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
+    """Emit a single set_entity_strings() call with all packed indices.
+
+    Call this at the end of each component's setup function, after
+    setup_entity() and any register_device_class/register_unit_of_measurement calls.
+    """
+    dc_idx = config.get(_KEY_DC_IDX, 0)
+    uom_idx = config.get(_KEY_UOM_IDX, 0)
+    icon_idx = config.get(_KEY_ICON_IDX, 0)
+    packed = dc_idx | (uom_idx << 10) | (icon_idx << 20)
+    if packed != 0:
+        add(var.set_entity_strings(packed))
 
 
 def get_base_entity_object_id(
@@ -64,16 +236,40 @@ def get_base_entity_object_id(
     return sanitize(snake_case(base_str))
 
 
-async def setup_entity(var: MockObj, config: ConfigType, platform: str) -> None:
-    """Set up generic properties of an Entity.
+def setup_entity(platform: str) -> Callable:
+    """Decorator for component setup functions.
+
+    Wraps the function to:
+    1. Set up common entity properties (name, icon, etc.)
+    2. Run the wrapped function (which may call setup_device_class, etc.)
+    3. Finalize entity strings (pack dc/uom/icon indices into uint32_t)
+
+    Usage::
+
+        @setup_entity("sensor")
+        async def setup_sensor_core_(var, config):
+            setup_device_class(config)
+            setup_unit_of_measurement(config)
+            ...
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        async def wrapper(var: MockObj, config: ConfigType, *args, **kwargs) -> None:
+            await _setup_entity_impl(var, config, platform)
+            await func(var, config, *args, **kwargs)
+            finalize_entity_strings(var, config)
+
+        return wrapper
+
+    return decorator
+
+
+async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) -> None:
+    """Set up generic properties of an Entity (internal implementation).
 
     This function sets up the common entity properties like name, icon,
     entity category, etc.
-
-    Args:
-        var: The entity variable to set up
-        config: Configuration dictionary containing entity settings
-        platform: The platform name (e.g., "sensor", "binary_sensor")
     """
     # Get device info if configured
     if device_id_obj := config.get(CONF_DEVICE_ID):
@@ -92,12 +288,15 @@ async def setup_entity(var: MockObj, config: ConfigType, platform: str) -> None:
         add(var.set_disabled_by_default(True))
     if CONF_INTERNAL in config:
         add(var.set_internal(config[CONF_INTERNAL]))
+    icon_idx = 0
     if CONF_ICON in config:
         # Add USE_ENTITY_ICON define when icons are used
         cg.add_define("USE_ENTITY_ICON")
-        add(var.set_icon(config[CONF_ICON]))
+        icon_idx = register_icon(config[CONF_ICON])
     if CONF_ENTITY_CATEGORY in config:
         add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
+    # Store icon index for finalize_entity_strings
+    config[_KEY_ICON_IDX] = icon_idx
 
 
 def inherit_property_from(property_to_inherit, parent_id_property, transform=None):

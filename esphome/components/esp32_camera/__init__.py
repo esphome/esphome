@@ -368,11 +368,16 @@ SETTERS = {
 }
 
 
+@setup_entity("camera")
+async def _setup_esp32_camera(var, config):
+    pass
+
+
 async def to_code(config):
     cg.add_define("USE_CAMERA")
     socket.require_wake_loop_threadsafe()
     var = cg.new_Pvariable(config[CONF_ID])
-    await setup_entity(var, config, "camera")
+    await _setup_esp32_camera(var, config)
     await cg.register_component(var, config)
 
     for key, setter in SETTERS.items():

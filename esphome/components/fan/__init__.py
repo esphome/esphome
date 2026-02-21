@@ -222,9 +222,8 @@ def validate_preset_modes(value):
     return value
 
 
+@setup_entity("fan")
 async def setup_fan_core_(var, config):
-    await setup_entity(var, config, "fan")
-
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:

@@ -1,4 +1,5 @@
 #include "number.h"
+#include <cstddef>
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
@@ -15,8 +16,20 @@ void log_number(const char *tag, const char *prefix, const char *type, Number *o
 
   ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
   LOG_ENTITY_ICON(tag, prefix, *obj);
-  LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj->traits);
-  LOG_ENTITY_DEVICE_CLASS(tag, prefix, obj->traits);
+  LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, *obj);
+  LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
+}
+
+// Deprecated backward-compat: delegate to parent Number's EntityBase methods
+StringRef NumberTraits::get_device_class_ref() const {
+  const auto *number =
+      reinterpret_cast<const Number *>(reinterpret_cast<const uint8_t *>(this) - offsetof(Number, traits));
+  return number->get_device_class_ref();
+}
+StringRef NumberTraits::get_unit_of_measurement_ref() const {
+  const auto *number =
+      reinterpret_cast<const Number *>(reinterpret_cast<const uint8_t *>(this) - offsetof(Number, traits));
+  return number->get_unit_of_measurement_ref();
 }
 
 void Number::publish_state(float state) {

@@ -14,6 +14,21 @@
 
 namespace esphome {
 
+// Extern lookup functions for packed entity string tables.
+// Generated code provides strong definitions; weak defaults return "".
+extern const char *entity_device_class_lookup(uint16_t index);
+extern const char *entity_uom_lookup(uint16_t index);
+extern const char *entity_icon_lookup(uint16_t index);
+
+// Bit layout for entity_string_packed_:
+//   [31..20] icon (12 bits) | [19..10] UoM (10 bits) | [9..0] device_class (10 bits)
+static constexpr uint8_t ENTITY_STR_DC_SHIFT = 0;
+static constexpr uint8_t ENTITY_STR_UOM_SHIFT = 10;
+static constexpr uint8_t ENTITY_STR_ICON_SHIFT = 20;
+static constexpr uint16_t ENTITY_STR_DC_MASK = 0x3FF;
+static constexpr uint16_t ENTITY_STR_UOM_MASK = 0x3FF;
+static constexpr uint16_t ENTITY_STR_ICON_MASK = 0xFFF;
+
 // Maximum device name length - keep in sync with validate_hostname() in esphome/core/config.py
 static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;
 
@@ -89,20 +104,31 @@ class EntityBase {
     this->flags_.entity_category = static_cast<uint8_t>(entity_category);
   }
 
+  // Set packed entity string indices — one call per entity from codegen.
+  // Bit layout: [31..20] icon (12 bits) | [19..10] UoM (10 bits) | [9..0] device_class (10 bits)
+  void set_entity_strings(uint32_t packed) { this->entity_string_packed_ = packed; }
+
+  // Get device class as StringRef (from packed index)
+  StringRef get_device_class_ref() const;
+  /// Get the device class as std::string (deprecated, prefer get_device_class_ref())
+  ESPDEPRECATED("Use get_device_class_ref() instead for better performance (avoids string copy). Will be removed in "
+                "ESPHome 2026.9.0",
+                "2026.3.0")
+  std::string get_device_class() const;
+  // Get unit of measurement as StringRef (from packed index)
+  StringRef get_unit_of_measurement_ref() const;
+  /// Get the unit of measurement as std::string (deprecated, prefer get_unit_of_measurement_ref())
+  ESPDEPRECATED("Use get_unit_of_measurement_ref() instead for better performance (avoids string copy). Will be "
+                "removed in ESPHome 2026.9.0",
+                "2026.3.0")
+  std::string get_unit_of_measurement() const;
+
   // Get/set this entity's icon
   ESPDEPRECATED(
       "Use get_icon_ref() instead for better performance (avoids string copy). Will be removed in ESPHome 2026.5.0",
       "2025.11.0")
   std::string get_icon() const;
-  void set_icon(const char *icon);
-  StringRef get_icon_ref() const {
-    static constexpr auto EMPTY_STRING = StringRef::from_lit("");
-#ifdef USE_ENTITY_ICON
-    return this->icon_c_str_ == nullptr ? EMPTY_STRING : StringRef(this->icon_c_str_);
-#else
-    return EMPTY_STRING;
-#endif
-  }
+  StringRef get_icon_ref() const;
 
 #ifdef USE_DEVICES
   // Get/set this entity's device id
@@ -173,9 +199,7 @@ class EntityBase {
   void calc_object_id_();
 
   StringRef name_;
-#ifdef USE_ENTITY_ICON
-  const char *icon_c_str_{nullptr};
-#endif
+  uint32_t entity_string_packed_{0};  // bits 0-9: device_class, 10-19: uom, 20-31: icon
   uint32_t object_id_hash_{};
 #ifdef USE_DEVICES
   Device *device_{};
@@ -192,42 +216,14 @@ class EntityBase {
   } flags_{};
 };
 
+// Empty shell — methods moved to EntityBase. Kept for backward compatibility.
+// TODO: Remove in 2027.2.0
 class EntityBase_DeviceClass {  // NOLINT(readability-identifier-naming)
- public:
-  /// Get the device class, using the manual override if set.
-  ESPDEPRECATED("Use get_device_class_ref() instead for better performance (avoids string copy). Will be removed in "
-                "ESPHome 2026.5.0",
-                "2025.11.0")
-  std::string get_device_class();
-  /// Manually set the device class.
-  void set_device_class(const char *device_class);
-  /// Get the device class as StringRef
-  StringRef get_device_class_ref() const {
-    static constexpr auto EMPTY_STRING = StringRef::from_lit("");
-    return this->device_class_ == nullptr ? EMPTY_STRING : StringRef(this->device_class_);
-  }
-
- protected:
-  const char *device_class_{nullptr};  ///< Device class override
 };
 
+// Empty shell — methods moved to EntityBase. Kept for backward compatibility.
+// TODO: Remove in 2027.2.0
 class EntityBase_UnitOfMeasurement {  // NOLINT(readability-identifier-naming)
- public:
-  /// Get the unit of measurement, using the manual override if set.
-  ESPDEPRECATED("Use get_unit_of_measurement_ref() instead for better performance (avoids string copy). Will be "
-                "removed in ESPHome 2026.5.0",
-                "2025.11.0")
-  std::string get_unit_of_measurement();
-  /// Manually set the unit of measurement.
-  void set_unit_of_measurement(const char *unit_of_measurement);
-  /// Get the unit of measurement as StringRef
-  StringRef get_unit_of_measurement_ref() const {
-    static constexpr auto EMPTY_STRING = StringRef::from_lit("");
-    return this->unit_of_measurement_ == nullptr ? EMPTY_STRING : StringRef(this->unit_of_measurement_);
-  }
-
- protected:
-  const char *unit_of_measurement_{nullptr};  ///< Unit of measurement override
 };
 
 /// Log entity icon if set (for use in dump_config)
@@ -240,10 +236,10 @@ inline void log_entity_icon(const char *, const char *, const EntityBase &) {}
 #endif
 /// Log entity device class if set (for use in dump_config)
 #define LOG_ENTITY_DEVICE_CLASS(tag, prefix, obj) log_entity_device_class(tag, prefix, obj)
-void log_entity_device_class(const char *tag, const char *prefix, const EntityBase_DeviceClass &obj);
+void log_entity_device_class(const char *tag, const char *prefix, const EntityBase &obj);
 /// Log entity unit of measurement if set (for use in dump_config)
 #define LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj) log_entity_unit_of_measurement(tag, prefix, obj)
-void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase_UnitOfMeasurement &obj);
+void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase &obj);
 
 /**
  * An entity that has a state.

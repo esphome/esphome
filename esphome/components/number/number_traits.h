@@ -11,7 +11,7 @@ enum NumberMode : uint8_t {
   NUMBER_MODE_SLIDER = 2,
 };
 
-class NumberTraits : public EntityBase_DeviceClass, public EntityBase_UnitOfMeasurement {
+class NumberTraits {
  public:
   // Set/get the number value boundaries.
   void set_min_value(float min_value) { min_value_ = min_value; }
@@ -26,6 +26,16 @@ class NumberTraits : public EntityBase_DeviceClass, public EntityBase_UnitOfMeas
   // Set/get the frontend mode.
   void set_mode(NumberMode mode) { this->mode_ = mode; }
   NumberMode get_mode() const { return this->mode_; }
+
+  // Deprecated: use Number::get_device_class_ref() instead.
+  // Delegates to parent Number's EntityBase via offsetof.
+  ESPDEPRECATED("Use number->get_device_class_ref() instead. Removed in 2027.2.0", "2026.8.0")
+  StringRef get_device_class_ref() const;
+
+  // Deprecated: use Number::get_unit_of_measurement_ref() instead.
+  // Delegates to parent Number's EntityBase via offsetof.
+  ESPDEPRECATED("Use number->get_unit_of_measurement_ref() instead. Removed in 2027.2.0", "2026.8.0")
+  StringRef get_unit_of_measurement_ref() const;
 
  protected:
   float min_value_ = NAN;

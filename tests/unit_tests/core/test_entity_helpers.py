@@ -18,9 +18,9 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
+    _setup_entity_impl,
     entity_duplicate_validator,
     get_base_entity_object_id,
-    setup_entity,
 )
 from esphome.cpp_generator import MockObj
 from esphome.helpers import sanitize, snake_case
@@ -305,7 +305,7 @@ async def test_setup_entity_no_duplicates(setup_test_environment: list[str]) -> 
         CONF_NAME: "Temperature",
         CONF_DISABLED_BY_DEFAULT: False,
     }
-    await setup_entity(var1, config1, "sensor")
+    await _setup_entity_impl(var1, config1, "sensor")
 
     # Get object ID from first entity
     object_id1 = extract_object_id_from_expressions(added_expressions)
@@ -319,7 +319,7 @@ async def test_setup_entity_no_duplicates(setup_test_environment: list[str]) -> 
         CONF_NAME: "Humidity",
         CONF_DISABLED_BY_DEFAULT: False,
     }
-    await setup_entity(var2, config2, "sensor")
+    await _setup_entity_impl(var2, config2, "sensor")
 
     # Get object ID from second entity
     object_id2 = extract_object_id_from_expressions(added_expressions)
@@ -354,7 +354,7 @@ async def test_setup_entity_different_platforms(
     object_ids: list[str] = []
     for var, platform in platforms:
         added_expressions.clear()
-        await setup_entity(var, config, platform)
+        await _setup_entity_impl(var, config, platform)
         object_id = extract_object_id_from_expressions(added_expressions)
         object_ids.append(object_id)
 
@@ -416,7 +416,7 @@ async def test_setup_entity_with_devices(
     object_ids: list[str] = []
     for var, config in [(sensor1, config1), (sensor2, config2)]:
         added_expressions.clear()
-        await setup_entity(var, config, "sensor")
+        await _setup_entity_impl(var, config, "sensor")
         object_id = extract_object_id_from_expressions(added_expressions)
         object_ids.append(object_id)
 
@@ -438,7 +438,7 @@ async def test_setup_entity_empty_name(setup_test_environment: list[str]) -> Non
         CONF_DISABLED_BY_DEFAULT: False,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
     object_id = extract_object_id_from_expressions(added_expressions)
     # Should use friendly name
@@ -460,7 +460,7 @@ async def test_setup_entity_special_characters(
         CONF_DISABLED_BY_DEFAULT: False,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
     object_id = extract_object_id_from_expressions(added_expressions)
 
     # Special characters should be sanitized
@@ -471,7 +471,7 @@ async def test_setup_entity_special_characters(
 async def test_setup_entity_with_icon(setup_test_environment: list[str]) -> None:
     """Test setup_entity sets icon correctly."""
 
-    added_expressions = setup_test_environment
+    setup_test_environment  # noqa: F841 - fixture initializes CORE state
 
     var = MockObj("sensor1")
 
@@ -481,12 +481,10 @@ async def test_setup_entity_with_icon(setup_test_environment: list[str]) -> None
         CONF_ICON: "mdi:thermometer",
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
-    # Check icon was set
-    assert any(
-        'sensor1.set_icon("mdi:thermometer")' in expr for expr in added_expressions
-    )
+    # Check icon index was stored in config for finalize_entity_strings
+    assert config.get("_entity_icon_idx", 0) > 0
 
 
 @pytest.mark.asyncio
@@ -504,7 +502,7 @@ async def test_setup_entity_disabled_by_default(
         CONF_DISABLED_BY_DEFAULT: True,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
     # Check disabled_by_default was set
     assert any(
@@ -790,7 +788,7 @@ async def test_setup_entity_empty_name_with_device(
         CONF_DEVICE_ID: device_id,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
     entity_helpers.get_variable = original_get_variable
 
@@ -826,7 +824,7 @@ async def test_setup_entity_empty_name_with_mac_suffix(
         CONF_DISABLED_BY_DEFAULT: False,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
     # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
     assert any('set_name("", 0)' in expr for expr in added_expressions), (
@@ -858,7 +856,7 @@ async def test_setup_entity_empty_name_with_mac_suffix_no_friendly_name(
         CONF_DISABLED_BY_DEFAULT: False,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
     # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
     assert any('set_name("", 0)' in expr for expr in added_expressions), (
@@ -891,7 +889,7 @@ async def test_setup_entity_empty_name_no_mac_suffix_no_friendly_name(
         CONF_DISABLED_BY_DEFAULT: False,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
     # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
     assert any('set_name("", 0)' in expr for expr in added_expressions), (
