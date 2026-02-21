@@ -19,6 +19,13 @@ namespace esphome::uart {
 
 static const char *const TAG = "uart.idf";
 
+/// Check if a pin number matches one of the default UART0 GPIO pins.
+/// These pins may have residual state from the boot console that requires
+/// explicit reset before UART reconfiguration (ESP-IDF issue #17459).
+static constexpr bool is_default_uart0_pin(int8_t pin_num) {
+  return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
+}
+
 uart_config_t IDFUARTComponent::get_config_() {
   uart_parity_t parity = UART_PARITY_DISABLE;
   if (this->parity_ == UART_CONFIG_PARITY_EVEN) {
@@ -90,7 +97,6 @@ void IDFUARTComponent::setup() {
     return;
   }
   this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
-  this->lock_ = xSemaphoreCreateMutex();
 
 #if (SOC_UART_LP_NUM >= 1)
   size_t fifo_len = ((this->uart_num_ < SOC_UART_HP_NUM) ? SOC_UART_FIFO_LEN : SOC_LP_UART_FIFO_LEN);
@@ -102,11 +108,7 @@ void IDFUARTComponent::setup() {
     this->rx_buffer_size_ = fifo_len * 2;
   }
 
-  xSemaphoreTake(this->lock_, portMAX_DELAY);
-
   this->load_settings(false);
-
-  xSemaphoreGive(this->lock_);
 }
 
 void IDFUARTComponent::load_settings(bool dump_config) {
@@ -126,13 +128,20 @@ void IDFUARTComponent::load_settings(bool dump_config) {
       return;
     }
   }
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+  constexpr int event_queue_size = 20;
+  QueueHandle_t *event_queue_ptr = &this->uart_event_queue_;
+#else
+  constexpr int event_queue_size = 0;
+  QueueHandle_t *event_queue_ptr = nullptr;
+#endif
   err = uart_driver_install(this->uart_num_,        // UART number
                             this->rx_buffer_size_,  // RX ring buffer size
-                            0,   // TX ring buffer size. If zero, driver will not use a TX buffer and TX function will
-                                 // block task until all data has been sent out
-                            20,  // event queue size/depth
-                            &this->uart_event_queue_,  // event queue
-                            0                          // Flags used to allocate the interrupt
+                            0,  // TX ring buffer size. If zero, driver will not use a TX buffer and TX function will
+                                // block task until all data has been sent out
+                            event_queue_size,  // event queue size/depth
+                            event_queue_ptr,   // event queue
+                            0                  // Flags used to allocate the interrupt
   );
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
@@ -148,20 +157,26 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   // Commit 9ed617fb17 removed gpio_func_sel() calls from uart_set_pin(), which breaks
   // UART on default UART0 pins that may have residual state from boot console.
   // Reset these pins before configuring UART to ensure they're in a clean state.
-  if (tx == U0TXD_GPIO_NUM || tx == U0RXD_GPIO_NUM) {
+  if (is_default_uart0_pin(tx)) {
     gpio_reset_pin(static_cast<gpio_num_t>(tx));
   }
-  if (rx == U0TXD_GPIO_NUM || rx == U0RXD_GPIO_NUM) {
+  if (is_default_uart0_pin(rx)) {
     gpio_reset_pin(static_cast<gpio_num_t>(rx));
   }
 
-  // Setup pins after reset to preserve open drain/pullup/pulldown flags
+  // Setup pins after reset to configure GPIO direction and pull resistors.
+  // For UART0 default pins, setup() must always be called because gpio_reset_pin()
+  // above sets GPIO_MODE_DISABLE which disables the input buffer. Without setup(),
+  // uart_set_pin() on ESP-IDF 5.4.2+ does not re-enable the input buffer for
+  // IOMUX-connected pins, so the RX pin cannot receive data (see issue #10132).
+  // For other pins, only call setup() if pull or open-drain flags are set to avoid
+  // disturbing the default pin state which breaks some external components (#11823).
   auto setup_pin_if_needed = [](InternalGPIOPin *pin) {
     if (!pin) {
       return;
     }
     const auto mask = gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN;
-    if ((pin->get_flags() & mask) != gpio::Flags::FLAG_NONE) {
+    if (is_default_uart0_pin(pin->get_pin()) || (pin->get_flags() & mask) != gpio::Flags::FLAG_NONE) {
       pin->setup();
     }
   };
@@ -282,9 +297,7 @@ void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
 }
 
 void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
-  xSemaphoreTake(this->lock_, portMAX_DELAY);
   int32_t write_len = uart_write_bytes(this->uart_num_, data, len);
-  xSemaphoreGive(this->lock_);
   if (write_len != (int32_t) len) {
     ESP_LOGW(TAG, "uart_write_bytes failed: %d != %zu", write_len, len);
     this->mark_failed();
@@ -299,7 +312,6 @@ void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
 bool IDFUARTComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
     return false;
-  xSemaphoreTake(this->lock_, portMAX_DELAY);
   if (this->has_peek_) {
     *data = this->peek_byte_;
   } else {
@@ -311,7 +323,6 @@ bool IDFUARTComponent::peek_byte(uint8_t *data) {
       this->peek_byte_ = *data;
     }
   }
-  xSemaphoreGive(this->lock_);
   return true;
 }
 
@@ -320,7 +331,6 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   int32_t read_len = 0;
   if (!this->check_read_timeout_(len))
     return false;
-  xSemaphoreTake(this->lock_, portMAX_DELAY);
   if (this->has_peek_) {
     length_to_read--;
     *data = this->peek_byte_;
@@ -329,7 +339,6 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   }
   if (length_to_read > 0)
     read_len = uart_read_bytes(this->uart_num_, data, length_to_read, 20 / portTICK_PERIOD_MS);
-  xSemaphoreGive(this->lock_);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
@@ -342,9 +351,7 @@ size_t IDFUARTComponent::available() {
   size_t available = 0;
   esp_err_t err;
 
-  xSemaphoreTake(this->lock_, portMAX_DELAY);
   err = uart_get_buffered_data_len(this->uart_num_, &available);
-  xSemaphoreGive(this->lock_);
 
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_get_buffered_data_len failed: %s", esp_err_to_name(err));
@@ -358,9 +365,7 @@ size_t IDFUARTComponent::available() {
 
 void IDFUARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
-  xSemaphoreTake(this->lock_, portMAX_DELAY);
   uart_wait_tx_done(this->uart_num_, portMAX_DELAY);
-  xSemaphoreGive(this->lock_);
 }
 
 void IDFUARTComponent::check_logger_conflict() {}
@@ -384,6 +389,13 @@ void IDFUARTComponent::start_rx_event_task_() {
   ESP_LOGV(TAG, "RX event task started");
 }
 
+// FreeRTOS task that relays UART ISR events to the main loop.
+// This task exists because wake_loop_threadsafe() is not ISR-safe (it uses a
+// UDP loopback socket), so we need a task as an ISR-to-main-loop trampoline.
+// IMPORTANT: This task must NOT call any UART wrapper methods (read_array,
+// write_array, peek_byte, etc.) or touch has_peek_/peek_byte_ — all reading
+// is done by the main loop. This task only reads from the event queue and
+// calls App.wake_loop_threadsafe().
 void IDFUARTComponent::rx_event_task_func(void *param) {
   auto *self = static_cast<IDFUARTComponent *>(param);
   uart_event_t event;
@@ -405,8 +417,14 @@ void IDFUARTComponent::rx_event_task_func(void *param) {
 
         case UART_FIFO_OVF:
         case UART_BUFFER_FULL:
-          ESP_LOGW(TAG, "FIFO overflow or ring buffer full - clearing");
-          uart_flush_input(self->uart_num_);
+          // Don't call uart_flush_input() here — this task does not own the read side.
+          // ESP-IDF examples flush on overflow because the same task handles both events
+          // and reads, so flush and read are serialized. Here, reads happen on the main
+          // loop, so flushing from this task races with read_array() and can destroy data
+          // mid-read. The driver self-heals without an explicit flush: uart_read_bytes()
+          // calls uart_check_buf_full() after each chunk, which moves stashed FIFO bytes
+          // into the ring buffer and re-enables RX interrupts once space is freed.
+          ESP_LOGW(TAG, "FIFO overflow or ring buffer full");
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
           App.wake_loop_threadsafe();
 #endif

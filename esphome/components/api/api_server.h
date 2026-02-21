@@ -37,10 +37,6 @@ struct SavedNoisePsk {
 
 class APIServer : public Component,
                   public Controller
-#ifdef USE_LOGGER
-    ,
-                  public logger::LogListener
-#endif
 #ifdef USE_CAMERA
     ,
                   public camera::CameraListener
@@ -56,7 +52,7 @@ class APIServer : public Component,
   void on_shutdown() override;
   bool teardown() override;
 #ifdef USE_LOGGER
-  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len);
 #endif
 #ifdef USE_CAMERA
   void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
@@ -234,6 +230,11 @@ class APIServer : public Component,
 #endif
 
  protected:
+  // Accept incoming socket connections. Only called when socket has pending connections.
+  void __attribute__((noinline)) accept_new_connections_();
+  // Remove a disconnected client by index. Swaps with last element and pops.
+  void __attribute__((noinline)) remove_client_(size_t client_index);
+
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
                          const psk_t &active_psk, bool make_active);
@@ -248,8 +249,15 @@ class APIServer : public Component,
   void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
                                std::function<void(const std::string &)> f, bool once);
 #endif  // USE_API_HOMEASSISTANT_STATES
+  // No explicit close() needed — listen sockets have no active connections on
+  // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).
+  inline void destroy_socket_() {
+    delete this->socket_;
+    this->socket_ = nullptr;
+  }
+  void socket_failed_(const LogString *msg);
   // Pointers and pointer-like types first (4 bytes each)
-  std::unique_ptr<socket::Socket> socket_ = nullptr;
+  socket::Socket *socket_{nullptr};
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   Trigger<std::string, std::string> client_connected_trigger_;
 #endif
@@ -263,7 +271,11 @@ class APIServer : public Component,
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
-  std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
+  // Shared proto write buffer for all connections.
+  // Not pre-allocated: all send paths call prepare_first_message_buffer() which
+  // reserves the exact needed size. Pre-allocating here would cause heap fragmentation
+  // since the buffer would almost always reallocate on first use.
+  std::vector<uint8_t> shared_write_buffer_;
 #ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
 #endif

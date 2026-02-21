@@ -235,8 +235,8 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
   switch (command.command) {
     case improv::WIFI_SETTINGS: {
       wifi::WiFiAP sta{};
-      sta.set_ssid(command.ssid);
-      sta.set_password(command.password);
+      sta.set_ssid(command.ssid.c_str());
+      sta.set_password(command.password.c_str());
       this->connecting_sta_ = sta;
 
       wifi::global_wifi_component->set_sta(sta);
@@ -267,16 +267,26 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       for (auto &scan : results) {
         if (scan.get_is_hidden())
           continue;
-        const std::string &ssid = scan.get_ssid();
-        if (std::find(networks.begin(), networks.end(), ssid) != networks.end())
+        const char *ssid_cstr = scan.get_ssid().c_str();
+        // Check if we've already sent this SSID
+        bool duplicate = false;
+        for (const auto &seen : networks) {
+          if (strcmp(seen.c_str(), ssid_cstr) == 0) {
+            duplicate = true;
+            break;
+          }
+        }
+        if (duplicate)
           continue;
+        // Only allocate std::string after confirming it's not a duplicate
+        std::string ssid(ssid_cstr);
         // Send each ssid separately to avoid overflowing the buffer
         char rssi_buf[5];  // int8_t: -128 to 127, max 4 chars + null
         *int8_to_str(rssi_buf, scan.get_rssi()) = '\0';
         std::vector<uint8_t> data =
             improv::build_rpc_response(improv::GET_WIFI_NETWORKS, {ssid, rssi_buf, YESNO(scan.get_with_auth())}, false);
         this->send_response_(data);
-        networks.push_back(ssid);
+        networks.push_back(std::move(ssid));
       }
       // Send empty response to signify the end of the list.
       std::vector<uint8_t> data =
