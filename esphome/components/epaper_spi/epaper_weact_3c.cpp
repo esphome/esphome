@@ -6,9 +6,9 @@ namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_weact_3c";
 
 enum class BwrState : uint8_t {
-  BWR_BLACK = 0,
-  BWR_WHITE = 1,
-  BWR_RED = 2,
+  BWR_BLACK,
+  BWR_WHITE,
+  BWR_RED,
 };
 
 static BwrState color_to_bwr(Color color) {
@@ -22,7 +22,7 @@ static BwrState color_to_bwr(Color color) {
 }
 // SSD1680 3-color display notes:
 // - Buffer uses 1 bit per pixel, 8 pixels per byte
-// - Buffer first half (black_offset): Black/White plane (1=black, 0=white)
+// - Buffer first half (black_offset): Black/White plane (0=black, 1=white)
 // - Buffer second half (red_offset): Red plane (1=red, 0=no red)
 // - Total buffer: width * height / 4 bytes = 2 * (width * height / 8)
 // - For 128x296: 128*296/4 = 9472 bytes total (4736 per color)
@@ -52,7 +52,7 @@ void EPaperWeAct3C::draw_pixel_at(int x, int y, Color color) {
   // Update red plane (second half of buffer)
   // Red if red component is dominant (r > g+b)
   if (bwr == BwrState::BWR_RED) {
-    // black or white pixel - set bit in red plane
+    // Red pixel - set bit in red plane
     this->buffer_[red_offset + pos] |= bit;
   } else {
     // Not red - clear bit in red plane
