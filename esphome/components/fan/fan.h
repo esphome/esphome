@@ -91,11 +91,13 @@ class FanCall {
 };
 
 struct FanRestoreState {
+  static constexpr uint8_t NO_PRESET = UINT8_MAX;
+
   bool state;
   int speed;
   bool oscillating;
   FanDirection direction;
-  uint8_t preset_mode;
+  uint8_t preset_mode{NO_PRESET};
 
   /// Convert this struct to a fan call that can be performed.
   FanCall to_call(Fan &fan);
