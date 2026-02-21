@@ -944,12 +944,6 @@ def command_clean_all(args: ArgsProtocol) -> int | None:
     return 0
 
 
-def command_mqtt_fingerprint(args: ArgsProtocol, config: ConfigType) -> int | None:
-    from esphome import mqtt
-
-    return mqtt.get_fingerprint(config)
-
-
 def command_version(args: ArgsProtocol) -> int | None:
     safe_print(f"Version: {const.__version__}")
     return 0
@@ -1237,7 +1231,6 @@ POST_CONFIG_ACTIONS = {
     "run": command_run,
     "clean": command_clean,
     "clean-mqtt": command_clean_mqtt,
-    "mqtt-fingerprint": command_mqtt_fingerprint,
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
@@ -1450,13 +1443,6 @@ def parse_args(argv):
         help="A helpful setup wizard that will guide you through setting up ESPHome.",
     )
     parser_wizard.add_argument("configuration", help="Your YAML configuration file.")
-
-    parser_fingerprint = subparsers.add_parser(
-        "mqtt-fingerprint", help="Get the SSL fingerprint from a MQTT broker."
-    )
-    parser_fingerprint.add_argument(
-        "configuration", help="Your YAML configuration file(s).", nargs="+"
-    )
 
     subparsers.add_parser("version", help="Print the ESPHome version and exit.")
 
