@@ -32,9 +32,6 @@ void HOT arch_feed_wdt() { watchdog_update(); }
 uint8_t progmem_read_byte(const uint8_t *addr) {
   return pgm_read_byte(addr);  // NOLINT
 }
-uint16_t progmem_read_word(const uint16_t *addr) {
-  return pgm_read_word(addr);  // NOLINT
-}
 const char *progmem_read_ptr(const char *const *addr) {
   return reinterpret_cast<const char *>(pgm_read_ptr(addr));  // NOLINT
 }
