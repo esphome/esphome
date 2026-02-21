@@ -36,6 +36,8 @@ template<typename... X> class TemplatableStringValue : public TemplatableValue<s
   static std::string value_to_string(const char *val) { return std::string(val); }  // For lambdas returning .c_str()
   static std::string value_to_string(const std::string &val) { return val; }
   static std::string value_to_string(std::string &&val) { return std::move(val); }
+  static std::string value_to_string(const StringRef &val) { return val.str(); }
+  static std::string value_to_string(StringRef &&val) { return val.str(); }
 
  public:
   TemplatableStringValue() : TemplatableValue<std::string, X...>() {}
