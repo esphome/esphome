@@ -16,9 +16,9 @@ namespace esphome {
 
 // Extern lookup functions for entity string tables.
 // Generated code provides strong definitions; weak defaults return "".
-extern const char *entity_device_class_lookup(uint16_t index);
-extern const char *entity_uom_lookup(uint16_t index);
-extern const char *entity_icon_lookup(uint16_t index);
+extern const char *entity_device_class_lookup(uint8_t index);
+extern const char *entity_uom_lookup(uint8_t index);
+extern const char *entity_icon_lookup(uint8_t index);
 
 // Maximum device name length - keep in sync with validate_hostname() in esphome/core/config.py
 static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;

@@ -46,9 +46,9 @@ void EntityBase::set_name(const char *name, uint32_t object_id_hash) {
 }
 
 // Weak default lookup functions — overridden by generated code in main.cpp
-__attribute__((weak)) const char *entity_device_class_lookup(uint16_t) { return ""; }
-__attribute__((weak)) const char *entity_uom_lookup(uint16_t) { return ""; }
-__attribute__((weak)) const char *entity_icon_lookup(uint16_t) { return ""; }
+__attribute__((weak)) const char *entity_device_class_lookup(uint8_t) { return ""; }
+__attribute__((weak)) const char *entity_uom_lookup(uint8_t) { return ""; }
+__attribute__((weak)) const char *entity_icon_lookup(uint8_t) { return ""; }
 
 // Entity device class (from index)
 StringRef EntityBase::get_device_class_ref() const {

@@ -19,7 +19,7 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
 import esphome.final_validate as fv
-from esphome.helpers import fnv1_hash_object_id, sanitize, snake_case
+from esphome.helpers import cpp_string_escape, fnv1_hash_object_id, sanitize, snake_case
 from esphome.types import ConfigType, EntityMetadata
 
 _LOGGER = logging.getLogger(__name__)
@@ -90,12 +90,12 @@ def _generate_category_code(
         return ""
 
     sorted_strings = sorted(strings.items(), key=lambda x: x[1])
-    entries = ", ".join(f'"{s}"' for s, _ in sorted_strings)
+    entries = ", ".join(cpp_string_escape(s) for s, _ in sorted_strings)
     count = len(sorted_strings)
 
     return (
         f"static const char *const {table_var}[] PROGMEM = {{{entries}}};\n"
-        f"const char *{lookup_fn}(uint16_t index) {{\n"
+        f"const char *{lookup_fn}(uint8_t index) {{\n"
         f'  if (index == 0 || index > {count}) return "";\n'
         f"  return progmem_read_ptr(&{table_var}[index - 1]);\n"
         f"}}\n"
