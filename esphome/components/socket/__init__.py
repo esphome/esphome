@@ -53,7 +53,7 @@ def consume_sockets(
     Args:
         value: Number of sockets needed by the component
         consumer: Name of the component consuming the sockets
-        socket_type: Type of socket (SocketType.TCP or SocketType.UDP)
+        socket_type: Type of socket (SocketType.TCP, SocketType.UDP, or SocketType.TCP_LISTEN)
 
     Returns:
         A validator function that records the socket usage
