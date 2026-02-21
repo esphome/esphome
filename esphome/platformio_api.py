@@ -88,7 +88,7 @@ def patch_file_downloader():
                     # Final attempt - re-raise
                     raise
 
-    patched_init._esphome_patched = True  # type: ignore[attr-defined]
+    patched_init._esphome_patched = True  # type: ignore[attr-defined]  # pylint: disable=protected-access
     FileDownloader.__init__ = patched_init
 
 
