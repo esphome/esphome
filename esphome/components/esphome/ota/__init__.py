@@ -98,7 +98,7 @@ def _consume_ota_sockets(config: ConfigType) -> ConfigType:
     from esphome.components import socket
 
     # OTA needs 1 listening socket (client connections are temporary during updates)
-    socket.consume_sockets(1, "ota")(config)
+    socket.consume_sockets(1, "ota", socket.SocketType.TCP_LISTEN)(config)
     return config
 
 

@@ -1263,7 +1263,10 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
     user_max_sockets = conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_LWIP_MAX_SOCKETS")
 
-    tcp_sockets, udp_sockets = get_socket_counts()
+    # tcp_listen not used on ESP32 — ESP-IDF defaults MEMP_NUM_TCP_PCB_LISTEN
+    # to 16 which is already generous, and CONFIG_LWIP_MAX_SOCKETS is a single
+    # combined VFS socket pool with no separate listening socket limit.
+    tcp_sockets, udp_sockets, _tcp_listen = get_socket_counts()
     total_sockets = tcp_sockets + udp_sockets
 
     # User specified their own value - respect it but warn if insufficient

@@ -300,6 +300,7 @@ def _configure_lwip(config: dict) -> None:
     TCP_SND_QUEUELEN          ~8      17     20       20       35       17
     MEMP_NUM_TCP_SEG          10      16     40       20       =qlen    17
     MEMP_NUM_TCP_PCB          5       16     12       10       8        =TCP
+    MEMP_NUM_TCP_PCB_LISTEN   4       16     4        5        3        dynamic
     MEMP_NUM_UDP_PCB          4       16     25***    7****    7****    =UDP
     MEMP_NUM_NETCONN          0       10     38       4*****   =sum     =sum
     MEMP_NUM_NETBUF           0       2      16       2*****   8        4
@@ -320,11 +321,12 @@ def _configure_lwip(config: dict) -> None:
         get_socket_counts,
     )
 
-    raw_tcp, raw_udp = get_socket_counts()
+    raw_tcp, raw_udp, raw_tcp_listen = get_socket_counts()
     # Apply platform minimums — ensure headroom for ESPHome's needs
     tcp_sockets = max(MIN_TCP_SOCKETS, raw_tcp)
     udp_sockets = max(MIN_UDP_SOCKETS, raw_udp)
-    listening_tcp = 4
+    # Listening sockets — registered by components (api, ota, web_server_base, etc.)
+    listening_tcp = max(raw_tcp_listen, 2)  # at least 2 (api + ota)
 
     # TCP_SND_BUF: ESPAsyncWebServer allocates malloc(tcp_sndbuf()) per
     # response chunk. At 10×MSS=14.6KB (BK default) this causes OOM (#14095).
@@ -354,13 +356,14 @@ def _configure_lwip(config: dict) -> None:
         # Socket counts — auto-calculated from component registrations
         f"MAX_SOCKETS_TCP={tcp_sockets}",
         f"MAX_SOCKETS_UDP={udp_sockets}",
-        # Listening sockets — API + web_server + OTA at most
+        # Listening sockets — auto-calculated from component registrations
         f"MAX_LISTENING_SOCKETS_TCP={listening_tcp}",
         # Queued segment limits — derived from 4×MSS buffer size
         f"TCP_SND_QUEUELEN={tcp_snd_queuelen}",
         f"MEMP_NUM_TCP_SEG={memp_num_tcp_seg}",  # must be >= queuelen
-        # PCB pools — 1:1 with socket counts
+        # PCB pools — active connections + listening sockets
         f"MEMP_NUM_TCP_PCB={tcp_sockets}",  # BK: 12, RTL: 10, LN: 8
+        f"MEMP_NUM_TCP_PCB_LISTEN={listening_tcp}",  # BK: =MAX_LISTENING, RTL: 5, LN: 3
         # UDP PCB pool — includes wifi.lwip_internal (DHCP + DNS)
         f"MEMP_NUM_UDP_PCB={udp_sockets}",  # BK: 25, RTL/LN: 7 via LT
         # Netconn pool — listening sockets are already counted in tcp_sockets

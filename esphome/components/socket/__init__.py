@@ -19,9 +19,12 @@ IMPLEMENTATION_BSD_SOCKETS = "bsd_sockets"
 # Components register their socket needs and platforms read this to configure appropriately
 KEY_SOCKET_CONSUMERS_TCP = "socket_consumers_tcp"
 KEY_SOCKET_CONSUMERS_UDP = "socket_consumers_udp"
+KEY_SOCKET_CONSUMERS_TCP_LISTEN = "socket_consumers_tcp_listen"
 
-# Recommended minimum socket counts to ensure headroom
-# Platforms should apply these (or their own) on top of get_socket_counts()
+# Recommended minimum socket counts to ensure headroom.
+# Platforms should apply these (or their own) on top of get_socket_counts().
+# TCP: api(4) + ota(1) = 5 base, +5 headroom for web_server/other components.
+# UDP: dhcp(1) + dns(1) + mdns(2) + wake_loop(1) = 5 base, +3 headroom.
 MIN_TCP_SOCKETS = 10
 MIN_UDP_SOCKETS = 8
 
@@ -32,6 +35,7 @@ KEY_WAKE_LOOP_THREADSAFE_REQUIRED = "wake_loop_threadsafe_required"
 class SocketType(StrEnum):
     TCP = "tcp"
     UDP = "udp"
+    TCP_LISTEN = "tcp_listen"
 
 
 # Legacy aliases
@@ -41,6 +45,7 @@ SOCKET_UDP = SocketType.UDP
 _SOCKET_TYPE_KEYS = {
     SocketType.TCP: KEY_SOCKET_CONSUMERS_TCP,
     SocketType.UDP: KEY_SOCKET_CONSUMERS_UDP,
+    SocketType.TCP_LISTEN: KEY_SOCKET_CONSUMERS_TCP_LISTEN,
 }
 
 
@@ -67,8 +72,8 @@ def consume_sockets(
     return _consume_sockets
 
 
-def get_socket_counts() -> tuple[int, int]:
-    """Return (tcp_count, udp_count) of raw registered socket needs.
+def get_socket_counts() -> tuple[int, int, int]:
+    """Return (tcp_count, udp_count, tcp_listen_count) of raw registered socket needs.
 
     Platforms call this during code generation to configure lwIP socket limits.
     All components will have registered their needs by then.
@@ -77,8 +82,10 @@ def get_socket_counts() -> tuple[int, int]:
     """
     tcp_consumers = CORE.data.get(KEY_SOCKET_CONSUMERS_TCP, {})
     udp_consumers = CORE.data.get(KEY_SOCKET_CONSUMERS_UDP, {})
+    tcp_listen_consumers = CORE.data.get(KEY_SOCKET_CONSUMERS_TCP_LISTEN, {})
     tcp = sum(tcp_consumers.values())
     udp = sum(udp_consumers.values())
+    tcp_listen = sum(tcp_listen_consumers.values())
 
     tcp_list = ", ".join(
         f"{name}={count}" for name, count in sorted(tcp_consumers.items())
@@ -86,14 +93,19 @@ def get_socket_counts() -> tuple[int, int]:
     udp_list = ", ".join(
         f"{name}={count}" for name, count in sorted(udp_consumers.items())
     )
+    tcp_listen_list = ", ".join(
+        f"{name}={count}" for name, count in sorted(tcp_listen_consumers.items())
+    )
     _LOGGER.debug(
-        "Socket counts: TCP=%d (%s), UDP=%d (%s)",
+        "Socket counts: TCP=%d (%s), UDP=%d (%s), TCP_LISTEN=%d (%s)",
         tcp,
         tcp_list or "none",
         udp,
         udp_list or "none",
+        tcp_listen,
+        tcp_listen_list or "none",
     )
-    return tcp, udp
+    return tcp, udp, tcp_listen
 
 
 def require_wake_loop_threadsafe() -> None:
