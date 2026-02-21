@@ -1,11 +1,14 @@
 from esphome.const import (
     CONF_DATA_RATE,
+    CONF_HEIGHT,
     CONF_MIRROR_X,
     CONF_SWAP_XY,
-    CONF_TEMPERATURE,
+    CONF_WIDTH,
 )
 
 from . import EpaperModel
+
+CONF_TEMPERATURE_C = "temperature_c"
 
 
 class E2271KS0C1(EpaperModel):
@@ -17,10 +20,12 @@ class E2271KS0C1(EpaperModel):
         kwargs.setdefault(CONF_DATA_RATE, "4MHz")
         # Panel internal layout is 176 columns x 264 rows
         # SWAP_XY presents user with 264x176 (width x height)
+        kwargs.setdefault(CONF_WIDTH, 176)
+        kwargs.setdefault(CONF_HEIGHT, 264)
         kwargs.setdefault(CONF_SWAP_XY, True)
         kwargs.setdefault(CONF_MIRROR_X, True)
-        kwargs.setdefault(CONF_TEMPERATURE, 25.0)
-        super().__init__(name, class_name, width=176, height=264, **kwargs)
+        kwargs.setdefault(CONF_TEMPERATURE_C, 25.0)
+        super().__init__(name, class_name, **kwargs)
 
     def get_init_sequence(self, config: dict):
         # Configuration happens dynamically in transfer_data()

@@ -28,7 +28,6 @@ from esphome.const import (
     CONF_RESET_PIN,
     CONF_ROTATION,
     CONF_SWAP_XY,
-    CONF_TEMPERATURE,
     CONF_TRANSFORM,
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
@@ -43,12 +42,18 @@ DEPENDENCIES = ["spi"]
 
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
+CONF_TEMPERATURE_C = "temperature_c"
 
 epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
     "EPaperBase", cg.PollingComponent, spi.SPIDevice, display.Display
 )
 Transform = epaper_spi_ns.enum("Transform")
+
+EPaperSpectraE6 = epaper_spi_ns.class_("EPaperSpectraE6", EPaperBase)
+EPaper7p3InSpectraE6 = epaper_spi_ns.class_("EPaper7p3InSpectraE6", EPaperSpectraE6)
+EPaperE2271KS0C1 = epaper_spi_ns.class_("EPaperE2271KS0C1", EPaperBase)
+
 
 # Import all models dynamically from the models package
 for module_info in pkgutil.iter_modules(models.__path__):
@@ -73,43 +78,51 @@ def model_schema(config):
         model.get_default(CONF_MINIMUM_UPDATE_INTERVAL, "1s")
     )
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
-    return display.FULL_DISPLAY_SCHEMA.extend(
-        spi.spi_device_schema(
-            cs_pin_required=False,
-            default_mode="MODE0",
-            default_data_rate=model.get_default(CONF_DATA_RATE, 10_000_000),
+    return (
+        display.FULL_DISPLAY_SCHEMA.extend(
+            spi.spi_device_schema(
+                cs_pin_required=False,
+                default_mode="MODE0",
+                default_data_rate=model.get_default(CONF_DATA_RATE, 10_000_000),
+            )
         )
-    ).extend(
-        {
-            cv.Optional(CONF_ROTATION, default=0): validate_rotation,
-            cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
-            cv.Optional(CONF_UPDATE_INTERVAL, default=cv.UNDEFINED): cv.All(
-                update_interval, cv.Range(min=minimum_update_interval)
-            ),
-            cv.Optional(CONF_TRANSFORM): cv.Schema(
-                {
-                    cv.Required(CONF_MIRROR_X): cv.boolean,
-                    cv.Required(CONF_MIRROR_Y): cv.boolean,
-                }
-            ),
-            cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
-            model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
-            model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
-            model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
-            model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-            cv.GenerateID(): cv.declare_id(class_name),
-            cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
-            cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
-            model.option(CONF_ENABLE_PIN): cv.ensure_list(pins.gpio_output_pin_schema),
-            model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
-                map_sequence
-            ),
-            model.option(CONF_RESET_DURATION, cv.UNDEFINED): cv.All(
-                cv.positive_time_period_milliseconds,
-                cv.Range(max=core.TimePeriod(milliseconds=500)),
-            ),
-            model.option(CONF_TEMPERATURE): cv.temperature,
-        }
+        .extend(
+            {
+                model.option(pin): pins.gpio_output_pin_schema
+                for pin in (CONF_RESET_PIN, CONF_CS_PIN, CONF_BUSY_PIN)
+            }
+        )
+        .extend(
+            {
+                cv.Optional(CONF_ROTATION, default=0): validate_rotation,
+                cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
+                cv.Optional(CONF_UPDATE_INTERVAL, default=cv.UNDEFINED): cv.All(
+                    update_interval, cv.Range(min=minimum_update_interval)
+                ),
+                cv.Optional(CONF_TRANSFORM): cv.Schema(
+                    {
+                        cv.Required(CONF_MIRROR_X): cv.boolean,
+                        cv.Required(CONF_MIRROR_Y): cv.boolean,
+                    }
+                ),
+                cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
+                model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
+                cv.GenerateID(): cv.declare_id(class_name),
+                cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
+                cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
+                model.option(CONF_ENABLE_PIN): cv.ensure_list(
+                    pins.gpio_output_pin_schema
+                ),
+                model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
+                    map_sequence
+                ),
+                model.option(CONF_RESET_DURATION, cv.UNDEFINED): cv.All(
+                    cv.positive_time_period_milliseconds,
+                    cv.Range(max=core.TimePeriod(milliseconds=500)),
+                ),
+                model.option(CONF_TEMPERATURE_C, cv.UNDEFINED): cv.temperature,
+            }
+        )
     )
 
 
@@ -163,9 +176,15 @@ async def to_code(config):
         init_sequence = model.get_init_sequence(config)
     init_sequence = flatten_sequence(init_sequence)
     init_sequence_length = len(init_sequence)
-    init_sequence_id = cg.static_const_array(
-        config[CONF_INIT_SEQUENCE_ID], init_sequence
-    )
+
+    # Handle empty init sequence by passing nullptr (like original external component)
+    if init_sequence_length > 0:
+        init_sequence_id = cg.static_const_array(
+            config[CONF_INIT_SEQUENCE_ID], init_sequence
+        )
+    else:
+        init_sequence_id = RawExpression("nullptr")
+
     width, height = model.get_dimensions(config)
     var = cg.new_Pvariable(
         config[CONF_ID],
@@ -199,8 +218,8 @@ async def to_code(config):
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
-    if CONF_TEMPERATURE in config:
-        cg.add(var.set_temperature(config[CONF_TEMPERATURE]))
+    if CONF_TEMPERATURE_C in config:
+        cg.add(var.set_temperature_c(config[CONF_TEMPERATURE_C]))
     if transform := config.get(CONF_TRANSFORM):
         transform[CONF_SWAP_XY] = False
     else:
