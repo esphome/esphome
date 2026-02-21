@@ -68,8 +68,17 @@ def consume_sockets(
     return _consume_sockets
 
 
-def get_socket_counts() -> tuple[int, int, int]:
-    """Return (tcp_count, udp_count, tcp_listen_count) of raw registered socket needs.
+def _format_consumers(consumers: dict[str, int]) -> str:
+    """Format consumer dict as 'name=count, ...' or 'none'."""
+    if not consumers:
+        return "none"
+    return ", ".join(f"{name}={count}" for name, count in sorted(consumers.items()))
+
+
+def get_socket_counts() -> tuple[int, int, int, str, str, str]:
+    """Return socket counts and component details for platform configuration.
+
+    Returns (tcp, udp, tcp_listen, tcp_details, udp_details, tcp_listen_details).
 
     Platforms call this during code generation to configure lwIP socket limits.
     All components will have registered their needs by then.
@@ -83,25 +92,19 @@ def get_socket_counts() -> tuple[int, int, int]:
     udp = sum(udp_consumers.values())
     tcp_listen = sum(tcp_listen_consumers.values())
 
-    tcp_list = ", ".join(
-        f"{name}={count}" for name, count in sorted(tcp_consumers.items())
-    )
-    udp_list = ", ".join(
-        f"{name}={count}" for name, count in sorted(udp_consumers.items())
-    )
-    tcp_listen_list = ", ".join(
-        f"{name}={count}" for name, count in sorted(tcp_listen_consumers.items())
-    )
+    tcp_details = _format_consumers(tcp_consumers)
+    udp_details = _format_consumers(udp_consumers)
+    tcp_listen_details = _format_consumers(tcp_listen_consumers)
     _LOGGER.debug(
         "Socket counts: TCP=%d (%s), UDP=%d (%s), TCP_LISTEN=%d (%s)",
         tcp,
-        tcp_list or "none",
+        tcp_details,
         udp,
-        udp_list or "none",
+        udp_details,
         tcp_listen,
-        tcp_listen_list or "none",
+        tcp_listen_details,
     )
-    return tcp, udp, tcp_listen
+    return tcp, udp, tcp_listen, tcp_details, udp_details, tcp_listen_details
 
 
 def require_wake_loop_threadsafe() -> None:

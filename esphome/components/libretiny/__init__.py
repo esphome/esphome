@@ -321,7 +321,7 @@ def _configure_lwip(config: dict) -> None:
         get_socket_counts,
     )
 
-    raw_tcp, raw_udp, raw_tcp_listen = get_socket_counts()
+    raw_tcp, raw_udp, raw_tcp_listen, *_ = get_socket_counts()
     # Apply platform minimums — ensure headroom for ESPHome's needs
     tcp_sockets = max(MIN_TCP_SOCKETS, raw_tcp)
     udp_sockets = max(MIN_UDP_SOCKETS, raw_udp)
