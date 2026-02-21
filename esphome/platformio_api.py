@@ -55,6 +55,9 @@ def patch_file_downloader():
     from platformio.package.download import FileDownloader
     from platformio.package.exception import PackageException
 
+    if getattr(FileDownloader.__init__, "_esphome_patched", False):
+        return
+
     original_init = FileDownloader.__init__
 
     def patched_init(self, *args: Any, **kwargs: Any) -> None:
@@ -62,7 +65,8 @@ def patch_file_downloader():
 
         for attempt in range(max_retries):
             try:
-                return original_init(self, *args, **kwargs)
+                original_init(self, *args, **kwargs)
+                return
             except PackageException as e:
                 if attempt < max_retries - 1:
                     # Exponential backoff: 2, 4, 8, 16 seconds
@@ -83,8 +87,8 @@ def patch_file_downloader():
                 else:
                     # Final attempt - re-raise
                     raise
-        return None
 
+    patched_init._esphome_patched = True  # type: ignore[attr-defined]
     FileDownloader.__init__ = patched_init
 
 

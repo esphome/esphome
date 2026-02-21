@@ -828,6 +828,42 @@ def test_patch_file_downloader_closes_session_between_retries() -> None:
         mock_session.close.assert_called_once()
 
 
+def test_patch_file_downloader_idempotent() -> None:
+    """Test patch_file_downloader does not stack wrappers when called multiple times."""
+    mock_exception_cls = type("PackageException", (Exception,), {})
+    call_count = 0
+
+    def counting_init(self, *args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+
+    with patch.dict(
+        "sys.modules",
+        {
+            "platformio": MagicMock(),
+            "platformio.package": MagicMock(),
+            "platformio.package.download": SimpleNamespace(
+                FileDownloader=type("FileDownloader", (), {"__init__": counting_init})
+            ),
+            "platformio.package.exception": SimpleNamespace(
+                PackageException=mock_exception_cls
+            ),
+        },
+    ):
+        # Patch multiple times
+        platformio_api.patch_file_downloader()
+        platformio_api.patch_file_downloader()
+        platformio_api.patch_file_downloader()
+
+        from platformio.package.download import FileDownloader
+
+        instance = object.__new__(FileDownloader)
+        FileDownloader.__init__(instance, "http://example.com/file.zip")
+
+        # Should only be called once, not 3 times from stacked wrappers
+        assert call_count == 1
+
+
 def test_platformio_log_filter_allows_non_platformio_messages() -> None:
     """Test that non-platformio logger messages are allowed through."""
     log_filter = platformio_api.PlatformioLogFilter()
