@@ -82,6 +82,27 @@ display:
     busy_pin: 43
     dc_pin: 42
 
+  # Pervasive Displays 2.7" E2271KS0C1 (264x176, fast partial updates)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: e2271ks0c1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+    temperature: 25
+    lambda: |-
+      it.circle(64, 64, 50, Color::BLACK);
+
   # WeAct 2.13" 3-color e-paper (122x250, SSD1680)
   - platform: epaper_spi
     spi_id: spi_bus
