@@ -3,10 +3,6 @@ esp_ldo:
     channel: 3
     voltage: 2.5V
     adjustable: true
-  - id: ldo_4
-    channel: 4
-    voltage: 2.0V
-    setup_priority: 900
   - id: ldo_4_passthrough
     channel: 4
     voltage: 3.3V
