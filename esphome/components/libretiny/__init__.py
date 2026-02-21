@@ -291,7 +291,7 @@ def _configure_lwip(config: dict) -> None:
     ────────────────────────────────────────────────────────────────────────────
     TCP_SND_BUF               2×MSS   4×MSS  10×MSS   5×MSS    7×MSS    4×MSS
     TCP_WND                   4×MSS   4×MSS  10×MSS   2×MSS    3×MSS    4×MSS
-    MEM_SIZE                  1.6KB   N/A*   16/32KB  5KB      N/A*     5KB BK
+    MEM_SIZE                  N/A*    N/A*   16/32KB  5KB      N/A*     N/A* BK
     PBUF_POOL_SIZE            10      16     3/10     20       20       10 BK
     MAX_SOCKETS_TCP           5       16     12       —**      —**      dynamic
     MAX_SOCKETS_UDP           4       16     22       —**      —**      dynamic
@@ -368,16 +368,17 @@ def _configure_lwip(config: dict) -> None:
         "MEMP_NUM_TCPIP_MSG_INPKT=8",  # BK: 16, RTL: 8 (opt.h), LN: 12
     ]
 
-    # MEM_SIZE: lwIP dedicated heap pool.
-    # Only BK72XX needs this — its SDK reserves a 32KB pool, way oversized.
-    # RTL87XX SDK default is 5KB (already reasonable).
-    # LN882H uses MEM_LIBC_MALLOC=1 (system heap), so MEM_SIZE is irrelevant.
+    # BK72XX-specific overrides:
+    # - MEM_LIBC_MALLOC=1: Use system heap instead of dedicated lwIP heap.
+    #   BK SDK defaults to a 16/32KB dedicated pool (MEM_LIBC_MALLOC=0).
+    #   LN882H already uses MEM_LIBC_MALLOC=1. This eliminates the dedicated
+    #   pool bottleneck that caused OTA slowness at MEM_SIZE=5KB.
+    # - PBUF_POOL_SIZE: BK SDK "reduced plan" sets this to only 3 — too few
+    #   for multiple concurrent connections (API + web_server + OTA).
+    #   BK default plan uses 10; match that. RTL(20) and LN(20) need no override.
+    #   Cost: 10 × 1580 = 15.8KB static RAM (vs 3 × 1580 = 4.7KB before).
     if CORE.is_bk72xx:
-        lwip_opts.append("MEM_SIZE=5120")  # BK SDK: 16,384/32,768, RTL SDK: 5,120
-        # PBUF_POOL_SIZE: BK SDK "reduced plan" sets this to only 3 — too few
-        # for multiple concurrent connections (API + web_server + OTA).
-        # BK default plan uses 10; match that. RTL(20) and LN(20) need no override.
-        # Cost: 10 × 1580 = 15.8KB static RAM (vs 3 × 1580 = 4.7KB before).
+        lwip_opts.append("MEM_LIBC_MALLOC=1")
         lwip_opts.append("PBUF_POOL_SIZE=10")
 
     cg.add_platformio_option("custom_options.lwip", lwip_opts)
