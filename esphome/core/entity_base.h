@@ -21,13 +21,13 @@ extern const char *entity_uom_lookup(uint16_t index);
 extern const char *entity_icon_lookup(uint16_t index);
 
 // Bit layout for entity_string_packed_:
-//   [31..20] icon (12 bits) | [19..10] UoM (10 bits) | [9..0] device_class (10 bits)
+//   [31..24] reserved | [23..16] icon (8 bits) | [15..8] UoM (8 bits) | [7..0] device_class (8 bits)
 static constexpr uint8_t ENTITY_STR_DC_SHIFT = 0;
-static constexpr uint8_t ENTITY_STR_UOM_SHIFT = 10;
-static constexpr uint8_t ENTITY_STR_ICON_SHIFT = 20;
-static constexpr uint16_t ENTITY_STR_DC_MASK = 0x3FF;
-static constexpr uint16_t ENTITY_STR_UOM_MASK = 0x3FF;
-static constexpr uint16_t ENTITY_STR_ICON_MASK = 0xFFF;
+static constexpr uint8_t ENTITY_STR_UOM_SHIFT = 8;
+static constexpr uint8_t ENTITY_STR_ICON_SHIFT = 16;
+static constexpr uint8_t ENTITY_STR_DC_MASK = 0xFF;
+static constexpr uint8_t ENTITY_STR_UOM_MASK = 0xFF;
+static constexpr uint8_t ENTITY_STR_ICON_MASK = 0xFF;
 
 // Maximum device name length - keep in sync with validate_hostname() in esphome/core/config.py
 static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;
@@ -105,7 +105,7 @@ class EntityBase {
   }
 
   // Set packed entity string indices — one call per entity from codegen.
-  // Bit layout: [31..20] icon (12 bits) | [19..10] UoM (10 bits) | [9..0] device_class (10 bits)
+  // Bit layout: [23..16] icon (8 bits) | [15..8] UoM (8 bits) | [7..0] device_class (8 bits)
   void set_entity_strings(uint32_t packed) { this->entity_string_packed_ = packed; }
 
   // Get device class as StringRef (from packed index)
@@ -199,7 +199,7 @@ class EntityBase {
   void calc_object_id_();
 
   StringRef name_;
-  uint32_t entity_string_packed_{0};  // bits 0-9: device_class, 10-19: uom, 20-31: icon
+  uint32_t entity_string_packed_{0};  // bits 0-7: device_class, 8-15: uom, 16-23: icon, 24-31: reserved
   uint32_t object_id_hash_{};
 #ifdef USE_DEVICES
   Device *device_{};
