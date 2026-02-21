@@ -60,6 +60,11 @@ static constexpr uint8_t MAX_MESSAGES_PER_LOOP = 5;
 static constexpr uint8_t MAX_PING_RETRIES = 60;
 static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
 static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;
+// Timeout for completing the handshake (Noise transport + HelloRequest).
+// A stalled handshake from a buggy client or network glitch holds a connection
+// slot, which can prevent legitimate clients from reconnecting. Also hardens
+// against the less likely case of intentional connection slot exhaustion.
+static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 15000;
 
 static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
 
@@ -205,7 +210,12 @@ void APIConnection::loop() {
         this->fatal_error_with_log_(LOG_STR("Reading failed"), err);
         return;
       } else {
-        this->last_traffic_ = now;
+        // Only update last_traffic_ after authentication to ensure the
+        // handshake timeout is an absolute deadline from connection start.
+        // Pre-auth messages (e.g. PingRequest) must not reset the timer.
+        if (this->is_authenticated()) {
+          this->last_traffic_ = now;
+        }
         // read a packet
         this->read_message(buffer.data_len, buffer.type, buffer.data);
         if (this->flags_.remove)
@@ -221,6 +231,15 @@ void APIConnection::loop() {
 
   if (this->active_iterator_ != ActiveIterator::NONE) {
     this->process_active_iterator_();
+  }
+
+  // Disconnect clients that haven't completed the handshake in time.
+  // Stale half-open connections from buggy clients or network issues can
+  // accumulate and block legitimate clients from reconnecting.
+  if (!this->is_authenticated() && now - this->last_traffic_ > HANDSHAKE_TIMEOUT_MS) {
+    this->on_fatal_error();
+    this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("handshake timeout; disconnecting"));
+    return;
   }
 
   if (this->flags_.sent_ping) {
@@ -1551,6 +1570,8 @@ void APIConnection::complete_authentication_() {
   }
 
   this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::AUTHENTICATED);
+  // Reset traffic timer so keepalive starts from authentication, not connection start
+  this->last_traffic_ = App.get_loop_component_start_time();
   this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("connected"));
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   {
@@ -1579,6 +1600,12 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   char peername[socket::SOCKADDR_STR_LEN];
   ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu16 ".%" PRIu16, this->helper_->get_client_name(),
            this->helper_->get_peername_to(peername), this->client_api_version_major_, this->client_api_version_minor_);
+
+  // TODO: Remove before 2026.8.0 (one version after get_object_id backward compat removal)
+  if (!this->client_supports_api_version(1, 14)) {
+    ESP_LOGW(TAG, "'%s' using outdated API %" PRIu16 ".%" PRIu16 ", update to 1.14+", this->helper_->get_client_name(),
+             this->client_api_version_major_, this->client_api_version_minor_);
+  }
 
   HelloResponse resp;
   resp.api_version_major = 1;

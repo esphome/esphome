@@ -13,7 +13,12 @@ namespace speaker {
 static const uint32_t INITIAL_BUFFER_MS = 1000;  // Start playback after buffering this duration of the file
 
 static const uint32_t READ_TASK_STACK_SIZE = 5 * 1024;
+// Opus decoding uses more stack than other codecs
+#ifdef USE_AUDIO_OPUS_SUPPORT
+static const uint32_t DECODE_TASK_STACK_SIZE = 5 * 1024;
+#else
 static const uint32_t DECODE_TASK_STACK_SIZE = 3 * 1024;
+#endif
 
 static const uint32_t INFO_ERROR_QUEUE_COUNT = 5;
 
@@ -551,6 +556,11 @@ void AudioPipeline::decode_task(void *params) {
 #ifdef USE_AUDIO_FLAC_SUPPORT
             case audio::AudioFileType::FLAC:
               initial_bytes_to_buffer /= 2;  // Estimate the FLAC compression factor is 2
+              break;
+#endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+            case audio::AudioFileType::OPUS:
+              initial_bytes_to_buffer /= 8;  // Estimate the Opus compression factor is 8
               break;
 #endif
             default:
