@@ -308,7 +308,7 @@ def _configure_lwip(config: dict) -> None:
     **** RTL/LN LT overlay overrides to flat 7.
     ***** Not defined in RTL SDK — lwIP opt.h defaults shown.
     "dynamic" = auto-calculated from component socket registrations via
-    socket.get_socket_counts() with minimums of 10 TCP / 6 UDP.
+    socket.get_socket_counts() with minimums of 10 TCP / 8 UDP.
     """
     from esphome.components.socket import (
         MIN_TCP_SOCKETS,

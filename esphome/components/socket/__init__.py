@@ -23,7 +23,7 @@ KEY_SOCKET_CONSUMERS_UDP = "socket_consumers_udp"
 # Recommended minimum socket counts to ensure headroom
 # Platforms should apply these (or their own) on top of get_socket_counts()
 MIN_TCP_SOCKETS = 10
-MIN_UDP_SOCKETS = 6
+MIN_UDP_SOCKETS = 8
 
 # Wake loop threadsafe support tracking
 KEY_WAKE_LOOP_THREADSAFE_REQUIRED = "wake_loop_threadsafe_required"
