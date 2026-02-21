@@ -48,7 +48,7 @@ async def test_scheduler_null_name(
         assert test_null_name_service is not None, "test_null_name service not found"
 
         # Execute the test
-        client.execute_service(test_null_name_service, {})
+        await client.execute_service(test_null_name_service, {})
 
         # Wait for test completion
         try:

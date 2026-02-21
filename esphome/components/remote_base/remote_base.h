@@ -31,6 +31,16 @@ class RemoteTransmitData {
   uint32_t get_carrier_frequency() const { return this->carrier_frequency_; }
   const RawTimings &get_data() const { return this->data_; }
   void set_data(const RawTimings &data) { this->data_ = data; }
+  /// Set data from packed protobuf sint32 buffer (zigzag + varint encoded)
+  /// @param data Pointer to packed zigzag-varint-encoded sint32 values
+  /// @param len Length of the buffer in bytes
+  /// @param count Number of values (for reserve optimization)
+  void set_data_from_packed_sint32(const uint8_t *data, size_t len, size_t count);
+  /// Set data from base64url-encoded little-endian int32 values
+  /// Base64url is URL-safe: uses '-' instead of '+', '_' instead of '/'
+  /// @param base64url Base64url-encoded string of little-endian int32 values
+  /// @return true if successful, false if decode failed or invalid size
+  bool set_data_from_base64url(const std::string &base64url);
   void reset() {
     this->data_.clear();
     this->carrier_frequency_ = 0;
@@ -109,6 +119,8 @@ class RemoteComponentBase {
 };
 
 #ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 class RemoteRMTChannel {
  public:
   void set_clock_resolution(uint32_t clock_resolution) { this->clock_resolution_ = clock_resolution; }
@@ -127,7 +139,8 @@ class RemoteRMTChannel {
   uint32_t clock_resolution_{1000000};
   uint32_t rmt_symbols_;
 };
-#endif
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32
 
 class RemoteTransmitterBase : public RemoteComponentBase {
  public:
@@ -276,7 +289,7 @@ template<typename... Ts> class RemoteTransmitterActionBase : public RemoteTransm
   TEMPLATABLE_VALUE(uint32_t, send_wait)
 
  protected:
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->transmitter_->transmit();
     this->encode(call.get_data(), x...);
     call.set_send_times(this->send_times_.value_or(x..., 1));

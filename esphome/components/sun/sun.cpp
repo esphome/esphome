@@ -172,21 +172,25 @@ struct SunAtTime {
 
   void debug() const {
     // debug output like in example 25.a, p. 165
-    ESP_LOGV(TAG, "jde: %f", jde);
-    ESP_LOGV(TAG, "T: %f", t);
-    ESP_LOGV(TAG, "L_0: %f", mean_longitude());
-    ESP_LOGV(TAG, "M: %f", mean_anomaly());
-    ESP_LOGV(TAG, "e: %f", eccentricity());
-    ESP_LOGV(TAG, "C: %f", equation_of_center());
-    ESP_LOGV(TAG, "Odot: %f", true_longitude());
-    ESP_LOGV(TAG, "Omega: %f", omega());
-    ESP_LOGV(TAG, "lambda: %f", apparent_longitude());
-    ESP_LOGV(TAG, "epsilon_0: %f", mean_obliquity());
-    ESP_LOGV(TAG, "epsilon: %f", true_obliquity());
-    ESP_LOGV(TAG, "v: %f", true_anomaly());
     auto eq = equatorial_coordinate();
-    ESP_LOGV(TAG, "right_ascension: %f", eq.right_ascension);
-    ESP_LOGV(TAG, "declination: %f", eq.declination);
+    ESP_LOGV(TAG,
+             "jde: %f\n"
+             "T: %f\n"
+             "L_0: %f\n"
+             "M: %f\n"
+             "e: %f\n"
+             "C: %f\n"
+             "Odot: %f\n"
+             "Omega: %f\n"
+             "lambda: %f\n"
+             "epsilon_0: %f\n"
+             "epsilon: %f\n"
+             "v: %f\n"
+             "right_ascension: %f\n"
+             "declination: %f",
+             jde, t, mean_longitude(), mean_anomaly(), eccentricity(), equation_of_center(), true_longitude(), omega(),
+             apparent_longitude(), mean_obliquity(), true_obliquity(), true_anomaly(), eq.right_ascension,
+             eq.declination);
   }
 };
 

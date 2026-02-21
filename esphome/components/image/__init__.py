@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+from dataclasses import dataclass
 import hashlib
 import io
 import logging
@@ -37,11 +38,21 @@ image_ns = cg.esphome_ns.namespace("image")
 
 ImageType = image_ns.enum("ImageType")
 
+
+@dataclass(frozen=True)
+class ImageMetaData:
+    width: int
+    height: int
+    image_type: str
+    transparency: str
+
+
 CONF_OPAQUE = "opaque"
 CONF_CHROMA_KEY = "chroma_key"
 CONF_ALPHA_CHANNEL = "alpha_channel"
 CONF_INVERT_ALPHA = "invert_alpha"
 CONF_IMAGES = "images"
+KEY_METADATA = "metadata"
 
 TRANSPARENCY_TYPES = (
     CONF_OPAQUE,
@@ -107,6 +118,24 @@ class ImageEncoder:
         Marks the end of a pixel row
         :return:
         """
+
+    @classmethod
+    def is_endian(cls) -> bool:
+        """
+        Check if the image encoder supports endianness configuration
+        """
+        return getattr(cls, "set_big_endian", None) is not None
+
+    @classmethod
+    def get_options(cls) -> list[str]:
+        """
+        Get the available options for this image encoder
+        """
+        options = [*OPTIONS]
+        if not cls.is_endian():
+            options.remove(CONF_BYTE_ORDER)
+        options.append(CONF_RAW_DATA_ID)
+        return options
 
 
 def is_alpha_only(image: Image):
@@ -356,23 +385,6 @@ def is_svg_file(file):
         return "<svg" in str(f.read(1024))
 
 
-def validate_cairosvg_installed():
-    try:
-        import cairosvg
-    except ImportError as err:
-        raise cv.Invalid(
-            "Please install the cairosvg python package to use this feature. "
-            "(pip install cairosvg)"
-        ) from err
-
-    major, minor, _ = cairosvg.__version__.split(".")
-    if major < "2" or major == "2" and minor < "2":
-        raise cv.Invalid(
-            "Please update your cairosvg installation to at least 2.2.0. "
-            "(pip install -U cairosvg)"
-        )
-
-
 def validate_file_shorthand(value):
     value = cv.string_strict(value)
     parts = value.strip().split(":")
@@ -446,13 +458,14 @@ def validate_type(image_types):
     return validate
 
 
-def validate_settings(value):
+def validate_settings(value, path=()):
     """
     Validate the settings for a single image configuration.
     """
     conf_type = value[CONF_TYPE]
     type_class = IMAGE_TYPE[conf_type]
-    transparency = value[CONF_TRANSPARENCY].lower()
+
+    transparency = value.get(CONF_TRANSPARENCY, CONF_OPAQUE).lower()
     if transparency not in type_class.allow_config:
         raise cv.Invalid(
             f"Image format '{conf_type}' cannot have transparency: {transparency}"
@@ -464,22 +477,19 @@ def validate_settings(value):
         and CONF_INVERT_ALPHA not in type_class.allow_config
     ):
         raise cv.Invalid("No alpha channel to invert")
-    if value.get(CONF_BYTE_ORDER) is not None and not callable(
-        getattr(type_class, "set_big_endian", None)
-    ):
+    if value.get(CONF_BYTE_ORDER) is not None and not type_class.is_endian():
         raise cv.Invalid(
-            f"Image format '{conf_type}' does not support byte order configuration"
+            f"Image format '{conf_type}' does not support byte order configuration",
+            path=path,
         )
     if file := value.get(CONF_FILE):
         file = Path(file)
-        if is_svg_file(file):
-            validate_cairosvg_installed()
-        else:
+        if not is_svg_file(file):
             try:
                 Image.open(file)
             except UnidentifiedImageError as exc:
                 raise cv.Invalid(
-                    f"File can't be opened as image: {file.absolute()}"
+                    f"File can't be opened as image: {file.absolute()}", path=path
                 ) from exc
     return value
 
@@ -499,6 +509,10 @@ OPTIONS_SCHEMA = {
     cv.Optional(CONF_INVERT_ALPHA, default=False): cv.boolean,
     cv.Optional(CONF_BYTE_ORDER): cv.one_of("BIG_ENDIAN", "LITTLE_ENDIAN", upper=True),
     cv.Optional(CONF_TRANSPARENCY, default=CONF_OPAQUE): validate_transparency(),
+}
+
+DEFAULTS_SCHEMA = {
+    **OPTIONS_SCHEMA,
     cv.Optional(CONF_TYPE): validate_type(IMAGE_TYPE),
 }
 
@@ -510,47 +524,61 @@ IMAGE_SCHEMA_NO_DEFAULTS = {
     **{cv.Optional(key): OPTIONS_SCHEMA[key] for key in OPTIONS},
 }
 
-BASE_SCHEMA = cv.Schema(
+IMAGE_SCHEMA = cv.Schema(
     {
         **IMAGE_ID_SCHEMA,
         **OPTIONS_SCHEMA,
-    }
-).add_extra(validate_settings)
-
-IMAGE_SCHEMA = BASE_SCHEMA.extend(
-    {
         cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
     }
 )
 
 
+def apply_defaults(image, defaults, path):
+    """
+    Apply defaults to an image configuration
+    """
+    type = image.get(CONF_TYPE, defaults.get(CONF_TYPE))
+    if type is None:
+        raise cv.Invalid(
+            "Type is required either in the image config or in the defaults", path=path
+        )
+    type_class = IMAGE_TYPE[type]
+    config = {
+        **{key: image.get(key, defaults.get(key)) for key in type_class.get_options()},
+        **{key.schema: image[key.schema] for key in IMAGE_ID_SCHEMA},
+        CONF_TYPE: image.get(CONF_TYPE, defaults.get(CONF_TYPE)),
+    }
+    validate_settings(config, path)
+    return config
+
+
 def validate_defaults(value):
     """
-    Validate the options for images with defaults
+    Apply defaults to the images in the configuration and flatten to a single list.
     """
     defaults = value[CONF_DEFAULTS]
     result = []
-    for index, image in enumerate(value[CONF_IMAGES]):
-        type = image.get(CONF_TYPE, defaults.get(CONF_TYPE))
-        if type is None:
-            raise cv.Invalid(
-                "Type is required either in the image config or in the defaults",
-                path=[CONF_IMAGES, index],
-            )
-        type_class = IMAGE_TYPE[type]
-        # A default byte order should be simply ignored if the type does not support it
-        available_options = [*OPTIONS]
-        if (
-            not callable(getattr(type_class, "set_big_endian", None))
-            and CONF_BYTE_ORDER not in image
-        ):
-            available_options.remove(CONF_BYTE_ORDER)
-        config = {
-            **{key: image.get(key, defaults.get(key)) for key in available_options},
-            **{key.schema: image[key.schema] for key in IMAGE_ID_SCHEMA},
-        }
-        validate_settings(config)
-        result.append(config)
+    # Apply defaults to the images: list and add the list entries to the result
+    for index, image in enumerate(value.get(CONF_IMAGES, [])):
+        result.append(apply_defaults(image, defaults, [CONF_IMAGES, index]))
+
+    # Apply defaults to images under the type keys and add them to the result
+    for image_type, type_config in value.items():
+        type_upper = image_type.upper()
+        if type_upper not in IMAGE_TYPE:
+            continue
+        type_class = IMAGE_TYPE[type_upper]
+        if isinstance(type_config, list):
+            # If the type is a list, apply defaults to each entry
+            for index, image in enumerate(type_config):
+                result.append(apply_defaults(image, defaults, [image_type, index]))
+        else:
+            # Handle transparency options for the type
+            for trans_type in set(type_class.allow_config).intersection(type_config):
+                for index, image in enumerate(type_config[trans_type]):
+                    result.append(
+                        apply_defaults(image, defaults, [image_type, trans_type, index])
+                    )
     return result
 
 
@@ -562,16 +590,20 @@ def typed_image_schema(image_type):
         cv.Schema(
             {
                 cv.Optional(t.lower()): cv.ensure_list(
-                    BASE_SCHEMA.extend(
-                        {
-                            cv.Optional(
-                                CONF_TRANSPARENCY, default=t
-                            ): validate_transparency((t,)),
-                            cv.Optional(CONF_TYPE, default=image_type): validate_type(
-                                (image_type,)
-                            ),
-                        }
-                    )
+                    {
+                        **IMAGE_ID_SCHEMA,
+                        **{
+                            cv.Optional(key): OPTIONS_SCHEMA[key]
+                            for key in OPTIONS
+                            if key != CONF_TRANSPARENCY
+                        },
+                        cv.Optional(
+                            CONF_TRANSPARENCY, default=t
+                        ): validate_transparency((t,)),
+                        cv.Optional(CONF_TYPE, default=image_type): validate_type(
+                            (image_type,)
+                        ),
+                    }
                 )
                 for t in IMAGE_TYPE[image_type].allow_config.intersection(
                     TRANSPARENCY_TYPES
@@ -580,46 +612,44 @@ def typed_image_schema(image_type):
         ),
         # Allow a default configuration with no transparency preselected
         cv.ensure_list(
-            BASE_SCHEMA.extend(
-                {
-                    cv.Optional(
-                        CONF_TRANSPARENCY, default=CONF_OPAQUE
-                    ): validate_transparency(),
-                    cv.Optional(CONF_TYPE, default=image_type): validate_type(
-                        (image_type,)
-                    ),
-                }
-            )
+            {
+                **IMAGE_SCHEMA_NO_DEFAULTS,
+                cv.Optional(CONF_TYPE, default=image_type): validate_type(
+                    (image_type,)
+                ),
+            }
         ),
     )
 
 
 # The config schema can be a (possibly empty) single list of images,
-# or a dictionary of image types each with a list of images
-# or a dictionary with keys `defaults:` and `images:`
+# or a dictionary with optional keys `defaults:`, `images:` and the image types
 
 
-def _config_schema(config):
-    if isinstance(config, list):
-        return cv.Schema([IMAGE_SCHEMA])(config)
-    if not isinstance(config, dict):
+def _config_schema(value):
+    if isinstance(value, list) or (
+        isinstance(value, dict) and (CONF_ID in value or CONF_FILE in value)
+    ):
+        return cv.ensure_list(cv.All(IMAGE_SCHEMA, validate_settings))(value)
+    if not isinstance(value, dict):
         raise cv.Invalid(
-            "Badly formed image configuration, expected a list or a dictionary"
+            "Badly formed image configuration, expected a list or a dictionary",
         )
-    if CONF_DEFAULTS in config or CONF_IMAGES in config:
-        return validate_defaults(
-            cv.Schema(
-                {
-                    cv.Required(CONF_DEFAULTS): OPTIONS_SCHEMA,
-                    cv.Required(CONF_IMAGES): cv.ensure_list(IMAGE_SCHEMA_NO_DEFAULTS),
-                }
-            )(config)
-        )
-    if CONF_ID in config or CONF_FILE in config:
-        return cv.ensure_list(IMAGE_SCHEMA)([config])
-    return cv.Schema(
-        {cv.Optional(t.lower()): typed_image_schema(t) for t in IMAGE_TYPE}
-    )(config)
+    return cv.All(
+        cv.Schema(
+            {
+                cv.Optional(CONF_DEFAULTS, default={}): DEFAULTS_SCHEMA,
+                cv.Optional(CONF_IMAGES, default=[]): cv.ensure_list(
+                    {
+                        **IMAGE_SCHEMA_NO_DEFAULTS,
+                        cv.Optional(CONF_TYPE): validate_type(IMAGE_TYPE),
+                    }
+                ),
+                **{cv.Optional(t.lower()): typed_image_schema(t) for t in IMAGE_TYPE},
+            }
+        ),
+        validate_defaults,
+    )(value)
 
 
 CONFIG_SCHEMA = _config_schema
@@ -631,29 +661,30 @@ async def write_image(config, all_frames=False):
         raise core.EsphomeError(f"Could not load image file {path}")
 
     resize = config.get(CONF_RESIZE)
-    if is_svg_file(path):
-        # Local import so use of non-SVG files needn't require cairosvg installed
-        from cairosvg import svg2png
+    try:
+        if is_svg_file(path):
+            import resvg_py
 
-        if not resize:
-            resize = (None, None)
-        with open(path, "rb") as file:
-            image = svg2png(
-                file_obj=file,
-                output_width=resize[0],
-                output_height=resize[1],
+            resize = resize or (None, None)
+            image_data = resvg_py.svg_to_bytes(
+                svg_path=str(path), width=resize[0], height=resize[1], dpi=100
             )
-        image = Image.open(io.BytesIO(image))
-        width, height = image.size
-    else:
-        image = Image.open(path)
-        width, height = image.size
-        if resize:
-            # Preserve aspect ratio
-            new_width_max = min(width, resize[0])
-            new_height_max = min(height, resize[1])
-            ratio = min(new_width_max / width, new_height_max / height)
-            width, height = int(width * ratio), int(height * ratio)
+
+            # Convert bytes to Pillow Image
+            image = Image.open(io.BytesIO(image_data))
+            width, height = image.size
+
+        else:
+            image = Image.open(path)
+            width, height = image.size
+            if resize:
+                # Preserve aspect ratio
+                new_width_max = min(width, resize[0])
+                new_height_max = min(height, resize[1])
+                ratio = min(new_width_max / width, new_height_max / height)
+                width, height = int(width * ratio), int(height * ratio)
+    except (OSError, UnidentifiedImageError, ValueError) as exc:
+        raise core.EsphomeError(f"Could not read image file {path}: {exc}") from exc
 
     if not resize and (width > 500 or height > 500):
         _LOGGER.warning(
@@ -668,7 +699,7 @@ async def write_image(config, all_frames=False):
         else Image.Dither.FLOYDSTEINBERG
     )
     type = config[CONF_TYPE]
-    transparency = config[CONF_TRANSPARENCY]
+    transparency = config.get(CONF_TRANSPARENCY, CONF_OPAQUE)
     invert_alpha = config[CONF_INVERT_ALPHA]
     frame_count = 1
     if all_frames:
@@ -698,15 +729,38 @@ async def write_image(config, all_frames=False):
     return prog_arr, width, height, image_type, trans_value, frame_count
 
 
+async def _image_to_code(entry):
+    """
+    Convert a single image entry to code and return its metadata.
+    :param entry: The config entry for the image.
+    :return: An ImageMetaData object
+    """
+    prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
+    cg.new_Pvariable(entry[CONF_ID], prog_arr, width, height, image_type, trans_value)
+    return ImageMetaData(
+        width,
+        height,
+        entry[CONF_TYPE],
+        entry[CONF_TRANSPARENCY],
+    )
+
+
 async def to_code(config):
-    if isinstance(config, list):
-        for entry in config:
-            await to_code(entry)
-    elif CONF_ID not in config:
-        for entry in config.values():
-            await to_code(entry)
-    else:
-        prog_arr, width, height, image_type, trans_value, _ = await write_image(config)
-        cg.new_Pvariable(
-            config[CONF_ID], prog_arr, width, height, image_type, trans_value
-        )
+    cg.add_define("USE_IMAGE")
+    # By now the config will be a simple list.
+    # Use a subkey to allow for other data in the future
+    CORE.data[DOMAIN] = {
+        KEY_METADATA: {
+            entry[CONF_ID].id: await _image_to_code(entry) for entry in config
+        }
+    }
+
+
+def get_all_image_metadata() -> dict[str, ImageMetaData]:
+    """Get all image metadata."""
+    return CORE.data.get(DOMAIN, {}).get(KEY_METADATA, {})
+
+
+def get_image_metadata(image_id: str) -> ImageMetaData | None:
+    """Get image metadata by ID for use by other components."""
+    return get_all_image_metadata().get(image_id)

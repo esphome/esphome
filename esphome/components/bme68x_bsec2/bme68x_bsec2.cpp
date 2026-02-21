@@ -70,6 +70,9 @@ void BME68xBSEC2Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication failed (BSEC2 status: %d, BME68X status: %d)", this->bsec_status_,
              this->bme68x_status_);
+    if (this->bsec_status_ == BSEC_I_SU_SUBSCRIBEDOUTPUTGATES) {
+      ESP_LOGE(TAG, "No sensors, add at least one sensor to the config");
+    }
   }
 
   if (this->algorithm_output_ != ALGORITHM_OUTPUT_IAQ) {
@@ -102,8 +105,6 @@ void BME68xBSEC2Component::dump_config() {
   LOG_TEXT_SENSOR("  ", "IAQ accuracy", this->iaq_accuracy_text_sensor_);
 #endif
 }
-
-float BME68xBSEC2Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void BME68xBSEC2Component::loop() {
   this->run_();

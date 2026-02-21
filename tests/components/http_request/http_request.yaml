@@ -31,6 +31,20 @@ esphome:
           request_headers:
             Content-Type: application/json
           body: "Some data"
+      - http_request.post:
+          url: https://esphome.io
+          request_headers:
+            Content-Type: application/json
+          json:
+            key: value
+          capture_response: true
+          on_response:
+            then:
+              - logger.log:
+                  format: "Captured response status: %d, Body: %s"
+                  args:
+                    - response->status_code
+                    - body.c_str()
 
 http_request:
   useragent: esphome/tagreader

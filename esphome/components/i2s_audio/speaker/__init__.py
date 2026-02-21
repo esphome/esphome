@@ -62,7 +62,7 @@ I2C_COMM_FMT_OPTIONS = {
     "pcm_long": i2s_comm_format_t.I2S_COMM_FORMAT_PCM_LONG,
 }
 
-INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32]
+INTERNAL_DAC_VARIANTS = [esp32.VARIANT_ESP32]
 
 
 def _set_num_channels_from_config(config):
@@ -163,7 +163,7 @@ CONFIG_SCHEMA = cv.All(
 def _final_validate(config):
     if not use_legacy():
         if config[CONF_DAC_TYPE] == "internal":
-            raise cv.Invalid("Internal DAC is only compatible with legacy i2s driver.")
+            raise cv.Invalid("Internal DAC is only compatible with legacy i2s driver")
         if config[CONF_I2S_COMM_FMT] == "stand_max":
             raise cv.Invalid(
                 "I2S standard max format only implemented with legacy i2s driver."

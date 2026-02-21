@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
     CONF_ICON,
+    CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
 )
@@ -26,8 +27,9 @@ from esphome.helpers import sanitize, snake_case
 
 from .common import load_config_from_fixture
 
-# Pre-compiled regex pattern for extracting object IDs from expressions
-OBJECT_ID_PATTERN = re.compile(r'\.set_object_id\(["\'](.*?)["\']\)')
+# Pre-compiled regex pattern for extracting names from set_name calls
+# Matches: .set_name("name", hash) or .set_name("name")
+SET_NAME_PATTERN = re.compile(r'\.set_name\(["\']([^"\']*)["\']')
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "entity_helpers"
 
@@ -270,12 +272,21 @@ def setup_test_environment() -> Generator[list[str], None, None]:
 
 
 def extract_object_id_from_expressions(expressions: list[str]) -> str | None:
-    """Extract the object ID that was set from the generated expressions."""
+    """Extract the object ID that would be computed from set_name calls.
+
+    Since object_id is now computed from the name (via snake_case + sanitize),
+    we extract the name from set_name() calls and compute the expected object_id.
+    For empty names, we fall back to CORE.friendly_name or CORE.name.
+    """
     for expr in expressions:
-        # Look for set_object_id calls with regex to handle various formats
-        # Matches: var.set_object_id("temperature_2") or var.set_object_id('temperature_2')
-        if match := OBJECT_ID_PATTERN.search(expr):
-            return match.group(1)
+        if match := SET_NAME_PATTERN.search(expr):
+            name = match.group(1)
+            if name:
+                return sanitize(snake_case(name))
+            # Empty name - fall back to friendly_name or device name
+            if CORE.friendly_name:
+                return sanitize(snake_case(CORE.friendly_name))
+            return sanitize(snake_case(CORE.name)) if CORE.name else None
     return None
 
 
@@ -511,12 +522,18 @@ def test_entity_duplicate_validator() -> None:
     validated1 = validator(config1)
     assert validated1 == config1
     assert ("", "sensor", "temperature") in CORE.unique_ids
+    # Check metadata was stored
+    metadata = CORE.unique_ids[("", "sensor", "temperature")]
+    assert metadata["name"] == "Temperature"
+    assert metadata["platform"] == "sensor"
 
     # Second entity with different name should pass
     config2 = {CONF_NAME: "Humidity"}
     validated2 = validator(config2)
     assert validated2 == config2
     assert ("", "sensor", "humidity") in CORE.unique_ids
+    metadata2 = CORE.unique_ids[("", "sensor", "humidity")]
+    assert metadata2["name"] == "Humidity"
 
     # Duplicate entity should fail
     config3 = {CONF_NAME: "Temperature"}
@@ -540,11 +557,15 @@ def test_entity_duplicate_validator_with_devices() -> None:
     validated1 = validator(config1)
     assert validated1 == config1
     assert ("device1", "sensor", "temperature") in CORE.unique_ids
+    metadata1 = CORE.unique_ids[("device1", "sensor", "temperature")]
+    assert metadata1["device_id"] == "device1"
 
     config2 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device2}
     validated2 = validator(config2)
     assert validated2 == config2
     assert ("device2", "sensor", "temperature") in CORE.unique_ids
+    metadata2 = CORE.unique_ids[("device2", "sensor", "temperature")]
+    assert metadata2["device_id"] == "device2"
 
     # Duplicate on same device should fail
     config3 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device1}
@@ -595,6 +616,54 @@ def test_entity_different_platforms_yaml_validation(
     assert result is not None
 
 
+def test_entity_duplicate_validator_error_message() -> None:
+    """Test that duplicate entity error messages include helpful metadata."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # Set current component to simulate validation context for uptime sensor
+    CORE.current_component = "sensor.uptime"
+
+    # First entity should pass
+    config1 = {CONF_NAME: "Battery", CONF_ID: ID("battery_1")}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Reset component to simulate template sensor
+    CORE.current_component = "sensor.template"
+
+    # Duplicate entity should fail with detailed error
+    config2 = {CONF_NAME: "Battery", CONF_ID: ID("battery_2")}
+    with pytest.raises(
+        Invalid,
+        match=r"Duplicate sensor entity with name 'Battery' found.*"
+        r"Conflicts with entity 'Battery' \(id: battery_1\) from component 'sensor\.uptime'",
+    ):
+        validator(config2)
+
+    # Clean up
+    CORE.current_component = None
+
+
+def test_entity_conflict_between_components_yaml(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that conflicts between different components show helpful error messages."""
+    result = load_config_from_fixture(
+        yaml_file, "entity_conflict_components.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    # Check for the enhanced error message
+    captured = capsys.readouterr()
+    # The error should mention both the conflict and which component created it
+    assert "Duplicate sensor entity with name 'Battery' found" in captured.out
+    # Should mention it conflicts with an entity from a specific sensor platform
+    assert "from component 'sensor." in captured.out
+    # Should show it's a conflict between wifi_signal and template
+    assert "sensor.wifi_signal" in captured.out or "sensor.template" in captured.out
+
+
 def test_entity_duplicate_validator_internal_entities() -> None:
     """Test that internal entities are excluded from duplicate name validation."""
     # Create validator for sensor platform
@@ -612,14 +681,17 @@ def test_entity_duplicate_validator_internal_entities() -> None:
     validated2 = validator(config2)
     assert validated2 == config2
     # Internal entity should not be added to unique_ids
-    assert len([k for k in CORE.unique_ids if k == ("", "sensor", "temperature")]) == 1
+    # Count how many times the key appears (should still be 1)
+    count = sum(1 for k in CORE.unique_ids if k == ("", "sensor", "temperature"))
+    assert count == 1
 
     # Another internal entity with same name should also pass
     config3 = {CONF_NAME: "Temperature", CONF_INTERNAL: True}
     validated3 = validator(config3)
     assert validated3 == config3
     # Still only one entry in unique_ids (from the non-internal entity)
-    assert len([k for k in CORE.unique_ids if k == ("", "sensor", "temperature")]) == 1
+    count = sum(1 for k in CORE.unique_ids if k == ("", "sensor", "temperature"))
+    assert count == 1
 
     # Non-internal entity with same name should fail
     config4 = {CONF_NAME: "Temperature"}
@@ -627,3 +699,201 @@ def test_entity_duplicate_validator_internal_entities() -> None:
         Invalid, match=r"Duplicate sensor entity with name 'Temperature' found"
     ):
         validator(config4)
+
+
+def test_empty_or_null_device_id_on_entity() -> None:
+    """Test that empty or null device IDs are handled correctly."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # Entity with empty device_id should pass
+    config1 = {CONF_NAME: "Battery", CONF_DEVICE_ID: ""}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Entity with None device_id should pass
+    config2 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: None}
+    validated2 = validator(config2)
+    assert validated2 == config2
+
+
+def test_entity_duplicate_validator_non_ascii_names() -> None:
+    """Test that non-ASCII names show helpful error messages."""
+    # Create validator for binary_sensor platform
+    validator = entity_duplicate_validator("binary_sensor")
+
+    # First Russian sensor should pass
+    config1 = {CONF_NAME: "Датчик открытия основного крана"}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Second Russian sensor with different text but same ASCII conversion should fail
+    config2 = {CONF_NAME: "Датчик закрытия основного крана"}
+    with pytest.raises(
+        Invalid,
+        match=re.compile(
+            r"Duplicate binary_sensor entity with name 'Датчик закрытия основного крана' found.*"
+            r"Original names: 'Датчик закрытия основного крана' and 'Датчик открытия основного крана'.*"
+            r"Both convert to ASCII ID: '_______________________________'.*"
+            r"To fix: Add unique ASCII characters \(e\.g\., '1', '2', or 'A', 'B'\)",
+            re.DOTALL,
+        ),
+    ):
+        validator(config2)
+
+
+def test_entity_duplicate_validator_same_name_no_enhanced_message() -> None:
+    """Test that identical names don't show the enhanced message."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # First entity should pass
+    config1 = {CONF_NAME: "Temperature"}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Second entity with exact same name should fail without enhanced message
+    config2 = {CONF_NAME: "Temperature"}
+    with pytest.raises(
+        Invalid,
+        match=r"Duplicate sensor entity with name 'Temperature' found.*"
+        r"Each entity on a device must have a unique name within its platform\.$",
+    ):
+        validator(config2)
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_empty_name_with_device(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity with empty entity name on a sub-device.
+
+    For empty-name entities, Python passes 0 and C++ calculates the hash
+    at runtime from the device's actual name.
+    """
+    added_expressions = setup_test_environment
+
+    # Mock get_variable to return a mock device
+    original_get_variable = entity_helpers.get_variable
+
+    async def mock_get_variable(id_: ID) -> MockObj:
+        return MockObj("sub_device_1")
+
+    entity_helpers.get_variable = mock_get_variable
+
+    var = MockObj("sensor1")
+    device_id = ID("sub_device_1", type="Device")
+
+    config = {
+        CONF_NAME: "",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_DEVICE_ID: device_id,
+    }
+
+    await setup_entity(var, config, "sensor")
+
+    entity_helpers.get_variable = original_get_variable
+
+    # Check that set_device was called
+    assert any("sensor1.set_device" in expr for expr in added_expressions)
+
+    # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
+    assert any('set_name("", 0)' in expr for expr in added_expressions), (
+        f"Expected set_name with hash 0, got {added_expressions}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_empty_name_with_mac_suffix(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity with empty name and MAC suffix enabled.
+
+    For empty-name entities, Python passes 0 and C++ calculates the hash
+    at runtime from friendly_name (bug-for-bug compatibility).
+    """
+    added_expressions = setup_test_environment
+
+    # Set up CORE.config with name_add_mac_suffix enabled
+    CORE.config = {"name_add_mac_suffix": True}
+    # Set friendly_name to a specific value
+    CORE.friendly_name = "My Device"
+
+    var = MockObj("sensor1")
+
+    config = {
+        CONF_NAME: "",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await setup_entity(var, config, "sensor")
+
+    # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
+    assert any('set_name("", 0)' in expr for expr in added_expressions), (
+        f"Expected set_name with hash 0, got {added_expressions}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_empty_name_with_mac_suffix_no_friendly_name(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity with empty name, MAC suffix enabled, but no friendly_name.
+
+    For empty-name entities, Python passes 0 and C++ calculates the hash
+    at runtime. In this case C++ will hash the empty friendly_name
+    (bug-for-bug compatibility).
+    """
+    added_expressions = setup_test_environment
+
+    # Set up CORE.config with name_add_mac_suffix enabled
+    CORE.config = {"name_add_mac_suffix": True}
+    # Set friendly_name to empty
+    CORE.friendly_name = ""
+
+    var = MockObj("sensor1")
+
+    config = {
+        CONF_NAME: "",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await setup_entity(var, config, "sensor")
+
+    # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
+    assert any('set_name("", 0)' in expr for expr in added_expressions), (
+        f"Expected set_name with hash 0, got {added_expressions}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_empty_name_no_mac_suffix_no_friendly_name(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity with empty name, no MAC suffix, and no friendly_name.
+
+    For empty-name entities, Python passes 0 and C++ calculates the hash
+    at runtime from the device name.
+    """
+    added_expressions = setup_test_environment
+
+    # No MAC suffix (either not set or False)
+    CORE.config = {}
+    # No friendly_name
+    CORE.friendly_name = ""
+    # Device name is set
+    CORE.name = "my-test-device"
+
+    var = MockObj("sensor1")
+
+    config = {
+        CONF_NAME: "",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await setup_entity(var, config, "sensor")
+
+    # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
+    assert any('set_name("", 0)' in expr for expr in added_expressions), (
+        f"Expected set_name with hash 0, got {added_expressions}"
+    )

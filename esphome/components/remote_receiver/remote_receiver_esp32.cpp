@@ -2,17 +2,14 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 #include <driver/gpio.h>
+#include <esp_clk_tree.h>
 
-namespace esphome {
-namespace remote_receiver {
+namespace esphome::remote_receiver {
 
 static const char *const TAG = "remote_receiver.esp32";
-#ifdef USE_ESP32_VARIANT_ESP32H2
-static const uint32_t RMT_CLK_FREQ = 32000000;
-#else
-static const uint32_t RMT_CLK_FREQ = 80000000;
-#endif
 
 static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *event, void *arg) {
   RemoteReceiverComponentStore *store = (RemoteReceiverComponentStore *) arg;
@@ -72,6 +69,21 @@ void RemoteReceiverComponent::setup() {
     return;
   }
 
+  if (this->carrier_frequency_ > 0 && 0 < this->carrier_duty_percent_ && this->carrier_duty_percent_ < 100) {
+    rmt_carrier_config_t carrier;
+    memset(&carrier, 0, sizeof(carrier));
+    carrier.frequency_hz = this->carrier_frequency_;
+    carrier.duty_cycle = (float) this->carrier_duty_percent_ / 100.0f;
+    carrier.flags.polarity_active_low = this->pin_->is_inverted();
+    error = rmt_apply_carrier(this->channel_, &carrier);
+    if (error != ESP_OK) {
+      this->error_code_ = error;
+      this->error_string_ = "in rmt_apply_carrier";
+      this->mark_failed();
+      return;
+    }
+  }
+
   rmt_rx_event_callbacks_t callbacks;
   memset(&callbacks, 0, sizeof(callbacks));
   callbacks.on_recv_done = rmt_callback;
@@ -84,7 +96,10 @@ void RemoteReceiverComponent::setup() {
   }
 
   uint32_t event_size = sizeof(rmt_rx_done_event_data_t);
-  uint32_t max_filter_ns = 255u * 1000 / (RMT_CLK_FREQ / 1000000);
+  uint32_t rmt_freq;
+  esp_clk_tree_src_get_freq_hz((soc_module_clk_t) RMT_CLK_SRC_DEFAULT, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED,
+                               &rmt_freq);
+  uint32_t max_filter_ns = UINT8_MAX * 1000u / (rmt_freq / 1000000);
   memset(&this->store_.config, 0, sizeof(this->store_.config));
   this->store_.config.signal_range_min_ns = std::min(this->filter_us_ * 1000, max_filter_ns);
   this->store_.config.signal_range_max_ns = this->idle_us_ * 1000;
@@ -103,19 +118,21 @@ void RemoteReceiverComponent::setup() {
 }
 
 void RemoteReceiverComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Remote Receiver:");
-  LOG_PIN("  Pin: ", this->pin_);
   ESP_LOGCONFIG(TAG,
+                "Remote Receiver:\n"
                 "  Clock resolution: %" PRIu32 " hz\n"
                 "  RMT symbols: %" PRIu32 "\n"
                 "  Filter symbols: %" PRIu32 "\n"
                 "  Receive symbols: %" PRIu32 "\n"
                 "  Tolerance: %" PRIu32 "%s\n"
+                "  Carrier frequency: %" PRIu32 " hz\n"
+                "  Carrier duty: %u%%\n"
                 "  Filter out pulses shorter than: %" PRIu32 " us\n"
                 "  Signal is done after %" PRIu32 " us of no changes",
                 this->clock_resolution_, this->rmt_symbols_, this->filter_symbols_, this->receive_symbols_,
                 this->tolerance_, (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? " us" : "%",
-                this->filter_us_, this->idle_us_);
+                this->carrier_frequency_, this->carrier_duty_percent_, this->filter_us_, this->idle_us_);
+  LOG_PIN("  Pin: ", this->pin_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Configuring RMT driver failed: %s (%s)", esp_err_to_name(this->error_code_),
              this->error_string_.c_str());
@@ -231,7 +248,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_symbol_word_t *item, size_t item_c
   }
 }
 
-}  // namespace remote_receiver
-}  // namespace esphome
+}  // namespace esphome::remote_receiver
 
-#endif
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32

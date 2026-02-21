@@ -1,4 +1,4 @@
-"""Tests for mpip_spi configuration validation."""
+"""Tests for mipi_spi configuration validation."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -9,13 +9,10 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.esp32 import (
     KEY_BOARD,
-    KEY_ESP32,
     KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32S3,
-    VARIANTS,
 )
-from esphome.components.esp32.gpio import validate_gpio_pin
 from esphome.components.mipi import CONF_NATIVE_HEIGHT
 from esphome.components.mipi_spi.display import (
     CONF_BUS_MODE,
@@ -32,8 +29,6 @@ from esphome.const import (
     CONF_WIDTH,
     PlatformFramework,
 )
-from esphome.core import CORE
-from esphome.pins import internal_gpio_pin_number
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -41,28 +36,6 @@ from tests.component_tests.types import SetCoreConfigCallable
 def run_schema_validation(config: ConfigType) -> None:
     """Run schema validation on a configuration."""
     FINAL_VALIDATE_SCHEMA(CONFIG_SCHEMA(config))
-
-
-@pytest.fixture
-def choose_variant_with_pins() -> Callable[..., None]:
-    """
-    Set the ESP32 variant for the given model based on pins. For ESP32 only since the other platforms
-    do not have variants.
-    """
-
-    def chooser(*pins: int | str | None) -> None:
-        for v in VARIANTS:
-            try:
-                CORE.data[KEY_ESP32][KEY_VARIANT] = v
-                for pin in pins:
-                    if pin is not None:
-                        pin = internal_gpio_pin_number(pin)
-                        validate_gpio_pin(pin)
-                return
-            except cv.Invalid:
-                continue
-
-    return chooser
 
 
 @pytest.mark.parametrize(
@@ -96,7 +69,7 @@ def choose_variant_with_pins() -> Callable[..., None]:
             {
                 "id": "display_id",
                 "model": "custom",
-                "dimensions": {"width": 320, "height": 240},
+                "dimensions": {"width": 260, "height": 260},
                 "draw_rounding": 13,
                 "init_sequence": [[0xA0, 0x01]],
             },
@@ -247,28 +220,11 @@ def test_esp32s3_specific_errors(
 
     set_core_config(
         PlatformFramework.ESP32_IDF,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32S3},
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
 
     with pytest.raises(cv.Invalid, match=error_match):
         run_schema_validation(config)
-
-
-def test_framework_specific_errors(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """Test framework-specific configuration errors"""
-
-    set_core_config(
-        PlatformFramework.ESP32_ARDUINO,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
-    )
-
-    with pytest.raises(
-        cv.Invalid,
-        match=r"This feature is only available with framework\(s\) esp-idf",
-    ):
-        run_schema_validation({"model": "wt32-sc01-plus"})
 
 
 def test_custom_model_with_all_options(
@@ -277,7 +233,7 @@ def test_custom_model_with_all_options(
     """Test custom model configuration with all available options."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32S3},
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
 
     run_schema_validation(
@@ -315,12 +271,12 @@ def test_custom_model_with_all_options(
 def test_all_predefined_models(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
-    choose_variant_with_pins: Callable[..., None],
+    choose_variant_with_pins: Callable[[list], None],
 ) -> None:
     """Test all predefined display models validate successfully with appropriate defaults."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32S3},
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
 
     # Enable PSRAM which is required for some models
@@ -331,14 +287,14 @@ def test_all_predefined_models(
         config = {"model": name}
 
         # Get the pins required by this model and find a compatible variant
-        pins = [
-            pin
-            for pin in [
-                model.get_default(pin, None)
-                for pin in ("dc_pin", "reset_pin", "cs_pin")
-            ]
-            if pin is not None
-        ]
+        pins = []
+        for pin_name in ("dc_pin", "reset_pin", "cs_pin", "enable_pin"):
+            pin_value = model.get_default(pin_name, None)
+            if pin_value is not None:
+                if isinstance(pin_value, list):
+                    pins.extend(pin_value)
+                else:
+                    pins.append(pin_value)
         choose_variant_with_pins(pins)
 
         # Add required fields that don't have defaults
@@ -363,7 +319,7 @@ def test_native_generation(
 
     main_cpp = generate_main(component_fixture_path("native.yaml"))
     assert (
-        "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, display::DISPLAY_ROTATION_0_DEGREES, 1>()"
+        "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, display::DISPLAY_ROTATION_0_DEGREES, 1, 1>()"
         in main_cpp
     )
     assert "set_init_sequence({240, 1, 8, 242" in main_cpp

@@ -24,9 +24,6 @@ static const uint32_t READ_DURATION_MS = 16;
 static const size_t TASK_STACK_SIZE = 4096;
 static const ssize_t TASK_PRIORITY = 23;
 
-// Use an exponential moving average to correct a DC offset with weight factor 1/1000
-static const int32_t DC_OFFSET_MOVING_AVERAGE_COEFFICIENT_DENOMINATOR = 1000;
-
 static const char *const TAG = "i2s_audio.microphone";
 
 enum MicrophoneEventGroupBits : uint32_t {
@@ -381,26 +378,57 @@ void I2SAudioMicrophone::mic_task(void *params) {
 }
 
 void I2SAudioMicrophone::fix_dc_offset_(std::vector<uint8_t> &data) {
+  /**
+   * From https://www.musicdsp.org/en/latest/Filters/135-dc-filter.html:
+   *
+   *     y(n) = x(n) - x(n-1) + R * y(n-1)
+   *     R = 1 - (pi * 2 * frequency / samplerate)
+   *
+   * From https://en.wikipedia.org/wiki/Hearing_range:
+   *     The human range is commonly given as 20Hz up.
+   *
+   * From https://en.wikipedia.org/wiki/High-resolution_audio:
+   *     A reasonable upper bound for sample rate seems to be 96kHz.
+   *
+   * Calculate R value for 20Hz on a 96kHz sample rate:
+   *     R = 1 - (pi * 2 * 20 / 96000)
+   *     R = 0.9986910031
+   *
+   * Transform floating point to bit-shifting approximation:
+   *     output = input - prev_input + R * prev_output
+   *     output = input - prev_input + (prev_output - (prev_output >> S))
+   *
+   * Approximate bit-shift value S from R:
+   *     R = 1 - (1 >> S)
+   *     R = 1 - (1 / 2^S)
+   *     R = 1 - 2^-S
+   *     0.9986910031 = 1 - 2^-S
+   *     S = 9.57732 ~= 10
+   *
+   * Actual R from S:
+   *     R = 1 - 2^-10 = 0.9990234375
+   *
+   * Confirm this has effect outside human hearing on 96000kHz sample:
+   *     0.9990234375 = 1 - (pi * 2 * f / 96000)
+   *     f = 14.9208Hz
+   *
+   * Confirm this has effect outside human hearing on PDM 16kHz sample:
+   *     0.9990234375 = 1 - (pi * 2 * f / 16000)
+   *     f = 2.4868Hz
+   *
+   */
+  const uint8_t dc_filter_shift = 10;
   const size_t bytes_per_sample = this->audio_stream_info_.samples_to_bytes(1);
   const uint32_t total_samples = this->audio_stream_info_.bytes_to_samples(data.size());
-
-  if (total_samples == 0) {
-    return;
-  }
-
-  int64_t offset_accumulator = 0;
   for (uint32_t sample_index = 0; sample_index < total_samples; ++sample_index) {
     const uint32_t byte_index = sample_index * bytes_per_sample;
-    int32_t sample = audio::unpack_audio_sample_to_q31(&data[byte_index], bytes_per_sample);
-    offset_accumulator += sample;
-    sample -= this->dc_offset_;
-    audio::pack_q31_as_audio_sample(sample, &data[byte_index], bytes_per_sample);
+    int32_t input = audio::unpack_audio_sample_to_q31(&data[byte_index], bytes_per_sample);
+    int32_t output = input - this->dc_offset_prev_input_ +
+                     (this->dc_offset_prev_output_ - (this->dc_offset_prev_output_ >> dc_filter_shift));
+    this->dc_offset_prev_input_ = input;
+    this->dc_offset_prev_output_ = output;
+    audio::pack_q31_as_audio_sample(output, &data[byte_index], bytes_per_sample);
   }
-
-  const int32_t new_offset = offset_accumulator / total_samples;
-  this->dc_offset_ = new_offset / DC_OFFSET_MOVING_AVERAGE_COEFFICIENT_DENOMINATOR +
-                     (DC_OFFSET_MOVING_AVERAGE_COEFFICIENT_DENOMINATOR - 1) * this->dc_offset_ /
-                         DC_OFFSET_MOVING_AVERAGE_COEFFICIENT_DENOMINATOR;
 }
 
 size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_wait) {

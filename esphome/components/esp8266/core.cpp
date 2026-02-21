@@ -6,33 +6,33 @@
 #include "esphome/core/helpers.h"
 #include "preferences.h"
 #include <Arduino.h>
-#include <Esp.h>
+#include <core_esp8266_features.h>
+
+extern "C" {
+#include <user_interface.h>
+}
 
 namespace esphome {
 
-void IRAM_ATTR HOT yield() { ::yield(); }
+void HOT yield() { ::yield(); }
 uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
-void IRAM_ATTR HOT delay(uint32_t ms) { ::delay(ms); }
+void HOT delay(uint32_t ms) { ::delay(ms); }
 uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 void arch_restart() {
-  ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
+  system_restart();
   // restart() doesn't always end execution
   while (true) {  // NOLINT(clang-diagnostic-unreachable-code)
     yield();
   }
 }
 void arch_init() {}
-void IRAM_ATTR HOT arch_feed_wdt() {
-  ESP.wdtFeed();  // NOLINT(readability-static-accessed-through-instance)
-}
+void HOT arch_feed_wdt() { system_soft_wdt_feed(); }
 
 uint8_t progmem_read_byte(const uint8_t *addr) {
   return pgm_read_byte(addr);  // NOLINT
 }
-uint32_t IRAM_ATTR HOT arch_get_cpu_cycle_count() {
-  return ESP.getCycleCount();  // NOLINT(readability-static-accessed-through-instance)
-}
+uint32_t IRAM_ATTR HOT arch_get_cpu_cycle_count() { return esp_get_cycle_count(); }
 uint32_t arch_get_cpu_freq_hz() { return F_CPU; }
 
 void force_link_symbols() {
@@ -58,8 +58,8 @@ extern "C" void resetPins() {  // NOLINT
 
 #ifdef USE_ESP8266_EARLY_PIN_INIT
   for (int i = 0; i < 16; i++) {
-    uint8_t mode = ESPHOME_ESP8266_GPIO_INITIAL_MODE[i];
-    uint8_t level = ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[i];
+    uint8_t mode = progmem_read_byte(&ESPHOME_ESP8266_GPIO_INITIAL_MODE[i]);
+    uint8_t level = progmem_read_byte(&ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[i]);
     if (mode != 255)
       pinMode(i, mode);  // NOLINT
     if (level != 255)

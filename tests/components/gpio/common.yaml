@@ -12,3 +12,20 @@ switch:
   - platform: gpio
     pin: ${switch_pin}
     id: gpio_switch
+
+  - platform: gpio
+    pin: ${switch_pin_2}
+    id: gpio_switch_interlock_1
+    interlock: [gpio_switch_interlock_2, gpio_switch_interlock_3]
+    interlock_wait_time: 100ms
+
+  - platform: gpio
+    pin: ${switch_pin_3}
+    id: gpio_switch_interlock_2
+    interlock: [gpio_switch_interlock_1, gpio_switch_interlock_3]
+
+  - platform: gpio
+    pin: ${switch_pin_4}
+    id: gpio_switch_interlock_3
+    interlock: [gpio_switch_interlock_1, gpio_switch_interlock_2]
+    interlock_wait_time: 50ms

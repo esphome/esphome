@@ -13,12 +13,9 @@
 #include <cmath>
 #include <numbers>
 
-namespace esphome {
-namespace ld2450 {
+namespace esphome::ld2450 {
 
 static const char *const TAG = "ld2450";
-static const char *const UNKNOWN_MAC = "unknown";
-static const char *const VERSION_FMT = "%u.%02X.%02X%02X%02X%02X";
 
 enum BaudRate : uint8_t {
   BAUD_RATE_9600 = 1,
@@ -90,6 +87,9 @@ constexpr StringToUint8 ZONE_TYPE_BY_STR[] = {
     {"Detection", ZONE_DETECTION},
     {"Filter", ZONE_FILTER},
 };
+
+// Baud rates in the same order as BAUD_RATES_BY_STR for index-based lookup
+constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
 
 // Helper functions for lookups
 template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const std::string &str) {
@@ -184,7 +184,7 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
 void LD2450Component::setup() {
 #ifdef USE_NUMBER
   if (this->presence_timeout_number_ != nullptr) {
-    this->pref_ = global_preferences->make_preference<float>(this->presence_timeout_number_->get_object_id_hash());
+    this->pref_ = this->presence_timeout_number_->make_entity_preference<float>();
     this->set_presence_timeout();
   }
 #endif
@@ -192,16 +192,15 @@ void LD2450Component::setup() {
 }
 
 void LD2450Component::dump_config() {
-  std::string mac_str =
-      mac_address_is_valid(this->mac_address_) ? format_mac_address_pretty(this->mac_address_) : UNKNOWN_MAC;
-  std::string version = str_sprintf(VERSION_FMT, this->version_[1], this->version_[0], this->version_[5],
-                                    this->version_[4], this->version_[3], this->version_[2]);
+  char mac_s[18];
+  char version_s[20];
+  const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
+  ld24xx::format_version_str(this->version_, version_s);
   ESP_LOGCONFIG(TAG,
                 "LD2450:\n"
                 "  Firmware version: %s\n"
-                "  MAC address: %s\n"
-                "  Throttle: %u ms",
-                version.c_str(), mac_str.c_str(), this->throttle_);
+                "  MAC address: %s",
+                version_s, mac_str);
 #ifdef USE_BINARY_SENSOR
   ESP_LOGCONFIG(TAG, "Binary Sensors:");
   LOG_BINARY_SENSOR("  ", "MovingTarget", this->moving_target_binary_sensor_);
@@ -277,8 +276,19 @@ void LD2450Component::dump_config() {
 }
 
 void LD2450Component::loop() {
-  while (this->available()) {
-    this->readline_(this->read());
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[MAX_LINE_LENGTH];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+
+    for (size_t i = 0; i < to_read; i++) {
+      this->readline_(buf[i]);
+    }
   }
 }
 
@@ -380,9 +390,10 @@ void LD2450Component::read_all_info() {
   this->query_zone_();
   this->set_config_mode_(false);
 #ifdef USE_SELECT
-  const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
-  if (this->baud_rate_select_ != nullptr && this->baud_rate_select_->state != baud_rate) {
-    this->baud_rate_select_->publish_state(baud_rate);
+  if (this->baud_rate_select_ != nullptr) {
+    if (auto index = ld24xx::find_index(BAUD_RATES, this->parent_->get_baud_rate())) {
+      this->baud_rate_select_->publish_state(*index);
+    }
   }
   this->publish_zone_type();
 #endif
@@ -400,6 +411,10 @@ void LD2450Component::restart_and_read_all_info() {
   this->set_config_mode_(true);
   this->restart_();
   this->set_timeout(1500, [this]() { this->read_all_info(); });
+}
+
+void LD2450Component::add_on_data_callback(std::function<void()> &&callback) {
+  this->data_callback_.add(std::move(callback));
 }
 
 // Send command with values to LD2450
@@ -431,11 +446,6 @@ void LD2450Component::send_command_(uint8_t command, const uint8_t *command_valu
 //  [AA FF 03 00] [0E 03 B1 86 10 00 40 01] [00 00 00 00 00 00 00 00] [00 00 00 00 00 00 00 00] [55 CC]
 //   Header       Target 1                  Target 2                  Target 3                  End
 void LD2450Component::handle_periodic_data_() {
-  // Early throttle check - moved before any processing to save CPU cycles
-  if (App.get_loop_component_start_time() - this->last_periodic_millis_ < this->throttle_) {
-    return;
-  }
-
   if (this->buffer_pos_ < 29) {  // header (4 bytes) + 8 x 3 target data + footer (2 bytes)
     ESP_LOGE(TAG, "Invalid length");
     return;
@@ -446,8 +456,6 @@ void LD2450Component::handle_periodic_data_() {
     ESP_LOGE(TAG, "Invalid header/footer");
     return;
   }
-  // Save the timestamp after validating the frame so, if invalid, we'll take the next frame immediately
-  this->last_periodic_millis_ = App.get_loop_component_start_time();
 
   int16_t target_count = 0;
   int16_t still_target_count = 0;
@@ -458,7 +466,7 @@ void LD2450Component::handle_periodic_data_() {
   int16_t ty = 0;
   int16_t td = 0;
   int16_t ts = 0;
-  int16_t angle = 0;
+  float angle = 0;
   uint8_t index = 0;
   Direction direction{DIRECTION_UNDEFINED};
   bool is_moving = false;
@@ -609,6 +617,8 @@ void LD2450Component::handle_periodic_data_() {
     this->still_presence_millis_ = App.get_loop_component_start_time();
   }
 #endif
+
+  this->data_callback_.call();
 }
 
 bool LD2450Component::handle_ack_data_() {
@@ -618,7 +628,8 @@ bool LD2450Component::handle_ack_data_() {
     return true;
   }
   if (!ld2450::validate_header_footer(CMD_FRAME_HEADER, this->buffer_data_)) {
-    ESP_LOGW(TAG, "Invalid header: %s", format_hex_pretty(this->buffer_data_, HEADER_FOOTER_SIZE).c_str());
+    char hex_buf[format_hex_pretty_size(HEADER_FOOTER_SIZE)];
+    ESP_LOGW(TAG, "Invalid header: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, HEADER_FOOTER_SIZE));
     return true;
   }
   if (this->buffer_data_[COMMAND_STATUS] != 0x01) {
@@ -643,19 +654,20 @@ bool LD2450Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Baud rate change");
 #ifdef USE_SELECT
       if (this->baud_rate_select_ != nullptr) {
-        ESP_LOGE(TAG, "Change baud rate to %s and reinstall", this->baud_rate_select_->state.c_str());
+        auto baud = this->baud_rate_select_->current_option();
+        ESP_LOGE(TAG, "Change baud rate to %.*s and reinstall", (int) baud.size(), baud.c_str());
       }
 #endif
       break;
 
     case CMD_QUERY_VERSION: {
       std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
-      std::string version = str_sprintf(VERSION_FMT, this->version_[1], this->version_[0], this->version_[5],
-                                        this->version_[4], this->version_[3], this->version_[2]);
-      ESP_LOGV(TAG, "Firmware version: %s", version.c_str());
+      char version_s[20];
+      ld24xx::format_version_str(this->version_, version_s);
+      ESP_LOGV(TAG, "Firmware version: %s", version_s);
 #ifdef USE_TEXT_SENSOR
       if (this->version_text_sensor_ != nullptr) {
-        this->version_text_sensor_->publish_state(version);
+        this->version_text_sensor_->publish_state(version_s);
       }
 #endif
       break;
@@ -671,9 +683,9 @@ bool LD2450Component::handle_ack_data_() {
         std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
       }
 
-      std::string mac_str =
-          mac_address_is_valid(this->mac_address_) ? format_mac_address_pretty(this->mac_address_) : UNKNOWN_MAC;
-      ESP_LOGV(TAG, "MAC address: %s", mac_str.c_str());
+      char mac_s[18];
+      const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
+      ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
       if (this->mac_text_sensor_ != nullptr) {
         this->mac_text_sensor_->publish_state(mac_str);
@@ -720,11 +732,12 @@ bool LD2450Component::handle_ack_data_() {
 
     case CMD_QUERY_ZONE:
       ESP_LOGV(TAG, "Query zone conf");
-      this->zone_type_ = std::stoi(std::to_string(this->buffer_data_[10]), nullptr, 16);
+      this->zone_type_ = this->buffer_data_[10];
       this->publish_zone_type();
 #ifdef USE_SELECT
       if (this->zone_type_select_ != nullptr) {
-        ESP_LOGV(TAG, "Change zone type to: %s", this->zone_type_select_->state.c_str());
+        auto zone = this->zone_type_select_->current_option();
+        ESP_LOGV(TAG, "Change zone type to: %.*s", (int) zone.size(), zone.c_str());
       }
 #endif
       if (this->buffer_data_[10] == 0x00) {
@@ -763,17 +776,24 @@ void LD2450Component::readline_(int readch) {
     // We should never get here, but just in case...
     ESP_LOGW(TAG, "Max command length exceeded; ignoring");
     this->buffer_pos_ = 0;
+    return;
   }
-  if (this->buffer_pos_ < 4) {
+  if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
     return;  // Not enough data to process yet
   }
   if (this->buffer_data_[this->buffer_pos_ - 2] == DATA_FRAME_FOOTER[0] &&
       this->buffer_data_[this->buffer_pos_ - 1] == DATA_FRAME_FOOTER[1]) {
-    ESP_LOGV(TAG, "Handling Periodic Data: %s", format_hex_pretty(this->buffer_data_, this->buffer_pos_).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
+    ESP_LOGV(TAG, "Handling Periodic Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
+#endif
     this->handle_periodic_data_();
     this->buffer_pos_ = 0;  // Reset position index for next frame
   } else if (ld2450::validate_header_footer(CMD_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-    ESP_LOGV(TAG, "Handling Ack Data: %s", format_hex_pretty(this->buffer_data_, this->buffer_pos_).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
+    ESP_LOGV(TAG, "Handling Ack Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
+#endif
     if (this->handle_ack_data_()) {
       this->buffer_pos_ = 0;  // Reset position index for next message
     } else {
@@ -798,7 +818,7 @@ void LD2450Component::set_bluetooth(bool enable) {
 }
 
 // Set Baud rate
-void LD2450Component::set_baud_rate(const std::string &state) {
+void LD2450Component::set_baud_rate(const char *state) {
   this->set_config_mode_(true);
   const uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state), 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
@@ -806,8 +826,8 @@ void LD2450Component::set_baud_rate(const std::string &state) {
 }
 
 // Set Zone Type - one of: Disabled, Detection, Filter
-void LD2450Component::set_zone_type(const std::string &state) {
-  ESP_LOGV(TAG, "Set zone type: %s", state.c_str());
+void LD2450Component::set_zone_type(const char *state) {
+  ESP_LOGV(TAG, "Set zone type: %s", state);
   uint8_t zone_type = find_uint8(ZONE_TYPE_BY_STR, state);
   this->zone_type_ = zone_type;
   this->send_set_zone_command_();
@@ -816,9 +836,8 @@ void LD2450Component::set_zone_type(const std::string &state) {
 // Publish Zone Type to Select component
 void LD2450Component::publish_zone_type() {
 #ifdef USE_SELECT
-  std::string zone_type = find_str(ZONE_TYPE_BY_UINT, this->zone_type_);
   if (this->zone_type_select_ != nullptr) {
-    this->zone_type_select_->publish_state(zone_type);
+    this->zone_type_select_->publish_state(find_str(ZONE_TYPE_BY_UINT, this->zone_type_));
   }
 #endif
 }
@@ -949,5 +968,4 @@ float LD2450Component::restore_from_flash_() {
 }
 #endif
 
-}  // namespace ld2450
-}  // namespace esphome
+}  // namespace esphome::ld2450

@@ -7,10 +7,7 @@ service APIConnection {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
   }
-  rpc connect (ConnectRequest) returns (ConnectResponse) {
-    option (needs_setup_connection) = false;
-    option (needs_authentication) = false;
-  }
+  // REMOVED in ESPHome 2026.1.0: rpc authenticate (AuthenticationRequest) returns (AuthenticationResponse)
   rpc disconnect (DisconnectRequest) returns (DisconnectResponse) {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
@@ -27,9 +24,6 @@ service APIConnection {
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
   rpc subscribe_homeassistant_services (SubscribeHomeassistantServicesRequest) returns (void) {}
   rpc subscribe_home_assistant_states (SubscribeHomeAssistantStatesRequest) returns (void) {}
-  rpc get_time (GetTimeRequest) returns (GetTimeResponse) {
-    option (needs_authentication) = false;
-  }
   rpc execute_service (ExecuteServiceRequest) returns (void) {}
   rpc noise_encryption_set_key (NoiseEncryptionSetKeyRequest) returns (NoiseEncryptionSetKeyResponse) {}
 
@@ -51,6 +45,7 @@ service APIConnection {
   rpc time_command (TimeCommandRequest) returns (void) {}
   rpc update_command (UpdateCommandRequest) returns (void) {}
   rpc valve_command (ValveCommandRequest) returns (void) {}
+  rpc water_heater_command (WaterHeaterCommandRequest) returns (void) {}
 
   rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
@@ -69,6 +64,11 @@ service APIConnection {
   rpc voice_assistant_set_configuration(VoiceAssistantSetConfiguration) returns (void) {}
 
   rpc alarm_control_panel_command (AlarmControlPanelCommandRequest) returns (void) {}
+
+  rpc zwave_proxy_frame(ZWaveProxyFrame) returns (void) {}
+  rpc zwave_proxy_request(ZWaveProxyRequest) returns (void) {}
+
+  rpc infrared_rf_transmit_raw_timings(InfraredRFTransmitRawTimingsRequest) returns (void) {}
 }
 
 
@@ -82,14 +82,13 @@ service APIConnection {
 //  * VarInt denoting the type of message.
 //  * The message object encoded as a ProtoBuf message
 
-// The connection is established in 4 steps:
+// The connection is established in 2 steps:
 //  * First, the client connects to the server and sends a "Hello Request" identifying itself
-//  * The server responds with a "Hello Response" and selects the protocol version
-//  * After receiving this message, the client attempts to authenticate itself using
-//    the password and a "Connect Request"
-//  * The server responds with a "Connect Response" and notifies of invalid password.
+//  * The server responds with a "Hello Response" and the connection is authenticated
 // If anything in this initial process fails, the connection must immediately closed
 // by both sides and _no_ disconnection message is to be sent.
+// Note: Password authentication via AuthenticationRequest/AuthenticationResponse (message IDs 3, 4)
+// was removed in ESPHome 2026.1.0. Those message IDs are reserved and should not be reused.
 
 // Message sent at the beginning of each connection
 // Can only be sent by the client and only at the beginning of the connection
@@ -130,23 +129,23 @@ message HelloResponse {
   string name = 4;
 }
 
-// Message sent at the beginning of each connection to authenticate the client
-// Can only be sent by the client and only at the beginning of the connection
-message ConnectRequest {
+// DEPRECATED in ESPHome 2026.1.0 - Password authentication is no longer supported.
+// These messages are kept for protocol documentation but are not processed by the server.
+// Use noise encryption instead: https://esphome.io/components/api/#configuration-variables
+message AuthenticationRequest {
   option (id) = 3;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
+  option deprecated = true;
 
-  // The password to log in with
   string password = 1;
 }
 
-// Confirmation of successful connection. After this the connection is available for all traffic.
-// Can only be sent by the server and only at the beginning of the connection
-message ConnectResponse {
+message AuthenticationResponse {
   option (id) = 4;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
+  option deprecated = true;
 
   bool invalid_password = 1;
 }
@@ -203,7 +202,9 @@ message DeviceInfoResponse {
   option (id) = 10;
   option (source) = SOURCE_SERVER;
 
-  bool uses_password = 1 [(field_ifdef) = "USE_API_PASSWORD"];
+  // Deprecated in ESPHome 2026.1.0, but kept for backward compatibility
+  // with older ESPHome versions that still send this field.
+  bool uses_password = 1 [deprecated = true];
 
   // The name of the node, given by "App.set_name()"
   string name = 2;
@@ -250,11 +251,15 @@ message DeviceInfoResponse {
   // Supports receiving and saving api encryption key
   bool api_encryption_supported = 19 [(field_ifdef) = "USE_API_NOISE"];
 
-  repeated DeviceInfo devices = 20 [(field_ifdef) = "USE_DEVICES"];
-  repeated AreaInfo areas = 21 [(field_ifdef) = "USE_AREAS"];
+  repeated DeviceInfo devices = 20 [(field_ifdef) = "USE_DEVICES", (fixed_array_size_define) = "ESPHOME_DEVICE_COUNT"];
+  repeated AreaInfo areas = 21 [(field_ifdef) = "USE_AREAS", (fixed_array_size_define) = "ESPHOME_AREA_COUNT"];
 
   // Top-level area info to phase out suggested_area
   AreaInfo area = 22 [(field_ifdef) = "USE_AREAS"];
+
+  // Indicates if Z-Wave proxy support is available and features supported
+  uint32 zwave_proxy_feature_flags = 23 [(field_ifdef) = "USE_ZWAVE_PROXY"];
+  uint32 zwave_home_id = 24 [(field_ifdef) = "USE_ZWAVE_PROXY"];
 }
 
 message ListEntitiesRequest {
@@ -419,7 +424,7 @@ message ListEntitiesFanResponse {
   bool disabled_by_default = 9;
   string icon = 10 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 11;
-  repeated string supported_preset_modes = 12;
+  repeated string supported_preset_modes = 12 [(container_pointer_no_template) = "std::vector<const char *>"];
   uint32 device_id = 13 [(field_ifdef) = "USE_DEVICES"];
 }
 // Deprecated in API version 1.6 - only used in deprecated fields
@@ -500,7 +505,7 @@ message ListEntitiesLightResponse {
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
-  repeated ColorMode supported_color_modes = 12;
+  repeated ColorMode supported_color_modes = 12 [(container_pointer_no_template) = "light::ColorModeMask"];
   // next four supports_* are for legacy clients, newer clients should use color modes
   // Deprecated in API version 1.6
   bool legacy_supports_brightness = 5 [deprecated=true];
@@ -512,7 +517,7 @@ message ListEntitiesLightResponse {
   bool legacy_supports_color_temperature = 8 [deprecated=true];
   float min_mireds = 9;
   float max_mireds = 10;
-  repeated string effects = 11;
+  repeated string effects = 11 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool disabled_by_default = 13;
   string icon = 14 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 15;
@@ -583,6 +588,7 @@ enum SensorStateClass {
   STATE_CLASS_MEASUREMENT = 1;
   STATE_CLASS_TOTAL_INCREASING = 2;
   STATE_CLASS_TOTAL = 3;
+  STATE_CLASS_MEASUREMENT_ANGLE = 4;
 }
 
 // Deprecated in API version 1.5
@@ -755,6 +761,7 @@ message NoiseEncryptionSetKeyResponse {
 message SubscribeHomeassistantServicesRequest {
   option (id) = 34;
   option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_API_HOMEASSISTANT_SERVICES";
 }
 
 message HomeassistantServiceMap {
@@ -762,16 +769,33 @@ message HomeassistantServiceMap {
   string value = 2;
 }
 
-message HomeassistantServiceResponse {
+message HomeassistantActionRequest {
   option (id) = 35;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
+  option (ifdef) = "USE_API_HOMEASSISTANT_SERVICES";
 
   string service = 1;
-  repeated HomeassistantServiceMap data = 2;
-  repeated HomeassistantServiceMap data_template = 3;
-  repeated HomeassistantServiceMap variables = 4;
+  repeated HomeassistantServiceMap data = 2 [(fixed_vector) = true];
+  repeated HomeassistantServiceMap data_template = 3 [(fixed_vector) = true];
+  repeated HomeassistantServiceMap variables = 4 [(fixed_vector) = true];
   bool is_event = 5;
+  uint32 call_id = 6 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES"];
+  bool wants_response = 7 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
+  string response_template = 8 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
+}
+
+// Message sent by Home Assistant to ESPHome with service call response data
+message HomeassistantActionResponse {
+  option (id) = 130;
+  option (source) = SOURCE_CLIENT;
+  option (no_delay) = true;
+  option (ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES";
+
+  uint32 call_id = 1; // Matches the call_id from HomeassistantActionRequest
+  bool success = 2; // Whether the service call succeeded
+  string error_message = 3; // Error message if success = false
+  bytes response_data = 4 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
 }
 
 // ==================== IMPORT HOME ASSISTANT STATES ====================
@@ -807,15 +831,16 @@ message HomeAssistantStateResponse {
 // ==================== IMPORT TIME ====================
 message GetTimeRequest {
   option (id) = 36;
-  option (source) = SOURCE_BOTH;
+  option (source) = SOURCE_SERVER;
 }
 
 message GetTimeResponse {
   option (id) = 37;
-  option (source) = SOURCE_BOTH;
+  option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
+  string timezone = 2;
 }
 
 // ==================== USER-DEFINES SERVICES ====================
@@ -829,41 +854,65 @@ enum ServiceArgType {
   SERVICE_ARG_TYPE_FLOAT_ARRAY = 6;
   SERVICE_ARG_TYPE_STRING_ARRAY = 7;
 }
+enum SupportsResponseType {
+  SUPPORTS_RESPONSE_NONE = 0;
+  SUPPORTS_RESPONSE_OPTIONAL = 1;
+  SUPPORTS_RESPONSE_ONLY = 2;
+  // Status-only response - reports success/error without data payload
+  // Value is higher to avoid conflicts with future Home Assistant values
+  SUPPORTS_RESPONSE_STATUS = 100;
+}
 message ListEntitiesServicesArgument {
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
   string name = 1;
   ServiceArgType type = 2;
 }
 message ListEntitiesServicesResponse {
   option (id) = 41;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
 
   string name = 1;
   fixed32 key = 2;
-  repeated ListEntitiesServicesArgument args = 3;
+  repeated ListEntitiesServicesArgument args = 3 [(fixed_vector) = true];
+  SupportsResponseType supports_response = 4;
 }
 message ExecuteServiceArgument {
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
   bool bool_ = 1;
   int32 legacy_int = 2;
   float float_ = 3;
   string string_ = 4;
   // ESPHome 1.14 (api v1.3) make int a signed value
   sint32 int_ = 5;
-  repeated bool bool_array = 6 [packed=false];
-  repeated sint32 int_array = 7 [packed=false];
-  repeated float float_array = 8 [packed=false];
-  repeated string string_array = 9;
+  repeated bool bool_array = 6 [packed=false, (fixed_vector) = true];
+  repeated sint32 int_array = 7 [packed=false, (fixed_vector) = true];
+  repeated float float_array = 8 [packed=false, (fixed_vector) = true];
+  repeated string string_array = 9 [(fixed_vector) = true];
 }
 message ExecuteServiceRequest {
   option (id) = 42;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
 
   fixed32 key = 1;
-  repeated ExecuteServiceArgument args = 2;
+  repeated ExecuteServiceArgument args = 2 [(fixed_vector) = true];
+  uint32 call_id = 3 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES"];
+  bool return_response = 4 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES"];
+}
+
+// Message sent by ESPHome to Home Assistant with service execution response data
+message ExecuteServiceResponse {
+  option (id) = 131;
+  option (source) = SOURCE_SERVER;
+  option (no_delay) = true;
+  option (ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES";
+
+  uint32 call_id = 1; // Matches the call_id from ExecuteServiceRequest
+  bool success = 2; // Whether the service execution succeeded
+  string error_message = 3; // Error message if success = false
+  bytes response_data = 4 [(pointer_to_buffer) = true, (field_ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES_JSON"];
 }
 
 // ==================== CAMERA ====================
@@ -962,9 +1011,9 @@ message ListEntitiesClimateResponse {
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
-  bool supports_current_temperature = 5;
-  bool supports_two_point_target_temperature = 6;
-  repeated ClimateMode supported_modes = 7;
+  bool supports_current_temperature = 5; // Deprecated: use feature_flags
+  bool supports_two_point_target_temperature = 6; // Deprecated: use feature_flags
+  repeated ClimateMode supported_modes = 7 [(container_pointer_no_template) = "climate::ClimateModeMask"];
   float visual_min_temperature = 8;
   float visual_max_temperature = 9;
   float visual_target_temperature_step = 10;
@@ -972,21 +1021,22 @@ message ListEntitiesClimateResponse {
   // is if CLIMATE_PRESET_AWAY exists is supported_presets
   // Deprecated in API version 1.5
   bool legacy_supports_away = 11 [deprecated=true];
-  bool supports_action = 12;
-  repeated ClimateFanMode supported_fan_modes = 13;
-  repeated ClimateSwingMode supported_swing_modes = 14;
-  repeated string supported_custom_fan_modes = 15;
-  repeated ClimatePreset supported_presets = 16;
-  repeated string supported_custom_presets = 17;
+  bool supports_action = 12; // Deprecated: use feature_flags
+  repeated ClimateFanMode supported_fan_modes = 13 [(container_pointer_no_template) = "climate::ClimateFanModeMask"];
+  repeated ClimateSwingMode supported_swing_modes = 14 [(container_pointer_no_template) = "climate::ClimateSwingModeMask"];
+  repeated string supported_custom_fan_modes = 15 [(container_pointer_no_template) = "std::vector<const char *>"];
+  repeated ClimatePreset supported_presets = 16 [(container_pointer_no_template) = "climate::ClimatePresetMask"];
+  repeated string supported_custom_presets = 17 [(container_pointer_no_template) = "std::vector<const char *>"];
   bool disabled_by_default = 18;
   string icon = 19 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 20;
   float visual_current_temperature_step = 21;
-  bool supports_current_humidity = 22;
-  bool supports_target_humidity = 23;
+  bool supports_current_humidity = 22; // Deprecated: use feature_flags
+  bool supports_target_humidity = 23; // Deprecated: use feature_flags
   float visual_min_humidity = 24;
   float visual_max_humidity = 25;
   uint32 device_id = 26 [(field_ifdef) = "USE_DEVICES"];
+  uint32 feature_flags = 27;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -1048,6 +1098,87 @@ message ClimateCommandRequest {
   bool has_target_humidity = 22;
   float target_humidity = 23;
   uint32 device_id = 24 [(field_ifdef) = "USE_DEVICES"];
+}
+
+// ==================== WATER_HEATER ====================
+enum WaterHeaterMode {
+  WATER_HEATER_MODE_OFF = 0;
+  WATER_HEATER_MODE_ECO = 1;
+  WATER_HEATER_MODE_ELECTRIC = 2;
+  WATER_HEATER_MODE_PERFORMANCE = 3;
+  WATER_HEATER_MODE_HIGH_DEMAND = 4;
+  WATER_HEATER_MODE_HEAT_PUMP = 5;
+  WATER_HEATER_MODE_GAS = 6;
+}
+
+message ListEntitiesWaterHeaterResponse {
+  option (id) = 132;
+  option (base_class) = "InfoResponseProtoMessage";
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_WATER_HEATER";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON"];
+  bool disabled_by_default = 5;
+  EntityCategory entity_category = 6;
+  uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
+  float min_temperature = 8;
+  float max_temperature = 9;
+  float target_temperature_step = 10;
+  repeated WaterHeaterMode supported_modes = 11 [(container_pointer_no_template) = "water_heater::WaterHeaterModeMask"];
+  // Bitmask of WaterHeaterFeature flags
+  uint32 supported_features = 12;
+}
+
+message WaterHeaterStateResponse {
+  option (id) = 133;
+  option (base_class) = "StateResponseProtoMessage";
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_WATER_HEATER";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  float current_temperature = 2;
+  float target_temperature = 3;
+  WaterHeaterMode mode = 4;
+  uint32 device_id = 5 [(field_ifdef) = "USE_DEVICES"];
+  // Bitmask of current state flags (bit 0 = away, bit 1 = on)
+  uint32 state = 6;
+  float target_temperature_low = 7;
+  float target_temperature_high = 8;
+}
+
+// Bitmask for WaterHeaterCommandRequest.has_fields
+enum WaterHeaterCommandHasField {
+  WATER_HEATER_COMMAND_HAS_NONE = 0;
+  WATER_HEATER_COMMAND_HAS_MODE = 1;
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE = 2;
+  WATER_HEATER_COMMAND_HAS_STATE = 4 [deprecated=true];
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW = 8;
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH = 16;
+  WATER_HEATER_COMMAND_HAS_ON_STATE = 32;
+  WATER_HEATER_COMMAND_HAS_AWAY_STATE = 64;
+}
+
+message WaterHeaterCommandRequest {
+  option (id) = 134;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_WATER_HEATER";
+  option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
+
+  fixed32 key = 1;
+  // Bitmask of which fields are set (see WaterHeaterCommandHasField)
+  uint32 has_fields = 2;
+  WaterHeaterMode mode = 3;
+  float target_temperature = 4;
+  uint32 device_id = 5 [(field_ifdef) = "USE_DEVICES"];
+  // State flags bitmask (bit 0 = away, bit 1 = on)
+  uint32 state = 6;
+  float target_temperature_low = 7;
+  float target_temperature_high = 8;
 }
 
 // ==================== NUMBER ====================
@@ -1117,7 +1248,7 @@ message ListEntitiesSelectResponse {
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
-  repeated string options = 6;
+  repeated string options = 6 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];
@@ -1162,7 +1293,7 @@ message ListEntitiesSirenResponse {
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
   bool disabled_by_default = 6;
-  repeated string tones = 7;
+  repeated string tones = 7 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool supports_duration = 8;
   bool supports_volume = 9;
   EntityCategory entity_category = 10;
@@ -1295,6 +1426,9 @@ enum MediaPlayerState {
   MEDIA_PLAYER_STATE_IDLE = 1;
   MEDIA_PLAYER_STATE_PLAYING = 2;
   MEDIA_PLAYER_STATE_PAUSED = 3;
+  MEDIA_PLAYER_STATE_ANNOUNCING = 4;
+  MEDIA_PLAYER_STATE_OFF = 5;
+  MEDIA_PLAYER_STATE_ON = 6;
 }
 enum MediaPlayerCommand {
   MEDIA_PLAYER_COMMAND_PLAY = 0;
@@ -1302,6 +1436,15 @@ enum MediaPlayerCommand {
   MEDIA_PLAYER_COMMAND_STOP = 2;
   MEDIA_PLAYER_COMMAND_MUTE = 3;
   MEDIA_PLAYER_COMMAND_UNMUTE = 4;
+  MEDIA_PLAYER_COMMAND_TOGGLE = 5;
+  MEDIA_PLAYER_COMMAND_VOLUME_UP = 6;
+  MEDIA_PLAYER_COMMAND_VOLUME_DOWN = 7;
+  MEDIA_PLAYER_COMMAND_ENQUEUE = 8;
+  MEDIA_PLAYER_COMMAND_REPEAT_ONE = 9;
+  MEDIA_PLAYER_COMMAND_REPEAT_OFF = 10;
+  MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST = 11;
+  MEDIA_PLAYER_COMMAND_TURN_ON = 12;
+  MEDIA_PLAYER_COMMAND_TURN_OFF = 13;
 }
 enum MediaPlayerFormatPurpose {
   MEDIA_PLAYER_FORMAT_PURPOSE_DEFAULT = 0;
@@ -1336,6 +1479,8 @@ message ListEntitiesMediaPlayerResponse {
   repeated MediaPlayerSupportedFormat supported_formats = 9;
 
   uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
+
+  uint32 feature_flags = 11;
 }
 message MediaPlayerStateResponse {
   option (id) = 64;
@@ -1422,11 +1567,11 @@ message BluetoothLERawAdvertisementsResponse {
   option (ifdef) = "USE_BLUETOOTH_PROXY";
   option (no_delay) = true;
 
-  repeated BluetoothLERawAdvertisement advertisements = 1;
+  repeated BluetoothLERawAdvertisement advertisements = 1 [(fixed_array_with_length_define) = "BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE"];
 }
 
 enum BluetoothDeviceRequestType {
-  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0 [deprecated = true]; // V1 removed, use V3 variants
   BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT = 1;
   BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR = 2;
   BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR = 3;
@@ -1442,7 +1587,7 @@ message BluetoothDeviceRequest {
 
   uint64 address = 1;
   BluetoothDeviceRequestType request_type = 2;
-  bool has_address_type = 3;
+  bool has_address_type = 3;  // Deprecated, should be removed in 2027.8 - https://github.com/esphome/esphome/pull/10318
   uint32 address_type = 4;
 }
 
@@ -1466,21 +1611,39 @@ message BluetoothGATTGetServicesRequest {
 }
 
 message BluetoothGATTDescriptor {
-  repeated uint64 uuid = 1 [(fixed_array_size) = 2];
+  repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
+
+  // New field for efficient UUID (v1.12+)
+  // Only one of uuid or short_uuid will be set.
+  // short_uuid is used for both 16-bit and 32-bit UUIDs with v1.12+ clients.
+  // 128-bit UUIDs always use the uuid field for backwards compatibility.
+  uint32 short_uuid = 3;  // 16-bit or 32-bit UUID
 }
 
 message BluetoothGATTCharacteristic {
-  repeated uint64 uuid = 1 [(fixed_array_size) = 2];
+  repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
   uint32 properties = 3;
-  repeated BluetoothGATTDescriptor descriptors = 4;
+  repeated BluetoothGATTDescriptor descriptors = 4 [(fixed_vector) = true];
+
+  // New field for efficient UUID (v1.12+)
+  // Only one of uuid or short_uuid will be set.
+  // short_uuid is used for both 16-bit and 32-bit UUIDs with v1.12+ clients.
+  // 128-bit UUIDs always use the uuid field for backwards compatibility.
+  uint32 short_uuid = 5;  // 16-bit or 32-bit UUID
 }
 
 message BluetoothGATTService {
-  repeated uint64 uuid = 1 [(fixed_array_size) = 2];
+  repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
-  repeated BluetoothGATTCharacteristic characteristics = 3;
+  repeated BluetoothGATTCharacteristic characteristics = 3 [(fixed_vector) = true];
+
+  // New field for efficient UUID (v1.12+)
+  // Only one of uuid or short_uuid will be set.
+  // short_uuid is used for both 16-bit and 32-bit UUIDs with v1.12+ clients.
+  // 128-bit UUIDs always use the uuid field for backwards compatibility.
+  uint32 short_uuid = 4;  // 16-bit or 32-bit UUID
 }
 
 message BluetoothGATTGetServicesResponse {
@@ -1489,7 +1652,7 @@ message BluetoothGATTGetServicesResponse {
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 
   uint64 address = 1;
-  repeated BluetoothGATTService services = 2 [(fixed_array_size) = 1];
+  repeated BluetoothGATTService services = 2;
 }
 
 message BluetoothGATTGetServicesDoneResponse {
@@ -1587,7 +1750,10 @@ message BluetoothConnectionsFreeResponse {
 
   uint32 free = 1;
   uint32 limit = 2;
-  repeated uint64 allocated = 3;
+  repeated uint64 allocated = 3 [
+    (fixed_array_size_define) = "BLUETOOTH_PROXY_MAX_CONNECTIONS",
+    (fixed_array_skip_zero) = true
+  ];
 }
 
 message BluetoothGATTErrorResponse {
@@ -1675,6 +1841,7 @@ message BluetoothScannerStateResponse {
 
   BluetoothScannerState state = 1;
   BluetoothScannerMode mode = 2;
+  BluetoothScannerMode configured_mode = 3;
 }
 
 message BluetoothScannerSetModeRequest {
@@ -1771,7 +1938,7 @@ message VoiceAssistantAudio {
   option (source) = SOURCE_BOTH;
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
-  bytes data = 1;
+  bytes data = 1 [(pointer_to_buffer) = true];
   bool end = 2;
 }
 
@@ -1820,10 +1987,22 @@ message VoiceAssistantWakeWord {
   repeated string trained_languages = 3;
 }
 
+message VoiceAssistantExternalWakeWord {
+  string id = 1;
+  string wake_word = 2;
+  repeated string trained_languages = 3;
+  string model_type = 4;
+  uint32 model_size = 5;
+  string model_hash = 6;
+  string url = 7;
+}
+
 message VoiceAssistantConfigurationRequest {
   option (id) = 121;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  repeated VoiceAssistantExternalWakeWord external_wake_words = 1;
 }
 
 message VoiceAssistantConfigurationResponse {
@@ -1832,7 +2011,7 @@ message VoiceAssistantConfigurationResponse {
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
   repeated VoiceAssistantWakeWord available_wake_words = 1;
-  repeated string active_wake_words = 2;
+  repeated string active_wake_words = 2 [(container_pointer) = "std::vector"];
   uint32 max_active_wake_words = 3;
 }
 
@@ -2073,7 +2252,7 @@ message ListEntitiesEventResponse {
   EntityCategory entity_category = 7;
   string device_class = 8;
 
-  repeated string event_types = 9;
+  repeated string event_types = 9 [(container_pointer_no_template) = "FixedVector<const char *>"];
   uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
 }
 message EventResponse {
@@ -2237,4 +2416,75 @@ message UpdateCommandRequest {
   fixed32 key = 1;
   UpdateCommand command = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
+}
+
+// ==================== Z-WAVE ====================
+
+message ZWaveProxyFrame {
+  option (id) = 128;
+  option (source) = SOURCE_BOTH;
+  option (ifdef) = "USE_ZWAVE_PROXY";
+  option (no_delay) = true;
+
+  bytes data = 1;
+}
+
+enum ZWaveProxyRequestType {
+  ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE = 0;
+  ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1;
+  ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE = 2;
+}
+message ZWaveProxyRequest {
+  option (id) = 129;
+  option (source) = SOURCE_BOTH;
+  option (ifdef) = "USE_ZWAVE_PROXY";
+
+  ZWaveProxyRequestType type = 1;
+  bytes data = 2;
+}
+
+// ==================== INFRARED ====================
+// Note: Feature and capability flag enums are defined in
+// esphome/components/infrared/infrared.h
+
+// Listing of infrared instances
+message ListEntitiesInfraredResponse {
+  option (id) = 135;
+  option (base_class) = "InfoResponseProtoMessage";
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_INFRARED";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON"];
+  bool disabled_by_default = 5;
+  EntityCategory entity_category = 6;
+  uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
+  uint32 capabilities = 8;  // Bitfield of InfraredCapabilityFlags
+}
+
+// Command to transmit infrared/RF data using raw timings
+message InfraredRFTransmitRawTimingsRequest {
+  option (id) = 136;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_IR_RF";
+
+  uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
+  fixed32 key = 2;                                       // Key identifying the transmitter instance
+  uint32 carrier_frequency = 3;                          // Carrier frequency in Hz
+  uint32 repeat_count = 4;                               // Number of times to transmit (1 = once, 2 = twice, etc.)
+  repeated sint32 timings = 5 [packed = true, (packed_buffer) = true];  // Raw timings in microseconds (zigzag-encoded): positive = mark (LED/TX on), negative = space (LED/TX off)
+}
+
+// Event message for received infrared/RF data
+message InfraredRFReceiveEvent {
+  option (id) = 137;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_IR_RF";
+  option (no_delay) = true;
+
+  uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
+  fixed32 key = 2;                                    // Key identifying the receiver instance
+  repeated sint32 timings = 3 [packed = true, (container_pointer_no_template) = "std::vector<int32_t>"];  // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
 }

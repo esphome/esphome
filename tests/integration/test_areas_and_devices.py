@@ -132,6 +132,7 @@ async def test_areas_and_devices(
             "Temperature Sensor Reading": temp_sensor.device_id,
             "Motion Detector Status": motion_detector.device_id,
             "Smart Switch Power": smart_switch.device_id,
+            "Living Room Sensor": 0,  # Main device
         }
 
         for entity in sensor_entities:
@@ -158,6 +159,18 @@ async def test_areas_and_devices(
         )
         assert 0 in switch_device_ids, (
             "Should have a switch with device_id 0 (main device)"
+        )
+
+        # Verify extra switches with blank and none device_id are correctly available
+        extra_switches = [
+            e for e in switch_entities if e.name.startswith("Living Room")
+        ]
+        assert len(extra_switches) == 2, (
+            f"Expected 2 extra switches for Living Room, got {len(extra_switches)}"
+        )
+        extra_switch_device_ids = [e.device_id for e in extra_switches]
+        assert all(d == 0 for d in extra_switch_device_ids), (
+            "All extra switches should have device_id 0 (main device)"
         )
 
         # Wait for initial states to be received for all switches

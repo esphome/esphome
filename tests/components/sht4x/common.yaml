@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_sht4x
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: sht4x
+    i2c_id: i2c_bus
     temperature:
       name: SHT4X Temperature
     humidity:

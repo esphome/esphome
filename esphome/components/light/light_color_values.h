@@ -4,8 +4,7 @@
 #include "color_mode.h"
 #include <cmath>
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 inline static uint8_t to_uint8_scale(float x) { return static_cast<uint8_t>(roundf(x * 255.0f)); }
 
@@ -83,21 +82,7 @@ class LightColorValues {
    * @param completion The completion value. 0 -> start, 1 -> end.
    * @return The linearly interpolated LightColorValues.
    */
-  static LightColorValues lerp(const LightColorValues &start, const LightColorValues &end, float completion) {
-    LightColorValues v;
-    v.set_color_mode(end.color_mode_);
-    v.set_state(std::lerp(start.get_state(), end.get_state(), completion));
-    v.set_brightness(std::lerp(start.get_brightness(), end.get_brightness(), completion));
-    v.set_color_brightness(std::lerp(start.get_color_brightness(), end.get_color_brightness(), completion));
-    v.set_red(std::lerp(start.get_red(), end.get_red(), completion));
-    v.set_green(std::lerp(start.get_green(), end.get_green(), completion));
-    v.set_blue(std::lerp(start.get_blue(), end.get_blue(), completion));
-    v.set_white(std::lerp(start.get_white(), end.get_white(), completion));
-    v.set_color_temperature(std::lerp(start.get_color_temperature(), end.get_color_temperature(), completion));
-    v.set_cold_white(std::lerp(start.get_cold_white(), end.get_cold_white(), completion));
-    v.set_warm_white(std::lerp(start.get_warm_white(), end.get_warm_white(), completion));
-    return v;
-  }
+  static LightColorValues lerp(const LightColorValues &start, const LightColorValues &end, float completion);
 
   /** Normalize the color (RGB/W) component.
    *
@@ -110,15 +95,18 @@ class LightColorValues {
    */
   void normalize_color() {
     if (this->color_mode_ & ColorCapability::RGB) {
-      float max_value = fmaxf(this->get_red(), fmaxf(this->get_green(), this->get_blue()));
+      float max_value = fmaxf(this->red_, fmaxf(this->green_, this->blue_));
+      // Assign directly to avoid redundant clamp in set_red/green/blue.
+      // Values are guaranteed in [0,1]: inputs are already clamped to [0,1],
+      // and dividing by max_value (the largest) keeps results in [0,1].
       if (max_value == 0.0f) {
-        this->set_red(1.0f);
-        this->set_green(1.0f);
-        this->set_blue(1.0f);
+        this->red_ = 1.0f;
+        this->green_ = 1.0f;
+        this->blue_ = 1.0f;
       } else {
-        this->set_red(this->get_red() / max_value);
-        this->set_green(this->get_green() / max_value);
-        this->set_blue(this->get_blue() / max_value);
+        this->red_ /= max_value;
+        this->green_ /= max_value;
+        this->blue_ /= max_value;
       }
     }
   }
@@ -291,6 +279,8 @@ class LightColorValues {
   /// Set the warm white property of these light color values. In range 0.0 to 1.0.
   void set_warm_white(float warm_white) { this->warm_white_ = clamp(warm_white, 0.0f, 1.0f); }
 
+  friend class LightCall;
+
  protected:
   float state_;  ///< ON / OFF, float for transition
   float brightness_;
@@ -305,5 +295,4 @@ class LightColorValues {
   ColorMode color_mode_;
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

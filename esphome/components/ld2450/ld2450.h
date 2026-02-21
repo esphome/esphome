@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #ifdef USE_SENSOR
@@ -31,16 +32,17 @@
 
 #include <array>
 
-namespace esphome {
-namespace ld2450 {
+namespace esphome::ld2450 {
 
 using namespace ld24xx;
 
 // Constants
 static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presense status 5 sec.
-static constexpr uint8_t MAX_LINE_LENGTH = 41;          // Max characters for serial buffer
-static constexpr uint8_t MAX_TARGETS = 3;               // Max 3 Targets in LD2450
-static constexpr uint8_t MAX_ZONES = 3;                 // Max 3 Zones in LD2450
+// Zone query response is 40 bytes; +1 for null terminator, +4 so that a frame footer always
+// lands inside the buffer during footer-based resynchronization after losing sync.
+static constexpr uint8_t MAX_LINE_LENGTH = 45;
+static constexpr uint8_t MAX_TARGETS = 3;  // Max 3 Targets in LD2450
+static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
 
 enum Direction : uint8_t {
   DIRECTION_APPROACHING = 0,
@@ -110,14 +112,13 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
   void set_presence_timeout();
-  void set_throttle(uint16_t value) { this->throttle_ = value; }
   void read_all_info();
   void query_zone_info();
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
   void set_multi_target(bool enable);
-  void set_baud_rate(const std::string &state);
-  void set_zone_type(const std::string &state);
+  void set_baud_rate(const char *state);
+  void set_zone_type(const char *state);
   void publish_zone_type();
   void factory_reset();
 #ifdef USE_TEXT_SENSOR
@@ -143,6 +144,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
                       int32_t zone2_x1, int32_t zone2_y1, int32_t zone2_x2, int32_t zone2_y2, int32_t zone3_x1,
                       int32_t zone3_y1, int32_t zone3_x2, int32_t zone3_y2);
 
+  /// Add a callback that will be called after each successfully processed periodic data frame.
+  void add_on_data_callback(std::function<void()> &&callback);
+
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
   void set_config_mode_(bool enable);
@@ -161,11 +165,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
   bool get_timeout_status_(uint32_t check_millis);
   uint8_t count_targets_in_zone_(const Zone &zone, bool is_moving);
 
-  uint32_t last_periodic_millis_ = 0;
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;
   uint32_t moving_presence_millis_ = 0;
-  uint16_t throttle_ = 0;
   uint16_t timeout_ = 5;
   uint8_t buffer_data_[MAX_LINE_LENGTH];
   uint8_t mac_address_[6] = {0, 0, 0, 0, 0, 0};
@@ -194,7 +196,15 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_TEXT_SENSOR
   std::array<text_sensor::TextSensor *, 3> direction_text_sensors_{};
 #endif
+
+  LazyCallbackManager<void()> data_callback_;
 };
 
-}  // namespace ld2450
-}  // namespace esphome
+class LD2450DataTrigger : public Trigger<> {
+ public:
+  explicit LD2450DataTrigger(LD2450Component *parent) {
+    parent->add_on_data_callback([this]() { this->trigger(); });
+  }
+};
+
+}  // namespace esphome::ld2450

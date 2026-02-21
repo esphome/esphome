@@ -1,25 +1,27 @@
-import os
-from typing import Final, TypedDict
+from pathlib import Path
+import textwrap
+from typing import TypedDict
 
 import esphome.codegen as cg
-from esphome.const import CONF_BOARD
+import esphome.config_validation as cv
+from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 
 from .const import (
     BOOTLOADER_MCUBOOT,
+    KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
     KEY_OVERLAY,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
+    KEY_USER,
     KEY_ZEPHYR,
     zephyr_ns,
 )
 
 CODEOWNERS = ["@tomaszduda23"]
-AUTO_LOAD = ["preferences"]
-KEY_BOARD: Final = "board"
 
 PrjConfValueType = bool | str | int
 
@@ -47,8 +49,9 @@ class ZephyrData(TypedDict):
     bootloader: str
     prj_conf: dict[str, tuple[PrjConfValueType, bool]]
     overlay: str
-    extra_build_files: dict[str, str]
+    extra_build_files: dict[str, Path]
     pm_static: list[Section]
+    user: dict[str, list[str]]
 
 
 def zephyr_set_core_data(config):
@@ -59,6 +62,7 @@ def zephyr_set_core_data(config):
         overlay="",
         extra_build_files={},
         pm_static=[],
+        user={},
     )
     return config
 
@@ -87,10 +91,10 @@ def zephyr_add_prj_conf(
 
 
 def zephyr_add_overlay(content):
-    zephyr_data()[KEY_OVERLAY] += content
+    zephyr_data()[KEY_OVERLAY] += textwrap.dedent(content)
 
 
-def add_extra_build_file(filename: str, path: str) -> bool:
+def add_extra_build_file(filename: str, path: Path) -> bool:
     """Add an extra build file to the project."""
     extra_build_files = zephyr_data()[KEY_EXTRA_BUILD_FILES]
     if filename not in extra_build_files:
@@ -99,7 +103,7 @@ def add_extra_build_file(filename: str, path: str) -> bool:
     return False
 
 
-def add_extra_script(stage: str, filename: str, path: str):
+def add_extra_script(stage: str, filename: str, path: Path) -> None:
     """Add an extra script to the project."""
     key = f"{stage}:{filename}"
     if add_extra_build_file(filename, path):
@@ -107,32 +111,15 @@ def add_extra_script(stage: str, filename: str, path: str):
 
 
 def zephyr_to_code(config):
-    cg.add(zephyr_ns.setup_preferences())
     cg.add_build_flag("-DUSE_ZEPHYR")
     cg.set_cpp_standard("gnu++20")
     # build is done by west so bypass board checking in platformio
     cg.add_platformio_option("boards_dir", CORE.relative_build_path("boards"))
-
     # c++ support
     zephyr_add_prj_conf("NEWLIB_LIBC", True)
-    zephyr_add_prj_conf("CONFIG_FPU", True)
+    zephyr_add_prj_conf("FPU", True)
     zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
-    zephyr_add_prj_conf("CPLUSPLUS", True)
-    zephyr_add_prj_conf("CONFIG_STD_CPP20", True)
-    zephyr_add_prj_conf("LIB_CPLUSPLUS", True)
-    # preferences
-    zephyr_add_prj_conf("SETTINGS", True)
-    zephyr_add_prj_conf("NVS", True)
-    zephyr_add_prj_conf("FLASH_MAP", True)
-    zephyr_add_prj_conf("CONFIG_FLASH", True)
-    # watchdog
-    zephyr_add_prj_conf("WATCHDOG", True)
-    zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
-    # disable console
-    zephyr_add_prj_conf("UART_CONSOLE", False)
-    zephyr_add_prj_conf("CONSOLE", False, False)
-    # use NFC pins as GPIO
-    zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
+    zephyr_add_prj_conf("STD_CPP20", True)
 
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
@@ -141,8 +128,16 @@ def zephyr_to_code(config):
     add_extra_script(
         "pre",
         "pre_build.py",
-        os.path.join(os.path.dirname(__file__), "pre_build.py.script"),
+        Path(__file__).parent / "pre_build.py.script",
     )
+
+
+def zephyr_setup_preferences():
+    cg.add(zephyr_ns.setup_preferences())
+    zephyr_add_prj_conf("SETTINGS", True)
+    zephyr_add_prj_conf("NVS", True)
+    zephyr_add_prj_conf("FLASH_MAP", True)
+    zephyr_add_prj_conf("FLASH", True)
 
 
 def _format_prj_conf_val(value: PrjConfValueType) -> str:
@@ -156,6 +151,9 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
 
 
 def zephyr_add_cdc_acm(config, id):
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
+        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
     # prevent device to go to susspend, without this communication stop working in python
@@ -165,12 +163,12 @@ def zephyr_add_cdc_acm(config, id):
     zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
     zephyr_add_overlay(
         f"""
-&zephyr_udc0 {{
-    cdc_acm_uart{id}: cdc_acm_uart{id} {{
-        compatible = "zephyr,cdc-acm-uart";
-    }};
-}};
-"""
+            &zephyr_udc0 {{
+                cdc_acm_uart{id}: cdc_acm_uart{id} {{
+                    compatible = "zephyr,cdc-acm-uart";
+                }};
+            }};
+        """
     )
 
 
@@ -178,7 +176,26 @@ def zephyr_add_pm_static(section: Section):
     CORE.data[KEY_ZEPHYR][KEY_PM_STATIC].extend(section)
 
 
+def zephyr_add_user(key, value):
+    user = zephyr_data()[KEY_USER]
+    if key not in user:
+        user[key] = []
+    user[key] += [value]
+
+
 def copy_files():
+    user = zephyr_data()[KEY_USER]
+    if user:
+        zephyr_add_overlay(
+            f"""
+                / {{
+                    zephyr,user {{
+                        {[f"{key} = {', '.join(value)};" for key, value in user.items()][0]}
+                    }};
+                }};
+            """
+        )
+
     want_opts = zephyr_data()[KEY_PRJ_CONF]
 
     prj_conf = (
@@ -196,23 +213,34 @@ def copy_files():
         zephyr_data()[KEY_OVERLAY],
     )
 
-    if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT or zephyr_data()[
-        KEY_BOARD
-    ] in ["xiao_ble"]:
+    if (
+        zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
+        or zephyr_data()[KEY_BOARD] == "xiao_ble"
+    ):
         fake_board_manifest = """
 {
-"frameworks": [
-    "zephyr"
-],
-"name": "esphome nrf52",
-"upload": {
-    "maximum_ram_size": 248832,
-    "maximum_size": 815104
-},
-"url": "https://esphome.io/",
-"vendor": "esphome"
+    "frameworks": [
+        "zephyr"
+    ],
+    "name": "esphome nrf52",
+    "upload": {
+        "maximum_ram_size": 248832,
+        "maximum_size": 815104,
+        "speed": 115200
+    },
+    "url": "https://esphome.io/",
+    "vendor": "esphome",
+    "build": {
+        "bsp": {
+            "name": "adafruit"
+        },
+        "softdevice": {
+            "sd_fwid": "0x00B6"
+        }
+    }
 }
 """
+
         write_file_if_changed(
             CORE.relative_build_path(f"boards/{zephyr_data()[KEY_BOARD]}.json"),
             fake_board_manifest,

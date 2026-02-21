@@ -34,7 +34,7 @@ template<typename... Ts> class AdjustAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(float, voltage)
 
-  void play(Ts... x) override { this->ldo_->adjust_voltage(this->voltage_.value(x...)); }
+  void play(const Ts &...x) override { this->ldo_->adjust_voltage(this->voltage_.value(x...)); }
 
  protected:
   EspLdo *ldo_;

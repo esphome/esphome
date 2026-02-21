@@ -1,0 +1,17 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# OTA with no value - this should be normalized to empty list
+ota:
+
+wifi:
+  ssid: "test"
+  password: "test"
+
+# Captive portal auto-loads ota.web_server which triggers the issue
+captive_portal:

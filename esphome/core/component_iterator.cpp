@@ -5,7 +5,7 @@
 #ifdef USE_API
 #include "esphome/components/api/api_server.h"
 #endif
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 #include "esphome/components/api/user_services.h"
 #endif
 
@@ -15,19 +15,6 @@ void ComponentIterator::begin(bool include_internal) {
   this->state_ = IteratorState::BEGIN;
   this->at_ = 0;
   this->include_internal_ = include_internal;
-}
-
-template<typename PlatformItem>
-void ComponentIterator::process_platform_item_(const std::vector<PlatformItem *> &items,
-                                               bool (ComponentIterator::*on_item)(PlatformItem *)) {
-  if (this->at_ >= items.size()) {
-    this->advance_platform_();
-  } else {
-    PlatformItem *item = items[this->at_];
-    if ((item->is_internal() && !this->include_internal_) || (this->*on_item)(item)) {
-      this->at_++;
-    }
-  }
 }
 
 void ComponentIterator::advance_platform_() {
@@ -94,7 +81,7 @@ void ComponentIterator::advance() {
       break;
 #endif
 
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
     case IteratorState::SERVICE:
       this->process_platform_item_(api::global_api_server->get_user_services(), &ComponentIterator::on_service);
       break;
@@ -176,6 +163,18 @@ void ComponentIterator::advance() {
       break;
 #endif
 
+#ifdef USE_WATER_HEATER
+    case IteratorState::WATER_HEATER:
+      this->process_platform_item_(App.get_water_heaters(), &ComponentIterator::on_water_heater);
+      break;
+#endif
+
+#ifdef USE_INFRARED
+    case IteratorState::INFRARED:
+      this->process_platform_item_(App.get_infrareds(), &ComponentIterator::on_infrared);
+      break;
+#endif
+
 #ifdef USE_EVENT
     case IteratorState::EVENT:
       this->process_platform_item_(App.get_events(), &ComponentIterator::on_event);
@@ -198,7 +197,7 @@ void ComponentIterator::advance() {
 
 bool ComponentIterator::on_end() { return true; }
 bool ComponentIterator::on_begin() { return true; }
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 bool ComponentIterator::on_service(api::UserServiceDescriptor *service) { return true; }
 #endif
 #ifdef USE_CAMERA

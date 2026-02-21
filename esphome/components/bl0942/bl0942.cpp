@@ -46,7 +46,7 @@ static const uint32_t PKT_TIMEOUT_MS = 200;
 
 void BL0942::loop() {
   DataPacket buffer;
-  int avail = this->available();
+  size_t avail = this->available();
 
   if (!avail) {
     return;
@@ -55,7 +55,7 @@ void BL0942::loop() {
     if (!this->rx_start_) {
       this->rx_start_ = millis();
     } else if (millis() > this->rx_start_ + PKT_TIMEOUT_MS) {
-      ESP_LOGW(TAG, "Junk on wire. Throwing away partial message (%d bytes)", avail);
+      ESP_LOGW(TAG, "Junk on wire. Throwing away partial message (%zu bytes)", avail);
       this->read_array((uint8_t *) &buffer, avail);
       this->rx_start_ = 0;
     }
@@ -148,8 +148,8 @@ void BL0942::setup() {
 
   this->write_reg_(BL0942_REG_USR_WRPROT, 0);
 
-  if (this->read_reg_(BL0942_REG_MODE) != mode)
-    this->status_set_warning("BL0942 setup failed!");
+  if (static_cast<uint32_t>(this->read_reg_(BL0942_REG_MODE)) != mode)
+    this->status_set_warning(LOG_STR("BL0942 setup failed!"));
 
   this->flush();
 }

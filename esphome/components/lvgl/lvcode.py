@@ -1,4 +1,5 @@
 import abc
+from typing import TYPE_CHECKING
 
 from esphome import codegen as cg
 from esphome.config import Config
@@ -164,6 +165,9 @@ class LambdaContext(CodeContext):
             code_text.append(text)
         return code_text
 
+    def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
+        return self.parameters
+
     async def __aenter__(self):
         await super().__aenter__()
         add_line_marks(self.where)
@@ -178,9 +182,8 @@ class LvContext(LambdaContext):
 
     added_lambda_count = 0
 
-    def __init__(self, args=None):
-        self.args = args or LVGL_COMP_ARG
-        super().__init__(parameters=self.args)
+    def __init__(self):
+        super().__init__(parameters=LVGL_COMP_ARG)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await super().__aexit__(exc_type, exc_val, exc_tb)
@@ -189,8 +192,28 @@ class LvContext(LambdaContext):
         cg.add(expression)
         return expression
 
+    def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
+        # When generating automations, we don't want the `lv_component` parameter to be passed
+        # to the lambda.
+        return []
+
     def __call__(self, *args):
         return self.add(*args)
+
+
+def get_lambda_context_args() -> list[tuple[SafeExpType, str]]:
+    """Get automation parameters from the current lambda context if available.
+
+    When called from outside LVGL's context (e.g., from interval),
+    CodeContext.code_context will be None, so return empty args.
+    """
+    if CodeContext.code_context is None:
+        return []
+    if TYPE_CHECKING:
+        # CodeContext base class doesn't define get_automation_parameters(),
+        # but LambdaContext and LvContext (the concrete implementations) do.
+        assert isinstance(CodeContext.code_context, LambdaContext)
+    return CodeContext.code_context.get_automation_parameters()
 
 
 class LocalVariable(MockObj):
@@ -292,6 +315,7 @@ class LvExpr(MockLv):
 
 # Top level mock for generic lv_ calls to be recorded
 lv = MockLv("lv_")
+LV = MockLv("LV_")
 # Just generate an expression
 lv_expr = LvExpr("lv_")
 # Mock for lv_obj_ calls
@@ -320,7 +344,7 @@ def lv_assign(target, expression):
     lv_add(AssignmentExpression("", "", target, expression))
 
 
-def lv_Pvariable(type, name):
+def lv_Pvariable(type, name) -> MockObj:
     """
     Create but do not initialise a pointer variable
     :param type: Type of the variable target
@@ -329,14 +353,14 @@ def lv_Pvariable(type, name):
     """
     if isinstance(name, str):
         name = ID(name, True, type)
-    decl = VariableDeclarationExpression(type, "*", name)
+    decl = VariableDeclarationExpression(type, "*", name, static=True)
     CORE.add_global(decl)
     var = MockObj(name, "->")
     CORE.register_variable(name, var)
     return var
 
 
-def lv_variable(type, name):
+def lv_variable(type, name) -> MockObj:
     """
     Create but do not initialise a variable
     :param type: Type of the variable target
@@ -345,7 +369,7 @@ def lv_variable(type, name):
     """
     if isinstance(name, str):
         name = ID(name, True, type)
-    decl = VariableDeclarationExpression(type, "", name)
+    decl = VariableDeclarationExpression(type, "", name, static=True)
     CORE.add_global(decl)
     var = MockObj(name, ".")
     CORE.register_variable(name, var)

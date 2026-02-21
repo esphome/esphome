@@ -51,7 +51,6 @@ class ESP32TouchComponent : public Component {
   void setup() override;
   void dump_config() override;
   void loop() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void on_shutdown() override;
 
@@ -171,8 +170,8 @@ class ESP32TouchComponent : public Component {
   // based on the filter configuration
   uint32_t read_touch_value(touch_pad_t pad) const;
 
-  // Helper to update touch state with a known state
-  void update_touch_state_(ESP32TouchBinarySensor *child, bool is_touched);
+  // Helper to update touch state with a known state and value
+  void update_touch_state_(ESP32TouchBinarySensor *child, bool is_touched, uint32_t value);
 
   // Helper to read touch value and update state for a given child
   bool check_and_update_touch_state_(ESP32TouchBinarySensor *child);
@@ -234,10 +233,24 @@ class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
   touch_pad_t get_touch_pad() const { return this->touch_pad_; }
   uint32_t get_threshold() const { return this->threshold_; }
   void set_threshold(uint32_t threshold) { this->threshold_ = threshold; }
-#ifdef USE_ESP32_VARIANT_ESP32
+
+  /// Get the raw touch measurement value.
+  /// @note Although this method may appear unused within the component, it is a public API
+  /// used by lambdas in user configurations for custom touch value processing.
+  /// @return The current raw touch sensor reading
   uint32_t get_value() const { return this->value_; }
-#endif
+
   uint32_t get_wakeup_threshold() const { return this->wakeup_threshold_; }
+
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+  /// Ensure benchmark value is read (v2 touch hardware only).
+  /// Called from multiple places - kept as helper to document shared usage.
+  void ensure_benchmark_read() {
+    if (this->benchmark_ == 0) {
+      touch_pad_read_benchmark(this->touch_pad_, &this->benchmark_);
+    }
+  }
+#endif
 
  protected:
   friend ESP32TouchComponent;
@@ -245,9 +258,8 @@ class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
   touch_pad_t touch_pad_{TOUCH_PAD_MAX};
   uint32_t threshold_{0};
   uint32_t benchmark_{};
-#ifdef USE_ESP32_VARIANT_ESP32
+  /// Stores the last raw touch measurement value.
   uint32_t value_{0};
-#endif
   bool last_state_{false};
   const uint32_t wakeup_threshold_{0};
 

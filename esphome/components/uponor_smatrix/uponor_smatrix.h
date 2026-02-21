@@ -71,23 +71,21 @@ class UponorSmatrixComponent : public uart::UARTDevice, public Component {
   void dump_config() override;
   void loop() override;
 
-  void set_system_address(uint16_t address) { this->address_ = address; }
   void register_device(UponorSmatrixDevice *device) { this->devices_.push_back(device); }
 
-  bool send(uint16_t device_address, const UponorSmatrixData *data, size_t data_len);
+  bool send(uint32_t device_address, const UponorSmatrixData *data, size_t data_len);
 
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
-  void set_time_device_address(uint16_t address) { this->time_device_address_ = address; }
+  void set_time_device_address(uint32_t address) { this->time_device_address_ = address; }
   void send_time() { this->send_time_requested_ = true; }
 #endif
 
  protected:
   bool parse_byte_(uint8_t byte);
 
-  uint16_t address_;
   std::vector<UponorSmatrixDevice *> devices_;
-  std::set<uint16_t> unknown_devices_;
+  std::set<uint32_t> unknown_devices_;
 
   std::vector<uint8_t> rx_buffer_;
   std::queue<std::vector<uint8_t>> tx_queue_;
@@ -96,7 +94,7 @@ class UponorSmatrixComponent : public uart::UARTDevice, public Component {
 
 #ifdef USE_TIME
   time::RealTimeClock *time_id_{nullptr};
-  uint16_t time_device_address_;
+  uint32_t time_device_address_;
   bool send_time_requested_;
   bool do_send_time_();
 #endif
@@ -104,7 +102,7 @@ class UponorSmatrixComponent : public uart::UARTDevice, public Component {
 
 class UponorSmatrixDevice : public Parented<UponorSmatrixComponent> {
  public:
-  void set_device_address(uint16_t address) { this->address_ = address; }
+  void set_address(uint32_t address) { this->address_ = address; }
 
   virtual void on_device_data(const UponorSmatrixData *data, size_t data_len) = 0;
   bool send(const UponorSmatrixData *data, size_t data_len) {
@@ -113,7 +111,7 @@ class UponorSmatrixDevice : public Parented<UponorSmatrixComponent> {
 
  protected:
   friend UponorSmatrixComponent;
-  uint16_t address_;
+  uint32_t address_;
 };
 
 inline float raw_to_celsius(uint16_t raw) {

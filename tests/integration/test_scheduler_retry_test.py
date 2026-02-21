@@ -23,6 +23,8 @@ async def test_scheduler_retry_test(
     empty_name_retry_done = asyncio.Event()
     component_retry_done = asyncio.Event()
     multiple_name_done = asyncio.Event()
+    const_char_done = asyncio.Event()
+    static_char_done = asyncio.Event()
     test_complete = asyncio.Event()
 
     # Track retry counts
@@ -33,6 +35,8 @@ async def test_scheduler_retry_test(
     empty_name_retry_count = 0
     component_retry_count = 0
     multiple_name_count = 0
+    const_char_retry_count = 0
+    static_char_retry_count = 0
 
     # Track specific test results
     cancel_result = None
@@ -42,7 +46,8 @@ async def test_scheduler_retry_test(
     def on_log_line(line: str) -> None:
         nonlocal simple_retry_count, backoff_retry_count, immediate_done_count
         nonlocal cancel_retry_count, empty_name_retry_count, component_retry_count
-        nonlocal multiple_name_count, cancel_result, empty_cancel_result
+        nonlocal multiple_name_count, const_char_retry_count, static_char_retry_count
+        nonlocal cancel_result, empty_cancel_result
 
         # Strip ANSI color codes
         clean_line = re.sub(r"\x1b\[[0-9;]*m", "", line)
@@ -105,6 +110,22 @@ async def test_scheduler_retry_test(
                 multiple_name_count = int(match.group(1))
                 if multiple_name_count >= 20:
                     multiple_name_done.set()
+
+        # Const char retry test
+        elif "Const char retry" in clean_line:
+            if match := re.search(r"Const char retry (\d+)", clean_line):
+                const_char_retry_count = int(match.group(1))
+                const_char_done.set()
+
+        # Static const char retry test
+        elif "Static const char retry" in clean_line:
+            if match := re.search(r"Static const char retry (\d+)", clean_line):
+                static_char_retry_count = int(match.group(1))
+                static_char_done.set()
+
+        elif "Static cancel result:" in clean_line:
+            # This is part of test 9, but we don't track it separately
+            pass
 
         # Test completion
         elif "All retry tests completed" in clean_line:
@@ -225,6 +246,30 @@ async def test_scheduler_retry_test(
         # Should be 20+ (only second retry should run)
         assert multiple_name_count >= 20, (
             f"Expected multiple name count >= 20 (second retry only), got {multiple_name_count}"
+        )
+
+        # Wait for const char retry test
+        try:
+            await asyncio.wait_for(const_char_done.wait(), timeout=1.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Const char retry test did not complete. Count: {const_char_retry_count}"
+            )
+
+        assert const_char_retry_count == 1, (
+            f"Expected 1 const char retry call, got {const_char_retry_count}"
+        )
+
+        # Wait for static char retry test
+        try:
+            await asyncio.wait_for(static_char_done.wait(), timeout=1.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Static char retry test did not complete. Count: {static_char_retry_count}"
+            )
+
+        assert static_char_retry_count == 1, (
+            f"Expected 1 static char retry call, got {static_char_retry_count}"
         )
 
         # Wait for test completion

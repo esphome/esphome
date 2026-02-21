@@ -3,6 +3,7 @@ from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_OVERSAMPLING,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_PRESSURE,
@@ -18,6 +19,17 @@ CODEOWNERS = ["@gcormier"]
 CONF_K_VALUE = "k_value"
 
 xgzp68xx_ns = cg.esphome_ns.namespace("xgzp68xx")
+XGZP68XXOversampling = xgzp68xx_ns.enum("XGZP68XXOversampling")
+OVERSAMPLING_OPTIONS = {
+    "256X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_256X,
+    "512X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_512X,
+    "1024X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_1024X,
+    "2048X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_2048X,
+    "4096X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_4096X,
+    "8192X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_8192X,
+    "16384X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_16384X,
+    "32768X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_32768X,
+}
 XGZP68XXComponent = xgzp68xx_ns.class_(
     "XGZP68XXComponent", cg.PollingComponent, i2c.I2CDevice
 )
@@ -31,6 +43,12 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_PRESSURE,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                {
+                    cv.Optional(CONF_OVERSAMPLING, default="4096X"): cv.enum(
+                        OVERSAMPLING_OPTIONS, upper=True
+                    ),
+                }
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
@@ -58,5 +76,6 @@ async def to_code(config):
     if pressure_config := config.get(CONF_PRESSURE):
         sens = await sensor.new_sensor(pressure_config)
         cg.add(var.set_pressure_sensor(sens))
+        cg.add(var.set_pressure_oversampling(pressure_config[CONF_OVERSAMPLING]))
 
     cg.add(var.set_k_value(config[CONF_K_VALUE]))

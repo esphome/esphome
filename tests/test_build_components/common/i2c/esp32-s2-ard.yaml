@@ -1,0 +1,11 @@
+# Common I2C configuration for ESP32-S2 Arduino tests
+
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
+
+i2c:
+  - id: i2c_bus
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+    scan: true

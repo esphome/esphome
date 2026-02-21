@@ -81,7 +81,7 @@ CONFIG_SCHEMA = (
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
             ),
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.pressure,
-            cv.Optional(CONF_TEMPERATURE_OFFSET, default="4°C"): cv.temperature,
+            cv.Optional(CONF_TEMPERATURE_OFFSET, default="4°C"): cv.temperature_delta,
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
                 sensor.Sensor
             ),

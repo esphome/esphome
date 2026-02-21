@@ -1,7 +1,6 @@
 #include "api_frame_helper_plaintext.h"
 #ifdef USE_API
 #ifdef USE_API_PLAINTEXT
-#include "api_connection.h"  // For ClientInfo struct
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -10,15 +9,42 @@
 #include <cstring>
 #include <cinttypes>
 
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
+
 namespace esphome::api {
 
 static const char *const TAG = "api.plaintext";
 
-#define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s: " msg, this->client_info_->get_combined_info().c_str(), ##__VA_ARGS__)
+// Maximum bytes to log in hex format (168 * 3 = 504, under TX buffer size of 512)
+static constexpr size_t API_MAX_LOG_BYTES = 168;
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+#define HELPER_LOG(msg, ...) \
+  do { \
+    char peername_buf[socket::SOCKADDR_STR_LEN]; \
+    this->get_peername_to(peername_buf); \
+    ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, peername_buf, ##__VA_ARGS__); \
+  } while (0)
+#else
+#define HELPER_LOG(msg, ...) ((void) 0)
+#endif
 
 #ifdef HELPER_LOG_PACKETS
-#define LOG_PACKET_RECEIVED(buffer) ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(buffer).c_str())
-#define LOG_PACKET_SENDING(data, len) ESP_LOGVV(TAG, "Sending raw: %s", format_hex_pretty(data, len).c_str())
+#define LOG_PACKET_RECEIVED(buffer) \
+  do { \
+    char hex_buf_[format_hex_pretty_size(API_MAX_LOG_BYTES)]; \
+    ESP_LOGVV(TAG, "Received frame: %s", \
+              format_hex_pretty_to(hex_buf_, (buffer).data(), \
+                                   (buffer).size() < API_MAX_LOG_BYTES ? (buffer).size() : API_MAX_LOG_BYTES)); \
+  } while (0)
+#define LOG_PACKET_SENDING(data, len) \
+  do { \
+    char hex_buf_[format_hex_pretty_size(API_MAX_LOG_BYTES)]; \
+    ESP_LOGVV(TAG, "Sending raw: %s", \
+              format_hex_pretty_to(hex_buf_, data, (len) < API_MAX_LOG_BYTES ? (len) : API_MAX_LOG_BYTES)); \
+  } while (0)
 #else
 #define LOG_PACKET_RECEIVED(buffer) ((void) 0)
 #define LOG_PACKET_SENDING(data, len) ((void) 0)
@@ -42,21 +68,13 @@ APIError APIPlaintextFrameHelper::loop() {
   return APIFrameHelper::loop();
 }
 
-/** Read a packet into the rx_buf_. If successful, stores frame data in the frame parameter
- *
- * @param frame: The struct to hold the frame information in.
- *   msg: store the parsed frame in that struct
+/** Read a packet into the rx_buf_.
  *
  * @return See APIError
  *
  * error API_ERROR_BAD_INDICATOR: Bad indicator byte at start of frame.
  */
-APIError APIPlaintextFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
-  if (frame == nullptr) {
-    HELPER_LOG("Bad argument for try_read_frame_");
-    return APIError::BAD_ARG;
-  }
-
+APIError APIPlaintextFrameHelper::try_read_frame_() {
   // read header
   while (!rx_header_parsed_) {
     // Now that we know when the socket is ready, we can read up to 3 bytes
@@ -118,10 +136,10 @@ APIError APIPlaintextFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
       continue;
     }
 
-    if (msg_size_varint->as_uint32() > std::numeric_limits<uint16_t>::max()) {
+    if (msg_size_varint->as_uint32() > MAX_MESSAGE_SIZE) {
       state_ = State::FAILED;
       HELPER_LOG("Bad packet: message size %" PRIu32 " exceeds maximum %u", msg_size_varint->as_uint32(),
-                 std::numeric_limits<uint16_t>::max());
+                 MAX_MESSAGE_SIZE);
       return APIError::BAD_DATA_PACKET;
     }
     rx_header_parsed_len_ = msg_size_varint->as_uint16();
@@ -145,9 +163,9 @@ APIError APIPlaintextFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
   }
   // header reading done
 
-  // reserve space for body
-  if (rx_buf_.size() != rx_header_parsed_len_) {
-    rx_buf_.resize(rx_header_parsed_len_);
+  // Reserve space for body
+  if (this->rx_buf_.size() != this->rx_header_parsed_len_) {
+    this->rx_buf_.resize(this->rx_header_parsed_len_);
   }
 
   if (rx_buf_len_ < rx_header_parsed_len_) {
@@ -165,24 +183,22 @@ APIError APIPlaintextFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
     }
   }
 
-  LOG_PACKET_RECEIVED(rx_buf_);
-  *frame = std::move(rx_buf_);
-  // consume msg
-  rx_buf_ = {};
-  rx_buf_len_ = 0;
-  rx_header_buf_pos_ = 0;
-  rx_header_parsed_ = false;
+  LOG_PACKET_RECEIVED(this->rx_buf_);
+
+  // Clear state for next frame (rx_buf_ still contains data for caller)
+  this->rx_buf_len_ = 0;
+  this->rx_header_buf_pos_ = 0;
+  this->rx_header_parsed_ = false;
+
   return APIError::OK;
 }
-APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
-  APIError aerr;
 
-  if (state_ != State::DATA) {
+APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
+  if (this->state_ != State::DATA) {
     return APIError::WOULD_BLOCK;
   }
 
-  std::vector<uint8_t> frame;
-  aerr = try_read_frame_(&frame);
+  APIError aerr = this->try_read_frame_();
   if (aerr != APIError::OK) {
     if (aerr == APIError::BAD_INDICATOR) {
       // Make sure to tell the remote that we don't
@@ -197,46 +213,54 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
       // We must send at least 3 bytes to be read, so we add
       // a message after the indicator byte to ensures its long
       // enough and can aid in debugging.
-      const char msg[] = "\x00"
-                         "Bad indicator byte";
+      static constexpr uint8_t INDICATOR_MSG_SIZE = 19;
+#ifdef USE_ESP8266
+      static const char MSG_PROGMEM[] PROGMEM = "\x00"
+                                                "Bad indicator byte";
+      char msg[INDICATOR_MSG_SIZE];
+      memcpy_P(msg, MSG_PROGMEM, INDICATOR_MSG_SIZE);
       iov[0].iov_base = (void *) msg;
-      iov[0].iov_len = 19;
-      this->write_raw_(iov, 1, 19);
+#else
+      static const char MSG[] = "\x00"
+                                "Bad indicator byte";
+      iov[0].iov_base = (void *) MSG;
+#endif
+      iov[0].iov_len = INDICATOR_MSG_SIZE;
+      this->write_raw_(iov, 1, INDICATOR_MSG_SIZE);
     }
     return aerr;
   }
 
-  buffer->container = std::move(frame);
-  buffer->data_offset = 0;
-  buffer->data_len = rx_header_parsed_len_;
-  buffer->type = rx_header_parsed_type_;
+  buffer->data = this->rx_buf_.data();
+  buffer->data_len = this->rx_header_parsed_len_;
+  buffer->type = this->rx_header_parsed_type_;
   return APIError::OK;
 }
 APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
-  PacketInfo packet{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_)};
-  return write_protobuf_packets(buffer, std::span<const PacketInfo>(&packet, 1));
+  MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_)};
+  return write_protobuf_messages(buffer, std::span<const MessageInfo>(&msg, 1));
 }
 
-APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) {
+APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer,
+                                                          std::span<const MessageInfo> messages) {
   if (state_ != State::DATA) {
     return APIError::BAD_STATE;
   }
 
-  if (packets.empty()) {
+  if (messages.empty()) {
     return APIError::OK;
   }
 
-  std::vector<uint8_t> *raw_buffer = buffer.get_buffer();
-  uint8_t *buffer_data = raw_buffer->data();  // Cache buffer pointer
+  uint8_t *buffer_data = buffer.get_buffer()->data();
 
-  this->reusable_iovs_.clear();
-  this->reusable_iovs_.reserve(packets.size());
+  // Stack-allocated iovec array - no heap allocation
+  StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
   uint16_t total_write_len = 0;
 
-  for (const auto &packet : packets) {
+  for (const auto &msg : messages) {
     // Calculate varint sizes for header layout
-    uint8_t size_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(packet.payload_size));
-    uint8_t type_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(packet.message_type));
+    uint8_t size_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(msg.payload_size));
+    uint8_t type_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(msg.message_type));
     uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
 
     // Calculate where to start writing the header
@@ -264,25 +288,24 @@ APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer
     //
     // The message starts at offset + frame_header_padding_
     // So we write the header starting at offset + frame_header_padding_ - total_header_len
-    uint8_t *buf_start = buffer_data + packet.offset;
+    uint8_t *buf_start = buffer_data + msg.offset;
     uint32_t header_offset = frame_header_padding_ - total_header_len;
 
     // Write the plaintext header
     buf_start[header_offset] = 0x00;  // indicator
 
     // Encode varints directly into buffer
-    ProtoVarInt(packet.payload_size).encode_to_buffer_unchecked(buf_start + header_offset + 1, size_varint_len);
-    ProtoVarInt(packet.message_type)
-        .encode_to_buffer_unchecked(buf_start + header_offset + 1 + size_varint_len, type_varint_len);
+    encode_varint_to_buffer(msg.payload_size, buf_start + header_offset + 1);
+    encode_varint_to_buffer(msg.message_type, buf_start + header_offset + 1 + size_varint_len);
 
-    // Add iovec for this packet (header + payload)
-    size_t packet_len = static_cast<size_t>(total_header_len + packet.payload_size);
-    this->reusable_iovs_.push_back({buf_start + header_offset, packet_len});
-    total_write_len += packet_len;
+    // Add iovec for this message (header + payload)
+    size_t msg_len = static_cast<size_t>(total_header_len + msg.payload_size);
+    iovs.push_back({buf_start + header_offset, msg_len});
+    total_write_len += msg_len;
   }
 
-  // Send all packets in one writev call
-  return write_raw_(this->reusable_iovs_.data(), this->reusable_iovs_.size(), total_write_len);
+  // Send all messages in one writev call
+  return write_raw_(iovs.data(), iovs.size(), total_write_len);
 }
 
 }  // namespace esphome::api

@@ -59,7 +59,7 @@ async def test_scheduler_defer_cancels_regular(
         assert test_service is not None, "test_defer_cancels_regular service not found"
 
         # Execute the test
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
 
         # Wait for test completion
         try:

@@ -97,12 +97,12 @@ bool ES7210::set_mic_gain(float mic_gain) {
 }
 
 bool ES7210::configure_sample_rate_() {
-  int mclk_fre = this->sample_rate_ * MCLK_DIV_FRE;
+  uint32_t mclk_fre = this->sample_rate_ * MCLK_DIV_FRE;
   int coeff = -1;
 
-  for (int i = 0; i < (sizeof(ES7210_COEFFICIENTS) / sizeof(ES7210_COEFFICIENTS[0])); ++i) {
+  for (size_t i = 0; i < (sizeof(ES7210_COEFFICIENTS) / sizeof(ES7210_COEFFICIENTS[0])); ++i) {
     if (ES7210_COEFFICIENTS[i].lrclk == this->sample_rate_ && ES7210_COEFFICIENTS[i].mclk == mclk_fre)
-      coeff = i;
+      coeff = static_cast<int>(i);
   }
 
   if (coeff >= 0) {

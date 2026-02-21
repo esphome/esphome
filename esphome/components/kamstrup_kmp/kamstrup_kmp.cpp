@@ -22,15 +22,13 @@ void KamstrupKMPComponent::dump_config() {
   LOG_SENSOR("  ", "Flow", this->flow_sensor_);
   LOG_SENSOR("  ", "Volume", this->volume_sensor_);
 
-  for (int i = 0; i < this->custom_sensors_.size(); i++) {
+  for (size_t i = 0; i < this->custom_sensors_.size(); i++) {
     LOG_SENSOR("  ", "Custom Sensor", this->custom_sensors_[i]);
     ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom_commands_[i]);
   }
 
   this->check_uart_settings(1200, 2, uart::UART_CONFIG_PARITY_NONE, 8);
 }
-
-float KamstrupKMPComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void KamstrupKMPComponent::update() {
   if (this->heat_energy_sensor_ != nullptr) {
@@ -268,7 +266,7 @@ void KamstrupKMPComponent::set_sensor_value_(uint16_t command, float value, uint
   }
 
   // Custom sensors
-  for (int i = 0; i < this->custom_commands_.size(); i++) {
+  for (size_t i = 0; i < this->custom_commands_.size(); i++) {
     if (command == this->custom_commands_[i]) {
       this->custom_sensors_[i]->publish_state(value);
     }

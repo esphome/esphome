@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/components/ble_client/ble_client.h"
+#include "esphome/components/display/display.h"
 
 #include <cinttypes>
 
@@ -29,7 +30,7 @@ enum UNIT {
   UNIT_DEG_E,     ///< show "°E"
 };
 
-using pvvx_writer_t = std::function<void(PVVXDisplay &)>;
+using pvvx_writer_t = display::DisplayWriter<PVVXDisplay>;
 
 class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
  public:
@@ -43,6 +44,7 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
+  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
   /// Set validity period of the display information in seconds (1..65535)
   void set_validity_period(uint16_t validity_period) { this->validity_period_ = validity_period; }
@@ -58,13 +60,13 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
    * Valid values are from -99.5 to 1999.5. Smaller values are displayed as Lo, higher as Hi.
    * It will printed as it fits in the screen.
    */
-  void print_bignum(float bignum) { this->bignum_ = bignum * 10; }
+  void print_bignum(float bignum) { this->bignum_ = static_cast<int16_t>(bignum * 10); }
   /**
    * Print the small number
    *
    * Valid values are from -9 to 99. Smaller values are displayed as Lo, higher as Hi.
    */
-  void print_smallnum(float smallnum) { this->smallnum_ = smallnum; }
+  void print_smallnum(float smallnum) { this->smallnum_ = static_cast<int16_t>(smallnum); }
   /**
    * Print a happy face
    *
@@ -105,13 +107,14 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
   bool auto_clear_enabled_{true};
   uint32_t disconnect_delay_ms_ = 5000;
   uint16_t validity_period_ = 300;
-  uint16_t bignum_ = 0;
-  uint16_t smallnum_ = 0;
+  int16_t bignum_ = 0;
+  int16_t smallnum_ = 0;
   uint8_t cfg_ = 0;
 
   void setcfgbit_(uint8_t bit, bool value);
   void send_to_setup_char_(uint8_t *blk, size_t size);
   void delayed_disconnect_();
+  void sync_time_and_display_();
 #ifdef USE_TIME
   void sync_time_();
   time::RealTimeClock *time_{nullptr};
@@ -124,7 +127,7 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
   esp32_ble_tracker::ESPBTUUID char_uuid_ =
       esp32_ble_tracker::ESPBTUUID::from_raw("00001f1f-0000-1000-8000-00805f9b34fb");
 
-  optional<pvvx_writer_t> writer_{};
+  pvvx_writer_t writer_{};
 };
 
 }  // namespace pvvx_mithermometer

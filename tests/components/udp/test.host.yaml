@@ -1,4 +1,15 @@
-packages:
-  common: !include common.yaml
-
-wifi: !remove
+udp:
+  id: my_udp
+  listen_address: 239.0.60.53
+  addresses: ["239.0.60.53"]
+  on_receive:
+    - logger.log:
+        format: "Received %d bytes"
+        args: [data.size()]
+    - udp.write:
+        id: my_udp
+        data: "hello world"
+    - udp.write:
+        id: my_udp
+        data: !lambda |-
+          return std::vector<uint8_t>{1,3,4,5,6};

@@ -14,9 +14,11 @@ WebServerBase *global_web_server_base = nullptr;  // NOLINT(cppcoreguidelines-av
 void WebServerBase::add_handler(AsyncWebHandler *handler) {
   // remove all handlers
 
+#ifdef USE_WEBSERVER_AUTH
   if (!credentials_.username.empty()) {
     handler = new internal::AuthMiddlewareHandler(handler, &credentials_);
   }
+#endif
   this->handlers_.push_back(handler);
   if (this->server_ != nullptr) {
     this->server_->addHandler(handler);

@@ -39,7 +39,7 @@ esphome/core/* @esphome/core
 parts = [BASE]
 
 # Fake some directory so that get_component works
-CORE.config_path = str(root)
+CORE.config_path = root
 CORE.data[KEY_CORE] = {KEY_TARGET_FRAMEWORK: None, KEY_TARGET_PLATFORM: None}
 
 codeowners = defaultdict(list)
@@ -82,7 +82,7 @@ for path in components_dir.iterdir():
 
 
 for path, owners in sorted(codeowners.items()):
-    owners = sorted(set(owners))
+    owners = sorted(set(owners), key=str.casefold)
     if not owners:
         continue
     for owner in owners:

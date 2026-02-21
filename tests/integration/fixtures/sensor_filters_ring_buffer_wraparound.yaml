@@ -1,0 +1,72 @@
+esphome:
+  name: test-ring-buffer-wraparound
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+sensor:
+  - platform: template
+    name: "Source Wraparound Sensor"
+    id: source_wraparound
+    accuracy_decimals: 2
+
+  - platform: copy
+    source_id: source_wraparound
+    name: "Wraparound Min Sensor"
+    id: wraparound_min_sensor
+    filters:
+      - min:
+          window_size: 3
+          send_every: 3
+          send_first_at: 1
+
+script:
+  - id: publish_wraparound_script
+    then:
+      # Publish 9 values to test ring buffer wraparound
+      # Values: 10, 20, 30, 5, 25, 15, 40, 35, 20
+      - sensor.template.publish:
+          id: source_wraparound
+          state: 10.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_wraparound
+          state: 20.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_wraparound
+          state: 30.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_wraparound
+          state: 5.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_wraparound
+          state: 25.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_wraparound
+          state: 15.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_wraparound
+          state: 40.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_wraparound
+          state: 35.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_wraparound
+          state: 20.0
+
+button:
+  - platform: template
+    name: "Publish Wraparound Button"
+    id: publish_wraparound_button
+    on_press:
+      - script.execute: publish_wraparound_script

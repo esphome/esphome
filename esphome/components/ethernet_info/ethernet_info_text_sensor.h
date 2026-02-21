@@ -6,65 +6,48 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ethernet_info {
+namespace esphome::ethernet_info {
 
-class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextSensor {
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+class IPAddressEthernetInfo final : public Component,
+                                    public text_sensor::TextSensor,
+                                    public ethernet::EthernetIPStateListener {
  public:
-  void update() override {
-    auto ips = ethernet::global_eth_component->get_ip_addresses();
-    if (ips != this->last_ips_) {
-      this->last_ips_ = ips;
-      this->publish_state(ips[0].str());
-      uint8_t sensor = 0;
-      for (auto &ip : ips) {
-        if (ip.is_set()) {
-          if (this->ip_sensors_[sensor] != nullptr) {
-            this->ip_sensors_[sensor]->publish_state(ip.str());
-          }
-          sensor++;
-        }
-      }
-    }
-  }
-
-  float get_setup_priority() const override { return setup_priority::ETHERNET; }
+  void setup() override;
   void dump_config() override;
   void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { this->ip_sensors_[index] = s; }
 
+  // EthernetIPStateListener interface
+  void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
+                   const network::IPAddress &dns2) override;
+
  protected:
-  network::IPAddresses last_ips_;
-  std::array<text_sensor::TextSensor *, 5> ip_sensors_;
+  std::array<text_sensor::TextSensor *, 5> ip_sensors_{};
 };
 
-class DNSAddressEthernetInfo : public PollingComponent, public text_sensor::TextSensor {
+class DNSAddressEthernetInfo final : public Component,
+                                     public text_sensor::TextSensor,
+                                     public ethernet::EthernetIPStateListener {
  public:
-  void update() override {
-    auto dns_one = ethernet::global_eth_component->get_dns_address(0);
-    auto dns_two = ethernet::global_eth_component->get_dns_address(1);
+  void setup() override;
+  void dump_config() override;
 
-    std::string dns_results = dns_one.str() + " " + dns_two.str();
+  // EthernetIPStateListener interface
+  void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
+                   const network::IPAddress &dns2) override;
+};
+#endif  // USE_ETHERNET_IP_STATE_LISTENERS
 
-    if (dns_results != this->last_results_) {
-      this->last_results_ = dns_results;
-      this->publish_state(dns_results);
-    }
+class MACAddressEthernetInfo final : public Component, public text_sensor::TextSensor {
+ public:
+  void setup() override {
+    char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    this->publish_state(ethernet::global_eth_component->get_eth_mac_address_pretty_into_buffer(buf));
   }
   float get_setup_priority() const override { return setup_priority::ETHERNET; }
   void dump_config() override;
-
- protected:
-  std::string last_results_;
 };
 
-class MACAddressEthernetInfo : public Component, public text_sensor::TextSensor {
- public:
-  void setup() override { this->publish_state(ethernet::global_eth_component->get_eth_mac_address_pretty()); }
-  float get_setup_priority() const override { return setup_priority::ETHERNET; }
-  void dump_config() override;
-};
-
-}  // namespace ethernet_info
-}  // namespace esphome
+}  // namespace esphome::ethernet_info
 
 #endif  // USE_ESP32
