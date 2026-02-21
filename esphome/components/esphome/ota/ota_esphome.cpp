@@ -36,7 +36,7 @@ void ESPHomeOTAComponent::setup() {
   int enable = 1;
   int err = this->server_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket reuseaddr: errno %d", errno);
+    this->log_socket_error_(LOG_STR("reuseaddr"));
     // we can still continue
   }
   err = this->server_->setblocking(false);
@@ -452,7 +452,7 @@ void ESPHomeOTAComponent::log_remote_closed_(const LogString *during) {
 
 void ESPHomeOTAComponent::server_failed_(const LogString *msg) {
   this->log_socket_error_(msg);
-  // Socket destructor calls close() if not already closed
+  // Listen sockets use LwIPSocketImpl/BSDSocketImpl whose destructors call close()
   delete this->server_;
   this->server_ = nullptr;
   this->mark_failed();
