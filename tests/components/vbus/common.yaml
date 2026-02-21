@@ -22,7 +22,7 @@ binary_sensor:
   - platform: vbus
     model: deltasol_cs4
     sensor1_error:
-      name: "DeltaSol CS4 Sensor 1 Error"  
+      name: "DeltaSol CS4 Sensor 1 Error"
   - platform: vbus
     model: custom
     command: 0x100
