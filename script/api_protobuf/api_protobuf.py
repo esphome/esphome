@@ -690,6 +690,14 @@ class MessageType(TypeInfo):
         return "encode_message"
 
     @property
+    def encode_content(self) -> str:
+        # Singular message fields pass force=false (skip empty messages)
+        # The default for encode_nested_message is force=true (for repeated fields)
+        return (
+            f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, false);"
+        )
+
+    @property
     def decode_length(self) -> str:
         # Override to return None for message types because we can't use template-based
         # decoding when the specific message type isn't known at compile time.
@@ -2186,7 +2194,7 @@ def build_message_type(
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
-        o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{"
+        o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{"
         if len(encode) == 1 and len(encode[0]) + len(o) + 3 < 120:
             o += f" {encode[0]} }}\n"
         else:
@@ -2194,7 +2202,7 @@ def build_message_type(
             o += indent("\n".join(encode)) + "\n"
             o += "}\n"
         cpp += o
-        prot = "void encode(ProtoWriteBuffer buffer) const override;"
+        prot = "void encode(ProtoWriteBuffer &buffer) const override;"
         public_content.append(prot)
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
 

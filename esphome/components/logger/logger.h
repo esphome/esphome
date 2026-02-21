@@ -147,7 +147,7 @@ class Logger : public Component {
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   void init_log_buffer(size_t total_buffer_size);
 #endif
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
   void loop() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
@@ -229,7 +229,7 @@ class Logger : public Component {
   void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
                                     const char *thread_name);
 #endif
-#if defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC)
+#if defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
   void cdc_loop_();
 #endif
   void process_messages_();
@@ -465,9 +465,9 @@ class Logger : public Component {
   inline RecursionGuard make_non_main_task_guard_() { return RecursionGuard(non_main_task_recursion_guard_); }
 #endif
 
-// Zephyr needs loop working to check when CDC port is open
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
-  // Disable loop when task buffer is empty (with USB CDC check on ESP32)
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+  // Disable loop when task buffer is empty
+  // Zephyr with USB CDC needs loop active to poll port readiness via cdc_loop_()
   inline void disable_loop_when_buffer_empty_() {
     // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()
     // concurrently. If that happens between our check and disable_loop(), the enable request

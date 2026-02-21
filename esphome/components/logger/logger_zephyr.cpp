@@ -34,7 +34,7 @@ __attribute__((section(".noinit"))) struct {
 
 static const char *const TAG = "logger";
 
-#ifdef USE_LOGGER_USB_CDC
+#ifdef USE_LOGGER_UART_SELECTION_USB_CDC
 void Logger::cdc_loop_() {
   if (this->uart_ != UART_SELECTION_USB_CDC || this->uart_dev_ == nullptr) {
     return;
