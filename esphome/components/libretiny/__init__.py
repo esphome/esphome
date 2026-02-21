@@ -373,6 +373,11 @@ def _configure_lwip(config: dict) -> None:
     # LN882H uses MEM_LIBC_MALLOC=1 (system heap), so MEM_SIZE is irrelevant.
     if CORE.is_bk72xx:
         lwip_opts.append("MEM_SIZE=5120")  # BK SDK: 32,768, RTL SDK: 5,120
+        # PBUF_POOL_SIZE: BK SDK "reduced plan" sets this to only 3, which is
+        # too small for TCP_WND=4×MSS (5840 > 3*1526=4578). Set to 4 so the
+        # lwIP sanity check passes: 4*1526=6104 > 5840.
+        # RTL(20) and LN(20) are already large enough.
+        lwip_opts.append("PBUF_POOL_SIZE=4")
 
     cg.add_platformio_option("custom_options.lwip", lwip_opts)
 
