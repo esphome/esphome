@@ -326,7 +326,8 @@ def _configure_lwip(config: dict) -> None:
     tcp_sockets = max(MIN_TCP_SOCKETS, raw_tcp)
     udp_sockets = max(MIN_UDP_SOCKETS, raw_udp)
     # Listening sockets — registered by components (api, ota, web_server_base, etc.)
-    listening_tcp = max(raw_tcp_listen, 2)  # at least 2 (api + ota)
+    # Not all components register yet, so ensure a minimum of 2 (api + ota baseline).
+    listening_tcp = max(raw_tcp_listen, 2)
 
     # TCP_SND_BUF: ESPAsyncWebServer allocates malloc(tcp_sndbuf()) per
     # response chunk. At 10×MSS=14.6KB (BK default) this causes OOM (#14095).
@@ -356,7 +357,8 @@ def _configure_lwip(config: dict) -> None:
         # Socket counts — auto-calculated from component registrations
         f"MAX_SOCKETS_TCP={tcp_sockets}",
         f"MAX_SOCKETS_UDP={udp_sockets}",
-        # Listening sockets — auto-calculated from component registrations
+        # Listening sockets — BK SDK uses this to derive MEMP_NUM_TCP_PCB_LISTEN;
+        # RTL/LN don't use it, but we set MEMP_NUM_TCP_PCB_LISTEN explicitly below.
         f"MAX_LISTENING_SOCKETS_TCP={listening_tcp}",
         # Queued segment limits — derived from 4×MSS buffer size
         f"TCP_SND_QUEUELEN={tcp_snd_queuelen}",
@@ -366,8 +368,8 @@ def _configure_lwip(config: dict) -> None:
         f"MEMP_NUM_TCP_PCB_LISTEN={listening_tcp}",  # BK: =MAX_LISTENING, RTL: 5, LN: 3
         # UDP PCB pool — includes wifi.lwip_internal (DHCP + DNS)
         f"MEMP_NUM_UDP_PCB={udp_sockets}",  # BK: 25, RTL/LN: 7 via LT
-        # Netconn pool — listening sockets are already counted in tcp_sockets
-        f"MEMP_NUM_NETCONN={tcp_sockets + udp_sockets}",
+        # Netconn pool — each socket (active + listening) needs a netconn
+        f"MEMP_NUM_NETCONN={tcp_sockets + udp_sockets + listening_tcp}",
         # Netbuf pool
         "MEMP_NUM_NETBUF=4",  # BK: 16, RTL: 2 (opt.h), LN: 8
         # Inbound message pool

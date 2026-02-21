@@ -284,7 +284,7 @@ def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
 
     # lwIP allocates UDP PCBs for DHCP client and DNS resolver internally.
     # These are not application sockets but consume MEMP_NUM_UDP_PCB pool entries.
-    socket.consume_sockets(2, "wifi.lwip_internal", socket.SOCKET_UDP)(config)
+    socket.consume_sockets(2, "wifi.lwip_internal", socket.SocketType.UDP)(config)
     return config
 
 

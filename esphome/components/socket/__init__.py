@@ -38,10 +38,6 @@ class SocketType(StrEnum):
     TCP_LISTEN = "tcp_listen"
 
 
-# Legacy aliases
-SOCKET_TCP = SocketType.TCP
-SOCKET_UDP = SocketType.UDP
-
 _SOCKET_TYPE_KEYS = {
     SocketType.TCP: KEY_SOCKET_CONSUMERS_TCP,
     SocketType.UDP: KEY_SOCKET_CONSUMERS_UDP,
@@ -134,7 +130,7 @@ def require_wake_loop_threadsafe() -> None:
         CORE.data[KEY_WAKE_LOOP_THREADSAFE_REQUIRED] = True
         cg.add_define("USE_WAKE_LOOP_THREADSAFE")
         # Consume 1 socket for the shared wake notification socket
-        consume_sockets(1, "socket.wake_loop_threadsafe", SOCKET_UDP)({})
+        consume_sockets(1, "socket.wake_loop_threadsafe", SocketType.UDP)({})
 
 
 CONFIG_SCHEMA = cv.Schema(
