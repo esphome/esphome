@@ -45,11 +45,6 @@ void HDC302XComponent::dump_config() {
 }
 
 void HDC302XComponent::update() {
-  if (this->heater_active_) {
-    ESP_LOGD(TAG, "Heater active, skipping measurement");
-    return;
-  }
-
   uint8_t cmd[] = {
       HDC302X_CMD_TRIGGER_MSB,
       this->power_mode_,
@@ -128,10 +123,6 @@ bool HDC302XComponent::disable_heater_() {
 }
 
 void HDC302XComponent::read_data_() {
-  if (this->heater_active_) {
-    return;
-  }
-
   uint8_t buf[6];
   if (this->read(buf, 6) != i2c::ERROR_OK) {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
