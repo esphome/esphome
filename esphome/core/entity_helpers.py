@@ -19,7 +19,7 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
 import esphome.final_validate as fv
-from esphome.helpers import cpp_string_escape, fnv1_hash_object_id, sanitize, snake_case
+from esphome.helpers import fnv1_hash_object_id, sanitize, snake_case
 from esphome.types import ConfigType, EntityMetadata
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,11 +50,11 @@ _MAX_ICONS = 0xFFF  # 12 bits → 4095
 
 @dataclass
 class EntityStringPool:
-    """Pool of entity string properties packed into contiguous blobs.
+    """Pool of entity string properties for PROGMEM pointer tables.
 
     Strings are registered during to_code() and assigned 1-based indices.
     Index 0 means "not set" (empty string). At render time, the pool
-    generates C++ blob + PROGMEM offset table + lookup function per category.
+    generates C++ PROGMEM pointer table + lookup function per category.
     """
 
     device_classes: dict[str, int] = field(default_factory=dict)
@@ -79,66 +79,38 @@ def _ensure_tables_registered() -> None:
     CORE.add_job(_generate_tables_job)
 
 
-def _generate_blob_and_offsets(
-    strings: dict[str, int],
-) -> tuple[bytes, list[int]]:
-    """Build a packed blob and offset list from a string dict.
-
-    Returns (blob_bytes, offsets) where offsets are 1-based (matching the
-    1-based indices returned by _register_string). Index 0 means "not set"
-    and is handled by the caller before reaching the lookup function.
-    """
-    # Sort by assigned index to ensure deterministic output
-    sorted_strings = sorted(strings.items(), key=lambda x: x[1])
-    blob = bytearray()
-    offsets = []
-    for s, _idx in sorted_strings:
-        offsets.append(len(blob))
-        blob.extend(s.encode("utf-8"))
-        blob.append(0)  # null terminator
-    return bytes(blob), offsets
-
-
 def _generate_category_code(
-    blob_var: str,
-    offsets_var: str,
+    table_var: str,
     lookup_fn: str,
     strings: dict[str, int],
 ) -> str:
-    """Generate C++ code for one string category (blob + offsets + lookup).
+    """Generate C++ code for one string category (PROGMEM pointer table + lookup).
 
-    Index 0 means "not set" and is handled by get_*_ref() before calling
-    the lookup function. The lookup uses 1-based indexing directly.
+    Uses a PROGMEM array of string pointers. On ESP8266, pointers are stored
+    in flash (via PROGMEM) and read with progmem_read_ptr(). String literals
+    themselves remain in RAM but benefit from linker string deduplication.
+    Index 0 means "not set" and returns empty string.
     """
     if not strings:
         return ""
 
-    blob_bytes, offsets = _generate_blob_and_offsets(strings)
-    use_uint16 = len(blob_bytes) > 255
-    offset_type = "uint16_t" if use_uint16 else "uint8_t"
-    read_fn = "progmem_read_word" if use_uint16 else "progmem_read_byte"
-    count = len(offsets)
-    blob_escaped = cpp_string_escape(blob_bytes)
-    offsets_str = ", ".join(str(o) for o in offsets)
-
-    # The blob's last byte is always '\0' (null terminator of last string).
-    # Point there for index 0 ("not set") and out-of-range to return "".
-    empty_offset = len(blob_bytes) - 1
+    sorted_strings = sorted(strings.items(), key=lambda x: x[1])
+    entries = ", ".join(f'"{s}"' for s, _ in sorted_strings)
+    count = len(sorted_strings)
 
     return (
-        f"static const char {blob_var}[] = {blob_escaped};\n"
-        f"static const {offset_type} {offsets_var}[] PROGMEM = {{{offsets_str}}};\n"
+        f"static const char *const {table_var}[] PROGMEM = {{{entries}}};\n"
         f"const char *{lookup_fn}(uint16_t index) {{\n"
-        f"  if (index == 0 || index > {count}) return &{blob_var}[{empty_offset}];\n"
-        f"  return &{blob_var}[{read_fn}(&{offsets_var}[index - 1])];\n"
+        f'  if (index == 0 || index > {count}) return "";\n'
+        f"  return progmem_read_ptr(&{table_var}[index - 1]);\n"
         f"}}\n"
     )
 
 
 _CATEGORY_CONFIGS = (
-    ("ENTITY_DC", "entity_device_class_lookup", "device_classes"),
-    ("ENTITY_UOM", "entity_uom_lookup", "units"),
-    ("ENTITY_ICON", "entity_icon_lookup", "icons"),
+    ("ENTITY_DC_TABLE", "entity_device_class_lookup", "device_classes"),
+    ("ENTITY_UOM_TABLE", "entity_uom_lookup", "units"),
+    ("ENTITY_ICON_TABLE", "entity_icon_lookup", "icons"),
 )
 
 
@@ -150,10 +122,8 @@ async def _generate_tables_job() -> None:
     """
     pool = _get_pool()
     parts = ["namespace esphome {"]
-    for prefix, lookup_fn, attr in _CATEGORY_CONFIGS:
-        code = _generate_category_code(
-            f"{prefix}_BLOB", f"{prefix}_OFFSETS", lookup_fn, getattr(pool, attr)
-        )
+    for table_var, lookup_fn, attr in _CATEGORY_CONFIGS:
+        code = _generate_category_code(table_var, lookup_fn, getattr(pool, attr))
         if code:
             parts.append(code)
     parts.append("}  // namespace esphome")
