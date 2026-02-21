@@ -1,5 +1,6 @@
 #include "hdc302x.h"
 
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -24,6 +25,8 @@ void HDC302XComponent::setup() {
     this->mark_failed("Soft reset failed");
     return;
   }
+  // Delay SensorRR (reset ready), per datasheet, 6.5.
+  delay(3);
 
   // Clear status register
   if (this->write(HDC302X_CMD_CLEAR_STATUS_REGISTER, 2) != i2c::ERROR_OK) {
