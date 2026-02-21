@@ -294,18 +294,19 @@ def _configure_lwip(config: dict) -> None:
     MEM_SIZE                  1.6KB   N/A*   32KB     5KB      N/A*     5KB BK
     MAX_SOCKETS_TCP           5       16     12       —**      —**      dynamic
     MAX_SOCKETS_UDP           4       16     22       —**      —**      dynamic
-    TCP_SND_QUEUELEN          ~8      17     20       13       35       17
+    TCP_SND_QUEUELEN          ~8      17     20       20       35       17
     MEMP_NUM_TCP_SEG          10      16     40       20       =qlen    17
     MEMP_NUM_TCP_PCB          5       16     12       10       8        =TCP
-    MEMP_NUM_UDP_PCB          4       16     24→7***  6→7***   4→7***   =UDP+2
-    MEMP_NUM_NETCONN          0       10     —****    —****    =sum     =sum
-    MEMP_NUM_NETBUF           0       2      —****    —****    8        4
-    MEMP_NUM_TCPIP_MSG_INPKT  4       8      —****    —****    12       8
+    MEMP_NUM_UDP_PCB          4       16     25***    7****    7****    =UDP
+    MEMP_NUM_NETCONN          0       10     38       4*****   =sum     =sum
+    MEMP_NUM_NETBUF           0       2      16       2*****   8        4
+    MEMP_NUM_TCPIP_MSG_INPKT  4       8      16       8*****   12       8
 
     * ESP32 and LN882H use MEM_LIBC_MALLOC=1 (system heap, no dedicated pool).
     ** RTL/LN SDKs don't define MAX_SOCKETS_TCP/UDP (LibreTiny-specific).
-    *** MEMP_NUM_UDP_PCB: SDK base values, all overridden to 7 by LT platform.
-    **** Not defined in SDK — lwIP opt.h defaults apply.
+    *** BK LT overlay: MAX_SOCKETS_UDP+2+1 = 25.
+    **** RTL/LN LT overlay overrides to flat 7.
+    ***** Not defined in RTL SDK — lwIP opt.h defaults shown.
     "dynamic" = auto-calculated from component socket registrations via
     socket.get_socket_counts() with minimums of 10 TCP / 6 UDP.
     """
@@ -333,7 +334,7 @@ def _configure_lwip(config: dict) -> None:
     # TCP_SND_QUEUELEN: max pbufs queued for send buffer
     # ESP-IDF formula: (4 * TCP_SND_BUF + (TCP_MSS - 1)) / TCP_MSS
     # With 4×MSS: (4*5840 + 1459) / 1460 = 17 — match ESP32
-    tcp_snd_queuelen = 17  # BK: 20, RTL: 13, LN: 35
+    tcp_snd_queuelen = 17  # BK: 20, RTL: 20, LN: 35
     # MEMP_NUM_TCP_SEG: segment pool, must be >= TCP_SND_QUEUELEN (lwIP sanity check)
     memp_num_tcp_seg = tcp_snd_queuelen  # BK: 40, RTL: 20, LN: =qlen
 
@@ -356,14 +357,14 @@ def _configure_lwip(config: dict) -> None:
         f"MEMP_NUM_TCP_SEG={memp_num_tcp_seg}",  # must be >= queuelen
         # PCB pools — 1:1 with socket counts
         f"MEMP_NUM_TCP_PCB={tcp_sockets}",  # BK: 12, RTL: 10, LN: 8
-        # UDP PCB pool — +2 for lwIP internal use (DHCP, DNS)
-        f"MEMP_NUM_UDP_PCB={udp_sockets + 2}",  # all SDKs →7 via LT
+        # UDP PCB pool — includes wifi.lwip_internal (DHCP + DNS)
+        f"MEMP_NUM_UDP_PCB={udp_sockets}",  # BK: 25, RTL/LN: 7 via LT
         # Netconn pool — sum of all socket types
         f"MEMP_NUM_NETCONN={tcp_sockets + listening_tcp + udp_sockets}",
         # Netbuf pool
-        "MEMP_NUM_NETBUF=4",  # BK/RTL: lwIP default(2), LN: 8
+        "MEMP_NUM_NETBUF=4",  # BK: 16, RTL: 2 (opt.h), LN: 8
         # Inbound message pool
-        "MEMP_NUM_TCPIP_MSG_INPKT=8",  # BK/RTL: lwIP default(8), LN: 12
+        "MEMP_NUM_TCPIP_MSG_INPKT=8",  # BK: 16, RTL: 8 (opt.h), LN: 12
     ]
 
     # MEM_SIZE: lwIP dedicated heap pool.

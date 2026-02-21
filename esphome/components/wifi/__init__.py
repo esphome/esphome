@@ -58,6 +58,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from . import wpa2_eap
 
@@ -269,9 +270,20 @@ def final_validate(config):
         )
 
 
+def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
+    """Register UDP PCBs used internally by lwIP for DHCP and DNS."""
+    from esphome.components import socket
+
+    # lwIP allocates UDP PCBs for DHCP client and DNS resolver internally.
+    # These are not application sockets but consume MEMP_NUM_UDP_PCB pool entries.
+    socket.consume_sockets(2, "wifi.lwip_internal", socket.SOCKET_UDP)(config)
+    return config
+
+
 FINAL_VALIDATE_SCHEMA = cv.All(
     final_validate,
     validate_variant,
+    _consume_wifi_sockets,
 )
 
 
