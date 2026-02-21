@@ -48,6 +48,8 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   int8_t get_accuracy_decimals();
   /// Manually set the accuracy in decimals.
   void set_accuracy_decimals(int8_t accuracy_decimals);
+  /// Check if the accuracy in decimals has been manually set.
+  bool has_accuracy_decimals() const { return this->sensor_flags_.has_accuracy_override; }
 
   /// Get the state class, using the manual override if set.
   StateClass get_state_class();
