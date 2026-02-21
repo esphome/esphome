@@ -134,6 +134,9 @@ class Application {
       this->name_ = name;
       this->friendly_name_ = friendly_name;
     }
+#ifdef USE_SETUP_HEAP_STATS
+    this->init_setup_heap_stats_baseline_();
+#endif
   }
 
 #ifdef USE_DEVICES
@@ -548,6 +551,10 @@ class Application {
   inline void drain_wake_notifications_();  // Read pending wake notifications in main loop (hot path - inlined)
 #endif
 
+#ifdef USE_SETUP_HEAP_STATS
+  void init_setup_heap_stats_baseline_();
+#endif
+
   // === Member variables ordered by size to minimize padding ===
 
   // Pointer-sized members first
@@ -585,6 +592,9 @@ class Application {
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
+#ifdef USE_SETUP_HEAP_STATS
+  uint32_t setup_heap_stats_baseline_{0};
+#endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
   int max_fd_{-1};  // Highest file descriptor number for select()

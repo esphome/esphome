@@ -554,7 +554,7 @@ static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c ==
 std::string base64_encode(const std::vector<uint8_t> &buf) { return base64_encode(buf.data(), buf.size()); }
 
 // Encode 3 input bytes to 4 base64 characters, append 'count' to ret.
-static inline void base64_encode_triple_(const char *char_array_3, int count, std::string &ret) {
+static inline void base64_encode_triple(const char *char_array_3, int count, std::string &ret) {
   char char_array_4[4];
   char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
   char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
@@ -573,7 +573,7 @@ std::string base64_encode(const uint8_t *buf, size_t buf_len) {
   while (buf_len--) {
     char_array_3[i++] = *(buf++);
     if (i == 3) {
-      base64_encode_triple_(char_array_3, 4, ret);
+      base64_encode_triple(char_array_3, 4, ret);
       i = 0;
     }
   }
@@ -582,7 +582,7 @@ std::string base64_encode(const uint8_t *buf, size_t buf_len) {
     for (int j = i; j < 3; j++)
       char_array_3[j] = '\0';
 
-    base64_encode_triple_(char_array_3, i + 1, ret);
+    base64_encode_triple(char_array_3, i + 1, ret);
 
     while ((i++ < 3))
       ret += '=';
@@ -596,7 +596,7 @@ size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf
 }
 
 // Decode 4 base64 characters to up to 'count' output bytes, returns true if truncated.
-static inline bool base64_decode_quad_(uint8_t *char_array_4, int count, uint8_t *buf, size_t buf_len, size_t &out) {
+static inline bool base64_decode_quad(uint8_t *char_array_4, int count, uint8_t *buf, size_t buf_len, size_t &out) {
   for (int i = 0; i < 4; i++)
     char_array_4[i] = base64_find_char(char_array_4[i]);
 
@@ -631,7 +631,7 @@ size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *b
     char_array_4[i++] = encoded_data[in];
     in++;
     if (i == 4) {
-      truncated |= base64_decode_quad_(char_array_4, 3, buf, buf_len, out);
+      truncated |= base64_decode_quad(char_array_4, 3, buf, buf_len, out);
       i = 0;
     }
   }
@@ -640,7 +640,7 @@ size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *b
     for (int j = i; j < 4; j++)
       char_array_4[j] = 0;
 
-    truncated |= base64_decode_quad_(char_array_4, i - 1, buf, buf_len, out);
+    truncated |= base64_decode_quad(char_array_4, i - 1, buf, buf_len, out);
   }
 
   if (truncated) {

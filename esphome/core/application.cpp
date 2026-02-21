@@ -21,6 +21,9 @@
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
 #endif
+#ifdef USE_SETUP_HEAP_STATS
+#include "esphome/components/setup_heap_stats/setup_heap_stats.h"
+#endif
 
 #if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 #include "esphome/components/socket/socket.h"
@@ -86,6 +89,14 @@ void Application::register_component_(Component *comp) {
     return;
   }
   this->components_.push_back(comp);
+#ifdef USE_SETUP_HEAP_STATS
+  if (global_setup_heap_stats == nullptr) {
+    // Lazily create collector on first component registration
+    // Pass the baseline captured in pre_setup() so the first component's cost is measured
+    new setup_heap_stats::SetupHeapStatsCollector(this->setup_heap_stats_baseline_);
+  }
+  global_setup_heap_stats->record_component_registered(comp);
+#endif
 }
 void Application::setup() {
   ESP_LOGI(TAG, "Running through setup()");
@@ -136,6 +147,12 @@ void Application::setup() {
   }
 
   ESP_LOGI(TAG, "setup() finished successfully!");
+
+#ifdef USE_SETUP_HEAP_STATS
+  if (global_setup_heap_stats != nullptr) {
+    global_setup_heap_stats->log_summary();
+  }
+#endif
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Clear setup priority overrides to free memory
@@ -754,5 +771,11 @@ void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buf
   ESPHOME_strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());
   buffer[buffer.size() - 1] = '\0';
 }
+
+#ifdef USE_SETUP_HEAP_STATS
+void Application::init_setup_heap_stats_baseline_() {
+  this->setup_heap_stats_baseline_ = setup_heap_stats::SetupHeapStatsCollector::get_free_internal_heap();
+}
+#endif
 
 }  // namespace esphome
