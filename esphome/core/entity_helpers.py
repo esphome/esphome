@@ -165,14 +165,18 @@ def register_icon(value: str) -> int:
 
 def setup_device_class(config: ConfigType) -> None:
     """Register config's device_class and store its index for finalize_entity_strings."""
-    config[_KEY_DC_IDX] = register_device_class(config.get(CONF_DEVICE_CLASS, ""))
+    idx = register_device_class(config.get(CONF_DEVICE_CLASS, ""))
+    if idx:
+        cg.add_define("USE_ENTITY_DEVICE_CLASS")
+    config[_KEY_DC_IDX] = idx
 
 
 def setup_unit_of_measurement(config: ConfigType) -> None:
     """Register config's unit_of_measurement and store its index for finalize_entity_strings."""
-    config[_KEY_UOM_IDX] = register_unit_of_measurement(
-        config.get(CONF_UNIT_OF_MEASUREMENT, "")
-    )
+    idx = register_unit_of_measurement(config.get(CONF_UNIT_OF_MEASUREMENT, ""))
+    if idx:
+        cg.add_define("USE_ENTITY_UNIT_OF_MEASUREMENT")
+    config[_KEY_UOM_IDX] = idx
 
 
 def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:

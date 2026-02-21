@@ -97,10 +97,16 @@ class EntityBase {
 
   // Set entity string table indices — one call per entity from codegen.
   // Packed: [23..16] icon | [15..8] UoM | [7..0] device_class (each 8 bits)
-  void set_entity_strings(uint32_t packed) {
+  void set_entity_strings([[maybe_unused]] uint32_t packed) {
+#ifdef USE_ENTITY_DEVICE_CLASS
     this->device_class_idx_ = packed & 0xFF;
+#endif
+#ifdef USE_ENTITY_UNIT_OF_MEASUREMENT
     this->uom_idx_ = (packed >> 8) & 0xFF;
+#endif
+#ifdef USE_ENTITY_ICON
     this->icon_idx_ = (packed >> 16) & 0xFF;
+#endif
   }
 
   // Get device class as StringRef (from packed index)
@@ -209,9 +215,15 @@ class EntityBase {
     uint8_t reserved : 2;         // Reserved for future use
   } flags_{};
   // String table indices — packed into the 3 padding bytes after flags_
+#ifdef USE_ENTITY_DEVICE_CLASS
   uint8_t device_class_idx_{};
+#endif
+#ifdef USE_ENTITY_UNIT_OF_MEASUREMENT
   uint8_t uom_idx_{};
+#endif
+#ifdef USE_ENTITY_ICON
   uint8_t icon_idx_{};
+#endif
 };
 
 /// Log entity icon if set (for use in dump_config)

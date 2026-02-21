@@ -52,12 +52,22 @@ __attribute__((weak)) const char *entity_icon_lookup(uint8_t) { return ""; }
 
 // Entity device class (from index)
 StringRef EntityBase::get_device_class_ref() const {
+#ifdef USE_ENTITY_DEVICE_CLASS
   return StringRef(entity_device_class_lookup(this->device_class_idx_));
+#else
+  return StringRef(entity_device_class_lookup(0));
+#endif
 }
 std::string EntityBase::get_device_class() const { return std::string(this->get_device_class_ref().c_str()); }
 
 // Entity unit of measurement (from index)
-StringRef EntityBase::get_unit_of_measurement_ref() const { return StringRef(entity_uom_lookup(this->uom_idx_)); }
+StringRef EntityBase::get_unit_of_measurement_ref() const {
+#ifdef USE_ENTITY_UNIT_OF_MEASUREMENT
+  return StringRef(entity_uom_lookup(this->uom_idx_));
+#else
+  return StringRef(entity_uom_lookup(0));
+#endif
+}
 std::string EntityBase::get_unit_of_measurement() const {
   return std::string(this->get_unit_of_measurement_ref().c_str());
 }
