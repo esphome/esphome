@@ -21,12 +21,12 @@ namespace esphome::logger {
  *
  * Threading Model: Multi-Producer Single-Consumer (MPSC)
  * - Multiple threads can safely call send_message_thread_safe() concurrently
- * - Only the main loop thread calls get_message_main_loop() and release_message_main_loop()
+ * - Only the main loop thread calls borrow_message_main_loop() and release_message_main_loop()
  *
  *   Producers (multiple threads)              Consumer (main loop only)
  *            │                                        │
  *            ▼                                        ▼
- *     acquire_write_slot_()                  get_message_main_loop()
+ *     acquire_write_slot_()                  bool borrow_message_main_loop()
  *       CAS on reserve_index_                  read write_index_
  *            │                                   check ready flag
  *            ▼                                        │
@@ -48,7 +48,7 @@ namespace esphome::logger {
  * - Atomic CAS for slot reservation allows multiple producers without locks
  * - Single consumer (main loop) processes messages in order
  */
-class TaskLogBufferHost {
+class TaskLogBuffer {
  public:
   // Default number of message slots - host has plenty of memory
   static constexpr size_t DEFAULT_SLOT_COUNT = 64;
@@ -71,15 +71,16 @@ class TaskLogBufferHost {
       thread_name[0] = '\0';
       text[0] = '\0';
     }
+    inline char *text_data() { return this->text; }
   };
 
   /// Constructor that takes the number of message slots
-  explicit TaskLogBufferHost(size_t slot_count);
-  ~TaskLogBufferHost();
+  explicit TaskLogBuffer(size_t slot_count);
+  ~TaskLogBuffer();
 
   // NOT thread-safe - get next message from buffer, only call from main loop
   // Returns true if a message was retrieved, false if buffer is empty
-  bool get_message_main_loop(LogMessage **message);
+  bool borrow_message_main_loop(LogMessage *&message, uint16_t &text_length);
 
   // NOT thread-safe - release the message after processing, only call from main loop
   void release_message_main_loop();
