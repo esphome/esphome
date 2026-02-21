@@ -25,7 +25,6 @@ from esphome.const import (
     CONF_PLATFORM_VERSION,
     CONF_PLATFORMIO_OPTIONS,
     CONF_REF,
-    CONF_REFRESH,
     CONF_SAFE_MODE,
     CONF_SOURCE,
     CONF_TYPE,
@@ -41,12 +40,12 @@ from esphome.const import (
     ThreadModel,
     __version__,
 )
-from esphome.core import CORE, HexInt, TimePeriod
+from esphome.core import CORE, HexInt
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
-from esphome.helpers import copy_file_if_changed, write_file_if_changed
+from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
-from esphome.writer import clean_cmake_cache, rmtree
+from esphome.writer import clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
@@ -88,6 +87,7 @@ IS_TARGET_PLATFORM = True
 CONF_ASSERTION_LEVEL = "assertion_level"
 CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
+CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
@@ -499,49 +499,24 @@ def add_idf_component(
     repo: str | None = None,
     ref: str | None = None,
     path: str | None = None,
-    refresh: TimePeriod | None = None,
-    components: list[str] | None = None,
-    submodules: list[str] | None = None,
 ):
     """Add an esp-idf component to the project."""
     if not repo and not ref and not path:
         raise ValueError("Requires at least one of repo, ref or path")
-    if refresh or submodules or components:
-        _LOGGER.warning(
-            "The refresh, components and submodules parameters in add_idf_component() are "
-            "deprecated and will be removed in ESPHome 2026.1. If you are seeing this, report "
-            "an issue to the external_component author and ask them to update it."
-        )
     components_registry = CORE.data[KEY_ESP32][KEY_COMPONENTS]
-    if components:
-        for comp in components:
-            existing = components_registry.get(comp)
-            if existing and existing.get(KEY_REF) != ref:
-                _LOGGER.warning(
-                    "IDF component %s version conflict %s replaced by %s",
-                    comp,
-                    existing.get(KEY_REF),
-                    ref,
-                )
-            components_registry[comp] = {
-                KEY_REPO: repo,
-                KEY_REF: ref,
-                KEY_PATH: f"{path}/{comp}" if path else comp,
-            }
-    else:
-        existing = components_registry.get(name)
-        if existing and existing.get(KEY_REF) != ref:
-            _LOGGER.warning(
-                "IDF component %s version conflict %s replaced by %s",
-                name,
-                existing.get(KEY_REF),
-                ref,
-            )
-        components_registry[name] = {
-            KEY_REPO: repo,
-            KEY_REF: ref,
-            KEY_PATH: path,
-        }
+    existing = components_registry.get(name)
+    if existing and existing.get(KEY_REF) != ref:
+        _LOGGER.warning(
+            "IDF component %s version conflict %s replaced by %s",
+            name,
+            existing.get(KEY_REF),
+            ref,
+        )
+    components_registry[name] = {
+        KEY_REPO: repo,
+        KEY_REF: ref,
+        KEY_PATH: path,
+    }
 
 
 def exclude_builtin_idf_component(name: str) -> None:
@@ -613,16 +588,22 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     return f"{ARDUINO_FRAMEWORK_PKG}@https://github.com/espressif/arduino-esp32/releases/download/{ver}/{filename}"
 
 
-def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
+def _format_framework_espidf_version(
+    ver: cv.Version, release: str | None = None
+) -> str:
     # format the given espidf (https://github.com/pioarduino/esp-idf/releases) version to
     # a PIO platformio/framework-espidf value
     if ver == cv.Version(5, 4, 3) or ver >= cv.Version(5, 5, 1):
         ext = "tar.xz"
     else:
         ext = "zip"
+    # Build version string with dot-separated extra (e.g., "5.5.3.1" not "5.5.3-1")
+    ver_str = f"{ver.major}.{ver.minor}.{ver.patch}"
+    if ver.extra:
+        ver_str += f".{ver.extra}"
     if release:
-        return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}.{release}/esp-idf-v{str(ver)}.{ext}"
-    return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.{ext}"
+        return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{ver_str}.{release}/esp-idf-v{ver_str}.{ext}"
+    return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{ver_str}/esp-idf-v{ver_str}.{ext}"
 
 
 def _is_framework_url(source: str) -> bool:
@@ -669,7 +650,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
-    cv.Version(3, 3, 7): cv.Version(5, 5, 2),
+    cv.Version(3, 3, 7): cv.Version(5, 5, 3, "1"),
     cv.Version(3, 3, 6): cv.Version(5, 5, 2),
     cv.Version(3, 3, 5): cv.Version(5, 5, 2),
     cv.Version(3, 3, 4): cv.Version(5, 5, 1),
@@ -688,11 +669,13 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 2),
-    "latest": cv.Version(5, 5, 2),
-    "dev": cv.Version(5, 5, 2),
+    "recommended": cv.Version(5, 5, 3, "1"),
+    "latest": cv.Version(5, 5, 3, "1"),
+    "dev": cv.Version(5, 5, 3, "1"),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
+    cv.Version(5, 5, 3): cv.Version(55, 3, 37),
     cv.Version(5, 5, 2): cv.Version(55, 3, 37),
     cv.Version(5, 5, 1): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 5, 0): cv.Version(55, 3, 31, "2"),
@@ -755,7 +738,7 @@ def _check_versions(config):
         platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE,
-            _format_framework_espidf_version(version, value.get(CONF_RELEASE, None)),
+            _format_framework_espidf_version(version, value.get(CONF_RELEASE)),
         )
         if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = f"pioarduino/framework-espidf@{value[CONF_SOURCE]}"
@@ -803,6 +786,15 @@ def _detect_variant(value):
         # variant has already been validated against the known set
         value = value.copy()
         value[CONF_BOARD] = STANDARD_BOARDS[variant]
+        if variant == VARIANT_ESP32P4:
+            engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
+            if engineering_sample is None:
+                _LOGGER.warning(
+                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3). "
+                    "If you have an early engineering sample (pre-rev3), set 'engineering_sample: true'."
+                )
+            elif engineering_sample:
+                value[CONF_BOARD] = "esp32-p4-evboard"
     elif board in BOARDS:
         variant = variant or BOARDS[board][KEY_VARIANT]
         if variant != BOARDS[board][KEY_VARIANT]:
@@ -866,6 +858,30 @@ def final_validate(config):
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_MINIMUM_CHIP_REVISION],
             )
         )
+    if (
+        config[CONF_VARIANT] != VARIANT_ESP32P4
+        and config.get(CONF_ENGINEERING_SAMPLE) is not None
+    ):
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_ENGINEERING_SAMPLE}' is only supported on {VARIANT_ESP32P4}",
+                path=[CONF_ENGINEERING_SAMPLE],
+            )
+        )
+    if (
+        config[CONF_VARIANT] == VARIANT_ESP32P4
+        and config.get(CONF_ENGINEERING_SAMPLE) is not None
+    ):
+        board_is_es = BOARDS.get(config[CONF_BOARD], {}).get(
+            "engineering_sample", False
+        )
+        if config[CONF_ENGINEERING_SAMPLE] != board_is_es:
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_ENGINEERING_SAMPLE}' does not match board '{config[CONF_BOARD]}'",
+                    path=[CONF_ENGINEERING_SAMPLE],
+                )
+            )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         if config[CONF_VARIANT] != VARIANT_ESP32S3:
             errs.append(
@@ -1037,16 +1053,6 @@ def _parse_idf_component(value: str) -> ConfigType:
     )
 
 
-def _validate_idf_component(config: ConfigType) -> ConfigType:
-    """Validate IDF component config and warn about deprecated options."""
-    if CONF_REFRESH in config:
-        _LOGGER.warning(
-            "The 'refresh' option for IDF components is deprecated and has no effect. "
-            "It will be removed in ESPHome 2026.1. Please remove it from your configuration."
-        )
-    return config
-
-
 FRAMEWORK_ESP_IDF = "esp-idf"
 FRAMEWORK_ARDUINO = "arduino"
 FRAMEWORK_SCHEMA = cv.Schema(
@@ -1135,13 +1141,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                             cv.Optional(CONF_SOURCE): cv.git_ref,
                             cv.Optional(CONF_REF): cv.string,
                             cv.Optional(CONF_PATH): cv.string,
-                            cv.Optional(CONF_REFRESH): cv.All(
-                                cv.string, cv.source_refresh
-                            ),
                         }
                     ),
                 ),
-                _validate_idf_component,
             )
         ),
     }
@@ -1229,6 +1231,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CPU_FREQUENCY): cv.one_of(
                 *FULL_CPU_FREQUENCIES, upper=True
             ),
+            cv.Optional(CONF_ENGINEERING_SAMPLE): cv.boolean,
             cv.Optional(CONF_FLASH_SIZE, default="4MB"): cv.one_of(
                 *FLASH_SIZES, upper=True
             ),
@@ -1467,7 +1470,7 @@ async def to_code(config):
             if (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
                 cg.add_platformio_option(
                     "platform_packages",
-                    [_format_framework_espidf_version(idf_ver, None)],
+                    [_format_framework_espidf_version(idf_ver)],
                 )
                 # Use stub package to skip downloading precompiled libs
                 stubs_dir = CORE.relative_build_path("arduino_libs_stub")
@@ -1510,6 +1513,16 @@ async def to_code(config):
     add_idf_sdkconfig_option(
         f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
     )
+
+    # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
+    # from y to n. PlatformIO uses sections.ld.in (for rev <3) or
+    # sections.rev3.ld.in (for rev >=3) based on board definition.
+    # Set the sdkconfig option to match the board's chip revision.
+    if variant == VARIANT_ESP32P4:
+        is_eng_sample = BOARDS.get(config[CONF_BOARD], {}).get(
+            "engineering_sample", False
+        )
+        add_idf_sdkconfig_option("CONFIG_ESP32P4_SELECTS_REV_LESS_V3", is_eng_sample)
 
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,

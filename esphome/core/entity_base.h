@@ -231,8 +231,13 @@ class EntityBase_UnitOfMeasurement {  // NOLINT(readability-identifier-naming)
 };
 
 /// Log entity icon if set (for use in dump_config)
+#ifdef USE_ENTITY_ICON
 #define LOG_ENTITY_ICON(tag, prefix, obj) log_entity_icon(tag, prefix, obj)
 void log_entity_icon(const char *tag, const char *prefix, const EntityBase &obj);
+#else
+#define LOG_ENTITY_ICON(tag, prefix, obj) ((void) 0)
+inline void log_entity_icon(const char *, const char *, const EntityBase &) {}
+#endif
 /// Log entity device class if set (for use in dump_config)
 #define LOG_ENTITY_DEVICE_CLASS(tag, prefix, obj) log_entity_device_class(tag, prefix, obj)
 void log_entity_device_class(const char *tag, const char *prefix, const EntityBase_DeviceClass &obj);
