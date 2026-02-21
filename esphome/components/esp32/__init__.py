@@ -1307,11 +1307,13 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     max_sockets = max(DEFAULT_MAX_SOCKETS, total_sockets)
 
     log_level = logging.INFO if max_sockets > DEFAULT_MAX_SOCKETS else logging.DEBUG
+    sock_min = " (min)" if max_sockets > total_sockets else ""
     _LOGGER.log(
         log_level,
-        "Setting CONFIG_LWIP_MAX_SOCKETS to %d "
+        "Setting CONFIG_LWIP_MAX_SOCKETS to %d%s "
         "(TCP=%d [%s], UDP=%d [%s], TCP_LISTEN=%d [%s])",
         max_sockets,
+        sock_min,
         tcp_sockets,
         tcp_details,
         udp_sockets,
