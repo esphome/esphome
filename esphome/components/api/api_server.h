@@ -249,8 +249,8 @@ class APIServer : public Component,
   void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
                                std::function<void(const std::string &)> f, bool once);
 #endif  // USE_API_HOMEASSISTANT_STATES
-  // Listen sockets use LwIPSocketImpl/BSDSocketImpl whose destructors call close()
-  inline void close_socket_() {
+  // Socket destructor will close or abort depending on platform
+  inline void destroy_socket_() {
     delete this->socket_;
     this->socket_ = nullptr;
   }

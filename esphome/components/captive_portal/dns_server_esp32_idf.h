@@ -14,8 +14,8 @@ class DNSServer {
   void process_next_request();
 
  protected:
-  // Listen sockets use LwIPSocketImpl/BSDSocketImpl whose destructors call close()
-  inline void close_socket_() {
+  // Socket destructor will close or abort depending on platform
+  inline void destroy_socket_() {
     delete this->socket_;
     this->socket_ = nullptr;
   }

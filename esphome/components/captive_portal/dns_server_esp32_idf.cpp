@@ -70,14 +70,14 @@ void DNSServer::start(const network::IPAddress &ip) {
   int err = this->socket_->bind((struct sockaddr *) &server_addr, addr_len);
   if (err != 0) {
     ESP_LOGE(TAG, "Bind failed: %d", errno);
-    this->close_socket_();
+    this->destroy_socket_();
     return;
   }
   ESP_LOGV(TAG, "Bound to port %d", DNS_PORT);
 }
 
 void DNSServer::stop() {
-  this->close_socket_();
+  this->destroy_socket_();
   ESP_LOGV(TAG, "Stopped");
 }
 

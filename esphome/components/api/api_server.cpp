@@ -32,7 +32,7 @@ APIServer::APIServer() { global_api_server = this; }
 
 void APIServer::socket_failed_(const LogString *msg) {
   ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
-  this->close_socket_();
+  this->destroy_socket_();
   this->mark_failed();
 }
 
@@ -623,7 +623,7 @@ void APIServer::on_shutdown() {
   this->shutting_down_ = true;
 
   // Close the listening socket to prevent new connections
-  this->close_socket_();
+  this->destroy_socket_();
 
   // Change batch delay to 5ms for quick flushing during shutdown
   this->batch_delay_ = 5;

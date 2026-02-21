@@ -452,7 +452,7 @@ void ESPHomeOTAComponent::log_remote_closed_(const LogString *during) {
 
 void ESPHomeOTAComponent::server_failed_(const LogString *msg) {
   this->log_socket_error_(msg);
-  // Listen sockets use LwIPSocketImpl/BSDSocketImpl whose destructors call close()
+  // Socket destructor will close or abort depending on platform
   delete this->server_;
   this->server_ = nullptr;
   this->mark_failed();
