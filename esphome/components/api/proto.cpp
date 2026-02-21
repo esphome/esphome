@@ -70,6 +70,21 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
   return count;
 }
 
+#ifdef ESPHOME_DEBUG_API
+void ProtoWriteBuffer::debug_check_bounds_(size_t bytes, const char *caller) {
+  if (this->pos_ + bytes > this->buffer_->data() + this->buffer_->size()) {
+    ESP_LOGE(TAG, "ProtoWriteBuffer bounds check failed in %s: bytes=%zu offset=%td buf_size=%zu", caller, bytes,
+             this->pos_ - this->buffer_->data(), this->buffer_->size());
+    abort();
+  }
+}
+void ProtoWriteBuffer::debug_check_encode_size_(uint32_t field_id, uint32_t expected, ptrdiff_t actual) {
+  ESP_LOGE(TAG, "encode_message: size mismatch for field %" PRIu32 ": calculated=%" PRIu32 " actual=%td", field_id,
+           expected, actual);
+  abort();
+}
+#endif
+
 void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
   const uint8_t *ptr = buffer;
   const uint8_t *end = buffer + length;

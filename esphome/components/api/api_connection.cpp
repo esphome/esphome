@@ -347,9 +347,7 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
 #endif
 
   // Calculate size
-  ProtoSize size_calc;
-  msg.calculate_size(size_calc);
-  uint32_t calculated_size = size_calc.get_size();
+  uint32_t calculated_size = msg.calculated_size();
 
   // Cache frame sizes to avoid repeated virtual calls
   const uint8_t header_padding = conn->helper_->frame_header_padding();
@@ -377,19 +375,14 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
     shared_buf.resize(current_size + footer_size + header_padding);
   }
 
-  // Encode directly into buffer
-  size_t size_before_encode = shared_buf.size();
-  msg.encode({&shared_buf});
+  // Pre-resize buffer to include payload, then encode through raw pointer
+  size_t write_start = shared_buf.size();
+  shared_buf.resize(write_start + calculated_size);
+  ProtoWriteBuffer buffer{&shared_buf, write_start};
+  msg.encode(buffer);
 
-  // Calculate actual encoded size (not including header that was already added)
-  size_t actual_payload_size = shared_buf.size() - size_before_encode;
-
-  // Return actual total size (header + actual payload + footer)
-  size_t actual_total_size = header_padding + actual_payload_size + footer_size;
-
-  // Verify that calculate_size() returned the correct value
-  assert(calculated_size == actual_payload_size);
-  return static_cast<uint16_t>(actual_total_size);
+  // Return total size (header + payload + footer)
+  return static_cast<uint16_t>(header_padding + calculated_size + footer_size);
 }
 
 #ifdef USE_BINARY_SENSOR
@@ -1854,12 +1847,14 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   return false;
 }
 bool APIConnection::send_message_impl(const ProtoMessage &msg, uint8_t message_type) {
-  ProtoSize size;
-  msg.calculate_size(size);
+  uint32_t payload_size = msg.calculated_size();
   std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
-  this->prepare_first_message_buffer(shared_buf, size.get_size());
-  msg.encode({&shared_buf});
-  return this->send_buffer({&shared_buf}, message_type);
+  this->prepare_first_message_buffer(shared_buf, payload_size);
+  size_t write_start = shared_buf.size();
+  shared_buf.resize(write_start + payload_size);
+  ProtoWriteBuffer buffer{&shared_buf, write_start};
+  msg.encode(buffer);
+  return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   const bool is_log_message = (message_type == SubscribeLogsResponse::MESSAGE_TYPE);
