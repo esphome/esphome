@@ -60,8 +60,36 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
       return "TURN_ON";
     case MEDIA_PLAYER_COMMAND_TURN_OFF:
       return "TURN_OFF";
+    case MEDIA_PLAYER_COMMAND_NEXT:
+      return "NEXT";
+    case MEDIA_PLAYER_COMMAND_PREVIOUS:
+      return "PREVIOUS";
+    case MEDIA_PLAYER_COMMAND_REPEAT_ALL:
+      return "REPEAT_ALL";
+    case MEDIA_PLAYER_COMMAND_SHUFFLE:
+      return "SHUFFLE";
+    case MEDIA_PLAYER_COMMAND_UNSHUFFLE:
+      return "UNSHUFFLE";
+    case MEDIA_PLAYER_COMMAND_GROUP_JOIN:
+      return "GROUP_JOIN";
     default:
       return "UNKNOWN";
+  }
+}
+
+void MediaPlayerTraits::set_supports_pause(bool supports_pause) {
+  if (supports_pause) {
+    this->feature_flags_ |= MediaPlayerEntityFeature::PAUSE | MediaPlayerEntityFeature::PLAY;
+  } else {
+    this->feature_flags_ &= ~(MediaPlayerEntityFeature::PAUSE | MediaPlayerEntityFeature::PLAY);
+  }
+}
+
+void MediaPlayerTraits::set_supports_turn_off_on(bool supports_turn_off_on) {
+  if (supports_turn_off_on) {
+    this->feature_flags_ |= MediaPlayerEntityFeature::TURN_OFF | MediaPlayerEntityFeature::TURN_ON;
+  } else {
+    this->feature_flags_ &= ~(MediaPlayerEntityFeature::TURN_OFF | MediaPlayerEntityFeature::TURN_ON);
   }
 }
 
@@ -125,6 +153,30 @@ MediaPlayerCall &MediaPlayerCall::set_command(const char *command) {
     this->set_command(MEDIA_PLAYER_COMMAND_TURN_ON);
   } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TURN_OFF")) == 0) {
     this->set_command(MEDIA_PLAYER_COMMAND_TURN_OFF);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("VOLUME_UP")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_VOLUME_UP);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("VOLUME_DOWN")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_VOLUME_DOWN);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("ENQUEUE")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_ENQUEUE);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("REPEAT_ONE")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_REPEAT_ONE);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("REPEAT_OFF")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_REPEAT_OFF);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("REPEAT_ALL")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_REPEAT_ALL);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("CLEAR_PLAYLIST")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("NEXT")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_NEXT);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("PREVIOUS")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_PREVIOUS);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("SHUFFLE")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_SHUFFLE);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("UNSHUFFLE")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_UNSHUFFLE);
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("GROUP_JOIN")) == 0) {
+    this->set_command(MEDIA_PLAYER_COMMAND_GROUP_JOIN);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
   }
