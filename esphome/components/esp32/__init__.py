@@ -1265,7 +1265,14 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
 
     # CONFIG_LWIP_MAX_SOCKETS is a single VFS socket pool shared by all socket
     # types (TCP clients, TCP listeners, and UDP). Include all three counts.
-    tcp_sockets, udp_sockets, tcp_listen = get_socket_counts()
+    (
+        tcp_sockets,
+        udp_sockets,
+        tcp_listen,
+        tcp_details,
+        udp_details,
+        tcp_listen_details,
+    ) = get_socket_counts()
     total_sockets = tcp_sockets + udp_sockets + tcp_listen
 
     # User specified their own value - respect it but warn if insufficient
@@ -1302,11 +1309,15 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     log_level = logging.INFO if max_sockets > DEFAULT_MAX_SOCKETS else logging.DEBUG
     _LOGGER.log(
         log_level,
-        "Setting CONFIG_LWIP_MAX_SOCKETS to %d (%d TCP + %d UDP + %d TCP_LISTEN)",
+        "Setting CONFIG_LWIP_MAX_SOCKETS to %d "
+        "(TCP=%d [%s], UDP=%d [%s], TCP_LISTEN=%d [%s])",
         max_sockets,
         tcp_sockets,
+        tcp_details,
         udp_sockets,
+        udp_details,
         tcp_listen,
+        tcp_listen_details,
     )
 
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
