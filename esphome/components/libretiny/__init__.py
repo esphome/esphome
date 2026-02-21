@@ -321,7 +321,9 @@ def _configure_lwip(config: dict) -> None:
         get_socket_counts,
     )
 
-    raw_tcp, raw_udp, raw_tcp_listen, *_ = get_socket_counts()
+    raw_tcp, raw_udp, raw_tcp_listen, tcp_details, udp_details, tcp_listen_details = (
+        get_socket_counts()
+    )
     # Apply platform minimums — ensure headroom for ESPHome's needs
     tcp_sockets = max(MIN_TCP_SOCKETS, raw_tcp)
     udp_sockets = max(MIN_UDP_SOCKETS, raw_udp)
@@ -396,6 +398,15 @@ def _configure_lwip(config: dict) -> None:
     if CORE.is_bk72xx:
         lwip_opts.append("PBUF_POOL_SIZE=10")
 
+    _LOGGER.info(
+        "Configuring lwIP: TCP=%d [%s], UDP=%d [%s], TCP_LISTEN=%d [%s]",
+        tcp_sockets,
+        tcp_details,
+        udp_sockets,
+        udp_details,
+        listening_tcp,
+        tcp_listen_details,
+    )
     cg.add_platformio_option("custom_options.lwip", lwip_opts)
 
 
