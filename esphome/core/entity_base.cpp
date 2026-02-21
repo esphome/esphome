@@ -50,25 +50,22 @@ __attribute__((weak)) const char *entity_device_class_lookup(uint16_t) { return 
 __attribute__((weak)) const char *entity_uom_lookup(uint16_t) { return ""; }
 __attribute__((weak)) const char *entity_icon_lookup(uint16_t) { return ""; }
 
-// Entity device class (from packed index)
+// Entity device class (from index)
 StringRef EntityBase::get_device_class_ref() const {
-  return StringRef(
-      entity_device_class_lookup((this->entity_string_packed_ >> ENTITY_STR_DC_SHIFT) & ENTITY_STR_DC_MASK));
+  return StringRef(entity_device_class_lookup(this->device_class_idx_));
 }
 std::string EntityBase::get_device_class() const { return std::string(this->get_device_class_ref().c_str()); }
 
-// Entity unit of measurement (from packed index)
-StringRef EntityBase::get_unit_of_measurement_ref() const {
-  return StringRef(entity_uom_lookup((this->entity_string_packed_ >> ENTITY_STR_UOM_SHIFT) & ENTITY_STR_UOM_MASK));
-}
+// Entity unit of measurement (from index)
+StringRef EntityBase::get_unit_of_measurement_ref() const { return StringRef(entity_uom_lookup(this->uom_idx_)); }
 std::string EntityBase::get_unit_of_measurement() const {
   return std::string(this->get_unit_of_measurement_ref().c_str());
 }
 
-// Entity icon (from packed index)
+// Entity icon (from index)
 StringRef EntityBase::get_icon_ref() const {
 #ifdef USE_ENTITY_ICON
-  return StringRef(entity_icon_lookup((this->entity_string_packed_ >> ENTITY_STR_ICON_SHIFT) & ENTITY_STR_ICON_MASK));
+  return StringRef(entity_icon_lookup(this->icon_idx_));
 #else
   return StringRef(entity_icon_lookup(0));
 #endif

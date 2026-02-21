@@ -14,20 +14,11 @@
 
 namespace esphome {
 
-// Extern lookup functions for packed entity string tables.
+// Extern lookup functions for entity string tables.
 // Generated code provides strong definitions; weak defaults return "".
 extern const char *entity_device_class_lookup(uint16_t index);
 extern const char *entity_uom_lookup(uint16_t index);
 extern const char *entity_icon_lookup(uint16_t index);
-
-// Bit layout for entity_string_packed_:
-//   [31..24] reserved | [23..16] icon (8 bits) | [15..8] UoM (8 bits) | [7..0] device_class (8 bits)
-static constexpr uint8_t ENTITY_STR_DC_SHIFT = 0;
-static constexpr uint8_t ENTITY_STR_UOM_SHIFT = 8;
-static constexpr uint8_t ENTITY_STR_ICON_SHIFT = 16;
-static constexpr uint8_t ENTITY_STR_DC_MASK = 0xFF;
-static constexpr uint8_t ENTITY_STR_UOM_MASK = 0xFF;
-static constexpr uint8_t ENTITY_STR_ICON_MASK = 0xFF;
 
 // Maximum device name length - keep in sync with validate_hostname() in esphome/core/config.py
 static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;
@@ -104,9 +95,13 @@ class EntityBase {
     this->flags_.entity_category = static_cast<uint8_t>(entity_category);
   }
 
-  // Set packed entity string indices — one call per entity from codegen.
-  // Bit layout: [23..16] icon (8 bits) | [15..8] UoM (8 bits) | [7..0] device_class (8 bits)
-  void set_entity_strings(uint32_t packed) { this->entity_string_packed_ = packed; }
+  // Set entity string table indices — one call per entity from codegen.
+  // Packed: [23..16] icon | [15..8] UoM | [7..0] device_class (each 8 bits)
+  void set_entity_strings(uint32_t packed) {
+    this->device_class_idx_ = packed & 0xFF;
+    this->uom_idx_ = (packed >> 8) & 0xFF;
+    this->icon_idx_ = (packed >> 16) & 0xFF;
+  }
 
   // Get device class as StringRef (from packed index)
   StringRef get_device_class_ref() const;
@@ -199,7 +194,6 @@ class EntityBase {
   void calc_object_id_();
 
   StringRef name_;
-  uint32_t entity_string_packed_{0};  // bits 0-7: device_class, 8-15: uom, 16-23: icon, 24-31: reserved
   uint32_t object_id_hash_{};
 #ifdef USE_DEVICES
   Device *device_{};
@@ -214,6 +208,10 @@ class EntityBase {
     uint8_t entity_category : 2;  // Supports up to 4 categories
     uint8_t reserved : 2;         // Reserved for future use
   } flags_{};
+  // String table indices — packed into the 3 padding bytes after flags_
+  uint8_t device_class_idx_{};
+  uint8_t uom_idx_{};
+  uint8_t icon_idx_{};
 };
 
 /// Log entity icon if set (for use in dump_config)
