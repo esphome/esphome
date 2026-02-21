@@ -70,27 +70,12 @@ void E131Component::loop() {
   E131Packet packet;
   int universe = 0;
   uint8_t buf[1460];
+  ssize_t len;
 
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  ssize_t len = this->socket_->read(buf, sizeof(buf));
-  if (len == -1) {
-    return;
-  }
-
-  if (!this->packet_(buf, (size_t) len, universe, packet)) {
-    ESP_LOGV(TAG, "Invalid packet received of size %d.", (int) len);
-    return;
-  }
-
-  if (!this->process_(universe, packet)) {
-    ESP_LOGV(TAG, "Ignored packet for %d universe of size %d.", universe, packet.count);
-  }
-#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
-  while (auto packet_size = this->udp_.parsePacket()) {
-    auto len = this->udp_.read(buf, sizeof(buf));
-    if (len <= 0)
-      continue;
-
+  // Drain all queued packets so multi-universe frames are applied
+  // atomically before the light writes. Without this, each universe
+  // packet would trigger a separate full-strip write causing tearing.
+  while ((len = this->read_(buf, sizeof(buf))) > 0) {
     if (!this->packet_(buf, (size_t) len, universe, packet)) {
       ESP_LOGV(TAG, "Invalid packet received of size %d.", (int) len);
       continue;
@@ -100,7 +85,6 @@ void E131Component::loop() {
       ESP_LOGV(TAG, "Ignored packet for %d universe of size %d.", universe, packet.count);
     }
   }
-#endif
 }
 
 void E131Component::add_effect(E131AddressableLightEffect *light_effect) {
