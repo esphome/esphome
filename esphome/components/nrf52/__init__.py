@@ -270,6 +270,7 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
+    zephyr_add_prj_conf("REBOOT", True)
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
