@@ -16,8 +16,8 @@ from esphome.const import (
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
 )
-from esphome.core import CORE, ID
-from esphome.cpp_generator import DeferredStatement, MockObj, add, get_variable
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
 import esphome.final_validate as fv
 from esphome.helpers import cpp_string_escape, fnv1_hash_object_id, sanitize, snake_case
 from esphome.types import ConfigType, EntityMetadata
@@ -30,6 +30,22 @@ DOMAIN = "entity_string_pool"
 _KEY_DC_IDX = "_entity_dc_idx"
 _KEY_UOM_IDX = "_entity_uom_idx"
 _KEY_ICON_IDX = "_entity_icon_idx"
+
+# Bit layout for entity_string_packed_ (must match C++ constants in entity_base.h):
+#
+#   uint32_t entity_string_packed_:
+#     [31 .......... 20][19 ......... 10][9 ........... 0]
+#       icon (12 bits)    UoM (10 bits)   device_class (10 bits)
+#         max 4095         max 1023         max 1023
+#
+_DC_SHIFT = 0
+_UOM_SHIFT = 10
+_ICON_SHIFT = 20
+
+# Maximum unique strings per category (must match bit widths above)
+_MAX_DEVICE_CLASSES = 0x3FF  # 10 bits → 1023
+_MAX_UNITS = 0x3FF  # 10 bits → 1023
+_MAX_ICONS = 0xFFF  # 12 bits → 4095
 
 
 @dataclass
@@ -55,12 +71,12 @@ def _get_pool() -> EntityStringPool:
 
 
 def _ensure_tables_registered() -> None:
-    """Register the deferred global statement for table generation (once)."""
+    """Schedule the table generation job (once)."""
     pool = _get_pool()
     if pool._tables_registered:
         return
     pool._tables_registered = True
-    cg.add_global(DeferredStatement(_generate_tables))
+    CORE.add_job(_generate_tables_job)
 
 
 def _generate_blob_and_offsets(
@@ -117,8 +133,12 @@ _CATEGORY_CONFIGS = (
 )
 
 
-def _generate_tables() -> str:
-    """Generate all entity string table C++ code. Called at render time."""
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _generate_tables_job() -> None:
+    """Generate all entity string table C++ code as a FINAL-priority job.
+
+    Runs after all component to_code() calls have registered their strings.
+    """
     pool = _get_pool()
     parts = ["namespace esphome {"]
     for prefix, lookup_fn, attr in _CATEGORY_CONFIGS:
@@ -128,7 +148,7 @@ def _generate_tables() -> str:
         if code:
             parts.append(code)
     parts.append("}  // namespace esphome")
-    return "\n".join(parts)
+    cg.add_global(RawStatement("\n".join(parts)))
 
 
 def _register_string(
@@ -154,17 +174,19 @@ def _register_string(
 
 def register_device_class(value: str) -> int:
     """Register a device_class string and return its 1-based index."""
-    return _register_string(value, _get_pool().device_classes, 1023, "device_class")
+    return _register_string(
+        value, _get_pool().device_classes, _MAX_DEVICE_CLASSES, "device_class"
+    )
 
 
 def register_unit_of_measurement(value: str) -> int:
     """Register a unit_of_measurement string and return its 1-based index."""
-    return _register_string(value, _get_pool().units, 1023, "unit_of_measurement")
+    return _register_string(value, _get_pool().units, _MAX_UNITS, "unit_of_measurement")
 
 
 def register_icon(value: str) -> int:
     """Register an icon string and return its 1-based index."""
-    return _register_string(value, _get_pool().icons, 4095, "icon")
+    return _register_string(value, _get_pool().icons, _MAX_ICONS, "icon")
 
 
 def setup_device_class(config: ConfigType) -> None:
@@ -188,7 +210,7 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     dc_idx = config.get(_KEY_DC_IDX, 0)
     uom_idx = config.get(_KEY_UOM_IDX, 0)
     icon_idx = config.get(_KEY_ICON_IDX, 0)
-    packed = dc_idx | (uom_idx << 10) | (icon_idx << 20)
+    packed = (dc_idx << _DC_SHIFT) | (uom_idx << _UOM_SHIFT) | (icon_idx << _ICON_SHIFT)
     if packed != 0:
         add(var.set_entity_strings(packed))
 
@@ -270,6 +292,11 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
 
     This function sets up the common entity properties like name, icon,
     entity category, etc.
+
+    Args:
+        var: The entity variable to set up
+        config: Configuration dictionary containing entity settings
+        platform: The platform name (e.g., "sensor", "binary_sensor")
     """
     # Get device info if configured
     if device_id_obj := config.get(CONF_DEVICE_ID):
