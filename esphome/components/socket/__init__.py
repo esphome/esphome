@@ -1,8 +1,12 @@
 from collections.abc import Callable, MutableMapping
+from enum import StrEnum
+import logging
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -13,31 +17,83 @@ IMPLEMENTATION_BSD_SOCKETS = "bsd_sockets"
 
 # Socket tracking infrastructure
 # Components register their socket needs and platforms read this to configure appropriately
-KEY_SOCKET_CONSUMERS = "socket_consumers"
+KEY_SOCKET_CONSUMERS_TCP = "socket_consumers_tcp"
+KEY_SOCKET_CONSUMERS_UDP = "socket_consumers_udp"
+
+# Recommended minimum socket counts to ensure headroom
+# Platforms should apply these (or their own) on top of get_socket_counts()
+MIN_TCP_SOCKETS = 10
+MIN_UDP_SOCKETS = 6
 
 # Wake loop threadsafe support tracking
 KEY_WAKE_LOOP_THREADSAFE_REQUIRED = "wake_loop_threadsafe_required"
 
 
+class SocketType(StrEnum):
+    TCP = "tcp"
+    UDP = "udp"
+
+
+# Legacy aliases
+SOCKET_TCP = SocketType.TCP
+SOCKET_UDP = SocketType.UDP
+
+_SOCKET_TYPE_KEYS = {
+    SocketType.TCP: KEY_SOCKET_CONSUMERS_TCP,
+    SocketType.UDP: KEY_SOCKET_CONSUMERS_UDP,
+}
+
+
 def consume_sockets(
-    value: int, consumer: str
+    value: int, consumer: str, socket_type: SocketType = SocketType.TCP
 ) -> Callable[[MutableMapping], MutableMapping]:
     """Register socket usage for a component.
 
     Args:
         value: Number of sockets needed by the component
         consumer: Name of the component consuming the sockets
+        socket_type: Type of socket (SocketType.TCP or SocketType.UDP)
 
     Returns:
         A validator function that records the socket usage
     """
+    typed_key = _SOCKET_TYPE_KEYS[socket_type]
 
     def _consume_sockets(config: MutableMapping) -> MutableMapping:
-        consumers: dict[str, int] = CORE.data.setdefault(KEY_SOCKET_CONSUMERS, {})
+        consumers: dict[str, int] = CORE.data.setdefault(typed_key, {})
         consumers[consumer] = consumers.get(consumer, 0) + value
         return config
 
     return _consume_sockets
+
+
+def get_socket_counts() -> tuple[int, int]:
+    """Return (tcp_count, udp_count) of raw registered socket needs.
+
+    Platforms call this during code generation to configure lwIP socket limits.
+    All components will have registered their needs by then.
+
+    Platforms should apply their own minimums on top of these values.
+    """
+    tcp_consumers = CORE.data.get(KEY_SOCKET_CONSUMERS_TCP, {})
+    udp_consumers = CORE.data.get(KEY_SOCKET_CONSUMERS_UDP, {})
+    tcp = sum(tcp_consumers.values())
+    udp = sum(udp_consumers.values())
+
+    tcp_list = ", ".join(
+        f"{name}={count}" for name, count in sorted(tcp_consumers.items())
+    )
+    udp_list = ", ".join(
+        f"{name}={count}" for name, count in sorted(udp_consumers.items())
+    )
+    _LOGGER.debug(
+        "Socket counts: TCP=%d (%s), UDP=%d (%s)",
+        tcp,
+        tcp_list or "none",
+        udp,
+        udp_list or "none",
+    )
+    return tcp, udp
 
 
 def require_wake_loop_threadsafe() -> None:
@@ -66,7 +122,7 @@ def require_wake_loop_threadsafe() -> None:
         CORE.data[KEY_WAKE_LOOP_THREADSAFE_REQUIRED] = True
         cg.add_define("USE_WAKE_LOOP_THREADSAFE")
         # Consume 1 socket for the shared wake notification socket
-        consume_sockets(1, "socket.wake_loop_threadsafe")({})
+        consume_sockets(1, "socket.wake_loop_threadsafe", SOCKET_UDP)({})
 
 
 CONFIG_SCHEMA = cv.Schema(

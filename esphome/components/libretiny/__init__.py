@@ -275,6 +275,103 @@ BASE_SCHEMA.add_extra(_detect_variant)
 BASE_SCHEMA.add_extra(_update_core_data)
 
 
+def _configure_lwip(config: dict) -> None:
+    """Configure lwIP options for LibreTiny platforms.
+
+    The Beken/RTL SDKs ship with lwIP defaults tuned for a general-purpose
+    WiFi SoC, wildly oversized for ESPHome's IoT use case. This causes OOM
+    on memory-constrained chips like BK7231N.
+
+    See https://github.com/esphome/esphome/issues/14095
+
+    Comparison of SDK defaults vs ESPHome targets:
+
+    TCP_MSS is 1460 on BK/RTL/LN, 1440 on ESP32, 1460 on ESP8266.
+
+    Setting                   ESP8266  ESP32  BK/RTL SDK  New
+    ─────────────────────────────────────────────────────────────
+    TCP_SND_BUF               2×MSS   4×MSS  10×MSS      4×MSS
+    TCP_WND                   4×MSS   4×MSS  10×MSS      4×MSS
+    MEM_SIZE                  1.6KB   N/A*   32KB        12KB/16KB
+    MAX_SOCKETS_TCP           5       16     12          dynamic
+    MAX_SOCKETS_UDP           4       16     22          dynamic
+    TCP_SND_QUEUELEN          ~8      17     20          17
+    MEMP_NUM_TCP_SEG          10      16     40          17
+    MEMP_NUM_TCP_PCB          5       16     12          =TCP
+    MEMP_NUM_UDP_PCB          4       16     24/7**      =UDP+2
+    MEMP_NUM_NETCONN          0       10     38          =sum
+    MEMP_NUM_NETBUF           0       2      16          4
+    MEMP_NUM_TCPIP_MSG_INPKT  4       8      16          8
+
+    MEM_SIZE: 12KB for BK72XX, 16KB for RTL87XX/LN882H.
+    * ESP32 uses MEM_LIBC_MALLOC=1 (no dedicated lwIP heap).
+    ** MEMP_NUM_UDP_PCB: BK base=24 (22+2), RTL/LN platform override=7.
+    "dynamic" = auto-calculated from component socket registrations via
+    socket.get_socket_counts() with minimums of 10 TCP / 6 UDP.
+    """
+    from esphome.components.socket import (
+        MIN_TCP_SOCKETS,
+        MIN_UDP_SOCKETS,
+        get_socket_counts,
+    )
+
+    raw_tcp, raw_udp = get_socket_counts()
+    # Apply platform minimums — ensure headroom for ESPHome's needs
+    tcp_sockets = max(MIN_TCP_SOCKETS, raw_tcp)
+    udp_sockets = max(MIN_UDP_SOCKETS, raw_udp)
+    listening_tcp = 4
+
+    # TCP_SND_BUF / TCP_WND: 4×MSS matches ESP32 and ESP8266 TCP_WND
+    # SDK default is 10×MSS=14,600 — ESPAsyncWebServer malloc(tcp_sndbuf())
+    # per response chunk causes OOM at that size on BK7231N
+    tcp_snd_buf = "(4*TCP_MSS)"  # 4×1460=5,840 (SDK: 10×1460=14,600)
+    tcp_wnd = "(4*TCP_MSS)"  # 4×1460=5,840 (SDK: 10×1460=14,600)
+
+    # lwIP heap — BK72XX has less headroom than RTL/LN (SDK: 32KB for both)
+    mem_size = 12288 if CORE.is_bk72xx else 16384
+
+    # TCP_SND_QUEUELEN: max pbufs queued for send buffer
+    # ESP-IDF formula: (4 * TCP_SND_BUF + (TCP_MSS - 1)) / TCP_MSS
+    # With 4×MSS: (4*5840 + 1459) / 1460 = 17 — match ESP32
+    tcp_snd_queuelen = 17  # SDK: 20, ESP32: 17
+    # MEMP_NUM_TCP_SEG: segment pool, must be >= TCP_SND_QUEUELEN (lwIP sanity check)
+    memp_num_tcp_seg = tcp_snd_queuelen  # SDK: 40
+
+    lwip_opts: list[str] = [
+        # Disable statistics — not needed for production, saves RAM
+        "LWIP_STATS=0",  # SDK: 1
+        "MEM_STATS=0",  # SDK: 1
+        "MEMP_STATS=0",  # SDK: 1
+        # TCP send buffer — ESPAsyncWebServer allocates malloc(tcp_sndbuf())
+        # per response chunk. At 14.6KB this causes OOM on BK7231N (#14095)
+        f"TCP_SND_BUF={tcp_snd_buf}",  # SDK: 10×MSS (14,600)
+        # TCP receive window — match send buffer ratio (ESP8266: 4×MSS)
+        f"TCP_WND={tcp_wnd}",  # SDK: 10×MSS (14,600)
+        # Socket counts — auto-calculated from component registrations
+        # API=4 TCP, web_server=6 TCP, OTA=1 TCP, mDNS=2 UDP, etc.
+        f"MAX_SOCKETS_TCP={tcp_sockets}",  # SDK: 12
+        f"MAX_SOCKETS_UDP={udp_sockets}",  # SDK: 22
+        # Listening sockets — ESPHome needs API + web_server + OTA at most
+        f"MAX_LISTENING_SOCKETS_TCP={listening_tcp}",  # SDK: 4
+        # lwIP heap — SDK allocates 32KB, ESPHome needs far less
+        f"MEM_SIZE={mem_size}",  # SDK: 32,768
+        # Queued segment limits — derived from 4×MSS buffer size
+        f"TCP_SND_QUEUELEN={tcp_snd_queuelen}",  # SDK: 20, match ESP32
+        f"MEMP_NUM_TCP_SEG={memp_num_tcp_seg}",  # SDK: 40, must be >= queuelen
+        # PCB pools — 1:1 with socket counts
+        f"MEMP_NUM_TCP_PCB={tcp_sockets}",  # SDK: 12
+        # UDP PCB pool — +2 for lwIP internal use (DHCP, DNS)
+        f"MEMP_NUM_UDP_PCB={udp_sockets + 2}",  # SDK: 24 (22+2)
+        # Netconn pool — sum of all socket types
+        f"MEMP_NUM_NETCONN={tcp_sockets + listening_tcp + udp_sockets}",  # SDK: 38
+        # Netbuf pool — ESP8266 uses 0, conservative value
+        "MEMP_NUM_NETBUF=4",  # SDK: 16
+        # Inbound message pool — between ESP8266 (4) and SDK (16)
+        "MEMP_NUM_TCPIP_MSG_INPKT=8",  # SDK: 16
+    ]
+    cg.add_platformio_option("custom_options.lwip", lwip_opts)
+
+
 # pylint: disable=use-dict-literal
 async def component_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -389,11 +486,12 @@ async def component_to_code(config):
             "custom_options.sys_config#h", _BK7231N_SYS_CONFIG_OPTIONS
         )
 
-    # Disable LWIP statistics to save RAM - not needed in production
-    # Must explicitly disable all sub-stats to avoid redefinition warnings
-    cg.add_platformio_option(
-        "custom_options.lwip",
-        ["LWIP_STATS=0", "MEM_STATS=0", "MEMP_STATS=0"],
-    )
+    # Tune lwIP for ESPHome's actual needs.
+    # The SDK defaults (TCP_SND_BUF=10*MSS, MAX_SOCKETS_TCP=12, MEM_SIZE=32KB)
+    # are wildly oversized for an IoT device. ESPAsyncWebServer allocates
+    # malloc(tcp_sndbuf()) per response chunk — at 14.6KB this causes silent
+    # OOM on memory-constrained chips like BK7231N.
+    # See https://github.com/esphome/esphome/issues/14095
+    _configure_lwip(config)
 
     await cg.register_component(var, config)
