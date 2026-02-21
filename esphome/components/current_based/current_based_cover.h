@@ -14,11 +14,10 @@ class CurrentBasedCover : public cover::Cover, public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
-  Trigger<> *get_stop_trigger() const { return this->stop_trigger_; }
+  Trigger<> *get_stop_trigger() { return &this->stop_trigger_; }
 
-  Trigger<> *get_open_trigger() const { return this->open_trigger_; }
+  Trigger<> *get_open_trigger() { return &this->open_trigger_; }
   void set_open_sensor(sensor::Sensor *open_sensor) { this->open_sensor_ = open_sensor; }
   void set_open_moving_current_threshold(float open_moving_current_threshold) {
     this->open_moving_current_threshold_ = open_moving_current_threshold;
@@ -28,7 +27,7 @@ class CurrentBasedCover : public cover::Cover, public Component {
   }
   void set_open_duration(uint32_t open_duration) { this->open_duration_ = open_duration; }
 
-  Trigger<> *get_close_trigger() const { return this->close_trigger_; }
+  Trigger<> *get_close_trigger() { return &this->close_trigger_; }
   void set_close_sensor(sensor::Sensor *close_sensor) { this->close_sensor_ = close_sensor; }
   void set_close_moving_current_threshold(float close_moving_current_threshold) {
     this->close_moving_current_threshold_ = close_moving_current_threshold;
@@ -44,7 +43,7 @@ class CurrentBasedCover : public cover::Cover, public Component {
   void set_malfunction_detection(bool malfunction_detection) { this->malfunction_detection_ = malfunction_detection; }
   void set_start_sensing_delay(uint32_t start_sensing_delay) { this->start_sensing_delay_ = start_sensing_delay; }
 
-  Trigger<> *get_malfunction_trigger() const { return this->malfunction_trigger_; }
+  Trigger<> *get_malfunction_trigger() { return &this->malfunction_trigger_; }
 
   cover::CoverTraits get_traits() override;
 
@@ -64,23 +63,23 @@ class CurrentBasedCover : public cover::Cover, public Component {
 
   void recompute_position_();
 
-  Trigger<> *stop_trigger_{new Trigger<>()};
+  Trigger<> stop_trigger_;
 
   sensor::Sensor *open_sensor_{nullptr};
-  Trigger<> *open_trigger_{new Trigger<>()};
+  Trigger<> open_trigger_;
   float open_moving_current_threshold_;
   float open_obstacle_current_threshold_{FLT_MAX};
   uint32_t open_duration_;
 
   sensor::Sensor *close_sensor_{nullptr};
-  Trigger<> *close_trigger_{new Trigger<>()};
+  Trigger<> close_trigger_;
   float close_moving_current_threshold_;
   float close_obstacle_current_threshold_{FLT_MAX};
   uint32_t close_duration_;
 
   uint32_t max_duration_{UINT32_MAX};
   bool malfunction_detection_{true};
-  Trigger<> *malfunction_trigger_{new Trigger<>()};
+  Trigger<> malfunction_trigger_;
   uint32_t start_sensing_delay_;
   float obstacle_rollback_;
 

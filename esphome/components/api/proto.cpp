@@ -48,14 +48,14 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
         }
         uint32_t field_length = res->as_uint32();
         ptr += consumed;
-        if (ptr + field_length > end) {
+        if (field_length > static_cast<size_t>(end - ptr)) {
           return count;  // Out of bounds
         }
         ptr += field_length;
         break;
       }
       case WIRE_TYPE_FIXED32: {  // 32-bit - skip 4 bytes
-        if (ptr + 4 > end) {
+        if (end - ptr < 4) {
           return count;
         }
         ptr += 4;
@@ -69,6 +69,21 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
 
   return count;
 }
+
+#ifdef ESPHOME_DEBUG_API
+void ProtoWriteBuffer::debug_check_bounds_(size_t bytes, const char *caller) {
+  if (this->pos_ + bytes > this->buffer_->data() + this->buffer_->size()) {
+    ESP_LOGE(TAG, "ProtoWriteBuffer bounds check failed in %s: bytes=%zu offset=%td buf_size=%zu", caller, bytes,
+             this->pos_ - this->buffer_->data(), this->buffer_->size());
+    abort();
+  }
+}
+void ProtoWriteBuffer::debug_check_encode_size_(uint32_t field_id, uint32_t expected, ptrdiff_t actual) {
+  ESP_LOGE(TAG, "encode_message: size mismatch for field %" PRIu32 ": calculated=%" PRIu32 " actual=%td", field_id,
+           expected, actual);
+  abort();
+}
+#endif
 
 void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
   const uint8_t *ptr = buffer;
@@ -110,7 +125,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
         }
         uint32_t field_length = res->as_uint32();
         ptr += consumed;
-        if (ptr + field_length > end) {
+        if (field_length > static_cast<size_t>(end - ptr)) {
           ESP_LOGV(TAG, "Out-of-bounds Length Delimited at offset %ld", (long) (ptr - buffer));
           return;
         }
@@ -121,7 +136,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
         break;
       }
       case WIRE_TYPE_FIXED32: {  // 32-bit
-        if (ptr + 4 > end) {
+        if (end - ptr < 4) {
           ESP_LOGV(TAG, "Out-of-bounds Fixed32-bit at offset %ld", (long) (ptr - buffer));
           return;
         }
@@ -133,18 +148,10 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
         break;
       }
       default:
-        ESP_LOGV(TAG, "Invalid field type %u at offset %ld", field_type, (long) (ptr - buffer));
+        ESP_LOGV(TAG, "Invalid field type %" PRIu32 " at offset %ld", field_type, (long) (ptr - buffer));
         return;
     }
   }
 }
-
-#ifdef HAS_PROTO_MESSAGE_DUMP
-std::string ProtoMessage::dump() const {
-  std::string out;
-  this->dump_to(out);
-  return out;
-}
-#endif
 
 }  // namespace esphome::api

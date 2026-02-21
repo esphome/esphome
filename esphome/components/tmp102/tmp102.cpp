@@ -46,7 +46,5 @@ void TMP102Component::update() {
   });
 }
 
-float TMP102Component::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace tmp102
 }  // namespace esphome

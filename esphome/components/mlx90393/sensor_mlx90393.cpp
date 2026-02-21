@@ -132,8 +132,6 @@ void MLX90393Cls::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->t_sensor_);
 }
 
-float MLX90393Cls::get_setup_priority() const { return setup_priority::DATA; }
-
 void MLX90393Cls::update() {
   MLX90393::txyz data;
 

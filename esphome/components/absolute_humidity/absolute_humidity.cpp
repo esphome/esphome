@@ -45,8 +45,6 @@ void AbsoluteHumidityComponent::dump_config() {
                 this->temperature_sensor_->get_name().c_str(), this->humidity_sensor_->get_name().c_str());
 }
 
-float AbsoluteHumidityComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 void AbsoluteHumidityComponent::loop() {
   if (!this->next_update_) {
     return;
@@ -90,13 +88,16 @@ void AbsoluteHumidityComponent::loop() {
       this->status_set_error(LOG_STR("Invalid saturation vapor pressure equation selection!"));
       return;
   }
-  ESP_LOGD(TAG, "Saturation vapor pressure %f kPa", es);
 
   // Calculate absolute humidity
   const float absolute_humidity = vapor_density(es, hr, temperature_k);
 
+  ESP_LOGD(TAG,
+           "Saturation vapor pressure %f kPa\n"
+           "Publishing absolute humidity %f g/m³",
+           es, absolute_humidity);
+
   // Publish absolute humidity
-  ESP_LOGD(TAG, "Publishing absolute humidity %f g/m³", absolute_humidity);
   this->status_clear_warning();
   this->publish_state(absolute_humidity);
 }

@@ -7,6 +7,7 @@ from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
+    CONF_COMPRESSION,
     CONF_ID,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
@@ -25,7 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def AUTO_LOAD() -> list[str]:
     auto_load = ["web_server_base", "ota.web_server"]
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         auto_load.append("socket")
     return auto_load
 
@@ -43,6 +44,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
                 web_server_base.WebServerBase
             ),
+            cv.Optional(CONF_COMPRESSION, default="gzip"): cv.one_of("gzip", "br"),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(
@@ -96,11 +98,10 @@ async def to_code(config):
     await cg.register_component(var, config)
     cg.add_define("USE_CAPTIVE_PORTAL")
 
+    if config[CONF_COMPRESSION] == "gzip":
+        cg.add_define("USE_CAPTIVE_PORTAL_GZIP")
+
     if CORE.using_arduino:
-        if CORE.is_esp32:
-            cg.add_library("ESP32 Async UDP", None)
-            cg.add_library("DNSServer", None)
-            cg.add_library("WiFi", None)
         if CORE.is_esp8266:
             cg.add_library("DNSServer", None)
         if CORE.is_libretiny:
@@ -110,6 +111,9 @@ async def to_code(config):
 # Only compile the ESP-IDF DNS server when using ESP-IDF framework
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "dns_server_esp32_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "dns_server_esp32_idf.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
     }
 )

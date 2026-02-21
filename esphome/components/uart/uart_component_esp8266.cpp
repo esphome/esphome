@@ -75,6 +75,7 @@ void ESP8266UartComponent::setup() {
   // is 1 we still want to use Serial.
   SerialConfig config = static_cast<SerialConfig>(get_config());
 
+#ifdef USE_ESP8266_UART_SERIAL
   if (!ESP8266UartComponent::serial0_in_use && (tx_pin_ == nullptr || tx_pin_->get_pin() == 1) &&
       (rx_pin_ == nullptr || rx_pin_->get_pin() == 3)
 #ifdef USE_LOGGER
@@ -100,11 +101,16 @@ void ESP8266UartComponent::setup() {
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
     ESP8266UartComponent::serial0_in_use = true;
-  } else if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) && (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
+  } else
+#endif  // USE_ESP8266_UART_SERIAL
+#ifdef USE_ESP8266_UART_SERIAL1
+      if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) && (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
     this->hw_serial_ = &Serial1;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
-  } else {
+  } else
+#endif  // USE_ESP8266_UART_SERIAL1
+  {
     this->sw_serial_ = new ESP8266SoftwareSerial();  // NOLINT
     this->sw_serial_->setup(tx_pin_, rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_, this->parity_,
                             this->rx_buffer_size_);
@@ -200,7 +206,7 @@ bool ESP8266UartComponent::read_array(uint8_t *data, size_t len) {
 #endif
   return true;
 }
-int ESP8266UartComponent::available() {
+size_t ESP8266UartComponent::available() {
   if (this->hw_serial_ != nullptr) {
     return this->hw_serial_->available();
   } else {
@@ -323,11 +329,14 @@ uint8_t ESP8266SoftwareSerial::peek_byte() {
 void ESP8266SoftwareSerial::flush() {
   // Flush is a NO-OP with software serial, all bytes are written immediately.
 }
-int ESP8266SoftwareSerial::available() {
-  int avail = int(this->rx_in_pos_) - int(this->rx_out_pos_);
-  if (avail < 0)
-    return avail + this->rx_buffer_size_;
-  return avail;
+size_t ESP8266SoftwareSerial::available() {
+  // Read volatile rx_in_pos_ once to avoid TOCTOU race with ISR.
+  // When in >= out, data is contiguous: [out..in).
+  // When in < out, data wraps: [out..buf_size) + [0..in).
+  size_t in = this->rx_in_pos_;
+  if (in >= this->rx_out_pos_)
+    return in - this->rx_out_pos_;
+  return this->rx_buffer_size_ - this->rx_out_pos_ + in;
 }
 
 }  // namespace esphome::uart

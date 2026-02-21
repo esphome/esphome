@@ -24,8 +24,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 /** Callback for MQTT events.
  */
@@ -100,12 +99,7 @@ enum MQTTClientState {
 
 class MQTTComponent;
 
-class MQTTClientComponent : public Component
-#ifdef USE_LOGGER
-    ,
-                            public logger::LogListener
-#endif
-{
+class MQTTClientComponent : public Component {
  public:
   MQTTClientComponent();
 
@@ -230,6 +224,9 @@ class MQTTClientComponent : public Component
   bool publish(const std::string &topic, const char *payload, size_t payload_length, uint8_t qos = 0,
                bool retain = false);
 
+  /// Publish directly without creating MQTTMessage (avoids heap allocation for topic)
+  bool publish(const char *topic, const char *payload, size_t payload_length, uint8_t qos = 0, bool retain = false);
+
   /** Construct and send a JSON MQTT message.
    *
    * @param topic The topic.
@@ -237,6 +234,9 @@ class MQTTClientComponent : public Component
    * @param retain Whether to retain the message.
    */
   bool publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false);
+
+  /// Publish JSON directly without heap allocation for topic
+  bool publish_json(const char *topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false);
 
   /// Setup the MQTT client, registering a bunch of callbacks and attempting to connect.
   void setup() override;
@@ -247,7 +247,7 @@ class MQTTClientComponent : public Component
   float get_setup_priority() const override;
 
 #ifdef USE_LOGGER
-  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len);
 #endif
 
   void on_message(const std::string &topic, const std::string &payload);
@@ -379,17 +379,17 @@ class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
   }
 };
 
-class MQTTConnectTrigger : public Trigger<> {
+class MQTTConnectTrigger : public Trigger<bool> {
  public:
   explicit MQTTConnectTrigger(MQTTClientComponent *&client) {
-    client->set_on_connect([this](bool session_present) { this->trigger(); });
+    client->set_on_connect([this](bool session_present) { this->trigger(session_present); });
   }
 };
 
-class MQTTDisconnectTrigger : public Trigger<> {
+class MQTTDisconnectTrigger : public Trigger<MQTTClientDisconnectReason> {
  public:
   explicit MQTTDisconnectTrigger(MQTTClientComponent *&client) {
-    client->set_on_disconnect([this](MQTTClientDisconnectReason reason) { this->trigger(); });
+    client->set_on_disconnect([this](MQTTClientDisconnectReason reason) { this->trigger(reason); });
   }
 };
 
@@ -462,7 +462,6 @@ template<typename... Ts> class MQTTDisableAction : public Action<Ts...> {
   MQTTClientComponent *parent_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTT

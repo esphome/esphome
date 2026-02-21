@@ -44,10 +44,10 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   void handle_handshake_();
   void handle_data_();
 #ifdef USE_OTA_PASSWORD
+  static constexpr size_t SHA256_HEX_SIZE = 64;  // SHA256 hash as hex string (32 bytes * 2)
   bool handle_auth_send_();
   bool handle_auth_read_();
   bool select_auth_type_();
-  size_t get_auth_hex_size_() const;
   void cleanup_auth_();
   void log_auth_warning_(const LogString *msg);
 #endif  // USE_OTA_PASSWORD
@@ -66,6 +66,7 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
     this->handshake_buf_pos_ = 0;  // Reset buffer position for next state
   }
 
+  void server_failed_(const LogString *msg);
   void log_socket_error_(const LogString *msg);
   void log_read_error_(const LogString *what);
   void log_start_(const LogString *phase);
@@ -80,9 +81,10 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
 
 #ifdef USE_OTA_PASSWORD
   std::string password_;
+  std::unique_ptr<uint8_t[]> auth_buf_;
 #endif  // USE_OTA_PASSWORD
 
-  std::unique_ptr<socket::Socket> server_;
+  socket::Socket *server_{nullptr};
   std::unique_ptr<socket::Socket> client_;
   std::unique_ptr<ota::OTABackend> backend_;
 
@@ -93,7 +95,6 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   uint8_t handshake_buf_pos_{0};
   uint8_t ota_features_{0};
 #ifdef USE_OTA_PASSWORD
-  std::unique_ptr<uint8_t[]> auth_buf_;
   uint8_t auth_buf_pos_{0};
   uint8_t auth_type_{0};  // Store auth type to know which hasher to use
 #endif                    // USE_OTA_PASSWORD

@@ -21,7 +21,7 @@ DEPENDENCIES = ["network"]
 # Components that create mDNS services at runtime
 # IMPORTANT: If you add a new component here, you must also update the corresponding
 # #ifdef blocks in mdns_component.cpp compile_records_() method
-COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "web_server")
+COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "sendspin", "web_server")
 
 mdns_ns = cg.esphome_ns.namespace("mdns")
 MDNSComponent = mdns_ns.class_("MDNSComponent", cg.Component)
@@ -157,14 +157,12 @@ async def to_code(config):
         return
 
     if CORE.using_arduino:
-        if CORE.is_esp32:
-            cg.add_library("ESPmDNS", None)
-        elif CORE.is_esp8266:
+        if CORE.is_esp8266:
             cg.add_library("ESP8266mDNS", None)
         elif CORE.is_rp2040:
             cg.add_library("LEAmDNS", None)
 
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         add_idf_component(name="espressif/mdns", ref="1.9.1")
 
     cg.add_define("USE_MDNS")

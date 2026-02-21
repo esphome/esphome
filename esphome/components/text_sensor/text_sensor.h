@@ -37,11 +37,13 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
 #pragma GCC diagnostic pop
 
   /// Getter-syntax for .state.
-  std::string get_state() const;
+  const std::string &get_state() const;
   /// Getter-syntax for .raw_state
-  std::string get_raw_state() const;
+  const std::string &get_raw_state() const;
 
   void publish_state(const std::string &state);
+  void publish_state(const char *state);
+  void publish_state(const char *state, size_t len);
 
   /// Add a filter to the filter chain. Will be appended to the back.
   void add_filter(Filter *filter);
@@ -55,19 +57,21 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   /// Clear the entire filter chain.
   void clear_filters();
 
-  void add_on_state_callback(std::function<void(std::string)> callback);
+  void add_on_state_callback(std::function<void(const std::string &)> callback);
   /// Add a callback that will be called every time the sensor sends a raw value.
-  void add_on_raw_state_callback(std::function<void(std::string)> callback);
+  void add_on_raw_state_callback(std::function<void(const std::string &)> callback);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
 
   void internal_send_state_to_frontend(const std::string &state);
+  void internal_send_state_to_frontend(const char *state, size_t len);
 
  protected:
-  std::unique_ptr<CallbackManager<void(std::string)>>
-      raw_callback_;                             ///< Storage for raw state callbacks (lazy allocated).
-  CallbackManager<void(std::string)> callback_;  ///< Storage for filtered state callbacks.
+  /// Notify frontend that state has changed (assumes this->state is already set)
+  void notify_frontend_();
+  LazyCallbackManager<void(const std::string &)> raw_callback_;  ///< Storage for raw state callbacks.
+  LazyCallbackManager<void(const std::string &)> callback_;      ///< Storage for filtered state callbacks.
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 };

@@ -151,14 +151,16 @@ void ENS160Component::update() {
   }
 
   // verbose status logging
-  ESP_LOGV(TAG, "Status: ENS160 STATAS bit    0x%x",
-           (ENS160_DATA_STATUS_STATAS & (status_value)) == ENS160_DATA_STATUS_STATAS);
-  ESP_LOGV(TAG, "Status: ENS160 STATER bit    0x%x",
-           (ENS160_DATA_STATUS_STATER & (status_value)) == ENS160_DATA_STATUS_STATER);
-  ESP_LOGV(TAG, "Status: ENS160 VALIDITY FLAG 0x%02x", (ENS160_DATA_STATUS_VALIDITY & status_value) >> 2);
-  ESP_LOGV(TAG, "Status: ENS160 NEWDAT bit    0x%x",
-           (ENS160_DATA_STATUS_NEWDAT & (status_value)) == ENS160_DATA_STATUS_NEWDAT);
-  ESP_LOGV(TAG, "Status: ENS160 NEWGPR bit    0x%x",
+  ESP_LOGV(TAG,
+           "Status: ENS160 STATAS bit    0x%x\n"
+           "Status: ENS160 STATER bit    0x%x\n"
+           "Status: ENS160 VALIDITY FLAG 0x%02x\n"
+           "Status: ENS160 NEWDAT bit    0x%x\n"
+           "Status: ENS160 NEWGPR bit    0x%x",
+           (ENS160_DATA_STATUS_STATAS & (status_value)) == ENS160_DATA_STATUS_STATAS,
+           (ENS160_DATA_STATUS_STATER & (status_value)) == ENS160_DATA_STATUS_STATER,
+           (ENS160_DATA_STATUS_VALIDITY & status_value) >> 2,
+           (ENS160_DATA_STATUS_NEWDAT & (status_value)) == ENS160_DATA_STATUS_NEWDAT,
            (ENS160_DATA_STATUS_NEWGPR & (status_value)) == ENS160_DATA_STATUS_NEWGPR);
 
   data_ready = ENS160_DATA_STATUS_NEWDAT & status_value;
