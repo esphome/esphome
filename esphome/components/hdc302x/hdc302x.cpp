@@ -22,7 +22,7 @@ static const uint8_t HDC302X_CMD_HEATER_CONFIGURE[2] = {0x30, 0x6e};
 void HDC302XComponent::setup() {
   // Soft reset the device
   if (this->write(HDC302X_CMD_SOFT_RESET, 2) != i2c::ERROR_OK) {
-    this->mark_failed("Soft reset failed");
+    this->mark_failed(LOG_STR("Soft reset failed"));
     return;
   }
   // Delay SensorRR (reset ready), per datasheet, 6.5.
@@ -30,7 +30,7 @@ void HDC302XComponent::setup() {
 
   // Clear status register
   if (this->write(HDC302X_CMD_CLEAR_STATUS_REGISTER, 2) != i2c::ERROR_OK) {
-    this->mark_failed("Clear status failed");
+    this->mark_failed(LOG_STR("Clear status failed"));
     return;
   }
 }
@@ -55,7 +55,7 @@ void HDC302XComponent::update() {
       this->power_mode_,
   };
   if (this->write(cmd, 2) != i2c::ERROR_OK) {
-    this->status_set_warning("Measurement command failed");
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
 
@@ -134,7 +134,7 @@ void HDC302XComponent::read_data_() {
 
   uint8_t buf[6];
   if (this->read(buf, 6) != i2c::ERROR_OK) {
-    this->status_set_warning("Sensor read failed");
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
 
