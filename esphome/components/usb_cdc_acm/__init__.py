@@ -23,11 +23,11 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@kbx81"]
 AUTO_LOAD = ["uart"]
 
-
-def DEPENDENCIES():
-    if CORE.using_zephyr:
-        return []
-    return ["tinyusb"]
+# needs https://github.com/esphome/esphome/pull/14174
+# def DEPENDENCIES():
+#     if CORE.using_zephyr:
+#         return []
+#     return ["tinyusb"]
 
 
 CONF_INTERFACES = "interfaces"
