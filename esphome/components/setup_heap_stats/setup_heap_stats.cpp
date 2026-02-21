@@ -25,7 +25,9 @@ static const char *const TAG = "setup_heap_stats";
 SetupHeapStatsCollector::SetupHeapStatsCollector(uint32_t initial_baseline) {
   global_setup_heap_stats = this;
   uint32_t before_alloc = get_free_internal_heap();
-  this->entries_ = new ComponentHeapEntry[ESPHOME_COMPONENT_COUNT];  // NOLINT
+  // Allocate enough entries for both components and entity-only registrations
+  this->max_entries_ = ESPHOME_COMPONENT_COUNT * 2;
+  this->entries_ = new HeapEntry[this->max_entries_];  // NOLINT
   uint32_t after_alloc = get_free_internal_heap();
   // Use the pre_setup() baseline but subtract our own entries allocation
   // so the collector's overhead is not attributed to the first component
@@ -46,21 +48,31 @@ uint32_t SetupHeapStatsCollector::get_free_internal_heap() {
 #endif
 }
 
-void SetupHeapStatsCollector::record_component_registered(Component *comp) {
+void SetupHeapStatsCollector::record_entry_(Component *comp, const LogString *label) {
   uint32_t current_heap = get_free_internal_heap();
   int32_t delta = static_cast<int32_t>(this->last_heap_snapshot_) - static_cast<int32_t>(current_heap);
   this->last_heap_snapshot_ = current_heap;
 
-  if (this->entry_count_ < ESPHOME_COMPONENT_COUNT) {
+  if (this->entry_count_ < this->max_entries_) {
     this->entries_[this->entry_count_].component = comp;
+    this->entries_[this->entry_count_].entity_label = label;
     this->entries_[this->entry_count_].construction_delta = delta;
     this->entries_[this->entry_count_].setup_delta = 0;
     this->entry_count_++;
   }
 
-  ESP_LOGI(TAG, "Constructed %s: %" PRId32 " bytes (free: %" PRIu32 ")", LOG_STR_ARG(comp->get_component_log_str()),
-           delta, current_heap);
+  if (comp != nullptr) {
+    ESP_LOGI(TAG, "Constructed %s: %" PRId32 " bytes (free: %" PRIu32 ")", LOG_STR_ARG(comp->get_component_log_str()),
+             delta, current_heap);
+  } else if (label != nullptr) {
+    ESP_LOGI(TAG, "Constructed %s (entity): %" PRId32 " bytes (free: %" PRIu32 ")", LOG_STR_ARG(label), delta,
+             current_heap);
+  }
 }
+
+void SetupHeapStatsCollector::record_component_registered(Component *comp) { this->record_entry_(comp, nullptr); }
+
+void SetupHeapStatsCollector::record_entity_registered(const LogString *label) { this->record_entry_(nullptr, label); }
 
 void SetupHeapStatsCollector::record_before_setup(Component *comp) {
   this->setup_component_ = comp;
@@ -93,10 +105,9 @@ void SetupHeapStatsCollector::log_summary() {
     return;
 
   // Sort by total (construction + setup) descending
-  std::sort(this->entries_, this->entries_ + this->entry_count_,
-            [](const ComponentHeapEntry &a, const ComponentHeapEntry &b) {
-              return (a.construction_delta + a.setup_delta) > (b.construction_delta + b.setup_delta);
-            });
+  std::sort(this->entries_, this->entries_ + this->entry_count_, [](const HeapEntry &a, const HeapEntry &b) {
+    return (a.construction_delta + a.setup_delta) > (b.construction_delta + b.setup_delta);
+  });
 
   ESP_LOGI(TAG, "Setup Heap Stats Summary (sorted by total, construction + setup):");
   for (uint16_t i = 0; i < this->entry_count_; i++) {
@@ -104,8 +115,16 @@ void SetupHeapStatsCollector::log_summary() {
     int32_t total = entry.construction_delta + entry.setup_delta;
     if (total == 0 && entry.construction_delta == 0 && entry.setup_delta == 0)
       continue;
-    ESP_LOGI(TAG, "  %s: %" PRId32 " bytes (construction: %" PRId32 ", setup: %" PRId32 ")",
-             LOG_STR_ARG(entry.component->get_component_log_str()), total, entry.construction_delta, entry.setup_delta);
+    const char *name;
+    if (entry.component != nullptr) {
+      name = LOG_STR_ARG(entry.component->get_component_log_str());
+    } else if (entry.entity_label != nullptr) {
+      name = LOG_STR_ARG(entry.entity_label);
+    } else {
+      name = "unknown";
+    }
+    ESP_LOGI(TAG, "  %s: %" PRId32 " bytes (construction: %" PRId32 ", setup: %" PRId32 ")", name, total,
+             entry.construction_delta, entry.setup_delta);
   }
 
   // Free storage

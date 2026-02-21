@@ -100,6 +100,9 @@
 #ifdef USE_UPDATE
 #include "esphome/components/update/update_entity.h"
 #endif
+#ifdef USE_SETUP_HEAP_STATS
+#include "esphome/components/setup_heap_stats/setup_heap_stats.h"
+#endif
 
 namespace esphome::socket {
 class Socket;
@@ -152,97 +155,208 @@ class Application {
 #ifdef USE_BINARY_SENSOR
   void register_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
     this->binary_sensors_.push_back(binary_sensor);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("binary_sensor"));
+#endif
   }
 #endif
 
 #ifdef USE_SENSOR
-  void register_sensor(sensor::Sensor *sensor) { this->sensors_.push_back(sensor); }
+  void register_sensor(sensor::Sensor *sensor) {
+    this->sensors_.push_back(sensor);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("sensor"));
+#endif
+  }
 #endif
 
 #ifdef USE_SWITCH
-  void register_switch(switch_::Switch *a_switch) { this->switches_.push_back(a_switch); }
+  void register_switch(switch_::Switch *a_switch) {
+    this->switches_.push_back(a_switch);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("switch"));
+#endif
+  }
 #endif
 
 #ifdef USE_BUTTON
-  void register_button(button::Button *button) { this->buttons_.push_back(button); }
+  void register_button(button::Button *button) {
+    this->buttons_.push_back(button);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("button"));
+#endif
+  }
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  void register_text_sensor(text_sensor::TextSensor *sensor) { this->text_sensors_.push_back(sensor); }
+  void register_text_sensor(text_sensor::TextSensor *sensor) {
+    this->text_sensors_.push_back(sensor);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("text_sensor"));
+#endif
+  }
 #endif
 
 #ifdef USE_FAN
-  void register_fan(fan::Fan *state) { this->fans_.push_back(state); }
+  void register_fan(fan::Fan *state) {
+    this->fans_.push_back(state);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("fan"));
+#endif
+  }
 #endif
 
 #ifdef USE_COVER
-  void register_cover(cover::Cover *cover) { this->covers_.push_back(cover); }
+  void register_cover(cover::Cover *cover) {
+    this->covers_.push_back(cover);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("cover"));
+#endif
+  }
 #endif
 
 #ifdef USE_CLIMATE
-  void register_climate(climate::Climate *climate) { this->climates_.push_back(climate); }
+  void register_climate(climate::Climate *climate) {
+    this->climates_.push_back(climate);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("climate"));
+#endif
+  }
 #endif
 
 #ifdef USE_LIGHT
-  void register_light(light::LightState *light) { this->lights_.push_back(light); }
+  void register_light(light::LightState *light) {
+    this->lights_.push_back(light);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("light"));
+#endif
+  }
 #endif
 
 #ifdef USE_NUMBER
-  void register_number(number::Number *number) { this->numbers_.push_back(number); }
+  void register_number(number::Number *number) {
+    this->numbers_.push_back(number);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("number"));
+#endif
+  }
 #endif
 
 #ifdef USE_DATETIME_DATE
-  void register_date(datetime::DateEntity *date) { this->dates_.push_back(date); }
+  void register_date(datetime::DateEntity *date) {
+    this->dates_.push_back(date);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("date"));
+#endif
+  }
 #endif
 
 #ifdef USE_DATETIME_TIME
-  void register_time(datetime::TimeEntity *time) { this->times_.push_back(time); }
+  void register_time(datetime::TimeEntity *time) {
+    this->times_.push_back(time);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("time"));
+#endif
+  }
 #endif
 
 #ifdef USE_DATETIME_DATETIME
-  void register_datetime(datetime::DateTimeEntity *datetime) { this->datetimes_.push_back(datetime); }
+  void register_datetime(datetime::DateTimeEntity *datetime) {
+    this->datetimes_.push_back(datetime);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("datetime"));
+#endif
+  }
 #endif
 
 #ifdef USE_TEXT
-  void register_text(text::Text *text) { this->texts_.push_back(text); }
+  void register_text(text::Text *text) {
+    this->texts_.push_back(text);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("text"));
+#endif
+  }
 #endif
 
 #ifdef USE_SELECT
-  void register_select(select::Select *select) { this->selects_.push_back(select); }
+  void register_select(select::Select *select) {
+    this->selects_.push_back(select);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("select"));
+#endif
+  }
 #endif
 
 #ifdef USE_LOCK
-  void register_lock(lock::Lock *a_lock) { this->locks_.push_back(a_lock); }
+  void register_lock(lock::Lock *a_lock) {
+    this->locks_.push_back(a_lock);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("lock"));
+#endif
+  }
 #endif
 
 #ifdef USE_VALVE
-  void register_valve(valve::Valve *valve) { this->valves_.push_back(valve); }
+  void register_valve(valve::Valve *valve) {
+    this->valves_.push_back(valve);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("valve"));
+#endif
+  }
 #endif
 
 #ifdef USE_MEDIA_PLAYER
-  void register_media_player(media_player::MediaPlayer *media_player) { this->media_players_.push_back(media_player); }
+  void register_media_player(media_player::MediaPlayer *media_player) {
+    this->media_players_.push_back(media_player);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("media_player"));
+#endif
+  }
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
   void register_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
     this->alarm_control_panels_.push_back(a_alarm_control_panel);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("alarm_control_panel"));
+#endif
   }
 #endif
 
 #ifdef USE_WATER_HEATER
-  void register_water_heater(water_heater::WaterHeater *water_heater) { this->water_heaters_.push_back(water_heater); }
+  void register_water_heater(water_heater::WaterHeater *water_heater) {
+    this->water_heaters_.push_back(water_heater);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("water_heater"));
+#endif
+  }
 #endif
 
 #ifdef USE_INFRARED
-  void register_infrared(infrared::Infrared *infrared) { this->infrareds_.push_back(infrared); }
+  void register_infrared(infrared::Infrared *infrared) {
+    this->infrareds_.push_back(infrared);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("infrared"));
+#endif
+  }
 #endif
 
 #ifdef USE_EVENT
-  void register_event(event::Event *event) { this->events_.push_back(event); }
+  void register_event(event::Event *event) {
+    this->events_.push_back(event);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("event"));
+#endif
+  }
 #endif
 
 #ifdef USE_UPDATE
-  void register_update(update::UpdateEntity *update) { this->updates_.push_back(update); }
+  void register_update(update::UpdateEntity *update) {
+    this->updates_.push_back(update);
+#ifdef USE_SETUP_HEAP_STATS
+    this->record_entity_heap_stats_(LOG_STR("update"));
+#endif
+  }
 #endif
 
   /// Reserve space for components to avoid memory fragmentation
@@ -553,6 +667,11 @@ class Application {
 
 #ifdef USE_SETUP_HEAP_STATS
   void init_setup_heap_stats_baseline_();
+  void record_entity_heap_stats_(const LogString *label) {
+    if (global_setup_heap_stats != nullptr) {
+      global_setup_heap_stats->record_entity_registered(label);
+    }
+  }
 #endif
 
   // === Member variables ordered by size to minimize padding ===
