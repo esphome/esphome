@@ -21,13 +21,13 @@ void UARTBinarySensor::loop() {
   // only first entry mange the buffer. The rest just check if matched.
   if (this->first_entity_) {
     if (this->buffer.size() == this->max_data_size) {
-      this->buffer.clear();
+      this->buffer.erase(this->buffer.begin());
     }
     this->read_data_();
   }
-  if (this->buffer == this->data_) {
+  if (this->buffer.size() >= this->data_.size() &&
+      std::equal(this->data_.begin(), this->data_.end(), this->buffer.begin())) {
     this->publish_state(true);
-    this->buffer.clear();
   }
 }
 
