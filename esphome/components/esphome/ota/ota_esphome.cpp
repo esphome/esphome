@@ -452,7 +452,8 @@ void ESPHomeOTAComponent::log_remote_closed_(const LogString *during) {
 
 void ESPHomeOTAComponent::server_failed_(const LogString *msg) {
   this->log_socket_error_(msg);
-  // Socket destructor will close or abort depending on platform
+  // No explicit close() needed — listen sockets have no active connections on
+  // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).
   delete this->server_;
   this->server_ = nullptr;
   this->mark_failed();
