@@ -41,6 +41,13 @@ void PowerManagement::setup() {
     return;
   }
 
+  soc_rtc_slow_clk_src_t slow_clk_src = rtc_clk_slow_src_get();
+  if (slow_clk_src != SOC_RTC_SLOW_CLK_SRC_XTAL32K) {
+    ESP_LOGI(TAG, "32k XTAL not in use");
+  } else {
+    ESP_LOGI(TAG, "32k XTAL in use");
+  }
+
 #ifdef USE_POWER_MANAGEMENT
   // Create Locks
   for (uint8_t i = 0; i < PowerManagement::PM_LOCK_ARRAY_SIZE; i++) {
