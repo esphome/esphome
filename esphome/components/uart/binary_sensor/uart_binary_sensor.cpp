@@ -11,24 +11,25 @@ void UARTBinarySensor::setup() {
   static bool first = true;
   this->first_entity_ = first;
   first = false;
-  if (this->max_data_size < this->data_.size()) {
-    this->max_data_size = this->data_.size();
+  if (max_data_size < this->data_.size()) {
+    max_data_size = this->data_.size();
   }
 }
 
 void UARTBinarySensor::loop() {
   this->publish_state(false);
-  // only first entry mange the buffer. The rest just check if matched.
+  // only first entry mange the buffer. The rest just check if data match.
   if (this->first_entity_) {
-    if (this->buffer.size() == this->max_data_size) {
-      this->buffer.erase(this->buffer.begin());
+    if (buffer.size() == max_data_size) {
+      buffer.erase(buffer.begin());
     }
     this->read_data_();
   }
-  if (this->buffer.size() >= this->data_.size() &&
-      std::equal(this->data_.begin(), this->data_.end(), this->buffer.end() - this->data_.size())) {
+  if (buffer.size() >= this->data_.size() &&
+      // for different size need to compare end of buffer with data
+      std::equal(this->data_.begin(), this->data_.end(), buffer.end() - this->data_.size())) {
     this->publish_state(true);
-    this->buffer.clear();
+    buffer.clear();
   }
 }
 
@@ -40,7 +41,7 @@ void UARTBinarySensor::read_data_() {
   }
   uint8_t data;
   this->read_byte(&data);
-  this->buffer.push_back(data);
+  buffer.push_back(data);
 }
 
 }  // namespace esphome::uart
