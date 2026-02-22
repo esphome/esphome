@@ -11,7 +11,7 @@
 namespace esphome {
 namespace bme680 {
 
-#define BME680_I2C_ADDR 0x77
+static const uint8_t BME680_I2C_ADDR = 0x77;
 
 class BME680Component : public PollingComponent, public i2c::I2CDevice {
  public:
