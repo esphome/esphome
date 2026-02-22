@@ -1,4 +1,5 @@
 from collections.abc import Callable, MutableMapping
+from dataclasses import dataclass
 from enum import StrEnum
 import logging
 
@@ -77,10 +78,20 @@ def _format_consumers(consumers: dict[str, int]) -> str:
     return ", ".join(f"{name}={count}" for name, count in sorted(consumers.items()))
 
 
-def get_socket_counts() -> tuple[int, int, int, str, str, str]:
-    """Return socket counts and component details for platform configuration.
+@dataclass(frozen=True)
+class SocketCounts:
+    """Socket counts and component details for platform configuration."""
 
-    Returns (tcp, udp, tcp_listen, tcp_details, udp_details, tcp_listen_details).
+    tcp: int
+    udp: int
+    tcp_listen: int
+    tcp_details: str
+    udp_details: str
+    tcp_listen_details: str
+
+
+def get_socket_counts() -> SocketCounts:
+    """Return socket counts and component details for platform configuration.
 
     Platforms call this during code generation to configure lwIP socket limits.
     All components will have registered their needs by then.
@@ -106,7 +117,9 @@ def get_socket_counts() -> tuple[int, int, int, str, str, str]:
         tcp_listen,
         tcp_listen_details,
     )
-    return tcp, udp, tcp_listen, tcp_details, udp_details, tcp_listen_details
+    return SocketCounts(
+        tcp, udp, tcp_listen, tcp_details, udp_details, tcp_listen_details
+    )
 
 
 def require_wake_loop_threadsafe() -> None:

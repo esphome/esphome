@@ -322,15 +322,13 @@ def _configure_lwip(config: dict) -> None:
         get_socket_counts,
     )
 
-    raw_tcp, raw_udp, raw_tcp_listen, tcp_details, udp_details, tcp_listen_details = (
-        get_socket_counts()
-    )
+    sc = get_socket_counts()
     # Apply platform minimums — ensure headroom for ESPHome's needs
-    tcp_sockets = max(MIN_TCP_SOCKETS, raw_tcp)
-    udp_sockets = max(MIN_UDP_SOCKETS, raw_udp)
+    tcp_sockets = max(MIN_TCP_SOCKETS, sc.tcp)
+    udp_sockets = max(MIN_UDP_SOCKETS, sc.udp)
     # Listening sockets — registered by components (api, ota, web_server_base, etc.)
     # Not all components register yet, so ensure a minimum for baseline operation.
-    listening_tcp = max(MIN_TCP_LISTEN_SOCKETS, raw_tcp_listen)
+    listening_tcp = max(MIN_TCP_LISTEN_SOCKETS, sc.tcp_listen)
 
     # TCP_SND_BUF: ESPAsyncWebServer allocates malloc(tcp_sndbuf()) per
     # response chunk. At 10×MSS=14.6KB (BK default) this causes OOM (#14095).
@@ -399,20 +397,20 @@ def _configure_lwip(config: dict) -> None:
     if CORE.is_bk72xx:
         lwip_opts.append("PBUF_POOL_SIZE=10")
 
-    tcp_min = " (min)" if tcp_sockets > raw_tcp else ""
-    udp_min = " (min)" if udp_sockets > raw_udp else ""
-    listen_min = " (min)" if listening_tcp > raw_tcp_listen else ""
+    tcp_min = " (min)" if tcp_sockets > sc.tcp else ""
+    udp_min = " (min)" if udp_sockets > sc.udp else ""
+    listen_min = " (min)" if listening_tcp > sc.tcp_listen else ""
     _LOGGER.info(
         "Configuring lwIP: TCP=%d%s [%s], UDP=%d%s [%s], TCP_LISTEN=%d%s [%s]",
         tcp_sockets,
         tcp_min,
-        tcp_details,
+        sc.tcp_details,
         udp_sockets,
         udp_min,
-        udp_details,
+        sc.udp_details,
         listening_tcp,
         listen_min,
-        tcp_listen_details,
+        sc.tcp_listen_details,
     )
     cg.add_platformio_option("custom_options.lwip", lwip_opts)
 
