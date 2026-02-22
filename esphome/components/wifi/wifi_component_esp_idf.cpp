@@ -292,6 +292,10 @@ bool WiFiComponent::wifi_apply_power_save_() {
   return success;
 }
 
+#ifdef SOC_WIFI_SUPPORT_5G
+bool WiFiComponent::wifi_apply_band_mode_() { return esp_wifi_set_band_mode(this->band_mode_) == ESP_OK; }
+#endif
+
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
@@ -726,6 +730,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_started = true;
     // re-apply power save mode
     wifi_apply_power_save_();
+#ifdef SOC_WIFI_SUPPORT_5G
+    wifi_apply_band_mode_();
+#endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_STOP) {
     ESP_LOGV(TAG, "STA stop");

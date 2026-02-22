@@ -119,10 +119,16 @@ uint32_t Scheduler::calculate_interval_offset_(uint32_t delay) {
 // Remove before 2026.8.0 along with all retry code
 bool Scheduler::is_retry_cancelled_locked_(Component *component, NameType name_type, const char *static_name,
                                            uint32_t hash_or_id) {
-  return has_cancelled_timeout_in_container_locked_(this->items_, component, name_type, static_name, hash_or_id,
-                                                    /* match_retry= */ true) ||
-         has_cancelled_timeout_in_container_locked_(this->to_add_, component, name_type, static_name, hash_or_id,
-                                                    /* match_retry= */ true);
+  for (auto *container : {&this->items_, &this->to_add_}) {
+    for (auto &item : *container) {
+      if (item && this->is_item_removed_locked_(item.get()) &&
+          this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, SchedulerItem::TIMEOUT,
+                                     /* match_retry= */ true, /* skip_removed= */ false)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 // Common implementation for both timeout and interval
@@ -406,7 +412,7 @@ void Scheduler::full_cleanup_removed_items_() {
   // Compact in-place: move valid items forward, recycle removed ones
   size_t write = 0;
   for (size_t read = 0; read < this->items_.size(); ++read) {
-    if (!is_item_removed_(this->items_[read].get())) {
+    if (!is_item_removed_locked_(this->items_[read].get())) {
       if (write != read) {
         this->items_[write] = std::move(this->items_[read]);
       }
@@ -420,6 +426,29 @@ void Scheduler::full_cleanup_removed_items_() {
   std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   this->to_remove_ = 0;
 }
+
+#ifndef ESPHOME_THREAD_SINGLE
+void Scheduler::compact_defer_queue_locked_() {
+  // Rare case: new items were added during processing - compact the vector
+  // This only happens when:
+  // 1. A deferred callback calls defer() again, or
+  // 2. Another thread calls defer() while we're processing
+  //
+  // Move unprocessed items (added during this loop) to the front for next iteration
+  //
+  // SAFETY: Compacted items may include cancelled items (marked for removal via
+  // cancel_item_locked_() during execution). This is safe because should_skip_item_()
+  // checks is_item_removed_() before executing, so cancelled items will be skipped
+  // and recycled on the next loop iteration.
+  size_t remaining = this->defer_queue_.size() - this->defer_queue_front_;
+  for (size_t i = 0; i < remaining; i++) {
+    this->defer_queue_[i] = std::move(this->defer_queue_[this->defer_queue_front_ + i]);
+  }
+  // Use erase() instead of resize() to avoid instantiating _M_default_append
+  // (saves ~156 bytes flash). Erasing from the end is O(1) - no shifting needed.
+  this->defer_queue_.erase(this->defer_queue_.begin() + remaining, this->defer_queue_.end());
+}
+#endif /* not ESPHOME_THREAD_SINGLE */
 
 void HOT Scheduler::call(uint32_t now) {
 #ifndef ESPHOME_THREAD_SINGLE
@@ -508,7 +537,7 @@ void HOT Scheduler::call(uint32_t now) {
     // Multi-threaded platforms without atomics: must take lock to safely read remove flag
     {
       LockGuard guard{this->lock_};
-      if (is_item_removed_(item.get())) {
+      if (is_item_removed_locked_(item.get())) {
         this->recycle_item_main_loop_(this->pop_raw_locked_());
         this->to_remove_--;
         continue;
@@ -545,7 +574,7 @@ void HOT Scheduler::call(uint32_t now) {
     // during the function call and know if we were cancelled.
     auto executed_item = this->pop_raw_locked_();
 
-    if (executed_item->remove) {
+    if (this->is_item_removed_locked_(executed_item.get())) {
       // We were removed/cancelled in the function call, recycle and continue
       this->to_remove_--;
       this->recycle_item_main_loop_(std::move(executed_item));
@@ -572,7 +601,7 @@ void HOT Scheduler::call(uint32_t now) {
 void HOT Scheduler::process_to_add() {
   LockGuard guard{this->lock_};
   for (auto &it : this->to_add_) {
-    if (is_item_removed_(it.get())) {
+    if (is_item_removed_locked_(it.get())) {
       // Recycle cancelled items
       this->recycle_item_main_loop_(std::move(it));
       continue;
@@ -605,7 +634,7 @@ size_t HOT Scheduler::cleanup_() {
   LockGuard guard{this->lock_};
   while (!this->items_.empty()) {
     auto &item = this->items_[0];
-    if (!item->remove)
+    if (!this->is_item_removed_locked_(item.get()))
       break;
     this->to_remove_--;
     this->recycle_item_main_loop_(this->pop_raw_locked_());
@@ -675,6 +704,8 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   return total_cancelled > 0;
 }
 
+uint64_t Scheduler::millis_64() { return this->millis_64_(millis()); }
+
 uint64_t Scheduler::millis_64_(uint32_t now) {
   // THREAD SAFETY NOTE:
   // This function has three implementations, based on the precompiler flags
@@ -728,7 +759,7 @@ uint64_t Scheduler::millis_64_(uint32_t now) {
 
   // Define a safe window around the rollover point (10 seconds)
   // This covers any reasonable scheduler delays or thread preemption
-  static const uint32_t ROLLOVER_WINDOW = 10000;  // 10 seconds in milliseconds
+  static constexpr uint32_t ROLLOVER_WINDOW = 10000;  // 10 seconds in milliseconds
 
   // Check if we're near the rollover boundary (close to std::numeric_limits<uint32_t>::max() or just past 0)
   bool near_rollover = (last > (std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW)) || (now < ROLLOVER_WINDOW);
