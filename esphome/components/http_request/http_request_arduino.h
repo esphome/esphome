@@ -50,7 +50,7 @@ class HttpRequestArduino : public HttpRequestComponent {
  protected:
   std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method, const std::string &body,
                                          const std::list<Header> &request_headers,
-                                         const std::set<std::string> &collect_headers) override;
+                                         const std::vector<std::string> &lower_case_collect_headers) override;
 };
 
 }  // namespace esphome::http_request
