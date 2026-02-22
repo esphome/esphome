@@ -19,7 +19,7 @@
 1. **HA PR #163046** (Roborock) - CLA 簽署問題
    - 標籤：`cla-error`
    - 行動：需訪問 https://cla-assistant.io/ 重新簽署
-   
+
 2. **HA PR #162254** (HTML5 notify) - 等待審核
    - 標籤：`cla-signed`
    - 狀態：良好，等待維護者審核
