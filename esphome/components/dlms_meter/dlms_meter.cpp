@@ -28,15 +28,28 @@ void DlmsMeterComponent::dump_config() {
 
 void DlmsMeterComponent::loop() {
   // Read while data is available, netznoe uses two frames so allow 2x max frame length
-  while (this->available()) {
-    if (this->receive_buffer_.size() >= MBUS_MAX_FRAME_LENGTH * 2) {
+  size_t avail = this->available();
+  if (avail > 0) {
+    size_t remaining = MBUS_MAX_FRAME_LENGTH * 2 - this->receive_buffer_.size();
+    if (remaining == 0) {
       ESP_LOGW(TAG, "Receive buffer full, dropping remaining bytes");
-      break;
+    } else {
+      // Read all available bytes in batches to reduce UART call overhead.
+      // Cap reads to remaining buffer capacity.
+      if (avail > remaining) {
+        avail = remaining;
+      }
+      uint8_t buf[64];
+      while (avail > 0) {
+        size_t to_read = std::min(avail, sizeof(buf));
+        if (!this->read_array(buf, to_read)) {
+          break;
+        }
+        avail -= to_read;
+        this->receive_buffer_.insert(this->receive_buffer_.end(), buf, buf + to_read);
+        this->last_read_ = millis();
+      }
     }
-    uint8_t c;
-    this->read_byte(&c);
-    this->receive_buffer_.push_back(c);
-    this->last_read_ = millis();
   }
 
   if (!this->receive_buffer_.empty() && millis() - this->last_read_ > this->read_timeout_) {

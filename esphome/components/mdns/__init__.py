@@ -21,7 +21,7 @@ DEPENDENCIES = ["network"]
 # Components that create mDNS services at runtime
 # IMPORTANT: If you add a new component here, you must also update the corresponding
 # #ifdef blocks in mdns_component.cpp compile_records_() method
-COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "web_server")
+COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "sendspin", "web_server")
 
 mdns_ns = cg.esphome_ns.namespace("mdns")
 MDNSComponent = mdns_ns.class_("MDNSComponent", cg.Component)
