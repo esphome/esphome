@@ -207,7 +207,11 @@ CONFIG_SCHEMA = cv.All(
                 CONF_REBOOT_TIMEOUT, default="10min"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_NMEA): cv.Schema(
-                {cv.GenerateID(CONF_ID): cv.declare_id(ModemNMEAUARTComponent)}
+                {
+                    cv.GenerateID(CONF_ID): cv.declare_id(ModemNMEAUARTComponent),
+                    cv.Optional(CONF_GNSS_COMMAND): cv.string,
+                    cv.Optional(CONF_GNSS_PARSER): cv.string,
+                }
             ).extend(cv.polling_component_schema("20s")),
             cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
                 {
@@ -317,8 +321,10 @@ def _final_validate(config):
             )
 
         gnss = MODEM_MODELS_GNSS_QUERY[model]
-        config[CONF_GNSS_COMMAND] = gnss["command"]
-        config[CONF_GNSS_PARSER] = gnss["parser"]
+        if CONF_GNSS_COMMAND not in config[CONF_NMEA]:
+            config[CONF_NMEA][CONF_GNSS_COMMAND] = gnss["command"]
+        if CONF_GNSS_PARSER not in config[CONF_NMEA]:
+            config[CONF_NMEA][CONF_GNSS_PARSER] = gnss["parser"]
 
     return config
 
@@ -483,8 +489,8 @@ async def to_code(config):
         AUTO_LOAD.append("uart")
         nmea_uart = cg.new_Pvariable(nmea[CONF_ID])
 
-        cg.add(nmea_uart.set_gnss_command(config[CONF_GNSS_COMMAND]))
-        parser_flag = f"USE_MODEM_GNSS_PARSER_{config[CONF_GNSS_PARSER].upper()}"
+        cg.add(nmea_uart.set_gnss_command(nmea[CONF_GNSS_COMMAND]))
+        parser_flag = f"USE_MODEM_GNSS_PARSER_{nmea[CONF_GNSS_PARSER].upper()}"
         cg.add_define(parser_flag)
 
         await cg.register_component(nmea_uart, nmea)
