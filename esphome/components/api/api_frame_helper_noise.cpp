@@ -411,6 +411,13 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);
+  // read_packet() must only be called in DATA state; the extra
+  // RX_BUF_NULL_TERMINATOR byte is only allocated in DATA state
+  // (see try_read_frame_), so calling this during handshake would
+  // underflow the size calculation below.
+#ifdef ESPHOME_DEBUG_API
+  assert(this->state_ == State::DATA);
+#endif
   // rx_buf_ has RX_BUF_NULL_TERMINATOR extra byte for null termination
   // (only added in DATA state — see try_read_frame_), so subtract it
   // to get the actual encrypted data size for decryption.
@@ -582,7 +589,9 @@ APIError APINoiseFrameHelper::init_handshake_() {
 }
 
 APIError APINoiseFrameHelper::check_handshake_finished_() {
+#ifdef ESPHOME_DEBUG_API
   assert(state_ == State::HANDSHAKE);
+#endif
 
   int action = noise_handshakestate_get_action(handshake_);
   if (action == NOISE_ACTION_READ_MESSAGE || action == NOISE_ACTION_WRITE_MESSAGE)
