@@ -238,6 +238,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
            esp_get_free_heap_size());
   int status_code = esp_http_client_get_status_code(http_client);
   if (status_code != 200 && status_code != 206) {
+    ESP_LOGE(TAG, "HTTP request failed with status %d", status_code);
     return this->upload_end_(false);
   }
 
