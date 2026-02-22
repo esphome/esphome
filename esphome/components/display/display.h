@@ -298,9 +298,9 @@ using display_writer_t = DisplayWriter<Display>;
   }
 
 /// Turn the pixel OFF.
-extern const Color COLOR_OFF;
+inline constexpr Color COLOR_OFF(0, 0, 0, 0);
 /// Turn the pixel ON.
-extern const Color COLOR_ON;
+inline constexpr Color COLOR_ON(255, 255, 255, 255);
 
 class BaseImage {
  public:

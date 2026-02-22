@@ -52,10 +52,10 @@ class TaskLogBuffer {
   ~TaskLogBuffer();
 
   // NOT thread-safe - borrow a message from the ring buffer, only call from main loop
-  bool borrow_message_main_loop(LogMessage **message, const char **text, void **received_token);
+  bool borrow_message_main_loop(LogMessage *&message, uint16_t &text_length);
 
   // NOT thread-safe - release a message buffer and update the counter, only call from main loop
-  void release_message_main_loop(void *token);
+  void release_message_main_loop();
 
   // Thread-safe - send a message to the ring buffer from any thread
   bool send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
@@ -78,6 +78,7 @@ class TaskLogBuffer {
   // Atomic counter for message tracking (only differences matter)
   std::atomic<uint16_t> message_counter_{0};    // Incremented when messages are committed
   mutable uint16_t last_processed_counter_{0};  // Tracks last processed message
+  void *current_token_{nullptr};
 };
 
 }  // namespace esphome::logger
