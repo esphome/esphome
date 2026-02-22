@@ -87,38 +87,24 @@ COLOR_DEPTHS = {
 
 def model_schema(config):
     model = MODELS[config[CONF_MODEL].upper()]
+    model.defaults[CONF_SWAP_XY] = cv.UNDEFINED
     transform = cv.Schema(
         {
             cv.Required(CONF_MIRROR_X): cv.boolean,
             cv.Required(CONF_MIRROR_Y): cv.boolean,
+            cv.Optional(CONF_SWAP_XY): cv.invalid(
+                "Axis swapping not supported by DSI displays"
+            ),
         }
     )
-    if model.get_default(CONF_SWAP_XY) != cv.UNDEFINED:
-        transform = transform.extend(
-            {
-                cv.Optional(CONF_SWAP_XY): cv.invalid(
-                    "Axis swapping not supported by this model"
-                )
-            }
-        )
-    else:
-        transform = transform.extend(
-            {
-                cv.Required(CONF_SWAP_XY): cv.boolean,
-            }
-        )
     # CUSTOM model will need to provide a custom init sequence
     iseqconf = (
         cv.Required(CONF_INIT_SEQUENCE)
         if model.initsequence is None
         else cv.Optional(CONF_INIT_SEQUENCE)
     )
-    swap_xy = config.get(CONF_TRANSFORM, {}).get(CONF_SWAP_XY, False)
-
-    # Dimensions are optional if the model has a default width and the swap_xy transform is not overridden
-    cv_dimensions = (
-        cv.Optional if model.get_default(CONF_WIDTH) and not swap_xy else cv.Required
-    )
+    # Dimensions are optional if the model has a default width
+    cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
     pixel_modes = (PIXEL_MODE_16BIT, PIXEL_MODE_24BIT, "16", "24")
     schema = display.FULL_DISPLAY_SCHEMA.extend(
         {

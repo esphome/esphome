@@ -230,7 +230,8 @@ void RuntimeImage::release() {
 void RuntimeImage::release_buffer_() {
   if (this->buffer_) {
     ESP_LOGV(TAG, "Releasing buffer of size %zu", this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
-    this->allocator_.deallocate(this->buffer_, this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
+    RAMAllocator<uint8_t> allocator;
+    allocator.deallocate(this->buffer_, this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
     this->buffer_ = nullptr;
     this->data_start_ = nullptr;
     this->width_ = 0;
@@ -254,11 +255,12 @@ size_t RuntimeImage::resize_buffer_(int width, int height) {
   }
 
   ESP_LOGD(TAG, "Allocating buffer: %dx%d, %zu bytes", width, height, new_size);
-  this->buffer_ = this->allocator_.allocate(new_size);
+  RAMAllocator<uint8_t> allocator;
+  this->buffer_ = allocator.allocate(new_size);
 
   if (!this->buffer_) {
     ESP_LOGE(TAG, "Failed to allocate %zu bytes. Largest free block: %zu", new_size,
-             this->allocator_.get_max_free_block_size());
+             allocator.get_max_free_block_size());
     return 0;
   }
 
