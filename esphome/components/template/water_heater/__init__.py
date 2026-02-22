@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import water_heater
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AWAY,
     CONF_ID,
     CONF_MODE,
     CONF_OPTIMISTIC,
@@ -18,6 +19,7 @@ from esphome.types import ConfigType
 from .. import template_ns
 
 CONF_CURRENT_TEMPERATURE = "current_temperature"
+CONF_IS_ON = "is_on"
 
 TemplateWaterHeater = template_ns.class_(
     "TemplateWaterHeater", cg.Component, water_heater.WaterHeater
@@ -51,6 +53,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
                 water_heater.validate_water_heater_mode
             ),
+            cv.Optional(CONF_AWAY): cv.returning_lambda,
+            cv.Optional(CONF_IS_ON): cv.returning_lambda,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -98,6 +102,22 @@ async def to_code(config: ConfigType) -> None:
     if CONF_SUPPORTED_MODES in config:
         cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
 
+    if CONF_AWAY in config:
+        template_ = await cg.process_lambda(
+            config[CONF_AWAY],
+            [],
+            return_type=cg.optional.template(bool),
+        )
+        cg.add(var.set_away_lambda(template_))
+
+    if CONF_IS_ON in config:
+        template_ = await cg.process_lambda(
+            config[CONF_IS_ON],
+            [],
+            return_type=cg.optional.template(bool),
+        )
+        cg.add(var.set_is_on_lambda(template_))
+
 
 @automation.register_action(
     "water_heater.template.publish",
@@ -110,6 +130,8 @@ async def to_code(config: ConfigType) -> None:
             cv.Optional(CONF_MODE): cv.templatable(
                 water_heater.validate_water_heater_mode
             ),
+            cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
+            cv.Optional(CONF_IS_ON): cv.templatable(cv.boolean),
         }
     ),
 )
@@ -133,5 +155,13 @@ async def water_heater_template_publish_to_code(
     if mode := config.get(CONF_MODE):
         template_ = await cg.templatable(mode, args, water_heater.WaterHeaterMode)
         cg.add(var.set_mode(template_))
+
+    if CONF_AWAY in config:
+        template_ = await cg.templatable(config[CONF_AWAY], args, bool)
+        cg.add(var.set_away(template_))
+
+    if CONF_IS_ON in config:
+        template_ = await cg.templatable(config[CONF_IS_ON], args, bool)
+        cg.add(var.set_is_on(template_))
 
     return var

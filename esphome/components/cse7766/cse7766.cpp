@@ -16,8 +16,8 @@ void CSE7766Component::loop() {
   }
 
   // Early return prevents updating last_transmission_ when no data is available.
-  int avail = this->available();
-  if (avail <= 0) {
+  size_t avail = this->available();
+  if (avail == 0) {
     return;
   }
 
@@ -27,7 +27,7 @@ void CSE7766Component::loop() {
   // At 4800 baud (~480 bytes/sec) with ~122 Hz loop rate, typically ~4 bytes per call.
   uint8_t buf[CSE7766_RAW_DATA_SIZE];
   while (avail > 0) {
-    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    size_t to_read = std::min(avail, sizeof(buf));
     if (!this->read_array(buf, to_read)) {
       break;
     }

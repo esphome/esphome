@@ -301,7 +301,7 @@ def highlight(s):
     ],
 )
 def lint_no_defines(fname, match):
-    s = highlight(f"static const uint8_t {match.group(1)} = {match.group(2)};")
+    s = highlight(f"static constexpr uint8_t {match.group(1)} = {match.group(2)};")
     return (
         "#define macros for integer constants are not allowed, please use "
         f"{s} style instead (replace uint8_t with the appropriate "
@@ -491,6 +491,22 @@ def lint_no_byte_datatype(fname, match):
     return (
         f"The datatype {highlight('byte')} is not allowed to be used in ESPHome. "
         f"Please use {highlight('uint8_t')} instead."
+    )
+
+
+@lint_re_check(
+    r"(?:std\s*::\s*string_view|#include\s*<string_view>)" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_std_string_view(fname, match):
+    return (
+        f"{highlight('std::string_view')} is not allowed in ESPHome. "
+        f"It pulls in significant STL template machinery that bloats flash on "
+        f"resource-constrained embedded targets, does not work well with ArduinoJson, "
+        f"and duplicates functionality already provided by {highlight('StringRef')}.\n"
+        f"Please use {highlight('StringRef')} from {highlight('esphome/core/string_ref.h')} "
+        f"for non-owning string references, or {highlight('const char *')} for simple cases.\n"
+        f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
     )
 
 

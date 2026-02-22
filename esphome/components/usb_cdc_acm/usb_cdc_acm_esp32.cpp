@@ -318,12 +318,12 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   return bytes_read == original_len;
 }
 
-int USBCDCACMInstance::available() {
+size_t USBCDCACMInstance::available() {
   UBaseType_t waiting = 0;
   if (this->usb_rx_ringbuf_ != nullptr) {
     vRingbufferGetInfo(this->usb_rx_ringbuf_, nullptr, nullptr, nullptr, nullptr, &waiting);
   }
-  return static_cast<int>(waiting) + (this->has_peek_ ? 1 : 0);
+  return waiting + (this->has_peek_ ? 1 : 0);
 }
 
 void USBCDCACMInstance::flush() {

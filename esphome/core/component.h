@@ -21,33 +21,39 @@ struct LogString;
 namespace setup_priority {
 
 /// For communication buses like i2c/spi
-extern const float BUS;
+inline constexpr float BUS = 1000.0f;
 /// For components that represent GPIO pins like PCF8573
-extern const float IO;
+inline constexpr float IO = 900.0f;
 /// For components that deal with hardware and are very important like GPIO switch
-extern const float HARDWARE;
+inline constexpr float HARDWARE = 800.0f;
 /// For components that import data from directly connected sensors like DHT.
-extern const float DATA;
-/// Alias for DATA (here for compatibility reasons)
-extern const float HARDWARE_LATE;
+inline constexpr float DATA = 600.0f;
 /// For components that use data from sensors like displays
-extern const float PROCESSOR;
-extern const float BLUETOOTH;
-extern const float AFTER_BLUETOOTH;
-extern const float WIFI;
-extern const float ETHERNET;
+inline constexpr float PROCESSOR = 400.0f;
+inline constexpr float BLUETOOTH = 350.0f;
+inline constexpr float AFTER_BLUETOOTH = 300.0f;
+inline constexpr float WIFI = 250.0f;
+inline constexpr float ETHERNET = 250.0f;
 /// For components that should be initialized after WiFi and before API is connected.
-extern const float BEFORE_CONNECTION;
+inline constexpr float BEFORE_CONNECTION = 220.0f;
 /// For components that should be initialized after WiFi is connected.
-extern const float AFTER_WIFI;
+inline constexpr float AFTER_WIFI = 200.0f;
 /// For components that should be initialized after a data connection (API/MQTT) is connected.
-extern const float AFTER_CONNECTION;
+inline constexpr float AFTER_CONNECTION = 100.0f;
 /// For components that should be initialized at the very end of the setup process.
-extern const float LATE;
+inline constexpr float LATE = -100.0f;
 
 }  // namespace setup_priority
 
-static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
+inline constexpr uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
+
+/// Type-safe scheduler IDs for core base classes.
+/// Uses a separate NameType (NUMERIC_ID_INTERNAL) so IDs can never collide
+/// with component-level NUMERIC_ID values, even if the uint32_t values overlap.
+enum class InternalSchedulerID : uint32_t {
+  POLLING_UPDATE = 0,  // PollingComponent interval
+  DELAY_ACTION = 1,    // DelayAction timeout
+};
 
 // Forward declaration
 class PollingComponent;
@@ -57,21 +63,23 @@ void log_update_interval(const char *tag, PollingComponent *component);
 
 #define LOG_UPDATE_INTERVAL(this) log_update_interval(TAG, this)
 
-extern const uint8_t COMPONENT_STATE_MASK;
-extern const uint8_t COMPONENT_STATE_CONSTRUCTION;
-extern const uint8_t COMPONENT_STATE_SETUP;
-extern const uint8_t COMPONENT_STATE_LOOP;
-extern const uint8_t COMPONENT_STATE_FAILED;
-extern const uint8_t COMPONENT_STATE_LOOP_DONE;
-extern const uint8_t STATUS_LED_MASK;
-extern const uint8_t STATUS_LED_OK;
-extern const uint8_t STATUS_LED_WARNING;
-extern const uint8_t STATUS_LED_ERROR;
+// Component state uses bits 0-2 (8 states, 5 used)
+inline constexpr uint8_t COMPONENT_STATE_MASK = 0x07;
+inline constexpr uint8_t COMPONENT_STATE_CONSTRUCTION = 0x00;
+inline constexpr uint8_t COMPONENT_STATE_SETUP = 0x01;
+inline constexpr uint8_t COMPONENT_STATE_LOOP = 0x02;
+inline constexpr uint8_t COMPONENT_STATE_FAILED = 0x03;
+inline constexpr uint8_t COMPONENT_STATE_LOOP_DONE = 0x04;
+// Status LED uses bits 3-4
+inline constexpr uint8_t STATUS_LED_MASK = 0x18;
+inline constexpr uint8_t STATUS_LED_OK = 0x00;
+inline constexpr uint8_t STATUS_LED_WARNING = 0x08;
+inline constexpr uint8_t STATUS_LED_ERROR = 0x10;
 
 // Remove before 2026.8.0
 enum class RetryResult { DONE, RETRY };
 
-extern const uint16_t WARN_IF_BLOCKING_OVER_MS;
+inline constexpr uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;
 
 class Component {
  public:
@@ -157,7 +165,7 @@ class Component {
    * For example, i2c based components can check if the remote device is responding and otherwise
    * mark the component as failed. Eventually this will also enable smart status LEDs.
    */
-  virtual void mark_failed();
+  void mark_failed();
 
   // Remove before 2026.6.0
   ESPDEPRECATED("Use mark_failed(LOG_STR(\"static string literal\")) instead. Do NOT use .c_str() from temporary "
@@ -278,7 +286,7 @@ class Component {
  protected:
   friend class Application;
 
-  virtual void call_loop();
+  void call_loop_();
   virtual void call_setup();
   virtual void call_dump_config();
 
@@ -335,6 +343,8 @@ class Component {
    */
   void set_interval(uint32_t id, uint32_t interval, std::function<void()> &&f);  // NOLINT
 
+  void set_interval(InternalSchedulerID id, uint32_t interval, std::function<void()> &&f);  // NOLINT
+
   void set_interval(uint32_t interval, std::function<void()> &&f);  // NOLINT
 
   /** Cancel an interval function.
@@ -347,6 +357,7 @@ class Component {
   bool cancel_interval(const std::string &name);  // NOLINT
   bool cancel_interval(const char *name);         // NOLINT
   bool cancel_interval(uint32_t id);              // NOLINT
+  bool cancel_interval(InternalSchedulerID id);   // NOLINT
 
   /// @deprecated set_retry is deprecated. Use set_timeout or set_interval instead. Removed in 2026.8.0.
   // Remove before 2026.8.0
@@ -425,6 +436,8 @@ class Component {
    */
   void set_timeout(uint32_t id, uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
+  void set_timeout(InternalSchedulerID id, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+
   void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
   /** Cancel a timeout function.
@@ -437,6 +450,7 @@ class Component {
   bool cancel_timeout(const std::string &name);  // NOLINT
   bool cancel_timeout(const char *name);         // NOLINT
   bool cancel_timeout(uint32_t id);              // NOLINT
+  bool cancel_timeout(InternalSchedulerID id);   // NOLINT
 
   /** Defer a callback to the next loop() call.
    *
@@ -536,12 +550,13 @@ class PollingComponent : public Component {
 
 class WarnIfComponentBlockingGuard {
  public:
-  WarnIfComponentBlockingGuard(Component *component, uint32_t start_time);
+  WarnIfComponentBlockingGuard(Component *component, uint32_t start_time)
+      : started_(start_time), component_(component) {}
 
   // Finish the timing operation and return the current time
   uint32_t finish();
 
-  ~WarnIfComponentBlockingGuard();
+  ~WarnIfComponentBlockingGuard() = default;
 
  protected:
   uint32_t started_;
@@ -549,6 +564,7 @@ class WarnIfComponentBlockingGuard {
 };
 
 // Function to clear setup priority overrides after all components are set up
+// Only has an implementation when USE_SETUP_PRIORITY_OVERRIDE is defined
 void clear_setup_priority_overrides();
 
 }  // namespace esphome

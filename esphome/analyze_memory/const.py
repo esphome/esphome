@@ -256,7 +256,7 @@ SYMBOL_PATTERNS = {
     "ipv6_stack": ["nd6_", "ip6_", "mld6_", "icmp6_", "icmp6_input"],
     # Order matters! More specific categories must come before general ones.
     # mdns must come before bluetooth to avoid "_mdns_disable_pcb" matching "ble_" pattern
-    "mdns_lib": ["mdns"],
+    "mdns_lib": ["mdns", "packet$"],
     # memory_mgmt must come before wifi_stack to catch mmu_hal_* symbols
     "memory_mgmt": [
         "mem_",
@@ -794,7 +794,6 @@ SYMBOL_PATTERNS = {
         "s_dp",
         "s_ni",
         "s_reg_dump",
-        "packet$",
         "d_mult_table",
         "K",
         "fcstab",
