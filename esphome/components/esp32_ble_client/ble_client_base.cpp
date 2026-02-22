@@ -101,9 +101,9 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
 #endif
 
 void BLEClientBase::connect() {
-  // Prevent duplicate connection attempts
+  // Prevent duplicate connection attempts or connecting while still disconnecting
   if (this->state() == espbt::ClientState::CONNECTING || this->state() == espbt::ClientState::CONNECTED ||
-      this->state() == espbt::ClientState::ESTABLISHED) {
+      this->state() == espbt::ClientState::ESTABLISHED || this->state() == espbt::ClientState::DISCONNECTING) {
     ESP_LOGW(TAG, "[%d] [%s] Connection already in progress, state=%s", this->connection_index_, this->address_str_,
              espbt::client_state_to_string(this->state()));
     return;
@@ -295,9 +295,10 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // ESP-IDF's BLE stack may send ESP_GATTC_OPEN_EVT after esp_ble_gattc_open() returns an
       // error, if the error occurred at the BTA/GATT layer. This can result in the event
       // arriving after we've already transitioned to IDLE state.
-      if (this->state() == espbt::ClientState::IDLE) {
-        ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in IDLE state (status=%d), ignoring", this->connection_index_,
-                 this->address_str_, param->open.status);
+      // It may also arrive during DISCONNECTING if the controller is still cleaning up.
+      if (this->state() == espbt::ClientState::IDLE || this->state() == espbt::ClientState::DISCONNECTING) {
+        ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in %s state (status=%d), ignoring", this->connection_index_,
+                 this->address_str_, espbt::client_state_to_string(this->state()), param->open.status);
         break;
       }
 
@@ -362,8 +363,13 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason 0x%02x", this->connection_index_, this->address_str_,
                  param->disconnect.reason);
       }
+      // Don't transition to IDLE yet - wait for CLOSE_EVT to ensure the controller has
+      // fully freed resources (L2CAP channels, ATT resources, HCI connection handle).
+      // Transitioning to IDLE here would allow reconnection before cleanup is complete,
+      // causing the controller to reject the new connection (status=133) or crash
+      // with ASSERT_PARAM in lld_evt.c.
       this->release_services();
-      this->set_state(espbt::ClientState::IDLE);
+      this->set_state(espbt::ClientState::DISCONNECTING);
       break;
     }
 
