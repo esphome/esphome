@@ -201,10 +201,13 @@ APIError APINoiseFrameHelper::try_read_frame_() {
     return (state_ == State::DATA) ? APIError::BAD_DATA_PACKET : APIError::BAD_HANDSHAKE_PACKET_LEN;
   }
 
-  // Reserve space for body (+1 for null terminator so protobuf StringRef fields
-  // can be safely null-terminated in-place after decode)
-  if (this->rx_buf_.size() != msg_size + 1) {
-    this->rx_buf_.resize(msg_size + 1);
+  // Reserve space for body (+1 for null terminator in DATA state so protobuf
+  // StringRef fields can be safely null-terminated in-place after decode.
+  // During handshake, rx_buf_.size() is used in prologue construction, so
+  // the buffer must be exactly msg_size to avoid prologue mismatch.)
+  uint16_t alloc_size = msg_size + (state_ == State::DATA ? 1 : 0);
+  if (this->rx_buf_.size() != alloc_size) {
+    this->rx_buf_.resize(alloc_size);
   }
 
   if (rx_buf_len_ < msg_size) {
