@@ -220,6 +220,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   }
 
   if (code != 200 and code != 206) {
+    ESP_LOGE(TAG, "HTTP request failed with status %d", code);
     return this->upload_end_(false);
   }
 
