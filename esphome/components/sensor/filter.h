@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_SENSOR_FILTER
+
 #include <queue>
 #include <utility>
 #include <vector>
@@ -638,3 +641,5 @@ class StreamingMovingAverageFilter : public StreamingFilter {
 };
 
 }  // namespace esphome::sensor
+
+#endif  // USE_SENSOR_FILTER
