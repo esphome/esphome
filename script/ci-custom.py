@@ -494,6 +494,22 @@ def lint_no_byte_datatype(fname, match):
     )
 
 
+@lint_re_check(
+    r"(?:std\s*::\s*string_view|#include\s*<string_view>)" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_std_string_view(fname, match):
+    return (
+        f"{highlight('std::string_view')} is not allowed in ESPHome. "
+        f"It pulls in significant STL template machinery that bloats flash on "
+        f"resource-constrained embedded targets, does not work well with ArduinoJson, "
+        f"and duplicates functionality already provided by {highlight('StringRef')}.\n"
+        f"Please use {highlight('StringRef')} from {highlight('esphome/core/string_ref.h')} "
+        f"for non-owning string references, or {highlight('const char *')} for simple cases.\n"
+        f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
+    )
+
+
 @lint_post_check
 def lint_constants_usage():
     errs = []
