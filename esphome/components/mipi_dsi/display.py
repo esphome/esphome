@@ -39,6 +39,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
+    CONF_DISABLED,
     CONF_ENABLE_PIN,
     CONF_ID,
     CONF_INIT_SEQUENCE,
@@ -88,14 +89,17 @@ COLOR_DEPTHS = {
 def model_schema(config):
     model = MODELS[config[CONF_MODEL].upper()]
     model.defaults[CONF_SWAP_XY] = cv.UNDEFINED
-    transform = cv.Schema(
-        {
-            cv.Required(CONF_MIRROR_X): cv.boolean,
-            cv.Required(CONF_MIRROR_Y): cv.boolean,
-            cv.Optional(CONF_SWAP_XY): cv.invalid(
-                "Axis swapping not supported by DSI displays"
-            ),
-        }
+    transform = cv.Any(
+        cv.Schema(
+            {
+                cv.Required(CONF_MIRROR_X): cv.boolean,
+                cv.Required(CONF_MIRROR_Y): cv.boolean,
+                cv.Optional(CONF_SWAP_XY): cv.invalid(
+                    "Axis swapping not supported by DSI displays"
+                ),
+            }
+        ),
+        cv.one_of(CONF_DISABLED, lower=True),
     )
     # CUSTOM model will need to provide a custom init sequence
     iseqconf = (
