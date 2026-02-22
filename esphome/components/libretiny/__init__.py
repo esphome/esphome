@@ -290,7 +290,7 @@ def _configure_lwip(config: dict) -> None:
     Setting                   ESP8266  ESP32  BK SDK   RTL SDK  LN SDK   New
     ────────────────────────────────────────────────────────────────────────────
     TCP_SND_BUF               2×MSS   4×MSS  10×MSS   5×MSS    7×MSS    4×MSS
-    TCP_WND                   4×MSS   4×MSS  10×MSS   2×MSS    3×MSS    4×MSS
+    TCP_WND                   4×MSS   4×MSS  3/10×MSS 2×MSS    3×MSS    4×MSS
     MEM_LIBC_MALLOC           1       1      0        0        1        1
     MEMP_MEM_MALLOC           1       1      0        0        0        1
     MEM_SIZE                  N/A*    N/A*   16/32KB  5KB      N/A*     N/A* BK
@@ -313,21 +313,22 @@ def _configure_lwip(config: dict) -> None:
     **** RTL/LN LT overlay overrides to flat 7.
     ***** Not defined in RTL SDK — lwIP opt.h defaults shown.
     "dynamic" = auto-calculated from component socket registrations via
-    socket.get_socket_counts() with minimums of 10 TCP / 8 UDP.
+    socket.get_socket_counts() with minimums of 8 TCP / 6 UDP.
     """
     from esphome.components.socket import (
+        MIN_TCP_LISTEN_SOCKETS,
         MIN_TCP_SOCKETS,
         MIN_UDP_SOCKETS,
         get_socket_counts,
     )
 
-    raw_tcp, raw_udp, raw_tcp_listen = get_socket_counts()
+    sc = get_socket_counts()
     # Apply platform minimums — ensure headroom for ESPHome's needs
-    tcp_sockets = max(MIN_TCP_SOCKETS, raw_tcp)
-    udp_sockets = max(MIN_UDP_SOCKETS, raw_udp)
+    tcp_sockets = max(MIN_TCP_SOCKETS, sc.tcp)
+    udp_sockets = max(MIN_UDP_SOCKETS, sc.udp)
     # Listening sockets — registered by components (api, ota, web_server_base, etc.)
-    # Not all components register yet, so ensure a minimum of 2 (api + ota baseline).
-    listening_tcp = max(raw_tcp_listen, 2)
+    # Not all components register yet, so ensure a minimum for baseline operation.
+    listening_tcp = max(MIN_TCP_LISTEN_SOCKETS, sc.tcp_listen)
 
     # TCP_SND_BUF: ESPAsyncWebServer allocates malloc(tcp_sndbuf()) per
     # response chunk. At 10×MSS=14.6KB (BK default) this causes OOM (#14095).
@@ -396,6 +397,21 @@ def _configure_lwip(config: dict) -> None:
     if CORE.is_bk72xx:
         lwip_opts.append("PBUF_POOL_SIZE=10")
 
+    tcp_min = " (min)" if tcp_sockets > sc.tcp else ""
+    udp_min = " (min)" if udp_sockets > sc.udp else ""
+    listen_min = " (min)" if listening_tcp > sc.tcp_listen else ""
+    _LOGGER.info(
+        "Configuring lwIP: TCP=%d%s [%s], UDP=%d%s [%s], TCP_LISTEN=%d%s [%s]",
+        tcp_sockets,
+        tcp_min,
+        sc.tcp_details,
+        udp_sockets,
+        udp_min,
+        sc.udp_details,
+        listening_tcp,
+        listen_min,
+        sc.tcp_listen_details,
+    )
     cg.add_platformio_option("custom_options.lwip", lwip_opts)
 
 
