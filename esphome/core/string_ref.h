@@ -81,19 +81,6 @@ class StringRef {
 
   operator std::string() const { return str(); }
 
-  /// Compare with a null-terminated C string (compatible with std::string::compare)
-  int compare(const char *s) const {
-    size_t s_len = std::strlen(s);
-    int result = std::memcmp(base_, s, std::min(len_, s_len));
-    if (result != 0)
-      return result;
-    if (len_ < s_len)
-      return -1;
-    if (len_ > s_len)
-      return 1;
-    return 0;
-  }
-
   /// Find first occurrence of substring, returns std::string::npos if not found.
   /// Note: Requires the underlying string to be null-terminated.
   size_type find(const char *s, size_type pos = 0) const {
