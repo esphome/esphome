@@ -155,6 +155,9 @@ async def to_code(config):
         cg.add(var.set_watchdog_timeout(timeout_ms))
 
     if CORE.is_esp32:
+        # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
+        esp32.include_builtin_idf_component("esp_http_client")
+
         cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
         cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))
         cg.add(var.set_verify_ssl(config[CONF_VERIFY_SSL]))
@@ -299,15 +302,19 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
             lambda_ = await cg.process_lambda(json_, args_, return_type=cg.void)
             cg.add(var.set_json(lambda_))
         else:
+            cg.add(var.init_json(len(json_)))
             for key in json_:
                 template_ = await cg.templatable(json_[key], args, cg.std_string)
                 cg.add(var.add_json(key, template_))
-    for key, value in config.get(CONF_REQUEST_HEADERS, {}).items():
+    request_headers = config.get(CONF_REQUEST_HEADERS, {})
+    if request_headers:
+        cg.add(var.init_request_headers(len(request_headers)))
+    for key, value in request_headers.items():
         template_ = await cg.templatable(value, args, cg.const_char_ptr)
         cg.add(var.add_request_header(key, template_))
 
     for value in config.get(CONF_COLLECT_HEADERS, []):
-        cg.add(var.add_collect_header(value))
+        cg.add(var.add_collect_header(value.lower()))
 
     if response_conf := config.get(CONF_ON_RESPONSE):
         if capture_response:

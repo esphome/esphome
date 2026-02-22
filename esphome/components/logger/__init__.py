@@ -16,6 +16,8 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S3,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    require_usb_serial_jtag_secondary,
+    require_vfs_termios,
 )
 from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
 from esphome.components.libretiny.const import (
@@ -99,6 +101,8 @@ CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
 CONF_RUNTIME_TAG_LEVELS = "runtime_tag_levels"
 CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
+CONF_WAIT_FOR_CDC = "wait_for_cdc"
+CONF_EARLY_MESSAGE = "early_message"
 
 UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
@@ -206,6 +210,12 @@ def validate_initial_no_higher_than_global(config):
     return config
 
 
+def validate_wait_for_cdc(config):
+    if config.get(CONF_WAIT_FOR_CDC) and config.get(CONF_HARDWARE_UART) != USB_CDC:
+        raise cv.Invalid("wait_for_cdc requires hardware_uart: USB_CDC")
+    return config
+
+
 Logger = logger_ns.class_("Logger", cg.Component)
 LoggerMessageTrigger = logger_ns.class_(
     "LoggerMessageTrigger",
@@ -229,9 +239,16 @@ CONFIG_SCHEMA = cv.All(
                 bk72xx=768,
                 ln882x=768,
                 rtl87xx=768,
+                nrf52=768,
             ): cv.All(
                 cv.only_on(
-                    [PLATFORM_ESP32, PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RTL87XX]
+                    [
+                        PLATFORM_ESP32,
+                        PLATFORM_BK72XX,
+                        PLATFORM_LN882X,
+                        PLATFORM_RTL87XX,
+                        PLATFORM_NRF52,
+                    ]
                 ),
                 cv.validate_bytes,
                 cv.Any(
@@ -291,10 +308,18 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH, esp8266=True
             ): cv.All(cv.only_on_esp8266, cv.boolean),
+            cv.SplitDefault(CONF_WAIT_FOR_CDC, nrf52=False): cv.All(
+                cv.only_on(PLATFORM_NRF52),
+                cv.boolean,
+            ),
+            cv.SplitDefault(CONF_EARLY_MESSAGE, nrf52=False): cv.All(
+                cv.only_on(PLATFORM_NRF52), cv.boolean
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_local_no_higher_than_global,
     validate_initial_no_higher_than_global,
+    validate_wait_for_cdc,
 )
 
 
@@ -311,11 +336,13 @@ async def to_code(config):
     )
     if CORE.is_esp32:
         cg.add(log.create_pthread_key())
-    if CORE.is_esp32 or CORE.is_libretiny:
+    if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
         task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
         if task_log_buffer_size > 0:
             cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
             cg.add(log.init_log_buffer(task_log_buffer_size))
+            if CORE.using_zephyr:
+                zephyr_add_prj_conf("MPSC_PBUF", True)
     elif CORE.is_host:
         cg.add(log.create_pthread_key())
         cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
@@ -397,9 +424,15 @@ async def to_code(config):
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
             cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
+    # Define platform support flags for components that need auto-detection
     try:
         uart_selection(USB_SERIAL_JTAG)
         cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
+        # USB Serial JTAG code is compiled when platform supports it.
+        # Enable secondary USB serial JTAG console so the VFS functions are available.
+        if CORE.is_esp32 and config[CONF_HARDWARE_UART] != USB_SERIAL_JTAG:
+            require_usb_serial_jtag_secondary()
+            require_vfs_termios()
     except cv.Invalid:
         pass
     try:
@@ -408,12 +441,21 @@ async def to_code(config):
     except cv.Invalid:
         pass
 
+    if config.get(CONF_WAIT_FOR_CDC):
+        cg.add_define("USE_LOGGER_WAIT_FOR_CDC")
+    if config.get(CONF_EARLY_MESSAGE):
+        cg.add_define("USE_LOGGER_EARLY_MESSAGE")
+
     if CORE.is_nrf52:
+        # esphome implement own fatal error handler which save PC/LR before reset
+        zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
+        zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
         if config[CONF_HARDWARE_UART] == UART0:
             zephyr_add_overlay("""&uart0 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == UART1:
             zephyr_add_overlay("""&uart1 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == USB_CDC:
+            cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
             zephyr_add_prj_conf("UART_LINE_CTRL", True)
             zephyr_add_cdc_acm(config, 0)
 

@@ -66,15 +66,6 @@ SECTION_MAPPING = {
     ),
 }
 
-# Section to ComponentMemory attribute mapping
-# Maps section names to the attribute name in ComponentMemory dataclass
-SECTION_TO_ATTR = {
-    ".text": "text_size",
-    ".rodata": "rodata_size",
-    ".data": "data_size",
-    ".bss": "bss_size",
-}
-
 # Component identification rules
 # Symbol patterns: patterns found in raw symbol names
 SYMBOL_PATTERNS = {
@@ -265,7 +256,7 @@ SYMBOL_PATTERNS = {
     "ipv6_stack": ["nd6_", "ip6_", "mld6_", "icmp6_", "icmp6_input"],
     # Order matters! More specific categories must come before general ones.
     # mdns must come before bluetooth to avoid "_mdns_disable_pcb" matching "ble_" pattern
-    "mdns_lib": ["mdns"],
+    "mdns_lib": ["mdns", "packet$"],
     # memory_mgmt must come before wifi_stack to catch mmu_hal_* symbols
     "memory_mgmt": [
         "mem_",
@@ -513,7 +504,9 @@ SYMBOL_PATTERNS = {
         "__FUNCTION__$",
         "DAYS_IN_MONTH",
         "_DAYS_BEFORE_MONTH",
-        "CSWTCH$",
+        # Note: CSWTCH$ symbols are GCC switch table lookup tables.
+        # They are attributed to their source object files via _analyze_cswtch_symbols()
+        # rather than being lumped into libc.
         "dst$",
         "sulp",
         "_strtol_l",  # String to long with locale
@@ -801,7 +794,6 @@ SYMBOL_PATTERNS = {
         "s_dp",
         "s_ni",
         "s_reg_dump",
-        "packet$",
         "d_mult_table",
         "K",
         "fcstab",

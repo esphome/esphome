@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pytest import MonkeyPatch
@@ -25,7 +25,6 @@ def default_config() -> dict[str, Any]:
         "board": "esp01_1m",
         "ssid": "test_ssid",
         "psk": "test_psk",
-        "password": "",
     }
 
 
@@ -37,7 +36,7 @@ def wizard_answers() -> list[str]:
         "nodemcuv2",  # board
         "SSID",  # ssid
         "psk",  # wifi password
-        "ota_pass",  # ota password
+        "",  # ota password (empty for no password)
     ]
 
 
@@ -105,16 +104,35 @@ def test_config_file_should_include_ota_when_password_set(
     default_config: dict[str, Any],
 ):
     """
-    The Over-The-Air update should be enabled when a password is set
+    The Over-The-Air update should be enabled when an OTA password is set
     """
     # Given
-    default_config["password"] = "foo"
+    default_config["ota_password"] = "foo"
 
     # When
     config = wz.wizard_file(**default_config)
 
     # Then
     assert "ota:" in config
+    assert 'password: "foo"' in config
+
+
+def test_config_file_should_include_api_encryption_key(
+    default_config: dict[str, Any],
+):
+    """
+    The API encryption key should be included when set
+    """
+    # Given
+    default_config["api_encryption_key"] = "test_encryption_key_base64=="
+
+    # When
+    config = wz.wizard_file(**default_config)
+
+    # Then
+    assert "api:" in config
+    assert "encryption:" in config
+    assert 'key: "test_encryption_key_base64=="' in config
 
 
 def test_wizard_write_sets_platform(
@@ -556,3 +574,72 @@ def test_wizard_write_protects_existing_config(
     # Then
     assert result is False  # Should return False when file exists
     assert config_file.read_text() == original_content
+
+
+def test_wizard_accepts_ota_password(
+    tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
+):
+    """
+    The wizard should pass ota_password to wizard_write when the user provides one
+    """
+
+    # Given
+    wizard_answers[5] = "my_ota_password"  # Set OTA password
+    config_file = tmp_path / "test.yaml"
+    input_mock = MagicMock(side_effect=wizard_answers)
+    monkeypatch.setattr("builtins.input", input_mock)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
+    monkeypatch.setattr(wz, "sleep", lambda _: 0)
+    wizard_write_mock = MagicMock(return_value=True)
+    monkeypatch.setattr(wz, "wizard_write", wizard_write_mock)
+
+    # When
+    retval = wz.wizard(config_file)
+
+    # Then
+    assert retval == 0
+    call_kwargs = wizard_write_mock.call_args.kwargs
+    assert "ota_password" in call_kwargs
+    assert call_kwargs["ota_password"] == "my_ota_password"
+
+
+def test_wizard_accepts_rpipico_board(tmp_path: Path, monkeypatch: MonkeyPatch):
+    """
+    The wizard should handle rpipico board which doesn't support WiFi.
+    This tests the branch where api_encryption_key is None.
+    """
+
+    # Given
+    wizard_answers_rp2040 = [
+        "test-node",  # Name of the node
+        "RP2040",  # platform
+        "rpipico",  # board (no WiFi support)
+    ]
+    config_file = tmp_path / "test.yaml"
+    input_mock = MagicMock(side_effect=wizard_answers_rp2040)
+    monkeypatch.setattr("builtins.input", input_mock)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
+    monkeypatch.setattr(wz, "sleep", lambda _: 0)
+    wizard_write_mock = MagicMock(return_value=True)
+    monkeypatch.setattr(wz, "wizard_write", wizard_write_mock)
+
+    # When
+    retval = wz.wizard(config_file)
+
+    # Then
+    assert retval == 0
+    call_kwargs = wizard_write_mock.call_args.kwargs
+    # rpipico doesn't support WiFi, so no api_encryption_key or ota_password
+    assert "api_encryption_key" not in call_kwargs
+    assert "ota_password" not in call_kwargs
+
+
+def test_fallback_psk_uses_secrets_choice(
+    default_config: dict[str, Any],
+) -> None:
+    """Test that fallback PSK is generated using secrets.choice."""
+    with patch("esphome.wizard.secrets.choice", return_value="X") as mock_choice:
+        config = wz.wizard_file(**default_config)
+
+    assert 'password: "XXXXXXXXXXXX"' in config
+    assert mock_choice.call_count == 12

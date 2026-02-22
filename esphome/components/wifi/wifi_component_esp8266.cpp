@@ -36,6 +36,7 @@ extern "C" {
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/util.h"
 
 namespace esphome::wifi {
@@ -215,23 +216,16 @@ bool WiFiComponent::wifi_apply_hostname_() {
     ESP_LOGV(TAG, "Set hostname failed");
   }
 
-  // inform dhcp server of hostname change using dhcp_renew()
+  // Update hostname on all lwIP interfaces so DHCP packets include it.
+  // lwIP includes the hostname in DHCP DISCOVER/REQUEST automatically
+  // via LWIP_NETIF_HOSTNAME — no dhcp_renew() needed. The hostname is
+  // fixed at compile time and never changes at runtime.
   for (netif *intf = netif_list; intf; intf = intf->next) {
-    // unconditionally update all known interfaces
 #if LWIP_VERSION_MAJOR == 1
     intf->hostname = (char *) wifi_station_get_hostname();
 #else
     intf->hostname = wifi_station_get_hostname();
 #endif
-    if (netif_dhcp_data(intf) != nullptr) {
-      // renew already started DHCP leases
-      err_t lwipret = dhcp_renew(intf);
-      if (lwipret != ERR_OK) {
-        ESP_LOGW(TAG, "wifi_apply_hostname_(%s): lwIP error %d on interface %c%c (index %d)", intf->hostname,
-                 (int) lwipret, intf->name[0], intf->name[1], intf->num);
-        ret = false;
-      }
-    }
   }
 
   return ret;
@@ -246,16 +240,16 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   struct station_config conf {};
   memset(&conf, 0, sizeof(conf));
-  if (ap.get_ssid().size() > sizeof(conf.ssid)) {
+  if (ap.ssid_.size() > sizeof(conf.ssid)) {
     ESP_LOGE(TAG, "SSID too long");
     return false;
   }
-  if (ap.get_password().size() > sizeof(conf.password)) {
+  if (ap.password_.size() > sizeof(conf.password)) {
     ESP_LOGE(TAG, "Password too long");
     return false;
   }
-  memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
-  memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
+  memcpy(reinterpret_cast<char *>(conf.ssid), ap.ssid_.c_str(), ap.ssid_.size());
+  memcpy(reinterpret_cast<char *>(conf.password), ap.password_.c_str(), ap.password_.size());
 
   if (ap.has_bssid()) {
     conf.bssid_set = 1;
@@ -265,7 +259,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
-  if (ap.get_password().empty()) {
+  if (ap.password_.empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
     // Set threshold based on configured minimum auth mode
@@ -398,108 +392,88 @@ class WiFiMockClass : public ESP8266WiFiGenericClass {
   static void _event_callback(void *event) { ESP8266WiFiGenericClass::_eventCallback(event); }  // NOLINT
 };
 
+// Auth mode strings indexed by AUTH_* constants (0-4), with UNKNOWN at last index
+// Static asserts verify the SDK constants are contiguous as expected
+static_assert(AUTH_OPEN == 0 && AUTH_WEP == 1 && AUTH_WPA_PSK == 2 && AUTH_WPA2_PSK == 3 && AUTH_WPA_WPA2_PSK == 4,
+              "AUTH_* constants are not contiguous");
+PROGMEM_STRING_TABLE(AuthModeStrings, "OPEN", "WEP", "WPA PSK", "WPA2 PSK", "WPA/WPA2 PSK", "UNKNOWN");
+
 const LogString *get_auth_mode_str(uint8_t mode) {
-  switch (mode) {
-    case AUTH_OPEN:
-      return LOG_STR("OPEN");
-    case AUTH_WEP:
-      return LOG_STR("WEP");
-    case AUTH_WPA_PSK:
-      return LOG_STR("WPA PSK");
-    case AUTH_WPA2_PSK:
-      return LOG_STR("WPA2 PSK");
-    case AUTH_WPA_WPA2_PSK:
-      return LOG_STR("WPA/WPA2 PSK");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-}
-const LogString *get_op_mode_str(uint8_t mode) {
-  switch (mode) {
-    case WIFI_OFF:
-      return LOG_STR("OFF");
-    case WIFI_STA:
-      return LOG_STR("STA");
-    case WIFI_AP:
-      return LOG_STR("AP");
-    case WIFI_AP_STA:
-      return LOG_STR("AP+STA");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return AuthModeStrings::get_log_str(mode, AuthModeStrings::LAST_INDEX);
 }
 
+// WiFi op mode strings indexed by WIFI_* constants (0-3), with UNKNOWN at last index
+static_assert(WIFI_OFF == 0 && WIFI_STA == 1 && WIFI_AP == 2 && WIFI_AP_STA == 3,
+              "WIFI_* op mode constants are not contiguous");
+PROGMEM_STRING_TABLE(OpModeStrings, "OFF", "STA", "AP", "AP+STA", "UNKNOWN");
+
+const LogString *get_op_mode_str(uint8_t mode) { return OpModeStrings::get_log_str(mode, OpModeStrings::LAST_INDEX); }
+
+// Use if-chain instead of switch to avoid jump tables in RODATA (wastes RAM on ESP8266).
+// A single switch would generate a sparse lookup table with ~175 default entries, wasting 700 bytes of RAM.
+// Even split switches still generate smaller jump tables in RODATA.
 const LogString *get_disconnect_reason_str(uint8_t reason) {
-  /* If this were one big switch statement, GCC would generate a lookup table for it. However, the values of the
-   * REASON_* constants aren't continuous, and GCC will fill in the gap with the default value -- wasting 4 bytes of RAM
-   * per entry. As there's ~175 default entries, this wastes 700 bytes of RAM.
-   */
-  if (reason <= REASON_CIPHER_SUITE_REJECTED) {  // This must be the last constant with a value <200
-    switch (reason) {
-      case REASON_AUTH_EXPIRE:
-        return LOG_STR("Auth Expired");
-      case REASON_AUTH_LEAVE:
-        return LOG_STR("Auth Leave");
-      case REASON_ASSOC_EXPIRE:
-        return LOG_STR("Association Expired");
-      case REASON_ASSOC_TOOMANY:
-        return LOG_STR("Too Many Associations");
-      case REASON_NOT_AUTHED:
-        return LOG_STR("Not Authenticated");
-      case REASON_NOT_ASSOCED:
-        return LOG_STR("Not Associated");
-      case REASON_ASSOC_LEAVE:
-        return LOG_STR("Association Leave");
-      case REASON_ASSOC_NOT_AUTHED:
-        return LOG_STR("Association not Authenticated");
-      case REASON_DISASSOC_PWRCAP_BAD:
-        return LOG_STR("Disassociate Power Cap Bad");
-      case REASON_DISASSOC_SUPCHAN_BAD:
-        return LOG_STR("Disassociate Supported Channel Bad");
-      case REASON_IE_INVALID:
-        return LOG_STR("IE Invalid");
-      case REASON_MIC_FAILURE:
-        return LOG_STR("Mic Failure");
-      case REASON_4WAY_HANDSHAKE_TIMEOUT:
-        return LOG_STR("4-Way Handshake Timeout");
-      case REASON_GROUP_KEY_UPDATE_TIMEOUT:
-        return LOG_STR("Group Key Update Timeout");
-      case REASON_IE_IN_4WAY_DIFFERS:
-        return LOG_STR("IE In 4-Way Handshake Differs");
-      case REASON_GROUP_CIPHER_INVALID:
-        return LOG_STR("Group Cipher Invalid");
-      case REASON_PAIRWISE_CIPHER_INVALID:
-        return LOG_STR("Pairwise Cipher Invalid");
-      case REASON_AKMP_INVALID:
-        return LOG_STR("AKMP Invalid");
-      case REASON_UNSUPP_RSN_IE_VERSION:
-        return LOG_STR("Unsupported RSN IE version");
-      case REASON_INVALID_RSN_IE_CAP:
-        return LOG_STR("Invalid RSN IE Cap");
-      case REASON_802_1X_AUTH_FAILED:
-        return LOG_STR("802.1x Authentication Failed");
-      case REASON_CIPHER_SUITE_REJECTED:
-        return LOG_STR("Cipher Suite Rejected");
-    }
-  }
-
-  switch (reason) {
-    case REASON_BEACON_TIMEOUT:
-      return LOG_STR("Beacon Timeout");
-    case REASON_NO_AP_FOUND:
-      return LOG_STR("AP Not Found");
-    case REASON_AUTH_FAIL:
-      return LOG_STR("Authentication Failed");
-    case REASON_ASSOC_FAIL:
-      return LOG_STR("Association Failed");
-    case REASON_HANDSHAKE_TIMEOUT:
-      return LOG_STR("Handshake Failed");
-    case REASON_UNSPECIFIED:
-    default:
-      return LOG_STR("Unspecified");
-  }
+  if (reason == REASON_AUTH_EXPIRE)
+    return LOG_STR("Auth Expired");
+  if (reason == REASON_AUTH_LEAVE)
+    return LOG_STR("Auth Leave");
+  if (reason == REASON_ASSOC_EXPIRE)
+    return LOG_STR("Association Expired");
+  if (reason == REASON_ASSOC_TOOMANY)
+    return LOG_STR("Too Many Associations");
+  if (reason == REASON_NOT_AUTHED)
+    return LOG_STR("Not Authenticated");
+  if (reason == REASON_NOT_ASSOCED)
+    return LOG_STR("Not Associated");
+  if (reason == REASON_ASSOC_LEAVE)
+    return LOG_STR("Association Leave");
+  if (reason == REASON_ASSOC_NOT_AUTHED)
+    return LOG_STR("Association not Authenticated");
+  if (reason == REASON_DISASSOC_PWRCAP_BAD)
+    return LOG_STR("Disassociate Power Cap Bad");
+  if (reason == REASON_DISASSOC_SUPCHAN_BAD)
+    return LOG_STR("Disassociate Supported Channel Bad");
+  if (reason == REASON_IE_INVALID)
+    return LOG_STR("IE Invalid");
+  if (reason == REASON_MIC_FAILURE)
+    return LOG_STR("Mic Failure");
+  if (reason == REASON_4WAY_HANDSHAKE_TIMEOUT)
+    return LOG_STR("4-Way Handshake Timeout");
+  if (reason == REASON_GROUP_KEY_UPDATE_TIMEOUT)
+    return LOG_STR("Group Key Update Timeout");
+  if (reason == REASON_IE_IN_4WAY_DIFFERS)
+    return LOG_STR("IE In 4-Way Handshake Differs");
+  if (reason == REASON_GROUP_CIPHER_INVALID)
+    return LOG_STR("Group Cipher Invalid");
+  if (reason == REASON_PAIRWISE_CIPHER_INVALID)
+    return LOG_STR("Pairwise Cipher Invalid");
+  if (reason == REASON_AKMP_INVALID)
+    return LOG_STR("AKMP Invalid");
+  if (reason == REASON_UNSUPP_RSN_IE_VERSION)
+    return LOG_STR("Unsupported RSN IE version");
+  if (reason == REASON_INVALID_RSN_IE_CAP)
+    return LOG_STR("Invalid RSN IE Cap");
+  if (reason == REASON_802_1X_AUTH_FAILED)
+    return LOG_STR("802.1x Authentication Failed");
+  if (reason == REASON_CIPHER_SUITE_REJECTED)
+    return LOG_STR("Cipher Suite Rejected");
+  if (reason == REASON_BEACON_TIMEOUT)
+    return LOG_STR("Beacon Timeout");
+  if (reason == REASON_NO_AP_FOUND)
+    return LOG_STR("AP Not Found");
+  if (reason == REASON_AUTH_FAIL)
+    return LOG_STR("Authentication Failed");
+  if (reason == REASON_ASSOC_FAIL)
+    return LOG_STR("Association Failed");
+  if (reason == REASON_HANDSHAKE_TIMEOUT)
+    return LOG_STR("Handshake Failed");
+  return LOG_STR("Unspecified");
 }
 
+// TODO: This callback runs in ESP8266 system context with limited stack (~2KB).
+// All listener notifications should be deferred to wifi_loop_() via pending_ flags
+// to avoid stack overflow. Currently only connect_state is deferred; disconnect,
+// IP, and scan listeners still run in this context and should be migrated.
 void WiFiComponent::wifi_event_callback(System_Event_t *event) {
   switch (event->event) {
     case EVENT_STAMODE_CONNECTED: {
@@ -512,19 +486,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
 #endif
       s_sta_connected = true;
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-      for (auto *listener : global_wifi_component->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
-      }
-#endif
-      // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
-#if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
-      if (const WiFiAP *config = global_wifi_component->get_selected_sta_();
-          config && config->get_manual_ip().has_value()) {
-        for (auto *listener : global_wifi_component->ip_state_listeners_) {
-          listener->on_ip_state(global_wifi_component->wifi_sta_ip_addresses(),
-                                global_wifi_component->get_dns_address(0), global_wifi_component->get_dns_address(1));
-        }
-      }
+      // Defer listener notification until state machine reaches STA_CONNECTED
+      // This ensures wifi.connected condition returns true in listener automations
+      global_wifi_component->pending_.connect_state = true;
 #endif
       break;
     }
@@ -543,16 +507,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       }
       s_sta_connected = false;
       s_sta_connecting = false;
-      // IMPORTANT: Set error flag BEFORE notifying listeners.
-      // This ensures is_connected() returns false during listener callbacks,
-      // which is critical for proper reconnection logic (e.g., roaming).
       global_wifi_component->error_from_callback_ = true;
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-      // Notify listeners AFTER setting error flag so they see correct state
-      static constexpr uint8_t EMPTY_BSSID[6] = {};
-      for (auto *listener : global_wifi_component->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
-      }
+      global_wifi_component->pending_.disconnect = true;
 #endif
       break;
     }
@@ -564,8 +521,6 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
       if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
         ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
-        // we can't call retry_connect() from this context, so disconnect immediately
-        // and notify main thread with error_from_callback_
         wifi_station_disconnect();
         global_wifi_component->error_from_callback_ = true;
       }
@@ -579,10 +534,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
                network::IPAddress(&it.gw).str_to(gw_buf), network::IPAddress(&it.mask).str_to(mask_buf));
       s_sta_got_ip = true;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-      for (auto *listener : global_wifi_component->ip_state_listeners_) {
-        listener->on_ip_state(global_wifi_component->wifi_sta_ip_addresses(), global_wifi_component->get_dns_address(0),
-                              global_wifi_component->get_dns_address(1));
-      }
+      // Defer listener callbacks to main loop - system context has limited stack
+      global_wifi_component->pending_.got_ip = true;
 #endif
       break;
     }
@@ -675,21 +628,15 @@ void WiFiComponent::wifi_pre_setup_() {
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   station_status_t status = wifi_station_get_connect_status();
-  switch (status) {
-    case STATION_GOT_IP:
-      return WiFiSTAConnectStatus::CONNECTED;
-    case STATION_NO_AP_FOUND:
-      return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
-      ;
-    case STATION_CONNECT_FAIL:
-    case STATION_WRONG_PASSWORD:
-      return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
-    case STATION_CONNECTING:
-      return WiFiSTAConnectStatus::CONNECTING;
-    case STATION_IDLE:
-    default:
-      return WiFiSTAConnectStatus::IDLE;
-  }
+  if (status == STATION_GOT_IP)
+    return WiFiSTAConnectStatus::CONNECTED;
+  if (status == STATION_NO_AP_FOUND)
+    return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
+  if (status == STATION_CONNECT_FAIL || status == STATION_WRONG_PASSWORD)
+    return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
+  if (status == STATION_CONNECTING)
+    return WiFiSTAConnectStatus::CONNECTING;
+  return WiFiSTAConnectStatus::IDLE;
 }
 bool WiFiComponent::wifi_scan_start_(bool passive) {
   static bool first_scan = false;
@@ -756,29 +703,45 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
 
   if (status != OK) {
     ESP_LOGV(TAG, "Scan failed: %d", status);
-    this->retry_connect();
+    // Don't call retry_connect() here - this callback runs in SDK system context
+    // where yield() cannot be called. Instead, just set scan_done_ and let
+    // check_scanning_finished() handle the empty scan_result_ from loop context.
+    this->scan_done_ = true;
     return;
   }
 
-  // Count the number of results first
   auto *head = reinterpret_cast<bss_info *>(arg);
+  bool needs_full = this->needs_full_scan_results_();
+
+  // First pass: count matching networks (linked list is non-destructive)
+  size_t total = 0;
   size_t count = 0;
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
-    count++;
+    total++;
+    const char *ssid_cstr = reinterpret_cast<const char *>(it->ssid);
+    if (needs_full || this->matches_configured_network_(ssid_cstr, it->bssid)) {
+      count++;
+    }
   }
 
-  this->scan_result_.init(count);
+  this->scan_result_.init(count);  // Exact allocation
+
+  // Second pass: store matching networks
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
-    this->scan_result_.emplace_back(
-        bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
-        std::string(reinterpret_cast<char *>(it->ssid), it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN,
-        it->is_hidden != 0);
+    const char *ssid_cstr = reinterpret_cast<const char *>(it->ssid);
+    if (needs_full || this->matches_configured_network_(ssid_cstr, it->bssid)) {
+      this->scan_result_.emplace_back(
+          bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]}, ssid_cstr,
+          it->ssid_len, it->channel, it->rssi, it->authmode != AUTH_OPEN, it->is_hidden != 0);
+    } else {
+      this->log_discarded_scan_result_(ssid_cstr, it->bssid, it->rssi, it->channel);
+    }
   }
+  ESP_LOGV(TAG, "Scan complete: %zu found, %zu stored%s", total, this->scan_result_.size(),
+           needs_full ? "" : " (filtered)");
   this->scan_done_ = true;
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
-  for (auto *listener : global_wifi_component->scan_results_listeners_) {
-    listener->on_wifi_scan_results(global_wifi_component->scan_result_);
-  }
+  this->pending_.scan_complete = true;  // Defer listener callbacks to main loop
 #endif
 }
 
@@ -862,27 +825,27 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
 
   struct softap_config conf {};
-  if (ap.get_ssid().size() > sizeof(conf.ssid)) {
+  if (ap.ssid_.size() > sizeof(conf.ssid)) {
     ESP_LOGE(TAG, "AP SSID too long");
     return false;
   }
-  memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
-  conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
+  memcpy(reinterpret_cast<char *>(conf.ssid), ap.ssid_.c_str(), ap.ssid_.size());
+  conf.ssid_len = static_cast<uint8>(ap.ssid_.size());
   conf.channel = ap.has_channel() ? ap.get_channel() : 1;
   conf.ssid_hidden = ap.get_hidden();
   conf.max_connection = 5;
   conf.beacon_interval = 100;
 
-  if (ap.get_password().empty()) {
+  if (ap.password_.empty()) {
     conf.authmode = AUTH_OPEN;
     *conf.password = 0;
   } else {
     conf.authmode = AUTH_WPA2_PSK;
-    if (ap.get_password().size() > sizeof(conf.password)) {
+    if (ap.password_.size() > sizeof(conf.password)) {
       ESP_LOGE(TAG, "AP password too long");
       return false;
     }
-    memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
+    memcpy(reinterpret_cast<char *>(conf.password), ap.password_.c_str(), ap.password_.size());
   }
 
   ETS_UART_INTR_DISABLE();
@@ -965,7 +928,34 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() {
   return network::IPAddress(&ip.gw);
 }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddress(dns_getserver(num)); }
-void WiFiComponent::wifi_loop_() {}
+void WiFiComponent::wifi_loop_() { this->process_pending_callbacks_(); }
+
+void WiFiComponent::process_pending_callbacks_() {
+  // Process callbacks deferred from ESP8266 SDK system context (~2KB stack)
+  // to main loop context (full stack). Connect state listeners are handled
+  // by notify_connect_state_listeners_() in the shared state machine code.
+
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+  if (this->pending_.disconnect) {
+    this->pending_.disconnect = false;
+    this->notify_disconnect_state_listeners_();
+  }
+#endif
+
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+  if (this->pending_.got_ip) {
+    this->pending_.got_ip = false;
+    this->notify_ip_state_listeners_();
+  }
+#endif
+
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
+  if (this->pending_.scan_complete) {
+    this->pending_.scan_complete = false;
+    this->notify_scan_results_listeners_();
+  }
+#endif
+}
 
 }  // namespace esphome::wifi
 #endif

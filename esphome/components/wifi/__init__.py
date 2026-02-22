@@ -1,10 +1,16 @@
 import logging
+import math
 
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_USE_PSRAM
-from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    const,
+    get_esp32_variant,
+    only_on_variant,
+)
 from esphome.components.network import (
     has_high_performance_networking,
     ip_address_literal,
@@ -63,6 +69,7 @@ _LOGGER = logging.getLogger(__name__)
 
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
+CONF_BAND_MODE = "band_mode"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
 
@@ -87,6 +94,13 @@ WIFI_POWER_SAVE_MODES = {
     "NONE": WiFiPowerSaveMode.WIFI_POWER_SAVE_NONE,
     "LIGHT": WiFiPowerSaveMode.WIFI_POWER_SAVE_LIGHT,
     "HIGH": WiFiPowerSaveMode.WIFI_POWER_SAVE_HIGH,
+}
+
+WiFiBandMode = cg.global_ns.enum("wifi_band_mode_t")
+WIFI_BAND_MODES = {
+    "AUTO": WiFiBandMode.WIFI_BAND_MODE_AUTO,
+    "2.4GHZ": WiFiBandMode.WIFI_BAND_MODE_2G_ONLY,
+    "5GHZ": WiFiBandMode.WIFI_BAND_MODE_5G_ONLY,
 }
 
 WifiMinAuthMode = wifi_ns.enum("WifiMinAuthMode")
@@ -288,11 +302,6 @@ def _validate(config):
         config = config.copy()
         config[CONF_NETWORKS] = []
 
-    if config.get(CONF_FAST_CONNECT, False):
-        networks = config.get(CONF_NETWORKS, [])
-        if not networks:
-            raise cv.Invalid("At least one network required for fast_connect!")
-
     if CONF_USE_ADDRESS not in config:
         use_address = CORE.name + config[CONF_DOMAIN]
         if CONF_MANUAL_IP in config:
@@ -356,6 +365,11 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.SplitDefault(CONF_ENABLE_RRM, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
+            ),
+            cv.Optional(CONF_BAND_MODE): cv.All(
+                cv.enum(WIFI_BAND_MODES, upper=True),
+                cv.only_on_esp32,
+                only_on_variant(supported=[const.VARIANT_ESP32C5]),
             ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
@@ -498,6 +512,13 @@ async def to_code(config):
         cg.add(var.set_passive_scan(True))
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
+        if CORE.is_esp32:
+            # Set PHY max TX power to match output_power so calibration also uses
+            # reduced power. This prevents brownout during PHY init on marginal
+            # power supplies, which is critical for OTA updates with rollback enabled.
+            # Kconfig range is 10-20, ESPHome allows 8.5-20.5
+            phy_tx_power = max(10, min(20, math.ceil(config[CONF_OUTPUT_POWER])))
+            add_idf_sdkconfig_option("CONFIG_ESP_PHY_MAX_WIFI_TX_POWER", phy_tx_power)
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))
@@ -524,6 +545,8 @@ async def to_code(config):
             cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
         if config[CONF_ENABLE_RRM]:
             cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
+        if CONF_BAND_MODE in config:
+            cg.add(var.set_band_mode(config[CONF_BAND_MODE]))
 
     if config.get(CONF_USE_PSRAM):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
@@ -585,11 +608,13 @@ async def to_code(config):
     await cg.past_safe_mode()
 
     if on_connect_config := config.get(CONF_ON_CONNECT):
+        cg.add_define("USE_WIFI_CONNECT_TRIGGER")
         await automation.build_automation(
             var.get_connect_trigger(), [], on_connect_config
         )
 
     if on_disconnect_config := config.get(CONF_ON_DISCONNECT):
+        cg.add_define("USE_WIFI_DISCONNECT_TRIGGER")
         await automation.build_automation(
             var.get_disconnect_trigger(), [], on_disconnect_config
         )
