@@ -25,7 +25,7 @@ class RegistryEntry:
         type_id: "MockObjClass",
         schema: "Schema",
         *,
-        deferred: bool = False,
+        deferred: bool = True,
     ):
         self.name = name
         self.fun = fun
@@ -58,7 +58,7 @@ class Registry(dict[str, RegistryEntry]):
         type_id: "MockObjClass",
         schema: "Schema",
         *,
-        deferred: bool = False,
+        deferred: bool = True,
     ):
         def decorator(fun: Callable[..., Any]):
             self[name] = RegistryEntry(name, fun, type_id, schema, deferred=deferred)

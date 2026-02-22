@@ -62,14 +62,16 @@ def register_action(
     action_type: MockObjClass,
     schema: cv.Schema,
     *,
-    deferred: bool = False,
+    deferred: bool = True,
 ):
     """Register an action type.
 
-    Set ``deferred=True`` if this action stores trigger arguments for later
-    execution (e.g. delay, wait_until, script.wait).  This tells the code
-    generator to use owning types (std::string) instead of non-owning views
-    (StringRef) for string arguments, preventing dangling references.
+    Actions default to ``deferred=True`` (safe default), meaning string
+    arguments use owning std::string to prevent dangling references.
+
+    Set ``deferred=False`` only for actions that complete synchronously
+    and never store trigger arguments for later execution.  This allows
+    the code generator to use non-owning StringRef for zero-copy access.
     """
     return ACTION_REGISTRY.register(name, action_type, schema, deferred=deferred)
 
@@ -351,7 +353,6 @@ async def component_is_idle_condition_to_code(
     "delay",
     DelayAction,
     cv.templatable(cv.positive_time_period_milliseconds),
-    deferred=True,
 )
 async def delay_action_to_code(
     config: ConfigType,
@@ -382,6 +383,7 @@ async def delay_action_to_code(
         cv.has_at_least_one_key(CONF_THEN, CONF_ELSE),
         cv.has_at_least_one_key(CONF_CONDITION, CONF_ANY, CONF_ALL),
     ),
+    deferred=False,
 )
 async def if_action_to_code(
     config: ConfigType,
@@ -410,6 +412,7 @@ async def if_action_to_code(
             cv.Required(CONF_THEN): validate_action_list,
         }
     ),
+    deferred=False,
 )
 async def while_action_to_code(
     config: ConfigType,
@@ -433,6 +436,7 @@ async def while_action_to_code(
             cv.Required(CONF_THEN): validate_action_list,
         }
     ),
+    deferred=False,
 )
 async def repeat_action_to_code(
     config: ConfigType,
@@ -461,7 +465,7 @@ _validate_wait_until = cv.maybe_simple_value(
 )
 
 
-@register_action("wait_until", WaitUntilAction, _validate_wait_until, deferred=True)
+@register_action("wait_until", WaitUntilAction, _validate_wait_until)
 async def wait_until_action_to_code(
     config: ConfigType,
     action_id: ID,
@@ -477,7 +481,7 @@ async def wait_until_action_to_code(
     return var
 
 
-@register_action("lambda", LambdaAction, cv.lambda_)
+@register_action("lambda", LambdaAction, cv.lambda_, deferred=False)
 async def lambda_action_to_code(
     config: ConfigType,
     action_id: ID,
@@ -496,6 +500,7 @@ async def lambda_action_to_code(
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
         }
     ),
+    deferred=False,
 )
 async def component_update_action_to_code(
     config: ConfigType,
@@ -515,6 +520,7 @@ async def component_update_action_to_code(
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
         }
     ),
+    deferred=False,
 )
 async def component_suspend_action_to_code(
     config: ConfigType,
@@ -537,6 +543,7 @@ async def component_suspend_action_to_code(
             ),
         }
     ),
+    deferred=False,
 )
 async def component_resume_action_to_code(
     config: ConfigType,

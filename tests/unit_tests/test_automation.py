@@ -10,10 +10,13 @@ from esphome.util import RegistryEntry
 
 
 def _make_registry(deferred_actions: set[str]) -> dict[str, RegistryEntry]:
-    """Create a mock ACTION_REGISTRY with specified deferred actions."""
+    """Create a mock ACTION_REGISTRY with specified deferred actions.
+
+    Uses the default deferred=True, matching the real registry behavior.
+    """
     registry: dict[str, RegistryEntry] = {}
     for name in deferred_actions:
-        registry[name] = RegistryEntry(name, lambda: None, None, None, deferred=True)
+        registry[name] = RegistryEntry(name, lambda: None, None, None)
     return registry
 
 
@@ -72,8 +75,21 @@ def test_has_deferred_actions_non_deferred(
     assert has_deferred_actions([{"logger.log": "hello"}]) is False
 
 
-def test_has_deferred_actions_unknown(mock_registry: dict[str, RegistryEntry]) -> None:
+def test_has_deferred_actions_unknown_not_in_registry(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """Unknown actions not in registry are not flagged (only registered actions count)."""
     assert has_deferred_actions([{"unknown.action": "value"}]) is False
+
+
+def test_has_deferred_actions_default_deferred(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """Actions registered without explicit deferred=False default to deferred=True."""
+    mock_registry["some.action"] = RegistryEntry(
+        "some.action", lambda: None, None, None
+    )
+    assert has_deferred_actions([{"some.action": "value"}]) is True
 
 
 def test_has_deferred_actions_nested_in_then(
