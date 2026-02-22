@@ -151,6 +151,62 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
   return std::isfinite(gi.lat_deg) && std::isfinite(gi.lon_deg);
 #endif
 
+#ifdef USE_MODEM_GNSS_PARSER_CGNSSINFO17
+  // 17 tokens: mode, sat_used, unknown, sat_view, fix_status, lat, N/S, lon, E/W, date, time, alt, spd, cog, hdop,
+  // vdop, pdop
+  char buf[256];
+  std::strncpy(buf, start, sizeof(buf));
+  buf[sizeof(buf) - 1] = '\0';
+
+  const int EXPECT = 17;
+  const char *tok[EXPECT] = {0};
+  char *save = nullptr;
+  int i = 0;
+
+  for (char *t = strtok_r(buf, ",", &save); t && i < EXPECT; t = strtok_r(nullptr, ",", &save)) {
+    tok[i++] = t;
+  }
+  if (i < 15)
+    return false;  // need up to hdop at least
+
+  int sat_used = 0;
+  (void) to_int(tok[1], sat_used);
+  gi.sat_used = sat_used;
+
+  // lat/lon are DDMM.MMMMMM here
+  double lat_ddmm = NAN, lon_ddmm = NAN;
+  (void) to_double(tok[5], lat_ddmm);
+  (void) to_double(tok[7], lon_ddmm);
+
+  int lat_deg = static_cast<int>(lat_ddmm / 100.0);
+  double lat_min = lat_ddmm - lat_deg * 100.0;
+  gi.lat_deg = lat_deg + lat_min / 60.0;
+  int lon_deg = static_cast<int>(lon_ddmm / 100.0);
+  double lon_min = lon_ddmm - lon_deg * 100.0;
+  gi.lon_deg = lon_deg + lon_min / 60.0;
+
+  char lat_dir = (tok[6] && *tok[6]) ? tok[6][0] : 'N';
+  char lon_dir = (tok[8] && *tok[8]) ? tok[8][0] : 'E';
+  if (lat_dir == 'S')
+    gi.lat_deg = -gi.lat_deg;
+  if (lon_dir == 'W')
+    gi.lon_deg = -gi.lon_deg;
+
+  (void) to_double(tok[11], gi.alt_m);
+  (void) to_double(tok[12], gi.spd);
+  (void) to_double(tok[13], gi.cog_deg);
+  (void) to_double(tok[14], gi.hdop);
+
+  (void) parse_time_hhmmss(tok[10], gi.hh, gi.mm, gi.ss);
+  (void) parse_date_ddmmyy(tok[9], gi.dd, gi.mo, gi.yy);
+
+  int fix_status = 0;
+  (void) to_int(tok[4], fix_status);
+  gi.fix_valid = (fix_status > 0) || (gi.sat_used > 0);
+
+  return std::isfinite(gi.lat_deg) && std::isfinite(gi.lon_deg);
+#endif
+
 #ifdef USE_MODEM_GNSS_PARSER_CGNSSINFO18
   // 18 tokens: mode, sat_used, fix_status, sat_view, fix_status_2, lat(dd), N/S, lon(dd), E/W, date, time, alt, spd,
   // cog, hdop, vdop, pdop, sat_view_2
