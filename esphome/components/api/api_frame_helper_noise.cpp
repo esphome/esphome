@@ -201,11 +201,11 @@ APIError APINoiseFrameHelper::try_read_frame_() {
     return (state_ == State::DATA) ? APIError::BAD_DATA_PACKET : APIError::BAD_HANDSHAKE_PACKET_LEN;
   }
 
-  // Reserve space for body (+1 for null terminator in DATA state so protobuf
+  // Reserve space for body (+ null terminator in DATA state so protobuf
   // StringRef fields can be safely null-terminated in-place after decode.
   // During handshake, rx_buf_.size() is used in prologue construction, so
   // the buffer must be exactly msg_size to avoid prologue mismatch.)
-  uint16_t alloc_size = msg_size + (state_ == State::DATA ? 1 : 0);
+  uint16_t alloc_size = msg_size + (state_ == State::DATA ? RX_BUF_NULL_TERMINATOR : 0);
   if (this->rx_buf_.size() != alloc_size) {
     this->rx_buf_.resize(alloc_size);
   }
@@ -411,7 +411,10 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);
-  noise_buffer_set_inout(mbuf, this->rx_buf_.data(), this->rx_buf_.size(), this->rx_buf_.size());
+  // rx_buf_ has RX_BUF_NULL_TERMINATOR extra byte for null termination,
+  // but only the actual message bytes contain encrypted data
+  size_t msg_size = this->rx_buf_.size() - RX_BUF_NULL_TERMINATOR;
+  noise_buffer_set_inout(mbuf, this->rx_buf_.data(), msg_size, msg_size);
   int err = noise_cipherstate_decrypt(this->recv_cipher_, &mbuf);
   APIError decrypt_err =
       handle_noise_error_(err, LOG_STR("noise_cipherstate_decrypt"), APIError::CIPHERSTATE_DECRYPT_FAILED);

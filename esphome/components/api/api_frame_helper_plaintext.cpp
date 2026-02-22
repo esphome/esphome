@@ -163,10 +163,10 @@ APIError APIPlaintextFrameHelper::try_read_frame_() {
   }
   // header reading done
 
-  // Reserve space for body (+1 for null terminator so protobuf StringRef fields
+  // Reserve space for body (+ null terminator so protobuf StringRef fields
   // can be safely null-terminated in-place after decode)
-  if (this->rx_buf_.size() != this->rx_header_parsed_len_ + 1) {
-    this->rx_buf_.resize(this->rx_header_parsed_len_ + 1);
+  if (this->rx_buf_.size() != this->rx_header_parsed_len_ + RX_BUF_NULL_TERMINATOR) {
+    this->rx_buf_.resize(this->rx_header_parsed_len_ + RX_BUF_NULL_TERMINATOR);
   }
 
   if (rx_buf_len_ < rx_header_parsed_len_) {
