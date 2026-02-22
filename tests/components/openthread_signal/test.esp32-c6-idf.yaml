@@ -1,0 +1,40 @@
+network:
+  enable_ipv6: true
+
+openthread:
+  channel: 13
+  network_key: 0xdfd34f0f05cad978ec4e32b0413038ff
+  pan_id: 0x8f28
+
+sensor:
+  - platform: openthread_signal
+    parent_avg_rssi:
+      name: "Parent average RSSI"
+    parent_last_rssi:
+      name: "Parent last RSSI"
+
+    lc_rx_addr_filtered:
+      name: "# Rx address filtered"
+    lc_rx_err_fcs:
+      name: "# Rx FCS errors"
+    lc_rx_err_noframe:
+      name: "# Rx No Frame errors"
+    lc_rx_err_other:
+      name: "# Rx other errors"
+    lc_rx_err_sec:
+      name: "# Rx SEC errors"
+    lc_rx_err_unknownneighbor:
+      name: "# Rx unknown neighbor errors"
+    lc_rx_total:
+      name: "# Rx total"
+
+    lc_tx_err_abort:
+      name: "# Tx abort errors"
+    lc_tx_err_busychannel:
+      name: "# Tx busy channel errors"
+    lc_tx_err_cca:
+      name: "# Tx CCA errors"
+    lc_tx_retry:
+      name: "# Tx retries"
+    lc_tx_total:
+      name: "# Tx total"
