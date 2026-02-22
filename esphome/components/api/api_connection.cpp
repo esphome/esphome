@@ -1702,6 +1702,13 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
     return;
   }
 
+  // Null-terminate state in-place for safe c_str() usage (e.g., parse_number in callbacks).
+  // Safe: decode is complete, byte after string data was already consumed during parse,
+  // and frame helpers reserve RX_BUF_NULL_TERMINATOR extra byte in rx_buf_.
+  if (!msg.state.empty()) {
+    const_cast<char *>(msg.state.c_str())[msg.state.size()] = '\0';
+  }
+
   for (auto &it : this->parent_->get_state_subs()) {
     if (msg.entity_id != it.entity_id) {
       continue;
@@ -1713,13 +1720,20 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
       continue;
     }
 
-    // msg.state is already null-terminated in-place after protobuf decode
     it.callback(msg.state);
   }
 }
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
 void APIConnection::on_execute_service_request(const ExecuteServiceRequest &msg) {
+  // Null-terminate string args in-place for safe c_str() usage in YAML service triggers.
+  // Safe: full ExecuteServiceRequest decode is complete, all bytes in rx_buf_ consumed,
+  // and frame helpers reserve RX_BUF_NULL_TERMINATOR extra byte for the last field.
+  for (auto &arg : msg.args) {
+    if (!arg.string_.empty()) {
+      const_cast<char *>(arg.string_.c_str())[arg.string_.size()] = '\0';
+    }
+  }
   bool found = false;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
   // Register the call and get a unique server-generated action_call_id

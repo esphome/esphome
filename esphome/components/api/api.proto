@@ -824,7 +824,7 @@ message HomeAssistantStateResponse {
   option (ifdef) = "USE_API_HOMEASSISTANT_STATES";
 
   string entity_id = 1;
-  string state = 2 [(null_terminate) = true];
+  string state = 2;
   string attribute = 3;
 }
 
@@ -882,7 +882,7 @@ message ExecuteServiceArgument {
   bool bool_ = 1;
   int32 legacy_int = 2;
   float float_ = 3;
-  string string_ = 4 [(null_terminate) = true];
+  string string_ = 4;
   // ESPHome 1.14 (api v1.3) make int a signed value
   sint32 int_ = 5;
   repeated bool bool_array = 6 [packed=false, (fixed_vector) = true];
