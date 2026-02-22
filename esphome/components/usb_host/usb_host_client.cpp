@@ -197,6 +197,9 @@ static void client_event_cb(const usb_host_client_event_msg_t *event_msg, void *
   // Push to lock-free queue (always succeeds since pool size == queue size)
   client->event_queue.push(event);
 
+  // Re-enable component loop to process the queued event
+  client->enable_loop_soon_any_context();
+
   // Wake main loop immediately to process USB event instead of waiting for select() timeout
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
@@ -243,10 +246,13 @@ void USBClient::usb_task_loop() const {
   }
 }
 
-void USBClient::loop() {
+bool USBClient::process_usb_events_() {
+  bool had_work = false;
+
   // Process any events from the USB task
   UsbEvent *event;
   while ((event = this->event_queue.pop()) != nullptr) {
+    had_work = true;
     switch (event->type) {
       case EVENT_DEVICE_NEW:
         this->on_opened(event->data.device_new.address);
@@ -266,7 +272,16 @@ void USBClient::loop() {
   }
 
   if (this->state_ == USB_CLIENT_OPEN) {
+    had_work = true;
     this->handle_open_state_();
+  }
+
+  return had_work;
+}
+
+void USBClient::loop() {
+  if (!this->process_usb_events_()) {
+    this->disable_loop();
   }
 }
 
