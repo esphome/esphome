@@ -1706,7 +1706,7 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
   // Safe: decode is complete, byte after string data was already consumed during parse,
   // and frame helpers reserve RX_BUF_NULL_TERMINATOR extra byte in rx_buf_.
   if (!msg.state.empty()) {
-    const_cast<char *>(msg.state.c_str())[msg.state.size()] = '\0';
+    msg.state.null_terminate_in_place();
   }
 
   for (auto &it : this->parent_->get_state_subs()) {
@@ -1714,8 +1714,8 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
       continue;
     }
 
-    // Compare attribute: either both have matching attribute, or both have none
-    // it.attribute can be nullptr (meaning no attribute filter)
+    // If subscriber has attribute filter (non-null), message attribute must match it;
+    // if subscriber has no filter (nullptr), message must have no attribute.
     if (it.attribute != nullptr ? msg.attribute != it.attribute : !msg.attribute.empty()) {
       continue;
     }
@@ -1731,7 +1731,7 @@ void APIConnection::on_execute_service_request(const ExecuteServiceRequest &msg)
   // and frame helpers reserve RX_BUF_NULL_TERMINATOR extra byte for the last field.
   for (auto &arg : msg.args) {
     if (!arg.string_.empty()) {
-      const_cast<char *>(arg.string_.c_str())[arg.string_.size()] = '\0';
+      arg.string_.null_terminate_in_place();
     }
   }
   bool found = false;
