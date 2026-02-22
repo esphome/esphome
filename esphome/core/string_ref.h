@@ -81,11 +81,6 @@ class StringRef {
 
   operator std::string() const { return str(); }
 
-  /// Write a null terminator at base_[len_] in-place.
-  /// Caller must guarantee that the byte at base_[len_] is writable memory
-  /// (e.g., the RX_BUF_NULL_TERMINATOR byte reserved by frame helpers after decode).
-  void null_terminate_in_place() { const_cast<char *>(base_)[len_] = '\0'; }
-
   /// Find first occurrence of substring, returns std::string::npos if not found.
   /// Note: Requires the underlying string to be null-terminated.
   size_type find(const char *s, size_type pos = 0) const {

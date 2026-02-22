@@ -1705,10 +1705,10 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
   // Null-terminate state in-place for safe c_str() usage (e.g., parse_number in callbacks).
   // Safe: decode is complete, byte after string data was already consumed during parse,
   // and frame helpers reserve RX_BUF_NULL_TERMINATOR extra byte in rx_buf_.
-  // const_cast is safe: msg references rx_buf_ data which is mutable; the const& handler
+  // const_cast is safe: msg references mutable rx_buf_ data; the const& handler
   // signature is a generated protobuf pattern, not a true immutability contract.
   if (!msg.state.empty()) {
-    const_cast<StringRef &>(msg.state).null_terminate_in_place();
+    const_cast<char *>(msg.state.c_str())[msg.state.size()] = '\0';
   }
 
   for (auto &it : this->parent_->get_state_subs()) {
@@ -1731,11 +1731,11 @@ void APIConnection::on_execute_service_request(const ExecuteServiceRequest &msg)
   // Null-terminate string args in-place for safe c_str() usage in YAML service triggers.
   // Safe: full ExecuteServiceRequest decode is complete, all bytes in rx_buf_ consumed,
   // and frame helpers reserve RX_BUF_NULL_TERMINATOR extra byte for the last field.
-  // const_cast is safe: msg references rx_buf_ data which is mutable; the const& handler
+  // const_cast is safe: msg references mutable rx_buf_ data; the const& handler
   // signature is a generated protobuf pattern, not a true immutability contract.
   for (auto &arg : const_cast<ExecuteServiceRequest &>(msg).args) {
     if (!arg.string_.empty()) {
-      arg.string_.null_terminate_in_place();
+      const_cast<char *>(arg.string_.c_str())[arg.string_.size()] = '\0';
     }
   }
   bool found = false;
