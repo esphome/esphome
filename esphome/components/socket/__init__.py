@@ -1,4 +1,5 @@
 from collections.abc import Callable, MutableMapping
+from dataclasses import dataclass
 from enum import StrEnum
 import logging
 
@@ -21,12 +22,14 @@ KEY_SOCKET_CONSUMERS_TCP = "socket_consumers_tcp"
 KEY_SOCKET_CONSUMERS_UDP = "socket_consumers_udp"
 KEY_SOCKET_CONSUMERS_TCP_LISTEN = "socket_consumers_tcp_listen"
 
-# Recommended minimum socket counts to ensure headroom.
+# Recommended minimum socket counts.
 # Platforms should apply these (or their own) on top of get_socket_counts().
-# TCP: api(3) = 3 base, +5 headroom for ota-transfer/web_server/other.
-# UDP: dhcp(1) + dns(1) + mdns(2) + wake_loop(1) = 5 base, +1 headroom.
+# These cover minimal configs (e.g. api-only without web_server).
+# When web_server is present, its 5 registered sockets push past the TCP minimum.
 MIN_TCP_SOCKETS = 8
 MIN_UDP_SOCKETS = 6
+# Minimum listening sockets — at least api + ota baseline.
+MIN_TCP_LISTEN_SOCKETS = 2
 
 # Wake loop threadsafe support tracking
 KEY_WAKE_LOOP_THREADSAFE_REQUIRED = "wake_loop_threadsafe_required"
@@ -75,10 +78,20 @@ def _format_consumers(consumers: dict[str, int]) -> str:
     return ", ".join(f"{name}={count}" for name, count in sorted(consumers.items()))
 
 
-def get_socket_counts() -> tuple[int, int, int, str, str, str]:
-    """Return socket counts and component details for platform configuration.
+@dataclass(frozen=True)
+class SocketCounts:
+    """Socket counts and component details for platform configuration."""
 
-    Returns (tcp, udp, tcp_listen, tcp_details, udp_details, tcp_listen_details).
+    tcp: int
+    udp: int
+    tcp_listen: int
+    tcp_details: str
+    udp_details: str
+    tcp_listen_details: str
+
+
+def get_socket_counts() -> SocketCounts:
+    """Return socket counts and component details for platform configuration.
 
     Platforms call this during code generation to configure lwIP socket limits.
     All components will have registered their needs by then.
@@ -104,7 +117,9 @@ def get_socket_counts() -> tuple[int, int, int, str, str, str]:
         tcp_listen,
         tcp_listen_details,
     )
-    return tcp, udp, tcp_listen, tcp_details, udp_details, tcp_listen_details
+    return SocketCounts(
+        tcp, udp, tcp_listen, tcp_details, udp_details, tcp_listen_details
+    )
 
 
 def require_wake_loop_threadsafe() -> None:

@@ -1265,15 +1265,8 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
 
     # CONFIG_LWIP_MAX_SOCKETS is a single VFS socket pool shared by all socket
     # types (TCP clients, TCP listeners, and UDP). Include all three counts.
-    (
-        tcp_sockets,
-        udp_sockets,
-        tcp_listen,
-        tcp_details,
-        udp_details,
-        tcp_listen_details,
-    ) = get_socket_counts()
-    total_sockets = tcp_sockets + udp_sockets + tcp_listen
+    sc = get_socket_counts()
+    total_sockets = sc.tcp + sc.udp + sc.tcp_listen
 
     # User specified their own value - respect it but warn if insufficient
     if user_max_sockets is not None:
@@ -1294,9 +1287,9 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
                 "at least %d.",
                 user_sockets_int,
                 total_sockets,
-                tcp_sockets,
-                udp_sockets,
-                tcp_listen,
+                sc.tcp,
+                sc.udp,
+                sc.tcp_listen,
                 total_sockets,
             )
         # User's value already added via sdkconfig_options processing
@@ -1314,12 +1307,12 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
         "(TCP=%d [%s], UDP=%d [%s], TCP_LISTEN=%d [%s])",
         max_sockets,
         sock_min,
-        tcp_sockets,
-        tcp_details,
-        udp_sockets,
-        udp_details,
-        tcp_listen,
-        tcp_listen_details,
+        sc.tcp,
+        sc.tcp_details,
+        sc.udp,
+        sc.udp_details,
+        sc.tcp_listen,
+        sc.tcp_listen_details,
     )
 
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
