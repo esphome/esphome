@@ -37,6 +37,8 @@ class ATM90E32Component : public PollingComponent,
                                                        ATM90E32_REGISTER_QOFFSETC};
   const uint16_t over_voltage_flags[3] = {ATM90E32_STATUS_S0_OVPHASEAST, ATM90E32_STATUS_S0_OVPHASEBST,
                                           ATM90E32_STATUS_S0_OVPHASECST};
+  const uint16_t over_current_flags[3] = {ATM90E32_STATUS_S0_OIPHASEAST, ATM90E32_STATUS_S0_OIPHASEBST,
+                                          ATM90E32_STATUS_S0_OIPHASECST};
   const uint16_t voltage_sag_flags[3] = {ATM90E32_STATUS_S1_SAGPHASEAST, ATM90E32_STATUS_S1_SAGPHASEBST,
                                          ATM90E32_STATUS_S1_SAGPHASECST};
   const uint16_t phase_loss_flags[3] = {ATM90E32_STATUS_S1_PHASELOSSAST, ATM90E32_STATUS_S1_PHASELOSSBST,
@@ -92,6 +94,42 @@ class ATM90E32Component : public PollingComponent,
   void set_chip_temperature_sensor(sensor::Sensor *chip_temperature_sensor) {
     chip_temperature_sensor_ = chip_temperature_sensor;
   }
+  void set_threshold_voltage_nominal(float voltage) {
+    this->threshold_voltage_nominal_v_ = voltage;
+    this->has_threshold_voltage_nominal_v_ = true;
+  }
+  void set_threshold_voltage_sag_pct(float sag_pct_ratio) {
+    this->threshold_voltage_sag_pct_ = sag_pct_ratio;
+    this->has_threshold_voltage_sag_pct_ = true;
+  }
+  void set_threshold_voltage_peak_pct(float peak_pct_ratio) {
+    this->threshold_voltage_peak_pct_ = peak_pct_ratio;
+    this->has_threshold_voltage_peak_pct_ = true;
+  }
+  void set_threshold_voltage_sag_v(float voltage) {
+    this->threshold_voltage_sag_v_ = voltage;
+    this->has_threshold_voltage_sag_v_ = true;
+  }
+  void set_threshold_voltage_peak_v(float voltage) {
+    this->threshold_voltage_peak_v_ = voltage;
+    this->has_threshold_voltage_peak_v_ = true;
+  }
+  void set_threshold_current_peak_a(float current) {
+    this->threshold_current_peak_a_ = current;
+    this->has_threshold_current_peak_a_ = true;
+  }
+  void set_threshold_frequency_nominal_hz(float frequency) {
+    this->threshold_frequency_nominal_hz_ = frequency;
+    this->has_threshold_frequency_nominal_hz_ = true;
+  }
+  void set_threshold_frequency_low_hz(float frequency) {
+    this->threshold_frequency_low_hz_ = frequency;
+    this->has_threshold_frequency_low_hz_ = true;
+  }
+  void set_threshold_frequency_high_hz(float frequency) {
+    this->threshold_frequency_high_hz_ = frequency;
+    this->has_threshold_frequency_high_hz_ = true;
+  }
   void set_line_freq(int freq) { line_freq_ = freq; }
   void set_current_phases(int phases) { current_phases_ = phases; }
   void set_pga_gain(uint16_t gain) { pga_gain_ = gain; }
@@ -133,6 +171,13 @@ class ATM90E32Component : public PollingComponent,
   }
   void set_freq_status_text_sensor(text_sensor::TextSensor *sensor) { this->freq_status_text_sensor_ = sensor; }
 #endif
+  static constexpr float DEFAULT_VOLTAGE_SAG_PCT = 0.78f;
+  static constexpr float DEFAULT_VOLTAGE_PEAK_PCT = 1.22f;
+  static constexpr float DEFAULT_CURRENT_PEAK_A = 65.53f;
+  static constexpr float DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ = 3.0f;
+  static uint16_t calculate_voltage_threshold_from_volts(float voltage_rms, uint16_t ugain);
+  static uint16_t calculate_current_threshold_from_amps(float current_rms, uint16_t igain);
+  static uint16_t calculate_frequency_threshold_from_hz(float frequency_hz);
   uint16_t calculate_voltage_threshold(int line_freq, uint16_t ugain, float multiplier);
   int32_t last_periodic_millis = millis();
 
@@ -264,6 +309,25 @@ class ATM90E32Component : public PollingComponent,
   bool peak_current_signed_{false};
   bool enable_offset_calibration_{false};
   bool enable_gain_calibration_{false};
+  bool has_threshold_voltage_nominal_v_{false};
+  bool has_threshold_voltage_sag_pct_{false};
+  bool has_threshold_voltage_peak_pct_{false};
+  bool has_threshold_voltage_sag_v_{false};
+  bool has_threshold_voltage_peak_v_{false};
+  bool has_threshold_current_peak_a_{false};
+  bool has_threshold_frequency_nominal_hz_{false};
+  bool has_threshold_frequency_low_hz_{false};
+  bool has_threshold_frequency_high_hz_{false};
+  float threshold_voltage_nominal_v_{0.0f};
+  float threshold_voltage_sag_pct_{0.0f};
+  float threshold_voltage_peak_pct_{0.0f};
+  float threshold_voltage_sag_v_{0.0f};
+  float threshold_voltage_peak_v_{0.0f};
+  float threshold_current_peak_a_{0.0f};
+  float threshold_frequency_nominal_hz_{0.0f};
+  float threshold_frequency_low_hz_{0.0f};
+  float threshold_frequency_high_hz_{0.0f};
+  float active_current_peak_threshold_a_{DEFAULT_CURRENT_PEAK_A};
   bool restored_offset_calibration_{false};
   bool restored_power_offset_calibration_{false};
   bool restored_gain_calibration_{false};

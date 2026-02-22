@@ -118,17 +118,9 @@ void ATM90E32Component::setup() {
   this->get_cs_summary_(cs);
 
   uint16_t mmode0 = 0x87;  // 3P4W 50Hz
-  uint16_t high_thresh = 0;
-  uint16_t low_thresh = 0;
 
   if (line_freq_ == 60) {
     mmode0 |= 1 << 12;  // sets 12th bit to 1, 60Hz
-    // for freq threshold registers
-    high_thresh = 6300;  // 63.00 Hz
-    low_thresh = 5700;   // 57.00 Hz
-  } else {
-    high_thresh = 5300;  // 53.00 Hz
-    low_thresh = 4700;   // 47.00 Hz
   }
 
   if (current_phases_ == 2) {
@@ -152,8 +144,6 @@ void ATM90E32Component::setup() {
   this->write16_(ATM90E32_REGISTER_ZXCONFIG, 0xD654);       // Zero crossing (ZX2, ZX1, ZX0) pin config
   this->write16_(ATM90E32_REGISTER_MMODE0, mmode0);         // Mode Config (frequency set in main program)
   this->write16_(ATM90E32_REGISTER_MMODE1, pga_gain_);      // PGA Gain Configuration for Current Channels
-  this->write16_(ATM90E32_REGISTER_FREQHITH, high_thresh);  // Frequency high threshold
-  this->write16_(ATM90E32_REGISTER_FREQLOTH, low_thresh);   // Frequency low threshold
   this->write16_(ATM90E32_REGISTER_PSTARTTH, 0x1D4C);       // All Active Startup Power Threshold - 0.02A/0.00032 = 7500
   this->write16_(ATM90E32_REGISTER_QSTARTTH, 0x1D4C);       // All Reactive Startup Power Threshold - 50%
   this->write16_(ATM90E32_REGISTER_SSTARTTH, 0x1D4C);       // All Reactive Startup Power Threshold - 50%
@@ -208,14 +198,64 @@ void ATM90E32Component::setup() {
     }
   }
 
-  // Sag threshold (78%)
-  uint16_t sagth = calculate_voltage_threshold(line_freq_, this->phase_[0].voltage_gain_, 0.78f);
-  // Overvoltage threshold (122%)
-  uint16_t ovth = calculate_voltage_threshold(line_freq_, this->phase_[0].voltage_gain_, 1.22f);
+  const float default_voltage_nominal = (this->line_freq_ == 60) ? 120.0f : 220.0f;
+  const float voltage_nominal =
+      this->has_threshold_voltage_nominal_v_ ? this->threshold_voltage_nominal_v_ : default_voltage_nominal;
+  const float sag_voltage =
+      this->has_threshold_voltage_sag_v_
+          ? this->threshold_voltage_sag_v_
+          : voltage_nominal *
+                (this->has_threshold_voltage_sag_pct_ ? this->threshold_voltage_sag_pct_ : DEFAULT_VOLTAGE_SAG_PCT);
+  const float peak_voltage =
+      this->has_threshold_voltage_peak_v_
+          ? this->threshold_voltage_peak_v_
+          : voltage_nominal *
+                (this->has_threshold_voltage_peak_pct_ ? this->threshold_voltage_peak_pct_ : DEFAULT_VOLTAGE_PEAK_PCT);
+
+  const float frequency_nominal_hz =
+      this->has_threshold_frequency_nominal_hz_ ? this->threshold_frequency_nominal_hz_
+                                                : static_cast<float>(this->line_freq_);
+  const float frequency_low_hz =
+      this->has_threshold_frequency_low_hz_
+          ? this->threshold_frequency_low_hz_
+          : (frequency_nominal_hz - DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ);
+  const float frequency_high_hz =
+      this->has_threshold_frequency_high_hz_
+          ? this->threshold_frequency_high_hz_
+          : (frequency_nominal_hz + DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ);
+  const float current_peak_a =
+      this->has_threshold_current_peak_a_ ? this->threshold_current_peak_a_ : DEFAULT_CURRENT_PEAK_A;
+  this->active_current_peak_threshold_a_ = current_peak_a;
+  uint16_t oith = 0xC000;  // Preserve legacy behavior when current threshold is not configured.
+  if (this->has_threshold_current_peak_a_) {
+    oith = calculate_current_threshold_from_amps(current_peak_a, this->phase_[0].ct_gain_);
+  }
+
+  const uint16_t sagth = calculate_voltage_threshold_from_volts(sag_voltage, this->phase_[0].voltage_gain_);
+  const uint16_t ovth = calculate_voltage_threshold_from_volts(peak_voltage, this->phase_[0].voltage_gain_);
+  const uint16_t low_thresh = calculate_frequency_threshold_from_hz(frequency_low_hz);
+  const uint16_t high_thresh = calculate_frequency_threshold_from_hz(frequency_high_hz);
+
+  ESP_LOGD(TAG, "Threshold frequency: low %.2f Hz -> 0x%04" PRIX16 ", high %.2f Hz -> 0x%04" PRIX16,
+           frequency_low_hz, low_thresh, frequency_high_hz, high_thresh);
+  ESP_LOGD(TAG, "Threshold voltage sag: %.1f%% (%.2f V RMS, gain %u) -> 0x%04" PRIX16,
+           (sag_voltage / voltage_nominal) * 100.0f, sag_voltage, this->phase_[0].voltage_gain_, sagth);
+  ESP_LOGD(TAG, "Threshold voltage peak: %.1f%% (%.2f V RMS, gain %u) -> 0x%04" PRIX16,
+           (peak_voltage / voltage_nominal) * 100.0f, peak_voltage, this->phase_[0].voltage_gain_, ovth);
+  if (this->has_threshold_current_peak_a_) {
+    ESP_LOGD(TAG, "Threshold current peak: %.3f A RMS (gain %u) -> 0x%04" PRIX16, current_peak_a,
+             this->phase_[0].ct_gain_, oith);
+  } else {
+    ESP_LOGD(TAG, "Threshold current peak warning: %.3f A RMS (software); OITH legacy default -> 0x%04" PRIX16,
+             current_peak_a, oith);
+  }
 
   // Write to registers
+  this->write16_(ATM90E32_REGISTER_FREQHITH, high_thresh);
+  this->write16_(ATM90E32_REGISTER_FREQLOTH, low_thresh);
   this->write16_(ATM90E32_REGISTER_SAGTH, sagth);
   this->write16_(ATM90E32_REGISTER_OVTH, ovth);
+  this->write16_(ATM90E32_REGISTER_OITH, oith);
 
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x0000);  // end configuration
 }
@@ -1161,6 +1201,8 @@ void ATM90E32Component::check_phase_status() {
   for (int phase = 0; phase < 3; phase++) {
     std::string status;
 
+    if (state0 & over_current_flags[phase])
+      status += "Over Current; ";
     if (state0 & over_voltage_flags[phase])
       status += "Over Voltage; ";
     if (state1 & voltage_sag_flags[phase])
@@ -1206,7 +1248,7 @@ void ATM90E32Component::check_freq_status() {
 }
 
 void ATM90E32Component::check_over_current() {
-  constexpr float max_current_threshold = 65.53f;
+  const float max_current_threshold = this->active_current_peak_threshold_a_;
 
   for (uint8_t phase = 0; phase < 3; phase++) {
     float current_val =
@@ -1223,18 +1265,40 @@ void ATM90E32Component::check_over_current() {
 }
 #endif
 
+// Datasheet equation (section "Power Quality Monitoring"): xxThRegValue =
+// RmsRegValue * sqrt(2) / (VIgain / 2^14). For voltage, RmsRegValue is in 0.01V.
+uint16_t ATM90E32Component::calculate_voltage_threshold_from_volts(float voltage_rms, uint16_t ugain) {
+  if (ugain == 0) {
+    return 0;
+  }
+
+  const float peak_01v = voltage_rms * 100.0f * std::numbers::sqrt2_v<float>;  // RMS to peak, scaled in 0.01V
+  const float divider = (2.0f * ugain) / 32768.0f;
+  return static_cast<uint16_t>(peak_01v / divider);  // Keep truncation for backward-compatible defaults.
+}
+
+// Datasheet equation (section "Power Quality Monitoring"): xxThRegValue =
+// RmsRegValue * sqrt(2) / (VIgain / 2^14). For current, RmsRegValue is in 0.001A.
+uint16_t ATM90E32Component::calculate_current_threshold_from_amps(float current_rms, uint16_t igain) {
+  if (igain == 0) {
+    return 0;
+  }
+
+  const float peak_001a = current_rms * 1000.0f * std::numbers::sqrt2_v<float>;  // RMS to peak, scaled in 0.001A
+  const float divider = (2.0f * igain) / 32768.0f;
+  return static_cast<uint16_t>(peak_001a / divider);  // Keep truncation for backward-compatible defaults.
+}
+
+// Freq register and threshold registers use 0.01Hz/LSB.
+uint16_t ATM90E32Component::calculate_frequency_threshold_from_hz(float frequency_hz) {
+  return static_cast<uint16_t>(frequency_hz * 100.0f);  // Keep truncation for backward-compatible defaults.
+}
+
 uint16_t ATM90E32Component::calculate_voltage_threshold(int line_freq, uint16_t ugain, float multiplier) {
   // this assumes that 60Hz electrical systems use 120V mains,
   // which is usually, but not always the case
-  float nominal_voltage = (line_freq == 60) ? 120.0f : 220.0f;
-  float target_voltage = nominal_voltage * multiplier;
-
-  float peak_01v = target_voltage * 100.0f * std::numbers::sqrt2_v<float>;  // convert RMS → peak, scale to 0.01V
-  float divider = (2.0f * ugain) / 32768.0f;
-
-  float threshold = peak_01v / divider;
-
-  return static_cast<uint16_t>(threshold);
+  const float nominal_voltage = (line_freq == 60) ? 120.0f : 220.0f;
+  return calculate_voltage_threshold_from_volts(nominal_voltage * multiplier, ugain);
 }
 
 bool ATM90E32Component::validate_spi_read_(uint16_t expected, const char *context) {
