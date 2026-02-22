@@ -8,6 +8,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/gpio.h"
 #include "driver/gpio.h"
+#include "esp_private/gpio.h"
 #include "soc/gpio_num.h"
 #include "soc/uart_pins.h"
 
@@ -199,6 +200,14 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
+  }
+
+  // Workaround for ESP-IDF 5.5+ removing gpio_func_sel() from uart_set_pin() for RX pins
+  // (https://github.com/espressif/esp-idf/commit/1d6bcb86ba474990f5e9b7c62913ee15fbca0212).
+  // Without this, pins like GPIO4 on ESP32-C3 remain in their default IOMUX function
+  // (e.g. MTMS/JTAG) after cold boot, preventing UART RX from working via GPIO matrix.
+  if (rx >= 0) {
+    gpio_func_sel(static_cast<gpio_num_t>(rx), PIN_FUNC_GPIO);
   }
 
   err = uart_set_pin(this->uart_num_, tx, rx, flow_control, UART_PIN_NO_CHANGE);
