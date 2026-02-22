@@ -5,7 +5,6 @@ namespace esphome::fendt_caravan {
 static const char *const TAG = "FC.CU";
 
 void ControlUnitDeviceSensor::setup() {
-  ESP_LOGD(TAG, "ControlUnitDevice Setup Called");
   auto *network = new Variable<std::string>("LINE_EN", [](const std::string &value) {
     const char *tmp[] = {"Connected", "Disconnected"};
     return DeviceDecoders::decode_bool_str(value, tmp);
@@ -91,7 +90,7 @@ void ControlUnitDeviceSensor::setup() {
 }
 
 void ControlUnitDeviceSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, " Fendt Control Unit");
+  ESP_LOGCONFIG(TAG, "Fendt Control Unit");
   LOG_SWITCH(TAG, "  Main Switch", this->main_switch_switch_);
   LOG_SWITCH(TAG, "  All Lights Status", this->all_lights_switch_);
   LOG_SENSOR(TAG, "  Temp In", this->temp_in_sensor_);
@@ -113,9 +112,9 @@ void ControlUnitDeviceSensor::on_data_decoded(IVariable *variable) {
   }
 }
 
-void ControlUnitDeviceSensor::on_switch_state_change(switch_::Switch *sw, bool state, const std::string &command) {
-  std::string cmd = "";
-  if (sw == this->main_switch_switch_) {
+void ControlUnitDeviceSensor::on_state_change_command(const std::string &tag, const std::string &command) {
+  std::string cmd = command;
+  if (tag == "MAIN_SWITCH") {
     auto *hs_key_long = GET_VARIABLE(bool, "HS_KEY_LONG");
     auto *hs_key_state = GET_VARIABLE(int, "HS_KEY_STATE");
     bool current_state = hs_key_state->get_value() > 0;
@@ -133,7 +132,7 @@ void ControlUnitDeviceSensor::on_switch_state_change(switch_::Switch *sw, bool s
       hs_key->set_value(true);
       cmd = hs_key->get_command();
     }
-  } else if (sw == this->all_lights_switch_) {
+  } else if (tag == "ALL_LIGHTS_SWITCH") {
     auto *hs_key = GET_VARIABLE(bool, "HS_KEY");
     auto *hs_key_state = GET_VARIABLE(int, "HS_KEY_STATE");
     bool current_state = hs_key_state->get_value() == 2;
@@ -143,13 +142,6 @@ void ControlUnitDeviceSensor::on_switch_state_change(switch_::Switch *sw, bool s
         return;
       cmd = hs_key->get_command();
     }
-  } else if (sw == this->floor_heater_switch_) {
-    ESP_LOGV(TAG, "Floor switch state changed. cs: %d, state:%d", this->floor_heater_switch_->state, state);
-    if (state == this->floor_heater_switch_->state)
-      return;
-    // Variable<bool> *variable = GET_VARIABLE(bool, "FLOOR_HEATER_CONFIG");
-    if (!command.empty())
-      cmd = command;
   }
   if (!cmd.empty()) {
     ESP_LOGV(TAG, "Switch state changed command:%s", cmd.c_str());

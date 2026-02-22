@@ -27,7 +27,7 @@ class FendtSwitch : public CaravanSensorBase<bool>, public switch_::Switch {
       this->variable_->set_value(state);
       command = this->variable_->get_command();
     }
-    this->parent_->on_switch_state_change(this, state, command);
+    this->parent_->on_state_change_command(this->key_name_, command);
   }
   void on_decoded(bool value) override { this->publish_state(value); }
 

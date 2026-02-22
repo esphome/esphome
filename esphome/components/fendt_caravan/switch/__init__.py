@@ -24,8 +24,8 @@ def _switch_schema(icon: str = cv.UNDEFINED, key_name_=cv.UNDEFINED) -> cv.Schem
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        "main_switch": _switch_schema(icon="mdi:switch"),
-        "all_lights": _switch_schema(icon="mdi:lamp"),
+        "main_switch": _switch_schema(icon="mdi:switch", key_name_="MAIN_SWITCH"),
+        "all_lights": _switch_schema(icon="mdi:lamp", key_name_="ALL_LIGHTS_SWITCH"),
         "floor_heater": _switch_schema(
             icon="mdi:heat-wave", key_name_="FLOOR_HEATER_ON"
         ),
