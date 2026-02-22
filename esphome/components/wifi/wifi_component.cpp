@@ -968,9 +968,11 @@ void WiFiComponent::set_ap(const WiFiAP &ap) {
 }
 #endif  // USE_WIFI_AP
 
+#ifdef USE_LOOP_PRIORITY
 float WiFiComponent::get_loop_priority() const {
   return 10.0f;  // before other loop components
 }
+#endif
 
 void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
