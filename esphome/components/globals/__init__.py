@@ -102,7 +102,7 @@ async def to_code(config):
             cv.Required(CONF_VALUE): cv.templatable(cv.string_strict),
         }
     ),
-    deferred=False,
+    synchronous=True,
 )
 async def globals_set_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])

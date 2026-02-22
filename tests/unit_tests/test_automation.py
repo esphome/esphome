@@ -9,25 +9,25 @@ from esphome.automation import has_deferred_actions
 from esphome.util import RegistryEntry
 
 
-def _make_registry(deferred_actions: set[str]) -> dict[str, RegistryEntry]:
-    """Create a mock ACTION_REGISTRY with specified deferred actions.
+def _make_registry(non_synchronous_actions: set[str]) -> dict[str, RegistryEntry]:
+    """Create a mock ACTION_REGISTRY with specified non-synchronous actions.
 
-    Uses the default deferred=True, matching the real registry behavior.
+    Uses the default synchronous=False, matching the real registry behavior.
     """
     registry: dict[str, RegistryEntry] = {}
-    for name in deferred_actions:
+    for name in non_synchronous_actions:
         registry[name] = RegistryEntry(name, lambda: None, None, None)
     return registry
 
 
 @pytest.fixture
 def mock_registry() -> Generator[dict[str, RegistryEntry]]:
-    """Fixture that patches ACTION_REGISTRY with delay, wait_until, script.wait as deferred."""
+    """Fixture that patches ACTION_REGISTRY with delay, wait_until, script.wait as non-synchronous."""
     registry: dict[str, RegistryEntry] = _make_registry(
         {"delay", "wait_until", "script.wait"}
     )
     registry["logger.log"] = RegistryEntry(
-        "logger.log", lambda: None, None, None, deferred=False
+        "logger.log", lambda: None, None, None, synchronous=True
     )
     with patch("esphome.automation.ACTION_REGISTRY", registry):
         yield registry
@@ -82,10 +82,10 @@ def test_has_deferred_actions_unknown_not_in_registry(
     assert has_deferred_actions([{"unknown.action": "value"}]) is False
 
 
-def test_has_deferred_actions_default_deferred(
+def test_has_deferred_actions_default_non_synchronous(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
-    """Actions registered without explicit deferred=False default to deferred=True."""
+    """Actions registered without explicit synchronous=True default to non-synchronous."""
     mock_registry["some.action"] = RegistryEntry(
         "some.action", lambda: None, None, None
     )

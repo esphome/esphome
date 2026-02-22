@@ -25,13 +25,13 @@ class RegistryEntry:
         type_id: "MockObjClass",
         schema: "Schema",
         *,
-        deferred: bool = True,
+        synchronous: bool = False,
     ):
         self.name = name
         self.fun = fun
         self.type_id = type_id
         self.raw_schema = schema
-        self.deferred = deferred
+        self.synchronous = synchronous
 
     @property
     def coroutine_fun(self):
@@ -58,10 +58,12 @@ class Registry(dict[str, RegistryEntry]):
         type_id: "MockObjClass",
         schema: "Schema",
         *,
-        deferred: bool = True,
+        synchronous: bool = False,
     ):
         def decorator(fun: Callable[..., Any]):
-            self[name] = RegistryEntry(name, fun, type_id, schema, deferred=deferred)
+            self[name] = RegistryEntry(
+                name, fun, type_id, schema, synchronous=synchronous
+            )
             return fun
 
         return decorator

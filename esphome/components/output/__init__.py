@@ -75,7 +75,7 @@ BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action(
-    "output.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA, deferred=False
+    "output.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA, synchronous=True
 )
 async def output_turn_on_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -83,7 +83,7 @@ async def output_turn_on_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "output.turn_off", TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA, deferred=False
+    "output.turn_off", TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA, synchronous=True
 )
 async def output_turn_off_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -99,7 +99,7 @@ async def output_turn_off_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_LEVEL): cv.templatable(cv.percentage),
         }
     ),
-    deferred=False,
+    synchronous=True,
 )
 async def output_set_level_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

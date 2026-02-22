@@ -519,7 +519,7 @@ LOGGER_LOG_ACTION_SCHEMA = cv.All(
 
 
 @automation.register_action(
-    CONF_LOGGER_LOG, LambdaAction, LOGGER_LOG_ACTION_SCHEMA, deferred=False
+    CONF_LOGGER_LOG, LambdaAction, LOGGER_LOG_ACTION_SCHEMA, synchronous=True
 )
 async def logger_log_action_to_code(config, action_id, template_arg, args):
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
