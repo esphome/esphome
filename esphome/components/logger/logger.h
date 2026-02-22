@@ -143,7 +143,7 @@ enum UARTSelection : uint8_t {
  */
 class Logger : public Component {
  public:
-  explicit Logger(uint32_t baud_rate, size_t tx_buffer_size);
+  explicit Logger(uint32_t baud_rate);
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   void init_log_buffer(size_t total_buffer_size);
 #endif
@@ -281,7 +281,7 @@ class Logger : public Component {
   inline void HOT log_message_to_buffer_and_send_(bool &recursion_guard, uint8_t level, const char *tag, int line,
                                                   FormatType format, va_list args, const char *thread_name) {
     RecursionGuard guard(recursion_guard);
-    LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
+    LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
 #ifdef USE_STORE_LOG_STR_IN_FLASH
     if constexpr (std::is_same_v<FormatType, const __FlashStringHelper *>) {
       this->format_log_to_buffer_with_terminator_P_(level, tag, line, format, args, buf);
@@ -312,7 +312,6 @@ class Logger : public Component {
 
   // Group 4-byte aligned members first
   uint32_t baud_rate_;
-  char *tx_buffer_{nullptr};
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
   Stream *hw_serial_{nullptr};
 #endif
@@ -354,7 +353,6 @@ class Logger : public Component {
 #endif
 
   // Group smaller types together at the end
-  uint16_t tx_buffer_size_{0};
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
   UARTSelection uart_{UART_SELECTION_UART0};
@@ -370,6 +368,9 @@ class Logger : public Component {
 #else
   bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
 #endif
+
+  // Large buffer placed last to keep frequently-accessed member offsets small
+  char tx_buffer_[ESPHOME_LOGGER_TX_BUFFER_SIZE + 1];  // +1 for null terminator
 
   // --- get_thread_name_ overloads (per-platform) ---
 
