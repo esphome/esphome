@@ -458,7 +458,9 @@ class WiFiComponent : public Component {
   void restart_adapter();
   /// WIFI setup_priority.
   float get_setup_priority() const override;
+#ifdef USE_LOOP_PRIORITY
   float get_loop_priority() const override;
+#endif
 
   /// Reconnect WiFi if required.
   void loop() override;
