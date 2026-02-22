@@ -6,7 +6,12 @@
 #include "esphome/components/i2c/i2c.h"
 
 #include <Wire.h>
+
+// Bosch BME680 庫頭文件
+extern "C" {
 #include "bme680.h"
+#include "bme680_defs.h"
+}
 
 namespace esphome {
 namespace bme680 {
