@@ -413,8 +413,8 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   noise_buffer_init(mbuf);
   // rx_buf_ has RX_BUF_NULL_TERMINATOR extra byte for null termination,
   // but only the actual message bytes contain encrypted data
-  size_t msg_size = this->rx_buf_.size() - RX_BUF_NULL_TERMINATOR;
-  noise_buffer_set_inout(mbuf, this->rx_buf_.data(), msg_size, msg_size);
+  size_t encrypted_size = this->rx_buf_.size() - RX_BUF_NULL_TERMINATOR;
+  noise_buffer_set_inout(mbuf, this->rx_buf_.data(), encrypted_size, encrypted_size);
   int err = noise_cipherstate_decrypt(this->recv_cipher_, &mbuf);
   APIError decrypt_err =
       handle_noise_error_(err, LOG_STR("noise_cipherstate_decrypt"), APIError::CIPHERSTATE_DECRYPT_FAILED);
