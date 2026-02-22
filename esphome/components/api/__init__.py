@@ -382,7 +382,7 @@ async def to_code(config: ConfigType) -> None:
 
             # Check if action chain has non-synchronous actions that would make
             # non-owning StringRef dangle (rx_buf_ reused after delay)
-            has_non_synchronous = automation.has_deferred_actions(
+            has_non_synchronous = automation.has_non_synchronous_actions(
                 conf.get(CONF_THEN, [])
             )
 

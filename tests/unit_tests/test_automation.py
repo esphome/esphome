@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from esphome.automation import has_deferred_actions
+from esphome.automation import has_non_synchronous_actions
 from esphome.util import RegistryEntry
 
 
@@ -33,82 +33,84 @@ def mock_registry() -> Generator[dict[str, RegistryEntry]]:
         yield registry
 
 
-def test_has_deferred_actions_empty_list(
+def test_has_non_synchronous_actions_empty_list(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
-    assert has_deferred_actions([]) is False
+    assert has_non_synchronous_actions([]) is False
 
 
-def test_has_deferred_actions_empty_dict(
+def test_has_non_synchronous_actions_empty_dict(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
-    assert has_deferred_actions({}) is False
+    assert has_non_synchronous_actions({}) is False
 
 
-def test_has_deferred_actions_non_dict_non_list(
+def test_has_non_synchronous_actions_non_dict_non_list(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
-    assert has_deferred_actions("string") is False
-    assert has_deferred_actions(42) is False
-    assert has_deferred_actions(None) is False
+    assert has_non_synchronous_actions("string") is False
+    assert has_non_synchronous_actions(42) is False
+    assert has_non_synchronous_actions(None) is False
 
 
-def test_has_deferred_actions_delay(mock_registry: dict[str, RegistryEntry]) -> None:
-    assert has_deferred_actions([{"delay": "1s"}]) is True
-
-
-def test_has_deferred_actions_wait_until(
+def test_has_non_synchronous_actions_delay(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
-    assert has_deferred_actions([{"wait_until": {"condition": {}}}]) is True
+    assert has_non_synchronous_actions([{"delay": "1s"}]) is True
 
 
-def test_has_deferred_actions_script_wait(
+def test_has_non_synchronous_actions_wait_until(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
-    assert has_deferred_actions([{"script.wait": "script_id"}]) is True
+    assert has_non_synchronous_actions([{"wait_until": {"condition": {}}}]) is True
 
 
-def test_has_deferred_actions_non_deferred(
+def test_has_non_synchronous_actions_script_wait(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
-    assert has_deferred_actions([{"logger.log": "hello"}]) is False
+    assert has_non_synchronous_actions([{"script.wait": "script_id"}]) is True
 
 
-def test_has_deferred_actions_unknown_not_in_registry(
+def test_has_non_synchronous_actions_synchronous(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    assert has_non_synchronous_actions([{"logger.log": "hello"}]) is False
+
+
+def test_has_non_synchronous_actions_unknown_not_in_registry(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
     """Unknown actions not in registry are not flagged (only registered actions count)."""
-    assert has_deferred_actions([{"unknown.action": "value"}]) is False
+    assert has_non_synchronous_actions([{"unknown.action": "value"}]) is False
 
 
-def test_has_deferred_actions_default_non_synchronous(
+def test_has_non_synchronous_actions_default_non_synchronous(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
     """Actions registered without explicit synchronous=True default to non-synchronous."""
     mock_registry["some.action"] = RegistryEntry(
         "some.action", lambda: None, None, None
     )
-    assert has_deferred_actions([{"some.action": "value"}]) is True
+    assert has_non_synchronous_actions([{"some.action": "value"}]) is True
 
 
-def test_has_deferred_actions_nested_in_then(
+def test_has_non_synchronous_actions_nested_in_then(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
-    """Deferred action nested inside a non-deferred action's then block."""
+    """Non-synchronous action nested inside a synchronous action's then block."""
     actions: list[dict[str, object]] = [
         {
             "logger.log": "first",
             "then": [{"delay": "1s"}],
         }
     ]
-    assert has_deferred_actions(actions) is True
+    assert has_non_synchronous_actions(actions) is True
 
 
-def test_has_deferred_actions_deeply_nested(
+def test_has_non_synchronous_actions_deeply_nested(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
-    """Deferred action deeply nested in action structure."""
+    """Non-synchronous action deeply nested in action structure."""
     actions: list[dict[str, object]] = [
         {
             "if": {
@@ -119,13 +121,13 @@ def test_has_deferred_actions_deeply_nested(
             }
         }
     ]
-    assert has_deferred_actions(actions) is True
+    assert has_non_synchronous_actions(actions) is True
 
 
-def test_has_deferred_actions_no_deferred_in_nested(
+def test_has_non_synchronous_actions_none_in_nested(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
-    """No deferred actions even with nesting."""
+    """No non-synchronous actions even with nesting."""
     actions: list[dict[str, object]] = [
         {
             "if": {
@@ -135,14 +137,14 @@ def test_has_deferred_actions_no_deferred_in_nested(
             }
         }
     ]
-    assert has_deferred_actions(actions) is False
+    assert has_non_synchronous_actions(actions) is False
 
 
-def test_has_deferred_actions_multiple_one_deferred(
+def test_has_non_synchronous_actions_multiple_one_non_synchronous(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
     assert (
-        has_deferred_actions(
+        has_non_synchronous_actions(
             [
                 {"logger.log": "first"},
                 {"delay": "1s"},
@@ -153,11 +155,11 @@ def test_has_deferred_actions_multiple_one_deferred(
     )
 
 
-def test_has_deferred_actions_multiple_none_deferred(
+def test_has_non_synchronous_actions_multiple_all_synchronous(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
     assert (
-        has_deferred_actions(
+        has_non_synchronous_actions(
             [
                 {"logger.log": "first"},
                 {"logger.log": "second"},
@@ -167,9 +169,9 @@ def test_has_deferred_actions_multiple_none_deferred(
     )
 
 
-def test_has_deferred_actions_dict_input(
+def test_has_non_synchronous_actions_dict_input(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:
     """Direct dict input (single action)."""
-    assert has_deferred_actions({"delay": "1s"}) is True
-    assert has_deferred_actions({"logger.log": "hello"}) is False
+    assert has_non_synchronous_actions({"delay": "1s"}) is True
+    assert has_non_synchronous_actions({"logger.log": "hello"}) is False

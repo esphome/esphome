@@ -601,7 +601,7 @@ async def build_condition_list(
     return conditions
 
 
-def has_deferred_actions(actions: ConfigType) -> bool:
+def has_non_synchronous_actions(actions: ConfigType) -> bool:
     """Check if a validated action list contains any non-synchronous actions.
 
     Non-synchronous actions (delay, wait_until, script.wait, etc.) store
@@ -609,13 +609,13 @@ def has_deferred_actions(actions: ConfigType) -> bool:
     unsafe.  Actions that haven't been audited default to non-synchronous.
     """
     if isinstance(actions, list):
-        return any(has_deferred_actions(item) for item in actions)
+        return any(has_non_synchronous_actions(item) for item in actions)
     if isinstance(actions, dict):
         for key in actions:
             if key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous:
                 return True
         return any(
-            has_deferred_actions(v)
+            has_non_synchronous_actions(v)
             for v in actions.values()
             if isinstance(v, (list, dict))
         )
