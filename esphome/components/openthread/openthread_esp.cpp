@@ -135,6 +135,12 @@ void OpenThreadComponent::ot_main() {
            TRUEFALSE(link_mode_config.mRxOnWhenIdle));
 #endif
 
+#ifdef USE_OPENTHREAD_TXPOWER
+  if (const auto err = otPlatRadioSetTransmitPower(instance, USE_OPENTHREAD_TXPOWER); err != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
+  }
+#endif
+
   // Run the main loop
 #if CONFIG_OPENTHREAD_CLI
   esp_openthread_cli_create_task();
