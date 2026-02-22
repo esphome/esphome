@@ -290,7 +290,7 @@ def _configure_lwip(config: dict) -> None:
     Setting                   ESP8266  ESP32  BK SDK   RTL SDK  LN SDK   New
     ────────────────────────────────────────────────────────────────────────────
     TCP_SND_BUF               2×MSS   4×MSS  10×MSS   5×MSS    7×MSS    4×MSS
-    TCP_WND                   4×MSS   4×MSS  10×MSS   2×MSS    3×MSS    4×MSS
+    TCP_WND                   4×MSS   4×MSS  3/10×MSS 2×MSS    3×MSS    4×MSS
     MEM_LIBC_MALLOC           1       1      0        0        1        1
     MEMP_MEM_MALLOC           1       1      0        0        0        1
     MEM_SIZE                  N/A*    N/A*   16/32KB  5KB      N/A*     N/A* BK
@@ -313,7 +313,7 @@ def _configure_lwip(config: dict) -> None:
     **** RTL/LN LT overlay overrides to flat 7.
     ***** Not defined in RTL SDK — lwIP opt.h defaults shown.
     "dynamic" = auto-calculated from component socket registrations via
-    socket.get_socket_counts() with minimums of 10 TCP / 8 UDP.
+    socket.get_socket_counts() with minimums of 8 TCP / 6 UDP.
     """
     from esphome.components.socket import (
         MIN_TCP_SOCKETS,
