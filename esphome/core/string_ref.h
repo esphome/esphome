@@ -84,9 +84,7 @@ class StringRef {
   /// Write a null terminator at base_[len_] in-place.
   /// Caller must guarantee that the byte at base_[len_] is writable memory
   /// (e.g., the RX_BUF_NULL_TERMINATOR byte reserved by frame helpers after decode).
-  /// Marked const because StringRef itself is not modified; the underlying buffer
-  /// (owned by frame helper rx_buf_) is mutated via const_cast.
-  void null_terminate_in_place() const { const_cast<char *>(base_)[len_] = '\0'; }
+  void null_terminate_in_place() { const_cast<char *>(base_)[len_] = '\0'; }
 
   /// Find first occurrence of substring, returns std::string::npos if not found.
   /// Note: Requires the underlying string to be null-terminated.
