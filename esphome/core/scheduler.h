@@ -308,8 +308,8 @@ class Scheduler {
                                        SchedulerItem::Type type, bool match_retry, bool skip_removed = true) const {
     // THREAD SAFETY: Check for nullptr first to prevent LoadProhibited crashes. On multi-threaded
     // platforms, items can be moved out of defer_queue_ during processing, leaving nullptr entries.
-    // PR #11305 added nullptr checks in callers (mark_matching_items_removed_locked_() and
-    // has_cancelled_timeout_in_container_locked_()), but this check provides defense-in-depth: helper
+    // PR #11305 added nullptr checks in callers (mark_matching_items_removed_locked_()), but this check
+    // provides defense-in-depth: helper
     // functions should be safe regardless of caller behavior.
     // Fixes: https://github.com/esphome/esphome/issues/11940
     if (!item)
@@ -403,8 +403,7 @@ class Scheduler {
       // SAFETY: Moving out the unique_ptr leaves a nullptr in the vector at defer_queue_front_.
       // This is intentional and safe because:
       // 1. The vector is only cleaned up by cleanup_defer_queue_locked_() at the end of this function
-      // 2. Any code iterating defer_queue_ MUST check for nullptr items (see mark_matching_items_removed_locked_
-      //    and has_cancelled_timeout_in_container_locked_ in scheduler.h)
+      // 2. Any code iterating defer_queue_ MUST check for nullptr items (see mark_matching_items_removed_locked_)
       // 3. The lock protects concurrent access, but the nullptr remains until cleanup
       item = std::move(this->defer_queue_[this->defer_queue_front_]);
       this->defer_queue_front_++;
@@ -497,47 +496,21 @@ class Scheduler {
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   // Returns the number of items marked for removal
   // IMPORTANT: Must be called with scheduler lock held
-  template<typename Container>
-  size_t mark_matching_items_removed_locked_(Container &container, Component *component, NameType name_type,
-                                             const char *static_name, uint32_t hash_or_id, SchedulerItem::Type type,
-                                             bool match_retry) {
+  size_t mark_matching_items_removed_locked_(std::vector<std::unique_ptr<SchedulerItem>> &container,
+                                             Component *component, NameType name_type, const char *static_name,
+                                             uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry) {
     size_t count = 0;
     for (auto &item : container) {
       // Skip nullptr items (can happen in defer_queue_ when items are being processed)
       // The defer_queue_ uses index-based processing: items are std::moved out but left in the
       // vector as nullptr until cleanup. Even though this function is called with lock held,
       // the vector can still contain nullptr items from the processing loop. This check prevents crashes.
-      if (!item)
-        continue;
-      if (this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type, match_retry)) {
+      if (item && this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type, match_retry)) {
         this->set_item_removed_(item.get(), true);
         count++;
       }
     }
     return count;
-  }
-
-  // Template helper to check if any item in a container matches our criteria
-  // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
-  // IMPORTANT: Must be called with scheduler lock held
-  template<typename Container>
-  bool has_cancelled_timeout_in_container_locked_(const Container &container, Component *component, NameType name_type,
-                                                  const char *static_name, uint32_t hash_or_id,
-                                                  bool match_retry) const {
-    for (const auto &item : container) {
-      // Skip nullptr items (can happen in defer_queue_ when items are being processed)
-      // The defer_queue_ uses index-based processing: items are std::moved out but left in the
-      // vector as nullptr until cleanup. If this function is called during defer queue processing,
-      // it will iterate over these nullptr items. This check prevents crashes.
-      if (!item)
-        continue;
-      if (this->is_item_removed_locked_(item.get()) &&
-          this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, SchedulerItem::TIMEOUT,
-                                     match_retry, /* skip_removed= */ false)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   Mutex lock_;

@@ -119,10 +119,16 @@ uint32_t Scheduler::calculate_interval_offset_(uint32_t delay) {
 // Remove before 2026.8.0 along with all retry code
 bool Scheduler::is_retry_cancelled_locked_(Component *component, NameType name_type, const char *static_name,
                                            uint32_t hash_or_id) {
-  return has_cancelled_timeout_in_container_locked_(this->items_, component, name_type, static_name, hash_or_id,
-                                                    /* match_retry= */ true) ||
-         has_cancelled_timeout_in_container_locked_(this->to_add_, component, name_type, static_name, hash_or_id,
-                                                    /* match_retry= */ true);
+  for (auto *container : {&this->items_, &this->to_add_}) {
+    for (auto &item : *container) {
+      if (item && this->is_item_removed_locked_(item.get()) &&
+          this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, SchedulerItem::TIMEOUT,
+                                     /* match_retry= */ true, /* skip_removed= */ false)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 // Common implementation for both timeout and interval
