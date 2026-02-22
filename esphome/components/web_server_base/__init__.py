@@ -20,7 +20,7 @@ def AUTO_LOAD():
 
 
 web_server_base_ns = cg.esphome_ns.namespace("web_server_base")
-WebServerBase = web_server_base_ns.class_("WebServerBase", cg.Component)
+WebServerBase = web_server_base_ns.class_("WebServerBase")
 
 CONF_WEB_SERVER_BASE_ID = "web_server_base_id"
 CONFIG_SCHEMA = cv.Schema(
@@ -33,7 +33,6 @@ CONFIG_SCHEMA = cv.Schema(
 @coroutine_with_priority(CoroPriority.WEB_SERVER_BASE)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     cg.add(cg.RawExpression(f"{web_server_base_ns}::global_web_server_base = {var}"))
 
     if CORE.is_esp32:
