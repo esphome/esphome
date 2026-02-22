@@ -316,6 +316,7 @@ def _configure_lwip(config: dict) -> None:
     socket.get_socket_counts() with minimums of 8 TCP / 6 UDP.
     """
     from esphome.components.socket import (
+        MIN_TCP_LISTEN_SOCKETS,
         MIN_TCP_SOCKETS,
         MIN_UDP_SOCKETS,
         get_socket_counts,
@@ -328,8 +329,8 @@ def _configure_lwip(config: dict) -> None:
     tcp_sockets = max(MIN_TCP_SOCKETS, raw_tcp)
     udp_sockets = max(MIN_UDP_SOCKETS, raw_udp)
     # Listening sockets — registered by components (api, ota, web_server_base, etc.)
-    # Not all components register yet, so ensure a minimum of 2 (api + ota baseline).
-    listening_tcp = max(raw_tcp_listen, 2)
+    # Not all components register yet, so ensure a minimum for baseline operation.
+    listening_tcp = max(MIN_TCP_LISTEN_SOCKETS, raw_tcp_listen)
 
     # TCP_SND_BUF: ESPAsyncWebServer allocates malloc(tcp_sndbuf()) per
     # response chunk. At 10×MSS=14.6KB (BK default) this causes OOM (#14095).
