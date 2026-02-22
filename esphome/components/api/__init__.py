@@ -516,11 +516,13 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     "homeassistant.action",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
+    deferred=False,
 )
 @automation.register_action(
     "homeassistant.service",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
+    deferred=False,
 )
 async def homeassistant_service_to_code(
     config: ConfigType,
@@ -611,6 +613,7 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     "homeassistant.event",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
+    deferred=False,
 )
 async def homeassistant_event_to_code(config, action_id, template_arg, args):
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
@@ -651,6 +654,7 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
     "homeassistant.tag_scanned",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
+    deferred=False,
 )
 async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
