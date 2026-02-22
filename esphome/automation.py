@@ -64,6 +64,13 @@ def register_action(
     *,
     deferred: bool = False,
 ):
+    """Register an action type.
+
+    Set ``deferred=True`` if this action stores trigger arguments for later
+    execution (e.g. delay, wait_until, script.wait).  This tells the code
+    generator to use owning types (std::string) instead of non-owning views
+    (StringRef) for string arguments, preventing dangling references.
+    """
     return ACTION_REGISTRY.register(name, action_type, schema, deferred=deferred)
 
 
