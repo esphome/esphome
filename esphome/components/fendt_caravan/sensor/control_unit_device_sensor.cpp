@@ -119,10 +119,8 @@ void ControlUnitDeviceSensor::on_state_change_command(const std::string &tag, co
     auto *hs_key_state = GET_VARIABLE(int, "HS_KEY_STATE");
     bool current_state = hs_key_state->get_value() > 0;
 
-    ESP_LOGV(TAG, "Main switch state changed. cs: %d, state:%d", current_state, state);
+    ESP_LOGV(TAG, "Main switch state changed. cs: %s", ONOFF(current_state));
     if (!(hs_key_long && hs_key_state))
-      return;
-    if (state == current_state)
       return;
     if (current_state) {
       hs_key_long->set_value(true);
@@ -136,10 +134,8 @@ void ControlUnitDeviceSensor::on_state_change_command(const std::string &tag, co
     auto *hs_key = GET_VARIABLE(bool, "HS_KEY");
     auto *hs_key_state = GET_VARIABLE(int, "HS_KEY_STATE");
     bool current_state = hs_key_state->get_value() == 2;
-    ESP_LOGV(TAG, "Light switch state changed. cs: %d, state:%d", current_state, state);
+    ESP_LOGV(TAG, "Light switch state changed. cs: %s", ONOFF(current_state));
     if (hs_key && hs_key_state) {
-      if (current_state == state)
-        return;
       cmd = hs_key->get_command();
     }
   }

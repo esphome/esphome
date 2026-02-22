@@ -16,4 +16,44 @@ sensor:
     type: mcu_device
     id: main_unit_device
 
-<<: !include ./mcu.yaml
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: temp_in
+    name: Temperature In
+    id: temp_in
+
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: temp_out
+    name: Temperature Out
+    id: temp_out
+
+switch:
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: main_switch
+    name: Main Switch
+    restore_mode: ALWAYS_OFF
+
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: all_lights
+    name: All Lights Switch
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: floor_heater
+    name: Floor Heater
+    restore_mode: RESTORE_DEFAULT_OFF
+
+text_sensor:
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: power_status
+    name: Power Status
+
+  - platform: fendt_caravan
+    parent_id: main_unit_device
+    type: software_version
+    name: Software Version
