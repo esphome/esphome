@@ -3,7 +3,6 @@
 #include "esphome/core/defines.h"
 #ifdef USE_SENSOR_FILTER
 
-#include <queue>
 #include <utility>
 #include <vector>
 #include "esphome/core/automation.h"
