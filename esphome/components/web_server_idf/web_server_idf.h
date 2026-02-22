@@ -16,6 +16,7 @@
 #include <vector>
 
 #ifdef USE_WEBSERVER
+#include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server/list_entities.h"
 #endif
 
@@ -250,7 +251,7 @@ class AsyncWebHandler {
 class AsyncEventSource;
 class AsyncEventSourceResponse;
 
-using message_generator_t = std::string(esphome::web_server::WebServer *, void *);
+using message_generator_t = json::SerializationBuffer<>(esphome::web_server::WebServer *, void *);
 
 /*
   This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
