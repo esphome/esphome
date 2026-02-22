@@ -481,6 +481,11 @@ async def wait_until_action_to_code(
     return var
 
 
+# Lambda executes user C++ inline and returns — synchronous by execution model.
+# User code could theoretically store the StringRef for deferred use, but StringRef
+# is a view type and storing views beyond their scope is always unsafe regardless
+# of this optimization.  Marking non-synchronous would disable StringRef for nearly
+# all user services since most use lambda.
 @register_action("lambda", LambdaAction, cv.lambda_, synchronous=True)
 async def lambda_action_to_code(
     config: ConfigType,
