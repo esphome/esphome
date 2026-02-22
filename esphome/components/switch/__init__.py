@@ -22,7 +22,11 @@ from esphome.const import (
     DEVICE_CLASS_SWITCH,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
@@ -141,9 +145,8 @@ def switch_schema(
     return _SWITCH_SCHEMA.extend(schema)
 
 
+@setup_entity("switch")
 async def setup_switch_core_(var, config):
-    await setup_entity(var, config, "switch")
-
     if (inverted := config.get(CONF_INVERTED)) is not None:
         cg.add(var.set_inverted(inverted))
     for conf in config.get(CONF_ON_STATE, []):
@@ -163,8 +166,7 @@ async def setup_switch_core_(var, config):
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
 
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
+    setup_device_class(config)
 
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
     await zigbee.setup_switch(var, config)

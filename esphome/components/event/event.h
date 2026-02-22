@@ -20,7 +20,7 @@ namespace event {
     LOG_ENTITY_DEVICE_CLASS(TAG, prefix, *(obj)); \
   }
 
-class Event : public EntityBase, public EntityBase_DeviceClass {
+class Event : public EntityBase {
  public:
   void trigger(const std::string &event_type);
 

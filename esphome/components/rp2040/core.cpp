@@ -33,6 +33,9 @@ uint8_t progmem_read_byte(const uint8_t *addr) {
   return pgm_read_byte(addr);  // NOLINT
 }
 uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
+const char *progmem_read_ptr(const char *const *addr) {
+  return reinterpret_cast<const char *>(pgm_read_ptr(addr));  // NOLINT
+}
 uint32_t IRAM_ATTR HOT arch_get_cpu_cycle_count() { return ulMainGetRunTimeCounterValue(); }
 uint32_t arch_get_cpu_freq_hz() { return RP2040::f_cpu(); }
 

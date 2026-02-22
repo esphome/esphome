@@ -35,6 +35,7 @@ uint32_t arch_get_cpu_cycle_count() { return lt_cpu_get_cycle_count(); }
 uint32_t arch_get_cpu_freq_hz() { return lt_cpu_get_freq(); }
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
+const char *progmem_read_ptr(const char *const *addr) { return *addr; }
 
 }  // namespace esphome
 
