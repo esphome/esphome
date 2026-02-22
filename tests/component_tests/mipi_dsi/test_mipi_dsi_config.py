@@ -126,4 +126,5 @@ def test_code_generation(
     assert "p4_nano->set_lane_bit_rate(1500);" in main_cpp
     assert "p4_nano->set_rotation(display::DISPLAY_ROTATION_90_DEGREES);" in main_cpp
     assert "p4_86->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);" in main_cpp
+    assert "custom_id->set_rotation(display::DISPLAY_ROTATION_180_DEGREES);" in main_cpp
     # assert "backlight_id = new light::LightState(mipi_dsi_dsibacklight_id);" in main_cpp
