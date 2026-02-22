@@ -117,7 +117,9 @@ class Component {
    *
    * @return The loop priority of this component
    */
+#ifdef USE_LOOP_PRIORITY
   virtual float get_loop_priority() const;
+#endif
 
   void call();
 
