@@ -1,0 +1,34 @@
+---
+# Test configuration for LILYGO T5 4.7" Plus - binary (non-greyscale) mode
+esphome:
+  name: lilygo-t547-test-binary
+  friendly_name: "LILYGO T5 4.7\" Plus Test (Binary)"
+
+packages:
+  board: !include ../../../esphome/components/lilygo_t5_47_plus/board_config.yaml
+
+logger:
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: "MySSID"
+  password: "MyPassword"
+
+display:
+  - platform: lilygo_t5_47_plus
+    id: lilygo_display
+    greyscale: false
+    update_interval: 30s
+    lambda: |-
+      it.print(10, 10, id(my_font), "LILYGO T5 4.7\" Binary Mode");
+      it.rectangle(10, 100, 200, 100);
+      it.filled_circle(400, 150, 30);
+
+font:
+  - file: "gfonts://Roboto"
+    id: my_font
+    size: 20
