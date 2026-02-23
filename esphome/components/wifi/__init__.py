@@ -42,6 +42,7 @@ from esphome.const import (
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_ERROR,
+    CONF_OUTPUT_POWER,
     CONF_PASSWORD,
     CONF_POWER_SAVE_MODE,
     CONF_PRIORITY,
@@ -344,7 +345,6 @@ def _validate(config):
     return config
 
 
-CONF_OUTPUT_POWER = "output_power"
 CONF_PASSIVE_SCAN = "passive_scan"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
