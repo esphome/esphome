@@ -158,7 +158,7 @@ struct LogBuffer {
   }
 #endif
   // Extract one decimal digit via subtraction (no division - important for ESP8266)
-  static inline void write_digit(char *&p, int &value, int divisor) {
+  static inline void ESPHOME_ALWAYS_INLINE write_digit(char *&p, int &value, int divisor) {
     char d = '0';
     while (value >= divisor) {
       d++;
