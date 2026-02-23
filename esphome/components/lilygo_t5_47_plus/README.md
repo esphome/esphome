@@ -90,6 +90,19 @@ touchscreen:
           ESP_LOGI("touch", "Released");
 ```
 
+## Example Configurations
+
+Ready-to-use YAML files are in [`tests/components/lilygo_t5_47_plus/`](../../../../tests/components/lilygo_t5_47_plus/):
+
+| File | Description |
+|---|---|
+| [`test.esp32-s3-ard-minimal.yaml`](../../../../tests/components/lilygo_t5_47_plus/test.esp32-s3-ard-minimal.yaml) | Minimal config – no lambda, no network, just the display |
+| [`test.esp32-s3-ard.yaml`](../../../../tests/components/lilygo_t5_47_plus/test.esp32-s3-ard.yaml) | Full test with fonts, graphics, Wi-Fi and time sync |
+| [`test.esp32-s3-ard-greyscale-off.yaml`](../../../../tests/components/lilygo_t5_47_plus/test.esp32-s3-ard-greyscale-off.yaml) | Binary (black/white) rendering mode |
+| [`test.esp32-s3-ard-battery.yaml`](../../../../tests/components/lilygo_t5_47_plus/test.esp32-s3-ard-battery.yaml) | Battery voltage display on the E-Paper screen |
+| [`test.esp32-s3-ard-touch-demo.yaml`](../../../../tests/components/lilygo_t5_47_plus/test.esp32-s3-ard-touch-demo.yaml) | Logs touch events to the console |
+| [`test.esp32-s3-ard-touch-square.yaml`](../../../../tests/components/lilygo_t5_47_plus/test.esp32-s3-ard-touch-square.yaml) | Interactive demo: black square jumps to random position on touch |
+
 ## Driver Files
 
 The EPD driver is embedded from [epdiy](https://github.com/vroland/epdiy) (LGPL-3.0), as further modified by [Xinyuan-LilyGO/LilyGo-EPD47](https://github.com/Xinyuan-LilyGO/LilyGo-EPD47) (GPL-3.0). All files carry SPDX attribution headers. Changes made for ESPHome:
