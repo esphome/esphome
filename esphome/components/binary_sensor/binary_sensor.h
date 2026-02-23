@@ -2,7 +2,9 @@
 
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_BINARY_SENSOR_FILTER
 #include "esphome/components/binary_sensor/filter.h"
+#endif
 
 #include <initializer_list>
 
@@ -45,8 +47,10 @@ class BinarySensor : public StatefulEntityBase<bool>, public EntityBase_DeviceCl
    */
   void publish_initial_state(bool new_state);
 
+#ifdef USE_BINARY_SENSOR_FILTER
   void add_filter(Filter *filter);
   void add_filters(std::initializer_list<Filter *> filters);
+#endif
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -60,7 +64,9 @@ class BinarySensor : public StatefulEntityBase<bool>, public EntityBase_DeviceCl
   bool state{};
 
  protected:
+#ifdef USE_BINARY_SENSOR_FILTER
   Filter *filter_list_{nullptr};
+#endif
 
   bool set_new_state(const optional<bool> &new_state) override;
 };

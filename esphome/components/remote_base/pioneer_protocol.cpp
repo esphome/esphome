@@ -6,12 +6,12 @@ namespace remote_base {
 
 static const char *const TAG = "remote.pioneer";
 
-static const uint32_t HEADER_HIGH_US = 9000;
-static const uint32_t HEADER_LOW_US = 4500;
-static const uint32_t BIT_HIGH_US = 560;
-static const uint32_t BIT_ONE_LOW_US = 1690;
-static const uint32_t BIT_ZERO_LOW_US = 560;
-static const uint32_t TRAILER_SPACE_US = 25500;
+static constexpr uint32_t HEADER_HIGH_US = 9000;
+static constexpr uint32_t HEADER_LOW_US = 4500;
+static constexpr uint32_t BIT_HIGH_US = 560;
+static constexpr uint32_t BIT_ONE_LOW_US = 1690;
+static constexpr uint32_t BIT_ZERO_LOW_US = 560;
+static constexpr uint32_t TRAILER_SPACE_US = 25500;
 
 void PioneerProtocol::encode(RemoteTransmitData *dst, const PioneerData &data) {
   uint32_t address1 = ((data.rc_code_1 & 0xff00) | (~(data.rc_code_1 >> 8) & 0xff));

@@ -1,3 +1,6 @@
+#include "esphome/core/defines.h"
+#ifdef USE_TEXT_SENSOR_FILTER
+
 #include "filter.h"
 #include "text_sensor.h"
 #include "esphome/core/log.h"
@@ -106,3 +109,5 @@ bool MapFilter::new_value(std::string &value) {
 
 }  // namespace text_sensor
 }  // namespace esphome
+
+#endif  // USE_TEXT_SENSOR_FILTER
