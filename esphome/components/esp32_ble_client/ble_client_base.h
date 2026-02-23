@@ -137,6 +137,11 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void log_gattc_warning_(const char *operation, esp_err_t err);
   void log_connection_params_(const char *param_type);
   void handle_connection_result_(esp_err_t ret);
+  /// Transition to IDLE and reset conn_id — call when the connection is fully dead.
+  void set_idle_() {
+    this->set_state(espbt::ClientState::IDLE);
+    this->conn_id_ = UNSET_CONN_ID;
+  }
   // Compact error logging helpers to reduce flash usage
   void log_error_(const char *message);
   void log_error_(const char *message, int code);

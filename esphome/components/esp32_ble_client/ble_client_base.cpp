@@ -295,10 +295,9 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // ESP-IDF's BLE stack may send ESP_GATTC_OPEN_EVT after esp_ble_gattc_open() returns an
       // error, if the error occurred at the BTA/GATT layer. This can result in the event
       // arriving after we've already transitioned to IDLE state.
-      // It may also arrive during DISCONNECTING if the controller is still cleaning up.
-      if (this->state() == espbt::ClientState::IDLE || this->state() == espbt::ClientState::DISCONNECTING) {
-        ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in %s state (status=%d), ignoring", this->connection_index_,
-                 this->address_str_, espbt::client_state_to_string(this->state()), param->open.status);
+      if (this->state() == espbt::ClientState::IDLE) {
+        ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in IDLE state (status=%d), ignoring", this->connection_index_,
+                 this->address_str_, param->open.status);
         break;
       }
 
@@ -311,15 +310,16 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         this->log_gattc_warning_("Connection open", param->open.status);
-        this->set_state(espbt::ClientState::IDLE);
+        // Connection was never established so CLOSE_EVT may not follow
+        this->set_idle_();
         break;
       }
       if (this->want_disconnect_) {
         // Disconnect was requested after connecting started,
         // but before the connection was established. Now that we have
         // this->conn_id_ set, we can disconnect it.
+        // Don't reset conn_id_ here — CLOSE_EVT needs it to match and call set_idle_().
         this->unconditional_disconnect();
-        this->conn_id_ = UNSET_CONN_ID;
         break;
       }
       // MTU negotiation already started in ESP_GATTC_CONNECT_EVT
@@ -392,8 +392,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         return false;
       this->log_gattc_lifecycle_event_("CLOSE");
       this->release_services();
-      this->set_state(espbt::ClientState::IDLE);
-      this->conn_id_ = UNSET_CONN_ID;
+      this->set_idle_();
       break;
     }
     case ESP_GATTC_SEARCH_RES_EVT: {
