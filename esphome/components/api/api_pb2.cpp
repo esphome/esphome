@@ -1007,10 +1007,6 @@ bool ParsedTimezone::decode_length(uint32_t field_id, ProtoLengthDelimited value
 }
 bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2: {
-      this->timezone = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
     case 3:
       value.decode_to_message(this->parsed_timezone);
       break;
