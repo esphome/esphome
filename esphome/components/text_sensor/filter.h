@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_TEXT_SENSOR_FILTER
+
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -164,3 +167,5 @@ class MapFilter : public Filter {
 
 }  // namespace text_sensor
 }  // namespace esphome
+
+#endif  // USE_TEXT_SENSOR_FILTER
