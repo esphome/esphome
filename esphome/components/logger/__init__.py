@@ -329,10 +329,11 @@ async def to_code(config):
     level = config[CONF_LEVEL]
     CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
     initial_level = LOG_LEVELS[config.get(CONF_INITIAL_LEVEL, level)]
+    tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
+    cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
     log = cg.new_Pvariable(
         config[CONF_ID],
         baud_rate,
-        config[CONF_TX_BUFFER_SIZE],
     )
     if CORE.is_esp32:
         cg.add(log.create_pthread_key())

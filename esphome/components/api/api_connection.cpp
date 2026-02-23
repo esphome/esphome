@@ -1346,9 +1346,8 @@ uint16_t APIConnection::try_send_water_heater_state(EntityBase *entity, APIConne
   resp.target_temperature_low = wh->get_target_temperature_low();
   resp.target_temperature_high = wh->get_target_temperature_high();
   resp.state = wh->get_state();
-  resp.key = wh->get_object_id_hash();
 
-  return encode_message_to_buffer(resp, WaterHeaterStateResponse::MESSAGE_TYPE, conn, remaining_size);
+  return fill_and_encode_entity_state(wh, resp, WaterHeaterStateResponse::MESSAGE_TYPE, conn, remaining_size);
 }
 uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *wh = static_cast<water_heater::WaterHeater *>(entity);

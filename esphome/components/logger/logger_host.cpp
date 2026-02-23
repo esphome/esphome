@@ -5,8 +5,8 @@ namespace esphome::logger {
 
 void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   static constexpr size_t TIMESTAMP_LEN = 10;  // "[HH:MM:SS]"
-  // tx_buffer_size_ defaults to 512, so 768 covers default + headroom
-  char buffer[TIMESTAMP_LEN + 768];
+  static constexpr size_t HEADROOM = 128;      // Extra space for ANSI codes, newline, etc.
+  char buffer[TIMESTAMP_LEN + ESPHOME_LOGGER_TX_BUFFER_SIZE + HEADROOM];
 
   time_t rawtime;
   time(&rawtime);
