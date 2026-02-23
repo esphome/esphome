@@ -55,7 +55,6 @@ function getChangelogItems() {
   }));
 }
 
-
 // Generate component sidebar items with proper labels
 function getComponentItems() {
   const componentsDir = path.join(__dirname, "src/content/docs/components");
@@ -255,14 +254,14 @@ export default defineConfig({
           tag: "meta",
           attrs: {
             property: "og:image",
-            content: "https://esphome.io/images/logo.svg",
+            content: "https://esphome.io/images/og.webp",
           },
         },
         {
           tag: "meta",
           attrs: {
             name: "twitter:image",
-            content: "https://esphome.io/images/logo.svg",
+            content: "https://esphome.io/images/og.webp",
           },
         },
         {
