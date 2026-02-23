@@ -157,7 +157,12 @@ void APIFrameHelper::buffer_data_from_iov_(const struct iovec *iov, int iovcnt, 
   }
 
   // Update circular buffer tracking
+#if (API_MAX_SEND_QUEUE & (API_MAX_SEND_QUEUE - 1)) == 0
   this->tx_buf_tail_ = (this->tx_buf_tail_ + 1) % API_MAX_SEND_QUEUE;
+#else
+  if (++this->tx_buf_tail_ >= API_MAX_SEND_QUEUE)
+    this->tx_buf_tail_ = 0;
+#endif
   this->tx_buf_count_++;
 }
 
@@ -236,7 +241,12 @@ APIError APIFrameHelper::try_send_tx_buf_() {
     } else {
       // Buffer completely sent, remove it from the queue
       this->tx_buf_[this->tx_buf_head_].reset();
+#if (API_MAX_SEND_QUEUE & (API_MAX_SEND_QUEUE - 1)) == 0
       this->tx_buf_head_ = (this->tx_buf_head_ + 1) % API_MAX_SEND_QUEUE;
+#else
+      if (++this->tx_buf_head_ >= API_MAX_SEND_QUEUE)
+        this->tx_buf_head_ = 0;
+#endif
       this->tx_buf_count_--;
       // Continue loop to try sending the next buffer
     }
