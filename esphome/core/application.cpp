@@ -215,8 +215,7 @@ void Application::loop() {
 void Application::process_dump_config_() {
   if (this->dump_config_at_ == 0) {
     char build_time_str[Application::BUILD_TIME_STR_SIZE];
-    ESPHOME_strncpy_P(build_time_str, ESPHOME_BUILD_TIME_STR, sizeof(build_time_str));
-    build_time_str[sizeof(build_time_str) - 1] = '\0';
+    this->get_build_time_string(build_time_str);
     ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", build_time_str);
 #ifdef ESPHOME_PROJECT_NAME
     ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
@@ -750,15 +749,9 @@ void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buf
   buffer[buffer.size() - 1] = '\0';
 }
 
-void Application::get_comment_string(std::span<char, COMMENT_MAX_SIZE> buffer) {
+void Application::get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> buffer) {
   ESPHOME_strncpy_P(buffer.data(), ESPHOME_COMMENT_STR, buffer.size());
   buffer[buffer.size() - 1] = '\0';
-}
-
-std::string Application::get_comment() {
-  char buffer[COMMENT_MAX_SIZE];
-  this->get_comment_string(buffer);
-  return std::string(buffer);
 }
 
 uint32_t Application::get_config_hash() { return ESPHOME_CONFIG_HASH; }
@@ -766,11 +759,5 @@ uint32_t Application::get_config_hash() { return ESPHOME_CONFIG_HASH; }
 uint32_t Application::get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
 
 time_t Application::get_build_time() { return ESPHOME_BUILD_TIME; }
-
-std::string Application::get_compilation_time() {
-  char buf[BUILD_TIME_STR_SIZE];
-  this->get_build_time_string(buf);
-  return std::string(buf);
-}
 
 }  // namespace esphome

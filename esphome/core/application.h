@@ -274,14 +274,14 @@ class Application {
   }
 
   /// Maximum size of the comment buffer (including null terminator)
-  static constexpr size_t COMMENT_MAX_SIZE = 256;
+  static constexpr size_t ESPHOME_COMMENT_SIZE_MAX = 256;
 
   /// Copy the comment string into the provided buffer
-  void get_comment_string(std::span<char, COMMENT_MAX_SIZE> buffer);
+  void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> buffer);
 
   /// Get the comment of this Application as a string
   std::string get_comment() {
-    char buffer[COMMENT_MAX_SIZE];
+    char buffer[ESPHOME_COMMENT_SIZE_MAX];
     this->get_comment_string(buffer);
     return std::string(buffer);
   }
