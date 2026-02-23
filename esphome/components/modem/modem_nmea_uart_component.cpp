@@ -108,218 +108,171 @@ static inline uint8_t nmea_checksum(const char *s) {
   return cs;
 }
 
-// single entry point, content selected by #ifdef to keep only what's used
 static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
   const char *p = std::strchr(line.c_str(), ':');
   if (!p)
     return false;
-  [[maybe_unused]] const char *start = p + 1;
-
-#ifdef USE_MODEM_GNSS_PARSER_CGNSSINFO16
-  // 16 tokens: mode, sat_used, sat_view, fix_status, lat, N/S, lon, E/W, date, time, alt, spd, cog, hdop, vdop, pdop
-  char buf[256];
-  std::strncpy(buf, start, sizeof(buf));
-  buf[sizeof(buf) - 1] = '\0';
-
-  const int EXPECT = 16;
-  const char *tok[EXPECT] = {nullptr};
-  int i = tokenize_csv(buf, tok, EXPECT);
-  if (i < 14)
-    return false;  // need up to hdop at least
-
-  int sat_used = 0;
-  (void) to_int(tok[1], sat_used);
-  gi.sat_used = sat_used;
-
-  // lat/lon are DDMM.MMMMMM here
-  double lat_ddmm = NAN, lon_ddmm = NAN;
-  (void) to_double(tok[4], lat_ddmm);
-  (void) to_double(tok[6], lon_ddmm);
-
-  int lat_deg = static_cast<int>(lat_ddmm / 100.0);
-  double lat_min = lat_ddmm - lat_deg * 100.0;
-  gi.lat_deg = lat_deg + lat_min / 60.0;
-  int lon_deg = static_cast<int>(lon_ddmm / 100.0);
-  double lon_min = lon_ddmm - lon_deg * 100.0;
-  gi.lon_deg = lon_deg + lon_min / 60.0;
-
-  char lat_dir = (tok[5] && *tok[5]) ? tok[5][0] : 'N';
-  char lon_dir = (tok[7] && *tok[7]) ? tok[7][0] : 'E';
-  if (lat_dir == 'S')
-    gi.lat_deg = -gi.lat_deg;
-  if (lon_dir == 'W')
-    gi.lon_deg = -gi.lon_deg;
-
-  (void) to_double(tok[10], gi.alt_m);
-  (void) to_double(tok[11], gi.spd);
-  (void) to_double(tok[12], gi.cog_deg);
-  (void) to_double(tok[13], gi.hdop);
-
-  (void) parse_time_hhmmss(tok[9], gi.hh, gi.mm, gi.ss);
-  (void) parse_date_ddmmyy(tok[8], gi.dd, gi.mo, gi.yy);
-
-  int fix_status = 0;
-  (void) to_int(tok[3], fix_status);
-  gi.fix_valid = (fix_status > 0) || (gi.sat_used > 0);
-
-  return std::isfinite(gi.lat_deg) && std::isfinite(gi.lon_deg);
-#endif
-
-#ifdef USE_MODEM_GNSS_PARSER_CGNSSINFO17
-  // 17 tokens: mode, sat_used, unknown, sat_view, fix_status, lat, N/S, lon, E/W, date, time, alt, spd, cog, hdop,
-  // vdop, pdop
-  char buf[256];
-  std::strncpy(buf, start, sizeof(buf));
-  buf[sizeof(buf) - 1] = '\0';
-
-  const int EXPECT = 17;
-  const char *tok[EXPECT] = {nullptr};
-  int i = tokenize_csv(buf, tok, EXPECT);
-  if (i < 15)
-    return false;  // need up to hdop at least
-
-  int sat_used = 0;
-  (void) to_int(tok[1], sat_used);
-  gi.sat_used = sat_used;
-
-  // lat/lon are DDMM.MMMMMM here
-  double lat_ddmm = NAN, lon_ddmm = NAN;
-  (void) to_double(tok[5], lat_ddmm);
-  (void) to_double(tok[7], lon_ddmm);
-
-  int lat_deg = static_cast<int>(lat_ddmm / 100.0);
-  double lat_min = lat_ddmm - lat_deg * 100.0;
-  gi.lat_deg = lat_deg + lat_min / 60.0;
-  int lon_deg = static_cast<int>(lon_ddmm / 100.0);
-  double lon_min = lon_ddmm - lon_deg * 100.0;
-  gi.lon_deg = lon_deg + lon_min / 60.0;
-
-  char lat_dir = (tok[6] && *tok[6]) ? tok[6][0] : 'N';
-  char lon_dir = (tok[8] && *tok[8]) ? tok[8][0] : 'E';
-  if (lat_dir == 'S')
-    gi.lat_deg = -gi.lat_deg;
-  if (lon_dir == 'W')
-    gi.lon_deg = -gi.lon_deg;
-
-  (void) to_double(tok[11], gi.alt_m);
-  (void) to_double(tok[12], gi.spd);
-  (void) to_double(tok[13], gi.cog_deg);
-  (void) to_double(tok[14], gi.hdop);
-
-  (void) parse_time_hhmmss(tok[10], gi.hh, gi.mm, gi.ss);
-  (void) parse_date_ddmmyy(tok[9], gi.dd, gi.mo, gi.yy);
-
-  int fix_status = 0;
-  (void) to_int(tok[4], fix_status);
-  gi.fix_valid = (fix_status > 0) || (gi.sat_used > 0);
-
-  return std::isfinite(gi.lat_deg) && std::isfinite(gi.lon_deg);
-#endif
-
-#ifdef USE_MODEM_GNSS_PARSER_CGNSSINFO18
-  // 18 tokens: mode, sat_used, fix_status, sat_view, fix_status_2, lat(dd), N/S, lon(dd), E/W, date, time, alt, spd,
-  // cog, hdop, vdop, pdop, sat_view_2
-  char buf[384];
-  std::strncpy(buf, start, sizeof(buf));
-  buf[sizeof(buf) - 1] = '\0';
-
-  const int EXPECT = 18;
-  const char *tok[EXPECT] = {nullptr};
-  int i = tokenize_csv(buf, tok, EXPECT);
-  if (i < 15)
-    return false;  // need up to hdop at least
-
-  int sat_used = 0;
-  (void) to_int(tok[1], sat_used);
-  gi.sat_used = sat_used;
-
-  // lat/lon already in decimal degrees here
-  (void) to_double(tok[5], gi.lat_deg);
-  (void) to_double(tok[7], gi.lon_deg);
-
-  char lat_dir = (tok[6] && *tok[6]) ? tok[6][0] : 'N';
-  char lon_dir = (tok[8] && *tok[8]) ? tok[8][0] : 'E';
-  if (lat_dir == 'S')
-    gi.lat_deg = -std::fabs(gi.lat_deg);
-  if (lon_dir == 'W')
-    gi.lon_deg = -std::fabs(gi.lon_deg);
-
-  (void) to_double(tok[11], gi.alt_m);
-  (void) to_double(tok[12], gi.spd);
-  (void) to_double(tok[13], gi.cog_deg);
-  (void) to_double(tok[14], gi.hdop);
-
-  (void) parse_time_hhmmss(tok[10], gi.hh, gi.mm, gi.ss);
-  (void) parse_date_ddmmyy(tok[9], gi.dd, gi.mo, gi.yy);
-
-  int fix_status = 0;
-  (void) to_int(tok[2], fix_status);
-  gi.fix_valid = (fix_status > 0) || (gi.sat_used > 0);
-
-  return std::isfinite(gi.lat_deg) && std::isfinite(gi.lon_deg);
-#endif
-
-#ifdef USE_MODEM_GNSS_PARSER_CGNSINF21
-  // +CGNSINF:
-  // <run>,<fix>,<UTC>,<lat>,<lon>,<msl_alt>,<spd_kmh>,<cog>,<fix_mode>,<rsv1>,<hdop>,<pdop>,<vdop>,<rsv2>,<sv_view>,<sv_used>,<glo_view>,<rsv3>,<cn0_max>,<hpa>,<vpa>
-  static constexpr double KMH_TO_KNOT = 0.539956803;
 
   char buf[384];
-  std::strncpy(buf, start, sizeof(buf));
+  std::strncpy(buf, p + 1, sizeof(buf));
   buf[sizeof(buf) - 1] = '\0';
 
   const int MAXTOK = 32;
   const char *tok[MAXTOK] = {nullptr};
   int n = tokenize_csv(buf, tok, MAXTOK);
 
-  auto S = [&](int idx) -> const char * { return (idx >= 1 && idx <= n) ? tok[idx - 1] : ""; };
+  auto T = [&](int idx) -> const char * { return (idx >= 0 && idx < n) ? tok[idx] : ""; };
 
-  // lat/lon degrees
-  (void) to_double(S(4), gi.lat_deg);
-  (void) to_double(S(5), gi.lon_deg);
+  if (n >= 21) {
+    // +CGNSINF (21 tokens)
+    // <run>,<fix>,<UTC>,<lat>,<lon>,<msl_alt>,<spd_kmh>,<cog>,<fix_mode>,<rsv1>,<hdop>,<pdop>,<vdop>,...
+    static constexpr double KMH_TO_KNOT = 0.539956803;
 
-  // altitude
-  (void) to_double(S(6), gi.alt_m);
+    (void) to_double(T(3), gi.lat_deg);
+    (void) to_double(T(4), gi.lon_deg);
+    (void) to_double(T(5), gi.alt_m);
 
-  // speed: km/h → knots
-  double spd_kmh = NAN;
-  if (to_double(S(7), spd_kmh))
-    gi.spd = spd_kmh * KMH_TO_KNOT;
+    double spd_kmh = NAN;
+    if (to_double(T(6), spd_kmh))
+      gi.spd = spd_kmh * KMH_TO_KNOT;
 
-  // course
-  (void) to_double(S(8), gi.cog_deg);
+    (void) to_double(T(7), gi.cog_deg);
+    (void) to_double(T(10), gi.hdop);
 
-  // hdop
-  (void) to_double(S(11), gi.hdop);
+    int used = 0;
+    (void) to_int(T(15), used);
+    gi.sat_used = used;
 
-  // sats used (16), or 0
-  int used = 0;
-  (void) to_int(S(16), used);
-  gi.sat_used = used;
+    const char *utc = T(2);
+    if (utc && std::strlen(utc) >= 14) {
+      int yyyy = (utc[0] - '0') * 1000 + (utc[1] - '0') * 100 + (utc[2] - '0') * 10 + (utc[3] - '0');
+      gi.yy = yyyy % 100;
+      gi.mo = (utc[4] - '0') * 10 + (utc[5] - '0');
+      gi.dd = (utc[6] - '0') * 10 + (utc[7] - '0');
+      gi.hh = (utc[8] - '0') * 10 + (utc[9] - '0');
+      gi.mm = (utc[10] - '0') * 10 + (utc[11] - '0');
+      gi.ss = (utc[12] - '0') * 10 + (utc[13] - '0');
+    }
 
-  // time/date if provided (3)
-  // format UTC: yyyyMMddhhmmss.sss
-  const char *utc = S(3);
-  if (utc && std::strlen(utc) >= 14) {
-    // date
-    int yyyy = (utc[0] - '0') * 1000 + (utc[1] - '0') * 100 + (utc[2] - '0') * 10 + (utc[3] - '0');
-    gi.yy = (yyyy % 100);
-    gi.mo = (utc[4] - '0') * 10 + (utc[5] - '0');
-    gi.dd = (utc[6] - '0') * 10 + (utc[7] - '0');
-    // time
-    gi.hh = (utc[8] - '0') * 10 + (utc[9] - '0');
-    gi.mm = (utc[10] - '0') * 10 + (utc[11] - '0');
-    gi.ss = (utc[12] - '0') * 10 + (utc[13] - '0');
+    int fix = 0;
+    (void) to_int(T(1), fix);
+    gi.fix_valid = (fix == 1) && std::isfinite(gi.lat_deg) && std::isfinite(gi.lon_deg);
+
+  } else if (n == 18) {
+    // +CGNSSINFO 18 tokens: lat/lon already in decimal degrees
+    // mode, sat_used, fix_status, sat_view, fix_status_2, lat(dd), N/S, lon(dd), E/W, date, time, alt, spd, cog,
+    // hdop, vdop, pdop, sat_view_2
+    if (n < 15)
+      return false;
+
+    int sat_used = 0;
+    (void) to_int(T(1), sat_used);
+    gi.sat_used = sat_used;
+
+    (void) to_double(T(5), gi.lat_deg);
+    (void) to_double(T(7), gi.lon_deg);
+
+    char lat_dir = T(6)[0] ? T(6)[0] : 'N';
+    char lon_dir = T(8)[0] ? T(8)[0] : 'E';
+    if (lat_dir == 'S')
+      gi.lat_deg = -std::fabs(gi.lat_deg);
+    if (lon_dir == 'W')
+      gi.lon_deg = -std::fabs(gi.lon_deg);
+
+    (void) to_double(T(11), gi.alt_m);
+    (void) to_double(T(12), gi.spd);
+    (void) to_double(T(13), gi.cog_deg);
+    (void) to_double(T(14), gi.hdop);
+
+    (void) parse_time_hhmmss(T(10), gi.hh, gi.mm, gi.ss);
+    (void) parse_date_ddmmyy(T(9), gi.dd, gi.mo, gi.yy);
+
+    int fix_status = 0;
+    (void) to_int(T(2), fix_status);
+    gi.fix_valid = (fix_status > 0) || (gi.sat_used > 0);
+
+  } else if (n == 17) {
+    // +CGNSSINFO 17 tokens: lat/lon in DDMM.MMMMMM
+    // mode, sat_used, unknown, sat_view, fix_status, lat, N/S, lon, E/W, date, time, alt, spd, cog, hdop, vdop, pdop
+    if (n < 15)
+      return false;
+
+    int sat_used = 0;
+    (void) to_int(T(1), sat_used);
+    gi.sat_used = sat_used;
+
+    double lat_ddmm = NAN, lon_ddmm = NAN;
+    (void) to_double(T(5), lat_ddmm);
+    (void) to_double(T(7), lon_ddmm);
+
+    int lat_d = static_cast<int>(lat_ddmm / 100.0);
+    gi.lat_deg = lat_d + (lat_ddmm - lat_d * 100.0) / 60.0;
+    int lon_d = static_cast<int>(lon_ddmm / 100.0);
+    gi.lon_deg = lon_d + (lon_ddmm - lon_d * 100.0) / 60.0;
+
+    char lat_dir = T(6)[0] ? T(6)[0] : 'N';
+    char lon_dir = T(8)[0] ? T(8)[0] : 'E';
+    if (lat_dir == 'S')
+      gi.lat_deg = -gi.lat_deg;
+    if (lon_dir == 'W')
+      gi.lon_deg = -gi.lon_deg;
+
+    (void) to_double(T(11), gi.alt_m);
+    (void) to_double(T(12), gi.spd);
+    (void) to_double(T(13), gi.cog_deg);
+    (void) to_double(T(14), gi.hdop);
+
+    (void) parse_time_hhmmss(T(10), gi.hh, gi.mm, gi.ss);
+    (void) parse_date_ddmmyy(T(9), gi.dd, gi.mo, gi.yy);
+
+    int fix_status = 0;
+    (void) to_int(T(4), fix_status);
+    gi.fix_valid = (fix_status > 0) || (gi.sat_used > 0);
+
+  } else if (n == 16) {
+    // +CGNSSINFO 16 tokens: lat/lon in DDMM.MMMMMM
+    // mode, sat_used, sat_view, fix_status, lat, N/S, lon, E/W, date, time, alt, spd, cog, hdop, vdop, pdop
+    if (n < 14)
+      return false;
+
+    int sat_used = 0;
+    (void) to_int(T(1), sat_used);
+    gi.sat_used = sat_used;
+
+    double lat_ddmm = NAN, lon_ddmm = NAN;
+    (void) to_double(T(4), lat_ddmm);
+    (void) to_double(T(6), lon_ddmm);
+
+    int lat_d = static_cast<int>(lat_ddmm / 100.0);
+    gi.lat_deg = lat_d + (lat_ddmm - lat_d * 100.0) / 60.0;
+    int lon_d = static_cast<int>(lon_ddmm / 100.0);
+    gi.lon_deg = lon_d + (lon_ddmm - lon_d * 100.0) / 60.0;
+
+    char lat_dir = T(5)[0] ? T(5)[0] : 'N';
+    char lon_dir = T(7)[0] ? T(7)[0] : 'E';
+    if (lat_dir == 'S')
+      gi.lat_deg = -gi.lat_deg;
+    if (lon_dir == 'W')
+      gi.lon_deg = -gi.lon_deg;
+
+    (void) to_double(T(10), gi.alt_m);
+    (void) to_double(T(11), gi.spd);
+    (void) to_double(T(12), gi.cog_deg);
+    (void) to_double(T(13), gi.hdop);
+
+    (void) parse_time_hhmmss(T(9), gi.hh, gi.mm, gi.ss);
+    (void) parse_date_ddmmyy(T(8), gi.dd, gi.mo, gi.yy);
+
+    int fix_status = 0;
+    (void) to_int(T(3), fix_status);
+    gi.fix_valid = (fix_status > 0) || (gi.sat_used > 0);
+
+  } else {
+    ESP_LOGW(TAG, "Unknown GNSS response format: %s (%d tokens)", line.c_str(), n);
+    return false;
   }
-  // fix status (2): 1 = valid
-  int fix = 0;
-  (void) to_int(S(2), fix);
-  gi.fix_valid = (fix == 1) && std::isfinite(gi.lat_deg) && std::isfinite(gi.lon_deg);
 
   return std::isfinite(gi.lat_deg) && std::isfinite(gi.lon_deg);
-#endif
-
-  return false;
 }
 
 bool ModemNMEAUARTComponent::read_array(uint8_t *data, size_t len) {

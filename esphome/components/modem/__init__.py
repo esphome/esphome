@@ -60,7 +60,6 @@ CONF_ENABLE_CMUX = "enable_cmux"
 CONF_DTE_BUFFER_SIZE = "dte_buffer_size"
 CONF_NMEA = "nmea"
 CONF_GNSS_COMMAND = "gnss_command"
-CONF_GNSS_PARSER = "gnss_parser"
 
 MODEM_MODELS = [
     "BG96",
@@ -114,11 +113,11 @@ MODEM_MODELS_POWER["SIM7070"] = MODEM_MODELS_POWER["SIM7080"]
 MODEM_MODELS_POWER["SIM7670"] = MODEM_MODELS_POWER["SIM7600"]
 
 MODEM_MODELS_GNSS_QUERY = {
-    "SIM7600": {"command": "AT+CGNSSINFO", "parser": "CGNSSINFO16"},
+    "SIM7600": {"command": "AT+CGNSSINFO"},
     # WARNING: some 7670 doesn't have gnss firmware support. Firmware version from ATI must end with '_F'
-    "SIM7670": {"command": "AT+CGNSSINFO", "parser": "CGNSSINFO18"},
+    "SIM7670": {"command": "AT+CGNSSINFO"},
     # SIM7080G cannot connect to cellular network and GPS positioning at the same time
-    #    "SIM7080": {"command": "AT+CGNSINF", "parser": "CGNSINF21"},
+    #    "SIM7080": {"command": "AT+CGNSINF"},
 }
 
 
@@ -210,7 +209,6 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.GenerateID(CONF_ID): cv.declare_id(ModemNMEAUARTComponent),
                     cv.Optional(CONF_GNSS_COMMAND): cv.string,
-                    cv.Optional(CONF_GNSS_PARSER): cv.string,
                 }
             ).extend(cv.polling_component_schema("20s")),
             cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
@@ -323,8 +321,6 @@ def _final_validate(config):
         gnss = MODEM_MODELS_GNSS_QUERY[model]
         if CONF_GNSS_COMMAND not in config[CONF_NMEA]:
             config[CONF_NMEA][CONF_GNSS_COMMAND] = gnss["command"]
-        if CONF_GNSS_PARSER not in config[CONF_NMEA]:
-            config[CONF_NMEA][CONF_GNSS_PARSER] = gnss["parser"]
 
     return config
 
@@ -490,8 +486,6 @@ async def to_code(config):
         nmea_uart = cg.new_Pvariable(nmea[CONF_ID])
 
         cg.add(nmea_uart.set_gnss_command(nmea[CONF_GNSS_COMMAND]))
-        parser_flag = f"USE_MODEM_GNSS_PARSER_{nmea[CONF_GNSS_PARSER].upper()}"
-        cg.add_define(parser_flag)
 
         await cg.register_component(nmea_uart, nmea)
 
