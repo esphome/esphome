@@ -75,18 +75,13 @@ struct LogBuffer {
 
     *p++ = ':';
 
-    // Format line number without modulo operations
+    // Format line number using subtraction loops (no division - important for ESP8266 which lacks hardware divider)
     if (line > 999) [[unlikely]] {
-      int thousands = line / 1000;
-      *p++ = '0' + thousands;
-      line -= thousands * 1000;
+      this->write_digit_(p, line, 1000);
     }
-    int hundreds = line / 100;
-    int remainder = line - hundreds * 100;
-    int tens = remainder / 10;
-    *p++ = '0' + hundreds;
-    *p++ = '0' + tens;
-    *p++ = '0' + (remainder - tens * 10);
+    this->write_digit_(p, line, 100);
+    this->write_digit_(p, line, 10);
+    *p++ = '0' + line;
     *p++ = ']';
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR) || defined(USE_HOST)
@@ -162,6 +157,15 @@ struct LogBuffer {
     this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
   }
 #endif
+  // Extract one decimal digit via subtraction (no division - important for ESP8266)
+  static inline void write_digit_(char *&p, int &value, int divisor) {
+    char d = '0';
+    while (value >= divisor) {
+      d++;
+      value -= divisor;
+    }
+    *p++ = d;
+  }
   // Write ANSI color escape sequence to buffer, updates pointer in place
   // Caller is responsible for ensuring buffer has sufficient space
   void write_ansi_color_(char *&p, uint8_t level) {
