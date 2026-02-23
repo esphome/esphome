@@ -82,6 +82,25 @@ struct GnssInfo {
   return (dd >= 1 && dd <= 31 && mo >= 1 && mo <= 12);
 }
 
+[[maybe_unused]] static int tokenize_csv(char *line, const char **tokens, int max_tokens) {
+  int count = 0;
+  if (line == nullptr || *line == '\0') {
+    return 0;
+  }
+  tokens[count++] = line;
+  while (count < max_tokens) {
+    char *next_delim = strchr(line, ',');
+    if (next_delim) {
+      *next_delim = '\0';
+      line = next_delim + 1;
+      tokens[count++] = line;
+    } else {
+      break;
+    }
+  }
+  return count;
+}
+
 static inline uint8_t nmea_checksum(const char *s) {
   uint8_t cs = 0;
   for (; *s; ++s)
@@ -103,13 +122,8 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
   buf[sizeof(buf) - 1] = '\0';
 
   const int EXPECT = 16;
-  const char *tok[EXPECT] = {0};
-  char *save = nullptr;
-  int i = 0;
-
-  for (char *t = strtok_r(buf, ",", &save); t && i < EXPECT; t = strtok_r(nullptr, ",", &save)) {
-    tok[i++] = t;
-  }
+  const char *tok[EXPECT] = {nullptr};
+  int i = tokenize_csv(buf, tok, EXPECT);
   if (i < 14)
     return false;  // need up to hdop at least
 
@@ -159,13 +173,8 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
   buf[sizeof(buf) - 1] = '\0';
 
   const int EXPECT = 17;
-  const char *tok[EXPECT] = {0};
-  char *save = nullptr;
-  int i = 0;
-
-  for (char *t = strtok_r(buf, ",", &save); t && i < EXPECT; t = strtok_r(nullptr, ",", &save)) {
-    tok[i++] = t;
-  }
+  const char *tok[EXPECT] = {nullptr};
+  int i = tokenize_csv(buf, tok, EXPECT);
   if (i < 15)
     return false;  // need up to hdop at least
 
@@ -215,12 +224,8 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
   buf[sizeof(buf) - 1] = '\0';
 
   const int EXPECT = 18;
-  const char *tok[EXPECT] = {0};
-  char *save = nullptr;
-  int i = 0;
-  for (char *t = strtok_r(buf, ",", &save); t && i < EXPECT; t = strtok_r(nullptr, ",", &save)) {
-    tok[i++] = t;
-  }
+  const char *tok[EXPECT] = {nullptr};
+  int i = tokenize_csv(buf, tok, EXPECT);
   if (i < 15)
     return false;  // need up to hdop at least
 
@@ -264,12 +269,8 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
   buf[sizeof(buf) - 1] = '\0';
 
   const int MAXTOK = 32;
-  const char *tok[MAXTOK] = {0};
-  char *save = nullptr;
-  int n = 0;
-  for (char *t = strtok_r(buf, ",", &save); t && n < MAXTOK; t = strtok_r(nullptr, ",", &save)) {
-    tok[n++] = t;
-  }
+  const char *tok[MAXTOK] = {nullptr};
+  int n = tokenize_csv(buf, tok, MAXTOK);
 
   auto S = [&](int idx) -> const char * { return (idx >= 1 && idx <= n) ? tok[idx - 1] : ""; };
 
