@@ -280,11 +280,12 @@ def validate_tz(value: str) -> str:
     if tzfile is not None:
         value = _extract_tz_string(tzfile)
 
-    # Validate that the POSIX TZ string is parseable
-    try:
-        parse_posix_tz_python(value)
-    except ValueError as e:
-        raise cv.Invalid(f"Invalid POSIX timezone string '{value}': {e}") from e
+    # Validate that the POSIX TZ string is parseable (skip empty strings)
+    if value:
+        try:
+            parse_posix_tz_python(value)
+        except ValueError as e:
+            raise cv.Invalid(f"Invalid POSIX timezone string '{value}': {e}") from e
 
     return value
 
