@@ -24,7 +24,9 @@ void TextSensor::publish_state(const std::string &state) { this->publish_state(s
 void TextSensor::publish_state(const char *state) { this->publish_state(state, strlen(state)); }
 
 void TextSensor::publish_state(const char *state, size_t len) {
+#ifdef USE_TEXT_SENSOR_FILTER
   if (this->filter_list_ == nullptr) {
+#endif
     // No filters: raw_state == state, store once and use for both callbacks
     // Only assign if changed to avoid heap allocation
     if (len != this->state.size() || memcmp(state, this->state.data(), len) != 0) {
@@ -33,6 +35,7 @@ void TextSensor::publish_state(const char *state, size_t len) {
     this->raw_callback_.call(this->state);
     ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->state.c_str());
     this->notify_frontend_();
+#ifdef USE_TEXT_SENSOR_FILTER
   } else {
     // Has filters: need separate raw storage
 #pragma GCC diagnostic push
@@ -46,8 +49,10 @@ void TextSensor::publish_state(const char *state, size_t len) {
     this->filter_list_->input(this->raw_state);
 #pragma GCC diagnostic pop
   }
+#endif
 }
 
+#ifdef USE_TEXT_SENSOR_FILTER
 void TextSensor::add_filter(Filter *filter) {
   // inefficient, but only happens once on every sensor setup and nobody's going to have massive amounts of
   // filters
@@ -77,6 +82,7 @@ void TextSensor::clear_filters() {
   }
   this->filter_list_ = nullptr;
 }
+#endif  // USE_TEXT_SENSOR_FILTER
 
 void TextSensor::add_on_state_callback(std::function<void(const std::string &)> callback) {
   this->callback_.add(std::move(callback));
@@ -87,14 +93,16 @@ void TextSensor::add_on_raw_state_callback(std::function<void(const std::string 
 
 const std::string &TextSensor::get_state() const { return this->state; }
 const std::string &TextSensor::get_raw_state() const {
-  if (this->filter_list_ == nullptr) {
-    return this->state;  // No filters, raw == filtered
-  }
-// Suppress deprecation warning - get_raw_state() is the replacement API
+#ifdef USE_TEXT_SENSOR_FILTER
+  if (this->filter_list_ != nullptr) {
+    // Suppress deprecation warning - get_raw_state() is the replacement API
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return this->raw_state;
+    return this->raw_state;
 #pragma GCC diagnostic pop
+  }
+#endif
+  return this->state;  // No filters, raw == filtered
 }
 void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->internal_send_state_to_frontend(state.data(), state.size());
