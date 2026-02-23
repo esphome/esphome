@@ -5,7 +5,6 @@ import esphome.config_validation as cv
 
 CODEOWNERS = ["@your-github-username"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["sensor"]
 MULTI_CONF = True
 
 CONF_BME680_ID = "bme680_id"
