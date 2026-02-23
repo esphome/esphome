@@ -318,8 +318,8 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         // Disconnect was requested after connecting started,
         // but before the connection was established. Now that we have
         // this->conn_id_ set, we can disconnect it.
+        // Don't reset conn_id_ here — CLOSE_EVT needs it to match and call set_idle_().
         this->unconditional_disconnect();
-        this->conn_id_ = UNSET_CONN_ID;
         break;
       }
       // MTU negotiation already started in ESP_GATTC_CONNECT_EVT
