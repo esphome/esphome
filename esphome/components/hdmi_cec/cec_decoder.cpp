@@ -304,14 +304,14 @@ template<> bool Decoder::do_operand_<Decoder::VENDOR_ID>() {
     return append_operand_("?", 3);
   }
   uint32_t id = (uint32_t) (frame_[offset_]) << 16 | (uint32_t) (frame_[offset_ + 1]) << 8 | frame_[offset_ + 2];
-  auto it = VENDOR_IDS.find(id);
-  if (it == VENDOR_IDS.end()) {
+  const char *vendor_name = *(VENDOR_IDS.find(id));
+  if (!vendor_name) {
     // if the hdmi-cec vendor id is not in our list, the id value itself is printed.
     char line[12];
     std::snprintf(line, sizeof(line), "ID=%06x", id);
     return append_operand_(line, 3);
   }
-  return append_operand_(it->second, 3);
+  return append_operand_(vendor_name, 3);
 }
 
 template<> bool Decoder::do_operand_<Decoder::CEC_VERSION>() {
@@ -320,90 +320,91 @@ template<> bool Decoder::do_operand_<Decoder::CEC_VERSION>() {
 }
 
 const Decoder::CecOpcodeTable Decoder::CEC_OPCODE_TABLE = {
-    // opcode,   name,       operands
-    {0x04, {"Image View On", &Decoder::do_operand_<NONE>}},
-    {0x00, {"Feature Abort", &Decoder::do_operand_<two(FEATURE_OPCODE, ABORT_REASON)>}},
-    {0x0D, {"Text View On", &Decoder::do_operand_<NONE>}},
-    {0x82, {"Active Source", &Decoder::do_operand_<PHYSICAL_ADDRESS>}},
-    {0x9D, {"Inactive Source", &Decoder::do_operand_<PHYSICAL_ADDRESS>}},
-    {0x85, {"Request Active Source", &Decoder::do_operand_<NONE>}},
-    {0x80, {"Routing Change", &Decoder::do_operand_<two(PHYSICAL_ADDRESS, PHYSICAL_ADDRESS)>}},
-    {0x81, {"Routing Information", &Decoder::do_operand_<PHYSICAL_ADDRESS>}},
-    {0x86, {"Set Stream Path", &Decoder::do_operand_<PHYSICAL_ADDRESS>}},
-    {0x36, {"Standby", &Decoder::do_operand_<NONE>}},
-    {0x0B, {"Record Off", &Decoder::do_operand_<NONE>}},
-    {0x09, {"Record On", &Decoder::do_operand_<RECORD_SOURCE>}},
-    {0x0A, {"Record Status", &Decoder::do_operand_<RECORD_STATUS_INFO>}},
-    {0x0F, {"Record TV Screen", &Decoder::do_operand_<NONE>}},
-    {0x33, {"Clear Analogue Timer", &Decoder::do_operand_<two(START_DATE_TIME, DURATION)>}},
-    {0x99, {"Clear Digital Timer", &Decoder::do_operand_<two(START_DATE_TIME, DURATION)>}},
-    {0xA1, {"Clear External Timer", &Decoder::do_operand_<two(START_DATE_TIME, DURATION)>}},
-    {0x34, {"Set Analogue Timer", &Decoder::do_operand_<two(START_DATE_TIME, DURATION)>}},
-    {0x97, {"Set Digital Timer", &Decoder::do_operand_<two(START_DATE_TIME, DURATION)>}},
-    {0xA2, {"Set External Timer", &Decoder::do_operand_<two(START_DATE_TIME, DURATION)>}},
-    {0x67, {"Set Timer Program Title", &Decoder::do_operand_<PROGRAM_TITLE_STRING>}},
-    {0x43, {"Timer Cleared Status", &Decoder::do_operand_<TIMER_CLEARED_STATUS_DATA>}},
-    {0x35, {"Timer Status", &Decoder::do_operand_<TIMER_STATUS_DATA>}},
-    {0x9E, {"CEC Version", &Decoder::do_operand_<CEC_VERSION>}},
-    {0x9F, {"Get CEC Version", &Decoder::do_operand_<NONE>}},
-    {0x83, {"Give Physical Address", &Decoder::do_operand_<NONE>}},
-    {0x91, {"Get Menu Language", &Decoder::do_operand_<NONE>}},
-    {0x84, {"Report Physical Address", &Decoder::do_operand_<two(PHYSICAL_ADDRESS, DEVICE_TYPE)>}},
-    {0x32, {"Set Menu Language", &Decoder::do_operand_<LANGUAGE>}},
-    {0x42, {"Deck Control", &Decoder::do_operand_<DECK_CONTROL_MODE>}},
-    {0x1B, {"Deck Status", &Decoder::do_operand_<DECK_INFO>}},
-    {0x1A, {"Give Deck Status", &Decoder::do_operand_<STATUS_REQUEST>}},
-    {0x41, {"Play", &Decoder::do_operand_<PLAY_MODE>}},
-    {0x08, {"Give Tuner Device Status", &Decoder::do_operand_<STATUS_REQUEST>}},
-    {0x92,
-     {"Select Analogue Service",
-      &Decoder::do_operand_<three(ANALOG_BROADCAST_TYPE, ANALOG_FREQUENCY, BROADCAST_SYSTEM)>}},
-    {0x93, {"Select Digital Service", &Decoder::do_operand_<DIGITAL_SERVICE_IDENTIFICATION>}},
-    {0x07, {"Tuner Device Status", &Decoder::do_operand_<TUNER_DEVICE_INFO>}},
-    {0x06, {"Tuner Step Decrement", &Decoder::do_operand_<NONE>}},
-    {0x05, {"Tuner Step Increment", &Decoder::do_operand_<NONE>}},
-    {0x87, {"Device Vendor ID", &Decoder::do_operand_<VENDOR_ID>}},
-    {0x8C, {"Give Device Vendor ID", &Decoder::do_operand_<NONE>}},
-    {0x89, {"Vendor Command", &Decoder::do_operand_<VENDOR_SPECIFIC_DATA>}},
-    {0xA0, {"Vendor Command With ID", &Decoder::do_operand_<two(VENDOR_ID, VENDOR_SPECIFIC_DATA)>}},
-    {0x8A, {"Vendor Remote Button Down", &Decoder::do_operand_<VENDOR_SPECIFIC_RC_CODE>}},
-    {0x8B, {"Vendor Remote Button Up", &Decoder::do_operand_<NONE>}},
-    {0x64, {"Set OSD String", &Decoder::do_operand_<two(DISPLAY_CONTROL, OSD_STRING)>}},
-    {0x46, {"Give OSD Name", &Decoder::do_operand_<NONE>}},
-    {0x47, {"Set OSD Name", &Decoder::do_operand_<OSD_NAME>}},
-    {0x8D, {"Menu Request", &Decoder::do_operand_<MENU_REQUEST_TYPE>}},
-    {0x8E, {"Menu Status", &Decoder::do_operand_<MENU_STATE>}},
-    {0x44, {"User Control Pressed", &Decoder::do_operand_<UI_COMMAND>}},
-    {0x45, {"User Control Released", &Decoder::do_operand_<NONE>}},
-    {0x8F, {"Give Device Power Status", &Decoder::do_operand_<NONE>}},
-    {0x90, {"Report Power Status", &Decoder::do_operand_<POWER_STATUS>}},
-    {0x00, {"Feature Abort", &Decoder::do_operand_<two(FEATURE_OPCODE, ABORT_REASON)>}},
-    {0xFF, {"Abort", &Decoder::do_operand_<NONE>}},
-    {0x71, {"Give Audio Status", &Decoder::do_operand_<NONE>}},
-    {0x7D, {"Give System Audio Mode Status", &Decoder::do_operand_<NONE>}},
-    {0x7A, {"Report Audio Status", &Decoder::do_operand_<AUDIO_STATUS>}},
-    {0xA3, {"Report Short Audio Descriptor", &Decoder::do_operand_<SHORT_AUDIO_DESCRIPTOR>}},
-    {0xA4, {"Request Short Audio Descriptor", &Decoder::do_operand_<AUDIO_FORMAT>}},
-    {0x72, {"Set System Audio Mode", &Decoder::do_operand_<SYSTEM_AUDIO_STATUS>}},
-    {0x70, {"System Audio Mode Request", &Decoder::do_operand_<PHYSICAL_ADDRESS>}},
-    {0x7E, {"System Audio Mode Status", &Decoder::do_operand_<SYSTEM_AUDIO_STATUS>}},
-    {0x9A, {"Set Audio Rate", &Decoder::do_operand_<AUDIO_RATE>}},
-    {0xC0, {"Initiate ARC", &Decoder::do_operand_<NONE>}},
-    {0xC1, {"Report ARC Initiated", &Decoder::do_operand_<NONE>}},
-    {0xC2, {"Report ARC Terminated", &Decoder::do_operand_<NONE>}},
-    {0xC3, {"Request ARC Initiation", &Decoder::do_operand_<NONE>}},
-    {0xC4, {"Request ARC Termination", &Decoder::do_operand_<NONE>}},
-    {0xC5, {"Terminate ARC", &Decoder::do_operand_<NONE>}},
-    {0xF8, {"CDC Message", &Decoder::do_operand_<NONE>}}};
+    {// Must be given sorted on increasing opcode:
+     // opcode,   name,       function pointer with specification of its operands
+     {0x00, {"Feature Abort", &Decoder::do_operand_<two(FEATURE_OPCODE, ABORT_REASON)>}},
+     {0x04, {"Image View On", &Decoder::do_operand_<NONE>}},
+     {0x05, {"Tuner Step Increment", &Decoder::do_operand_<NONE>}},
+     {0x06, {"Tuner Step Decrement", &Decoder::do_operand_<NONE>}},
+     {0x07, {"Tuner Device Status", &Decoder::do_operand_<TUNER_DEVICE_INFO>}},
+     {0x08, {"Give Tuner Device Status", &Decoder::do_operand_<STATUS_REQUEST>}},
+     {0x09, {"Record On", &Decoder::do_operand_<RECORD_SOURCE>}},
+     {0x0A, {"Record Status", &Decoder::do_operand_<RECORD_STATUS_INFO>}},
+     {0x0D, {"Text View On", &Decoder::do_operand_<NONE>}},
+     {0x0B, {"Record Off", &Decoder::do_operand_<NONE>}},
+     {0x0F, {"Record TV Screen", &Decoder::do_operand_<NONE>}},
+     {0x1A, {"Give Deck Status", &Decoder::do_operand_<STATUS_REQUEST>}},
+     {0x1B, {"Deck Status", &Decoder::do_operand_<DECK_INFO>}},
+     {0x32, {"Set Menu Language", &Decoder::do_operand_<LANGUAGE>}},
+     {0x33, {"Clear Analogue Timer", &Decoder::do_operand_<two(START_DATE_TIME, DURATION)>}},
+     {0x34, {"Set Analogue Timer", &Decoder::do_operand_<two(START_DATE_TIME, DURATION)>}},
+     {0x35, {"Timer Status", &Decoder::do_operand_<TIMER_STATUS_DATA>}},
+     {0x36, {"Standby", &Decoder::do_operand_<NONE>}},
+     {0x41, {"Play", &Decoder::do_operand_<PLAY_MODE>}},
+     {0x42, {"Deck Control", &Decoder::do_operand_<DECK_CONTROL_MODE>}},
+     {0x43, {"Timer Cleared Status", &Decoder::do_operand_<TIMER_CLEARED_STATUS_DATA>}},
+     {0x44, {"User Control Pressed", &Decoder::do_operand_<UI_COMMAND>}},
+     {0x45, {"User Control Released", &Decoder::do_operand_<NONE>}},
+     {0x46, {"Give OSD Name", &Decoder::do_operand_<NONE>}},
+     {0x47, {"Set OSD Name", &Decoder::do_operand_<OSD_NAME>}},
+     {0x64, {"Set OSD String", &Decoder::do_operand_<two(DISPLAY_CONTROL, OSD_STRING)>}},
+     {0x67, {"Set Timer Program Title", &Decoder::do_operand_<PROGRAM_TITLE_STRING>}},
+     {0x70, {"System Audio Mode Request", &Decoder::do_operand_<PHYSICAL_ADDRESS>}},
+     {0x71, {"Give Audio Status", &Decoder::do_operand_<NONE>}},
+     {0x72, {"Set System Audio Mode", &Decoder::do_operand_<SYSTEM_AUDIO_STATUS>}},
+     {0x7A, {"Report Audio Status", &Decoder::do_operand_<AUDIO_STATUS>}},
+     {0x7D, {"Give System Audio Mode Status", &Decoder::do_operand_<NONE>}},
+     {0x7E, {"System Audio Mode Status", &Decoder::do_operand_<SYSTEM_AUDIO_STATUS>}},
+     {0x80, {"Routing Change", &Decoder::do_operand_<two(PHYSICAL_ADDRESS, PHYSICAL_ADDRESS)>}},
+     {0x81, {"Routing Information", &Decoder::do_operand_<PHYSICAL_ADDRESS>}},
+     {0x82, {"Active Source", &Decoder::do_operand_<PHYSICAL_ADDRESS>}},
+     {0x83, {"Give Physical Address", &Decoder::do_operand_<NONE>}},
+     {0x84, {"Report Physical Address", &Decoder::do_operand_<two(PHYSICAL_ADDRESS, DEVICE_TYPE)>}},
+     {0x85, {"Request Active Source", &Decoder::do_operand_<NONE>}},
+     {0x86, {"Set Stream Path", &Decoder::do_operand_<PHYSICAL_ADDRESS>}},
+     {0x87, {"Device Vendor ID", &Decoder::do_operand_<VENDOR_ID>}},
+     {0x89, {"Vendor Command", &Decoder::do_operand_<VENDOR_SPECIFIC_DATA>}},
+     {0x8A, {"Vendor Remote Button Down", &Decoder::do_operand_<VENDOR_SPECIFIC_RC_CODE>}},
+     {0x8B, {"Vendor Remote Button Up", &Decoder::do_operand_<NONE>}},
+     {0x8C, {"Give Device Vendor ID", &Decoder::do_operand_<NONE>}},
+     {0x8D, {"Menu Request", &Decoder::do_operand_<MENU_REQUEST_TYPE>}},
+     {0x8E, {"Menu Status", &Decoder::do_operand_<MENU_STATE>}},
+     {0x8F, {"Give Device Power Status", &Decoder::do_operand_<NONE>}},
+     {0x90, {"Report Power Status", &Decoder::do_operand_<POWER_STATUS>}},
+     {0x91, {"Get Menu Language", &Decoder::do_operand_<NONE>}},
+     {0x92,
+      {"Select Analogue Service",
+       &Decoder::do_operand_<three(ANALOG_BROADCAST_TYPE, ANALOG_FREQUENCY, BROADCAST_SYSTEM)>}},
+     {0x93, {"Select Digital Service", &Decoder::do_operand_<DIGITAL_SERVICE_IDENTIFICATION>}},
+     {0x9A, {"Set Audio Rate", &Decoder::do_operand_<AUDIO_RATE>}},
+     {0x9D, {"Inactive Source", &Decoder::do_operand_<PHYSICAL_ADDRESS>}},
+     {0x97, {"Set Digital Timer", &Decoder::do_operand_<two(START_DATE_TIME, DURATION)>}},
+     {0x99, {"Clear Digital Timer", &Decoder::do_operand_<two(START_DATE_TIME, DURATION)>}},
+     {0x9E, {"CEC Version", &Decoder::do_operand_<CEC_VERSION>}},
+     {0x9F, {"Get CEC Version", &Decoder::do_operand_<NONE>}},
+     {0xA0, {"Vendor Command With ID", &Decoder::do_operand_<two(VENDOR_ID, VENDOR_SPECIFIC_DATA)>}},
+     {0xA1, {"Clear External Timer", &Decoder::do_operand_<two(START_DATE_TIME, DURATION)>}},
+     {0xA2, {"Set External Timer", &Decoder::do_operand_<two(START_DATE_TIME, DURATION)>}},
+     {0xA3, {"Report Short Audio Descriptor", &Decoder::do_operand_<SHORT_AUDIO_DESCRIPTOR>}},
+     {0xA4, {"Request Short Audio Descriptor", &Decoder::do_operand_<AUDIO_FORMAT>}},
+     {0xC0, {"Initiate ARC", &Decoder::do_operand_<NONE>}},
+     {0xC1, {"Report ARC Initiated", &Decoder::do_operand_<NONE>}},
+     {0xC2, {"Report ARC Terminated", &Decoder::do_operand_<NONE>}},
+     {0xC3, {"Request ARC Initiation", &Decoder::do_operand_<NONE>}},
+     {0xC4, {"Request ARC Termination", &Decoder::do_operand_<NONE>}},
+     {0xC5, {"Terminate ARC", &Decoder::do_operand_<NONE>}},
+     {0xF8, {"CDC Message", &Decoder::do_operand_<NONE>}},
+     {0xFF, {"Abort", &Decoder::do_operand_<NONE>}}}};
 
-const std::map<uint32_t, const char *> Decoder::VENDOR_IDS = {
-    {0x000039, "Toshiba"}, {0x0000F0, "Samsung"},     {0x0005CD, "Denon"},         {0x000678, "Maranz"},
-    {0x000982, "Loewe"},   {0x0009B0, "Onkyo"},       {0x000CB8, "Medion"},        {0x000CE7, "Toshiba"},
-    {0x0010FA, "Apple"},   {0x001582, "Pulse Eight"}, {0x001950, "Harman Kardon"}, {0x001A11, "Google"},
-    {0x0020C7, "Akai"},    {0x002467, "AOC"},         {0x008045, "Panasonic"},     {0x00903E, "Philips"},
-    {0x009053, "Daewoo"},  {0x00A0DE, "Yamaha"},      {0x00D0D5, "Grundig"},       {0x00E036, "Pioneer"},
-    {0x00E091, "LG"},      {0x08001F, "Sharp"},       {0x080046, "Sony"},          {0x18C086, "Broadcom"},
-    {0x534850, "Sharp"},   {0x6B746D, "Vizio"},       {0x8065E9, "Benq"},          {0x9C645E, "Harman Kardon"}};
+const Decoder::VendorIdTable Decoder::VENDOR_IDS = {
+    {// Must be given sorted on increasing id:
+     {0x000039, "Toshiba"}, {0x0000F0, "Samsung"},     {0x0005CD, "Denon"},         {0x000678, "Maranz"},
+     {0x000982, "Loewe"},   {0x0009B0, "Onkyo"},       {0x000CB8, "Medion"},        {0x000CE7, "Toshiba"},
+     {0x0010FA, "Apple"},   {0x001582, "Pulse Eight"}, {0x001950, "Harman Kardon"}, {0x001A11, "Google"},
+     {0x0020C7, "Akai"},    {0x002467, "AOC"},         {0x008045, "Panasonic"},     {0x00903E, "Philips"},
+     {0x009053, "Daewoo"},  {0x00A0DE, "Yamaha"},      {0x00D0D5, "Grundig"},       {0x00E036, "Pioneer"},
+     {0x00E091, "LG"},      {0x08001F, "Sharp"},       {0x080046, "Sony"},          {0x18C086, "Broadcom"},
+     {0x534850, "Sharp"},   {0x6B746D, "Vizio"},       {0x8065E9, "Benq"},          {0x9C645E, "Harman Kardon"}}};
 
 std::string Decoder::address_decode_() const {
   const static std::array<const char *, 16> NAMES = {"TV",           "RecordingDev1", "RecordingDev2", "Tuner1",
@@ -415,11 +416,12 @@ std::string Decoder::address_decode_() const {
 }
 
 const char *Decoder::find_opcode_name_(uint32_t opcode) const {
-  auto it = CEC_OPCODE_TABLE.find(opcode);
-  if (it == CEC_OPCODE_TABLE.end()) {
+  const FrameType *frametype = CEC_OPCODE_TABLE.find(opcode);
+
+  if (!frametype)
     return "?";
-  }
-  return it->second.name;
+
+  return frametype->name_;
 }
 
 /**
@@ -446,17 +448,17 @@ std::string Decoder::decode() {
   }
 
   // Lookup opcode for its operation name
-  auto it = CEC_OPCODE_TABLE.find(frame_.opcode());
-  if (it == CEC_OPCODE_TABLE.end()) {
+  const FrameType *frametype = CEC_OPCODE_TABLE.find(frame_.opcode());
+  if (!frametype)
     return result + std::string("<?>");
-  }
-  result += std::string("<") + it->second.name + ">";
+
+  result += std::string("<") + frametype->name_ + ">";
 
   // convert operand fields to text:
   length_ = 0;         // currently accumulated length of text of operands
   line_[length_] = 0;  // initialise operand text to empty string
   offset_ = 2;         // location in frame of first operand to decode
-  OperandDecode_f f = it->second.decode_f;
+  OperandDecode_f f = frametype->decode_f_;
   (this->*f)();
   result += &line_[0];
   return result;

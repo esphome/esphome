@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <map>
 #include <array>
 
 #include "hdmi_cec.h"
@@ -41,10 +40,46 @@ class Decoder {
    */
   using OperandDecode_f = bool (Decoder::*)();
   struct FrameType {
-    const char *name;                // name of the operation (of the op_code)
-    const OperandDecode_f decode_f;  // a pointer to the corresponding 'do_operand_()' method
+    const char *name_;                // name of the operation (of the op_code)
+    const OperandDecode_f decode_f_;  // a pointer to the corresponding 'do_operand_()' method
   };
-  using CecOpcodeTable = const std::map<uint8_t, FrameType>;
+
+  /**
+   * This LookupTable is const-initialised and only provides a simple 'find()'.
+   * This creates a compact (smaller code) alternative to an std::map;
+   */
+  template<typename KeyT, typename ValueT, unsigned int SIZE> class LookupTable {
+   public:
+    struct KeyValue {
+      KeyT key_;
+      ValueT value_;
+    };
+
+    const ValueT *find(KeyT key) const {
+      int lo_inx = 0;
+      int hi_inx = SIZE - 1;
+
+      while (lo_inx <= hi_inx) {
+        // Search for 'opcode' in the array range lo_inx..hi_inx, bounds included
+        // Rely on the array being sorted on increasing opcode!
+        int mid = (lo_inx + hi_inx) / 2;
+        if (key == table_[mid].key_) {
+          return &table_[mid].value_;
+        }
+        if (key < table_[mid].key_) {
+          hi_inx = mid - 1;
+        } else {
+          lo_inx = mid + 1;
+        }
+      }
+      return nullptr;  // requested 'opcode' not found in table
+    }
+
+    const KeyValue table_[SIZE];
+  };
+  using CecOpcodeTable = LookupTable<uint8_t, FrameType, 71>;
+  using VendorIdTable = LookupTable<uint32_t, const char *, 28>;
+
   const static CecOpcodeTable CEC_OPCODE_TABLE;
 
   const Frame &frame_;
@@ -144,7 +179,7 @@ class Decoder {
   const static std::array<const char *, 0x77> UI_COMMANDS;
   const static std::array<const char *, 0x11> AUDIO_FORMATS;
   const static std::array<const char *, 8> AUDIO_SAMPLERATES;
-  const static std::map<uint32_t, const char *> VENDOR_IDS;
+  const static VendorIdTable VENDOR_IDS;
 };  // class Decoder
 }  // namespace hdmi_cec
 }  // namespace esphome
