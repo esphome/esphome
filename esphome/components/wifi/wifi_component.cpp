@@ -968,9 +968,11 @@ void WiFiComponent::set_ap(const WiFiAP &ap) {
 }
 #endif  // USE_WIFI_AP
 
+#ifdef USE_LOOP_PRIORITY
 float WiFiComponent::get_loop_priority() const {
   return 10.0f;  // before other loop components
 }
+#endif
 
 void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
@@ -1469,6 +1471,22 @@ void WiFiComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Disabled");
     return;
   }
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+  const char *band_mode_s;
+  switch (this->band_mode_) {
+    case WIFI_BAND_MODE_2G_ONLY:
+      band_mode_s = "2.4GHz";
+      break;
+    case WIFI_BAND_MODE_5G_ONLY:
+      band_mode_s = "5GHz";
+      break;
+    case WIFI_BAND_MODE_AUTO:
+    default:
+      band_mode_s = "Auto";
+      break;
+  }
+  ESP_LOGCONFIG(TAG, "  Band Mode: %s", band_mode_s);
+#endif
   if (this->is_connected()) {
     this->print_connect_params_();
   }

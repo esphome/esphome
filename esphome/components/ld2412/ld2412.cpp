@@ -530,10 +530,7 @@ bool LD2412Component::handle_ack_data_() {
       this->light_function_ = this->buffer_data_[10];
       this->light_threshold_ = this->buffer_data_[11];
       const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
-      ESP_LOGV(TAG,
-               "Light function: %s\n"
-               "Light threshold: %u",
-               light_function_str, this->light_threshold_);
+      ESP_LOGV(TAG, "Light function: %s, threshold: %u", light_function_str, this->light_threshold_);
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr) {
         this->light_function_select_->publish_state(light_function_str);
