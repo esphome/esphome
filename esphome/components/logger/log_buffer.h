@@ -77,10 +77,10 @@ struct LogBuffer {
 
     // Format line number using subtraction loops (no division - important for ESP8266 which lacks hardware divider)
     if (line > 999) [[unlikely]] {
-      this->write_digit_(p, line, 1000);
+      LogBuffer::write_digit(p, line, 1000);
     }
-    this->write_digit_(p, line, 100);
-    this->write_digit_(p, line, 10);
+    LogBuffer::write_digit(p, line, 100);
+    LogBuffer::write_digit(p, line, 10);
     *p++ = '0' + line;
     *p++ = ']';
 
@@ -158,7 +158,7 @@ struct LogBuffer {
   }
 #endif
   // Extract one decimal digit via subtraction (no division - important for ESP8266)
-  static inline void write_digit_(char *&p, int &value, int divisor) {
+  static inline void write_digit(char *&p, int &value, int divisor) {
     char d = '0';
     while (value >= divisor) {
       d++;
