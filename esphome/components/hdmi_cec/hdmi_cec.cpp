@@ -83,10 +83,10 @@ void HDMICEC::dump_config() {
 }
 
 void HDMICEC::loop() {
-  if (const Frame *msg = recv_.frames_queue_.front()) {
+  if (const Frame *frame = recv_.frames_queue_.front()) {
     // handle 1 inbound message per loop(), to avoid taking too much time
-    handle_received_message_(msg);
-    recv_.frames_queue_.push_front();
+    handle_received_message_(frame);
+    recv_.frames_queue_.pop_front();
   }
   if (!xmit_.is_idle()) {
     xmit_.transmit_message();
@@ -348,7 +348,7 @@ void CECTransmit::transmit_message() {
     if (sent_ok) {
       allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS;
       transmit_attempts_ = 0;
-      send_queue_.push_front();
+      send_queue_.pop_front();
     } else {
       allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
     }
@@ -362,7 +362,7 @@ void CECTransmit::transmit_message() {
     ESP_LOGD(TAG, "frame was NOT sent correctly after %d attempts, drop frame", transmit_attempts_);
     allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS;
     transmit_attempts_ = 0;
-    send_queue_.push_front();
+    send_queue_.pop_front();
   }
 
   const Frame *frame = send_queue_.front();  // check for presence of next frame to send (null if queue is empty)
@@ -646,6 +646,8 @@ void IRAM_ATTR CECReceive::gpio_isr_() {
     reset_state_variables_();  // abort any previously gathered (unfinished) state
     receiver_state_ = ReceiverState::RECEIVING_BYTE;
     recv_frame_buffer_ = frames_queue_.back();
+    if (recv_frame_buffer_)
+      recv_frame_buffer_->clear();
     return;
   } else if (pulse_duration < (HIGH_BIT_MIN_US / 4)) {
     // short glitch on the line: ignore

@@ -75,10 +75,10 @@ template<unsigned int SIZE> class FrameRingBuffer {
   }
   // 'front' is used to access a Frame, and use its content until it is no longer needed
   Frame *front() const { return is_empty() ? nullptr : store_[front_inx_]; }
-  // 'push_front' recycles the storage area of the last 'front()' call.
-  void push_front() { cyclic_incr_(front_inx_); }
+  // 'pop_front' recycles the storage area of the last 'front()' call.
+  void pop_front() { cyclic_incr_(front_inx_); }
   // 'back' is used to fetch a free Frame, fill with data, and queue for later pick-up
-  Frame *back() const { return is_full() ? nullptr : (store_[back_inx_]->clear(), store_[back_inx_]); }
+  Frame *back() const { return is_full() ? nullptr : store_[back_inx_]; }
   // 'push_back' commits the frame that was earlier obtained by 'back()', presumably it got filled with content
   void push_back() { cyclic_incr_(back_inx_); }
   bool is_empty() const { return count_() == 0; }
