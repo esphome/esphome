@@ -1257,11 +1257,11 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
   }
 #endif  // USE_I2S_AUDIO_SPDIF_MODE
 
-#ifdef I2S_CLK_SRC_APLL
+#if SOC_CLK_APLL_SUPPORTED
   if (this->use_apll_) {
-    clk_src = I2S_CLK_SRC_APLL;
+    clk_src = i2s_clock_src_t::I2S_CLK_SRC_APLL;
   }
-#endif  // I2S_CLK_SRC_APLL
+#endif  // SOC_CLK_APLL_SUPPORTED
 
   // Allocate I2S channel (shared between SPDIF and standard modes)
   // SPDIF uses more DMA buffers to compensate for smaller buffer size (~4ms vs ~15ms)
