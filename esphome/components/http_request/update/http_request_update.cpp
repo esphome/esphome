@@ -31,7 +31,7 @@ void HttpRequestUpdate::setup() {
 
   // Check every 10s until network is ready (max 6 attempts)
   // Only if update interval is > 1 minute to avoid redundant checks
-  if (this->get_update_interval() > 60000) {
+  if (this->get_update_interval() != SCHEDULER_DONT_RUN && this->get_update_interval() > 60000) {
     this->initial_check_remaining_ = 6;
     this->set_interval(INITIAL_CHECK_INTERVAL_ID, 10000, [this]() {
       bool connected = network::is_connected();
