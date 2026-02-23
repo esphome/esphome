@@ -152,7 +152,7 @@ void Esp32HostedUpdate::setup() {
 
 void Esp32HostedUpdate::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "ESP32 Hostedd Update:\n"
+                "ESP32 Hosted Update:\n"
                 "  Host Library Version: %s\n"
                 "  Coprocessor Version: %s\n"
                 "  Latest Version: %s",

@@ -750,8 +750,8 @@ void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buf
 }
 
 void Application::get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> buffer) {
-  ESPHOME_strncpy_P(buffer.data(), ESPHOME_COMMENT_STR, buffer.size());
-  buffer[buffer.size() - 1] = '\0';
+  ESPHOME_strncpy_P(buffer.data(), ESPHOME_COMMENT_STR, ESPHOME_COMMENT_SIZE);
+  buffer[ESPHOME_COMMENT_SIZE - 1] = '\0';
 }
 
 uint32_t Application::get_config_hash() { return ESPHOME_CONFIG_HASH; }
