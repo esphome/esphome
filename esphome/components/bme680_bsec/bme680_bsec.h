@@ -7,6 +7,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/defines.h"
 #include <map>
+#include <queue>
 
 #ifdef USE_BSEC
 #include <bsec.h>
