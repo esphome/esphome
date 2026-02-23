@@ -41,7 +41,7 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
   // Advance ring buffer index by one, wrapping at SIZE.
   // Power-of-2 sizes use modulo (compiler emits single mask instruction).
   // Non-power-of-2 sizes use comparison to avoid expensive multiply-shift sequences.
-  static constexpr uint8_t next_index_(uint8_t index) {
+  static constexpr uint8_t next_index(uint8_t index) {
     if constexpr ((SIZE & (SIZE - 1)) == 0) {
       return (index + 1) % SIZE;
     } else {
@@ -58,7 +58,7 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
       return false;
 
     uint8_t current_tail = tail_.load(std::memory_order_relaxed);
-    uint8_t next_tail = next_index_(current_tail);
+    uint8_t next_tail = next_index(current_tail);
 
     // Read head before incrementing tail
     uint8_t head_before = head_.load(std::memory_order_acquire);
@@ -87,7 +87,7 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
     }
 
     T *element = buffer_[current_head];
-    head_.store(next_index_(current_head), std::memory_order_release);
+    head_.store(next_index(current_head), std::memory_order_release);
     return element;
   }
 
@@ -111,7 +111,7 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
   bool empty() const { return head_.load(std::memory_order_acquire) == tail_.load(std::memory_order_acquire); }
 
   bool full() const {
-    uint8_t next_tail = next_index_(tail_.load(std::memory_order_relaxed));
+    uint8_t next_tail = next_index(tail_.load(std::memory_order_relaxed));
     return next_tail == head_.load(std::memory_order_acquire);
   }
 
