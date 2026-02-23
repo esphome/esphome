@@ -23,39 +23,20 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
+from . import (
+    CONF_BME680_ID,
+    BME680Component,
+    OVERSAMPLING_OPTIONS,
+    IIR_FILTER_OPTIONS,
+)
+
 DEPENDENCIES = ["i2c"]
 
-bme680_ns = cg.esphome_ns.namespace("bme680")
-BME680Oversampling = bme680_ns.enum("BME680Oversampling")
-OVERSAMPLING_OPTIONS = {
-    "NONE": BME680Oversampling.BME680_OVERSAMPLING_NONE,
-    "1X": BME680Oversampling.BME680_OVERSAMPLING_1X,
-    "2X": BME680Oversampling.BME680_OVERSAMPLING_2X,
-    "4X": BME680Oversampling.BME680_OVERSAMPLING_4X,
-    "8X": BME680Oversampling.BME680_OVERSAMPLING_8X,
-    "16X": BME680Oversampling.BME680_OVERSAMPLING_16X,
-}
-
-BME680IIRFilter = bme680_ns.enum("BME680IIRFilter")
-IIR_FILTER_OPTIONS = {
-    "OFF": BME680IIRFilter.BME680_IIR_FILTER_OFF,
-    "1X": BME680IIRFilter.BME680_IIR_FILTER_1X,
-    "3X": BME680IIRFilter.BME680_IIR_FILTER_3X,
-    "7X": BME680IIRFilter.BME680_IIR_FILTER_7X,
-    "15X": BME680IIRFilter.BME680_IIR_FILTER_15X,
-    "31X": BME680IIRFilter.BME680_IIR_FILTER_31X,
-    "63X": BME680IIRFilter.BME680_IIR_FILTER_63X,
-    "127X": BME680IIRFilter.BME680_IIR_FILTER_127X,
-}
-
-BME680Component = bme680_ns.class_(
-    "BME680Component", cg.PollingComponent, i2c.I2CDevice
-)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(BME680Component),
+            cv.GenerateID(CONF_BME680_ID): cv.use_id(BME680Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=1,
