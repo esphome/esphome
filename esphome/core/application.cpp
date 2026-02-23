@@ -109,9 +109,11 @@ void Application::setup() {
     if (component->can_proceed())
       continue;
 
+#ifdef USE_LOOP_PRIORITY
     // Sort components 0 through i by loop priority
     insertion_sort_by_priority<decltype(this->components_.begin()), &Component::get_loop_priority>(
         this->components_.begin(), this->components_.begin() + i + 1);
+#endif
 
     do {
       uint8_t new_app_state = STATUS_LED_WARNING;
@@ -137,8 +139,10 @@ void Application::setup() {
 
   ESP_LOGI(TAG, "setup() finished successfully!");
 
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Clear setup priority overrides to free memory
   clear_setup_priority_overrides();
+#endif
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   // Set up wake socket for waking main loop from tasks
@@ -240,7 +244,7 @@ void Application::process_dump_config_() {
   this->dump_config_at_++;
 }
 
-void IRAM_ATTR HOT Application::feed_wdt(uint32_t time) {
+void HOT Application::feed_wdt(uint32_t time) {
   static uint32_t last_feed = 0;
   // Use provided time if available, otherwise get current time
   uint32_t now = time ? time : millis();
