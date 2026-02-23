@@ -64,7 +64,7 @@ const std::array<const char *, 0x77> Decoder::UI_COMMANDS = {
     "Previous Channel",
     "Sound Select",
     "Input Select",
-    "isplay Information",
+    "Display Information",
     "Help",
     "Page Up",
     /* 0x38 = */ "Page Down",
