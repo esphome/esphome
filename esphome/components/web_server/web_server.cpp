@@ -4,6 +4,7 @@
 #include "esphome/core/progmem.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
+#include "esphome/core/build_info_data.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/entity_base.h"
@@ -375,8 +376,7 @@ json::SerializationBuffer<> WebServer::get_config_json() {
   JsonObject root = builder.root();
 
   root[ESPHOME_F("title")] = App.get_friendly_name().empty() ? App.get_name().c_str() : App.get_friendly_name().c_str();
-  auto comment = App.get_comment();
-  root[ESPHOME_F("comment")] = comment.c_str();
+  root[ESPHOME_F("comment")] = ESPHOME_COMMENT_STR;
 #if defined(USE_WEBSERVER_OTA_DISABLED) || !defined(USE_WEBSERVER_OTA)
   root[ESPHOME_F("ota")] = false;  // Note: USE_WEBSERVER_OTA_DISABLED only affects web_server, not captive_portal
 #else
