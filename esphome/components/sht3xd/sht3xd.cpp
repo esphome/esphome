@@ -12,6 +12,8 @@ static const char *const TAG = "sht3xd";
 // To ensure compatibility, reading serial number using the register with clock stretching register enabled
 // (used originally in this component) is tried first and if that fails the alternate register address
 // with clock stretching disabled is read.
+// If both fail (e.g. some clones don't support the command), we continue so temp/humidity still work.
+// Second attempt uses 10ms delay for boards that need more time before read (max permitted by ESPHome guidelines).
 
 static const uint16_t SHT3XD_COMMAND_READ_SERIAL_NUMBER_CLOCK_STRETCHING = 0x3780;
 static const uint16_t SHT3XD_COMMAND_READ_SERIAL_NUMBER = 0x3682;
@@ -28,16 +30,17 @@ void SHT3XDComponent::setup() {
   uint16_t raw_serial_number[2];
   if (!this->get_register(SHT3XD_COMMAND_READ_SERIAL_NUMBER_CLOCK_STRETCHING, raw_serial_number, 2)) {
     this->error_code_ = READ_SERIAL_STRETCHED_FAILED;
-    if (!this->get_register(SHT3XD_COMMAND_READ_SERIAL_NUMBER, raw_serial_number, 2)) {
+    if (!this->get_register(SHT3XD_COMMAND_READ_SERIAL_NUMBER, raw_serial_number, 2, 10)) {
       this->error_code_ = READ_SERIAL_FAILED;
-      this->mark_failed();
-      return;
+      this->serial_number_ = 0;
+    } else {
+      this->serial_number_ = (uint32_t(raw_serial_number[0]) << 16) | uint32_t(raw_serial_number[1]);
     }
+  } else {
+    this->serial_number_ = (uint32_t(raw_serial_number[0]) << 16) | uint32_t(raw_serial_number[1]);
   }
 
-  this->serial_number_ = (uint32_t(raw_serial_number[0]) << 16) | uint32_t(raw_serial_number[1]);
-
-  if (!this->write_command(heater_enabled_ ? SHT3XD_COMMAND_HEATER_ENABLE : SHT3XD_COMMAND_HEATER_DISABLE)) {
+  if (!this->write_command(this->heater_enabled_ ? SHT3XD_COMMAND_HEATER_ENABLE : SHT3XD_COMMAND_HEATER_DISABLE)) {
     this->error_code_ = WRITE_HEATER_MODE_FAILED;
     this->mark_failed();
     return;
@@ -48,7 +51,9 @@ void SHT3XDComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SHT3xD:");
   switch (this->error_code_) {
     case READ_SERIAL_FAILED:
-      ESP_LOGD(TAG, "  Error reading serial number");
+      ESP_LOGI(TAG, "  Serial number not available (clone or non-standard sensor)");
+      break;
+    case READ_SERIAL_STRETCHED_FAILED:
       break;
     case WRITE_HEATER_MODE_FAILED:
       ESP_LOGD(TAG, "  Error writing heater mode");
@@ -60,10 +65,10 @@ void SHT3XDComponent::dump_config() {
     ESP_LOGE(TAG, "  Communication with SHT3xD failed!");
     return;
   }
-  ESP_LOGD(TAG,
-           "  Serial Number: 0x%08" PRIX32 "\n"
-           "  Heater Enabled: %s",
-           this->serial_number_, TRUEFALSE(this->heater_enabled_));
+  if (this->serial_number_ != 0) {
+    ESP_LOGD(TAG, "  Serial Number: 0x%08" PRIX32, this->serial_number_);
+  }
+  ESP_LOGD(TAG, "  Heater Enabled: %s", TRUEFALSE(this->heater_enabled_));
 
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
