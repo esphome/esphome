@@ -63,7 +63,6 @@ void HttpRequestUpdate::update() {
     ESP_LOGD(TAG, "Network not connected, skipping update check");
     return;
   }
-  // Network is up, cancel any pending initial check to prevent duplicate update checks
   this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
 #ifdef USE_ESP32
   xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
