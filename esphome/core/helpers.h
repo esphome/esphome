@@ -1673,13 +1673,10 @@ template<class T> class RAMAllocator {
     ALLOW_FAILURE = 1 << 2,   // Does nothing. Kept for compatibility.
   };
 
-  RAMAllocator() = default;
-  RAMAllocator(uint8_t flags) {
-    // default is both external and internal
-    flags &= ALLOC_INTERNAL | ALLOC_EXTERNAL;
-    if (flags != 0)
-      this->flags_ = flags;
-  }
+  constexpr RAMAllocator() = default;
+  constexpr RAMAllocator(uint8_t flags)
+      : flags_((flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL)) != 0 ? (flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL))
+                                                                : (ALLOC_INTERNAL | ALLOC_EXTERNAL)) {}
   template<class U> constexpr RAMAllocator(const RAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) { return this->allocate(n, sizeof(T)); }

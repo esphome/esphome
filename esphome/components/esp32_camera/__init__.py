@@ -22,8 +22,10 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VSYNC_PIN,
 )
+from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,6 +86,18 @@ FRAME_SIZES = {
     "2560X1920": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1920,
     "QSXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1920,
 }
+ESP32CameraPixelFormat = esp32_camera_ns.enum("ESP32CameraPixelFormat")
+PIXEL_FORMATS = {
+    "RGB565": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RGB565,
+    "YUV422": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_YUV422,
+    "YUV420": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_YUV420,
+    "GRAYSCALE": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_GRAYSCALE,
+    "JPEG": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_JPEG,
+    "RGB888": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RGB888,
+    "RAW": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RAW,
+    "RGB444": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RGB444,
+    "RGB555": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RGB555,
+}
 ESP32GainControlMode = esp32_camera_ns.enum("ESP32GainControlMode")
 ENUM_GAIN_CONTROL_MODE = {
     "MANUAL": ESP32GainControlMode.ESP32_GC_MODE_MANU,
@@ -131,6 +145,7 @@ CONF_EXTERNAL_CLOCK = "external_clock"
 CONF_I2C_PINS = "i2c_pins"
 CONF_POWER_DOWN_PIN = "power_down_pin"
 # image
+CONF_PIXEL_FORMAT = "pixel_format"
 CONF_JPEG_QUALITY = "jpeg_quality"
 CONF_VERTICAL_FLIP = "vertical_flip"
 CONF_HORIZONTAL_MIRROR = "horizontal_mirror"
@@ -171,6 +186,21 @@ def validate_fb_location_(value):
     return validator(value)
 
 
+def validate_jpeg_quality(config: ConfigType) -> ConfigType:
+    quality = config.get(CONF_JPEG_QUALITY)
+    pixel_format = config.get(CONF_PIXEL_FORMAT, "JPEG")
+
+    if quality == 0:
+        # Set default JPEG quality if not specified for backwards compatibility
+        if pixel_format == "JPEG":
+            config[CONF_JPEG_QUALITY] = 10
+        # For pixel formats other than JPEG, the valid 0 means no conversion
+    elif quality < 6 or quality > 63:
+        raise cv.Invalid(f"jpeg_quality must be between 6 and 63, got {quality}")
+
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.ENTITY_BASE_SCHEMA.extend(
         {
@@ -206,7 +236,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESOLUTION, default="640X480"): cv.enum(
                 FRAME_SIZES, upper=True
             ),
-            cv.Optional(CONF_JPEG_QUALITY, default=10): cv.int_range(min=6, max=63),
+            cv.Optional(CONF_PIXEL_FORMAT, default="JPEG"): cv.enum(
+                PIXEL_FORMATS, upper=True
+            ),
+            cv.Optional(CONF_JPEG_QUALITY, default=0): cv.Any(
+                cv.one_of(0), cv.int_range(min=6, max=63)
+            ),
             cv.Optional(CONF_CONTRAST, default=0): camera_range_param,
             cv.Optional(CONF_BRIGHTNESS, default=0): camera_range_param,
             cv.Optional(CONF_SATURATION, default=0): camera_range_param,
@@ -270,11 +305,21 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    validate_jpeg_quality,
     cv.has_exactly_one_key(CONF_I2C_PINS, CONF_I2C_ID),
 )
 
 
 def _final_validate(config):
+    # Check psram requirement for non-JPEG formats
+    if (
+        config.get(CONF_PIXEL_FORMAT, "JPEG") != "JPEG"
+        and psram_domain not in CORE.loaded_integrations
+    ):
+        raise cv.Invalid(
+            f"Non-JPEG pixel formats require the '{psram_domain}' component for JPEG conversion"
+        )
+
     if CONF_I2C_PINS not in config:
         return
     fconf = fv.full_config.get()
@@ -298,6 +343,7 @@ SETTERS = {
     CONF_RESET_PIN: "set_reset_pin",
     CONF_POWER_DOWN_PIN: "set_power_down_pin",
     # image
+    CONF_PIXEL_FORMAT: "set_pixel_format",
     CONF_JPEG_QUALITY: "set_jpeg_quality",
     CONF_VERTICAL_FLIP: "set_vertical_flip",
     CONF_HORIZONTAL_MIRROR: "set_horizontal_mirror",
@@ -351,6 +397,8 @@ async def to_code(config):
     cg.add(var.set_frame_size(config[CONF_RESOLUTION]))
 
     cg.add_define("USE_CAMERA")
+    if config[CONF_JPEG_QUALITY] != 0 and config[CONF_PIXEL_FORMAT] != "JPEG":
+        cg.add_define("USE_ESP32_CAMERA_JPEG_CONVERSION")
 
     add_idf_component(name="espressif/esp32-camera", ref="2.1.1")
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_NEW", True)

@@ -680,6 +680,11 @@ class LWIPRawListenImpl final : public LWIPRawImpl {
 };
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
+  if (type != SOCK_STREAM) {
+    ESP_LOGE(TAG, "UDP sockets not supported on this platform, use WiFiUDP");
+    errno = EPROTOTYPE;
+    return nullptr;
+  }
   auto *pcb = tcp_new();
   if (pcb == nullptr)
     return nullptr;
