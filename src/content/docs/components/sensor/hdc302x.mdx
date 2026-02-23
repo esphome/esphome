@@ -1,0 +1,179 @@
+---
+description: "Instructions for setting up HDC302x temperature and humidity sensors."
+title: "HDC302x Temperature and Humidity Sensor"
+---
+
+import { Image } from 'astro:assets';
+import hdc302xFullImg from './images/hdc302x-full.png';
+import temperatureHumidityImg from './images/temperature-humidity.png';
+import APIRef from '@components/APIRef.astro';
+import Figure from '@components/Figure.astro';
+
+The `hdc302x` sensor platform allows you to use your HDC3020, HDC3021, or HDC3022
+([datasheet](https://www.ti.com/lit/ds/symlink/hdc3020.pdf),
+[Users Guide](https://www.ti.com/lit/pdf/snau265),
+[Adafruit](https://www.adafruit.com/product/5989)) sensors with ESPHome.
+
+The HDC3020 is an open cavity package, the HDC3021 includes a removable protective tape for PCB assembly,
+and the HDC3022 has a permanent IP67 PTFE filter for protection against dust and water condensation.
+
+The [I²C Bus](/components/i2c) is required to be set up in your configuration for this sensor to work.
+
+<Figure
+  src={hdc302xFullImg}
+  caption="HDC3022 Temperature and Humidity Sensor. Image by [Adafruit](https://www.adafruit.com)."
+  layout="constrained"
+  alt=""
+/>
+
+<Image src={temperatureHumidityImg} layout="constrained" alt="" />
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: hdc302x
+    temperature:
+      name: "Living Room Temperature"
+    humidity:
+      name: "Living Room Humidity"
+    update_interval: 60s
+```
+
+## Configuration variables
+
+- **temperature** (*Optional*): The information for the temperature sensor.
+
+  - All options from [Sensor](/components/sensor/).
+
+- **humidity** (*Optional*): The information for the humidity sensor.
+
+  - All options from [Sensor](/components/sensor/).
+
+- **power_mode** (*Optional*, enum): The power mode used when triggering temperature and humidity measurements. This
+  affects measurement accuracy and sensor power usage.
+  - `HIGH_ACCURACY` (Default): Highest accuracy, slower, higher power usage.
+  - `BALANCED`: Balance between accuracy and power usage.
+  - `LOW_POWER`: Lower power usage, faster, less accurate.
+  - `ULTRA_LOW_POWER`: Lowest power usage, fastest, least accurate.
+
+- **address** (*Optional*, int): Manually specify the I²C address of the sensor.
+  Defaults to `0x44`. Supported addresses are `0x44` through `0x47`.
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor.
+  Defaults to `60s`.
+
+<span id="hdc302x-heater_on_action"></span>
+
+## `hdc302x.heater_on` Action
+
+This [action](/automations/actions#all-actions) enables the integrated heater on the sensor with the given ID.
+The heater can be used to remove condensation from the humidity sensor or to verify sensor functionality.
+
+> [!WARNING]
+> **Temperature and humidity readings will be inaccurate while the heater is active.** The heater can raise the die
+> temperature up to 80°C above ambient (depending on supply voltage and power level).
+>
+> **If water has condensed on the sensor, care must be taken to avoid exceeding 100°C.** Raising the temperature too
+> quickly past 100°C can cause water droplets to burst and damage the polymer in the sensor cavity. The temperature
+> rise to 100°C from ambient should take at least 5 to 10 seconds.
+>
+> Heater power depends on VDD -- higher supply voltages produce more heating. Take care when using higher power
+> levels at 5V.
+>
+> The heater evaporates condensate but **does not remove dissolved contaminants** on open cavity sensors
+> (HDC3020, HDC3021). Contaminant residue may impact humidity measurements and cause drift. The HDC3022's
+> IP67 PTFE filter provides protection from dissolved contaminants during evaporation.
+
+```yaml
+on_...:
+  then:
+    - hdc302x.heater_on:
+        id: my_hdc302x
+        power: QUARTER
+        duration: 5s
+```
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the HDC302x sensor.
+- **power** (*Optional*): The heater power level. Higher power removes condensation faster
+  but increases die temperature. Defaults to `QUARTER`.
+  - `QUARTER`: Lowest power, safest option.
+  - `HALF`
+  - `FULL`: Maximum power. Use with caution -- see warning above.
+  - A raw integer value between `0` and `16383` may also be used for fine-grained control
+    of the 14-bit heater current control. See Table 7-15 in the [datasheet](https://www.ti.com/lit/ds/symlink/hdc3020.pdf).
+- **duration** (*Optional*, [Time](/guides/configuration-types#time)): Duration to run the heater.
+  Set to `0s` to keep the heater on until manually disabled with `hdc302x.heater_off`. Defaults to `5s`.
+
+<span id="hdc302x-heater_off_action"></span>
+
+## `hdc302x.heater_off` Action
+
+This [action](/automations/actions#all-actions) disables the integrated heater on the sensor with the given ID.
+After turning off the heater, allow several minutes for the sensor to cool down before expecting accurate readings.
+
+```yaml
+on_...:
+  then:
+    - hdc302x.heater_off: my_hdc302x
+```
+
+## Heater Usage
+
+In condensing environments, moisture can form on the sensor when the ambient temperature drops below the
+dew point, preventing accurate humidity readings. The integrated heater can be used to evaporate this condensation.
+
+> [!WARNING]
+> Read the [heater safety notes above](#hdc302x-heater_on_action) before using the heater. Condensation
+> removal timings and power requirements vary depending on your board layout and supply voltage.
+>
+> See section 7.3.7 in the [datasheet](https://www.ti.com/lit/ds/symlink/hdc3020.pdf), and section 3.6 in the
+> [HDC3x Silicon Users Guide](https://www.ti.com/lit/pdf/snau265) for detailed guidance.
+
+To remove condensation, enable the heater with `duration: 0s` to keep it running, monitor the humidity reading,
+and disable the heater once the reading drops near `0%` (indicating the condensation has been removed) or after
+a maximum of 5 minutes. After disabling the heater, allow several minutes for the sensor to cool before expecting
+accurate readings.
+
+```yaml
+sensor:
+  - platform: hdc302x
+    id: my_hdc302x
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidity"
+      id: hdc302x_humidity
+      on_value_range:
+        - above: 95.0
+          then:
+            - script.execute: hdc302x_condensation_removal
+    update_interval: 10s
+
+script:
+  - id: hdc302x_condensation_removal
+    mode: single
+    then:
+      - hdc302x.heater_on:
+          id: my_hdc302x
+          power: QUARTER
+          duration: 0s
+      - wait_until:
+          condition:
+            sensor.in_range:
+              id: hdc302x_humidity
+              below: 1.0
+          timeout: 5min
+      - hdc302x.heater_off: my_hdc302x
+```
+
+## See Also
+
+- [Sensor Filters](/components/sensor/#sensor-filters)
+- [Absolute Humidity](/components/sensor/absolute_humidity/)
+- [DHT Temperature+Humidity Sensor](/components/sensor/dht/)
+- [DHT12 Temperature+Humidity Sensor](/components/sensor/dht12/)
+- [HTU21D | Si7021 | SHT21 Temperature & Humidity Sensor](/components/sensor/htu21d/)
+- [SHT3X-D Temperature+Humidity Sensor](/components/sensor/sht3xd/)
+- [HDC1080 Temperature+Humidity Sensor](/components/sensor/hdc1080/)
+- [HDC2010 High Precision Temperature and Humidity Sensor](/components/sensor/hdc2010/)
+- <APIRef text="hdc302x.h" path="hdc302x/hdc302x.h" />
