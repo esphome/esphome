@@ -25,15 +25,18 @@ static const char *const TAG = "http_request.update";
 
 static const size_t MAX_READ_SIZE = 256;
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
+static constexpr uint32_t INITIAL_CHECK_INTERVAL_MS = 10000;
+static constexpr uint8_t INITIAL_CHECK_MAX_ATTEMPTS = 6;
 
 void HttpRequestUpdate::setup() {
   this->ota_parent_->add_state_listener(this);
 
   // Check every 10s until network is ready (max 6 attempts)
-  // Only if update interval is > 1 minute to avoid redundant checks
-  if (this->get_update_interval() != SCHEDULER_DONT_RUN && this->get_update_interval() > 60000) {
-    this->initial_check_remaining_ = 6;
-    this->set_interval(INITIAL_CHECK_INTERVAL_ID, 10000, [this]() {
+  // Only if update interval is > total retry window to avoid redundant checks
+  if (this->get_update_interval() != SCHEDULER_DONT_RUN &&
+      this->get_update_interval() > INITIAL_CHECK_INTERVAL_MS * INITIAL_CHECK_MAX_ATTEMPTS) {
+    this->initial_check_remaining_ = INITIAL_CHECK_MAX_ATTEMPTS;
+    this->set_interval(INITIAL_CHECK_INTERVAL_ID, INITIAL_CHECK_INTERVAL_MS, [this]() {
       bool connected = network::is_connected();
       if (--this->initial_check_remaining_ == 0 || connected) {
         this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
