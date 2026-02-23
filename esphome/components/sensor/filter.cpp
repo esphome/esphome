@@ -1,3 +1,6 @@
+#include "esphome/core/defines.h"
+#ifdef USE_SENSOR_FILTER
+
 #include "filter.h"
 #include <cmath>
 #include "esphome/core/application.h"
@@ -580,3 +583,5 @@ void StreamingMovingAverageFilter::reset_batch() {
 }
 
 }  // namespace esphome::sensor
+
+#endif  // USE_SENSOR_FILTER
