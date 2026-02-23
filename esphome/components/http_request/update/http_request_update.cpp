@@ -31,7 +31,7 @@ static constexpr uint8_t INITIAL_CHECK_MAX_ATTEMPTS = 6;
 void HttpRequestUpdate::setup() {
   this->ota_parent_->add_state_listener(this);
 
-  // Check every 10s until network is ready (max 6 attempts)
+  // Check periodically until network is ready
   // Only if update interval is > total retry window to avoid redundant checks
   if (this->get_update_interval() != SCHEDULER_DONT_RUN &&
       this->get_update_interval() > INITIAL_CHECK_INTERVAL_MS * INITIAL_CHECK_MAX_ATTEMPTS) {
