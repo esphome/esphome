@@ -37,7 +37,7 @@ BME680Component = bme680_ns.class_(
     "BME680Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-CONFIG_SCHEMA = i2c.i2c_device_schema(0x76).extend({
+CONFIG_SCHEMA = i2c.i2c_device_schema(0x77).extend({
     cv.GenerateID(CONF_BME680_ID): cv.use_id(BME680Component),
 })
 
