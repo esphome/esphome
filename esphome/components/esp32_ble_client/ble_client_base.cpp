@@ -311,6 +311,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         this->log_gattc_warning_("Connection open", param->open.status);
         this->set_state(espbt::ClientState::IDLE);
+        this->conn_id_ = UNSET_CONN_ID;
         break;
       }
       if (this->want_disconnect_) {
