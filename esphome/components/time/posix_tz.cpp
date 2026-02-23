@@ -17,7 +17,8 @@ const ParsedTimezone &get_global_tz() { return global_tz_; }
 
 namespace internal {
 
-// Helper to parse an unsigned integer from string, updating pointer
+// Remove before 2026.9.0: parse_uint, skip_tz_name, parse_offset, parse_dst_rule,
+// and parse_transition_time are only used by parse_posix_tz() (bridge code).
 static uint32_t parse_uint(const char *&p) {
   uint32_t value = 0;
   while (std::isdigit(static_cast<unsigned char>(*p))) {
@@ -364,6 +365,12 @@ bool __attribute__((noinline)) is_in_dst(time_t utc_epoch, const ParsedTimezone 
   }
 }
 
+// Remove before 2026.9.0: This parser is bridge code for backward compatibility with
+// older Home Assistant clients that send the timezone as a POSIX TZ string instead of
+// the pre-parsed ParsedTimezone protobuf struct. Once all clients send the struct
+// directly, this function and the parsing helpers above (skip_tz_name, parse_offset,
+// parse_dst_rule, parse_transition_time) can be removed.
+// See https://github.com/esphome/backlog/issues/91
 bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
   if (!tz_string || !*tz_string) {
     return false;
