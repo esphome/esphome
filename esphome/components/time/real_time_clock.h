@@ -22,30 +22,6 @@ class RealTimeClock : public PollingComponent {
  public:
   explicit RealTimeClock();
 
-#ifdef USE_TIME_TIMEZONE
-  /// Set the time zone from a POSIX TZ string.
-  void set_timezone(const char *tz) { this->apply_timezone_(tz); }
-
-  /// Set the time zone from a character buffer with known length.
-  /// The buffer does not need to be null-terminated.
-  void set_timezone(const char *tz, size_t len) {
-    if (tz == nullptr) {
-      this->apply_timezone_(nullptr);
-      return;
-    }
-    // Stack buffer - TZ strings from tzdata are typically short (< 50 chars)
-    char buf[128];
-    if (len >= sizeof(buf))
-      len = sizeof(buf) - 1;
-    memcpy(buf, tz, len);
-    buf[len] = '\0';
-    this->apply_timezone_(buf);
-  }
-
-  /// Set the time zone from a std::string.
-  void set_timezone(const std::string &tz) { this->apply_timezone_(tz.c_str()); }
-#endif
-
   /// Get the time in the currently defined timezone.
   ESPTime now();
 
@@ -64,10 +40,6 @@ class RealTimeClock : public PollingComponent {
  protected:
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
-
-#ifdef USE_TIME_TIMEZONE
-  void apply_timezone_(const char *tz);
-#endif
 
   LazyCallbackManager<void()> time_sync_callback_;
 };

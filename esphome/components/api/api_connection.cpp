@@ -1113,30 +1113,23 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #ifdef USE_TIME_TIMEZONE
     if (!value.timezone.empty()) {
-      // Check if the sender provided pre-parsed timezone data.
-      // If std_offset is non-zero or DST rules are present, the parsed data was populated.
-      // For UTC (all zeros), string parsing produces the same result, so the fallback is equivalent.
       const auto &pt = value.parsed_timezone;
-      if (pt.std_offset_seconds != 0 || pt.dst_start.type != enums::DST_RULE_TYPE_NONE) {
-        time::ParsedTimezone tz{};
-        tz.std_offset_seconds = pt.std_offset_seconds;
-        tz.dst_offset_seconds = pt.dst_offset_seconds;
-        tz.dst_start.time_seconds = pt.dst_start.time_seconds;
-        tz.dst_start.day = static_cast<uint16_t>(pt.dst_start.day);
-        tz.dst_start.type = static_cast<time::DSTRuleType>(pt.dst_start.type);
-        tz.dst_start.month = static_cast<uint8_t>(pt.dst_start.month);
-        tz.dst_start.week = static_cast<uint8_t>(pt.dst_start.week);
-        tz.dst_start.day_of_week = static_cast<uint8_t>(pt.dst_start.day_of_week);
-        tz.dst_end.time_seconds = pt.dst_end.time_seconds;
-        tz.dst_end.day = static_cast<uint16_t>(pt.dst_end.day);
-        tz.dst_end.type = static_cast<time::DSTRuleType>(pt.dst_end.type);
-        tz.dst_end.month = static_cast<uint8_t>(pt.dst_end.month);
-        tz.dst_end.week = static_cast<uint8_t>(pt.dst_end.week);
-        tz.dst_end.day_of_week = static_cast<uint8_t>(pt.dst_end.day_of_week);
-        time::set_global_tz(tz);
-      } else {
-        homeassistant::global_homeassistant_time->set_timezone(value.timezone.c_str(), value.timezone.size());
-      }
+      time::ParsedTimezone tz{};
+      tz.std_offset_seconds = pt.std_offset_seconds;
+      tz.dst_offset_seconds = pt.dst_offset_seconds;
+      tz.dst_start.time_seconds = pt.dst_start.time_seconds;
+      tz.dst_start.day = static_cast<uint16_t>(pt.dst_start.day);
+      tz.dst_start.type = static_cast<time::DSTRuleType>(pt.dst_start.type);
+      tz.dst_start.month = static_cast<uint8_t>(pt.dst_start.month);
+      tz.dst_start.week = static_cast<uint8_t>(pt.dst_start.week);
+      tz.dst_start.day_of_week = static_cast<uint8_t>(pt.dst_start.day_of_week);
+      tz.dst_end.time_seconds = pt.dst_end.time_seconds;
+      tz.dst_end.day = static_cast<uint16_t>(pt.dst_end.day);
+      tz.dst_end.type = static_cast<time::DSTRuleType>(pt.dst_end.type);
+      tz.dst_end.month = static_cast<uint8_t>(pt.dst_end.month);
+      tz.dst_end.week = static_cast<uint8_t>(pt.dst_end.week);
+      tz.dst_end.day_of_week = static_cast<uint8_t>(pt.dst_end.day_of_week);
+      time::set_global_tz(tz);
     }
 #endif
   }

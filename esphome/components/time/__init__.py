@@ -362,11 +362,12 @@ async def setup_time_core_(time_var, config):
 
         if CORE.is_host:
             # Host platform needs setenv("TZ")/tzset() for libc compatibility
-            cg.add(time_var.set_timezone(timezone))
-        else:
-            # Embedded: pre-parse at codegen time, emit struct directly
-            parsed = parse_posix_tz_python(timezone)
-            _emit_parsed_timezone_fields(parsed)
+            cg.add(cg.RawExpression(f'setenv("TZ", "{timezone}", 1)'))
+            cg.add(cg.RawExpression("tzset()"))
+
+        # Pre-parse at codegen time, emit struct directly
+        parsed = parse_posix_tz_python(timezone)
+        _emit_parsed_timezone_fields(parsed)
 
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
