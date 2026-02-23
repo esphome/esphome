@@ -330,38 +330,72 @@ class HttpRequestComponent : public Component {
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
   void set_redirect_limit(uint16_t limit) { this->redirect_limit_ = limit; }
 
-  std::shared_ptr<HttpContainer> get(const std::string &url) { return this->start(url, "GET", "", {}); }
-  std::shared_ptr<HttpContainer> get(const std::string &url, const std::list<Header> &request_headers) {
+  std::shared_ptr<HttpContainer> get(const std::string &url) {
+    return this->start(url, "GET", "", std::vector<Header>{});
+  }
+  std::shared_ptr<HttpContainer> get(const std::string &url, const std::vector<Header> &request_headers) {
     return this->start(url, "GET", "", request_headers);
   }
-  std::shared_ptr<HttpContainer> get(const std::string &url, const std::list<Header> &request_headers,
+  std::shared_ptr<HttpContainer> get(const std::string &url, const std::vector<Header> &request_headers,
                                      const std::vector<std::string> &lower_case_collect_headers) {
     return this->start(url, "GET", "", request_headers, lower_case_collect_headers);
   }
   std::shared_ptr<HttpContainer> post(const std::string &url, const std::string &body) {
-    return this->start(url, "POST", body, {});
+    return this->start(url, "POST", body, std::vector<Header>{});
   }
   std::shared_ptr<HttpContainer> post(const std::string &url, const std::string &body,
-                                      const std::list<Header> &request_headers) {
+                                      const std::vector<Header> &request_headers) {
     return this->start(url, "POST", body, request_headers);
   }
   std::shared_ptr<HttpContainer> post(const std::string &url, const std::string &body,
-                                      const std::list<Header> &request_headers,
+                                      const std::vector<Header> &request_headers,
                                       const std::vector<std::string> &lower_case_collect_headers) {
     return this->start(url, "POST", body, request_headers, lower_case_collect_headers);
   }
 
+  // Remove before 2027.1.0
+  ESPDEPRECATED("Pass request_headers as std::vector<Header> instead of std::list. Removed in 2027.1.0.", "2026.7.0")
+  std::shared_ptr<HttpContainer> get(const std::string &url, const std::list<Header> &request_headers) {
+    return this->get(url, std::vector<Header>(request_headers.begin(), request_headers.end()));
+  }
+  // Remove before 2027.1.0
+  ESPDEPRECATED("Pass request_headers as std::vector<Header> instead of std::list. Removed in 2027.1.0.", "2026.7.0")
+  std::shared_ptr<HttpContainer> get(const std::string &url, const std::list<Header> &request_headers,
+                                     const std::vector<std::string> &collect_headers) {
+    return this->get(url, std::vector<Header>(request_headers.begin(), request_headers.end()), collect_headers);
+  }
+  // Remove before 2027.1.0
+  ESPDEPRECATED("Pass request_headers as std::vector<Header> instead of std::list. Removed in 2027.1.0.", "2026.7.0")
+  std::shared_ptr<HttpContainer> post(const std::string &url, const std::string &body,
+                                      const std::list<Header> &request_headers) {
+    return this->post(url, body, std::vector<Header>(request_headers.begin(), request_headers.end()));
+  }
+  // Remove before 2027.1.0
+  ESPDEPRECATED("Pass request_headers as std::vector<Header> instead of std::list. Removed in 2027.1.0.", "2026.7.0")
+  std::shared_ptr<HttpContainer> post(const std::string &url, const std::string &body,
+                                      const std::list<Header> &request_headers,
+                                      const std::vector<std::string> &collect_headers) {
+    return this->post(url, body, std::vector<Header>(request_headers.begin(), request_headers.end()), collect_headers);
+  }
+
+  std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
+                                       const std::vector<Header> &request_headers) {
+    // Call perform() directly to avoid ambiguity with the deprecated overloads
+    return this->perform(url, method, body, request_headers, {});
+  }
+
+  // Remove before 2027.1.0
+  ESPDEPRECATED("Pass request_headers as std::vector<Header> instead of std::list. Removed in 2027.1.0.", "2026.7.0")
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::list<Header> &request_headers) {
-    // Call perform() directly to avoid ambiguity with the std::set overload
-    return this->perform(url, method, body, request_headers, {});
+    return this->start(url, method, body, std::vector<Header>(request_headers.begin(), request_headers.end()));
   }
 
   // Remove before 2027.1.0
   ESPDEPRECATED("Pass collect_headers as std::vector<std::string> instead of std::set. Removed in 2027.1.0.",
                 "2026.7.0")
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
-                                       const std::list<Header> &request_headers,
+                                       const std::vector<Header> &request_headers,
                                        const std::set<std::string> &collect_headers) {
     std::vector<std::string> lower;
     lower.reserve(collect_headers.size());
@@ -371,15 +405,39 @@ class HttpRequestComponent : public Component {
     return this->perform(url, method, body, request_headers, lower);
   }
 
+  // Remove before 2027.1.0
+  ESPDEPRECATED("Pass request_headers as std::vector<Header> instead of std::list, and collect_headers as "
+                "std::vector<std::string> instead of std::set. Removed in 2027.1.0.",
+                "2026.7.0")
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::list<Header> &request_headers,
+                                       const std::set<std::string> &collect_headers) {
+    std::vector<std::string> lower;
+    lower.reserve(collect_headers.size());
+    for (const auto &h : collect_headers) {
+      lower.push_back(str_lower_case(h));
+    }
+    return this->perform(url, method, body, std::vector<Header>(request_headers.begin(), request_headers.end()), lower);
+  }
+
+  // Remove before 2027.1.0
+  ESPDEPRECATED("Pass request_headers as std::vector<Header> instead of std::list. Removed in 2027.1.0.", "2026.7.0")
+  std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
+                                       const std::list<Header> &request_headers,
+                                       const std::vector<std::string> &lower_case_collect_headers) {
+    return this->perform(url, method, body, std::vector<Header>(request_headers.begin(), request_headers.end()),
+                         lower_case_collect_headers);
+  }
+
+  std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
+                                       const std::vector<Header> &request_headers,
                                        const std::vector<std::string> &lower_case_collect_headers) {
     return this->perform(url, method, body, request_headers, lower_case_collect_headers);
   }
 
  protected:
   virtual std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method,
-                                                 const std::string &body, const std::list<Header> &request_headers,
+                                                 const std::string &body, const std::vector<Header> &request_headers,
                                                  const std::vector<std::string> &lower_case_collect_headers) = 0;
   const char *useragent_{nullptr};
   bool follow_redirects_{};
@@ -436,13 +494,10 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       auto f = std::bind(&HttpRequestSendAction<Ts...>::encode_json_func_, this, x..., std::placeholders::_1);
       body = json::build_json(f);
     }
-    std::list<Header> request_headers;
-    for (const auto &item : this->request_headers_) {
-      auto val = item.second;
-      Header header;
-      header.name = item.first;
-      header.value = val.value(x...);
-      request_headers.push_back(header);
+    std::vector<Header> request_headers;
+    request_headers.reserve(this->request_headers_.size());
+    for (const auto &[key, val] : this->request_headers_) {
+      request_headers.push_back({key, val.value(x...)});
     }
 
     auto container = this->parent_->start(this->url_.value(x...), this->method_.value(x...), body, request_headers,
