@@ -41,7 +41,7 @@ class LilygoT547PlusDisplay : public display::DisplayBuffer {
 
   size_t get_buffer_length_();
 
-  bool greyscale_;
+  bool greyscale_{false};
 };
 
 }  // namespace lilygo_t5_47_plus
