@@ -328,28 +328,29 @@ TIME_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("15min"))
 
 
-def _build_dst_rule(rule):
-    """Build a cg.StructInitializer for a DSTRule from a Python DSTRule."""
-    return cg.StructInitializer(
-        DSTRule_cpp,
-        ("time_seconds", rule.time_seconds),
-        ("day", rule.day),
-        ("type", _DST_RULE_TYPE_MAP[rule.type]),
-        ("month", rule.month),
-        ("week", rule.week),
-        ("day_of_week", rule.day_of_week),
-    )
+def _emit_dst_rule_fields(prefix, rule):
+    """Emit field-by-field assignments for a DSTRule to avoid rodata struct blob."""
+    cg.add(cg.RawExpression(f"{prefix}.time_seconds = {rule.time_seconds}"))
+    cg.add(cg.RawExpression(f"{prefix}.day = {rule.day}"))
+    cg.add(cg.RawExpression(f"{prefix}.type = {_DST_RULE_TYPE_MAP[rule.type]}"))
+    cg.add(cg.RawExpression(f"{prefix}.month = {rule.month}"))
+    cg.add(cg.RawExpression(f"{prefix}.week = {rule.week}"))
+    cg.add(cg.RawExpression(f"{prefix}.day_of_week = {rule.day_of_week}"))
 
 
-def _build_parsed_timezone_struct(parsed):
-    """Build a cg.StructInitializer for a ParsedTimezone from a Python ParsedTimezone."""
-    return cg.StructInitializer(
-        ParsedTimezone_cpp,
-        ("std_offset_seconds", parsed.std_offset_seconds),
-        ("dst_offset_seconds", parsed.dst_offset_seconds),
-        ("dst_start", _build_dst_rule(parsed.dst_start)),
-        ("dst_end", _build_dst_rule(parsed.dst_end)),
-    )
+def _emit_parsed_timezone_fields(parsed):
+    """Emit field-by-field assignments for a local ParsedTimezone, then set_global_tz().
+
+    Uses individual assignments on a stack variable instead of a struct initializer
+    to keep constants as immediate operands in instructions (.irom0.text/flash)
+    rather than a const blob in .rodata (which maps to RAM on ESP8266).
+    """
+    cg.add(cg.RawExpression("time::ParsedTimezone tz{}"))
+    cg.add(cg.RawExpression(f"tz.std_offset_seconds = {parsed.std_offset_seconds}"))
+    cg.add(cg.RawExpression(f"tz.dst_offset_seconds = {parsed.dst_offset_seconds}"))
+    _emit_dst_rule_fields("tz.dst_start", parsed.dst_start)
+    _emit_dst_rule_fields("tz.dst_end", parsed.dst_end)
+    cg.add(time_ns.set_global_tz(cg.RawExpression("tz")))
 
 
 async def setup_time_core_(time_var, config):
@@ -362,8 +363,7 @@ async def setup_time_core_(time_var, config):
         else:
             # Embedded: pre-parse at codegen time, emit struct directly
             parsed = parse_posix_tz_python(timezone)
-            tz_struct = _build_parsed_timezone_struct(parsed)
-            cg.add(time_ns.set_global_tz(tz_struct))
+            _emit_parsed_timezone_fields(parsed)
 
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
