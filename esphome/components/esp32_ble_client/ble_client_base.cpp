@@ -236,11 +236,6 @@ void BLEClientBase::log_warning_(const char *message) {
   ESP_LOGW(TAG, "[%d] [%s] %s", this->connection_index_, this->address_str_, message);
 }
 
-void BLEClientBase::set_idle_() {
-  this->set_state(espbt::ClientState::IDLE);
-  this->conn_id_ = UNSET_CONN_ID;
-}
-
 void BLEClientBase::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
                                         uint16_t timeout, const char *param_type) {
   esp_ble_conn_update_params_t conn_params = {{0}};
