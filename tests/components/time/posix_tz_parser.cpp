@@ -565,6 +565,12 @@ TEST(ESPTimeStrptime, LeadingZeroTime) {
 // recalc_timestamp_local() tests - verify behavior matches libc mktime()
 // ============================================================================
 
+}  // namespace esphome::testing
+
+namespace esphome::time::testing {
+
+using esphome::ESPTime;
+
 // Helper to call libc mktime with same fields
 static time_t libc_mktime(int year, int month, int day, int hour, int min, int sec) {
   struct tm tm {};
@@ -775,7 +781,7 @@ TEST(RecalcTimestampLocal, YearBoundaryDST) {
 // ============================================================================
 
 TEST(TimezoneOffset, NoTimezone) {
-  time::ParsedTimezone tz{};
+  ParsedTimezone tz{};
   set_global_tz(tz);
 
   int32_t offset = ESPTime::timezone_offset();
@@ -784,7 +790,7 @@ TEST(TimezoneOffset, NoTimezone) {
 
 TEST(TimezoneOffset, FixedOffsetPositive) {
   // India: IST-5:30 (no DST)
-  time::ParsedTimezone tz{};
+  ParsedTimezone tz{};
   tz.std_offset_seconds = -(5 * 3600 + 30 * 60);
   set_global_tz(tz);
 
@@ -794,7 +800,7 @@ TEST(TimezoneOffset, FixedOffsetPositive) {
 
 TEST(TimezoneOffset, FixedOffsetNegative) {
   // EST5 (no DST)
-  time::ParsedTimezone tz{};
+  ParsedTimezone tz{};
   tz.std_offset_seconds = 5 * 3600;
   set_global_tz(tz);
 
@@ -812,7 +818,7 @@ TEST(TimezoneOffset, WithDstReturnsCorrectOffsetBasedOnCurrentTime) {
   int32_t offset = ESPTime::timezone_offset();
 
   // Verify offset matches what is_in_dst says
-  if (time::is_in_dst(now, tz)) {
+  if (is_in_dst(now, tz)) {
     // During DST, offset should be -4 hours (EDT)
     EXPECT_EQ(offset, -4 * 3600);
   } else {
@@ -821,4 +827,4 @@ TEST(TimezoneOffset, WithDstReturnsCorrectOffsetBasedOnCurrentTime) {
   }
 }
 
-}  // namespace esphome::testing
+}  // namespace esphome::time::testing
