@@ -58,6 +58,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from . import wpa2_eap
 
@@ -269,9 +270,28 @@ def final_validate(config):
         )
 
 
+def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
+    """Register UDP PCBs used internally by lwIP for DHCP and DNS.
+
+    Only needed on LibreTiny where we directly set MEMP_NUM_UDP_PCB (the raw
+    PCB pool shared by both application sockets and lwIP internals like DHCP/DNS).
+    On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket layer —
+    DHCP/DNS use raw udp_new() which bypasses it entirely.
+    """
+    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x):
+        return config
+    from esphome.components import socket
+
+    # lwIP allocates UDP PCBs for DHCP client and DNS resolver internally.
+    # These are not application sockets but consume MEMP_NUM_UDP_PCB pool entries.
+    socket.consume_sockets(2, "wifi.lwip_internal", socket.SocketType.UDP)(config)
+    return config
+
+
 FINAL_VALIDATE_SCHEMA = cv.All(
     final_validate,
     validate_variant,
+    _consume_wifi_sockets,
 )
 
 
