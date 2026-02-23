@@ -103,9 +103,13 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
 void BLEClientBase::connect() {
   // Prevent duplicate connection attempts or connecting while still disconnecting
   if (this->state() == espbt::ClientState::CONNECTING || this->state() == espbt::ClientState::CONNECTED ||
-      this->state() == espbt::ClientState::ESTABLISHED || this->state() == espbt::ClientState::DISCONNECTING) {
+      this->state() == espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "[%d] [%s] Connection already in progress, state=%s", this->connection_index_, this->address_str_,
              espbt::client_state_to_string(this->state()));
+    return;
+  } else if (this->state() == espbt::ClientState::DISCONNECTING) {
+    ESP_LOGW(TAG, "[%d] [%s] Cannot connect, still waiting for CLOSE_EVT to complete disconnect",
+             this->connection_index_, this->address_str_);
     return;
   }
   ESP_LOGI(TAG, "[%d] [%s] 0x%02x Connecting", this->connection_index_, this->address_str_, this->remote_addr_type_);
