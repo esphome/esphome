@@ -37,6 +37,14 @@ struct ParsedTimezone {
 };
 
 /// Parse a POSIX TZ string into a ParsedTimezone struct.
+///
+/// @deprecated Remove before 2026.9.0 (bridge code for backward compatibility).
+/// This parser only exists so that older Home Assistant clients that send the timezone
+/// as a string (instead of the pre-parsed ParsedTimezone protobuf struct) can still
+/// set the timezone on the device. Once all clients are updated to send the struct
+/// directly, this function and all internal parsing helpers will be removed.
+/// See https://github.com/esphome/backlog/issues/91
+///
 /// Supports formats like:
 ///   - "EST5" (simple offset, no DST)
 ///   - "EST5EDT,M3.2.0,M11.1.0" (with DST, M-format rules)
@@ -72,7 +80,11 @@ const ParsedTimezone &get_global_tz();
 /// @return true if DST is in effect at the given time
 bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz);
 
-// Internal helper functions exposed for testing
+// Internal helper functions exposed for testing.
+// Remove before 2026.9.0: skip_tz_name, parse_offset, parse_dst_rule are only
+// used by parse_posix_tz() which is bridge code for backward compatibility.
+// The remaining helpers (epoch_to_tm_utc, day_of_week, days_in_month, etc.)
+// are used by the conversion functions and will stay.
 
 namespace internal {
 
