@@ -375,9 +375,8 @@ json::SerializationBuffer<> WebServer::get_config_json() {
   JsonObject root = builder.root();
 
   root[ESPHOME_F("title")] = App.get_friendly_name().empty() ? App.get_name().c_str() : App.get_friendly_name().c_str();
-  char comment_buffer[ESPHOME_COMMENT_SIZE];
-  App.get_comment_string(comment_buffer);
-  root[ESPHOME_F("comment")] = comment_buffer;
+  auto comment = App.get_comment();
+  root[ESPHOME_F("comment")] = comment.c_str();
 #if defined(USE_WEBSERVER_OTA_DISABLED) || !defined(USE_WEBSERVER_OTA)
   root[ESPHOME_F("ota")] = false;  // Note: USE_WEBSERVER_OTA_DISABLED only affects web_server, not captive_portal
 #else

@@ -6,7 +6,6 @@
 #include <span>
 #include <string>
 #include <vector>
-#include "esphome/core/build_info_data.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -274,19 +273,14 @@ class Application {
     return "";
   }
 
+  /// Get the size of the comment buffer (including null terminator)
+  static size_t get_comment_size();
+
   /// Copy the comment string into the provided buffer
-  /// Buffer must be ESPHOME_COMMENT_SIZE bytes (compile-time enforced)
-  void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE> buffer) {
-    ESPHOME_strncpy_P(buffer.data(), ESPHOME_COMMENT_STR, buffer.size());
-    buffer[buffer.size() - 1] = '\0';
-  }
+  void get_comment_string(char *buffer, size_t size);
 
   /// Get the comment of this Application as a string
-  std::string get_comment() {
-    char buffer[ESPHOME_COMMENT_SIZE];
-    this->get_comment_string(buffer);
-    return std::string(buffer);
-  }
+  std::string get_comment();
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
@@ -294,26 +288,22 @@ class Application {
   static constexpr size_t BUILD_TIME_STR_SIZE = 26;
 
   /// Get the config hash as a 32-bit integer
-  constexpr uint32_t get_config_hash() { return ESPHOME_CONFIG_HASH; }
+  uint32_t get_config_hash();
 
   /// Get the config hash extended with ESPHome version
-  constexpr uint32_t get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
+  uint32_t get_config_version_hash();
 
   /// Get the build time as a Unix timestamp
-  constexpr time_t get_build_time() { return ESPHOME_BUILD_TIME; }
+  time_t get_build_time();
 
   /// Copy the build time string into the provided buffer
-  /// Buffer must be BUILD_TIME_STR_SIZE bytes (compile-time enforced)
+  /// Buffer must be BUILD_TIME_STR_SIZE bytes
   void get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer);
 
   /// Get the build time as a string (deprecated, use get_build_time_string() instead)
   // Remove before 2026.7.0
   ESPDEPRECATED("Use get_build_time_string() instead. Removed in 2026.7.0", "2026.1.0")
-  std::string get_compilation_time() {
-    char buf[BUILD_TIME_STR_SIZE];
-    this->get_build_time_string(buf);
-    return std::string(buf);
-  }
+  std::string get_compilation_time();
 
   /// Get the cached time in milliseconds from when the current component started its loop execution
   inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }

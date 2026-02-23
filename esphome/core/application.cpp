@@ -749,4 +749,29 @@ void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buf
   buffer[buffer.size() - 1] = '\0';
 }
 
+size_t Application::get_comment_size() { return ESPHOME_COMMENT_SIZE; }
+
+void Application::get_comment_string(char *buffer, size_t size) {
+  ESPHOME_strncpy_P(buffer, ESPHOME_COMMENT_STR, size);
+  buffer[size - 1] = '\0';
+}
+
+std::string Application::get_comment() {
+  char buffer[ESPHOME_COMMENT_SIZE];
+  this->get_comment_string(buffer, sizeof(buffer));
+  return std::string(buffer);
+}
+
+uint32_t Application::get_config_hash() { return ESPHOME_CONFIG_HASH; }
+
+uint32_t Application::get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
+
+time_t Application::get_build_time() { return ESPHOME_BUILD_TIME; }
+
+std::string Application::get_compilation_time() {
+  char buf[BUILD_TIME_STR_SIZE];
+  this->get_build_time_string(buf);
+  return std::string(buf);
+}
+
 }  // namespace esphome
