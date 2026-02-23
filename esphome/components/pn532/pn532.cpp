@@ -31,10 +31,7 @@ void PN532::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG,
-           "Found chip PN5%02X\n"
-           "Firmware ver. %d.%d",
-           version_data[0], version_data[1], version_data[2]);
+  ESP_LOGD(TAG, "Found chip PN5%02X, Firmware v%d.%d", version_data[0], version_data[1], version_data[2]);
 
   if (!this->write_command_({
           PN532_COMMAND_SAMCONFIGURATION,
