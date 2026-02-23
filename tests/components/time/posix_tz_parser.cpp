@@ -1,5 +1,14 @@
-// Tests for the POSIX TZ parser and ESPTime::strptime implementations
-// These custom parsers avoid pulling in the scanf family, saving ~9.8KB on ESP32-IDF.
+// Tests for the POSIX TZ parser, time conversion functions, and ESPTime::strptime.
+//
+// Most tests here cover the C++ POSIX TZ string parser (parse_posix_tz), which is
+// bridge code for backward compatibility — it will be removed before ESPHome 2026.9.0.
+// After https://github.com/esphome/esphome/pull/14233 merges, the parser is solely
+// used to handle timezone strings from Home Assistant clients older than 2026.3.0
+// that haven't been updated to send the pre-parsed ParsedTimezone protobuf struct.
+// See https://github.com/esphome/backlog/issues/91
+//
+// The epoch_to_local_tm, is_in_dst, and ESPTime::strptime tests cover conversion
+// functions that will remain permanently.
 
 // Enable USE_TIME_TIMEZONE for tests
 #define USE_TIME_TIMEZONE
