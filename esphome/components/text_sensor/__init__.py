@@ -206,6 +206,7 @@ async def setup_text_sensor_core_(var, config):
     setup_device_class(config)
 
     if config.get(CONF_FILTERS):  # must exist and not be empty
+        cg.add_define("USE_TEXT_SENSOR_FILTER")
         filters = await build_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))
 
