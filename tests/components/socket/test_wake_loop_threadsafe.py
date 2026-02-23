@@ -66,12 +66,12 @@ def test_require_wake_loop_threadsafe__no_networking_does_not_consume_socket() -
     CORE.config = {"logger": {}}
 
     # Track initial socket consumer state
-    initial_consumers = CORE.data.get(socket.KEY_SOCKET_CONSUMERS, {})
+    initial_udp = CORE.data.get(socket.KEY_SOCKET_CONSUMERS_UDP, {})
 
     # Call require_wake_loop_threadsafe
     socket.require_wake_loop_threadsafe()
 
     # Verify no socket was consumed
-    consumers = CORE.data.get(socket.KEY_SOCKET_CONSUMERS, {})
-    assert "socket.wake_loop_threadsafe" not in consumers
-    assert consumers == initial_consumers
+    udp_consumers = CORE.data.get(socket.KEY_SOCKET_CONSUMERS_UDP, {})
+    assert "socket.wake_loop_threadsafe" not in udp_consumers
+    assert udp_consumers == initial_udp

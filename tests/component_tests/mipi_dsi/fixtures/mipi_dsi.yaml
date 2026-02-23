@@ -15,8 +15,13 @@ esp_ldo:
 
 display:
   - platform: mipi_dsi
+    id: p4_nano
     model: WAVESHARE-P4-NANO-10.1
-
+    rotation: 90
+  - platform: mipi_dsi
+    id: p4_86
+    model: "WAVESHARE-P4-86-PANEL"
+    rotation: 180
 i2c:
   sda: GPIO7
   scl: GPIO8
