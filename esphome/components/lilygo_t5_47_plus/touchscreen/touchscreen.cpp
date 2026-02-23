@@ -10,11 +10,15 @@ namespace lilygo_t5_47_plus {
 
 static const char *const TAG = "lilygo_t5_47_plus.touchscreen";
 
-#define ERROR_CHECK(err) \
-  if ((err) != i2c::ERROR_OK) { \
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL)); \
-    return; \
+namespace {
+inline bool i2c_ok(i2c::ErrorCode err, LilygoT547PlusTouchscreen *ts) {
+  if (err != i2c::ERROR_OK) {
+    ts->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
   }
+  return true;
+}
+}  // namespace
 
 void LilygoT547PlusTouchscreen::setup() {
   // GPIO47 wakeup sequence — required by this board for GT911 initialization.
@@ -71,9 +75,11 @@ void LilygoT547PlusTouchscreen::update_touches() {
   uint8_t data[MAX_TOUCHES][8];
 
   err = this->write(GET_TOUCH_STATE, sizeof(GET_TOUCH_STATE));
-  ERROR_CHECK(err);
+  if (!i2c_ok(err, this))
+    return;
   err = this->read(&touch_state, 1);
-  ERROR_CHECK(err);
+  if (!i2c_ok(err, this))
+    return;
   this->write(CLEAR_TOUCH_STATE, sizeof(CLEAR_TOUCH_STATE));
 
   uint8_t num_of_touches = touch_state & 0x07;
@@ -87,9 +93,11 @@ void LilygoT547PlusTouchscreen::update_touches() {
   }
 
   err = this->write(GET_TOUCHES, sizeof(GET_TOUCHES));
-  ERROR_CHECK(err);
+  if (!i2c_ok(err, this))
+    return;
   err = this->read(data[0], sizeof(data[0]) * num_of_touches);
-  ERROR_CHECK(err);
+  if (!i2c_ok(err, this))
+    return;
 
   for (uint8_t i = 0; i < num_of_touches; i++) {
     uint16_t id = data[i][0];

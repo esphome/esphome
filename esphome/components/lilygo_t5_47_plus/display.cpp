@@ -53,7 +53,7 @@ void LilygoT547PlusDisplay::update() {
   uint32_t t1 = esphome::millis();
   this->display();
   uint32_t t2 = esphome::millis();
-  ESP_LOGD(TAG, "update(): do_update_=%ums, display=%ums, total=%ums", t1 - t0, t2 - t1, t2 - t0);
+  ESP_LOGV(TAG, "update(): do_update_=%ums, display=%ums, total=%ums", t1 - t0, t2 - t1, t2 - t0);
 }
 
 void HOT LilygoT547PlusDisplay::draw_absolute_pixel_internal(int x, int y, Color color) {
@@ -92,7 +92,7 @@ void LilygoT547PlusDisplay::display() {
   epd_poweroff();
   uint32_t t4 = esphome::millis();
 
-  ESP_LOGD(TAG, "display(): poweron=%ums, clear=%ums, draw=%ums, poweroff=%ums, total=%ums", t1 - t0, t2 - t1, t3 - t2,
+  ESP_LOGV(TAG, "display(): poweron=%ums, clear=%ums, draw=%ums, poweroff=%ums, total=%ums", t1 - t0, t2 - t1, t3 - t2,
            t4 - t3, t4 - t0);
 }
 
