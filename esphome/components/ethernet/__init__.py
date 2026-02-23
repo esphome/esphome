@@ -16,6 +16,7 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     include_builtin_idf_component,
 )
+from esphome.components.network import CONF_PRIORITY, KEY_NETWORK_PRIORITY, get_network_priority
 from esphome.components.network import ip_address_literal
 from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
 import esphome.config_validation as cv
@@ -57,22 +58,8 @@ from esphome.core import (
     coroutine_with_priority,
 )
 import esphome.final_validate as fv
-from esphome.components.network import CONF_PRIORITY
-
-def _final_validate(config):
-    full = fv.full_config.get()
-    net_priority = full.get("network", {}).get(CONF_PRIORITY, [])
-    has_priority_config = "ethernet" in net_priority and "wifi" in net_priority
-
-    if "wifi" in full and not has_priority_config:
-        raise cv.Invalid(
-            "Ethernet and WiFi cannot be used together unless both are listed "
-            "under 'network: priority:'"
-        )
-
 from esphome.types import ConfigType
 
-CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
 LOGGER = logging.getLogger(__name__)
@@ -449,10 +436,13 @@ async def to_code(config):
 
     cg.add_define("USE_ETHERNET")
 
-    # Disable WiFi when using Ethernet to save memory
-    add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
-    # Also disable WiFi/BT coexistence since WiFi is disabled
-    add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
+    # Disable WiFi when using Ethernet alone to save memory.
+    # When network: priority: lists both interfaces, WiFi must remain enabled.
+    net_priority = CORE.data.get(KEY_NETWORK_PRIORITY, [])
+    running_with_wifi = "wifi" in net_priority and "ethernet" in net_priority
+    if not running_with_wifi:
+        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
+        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
 
     # Re-enable ESP-IDF's Ethernet driver (excluded by default to save compile time)
     include_builtin_idf_component("esp_eth")
@@ -525,6 +515,16 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 
 def _final_validate(config: ConfigType) -> ConfigType:
     """Final validation for Ethernet component."""
+    # Allow ethernet + wifi coexistence only when both are declared in network: priority:
+    full = fv.full_config.get()
+    net_priority = full.get("network", {}).get(CONF_PRIORITY, [])
+    has_priority_config = "ethernet" in net_priority and "wifi" in net_priority
+    if "wifi" in full and not has_priority_config:
+        raise cv.Invalid(
+            "Component ethernet cannot be used together with component wifi "
+            "unless both are listed under 'network: priority:'"
+        )
+
     _final_validate_spi(config)
     _final_validate_rmii_pins(config)
     return config
