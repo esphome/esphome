@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hdc302x {
+namespace esphome::hdc302x {
 
 static const char *const TAG = "hdc302x.sensor";
 
@@ -36,12 +35,14 @@ void HDC302XComponent::setup() {
 }
 
 void HDC302XComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "HDC302x:");
+  ESP_LOGCONFIG(TAG,
+                "HDC302x:\n"
+                "  Heater: %s",
+                this->heater_active_ ? "active" : "inactive");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temp_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  ESP_LOGCONFIG(TAG, "  Heater: %s", this->heater_active_ ? "active" : "inactive");
 }
 
 void HDC302XComponent::update() {
@@ -89,7 +90,7 @@ bool HDC302XComponent::enable_heater_() {
   return true;
 }
 
-bool HDC302XComponent::configure_heater_(const uint16_t power_level) {
+bool HDC302XComponent::configure_heater_(uint16_t power_level) {
   if (power_level > 0x3fff) {
     ESP_LOGW(TAG, "Heater power 0x%04x exceeds max 0x3fff", power_level);
     return false;
@@ -167,5 +168,4 @@ uint32_t HDC302XComponent::conversion_delay_ms_() {
   }
 }
 
-}  // namespace hdc302x
-}  // namespace esphome
+}  // namespace esphome::hdc302x

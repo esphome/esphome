@@ -5,8 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace hdc302x {
+namespace esphome::hdc302x {
 
 enum HDC302XPowerMode : uint8_t {
   HIGH_ACCURACY = 0x00,
@@ -14,11 +13,6 @@ enum HDC302XPowerMode : uint8_t {
   LOW_POWER = 0x16,
   ULTRA_LOW_POWER = 0xff,
 };
-
-/* HDC302x heater power configs, per datasheet Table 7-15. */
-static const uint16_t HDC302X_HEATER_POWER_FULL = 0x3fff;
-static const uint16_t HDC302X_HEATER_POWER_HALF = 0x03ff;
-static const uint16_t HDC302X_HEATER_POWER_QUARTER = 0x009f;
 
 /**
  HDC302x Temperature and humidity sensor.
@@ -71,5 +65,4 @@ template<typename... Ts> class HeaterOffAction : public Action<Ts...>, public Pa
   void play(const Ts &...x) override { this->parent_->stop_heater(); }
 };
 
-}  // namespace hdc302x
-}  // namespace esphome
+}  // namespace esphome::hdc302x
