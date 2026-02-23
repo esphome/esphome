@@ -51,13 +51,11 @@ void SafeModeComponent::dump_config() {
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
   const esp_partition_t *last_invalid = esp_ota_get_last_invalid_partition();
   if (last_invalid != nullptr) {
-    ESP_LOGW(TAG,
-             "OTA rollback detected! Rolled back from partition '%s'\n"
-             "The device reset before the boot was marked successful",
-             last_invalid->label);
+    ESP_LOGW(TAG, "OTA rollback detected! Rolled back from partition '%s'", last_invalid->label);
+    ESP_LOGW(TAG, "The device reset before the boot was marked successful");
     if (esp_reset_reason() == ESP_RST_BROWNOUT) {
-      ESP_LOGW(TAG, "Last reset was due to brownout - check your power supply!\n"
-                    "See https://esphome.io/guides/faq.html#brownout-detector-was-triggered");
+      ESP_LOGW(TAG, "Last reset was due to brownout - check your power supply!");
+      ESP_LOGW(TAG, "See https://esphome.io/guides/faq.html#brownout-detector-was-triggered");
     }
   }
 #endif
@@ -104,7 +102,7 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
   this->safe_mode_enable_time_ = enable_time;
   this->safe_mode_boot_is_good_after_ = boot_is_good_after;
   this->safe_mode_num_attempts_ = num_attempts;
-  this->rtc_ = global_preferences->make_preference<uint32_t>(233825507UL, false);
+  this->rtc_ = global_preferences->make_preference<uint32_t>(RTC_KEY, false);
 
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
   // Check partition state to detect if bootloader supports rollback

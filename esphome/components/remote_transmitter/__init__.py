@@ -171,7 +171,7 @@ async def to_code(config):
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "remote_transmitter_esp32.cpp": {
+        "remote_transmitter_rmt.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
