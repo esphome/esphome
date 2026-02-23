@@ -31,10 +31,7 @@ void PN532::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG,
-           "Found chip PN5%02X\n"
-           "Firmware ver. %d.%d",
-           version_data[0], version_data[1], version_data[2]);
+  ESP_LOGD(TAG, "Found chip PN5%02X, Firmware v%d.%d", version_data[0], version_data[1], version_data[2]);
 
   if (!this->write_command_({
           PN532_COMMAND_SAMCONFIGURATION,
@@ -425,8 +422,6 @@ bool PN532::write_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message) {
   ESP_LOGE(TAG, "Unsupported Tag for formatting");
   return false;
 }
-
-float PN532::get_setup_priority() const { return setup_priority::DATA; }
 
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");

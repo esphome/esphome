@@ -1,3 +1,6 @@
+#include "esphome/core/defines.h"
+#ifdef USE_SENSOR_FILTER
+
 #include "filter.h"
 #include <cmath>
 #include "esphome/core/application.h"
@@ -8,6 +11,11 @@
 namespace esphome::sensor {
 
 static const char *const TAG = "sensor.filter";
+
+// Filter scheduler IDs.
+// Each filter is its own Component instance, so the scheduler scopes
+// IDs by component pointer — no risk of collisions between instances.
+constexpr uint32_t FILTER_ID = 0;
 
 // Filter
 void Filter::input(float value) {
@@ -191,7 +199,7 @@ optional<float> ThrottleAverageFilter::new_value(float value) {
   return {};
 }
 void ThrottleAverageFilter::setup() {
-  this->set_interval("throttle_average", this->time_period_, [this]() {
+  this->set_interval(FILTER_ID, this->time_period_, [this]() {
     ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
     if (this->n_ == 0) {
       if (this->have_nan_)
@@ -383,7 +391,7 @@ optional<float> TimeoutFilterConfigured::new_value(float value) {
 
 // DebounceFilter
 optional<float> DebounceFilter::new_value(float value) {
-  this->set_timeout("debounce", this->time_period_, [this, value]() { this->output(value); });
+  this->set_timeout(FILTER_ID, this->time_period_, [this, value]() { this->output(value); });
 
   return {};
 }
@@ -406,7 +414,7 @@ optional<float> HeartbeatFilter::new_value(float value) {
 }
 
 void HeartbeatFilter::setup() {
-  this->set_interval("heartbeat", this->time_period_, [this]() {
+  this->set_interval(FILTER_ID, this->time_period_, [this]() {
     ESP_LOGVV(TAG, "HeartbeatFilter(%p)::interval(has_value=%s, last_input=%f)", this, YESNO(this->has_value_),
               this->last_input_);
     if (!this->has_value_)
@@ -575,3 +583,5 @@ void StreamingMovingAverageFilter::reset_batch() {
 }
 
 }  // namespace esphome::sensor
+
+#endif  // USE_SENSOR_FILTER
