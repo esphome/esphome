@@ -79,7 +79,6 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
   } else {
     snprintf(buf, size, "unknown source");
   }
-  ESP_LOGD(TAG, "Reset Reason: %s", buf);
   return buf;
 }
 
@@ -107,7 +106,6 @@ const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFE
   } else {
     wake_reason = "unknown source";
   }
-  ESP_LOGD(TAG, "Wakeup Reason: %s", wake_reason);
   // Return the static string directly - no need to copy to buffer
   return wake_reason;
 }
