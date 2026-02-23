@@ -834,6 +834,33 @@ message GetTimeRequest {
   option (source) = SOURCE_SERVER;
 }
 
+enum DSTRuleType {
+  DST_RULE_TYPE_NONE = 0;
+  DST_RULE_TYPE_MONTH_WEEK_DAY = 1;
+  DST_RULE_TYPE_JULIAN_NO_LEAP = 2;
+  DST_RULE_TYPE_DAY_OF_YEAR = 3;
+}
+
+message DSTRule {
+  option (source) = SOURCE_CLIENT;
+
+  sint32 time_seconds = 1;
+  uint32 day = 2;
+  DSTRuleType type = 3;
+  uint32 month = 4;
+  uint32 week = 5;
+  uint32 day_of_week = 6;
+}
+
+message ParsedTimezone {
+  option (source) = SOURCE_CLIENT;
+
+  sint32 std_offset_seconds = 1;
+  sint32 dst_offset_seconds = 2;
+  DSTRule dst_start = 3;
+  DSTRule dst_end = 4;
+}
+
 message GetTimeResponse {
   option (id) = 37;
   option (source) = SOURCE_CLIENT;
@@ -841,6 +868,7 @@ message GetTimeResponse {
 
   fixed32 epoch_seconds = 1;
   string timezone = 2;
+  ParsedTimezone parsed_timezone = 3;
 }
 
 // ==================== USER-DEFINES SERVICES ====================
