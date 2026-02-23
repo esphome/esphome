@@ -7,6 +7,7 @@ from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+import esphome.final_validate as fv
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
@@ -18,6 +19,13 @@ _LOGGER = logging.getLogger(__name__)
 KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 
+# Network priority tracking
+KEY_NETWORK_PRIORITY = "network_priority"
+CONF_PRIORITY = "priority"
+VALID_NETWORK_TYPES = ["ethernet", "wifi"]
+# Setup priority base values — first in list gets the highest priority
+NETWORK_PRIORITY_BASE = 300.0
+NETWORK_PRIORITY_STEP = 100.0
 network_ns = cg.esphome_ns.namespace("network")
 IPAddress = network_ns.class_("IPAddress")
 
@@ -105,6 +113,55 @@ def has_high_performance_networking() -> bool:
     return CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
 
 
+def get_network_priority(iface: str) -> float | None:
+    """Get the setup priority for the given network interface type.
+
+    Returns the float setup priority for ``iface`` based on the order declared
+    under ``network: priority:``.  Interfaces listed first receive a higher
+    setup priority so they are initialised before lower-priority ones.
+
+    If no ``network: priority:`` has been configured this returns ``None`` and
+    the calling component should fall back to its own default setup priority.
+
+    Args:
+        iface: Interface type string — one of ``"ethernet"`` or ``"wifi"``
+               (case-insensitive).
+
+    Returns:
+        float setup priority, or None if no priority list was configured.
+
+    Example usage inside a component's ``to_code``::
+
+        from esphome.components import network
+
+        async def to_code(config):
+            var = cg.new_Pvariable(config[CONF_ID])
+            await cg.register_component(var, config)
+
+            prio = network.get_network_priority("ethernet")
+            if prio is not None:
+                cg.add(var.set_setup_priority(prio))
+            ...
+    """
+    priority_list = CORE.data.get(KEY_NETWORK_PRIORITY)
+    if priority_list is None:
+        return None
+    iface_lower = iface.lower()
+    try:
+        idx = priority_list.index(iface_lower)
+    except ValueError:
+        return None
+    return NETWORK_PRIORITY_BASE - (idx * NETWORK_PRIORITY_STEP)
+
+
+def _validate_priority_list(value):
+    """Ensure the priority list has no duplicates and only valid interface names."""
+    value = cv.ensure_list(cv.one_of(*VALID_NETWORK_TYPES, lower=True))(value)
+    if len(value) != len(set(value)):
+        raise cv.Invalid("Duplicate entries are not allowed in 'priority'")
+    return value
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.SplitDefault(
@@ -130,14 +187,38 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
         cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(cv.boolean, cv.only_on_esp32),
+        cv.Optional(CONF_PRIORITY): _validate_priority_list,
     }
 )
+
+
+def _final_validate(config):
+    """Check that every interface named in 'priority' has a corresponding component block."""
+    full = fv.full_config.get()
+    for iface in config.get(CONF_PRIORITY, []):
+        if iface not in full:
+            raise cv.Invalid(
+                f"'{iface}' is listed in 'network: priority:' but no '{iface}:' "
+                f"component is configured",
+                [CONF_PRIORITY],
+            )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.NETWORK)
 async def to_code(config):
     cg.add_define("USE_NETWORK")
     # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
+
+    # Store the user-declared network priority list in CORE.data so that the
+    # ethernet and wifi components can query it via get_network_priority() during
+    # their own to_code phase.
+    if CONF_PRIORITY in config:
+        priority_list = config[CONF_PRIORITY]
+        CORE.data[KEY_NETWORK_PRIORITY] = priority_list
+        _LOGGER.info("Network interface priority: %s", " > ".join(priority_list))
 
     # Apply high performance networking settings
     # Config can explicitly enable/disable, or default to component-driven behavior

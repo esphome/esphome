@@ -13,6 +13,7 @@ from esphome.components.esp32 import (
 )
 from esphome.components.network import (
     has_high_performance_networking,
+    get_network_priority,
     ip_address_literal,
 )
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
@@ -454,6 +455,11 @@ def wifi_network(config, ap, static_ip):
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+
+    prio = get_network_priority("wifi")
+    if prio is not None:
+        cg.add(var.set_setup_priority(prio))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     # Track if any network uses Enterprise authentication

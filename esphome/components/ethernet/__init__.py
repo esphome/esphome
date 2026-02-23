@@ -57,6 +57,19 @@ from esphome.core import (
     coroutine_with_priority,
 )
 import esphome.final_validate as fv
+from esphome.components.network import CONF_PRIORITY
+
+def _final_validate(config):
+    full = fv.full_config.get()
+    net_priority = full.get("network", {}).get(CONF_PRIORITY, [])
+    has_priority_config = "ethernet" in net_priority and "wifi" in net_priority
+
+    if "wifi" in full and not has_priority_config:
+        raise cv.Invalid(
+            "Ethernet and WiFi cannot be used together unless both are listed "
+            "under 'network: priority:'"
+        )
+
 from esphome.types import ConfigType
 
 CONFLICTS_WITH = ["wifi"]
@@ -377,6 +390,11 @@ def phy_register(address: int, value: int, page: int):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # Apply network priority if configured, otherwise use the existing default
+    prio = get_network_priority("ethernet")
+    if prio is not None:
+        cg.add(var.set_setup_priority(prio))
 
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
         cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
