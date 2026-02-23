@@ -224,12 +224,9 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #ifdef USE_ARDUINO
   ESP_LOGD(TAG, "  Framework: Arduino");
   pos = buf_append_printf(buf, size, pos, "|Framework: Arduino");
-#elif defined(USE_ESP32)
+#else
   ESP_LOGD(TAG, "  Framework: ESP-IDF");
   pos = buf_append_printf(buf, size, pos, "|Framework: ESP-IDF");
-#else
-  ESP_LOGW(TAG, "  Framework: UNKNOWN");
-  pos = buf_append_printf(buf, size, pos, "|Framework: UNKNOWN");
 #endif
 
   pos = buf_append_printf(buf, size, pos, "|ESP-IDF: %s", esp_get_idf_version());
