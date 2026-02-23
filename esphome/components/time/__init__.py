@@ -344,13 +344,16 @@ def _emit_parsed_timezone_fields(parsed):
     Uses individual assignments on a stack variable instead of a struct initializer
     to keep constants as immediate operands in instructions (.irom0.text/flash)
     rather than a const blob in .rodata (which maps to RAM on ESP8266).
+    Wrapped in a scope block to allow multiple time platforms in the same build.
     """
+    cg.add(cg.RawStatement("{"))
     cg.add(cg.RawExpression("time::ParsedTimezone tz{}"))
     cg.add(cg.RawExpression(f"tz.std_offset_seconds = {parsed.std_offset_seconds}"))
     cg.add(cg.RawExpression(f"tz.dst_offset_seconds = {parsed.dst_offset_seconds}"))
     _emit_dst_rule_fields("tz.dst_start", parsed.dst_start)
     _emit_dst_rule_fields("tz.dst_end", parsed.dst_end)
     cg.add(time_ns.set_global_tz(cg.RawExpression("tz")))
+    cg.add(cg.RawStatement("}"))
 
 
 async def setup_time_core_(time_var, config):
