@@ -295,10 +295,19 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // ESP-IDF's BLE stack may send ESP_GATTC_OPEN_EVT after esp_ble_gattc_open() returns an
       // error, if the error occurred at the BTA/GATT layer. This can result in the event
       // arriving after we've already transitioned to IDLE state.
-      // It may also arrive during DISCONNECTING if the controller is still cleaning up.
-      if (this->state() == espbt::ClientState::IDLE || this->state() == espbt::ClientState::DISCONNECTING) {
-        ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in %s state (status=%d), ignoring", this->connection_index_,
-                 this->address_str_, espbt::client_state_to_string(this->state()), param->open.status);
+      if (this->state() == espbt::ClientState::IDLE) {
+        ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in IDLE state (status=%d), ignoring", this->connection_index_,
+                 this->address_str_, param->open.status);
+        break;
+      } else if (this->state() == espbt::ClientState::DISCONNECTING) {
+        // When a connection fails to establish, the ESP-IDF stack sends DISCONNECT_EVT
+        // (which we now transition to DISCONNECTING) followed by OPEN_EVT with a failure status.
+        // No CLOSE_EVT will follow since no GATT connection was established, so this
+        // failed OPEN_EVT is the terminal event — transition to IDLE here.
+        ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in DISCONNECTING state (status=%d), completing disconnection",
+                 this->connection_index_, this->address_str_, param->open.status);
+        this->set_state(espbt::ClientState::IDLE);
+        this->conn_id_ = UNSET_CONN_ID;
         break;
       }
 
