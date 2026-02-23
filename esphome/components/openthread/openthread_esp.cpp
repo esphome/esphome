@@ -130,10 +130,7 @@ void OpenThreadComponent::ot_main() {
   }
 #ifdef ESPHOME_LOG_HAS_DEBUG  // Fetch link mode from OT only when DEBUG
   link_mode_config = otThreadGetLinkMode(instance);
-  ESP_LOGD(TAG,
-           "Link Mode Device Type: %s\n"
-           "Link Mode Network Data: %s\n"
-           "Link Mode RX On When Idle: %s",
+  ESP_LOGD(TAG, "Link Mode Device Type: %s, Network Data: %s, RX On When Idle: %s",
            TRUEFALSE(link_mode_config.mDeviceType), TRUEFALSE(link_mode_config.mNetworkData),
            TRUEFALSE(link_mode_config.mRxOnWhenIdle));
 #endif
@@ -152,8 +149,7 @@ void OpenThreadComponent::ot_main() {
     // Make sure the length is 0 so we fallback to the configuration
     dataset.mLength = 0;
   } else {
-    ESP_LOGI(TAG, "Found OpenThread-managed dataset, ignoring esphome configuration\n"
-                  "(set force_dataset: true to override)");
+    ESP_LOGI(TAG, "Found existing dataset, ignoring config (force_dataset: true to override)");
   }
 #endif
 
