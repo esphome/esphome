@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -23,6 +24,12 @@ from esphome.const import (
     UNIT_OHM,
     UNIT_PERCENT,
 )
+=======
+from esphome import automation
+import esphome.codegen as cg
+from esphome.components import i2c
+import esphome.config_validation as cv
+>>>>>>> 543e5f7cd9f2a15397027e1d53b0c54f5cb71276
 
 from esphome import core
 
@@ -61,6 +68,7 @@ BME680Component = bme680_ns.class_(
     "BME680Component", cg.PollingComponent, i2c.I2CDevice
 )
 
+<<<<<<< HEAD
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_BME680_ID): cv.use_id(BME680Component),
@@ -130,6 +138,14 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s")).extend(i2c.i2c_device_schema(0x77))
 
 
+=======
+CONFIG_SCHEMA = i2c.i2c_device_schema(0x77).extend(
+    {
+        cv.GenerateID(CONF_BME680_ID): cv.use_id(BME680Component),
+    }
+)
+
+>>>>>>> 543e5f7cd9f2a15397027e1d53b0c54f5cb71276
 FINAL_VALIDATE_SCHEMA = i2c.final_validate_device_schema(
     "bme680", require_sda=False, require_scl=False
 )
