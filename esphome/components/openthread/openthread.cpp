@@ -268,13 +268,11 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
   ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
 }
 
-void OpenThreadComponent::set_link_mode(otInstance *instance, bool keep_radio_on, bool wait_for_role,
-                                        bool set_poll_period) {
-  otLinkModeConfig link_mode_config = {0};
+void OpenThreadComponent::set_link_mode(otInstance *instance, bool keep_radio_on, bool set_poll_period) {
 #if CONFIG_OPENTHREAD_FTD
-  link_mode_config.mRxOnWhenIdle = true;
-  link_mode_config.mDeviceType = true;
-  link_mode_config.mNetworkData = true;
+  this->link_mode_config_.mRxOnWhenIdle = true;
+  this->link_mode_config_.mDeviceType = true;
+  this->link_mode_config_.mNetworkData = true;
 #elif CONFIG_OPENTHREAD_MTD
 #ifdef USE_OPENTHREAD_POLL_PERIOD
   if (set_poll_period && otLinkSetPollPeriod(esp_openthread_get_instance(), this->poll_period_) != OT_ERROR_NONE) {
@@ -283,32 +281,22 @@ void OpenThreadComponent::set_link_mode(otInstance *instance, bool keep_radio_on
   uint32_t link_polling_period = otLinkGetPollPeriod(esp_openthread_get_instance());
   ESP_LOGD(TAG, "Link Polling Period: %d", link_polling_period);
 #endif
-  link_mode_config.mRxOnWhenIdle = (this->poll_period_ == 0 || keep_radio_on);
-  link_mode_config.mDeviceType = false;
-  link_mode_config.mNetworkData = false;
+  this->link_mode_config_.mRxOnWhenIdle = (this->poll_period_ == 0 || keep_radio_on);
+  this->link_mode_config_.mDeviceType = false;
+  this->link_mode_config_.mNetworkData = false;
 #endif
 
-  if (otThreadSetLinkMode(esp_openthread_get_instance(), link_mode_config) != OT_ERROR_NONE) {
-    ESP_LOGE(TAG, "Failed to set OpenThread linkmode.");
-  }
-  link_mode_config = otThreadGetLinkMode(esp_openthread_get_instance());
   ESP_LOGD(TAG,
-           "Link Mode:\n"
+           "Setting Link Mode:\n"
            "  Device Type: %s\n"
            "  Network Data: %s\n"
            "  RX On When Idle: %s",
-           link_mode_config.mDeviceType ? "true" : "false", link_mode_config.mNetworkData ? "true" : "false",
-           link_mode_config.mRxOnWhenIdle ? "true" : "false");
-  if (wait_for_role) {
-    otDeviceRole role = otThreadGetDeviceRole(instance);
-    uint32_t now = millis();
-    while (role < OT_DEVICE_ROLE_CHILD) {
-      // Feed watchdog during to prevent triggering
-      App.feed_wdt(now);
-      yield();
-      delay(10);
-      now = millis();
-    }
+           this->link_mode_config_.mDeviceType ? "true" : "false",
+           this->link_mode_config_.mNetworkData ? "true" : "false",
+           this->link_mode_config_.mRxOnWhenIdle ? "true" : "false");
+
+  if (otThreadSetLinkMode(esp_openthread_get_instance(), this->link_mode_config_) != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set OpenThread linkmode.");
   }
 }
 
@@ -329,7 +317,7 @@ esp_err_t OpenThreadComponent::keep_radio_on_during_idle(bool keep_radio_on) {
   if (instance == nullptr) {
     return ESP_FAIL;
   }
-  this->set_link_mode(instance, keep_radio_on, true, false);
+  this->set_link_mode(instance, keep_radio_on, false);
   return ESP_OK;
 }
 #endif

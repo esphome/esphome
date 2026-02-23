@@ -39,7 +39,7 @@ class OpenThreadComponent : public Component {
   void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
   esp_err_t keep_radio_on_during_idle(bool keep_radio_on);
 #endif
-  void set_link_mode(otInstance *instance, bool keep_radio_on, bool wait_for_role, bool set_poll_period);
+  void set_link_mode(otInstance *instance, bool keep_radio_on, bool set_poll_period);
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
@@ -49,6 +49,7 @@ class OpenThreadComponent : public Component {
 #endif
   bool teardown_started_{false};
   bool teardown_complete_{false};
+  otLinkModeConfig link_mode_config_{0};
 
  private:
   // Stores a pointer to a string literal (static storage duration).

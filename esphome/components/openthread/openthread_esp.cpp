@@ -108,7 +108,7 @@ void OpenThreadComponent::ot_main() {
 
   ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
 
-  this->set_link_mode(esp_openthread_get_instance(), false, false, true);
+  this->set_link_mode(esp_openthread_get_instance(), false, true);
 
   // Run the main loop
 #if CONFIG_OPENTHREAD_CLI
