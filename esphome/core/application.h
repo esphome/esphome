@@ -276,11 +276,15 @@ class Application {
   /// Maximum size of the comment buffer (including null terminator)
   static constexpr size_t COMMENT_MAX_SIZE = 256;
 
-  /// Get the comment string (PROGMEM-safe, copies to buffer)
+  /// Copy the comment string into the provided buffer
   void get_comment_string(std::span<char, COMMENT_MAX_SIZE> buffer);
 
   /// Get the comment of this Application as a string
-  std::string get_comment();
+  std::string get_comment() {
+    char buffer[COMMENT_MAX_SIZE];
+    this->get_comment_string(buffer);
+    return std::string(buffer);
+  }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
@@ -296,13 +300,18 @@ class Application {
   /// Get the build time as a Unix timestamp
   time_t get_build_time();
 
-  /// Get the build time string (PROGMEM-safe, copies to buffer)
+  /// Copy the build time string into the provided buffer
+  /// Buffer must be BUILD_TIME_STR_SIZE bytes (compile-time enforced)
   void get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer);
 
   /// Get the build time as a string (deprecated, use get_build_time_string() instead)
   // Remove before 2026.7.0
   ESPDEPRECATED("Use get_build_time_string() instead. Removed in 2026.7.0", "2026.1.0")
-  std::string get_compilation_time();
+  std::string get_compilation_time() {
+    char buf[BUILD_TIME_STR_SIZE];
+    this->get_build_time_string(buf);
+    return std::string(buf);
+  }
 
   /// Get the cached time in milliseconds from when the current component started its loop execution
   inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }
