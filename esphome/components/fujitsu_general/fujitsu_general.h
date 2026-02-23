@@ -56,11 +56,12 @@ class FujitsuGeneralClimate : public climate_ir::ClimateIR {
                   {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL,
                    climate::CLIMATE_SWING_BOTH}) {}
 
+  /// Transmit via IR a util command.
+  void transmit_util(uint8_t command);
+
  protected:
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
-  /// Transmit via IR power off command.
-  void transmit_off_();
 
   /// Parse incoming message
   bool on_receive(remote_base::RemoteReceiveData data) override;
