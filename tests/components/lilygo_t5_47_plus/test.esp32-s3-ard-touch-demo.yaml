@@ -1,0 +1,43 @@
+---
+# Demo: Log touch events to the console
+#
+# Uses the lilygo_t5_47_plus touchscreen platform, which internally:
+#   1. Runs the GPIO47 wakeup sequence BEFORE GT911 initialisation
+#   2. Communicates with GT911 using correct 16-bit registers (0x814E, 0x814F)
+#   3. Pure polling mode (no interrupt) — GPIO47 stays permanently LOW
+#
+# Based on the LilyGo-EPD47 reference (SensorLib v0.19, TouchDrvGT911).
+
+esphome:
+  name: lilygo-t547-touch-demo
+
+packages:
+  board: !include ../../../esphome/components/lilygo_t5_47_plus/board_config.yaml
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+i2c:
+  sda: GPIO18
+  scl: GPIO17
+  frequency: 400kHz
+
+touchscreen:
+  - platform: lilygo_t5_47_plus
+    id: my_touch
+    update_interval: 300ms
+    transform:
+      swap_xy: true
+      mirror_y: true
+    on_touch:
+      - lambda: |-
+          ESP_LOGI("touch", "TOUCH x=%d y=%d", touch.x, touch.y);
+    on_release:
+      - lambda: |-
+          ESP_LOGI("touch", "RELEASE");
+
+display:
+  - platform: lilygo_t5_47_plus
+    id: my_display
+    greyscale: false
+    update_interval: never

@@ -1,0 +1,69 @@
+---
+# Demo: A black square jumps to a random position on each touch
+#
+# 80×80 px square on a white background. On touch, a new random position
+# is calculated and the display is updated.
+# Further touches are ignored while the e-paper refresh (~4 s) is in progress.
+
+esphome:
+  name: lilygo-t547-touch-square
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            id(is_refreshing) = true;
+            id(my_display).update();
+            id(is_refreshing) = false;
+            ESP_LOGD("demo", "Boot: initial display done");
+
+packages:
+  board: !include ../../../esphome/components/lilygo_t5_47_plus/board_config.yaml
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+i2c:
+  sda: GPIO18
+  scl: GPIO17
+  frequency: 400kHz
+
+globals:
+  - id: sq_x
+    type: int
+    initial_value: '440'
+  - id: sq_y
+    type: int
+    initial_value: '230'
+  - id: is_refreshing
+    type: bool
+    initial_value: 'false'
+
+touchscreen:
+  - platform: lilygo_t5_47_plus
+    id: my_touch
+    display: my_display
+    update_interval: 50ms
+    transform:
+      swap_xy: true
+      mirror_y: true
+    on_touch:
+      - lambda: |-
+          if (id(is_refreshing)) return;
+          id(is_refreshing) = true;
+          uint32_t t0 = millis();
+          ESP_LOGI("demo", "Touch at (%d, %d) t=0", touch.x, touch.y);
+          id(sq_x) = esp_random() % (960 - 80);
+          id(sq_y) = esp_random() % (540 - 80);
+          ESP_LOGI("demo", "Calling update t=%ums", millis() - t0);
+          id(my_display).update();
+          ESP_LOGI("demo", "Update returned t=%ums", millis() - t0);
+          id(is_refreshing) = false;
+
+display:
+  - platform: lilygo_t5_47_plus
+    id: my_display
+    greyscale: false
+    update_interval: never
+    lambda: |-
+      it.fill(Color(0, 0, 0));
+      it.filled_rectangle(id(sq_x), id(sq_y), 80, 80, Color(255, 255, 255));

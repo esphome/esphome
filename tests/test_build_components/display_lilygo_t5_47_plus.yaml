@@ -1,0 +1,86 @@
+---
+# Full feature test for LILYGO T5 4.7" Plus E-Paper Display
+esphome:
+  name: display-lilygo-t547-full
+  friendly_name: "LILYGO T5 4.7\" Plus Full Test"
+  platformio_options:
+    board: lilygo-t5-47-plus-s3
+    board_dir: ../../components/lilygo_t5_47_plus/boards
+    board_build.arduino.memory_type: qio_opi
+
+esp32:
+  board: lilygo-t5-47-plus-s3
+  variant: esp32s3
+  framework:
+    type: arduino
+    version: 3.1.0
+    platform_version: 6.9.0
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+  level: INFO
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: "MySSID"
+  password: "MyPassword"
+
+time:
+  - platform: homeassistant
+    id: ha_time
+
+display:
+  - platform: lilygo_t5_47_plus
+    id: lilygo_display
+    greyscale: true
+    update_interval: 5min
+    lambda: |-
+      // Title
+      it.printf(480, 20, id(font_title), TextAlign::TOP_CENTER, "LILYGO T5 4.7\" Plus");
+      
+      // Time display
+      it.strftime(480, 100, id(font_large), TextAlign::TOP_CENTER, "%H:%M", id(ha_time).now());
+      it.strftime(480, 180, id(font_medium), TextAlign::TOP_CENTER, "%A, %d. %B %Y", id(ha_time).now());
+      
+      // Status
+      it.printf(10, 270, id(font_small), "WiFi: %s", id(wifi_status).state ? "Connected" : "Disconnected");
+      it.printf(10, 300, id(font_small), "IP: %s", WiFi.localIP().toString().c_str());
+      it.printf(10, 330, id(font_small), "Uptime: %.1f hours", id(uptime_sensor).state / 3600.0);
+      
+      // Graphics demo
+      it.rectangle(10, 370, 940, 160);
+      it.line(10, 370, 950, 530);
+      it.line(950, 370, 10, 530);
+      it.circle(480, 450, 40);
+      it.filled_circle(480, 450, 30);
+
+font:
+  - file: "gfonts://Roboto@700"
+    id: font_title
+    size: 40
+  - file: "gfonts://Roboto@500"
+    id: font_large
+    size: 60
+  - file: "gfonts://Roboto"
+    id: font_medium
+    size: 30
+  - file: "gfonts://Roboto"
+    id: font_small
+    size: 18
+
+sensor:
+  - platform: uptime
+    id: uptime_sensor
+    name: "Uptime"
+
+binary_sensor:
+  - platform: status
+    id: wifi_status
+    name: "WiFi Status"

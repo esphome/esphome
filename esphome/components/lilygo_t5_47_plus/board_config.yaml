@@ -1,0 +1,27 @@
+# Board configuration package for LILYGO T5 4.7" Plus E-Paper Display
+# Include this in your ESPHome configuration to automatically set up all required settings
+#
+# Usage:
+#   packages:
+#     board: github://esphome/esphome@dev/esphome/components/lilygo_t5_47_plus/board_config.yaml
+#
+# Hardware: ESP32-S3 with 16MB Flash, 8MB OPI PSRAM @ 80MHz
+
+esphome:
+  platformio_options:
+    upload_speed: 921600
+    board_build.flash_size: 16MB
+    board_build.flash_mode: qio
+    build_flags:
+      - "-DARDUINO_USB_CDC_ON_BOOT=1"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: arduino
+
+# PSRAM Configuration - requires 8MB OPI PSRAM
+psram:
+  mode: octal
+  speed: 80MHz
