@@ -26,9 +26,7 @@ void VersionTextSensor::setup() {
   if (!this->hide_timestamp_) {
     size_t len = strlen(version_str);
     ESPHOME_strncat_P(version_str, BUILT_STR, sizeof(version_str) - len - 1);
-    char time_buf[esphome::Application::BUILD_TIME_STR_SIZE];
-    App.get_build_time_string(time_buf);
-    strncat(version_str, time_buf, sizeof(version_str) - strlen(version_str) - 1);
+    ESPHOME_strncat_P(version_str, ESPHOME_BUILD_TIME_STR, sizeof(version_str) - strlen(version_str) - 1);
   }
 
   strncat(version_str, ")", sizeof(version_str) - strlen(version_str) - 1);
