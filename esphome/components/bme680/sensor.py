@@ -23,12 +23,7 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
-from . import (
-    CONF_BME680_ID,
-    BME680Component,
-    OVERSAMPLING_OPTIONS,
-    IIR_FILTER_OPTIONS,
-)
+from . import CONF_BME680_ID, IIR_FILTER_OPTIONS, OVERSAMPLING_OPTIONS, BME680Component
 
 DEPENDENCIES = ["i2c"]
 
