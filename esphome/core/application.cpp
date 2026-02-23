@@ -215,7 +215,8 @@ void Application::loop() {
 void Application::process_dump_config_() {
   if (this->dump_config_at_ == 0) {
     char build_time_str[Application::BUILD_TIME_STR_SIZE];
-    this->get_build_time_string(build_time_str);
+    ESPHOME_strncpy_P(build_time_str, ESPHOME_BUILD_TIME_STR, sizeof(build_time_str));
+    build_time_str[sizeof(build_time_str) - 1] = '\0';
     ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", build_time_str);
 #ifdef ESPHOME_PROJECT_NAME
     ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
@@ -749,16 +750,14 @@ void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buf
   buffer[buffer.size() - 1] = '\0';
 }
 
-size_t Application::get_comment_size() { return ESPHOME_COMMENT_SIZE; }
-
-void Application::get_comment_string(char *buffer, size_t size) {
-  ESPHOME_strncpy_P(buffer, ESPHOME_COMMENT_STR, size);
-  buffer[size - 1] = '\0';
+void Application::get_comment_string(std::span<char, COMMENT_MAX_SIZE> buffer) {
+  ESPHOME_strncpy_P(buffer.data(), ESPHOME_COMMENT_STR, buffer.size());
+  buffer[buffer.size() - 1] = '\0';
 }
 
 std::string Application::get_comment() {
-  char buffer[ESPHOME_COMMENT_SIZE];
-  this->get_comment_string(buffer, sizeof(buffer));
+  char buffer[COMMENT_MAX_SIZE];
+  this->get_comment_string(buffer);
   return std::string(buffer);
 }
 

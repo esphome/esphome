@@ -273,11 +273,11 @@ class Application {
     return "";
   }
 
-  /// Get the size of the comment buffer (including null terminator)
-  static size_t get_comment_size();
+  /// Maximum size of the comment buffer (including null terminator)
+  static constexpr size_t COMMENT_MAX_SIZE = 256;
 
-  /// Copy the comment string into the provided buffer
-  void get_comment_string(char *buffer, size_t size);
+  /// Get the comment string (PROGMEM-safe, copies to buffer)
+  void get_comment_string(std::span<char, COMMENT_MAX_SIZE> buffer);
 
   /// Get the comment of this Application as a string
   std::string get_comment();
@@ -296,8 +296,7 @@ class Application {
   /// Get the build time as a Unix timestamp
   time_t get_build_time();
 
-  /// Copy the build time string into the provided buffer
-  /// Buffer must be BUILD_TIME_STR_SIZE bytes
+  /// Get the build time string (PROGMEM-safe, copies to buffer)
   void get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer);
 
   /// Get the build time as a string (deprecated, use get_build_time_string() instead)
