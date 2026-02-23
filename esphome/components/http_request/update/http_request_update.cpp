@@ -24,8 +24,26 @@ namespace http_request {
 static const char *const TAG = "http_request.update";
 
 static const size_t MAX_READ_SIZE = 256;
+static constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
 
-void HttpRequestUpdate::setup() { this->ota_parent_->add_state_listener(this); }
+void HttpRequestUpdate::setup() {
+  this->ota_parent_->add_state_listener(this);
+
+  // Check every 10s until network is ready (max 6 attempts)
+  // Only if update interval is > 1 minute to avoid redundant checks
+  if (this->get_update_interval() > 60000) {
+    this->initial_check_remaining_ = 6;
+    this->set_interval(INITIAL_CHECK_INTERVAL_ID, 10000, [this]() {
+      bool connected = network::is_connected();
+      if (--this->initial_check_remaining_ == 0 || connected) {
+        this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
+        if (connected) {
+          this->update();
+        }
+      }
+    });
+  }
+}
 
 void HttpRequestUpdate::on_ota_state(ota::OTAState state, float progress, uint8_t error) {
   if (state == ota::OTAState::OTA_IN_PROGRESS) {
@@ -45,6 +63,8 @@ void HttpRequestUpdate::update() {
     ESP_LOGD(TAG, "Network not connected, skipping update check");
     return;
   }
+  // Network is up, cancel any pending initial check to prevent duplicate update checks
+  this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
 #ifdef USE_ESP32
   xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
 #else
