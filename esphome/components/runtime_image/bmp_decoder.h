@@ -1,26 +1,31 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#ifdef USE_ONLINE_IMAGE_BMP_SUPPORT
+#ifdef USE_RUNTIME_IMAGE_BMP
 
 #include "image_decoder.h"
+#include "runtime_image.h"
 
-namespace esphome {
-namespace online_image {
+namespace esphome::runtime_image {
 
 /**
- * @brief Image decoder specialization for PNG images.
+ * @brief Image decoder specialization for BMP images.
  */
 class BmpDecoder : public ImageDecoder {
  public:
   /**
    * @brief Construct a new BMP Decoder object.
    *
-   * @param display The image to decode the stream into.
+   * @param image The RuntimeImage to decode the stream into.
    */
-  BmpDecoder(OnlineImage *image) : ImageDecoder(image) {}
+  BmpDecoder(RuntimeImage *image) : ImageDecoder(image) {}
 
   int HOT decode(uint8_t *buffer, size_t size) override;
+
+  bool is_finished() const override {
+    // BMP is finished when we've decoded all pixel data
+    return this->paint_index_ >= static_cast<size_t>(this->width_ * this->height_);
+  }
 
  protected:
   size_t current_index_{0};
@@ -36,7 +41,6 @@ class BmpDecoder : public ImageDecoder {
   uint8_t padding_bytes_{0};
 };
 
-}  // namespace online_image
-}  // namespace esphome
+}  // namespace esphome::runtime_image
 
-#endif  // USE_ONLINE_IMAGE_BMP_SUPPORT
+#endif  // USE_RUNTIME_IMAGE_BMP
