@@ -1291,7 +1291,6 @@ const char *ParsedTimezone::dump_to(DumpBuffer &out) const {
 const char *GetTimeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "GetTimeResponse");
   dump_field(out, "epoch_seconds", this->epoch_seconds);
-  dump_field(out, "timezone", this->timezone);
   out.append("  parsed_timezone: ");
   this->parsed_timezone.dump_to(out);
   out.append("\n");
