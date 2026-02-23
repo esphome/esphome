@@ -113,7 +113,10 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
   esp_bd_addr_t remote_bda_;  // 6 bytes
 
-  // Group 5: 2-byte types
+  // Group 5: 4-byte types
+  uint32_t disconnecting_started_{0};
+
+  // Group 6: 2-byte types
   uint16_t conn_id_{UNSET_CONN_ID};
   uint16_t mtu_{23};
 
@@ -141,6 +144,11 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void set_idle_() {
     this->set_state(espbt::ClientState::IDLE);
     this->conn_id_ = UNSET_CONN_ID;
+  }
+  /// Transition to DISCONNECTING and start the safety timeout.
+  void set_disconnecting_() {
+    this->disconnecting_started_ = millis();
+    this->set_state(espbt::ClientState::DISCONNECTING);
   }
   // Compact error logging helpers to reduce flash usage
   void log_error_(const char *message);
