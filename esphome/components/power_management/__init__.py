@@ -92,6 +92,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     add_idf_sdkconfig_option("CONFIG_PM_ENABLE", True)
+    add_idf_sdkconfig_option("CONFIG_ESP_PHY_MAC_BB_PD", True)
 
     if config.get(CONF_ESPHOME_LOCKS):
         cg.add_define("USE_POWER_MANAGEMENT")
