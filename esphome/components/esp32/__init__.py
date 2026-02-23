@@ -1258,21 +1258,15 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     This function runs in to_code() after all components have registered their socket needs.
     User-provided sdkconfig_options take precedence.
     """
-    from esphome.components.socket import KEY_SOCKET_CONSUMERS
+    from esphome.components.socket import get_socket_counts
 
     # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
     user_max_sockets = conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_LWIP_MAX_SOCKETS")
 
-    socket_consumers: dict[str, int] = CORE.data.get(KEY_SOCKET_CONSUMERS, {})
-    total_sockets = sum(socket_consumers.values())
-
-    # Early return if no sockets registered and no user override
-    if total_sockets == 0 and user_max_sockets is None:
-        return
-
-    components_list = ", ".join(
-        f"{name}={count}" for name, count in sorted(socket_consumers.items())
-    )
+    # CONFIG_LWIP_MAX_SOCKETS is a single VFS socket pool shared by all socket
+    # types (TCP clients, TCP listeners, and UDP). Include all three counts.
+    sc = get_socket_counts()
+    total_sockets = sc.tcp + sc.udp + sc.tcp_listen
 
     # User specified their own value - respect it but warn if insufficient
     if user_max_sockets is not None:
@@ -1281,22 +1275,23 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
             user_max_sockets,
         )
 
-        # Warn if user's value is less than what components need
-        if total_sockets > 0:
-            user_sockets_int = 0
-            with contextlib.suppress(ValueError, TypeError):
-                user_sockets_int = int(user_max_sockets)
+        user_sockets_int = 0
+        with contextlib.suppress(ValueError, TypeError):
+            user_sockets_int = int(user_max_sockets)
 
-            if user_sockets_int < total_sockets:
-                _LOGGER.warning(
-                    "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
-                    "needs %d sockets (registered: %s). You may experience socket "
-                    "exhaustion errors. Consider increasing to at least %d.",
-                    user_sockets_int,
-                    total_sockets,
-                    components_list,
-                    total_sockets,
-                )
+        if user_sockets_int < total_sockets:
+            _LOGGER.warning(
+                "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
+                "needs %d sockets (%d TCP + %d UDP + %d TCP_LISTEN). You may "
+                "experience socket exhaustion errors. Consider increasing to "
+                "at least %d.",
+                user_sockets_int,
+                total_sockets,
+                sc.tcp,
+                sc.udp,
+                sc.tcp_listen,
+                total_sockets,
+            )
         # User's value already added via sdkconfig_options processing
         return
 
@@ -1305,11 +1300,19 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     max_sockets = max(DEFAULT_MAX_SOCKETS, total_sockets)
 
     log_level = logging.INFO if max_sockets > DEFAULT_MAX_SOCKETS else logging.DEBUG
+    sock_min = " (min)" if max_sockets > total_sockets else ""
     _LOGGER.log(
         log_level,
-        "Setting CONFIG_LWIP_MAX_SOCKETS to %d (registered: %s)",
+        "Setting CONFIG_LWIP_MAX_SOCKETS to %d%s "
+        "(TCP=%d [%s], UDP=%d [%s], TCP_LISTEN=%d [%s])",
         max_sockets,
-        components_list,
+        sock_min,
+        sc.tcp,
+        sc.tcp_details,
+        sc.udp,
+        sc.udp_details,
+        sc.tcp_listen,
+        sc.tcp_listen_details,
     )
 
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)

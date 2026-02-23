@@ -58,10 +58,8 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
     ESP_LOGE(TAG, "get_active_config_descriptor failed");
     return {};
   }
-  ESP_LOGD(TAG,
-           "bDeviceClass: %u, bDeviceSubClass: %u\n"
-           "bNumInterfaces: %u",
-           device_desc->bDeviceClass, device_desc->bDeviceSubClass, config_desc->bNumInterfaces);
+  ESP_LOGD(TAG, "bDeviceClass: %u, bDeviceSubClass: %u, bNumInterfaces: %u", device_desc->bDeviceClass,
+           device_desc->bDeviceSubClass, config_desc->bNumInterfaces);
   if (device_desc->bDeviceClass != 0) {
     ESP_LOGE(TAG, "bDeviceClass != 0");
     return {};
