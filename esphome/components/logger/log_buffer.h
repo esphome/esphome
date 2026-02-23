@@ -77,10 +77,10 @@ struct LogBuffer {
 
     // Format line number using subtraction loops (no division - important for ESP8266 which lacks hardware divider)
     if (line > 999) [[unlikely]] {
-      LogBuffer::write_digit(p, line, 1000);
+      write_digit(p, line, 1000);
     }
-    LogBuffer::write_digit(p, line, 100);
-    LogBuffer::write_digit(p, line, 10);
+    write_digit(p, line, 100);
+    write_digit(p, line, 10);
     *p++ = '0' + line;
     *p++ = ']';
 
