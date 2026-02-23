@@ -106,11 +106,12 @@ void Esp32HostedUpdate::setup() {
     esp_app_desc_t *app_desc = (esp_app_desc_t *) (this->firmware_data_ + app_desc_offset);
     if (app_desc->magic_word == ESP_APP_DESC_MAGIC_WORD) {
       ESP_LOGD(TAG,
-               "Firmware version: %s\n"
-               "Project name: %s\n"
-               "Build date: %s\n"
-               "Build time: %s\n"
-               "IDF version: %s",
+               "ESP32 Hosted firmware:\n"
+               "  Firmware version: %s\n"
+               "  Project name: %s\n"
+               "  Build date: %s\n"
+               "  Build time: %s\n"
+               "  IDF version: %s",
                app_desc->version, app_desc->project_name, app_desc->date, app_desc->time, app_desc->idf_ver);
       this->update_info_.latest_version = app_desc->version;
       if (this->update_info_.latest_version != this->update_info_.current_version) {

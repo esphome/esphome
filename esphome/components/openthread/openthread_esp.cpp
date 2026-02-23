@@ -81,9 +81,11 @@ void OpenThreadComponent::ot_main() {
   // Initialize the OpenThread stack
   // otLoggingSetLevel(OT_LOG_LEVEL_DEBG);
   ESP_ERROR_CHECK(esp_openthread_init(&config));
+  // Fetch OT instance once to avoid repeated call into OT stack
+  otInstance *instance = esp_openthread_get_instance();
 
 #if CONFIG_OPENTHREAD_STATE_INDICATOR_ENABLE
-  ESP_ERROR_CHECK(esp_openthread_state_indicator_init(esp_openthread_get_instance()));
+  ESP_ERROR_CHECK(esp_openthread_state_indicator_init(instance));
 #endif
 
 #if CONFIG_OPENTHREAD_LOG_LEVEL_DYNAMIC
@@ -104,6 +106,8 @@ void OpenThreadComponent::ot_main() {
   esp_cli_custom_command_init();
 #endif  // CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
 
+  ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
+
   this->set_link_mode(esp_openthread_get_instance(), false, false, true);
 
   // Run the main loop
@@ -115,13 +119,12 @@ void OpenThreadComponent::ot_main() {
 
 #ifndef USE_OPENTHREAD_FORCE_DATASET
   // Check if openthread has a valid dataset from a previous execution
-  otError error = otDatasetGetActiveTlvs(esp_openthread_get_instance(), &dataset);
+  otError error = otDatasetGetActiveTlvs(instance, &dataset);
   if (error != OT_ERROR_NONE) {
     // Make sure the length is 0 so we fallback to the configuration
     dataset.mLength = 0;
   } else {
-    ESP_LOGI(TAG, "Found OpenThread-managed dataset, ignoring esphome configuration\n"
-                  "(set force_dataset: true to override)");
+    ESP_LOGI(TAG, "Found existing dataset, ignoring config (force_dataset: true to override)");
   }
 #endif
 
