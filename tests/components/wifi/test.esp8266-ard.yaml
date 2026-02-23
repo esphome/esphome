@@ -1,6 +1,12 @@
 wifi:
   min_auth_mode: WPA2
   post_connect_roaming: true
+  manual_ip:
+    static_ip: 192.168.1.100
+    gateway: 192.168.1.1
+    subnet: 255.255.255.0
+    dns1: 1.1.1.1
+    dns2: 8.8.8.8
 
 packages:
   - !include common.yaml

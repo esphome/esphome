@@ -439,13 +439,25 @@ def safe_ip(ip):
 def manual_ip(config):
     if config is None:
         return None
+    fields = {
+        "static_ip": CONF_STATIC_IP,
+        "gateway": CONF_GATEWAY,
+        "subnet": CONF_SUBNET,
+        "dns1": CONF_DNS1,
+        "dns2": CONF_DNS2,
+    }
+    if CORE.is_esp8266:
+        # On ESP8266, .rodata is mapped to RAM. Using StructInitializer with all
+        # compile-time constant fields causes the compiler to place a const blob
+        # in .rodata, silently consuming ~20 bytes of RAM. Field-by-field assignment
+        # encodes the values as immediate operands in flash instructions instead.
+        cg.add(cg.RawExpression("wifi::ManualIP manual_ip{}"))
+        for member, key in fields.items():
+            cg.add(cg.RawExpression(f"manual_ip.{member} = {safe_ip(config.get(key))}"))
+        return cg.RawExpression("manual_ip")
     return cg.StructInitializer(
         ManualIP,
-        ("static_ip", safe_ip(config[CONF_STATIC_IP])),
-        ("gateway", safe_ip(config[CONF_GATEWAY])),
-        ("subnet", safe_ip(config[CONF_SUBNET])),
-        ("dns1", safe_ip(config.get(CONF_DNS1))),
-        ("dns2", safe_ip(config.get(CONF_DNS2))),
+        *((member, safe_ip(config.get(key))) for member, key in fields.items()),
     )
 
 
