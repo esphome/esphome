@@ -27,6 +27,7 @@ static constexpr uint16_t MEDIUM_CONN_TIMEOUT = 800;  // 800 * 10ms = 8s
 static constexpr uint16_t FAST_MIN_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms (BLE minimum)
 static constexpr uint16_t FAST_MAX_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms
 static constexpr uint16_t FAST_CONN_TIMEOUT = 1000;       // 1000 * 10ms = 10s
+static constexpr uint32_t DISCONNECTING_TIMEOUT = 10000;  // 10s
 static const esp_bt_uuid_t NOTIFY_DESC_UUID = {
     .len = ESP_UUID_LEN_16,
     .uuid =
@@ -62,6 +63,11 @@ void BLEClientBase::loop() {
   // will enable it again when a connection is needed.
   else if (this->state() == espbt::ClientState::IDLE) {
     this->disable_loop();
+  } else if (this->state() == espbt::ClientState::DISCONNECTING &&
+             (millis() - this->disconnecting_started_) > DISCONNECTING_TIMEOUT) {
+    ESP_LOGE(TAG, "[%d] [%s] Timeout waiting for CLOSE_EVT after disconnect, forcing IDLE", this->connection_index_,
+             this->address_str_);
+    this->set_idle_();
   }
 }
 
@@ -178,7 +184,7 @@ void BLEClientBase::unconditional_disconnect() {
     this->set_address(0);
     this->set_state(espbt::ClientState::IDLE);
   } else {
-    this->set_state(espbt::ClientState::DISCONNECTING);
+    this->set_disconnecting_();
   }
 }
 
@@ -373,7 +379,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // causing the controller to reject the new connection (status=133) or crash
       // with ASSERT_PARAM in lld_evt.c.
       this->release_services();
-      this->set_state(espbt::ClientState::DISCONNECTING);
+      this->set_disconnecting_();
       break;
     }
 
