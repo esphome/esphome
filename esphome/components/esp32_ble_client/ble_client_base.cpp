@@ -236,6 +236,11 @@ void BLEClientBase::log_warning_(const char *message) {
   ESP_LOGW(TAG, "[%d] [%s] %s", this->connection_index_, this->address_str_, message);
 }
 
+void BLEClientBase::set_idle_() {
+  this->set_state(espbt::ClientState::IDLE);
+  this->conn_id_ = UNSET_CONN_ID;
+}
+
 void BLEClientBase::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
                                         uint16_t timeout, const char *param_type) {
   esp_ble_conn_update_params_t conn_params = {{0}};
@@ -310,10 +315,8 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         this->log_gattc_warning_("Connection open", param->open.status);
-        this->set_state(espbt::ClientState::IDLE);
-        // Reset conn_id since the connection was never established and
-        // CLOSE_EVT may not follow to clean it up
-        this->conn_id_ = UNSET_CONN_ID;
+        // Connection was never established so CLOSE_EVT may not follow
+        this->set_idle_();
         break;
       }
       if (this->want_disconnect_) {
@@ -394,8 +397,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         return false;
       this->log_gattc_lifecycle_event_("CLOSE");
       this->release_services();
-      this->set_state(espbt::ClientState::IDLE);
-      this->conn_id_ = UNSET_CONN_ID;
+      this->set_idle_();
       break;
     }
     case ESP_GATTC_SEARCH_RES_EVT: {
