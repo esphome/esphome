@@ -1,5 +1,6 @@
 #include "version_text_sensor.h"
 #include "esphome/core/application.h"
+#include "esphome/core/build_info_data.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
 #include "esphome/core/helpers.h"

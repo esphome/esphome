@@ -1,7 +1,11 @@
+#include "esphome/core/defines.h"
+#ifdef USE_SENSOR_FILTER
+
 #include "filter.h"
 #include <cmath>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "sensor.h"
 
@@ -237,7 +241,7 @@ ValueListFilter::ValueListFilter(std::initializer_list<TemplatableValue<float>> 
 
 bool ValueListFilter::value_matches_any_(float sensor_value) {
   int8_t accuracy = this->parent_->get_accuracy_decimals();
-  float accuracy_mult = powf(10.0f, accuracy);
+  float accuracy_mult = pow10_int(accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
 
   for (auto &filter_value : this->values_) {
@@ -469,7 +473,7 @@ optional<float> ClampFilter::new_value(float value) {
 RoundFilter::RoundFilter(uint8_t precision) : precision_(precision) {}
 optional<float> RoundFilter::new_value(float value) {
   if (std::isfinite(value)) {
-    float accuracy_mult = powf(10.0f, this->precision_);
+    float accuracy_mult = pow10_int(this->precision_);
     return roundf(accuracy_mult * value) / accuracy_mult;
   }
   return value;
@@ -580,3 +584,5 @@ void StreamingMovingAverageFilter::reset_batch() {
 }
 
 }  // namespace esphome::sensor
+
+#endif  // USE_SENSOR_FILTER
