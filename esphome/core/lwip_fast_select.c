@@ -127,13 +127,21 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
 
 void esphome_lwip_fast_select_init(void) { s_main_loop_task = xTaskGetCurrentTaskHandle(); }
 
-bool esphome_lwip_socket_has_data(int fd) {
-  // lwip_socket_dbg_get_socket() is a direct array lookup without the refcount that
-  // get_socket()/done_socket() uses. This is safe because the caller owns the socket
-  // lifetime: both has_data() and socket close happen on the main loop thread, so
-  // the sockets[] entry cannot be freed while we read it.
+// lwip_socket_dbg_get_socket() is a direct array lookup without the refcount that
+// get_socket()/done_socket() uses. This is safe because the caller owns the socket
+// lifetime: both has_data() and socket close happen on the main loop thread, so
+// the sockets[] entry cannot be freed while we read it.
+// Returns the sock only if both the sock and its netconn are valid, NULL otherwise.
+static inline struct lwip_sock *get_sock(int fd) {
   struct lwip_sock *sock = lwip_socket_dbg_get_socket(fd);
   if (sock == NULL || sock->conn == NULL)
+    return NULL;
+  return sock;
+}
+
+bool esphome_lwip_socket_has_data(int fd) {
+  struct lwip_sock *sock = get_sock(fd);
+  if (sock == NULL)
     return false;
   // volatile prevents the compiler from caching/reordering this cross-thread read.
   // The write side (TCP/IP thread) commits via SYS_ARCH_UNPROTECT which releases a
@@ -144,8 +152,8 @@ bool esphome_lwip_socket_has_data(int fd) {
 }
 
 void esphome_lwip_hook_socket(int fd) {
-  struct lwip_sock *sock = lwip_socket_dbg_get_socket(fd);
-  if (sock == NULL || sock->conn == NULL)
+  struct lwip_sock *sock = get_sock(fd);
+  if (sock == NULL)
     return;
 
   // Save original callback once — all LwIP sockets share the same static event_callback
