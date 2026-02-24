@@ -11,7 +11,8 @@
 // ======================
 // Three threads interact with this code:
 //   1. Main loop task   — calls init, has_data, hook
-//   2. LwIP TCP/IP task — calls event_callback (which reads s_original_callback, writes rcvevent)
+//   2. LwIP TCP/IP task — calls event_callback (reads s_original_callback; writes rcvevent
+//                         via the original callback under SYS_ARCH_PROTECT/UNPROTECT mutex)
 //   3. Background tasks — call wake_main_loop
 //
 // Shared state and safety rationale:
@@ -40,12 +41,14 @@
 //     (the wrapper itself calls the original), so either value is correct.
 //
 //   sock->rcvevent (s16_t, 2 bytes):
-//     Written by TCP/IP thread in event_callback (via SYS_ARCH_INC/DEC under lock).
+//     Written by TCP/IP thread in event_callback under SYS_ARCH_PROTECT/UNPROTECT.
 //     Read by main loop in has_data() via volatile cast.
-//     Safe: aligned 16-bit reads are atomic on Xtensa/RISC-V. The write side commits
-//     via SYS_ARCH_UNPROTECT (portEXIT_CRITICAL) which flushes the write buffer.
-//     ESP32 internal SRAM has no per-core data cache, so the volatile load always
-//     reads the committed value. volatile prevents compiler from caching the read.
+//     Safe: SYS_ARCH_UNPROTECT releases a FreeRTOS mutex (sys_mutex_unlock), which
+//     internally uses a critical section with memory barrier (rsync on Xtensa),
+//     ensuring the write is committed before the mutex is released. The volatile
+//     cast prevents the compiler from caching the read. Aligned 16-bit reads are
+//     single-instruction loads on Xtensa (L16SI) and RISC-V (LH), which cannot
+//     produce torn values.
 //
 //   FreeRTOS task notification value:
 //     Written by TCP/IP thread (xTaskNotifyGive in callback) and background tasks
@@ -115,10 +118,10 @@ bool esphome_lwip_socket_has_data(int fd) {
   if (sock == NULL || sock->conn == NULL)
     return false;
   // volatile prevents the compiler from caching/reordering this cross-thread read.
-  // The write side (TCP/IP thread) commits via SYS_ARCH_UNPROTECT (portEXIT_CRITICAL),
-  // which flushes the write buffer. ESP32 internal SRAM has no per-core data cache,
-  // so the volatile load always reads the committed value from SRAM.
-  // Aligned 16-bit reads are naturally atomic on Xtensa/RISC-V.
+  // The write side (TCP/IP thread) commits via SYS_ARCH_UNPROTECT which releases a
+  // FreeRTOS mutex with a memory barrier (rsync on Xtensa), ensuring the value is
+  // visible. Aligned 16-bit reads are single-instruction loads (L16SI/LH) on
+  // Xtensa/RISC-V and cannot produce torn values.
   return *(volatile s16_t *) &sock->rcvevent > 0;
 }
 
