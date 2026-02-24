@@ -104,7 +104,10 @@
 //     critical sections). Multiple concurrent xTaskNotifyGive calls are safe —
 //     the notification count simply increments.
 
-#ifdef USE_LWIP_FAST_SELECT
+// USE_ESP32 and USE_LIBRETINY are build flags (-D), always available to .c files.
+// USE_LWIP_FAST_SELECT is in the generated defines.h (force-included for .cpp but
+// may not reach .c files on all build systems), so we use platform flags here.
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
 
 // LwIP headers must come first — they define netconn_callback, struct lwip_sock, etc.
 #include <lwip/api.h>
@@ -221,4 +224,4 @@ void esphome_lwip_wake_main_loop(void) {
   }
 }
 
-#endif  // USE_LWIP_FAST_SELECT
+#endif  // defined(USE_ESP32) || defined(USE_LIBRETINY)
