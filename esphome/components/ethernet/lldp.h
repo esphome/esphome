@@ -37,8 +37,7 @@
 #define LLDP_PROTO_MAX_HOLD (100)
 #define LLDP_PROTO_MAX_TTL (65535)
 
-namespace esphome {
-namespace ethernet {
+namespace esphome::ethernet {
 
 class LLDPTransmitter {
  public:
@@ -139,8 +138,7 @@ class LLDPTransmitter {
   void recalc_ttl() { this->calc_ttl_ = std::min(this->tx_interval_ * this->tx_hold_ + 1, LLDP_PROTO_MAX_TTL); };
 };
 
-}  // namespace ethernet
-}  // namespace esphome
+}  // namespace esphome::ethernet
 
 #endif /* USE_ETHERNET_LLDP */
 // EOF

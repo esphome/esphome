@@ -26,8 +26,7 @@
 #define SIZE_TLV_END (2)
 #define LLDP_STRING_MAX_SIZE_T ((size_t) LLDP_STRING_MAX)
 
-namespace esphome {
-namespace ethernet {
+namespace esphome::ethernet {
 
 static const char *const TAG = "ethernet.lldp";
 
@@ -401,8 +400,7 @@ bool LLDPTransmitter::generate(uint8_t *buf, size_t buf_len, size_t *pkt_len) {
   return true;
 }
 
-}  // namespace ethernet
-}  // namespace esphome
+}  // namespace esphome::ethernet
 
 #endif /* USE_ETHERNET_LLDP */
 // EOF
