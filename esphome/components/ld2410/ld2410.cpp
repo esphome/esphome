@@ -489,11 +489,8 @@ bool LD2410Component::handle_ack_data_() {
       this->out_pin_level_ = this->buffer_data_[12];
       const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
       const auto *out_pin_level_str = find_str(OUT_PIN_LEVELS_BY_UINT, this->out_pin_level_);
-      ESP_LOGV(TAG,
-               "Light function: %s\n"
-               "Light threshold: %u\n"
-               "Out pin level: %s",
-               light_function_str, this->light_threshold_, out_pin_level_str);
+      ESP_LOGV(TAG, "Light function: %s, threshold: %u, out pin level: %s", light_function_str, this->light_threshold_,
+               out_pin_level_str);
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr) {
         this->light_function_select_->publish_state(light_function_str);

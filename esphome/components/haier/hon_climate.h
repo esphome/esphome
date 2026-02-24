@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <queue>
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
