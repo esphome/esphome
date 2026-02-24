@@ -142,6 +142,19 @@ class Scheduler {
   };
 
  protected:
+  struct SchedulerItem;
+
+  // Custom deleter for SchedulerItem unique_ptr that prevents the compiler from
+  // inlining the destructor at every destruction site. On BK7231N (Thumb-1), GCC
+  // inlines ~unique_ptr<SchedulerItem> (~30 bytes: null check + ~std::function +
+  // operator delete) at every destruction site, while ESP32/ESP8266/RTL8720CF outline
+  // it into a single helper. This noinline deleter ensures only one copy exists.
+  // operator() is defined in scheduler.cpp to prevent inlining.
+  struct SchedulerItemDeleter {
+    void operator()(SchedulerItem *ptr) const noexcept;
+  };
+  using SchedulerItemPtr = std::unique_ptr<SchedulerItem, SchedulerItemDeleter>;
+
   struct SchedulerItem {
     // Ordered by size to minimize padding
     Component *component;
@@ -233,7 +246,7 @@ class Scheduler {
       name_type_ = type;
     }
 
-    static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
+    static bool cmp(const SchedulerItemPtr &a, const SchedulerItemPtr &b);
 
     // Note: We use 48 bits total (32 + 16), stored in a 64-bit value for API compatibility.
     // The upper 16 bits of the 64-bit value are always zero, which is fine since
@@ -276,10 +289,10 @@ class Scheduler {
   size_t cleanup_();
   // Remove and return the front item from the heap
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  std::unique_ptr<SchedulerItem> pop_raw_locked_();
+  SchedulerItemPtr pop_raw_locked_();
   // Get or create a scheduler item from the pool
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  std::unique_ptr<SchedulerItem> get_item_from_pool_locked_();
+  SchedulerItemPtr get_item_from_pool_locked_();
 
  private:
   // Helper to cancel items - must be called with lock held
@@ -303,9 +316,9 @@ class Scheduler {
   // Helper function to check if item matches criteria for cancellation
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   // IMPORTANT: Must be called with scheduler lock held
-  inline bool HOT matches_item_locked_(const std::unique_ptr<SchedulerItem> &item, Component *component,
-                                       NameType name_type, const char *static_name, uint32_t hash_or_id,
-                                       SchedulerItem::Type type, bool match_retry, bool skip_removed = true) const {
+  inline bool HOT matches_item_locked_(const SchedulerItemPtr &item, Component *component, NameType name_type,
+                                       const char *static_name, uint32_t hash_or_id, SchedulerItem::Type type,
+                                       bool match_retry, bool skip_removed = true) const {
     // THREAD SAFETY: Check for nullptr first to prevent LoadProhibited crashes. On multi-threaded
     // platforms, items can be moved out of defer_queue_ during processing, leaving nullptr entries.
     // PR #11305 added nullptr checks in callers (mark_matching_items_removed_locked_()), but this check
@@ -340,7 +353,7 @@ class Scheduler {
   // IMPORTANT: Only call from main loop context! Recycling clears the callback,
   // so calling from another thread while the callback is executing causes use-after-free.
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  void recycle_item_main_loop_(std::unique_ptr<SchedulerItem> item);
+  void recycle_item_main_loop_(SchedulerItemPtr item);
 
   // Helper to perform full cleanup when too many items are cancelled
   void full_cleanup_removed_items_();
@@ -396,7 +409,7 @@ class Scheduler {
     // Merge lock acquisitions: instead of separate locks for move-out and recycle (2N+1 total),
     // recycle each item after re-acquiring the lock for the next iteration (N+1 total).
     // The lock is held across: recycle → loop condition → move-out, then released for execution.
-    std::unique_ptr<SchedulerItem> item;
+    SchedulerItemPtr item;
 
     this->lock_.lock();
     while (this->defer_queue_front_ < defer_queue_end) {
@@ -496,9 +509,9 @@ class Scheduler {
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   // Returns the number of items marked for removal
   // IMPORTANT: Must be called with scheduler lock held
-  size_t mark_matching_items_removed_locked_(std::vector<std::unique_ptr<SchedulerItem>> &container,
-                                             Component *component, NameType name_type, const char *static_name,
-                                             uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry) {
+  size_t mark_matching_items_removed_locked_(std::vector<SchedulerItemPtr> &container, Component *component,
+                                             NameType name_type, const char *static_name, uint32_t hash_or_id,
+                                             SchedulerItem::Type type, bool match_retry) {
     size_t count = 0;
     for (auto &item : container) {
       // Skip nullptr items (can happen in defer_queue_ when items are being processed)
@@ -514,15 +527,15 @@ class Scheduler {
   }
 
   Mutex lock_;
-  std::vector<std::unique_ptr<SchedulerItem>> items_;
-  std::vector<std::unique_ptr<SchedulerItem>> to_add_;
+  std::vector<SchedulerItemPtr> items_;
+  std::vector<SchedulerItemPtr> to_add_;
 #ifndef ESPHOME_THREAD_SINGLE
   // Single-core platforms don't need the defer queue and save ~32 bytes of RAM
   // Using std::vector instead of std::deque avoids 512-byte chunked allocations
   // Index tracking avoids O(n) erase() calls when draining the queue each loop
-  std::vector<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
-  size_t defer_queue_front_{0};  // Index of first valid item in defer_queue_ (tracks consumed items)
-#endif                           /* ESPHOME_THREAD_SINGLE */
+  std::vector<SchedulerItemPtr> defer_queue_;  // FIFO queue for defer() calls
+  size_t defer_queue_front_{0};                // Index of first valid item in defer_queue_ (tracks consumed items)
+#endif                                         /* ESPHOME_THREAD_SINGLE */
   uint32_t to_remove_{0};
 
   // Memory pool for recycling SchedulerItem objects to reduce heap churn.
@@ -533,7 +546,7 @@ class Scheduler {
   // - The pool significantly reduces heap fragmentation which is critical because heap allocation/deallocation
   //   can stall the entire system, causing timing issues and dropped events for any components that need
   //   to synchronize between tasks (see https://github.com/esphome/backlog/issues/52)
-  std::vector<std::unique_ptr<SchedulerItem>> scheduler_item_pool_;
+  std::vector<SchedulerItemPtr> scheduler_item_pool_;
 
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   /*
