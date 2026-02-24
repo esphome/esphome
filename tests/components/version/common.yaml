@@ -2,17 +2,14 @@ text_sensor:
   - platform: version
     name: "ESPHome Version Full"
 
-text_sensor:
   - platform: version
     name: "ESPHome Version No Timestamp"
     hide_timestamp: true
 
-text_sensor:
   - platform: version
     name: "ESPHome Version No Hash"
     hide_hash: true
 
-text_sensor:
   - platform: version
     name: "ESPHome Version Shortest"
     hide_timestamp: true
