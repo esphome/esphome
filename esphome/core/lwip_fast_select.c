@@ -112,9 +112,9 @@ static netconn_callback s_original_callback = NULL;
 static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len) {
   // Call original LwIP event_callback first — updates rcvevent/sendevent/errevent,
   // signals any select() waiters. This preserves all LwIP behavior.
-  if (s_original_callback) {
-    s_original_callback(conn, evt, len);
-  }
+  // s_original_callback is always valid here: hook_socket() sets it before swapping
+  // the callback pointer, so this wrapper cannot run until it's initialized.
+  s_original_callback(conn, evt, len);
   // Wake the main loop task if sleeping in ulTaskNotifyTake().
   // Only notify on receive events to avoid spurious wakeups from send-ready events.
   if (evt == NETCONN_EVT_RCVPLUS) {
