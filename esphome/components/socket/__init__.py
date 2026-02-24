@@ -126,13 +126,15 @@ def require_wake_loop_threadsafe() -> None:
     """Mark that wake_loop_threadsafe support is required by a component.
 
     Call this from components that need to wake the main event loop from background threads.
-
-    On ESP32: Uses FreeRTOS task notifications (<1 us, no socket needed).
-    On other platforms: Uses a shared UDP loopback socket mechanism (~208 bytes RAM).
+    This enables the shared UDP loopback socket mechanism (~208 bytes RAM).
+    The socket is shared across all components that use this feature.
 
     This call is a no-op if networking is not enabled in the configuration.
 
-    IMPORTANT: This is for background task context only, NOT ISR context.
+    IMPORTANT: This is for background thread context only, NOT ISR context.
+    Socket operations are not safe to call from ISR handlers.
+
+    On ESP32, FreeRTOS task notifications are used instead (no socket needed).
 
     Example:
         from esphome.components import socket

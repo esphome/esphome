@@ -10,7 +10,7 @@
 // Thread safety analysis
 // ======================
 // Three threads interact with this code:
-//   1. Main loop task   — calls init, has_data, hook, unhook
+//   1. Main loop task   — calls init, has_data, hook
 //   2. LwIP TCP/IP task — calls event_callback (which reads s_original_callback, writes rcvevent)
 //   3. Background tasks — call wake_main_loop
 //
@@ -31,7 +31,8 @@
 //     the write), so it always sees the initialized value.
 //
 //   sock->conn->callback (netconn_callback, 4-byte function pointer):
-//     Written by main loop in hook_socket() and unhook_socket().
+//     Written by main loop in hook_socket(). Never restored — all LwIP sockets share
+//     the same static event_callback, so the wrapper stays in place permanently.
 //     Read by TCP/IP thread when invoking the callback.
 //     Safe: 32-bit aligned pointer writes are atomic on Xtensa and RISC-V (ESP32).
 //     The TCP/IP thread will see either the old or new pointer atomically — never a
@@ -131,17 +132,6 @@ void esphome_lwip_hook_socket(int fd) {
   // Replace with our wrapper. Atomic on ESP32 (32-bit aligned pointer write).
   // TCP/IP thread sees either old or new pointer — both are valid.
   sock->conn->callback = esphome_socket_event_callback;
-}
-
-void esphome_lwip_unhook_socket(int fd) {
-  struct lwip_sock *sock = lwip_socket_dbg_get_socket(fd);
-  if (sock == NULL || sock->conn == NULL)
-    return;
-
-  // Restore original callback. Atomic on ESP32 (32-bit aligned pointer write).
-  if (s_original_callback != NULL) {
-    sock->conn->callback = s_original_callback;
-  }
 }
 
 // Wake the main loop from another FreeRTOS task. NOT ISR-safe.

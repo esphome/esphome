@@ -611,10 +611,7 @@ void Application::unregister_socket_fd(int fd) {
     if (i < this->socket_fds_.size() - 1)
       this->socket_fds_[i] = this->socket_fds_.back();
     this->socket_fds_.pop_back();
-#ifdef USE_ESP32
-    // Unhook the socket's netconn callback
-    esphome_lwip_unhook_socket(fd);
-#else
+#ifndef USE_ESP32
     this->socket_fds_changed_ = true;
     // Only recalculate max_fd if we removed the current max
     if (fd == this->max_fd_) {

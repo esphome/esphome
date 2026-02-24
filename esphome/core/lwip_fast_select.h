@@ -23,10 +23,6 @@ bool esphome_lwip_socket_has_data(int fd);
 /// Must be called from the main loop after socket creation.
 void esphome_lwip_hook_socket(int fd);
 
-/// Unhook a socket's netconn callback, restoring the original event_callback.
-/// Must be called from the main loop before closing the socket.
-void esphome_lwip_unhook_socket(int fd);
-
 /// Wake the main loop task from another FreeRTOS task — costs <1 us.
 /// NOT ISR-safe — must only be called from task context.
 void esphome_lwip_wake_main_loop(void);
