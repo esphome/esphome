@@ -41,11 +41,11 @@
 //
 //   sock->rcvevent (s16_t, 2 bytes):
 //     Written by TCP/IP thread in event_callback (via SYS_ARCH_INC/DEC under lock).
-//     Read by main loop in has_data().
-//     Safe: aligned 16-bit reads are atomic on Xtensa/RISC-V. We use __atomic_load_n
-//     with __ATOMIC_RELAXED to prevent compiler reordering. Staleness is acceptable —
-//     a missed increment means we poll again next loop iteration (~16ms), and the
-//     task notification provides the real wake signal.
+//     Read by main loop in has_data() via volatile cast.
+//     Safe: aligned 16-bit reads are atomic on Xtensa/RISC-V. The write side commits
+//     via SYS_ARCH_UNPROTECT (portEXIT_CRITICAL) which flushes the write buffer.
+//     ESP32 internal SRAM has no per-core data cache, so the volatile load always
+//     reads the committed value. volatile prevents compiler from caching the read.
 //
 //   FreeRTOS task notification value:
 //     Written by TCP/IP thread (xTaskNotifyGive in callback) and background tasks
@@ -114,10 +114,11 @@ bool esphome_lwip_socket_has_data(int fd) {
   struct lwip_sock *sock = lwip_socket_dbg_get_socket(fd);
   if (sock == NULL || sock->conn == NULL)
     return false;
-  // Use volatile to prevent compiler from caching/reordering this read.
-  // rcvevent is written by the TCP/IP thread under SYS_ARCH_PROTECT, not C11 atomics,
-  // so we match LwIP's own access pattern. Aligned 16-bit reads are naturally atomic
-  // on Xtensa/RISC-V. Staleness is acceptable — task notifications provide the real wake.
+  // volatile prevents the compiler from caching/reordering this cross-thread read.
+  // The write side (TCP/IP thread) commits via SYS_ARCH_UNPROTECT (portEXIT_CRITICAL),
+  // which flushes the write buffer. ESP32 internal SRAM has no per-core data cache,
+  // so the volatile load always reads the committed value from SRAM.
+  // Aligned 16-bit reads are naturally atomic on Xtensa/RISC-V.
   return *(volatile s16_t *) &sock->rcvevent > 0;
 }
 
