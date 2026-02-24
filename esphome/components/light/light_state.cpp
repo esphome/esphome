@@ -208,13 +208,13 @@ void LightState::current_values_as_brightness(float *brightness) {
   this->current_values.as_brightness(brightness);
   *brightness = this->gamma_correct_lut(*brightness);
 }
-void LightState::current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock) {
+void LightState::current_values_as_rgb(float *red, float *green, float *blue) {
   this->current_values.as_rgb(red, green, blue);
   *red = this->gamma_correct_lut(*red);
   *green = this->gamma_correct_lut(*green);
   *blue = this->gamma_correct_lut(*blue);
 }
-void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock) {
+void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white) {
   this->current_values.as_rgbw(red, green, blue, white);
   *red = this->gamma_correct_lut(*red);
   *green = this->gamma_correct_lut(*green);
