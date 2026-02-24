@@ -6,7 +6,6 @@ from esphome.components import esp32_ble
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.esp32_ble import BTLoggers, bt_uuid
 import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome.config_validation import UNDEFINED
 from esphome.const import (
     CONF_DATA,
@@ -25,6 +24,7 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 AUTO_LOAD = ["esp32_ble", "bytebuffer"]
