@@ -6,6 +6,7 @@ from esphome.components import esp32_ble
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.esp32_ble import BTLoggers, bt_uuid
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome.config_validation import UNDEFINED
 from esphome.const import (
     CONF_DATA,
@@ -288,6 +289,22 @@ def create_device_information_service(config):
 
 
 def final_validate_config(config):
+    # Validate max_clients does not exceed esp32_ble max_connections
+    max_clients = config.get(CONF_MAX_CLIENTS, 1)
+    if max_clients > 1:
+        full_config = fv.full_config.get()
+        ble_config = full_config.get("esp32_ble", {})
+        max_connections = ble_config.get(
+            "max_connections", esp32_ble.DEFAULT_MAX_CONNECTIONS
+        )
+        if max_clients > max_connections:
+            raise cv.Invalid(
+                f"'max_clients' ({max_clients}) cannot exceed esp32_ble "
+                f"'max_connections' ({max_connections}). "
+                f"Please set 'max_connections: {max_clients}' in the "
+                f"'esp32_ble' component."
+            )
+
     # Check if all characteristics that require notifications have the notify property set
     for char_id in CORE.data.get(DOMAIN, {}).get(KEY_NOTIFY_REQUIRED, set()):
         # Look for the characteristic in the configuration
@@ -429,7 +446,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MODEL): value_schema("string", templatable=False),
         cv.Optional(CONF_FIRMWARE_VERSION): value_schema("string", templatable=False),
         cv.Optional(CONF_MANUFACTURER_DATA): cv.Schema([cv.uint8_t]),
-        cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1, max=9),
+        cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1),
         cv.Optional(CONF_SERVICES, default=[]): cv.ensure_list(SERVICE_SCHEMA),
         cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(single=True),
