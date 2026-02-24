@@ -22,9 +22,10 @@ text_sensor:
 ## Configuration variables
 
 - **hide_timestamp** (*Optional*, boolean): Allows you to hide the compilation timestamp from the version string. Defaults to `false`.
+- **hide_hash** (*Optional*, boolean): Allows you to hide the config hash from the version string. Defaults to `false`.
 - All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
-## Disabling the compilation timestamp
+## Disabling timestamp and hash
 
 ```yaml
 # Example configuration entry
@@ -32,11 +33,10 @@ text_sensor:
   - platform: version
     name: "ESPHome Version"
     hide_timestamp: true
+    hide_hash: true
 ```
 
-This will, for example, change the output of the sensor from:
-
-`2024.6.0-dev May 30 2024, 09:07:35` to just `2024.6.0-dev`
+This will shorten the version string to be just like: `2026.1.0`
 
 ## See Also
 
