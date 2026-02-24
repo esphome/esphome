@@ -30,11 +30,21 @@ void LilygoT547PlusTouchscreen::setup() {
   pinMode(TOUCH_INT_PIN, INPUT);
   ESP_LOGD(TAG, "GT911 wakeup: GPIO%d HIGH→INPUT done", TOUCH_INT_PIN);
 
-  // Verify I2C communication
+  // Verify I2C communication.
+  // The GT911 I2C address (0x5D or 0x14) is latched at hardware reset depending
+  // on the INT pin state. If the wakeup sequence above ran too late (e.g. after
+  // a soft-reset without a full power cycle), the chip may be at the alternate
+  // address. Try the fallback automatically so tinkerers don't get stuck.
   if (this->write(nullptr, 0) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Failed to communicate with GT911 at 0x%02X", this->address_);
-    this->mark_failed();
-    return;
+    uint8_t fallback = (this->address_ == 0x5D) ? 0x14 : 0x5D;
+    ESP_LOGW(TAG, "GT911 not found at 0x%02X, trying fallback 0x%02X", this->address_, fallback);
+    this->set_i2c_address(fallback);
+    if (this->write(nullptr, 0) != i2c::ERROR_OK) {
+      ESP_LOGE(TAG, "GT911 not found at 0x%02X or 0x%02X - power-cycle the board", fallback, this->address_);
+      this->mark_failed();
+      return;
+    }
+    ESP_LOGI(TAG, "GT911 found at fallback address 0x%02X", fallback);
   }
 
   // Read interrupt mode from GT911 config register (0x804D)
