@@ -27,6 +27,10 @@ esp32:
 > the board configuration will be automatically filled using a standard Espressif devkit board
 > suitable for that variant. Both may be specified (for backwards compatibility) but they must define the same variant.
 
+- **engineering_sample** (*Optional*, boolean): **ESP32-P4 only.** Set to `true` if your board has engineering
+  sample silicon (rev < 3.0). When using `variant: esp32p4` without specifying a `board`, a warning is logged
+  if this option is not explicitly set. Defaults to `false`.
+
 - **flash_size** (*Optional*, string): The amount of flash memory available on the ESP32 board/module. One of `2MB`,
   `4MB`, `8MB`, `16MB` or `32MB`. Defaults to `4MB`. **Warning: specifying a size larger than that available
   on your board will cause the ESP32 to fail to boot.**
