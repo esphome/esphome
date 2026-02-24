@@ -44,8 +44,9 @@ void PylontechComponent::setup() {
 
 void PylontechComponent::update() {
   if (this->pylon_state_ != PYLON_IDLE) {
-    ESP_LOGW(TAG, "Communication timeout! Serial connection hung in state %d. Resetting state machine...", this->pylon_state_);
-    this->rx_buffer_.clear(); 
+    ESP_LOGW(TAG, "Communication timeout! Serial connection hung in state %d. Resetting state machine...",
+             this->pylon_state_);
+    this->rx_buffer_.clear();
   }
 
   this->pylon_state_ = PYLON_SEARCH;
@@ -55,7 +56,7 @@ void PylontechComponent::update() {
 void PylontechComponent::loop() {
   if (this->pylon_state_ == PYLON_SEARCH) {
     this->write_str("\n");
-    this->pylon_state_ = PYLON_WAIT_WAKEUP; 
+    this->pylon_state_ = PYLON_WAIT_WAKEUP;
     return;
   }
 
@@ -73,12 +74,13 @@ void PylontechComponent::loop() {
     return;
   }
 
-  if (this->pylon_state_ == PYLON_WAIT_WAKEUP || this->pylon_state_ == PYLON_READ_PWR || this->pylon_state_ == PYLON_READ_BAT) {
+  if (this->pylon_state_ == PYLON_WAIT_WAKEUP || this->pylon_state_ == PYLON_READ_PWR ||
+      this->pylon_state_ == PYLON_READ_BAT) {
     while (this->available() > 0) {
       uint8_t c;
       this->read_byte(&c);
-      
-      this->rx_buffer_ += (char)c;
+
+      this->rx_buffer_ += (char) c;
 
       if (this->rx_buffer_.length() > 512 && c != '\n' && c != '>') {
         this->rx_buffer_.clear();
@@ -90,26 +92,25 @@ void PylontechComponent::loop() {
         line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
 
         if (line.find("pylon>") != std::string::npos || line == ">") {
-           
-           if (this->pylon_state_ == PYLON_WAIT_WAKEUP) {
-             this->pylon_state_ = PYLON_DELAY;
-             this->set_timeout("delay", 250, [this]() { this->pylon_state_ = PYLON_REQUEST_PWR; });
-           
-           } else if (this->pylon_state_ == PYLON_READ_PWR) {
-             this->current_bat_num_ = 1;
-             this->pylon_state_ = PYLON_DELAY;
-             this->set_timeout("delay", 150, [this]() { this->pylon_state_ = PYLON_REQUEST_BAT; });
-           
-           } else if (this->pylon_state_ == PYLON_READ_BAT) {
-             if (this->current_bat_num_ < this->max_batteries_) {
-               this->current_bat_num_++;
-               this->pylon_state_ = PYLON_DELAY;
-               this->set_timeout("delay", 150, [this]() { this->pylon_state_ = PYLON_REQUEST_BAT; });
-             } else {
-               this->pylon_state_ = PYLON_IDLE; 
-               ESP_LOGD(TAG, "Read cycle completed (PWR + BAT).");
-             }
-           }
+          if (this->pylon_state_ == PYLON_WAIT_WAKEUP) {
+            this->pylon_state_ = PYLON_DELAY;
+            this->set_timeout("delay", 250, [this]() { this->pylon_state_ = PYLON_REQUEST_PWR; });
+
+          } else if (this->pylon_state_ == PYLON_READ_PWR) {
+            this->current_bat_num_ = 1;
+            this->pylon_state_ = PYLON_DELAY;
+            this->set_timeout("delay", 150, [this]() { this->pylon_state_ = PYLON_REQUEST_BAT; });
+
+          } else if (this->pylon_state_ == PYLON_READ_BAT) {
+            if (this->current_bat_num_ < this->max_batteries_) {
+              this->current_bat_num_++;
+              this->pylon_state_ = PYLON_DELAY;
+              this->set_timeout("delay", 150, [this]() { this->pylon_state_ = PYLON_REQUEST_BAT; });
+            } else {
+              this->pylon_state_ = PYLON_IDLE;
+              ESP_LOGD(TAG, "Read cycle completed (PWR + BAT).");
+            }
+          }
 
         } else if (!line.empty()) {
           if (this->pylon_state_ == PYLON_READ_PWR) {
@@ -158,7 +159,7 @@ void PylontechComponent::process_pwr_line_(std::string &buffer) {
       return;
     }
   }
-  
+
   PARSE_INT(l.volt, "Volt");
   PARSE_INT(l.curr, "Curr");
   PARSE_INT(l.tempr, "Tempr");
@@ -182,7 +183,7 @@ void PylontechComponent::process_pwr_line_(std::string &buffer) {
   PARSE_STR(l.volt_st, "Volt.St");
   PARSE_STR(l.curr_st, "Curr.St");
   PARSE_STR(l.temp_st, "Temp.St");
-  
+
   {
     get_token(token_buf);
     for (char &i : token_buf) {
@@ -198,11 +199,11 @@ void PylontechComponent::process_pwr_line_(std::string &buffer) {
       return;
     }
   }
-  
-  get_token(token_buf); 
-  get_token(token_buf); 
-  get_token(token_buf); 
-  get_token(token_buf); 
+
+  get_token(token_buf);
+  get_token(token_buf);
+  get_token(token_buf);
+  get_token(token_buf);
   PARSE_INT(l.mostempr, "Mostempr");
 
   for (PylontechListener *listener : this->listeners_) {
@@ -212,7 +213,8 @@ void PylontechComponent::process_pwr_line_(std::string &buffer) {
 
 // Memory-efficient parser for the BAT command (individual cell values)
 void PylontechComponent::process_bat_line_(std::string &line) {
-  if (line.length() < 10 || line.starts_with("bat") || line.find("Battery") != std::string::npos || line.find("Command") != std::string::npos) {
+  if (line.length() < 10 || line.starts_with("bat") || line.find("Battery") != std::string::npos ||
+      line.find("Command") != std::string::npos) {
     return;
   }
 

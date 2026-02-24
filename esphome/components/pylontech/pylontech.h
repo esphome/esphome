@@ -9,7 +9,7 @@ namespace pylontech {
 class PylontechListener {
  public:
   virtual void dump_config() {}
-  
+
   // Legacy structure for global battery data (pwr command)
   struct LineContents {
     int bat_num;
@@ -75,10 +75,10 @@ class PylontechComponent : public uart::UARTDevice, public PollingComponent {
     PYLON_REQUEST_BAT,
     PYLON_READ_BAT
   };
-  
+
   PylonState pylon_state_{PYLON_IDLE};
   int current_bat_num_{1};
-  int max_batteries_{1}; 
+  int max_batteries_{1};
   std::string rx_buffer_;
 
   char buffer_index_write_{0};
