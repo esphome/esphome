@@ -9,10 +9,17 @@
 #endif
 #ifdef USE_ESP32
 #include <esp_chip_info.h>
+#endif
+#ifdef USE_LWIP_FAST_SELECT
 #include "esphome/core/lwip_fast_select.h"
+#ifdef USE_ESP32
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#else
+#include <FreeRTOS.h>
+#include <task.h>
 #endif
+#endif  // USE_LWIP_FAST_SELECT
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
@@ -147,14 +154,14 @@ void Application::setup() {
   clear_setup_priority_overrides();
 #endif
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_ESP32)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
   // Initialize fast select: saves main loop task handle for xTaskNotifyGive wake.
-  // Always init on ESP32 — the fast path (rcvevent reads + ulTaskNotifyTake) is used
-  // unconditionally when USE_SOCKET_SELECT_SUPPORT is enabled.
+  // The fast path (rcvevent reads + ulTaskNotifyTake) is used unconditionally
+  // when USE_LWIP_FAST_SELECT is enabled (ESP32 and LibreTiny).
   esphome_lwip_fast_select_init();
 #endif
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
-  // Set up wake socket for waking main loop from tasks (non-ESP32 only)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+  // Set up wake socket for waking main loop from tasks (platforms without fast select only)
   this->setup_wake_loop_threadsafe_();
 #endif
 
@@ -585,7 +592,7 @@ bool Application::register_socket_fd(int fd) {
 #endif
 
   this->socket_fds_.push_back(fd);
-#ifdef USE_ESP32
+#ifdef USE_LWIP_FAST_SELECT
   // Hook the socket's netconn callback for instant wake on receive events
   esphome_lwip_hook_socket(fd);
 #else
@@ -614,7 +621,7 @@ void Application::unregister_socket_fd(int fd) {
     if (i < this->socket_fds_.size() - 1)
       this->socket_fds_[i] = this->socket_fds_.back();
     this->socket_fds_.pop_back();
-#ifndef USE_ESP32
+#ifndef USE_LWIP_FAST_SELECT
     this->socket_fds_changed_ = true;
     // Only recalculate max_fd if we removed the current max
     if (fd == this->max_fd_) {
@@ -633,8 +640,8 @@ void Application::unregister_socket_fd(int fd) {
 
 void Application::yield_with_select_(uint32_t delay_ms) {
   // Delay while monitoring sockets. When delay_ms is 0, always yield() to ensure other tasks run.
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_ESP32)
-  // ESP32 fast path: reads rcvevent directly via lwip_socket_dbg_get_socket() (~215 ns per socket).
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
+  // Fast path (ESP32/LibreTiny): reads rcvevent directly via lwip_socket_dbg_get_socket().
   // Safe because this runs on the main loop which owns socket lifetime (create, read, close).
   if (delay_ms == 0) [[unlikely]] {
     yield();
@@ -659,9 +666,8 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay_ms));
 
 #elif defined(USE_SOCKET_SELECT_SUPPORT)
-  // Non-ESP32 select() path (LibreTiny bk72xx/rtl87xx, host platform).
-  // ESP32 is excluded by the #if above — both BSD_SOCKETS and LWIP_SOCKETS on ESP32
-  // use LwIP under the hood, so the fast path handles all ESP32 socket implementations.
+  // Fallback select() path (host platform and any future platforms without fast select).
+  // ESP32 and LibreTiny are excluded by the #if above — they use the fast path.
   if (!this->socket_fds_.empty()) [[likely]] {
     // Update fd_set if socket list has changed
     if (this->socket_fds_changed_) [[unlikely]] {
@@ -717,12 +723,12 @@ Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
-#ifdef USE_ESP32
+#ifdef USE_LWIP_FAST_SELECT
 void Application::wake_loop_threadsafe() {
   // Direct FreeRTOS task notification — <1 us, task context only (NOT ISR-safe)
   esphome_lwip_wake_main_loop();
 }
-#else   // !USE_ESP32
+#else   // !USE_LWIP_FAST_SELECT
 
 void Application::setup_wake_loop_threadsafe_() {
   // Create UDP socket for wake notifications
@@ -790,7 +796,7 @@ void Application::wake_loop_threadsafe() {
     lwip_send(this->wake_socket_fd_, &dummy, 1, 0);
   }
 }
-#endif  // USE_ESP32
+#endif  // USE_LWIP_FAST_SELECT
 
 #endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 

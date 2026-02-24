@@ -24,7 +24,7 @@
 #endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
-#ifdef USE_ESP32
+#ifdef USE_LWIP_FAST_SELECT
 #include "esphome/core/lwip_fast_select.h"
 #else
 #include <sys/select.h>
@@ -514,7 +514,7 @@ class Application {
   /// Main loop only — on ESP32, reads rcvevent via lwip_socket_dbg_get_socket()
   /// which has no refcount; safe only because the main loop owns socket lifetime
   /// (creates, reads, and closes sockets on the same thread).
-#ifdef USE_ESP32
+#ifdef USE_LWIP_FAST_SELECT
   bool is_socket_ready_(int fd) const { return esphome_lwip_socket_has_data(fd); }
 #else
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
@@ -546,7 +546,7 @@ class Application {
   /// Perform a delay while also monitoring socket file descriptors for readiness
   void yield_with_select_(uint32_t delay_ms);
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
   void setup_wake_loop_threadsafe_();       // Create wake notification socket
   inline void drain_wake_notifications_();  // Read pending wake notifications in main loop (hot path - inlined)
 #endif
@@ -576,7 +576,7 @@ class Application {
   FixedVector<Component *> looping_components_{};
 #ifdef USE_SOCKET_SELECT_SUPPORT
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
-#if defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
+#if defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
   int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
 #endif
 #endif
@@ -589,7 +589,7 @@ class Application {
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_ESP32)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   int max_fd_{-1};  // Highest file descriptor number for select()
 #endif
 
@@ -605,12 +605,12 @@ class Application {
   bool in_loop_{false};
   volatile bool has_pending_enable_loop_requests_{false};
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_ESP32)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
 #endif
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_ESP32)
-  // Variable-sized members (not needed on ESP32 — is_socket_ready_ reads rcvevent directly)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+  // Variable-sized members (not needed with fast select — is_socket_ready_ reads rcvevent directly)
   fd_set read_fds_{};       // Working fd_set: populated by select()
   fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes
 #endif
