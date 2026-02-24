@@ -1,8 +1,9 @@
 #include "pylontech.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cstdio>
+#include <algorithm>
 
-// Helper macros
 #define PARSE_INT(field, field_name) \
   { \
     get_token(token_buf); \
@@ -10,7 +11,6 @@
     if (val.has_value()) { \
       (field) = val.value(); \
     } else { \
-      ESP_LOGD(TAG, "invalid " field_name " in line %s", buffer.substr(0, buffer.size() - 2).c_str()); \
       return; \
     } \
   }
@@ -19,7 +19,6 @@
   { \
     get_token(field); \
     if (strlen(field) < 2) { \
-      ESP_LOGD(TAG, "too short " field_name " in line %s", buffer.substr(0, buffer.size() - 2).c_str()); \
       return; \
     } \
   }
@@ -28,23 +27,12 @@ namespace esphome {
 namespace pylontech {
 
 static const char *const TAG = "pylontech";
-static const int MAX_DATA_LENGTH_BYTES = 256;
-static const uint8_t ASCII_LF = 0x0A;
 
 PylontechComponent::PylontechComponent() {}
 
 void PylontechComponent::dump_config() {
   this->check_uart_settings(115200, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
-  ESP_LOGCONFIG(TAG, "pylontech:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Connection with pylontech failed!");
-  }
-
-  for (PylontechListener *listener : this->listeners_) {
-    listener->dump_config();
-  }
-
-  LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "Pylontech Component (PWR + BAT)");
 }
 
 void PylontechComponent::setup() {
@@ -53,79 +41,102 @@ void PylontechComponent::setup() {
   }
 }
 
-void PylontechComponent::update() { this->write_str("pwr\n"); }
+void PylontechComponent::update() {
+  // --- WATCHDOG / TIMEOUT SCHUTZ ---
+  if (this->pylon_state_ != PYLON_IDLE) {
+    ESP_LOGW(TAG, "Communication timeout! Serial connection hung in state %d. Resetting state machine...", this->pylon_state_);
+    this->rx_buffer_.clear(); // Müll aus dem Buffer werfen
+  }
+  // ---------------------------------
+
+  this->pylon_state_ = PYLON_SEARCH;
+  ESP_LOGD(TAG, "Starting query: Global data (PWR) + %d batteries (BAT)...", this->max_batteries_);
+}
 
 void PylontechComponent::loop() {
-  size_t avail = this->available();
-  if (avail > 0) {
-    // pylontech sends a lot of data very suddenly
-    // we need to quickly put it all into our own buffer, otherwise the uart's buffer will overflow
-    int recv = 0;
-    uint8_t buf[64];
-    while (avail > 0) {
-      size_t to_read = std::min(avail, sizeof(buf));
-      if (!this->read_array(buf, to_read)) {
-        break;
-      }
-      avail -= to_read;
-      recv += to_read;
+  if (this->pylon_state_ == PYLON_SEARCH) {
+    this->write_str("\n");
+    this->pylon_state_ = PYLON_WAIT_WAKEUP; 
+    return;
+  }
 
-      for (size_t i = 0; i < to_read; i++) {
-        buffer_[buffer_index_write_] += (char) buf[i];
-        if (buf[i] == ASCII_LF || buffer_[buffer_index_write_].length() >= MAX_DATA_LENGTH_BYTES) {
-          // complete line received
-          buffer_index_write_ = (buffer_index_write_ + 1) % NUM_BUFFERS;
+  if (this->pylon_state_ == PYLON_REQUEST_PWR) {
+    this->write_str("pwr\n");
+    this->pylon_state_ = PYLON_READ_PWR;
+    return;
+  }
+
+  if (this->pylon_state_ == PYLON_REQUEST_BAT) {
+    char cmd[16];
+    snprintf(cmd, sizeof(cmd), "bat %d\n", this->current_bat_num_);
+    this->write_str(cmd);
+    this->pylon_state_ = PYLON_READ_BAT;
+    return;
+  }
+
+  if (this->pylon_state_ == PYLON_WAIT_WAKEUP || this->pylon_state_ == PYLON_READ_PWR || this->pylon_state_ == PYLON_READ_BAT) {
+    while (this->available() > 0) {
+      uint8_t c;
+      this->read_byte(&c);
+      
+      this->rx_buffer_ += (char)c;
+
+      // Anti-Overflow Schutz: Wenn extrem viel Müll auf der Leitung ist
+      if (this->rx_buffer_.length() > 512 && c != '\n' && c != '>') {
+        this->rx_buffer_.clear();
+      }
+
+      if (c == '\n' || c == '>') {
+        std::string line = this->rx_buffer_;
+        this->rx_buffer_.clear();
+        line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
+
+        if (line.find("pylon>") != std::string::npos || line == ">") {
+           
+           if (this->pylon_state_ == PYLON_WAIT_WAKEUP) {
+             this->pylon_state_ = PYLON_DELAY;
+             this->set_timeout("delay", 250, [this]() { this->pylon_state_ = PYLON_REQUEST_PWR; });
+           
+           } else if (this->pylon_state_ == PYLON_READ_PWR) {
+             this->current_bat_num_ = 1;
+             this->pylon_state_ = PYLON_DELAY;
+             this->set_timeout("delay", 150, [this]() { this->pylon_state_ = PYLON_REQUEST_BAT; });
+           
+           } else if (this->pylon_state_ == PYLON_READ_BAT) {
+             if (this->current_bat_num_ < this->max_batteries_) {
+               this->current_bat_num_++;
+               this->pylon_state_ = PYLON_DELAY;
+               this->set_timeout("delay", 150, [this]() { this->pylon_state_ = PYLON_REQUEST_BAT; });
+             } else {
+               this->pylon_state_ = PYLON_IDLE; 
+               ESP_LOGD(TAG, "Read cycle completed (PWR + BAT).");
+             }
+           }
+
+        } else if (!line.empty()) {
+          if (this->pylon_state_ == PYLON_READ_PWR) {
+            this->process_pwr_line_(line);
+          } else if (this->pylon_state_ == PYLON_READ_BAT) {
+            this->process_bat_line_(line);
+          }
         }
       }
-    }
-    ESP_LOGV(TAG, "received %d bytes", recv);
-  } else {
-    // only process one line per call of loop() to not block esphome for too long
-    if (buffer_index_read_ != buffer_index_write_) {
-      this->process_line_(buffer_[buffer_index_read_]);
-      buffer_[buffer_index_read_].clear();
-      buffer_index_read_ = (buffer_index_read_ + 1) % NUM_BUFFERS;
     }
   }
 }
 
-void PylontechComponent::process_line_(std::string &buffer) {
-  ESP_LOGV(TAG, "Read from serial: %s", buffer.substr(0, buffer.size() - 2).c_str());
-  // clang-format off
-  // example lines to parse:
-  // Power Volt   Curr   Tempr  Tlow   Thigh  Vlow   Vhigh  Base.St  Volt.St  Curr.St  Temp.St  Coulomb  Time                 B.V.St   B.T.St   MosTempr M.T.St
-  // 1     50548  8910   25000  24200  25000  3368   3371   Charge   Normal   Normal   Normal   97%      2021-06-30 20:49:45  Normal  Normal  22700    Normal
-  // 1     46012  1255   9100   5300   5500   3047   3091   SysError Low      Normal   Normal   4%       2025-11-28 17:56:33  Low      Normal  7800     Normal
-  // newer firmware example:
-  // Power Volt Curr Tempr Tlow Tlow.Id Thigh Thigh.Id Vlow Vlow.Id Vhigh Vhigh.Id Base.St Volt.St Curr.St Temp.St Coulomb Time                B.V.St B.T.St MosTempr M.T.St SysAlarm.St
-  // 1     49405 0   17600 13700 8      14500 0        3293 2       3294   0       Idle    Normal  Normal  Normal  60%     2025-12-05 00:53:41 Normal Normal 16600    Normal Normal
-  // clang-format on
-
+// Parser for the PWR command (global battery values)
+void PylontechComponent::process_pwr_line_(std::string &buffer) {
   PylontechListener::LineContents l{};
-
   const char *cursor = buffer.c_str();
-  char token_buf[TEXT_SENSOR_MAX_LEN] = {0};
+  char token_buf[128] = {0};
 
-  // Helper Lambda to extract tokens
   auto get_token = [&](char *token_buf) -> void {
-    // Skip leading whitespace
-    while (*cursor == ' ' || *cursor == '\t') {
-      cursor++;
-    }
-
-    if (*cursor == '\0') {
-      token_buf[0] = 0;
-      return;
-    }
-
+    while (*cursor == ' ' || *cursor == '\t') cursor++;
+    if (*cursor == '\0') { token_buf[0] = 0; return; }
     const char *start = cursor;
-
-    // Find end of field
-    while (*cursor != '\0' && *cursor != ' ' && *cursor != '\t' && *cursor != '\r') {
-      cursor++;
-    }
-
-    size_t token_len = std::min(static_cast<size_t>(cursor - start), static_cast<size_t>(TEXT_SENSOR_MAX_LEN - 1));
+    while (*cursor != '\0' && *cursor != ' ' && *cursor != '\t' && *cursor != '\r') cursor++;
+    size_t token_len = std::min(static_cast<size_t>(cursor - start), static_cast<size_t>(127));
     memcpy(token_buf, start, token_len);
     token_buf[token_len] = 0;
   };
@@ -136,65 +147,82 @@ void PylontechComponent::process_line_(std::string &buffer) {
     if (val.has_value() && val.value() > 0) {
       l.bat_num = val.value();
     } else if (strcmp(token_buf, "Power") == 0) {
-      // header line i.e. "Power Volt   Curr" and so on
       this->has_tlow_id_ = buffer.find("Tlow.Id") != std::string::npos;
-      ESP_LOGD(TAG, "header line %s Tlow.Id: %s", this->has_tlow_id_ ? "with" : "without",
-               buffer.substr(0, buffer.size() - 2).c_str());
       return;
-    } else {
-      ESP_LOGD(TAG, "unknown line %s", buffer.substr(0, buffer.size() - 2).c_str());
-      return;
-    }
+    } else { return; }
   }
+  
   PARSE_INT(l.volt, "Volt");
   PARSE_INT(l.curr, "Curr");
   PARSE_INT(l.tempr, "Tempr");
   PARSE_INT(l.tlow, "Tlow");
-  if (this->has_tlow_id_) {
-    get_token(token_buf);  // Skip Tlow.Id
-  }
+  if (this->has_tlow_id_) get_token(token_buf); 
   PARSE_INT(l.thigh, "Thigh");
-  if (this->has_tlow_id_) {
-    get_token(token_buf);  // Skip Thigh.Id
-  }
+  if (this->has_tlow_id_) get_token(token_buf); 
   PARSE_INT(l.vlow, "Vlow");
-  if (this->has_tlow_id_) {
-    get_token(token_buf);  // Skip Vlow.Id
-  }
+  if (this->has_tlow_id_) get_token(token_buf); 
   PARSE_INT(l.vhigh, "Vhigh");
-  if (this->has_tlow_id_) {
-    get_token(token_buf);  // Skip Vhigh.Id
-  }
+  if (this->has_tlow_id_) get_token(token_buf); 
   PARSE_STR(l.base_st, "Base.St");
   PARSE_STR(l.volt_st, "Volt.St");
   PARSE_STR(l.curr_st, "Curr.St");
   PARSE_STR(l.temp_st, "Temp.St");
+  
   {
     get_token(token_buf);
-    for (char &i : token_buf) {
-      if (i == '%') {
-        i = 0;
-        break;
-      }
-    }
+    for (char &i : token_buf) if (i == '%') { i = 0; break; }
     auto coul_val = parse_number<int>(token_buf);
-    if (coul_val.has_value()) {
-      l.coulomb = coul_val.value();
-    } else {
-      ESP_LOGD(TAG, "invalid Coulomb in line %s", buffer.substr(0, buffer.size() - 2).c_str());
-      return;
-    }
+    if (coul_val.has_value()) l.coulomb = coul_val.value();
+    else return;
   }
-  get_token(token_buf);  // Skip Date
-  get_token(token_buf);  // Skip Time
-  get_token(token_buf);  // Skip B.V.St
-  get_token(token_buf);  // Skip B.T.St
+  
+  get_token(token_buf); 
+  get_token(token_buf); 
+  get_token(token_buf); 
+  get_token(token_buf); 
   PARSE_INT(l.mostempr, "Mostempr");
-
-  ESP_LOGD(TAG, "successful line %s", buffer.substr(0, buffer.size() - 2).c_str());
 
   for (PylontechListener *listener : this->listeners_) {
     listener->on_line_read(&l);
+  }
+}
+
+// Parser for the BAT command (individual cell values)
+void PylontechComponent::process_bat_line_(std::string &line) {
+  if (line.length() < 10 || line.find("bat") == 0 || line.find("Battery") != std::string::npos || line.find("Command") != std::string::npos) {
+    return;
+  }
+
+  int cellNumber, soc, coulomb;
+  float voltage, current, temperature;
+  char state[16], voltState[16], currState[16], tempState[16];
+  char balance;
+
+  int parsed = sscanf(line.c_str(), "%d %f %f %f %15s %15s %15s %15s %d%% %d mAH %c",
+                      &cellNumber, &voltage, &current, &temperature, 
+                      state, voltState, currState, tempState, 
+                      &soc, &coulomb, &balance);
+
+  if (parsed == 11) {
+    voltage /= 1000.0;
+    current /= 1000.0;
+    temperature /= 1000.0;
+
+    ESP_LOGD(TAG, "Bat %d Cell %d: %.3fV, %.3fA, %.1fC", this->current_bat_num_, cellNumber, voltage, current, temperature);
+
+    PylontechListener::CellContents c{};
+    c.battery_id = this->current_bat_num_;
+    c.cell_id = cellNumber;
+    c.voltage = voltage;
+    c.current = current;
+    c.temperature = temperature;
+    c.soc = soc;
+    c.coulomb = coulomb;
+    c.balance = balance;
+
+    for (auto *listener : this->listeners_) {
+      listener->on_cell_data(&c);
+    }
   }
 }
 
