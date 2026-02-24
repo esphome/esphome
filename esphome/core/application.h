@@ -495,11 +495,6 @@ class Application {
   /// @return true if registration was successful, false if fd exceeds limits
   bool register_socket_fd(int fd);
   void unregister_socket_fd(int fd);
-  /// Check if there's data available on a socket without blocking.
-  /// Must only be called from the main loop thread — on ESP32, the underlying
-  /// lwip_socket_dbg_get_socket() has no refcount, so socket lifetime safety
-  /// depends on both reads and close happening on the same thread.
-  bool is_socket_ready(int fd) const { return fd >= 0 && this->is_socket_ready_(fd); }
 
 #ifdef USE_WAKE_LOOP_THREADSAFE
   /// Wake the main event loop from another FreeRTOS task.
@@ -715,8 +710,8 @@ static constexpr size_t WAKE_NOTIFY_DRAIN_BUFFER_SIZE = 16;
 
 inline void Application::drain_wake_notifications_() {
   // Called from main loop to drain any pending wake notifications
-  // Must check is_socket_ready() to avoid blocking on empty socket
-  if (this->wake_socket_fd_ >= 0 && this->is_socket_ready(this->wake_socket_fd_)) {
+  // Must check is_socket_ready_() to avoid blocking on empty socket
+  if (this->wake_socket_fd_ >= 0 && this->is_socket_ready_(this->wake_socket_fd_)) {
     char buffer[WAKE_NOTIFY_DRAIN_BUFFER_SIZE];
     // Drain all pending notifications with non-blocking reads
     // Multiple wake events may have triggered multiple writes, so drain until EWOULDBLOCK
