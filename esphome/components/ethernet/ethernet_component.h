@@ -19,8 +19,7 @@
 #include "lldp.h"
 #endif /* USE_ETHERNET_LLDP */
 
-namespace esphome {
-namespace ethernet {
+namespace esphome::ethernet {
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
 /** Listener interface for Ethernet IP state changes.
@@ -245,7 +244,6 @@ extern EthernetComponent *global_eth_component;
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 #endif
 
-}  // namespace ethernet
-}  // namespace esphome
+}  // namespace esphome::ethernet
 
 #endif  // USE_ESP32

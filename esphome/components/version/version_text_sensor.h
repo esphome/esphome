@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace version {
+namespace esphome::version {
 
 class VersionTextSensor : public text_sensor::TextSensor, public Component {
  public:
@@ -16,5 +15,4 @@ class VersionTextSensor : public text_sensor::TextSensor, public Component {
   bool hide_timestamp_{false};
 };
 
-}  // namespace version
-}  // namespace esphome
+}  // namespace esphome::version

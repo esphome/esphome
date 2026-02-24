@@ -375,7 +375,7 @@ json::SerializationBuffer<> WebServer::get_config_json() {
   JsonObject root = builder.root();
 
   root[ESPHOME_F("title")] = App.get_friendly_name().empty() ? App.get_name().c_str() : App.get_friendly_name().c_str();
-  char comment_buffer[ESPHOME_COMMENT_SIZE];
+  char comment_buffer[Application::ESPHOME_COMMENT_SIZE_MAX];
   App.get_comment_string(comment_buffer);
   root[ESPHOME_F("comment")] = comment_buffer;
 #if defined(USE_WEBSERVER_OTA_DISABLED) || !defined(USE_WEBSERVER_OTA)

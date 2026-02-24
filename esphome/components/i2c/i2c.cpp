@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include <memory>
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 static const char *const TAG = "i2c";
 
@@ -109,5 +108,4 @@ uint8_t I2CRegister16::get() const {
   return value;
 }
 
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c
