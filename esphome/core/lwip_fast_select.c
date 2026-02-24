@@ -6,6 +6,52 @@
 // 2. The netconn callback is a C function pointer
 //
 // defines.h is force-included by the build system (-include flag), providing USE_ESP32 etc.
+//
+// Thread safety analysis
+// ======================
+// Three threads interact with this code:
+//   1. Main loop task   — calls init, has_data, hook, unhook
+//   2. LwIP TCP/IP task — calls event_callback (which reads s_original_callback, writes rcvevent)
+//   3. Background tasks — call wake_main_loop
+//
+// Shared state and safety rationale:
+//
+//   s_main_loop_task (TaskHandle_t, 4 bytes):
+//     Written once by main loop in init(), before any hook/wake calls.
+//     Read by TCP/IP thread (in callback) and background tasks (in wake).
+//     Safe: write-once-then-read pattern. The init() call completes during setup()
+//     before any sockets are hooked, so all subsequent reads see the final value.
+//
+//   s_original_callback (netconn_callback, 4-byte function pointer):
+//     Written by main loop in hook_socket() (only when NULL — set once).
+//     Read by TCP/IP thread in esphome_socket_event_callback().
+//     Safe: set-once pattern. The first hook_socket() captures the original callback.
+//     All subsequent hooks see it already set and skip the write. The TCP/IP thread
+//     only reads this after the callback pointer has been swapped (which happens after
+//     the write), so it always sees the initialized value.
+//
+//   sock->conn->callback (netconn_callback, 4-byte function pointer):
+//     Written by main loop in hook_socket() and unhook_socket().
+//     Read by TCP/IP thread when invoking the callback.
+//     Safe: 32-bit aligned pointer writes are atomic on Xtensa and RISC-V (ESP32).
+//     The TCP/IP thread will see either the old or new pointer atomically — never a
+//     torn value. Both the wrapper and original callbacks are valid at all times
+//     (the wrapper itself calls the original), so either value is correct.
+//
+//   sock->rcvevent (s16_t, 2 bytes):
+//     Written by TCP/IP thread in event_callback (via SYS_ARCH_INC/DEC under lock).
+//     Read by main loop in has_data().
+//     Safe: aligned 16-bit reads are atomic on Xtensa/RISC-V. We use __atomic_load_n
+//     with __ATOMIC_RELAXED to prevent compiler reordering. Staleness is acceptable —
+//     a missed increment means we poll again next loop iteration (~16ms), and the
+//     task notification provides the real wake signal.
+//
+//   FreeRTOS task notification value:
+//     Written by TCP/IP thread (xTaskNotifyGive in callback) and background tasks
+//     (xTaskNotifyGive in wake_main_loop). Read by main loop (ulTaskNotifyTake).
+//     Safe: FreeRTOS notification APIs are thread-safe by design (use internal
+//     critical sections). Multiple concurrent xTaskNotifyGive calls are safe —
+//     the notification count simply increments.
 
 #ifdef USE_ESP32
 
@@ -17,10 +63,30 @@
 
 #include "esphome/core/lwip_fast_select.h"
 
-// Task handle for the main loop — set during setup, read from any thread/ISR
+#include <stddef.h>
+
+// Compile-time verification of thread safety assumptions.
+// On ESP32 (Xtensa/RISC-V), naturally-aligned reads/writes up to 32 bits are atomic.
+// These asserts ensure our cross-thread shared state meets those requirements.
+
+// Pointer types must fit in a single 32-bit store (atomic write)
+_Static_assert(sizeof(TaskHandle_t) <= 4, "TaskHandle_t must be <= 4 bytes for atomic access");
+_Static_assert(sizeof(netconn_callback) <= 4, "netconn_callback must be <= 4 bytes for atomic access");
+
+// rcvevent must fit in a single atomic read
+_Static_assert(sizeof(((struct lwip_sock *) 0)->rcvevent) <= 4, "rcvevent must be <= 4 bytes for atomic access");
+
+// Struct member alignment — natural alignment guarantees atomicity on Xtensa/RISC-V.
+// Misaligned access would not be atomic even if the size is <= 4 bytes.
+_Static_assert(offsetof(struct netconn, callback) % sizeof(netconn_callback) == 0,
+               "netconn.callback must be naturally aligned for atomic access");
+_Static_assert(offsetof(struct lwip_sock, rcvevent) % sizeof(((struct lwip_sock *) 0)->rcvevent) == 0,
+               "lwip_sock.rcvevent must be naturally aligned for atomic access");
+
+// Task handle for the main loop — written once in init(), read from TCP/IP and background tasks.
 static TaskHandle_t s_main_loop_task = NULL;
 
-// Saved original event_callback pointer (same for all LwIP sockets)
+// Saved original event_callback pointer — written once in first hook_socket(), read from TCP/IP task.
 static netconn_callback s_original_callback = NULL;
 
 // Wrapper callback: calls original event_callback + notifies main loop task.
@@ -33,7 +99,6 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
   }
   // Wake the main loop task if sleeping in ulTaskNotifyTake().
   // Only notify on receive events to avoid spurious wakeups from send-ready events.
-  // xTaskNotifyGive is safe from task context (LwIP TCP/IP thread). NOT ISR-safe.
   if (evt == NETCONN_EVT_RCVPLUS) {
     TaskHandle_t task = s_main_loop_task;
     if (task != NULL) {
@@ -48,10 +113,8 @@ bool esphome_lwip_socket_has_data(int fd) {
   struct lwip_sock *sock = lwip_socket_dbg_get_socket(fd);
   if (sock == NULL || sock->conn == NULL)
     return false;
-  // rcvevent is modified by LwIP's TCP/IP thread in event_callback.
-  // Use atomic load for C11 memory model correctness. On Xtensa/RISC-V (ESP32)
-  // aligned 16-bit reads are naturally atomic, so this compiles to a plain load
-  // but prevents compiler reordering.
+  // Atomic load prevents compiler reordering. On ESP32 this compiles to a plain load
+  // since aligned 16-bit reads are naturally atomic on Xtensa/RISC-V.
   return __atomic_load_n(&sock->rcvevent, __ATOMIC_RELAXED) > 0;
 }
 
@@ -60,15 +123,13 @@ void esphome_lwip_hook_socket(int fd) {
   if (sock == NULL || sock->conn == NULL)
     return;
 
-  // Save original callback (only once — same event_callback for all LwIP sockets)
+  // Save original callback once — all LwIP sockets share the same event_callback.
   if (s_original_callback == NULL) {
     s_original_callback = sock->conn->callback;
   }
 
-  // Replace with our wrapper.
-  // Thread safety: pointer writes are atomic on ESP32 (32-bit aligned).
-  // The TCP/IP thread may read conn->callback concurrently, but it will see
-  // either the old or new pointer — both are valid (our wrapper calls the original).
+  // Replace with our wrapper. Atomic on ESP32 (32-bit aligned pointer write).
+  // TCP/IP thread sees either old or new pointer — both are valid.
   sock->conn->callback = esphome_socket_event_callback;
 }
 
@@ -77,14 +138,13 @@ void esphome_lwip_unhook_socket(int fd) {
   if (sock == NULL || sock->conn == NULL)
     return;
 
-  // Restore original callback.
-  // Thread safety: same as hook — pointer write is atomic on ESP32.
-  // TCP/IP thread sees either wrapper or original, both are safe.
+  // Restore original callback. Atomic on ESP32 (32-bit aligned pointer write).
   if (s_original_callback != NULL) {
     sock->conn->callback = s_original_callback;
   }
 }
 
+// Wake the main loop from another FreeRTOS task. NOT ISR-safe.
 void esphome_lwip_wake_main_loop(void) {
   TaskHandle_t task = s_main_loop_task;
   if (task != NULL) {
