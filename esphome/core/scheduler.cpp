@@ -221,17 +221,18 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   target->push_back(std::move(item));
 }
 
-void HOT Scheduler::set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func) {
+void HOT Scheduler::set_timeout(Component *component, const char *name, uint32_t timeout,
+                                std::function<void()> &&func) {
   this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::STATIC_STRING, name, 0, timeout,
                           std::move(func));
 }
 
 void HOT Scheduler::set_timeout(Component *component, const std::string &name, uint32_t timeout,
-                                std::function<void()> func) {
+                                std::function<void()> &&func) {
   this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::HASHED_STRING, nullptr, fnv1a_hash(name),
                           timeout, std::move(func));
 }
-void HOT Scheduler::set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> func) {
+void HOT Scheduler::set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> &&func) {
   this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID, nullptr, id, timeout,
                           std::move(func));
 }
@@ -245,17 +246,17 @@ bool HOT Scheduler::cancel_timeout(Component *component, uint32_t id) {
   return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::TIMEOUT);
 }
 void HOT Scheduler::set_interval(Component *component, const std::string &name, uint32_t interval,
-                                 std::function<void()> func) {
+                                 std::function<void()> &&func) {
   this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::HASHED_STRING, nullptr, fnv1a_hash(name),
                           interval, std::move(func));
 }
 
 void HOT Scheduler::set_interval(Component *component, const char *name, uint32_t interval,
-                                 std::function<void()> func) {
+                                 std::function<void()> &&func) {
   this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::STATIC_STRING, name, 0, interval,
                           std::move(func));
 }
-void HOT Scheduler::set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> func) {
+void HOT Scheduler::set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> &&func) {
   this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID, nullptr, id, interval,
                           std::move(func));
 }
