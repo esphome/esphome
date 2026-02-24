@@ -509,9 +509,10 @@ class Scheduler {
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   // Returns the number of items marked for removal
   // IMPORTANT: Must be called with scheduler lock held
-  __attribute__((noinline)) size_t mark_matching_items_removed_locked_(
-      std::vector<SchedulerItemPtr> &container, Component *component, NameType name_type, const char *static_name,
-      uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry) {
+  __attribute__((noinline)) size_t mark_matching_items_removed_locked_(std::vector<SchedulerItemPtr> &container,
+                                                                       Component *component, NameType name_type,
+                                                                       const char *static_name, uint32_t hash_or_id,
+                                                                       SchedulerItem::Type type, bool match_retry) {
     size_t count = 0;
     for (auto &item : container) {
       // Skip nullptr items (can happen in defer_queue_ when items are being processed)
