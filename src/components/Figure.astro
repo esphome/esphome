@@ -1,6 +1,7 @@
 ---
 import { Image } from 'astro:assets';
 import type { ImageMetadata } from 'astro';
+import { micromark } from 'micromark';
 
 interface Props {
   src: ImageMetadata | string;
@@ -12,7 +13,12 @@ interface Props {
   height?: number;
 }
 
-const { src, alt, caption, layout = 'constrained', style, width, height } = Astro.props;
+const { src, alt, caption: rawCaption, layout = 'constrained', style, width, height } = Astro.props;
+
+// Render caption as inline markdown (handles links, escaping, XSS)
+const caption = rawCaption
+  ? micromark(rawCaption).replace(/^<p>|<\/p>\n?$/g, '')
+  : undefined;
 
 // Check if there's slot content for caption
 const hasSlot = Astro.slots.has('caption');
@@ -29,7 +35,7 @@ const hasSlot = Astro.slots.has('caption');
   />
   {(hasSlot || caption) && (
     <figcaption>
-      {hasSlot ? <slot name="caption" /> : caption}
+      {hasSlot ? <slot name="caption" /> : <span set:html={caption} />}
     </figcaption>
   )}
 </figure>
