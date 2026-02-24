@@ -15,28 +15,30 @@
 //                         via the original callback under SYS_ARCH_PROTECT/UNPROTECT mutex)
 //   3. Background tasks — call wake_main_loop
 //
-// LwIP source references (STABLE-2_2_0_RELEASE):
-//   https://github.com/lwip-tcpip/lwip/blob/STABLE-2_2_0_RELEASE/src/api/sockets.c
-//     - event_callback (static, same for all sockets): line 619
-//     - DEFAULT_SOCKET_EVENTCB = event_callback: line 622
-//     - lwip_socket_dbg_get_socket (direct array lookup, no locking): line 654
-//     - tryget_socket_unconn_nouse (the array lookup helper): line 1008
-//     - All socket types use DEFAULT_SOCKET_EVENTCB: lines 3309-3325
-//     - event_callback SYS_ARCH_PROTECT before rcvevent switch: line 3685
-//     - sock->rcvevent++ (NETCONN_EVT_RCVPLUS case): line 3688
-//     - SYS_ARCH_UNPROTECT after switch: line 3720
-//   https://github.com/lwip-tcpip/lwip/blob/STABLE-2_2_0_RELEASE/src/include/lwip/sys.h
-//     - SYS_ARCH_PROTECT calls sys_arch_protect(): line 557
-//     - SYS_ARCH_UNPROTECT calls sys_arch_unprotect(): line 568
+// LwIP source references (ESP-IDF v5.5.2, commit 30aaf64524):
+//   sockets.c: https://github.com/espressif/esp-idf/blob/30aaf64524/components/lwip/lwip/src/api/sockets.c
+//     - event_callback (static, same for all sockets): L327
+//     - DEFAULT_SOCKET_EVENTCB = event_callback: L328
+//     - tryget_socket_unconn_nouse (direct array lookup): L450
+//     - lwip_socket_dbg_get_socket (thin wrapper): L461
+//     - All socket types use DEFAULT_SOCKET_EVENTCB: L1741, L1748, L1759
+//     - event_callback definition: L2538
+//     - SYS_ARCH_PROTECT before rcvevent switch: L2578
+//     - sock->rcvevent++ (NETCONN_EVT_RCVPLUS case): L2582
+//     - SYS_ARCH_UNPROTECT after switch: L2615
+//   sys.h: https://github.com/espressif/esp-idf/blob/30aaf64524/components/lwip/lwip/src/include/lwip/sys.h
+//     - SYS_ARCH_PROTECT calls sys_arch_protect(): L495
+//     - SYS_ARCH_UNPROTECT calls sys_arch_unprotect(): L506
 //     (ESP-IDF implements sys_arch_protect/unprotect as FreeRTOS mutex lock/unlock)
 //
 // Shared state and safety rationale:
 //
 //   s_main_loop_task (TaskHandle_t, 4 bytes):
-//     Written once by main loop in init(), before any hook/wake calls.
-//     Read by TCP/IP thread (in callback) and background tasks (in wake).
-//     Safe: write-once-then-read pattern. The init() call completes during setup()
-//     before any sockets are hooked, so all subsequent reads see the final value.
+//     Written once by main loop in init(). Read by TCP/IP thread (in callback)
+//     and background tasks (in wake).
+//     Safe: write-once-then-read pattern. Socket hooks may run before init(),
+//     but the NULL check on s_main_loop_task in the callback provides correct
+//     degraded behavior — notifications are simply skipped until init() completes.
 //
 //   s_original_callback (netconn_callback, 4-byte function pointer):
 //     Written by main loop in hook_socket() (only when NULL — set once).
@@ -48,7 +50,7 @@
 //
 //   sock->conn->callback (netconn_callback, 4-byte function pointer):
 //     Written by main loop in hook_socket(). Never restored — all LwIP sockets share
-//     the same static event_callback (line 619, 622), so the wrapper stays permanently.
+//     the same static event_callback (DEFAULT_SOCKET_EVENTCB), so the wrapper stays permanently.
 //     Read by TCP/IP thread when invoking the callback.
 //     Safe: 32-bit aligned pointer writes are atomic on Xtensa and RISC-V (ESP32).
 //     The TCP/IP thread will see either the old or new pointer atomically — never a
@@ -56,11 +58,12 @@
 //     (the wrapper itself calls the original), so either value is correct.
 //
 //   sock->rcvevent (s16_t, 2 bytes):
-//     Written by TCP/IP thread in event_callback under SYS_ARCH_PROTECT (line 3685).
+//     Written by TCP/IP thread in event_callback under SYS_ARCH_PROTECT.
 //     Read by main loop in has_data() via volatile cast.
-//     Safe: SYS_ARCH_UNPROTECT (line 3720) releases a FreeRTOS mutex, which internally
-//     uses a critical section with memory barrier (rsync on Xtensa), ensuring the write
-//     is committed before the mutex is released. The volatile cast prevents the compiler
+//     Safe: SYS_ARCH_UNPROTECT releases a FreeRTOS mutex, which internally
+//     uses a critical section with memory barrier (rsync on dual-core Xtensa; on
+//     single-core builds the spinlock is compiled out, but cross-core visibility is
+//     not an issue). The volatile cast prevents the compiler
 //     from caching the read. Aligned 16-bit reads are single-instruction loads on
 //     Xtensa (L16SI) and RISC-V (LH), which cannot produce torn values.
 //
