@@ -50,7 +50,7 @@ void Frame::set_header(uint8_t initiator_addr, uint8_t target_addr) {
 }
 
 std::string Frame::to_string() const {
-  constexpr unsigned int HEX_LINE_SIZE = Frame::MAX_LENGTH * 3 + 1;
+  static constexpr unsigned int HEX_LINE_SIZE = Frame::MAX_LENGTH * 3 + 1;
   char hex_line[HEX_LINE_SIZE];
   unsigned int offset = 0;
   for (int i = 0; i < size_; i++) {
