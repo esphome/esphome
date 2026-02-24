@@ -6,8 +6,7 @@
 #include "esphome/core/component.h"
 #include "i2c_bus.h"
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 enum RecoveryCode {
   RECOVERY_FAILED_SCL_LOW,
@@ -45,7 +44,6 @@ class ArduinoI2CBus : public InternalI2CBus, public Component {
   bool initialized_ = false;
 };
 
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c
 
 #endif  // defined(USE_ARDUINO) && !defined(USE_ESP32)
