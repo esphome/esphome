@@ -15,10 +15,10 @@ namespace esphome::switch_ {
   void set_##name##_switch(switch_::Switch *s) { this->name##_switch_ = s; }
 
 // bit0: on/off. bit1: persistent. bit2: inverted. bit3: disabled
-const int RESTORE_MODE_ON_MASK = 0x01;
-const int RESTORE_MODE_PERSISTENT_MASK = 0x02;
-const int RESTORE_MODE_INVERTED_MASK = 0x04;
-const int RESTORE_MODE_DISABLED_MASK = 0x08;
+constexpr int RESTORE_MODE_ON_MASK = 0x01;
+constexpr int RESTORE_MODE_PERSISTENT_MASK = 0x02;
+constexpr int RESTORE_MODE_INVERTED_MASK = 0x04;
+constexpr int RESTORE_MODE_DISABLED_MASK = 0x08;
 
 enum SwitchRestoreMode : uint8_t {
   SWITCH_ALWAYS_OFF = !RESTORE_MODE_ON_MASK,
