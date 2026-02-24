@@ -147,14 +147,15 @@ void Application::setup() {
   clear_setup_priority_overrides();
 #endif
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-#ifdef USE_ESP32
-  // Initialize fast select: saves main loop task handle for xTaskNotifyGive wake
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_ESP32)
+  // Initialize fast select: saves main loop task handle for xTaskNotifyGive wake.
+  // Always init on ESP32 — the fast path (rcvevent reads + ulTaskNotifyTake) is used
+  // unconditionally when USE_SOCKET_SELECT_SUPPORT is enabled.
   esphome_lwip_fast_select_init();
-#else
-  // Set up wake socket for waking main loop from tasks
-  this->setup_wake_loop_threadsafe_();
 #endif
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
+  // Set up wake socket for waking main loop from tasks (non-ESP32 only)
+  this->setup_wake_loop_threadsafe_();
 #endif
 
   this->schedule_dump_config();
@@ -642,7 +643,9 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay_ms));
 
 #elif defined(USE_SOCKET_SELECT_SUPPORT)
-  // Non-ESP32 platforms (LibreTiny bk72xx/rtl87xx): use select()
+  // Non-ESP32 select() path (LibreTiny bk72xx/rtl87xx, host platform).
+  // ESP32 is excluded by the #if above — both BSD_SOCKETS and LWIP_SOCKETS on ESP32
+  // use LwIP under the hood, so the fast path handles all ESP32 socket implementations.
   if (!this->socket_fds_.empty()) [[likely]] {
     // Update fd_set if socket list has changed
     if (this->socket_fds_changed_) [[unlikely]] {
@@ -700,7 +703,7 @@ Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #ifdef USE_ESP32
 void Application::wake_loop_threadsafe() {
-  // Direct FreeRTOS task notification — ISR-safe, <1 us
+  // Direct FreeRTOS task notification — <1 us, task context only (NOT ISR-safe)
   esphome_lwip_wake_main_loop();
 }
 #else   // !USE_ESP32
