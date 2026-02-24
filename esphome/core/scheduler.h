@@ -33,7 +33,7 @@ class Scheduler {
   // std::string overload - deprecated, use const char* or uint32_t instead
   // Remove before 2026.7.0
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> &&func);
 
   /** Set a timeout with a const char* name.
    *
@@ -43,11 +43,11 @@ class Scheduler {
    *   - A static const char* variable
    *   - A pointer with lifetime >= the scheduled task
    */
-  void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> &&func);
   /// Set a timeout with a numeric ID (zero heap allocation)
-  void set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> &&func);
   /// Set a timeout with an internal scheduler ID (separate namespace from component NUMERIC_ID)
-  void set_timeout(Component *component, InternalSchedulerID id, uint32_t timeout, std::function<void()> func) {
+  void set_timeout(Component *component, InternalSchedulerID id, uint32_t timeout, std::function<void()> &&func) {
     this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID_INTERNAL, nullptr,
                             static_cast<uint32_t>(id), timeout, std::move(func));
   }
@@ -62,7 +62,7 @@ class Scheduler {
   }
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> &&func);
 
   /** Set an interval with a const char* name.
    *
@@ -72,11 +72,11 @@ class Scheduler {
    *   - A static const char* variable
    *   - A pointer with lifetime >= the scheduled task
    */
-  void set_interval(Component *component, const char *name, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, const char *name, uint32_t interval, std::function<void()> &&func);
   /// Set an interval with a numeric ID (zero heap allocation)
-  void set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> &&func);
   /// Set an interval with an internal scheduler ID (separate namespace from component NUMERIC_ID)
-  void set_interval(Component *component, InternalSchedulerID id, uint32_t interval, std::function<void()> func) {
+  void set_interval(Component *component, InternalSchedulerID id, uint32_t interval, std::function<void()> &&func) {
     this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID_INTERNAL, nullptr,
                             static_cast<uint32_t>(id), interval, std::move(func));
   }
@@ -255,7 +255,7 @@ class Scheduler {
   // Common implementation for both timeout and interval
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
   void set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type, const char *static_name,
-                         uint32_t hash_or_id, uint32_t delay, std::function<void()> func, bool is_retry = false,
+                         uint32_t hash_or_id, uint32_t delay, std::function<void()> &&func, bool is_retry = false,
                          bool skip_cancel = false);
 
   // Common implementation for retry - Remove before 2026.8.0
