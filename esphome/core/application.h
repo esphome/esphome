@@ -592,13 +592,6 @@ class Application {
 #if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_ESP32)
   int max_fd_{-1};  // Highest file descriptor number for select()
 #endif
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_ESP32)
-  // Diagnostic counters for fast select sleep behavior (logged every 1000 loops)
-  uint32_t fast_select_total_count_{0};
-  uint32_t fast_select_woken_count_{0};    // Woken by notification (socket data or wake_loop_threadsafe)
-  uint32_t fast_select_timeout_count_{0};  // Slept full duration (no notification)
-  uint32_t fast_select_skip_count_{0};     // Skipped sleep (socket already had data)
-#endif
 
   // 2-byte members (grouped together for alignment)
   uint16_t dump_config_at_{std::numeric_limits<uint16_t>::max()};  // Index into components_ for dump_config progress
