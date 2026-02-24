@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace switch_ {
+namespace esphome::switch_ {
 
 #define SUB_SWITCH(name) \
  protected: \
@@ -146,5 +145,4 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
 #define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))
 void log_switch(const char *tag, const char *prefix, const char *type, Switch *obj);
 
-}  // namespace switch_
-}  // namespace esphome
+}  // namespace esphome::switch_
