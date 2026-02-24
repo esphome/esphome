@@ -25,7 +25,7 @@
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
 #include <sys/select.h>
-#ifdef USE_WAKE_LOOP_THREADSAFE
+#if defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
 #include <lwip/sockets.h>
 #endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
@@ -497,9 +497,10 @@ class Application {
   bool is_socket_ready(int fd) const { return fd >= 0 && this->is_socket_ready_(fd); }
 
 #ifdef USE_WAKE_LOOP_THREADSAFE
-  /// Wake the main event loop from a FreeRTOS task
-  /// Thread-safe, can be called from task context to immediately wake select()
-  /// IMPORTANT: NOT safe to call from ISR context (socket operations not ISR-safe)
+  /// Wake the main event loop from a FreeRTOS task or ISR.
+  /// Thread-safe, can be called from any context to immediately wake the main loop.
+  /// On ESP32: uses xTaskNotifyGive (<1 us, ISR-safe)
+  /// On other platforms: uses UDP loopback socket (NOT ISR-safe)
   void wake_loop_threadsafe();
 #endif
 #endif
@@ -541,7 +542,7 @@ class Application {
   /// Perform a delay while also monitoring socket file descriptors for readiness
   void yield_with_select_(uint32_t delay_ms);
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
   void setup_wake_loop_threadsafe_();       // Create wake notification socket
   inline void drain_wake_notifications_();  // Read pending wake notifications in main loop (hot path - inlined)
 #endif
@@ -571,7 +572,7 @@ class Application {
   FixedVector<Component *> looping_components_{};
 #ifdef USE_SOCKET_SELECT_SUPPORT
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
-#ifdef USE_WAKE_LOOP_THREADSAFE
+#if defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
   int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
 #endif
 #endif
@@ -584,7 +585,7 @@ class Application {
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_ESP32)
   int max_fd_{-1};  // Highest file descriptor number for select()
 #endif
 
@@ -600,14 +601,16 @@ class Application {
   bool in_loop_{false};
   volatile bool has_pending_enable_loop_requests_{false};
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_ESP32)
   bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
 #endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
   // Variable-sized members
-  fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes
-  fd_set read_fds_{};       // Working fd_set for select(), copied from base_read_fds_
+  fd_set read_fds_{};  // Working fd_set: populated by select() or direct rcvevent reads
+#ifndef USE_ESP32
+  fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes (select() path)
+#endif
 #endif
 
   // StaticVectors (largest members - contain actual array data inline)
@@ -694,7 +697,7 @@ class Application {
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
 // Inline implementations for hot-path functions
 // drain_wake_notifications_() is called on every loop iteration
 
@@ -716,6 +719,6 @@ inline void Application::drain_wake_notifications_() {
     }
   }
 }
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
 
 }  // namespace esphome
