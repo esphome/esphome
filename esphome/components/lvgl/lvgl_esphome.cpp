@@ -8,6 +8,11 @@
 
 #include <numeric>
 
+#ifdef USE_ESP32_VARIANT_ESP32P4
+#include <driver/ppa.h>
+#include <esp_heap_caps.h>
+#endif
+
 namespace esphome::lvgl {
 static const char *const TAG = "lvgl";
 
@@ -195,46 +200,122 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
   auto x1 = area->x1;
   auto y1 = area->y1;
   lv_color_data *dst = reinterpret_cast<lv_color_data *>(this->rotate_buf_);
-  switch (this->rotation) {
-    case display::DISPLAY_ROTATION_90_DEGREES:
-      for (lv_coord_t x = height; x-- != 0;) {
-        for (lv_coord_t y = 0; y != width; y++) {
-          dst[y * height_rounded + x] = *ptr++;
-        }
-      }
-      y1 = x1;
-      x1 = this->height_ - area->y1 - height;
-      width = height;
-      height = width;
-      width = height_rounded;
-      break;
 
-    case display::DISPLAY_ROTATION_180_DEGREES:
-      for (lv_coord_t y = height; y-- != 0;) {
-        for (lv_coord_t x = width; x-- != 0;) {
-          dst[y * width + x] = *ptr++;
-        }
-      }
-      x1 = this->width_ - x1 - width;
-      y1 = this->height_ - y1 - height;
-      break;
+#ifdef USE_ESP32_VARIANT_ESP32P4
+  if (this->ppa_client_ != nullptr && this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
+    // Use ESP32-P4 PPA hardware acceleration for rotation
+    ppa_srm_rotation_angle_t ppa_angle = PPA_SRM_ROTATION_ANGLE_0;
+    uint32_t out_pic_w = width, out_pic_h = height;
+    auto orig_width = width;
 
-    case display::DISPLAY_ROTATION_270_DEGREES:
-      for (lv_coord_t x = 0; x != height; x++) {
-        for (lv_coord_t y = width; y-- != 0;) {
-          dst[y * height_rounded + x] = *ptr++;
-        }
-      }
-      x1 = y1;
-      y1 = this->width_ - area->x1 - width;
-      height = width;
-      width = height_rounded;
-      break;
+    switch (this->rotation) {
+      case display::DISPLAY_ROTATION_90_DEGREES:
+        ppa_angle = PPA_SRM_ROTATION_ANGLE_270;  // 90 CW = 270 CCW
+        out_pic_w = height_rounded;
+        out_pic_h = orig_width;
+        y1 = x1;
+        x1 = this->height_ - area->y1 - height;
+        width = height_rounded;
+        height = orig_width;
+        break;
+      case display::DISPLAY_ROTATION_180_DEGREES:
+        ppa_angle = PPA_SRM_ROTATION_ANGLE_180;
+        out_pic_w = width;
+        out_pic_h = height;
+        x1 = this->width_ - x1 - width;
+        y1 = this->height_ - y1 - height;
+        break;
+      case display::DISPLAY_ROTATION_270_DEGREES:
+        ppa_angle = PPA_SRM_ROTATION_ANGLE_90;  // 270 CW = 90 CCW
+        out_pic_w = height_rounded;
+        out_pic_h = orig_width;
+        x1 = y1;
+        y1 = this->width_ - area->x1 - orig_width;
+        height = orig_width;
+        width = height_rounded;
+        break;
+      default:
+        break;
+    }
 
-    default:
-      dst = ptr;
-      break;
+    ppa_srm_oper_config_t srm = {};
+    srm.in.buffer = ptr;
+    srm.in.pic_w = lv_area_get_width(area);
+    srm.in.pic_h = lv_area_get_height(area);
+    srm.in.block_w = lv_area_get_width(area);
+    srm.in.block_h = lv_area_get_height(area);
+    srm.in.block_offset_x = 0;
+    srm.in.block_offset_y = 0;
+    srm.in.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
+
+    srm.out.buffer = dst;
+    srm.out.buffer_size = this->rotate_buf_size_;
+    srm.out.pic_w = out_pic_w;
+    srm.out.pic_h = out_pic_h;
+    srm.out.block_offset_x = 0;
+    srm.out.block_offset_y = 0;
+    srm.out.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
+
+    srm.rotation_angle = ppa_angle;
+    srm.scale_x = 1.0f;
+    srm.scale_y = 1.0f;
+    srm.mirror_x = false;
+    srm.mirror_y = false;
+    srm.rgb_swap = false;
+    srm.byte_swap = false;
+    srm.alpha_update_mode = PPA_ALPHA_NO_CHANGE;
+    srm.mode = PPA_TRANS_MODE_BLOCKING;
+
+    esp_err_t err = ppa_do_scale_rotate_mirror(static_cast<ppa_client_handle_t>(this->ppa_client_), &srm);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "PPA rotation failed: %s", esp_err_to_name(err));
+    }
+  } else
+#endif  // USE_ESP32_VARIANT_ESP32P4
+  {
+    // Software rotation fallback
+    switch (this->rotation) {
+      case display::DISPLAY_ROTATION_90_DEGREES:
+        for (lv_coord_t x = height; x-- != 0;) {
+          for (lv_coord_t y = 0; y != width; y++) {
+            dst[y * height_rounded + x] = *ptr++;
+          }
+        }
+        y1 = x1;
+        x1 = this->height_ - area->y1 - height;
+        width = height;
+        height = width;
+        width = height_rounded;
+        break;
+
+      case display::DISPLAY_ROTATION_180_DEGREES:
+        for (lv_coord_t y = height; y-- != 0;) {
+          for (lv_coord_t x = width; x-- != 0;) {
+            dst[y * width + x] = *ptr++;
+          }
+        }
+        x1 = this->width_ - x1 - width;
+        y1 = this->height_ - y1 - height;
+        break;
+
+      case display::DISPLAY_ROTATION_270_DEGREES:
+        for (lv_coord_t x = 0; x != height; x++) {
+          for (lv_coord_t y = width; y-- != 0;) {
+            dst[y * height_rounded + x] = *ptr++;
+          }
+        }
+        x1 = y1;
+        y1 = this->width_ - area->x1 - width;
+        height = width;
+        width = height_rounded;
+        break;
+
+      default:
+        dst = ptr;
+        break;
+    }
   }
+
   for (auto *display : this->displays_) {
     display->draw_pixels_at(x1, y1, width, height, (const uint8_t *) dst, display::COLOR_ORDER_RGB, LV_BITNESS,
                             this->big_endian_);
@@ -558,6 +639,21 @@ void LvglComponent::setup() {
     frac = 1;
   auto buf_bytes = width * height / frac * LV_COLOR_DEPTH / 8;
   void *buffer = nullptr;
+#ifdef USE_ESP32_VARIANT_ESP32P4
+  // Use cache-line-aligned allocation for PPA DMA compatibility
+  auto buf_bytes_aligned = (buf_bytes + 63) & ~(size_t) 63;
+  buffer = heap_caps_aligned_alloc(64, buf_bytes_aligned, MALLOC_CAP_DMA | MALLOC_CAP_SPIRAM);
+  if (buffer == nullptr)
+    buffer = heap_caps_aligned_alloc(64, buf_bytes_aligned, MALLOC_CAP_DMA);
+  if (buffer == nullptr && this->buffer_frac_ == 0) {
+    frac = MIN_BUFFER_FRAC;
+    buf_bytes /= MIN_BUFFER_FRAC;
+    buf_bytes_aligned = (buf_bytes + 63) & ~(size_t) 63;
+    buffer = heap_caps_aligned_alloc(64, buf_bytes_aligned, MALLOC_CAP_DMA | MALLOC_CAP_SPIRAM);
+    if (buffer == nullptr)
+      buffer = heap_caps_aligned_alloc(64, buf_bytes_aligned, MALLOC_CAP_DMA);
+  }
+#else
   if (this->buffer_frac_ >= MIN_BUFFER_FRAC / 2)
     buffer = malloc(buf_bytes);  // NOLINT
   if (buffer == nullptr)
@@ -568,6 +664,7 @@ void LvglComponent::setup() {
     buf_bytes /= MIN_BUFFER_FRAC;
     buffer = lv_malloc_core(buf_bytes);  // NOLINT
   }
+#endif
   this->buffer_frac_ = frac;
   if (buffer == nullptr) {
     this->status_set_error(LOG_STR("Memory allocation failure"));
@@ -584,12 +681,32 @@ void LvglComponent::setup() {
                          this->full_refresh_ ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL);
   this->rotation = display->get_rotation();
   if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
+#ifdef USE_ESP32_VARIANT_ESP32P4
+    this->rotate_buf_size_ = buf_bytes_aligned;
+    this->rotate_buf_ = heap_caps_aligned_alloc(64, buf_bytes_aligned, MALLOC_CAP_DMA | MALLOC_CAP_SPIRAM);
+    if (this->rotate_buf_ == nullptr)
+      this->rotate_buf_ = heap_caps_aligned_alloc(64, buf_bytes_aligned, MALLOC_CAP_DMA);
+#else
     this->rotate_buf_ = static_cast<lv_color_t *>(lv_malloc_core(buf_bytes));  // NOLINT
+#endif
     if (this->rotate_buf_ == nullptr) {
       this->status_set_error(LOG_STR("Memory allocation failure"));
       this->mark_failed();
       return;
     }
+#ifdef USE_ESP32_VARIANT_ESP32P4
+    // Register PPA client for hardware-accelerated rotation
+    ppa_client_config_t ppa_cfg = {};
+    ppa_cfg.oper_type = PPA_OPERATION_SRM;
+    ppa_client_handle_t ppa_client = nullptr;
+    esp_err_t err = ppa_register_client(&ppa_cfg, &ppa_client);
+    if (err == ESP_OK) {
+      this->ppa_client_ = ppa_client;
+      ESP_LOGI(TAG, "PPA hardware acceleration enabled for rotation");
+    } else {
+      ESP_LOGW(TAG, "PPA registration failed: %s, falling back to software rotation", esp_err_to_name(err));
+    }
+#endif
   }
   if (this->draw_start_callback_ != nullptr) {
     lv_display_add_event_cb(this->disp_, render_start_cb, LV_EVENT_RENDER_START, this);

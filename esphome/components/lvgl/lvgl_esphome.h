@@ -245,6 +245,10 @@ class LvglComponent : public PollingComponent {
   Trigger<> *draw_start_callback_{};
   Trigger<> *draw_end_callback_{};
   void *rotate_buf_{};
+#ifdef USE_ESP32_VARIANT_ESP32P4
+  void *ppa_client_{nullptr};
+  size_t rotate_buf_size_{0};
+#endif
 };
 
 class IdleTrigger : public Trigger<> {
