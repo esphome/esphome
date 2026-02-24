@@ -135,6 +135,7 @@ const std::array<const char *, 0x77> Decoder::UI_COMMANDS = {
 const std::array<const char *, 0x11> Decoder::AUDIO_FORMATS = {
     "reserved", "LPCM", "AC3",    "MPEG-1",           "MP3",       "MPEG-2",  "AAC",       "DTS", "ATRAC",
     "DSD",      "DD+",  "DTS-HD", "MAT/Dolby TrueHD", "DST Audio", "WMA Pro", "Extension?"};
+
 const std::array<const char *, 8> Decoder::AUDIO_SAMPLERATES = {"32", "44.1", "48",  "88",
                                                                 "96", "176",  "192", "Reserved"};
 
@@ -143,9 +144,12 @@ template<uint32_t OPERANDS> bool Decoder::do_operand_() {
     // generic function called for single operand of unkown type and length
     return append_operand_(".");
   } else {
+    // generic function to handle two or more operands
     return do_operand_<OPERANDS & 0xFF>() && do_operand_<(OPERANDS >> 8u)>();
   }
 }
+
+#define APPEND_LINE(...) (length_ = buf_append_printf(line_.data(), line_.size(), length_, __VA_ARGS__))
 
 /**
  * List of specialised operand decode functions, one function per operand type.
@@ -154,7 +158,7 @@ template<uint32_t OPERANDS> bool Decoder::do_operand_() {
 template<> bool Decoder::do_operand_<Decoder::NONE>() { return false; }
 
 template<> bool Decoder::do_operand_<Decoder::ABORT_REASON>() {
-  const static std::array<const char *, 7> NAMES = {
+  const static std::array<const char *, 6> NAMES = {
       "Unrecognized opcode", "Not in correct mode to respond", "Cannot provide source", "Invalid operand", "Refused",
       "Unable to determine"};
   return append_operand_<NAMES.size()>(NAMES);
@@ -181,14 +185,14 @@ template<> bool Decoder::do_operand_<Decoder::AUDIO_STATUS>() {
 }
 
 template<> bool Decoder::do_operand_<Decoder::DEVICE_TYPE>() {
-  const static std::array<const char *, 9> NAMES = {"TV",         "Recording Device", "Reserved",
+  const static std::array<const char *, 8> NAMES = {"TV",         "Recording Device", "Reserved",
                                                     "Tuner",      "Playback Device",  "Audio System",
                                                     "CEC Switch", "Video Processor"};
   return append_operand_<NAMES.size()>(NAMES);
 }
 
 template<> bool Decoder::do_operand_<Decoder::DISPLAY_CONTROL>() {
-  const static std::array<const char *, 9> NAMES = {"Default time", "Until cleared", "Clear previous", "Reserved"};
+  const static std::array<const char *, 4> NAMES = {"Default time", "Until cleared", "Clear previous", "Reserved"};
   return append_operand_<NAMES.size()>(NAMES);
 }
 
@@ -227,7 +231,7 @@ template<> bool Decoder::do_operand_<Decoder::PHYSICAL_ADDRESS>() {
 }
 
 template<> bool Decoder::do_operand_<Decoder::POWER_STATUS>() {
-  const static std::array<const char *, 5> NAMES = {"On", "Standby", "Standby->On", "On->Standby"};
+  const static std::array<const char *, 4> NAMES = {"On", "Standby", "Standby->On", "On->Standby"};
   return append_operand_<NAMES.size()>(NAMES);
 }
 
@@ -261,14 +265,14 @@ template<> bool Decoder::do_operand_<Decoder::SHORT_AUDIO_DESCRIPTOR>() {
         }
       }
     }
-    ok = append_operand_(&line[0], 3);
+    ok = append_operand_(line.data(), 3);
   }
   // Note: Further descriptor 'extensions' not yet decoded
   return ok;
 }
 
 template<> bool Decoder::do_operand_<Decoder::SYSTEM_AUDIO_STATUS>() {
-  const static std::array<const char *, 3> NAMES = {"Off", "On"};
+  const static std::array<const char *, 2> NAMES = {"Off", "On"};
   return append_operand_<NAMES.size()>(NAMES);
 }
 
@@ -304,7 +308,8 @@ template<> bool Decoder::do_operand_<Decoder::VENDOR_ID>() {
     return append_operand_("?", 3);
   }
   uint32_t id = (uint32_t) (frame_[offset_]) << 16 | (uint32_t) (frame_[offset_ + 1]) << 8 | frame_[offset_ + 2];
-  const char *vendor_name = *(VENDOR_IDS.find(id));
+  const char *const *name_lookup = VENDOR_IDS.find(id);
+  const char *vendor_name = name_lookup ? (*name_lookup) : nullptr;
   if (!vendor_name) {
     // if the hdmi-cec vendor id is not in our list, the id value itself is printed.
     char line[12];
@@ -406,13 +411,14 @@ const Decoder::VendorIdTable Decoder::VENDOR_IDS = {
      {0x00E091, "LG"},      {0x08001F, "Sharp"},       {0x080046, "Sony"},          {0x18C086, "Broadcom"},
      {0x534850, "Sharp"},   {0x6B746D, "Vizio"},       {0x8065E9, "Benq"},          {0x9C645E, "Harman Kardon"}}};
 
-std::string Decoder::address_decode_() const {
+void Decoder::address_decode_() {
   const static std::array<const char *, 16> NAMES = {"TV",           "RecordingDev1", "RecordingDev2", "Tuner1",
                                                      "PlaybackDev1", "AudioSystem",   "Tuner2",        "Tuner3",
                                                      "PlaybackDev2", "RecordingDev3", "Tuner4",        "PlaybackDev3",
                                                      "Reserved",     "Reserved",      "SpecificUse",   "Unregistered"};
-  const char *dest = (frame_.is_broadcast()) ? "All" : NAMES[frame_.destination_addr()];
-  return std::string(NAMES[frame_.initiator_addr()]) + " to " + dest + ": ";
+  const char *dst = (frame_.is_broadcast()) ? "All" : NAMES[frame_.destination_addr()];
+  const char *src = NAMES[frame_.initiator_addr()];
+  APPEND_LINE("%s to %s: ", src, dst);
 }
 
 const char *Decoder::find_opcode_name_(uint32_t opcode) const {
@@ -429,7 +435,7 @@ const char *Decoder::find_opcode_name_(uint32_t opcode) const {
  * @return true if a further operand can be decoded, false otherwise
  */
 bool Decoder::append_operand_(const char *word, uint8_t offset_incr /* default 1 */) {
-  length_ = buf_append_printf(&line_[0], line_.size(), length_, "[%s]", word);
+  APPEND_LINE("[%s]", word);
   offset_ += offset_incr;
   return (length_ < line_.size()) && (offset_ < frame_.size());
 }
@@ -437,31 +443,33 @@ bool Decoder::append_operand_(const char *word, uint8_t offset_incr /* default 1
 /**
  * Entry function 'decode' to call for full decode of a CEC frame
  */
-std::string Decoder::decode() {
-  // src and dest fields
-  std::string result = address_decode_();
-  // opcode field
-
-  if (frame_.size() <= 1) {
-    // Missing frame operation field?
-    return result + "Ping";
-  }
-
-  // Lookup opcode for its operation name
-  const FrameType *frametype = CEC_OPCODE_TABLE.find(frame_.opcode());
-  if (!frametype)
-    return result + std::string("<?>");
-
-  result += std::string("<") + frametype->name_ + ">";
-
-  // convert operand fields to text:
+const char *Decoder::decode() {
+  // prepare text buffer as empty
   length_ = 0;         // currently accumulated length of text of operands
   line_[length_] = 0;  // initialise operand text to empty string
-  offset_ = 2;         // location in frame of first operand to decode
-  OperandDecode_f f = frametype->decode_f_;
-  (this->*f)();
-  result += &line_[0];
-  return result;
+
+  // print src and dest fields into 'line_'
+  address_decode_();
+
+  // print opcode field
+  const FrameType *frametype = nullptr;
+  if (frame_.size() <= 1) {
+    // Missing frame operation field?
+    APPEND_LINE("Ping");
+  } else {
+    // find operation name
+    frametype = CEC_OPCODE_TABLE.find(frame_.opcode());
+    const char *opname = frametype ? frametype->name_ : "?";
+    APPEND_LINE("<%s>", opname);
+  }
+
+  // convert operand fields to text:
+  if (frametype) {
+    offset_ = 2;  // location in frame of first operand, after address-byte and opcode-byte
+    OperandDecode_f f = frametype->decode_f_;
+    (this->*f)();  // call one of the above 'do_operand_<xx>' methods
+  }
+  return line_.data();
 }
 
 }  // namespace hdmi_cec

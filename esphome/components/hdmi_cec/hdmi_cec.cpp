@@ -50,20 +50,23 @@ void Frame::set_header(uint8_t initiator_addr, uint8_t target_addr) {
 }
 
 std::string Frame::to_string() const {
-  std::string result;
-  char part_buffer[3];
+  constexpr unsigned int HEX_LINE_SIZE = Frame::MAX_LENGTH * 3 + 1;
+  char hex_line[HEX_LINE_SIZE];
+  unsigned int offset = 0;
   for (int i = 0; i < size_; i++) {
-    snprintf(part_buffer, sizeof(part_buffer), "%02X", this->at(i));
-    result += part_buffer;
-
-    if (i < size_ - 1) {
-      result += ":";
-    }
+    offset = buf_append_printf(hex_line, HEX_LINE_SIZE, offset, "%02X:", data_[i]);
   }
+  // clear last printed ':'
+  if (offset > 0)
+    hex_line[offset - 1] = '\0';
+  std::string result{hex_line};
+
 #ifdef HDMI_CEC_USE_DECODER
   Decoder decoder(*this);
-  result += " => " + decoder.decode();
+  result += " => ";
+  result += decoder.decode();
 #endif
+
   return result;
 }
 

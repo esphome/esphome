@@ -11,6 +11,39 @@ namespace esphome {
 namespace hdmi_cec {
 
 /**
+ * This LookupTable is const-initialised and only provides a simple 'find()'.
+ * This creates a compact (smaller code) alternative to an std::map;
+ */
+template<typename KeyT, typename ValueT, unsigned int SIZE> class LookupTable {
+ public:
+  struct KeyValue {
+    KeyT key_;
+    ValueT value_;
+  };
+
+  const ValueT *find(KeyT key) const {
+    int lo_inx = 0;
+    int hi_inx = SIZE - 1;
+    while (lo_inx <= hi_inx) {
+      // Search for 'key' in the array range lo_inx..hi_inx, bounds included.
+      // Rely on the array being sorted on increasing opcode!
+      int mid = (lo_inx + hi_inx) / 2;
+      if (key == table_[mid].key_) {
+        return &table_[mid].value_;
+      }
+      if (key < table_[mid].key_) {
+        hi_inx = mid - 1;
+      } else {
+        lo_inx = mid + 1;
+      }
+    }
+    return nullptr;  // requested 'key' not found in table
+  }
+
+  const KeyValue table_[SIZE];
+};
+
+/**
  * This Decoder class interprets a binary CEC Frame to create a textual representation.
  * The information to create this decoder is mostly extracted from the HDMI 1.3a standard document,
  * from its section "Supplement 1 Consumer Electronics Control (CEC)".
@@ -22,11 +55,11 @@ namespace hdmi_cec {
 class Decoder {
  public:
   Decoder(const Frame &frame) : frame_(frame), length_(0), offset_(2) {}
-  std::string decode();
+  const char *decode();
 
  protected:
   const char *find_opcode_name_(uint32_t opcode) const;
-  std::string address_decode_() const;
+  void address_decode_();
 
   /**
    * Generic operand decode method, later specialised with operand-type-specific methods
@@ -44,43 +77,8 @@ class Decoder {
     const OperandDecode_f decode_f_;  // a pointer to the corresponding 'do_operand_()' method
   };
 
-  /**
-   * This LookupTable is const-initialised and only provides a simple 'find()'.
-   * This creates a compact (smaller code) alternative to an std::map;
-   */
-  template<typename KeyT, typename ValueT, unsigned int SIZE> class LookupTable {
-   public:
-    struct KeyValue {
-      KeyT key_;
-      ValueT value_;
-    };
-
-    const ValueT *find(KeyT key) const {
-      int lo_inx = 0;
-      int hi_inx = SIZE - 1;
-
-      while (lo_inx <= hi_inx) {
-        // Search for 'opcode' in the array range lo_inx..hi_inx, bounds included
-        // Rely on the array being sorted on increasing opcode!
-        int mid = (lo_inx + hi_inx) / 2;
-        if (key == table_[mid].key_) {
-          return &table_[mid].value_;
-        }
-        if (key < table_[mid].key_) {
-          hi_inx = mid - 1;
-        } else {
-          lo_inx = mid + 1;
-        }
-      }
-      return nullptr;  // requested 'opcode' not found in table
-    }
-
-    const KeyValue table_[SIZE];
-  };
   using CecOpcodeTable = LookupTable<uint8_t, FrameType, 71>;
   using VendorIdTable = LookupTable<uint32_t, const char *, 28>;
-
-  const static CecOpcodeTable CEC_OPCODE_TABLE;
 
   const Frame &frame_;
   std::array<char, 256> line_;  // to hold the text of the decoded frame
@@ -163,10 +161,16 @@ class Decoder {
   }
 
   /**
-   * Helper function to implement the 'do_operand' methods
+   * Helper function to implement the 'do_operand' methods:
+   * Append one word
+   * @return true if a further operand shall be decoded, false to terminate operand decoding
    */
   bool append_operand_(const char *word, uint8_t offset_incr = 1);
 
+  /**
+   * Append one word, determined by the operand value as index to an array of names
+   * @return true if a further operand shall be decoded, false to terminate operand decoding
+   */
   template<uint32_t N_STRINGS> bool append_operand_(const std::array<const char *, N_STRINGS> &strings) {
     uint32_t operand_value = frame_[offset_];
     const char *s = (operand_value < N_STRINGS) ? strings[operand_value] : "?";
@@ -179,6 +183,7 @@ class Decoder {
   const static std::array<const char *, 0x77> UI_COMMANDS;
   const static std::array<const char *, 0x11> AUDIO_FORMATS;
   const static std::array<const char *, 8> AUDIO_SAMPLERATES;
+  const static CecOpcodeTable CEC_OPCODE_TABLE;
   const static VendorIdTable VENDOR_IDS;
 };  // class Decoder
 }  // namespace hdmi_cec
