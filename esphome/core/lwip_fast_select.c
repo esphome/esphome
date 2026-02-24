@@ -149,6 +149,9 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
   s_original_callback(conn, evt, len);
   // Wake the main loop task if sleeping in ulTaskNotifyTake().
   // Only notify on receive events to avoid spurious wakeups from send-ready events.
+  // NETCONN_EVT_ERROR is deliberately omitted: LwIP signals errors via RCVPLUS
+  // (rcvevent++ with a NULL pbuf or error in recvmbox), so error conditions
+  // already wake the main loop through the RCVPLUS path.
   if (evt == NETCONN_EVT_RCVPLUS) {
     TaskHandle_t task = s_main_loop_task;
     if (task != NULL) {
