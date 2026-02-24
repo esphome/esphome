@@ -608,7 +608,9 @@ void Application::unregister_socket_fd(int fd) {
     if (this->socket_fds_[i] != fd)
       continue;
 
-    // Swap with last element and pop - O(1) removal since order doesn't matter
+    // Swap with last element and pop - O(1) removal since order doesn't matter.
+    // No need to unhook the netconn callback on ESP32 — all LwIP sockets share
+    // the same static event_callback, and the socket will be closed by the caller.
     if (i < this->socket_fds_.size() - 1)
       this->socket_fds_[i] = this->socket_fds_.back();
     this->socket_fds_.pop_back();
@@ -640,6 +642,8 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 
   // Sleep with instant wake via FreeRTOS task notification.
   // Woken by: callback wrapper (socket data arrives), wake_loop_threadsafe() (other tasks), or timeout.
+  // Without USE_WAKE_LOOP_THREADSAFE, only hooked socket callbacks wake the task —
+  // background tasks won't call wake, so this degrades to a pure timeout (same as old select path).
   ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay_ms));
 
 #elif defined(USE_SOCKET_SELECT_SUPPORT)
