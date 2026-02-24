@@ -31,6 +31,31 @@
 //     - SYS_ARCH_UNPROTECT calls sys_arch_unprotect(): L506
 //     (ESP-IDF implements sys_arch_protect/unprotect as FreeRTOS mutex lock/unlock)
 //
+// Socket slot lifetime
+// ====================
+// This code reads struct lwip_sock fields without SYS_ARCH_PROTECT. The safety
+// argument requires that the slot cannot be freed while we read it.
+//
+// In LwIP, the socket table is a static array and slots are only freed via:
+//   lwip_close() -> lwip_close_internal() -> free_socket_free_elements() -> free_socket()
+// The TCP/IP thread does NOT call free_socket(). On link loss, RST, or timeout
+// it frees the TCP PCB and signals the netconn (rcvevent++ to indicate EOF), but
+// the netconn and lwip_sock slot remain allocated until the application calls
+// lwip_close(). ESPHome only calls lwip_close() from the main loop, after
+// unregister_socket_fd() has already removed the fd from the monitored set.
+//
+// Therefore lwip_socket_dbg_get_socket(fd) plus a volatile read of rcvevent is
+// safe as long as the application is single-writer for close — which ESPHome
+// guarantees by design (all socket create/read/close happens on the main loop).
+//
+// LwIP source references for slot lifetime:
+//   sockets.c (same commit as above):
+//     - alloc_socket (slot allocation): L419
+//     - free_socket (slot deallocation): L384
+//     - free_socket_free_elements (called from lwip_close_internal): L393
+//     - lwip_close_internal (only caller of free_socket_free_elements): L2355
+//     - lwip_close (only caller of lwip_close_internal): L2450
+//
 // Shared state and safety rationale:
 //
 //   s_main_loop_task (TaskHandle_t, 4 bytes):
@@ -132,9 +157,10 @@ void esphome_lwip_fast_select_init(void) { s_main_loop_task = xTaskGetCurrentTas
 
 // lwip_socket_dbg_get_socket() is a thin wrapper around the static
 // tryget_socket_unconn_nouse() — a direct array lookup without the refcount
-// that get_socket()/done_socket() uses. This is safe because the caller owns
-// the socket lifetime: both has_data() and socket close happen on the main
-// loop thread, so the sockets[] entry cannot be freed while we read it.
+// that get_socket()/done_socket() uses. This is safe because:
+// 1. The only path to free_socket() is lwip_close(), called exclusively from the main loop
+// 2. The TCP/IP thread never frees socket slots (see "Socket slot lifetime" above)
+// 3. Both has_data() reads and lwip_close() run on the main loop — no concurrent free
 // If lwip_socket_dbg_get_socket() were ever removed, we could fall back to lwip_select().
 // Returns the sock only if both the sock and its netconn are valid, NULL otherwise.
 static inline struct lwip_sock *get_sock(int fd) {
