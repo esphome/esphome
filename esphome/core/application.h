@@ -495,9 +495,10 @@ class Application {
   /// @return true if registration was successful, false if fd exceeds limits
   bool register_socket_fd(int fd);
   void unregister_socket_fd(int fd);
-  /// Check if there's data available on a socket without blocking
-  /// This function is thread-safe for reading, but should be called after select() has run
-  /// The read_fds_ is only modified by select() in the main loop
+  /// Check if there's data available on a socket without blocking.
+  /// Must only be called from the main loop thread — on ESP32, the underlying
+  /// lwip_socket_dbg_get_socket() has no refcount, so socket lifetime safety
+  /// depends on both reads and close happening on the same thread.
   bool is_socket_ready(int fd) const { return fd >= 0 && this->is_socket_ready_(fd); }
 
 #ifdef USE_WAKE_LOOP_THREADSAFE
