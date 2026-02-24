@@ -446,7 +446,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MODEL): value_schema("string", templatable=False),
         cv.Optional(CONF_FIRMWARE_VERSION): value_schema("string", templatable=False),
         cv.Optional(CONF_MANUFACTURER_DATA): cv.Schema([cv.uint8_t]),
-        cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1),
+        cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1, max=9),
         cv.Optional(CONF_SERVICES, default=[]): cv.ensure_list(SERVICE_SCHEMA),
         cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(single=True),
