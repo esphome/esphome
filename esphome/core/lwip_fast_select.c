@@ -127,10 +127,12 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
 
 void esphome_lwip_fast_select_init(void) { s_main_loop_task = xTaskGetCurrentTaskHandle(); }
 
-// lwip_socket_dbg_get_socket() is a direct array lookup without the refcount that
-// get_socket()/done_socket() uses. This is safe because the caller owns the socket
-// lifetime: both has_data() and socket close happen on the main loop thread, so
-// the sockets[] entry cannot be freed while we read it.
+// lwip_socket_dbg_get_socket() is a thin wrapper around the static
+// tryget_socket_unconn_nouse() — a direct array lookup without the refcount
+// that get_socket()/done_socket() uses. This is safe because the caller owns
+// the socket lifetime: both has_data() and socket close happen on the main
+// loop thread, so the sockets[] entry cannot be freed while we read it.
+// If lwip_socket_dbg_get_socket() were ever removed, we could fall back to lwip_select().
 // Returns the sock only if both the sock and its netconn are valid, NULL otherwise.
 static inline struct lwip_sock *get_sock(int fd) {
   struct lwip_sock *sock = lwip_socket_dbg_get_socket(fd);
