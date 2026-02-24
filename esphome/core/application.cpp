@@ -634,7 +634,8 @@ void Application::unregister_socket_fd(int fd) {
 void Application::yield_with_select_(uint32_t delay_ms) {
   // Delay while monitoring sockets. When delay_ms is 0, always yield() to ensure other tasks run.
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_ESP32)
-  // ESP32 fast path: no fd_set needed — is_socket_ready_() reads rcvevent directly (~215 ns per socket)
+  // ESP32 fast path: reads rcvevent directly via lwip_socket_dbg_get_socket() (~215 ns per socket).
+  // Safe because this runs on the main loop which owns socket lifetime (create, read, close).
   if (delay_ms == 0) [[unlikely]] {
     yield();
     return;

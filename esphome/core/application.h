@@ -511,13 +511,12 @@ class Application {
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
   /// Fast path for Socket::ready() via friendship - skips negative fd check.
-  /// Safe because: fd was validated in register_socket_fd() at registration time,
-  /// and Socket::ready() only calls this when loop_monitored_ is true (registration succeeded).
+  /// Main loop only — on ESP32, reads rcvevent via lwip_socket_dbg_get_socket()
+  /// which has no refcount; safe only because the main loop owns socket lifetime
+  /// (creates, reads, and closes sockets on the same thread).
 #ifdef USE_ESP32
-  /// ESP32: direct rcvevent read — always fresh, no fd_set snapshot needed (~215 ns)
   bool is_socket_ready_(int fd) const { return esphome_lwip_socket_has_data(fd); }
 #else
-  /// Other platforms: check fd_set populated by select()
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
 #endif
 #endif
