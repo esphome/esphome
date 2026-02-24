@@ -155,11 +155,11 @@ void WiFiComponent::wifi_pre_setup_() {
     return;
   }
   err = esp_event_loop_create_default();
-if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
     ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
-}
+  }
   esp_event_handler_instance_t instance_wifi_id, instance_ip_id;
   err = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, nullptr, &instance_wifi_id);
   if (err != ERR_OK) {

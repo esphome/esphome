@@ -16,8 +16,12 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     include_builtin_idf_component,
 )
-from esphome.components.network import CONF_PRIORITY, KEY_NETWORK_PRIORITY, get_network_priority
-from esphome.components.network import ip_address_literal
+from esphome.components.network import (
+    CONF_PRIORITY,
+    KEY_NETWORK_PRIORITY,
+    get_network_priority,
+    ip_address_literal,
+)
 from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
 import esphome.config_validation as cv
 from esphome.const import (

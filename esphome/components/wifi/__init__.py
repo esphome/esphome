@@ -12,8 +12,8 @@ from esphome.components.esp32 import (
     only_on_variant,
 )
 from esphome.components.network import (
-    has_high_performance_networking,
     get_network_priority,
+    has_high_performance_networking,
     ip_address_literal,
 )
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
