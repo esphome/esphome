@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace cse7766 {
+namespace esphome::cse7766 {
 
 static const char *const TAG = "cse7766";
 
@@ -258,5 +257,4 @@ void CSE7766Component::dump_config() {
   this->check_uart_settings(4800, 1, uart::UART_CONFIG_PARITY_EVEN);
 }
 
-}  // namespace cse7766
-}  // namespace esphome
+}  // namespace esphome::cse7766
