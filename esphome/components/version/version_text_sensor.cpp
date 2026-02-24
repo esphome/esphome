@@ -16,7 +16,8 @@ void VersionTextSensor::setup() {
   static const char BUILT_STR[] PROGMEM = ", built ";
 
   // Buffer size: HASH_PREFIX + 8 hex chars + BUILT_STR + BUILD_TIME_STR_SIZE + ")" + null
-  constexpr size_t buf_size = sizeof(HASH_PREFIX) + 8 + sizeof(BUILT_STR) + esphome::Application::BUILD_TIME_STR_SIZE + 2;
+  constexpr size_t buf_size =
+      sizeof(HASH_PREFIX) + 8 + sizeof(BUILT_STR) + esphome::Application::BUILD_TIME_STR_SIZE + 2;
   char version_str[buf_size];
 
   // hide_hash restores the pre-2026.1 base format by omitting
