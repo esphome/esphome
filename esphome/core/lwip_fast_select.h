@@ -14,8 +14,9 @@ extern "C" {
 void esphome_lwip_fast_select_init(void);
 
 /// Check if a LwIP socket has data ready via direct rcvevent read (~215 ns per socket).
-/// Uses lwip_socket_dbg_get_socket() which is a direct array lookup — no locking, no refcount.
-/// Safe for single-threaded polling from the main loop.
+/// Uses lwip_socket_dbg_get_socket() — a direct array lookup without the refcount that
+/// get_socket()/done_socket() uses. Safe because the caller owns the socket lifetime:
+/// both has_data reads and socket close/unregister happen on the main loop thread.
 bool esphome_lwip_socket_has_data(int fd);
 
 /// Hook a socket's netconn callback to notify the main loop task on receive events.
