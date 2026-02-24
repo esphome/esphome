@@ -38,6 +38,10 @@ esp32_ble_server:
 - **manufacturer_data** (*Optional*, list of bytes): The manufacturer-specific data to include in the advertising
   packet. Should be a list of bytes, where the first two are the little-endian representation of the 16-bit
   manufacturer ID as assigned by the Bluetooth SIG.
+- **max_clients** (*Optional*, int): The maximum number of simultaneous BLE client connections the server will
+  accept. When set to a value greater than 1, the server resumes advertising after a client connects so that
+  additional clients can discover and connect, up to this limit. Must not exceed the `max_connections` value
+  configured in the [ESP32 BLE](/components/esp32_ble) component. Defaults to `1`. Range: 1 to 9.
 
 - **on_connect** (*Optional*, [Automation](/automations)): An action to be performed when a client connects to the BLE server. It provides the `id` variable which contains the ID of the client that connected.
 - **on_disconnect** (*Optional*, [Automation](/automations)): An action to be performed when a client disconnects from the BLE server. It provides the `id` variable which contains the ID of the client that disconnected.
