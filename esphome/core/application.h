@@ -24,9 +24,13 @@
 #endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_ESP32
+#include "esphome/core/lwip_fast_select.h"
+#else
 #include <sys/select.h>
-#if defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
+#ifdef USE_WAKE_LOOP_THREADSAFE
 #include <lwip/sockets.h>
+#endif
 #endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
 
@@ -497,10 +501,10 @@ class Application {
   bool is_socket_ready(int fd) const { return fd >= 0 && this->is_socket_ready_(fd); }
 
 #ifdef USE_WAKE_LOOP_THREADSAFE
-  /// Wake the main event loop from a FreeRTOS task or ISR.
-  /// Thread-safe, can be called from any context to immediately wake the main loop.
-  /// On ESP32: uses xTaskNotifyGive (<1 us, ISR-safe)
-  /// On other platforms: uses UDP loopback socket (NOT ISR-safe)
+  /// Wake the main event loop from another FreeRTOS task.
+  /// Thread-safe, but must only be called from task context (NOT ISR-safe).
+  /// On ESP32: uses xTaskNotifyGive (<1 us)
+  /// On other platforms: uses UDP loopback socket
   void wake_loop_threadsafe();
 #endif
 #endif
@@ -513,8 +517,13 @@ class Application {
   /// Fast path for Socket::ready() via friendship - skips negative fd check.
   /// Safe because: fd was validated in register_socket_fd() at registration time,
   /// and Socket::ready() only calls this when loop_monitored_ is true (registration succeeded).
-  /// FD_ISSET may include its own upper bounds check depending on platform.
+#ifdef USE_ESP32
+  /// ESP32: direct rcvevent read — always fresh, no fd_set snapshot needed (~215 ns)
+  bool is_socket_ready_(int fd) const { return esphome_lwip_socket_has_data(fd); }
+#else
+  /// Other platforms: check fd_set populated by select()
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
+#endif
 #endif
 
   void register_component_(Component *comp);
@@ -605,12 +614,10 @@ class Application {
   bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  // Variable-sized members
-  fd_set read_fds_{};  // Working fd_set: populated by select() or direct rcvevent reads
-#ifndef USE_ESP32
-  fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes (select() path)
-#endif
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_ESP32)
+  // Variable-sized members (not needed on ESP32 — is_socket_ready_ reads rcvevent directly)
+  fd_set read_fds_{};       // Working fd_set: populated by select()
+  fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes
 #endif
 
   // StaticVectors (largest members - contain actual array data inline)

@@ -2,7 +2,6 @@
 
 // Fast socket monitoring for ESP32 (ESP-IDF LwIP)
 // Replaces lwip_select() with direct rcvevent reads and FreeRTOS task notifications.
-// See fast_select.md for design rationale and benchmarks.
 
 #include <stdbool.h>
 
@@ -28,8 +27,8 @@ void esphome_lwip_hook_socket(int fd);
 /// Must be called from the main loop before closing the socket.
 void esphome_lwip_unhook_socket(int fd);
 
-/// Wake the main loop task from any thread or ISR — costs <1 us.
-/// Replaces the UDP loopback socket wake mechanism.
+/// Wake the main loop task from another FreeRTOS task — costs <1 us.
+/// NOT ISR-safe — must only be called from task context.
 void esphome_lwip_wake_main_loop(void);
 
 #ifdef __cplusplus

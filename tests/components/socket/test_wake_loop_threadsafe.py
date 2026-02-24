@@ -1,9 +1,16 @@
 from esphome.components import socket
+from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM, PLATFORM_ESP8266
 from esphome.core import CORE
+
+
+def _setup_non_esp32_platform() -> None:
+    """Set up CORE.data with a non-ESP32 platform for testing."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP8266}
 
 
 def test_require_wake_loop_threadsafe__first_call() -> None:
     """Test that first call sets up define and consumes socket."""
+    _setup_non_esp32_platform()
     CORE.config = {"wifi": True}
     socket.require_wake_loop_threadsafe()
 
@@ -32,6 +39,7 @@ def test_require_wake_loop_threadsafe__idempotent() -> None:
 
 def test_require_wake_loop_threadsafe__multiple_calls() -> None:
     """Test that multiple calls only set up once."""
+    _setup_non_esp32_platform()
     # Call three times
     CORE.config = {"openthread": True}
     socket.require_wake_loop_threadsafe()
