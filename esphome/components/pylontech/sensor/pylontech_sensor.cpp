@@ -47,7 +47,7 @@ void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
 
 void PylontechSensor::on_cell_data(const PylontechListener::CellContents *c) {
   if (this->bat_num_ != c->battery_id) {
-    return; 
+    return;
   }
 
   if (c->cell_id >= 0 && c->cell_id < 15) {

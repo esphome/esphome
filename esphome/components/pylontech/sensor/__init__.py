@@ -76,7 +76,7 @@ TYPES: dict[str, cv.Schema] = {
 }
 
 # Add individual cell voltage sensors
-CONF_CELL_VOLTAGES = [f"cell_{i+1}_voltage" for i in range(15)]
+CONF_CELL_VOLTAGES = [f"cell_{i + 1}_voltage" for i in range(15)]
 
 # 1. Base Schema
 CONFIG_SCHEMA = PYLONTECH_COMPONENT_SCHEMA.extend(
@@ -97,7 +97,8 @@ CELL_SCHEMA = {
         accuracy_decimals=3,
         device_class="voltage",
         state_class="measurement",
-    ) for conf in CONF_CELL_VOLTAGES
+    )
+    for conf in CONF_CELL_VOLTAGES
 }
 
 CONFIG_SCHEMA = CONFIG_SCHEMA.extend(CELL_SCHEMA)
@@ -117,7 +118,7 @@ async def to_code(config):
         if conf in config:
             sens = await sensor.new_sensor(config[conf])
             cg.add(bat.set_cell_voltage_sensor(i, sens))
-    
+
     # Notify main component about highest configured battery ID
     cg.add(paren.set_max_battery(config[CONF_BATTERY]))
 
