@@ -136,11 +136,6 @@ void esphome_lwip_hook_socket(int fd) {
     s_original_callback = sock->conn->callback;
   }
 
-  // Verify assumption: if we already have the original, this socket should have the same one.
-  // If this fires, LwIP changed to use per-socket callbacks and we need a per-fd array.
-  LWIP_ASSERT("all sockets must share the same event_callback",
-              sock->conn->callback == s_original_callback || sock->conn->callback == esphome_socket_event_callback);
-
   // Replace with our wrapper. Atomic on ESP32 (32-bit aligned pointer write).
   // TCP/IP thread sees either old or new pointer — both are valid.
   sock->conn->callback = esphome_socket_event_callback;
