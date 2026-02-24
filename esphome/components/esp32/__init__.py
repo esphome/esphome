@@ -790,8 +790,15 @@ def _detect_variant(value):
             engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
             if engineering_sample is None:
                 _LOGGER.warning(
-                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3). "
-                    "If you have an early engineering sample (pre-rev3), set 'engineering_sample: true'."
+                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3).\n"
+                    "If you have an early engineering sample (pre-rev3), add this to your config:\n"
+                    "\n"
+                    "  esp32:\n"
+                    "    engineering_sample: true\n"
+                    "\n"
+                    "To check your chip revision, look for 'chip revision: vX.Y' in the boot log.\n"
+                    "Engineering samples will show a revision below v3.0.\n"
+                    "The 'debug:' component also reports the revision (e.g. Revision: 100 = v1.0, 300 = v3.0)."
                 )
             elif engineering_sample:
                 value[CONF_BOARD] = "esp32-p4-evboard"
