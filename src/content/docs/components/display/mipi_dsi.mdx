@@ -105,9 +105,12 @@ most of the configuration will be set by default, but can be overridden if neede
 
 - **invert_colors** (*Optional*, boolean): Specifies whether the display colors should be inverted. Options are `true` or `false`. Defaults to `false`.
 - **rotation** (*Optional*): Rotate the display presentation in software. Choose one of `0°`, `90°`, `180°`, or `270°`. If the driver chip supports hardware rotation for the given orientation this will be translated to the appropriate hardware command. If hardware rotation is not supported, the display will be rotated in software.
-- **transform** (*Optional*): If `rotation` is not sufficient, use this to transform the display. If this option is specified, then the `dimensions` option must also be provided. Options are:
+- **transform** (*Optional*): If `rotation` is not sufficient, use this to transform the display. If this option is
+  specified, then the `dimensions` option must also be provided. The value can either be the string `disabled` to disable hardware transform, or a dictionary.
+  For the `CUSTOM` model, use `transform: disabled` if the display does not support it, which will prevent a `rotation`
+  being translated to a hardware transform, otherwise the options below. Note that DSI displays do not support axis swapping so only mirroring of x and y axes
+  is possible, and rotations by 90 or 270 must be handled by software.
 
-  - **swap_xy** (**Required**, boolean): If true, exchange the x and y axes.
   - **mirror_x** (**Required**, boolean): If true, mirror the x axis.
   - **mirror_y** (**Required**, boolean): If true, mirror the y axis.
 
@@ -153,18 +156,13 @@ The `CUSTOM` model selection is provided for otherwise unsupported displays, and
 
 ## Using the `transform` options
 
-In most cases, the `rotation` option will be sufficient to orient the display correctly. However, some displays may require additional transformations. The `transform` option allows for these transformations to be applied in any of 8 different
-combinations. It may be necessary to experiment with different combinations to achieve the desired result. When using the `transform` option, the `rotation` option should not be set unless the display does not support axis-swapping.
-If the `swap_xy` option is set, then the `dimensions` option is required, and the `width` and `height` values should be set to reflect the final screen dimensions after rotation.
+In most cases, the `rotation` option will be sufficient to orient the display correctly. However, some displays may require additional transformations such as mirroring the x or y axes, which is accomplished with the `transform:` option.
 
 ```yaml
 transform:
-  swap_xy: true
   mirror_x: true
   mirror_y: false
-dimensions:
-  height: 480
-  width: 320
+rotation: 90
 ```
 
 ## LCD Backlights
