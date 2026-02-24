@@ -114,9 +114,11 @@ bool esphome_lwip_socket_has_data(int fd) {
   struct lwip_sock *sock = lwip_socket_dbg_get_socket(fd);
   if (sock == NULL || sock->conn == NULL)
     return false;
-  // Atomic load prevents compiler reordering. On ESP32 this compiles to a plain load
-  // since aligned 16-bit reads are naturally atomic on Xtensa/RISC-V.
-  return __atomic_load_n(&sock->rcvevent, __ATOMIC_RELAXED) > 0;
+  // Use volatile to prevent compiler from caching/reordering this read.
+  // rcvevent is written by the TCP/IP thread under SYS_ARCH_PROTECT, not C11 atomics,
+  // so we match LwIP's own access pattern. Aligned 16-bit reads are naturally atomic
+  // on Xtensa/RISC-V. Staleness is acceptable — task notifications provide the real wake.
+  return *(volatile s16_t *) &sock->rcvevent > 0;
 }
 
 void esphome_lwip_hook_socket(int fd) {
