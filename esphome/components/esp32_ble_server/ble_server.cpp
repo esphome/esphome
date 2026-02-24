@@ -246,8 +246,10 @@ void BLEServer::ble_before_disabled_event_handler() {
 float BLEServer::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH + 10; }
 
 void BLEServer::dump_config() {
-  ESP_LOGCONFIG(TAG, "ESP32 BLE Server:");
-  ESP_LOGCONFIG(TAG, "  Max clients: %u", this->max_clients_);
+  ESP_LOGCONFIG(TAG,
+                "ESP32 BLE Server:\n"
+                "  Max clients: %u",
+                this->max_clients_);
 }
 
 BLEServer *global_ble_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
