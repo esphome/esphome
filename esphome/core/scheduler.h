@@ -267,7 +267,7 @@ class Scheduler {
   // Common implementation for both timeout and interval
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
   void set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type, const char *static_name,
-                         uint32_t hash_or_id, uint32_t delay, std::function<void()> func, bool is_retry = false,
+                         uint32_t hash_or_id, uint32_t delay, std::function<void()> &&func, bool is_retry = false,
                          bool skip_cancel = false);
 
   // Common implementation for retry - Remove before 2026.8.0

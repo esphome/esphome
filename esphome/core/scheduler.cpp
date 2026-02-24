@@ -140,7 +140,7 @@ bool Scheduler::is_retry_cancelled_locked_(Component *component, NameType name_t
 // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
 void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type,
                                       const char *static_name, uint32_t hash_or_id, uint32_t delay,
-                                      std::function<void()> func, bool is_retry, bool skip_cancel) {
+                                      std::function<void()> &&func, bool is_retry, bool skip_cancel) {
   if (delay == SCHEDULER_DONT_RUN) {
     // Still need to cancel existing timer if we have a name/id
     if (!skip_cancel) {
