@@ -1,4 +1,4 @@
-cryptography==45.0.1
+cryptography==46.0.5
 voluptuous==0.16.0
 PyYAML==6.0.3
 paho-mqtt==1.6.1
@@ -9,16 +9,16 @@ tzlocal==5.3.1    # from time
 tzdata>=2021.1  # from time
 pyserial==3.5
 platformio==6.1.19
-esptool==5.1.0
+esptool==5.2.0
 click==8.1.7
 esphome-dashboard==20260210.0
-aioesphomeapi==44.0.0
+aioesphomeapi==44.1.0
 zeroconf==0.148.0
 puremagic==1.30
 ruamel.yaml==0.19.1 # dashboard_import
 ruamel.yaml.clib==0.2.15 # dashboard_import
 esphome-glyphsets==0.2.0
-pillow==11.3.0
+pillow==12.1.1
 resvg-py==0.2.6
 freetype-py==2.5.1
 jinja2==3.1.6
