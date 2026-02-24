@@ -647,6 +647,7 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   // This scan preserves select() semantics: return immediately when any fd is ready.
   for (int fd : this->socket_fds_) {
     if (esphome_lwip_socket_has_data(fd)) {
+      this->fast_select_skip_count_++;
       yield();
       return;
     }
@@ -656,7 +657,20 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   // Woken by: callback wrapper (socket data arrives), wake_loop_threadsafe() (other tasks), or timeout.
   // Without USE_WAKE_LOOP_THREADSAFE, only hooked socket callbacks wake the task —
   // background tasks won't call wake, so this degrades to a pure timeout (same as old select path).
-  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay_ms));
+  uint32_t notified = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay_ms));
+  if (notified > 0) {
+    this->fast_select_woken_count_++;
+  } else {
+    this->fast_select_timeout_count_++;
+  }
+  if (++this->fast_select_total_count_ >= 10000) {
+    ESP_LOGD(TAG, "fast_select: woken=%" PRIu32 " timeout=%" PRIu32 " skip=%" PRIu32 " (of 10000 loops)",
+             this->fast_select_woken_count_, this->fast_select_timeout_count_, this->fast_select_skip_count_);
+    this->fast_select_total_count_ = 0;
+    this->fast_select_woken_count_ = 0;
+    this->fast_select_timeout_count_ = 0;
+    this->fast_select_skip_count_ = 0;
+  }
 
 #elif defined(USE_SOCKET_SELECT_SUPPORT)
   // Non-ESP32 select() path (LibreTiny bk72xx/rtl87xx, host platform).
