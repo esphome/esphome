@@ -1,0 +1,16 @@
+---
+import Default from "@astrojs/starlight/components/Head.astro";
+---
+
+<Default {...Astro.props}><slot /></Default>
+
+<script>
+  window.addEventListener("DOMContentLoaded", () => {
+    document
+      .querySelector("a.site-title")
+      ?.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        window.open("https://media.esphome.io/logo/", "_blank", "noopener,noreferrer");
+      });
+  });
+</script>
