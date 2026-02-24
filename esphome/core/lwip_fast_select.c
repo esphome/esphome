@@ -49,6 +49,8 @@
 // is single-writer for close. ESPHome guarantees this by design: all socket
 // create/read/close happens on the main loop. fd numbers are not reused while
 // the slot remains allocated, and the slot remains allocated until lwip_close().
+// Any change in LwIP that allows free_socket() to be called outside lwip_close()
+// would invalidate this assumption.
 //
 // LwIP source references for slot lifetime:
 //   sockets.c (same commit as above):
