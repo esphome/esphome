@@ -290,7 +290,7 @@ def create_device_information_service(config):
 
 def final_validate_config(config):
     # Validate max_clients does not exceed esp32_ble max_connections
-    max_clients = config.get(CONF_MAX_CLIENTS, 1)
+    max_clients = config[CONF_MAX_CLIENTS]
     if max_clients > 1:
         full_config = fv.full_config.get()
         ble_config = full_config.get("esp32_ble", {})
