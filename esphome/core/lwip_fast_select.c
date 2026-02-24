@@ -41,12 +41,14 @@
 // The TCP/IP thread does NOT call free_socket(). On link loss, RST, or timeout
 // it frees the TCP PCB and signals the netconn (rcvevent++ to indicate EOF), but
 // the netconn and lwip_sock slot remain allocated until the application calls
-// lwip_close(). ESPHome only calls lwip_close() from the main loop, after
-// unregister_socket_fd() has already removed the fd from the monitored set.
+// lwip_close(). ESPHome removes the fd from the monitored set before calling
+// lwip_close().
 //
-// Therefore lwip_socket_dbg_get_socket(fd) plus a volatile read of rcvevent is
-// safe as long as the application is single-writer for close — which ESPHome
-// guarantees by design (all socket create/read/close happens on the main loop).
+// Therefore lwip_socket_dbg_get_socket(fd) plus a volatile read of rcvevent
+// (to prevent compiler reordering or caching) is safe as long as the application
+// is single-writer for close. ESPHome guarantees this by design: all socket
+// create/read/close happens on the main loop. fd numbers are not reused while
+// the slot remains allocated, and the slot remains allocated until lwip_close().
 //
 // LwIP source references for slot lifetime:
 //   sockets.c (same commit as above):
