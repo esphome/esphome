@@ -29,9 +29,9 @@ class OtaHttpRequestComponent : public ota::OTAComponent, public Parented<HttpRe
 
   void set_md5_url(const std::string &md5_url);
   void set_md5(const std::string &md5) { this->md5_expected_ = md5; }
-  void set_password(const std::string &password) { this->password_ = password; }
+  void set_password(const std::string &password);
   void set_url(const std::string &url);
-  void set_username(const std::string &username) { this->username_ = username; }
+  void set_username(const std::string &username);
 
   std::string md5_computed() { return this->md5_computed_; }
   std::string md5_expected() { return this->md5_expected_; }
