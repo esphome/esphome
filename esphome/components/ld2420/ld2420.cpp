@@ -590,7 +590,7 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
       for (uint16_t index = 0; index < (CMD_REG_DATA_REPLY_SIZE *  // NOLINT
                                         ((buffer[CMD_FRAME_DATA_LENGTH] - 4) / CMD_REG_DATA_REPLY_SIZE));
            index += CMD_REG_DATA_REPLY_SIZE) {
-        memcpy(&this->cmd_reply_.data[reg_element], &buffer[data_pos + index], sizeof(CMD_REG_DATA_REPLY_SIZE));
+        memcpy(&this->cmd_reply_.data[reg_element], &buffer[data_pos + index], CMD_REG_DATA_REPLY_SIZE);
         byteswap(this->cmd_reply_.data[reg_element]);
         reg_element++;
       }
@@ -729,9 +729,9 @@ void LD2420Component::set_reg_value(uint16_t reg, uint16_t value) {
   cmd_frame.data_length = 0;
   cmd_frame.header = CMD_FRAME_HEADER;
   cmd_frame.command = CMD_WRITE_REGISTER;
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &reg, sizeof(CMD_REG_DATA_REPLY_SIZE));
+  memcpy(&cmd_frame.data[cmd_frame.data_length], &reg, CMD_REG_DATA_REPLY_SIZE);
   cmd_frame.data_length += 2;
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &value, sizeof(CMD_REG_DATA_REPLY_SIZE));
+  memcpy(&cmd_frame.data[cmd_frame.data_length], &value, CMD_REG_DATA_REPLY_SIZE);
   cmd_frame.data_length += 2;
   cmd_frame.footer = CMD_FRAME_FOOTER;
   ESP_LOGV(TAG, "Sending write register %4X command: %2X data = %4X", reg, cmd_frame.command, value);
