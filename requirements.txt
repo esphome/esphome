@@ -24,8 +24,8 @@ freetype-py==2.5.1
 jinja2==3.1.6
 bleak==2.1.1
 requests==2.32.5
-# replace when https://github.com/adafruit/Adafruit_nRF52_nrfutil/pull/49 is released
-adafruit-nrfutil @ git+https://github.com/tomaszduda23/Adafruit_nRF52_nrfutil.git@f8a91d529467e96a0c15d5934eec3e3ddf90021a
+# replace when it is released
+adafruit-nrfutil @ git+https://github.com/adafruit/Adafruit_nRF52_nrfutil.git@7fdfe15feee5f304fb7d9b031721dcefa1f72b58
 
 
 # esp-idf >= 5.0 requires this
