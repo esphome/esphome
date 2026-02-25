@@ -134,7 +134,7 @@ void Application::setup() {
       this->after_loop_tasks_();
       this->app_state_ = new_app_state;
       yield();
-    } while (!component->can_proceed());
+    } while (!component->can_proceed() && !component->is_failed());
   }
 
   ESP_LOGI(TAG, "setup() finished successfully!");
