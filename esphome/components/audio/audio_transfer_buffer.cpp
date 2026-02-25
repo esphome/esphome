@@ -142,7 +142,7 @@ size_t AudioSourceTransferBuffer::transfer_data_from_source(TickType_t ticks_to_
     this->data_start_ = this->buffer_;
   }
 
-  size_t bytes_to_read = this->free();
+  size_t bytes_to_read = AudioTransferBuffer::free();
   size_t bytes_read = 0;
   if (bytes_to_read > 0) {
     if (this->ring_buffer_.use_count() > 0) {
@@ -191,6 +191,21 @@ bool AudioSinkTransferBuffer::has_buffered_data() const {
     return ((this->ring_buffer_->available() > 0) || (this->available() > 0));
   }
   return (this->available() > 0);
+}
+
+size_t AudioSourceTransferBuffer::free() const { return AudioTransferBuffer::free(); }
+
+bool AudioSourceTransferBuffer::has_buffered_data() const { return AudioTransferBuffer::has_buffered_data(); }
+
+void ConstAudioSourceBuffer::set_data(const uint8_t *data, size_t length) {
+  this->data_start_ = data;
+  this->length_ = length;
+}
+
+void ConstAudioSourceBuffer::consume(size_t bytes) {
+  bytes = std::min(bytes, this->length_);
+  this->length_ -= bytes;
+  this->data_start_ += bytes;
 }
 
 }  // namespace audio

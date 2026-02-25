@@ -37,7 +37,7 @@ class HttpRequestIDF : public HttpRequestComponent {
 
  protected:
   std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method, const std::string &body,
-                                         const std::list<Header> &request_headers,
+                                         const std::vector<Header> &request_headers,
                                          const std::vector<std::string> &lower_case_collect_headers) override;
   // if zero ESP-IDF will use DEFAULT_HTTP_BUF_SIZE
   uint16_t buffer_size_rx_{};

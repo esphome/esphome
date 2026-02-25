@@ -903,6 +903,7 @@ async def setup_sensor_core_(var, config):
     if config[CONF_FORCE_UPDATE]:
         cg.add(var.set_force_update(True))
     if config.get(CONF_FILTERS):  # must exist and not be empty
+        cg.add_define("USE_SENSOR_FILTER")
         filters = await build_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))
 
