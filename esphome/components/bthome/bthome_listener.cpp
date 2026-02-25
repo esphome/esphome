@@ -89,12 +89,11 @@ bool DeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, s
   for (const BTHomeObject &obj : decoder) {
     for (int i = index; i < handlers.size(); i++) {
       if (handlers[i]->process_object(obj)) {
-        index++;
+        index = i + 1;
         break;
       }
     }
   }
-  return true;
 
   /*
   std::vector<uint8_t> decrypted_payload;
@@ -138,7 +137,7 @@ bool DeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, s
     return false;
   }
   */
-  return false;
+  return true;
 }
 bool BTHomeSensor::process_object(const BTHomeObject &object) {
   if (object.type != this->object_type_)
