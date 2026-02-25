@@ -14,7 +14,8 @@
 namespace esphome::rtttl {
 
 inline constexpr uint8_t DEFAULT_NOTE_DENOMINATOR = 4;  // Default note-denominator (quarter note)
-inline constexpr uint8_t DEFAULT_OCTAVE = 6;  // Default octave for a note (see: `MIN_OCTAVE`, `MAX_OCTAVE` in `rtttl.cpp`)
+inline constexpr uint8_t DEFAULT_OCTAVE =
+    6;  // Default octave for a note (see: `MIN_OCTAVE`, `MAX_OCTAVE` in `rtttl.cpp`)
 
 enum class State : uint8_t {
   STOPPED = 0,
