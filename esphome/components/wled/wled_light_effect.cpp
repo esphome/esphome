@@ -24,7 +24,7 @@ namespace wled {
 // https://github.com/Aircoookie/WLED/wiki/UDP-Realtime-Control
 enum Protocol { WLED_NOTIFIER = 0, WARLS = 1, DRGB = 2, DRGBW = 3, DNRGB = 4 };
 
-const uint32_t DEFAULT_BLANK_TIME = 1000;
+constexpr uint32_t DEFAULT_BLANK_TIME = 1000;
 
 static const char *const TAG = "wled_light_effect";
 
