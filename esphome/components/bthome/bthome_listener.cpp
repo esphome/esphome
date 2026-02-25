@@ -48,24 +48,23 @@ const char *MacAddress::c_str() const { return MacAddress(*this).c_str(); }
 
 bool DeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, size_t data_size) {
   if (this->address_ != source_address) {
-    ESP_LOGD(TAG, "not interested");
     return false;
   }
   BTHomeHeader &header = *(BTHomeHeader *) &data[0];
 
   if (header.encrypted && !this->encryption_key.has_value()) {
     ESP_LOGE(TAG, "Encrypted BTHome frame received but no bindkey configured for %s", source_address.c_str());
-    return false;
+    return true;
   }
 
   if (header.encrypted && this->encryption_key.has_value()) {
     ESP_LOGE(TAG, "Unencrypted BTHome frame received with bindkey configured for %s", source_address.c_str());
-    return false;
+    return true;
   }
 
   if (header.encrypted) {
     ESP_LOGE(TAG, "Encryption not supported yet");
-    return false;
+    return true;
   }
 
   const uint8_t *payload = data + 1;
