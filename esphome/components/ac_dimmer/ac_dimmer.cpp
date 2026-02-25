@@ -203,6 +203,7 @@ void AcDimmer::setup() {
     dimmer_timer = timer_begin(TIMER_FREQUENCY_HZ);
     if (dimmer_timer == nullptr) {
       ESP_LOGE(TAG, "Failed to create GPTimer for AC dimmer");
+      this->mark_failed();
       return;
     }
     timer_attach_interrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr);
