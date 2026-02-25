@@ -12,6 +12,25 @@ any PM sensor source, such as [Pmsx003](/components/sensor/pmsx003/),
 or [Sps30](/components/sensor/sps30/).
 
 > [!NOTE]
+> The value produced by this component is a **PM-only AQI estimate**, not a full
+> US EPA Air Quality Index. The official EPA AQI is calculated across five pollutant
+> categories — ground-level ozone (O₃), particle pollution (PM2.5 and PM10),
+> carbon monoxide (CO), sulfur dioxide (SO₂), and nitrogen dioxide (NO₂) — and
+> reports the worst sub-index as the overall AQI. Without sensors for ozone, CO,
+> SO₂, and NO₂, this component cannot produce a true composite AQI; the output
+> reflects particulate matter conditions only and may significantly underestimate
+> actual air quality risk when other pollutants are elevated.
+>
+> Additionally, the official EPA PM2.5 AQI is defined using **24-hour averaged**
+> concentrations (or the [EPA NowCast](https://www.airnow.gov/publications/air-quality-index/technical-assistance-document-for-reporting-the-daily-aqi/)
+> algorithm for real-time hourly estimates). This component applies the AQI
+> breakpoint formula to **instantaneous** sensor readings, which produces more
+> volatile values that do not correspond to either the daily AQI or the NowCast
+> AQI used in official reporting. See the
+> [EPA Technical Assistance Document](https://document.airnow.gov/technical-assistance-document-for-the-reporting-of-daily-air-quailty.pdf)
+> for full methodology details.
+
+> [!NOTE]
 > This platform replaces the deprecated `aqi` option previously available in the
 > [HM3301](/components/sensor/hm3301) component. The standalone platform is more
 > flexible as it works with any PM sensor.
@@ -51,8 +70,10 @@ sensor:
 - **calculation_type** (**Required**, enum): The AQI calculation standard to use.
   Must be one of:
 
-  - `AQI`: US EPA Air Quality Index. Returns values from 0-500, where higher values
-    indicate worse air quality. Based on the
+  - `AQI`: US EPA Air Quality Index breakpoint formula applied to PM2.5 and PM10
+    only. Returns values from 0-500, where higher values indicate worse air quality.
+    **This is not a full EPA AQI** — the official standard covers five pollutant
+    categories and also requires ozone, CO, SO₂, and NO₂ measurements. Based on the
     [EPA Technical Assistance Document](https://document.airnow.gov/technical-assistance-document-for-the-reporting-of-daily-air-quailty.pdf).
 
   - `CAQI`: European Common Air Quality Index. Returns values from 0 upward, where
@@ -82,6 +103,7 @@ sensor:
 
 ## See Also
 
+- [Sen5x Series Environmental Sensor](/components/sensor/sen5x/)
 - [PMSX003 Particulate Matter Sensor](/components/sensor/pmsx003/)
 - [The Grove - Laser PM2.5 Sensor (HM3301)](/components/sensor/hm3301/)
 - [SDS011 Particulate Matter Sensor](/components/sensor/sds011/)
