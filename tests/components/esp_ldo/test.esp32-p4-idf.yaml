@@ -5,7 +5,7 @@ esp_ldo:
     adjustable: true
   - id: ldo_4_passthrough
     channel: 4
-    voltage: 3.3V
+    voltage: passthrough
   - id: ldo_1_internal
     channel: 1
     voltage: 1.8V
