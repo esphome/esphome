@@ -481,6 +481,9 @@ async def to_code(config):
     CORE.add_job(final_step)
 
 
+to_code_testing = to_code
+
+
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     cfmt = r"""
