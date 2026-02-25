@@ -8,7 +8,7 @@ from esphome.const import (
 )
 
 from . import BTHomeSensor, Device, add_handler
-from .bthome import BTHOME_OBJECT_TYPE_MAPPING
+from .bthome import BTHOME_OBJECT_TYPE_IDS, bthome_object_types
 
 CODEOWNERS = ["@jpeletier"]
 
@@ -28,7 +28,9 @@ CONFIG_SCHEMA = sensor.sensor_schema(
     cv.Schema(
         {
             cv.Required(CONF_REMOTE_ID): cv.use_id(Device),
-            cv.Required(CONF_OBJECT_TYPE): cv.enum(BTHOME_OBJECT_TYPE_MAPPING),
+            cv.Required(CONF_OBJECT_TYPE): cv.one_of(
+                *BTHOME_OBJECT_TYPE_IDS, upper=True
+            ),
         }
     )
 )
@@ -36,6 +38,9 @@ CONFIG_SCHEMA = sensor.sensor_schema(
 
 async def to_code(config):
     var = await sensor.new_sensor(config)
-    cg.add(var.set_object_type(config[CONF_OBJECT_TYPE]))
-    await add_handler(var, config[CONF_REMOTE_ID])
+    object_type_key = config[CONF_OBJECT_TYPE]
+    cg.add(var.set_object_type(bthome_object_types.__getattr__(object_type_key)))
+    await add_handler(
+        var, config[CONF_REMOTE_ID], BTHOME_OBJECT_TYPE_IDS[object_type_key]
+    )
     await cg.register_component(var, config)

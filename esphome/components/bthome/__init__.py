@@ -67,16 +67,50 @@ CONFIG_SCHEMA = cv.Schema(
 BTHOME_KEY = "bthome_key"
 
 
-def get_handler_count(device_id):
-    return CORE.data.get(BTHOME_KEY, {}).get(str(device_id), 0)
+def _get_handler_count(device_id: core.ID) -> int:
+    """Return the number of handlers registered so far for the given device."""
+    return len(CORE.data.get(BTHOME_KEY, {}).get(str(device_id), []))
 
 
-async def add_handler(handler_var, device_id):
+def _get_handler_index(
+    handlers: list[tuple[int, cg.MockObj]], handler_var: cg.MockObj
+) -> int:
+    """Return the position of handler_var in the sorted handlers list.
+
+    Called lazily at code-generation time (via DeferredExpression), after all
+    handlers have been registered and the list is in its final sorted order.
+    """
+    for i, (_, hv) in enumerate(handlers):
+        if hv is handler_var:
+            return i
+    raise ValueError("Handler not found in sorted list")
+
+
+async def add_handler(
+    handler_var: cg.MockObj, device_id: core.ID, object_id: int
+) -> None:
+    """Register handler_var with the Device identified by device_id.
+
+    Appends (object_id, handler_var) to the per-device handler list and keeps
+    the list sorted by object_id ascending — the same order that BTHome
+    packets use — so that parse_data can scan both the packet objects and the
+    handlers array in a single forward pass.
+
+    The handler's array index is emitted as a DeferredExpression so it is
+    resolved at code-generation time, after every handler across all sensor
+    declarations has been added and the final sort order is known.
+    """
     device_var = await cg.get_variable(device_id)
-    counters = CORE.data.setdefault(BTHOME_KEY, {})
-    index = counters.get(str(device_id), 0)
-    counters[str(device_id)] = index + 1
-    cg.add(device_var.set_handler(index, handler_var))
+    devices = CORE.data.setdefault(BTHOME_KEY, {})
+    handlers = devices.setdefault(str(device_id), [])
+    handlers.append((object_id, handler_var))
+    handlers.sort(key=lambda h: h[0])
+    cg.add(
+        device_var.set_handler(
+            DeferredExpression(_get_handler_index, handlers, handler_var),
+            handler_var,
+        )
+    )
 
 
 async def to_code(config):
@@ -94,7 +128,7 @@ async def to_code(config):
             core.ID(str(device_id), False, DeviceBase),
             DeferredExpression(
                 lambda device_id: device_id.type.template(
-                    TemplateArguments(get_handler_count(device_id))
+                    TemplateArguments(_get_handler_count(device_id))
                 ).new(),
                 device_id,
             ),
