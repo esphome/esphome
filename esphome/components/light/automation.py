@@ -28,6 +28,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, Lambda
 from esphome.cpp_generator import LambdaExpression
+from esphome.types import ConfigType
 
 from .types import (
     COLOR_MODES,
@@ -115,23 +116,24 @@ LIGHT_TURN_ON_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-def _resolve_effect_index(config):
+def _resolve_effect_index(config: ConfigType) -> int:
     """Resolve a static effect name to its 1-based index at codegen time.
 
     Effect index 0 means "None" (no effect). Effects are 1-indexed matching
     the C++ convention in LightState.
     """
-    effect_name = config[CONF_EFFECT]
-    if effect_name.lower() == "none":
+    original_name = config[CONF_EFFECT]
+    effect_name = original_name.lower()
+    if effect_name == "none":
         return 0
     light_id = config[CONF_ID]
     light_path = CORE.config.get_path_for_id(light_id)[:-1]
     light_config = CORE.config.get_config_for_path(light_path)
     for i, effect_conf in enumerate(light_config.get(CONF_EFFECTS, [])):
         key = next(iter(effect_conf))
-        if effect_conf[key][CONF_NAME].lower() == effect_name.lower():
+        if effect_conf[key][CONF_NAME].lower() == effect_name:
             return i + 1
-    raise ValueError(f"Effect '{effect_name}' not found in light '{light_id}'")
+    raise ValueError(f"Effect '{original_name}' not found in light '{light_id}'")
 
 
 @automation.register_action(
