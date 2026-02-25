@@ -29,7 +29,7 @@ static const uint8_t REPEATING_NOTE_GAP_MS = 10;
 #endif  // USE_OUTPUT || USE_SPEAKER
 
 #ifdef USE_SPEAKER
-static const uint16_t SAMPLE_BUFFER_SIZE = 2048;
+static const size_t SAMPLE_BUFFER_SIZE = 2048;
 static const uint16_t SAMPLE_RATE = 16000;
 
 struct SpeakerSample {
