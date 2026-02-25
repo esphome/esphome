@@ -194,6 +194,9 @@ async def light_control_to_code(config, action_id, template_arg, args):
                 config[CONF_EFFECT], args, return_type=cg.std_string
             )
             fwd_args = ", ".join(n for _, n in args)
+            # capture="" is correct: paren is a global variable name
+            # string-interpolated into the body at codegen time, not a
+            # C++ runtime capture.
             wrapper = LambdaExpression(
                 f"auto __effect_s = ({inner_lambda})({fwd_args});\n"
                 f"return {paren}->get_effect_index("
