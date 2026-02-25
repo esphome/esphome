@@ -222,7 +222,7 @@ void Rtttl::loop() {
 
 #ifdef USE_OUTPUT
   if (this->output_ != nullptr) {
-    if (need_note_gap) {
+    if (need_note_gap && this->note_duration_ > DOUBLE_NOTE_GAP_MS) {
       this->output_->set_level(0.0);
       delay(DOUBLE_NOTE_GAP_MS);
       this->note_duration_ -= DOUBLE_NOTE_GAP_MS;
