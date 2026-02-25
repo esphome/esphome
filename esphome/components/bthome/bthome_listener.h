@@ -9,6 +9,8 @@ namespace bthome {
 
 static const char *TAG = "bthome";
 
+#ifdef USE_ESP32
+
 template<size_t NUM_DEVICES> class DeviceListener : public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_device(size_t index, DeviceBase *device) { devices_[index] = device; }
@@ -52,6 +54,8 @@ template<size_t NUM_DEVICES> class DeviceListener : public esp32_ble_tracker::ES
 
   std::array<DeviceBase *, NUM_DEVICES> devices_{};
 };
+
+#endif
 
 }  // namespace bthome
 }  // namespace esphome

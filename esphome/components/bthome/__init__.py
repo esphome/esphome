@@ -7,7 +7,8 @@ from esphome.core import CORE
 from esphome.cpp_generator import TemplateArguments, statement
 
 CODEOWNERS = ["@jpeletier"]
-DEPENDENCIES = ["esp32_ble_tracker"]
+DEPENDENCIES = ["esp32_ble_tracker", "sensor"]
+
 
 BLE_DEVICE_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA
 

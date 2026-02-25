@@ -132,6 +132,11 @@ static int32_t read_sint32_le(const uint8_t *data) { return (int32_t) read_uint3
 
 float BTHomeObject::scaling_factor() const {
   switch (type) {
+    // 0.000001f scaling
+    case BTHomeObjectType::SPEED_MS_I32_E6:
+    case BTHomeObjectType::ACCELERATION_MSS_I32_E6:
+      return 0.000001f;
+
     // 0.001f scaling
     case BTHomeObjectType::ENERGY_KWH_E3:
     case BTHomeObjectType::VOLTAGE_V_E3:
@@ -186,6 +191,7 @@ float BTHomeObject::scaling_factor() const {
 bool BTHomeObject::is_signed() const {
   switch (type) {
     case BTHomeObjectType::ACCELERATION_MSS_I32_E6:
+    case BTHomeObjectType::SPEED_MS_I32_E6:
     case BTHomeObjectType::TEMPERATURE_C_E2:
     case BTHomeObjectType::DEWPOINT_C_E2:
     case BTHomeObjectType::ROTATION_DEG_E1:
@@ -221,9 +227,9 @@ uint32_t BTHomeObject::as_uint() const {
 int32_t BTHomeObject::as_int() const {
   switch (length) {
     case 1:
-      return data[0];
+      return (int8_t) data[0];
     case 2:
-      return read_uint16_le(data);
+      return read_sint16_le(data);
     case 3:
       return read_uint24_le(data);
     case 4:
