@@ -883,6 +883,7 @@ def final_validate(config):
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
+
     if (
         config[CONF_FLASH_SIZE] == "32MB"
         and "ota" in full_config
@@ -1212,8 +1213,14 @@ def _set_default_framework(config):
     return config
 
 
-def _validate_custom_partition(config):
-    if config["name"] in [
+def _validate_partition(
+    name: str,
+    partition_type: str | int,
+    subtype: str | int,
+    partition_size: int,
+    error_func: Exception,
+):
+    if name in [
         "nvs",
         "app0",
         "app1",
@@ -1222,23 +1229,23 @@ def _validate_custom_partition(config):
         "spiffs",
         "phy_init",
     ]:
-        raise cv.Invalid(f"Partition name {config['name']} is reserved.")
-    if isinstance(config["type"], str) and config["type"] not in ["app", "data"]:
-        raise cv.Invalid(
-            f"Type {config['type']} is invalid. Only app and data are allowed. Use numbers for custom types"
+        raise error_func(f"Partition name {name} is reserved.")
+    if isinstance(partition_type, str) and partition_type not in ["app", "data"]:
+        raise error_func(
+            f"Type {partition_type} is invalid. Only app and data are allowed. Use numbers for custom types"
         )
     if (
-        isinstance(config["subtype"], str)
-        and config["type"] == "app"
-        and config["subtype"] not in ["factory", "test"]
+        isinstance(subtype, str)
+        and partition_type == "app"
+        and subtype not in ["factory", "test"]
     ):
-        raise cv.Invalid(
-            f"Subtype {config['subtype']} is invalid for app type. Only factory and test are allowed. Use numbers for custom subtypes"
+        raise error_func(
+            f"Subtype {subtype} is invalid for app type. Only factory and test are allowed. Use numbers for custom subtypes"
         )
     if (
-        isinstance(config["subtype"], str)
-        and config["type"] == "data"
-        and config["subtype"]
+        isinstance(subtype, str)
+        and partition_type == "data"
+        and subtype
         not in [
             "nvs",
             "nvs_keys",
@@ -1250,9 +1257,21 @@ def _validate_custom_partition(config):
             "littlefs",
         ]
     ):
-        raise cv.Invalid(
-            f"Subtype {config['subtype']} is invalid for data type. Only nvs, nvs_keys, spiffs, coredump, efuse, fat, undefined, and littlefs are allowed. Use numbers for custom subtypes"
+        raise error_func(
+            f"Subtype {subtype} is invalid for data type. Only nvs, nvs_keys, spiffs, coredump, efuse, fat, undefined, and littlefs are allowed. Use numbers for custom subtypes"
         )
+    if partition_size % 0x1000 != 0:
+        raise error_func("Partition size must be 4KB (0x1000) aligned.")
+
+
+def _validate_custom_partition(config):
+    _validate_partition(
+        config["name"],
+        config["type"],
+        config["subtype"],
+        config["size"],
+        cv.Invalid,
+    )
     if isinstance(config["type"], int):
         config["type"] = f"0x{config['type']:X}"
     if isinstance(config["subtype"], int):
@@ -1296,7 +1315,7 @@ CONFIG_SCHEMA = cv.All(
                                     cv.string_strict,
                                     cv.int_range(0, 0xFE),
                                 ),
-                                cv.Required(CONF_SIZE): cv.int_,
+                                cv.Required(CONF_SIZE): cv.int_range(min=0x1000),
                             }
                         ),
                         _validate_custom_partition,
@@ -1877,8 +1896,7 @@ def add_partition(name: str, p_type: str, subtype: str, size: int) -> None:
     subtype_ = subtype
     if name in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}):
         raise ValueError(f"Partition name {name} is already defined.")
-    if name in ["nvs", "app0", "app1", "otadata", "eeprom", "spiffs", "phy_init"]:
-        raise ValueError(f"Partition name {name} is reserved.")
+    _validate_partition(name, p_type_, subtype_, size, ValueError)
     if isinstance(p_type_, int):
         p_type_ = f"0x{p_type_:X}"
     if isinstance(subtype_, int):
@@ -1892,10 +1910,8 @@ def _get_custom_partition_half_size() -> int:
     for partition in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}).values():
         if partition["type"] == "app":
             size = (size + 0xFFFF) & ~0xFFFF  # align to 64KB
-        else:
-            size = (size + 0xFFF) & ~0xFFF  # align to 4KB
         size += partition["size"]
-    return (int(size / 2) + 0xFFFF) & ~0xFFFF  # align to 64KB
+    return (size // 2 + 0xFFFF) & ~0xFFFF  # align to 64KB
 
 
 APP_PARTITION_SIZES = {
