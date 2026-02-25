@@ -1643,7 +1643,7 @@ def dimensions(value):
     if not isinstance(value, str):
         raise Invalid(
             "Dimensions must be a string (WIDTHxHEIGHT). Got a number instead, "
-            "did YAML parse this as hex? Try quoting the value."
+            "try quoting the value."
         )
     match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
