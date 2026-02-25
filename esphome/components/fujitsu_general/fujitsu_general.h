@@ -11,6 +11,12 @@ namespace fujitsu_general {
 const uint8_t FUJITSU_GENERAL_TEMP_MIN = 16;  // Celsius // TODO 16 for heating, 18 for cooling, unsupported in ESPH
 const uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
 
+// Util messages
+extern const uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_OFF;
+extern const uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_ECONOMY;
+extern const uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE_VERTICAL;
+extern const uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE_HORIZONTAL;
+
 // clang-format off
 /**
  * ```
