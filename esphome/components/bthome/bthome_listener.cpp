@@ -1,6 +1,7 @@
 #include "bthome_listener.h"
 #include "mbedtls/ccm.h"
 #include "bthome_decoder.h"
+#include "esphome/core/log.h"
 
 #include <cstring>
 
@@ -71,6 +72,18 @@ bool DeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, s
   size_t payload_size = data_size - 1;
 
   BTHomePayloadDecoder decoder(payload, payload_size);
+
+  // Ignore repeated packets using the optional packet ID field (object type 0x00).
+  // Since objects are in ascending order, PACKET_ID always appears first if present.
+  auto it = decoder.begin();
+  if (it != decoder.end() && (*it).type == BTHomeObjectType::PACKET_ID) {
+    uint8_t packet_id = (*it).data[0];
+    if (this->last_packet_id_.has_value() && this->last_packet_id_.value() == packet_id) {
+      ESP_LOGVV(TAG, "Duplicate packet ID %u from %s, ignoring", packet_id, source_address.c_str());
+      return true;
+    }
+    this->last_packet_id_ = packet_id;
+  }
 
   int index = 0;
   auto handlers = this->get_handlers();
