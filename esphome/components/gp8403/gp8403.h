@@ -11,7 +11,7 @@ enum GP8403Voltage : uint8_t {
   GP8403_VOLTAGE_10V = 0x11,
 };
 
-enum GP8403Model {
+enum GP8403Model : uint8_t {
   GP8403,
   GP8413,
 };
