@@ -143,13 +143,13 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
   }
 
   if (timeout == UINT8_MAX) {
-    blank_start_.reset();
+    this->blank_start_.reset();
   } else if (timeout > 0) {
-    blank_start_ = millis();
-    blank_timeout_ = timeout * 1000;
+    this->blank_start_ = millis();
+    this->blank_timeout_ = timeout * 1000;
   } else {
-    blank_start_ = millis();
-    blank_timeout_ = DEFAULT_BLANK_TIME;
+    this->blank_start_ = millis();
+    this->blank_timeout_ = DEFAULT_BLANK_TIME;
   }
 
   it.schedule_show();
