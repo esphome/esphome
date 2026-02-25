@@ -6,7 +6,7 @@
 namespace esphome {
 namespace gp8403 {
 
-enum GP8403Voltage {
+enum GP8403Voltage : uint8_t {
   GP8403_VOLTAGE_5V = 0x00,
   GP8403_VOLTAGE_10V = 0x11,
 };
