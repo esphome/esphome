@@ -11,10 +11,16 @@
 #include <array>
 #include <span>
 
+#ifdef USE_BTHOME_DECRYPTION
+#include <algorithm>
+#include <initializer_list>
+#endif
+
 namespace esphome {
 namespace bthome {
 
 static const char *TAG = "bthome";
+
 using EncryptionKey = std::array<uint8_t, 16>;
 
 struct BTHomeHeader {
@@ -82,7 +88,13 @@ class BTHomeSensor : public BTHomeObjectHandler, public esphome::sensor::Sensor,
 class DeviceBase {
  public:
   void set_address(const MacAddress &address) { this->address_ = address; }
-  void set_encryption_key(const EncryptionKey &key) { this->encryption_key = key; }
+#ifdef USE_BTHOME_DECRYPTION
+  void set_encryption_key(std::initializer_list<uint8_t> key) {
+    EncryptionKey k{};
+    std::copy(key.begin(), key.end(), k.begin());
+    this->encryption_key = k;
+  }
+#endif
   virtual void set_handler(size_t index, BTHomeObjectHandler *handler) = 0;
   bool parse_data(MacAddressPtr source_address, const uint8_t *data, size_t data_size);
 
@@ -91,7 +103,9 @@ class DeviceBase {
 
   MacAddress address_;
   optional<uint8_t> last_packet_id_{};
+#ifdef USE_BTHOME_DECRYPTION
   optional<EncryptionKey> encryption_key;
+#endif
 };
 
 template<size_t NUM_SENSORS> class Device : public DeviceBase {

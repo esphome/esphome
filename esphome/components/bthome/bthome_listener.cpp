@@ -1,12 +1,70 @@
 #include "bthome_listener.h"
-#include "mbedtls/ccm.h"
 #include "bthome_decoder.h"
 #include "esphome/core/log.h"
 
 #include <cstring>
 
+#ifdef USE_BTHOME_DECRYPTION
+#include "mbedtls/ccm.h"
+#endif
+
 namespace esphome {
 namespace bthome {
+
+#ifdef USE_BTHOME_DECRYPTION
+
+static constexpr size_t BTHOME_MIC_SIZE = 4;
+static constexpr size_t BTHOME_COUNTER_SIZE = 4;
+static constexpr size_t BTHOME_NONCE_SIZE = 13;
+
+static uint8_t bthome_decrypted_buf[31];
+
+static bool bthome_decrypt(const uint8_t *data, size_t &data_size, const uint8_t *source_address,
+                           const EncryptionKey &key) {
+  if (data_size <= 1 + BTHOME_COUNTER_SIZE + BTHOME_MIC_SIZE) {
+    ESP_LOGVV(TAG, "Encrypted BTHome payload too short: %zu", data_size);
+    return false;
+  }
+
+  const size_t ciphertext_size = data_size - 1 - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE;
+  if (ciphertext_size > sizeof(bthome_decrypted_buf)) {
+    ESP_LOGVV(TAG, "Decrypted BTHome payload too large: %zu", ciphertext_size);
+    return false;
+  }
+
+  std::array<uint8_t, BTHOME_NONCE_SIZE> nonce{};
+  memcpy(nonce.data(), source_address, MAC_ADDRESS_SIZE);
+  nonce[6] = 0xD2;
+  nonce[7] = 0xFC;
+  nonce[8] = data[0];
+  memcpy(nonce.data() + 9, &data[data_size - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE], BTHOME_COUNTER_SIZE);
+
+  const uint8_t *ciphertext = data + 1;
+  const uint8_t *mic = data + data_size - BTHOME_MIC_SIZE;
+
+  mbedtls_ccm_context ctx;
+  mbedtls_ccm_init(&ctx);
+
+  int ret = mbedtls_ccm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, key.data(), key.size() * 8);
+  if (ret) {
+    ESP_LOGVV(TAG, "mbedtls_ccm_setkey() failed.");
+    mbedtls_ccm_free(&ctx);
+    return false;
+  }
+
+  ret = mbedtls_ccm_auth_decrypt(&ctx, ciphertext_size, nonce.data(), nonce.size(), nullptr, 0, ciphertext,
+                                 bthome_decrypted_buf, mic, BTHOME_MIC_SIZE);
+  mbedtls_ccm_free(&ctx);
+  if (ret) {
+    ESP_LOGVV(TAG, "BTHome decryption failed (ret=%d).", ret);
+    return false;
+  }
+
+  data_size = ciphertext_size;
+  return true;
+}
+
+#endif  // USE_BTHOME_DECRYPTION
 
 MacAddress::MacAddress(const uint8_t *addr) { *this = addr; }
 
@@ -52,23 +110,39 @@ bool DeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, s
   }
   BTHomeHeader &header = *(BTHomeHeader *) &data[0];
 
-  if (header.encrypted && !this->encryption_key.has_value()) {
+  const uint8_t *payload;
+  size_t payload_size;
+
+#ifdef USE_BTHOME_DECRYPTION
+  if (header.encrypted) {
+    if (!this->encryption_key.has_value()) {
+      ESP_LOGE(TAG, "Encrypted BTHome frame received but no bindkey configured for %s", source_address.c_str());
+      return true;
+    }
+
+    payload_size = data_size;
+    if (!bthome_decrypt(data, payload_size, source_address, this->encryption_key.value())) {
+      ESP_LOGVV(TAG, "Failed to decrypt BTHome frame from %s", source_address.c_str());
+      return true;
+    }
+    payload = bthome_decrypted_buf;
+  } else {
+    if (this->encryption_key.has_value()) {
+      ESP_LOGE(TAG, "Unencrypted BTHome frame received with bindkey configured for %s", source_address.c_str());
+      return true;
+    }
+    payload = data + 1;
+    payload_size = data_size - 1;
+  }
+
+#else
+  if (header.encrypted) {
     ESP_LOGE(TAG, "Encrypted BTHome frame received but no bindkey configured for %s", source_address.c_str());
     return true;
   }
-
-  if (header.encrypted && this->encryption_key.has_value()) {
-    ESP_LOGE(TAG, "Unencrypted BTHome frame received with bindkey configured for %s", source_address.c_str());
-    return true;
-  }
-
-  if (header.encrypted) {
-    ESP_LOGE(TAG, "Encryption not supported yet");
-    return true;
-  }
-
-  const uint8_t *payload = data + 1;
-  size_t payload_size = data_size - 1;
+  payload = data + 1;
+  payload_size = data_size - 1;
+#endif
 
   BTHomePayloadDecoder decoder(payload, payload_size);
 
@@ -95,48 +169,6 @@ bool DeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, s
     }
   }
 
-  /*
-  std::vector<uint8_t> decrypted_payload;
-  const uint8_t *payload = nullptr;
-  size_t payload_size = 0;
-
-  if (is_encrypted) {
-    if (!this->decrypt_bthome_payload_(data, source_address, decrypted_payload)) {
-      char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-      ESP_LOGVV(TAG, "Failed to decrypt BTHome frame from %s", device.address_str_to(addr_buf));
-      return false;
-    }
-    payload = decrypted_payload.data();
-    payload_size = decrypted_payload.size();
-  } else {
-    payload = data.data() + 1;
-    payload_size = data.size() - 1;
-  }
-
-  if (mac_included) {
-    if (payload_size < 6) {
-      ESP_LOGVV(TAG, "BTHome payload missing MAC address");
-      return false;
-    }
-    source_address = 0;
-    for (int i = 5; i >= 0; i--) {
-      source_address = (source_address << 8) | payload[i];
-    }
-    payload += 6;
-    payload_size -= 6;
-  }
-
-  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  if (source_address != this->address_) {
-    ESP_LOGVV(TAG, "BTHome frame from unexpected device %s", format_mac_address(addr_buf, source_address));
-    return false;
-  }
-
-  if (payload_size == 0) {
-    ESP_LOGVV(TAG, "BTHome payload empty after header");
-    return false;
-  }
-  */
   return true;
 }
 bool BTHomeSensor::process_object(const BTHomeObject &object) {

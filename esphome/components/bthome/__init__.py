@@ -122,6 +122,7 @@ async def to_code(config):
         TemplateArguments(len(config["remote_devices"])),
     )
 
+    has_encryption = False
     for i, device_config in enumerate(config["remote_devices"]):
         device_id = device_config[CONF_ID]
         device_var = cg.Pvariable(
@@ -136,5 +137,14 @@ async def to_code(config):
 
         cg.add(listener.set_device(i, device_var))
         cg.add(device_var.set_address(device_config[CONF_MAC_ADDRESS].as_hex))
+
+        if CONF_BINDKEY in device_config:
+            bindkey_str = device_config[CONF_BINDKEY]
+            bindkey_bytes = [int(bindkey_str[i : i + 2], 16) for i in range(0, 32, 2)]
+            cg.add(device_var.set_encryption_key(bindkey_bytes))
+            has_encryption = True
+
+    if has_encryption:
+        cg.add_define("USE_BTHOME_DECRYPTION")
 
     await esp32_ble_tracker.register_ble_device(listener, config)
