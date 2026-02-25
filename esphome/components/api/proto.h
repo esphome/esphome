@@ -1,5 +1,6 @@
 #pragma once
 
+#include "api_pb2_defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -110,59 +111,78 @@ class ProtoVarInt {
 #endif
     if (len == 0)
       return {};
-
-    // Most common case: single-byte varint (values 0-127)
+    // Fast path: single-byte varints (0-127) are the most common case
+    // (booleans, small enums, field tags). Avoid loop overhead entirely.
     if ((buffer[0] & 0x80) == 0) {
       *consumed = 1;
       return ProtoVarInt(buffer[0]);
     }
-
-    // General case for multi-byte varints
-    // Since we know buffer[0]'s high bit is set, initialize with its value
-    uint64_t result = buffer[0] & 0x7F;
-    uint8_t bitpos = 7;
-
-    // A 64-bit varint is at most 10 bytes (ceil(64/7)). Reject overlong encodings
-    // to avoid undefined behavior from shifting uint64_t by >= 64 bits.
-    uint32_t max_len = std::min(len, uint32_t(10));
-
-    // Start from the second byte since we've already processed the first
-    for (uint32_t i = 1; i < max_len; i++) {
+    // 32-bit phase: process remaining bytes with native 32-bit shifts.
+    // Without USE_API_VARINT64: cover bytes 1-4 (shifts 7, 14, 21, 28) — the uint32_t
+    // shift at byte 4 (shift by 28) may lose bits 32-34, but those are always zero for valid uint32 values.
+    // With USE_API_VARINT64: cover bytes 1-3 (shifts 7, 14, 21) so parse_wide handles
+    // byte 4+ with full 64-bit arithmetic (avoids truncating values > UINT32_MAX).
+    uint32_t result32 = buffer[0] & 0x7F;
+#ifdef USE_API_VARINT64
+    uint32_t limit = std::min(len, uint32_t(4));
+#else
+    uint32_t limit = std::min(len, uint32_t(5));
+#endif
+    for (uint32_t i = 1; i < limit; i++) {
       uint8_t val = buffer[i];
-      result |= uint64_t(val & 0x7F) << uint64_t(bitpos);
-      bitpos += 7;
+      result32 |= uint32_t(val & 0x7F) << (i * 7);
       if ((val & 0x80) == 0) {
         *consumed = i + 1;
-        return ProtoVarInt(result);
+        return ProtoVarInt(result32);
       }
     }
-
-    return {};  // Incomplete or invalid varint
+    // 64-bit phase for remaining bytes (BLE addresses etc.)
+#ifdef USE_API_VARINT64
+    return parse_wide(buffer, len, consumed, result32);
+#else
+    return {};
+#endif
   }
+
+#ifdef USE_API_VARINT64
+ protected:
+  /// Continue parsing varint bytes 4-9 with 64-bit arithmetic.
+  /// Separated to keep 64-bit shift code (__ashldi3 on 32-bit platforms) out of the common path.
+  static optional<ProtoVarInt> parse_wide(const uint8_t *buffer, uint32_t len, uint32_t *consumed, uint32_t result32)
+      __attribute__((noinline));
+
+ public:
+#endif
 
   constexpr uint16_t as_uint16() const { return this->value_; }
   constexpr uint32_t as_uint32() const { return this->value_; }
-  constexpr uint64_t as_uint64() const { return this->value_; }
   constexpr bool as_bool() const { return this->value_; }
   constexpr int32_t as_int32() const {
     // Not ZigZag encoded
-    return static_cast<int32_t>(this->as_int64());
-  }
-  constexpr int64_t as_int64() const {
-    // Not ZigZag encoded
-    return static_cast<int64_t>(this->value_);
+    return static_cast<int32_t>(this->value_);
   }
   constexpr int32_t as_sint32() const {
     // with ZigZag encoding
     return decode_zigzag32(static_cast<uint32_t>(this->value_));
   }
+#ifdef USE_API_VARINT64
+  constexpr uint64_t as_uint64() const { return this->value_; }
+  constexpr int64_t as_int64() const {
+    // Not ZigZag encoded
+    return static_cast<int64_t>(this->value_);
+  }
   constexpr int64_t as_sint64() const {
     // with ZigZag encoding
     return decode_zigzag64(this->value_);
   }
+#endif
 
  protected:
+#ifdef USE_API_VARINT64
   uint64_t value_;
+#else
+  uint32_t value_;
+#endif
 };
 
 // Forward declarations for decode_to_message, encode_message and encode_packed_sint32
