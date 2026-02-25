@@ -98,7 +98,7 @@ OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
 
   // ESP8266's umm_malloc guarantees 4-byte aligned allocations, which is required
   // for spi_flash_write(). This is the same pattern used by Arduino's Updater class.
-  this->buffer_ = make_unique<uint8_t[]>(this->buffer_size_);
+  this->buffer_ = std::make_unique_for_overwrite<uint8_t[]>(this->buffer_size_);
   if (!this->buffer_) {
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
