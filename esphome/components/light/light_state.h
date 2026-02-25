@@ -12,6 +12,7 @@
 #include "light_transformer.h"
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #include <strings.h>
 #include <vector>
 
@@ -202,10 +203,10 @@ class LightState : public EntityBase, public Component {
 
   /// Get effect index by name (const char* overload, avoids std::string construction).
   uint32_t get_effect_index(const char *name, size_t len) const {
-    StringRef ref(name, len);
-    if (str_equals_case_insensitive(ref, StringRef("none", 4))) {
+    if (len == 4 && ESPHOME_strncasecmp_P(name, ESPHOME_PSTR("none"), 4) == 0) {
       return 0;
     }
+    StringRef ref(name, len);
     for (size_t i = 0; i < this->effects_.size(); i++) {
       if (str_equals_case_insensitive(ref, this->effects_[i]->get_name())) {
         return i + 1;
