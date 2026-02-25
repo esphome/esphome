@@ -134,7 +134,7 @@ void APIFrameHelper::buffer_data_from_iov_(const struct iovec *iov, int iovcnt, 
   uint16_t buffer_size = total_write_len - offset;
   auto &buffer = this->tx_buf_[this->tx_buf_tail_];
   buffer = std::make_unique<SendBuffer>(SendBuffer{
-      .data = std::make_unique<uint8_t[]>(buffer_size),
+      .data = std::make_unique_for_overwrite<uint8_t[]>(buffer_size),
       .size = buffer_size,
       .offset = 0,
   });
