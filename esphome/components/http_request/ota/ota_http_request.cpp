@@ -1,5 +1,7 @@
 #include "ota_http_request.h"
 
+#include <cctype>
+
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
@@ -208,6 +210,26 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   ESP_LOGI(TAG, "Update complete");
   return ota::OTA_RESPONSE_OK;
 }
+
+// URL-encode characters that are not unreserved per RFC 3986 section 2.3.
+// This is needed for embedding userinfo (username/password) in URLs safely.
+static std::string url_encode(const std::string &str) {
+  std::string result;
+  result.reserve(str.size());
+  for (char c : str) {
+    if (std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~') {
+      result += c;
+    } else {
+      result += '%';
+      result += format_hex_pretty_char((static_cast<uint8_t>(c) >> 4) & 0x0F);
+      result += format_hex_pretty_char(static_cast<uint8_t>(c) & 0x0F);
+    }
+  }
+  return result;
+}
+
+void OtaHttpRequestComponent::set_password(const std::string &password) { this->password_ = url_encode(password); }
+void OtaHttpRequestComponent::set_username(const std::string &username) { this->username_ = url_encode(username); }
 
 std::string OtaHttpRequestComponent::get_url_with_auth_(const std::string &url) {
   if (this->username_.empty() || this->password_.empty()) {
