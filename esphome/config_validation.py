@@ -1642,8 +1642,7 @@ def dimensions(value):
         return [width, height]
     if not isinstance(value, str):
         raise Invalid(
-            "Dimensions must be a string (WIDTHxHEIGHT). Got a number instead, "
-            "try quoting the value."
+            "Dimensions must be a string (WIDTHxHEIGHT). Got a number instead, try quoting the value."
         )
     match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
