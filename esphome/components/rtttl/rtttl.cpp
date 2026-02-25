@@ -38,7 +38,7 @@ struct SpeakerSample {
 };
 
 inline double deg2rad(double degrees) {
-  static const double PI_ON_180 = 4.0 * atan(1.0) / 180.0;
+  static constexpr double PI_ON_180 = M_PI / 180.0;
   return degrees * PI_ON_180;
 }
 #endif  // USE_SPEAKER
