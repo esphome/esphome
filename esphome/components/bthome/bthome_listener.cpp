@@ -73,11 +73,10 @@ bool DeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, s
   BTHomePayloadDecoder decoder(payload, payload_size);
 
   int index = 0;
-  auto sensors = this->get_sensors();
+  auto handlers = this->get_handlers();
   for (const BTHomeObject &obj : decoder) {
-    for (int i = index; i < sensors.size(); i++) {
-      BTHomeSensorBase *sensor = sensors[i];
-      if (sensor->process_object(obj)) {
+    for (int i = index; i < handlers.size(); i++) {
+      if (handlers[i]->process_object(obj)) {
         index++;
         break;
       }
@@ -129,15 +128,11 @@ bool DeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, s
   */
   return false;
 }
-bool BTHomeSensorBase::process_object(const BTHomeObject &object) {
-  auto object_types = this->get_objects();
-  for (BTHomeObjectType object_type : object_types) {
-    if (object.type == object_type) {
-      this->publish_state(object.as_float());
-      return true;
-    }
-  }
-  return false;
+bool BTHomeSensor::process_object(const BTHomeObject &object) {
+  if (object.type != this->object_type_)
+    return false;
+  this->publish_state(object.as_float());
+  return true;
 }
 }  // namespace bthome
 }  // namespace esphome

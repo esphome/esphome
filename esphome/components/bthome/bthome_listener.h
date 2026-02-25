@@ -65,36 +65,29 @@ class MacAddressPtr {
   const uint8_t *addr_{nullptr};
 };
 
-class BTHomeSensorBase : public esphome::sensor::Sensor, public Component {
+class BTHomeObjectHandler {
  public:
-  virtual void set_object_types(std::initializer_list<BTHomeObjectType> object_types) = 0;
-  virtual std::span<BTHomeObjectType> get_objects() = 0;
-  bool process_object(const BTHomeObject &object);
-};
-
-template<size_t NUM_OBJECTS> class BTHomeSensor : public BTHomeSensorBase {
- public:
-  void set_object_types(std::initializer_list<BTHomeObjectType> object_types) override {
-    size_t i = 0;
-    for (auto type : object_types) {
-      object_types_[i++] = type;
-    }
-  }
-  std::span<BTHomeObjectType> get_objects() override { return object_types_; }
+  void set_object_type(BTHomeObjectType object_type) { this->object_type_ = object_type; }
+  virtual bool process_object(const BTHomeObject &object) = 0;
 
  protected:
-  std::array<BTHomeObjectType, NUM_OBJECTS> object_types_{};
+  BTHomeObjectType object_type_{};
+};
+
+class BTHomeSensor : public BTHomeObjectHandler, public esphome::sensor::Sensor, public Component {
+ public:
+  bool process_object(const BTHomeObject &object) override;
 };
 
 class DeviceBase {
  public:
   void set_address(const MacAddress &address) { this->address_ = address; }
   void set_encryption_key(const EncryptionKey &key) { this->encryption_key = key; }
-  virtual void set_sensor(size_t index, BTHomeSensorBase *sensor) = 0;
+  virtual void set_handler(size_t index, BTHomeObjectHandler *handler) = 0;
   bool parse_data(MacAddressPtr source_address, const uint8_t *data, size_t data_size);
 
  protected:
-  virtual std::span<BTHomeSensorBase *> get_sensors() = 0;
+  virtual std::span<BTHomeObjectHandler *> get_handlers() = 0;
 
   MacAddress address_;
   optional<uint8_t> last_packet_id_{};
@@ -102,11 +95,11 @@ class DeviceBase {
 };
 
 template<size_t NUM_SENSORS> class Device : public DeviceBase {
-  void set_sensor(size_t index, BTHomeSensorBase *sensor) override { sensors_[index] = sensor; }
-  std::span<BTHomeSensorBase *> get_sensors() override { return sensors_; }
+  void set_handler(size_t index, BTHomeObjectHandler *handler) override { handlers_[index] = handler; }
+  std::span<BTHomeObjectHandler *> get_handlers() override { return handlers_; }
 
  private:
-  std::array<BTHomeSensorBase *, NUM_SENSORS> sensors_{};
+  std::array<BTHomeObjectHandler *, NUM_SENSORS> handlers_{};
 };
 
 template<size_t NUM_DEVICES> class DeviceListener : public esp32_ble_tracker::ESPBTDeviceListener {

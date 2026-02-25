@@ -17,8 +17,10 @@ DeviceListener = bthome_ns.class_(
 )
 DeviceBase = bthome_ns.class_("DeviceBase")
 Device = bthome_ns.class_("Device", DeviceBase)
-BTHomeSensorBase = bthome_ns.class_("BTHomeSensorBase", sensor.Sensor, cg.Component)
-BTHomeSensor = bthome_ns.class_("BTHomeSensor", BTHomeSensorBase)
+BTHomeObjectHandler = bthome_ns.class_("BTHomeObjectHandler")
+BTHomeSensor = bthome_ns.class_(
+    "BTHomeSensor", BTHomeObjectHandler, sensor.Sensor, cg.Component
+)
 
 
 class DeferredStatement(cg.Statement):
@@ -65,16 +67,16 @@ CONFIG_SCHEMA = cv.Schema(
 BTHOME_KEY = "bthome_key"
 
 
-def get_sensor_count(device_id):
+def get_handler_count(device_id):
     return CORE.data.get(BTHOME_KEY, {}).get(str(device_id), 0)
 
 
-async def add_sensor(sensor_var, device_id):
+async def add_handler(handler_var, device_id):
     device_var = await cg.get_variable(device_id)
     counters = CORE.data.setdefault(BTHOME_KEY, {})
     index = counters.get(str(device_id), 0)
     counters[str(device_id)] = index + 1
-    cg.add(device_var.set_sensor(index, sensor_var))
+    cg.add(device_var.set_handler(index, handler_var))
 
 
 async def to_code(config):
@@ -92,7 +94,7 @@ async def to_code(config):
             core.ID(str(device_id), False, DeviceBase),
             DeferredExpression(
                 lambda device_id: device_id.type.template(
-                    TemplateArguments(get_sensor_count(device_id))
+                    TemplateArguments(get_handler_count(device_id))
                 ).new(),
                 device_id,
             ),
