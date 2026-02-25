@@ -19,7 +19,7 @@ namespace esphome::api {
 
 static const char *const TAG = "api.noise";
 #ifdef USE_ESP8266
-static const char PROLOGUE_INIT[] PROGMEM = "NoiseAPIInit";
+static constexpr char PROLOGUE_INIT[] PROGMEM = "NoiseAPIInit";
 #else
 static const char *const PROLOGUE_INIT = "NoiseAPIInit";
 #endif

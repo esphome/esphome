@@ -85,6 +85,10 @@ esp_err_t AudioDecoder::start(AudioFileType audio_file_type) {
 #ifdef USE_AUDIO_FLAC_SUPPORT
     case AudioFileType::FLAC:
       this->flac_decoder_ = make_unique<esp_audio_libs::flac::FLACDecoder>();
+      // CRC check slows down decoding by 15-20% on an ESP32-S3. FLAC sources in ESPHome are either from an http source
+      // or built into the firmware, so the data integrity is already verified by the time it gets to the decoder,
+      // making the CRC check unnecessary.
+      this->flac_decoder_->set_crc_check_enabled(false);
       this->free_buffer_required_ =
           this->output_transfer_buffer_->capacity();  // Adjusted and reallocated after reading the header
       break;

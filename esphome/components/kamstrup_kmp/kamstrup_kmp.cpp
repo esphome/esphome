@@ -222,11 +222,11 @@ void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_
   }
 
   // Calculate exponent
-  float exponent = msg[6] & 0x3F;
+  int8_t exp_val = msg[6] & 0x3F;
   if (msg[6] & 0x40) {
-    exponent = -exponent;
+    exp_val = -exp_val;
   }
-  exponent = powf(10, exponent);
+  float exponent = pow10_int(exp_val);
   if (msg[6] & 0x80) {
     exponent = -exponent;
   }
