@@ -174,20 +174,21 @@ struct SunAtTime {
     // debug output like in example 25.a, p. 165
     auto eq = equatorial_coordinate();
     ESP_LOGV(TAG,
-             "jde: %f\n"
-             "T: %f\n"
-             "L_0: %f\n"
-             "M: %f\n"
-             "e: %f\n"
-             "C: %f\n"
-             "Odot: %f\n"
-             "Omega: %f\n"
-             "lambda: %f\n"
-             "epsilon_0: %f\n"
-             "epsilon: %f\n"
-             "v: %f\n"
-             "right_ascension: %f\n"
-             "declination: %f",
+             "Sun position:\n"
+             "  jde: %f\n"
+             "  T: %f\n"
+             "  L_0: %f\n"
+             "  M: %f\n"
+             "  e: %f\n"
+             "  C: %f\n"
+             "  Odot: %f\n"
+             "  Omega: %f\n"
+             "  lambda: %f\n"
+             "  epsilon_0: %f\n"
+             "  epsilon: %f\n"
+             "  v: %f\n"
+             "  right_ascension: %f\n"
+             "  declination: %f",
              jde, t, mean_longitude(), mean_anomaly(), eccentricity(), equation_of_center(), true_longitude(), omega(),
              apparent_longitude(), mean_obliquity(), true_obliquity(), true_anomaly(), eq.right_ascension,
              eq.declination);

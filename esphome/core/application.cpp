@@ -109,9 +109,11 @@ void Application::setup() {
     if (component->can_proceed())
       continue;
 
+#ifdef USE_LOOP_PRIORITY
     // Sort components 0 through i by loop priority
     insertion_sort_by_priority<decltype(this->components_.begin()), &Component::get_loop_priority>(
         this->components_.begin(), this->components_.begin() + i + 1);
+#endif
 
     do {
       uint8_t new_app_state = STATUS_LED_WARNING;
@@ -132,13 +134,15 @@ void Application::setup() {
       this->after_loop_tasks_();
       this->app_state_ = new_app_state;
       yield();
-    } while (!component->can_proceed());
+    } while (!component->can_proceed() && !component->is_failed());
   }
 
   ESP_LOGI(TAG, "setup() finished successfully!");
 
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Clear setup priority overrides to free memory
   clear_setup_priority_overrides();
+#endif
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   // Set up wake socket for waking main loop from tasks
@@ -240,7 +244,7 @@ void Application::process_dump_config_() {
   this->dump_config_at_++;
 }
 
-void IRAM_ATTR HOT Application::feed_wdt(uint32_t time) {
+void HOT Application::feed_wdt(uint32_t time) {
   static uint32_t last_feed = 0;
   // Use provided time if available, otherwise get current time
   uint32_t now = time ? time : millis();
@@ -609,15 +613,6 @@ void Application::unregister_socket_fd(int fd) {
   }
 }
 
-bool Application::is_socket_ready(int fd) const {
-  // This function is thread-safe for reading the result of select()
-  // However, it should only be called after select() has been executed in the main loop
-  // The read_fds_ is only modified by select() in the main loop
-  if (fd < 0 || fd >= FD_SETSIZE)
-    return false;
-
-  return FD_ISSET(fd, &this->read_fds_);
-}
 #endif
 
 void Application::yield_with_select_(uint32_t delay_ms) {
@@ -753,5 +748,16 @@ void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buf
   ESPHOME_strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());
   buffer[buffer.size() - 1] = '\0';
 }
+
+void Application::get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> buffer) {
+  ESPHOME_strncpy_P(buffer.data(), ESPHOME_COMMENT_STR, ESPHOME_COMMENT_SIZE);
+  buffer[ESPHOME_COMMENT_SIZE - 1] = '\0';
+}
+
+uint32_t Application::get_config_hash() { return ESPHOME_CONFIG_HASH; }
+
+uint32_t Application::get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
+
+time_t Application::get_build_time() { return ESPHOME_BUILD_TIME; }
 
 }  // namespace esphome

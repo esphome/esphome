@@ -301,7 +301,7 @@ def highlight(s):
     ],
 )
 def lint_no_defines(fname, match):
-    s = highlight(f"static const uint8_t {match.group(1)} = {match.group(2)};")
+    s = highlight(f"static constexpr uint8_t {match.group(1)} = {match.group(2)};")
     return (
         "#define macros for integer constants are not allowed, please use "
         f"{s} style instead (replace uint8_t with the appropriate "
@@ -491,6 +491,22 @@ def lint_no_byte_datatype(fname, match):
     return (
         f"The datatype {highlight('byte')} is not allowed to be used in ESPHome. "
         f"Please use {highlight('uint8_t')} instead."
+    )
+
+
+@lint_re_check(
+    r"(?:std\s*::\s*string_view|#include\s*<string_view>)" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_std_string_view(fname, match):
+    return (
+        f"{highlight('std::string_view')} is not allowed in ESPHome. "
+        f"It pulls in significant STL template machinery that bloats flash on "
+        f"resource-constrained embedded targets, does not work well with ArduinoJson, "
+        f"and duplicates functionality already provided by {highlight('StringRef')}.\n"
+        f"Please use {highlight('StringRef')} from {highlight('esphome/core/string_ref.h')} "
+        f"for non-owning string references, or {highlight('const char *')} for simple cases.\n"
+        f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
     )
 
 
@@ -823,6 +839,39 @@ def lint_no_scanf(fname, match):
         f"  - Manual parsing for simple fixed formats\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
+
+
+LOG_MULTILINE_RE = re.compile(r"ESP_LOG\w+\s*\(.*?;", re.DOTALL)
+LOG_BAD_CONTINUATION_RE = re.compile(r'\\n(?:[^ \\"\r\n\t]|"\s*\n\s*"[^ \\])')
+LOG_PERCENT_S_CONTINUATION_RE = re.compile(r'\\n(?:%s|"\s*\n\s*"%s)')
+
+
+@lint_content_check(include=cpp_include)
+def lint_log_multiline_continuation(fname, content):
+    errs = []
+    for log_match in LOG_MULTILINE_RE.finditer(content):
+        log_text = log_match.group(0)
+        for bad_match in LOG_BAD_CONTINUATION_RE.finditer(log_text):
+            # %s may expand to a whitespace prefix at runtime, skip those
+            if LOG_PERCENT_S_CONTINUATION_RE.match(log_text, bad_match.start()):
+                continue
+            # Calculate line number from position in full content
+            abs_pos = log_match.start() + bad_match.start()
+            lineno = content.count("\n", 0, abs_pos) + 1
+            col = abs_pos - content.rfind("\n", 0, abs_pos)
+            errs.append(
+                (
+                    lineno,
+                    col,
+                    "Multi-line log message has a continuation line that does "
+                    "not start with a space. The log viewer uses leading "
+                    "whitespace to detect continuation lines and re-add the "
+                    f"log tag prefix (e.g. {highlight('[C][component:042]:')}).\n"
+                    "Either start the continuation with a space/indent, or "
+                    "split into separate ESP_LOG* calls.",
+                )
+            )
+    return errs
 
 
 @lint_content_find_check(
