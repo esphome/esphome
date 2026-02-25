@@ -200,6 +200,20 @@ class LightState : public EntityBase, public Component {
     return 0;  // Effect not found
   }
 
+  /// Get effect index by name (const char* overload, avoids std::string construction).
+  uint32_t get_effect_index(const char *name, size_t len) const {
+    StringRef ref(name, len);
+    if (str_equals_case_insensitive(ref, StringRef("none", 4))) {
+      return 0;
+    }
+    for (size_t i = 0; i < this->effects_.size(); i++) {
+      if (str_equals_case_insensitive(ref, this->effects_[i]->get_name())) {
+        return i + 1;
+      }
+    }
+    return 0;
+  }
+
   /// Get effect by index. Returns nullptr if index is invalid.
   LightEffect *get_effect_by_index(uint32_t index) const {
     if (index == 0 || index > this->effects_.size()) {
