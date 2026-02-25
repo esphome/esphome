@@ -1,0 +1,61 @@
+#pragma once
+#include "bthome_handler.h"
+#include "bthome_mac.h"
+#include "esphome/core/optional.h"
+
+#include <array>
+#include <cstddef>
+#include <span>
+
+#ifdef USE_BTHOME_DECRYPTION
+#include <algorithm>
+#include <initializer_list>
+#endif
+
+namespace esphome {
+namespace bthome {
+
+using EncryptionKey = std::array<uint8_t, 16>;
+
+struct BTHomeHeader {
+  uint8_t encrypted : 1;      // bit 0: encrypted data
+  uint8_t : 1;                // bit 1: reserved
+  uint8_t trigger_based : 1;  // bit 2: irregular advertisement interval
+  uint8_t : 2;                // bits 3-4: reserved
+  uint8_t version : 3;        // bits 5-7: BTHome version (currently 1 or 2)
+};
+static_assert(sizeof(BTHomeHeader) == 1, "BTHomeHeader must be 1 byte");
+
+class DeviceBase {
+ public:
+  void set_address(const MacAddress &address) { this->address_ = address; }
+#ifdef USE_BTHOME_DECRYPTION
+  void set_encryption_key(std::initializer_list<uint8_t> key) {
+    EncryptionKey k{};
+    std::copy(key.begin(), key.end(), k.begin());
+    this->encryption_key = k;
+  }
+#endif
+  virtual void set_handler(size_t index, BTHomeObjectHandler *handler) = 0;
+  bool parse_data(MacAddressPtr source_address, const uint8_t *data, size_t data_size);
+
+ protected:
+  virtual std::span<BTHomeObjectHandler *> get_handlers() = 0;
+
+  MacAddress address_;
+  optional<uint8_t> last_packet_id_{};
+#ifdef USE_BTHOME_DECRYPTION
+  optional<EncryptionKey> encryption_key;
+#endif
+};
+
+template<size_t NUM_SENSORS> class Device : public DeviceBase {
+  void set_handler(size_t index, BTHomeObjectHandler *handler) override { handlers_[index] = handler; }
+  std::span<BTHomeObjectHandler *> get_handlers() override { return handlers_; }
+
+ private:
+  std::array<BTHomeObjectHandler *, NUM_SENSORS> handlers_{};
+};
+
+}  // namespace bthome
+}  // namespace esphome
