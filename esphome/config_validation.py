@@ -1640,7 +1640,10 @@ def dimensions(value):
         if width <= 0 or height <= 0:
             raise Invalid("Width and height must at least be 1")
         return [width, height]
-    value = string(value)
+    if not isinstance(value, str):
+        raise Invalid(
+            "Dimensions must be a string (WIDTHxHEIGHT). Got a number instead, try quoting the value."
+        )
     match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
         raise Invalid(
