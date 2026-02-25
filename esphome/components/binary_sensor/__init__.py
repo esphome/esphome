@@ -562,6 +562,7 @@ async def setup_binary_sensor_core_(var, config):
     if inverted := config.get(CONF_INVERTED):
         cg.add(var.set_inverted(inverted))
     if filters_config := config.get(CONF_FILTERS):
+        cg.add_define("USE_BINARY_SENSOR_FILTER")
         filters = await cg.build_registry_list(FILTER_REGISTRY, filters_config)
         cg.add(var.add_filters(filters))
 

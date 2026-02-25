@@ -216,23 +216,16 @@ bool WiFiComponent::wifi_apply_hostname_() {
     ESP_LOGV(TAG, "Set hostname failed");
   }
 
-  // inform dhcp server of hostname change using dhcp_renew()
+  // Update hostname on all lwIP interfaces so DHCP packets include it.
+  // lwIP includes the hostname in DHCP DISCOVER/REQUEST automatically
+  // via LWIP_NETIF_HOSTNAME — no dhcp_renew() needed. The hostname is
+  // fixed at compile time and never changes at runtime.
   for (netif *intf = netif_list; intf; intf = intf->next) {
-    // unconditionally update all known interfaces
 #if LWIP_VERSION_MAJOR == 1
     intf->hostname = (char *) wifi_station_get_hostname();
 #else
     intf->hostname = wifi_station_get_hostname();
 #endif
-    if (netif_dhcp_data(intf) != nullptr) {
-      // renew already started DHCP leases
-      err_t lwipret = dhcp_renew(intf);
-      if (lwipret != ERR_OK) {
-        ESP_LOGW(TAG, "wifi_apply_hostname_(%s): lwIP error %d on interface %c%c (index %d)", intf->hostname,
-                 (int) lwipret, intf->name[0], intf->name[1], intf->num);
-        ret = false;
-      }
-    }
   }
 
   return ret;

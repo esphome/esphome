@@ -6,7 +6,6 @@
 #include <span>
 #include <string>
 #include <vector>
-#include "esphome/core/build_info_data.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -111,7 +110,7 @@ namespace esphome {
 // For reboots, it's more important to shut down quickly than disconnect cleanly
 // since we're not entering deep sleep. The only consequence of not shutting down
 // cleanly is a warning in the log.
-static const uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
+static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
 
 class Application {
  public:
@@ -274,16 +273,15 @@ class Application {
     return "";
   }
 
+  /// Maximum size of the comment buffer (including null terminator)
+  static constexpr size_t ESPHOME_COMMENT_SIZE_MAX = 256;
+
   /// Copy the comment string into the provided buffer
-  /// Buffer must be ESPHOME_COMMENT_SIZE bytes (compile-time enforced)
-  void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE> buffer) {
-    ESPHOME_strncpy_P(buffer.data(), ESPHOME_COMMENT_STR, buffer.size());
-    buffer[buffer.size() - 1] = '\0';
-  }
+  void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> buffer);
 
   /// Get the comment of this Application as a string
   std::string get_comment() {
-    char buffer[ESPHOME_COMMENT_SIZE];
+    char buffer[ESPHOME_COMMENT_SIZE_MAX];
     this->get_comment_string(buffer);
     return std::string(buffer);
   }
@@ -294,13 +292,13 @@ class Application {
   static constexpr size_t BUILD_TIME_STR_SIZE = 26;
 
   /// Get the config hash as a 32-bit integer
-  constexpr uint32_t get_config_hash() { return ESPHOME_CONFIG_HASH; }
+  uint32_t get_config_hash();
 
   /// Get the config hash extended with ESPHome version
-  constexpr uint32_t get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
+  uint32_t get_config_version_hash();
 
   /// Get the build time as a Unix timestamp
-  constexpr time_t get_build_time() { return ESPHOME_BUILD_TIME; }
+  time_t get_build_time();
 
   /// Copy the build time string into the provided buffer
   /// Buffer must be BUILD_TIME_STR_SIZE bytes (compile-time enforced)
@@ -582,9 +580,6 @@ class Application {
   std::string name_;
   std::string friendly_name_;
 
-  // size_t members
-  size_t dump_config_at_{SIZE_MAX};
-
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
@@ -594,7 +589,8 @@ class Application {
 #endif
 
   // 2-byte members (grouped together for alignment)
-  uint16_t loop_interval_{16};                 // Loop interval in ms (max 65535ms = 65.5 seconds)
+  uint16_t dump_config_at_{std::numeric_limits<uint16_t>::max()};  // Index into components_ for dump_config progress
+  uint16_t loop_interval_{16};                                     // Loop interval in ms (max 65535ms = 65.5 seconds)
   uint16_t looping_components_active_end_{0};  // Index marking end of active components in looping_components_
   uint16_t current_loop_index_{0};             // For safe reentrant modifications during iteration
 

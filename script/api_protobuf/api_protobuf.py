@@ -690,6 +690,14 @@ class MessageType(TypeInfo):
         return "encode_message"
 
     @property
+    def encode_content(self) -> str:
+        # Singular message fields pass force=false (skip empty messages)
+        # The default for encode_nested_message is force=true (for repeated fields)
+        return (
+            f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, false);"
+        )
+
+    @property
     def decode_length(self) -> str:
         # Override to return None for message types because we can't use template-based
         # decoding when the specific message type isn't known at compile time.
@@ -1905,6 +1913,37 @@ def build_type_usage_map(
     )
 
 
+def get_varint64_ifdef(
+    file_desc: descriptor.FileDescriptorProto,
+    message_ifdef_map: dict[str, str | None],
+) -> tuple[bool, str | None]:
+    """Check if 64-bit varint fields exist and get their common ifdef guard.
+
+    Returns:
+        (has_varint64, ifdef_guard) - has_varint64 is True if any fields exist,
+        ifdef_guard is the common guard or None if unconditional.
+    """
+    varint64_types = {
+        FieldDescriptorProto.TYPE_INT64,
+        FieldDescriptorProto.TYPE_UINT64,
+        FieldDescriptorProto.TYPE_SINT64,
+    }
+    ifdefs: set[str | None] = {
+        message_ifdef_map.get(msg.name)
+        for msg in file_desc.message_type
+        if not msg.options.deprecated
+        for field in msg.field
+        if not field.options.deprecated and field.type in varint64_types
+    }
+    if not ifdefs:
+        return False, None
+    if None in ifdefs:
+        # At least one 64-bit varint field is unconditional, so the guard must be unconditional.
+        return True, None
+    ifdefs.discard(None)
+    return True, ifdefs.pop() if len(ifdefs) == 1 else None
+
+
 def build_enum_type(desc, enum_ifdef_map) -> tuple[str, str, str]:
     """Builds the enum type.
 
@@ -2186,7 +2225,7 @@ def build_message_type(
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
-        o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{"
+        o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{"
         if len(encode) == 1 and len(encode[0]) + len(o) + 3 < 120:
             o += f" {encode[0]} }}\n"
         else:
@@ -2194,7 +2233,7 @@ def build_message_type(
             o += indent("\n".join(encode)) + "\n"
             o += "}\n"
         cpp += o
-        prot = "void encode(ProtoWriteBuffer buffer) const override;"
+        prot = "void encode(ProtoWriteBuffer &buffer) const override;"
         public_content.append(prot)
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
@@ -2559,11 +2598,38 @@ def main() -> None:
 
     file = d.file[0]
 
+    # Build dynamic ifdef mappings early so we can emit USE_API_VARINT64 before includes
+    enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
+        build_type_usage_map(file)
+    )
+
+    # Find the ifdef guard for 64-bit varint fields (int64/uint64/sint64).
+    # Generated into api_pb2_defines.h so proto.h can include it, ensuring
+    # consistent ProtoVarInt layout across all translation units.
+    has_varint64, varint64_guard = get_varint64_ifdef(file, message_ifdef_map)
+
+    # Generate api_pb2_defines.h — included by proto.h to ensure all translation
+    # units see USE_API_VARINT64 consistently (avoids ODR violations in ProtoVarInt).
+    defines_content = FILE_HEADER
+    defines_content += "#pragma once\n\n"
+    defines_content += '#include "esphome/core/defines.h"\n'
+    if has_varint64:
+        lines = [
+            "#ifndef USE_API_VARINT64",
+            "#define USE_API_VARINT64",
+            "#endif",
+        ]
+        defines_content += "\n".join(wrap_with_ifdef(lines, varint64_guard))
+        defines_content += "\n"
+    defines_content += "\nnamespace esphome::api {}  // namespace esphome::api\n"
+
+    with open(root / "api_pb2_defines.h", "w", encoding="utf-8") as f:
+        f.write(defines_content)
+
     content = FILE_HEADER
     content += """\
 #pragma once
 
-#include "esphome/core/defines.h"
 #include "esphome/core/string_ref.h"
 
 #include "proto.h"
@@ -2693,11 +2759,6 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 """
 
     content += "namespace enums {\n\n"
-
-    # Build dynamic ifdef mappings for both enums and messages
-    enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
-        build_type_usage_map(file)
-    )
 
     # Simple grouping of enums by ifdef
     current_ifdef = None

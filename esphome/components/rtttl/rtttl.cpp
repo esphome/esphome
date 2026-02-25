@@ -148,9 +148,10 @@ void Rtttl::loop() {
         sample_index++;
       }
       if (sample_index > 0) {
-        size_t send = this->speaker_->play((uint8_t *) (&sample), sample_index * 2);
-        if (send != sample_index * 4) {
-          this->samples_sent_ -= sample_index - (send / 2);
+        size_t bytes_to_send = sample_index * sizeof(SpeakerSample);
+        size_t send = this->speaker_->play((uint8_t *) (&sample), bytes_to_send);
+        if (send != bytes_to_send) {
+          this->samples_sent_ -= (sample_index - (send / sizeof(SpeakerSample)));
         }
         return;
       }
@@ -234,7 +235,7 @@ void Rtttl::loop() {
     if (this->output_freq_ == 0) {
       this->output_->set_level(0.0);
     } else {
-      if (need_note_gap) {
+      if (need_note_gap && this->note_duration_ > REPEATING_NOTE_GAP_MS) {
         this->output_->set_level(0.0);
         delay(REPEATING_NOTE_GAP_MS);
         this->note_duration_ -= REPEATING_NOTE_GAP_MS;
@@ -250,9 +251,9 @@ void Rtttl::loop() {
     this->samples_sent_ = 0;
     this->samples_gap_ = 0;
     this->samples_per_wave_ = 0;
-    this->samples_count_ = (SAMPLE_RATE * this->note_duration_) / 1600;  // ms
+    this->samples_count_ = (SAMPLE_RATE * this->note_duration_) / 1000;
     if (need_note_gap) {
-      this->samples_gap_ = (SAMPLE_RATE * REPEATING_NOTE_GAP_MS) / 1600;  // ms
+      this->samples_gap_ = (SAMPLE_RATE * REPEATING_NOTE_GAP_MS) / 1000;
     }
     if (this->output_freq_ != 0) {
       // Make sure there is enough samples to add a full last sinus.
@@ -287,7 +288,7 @@ void Rtttl::play(std::string rtttl) {
   this->note_duration_ = 0;
 
   uint8_t bpm = DEFAULT_BPM;
-  uint8_t num;  // Used for: default note-denominator, default octave, BPM
+  uint16_t num;  // Used for: default note-denominator, default octave, BPM
 
   // Get name
   this->position_ = this->rtttl_.find(':');
@@ -421,7 +422,7 @@ void Rtttl::finish_() {
     sample[0].right = 0;
     sample[1].left = 0;
     sample[1].right = 0;
-    this->speaker_->play((uint8_t *) (&sample), 8);
+    this->speaker_->play((uint8_t *) (&sample), sizeof(sample));
     this->speaker_->finish();
     this->set_state_(State::STOPPING);
   }

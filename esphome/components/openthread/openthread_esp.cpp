@@ -81,9 +81,11 @@ void OpenThreadComponent::ot_main() {
   // Initialize the OpenThread stack
   // otLoggingSetLevel(OT_LOG_LEVEL_DEBG);
   ESP_ERROR_CHECK(esp_openthread_init(&config));
+  // Fetch OT instance once to avoid repeated call into OT stack
+  otInstance *instance = esp_openthread_get_instance();
 
 #if CONFIG_OPENTHREAD_STATE_INDICATOR_ENABLE
-  ESP_ERROR_CHECK(esp_openthread_state_indicator_init(esp_openthread_get_instance()));
+  ESP_ERROR_CHECK(esp_openthread_state_indicator_init(instance));
 #endif
 
 #if CONFIG_OPENTHREAD_LOG_LEVEL_DYNAMIC
@@ -104,34 +106,34 @@ void OpenThreadComponent::ot_main() {
   esp_cli_custom_command_init();
 #endif  // CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
 
+  ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
+
   otLinkModeConfig link_mode_config{};
 #if CONFIG_OPENTHREAD_FTD
   link_mode_config.mRxOnWhenIdle = true;
   link_mode_config.mDeviceType = true;
   link_mode_config.mNetworkData = true;
 #elif CONFIG_OPENTHREAD_MTD
-  if (this->poll_period > 0) {
-    if (otLinkSetPollPeriod(esp_openthread_get_instance(), this->poll_period) != OT_ERROR_NONE) {
-      ESP_LOGE(TAG, "Failed to set OpenThread pollperiod.");
+  if (this->poll_period_ > 0) {
+    if (otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
+      ESP_LOGE(TAG, "Failed to set pollperiod");
     }
-    uint32_t link_polling_period = otLinkGetPollPeriod(esp_openthread_get_instance());
-    ESP_LOGD(TAG, "Link Polling Period: %d", link_polling_period);
+    ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, otLinkGetPollPeriod(instance));
   }
-  link_mode_config.mRxOnWhenIdle = this->poll_period == 0;
+  link_mode_config.mRxOnWhenIdle = this->poll_period_ == 0;
   link_mode_config.mDeviceType = false;
   link_mode_config.mNetworkData = false;
 #endif
 
-  if (otThreadSetLinkMode(esp_openthread_get_instance(), link_mode_config) != OT_ERROR_NONE) {
-    ESP_LOGE(TAG, "Failed to set OpenThread linkmode.");
+  if (otThreadSetLinkMode(instance, link_mode_config) != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set linkmode");
   }
-  link_mode_config = otThreadGetLinkMode(esp_openthread_get_instance());
-  ESP_LOGD(TAG,
-           "Link Mode Device Type: %s\n"
-           "Link Mode Network Data: %s\n"
-           "Link Mode RX On When Idle: %s",
-           link_mode_config.mDeviceType ? "true" : "false", link_mode_config.mNetworkData ? "true" : "false",
-           link_mode_config.mRxOnWhenIdle ? "true" : "false");
+#ifdef ESPHOME_LOG_HAS_DEBUG  // Fetch link mode from OT only when DEBUG
+  link_mode_config = otThreadGetLinkMode(instance);
+  ESP_LOGD(TAG, "Link Mode Device Type: %s, Network Data: %s, RX On When Idle: %s",
+           TRUEFALSE(link_mode_config.mDeviceType), TRUEFALSE(link_mode_config.mNetworkData),
+           TRUEFALSE(link_mode_config.mRxOnWhenIdle));
+#endif
 
   // Run the main loop
 #if CONFIG_OPENTHREAD_CLI
@@ -142,13 +144,12 @@ void OpenThreadComponent::ot_main() {
 
 #ifndef USE_OPENTHREAD_FORCE_DATASET
   // Check if openthread has a valid dataset from a previous execution
-  otError error = otDatasetGetActiveTlvs(esp_openthread_get_instance(), &dataset);
+  otError error = otDatasetGetActiveTlvs(instance, &dataset);
   if (error != OT_ERROR_NONE) {
     // Make sure the length is 0 so we fallback to the configuration
     dataset.mLength = 0;
   } else {
-    ESP_LOGI(TAG, "Found OpenThread-managed dataset, ignoring esphome configuration\n"
-                  "(set force_dataset: true to override)");
+    ESP_LOGI(TAG, "Found existing dataset, ignoring config (force_dataset: true to override)");
   }
 #endif
 
