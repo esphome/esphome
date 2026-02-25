@@ -8,29 +8,29 @@ namespace esphome::rtttl {
 
 static const char *const TAG = "rtttl";
 
-static const uint8_t SONG_NAME_SOFT_LIMIT = 10;
-static const uint8_t SONG_NAME_HARD_LIMIT = 15;
-static const uint8_t SEMITONES_IN_OCTAVE = 12;
+static constexpr uint8_t SONG_NAME_SOFT_LIMIT = 10;
+static constexpr uint8_t SONG_NAME_HARD_LIMIT = 15;
+static constexpr uint8_t SEMITONES_IN_OCTAVE = 12;
 
-static const uint8_t MIN_OCTAVE = 4;
-static const uint8_t MAX_OCTAVE = 7;
+static constexpr uint8_t MIN_OCTAVE = 4;
+static constexpr uint8_t MAX_OCTAVE = 7;
 
-static const uint8_t DEFAULT_BPM = 63;  // Default beats per minute
+static constexpr uint8_t DEFAULT_BPM = 63;  // Default beats per minute
 
 // These values can also be found as constants in the Tone library (Tone.h)
-static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370,  392,  415,  440,  466,  494,
-                                 523,  554,  587,  622,  659,  698,  740,  784,  831,  880,  932,  988,  1047,
-                                 1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217,
-                                 2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
-static const uint8_t NOTES_COUNT = static_cast<uint8_t>(sizeof(NOTES) / sizeof(NOTES[0]));
+static constexpr uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370,  392,  415,  440,  466,  494,
+                                     523,  554,  587,  622,  659,  698,  740,  784,  831,  880,  932,  988,  1047,
+                                     1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217,
+                                     2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
+static constexpr uint8_t NOTES_COUNT = static_cast<uint8_t>(sizeof(NOTES) / sizeof(NOTES[0]));
 
 #if defined(USE_OUTPUT) || defined(USE_SPEAKER)
-static const uint8_t REPEATING_NOTE_GAP_MS = 10;
+static constexpr uint8_t REPEATING_NOTE_GAP_MS = 10;
 #endif  // USE_OUTPUT || USE_SPEAKER
 
 #ifdef USE_SPEAKER
-static const uint16_t SAMPLE_BUFFER_SIZE = 2048;
-static const uint16_t SAMPLE_RATE = 16000;
+static constexpr uint16_t SAMPLE_BUFFER_SIZE = 2048;
+static constexpr uint16_t SAMPLE_RATE = 16000;
 
 struct SpeakerSample {
   int8_t left{0};
