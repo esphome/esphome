@@ -123,6 +123,8 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
 
   auto T = [&](int idx) -> const char * { return (idx >= 0 && idx < n) ? tok[idx] : ""; };
 
+  ESP_LOGV(TAG, "Parsing CGNSSINFO with %d tokens", n);
+
   if (n >= 21) {
     // +CGNSINF (21 tokens)
     // <run>,<fix>,<UTC>,<lat>,<lon>,<msl_alt>,<spd_kmh>,<cog>,<fix_mode>,<rsv1>,<hdop>,<pdop>,<vdop>,...
@@ -194,8 +196,6 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
   } else if (n == 17) {
     // +CGNSSINFO 17 tokens: lat/lon in DDMM.MMMMMM
     // mode, sat_used, unknown, sat_view, fix_status, lat, N/S, lon, E/W, date, time, alt, spd, cog, hdop, vdop, pdop
-    if (n < 15)
-      return false;
 
     int sat_used = 0;
     (void) to_int(T(1), sat_used);
@@ -210,8 +210,8 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
     int lon_d = static_cast<int>(lon_ddmm / 100.0);
     gi.lon_deg = lon_d + (lon_ddmm - lon_d * 100.0) / 60.0;
 
-    char lat_dir = T(6)[0] ? T(6)[0] : 'N';
-    char lon_dir = T(8)[0] ? T(8)[0] : 'E';
+    char lat_dir = (T(6)[0]) ? T(6)[0] : 'N';
+    char lon_dir = (T(8)[0]) ? T(8)[0] : 'E';
     if (lat_dir == 'S')
       gi.lat_deg = -gi.lat_deg;
     if (lon_dir == 'W')
