@@ -427,7 +427,7 @@ void Rtttl::finish_() {
   }
 #endif  // USE_SPEAKER
 
-  // Ensure no more notes are played in case `finish_()` is called for an error.
+  // Ensure no more notes are played in case finish_() is called for an error.
   this->position_ = this->rtttl_.length();
   this->note_duration_ = 0;
 }
