@@ -60,12 +60,12 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   if (this->current_sensor_ != nullptr) {
     if (current < 150) {
       this->current_sensor_->publish_state(current);
-    } 
+    }
   }
   if (this->power_sensor_ != nullptr) {
     if (active_power < 16000) {
       this->power_sensor_->publish_state(active_power);
-    } 
+    }
   }
   if (this->energy_sensor_ != nullptr) {
     if (this->last_energy_sensor_ == 0) {
@@ -83,7 +83,7 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   if (this->frequency_sensor_ != nullptr) {
     if (current < 200) {
       this->frequency_sensor_->publish_state(frequency);
-    } 
+    }
   }
   if (this->power_factor_sensor_ != nullptr) {
     this->power_factor_sensor_->publish_state(power_factor);
