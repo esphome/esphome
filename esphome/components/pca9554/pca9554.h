@@ -23,7 +23,9 @@ class PCA9554Component : public Component,
 
   float get_setup_priority() const override;
 
+#ifdef USE_LOOP_PRIORITY
   float get_loop_priority() const override;
+#endif
 
   void dump_config() override;
 
