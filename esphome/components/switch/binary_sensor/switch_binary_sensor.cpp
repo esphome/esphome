@@ -1,8 +1,7 @@
 #include "switch_binary_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace switch_ {
+namespace esphome::switch_ {
 
 static const char *const TAG = "switch.binary_sensor";
 
@@ -13,5 +12,4 @@ void SwitchBinarySensor::setup() {
 
 void SwitchBinarySensor::dump_config() { LOG_BINARY_SENSOR("", "Switch Binary Sensor", this); }
 
-}  // namespace switch_
-}  // namespace esphome
+}  // namespace esphome::switch_

@@ -310,8 +310,19 @@ void LD2412Component::restart_and_read_all_info() {
 }
 
 void LD2412Component::loop() {
-  while (this->available()) {
-    this->readline_(this->read());
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[MAX_LINE_LENGTH];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+
+    for (size_t i = 0; i < to_read; i++) {
+      this->readline_(buf[i]);
+    }
   }
 }
 
@@ -519,10 +530,7 @@ bool LD2412Component::handle_ack_data_() {
       this->light_function_ = this->buffer_data_[10];
       this->light_threshold_ = this->buffer_data_[11];
       const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
-      ESP_LOGV(TAG,
-               "Light function: %s\n"
-               "Light threshold: %u",
-               light_function_str, this->light_threshold_);
+      ESP_LOGV(TAG, "Light function: %s, threshold: %u", light_function_str, this->light_threshold_);
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr) {
         this->light_function_select_->publish_state(light_function_str);

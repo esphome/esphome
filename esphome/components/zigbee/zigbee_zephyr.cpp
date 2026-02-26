@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
+#include "esphome/core/hal.h"
 
 extern "C" {
 #include <zboss_api.h>
@@ -60,9 +61,17 @@ void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
       break;
   }
 
+  auto before = millis();
   auto err = zigbee_default_signal_handler(bufid);
   if (err != RET_OK) {
     ESP_LOGE(TAG, "Zigbee_default_signal_handler ERROR %u [%s]", err, zb_error_to_string_get(err));
+  }
+
+  if (sig == ZB_COMMON_SIGNAL_CAN_SLEEP) {
+    this->sleep_remainder_ += millis() - before;
+    uint32_t seconds = this->sleep_remainder_ / 1000;
+    this->sleep_remainder_ -= seconds * 1000;
+    this->sleep_time_ += seconds;
   }
 
   switch (sig) {
@@ -101,8 +110,8 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   zb_uint16_t attr_id = p_device_cb_param->cb_param.set_attr_value_param.attr_id;
   auto endpoint = p_device_cb_param->endpoint;
 
-  ESP_LOGI(TAG, "Zcl_device_cb %s id %hd, cluster_id %d, attr_id %d, endpoint: %d", __func__, device_cb_id, cluster_id,
-           attr_id, endpoint);
+  ESP_LOGI(TAG, "%s id %hd, cluster_id %d, attr_id %d, endpoint: %d", __func__, device_cb_id, cluster_id, attr_id,
+           endpoint);
 
   /* Set default response value. */
   p_device_cb_param->status = RET_OK;
@@ -112,10 +121,10 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
     const auto &cb = global_zigbee->callbacks_[endpoint - 1];
     if (cb) {
       cb(bufid);
+      return;
     }
-    return;
   }
-  p_device_cb_param->status = RET_ERROR;
+  p_device_cb_param->status = RET_NOT_IMPLEMENTED;
 }
 
 void ZigbeeComponent::on_join_() {
@@ -212,6 +221,7 @@ void ZigbeeComponent::dump_config() {
                 "Zigbee\n"
                 "  Wipe on boot: %s\n"
                 "  Device is joined to the network: %s\n"
+                "  Sleep time: %us\n"
                 "  Current channel: %d\n"
                 "  Current page: %d\n"
                 "  Sleep threshold: %ums\n"
@@ -220,9 +230,10 @@ void ZigbeeComponent::dump_config() {
                 "  Short addr: 0x%04X\n"
                 "  Long pan id: 0x%s\n"
                 "  Short pan id: 0x%04X",
-                get_wipe_on_boot(), YESNO(zb_zdo_joined()), zb_get_current_channel(), zb_get_current_page(),
-                zb_get_sleep_threshold(), role(), ieee_addr_buf, zb_get_short_address(), extended_pan_id_buf,
-                zb_get_pan_id());
+                get_wipe_on_boot(), YESNO(zb_zdo_joined()), this->sleep_time_, zb_get_current_channel(),
+                zb_get_current_page(), zb_get_sleep_threshold(), role(), ieee_addr_buf, zb_get_short_address(),
+                extended_pan_id_buf, zb_get_pan_id());
+  dump_reporting_();
 }
 
 static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
@@ -230,11 +241,11 @@ static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
   zb_buf_free(bufid);
 }
 
-void ZigbeeComponent::flush() { this->need_flush_ = true; }
+void ZigbeeComponent::force_report() { this->force_report_ = true; }
 
 void ZigbeeComponent::loop() {
-  if (this->need_flush_) {
-    this->need_flush_ = false;
+  if (this->force_report_) {
+    this->force_report_ = false;
     zb_buf_get_out_delayed_ext(send_attribute_report, 0, 0);
   }
 }
@@ -242,6 +253,33 @@ void ZigbeeComponent::loop() {
 void ZigbeeComponent::factory_reset() {
   ESP_LOGD(TAG, "Factory reset");
   ZB_SCHEDULE_APP_CALLBACK(zb_bdb_reset_via_local_action, 0);
+}
+
+void ZigbeeComponent::dump_reporting_() {
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  auto now = millis();
+  bool first = true;
+  for (zb_uint8_t j = 0; j < ZCL_CTX().device_ctx->ep_count; j++) {
+    if (ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info) {
+      zb_zcl_reporting_info_t *rep_info = ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info;
+      for (zb_uint8_t i = 0; i < ZCL_CTX().device_ctx->ep_desc_list[j]->rep_info_count; i++) {
+        if (!first) {
+          ESP_LOGV(TAG, "");
+        }
+        first = false;
+        ESP_LOGV(TAG, "Endpoint: %d, cluster_id %d, attr_id %d, flags %d, report in %ums", rep_info->ep,
+                 rep_info->cluster_id, rep_info->attr_id, rep_info->flags,
+                 ZB_ZCL_GET_REPORTING_FLAG(rep_info, ZB_ZCL_REPORT_TIMER_STARTED)
+                     ? ZB_TIME_BEACON_INTERVAL_TO_MSEC(rep_info->run_time) - now
+                     : 0);
+        ESP_LOGV(TAG, "Min_interval %ds, max_interval %ds, def_min_interval %ds, def_max_interval %ds",
+                 rep_info->u.send_info.min_interval, rep_info->u.send_info.max_interval,
+                 rep_info->u.send_info.def_min_interval, rep_info->u.send_info.def_max_interval);
+        rep_info++;
+      }
+    }
+  }
+#endif
 }
 
 }  // namespace esphome::zigbee

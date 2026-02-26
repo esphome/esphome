@@ -23,7 +23,6 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
  protected:

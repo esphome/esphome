@@ -49,6 +49,10 @@ void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
     root[MQTT_DEVICE_CLASS] = device_class;
   }
 
+  if (this->sensor_->has_accuracy_decimals()) {
+    root[MQTT_SUGGESTED_DISPLAY_PRECISION] = this->sensor_->get_accuracy_decimals();
+  }
+
   const auto unit_of_measurement = this->sensor_->get_unit_of_measurement_ref();
   if (!unit_of_measurement.empty()) {
     root[MQTT_UNIT_OF_MEASUREMENT] = unit_of_measurement;
@@ -79,12 +83,13 @@ bool MQTTSensorComponent::send_initial_state() {
   }
 }
 bool MQTTSensorComponent::publish_state(float value) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   if (mqtt::global_mqtt_client->is_publish_nan_as_none() && std::isnan(value))
-    return this->publish(this->get_state_topic_(), "None", 4);
+    return this->publish(this->get_state_topic_to_(topic_buf), "None", 4);
   int8_t accuracy = this->sensor_->get_accuracy_decimals();
   char buf[VALUE_ACCURACY_MAX_LEN];
   size_t len = value_accuracy_to_buf(buf, value, accuracy);
-  return this->publish(this->get_state_topic_(), buf, len);
+  return this->publish(this->get_state_topic_to_(topic_buf), buf, len);
 }
 
 }  // namespace esphome::mqtt

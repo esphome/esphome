@@ -41,12 +41,14 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void add_label_name(EntityBase *obj, const std::string &value) { relabel_map_name_.insert({obj, value}); }
 
   bool canHandle(AsyncWebServerRequest *request) const override {
-    if (request->method() == HTTP_GET) {
-      if (request->url() == "/metrics")
-        return true;
-    }
-
-    return false;
+    if (request->method() != HTTP_GET)
+      return false;
+#ifdef USE_ESP32
+    char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+    return request->url_to(url_buf) == "/metrics";
+#else
+    return request->url() == ESPHOME_F("/metrics");
+#endif
   }
 
   void handleRequest(AsyncWebServerRequest *req) override;
