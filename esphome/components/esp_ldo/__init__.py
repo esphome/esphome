@@ -17,13 +17,14 @@ CHANNELS = (1, 2, 3, 4)
 CHANNELS_INTERNAL = (1, 2)
 CONF_ADJUSTABLE = "adjustable"
 CONF_ALLOW_INTERNAL_CHANNEL = "allow_internal_channel"
+CONF_PASSTHROUGH = "passthrough"
 
 adjusted_ids = set()
 
 
 def validate_ldo_voltage(value):
-    if isinstance(value, str) and value.lower() == "passthrough":
-        return "passthrough"
+    if isinstance(value, str) and value.lower() == CONF_PASSTHROUGH:
+        return CONF_PASSTHROUGH
     value = cv.voltage(value)
     if 0.5 <= value <= 2.7:
         return value
@@ -75,7 +76,7 @@ async def to_code(configs):
         var = cg.new_Pvariable(config[CONF_ID], config[CONF_CHANNEL])
         await cg.register_component(var, config)
         voltage = config[CONF_VOLTAGE]
-        if voltage == "passthrough":
+        if voltage == CONF_PASSTHROUGH:
             cg.add(var.set_voltage(3300))
         else:
             cg.add(var.set_voltage(int(round(voltage * 1000))))
