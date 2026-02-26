@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_BOARD,
     CONF_COMPONENTS,
     CONF_DISABLED,
+    CONF_ENABLE_OTA_ROLLBACK,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
     CONF_IGNORE_EFUSE_CUSTOM_MAC,
@@ -90,7 +91,6 @@ CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
 CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
-CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_RELEASE = "release"
@@ -790,8 +790,15 @@ def _detect_variant(value):
             engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
             if engineering_sample is None:
                 _LOGGER.warning(
-                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3). "
-                    "If you have an early engineering sample (pre-rev3), set 'engineering_sample: true'."
+                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3).\n"
+                    "If you have an early engineering sample (pre-rev3), add this to your config:\n"
+                    "\n"
+                    "  esp32:\n"
+                    "    engineering_sample: true\n"
+                    "\n"
+                    "To check your chip revision, look for 'chip revision: vX.Y' in the boot log.\n"
+                    "Engineering samples will show a revision below v3.0.\n"
+                    "The 'debug:' component also reports the revision (e.g. Revision: 100 = v1.0, 300 = v3.0)."
                 )
             elif engineering_sample:
                 value[CONF_BOARD] = "esp32-p4-evboard"

@@ -10,8 +10,7 @@
 #include <cstring>
 #include <atomic>
 #include <span>
-namespace esphome {
-namespace usb_host {
+namespace esphome::usb_host {
 
 #pragma GCC diagnostic ignored "-Wparentheses"
 
@@ -568,6 +567,5 @@ void USBClient::release_trq(TransferRequest *trq) {
   this->trq_in_use_.fetch_and(mask, std::memory_order_release);
 }
 
-}  // namespace usb_host
-}  // namespace esphome
+}  // namespace esphome::usb_host
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
