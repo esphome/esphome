@@ -50,7 +50,10 @@ class DeviceBase {
 };
 
 template<size_t NUM_SENSORS> class Device : public DeviceBase {
+ public:
   void set_handler(size_t index, BTHomeObjectHandler *handler) override { handlers_[index] = handler; }
+
+ protected:
   std::span<BTHomeObjectHandler *> get_handlers() override { return handlers_; }
 
  private:

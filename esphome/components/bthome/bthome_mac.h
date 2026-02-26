@@ -31,6 +31,7 @@ class MacAddressPtr {
  public:
   MacAddressPtr() = default;
   MacAddressPtr(const uint8_t *addr) : addr_(addr) {}
+  MacAddressPtr(const MacAddress &addr) : MacAddressPtr((const uint8_t *) (addr)) {}
 
   operator const uint8_t *() const { return this->addr_; }
 
