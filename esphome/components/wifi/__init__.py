@@ -342,6 +342,7 @@ def _validate(config):
 
     return config
 
+
 CONF_OUTPUT_POWER = "output_power"
 CONF_PASSIVE_SCAN = "passive_scan"
 CONFIG_SCHEMA = cv.All(
