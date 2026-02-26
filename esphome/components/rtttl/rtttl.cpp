@@ -139,9 +139,10 @@ void Rtttl::loop() {
         x++;
       }
       if (x > 0) {
-        int send = this->speaker_->play((uint8_t *) (&sample), x * 2);
-        if (send != x * 4) {
-          this->samples_sent_ -= (x - (send / 2));
+        size_t bytes_to_send = x * sizeof(SpeakerSample);
+        size_t send = this->speaker_->play((uint8_t *) (&sample), bytes_to_send);
+        if (send != bytes_to_send) {
+          this->samples_sent_ -= (x - (send / sizeof(SpeakerSample)));
         }
         return;
       }
@@ -201,9 +202,9 @@ void Rtttl::loop() {
   bool need_note_gap = false;
   if (note) {
     auto note_index = (scale - 4) * 12 + note;
-    if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {
+    if (note_index < 0 || note_index >= (int) (sizeof(NOTES) / sizeof(NOTES[0]))) {
       ESP_LOGE(TAG, "Note out of range (note: %d, scale: %d, index: %d, max: %d)", note, scale, note_index,
-               (int) sizeof(NOTES));
+               (int) (sizeof(NOTES) / sizeof(NOTES[0])));
       this->finish_();
       return;
     }
@@ -221,7 +222,7 @@ void Rtttl::loop() {
 
 #ifdef USE_OUTPUT
   if (this->output_ != nullptr) {
-    if (need_note_gap) {
+    if (need_note_gap && this->note_duration_ > DOUBLE_NOTE_GAP_MS) {
       this->output_->set_level(0.0);
       delay(DOUBLE_NOTE_GAP_MS);
       this->note_duration_ -= DOUBLE_NOTE_GAP_MS;
@@ -240,9 +241,9 @@ void Rtttl::loop() {
     this->samples_sent_ = 0;
     this->samples_gap_ = 0;
     this->samples_per_wave_ = 0;
-    this->samples_count_ = (this->sample_rate_ * this->note_duration_) / 1600;  //(ms);
+    this->samples_count_ = (this->sample_rate_ * this->note_duration_) / 1000;
     if (need_note_gap) {
-      this->samples_gap_ = (this->sample_rate_ * DOUBLE_NOTE_GAP_MS) / 1600;  //(ms);
+      this->samples_gap_ = (this->sample_rate_ * DOUBLE_NOTE_GAP_MS) / 1000;
     }
     if (this->output_freq_ != 0) {
       // make sure there is enough samples to add a full last sinus.
@@ -279,7 +280,7 @@ void Rtttl::play(std::string rtttl) {
   this->note_duration_ = 0;
 
   int bpm = 63;
-  uint8_t num;
+  uint16_t num;
 
   // Get name
   this->position_ = this->rtttl_.find(':');
@@ -395,7 +396,7 @@ void Rtttl::finish_() {
     sample[0].right = 0;
     sample[1].left = 0;
     sample[1].right = 0;
-    this->speaker_->play((uint8_t *) (&sample), 8);
+    this->speaker_->play((uint8_t *) (&sample), sizeof(sample));
     this->speaker_->finish();
     this->set_state_(State::STOPPING);
   }
