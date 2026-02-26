@@ -18,7 +18,7 @@ static const char *const TAG = "http_request.host";
 
 std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, const std::string &method,
                                                         const std::string &body,
-                                                        const std::list<Header> &request_headers,
+                                                        const std::vector<Header> &request_headers,
                                                         const std::vector<std::string> &lower_case_collect_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);

@@ -199,12 +199,19 @@ void AcDimmer::setup() {
   setTimer1Callback(&timer_interrupt);
 #endif
 #ifdef USE_ESP32
-  dimmer_timer = timer_begin(TIMER_FREQUENCY_HZ);
-  timer_attach_interrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr);
-  // For ESP32, we can't use dynamic interval calculation because the timerX functions
-  // are not callable from ISR (placed in flash storage).
-  // Here we just use an interrupt firing every 50 µs.
-  timer_alarm(dimmer_timer, TIMER_INTERVAL_US, true, 0);
+  if (dimmer_timer == nullptr) {
+    dimmer_timer = timer_begin(TIMER_FREQUENCY_HZ);
+    if (dimmer_timer == nullptr) {
+      ESP_LOGE(TAG, "Failed to create GPTimer for AC dimmer");
+      this->mark_failed();
+      return;
+    }
+    timer_attach_interrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr);
+    // For ESP32, we can't use dynamic interval calculation because the timerX functions
+    // are not callable from ISR (placed in flash storage).
+    // Here we just use an interrupt firing every 50 µs.
+    timer_alarm(dimmer_timer, TIMER_INTERVAL_US, true, 0);
+  }
 #endif
 }
 

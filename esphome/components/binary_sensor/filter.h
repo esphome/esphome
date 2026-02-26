@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_BINARY_SENSOR_FILTER
+
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -138,3 +141,5 @@ class SettleFilter : public Filter, public Component {
 };
 
 }  // namespace esphome::binary_sensor
+
+#endif  // USE_BINARY_SENSOR_FILTER
