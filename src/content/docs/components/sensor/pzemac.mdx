@@ -6,6 +6,7 @@ title: "Peacefair PZEM-004T V3 Energy Monitor"
 import { Image } from 'astro:assets';
 import Figure from '@components/Figure.astro';
 import pzemAcImg from './images/pzem-ac.png';
+import pzemAcV1Img from './images/pzem-004t-100a-d-p-v1.0.jpg';
 import APIRef from '@components/APIRef.astro';
 
 > [!NOTE]
@@ -156,6 +157,22 @@ modbus_controller:
     setup_priority: -10
     update_interval: 30s
 ```
+
+## Other Devices
+
+### PZEM-004T-100A-D-P(V1.0)
+
+<Figure
+  src={pzemAcV1Img}
+  alt=""
+  caption="PZEM-004T-100A-D-P(V1.0)"
+  layout="constrained"
+/>
+
+- The silkscreen marking implies V1.0, which might mislead users into trying to use [pzem004t](/components/sensor/pzem004t).
+- One notable difference to other boards is the 5-pin connection labeled *5V*, *RX*, *TX*, *CF*, *GND*.
+- Seems to work when supplied with 3.3V on the 5V pin, at least over a few centimeters of wire.
+  No need for a level shifter or resistor changes in this case.
 
 ## See Also
 
