@@ -25,3 +25,9 @@ esp32:
 psram:
   mode: octal
   speed: 80MHz
+
+# I2C bus for GT911 touchscreen - pins are fixed on this board
+i2c:
+  sda: GPIO18
+  scl: GPIO17
+  frequency: 400kHz
