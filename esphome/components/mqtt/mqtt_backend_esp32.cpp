@@ -46,10 +46,10 @@ bool MQTTBackendESP32::initialize_() {
   // SSL/TLS configuration
   if (this->use_ssl_) {
     mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
-    mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
     if (this->verify_ssl_) {
       if (ca_certificate_.has_value()) {
         mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
+        mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
       } else {
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
         mqtt_cfg_.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
