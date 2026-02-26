@@ -48,6 +48,12 @@ def validate_ldo_config(config):
             f"Set '{CONF_ALLOW_INTERNAL_CHANNEL}: true' to confirm you know what you are doing.",
             path=[CONF_CHANNEL],
         )
+    if config[CONF_VOLTAGE] == CONF_PASSTHROUGH and config[CONF_ADJUSTABLE]:
+        raise cv.Invalid(
+            "Passthrough mode passes the supply voltage directly to the output and does not support "
+            "runtime voltage adjustment. Set 'adjustable: false' or use a fixed voltage instead.",
+            path=[CONF_ADJUSTABLE],
+        )
     return config
 
 
