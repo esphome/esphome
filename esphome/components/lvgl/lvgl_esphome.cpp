@@ -204,7 +204,6 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
       }
       y1 = x1;
       x1 = this->height_ - area->y1 - height;
-      width = height;
       height = width;
       width = height_rounded;
       break;
