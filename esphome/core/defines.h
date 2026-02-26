@@ -129,6 +129,7 @@
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
 #define USE_ZIGBEE_PROXY
+#define USE_ZIGBEE_PROXY_USB_UART
 #define USE_ZWAVE_PROXY
 
 // Feature flags which do not work for zephyr
