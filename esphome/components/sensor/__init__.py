@@ -603,7 +603,7 @@ DELTA_SCHEMA = cv.Any(
 def _get_delta(value):
     if isinstance(value, str):
         assert value.endswith("%")
-        return 0.0, float(value[:-1])
+        return 0.0, float(value[:-1]) / 100.0
     return value, 0.0
 
 
@@ -903,6 +903,7 @@ async def setup_sensor_core_(var, config):
     if config[CONF_FORCE_UPDATE]:
         cg.add(var.set_force_update(True))
     if config.get(CONF_FILTERS):  # must exist and not be empty
+        cg.add_define("USE_SENSOR_FILTER")
         filters = await build_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))
 

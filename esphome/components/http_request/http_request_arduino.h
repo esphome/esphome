@@ -49,7 +49,7 @@ class HttpContainerArduino : public HttpContainer {
 class HttpRequestArduino : public HttpRequestComponent {
  protected:
   std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method, const std::string &body,
-                                         const std::list<Header> &request_headers,
+                                         const std::vector<Header> &request_headers,
                                          const std::vector<std::string> &lower_case_collect_headers) override;
 };
 

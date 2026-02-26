@@ -431,6 +431,14 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
+    process_stacktrace = None
+
+    try:
+        module = importlib.import_module("esphome.components." + CORE.target_platform)
+        process_stacktrace = getattr(module, "process_stacktrace")
+    except AttributeError:
+        pass
+
     backtrace_state = False
     ser = serial.Serial()
     ser.baudrate = baud_rate
@@ -472,9 +480,14 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                             )
                             safe_print(parser.parse_line(line, time_str))
 
-                            backtrace_state = platformio_api.process_stacktrace(
-                                config, line, backtrace_state=backtrace_state
-                            )
+                            if process_stacktrace:
+                                backtrace_state = process_stacktrace(
+                                    config, line, backtrace_state
+                                )
+                            else:
+                                backtrace_state = platformio_api.process_stacktrace(
+                                    config, line, backtrace_state=backtrace_state
+                                )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
