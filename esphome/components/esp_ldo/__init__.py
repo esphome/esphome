@@ -34,7 +34,7 @@ def validate_ldo_voltage(value):
 
 def validate_ldo_config(config):
     channel = config[CONF_CHANNEL]
-    allow_internal = config.get(CONF_ALLOW_INTERNAL_CHANNEL, False)
+    allow_internal = config[CONF_ALLOW_INTERNAL_CHANNEL]
     if allow_internal and channel not in CHANNELS_INTERNAL:
         raise cv.Invalid(
             f"'{CONF_ALLOW_INTERNAL_CHANNEL}' is only valid for internal channels (1, 2). "
