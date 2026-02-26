@@ -1048,7 +1048,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   void setup() override;
   void set_brightness(float brightness) { this->brightness_ = brightness; }
-  float get_setup_priority() const override;
   void update() override;
   void loop() override;
   void set_writer(const nextion_writer_t &writer);

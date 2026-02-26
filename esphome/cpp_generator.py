@@ -424,7 +424,7 @@ class ProgmemAssignmentExpression(AssignmentExpression):
         super().__init__(type_, "", name, rhs)
 
     def __str__(self):
-        return f"static const {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
 
 
 class StaticConstAssignmentExpression(AssignmentExpression):
@@ -460,6 +460,16 @@ def statement(expression: Expression | Statement) -> Statement:
     if isinstance(expression, Statement):
         return expression
     return ExpressionStatement(expression)
+
+
+def literal(name: str) -> "MockObj":
+    """Create a literal name that will appear in the generated code
+    not surrounded by quotes.
+
+    :param name: The name of the literal.
+    :return: The literal as a MockObj.
+    """
+    return MockObj(name, "")
 
 
 def variable(
@@ -665,7 +675,7 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
 
 
 async def process_lambda(
-    value: Lambda,
+    value: Lambda | Expression,
     parameters: TemplateArgsType,
     capture: str = "",
     return_type: SafeExpType = None,
@@ -689,6 +699,14 @@ async def process_lambda(
 
     if value is None:
         return None
+    # Inadvertently passing a malformed parameters value will lead to the build process mysteriously hanging at the
+    # "Generating C++ source..." stage, so check here to save the developer's hair.
+    assert isinstance(parameters, list) and all(
+        isinstance(p, tuple) and len(p) == 2 for p in parameters
+    )
+    if isinstance(value, Expression):
+        value = Lambda(value)
+
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
         full_id, var = await get_variable_with_full_id(id)

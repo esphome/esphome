@@ -1,4 +1,17 @@
-from esphome.components.mipi import DriverChip
+from esphome.components.mipi import (
+    ETMOD,
+    FRMCTR2,
+    GMCTRN1,
+    GMCTRP1,
+    IFCTR,
+    MODE_RGB,
+    PWCTR1,
+    PWCTR3,
+    PWCTR4,
+    PWCTR5,
+    PWSET,
+    DriverChip,
+)
 import esphome.config_validation as cv
 
 from .amoled import CO5300
@@ -129,6 +142,16 @@ DriverChip(
         ),
     ),
 )
+ST7789P = DriverChip(
+    "ST7789P",
+    # Max supported dimensions
+    width=240,
+    height=320,
+    # SPI: RGB layout
+    color_order=MODE_RGB,
+    invert_colors=True,
+    draw_rounding=1,
+)
 
 ILI9488_A.extend(
     "PICO-RESTOUCH-LCD-3.5",
@@ -161,4 +184,62 @@ AXS15231.extend(
     data_rate="80MHz",
     cs_pin=9,
     reset_pin=21,
+)
+
+# Waveshare 1.83-v2
+#
+# Do not use on 1.83-v1: Vendor warning on different chip!
+ST7789P.extend(
+    "WAVESHARE-1.83-V2",
+    # Panel size smaller than ST7789 max allowed
+    width=240,
+    height=284,
+    # Vendor specific init derived from vendor sample code
+    # "LCD_1.83_Code_Rev2/ESP32/LCD_1in83/LCD_Driver.cpp"
+    # Compatible MIT license, see esphome/LICENSE file.
+    initsequence=(
+        (FRMCTR2, 0x0C, 0x0C, 0x00, 0x33, 0x33),
+        (ETMOD, 0x35),
+        (0xBB, 0x19),
+        (PWCTR1, 0x2C),
+        (PWCTR3, 0x01),
+        (PWCTR4, 0x12),
+        (PWCTR5, 0x20),
+        (IFCTR, 0x0F),
+        (PWSET, 0xA4, 0xA1),
+        (
+            GMCTRP1,
+            0xD0,
+            0x04,
+            0x0D,
+            0x11,
+            0x13,
+            0x2B,
+            0x3F,
+            0x54,
+            0x4C,
+            0x18,
+            0x0D,
+            0x0B,
+            0x1F,
+            0x23,
+        ),
+        (
+            GMCTRN1,
+            0xD0,
+            0x04,
+            0x0C,
+            0x11,
+            0x13,
+            0x2C,
+            0x3F,
+            0x44,
+            0x51,
+            0x2F,
+            0x1F,
+            0x1F,
+            0x20,
+            0x23,
+        ),
+    ),
 )
