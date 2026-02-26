@@ -1,16 +1,23 @@
-SAVE YOUR RESPONSES TO TWO FILES:
+SAVE YOUR RESPONSES TO THESE FILES:
   1. User-Facing Breaking Changes: {{ users_file }}
   2. Developer-Facing Breaking Changes: {{ devs_file }}
+  3. Upgrade Checklist: {{ checklist_file }}
+{% if undocumented_api_changes %}
+  4. Undocumented API Changes: {{ undocumented_file }}
+{% endif %}
 
 NOTE: The output files and directories may not exist yet - that's fine, create them.
       You can use: Write tool with the full path, or create directories first if needed.
 
 ════════════════════════════════════════════════════════════════════════════════
 
-TASK: Write BOTH User and Developer Breaking Changes for ESPHome {{ version }}.
+TASK: Write Breaking Changes, Upgrade Checklist,
+{%- if undocumented_api_changes %} Undocumented API Changes,{% endif %} for ESPHome {{ version }}.
 
 WHY COMBINED: These must be written together so you can properly categorize each change as
-user-facing (YAML config changes) or developer-facing (C++ API changes) without duplication.
+user-facing (YAML config changes) or developer-facing (C++ API changes) without duplication,
+and generate a comprehensive upgrade checklist from both breaking changes and undocumented
+API changes.
 
 ════════════════════════════════════════════════════════════════════════════════
 PART 1: USER-FACING BREAKING CHANGES (save to {{ users_file }})
@@ -76,10 +83,89 @@ OUTPUT FORMAT FOR DEVELOPER CHANGES:
 - Very brief descriptions
 - Link to developers.esphome.io at the end
 
+════════════════════════════════════════════════════════════════════════════════
+PART 3: UPGRADE CHECKLIST (save to {{ checklist_file }})
+════════════════════════════════════════════════════════════════════════════════
+
+CONTEXT:
+A concise, actionable checklist for users upgrading to ESPHome {{ version }}.
+This checklist is generated from breaking changes, undocumented API changes, and any other
+PRs that may require user action.
+It appears near the top of the release notes, right after the Release Overview.
+
+AUDIENCE: ESPHome users who want a quick scan of what might affect them
+
+STYLE EXAMPLE from ESPHome 2026.2.0:
+
+- If you use `bmp581`, update your configuration to use `bmp581_i2c` as the platform
+- If you use `on_open` in cover automations, rename it to `on_opened`
+- If you have DSMR `fw_core_version` or `fw_module_version` under `sensor:`, move them to `text_sensor:`
+- If you call Arduino library APIs directly in lambdas (e.g., `Preferences`, `WiFi`), add them to `esphome: libraries:`
+- If you connect to HTTPS servers using uncommon CAs, add `use_full_certificate_bundle: true` under `esp32: framework: advanced:`
+- If you use BL0942 sensors, expect readings to change after recalibration to match corrected reference values
+
+INSTRUCTIONS:
+
+1. **Every item starts with "If you..."** followed by a concise condition and action
+2. **Include items from breaking changes, undocumented API changes, AND any other PRs that may require user action**
+3. **Order by impact** - most widely-affecting changes first
+4. **Be very concise** - one line per item, no code blocks, no PR links
+5. **Include lambda/API changes** if they affect users who write lambdas
+6. **Skip pure internal changes** that don't require any user action
+7. **Use backticks** for config keys, component names, and code references
+8. If there are no changes requiring user action, write: "No action required for this upgrade."
+
+OUTPUT FORMAT FOR UPGRADE CHECKLIST:
+- Bullet points only (no headings)
+- Each starts with "- If you..."
+- One line per item
+- No PR links (those are in Breaking Changes)
+- Typically 3-10 items
+
+{% if undocumented_api_changes %}
+════════════════════════════════════════════════════════════════════════════════
+PART 4: UNDOCUMENTED API CHANGES (save to {{ undocumented_file }})
+════════════════════════════════════════════════════════════════════════════════
+
+CONTEXT:
+These are C++ API changes that are NOT covered by the formal breaking change policy because
+the APIs are internal/undocumented. However, they may affect users who write lambdas or
+developers who maintain external components.
+
+Per the ESPHome public API policy (https://developers.esphome.io/contributing/code/#c-user-expectations),
+undocumented public methods on components are not guaranteed to remain stable. However, lambda
+users often discover and depend on these methods, so we document the changes here.
+
+AUDIENCE: Advanced users with lambdas, external component developers
+
+STYLE EXAMPLE from ESPHome 2026.1.0 "Lambda API Changes":
+
+Users with lambdas that access component state should note the following changes. These methods now return `StringRef` instead of `const char*`, which is safer but requires minor syntax changes:
+
+- **Fan**: `get_preset_mode()` returns `StringRef`. Use `.empty()` instead of `!= nullptr` checks, and `==` for string comparison instead of `strcmp()`. [#13092](https://github.com/esphome/esphome/pull/13092)
+
+- **Select**: `current_option()` returns `StringRef`. Use `.empty()` instead of `!= nullptr` checks. [#13095](https://github.com/esphome/esphome/pull/13095)
+
+INSTRUCTIONS:
+
+1. **Group related changes together** if there's a common theme (e.g., return type changes)
+2. **Explain the change and how to migrate** - include before/after patterns
+3. **Use bullet points** with bold component/class names
+4. **Include PR links**: [#12345](https://github.com/esphome/esphome/pull/12345)
+5. **Skip changes already covered** in Parts 1 or 2 (breaking changes)
+6. **Focus on what lambda users need to know** - method renames, return type changes, removed methods
+
+OUTPUT FORMAT FOR UNDOCUMENTED API CHANGES:
+- Optional introductory paragraph explaining the theme
+- Bullet points with bold names and PR links
+- Before/after code patterns where helpful
+{% endif %}
+
 ────────────────────────────────────────────────────────────────────────────────
 📁 PR DATA FILES - CRITICAL: You MUST read ALL of these files using the Read tool
 ────────────────────────────────────────────────────────────────────────────────
 
+{% if breaking_changes %}
 BREAKING CHANGE PULL REQUESTS ({{ breaking_changes|length }} total):
 
 ⚠️  CRITICAL INSTRUCTIONS FOR LOADING PR DATA:
@@ -89,15 +175,41 @@ BREAKING CHANGE PULL REQUESTS ({{ breaking_changes|length }} total):
 3. Do NOT assume you know the content - you must READ each file
 4. Each JSON file contains: number, title, body (with migration details), author, labels, url
 5. Read ALL files in parallel for efficiency, then analyze the complete data
-6. After reading: categorize each as user-facing or developer-facing, then write BOTH files
+6. After reading: categorize each as user-facing or developer-facing, then write ALL files
 
 BREAKING CHANGE PR FILES - READ ALL {{ breaking_changes|length }} FILES:
 {% for pr in breaking_changes %}
   {{ prs_cache_dir }}/{{ pr.number }}.json
 {% endfor %}
+{% endif %}
+
+{% if undocumented_api_changes %}
+UNDOCUMENTED API CHANGE PULL REQUESTS ({{ undocumented_api_changes|length }} total):
+
+These PRs have the "undocumented-api-change" label. They change internal C++ APIs that
+may affect lambda users or external component developers, but are NOT formal breaking changes.
+
+UNDOCUMENTED API CHANGE PR FILES - READ ALL {{ undocumented_api_changes|length }} FILES:
+{% for pr in undocumented_api_changes %}
+  {{ prs_cache_dir }}/{{ pr.number }}.json
+{% endfor %}
+{% endif %}
+
+ALL PULL REQUESTS ({{ all_prs|length }} total):
+
+Scan ALL PR titles below for any changes that might require user action but weren't labeled
+as breaking changes. Include these in the Upgrade Checklist if relevant.
+
+{% for pr in all_prs %}
+  #{{ pr.number }}: {{ pr.title }} (labels: {{ pr.labels|join(', ') }})
+{% endfor %}
 
 ────────────────────────────────────────────────────────────────────────────────
-⚠️  REMINDER: Read ALL files above, then write BOTH files:
+⚠️  REMINDER: Read ALL PR JSON files above, then write ALL output files:
     1. User Changes: {{ users_file }} (### headings, detailed)
     2. Developer Changes: {{ devs_file }} (bullet points, brief)
+    3. Upgrade Checklist: {{ checklist_file }} (bullet points, "If you..." format)
+{% if undocumented_api_changes %}
+    4. Undocumented API Changes: {{ undocumented_file }} (bullet points with migration guidance)
+{% endif %}
 ────────────────────────────────────────────────────────────────────────────────
