@@ -182,14 +182,15 @@ async def to_code(config):
                     "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True
                 )
 
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_ESP_TLS_INSECURE",
-            not config.get(CONF_VERIFY_SSL),
-        )
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY",
-            not config.get(CONF_VERIFY_SSL),
-        )
+        if not config.get(CONF_VERIFY_SSL):
+            esp32.add_idf_sdkconfig_option(
+                "CONFIG_ESP_TLS_INSECURE",
+                True,
+            )
+            esp32.add_idf_sdkconfig_option(
+                "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY",
+                True,
+            )
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)
     if CORE.is_rp2040 and CORE.using_arduino:
