@@ -238,6 +238,7 @@ async function detectPRTemplateCheckboxes(context) {
     { pattern: /- \[x\] New feature \(non-breaking change which adds functionality\)/i, label: 'new-feature' },
     { pattern: /- \[x\] Breaking change \(fix or feature that would cause existing functionality to not work as expected\)/i, label: 'breaking-change' },
     { pattern: /- \[x\] Developer breaking change \(an API change that could break external components\)/i, label: 'developer-breaking-change' },
+    { pattern: /- \[x\] Undocumented C\+\+ API change \(removal or change of undocumented public methods that lambda users may depend on\)/i, label: 'undocumented-api-change' },
     { pattern: /- \[x\] Code quality improvements to existing code or addition of tests/i, label: 'code-quality' }
   ];
 

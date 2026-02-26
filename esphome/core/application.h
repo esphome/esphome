@@ -628,9 +628,10 @@ class Application {
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
   /// Fast path for Socket::ready() via friendship - skips negative fd check.
-  /// Main loop only — on ESP32, reads rcvevent via lwip_socket_dbg_get_socket()
-  /// which has no refcount; safe only because the main loop owns socket lifetime
-  /// (creates, reads, and closes sockets on the same thread).
+  /// Main loop only — with USE_LWIP_FAST_SELECT, reads rcvevent via
+  /// lwip_socket_dbg_get_socket(), which has no refcount; safe only because
+  /// the main loop owns socket lifetime (creates, reads, and closes sockets
+  /// on the same thread).
 #ifdef USE_LWIP_FAST_SELECT
   bool is_socket_ready_(int fd) const { return esphome_lwip_socket_has_data(fd); }
 #else
@@ -828,7 +829,7 @@ class Application {
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
 // Inline implementations for hot-path functions
 // drain_wake_notifications_() is called on every loop iteration
 
@@ -850,6 +851,6 @@ inline void Application::drain_wake_notifications_() {
     }
   }
 }
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
 
 }  // namespace esphome

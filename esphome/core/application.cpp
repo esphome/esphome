@@ -556,7 +556,7 @@ void Application::enable_pending_loops_() {
 }
 
 void Application::before_loop_tasks_(uint32_t loop_start_time) {
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
   // Drain wake notifications first to clear socket for next wake
   this->drain_wake_notifications_();
 #endif
@@ -633,8 +633,9 @@ void Application::unregister_socket_fd(int fd) {
       continue;
 
     // Swap with last element and pop - O(1) removal since order doesn't matter.
-    // No need to unhook the netconn callback on ESP32 — all LwIP sockets share
-    // the same static event_callback, and the socket will be closed by the caller.
+    // No need to unhook the netconn callback on fast select platforms — all LwIP
+    // sockets share the same static event_callback, and the socket will be closed
+    // by the caller.
     if (i < this->socket_fds_.size() - 1)
       this->socket_fds_[i] = this->socket_fds_.back();
     this->socket_fds_.pop_back();
