@@ -1633,7 +1633,7 @@ async def to_code(config):
         elif variant == VARIANT_ESP32P4:
             add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
         else:
-            raise ValueError("Unhandled ESP32P4 variant")
+            raise ValueError("Unhandled ESP32 variant")
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides
