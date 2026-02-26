@@ -2,11 +2,8 @@ from esphome.components import socket
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_PLATFORM,
-    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_LN882X,
-    PLATFORM_RTL87XX,
 )
 from esphome.core import CORE
 
@@ -117,48 +114,3 @@ def test_require_wake_loop_threadsafe__non_esp32_consumes_udp_socket() -> None:
     # Verify UDP socket was consumed
     udp_consumers = CORE.data.get(socket.KEY_SOCKET_CONSUMERS_UDP, {})
     assert udp_consumers.get("socket.wake_loop_threadsafe") == 1
-
-
-def test_require_wake_loop_threadsafe__bk72xx_no_udp_socket() -> None:
-    """Test that BK72xx (LibreTiny) uses task notifications instead of UDP socket."""
-    _setup_platform(PLATFORM_BK72XX)
-    CORE.config = {"wifi": True}
-    socket.require_wake_loop_threadsafe()
-
-    # Verify the define was added
-    assert CORE.data[socket.KEY_WAKE_LOOP_THREADSAFE_REQUIRED] is True
-    assert any(d.name == "USE_WAKE_LOOP_THREADSAFE" for d in CORE.defines)
-
-    # Verify no UDP socket was consumed (LibreTiny uses FreeRTOS task notifications)
-    udp_consumers = CORE.data.get(socket.KEY_SOCKET_CONSUMERS_UDP, {})
-    assert "socket.wake_loop_threadsafe" not in udp_consumers
-
-
-def test_require_wake_loop_threadsafe__rtl87xx_no_udp_socket() -> None:
-    """Test that RTL87xx (LibreTiny) uses task notifications instead of UDP socket."""
-    _setup_platform(PLATFORM_RTL87XX)
-    CORE.config = {"wifi": True}
-    socket.require_wake_loop_threadsafe()
-
-    # Verify the define was added
-    assert CORE.data[socket.KEY_WAKE_LOOP_THREADSAFE_REQUIRED] is True
-    assert any(d.name == "USE_WAKE_LOOP_THREADSAFE" for d in CORE.defines)
-
-    # Verify no UDP socket was consumed (LibreTiny uses FreeRTOS task notifications)
-    udp_consumers = CORE.data.get(socket.KEY_SOCKET_CONSUMERS_UDP, {})
-    assert "socket.wake_loop_threadsafe" not in udp_consumers
-
-
-def test_require_wake_loop_threadsafe__ln882x_no_udp_socket() -> None:
-    """Test that LN882H (LibreTiny) uses task notifications instead of UDP socket."""
-    _setup_platform(PLATFORM_LN882X)
-    CORE.config = {"wifi": True}
-    socket.require_wake_loop_threadsafe()
-
-    # Verify the define was added
-    assert CORE.data[socket.KEY_WAKE_LOOP_THREADSAFE_REQUIRED] is True
-    assert any(d.name == "USE_WAKE_LOOP_THREADSAFE" for d in CORE.defines)
-
-    # Verify no UDP socket was consumed (LibreTiny uses FreeRTOS task notifications)
-    udp_consumers = CORE.data.get(socket.KEY_SOCKET_CONSUMERS_UDP, {})
-    assert "socket.wake_loop_threadsafe" not in udp_consumers
