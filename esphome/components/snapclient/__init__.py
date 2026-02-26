@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import audio_dac
+from esphome.components import audio_dac, socket
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.i2s_audio import (
     CONF_I2S_DOUT_PIN,
@@ -16,23 +16,32 @@ from esphome.core import CORE
 CODEOWNERS = ["@luar123"]
 
 DEPENDENCIES = ["esp32", "i2s_audio"]
+AUTO_LOAD = ["socket"]
 
 CONF_HOSTNAME = "hostname"
 CONF_AUDIO_DAC = "audio_dac"
 CONF_MUTE_PIN = "mute_pin"
-CONF_WEBSERVER_PORT = "webserver_port"
 
-SNAPCLIENT_GIT_VERSION = "1adc5245012160c3c4eb312c962c7dc18b17231e"
+SNAPCLIENT_GIT_VERSION = "component"
+SNAPCLIENT_GIT_REPO = "https://github.com/luar123/snapclient.git"
 
 snapclient_ns = cg.esphome_ns.namespace("snapclient")
 SnapClientComponent = snapclient_ns.class_(
     "SnapClientComponent", cg.Component, I2SAudioOut
 )
 
+
+def _consume_sockets(config):
+    """Register socket needs for this component."""
+    # upstream uses 10 sockets, but 7 are used for http server
+    socket.consume_sockets(3, "snapclient")(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     i2s_audio_component_schema(
         SnapClientComponent,
-        default_sample_rate=16000,
+        default_sample_rate=44100,
         default_channel=CONF_STEREO,
         default_bits_per_sample="16bit",
     )
@@ -45,78 +54,48 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_I2S_DOUT_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_MUTE_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_AUDIO_DAC): cv.use_id(audio_dac.AudioDac),
-            cv.Optional(CONF_WEBSERVER_PORT): cv.port,
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
-    cv.require_framework_version(esp_idf=cv.Version(5, 1, 1)),
+    _consume_sockets,  # Register socket usage during validation
 )
 
 
 async def to_code(config):
     add_idf_component(name="espressif/esp-dsp", ref=">1.5.0")
-    add_idf_component(name="espressif/mdns", ref=">1.2.3")
-    add_idf_component(
-        name="lightsnapcast",
-        ref=SNAPCLIENT_GIT_VERSION,
-        repo="https://github.com/CarlosDerSeher/snapclient.git",
-        path="components/lightsnapcast",
-    )
-    add_idf_component(
-        name="libbuffer",
-        ref=SNAPCLIENT_GIT_VERSION,
-        repo="https://github.com/CarlosDerSeher/snapclient.git",
-        path="components/libbuffer",
-    )
-    add_idf_component(
-        name="libmedian",
-        ref=SNAPCLIENT_GIT_VERSION,
-        repo="https://github.com/CarlosDerSeher/snapclient.git",
-        path="components/libmedian",
-    )
-    add_idf_component(
-        name="opus",
-        ref=SNAPCLIENT_GIT_VERSION,
-        repo="https://github.com/CarlosDerSeher/snapclient.git",
-        path="components/opus",
-    )
-    add_idf_component(
-        name="flac",
-        ref=SNAPCLIENT_GIT_VERSION,
-        repo="https://github.com/CarlosDerSeher/snapclient.git",
-        path="components/flac",
-    )
-    add_idf_component(
-        name="dsp_processor",
-        ref=SNAPCLIENT_GIT_VERSION,
-        repo="https://github.com/CarlosDerSeher/snapclient.git",
-        path="components/dsp_processor",
-    )
-    if CONF_WEBSERVER_PORT in config:
-        cg.add_build_flag(f"-DCONFIG_WEB_PORT={config[CONF_WEBSERVER_PORT]}")
+    add_idf_component(name="espressif/mdns", ref=">1.9.0")
+    for component in [
+        "dsp_processor",
+        "flac",
+        "libbuffer",
+        "libmedian",
+        "lightsnapcast",
+        "opus",
+        "snapclient",
+        "timefilter",
+    ]:
         add_idf_component(
-            name="ui_http_server",
+            name=component,
             ref=SNAPCLIENT_GIT_VERSION,
-            repo="https://github.com/CarlosDerSeher/snapclient.git",
-            path="components/ui_http_server",
+            repo=SNAPCLIENT_GIT_REPO,
+            path=f"components/{component}",
         )
-    if (CONF_AUDIO_DAC not in config) or (CONF_WEBSERVER_PORT in config):
-        add_idf_sdkconfig_option("CONFIG_USE_DSP_PROCESSOR", True)
-        add_idf_sdkconfig_option("CONFIG_SNAPCLIENT_DSP_FLOW_STEREO", True)
     if CONF_AUDIO_DAC not in config:
+        add_idf_sdkconfig_option("CONFIG_USE_DSP_PROCESSOR", True)
         add_idf_sdkconfig_option("CONFIG_SNAPCLIENT_USE_SOFT_VOL", True)
     if CONF_NAME not in config:
         config[CONF_NAME] = CORE.name or ""
-    # cg.add_build_flag("-DCONFIG_SNAPSERVER_HOST='"+str(config[CONF_HOSTNAME])+"'")
-    # cg.add_build_flag("-DCONFIG_SNAPSERVER_PORT="+str(config[CONF_PORT]))
-    if config[CONF_HOSTNAME] == 0:
-        cg.add_build_flag("-DCONFIG_SNAPCLIENT_USE_MDNS=1")
-    else:
-        cg.add_build_flag("-DCONFIG_SNAPCLIENT_USE_MDNS=0")
-    # cg.add_build_flag("-DCONFIG_SNAPCLIENT_NAME='"+config[CONF_NAME]+"'")
-    cg.add_build_flag("-DCONFIG_USE_SAMPLE_INSERTION=1")
+    add_idf_sdkconfig_option("CONFIG_SNAPSERVER_HOST", str(config[CONF_HOSTNAME]))
+    add_idf_sdkconfig_option("CONFIG_SNAPSERVER_PORT", int(config[CONF_PORT]))
+    if config[CONF_HOSTNAME] != 0:
+        add_idf_sdkconfig_option("CONFIG_SNAPSERVER_USE_MDNS", False)
+    add_idf_sdkconfig_option("CONFIG_SNAPCLIENT_NAME", config[CONF_NAME])
+    add_idf_sdkconfig_option("CONFIG_FREERTOS_TASK_NOTIFICATION_ARRAY_ENTRIES", 2)
+    # add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", True)
+    # add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_CORE_LOCKING", False)
+
     # fix for esp-idf 5.4
-    cg.add_build_flag("-Wno-error=incompatible-pointer-types")
+    # cg.add_build_flag("-Wno-error=incompatible-pointer-types")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
