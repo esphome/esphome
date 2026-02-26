@@ -67,8 +67,6 @@ _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["network"]
 
-_LOGGER = logging.getLogger(__name__)
-
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
 CONF_BAND_MODE = "band_mode"
@@ -344,7 +342,7 @@ def _validate(config):
 
     return config
 
-
+CONF_OUTPUT_POWER = "output_power"
 CONF_PASSIVE_SCAN = "passive_scan"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
