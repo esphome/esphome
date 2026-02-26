@@ -144,7 +144,7 @@ void Application::setup() {
       this->after_loop_tasks_();
       this->app_state_ = new_app_state;
       yield();
-    } while (!component->can_proceed());
+    } while (!component->can_proceed() && !component->is_failed());
   }
 
   ESP_LOGI(TAG, "setup() finished successfully!");
@@ -539,7 +539,7 @@ void Application::enable_pending_loops_() {
 }
 
 void Application::before_loop_tasks_(uint32_t loop_start_time) {
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
   // Drain wake notifications first to clear socket for next wake
   this->drain_wake_notifications_();
 #endif
