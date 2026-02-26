@@ -37,13 +37,16 @@ class PZEMAC : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *power_factor_sensor_{nullptr};
 
   void reset_energy_();
+
+  uint32_t last_update_time_;
+  float last_energy_sensor_;
 };
 
 template<typename... Ts> class ResetEnergyAction : public Action<Ts...> {
  public:
   ResetEnergyAction(PZEMAC *pzemac) : pzemac_(pzemac) {}
 
-  void play(const Ts &...x) override { this->pzemac_->reset_energy_(); }
+  void play(Ts... x) override { this->pzemac_->reset_energy_(); }
 
  protected:
   PZEMAC *pzemac_;
