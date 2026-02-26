@@ -560,8 +560,6 @@ void LD2420Component::read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer) {
 void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
   this->cmd_reply_.command = buffer[CMD_FRAME_COMMAND];
   this->cmd_reply_.length = buffer[CMD_FRAME_DATA_LENGTH];
-  uint8_t reg_element = 0;
-  uint8_t data_element = 0;
   uint16_t data_pos = 0;
   if (this->cmd_reply_.length > CMD_MAX_BYTES) {
     ESP_LOGW(TAG, "Reply frame too long");
@@ -583,43 +581,44 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
     case (CMD_DISABLE_CONF):
       ESP_LOGV(TAG, "Set config disable: CMD = %2X %s", CMD_DISABLE_CONF, result);
       break;
-    case (CMD_READ_REGISTER):
+    case (CMD_READ_REGISTER): {
       ESP_LOGV(TAG, "Read register: CMD = %2X %s", CMD_READ_REGISTER, result);
       // TODO Read/Write register is not implemented yet, this will get flushed out to a proper header file
       data_pos = 0x0A;
-      for (uint16_t index = 0; index < (CMD_REG_DATA_REPLY_SIZE *  // NOLINT
-                                        ((buffer[CMD_FRAME_DATA_LENGTH] - 4) / CMD_REG_DATA_REPLY_SIZE));
-           index += CMD_REG_DATA_REPLY_SIZE) {
-        memcpy(&this->cmd_reply_.data[reg_element], &buffer[data_pos + index], CMD_REG_DATA_REPLY_SIZE);
-        byteswap(this->cmd_reply_.data[reg_element]);
-        reg_element++;
+      uint16_t reg_count = std::min<uint16_t>((buffer[CMD_FRAME_DATA_LENGTH] - 4) / CMD_REG_DATA_REPLY_SIZE,
+                                              sizeof(this->cmd_reply_.data) / sizeof(this->cmd_reply_.data[0]));
+      for (uint16_t i = 0; i < reg_count; i++) {
+        memcpy(&this->cmd_reply_.data[i], &buffer[data_pos + i * CMD_REG_DATA_REPLY_SIZE], CMD_REG_DATA_REPLY_SIZE);
       }
       break;
+    }
     case (CMD_WRITE_REGISTER):
       ESP_LOGV(TAG, "Write register: CMD = %2X %s", CMD_WRITE_REGISTER, result);
       break;
     case (CMD_WRITE_ABD_PARAM):
       ESP_LOGV(TAG, "Write gate parameter(s): %2X %s", CMD_WRITE_ABD_PARAM, result);
       break;
-    case (CMD_READ_ABD_PARAM):
+    case (CMD_READ_ABD_PARAM): {
       ESP_LOGV(TAG, "Read gate parameter(s): %2X %s", CMD_READ_ABD_PARAM, result);
       data_pos = CMD_ABD_DATA_REPLY_START;
-      for (uint16_t index = 0; index < (CMD_ABD_DATA_REPLY_SIZE *  // NOLINT
-                                        ((buffer[CMD_FRAME_DATA_LENGTH] - 4) / CMD_ABD_DATA_REPLY_SIZE));
-           index += CMD_ABD_DATA_REPLY_SIZE) {
-        memcpy(&this->cmd_reply_.data[data_element], &buffer[data_pos + index],
-               sizeof(this->cmd_reply_.data[data_element]));
-        byteswap(this->cmd_reply_.data[data_element]);
-        data_element++;
+      uint16_t abd_count = std::min<uint16_t>((buffer[CMD_FRAME_DATA_LENGTH] - 4) / CMD_ABD_DATA_REPLY_SIZE,
+                                              sizeof(this->cmd_reply_.data) / sizeof(this->cmd_reply_.data[0]));
+      for (uint16_t i = 0; i < abd_count; i++) {
+        memcpy(&this->cmd_reply_.data[i], &buffer[data_pos + i * CMD_ABD_DATA_REPLY_SIZE],
+               sizeof(this->cmd_reply_.data[i]));
       }
       break;
+    }
     case (CMD_WRITE_SYS_PARAM):
       ESP_LOGV(TAG, "Set system parameter(s): %2X %s", CMD_WRITE_SYS_PARAM, result);
       break;
-    case (CMD_READ_VERSION):
-      memcpy(this->firmware_ver_, &buffer[12], buffer[10]);
-      ESP_LOGV(TAG, "Firmware version: %7s %s", this->firmware_ver_, result);
+    case (CMD_READ_VERSION): {
+      uint8_t ver_len = std::min<uint8_t>(buffer[10], sizeof(this->firmware_ver_) - 1);
+      memcpy(this->firmware_ver_, &buffer[12], ver_len);
+      this->firmware_ver_[ver_len] = '\0';
+      ESP_LOGV(TAG, "Firmware version: %s %s", this->firmware_ver_, result);
       break;
+    }
     default:
       break;
   }
