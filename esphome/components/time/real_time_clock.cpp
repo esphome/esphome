@@ -16,7 +16,6 @@
 #include <cerrno>
 #include <cinttypes>
 #include <cstdlib>
-#include <cstring>
 
 namespace esphome::time {
 
@@ -131,11 +130,6 @@ void RealTimeClock::apply_timezone_(const char *tz) {
   // Parse the POSIX TZ string using our custom parser
   if (!parse_posix_tz(tz, parsed)) {
     ESP_LOGW(TAG, "Failed to parse timezone: %s", tz);
-    return;
-  }
-
-  // Only update if timezone actually changed
-  if (memcmp(&parsed, &get_global_tz(), sizeof(ParsedTimezone)) == 0) {
     return;
   }
 
