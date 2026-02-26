@@ -147,18 +147,24 @@ int WiFiComponent::s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *r
 
 void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
   s_scan_result_count++;
-  const char *ssid_cstr = reinterpret_cast<const char *>(result->ssid);
+
+  // CYW43 scan results have ssid as a 32-byte buffer that is NOT null-terminated.
+  // Use ssid_len to create a properly terminated copy for string operations.
+  uint8_t len = std::min(result->ssid_len, static_cast<uint8_t>(sizeof(result->ssid)));
+  char ssid_buf[33];  // 32 max + null terminator
+  memcpy(ssid_buf, result->ssid, len);
+  ssid_buf[len] = '\0';
 
   // Skip networks that don't match any configured network (unless full results needed)
-  if (!this->needs_full_scan_results_() && !this->matches_configured_network_(ssid_cstr, result->bssid)) {
-    this->log_discarded_scan_result_(ssid_cstr, result->bssid, result->rssi, result->channel);
+  if (!this->needs_full_scan_results_() && !this->matches_configured_network_(ssid_buf, result->bssid)) {
+    this->log_discarded_scan_result_(ssid_buf, result->bssid, result->rssi, result->channel);
     return;
   }
 
   bssid_t bssid;
   std::copy(result->bssid, result->bssid + 6, bssid.begin());
-  WiFiScanResult res(bssid, ssid_cstr, strlen(ssid_cstr), result->channel, result->rssi,
-                     result->auth_mode != CYW43_AUTH_OPEN, ssid_cstr[0] == '\0');
+  WiFiScanResult res(bssid, ssid_buf, len, result->channel, result->rssi, result->auth_mode != CYW43_AUTH_OPEN,
+                     len == 0);
   if (std::find(this->scan_result_.begin(), this->scan_result_.end(), res) == this->scan_result_.end()) {
     this->scan_result_.push_back(res);
   }
