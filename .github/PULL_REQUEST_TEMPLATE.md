@@ -8,6 +8,7 @@
 - [ ] New feature (non-breaking change which adds functionality)
 - [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
 - [ ] Developer breaking change (an API change that could break external components)
+- [ ] Undocumented C++ API change (removal or change of undocumented public methods that lambda users may depend on)
 - [ ] Code quality improvements to existing code or addition of tests
 - [ ] Other
 
