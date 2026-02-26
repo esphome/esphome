@@ -385,6 +385,7 @@ json::SerializationBuffer<> WebServer::get_config_json() {
 #endif
   root[ESPHOME_F("log")] = this->expose_log_;
   root[ESPHOME_F("lang")] = "en";
+  root[ESPHOME_F("uptime")] = static_cast<uint32_t>(App.scheduler.millis_64() / 1000);
 
   return builder.serialize();
 }
@@ -411,7 +412,12 @@ void WebServer::setup() {
 
   // doesn't need defer functionality - if the queue is full, the client JS knows it's alive because it's clearly
   // getting a lot of events
-  this->set_interval(10000, [this]() { this->events_.try_send_nodefer("", "ping", millis(), 30000); });
+  this->set_interval(10000, [this]() {
+    char buf[32];
+    auto uptime = static_cast<uint32_t>(App.scheduler.millis_64() / 1000);
+    buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%u}", uptime);
+    this->events_.try_send_nodefer(buf, "ping", millis(), 30000);
+  });
 }
 void WebServer::loop() { this->events_.loop(); }
 
