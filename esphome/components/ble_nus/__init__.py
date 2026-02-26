@@ -23,9 +23,10 @@ CONF_UART = "uart"
 
 def validate_rx_buffer(config):
     config = config.copy()
-    if config[CONF_TYPE] == CONF_LOGS and CONF_RX_BUFFER_SIZE in config:
-        raise cv.Invalid("logs does not support rx_buffer_size")
-    if CONF_RX_BUFFER_SIZE not in config:
+    if config[CONF_TYPE] == CONF_LOGS:
+        if CONF_RX_BUFFER_SIZE in config:
+            raise cv.Invalid("logs does not support rx_buffer_size")
+    elif CONF_RX_BUFFER_SIZE not in config:
         config[CONF_RX_BUFFER_SIZE] = 512
     return config
 
