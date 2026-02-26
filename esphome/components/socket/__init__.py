@@ -134,6 +134,8 @@ def require_wake_loop_threadsafe() -> None:
     IMPORTANT: This is for background thread context only, NOT ISR context.
     Socket operations are not safe to call from ISR handlers.
 
+    On ESP32, FreeRTOS task notifications are used instead (no socket needed).
+
     Example:
         from esphome.components import socket
 
@@ -147,8 +149,10 @@ def require_wake_loop_threadsafe() -> None:
     ):
         CORE.data[KEY_WAKE_LOOP_THREADSAFE_REQUIRED] = True
         cg.add_define("USE_WAKE_LOOP_THREADSAFE")
-        # Consume 1 socket for the shared wake notification socket
-        consume_sockets(1, "socket.wake_loop_threadsafe", SocketType.UDP)({})
+        if not CORE.is_esp32:
+            # Only non-ESP32 platforms need a UDP socket for wake notifications.
+            # ESP32 uses FreeRTOS task notifications instead (no socket needed).
+            consume_sockets(1, "socket.wake_loop_threadsafe", SocketType.UDP)({})
 
 
 CONFIG_SCHEMA = cv.Schema(
