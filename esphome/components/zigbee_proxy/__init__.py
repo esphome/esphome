@@ -18,10 +18,10 @@ _DEFAULT_HW_INITIAL_TIMEOUT = 1600
 _DEFAULT_HW_MIN_TIMEOUT = 400
 _DEFAULT_HW_MAX_TIMEOUT = 3200
 
-# Optimized ACK timeout values for USB CDC ACM paths (~20-30 ms round-trip)
-_DEFAULT_USB_INITIAL_TIMEOUT = 200
-_DEFAULT_USB_MIN_TIMEOUT = 50
-_DEFAULT_USB_MAX_TIMEOUT = 500
+# Optimized ACK timeout values for USB CDC ACM paths (~3-5 ms round-trip with RX callback)
+_DEFAULT_USB_INITIAL_TIMEOUT = 30
+_DEFAULT_USB_MIN_TIMEOUT = 15
+_DEFAULT_USB_MAX_TIMEOUT = 200
 
 zigbee_proxy_ns = cg.esphome_ns.namespace("zigbee_proxy")
 ZigbeeProxy = zigbee_proxy_ns.class_("ZigbeeProxy", cg.Component, uart.UARTDevice)
@@ -47,13 +47,13 @@ CONFIG_SCHEMA = cv.All(
                 esp8266=512,
                 default=1024,
             ),
-            # When usb_uart_id is present the component selects USB-optimized ACK
-            # timeout defaults (~20-30 ms round-trip) instead of the hardware UART
-            # defaults (~2-5 ms round-trip).  Explicit timeout keys always win.
+            # When usb_uart_id is present the component registers an RX callback
+            # for zero-wakeup-cycle data delivery and selects USB-optimized ACK
+            # timeout defaults.  Explicit timeout keys always win.
             cv.Optional(CONF_USB_UART_ID): cv.use_id(usb_uart.USBUartChannel),
-            cv.Optional(CONF_INITIAL_TIMEOUT): cv.int_range(min=100, max=10000),
-            cv.Optional(CONF_MIN_TIMEOUT): cv.int_range(min=100, max=5000),
-            cv.Optional(CONF_MAX_TIMEOUT): cv.int_range(min=500, max=10000),
+            cv.Optional(CONF_INITIAL_TIMEOUT): cv.int_range(min=10, max=10000),
+            cv.Optional(CONF_MIN_TIMEOUT): cv.int_range(min=10, max=5000),
+            cv.Optional(CONF_MAX_TIMEOUT): cv.int_range(min=50, max=10000),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -78,10 +78,15 @@ async def to_code(config):
         cg.add_define("ZIGBEE_PROXY_BUFFER_SIZE", config[CONF_BUFFER_SIZE])
 
     # Select timeout defaults based on UART transport type.
-    # USB CDC ACM has higher round-trip latency (~20-30 ms) than hardware UART
-    # (~2-5 ms), so the adaptive ACK timeout algorithm needs different starting
-    # points to avoid unnecessary stalls at boot.
+    # USB CDC ACM with the RX callback has ~3-5 ms round-trip latency; hardware
+    # UART is similar (~2-5 ms).  Different defaults are kept so that future
+    # non-callback USB paths still get conservative starting values.
     is_usb = CONF_USB_UART_ID in config
+    if is_usb:
+        cg.add_define("USE_ZIGBEE_PROXY_USB_UART")
+        usb_ch = await cg.get_variable(config[CONF_USB_UART_ID])
+        cg.add(var.set_usb_uart_channel(usb_ch))
+
     initial_timeout = config.get(
         CONF_INITIAL_TIMEOUT,
         _DEFAULT_USB_INITIAL_TIMEOUT if is_usb else _DEFAULT_HW_INITIAL_TIMEOUT,

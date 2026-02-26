@@ -11,6 +11,10 @@
 #include "esphome/components/wifi/wifi_component.h"
 #endif
 
+#ifdef USE_ZIGBEE_PROXY_USB_UART
+#include "esphome/components/usb_uart/usb_uart.h"
+#endif
+
 namespace esphome::zigbee_proxy {
 
 static const char *const TAG = "zigbee_proxy";
@@ -184,6 +188,13 @@ void ZigbeeProxy::set_timeout_config(uint32_t initial_ms, uint32_t min_ms, uint3
   ESP_LOGV(TAG, "Timeout config updated: initial=%u, min=%u, max=%u", initial_ms, min_ms, max_ms);
 }
 
+#ifdef USE_ZIGBEE_PROXY_USB_UART
+void ZigbeeProxy::set_usb_uart_channel(usb_uart::USBUartChannel *channel) {
+  channel->set_rx_callback([this]() { this->process_uart_(); });
+  ESP_LOGD(TAG, "Registered USB UART RX callback for low-latency processing");
+}
+#endif
+
 // ASH Protocol State Machine
 void ZigbeeProxy::reset_ash_protocol_() {
   ESP_LOGV(TAG, "Resetting ASH protocol");
@@ -232,17 +243,15 @@ void ZigbeeProxy::handle_rstack_frame_(const uint8_t *data, size_t length) {
     ESP_LOGV(TAG, "Received RSTACK, starting EZSP initialization");
     this->ash_state_ = AshState::CONNECTED;
 
-    // Non-blocking drain: give the NCP 10 ms to settle and flush any stale bytes.
-    // yield() lets the USB task deliver buffered bytes into the ring buffer so they
-    // can be consumed here rather than contaminating the next EZSP exchange.
-    uint32_t drain_deadline = millis() + 10;
-    while (millis() < drain_deadline) {
-      while (this->available()) {
-        uint8_t discard;
-        this->read_byte(&discard);
-        ESP_LOGV(TAG, "Draining post-RSTACK byte: 0x%02X", discard);
-      }
-      yield();
+    // Drain any stale bytes that arrived before the RSTACK (e.g. leftover
+    // UART FIFO bytes on HW UART, or a partial prior frame on USB CDC).
+    // For USB CDC the input_buffer_ is already fully up-to-date at this point
+    // (the RX callback just moved all pending chunks into it), so this loop
+    // completes immediately rather than spinning with yield().
+    while (this->available()) {
+      uint8_t discard;
+      this->read_byte(&discard);
+      ESP_LOGV(TAG, "Draining post-RSTACK byte: 0x%02X", discard);
     }
 
     this->boot_state_ = BootState::SEND_VERSION;
@@ -329,7 +338,6 @@ bool ZigbeeProxy::send_ack_frame_(uint8_t ack_num) {
   uint8_t frame[8];
   size_t length = this->build_frame_(frame, nullptr, 0, AshFrameType::ACK, 0, ack_num);
   this->write_array(frame, length);
-  this->flush();
   this->last_ack_sent_ = ack_num;
   ESP_LOGV(TAG, "Sent ACK for frame %d", ack_num);
   return true;
@@ -339,7 +347,6 @@ bool ZigbeeProxy::send_nak_frame_(uint8_t ack_num) {
   uint8_t frame[8];
   size_t length = this->build_frame_(frame, nullptr, 0, AshFrameType::NAK, 0, ack_num);
   this->write_array(frame, length);
-  this->flush();
   ESP_LOGW(TAG, "Sent NAK for frame %d", ack_num);
   return true;
 }
@@ -368,7 +375,6 @@ bool ZigbeeProxy::send_data_frame_(const uint8_t *data, size_t length, bool retr
 
   // Send frame
   this->write_array(this->tx_buffer_.data(), frame_length);
-  this->flush();
 
   // Start ACK timer
   this->tx_buffer_pending_ = true;
@@ -431,7 +437,6 @@ void ZigbeeProxy::handle_retransmission_() {
 
   // Resend the pending frame
   this->write_array(this->tx_pending_buffer_.data(), this->tx_pending_length_);
-  this->flush();
   this->start_ack_timer_();
 }
 
@@ -749,14 +754,7 @@ void ZigbeeProxy::handle_network_params_response_(const uint8_t *data, size_t le
 }
 
 bool ZigbeeProxy::set_ieee_address_(const uint8_t *new_address) {
-  bool changed = false;
-
-  for (size_t i = 0; i < ZIGBEE_IEEE_ADDR_SIZE; i++) {
-    if (this->network_info_.ieee_address[i] != new_address[i]) {
-      changed = true;
-      break;
-    }
-  }
+  bool changed = memcmp(this->network_info_.ieee_address.data(), new_address, ZIGBEE_IEEE_ADDR_SIZE) != 0;
 
   if (changed) {
     memcpy(this->network_info_.ieee_address.data(), new_address, ZIGBEE_IEEE_ADDR_SIZE);
@@ -917,11 +915,10 @@ void ZigbeeProxy::client_send_rstack_frame_(uint8_t reset_code) {
 }
 
 void ZigbeeProxy::client_send_data_frame_(const uint8_t *data, size_t length) {
-  uint8_t frame[MAX_ASH_FRAME_SIZE];
-  size_t frame_length =
-      this->build_frame_(frame, data, length, AshFrameType::DATA, this->client_tx_sequence_, this->client_rx_sequence_);
+  size_t frame_length = this->build_frame_(this->client_tx_buffer_.data(), data, length, AshFrameType::DATA,
+                                           this->client_tx_sequence_, this->client_rx_sequence_);
   this->client_tx_sequence_ = (this->client_tx_sequence_ + 1) & ASH_MAX_SEQUENCE;
-  this->client_send_raw_frame_(frame, frame_length);
+  this->client_send_raw_frame_(this->client_tx_buffer_.data(), frame_length);
   ESP_LOGV(TAG, "Sent client DATA frame, payload %u bytes", length);
 }
 

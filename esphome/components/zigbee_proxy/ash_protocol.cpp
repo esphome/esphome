@@ -31,8 +31,8 @@ static const uint16_t CRC_TABLE[256] = {
     0x1CE0, 0x0CC1, 0xEF1F, 0xFF3E, 0xCF5D, 0xDF7C, 0xAF9B, 0xBFBA, 0x8FD9, 0x9FF8, 0x6E17, 0x7E36, 0x4E55, 0x5E74,
     0x2E93, 0x3EB2, 0x0ED1, 0x1EF0};
 
-uint16_t ZigbeeProxy::calculate_crc_(const uint8_t *data, size_t length) {
-  uint16_t crc = ASH_CRC_INIT;
+uint16_t ZigbeeProxy::calculate_crc_(const uint8_t *data, size_t length, uint16_t init) {
+  uint16_t crc = init;
   for (size_t i = 0; i < length; i++) {
     crc = (crc << 8) ^ CRC_TABLE[(crc >> 8) ^ data[i]];
   }
@@ -241,8 +241,6 @@ bool ZigbeeProxy::parse_byte_(uint8_t byte) {
         this->parsing_state_ = ParsingState::WAIT_DATA;
         ESP_LOGV(TAG, "Frame start detected (control byte 0x%02X)", byte);
       }
-      // Check for bootloader patterns
-      this->check_bootloader_mode_(&byte, 1);
       break;
 
     case ParsingState::WAIT_CONTROL:
@@ -275,8 +273,9 @@ bool ZigbeeProxy::parse_byte_(uint8_t byte) {
         if (this->validate_frame_crc_()) {
           this->parse_control_byte_(this->rx_buffer_[0]);
         } else {
-          // CRC failed - log frame contents for debugging
-          ESP_LOGW(TAG, "CRC failed, frame (%u bytes): %s", this->rx_buffer_index_,
+          // CRC failed - WARN logs byte count only; hex dump at VERBOSE to avoid heap allocation in production
+          ESP_LOGW(TAG, "CRC failed (%u bytes)", this->rx_buffer_index_);
+          ESP_LOGV(TAG, "CRC failed frame: %s",
                    format_hex_pretty(this->rx_buffer_.data(), this->rx_buffer_index_).c_str());
           this->send_nak_frame_(this->rx_sequence_);
         }
@@ -354,13 +353,6 @@ size_t ZigbeeProxy::build_frame_(uint8_t *output, const uint8_t *data, size_t le
     output[pos++] = control;
   }
 
-  // Prepare CRC calculation buffer (control + data)
-  uint8_t crc_buffer[MAX_ASH_FRAME_SIZE];
-  crc_buffer[0] = control;
-  if (length > 0) {
-    memcpy(crc_buffer + 1, data, length);
-  }
-
   // Add data payload with stuffing
   for (size_t i = 0; i < length; i++) {
     uint8_t byte = data[i];
@@ -373,8 +365,11 @@ size_t ZigbeeProxy::build_frame_(uint8_t *output, const uint8_t *data, size_t le
     }
   }
 
-  // Calculate CRC
-  uint16_t crc = this->calculate_crc_(crc_buffer, 1 + length);
+  // Calculate CRC incrementally over control byte then data (avoids a MAX_ASH_FRAME_SIZE stack copy)
+  uint16_t crc = this->calculate_crc_(&control, 1);
+  if (length > 0) {
+    crc = this->calculate_crc_(data, length, crc);
+  }
 
   // Add CRC with stuffing (big-endian)
   uint8_t crc_high = (crc >> 8) & 0xFF;

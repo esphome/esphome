@@ -12,6 +12,16 @@
 
 #include <array>
 
+// Forward-declare USBUartChannel so the set_usb_uart_channel() setter can be declared
+// without pulling usb_uart.h into every translation unit that includes this header.
+// USE_ZIGBEE_PROXY_USB_UART is defined by the Python to_code() only when usb_uart_id
+// is present in the YAML, ensuring the header is actually in the build path.
+#ifdef USE_ZIGBEE_PROXY_USB_UART
+namespace esphome::usb_uart {
+class USBUartChannel;
+}
+#endif
+
 namespace esphome::zigbee_proxy {
 
 // Timeout configuration structure
@@ -83,6 +93,14 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   void set_min_timeout(uint32_t timeout_ms) { this->timeout_config_.min_timeout_ms = timeout_ms; }
   void set_max_timeout(uint32_t timeout_ms) { this->timeout_config_.max_timeout_ms = timeout_ms; }
 
+#ifdef USE_ZIGBEE_PROXY_USB_UART
+  /// Called from generated code when usb_uart_id is configured.
+  /// Registers an RX callback on the channel so incoming bytes are processed
+  /// immediately in the same USBUartComponent::loop() iteration they arrive,
+  /// without waiting for the next ZigbeeProxy::loop() call.
+  void set_usb_uart_channel(usb_uart::USBUartChannel *channel);
+#endif
+
  protected:
   // ASH Protocol State Machine
   void reset_ash_protocol_();
@@ -99,7 +117,7 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   bool validate_frame_crc_();
   size_t build_frame_(uint8_t *output, const uint8_t *data, size_t length, AshFrameType type, uint8_t frame_num = 0,
                       uint8_t ack_num = 0, bool retx = false);
-  uint16_t calculate_crc_(const uint8_t *data, size_t length);
+  uint16_t calculate_crc_(const uint8_t *data, size_t length, uint16_t init = ASH_CRC_INIT);
 
   // Sequence number management
   void increment_tx_sequence_() { this->tx_sequence_ = (this->tx_sequence_ + 1) & ASH_MAX_SEQUENCE; }
