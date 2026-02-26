@@ -70,14 +70,14 @@ struct ESPTime {
   /// @copydoc strftime(const std::string &format)
   std::string strftime(const char *format);
 
-  /// Check if this ESPTime is valid (all fields in range and year is greater than 2018)
+  /// Check if this ESPTime is valid (all fields in range and year is greater than or equal to 2019)
   bool is_valid() const { return this->year >= 2019 && this->fields_in_range(); }
 
   /// Check if all time fields of this ESPTime are in range.
   bool fields_in_range() const {
     return this->second < 61 && this->minute < 60 && this->hour < 24 && this->day_of_week > 0 &&
-           this->day_of_week < 8 && this->day_of_month > 0 && this->day_of_month < 32 && this->day_of_year > 0 &&
-           this->day_of_year < 367 && this->month > 0 && this->month < 13;
+           this->day_of_week < 8 && this->day_of_year > 0 && this->day_of_year < 367 && this->month > 0 &&
+           this->month < 13 && this->day_of_month > 0 && this->day_of_month <= days_in_month(this->month, this->year);
   }
 
   /** Convert a string to ESPTime struct as specified by the format argument.
