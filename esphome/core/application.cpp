@@ -713,7 +713,15 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 #endif
 }
 
-Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// App storage — asm label shares the linker symbol with "extern Application App".
+// char[] is trivially destructible, so no __cxa_atexit or destructor chain is emitted.
+// Constructed via placement new in the generated setup().
+#ifndef __GXX_ABI_VERSION
+#error "Application placement new requires Itanium C++ ABI (GCC/Clang)"
+#endif
+static_assert(std::is_default_constructible<Application>::value, "Application must be default-constructible");
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+alignas(Application) char app_storage[sizeof(Application)] asm("_ZN7esphome3AppE");
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
