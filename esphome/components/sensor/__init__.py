@@ -603,7 +603,7 @@ DELTA_SCHEMA = cv.Any(
 def _get_delta(value):
     if isinstance(value, str):
         assert value.endswith("%")
-        return 0.0, float(value[:-1])
+        return 0.0, float(value[:-1]) / 100.0
     return value, 0.0
 
 
