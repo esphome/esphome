@@ -8,7 +8,7 @@ namespace esphome {
 
 uint8_t days_in_month(uint8_t month, uint16_t year) {
   static const uint8_t DAYS_IN_MONTH[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-  if (month == 2 && (year % 4 == 0))
+  if (month == 2 && (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0))
     return 29;
   return DAYS_IN_MONTH[month];
 }
