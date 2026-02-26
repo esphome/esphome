@@ -7,12 +7,12 @@
 #include <cctype>
 #include <ctime>
 #include <iomanip>
-#include <iostream>
 #include <string>
 #include <vector>
+#include <charconv>
+#include <optional>
 
 namespace esphome::fendt_caravan {
-using namespace std;
 
 class DeviceDecoders {
  public:
@@ -25,27 +25,9 @@ class DeviceDecoders {
   static std::string decode_bool_str(const std::string &value, const char **text) {
     return decode_bool(value) ? std::string(text[0]) : std::string(text[1]);
   }
-  static float decode_temperature(const std::string &data) {
-    std::string value = data;
-    size_t start = value.find("^C");
-    if (start != std::string::npos)
-      value.replace(start, 2, "");
-    start = value.find(',');
-    if (start != std::string::npos)
-      value.replace(start, 1, ".");
-    return std::stof(value);
-  }
-  static float decode_voltage(const std::string &data) {
-    std::string value = data;
-    size_t start = value.find('V');
-    if (start != std::string::npos)
-      value.replace(start, 1, "");
-    start = value.find(',');
-    if (start != std::string::npos)
-      value.replace(start, 1, ".");
-    return std::stof(value);
-  }
-  static int decode_int(const std::string &data) { return std::stoi(data); }
+  static float decode_temperature(const std::string &data);
+  static float decode_voltage(const std::string &data);
+  static int decode_int(const std::string &data);
   static time_t decode_date(const std::string &data);
   static time_t decode_time(const std::string &data);
 
@@ -53,12 +35,10 @@ class DeviceDecoders {
     std::string ret_val = data;
     return ret_val;
   }
-  static std::string decode_int_str(const std::string &data, const std::vector<std::string> &list) {
-    int val = std::stoi(data);
-    return list.at(val);
-  }
+  static std::string decode_int_str(const std::string &data, const std::vector<std::string> &list);
 
  private:
+  template<typename T> static std::optional<T> parse_data(const std::string &str);
 };
 
 }  // namespace esphome::fendt_caravan

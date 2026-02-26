@@ -1,15 +1,12 @@
 #pragma once
 #include "esphome/core/component.h"
 #include "esphome/core/string_ref.h"
-#include <any>
 #include <functional>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace esphome::fendt_caravan {
-
-using namespace std;
 
 #define GET_VARIABLE(T, name) (static_cast<Variable<T> *>(this->get_variable(name)))
 

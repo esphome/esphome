@@ -13,7 +13,7 @@ static const char *const TAG = "fendt_caravan";
 
 void FendtCaravan::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "Fend Caravan\n"
+                "Fendt Caravan\n"
                 "  Fendt Address: %s",
                 this->parent()->address_str());
 }
@@ -28,18 +28,14 @@ void FendtCaravan::loop() {
   uint32_t time_stamp = App.get_loop_component_start_time();
   if (!this->commands_.empty() && (time_stamp - this->last_command_time_) >= WAIT_COMMAND && !this->wait_buffer_) {
     std::string cmd = this->commands_.at(0);
-
-    uint8_t buffer[cmd.length() + 1];
-    memset(buffer, 0, sizeof(buffer));
-    memcpy(buffer, cmd.c_str(), cmd.length());
-    auto status =
-        esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_,
-                                 cmd.length(), buffer, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+    auto status = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
+                                           this->char_handle_, cmd.length(), (uint8_t *) cmd.c_str(),
+                                           ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
     if (status) {
       ESP_LOGE(TAG, "Writing command failed (%d)", status);
     }
 
-    ESP_LOGD(TAG, "Command sent: %s, %d", buffer, cmd.length());
+    ESP_LOGD(TAG, "Command sent: %s, %d", cmd.c_str(), cmd.length());
     this->last_command_time_ = time_stamp;
     this->commands_.erase(std::remove(this->commands_.begin(), this->commands_.end(), cmd), this->commands_.end());
   }
@@ -88,7 +84,7 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
     case ESP_GATTC_NOTIFY_EVT:
       if (param->notify.handle == this->char_handle_) {
         this->wait_buffer_ = true;
-        char buffer[param->notify.value_len + 1];
+        char buffer[25];
         memset(buffer, 0, param->notify.value_len + 1);
         memcpy(buffer, param->notify.value, param->notify.value_len);
         std::string result = std::string(buffer);

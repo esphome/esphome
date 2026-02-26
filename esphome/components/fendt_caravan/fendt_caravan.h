@@ -2,8 +2,6 @@
 #pragma once
 
 #ifdef USE_ESP32
-
-#include <numbers>
 #include "esphome/core/log.h"
 #include "caravan_device_component.h"
 #include "esphome/core/component.h"
@@ -39,7 +37,7 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
   const uint16_t characteristic_uuid_ = 0x0001;
   bool command_enabled_ = false;
   volatile bool wait_buffer_ = false;
-  uint16_t char_handle_;
+  uint16_t char_handle_ = 0;
   std::vector<std::string> commands_{};
   uint32_t last_command_time_ = 0;
   std::string last_response_ = {};

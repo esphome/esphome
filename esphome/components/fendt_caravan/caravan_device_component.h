@@ -7,7 +7,6 @@
 #include "variable.h"
 
 namespace esphome::fendt_caravan {
-using namespace std;
 
 class CaravanDeviceComponent : public Component {
  public:

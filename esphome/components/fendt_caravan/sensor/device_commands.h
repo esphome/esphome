@@ -5,7 +5,6 @@
 #include "esphome/core/log.h"
 
 namespace esphome::fendt_caravan {
-using namespace std;
 
 class Commands {
  public:

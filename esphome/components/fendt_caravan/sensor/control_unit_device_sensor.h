@@ -15,7 +15,6 @@
 #include <functional>
 
 namespace esphome::fendt_caravan {
-using namespace std;
 
 class ControlUnitDeviceSensor : public CaravanDeviceComponent, public sensor::Sensor, public Parented<FendtCaravan> {
  public:
