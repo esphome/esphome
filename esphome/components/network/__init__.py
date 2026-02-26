@@ -224,3 +224,6 @@ async def to_code(config):
                 cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
             if CORE.is_bk72xx:
                 cg.add_build_flag("-DCONFIG_IPV6")
+
+
+# PLACEHOLDER
