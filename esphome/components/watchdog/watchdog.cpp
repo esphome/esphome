@@ -18,7 +18,7 @@
 namespace esphome {
 namespace watchdog {
 
-static const char *const TAG = "http_request.watchdog";
+static const char *const TAG = "watchdog";
 
 WatchdogManager::WatchdogManager(uint32_t timeout_ms) : timeout_ms_(timeout_ms) {
   if (timeout_ms == 0) {
@@ -66,6 +66,8 @@ uint32_t WatchdogManager::get_timeout_() {
 
   return timeout_ms;
 }
+
+void WatchdogManagerComponent::dump_config() { ESP_LOGCONFIG(TAG, "Watchdog Manager:"); }
 
 }  // namespace watchdog
 }  // namespace esphome
