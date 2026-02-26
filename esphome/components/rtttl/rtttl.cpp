@@ -287,7 +287,7 @@ void Rtttl::play(std::string rtttl) {
   this->default_octave_ = DEFAULT_OCTAVE;
   this->note_duration_ = 0;
 
-  uint8_t bpm = DEFAULT_BPM;
+  uint16_t bpm = DEFAULT_BPM;
   uint16_t num;  // Used for: default note-denominator, default octave, BPM
 
   // Get name
