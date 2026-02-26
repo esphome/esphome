@@ -207,6 +207,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   void loop() final;
 
+  void set_verify_ssl(bool verify_ssl) { this->verify_ssl_ = verify_ssl; }
+  void set_ssl(bool use_ssl) { this->use_ssl_ = use_ssl; }
   void set_ca_certificate(const std::string &cert) { ca_certificate_ = cert; }
   void set_cl_certificate(const std::string &cert) { cl_certificate_ = cert; }
   void set_cl_key(const std::string &key) { cl_key_ = key; }
@@ -234,6 +236,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   esp_mqtt_client_config_t mqtt_cfg_{};
 
+  bool use_ssl_{false};
+  bool verify_ssl_{true};
   std::string host_;
   uint16_t port_;
   std::string username_;

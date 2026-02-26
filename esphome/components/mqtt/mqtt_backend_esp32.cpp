@@ -8,6 +8,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+#include "esp_crt_bundle.h"
+#endif
+
 namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.idf";
@@ -39,10 +43,19 @@ bool MQTTBackendESP32::initialize_() {
   if (!this->client_id_.empty()) {
     mqtt_cfg_.credentials.client_id = this->client_id_.c_str();
   }
-  if (ca_certificate_.has_value()) {
-    mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
-    mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
+  // SSL/TLS configuration
+  if (this->use_ssl_) {
     mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+    mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
+    if (this->verify_ssl_) {
+      if (ca_certificate_.has_value()) {
+        mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
+      } else {
+#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+        mqtt_cfg_.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
+#endif
+      }
+    }
 
     if (this->cl_certificate_.has_value() && this->cl_key_.has_value()) {
       mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_.value().c_str();
