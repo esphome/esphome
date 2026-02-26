@@ -39,6 +39,9 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
     this->restart_advertising_();
   }
 
+  void set_max_clients(uint8_t max_clients) { this->max_clients_ = max_clients; }
+  uint8_t get_max_clients() const { return this->max_clients_; }
+
   BLEService *create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15);
   void remove_service(ESPBTUUID uuid, uint8_t inst_id = 0);
   BLEService *get_service(ESPBTUUID uuid, uint8_t inst_id = 0);
@@ -95,6 +98,7 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
 
   uint16_t clients_[USE_ESP32_BLE_MAX_CONNECTIONS]{};
   uint8_t client_count_{0};
+  uint8_t max_clients_{1};
   std::vector<ServiceEntry> services_{};
   std::vector<BLEService *> services_to_start_{};
   BLEService *device_information_service_{};

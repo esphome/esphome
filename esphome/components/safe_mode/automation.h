@@ -8,7 +8,7 @@
 
 namespace esphome::safe_mode {
 
-class SafeModeTrigger : public Trigger<> {
+class SafeModeTrigger final : public Trigger<> {
  public:
   explicit SafeModeTrigger(SafeModeComponent *parent) {
     parent->add_on_safe_mode_callback([this]() { trigger(); });
