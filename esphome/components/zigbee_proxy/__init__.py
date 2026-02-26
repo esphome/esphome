@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import uart
+from esphome.components import uart, usb_uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_POWER_SAVE_MODE, CONF_WIFI
 import esphome.final_validate as fv
@@ -11,6 +11,17 @@ CONF_BUFFER_SIZE = "buffer_size"
 CONF_INITIAL_TIMEOUT = "initial_timeout"
 CONF_MIN_TIMEOUT = "min_timeout"
 CONF_MAX_TIMEOUT = "max_timeout"
+CONF_USB_UART_ID = "usb_uart_id"
+
+# Default ACK timeout values calibrated for hardware UART (460800 baud, ~2-5 ms round-trip)
+_DEFAULT_HW_INITIAL_TIMEOUT = 1600
+_DEFAULT_HW_MIN_TIMEOUT = 400
+_DEFAULT_HW_MAX_TIMEOUT = 3200
+
+# Optimized ACK timeout values for USB CDC ACM paths (~20-30 ms round-trip)
+_DEFAULT_USB_INITIAL_TIMEOUT = 200
+_DEFAULT_USB_MIN_TIMEOUT = 50
+_DEFAULT_USB_MAX_TIMEOUT = 500
 
 zigbee_proxy_ns = cg.esphome_ns.namespace("zigbee_proxy")
 ZigbeeProxy = zigbee_proxy_ns.class_("ZigbeeProxy", cg.Component, uart.UARTDevice)
@@ -36,13 +47,13 @@ CONFIG_SCHEMA = cv.All(
                 esp8266=512,
                 default=1024,
             ),
-            cv.Optional(CONF_INITIAL_TIMEOUT, default=1600): cv.int_range(
-                min=100, max=10000
-            ),
-            cv.Optional(CONF_MIN_TIMEOUT, default=400): cv.int_range(min=100, max=5000),
-            cv.Optional(CONF_MAX_TIMEOUT, default=3200): cv.int_range(
-                min=500, max=10000
-            ),
+            # When usb_uart_id is present the component selects USB-optimized ACK
+            # timeout defaults (~20-30 ms round-trip) instead of the hardware UART
+            # defaults (~2-5 ms round-trip).  Explicit timeout keys always win.
+            cv.Optional(CONF_USB_UART_ID): cv.use_id(usb_uart.USBUartChannel),
+            cv.Optional(CONF_INITIAL_TIMEOUT): cv.int_range(min=100, max=10000),
+            cv.Optional(CONF_MIN_TIMEOUT): cv.int_range(min=100, max=5000),
+            cv.Optional(CONF_MAX_TIMEOUT): cv.int_range(min=500, max=10000),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -59,11 +70,31 @@ async def to_code(config):
 
     cg.add_define("USE_ZIGBEE_PROXY")
 
+    # Request UART to wake the main loop when data arrives for low-latency processing
+    uart.request_wake_loop_on_rx()
+
     # Set buffer size via define for compile-time allocation
     if CONF_BUFFER_SIZE in config:
         cg.add_define("ZIGBEE_PROXY_BUFFER_SIZE", config[CONF_BUFFER_SIZE])
 
-    # Set timeout values
-    cg.add(var.set_initial_timeout(config[CONF_INITIAL_TIMEOUT]))
-    cg.add(var.set_min_timeout(config[CONF_MIN_TIMEOUT]))
-    cg.add(var.set_max_timeout(config[CONF_MAX_TIMEOUT]))
+    # Select timeout defaults based on UART transport type.
+    # USB CDC ACM has higher round-trip latency (~20-30 ms) than hardware UART
+    # (~2-5 ms), so the adaptive ACK timeout algorithm needs different starting
+    # points to avoid unnecessary stalls at boot.
+    is_usb = CONF_USB_UART_ID in config
+    initial_timeout = config.get(
+        CONF_INITIAL_TIMEOUT,
+        _DEFAULT_USB_INITIAL_TIMEOUT if is_usb else _DEFAULT_HW_INITIAL_TIMEOUT,
+    )
+    min_timeout = config.get(
+        CONF_MIN_TIMEOUT,
+        _DEFAULT_USB_MIN_TIMEOUT if is_usb else _DEFAULT_HW_MIN_TIMEOUT,
+    )
+    max_timeout = config.get(
+        CONF_MAX_TIMEOUT,
+        _DEFAULT_USB_MAX_TIMEOUT if is_usb else _DEFAULT_HW_MAX_TIMEOUT,
+    )
+
+    cg.add(var.set_initial_timeout(initial_timeout))
+    cg.add(var.set_min_timeout(min_timeout))
+    cg.add(var.set_max_timeout(max_timeout))

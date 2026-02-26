@@ -3,8 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace esphome {
-namespace zigbee_proxy {
+namespace esphome::zigbee_proxy {
 
 // EZSP Protocol Versions
 static constexpr uint8_t EZSP_MIN_VERSION = 8;   // Minimum supported version
@@ -54,5 +53,4 @@ static constexpr size_t NETWORK_PARAMS_EXT_PAN_ID_OFFSET = 2;
 static constexpr size_t NETWORK_PARAMS_PAN_ID_OFFSET = 10;
 static constexpr size_t NETWORK_PARAMS_CHANNEL_OFFSET = 13;
 
-}  // namespace zigbee_proxy
-}  // namespace esphome
+}  // namespace esphome::zigbee_proxy

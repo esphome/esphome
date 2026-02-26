@@ -3,8 +3,7 @@
 #include <cstdint>
 #include <cstddef>
 
-namespace esphome {
-namespace zigbee_proxy {
+namespace esphome::zigbee_proxy {
 
 // ASH Protocol Constants
 static constexpr uint8_t ASH_FLAG_BYTE = 0x7E;        // Frame delimiter
@@ -86,5 +85,4 @@ enum class EzspError : uint8_t {
   EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT = 0x51,
 };
 
-}  // namespace zigbee_proxy
-}  // namespace esphome
+}  // namespace esphome::zigbee_proxy

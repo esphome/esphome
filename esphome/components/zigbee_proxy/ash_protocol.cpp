@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace zigbee_proxy {
+namespace esphome::zigbee_proxy {
 
 static const char *const TAG = "zigbee_proxy";
 
@@ -128,7 +127,7 @@ void ZigbeeProxy::parse_control_byte_(uint8_t control) {
         uint32_t rtt = millis() - this->ack_timer_start_;
         this->update_adaptive_timeout_(rtt);
         this->clear_tx_buffer_();
-        ESP_LOGD(TAG, "ACK received (piggybacked in DATA), RTT: %u ms", rtt);
+        ESP_LOGV(TAG, "ACK received (piggybacked in DATA), RTT: %u ms", rtt);
       }
 
       // Increment RX sequence and send ACK (ack_num = next expected frame)
@@ -157,7 +156,7 @@ void ZigbeeProxy::parse_control_byte_(uint8_t control) {
         uint32_t rtt = millis() - this->ack_timer_start_;
         this->update_adaptive_timeout_(rtt);
         this->clear_tx_buffer_();
-        ESP_LOGD(TAG, "ACK received for frame %d, RTT: %u ms", this->tx_pending_frame_num_, rtt);
+        ESP_LOGV(TAG, "ACK received for frame %d, RTT: %u ms", this->tx_pending_frame_num_, rtt);
       }
       break;
 
@@ -347,8 +346,8 @@ size_t ZigbeeProxy::build_frame_(uint8_t *output, const uint8_t *data, size_t le
   }
 
   // Add control byte with stuffing (reserved: FLAG, ESCAPE, XON, XOFF, SUB, CAN)
-  if (control == ASH_FLAG_BYTE || control == ASH_ESCAPE_BYTE || control == 0x11 || control == 0x13 ||
-      control == 0x18 || control == 0x1A) {
+  if (control == ASH_FLAG_BYTE || control == ASH_ESCAPE_BYTE || control == 0x11 || control == 0x13 || control == 0x18 ||
+      control == 0x1A) {
     output[pos++] = ASH_ESCAPE_BYTE;
     output[pos++] = control ^ ASH_XOR_BYTE;
   } else {
@@ -365,8 +364,8 @@ size_t ZigbeeProxy::build_frame_(uint8_t *output, const uint8_t *data, size_t le
   // Add data payload with stuffing
   for (size_t i = 0; i < length; i++) {
     uint8_t byte = data[i];
-    if (byte == ASH_FLAG_BYTE || byte == ASH_ESCAPE_BYTE || byte == 0x11 || byte == 0x13 ||
-        byte == 0x18 || byte == 0x1A) {
+    if (byte == ASH_FLAG_BYTE || byte == ASH_ESCAPE_BYTE || byte == 0x11 || byte == 0x13 || byte == 0x18 ||
+        byte == 0x1A) {
       output[pos++] = ASH_ESCAPE_BYTE;
       output[pos++] = byte ^ ASH_XOR_BYTE;
     } else {
@@ -389,8 +388,8 @@ size_t ZigbeeProxy::build_frame_(uint8_t *output, const uint8_t *data, size_t le
     output[pos++] = crc_high;
   }
 
-  if (crc_low == ASH_FLAG_BYTE || crc_low == ASH_ESCAPE_BYTE || crc_low == 0x11 || crc_low == 0x13 ||
-      crc_low == 0x18 || crc_low == 0x1A) {
+  if (crc_low == ASH_FLAG_BYTE || crc_low == ASH_ESCAPE_BYTE || crc_low == 0x11 || crc_low == 0x13 || crc_low == 0x18 ||
+      crc_low == 0x1A) {
     output[pos++] = ASH_ESCAPE_BYTE;
     output[pos++] = crc_low ^ ASH_XOR_BYTE;
   } else {
@@ -403,7 +402,6 @@ size_t ZigbeeProxy::build_frame_(uint8_t *output, const uint8_t *data, size_t le
   return pos;
 }
 
-}  // namespace zigbee_proxy
-}  // namespace esphome
+}  // namespace esphome::zigbee_proxy
 
 #endif  // USE_ZIGBEE_PROXY

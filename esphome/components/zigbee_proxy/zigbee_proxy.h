@@ -12,8 +12,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace zigbee_proxy {
+namespace esphome::zigbee_proxy {
 
 // Timeout configuration structure
 struct TimeoutConfig {
@@ -183,7 +182,8 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   api::APIConnection *api_connection_{nullptr};  // Current subscribed client
 
   // NCP-side (right) 32-bit values
-  uint32_t setup_time_{0};       // Time when setup() was called
+  uint32_t setup_time_{0};       // Time when last RST frame was sent
+  uint32_t boot_start_time_{0};  // Time when the boot sequence began (for overall timeout)
   uint32_t ack_timer_start_{0};  // Time when ACK timer started
   uint32_t last_rtt_ms_{0};      // Last measured round-trip time
 
@@ -203,8 +203,8 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   uint8_t last_ack_sent_{0};         // Last ACK number sent
 
   // Client-side (left) 8-bit values
-  uint8_t client_tx_sequence_{0};   // Client-facing TX sequence (proxy → client)
-  uint8_t client_rx_sequence_{0};   // Client-facing RX sequence (client → proxy)
+  uint8_t client_tx_sequence_{0};  // Client-facing TX sequence (proxy → client)
+  uint8_t client_rx_sequence_{0};  // Client-facing RX sequence (client → proxy)
 
   // NCP-side enums and booleans
   AshState ash_state_{AshState::DISCONNECTED};
@@ -220,16 +220,15 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   uint8_t ezsp_sequence_{0};           // EZSP frame sequence number
   uint8_t ezsp_requested_version_{0};  // Version we last requested (for re-negotiation)
 
-  bool tx_buffer_pending_{false};          // True if waiting for ACK from NCP
-  bool escape_next_byte_{false};           // True if next NCP byte should be unescaped
-  bool client_escape_next_byte_{false};    // True if next client byte should be unescaped
-  bool network_info_ready_{false};         // True when network info retrieved
-  bool boot_sequence_active_{false};       // True during boot-time init
+  bool tx_buffer_pending_{false};        // True if waiting for ACK from NCP
+  bool escape_next_byte_{false};         // True if next NCP byte should be unescaped
+  bool client_escape_next_byte_{false};  // True if next client byte should be unescaped
+  bool network_info_ready_{false};       // True when network info retrieved
+  bool boot_sequence_active_{false};     // True during boot-time init
 };
 
 extern ZigbeeProxy *global_zigbee_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace zigbee_proxy
-}  // namespace esphome
+}  // namespace esphome::zigbee_proxy
 
 #endif  // USE_ZIGBEE_PROXY
