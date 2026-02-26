@@ -250,7 +250,7 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
-            cv.Optional(CONF_TLS, default=False): cv.All(cv.boolean, cv.only_on_esp32),
+            cv.Optional(CONF_TLS): cv.All(cv.boolean, cv.only_on_esp32),
             cv.Optional(CONF_VERIFY_SSL): cv.All(cv.boolean, cv.only_on_esp32),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
                 cv.string, cv.only_on_esp32
@@ -449,7 +449,7 @@ async def to_code(config):
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     # esp-idf only
-    if config.get(CONF_TLS):
+    if config.get(CONF_TLS, False):
         cg.add(var.set_ssl(config[CONF_TLS]))
 
         if not config.get(CONF_VERIFY_SSL, True):
