@@ -6,8 +6,9 @@
 
 - [ ] Bugfix (non-breaking change which fixes an issue)
 - [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Developer breaking change (an API change that could break external components)
+- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected) — [policy](https://developers.esphome.io/contributing/code/#what-constitutes-a-c-breaking-change)
+- [ ] Developer breaking change (an API change that could break external components) — [policy](https://developers.esphome.io/contributing/code/#what-is-considered-public-c-api)
+- [ ] Undocumented C++ API change (removal or change of undocumented public methods that lambda users may depend on) — [policy](https://developers.esphome.io/contributing/code/#c-user-expectations)
 - [ ] Code quality improvements to existing code or addition of tests
 - [ ] Other
 

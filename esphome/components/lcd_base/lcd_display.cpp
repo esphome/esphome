@@ -45,7 +45,7 @@ void LCDDisplay::setup() {
   // TODO dotsize
 
   // Commands can only be sent 40ms after boot-up, so let's wait if we're close
-  const uint8_t now = millis();
+  const uint32_t now = millis();
   if (now < 40)
     delay(40u - now);
 

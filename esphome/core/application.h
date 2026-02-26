@@ -6,7 +6,6 @@
 #include <span>
 #include <string>
 #include <vector>
-#include "esphome/core/build_info_data.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -25,9 +24,13 @@
 #endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_ESP32
+#include "esphome/core/lwip_fast_select.h"
+#else
 #include <sys/select.h>
 #ifdef USE_WAKE_LOOP_THREADSAFE
 #include <lwip/sockets.h>
+#endif
 #endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
 
@@ -111,7 +114,7 @@ namespace esphome {
 // For reboots, it's more important to shut down quickly than disconnect cleanly
 // since we're not entering deep sleep. The only consequence of not shutting down
 // cleanly is a warning in the log.
-static const uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
+static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
 
 class Application {
  public:
@@ -274,16 +277,15 @@ class Application {
     return "";
   }
 
+  /// Maximum size of the comment buffer (including null terminator)
+  static constexpr size_t ESPHOME_COMMENT_SIZE_MAX = 256;
+
   /// Copy the comment string into the provided buffer
-  /// Buffer must be ESPHOME_COMMENT_SIZE bytes (compile-time enforced)
-  void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE> buffer) {
-    ESPHOME_strncpy_P(buffer.data(), ESPHOME_COMMENT_STR, buffer.size());
-    buffer[buffer.size() - 1] = '\0';
-  }
+  void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> buffer);
 
   /// Get the comment of this Application as a string
   std::string get_comment() {
-    char buffer[ESPHOME_COMMENT_SIZE];
+    char buffer[ESPHOME_COMMENT_SIZE_MAX];
     this->get_comment_string(buffer);
     return std::string(buffer);
   }
@@ -294,13 +296,13 @@ class Application {
   static constexpr size_t BUILD_TIME_STR_SIZE = 26;
 
   /// Get the config hash as a 32-bit integer
-  constexpr uint32_t get_config_hash() { return ESPHOME_CONFIG_HASH; }
+  uint32_t get_config_hash();
 
   /// Get the config hash extended with ESPHome version
-  constexpr uint32_t get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
+  uint32_t get_config_version_hash();
 
   /// Get the build time as a Unix timestamp
-  constexpr time_t get_build_time() { return ESPHOME_BUILD_TIME; }
+  time_t get_build_time();
 
   /// Copy the build time string into the provided buffer
   /// Buffer must be BUILD_TIME_STR_SIZE bytes (compile-time enforced)
@@ -493,15 +495,12 @@ class Application {
   /// @return true if registration was successful, false if fd exceeds limits
   bool register_socket_fd(int fd);
   void unregister_socket_fd(int fd);
-  /// Check if there's data available on a socket without blocking
-  /// This function is thread-safe for reading, but should be called after select() has run
-  /// The read_fds_ is only modified by select() in the main loop
-  bool is_socket_ready(int fd) const { return fd >= 0 && this->is_socket_ready_(fd); }
 
 #ifdef USE_WAKE_LOOP_THREADSAFE
-  /// Wake the main event loop from a FreeRTOS task
-  /// Thread-safe, can be called from task context to immediately wake select()
-  /// IMPORTANT: NOT safe to call from ISR context (socket operations not ISR-safe)
+  /// Wake the main event loop from another FreeRTOS task.
+  /// Thread-safe, but must only be called from task context (NOT ISR-safe).
+  /// On ESP32: uses xTaskNotifyGive (<1 us)
+  /// On other platforms: uses UDP loopback socket
   void wake_loop_threadsafe();
 #endif
 #endif
@@ -512,10 +511,14 @@ class Application {
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
   /// Fast path for Socket::ready() via friendship - skips negative fd check.
-  /// Safe because: fd was validated in register_socket_fd() at registration time,
-  /// and Socket::ready() only calls this when loop_monitored_ is true (registration succeeded).
-  /// FD_ISSET may include its own upper bounds check depending on platform.
+  /// Main loop only — on ESP32, reads rcvevent via lwip_socket_dbg_get_socket()
+  /// which has no refcount; safe only because the main loop owns socket lifetime
+  /// (creates, reads, and closes sockets on the same thread).
+#ifdef USE_ESP32
+  bool is_socket_ready_(int fd) const { return esphome_lwip_socket_has_data(fd); }
+#else
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
+#endif
 #endif
 
   void register_component_(Component *comp);
@@ -543,7 +546,7 @@ class Application {
   /// Perform a delay while also monitoring socket file descriptors for readiness
   void yield_with_select_(uint32_t delay_ms);
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
   void setup_wake_loop_threadsafe_();       // Create wake notification socket
   inline void drain_wake_notifications_();  // Read pending wake notifications in main loop (hot path - inlined)
 #endif
@@ -573,7 +576,7 @@ class Application {
   FixedVector<Component *> looping_components_{};
 #ifdef USE_SOCKET_SELECT_SUPPORT
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
-#ifdef USE_WAKE_LOOP_THREADSAFE
+#if defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
   int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
 #endif
 #endif
@@ -582,19 +585,17 @@ class Application {
   std::string name_;
   std::string friendly_name_;
 
-  // size_t members
-  size_t dump_config_at_{SIZE_MAX};
-
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_ESP32)
   int max_fd_{-1};  // Highest file descriptor number for select()
 #endif
 
   // 2-byte members (grouped together for alignment)
-  uint16_t loop_interval_{16};                 // Loop interval in ms (max 65535ms = 65.5 seconds)
+  uint16_t dump_config_at_{std::numeric_limits<uint16_t>::max()};  // Index into components_ for dump_config progress
+  uint16_t loop_interval_{16};                                     // Loop interval in ms (max 65535ms = 65.5 seconds)
   uint16_t looping_components_active_end_{0};  // Index marking end of active components in looping_components_
   uint16_t current_loop_index_{0};             // For safe reentrant modifications during iteration
 
@@ -604,14 +605,14 @@ class Application {
   bool in_loop_{false};
   volatile bool has_pending_enable_loop_requests_{false};
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_ESP32)
   bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  // Variable-sized members
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_ESP32)
+  // Variable-sized members (not needed on ESP32 — is_socket_ready_ reads rcvevent directly)
+  fd_set read_fds_{};       // Working fd_set: populated by select()
   fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes
-  fd_set read_fds_{};       // Working fd_set for select(), copied from base_read_fds_
 #endif
 
   // StaticVectors (largest members - contain actual array data inline)
@@ -698,7 +699,7 @@ class Application {
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
 // Inline implementations for hot-path functions
 // drain_wake_notifications_() is called on every loop iteration
 
@@ -708,8 +709,8 @@ static constexpr size_t WAKE_NOTIFY_DRAIN_BUFFER_SIZE = 16;
 
 inline void Application::drain_wake_notifications_() {
   // Called from main loop to drain any pending wake notifications
-  // Must check is_socket_ready() to avoid blocking on empty socket
-  if (this->wake_socket_fd_ >= 0 && this->is_socket_ready(this->wake_socket_fd_)) {
+  // Must check is_socket_ready_() to avoid blocking on empty socket
+  if (this->wake_socket_fd_ >= 0 && this->is_socket_ready_(this->wake_socket_fd_)) {
     char buffer[WAKE_NOTIFY_DRAIN_BUFFER_SIZE];
     // Drain all pending notifications with non-blocking reads
     // Multiple wake events may have triggered multiple writes, so drain until EWOULDBLOCK
@@ -720,6 +721,6 @@ inline void Application::drain_wake_notifications_() {
     }
   }
 }
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
 
 }  // namespace esphome

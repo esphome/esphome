@@ -41,20 +41,23 @@ struct ComponentErrorMessage {
   bool is_flash_ptr;
 };
 
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
 struct ComponentPriorityOverride {
   const Component *component;
   float priority;
 };
+
+// Setup priority overrides - freed after setup completes
+// Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::vector<ComponentPriorityOverride> *setup_priority_overrides = nullptr;
+#endif
 
 // Error messages for failed components
 // Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
 // This is never freed as error messages persist for the lifetime of the device
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::vector<ComponentErrorMessage> *component_error_messages = nullptr;
-// Setup priority overrides - freed after setup completes
-// Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::vector<ComponentPriorityOverride> *setup_priority_overrides = nullptr;
 
 // Helper to store error messages - reduces duplication between deprecated and new API
 // Remove before 2026.6.0 when deprecated const char* API is removed
@@ -79,10 +82,12 @@ void store_component_error_message(const Component *component, const char *messa
 // setup_priority, component state, and status LED constants are now
 // constexpr in component.h
 
-const uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;       ///< Initial blocking time allowed without warning
-const uint16_t WARN_IF_BLOCKING_INCREMENT_MS = 10U;  ///< How long the blocking time must be larger to warn again
+static constexpr uint16_t WARN_IF_BLOCKING_INCREMENT_MS =
+    10U;  ///< How long the blocking time must be larger to warn again
 
+#ifdef USE_LOOP_PRIORITY
 float Component::get_loop_priority() const { return 0.0f; }
+#endif
 
 float Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -204,7 +209,7 @@ bool Component::cancel_retry(uint32_t id) {
 #pragma GCC diagnostic pop
 }
 
-void Component::call_loop() { this->loop(); }
+void Component::call_loop_() { this->loop(); }
 void Component::call_setup() { this->setup(); }
 void Component::call_dump_config() {
   this->dump_config();
@@ -255,11 +260,11 @@ void Component::call() {
     case COMPONENT_STATE_SETUP:
       // State setup: Call first loop and set state to loop
       this->set_component_state_(COMPONENT_STATE_LOOP);
-      this->call_loop();
+      this->call_loop_();
       break;
     case COMPONENT_STATE_LOOP:
       // State loop: Call loop
-      this->call_loop();
+      this->call_loop_();
       break;
     case COMPONENT_STATE_FAILED:
       // State failed: Do nothing
@@ -459,6 +464,7 @@ void log_update_interval(const char *tag, PollingComponent *component) {
   }
 }
 float Component::get_actual_setup_priority() const {
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Check if there's an override in the global vector
   if (setup_priority_overrides) {
     // Linear search is fine for small n (typically < 5 overrides)
@@ -468,14 +474,14 @@ float Component::get_actual_setup_priority() const {
       }
     }
   }
+#endif
   return this->get_setup_priority();
 }
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
 void Component::set_setup_priority(float priority) {
   // Lazy allocate the vector if needed
   if (!setup_priority_overrides) {
     setup_priority_overrides = new std::vector<ComponentPriorityOverride>();
-    // Reserve some space to avoid reallocations (most configs have < 10 overrides)
-    setup_priority_overrides->reserve(10);
   }
 
   // Check if this component already has an override
@@ -489,19 +495,18 @@ void Component::set_setup_priority(float priority) {
   // Add new override
   setup_priority_overrides->emplace_back(ComponentPriorityOverride{this, priority});
 }
+#endif
 
 bool Component::has_overridden_loop() const {
 #if defined(USE_HOST) || defined(CLANG_TIDY)
-  bool loop_overridden = true;
-  bool call_loop_overridden = true;
+  return true;
 #else
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpmf-conversions"
   bool loop_overridden = (void *) (this->*(&Component::loop)) != (void *) (&Component::loop);
-  bool call_loop_overridden = (void *) (this->*(&Component::call_loop)) != (void *) (&Component::call_loop);
 #pragma GCC diagnostic pop
+  return loop_overridden;
 #endif
-  return loop_overridden || call_loop_overridden;
 }
 
 PollingComponent::PollingComponent(uint32_t update_interval) : update_interval_(update_interval) {}
@@ -526,41 +531,41 @@ void PollingComponent::stop_poller() {
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
 void PollingComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
-WarnIfComponentBlockingGuard::WarnIfComponentBlockingGuard(Component *component, uint32_t start_time)
-    : started_(start_time), component_(component) {}
+static void __attribute__((noinline, cold)) warn_blocking(Component *component, uint32_t blocking_time) {
+  bool should_warn;
+  if (component != nullptr) {
+    should_warn = component->should_warn_of_blocking(blocking_time);
+  } else {
+    should_warn = true;  // Already checked > WARN_IF_BLOCKING_OVER_MS in caller
+  }
+  if (should_warn) {
+    ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms), max is 30 ms",
+             component == nullptr ? LOG_STR_LITERAL("<null>") : LOG_STR_ARG(component->get_component_log_str()),
+             blocking_time);
+  }
+}
+
 uint32_t WarnIfComponentBlockingGuard::finish() {
   uint32_t curr_time = millis();
-
   uint32_t blocking_time = curr_time - this->started_;
-
 #ifdef USE_RUNTIME_STATS
   // Record component runtime stats
   if (global_runtime_stats != nullptr) {
     global_runtime_stats->record_component_time(this->component_, blocking_time, curr_time);
   }
 #endif
-  bool should_warn;
-  if (this->component_ != nullptr) {
-    should_warn = this->component_->should_warn_of_blocking(blocking_time);
-  } else {
-    should_warn = blocking_time > WARN_IF_BLOCKING_OVER_MS;
+  if (blocking_time > WARN_IF_BLOCKING_OVER_MS) {
+    warn_blocking(this->component_, blocking_time);
   }
-  if (should_warn) {
-    ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms)",
-             component_ == nullptr ? LOG_STR_LITERAL("<null>") : LOG_STR_ARG(component_->get_component_log_str()),
-             blocking_time);
-    ESP_LOGW(TAG, "Components should block for at most 30 ms");
-  }
-
   return curr_time;
 }
 
-WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {}
-
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
 void clear_setup_priority_overrides() {
   // Free the setup priority map completely
   delete setup_priority_overrides;
   setup_priority_overrides = nullptr;
 }
+#endif
 
 }  // namespace esphome

@@ -40,26 +40,25 @@ struct device;
 
 namespace esphome::logger {
 
-/** Interface for receiving log messages without std::function overhead.
+/** Lightweight callback for receiving log messages without virtual dispatch overhead.
  *
- * Components can implement this interface instead of using lambdas with std::function
- * to reduce flash usage from std::function type erasure machinery.
+ * Replaces the former LogListener virtual interface to eliminate per-implementer
+ * vtable sub-tables and thunk code (~39 bytes saved per class that used LogListener).
  *
  * Usage:
- *   class MyComponent : public Component, public LogListener {
- *    public:
- *     void setup() override {
- *       if (logger::global_logger != nullptr)
- *         logger::global_logger->add_log_listener(this);
- *     }
- *     void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override {
- *       // Handle log message
- *     }
- *   };
+ *   // In your component's setup():
+ *   if (logger::global_logger != nullptr)
+ *     logger::global_logger->add_log_callback(
+ *         this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
+ *           static_cast<MyComponent *>(self)->on_log(level, tag, message, message_len);
+ *         });
  */
-class LogListener {
- public:
-  virtual void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) = 0;
+struct LogCallback {
+  void *instance;
+  void (*fn)(void *, uint8_t, const char *, const char *, size_t);
+  void invoke(uint8_t level, const char *tag, const char *message, size_t message_len) const {
+    this->fn(this->instance, level, tag, message, message_len);
+  }
 };
 
 #ifdef USE_LOGGER_LEVEL_LISTENERS
@@ -142,13 +141,13 @@ enum UARTSelection : uint8_t {
  * 2. Works with ESP-IDF's pthread implementation that uses a linked list for TLS variables
  * 3. Avoids the limitations of the fixed FreeRTOS task local storage slots
  */
-class Logger : public Component {
+class Logger final : public Component {
  public:
-  explicit Logger(uint32_t baud_rate, size_t tx_buffer_size);
+  explicit Logger(uint32_t baud_rate);
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   void init_log_buffer(size_t total_buffer_size);
 #endif
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
   void loop() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
@@ -187,11 +186,13 @@ class Logger : public Component {
   inline uint8_t level_for(const char *tag);
 
 #ifdef USE_LOG_LISTENERS
-  /// Register a log listener to receive log messages
-  void add_log_listener(LogListener *listener) { this->log_listeners_.push_back(listener); }
+  /// Register a log callback to receive log messages
+  void add_log_callback(void *instance, void (*fn)(void *, uint8_t, const char *, const char *, size_t)) {
+    this->log_callbacks_.push_back(LogCallback{instance, fn});
+  }
 #else
   /// No-op when log listeners are disabled
-  void add_log_listener(LogListener *listener) {}
+  void add_log_callback(void *instance, void (*fn)(void *, uint8_t, const char *, const char *, size_t)) {}
 #endif
 
 #ifdef USE_LOGGER_LEVEL_LISTENERS
@@ -228,7 +229,7 @@ class Logger : public Component {
   void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
                                     const char *thread_name);
 #endif
-#if defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC)
+#if defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
   void cdc_loop_();
 #endif
   void process_messages_();
@@ -253,11 +254,11 @@ class Logger : public Component {
   }
 #endif
 
-  // Helper to notify log listeners
+  // Helper to notify log callbacks
   inline void HOT notify_listeners_(uint8_t level, const char *tag, const LogBuffer &buf) {
 #ifdef USE_LOG_LISTENERS
-    for (auto *listener : this->log_listeners_)
-      listener->on_log(level, tag, buf.data, buf.pos);
+    for (auto &cb : this->log_callbacks_)
+      cb.invoke(level, tag, buf.data, buf.pos);
 #endif
   }
 
@@ -280,7 +281,7 @@ class Logger : public Component {
   inline void HOT log_message_to_buffer_and_send_(bool &recursion_guard, uint8_t level, const char *tag, int line,
                                                   FormatType format, va_list args, const char *thread_name) {
     RecursionGuard guard(recursion_guard);
-    LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
+    LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
 #ifdef USE_STORE_LOG_STR_IN_FLASH
     if constexpr (std::is_same_v<FormatType, const __FlashStringHelper *>) {
       this->format_log_to_buffer_with_terminator_P_(level, tag, line, format, args, buf);
@@ -311,11 +312,11 @@ class Logger : public Component {
 
   // Group 4-byte aligned members first
   uint32_t baud_rate_;
-  char *tx_buffer_{nullptr};
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
   Stream *hw_serial_{nullptr};
 #endif
 #if defined(USE_ZEPHYR)
+  void dump_crash_();
   const device *uart_dev_{nullptr};
 #endif
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
@@ -341,8 +342,8 @@ class Logger : public Component {
   std::map<const char *, uint8_t, CStrCompare> log_levels_{};
 #endif
 #ifdef USE_LOG_LISTENERS
-  StaticVector<LogListener *, ESPHOME_LOG_MAX_LISTENERS>
-      log_listeners_;  // Log message listeners (API, MQTT, syslog, etc.)
+  StaticVector<LogCallback, ESPHOME_LOG_MAX_LISTENERS>
+      log_callbacks_;  // Log message callbacks (API, MQTT, syslog, etc.)
 #endif
 #ifdef USE_LOGGER_LEVEL_LISTENERS
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
@@ -352,7 +353,6 @@ class Logger : public Component {
 #endif
 
   // Group smaller types together at the end
-  uint16_t tx_buffer_size_{0};
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
   UARTSelection uart_{UART_SELECTION_UART0};
@@ -368,6 +368,9 @@ class Logger : public Component {
 #else
   bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
 #endif
+
+  // Large buffer placed last to keep frequently-accessed member offsets small
+  char tx_buffer_[ESPHOME_LOGGER_TX_BUFFER_SIZE + 1];  // +1 for null terminator
 
   // --- get_thread_name_ overloads (per-platform) ---
 
@@ -463,9 +466,9 @@ class Logger : public Component {
   inline RecursionGuard make_non_main_task_guard_() { return RecursionGuard(non_main_task_recursion_guard_); }
 #endif
 
-// Zephyr needs loop working to check when CDC port is open
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
-  // Disable loop when task buffer is empty (with USB CDC check on ESP32)
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+  // Disable loop when task buffer is empty
+  // Zephyr with USB CDC needs loop active to poll port readiness via cdc_loop_()
   inline void disable_loop_when_buffer_empty_() {
     // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()
     // concurrently. If that happens between our check and disable_loop(), the enable request
@@ -478,15 +481,16 @@ class Logger : public Component {
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *>, public LogListener {
+class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const char *> {
  public:
-  explicit LoggerMessageTrigger(Logger *parent, uint8_t level) : level_(level) { parent->add_log_listener(this); }
-
-  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override {
-    (void) message_len;
-    if (level <= this->level_) {
-      this->trigger(level, tag, message);
-    }
+  explicit LoggerMessageTrigger(Logger *parent, uint8_t level) : level_(level) {
+    parent->add_log_callback(this,
+                             [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
+                               auto *trigger = static_cast<LoggerMessageTrigger *>(self);
+                               if (level <= trigger->level_) {
+                                 trigger->trigger(level, tag, message);
+                               }
+                             });
   }
 
  protected:

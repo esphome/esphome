@@ -5,6 +5,7 @@
 #include <functional>
 #include <string>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
@@ -79,7 +80,7 @@ inline constexpr uint8_t STATUS_LED_ERROR = 0x10;
 // Remove before 2026.8.0
 enum class RetryResult { DONE, RETRY };
 
-extern const uint16_t WARN_IF_BLOCKING_OVER_MS;
+inline constexpr uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;
 
 class Component {
  public:
@@ -117,7 +118,9 @@ class Component {
    *
    * @return The loop priority of this component
    */
+#ifdef USE_LOOP_PRIORITY
   virtual float get_loop_priority() const;
+#endif
 
   void call();
 
@@ -165,7 +168,7 @@ class Component {
    * For example, i2c based components can check if the remote device is responding and otherwise
    * mark the component as failed. Eventually this will also enable smart status LEDs.
    */
-  virtual void mark_failed();
+  void mark_failed();
 
   // Remove before 2026.6.0
   ESPDEPRECATED("Use mark_failed(LOG_STR(\"static string literal\")) instead. Do NOT use .c_str() from temporary "
@@ -286,7 +289,7 @@ class Component {
  protected:
   friend class Application;
 
-  virtual void call_loop();
+  void call_loop_();
   virtual void call_setup();
   virtual void call_dump_config();
 
@@ -550,12 +553,13 @@ class PollingComponent : public Component {
 
 class WarnIfComponentBlockingGuard {
  public:
-  WarnIfComponentBlockingGuard(Component *component, uint32_t start_time);
+  WarnIfComponentBlockingGuard(Component *component, uint32_t start_time)
+      : started_(start_time), component_(component) {}
 
   // Finish the timing operation and return the current time
   uint32_t finish();
 
-  ~WarnIfComponentBlockingGuard();
+  ~WarnIfComponentBlockingGuard() = default;
 
  protected:
   uint32_t started_;
@@ -563,6 +567,7 @@ class WarnIfComponentBlockingGuard {
 };
 
 // Function to clear setup priority overrides after all components are set up
+// Only has an implementation when USE_SETUP_PRIORITY_OVERRIDE is defined
 void clear_setup_priority_overrides();
 
 }  // namespace esphome
