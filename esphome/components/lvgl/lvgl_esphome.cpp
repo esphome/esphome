@@ -202,7 +202,8 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
   lv_color_data *dst = reinterpret_cast<lv_color_data *>(this->rotate_buf_);
 
 #ifdef USE_ESP32_VARIANT_ESP32P4
-  if (this->ppa_client_ != nullptr && this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
+  if (this->ppa_client_ != nullptr && this->rotation != display::DISPLAY_ROTATION_0_DEGREES &&
+      this->rotation != display::DISPLAY_ROTATION_180_DEGREES) {
     // Use ESP32-P4 PPA hardware acceleration for rotation
     ppa_srm_rotation_angle_t ppa_angle = PPA_SRM_ROTATION_ANGLE_0;
     uint32_t out_pic_w = width, out_pic_h = height;
@@ -217,13 +218,6 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
         x1 = this->height_ - area->y1 - height;
         width = height_rounded;
         height = orig_width;
-        break;
-      case display::DISPLAY_ROTATION_180_DEGREES:
-        ppa_angle = PPA_SRM_ROTATION_ANGLE_180;
-        out_pic_w = width;
-        out_pic_h = height;
-        x1 = this->width_ - x1 - width;
-        y1 = this->height_ - y1 - height;
         break;
       case display::DISPLAY_ROTATION_270_DEGREES:
         ppa_angle = PPA_SRM_ROTATION_ANGLE_90;  // 270 CW = 90 CCW
