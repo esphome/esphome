@@ -7,7 +7,7 @@ namespace esphome::bthome::testing {
 
 static constexpr size_t MAX_PAYLOAD_SIZE = 5;
 
-struct DecoderTestCase {
+struct SensorTestCase {
   const char *name;
   const char *hex;  // uppercase hex payload: type byte + data bytes
   float expected;
@@ -15,13 +15,13 @@ struct DecoderTestCase {
   size_t len;
   uint8_t payload[MAX_PAYLOAD_SIZE];
 
-  DecoderTestCase(const char *name, const char *hex, float expected, float tolerance)
+  SensorTestCase(const char *name, const char *hex, float expected, float tolerance)
       : name(name), hex(hex), expected(expected), tolerance(tolerance), len(strlen(hex) / 2), payload{} {
     parse_hex(hex, payload, len);
   }
 };
 
-void PrintTo(const DecoderTestCase &tc, std::ostream *os) {  // NOLINT(readability-identifier-naming)
+void PrintTo(const SensorTestCase &tc, std::ostream *os) {  // NOLINT(readability-identifier-naming)
   BTHomePayloadDecoder decoder(tc.payload, tc.len);
   auto it = decoder.begin();
   float actual = (it != decoder.end()) ? (*it).as_float() : 0.0f;
@@ -31,7 +31,7 @@ void PrintTo(const DecoderTestCase &tc, std::ostream *os) {  // NOLINT(readabili
 
 // clang-format off
 // Test vectors from the BTHome specification table in bthome.py.
-static const DecoderTestCase TEST_CASES[] = {
+static const SensorTestCase TEST_CASES[] = {
     {"acceleration_u16",    "518756",     22.151f,        0.001f  },
     {"acceleration_i32_e6", "630057D0FF", -3.123456f,     0.0001f },
     {"battery",             "0161",       97.0f,          0.001f  },
@@ -91,10 +91,10 @@ static const DecoderTestCase TEST_CASES[] = {
 };
 // clang-format on
 
-class BTHomeDecoderTest : public ::testing::TestWithParam<DecoderTestCase> {};
+class BTHomeDecoderTest : public ::testing::TestWithParam<SensorTestCase> {};
 
 TEST_P(BTHomeDecoderTest, AsFloat) {
-  const DecoderTestCase &tc = GetParam();
+  const SensorTestCase &tc = GetParam();
   BTHomePayloadDecoder decoder(tc.payload, tc.len);
   auto it = decoder.begin();
   ASSERT_NE(it, decoder.end());
@@ -102,7 +102,75 @@ TEST_P(BTHomeDecoderTest, AsFloat) {
 }
 
 INSTANTIATE_TEST_SUITE_P(BTHomeSpec, BTHomeDecoderTest, ::testing::ValuesIn(TEST_CASES),
-                         [](const ::testing::TestParamInfo<DecoderTestCase> &info) {
+                         [](const ::testing::TestParamInfo<SensorTestCase> &info) {
+                           return std::string(info.param.name);
+                         });
+
+struct BinarySensorTestCase {
+  const char *name;
+  const char *hex;  // uppercase hex payload: type byte + data byte
+  bool expected;
+  size_t len;
+  uint8_t payload[MAX_PAYLOAD_SIZE];
+
+  BinarySensorTestCase(const char *name, const char *hex, bool expected)
+      : name(name), hex(hex), expected(expected), len(strlen(hex) / 2), payload{} {
+    parse_hex(hex, payload, len);
+  }
+};
+
+void PrintTo(const BinarySensorTestCase &tc, std::ostream *os) {  // NOLINT(readability-identifier-naming)
+  BTHomePayloadDecoder decoder(tc.payload, tc.len);
+  auto it = decoder.begin();
+  bool actual = (it != decoder.end()) ? (*it).as_bool() : false;
+  *os << tc.name << " " << tc.hex << " (actual=" << actual << ", expected=" << tc.expected << ")";
+}
+
+// clang-format off
+static const BinarySensorTestCase BINARY_TEST_CASES[] = {
+    {"battery_low",      "1501", true  },
+    {"battery_charging", "1601", true  },
+    {"carbon_monoxide",  "1700", false },
+    {"cold",             "1801", true  },
+    {"connectivity",     "1900", false },
+    {"door",             "1A00", false },
+    {"garage_door",      "1B01", true  },
+    {"gas",              "1C01", true  },
+    {"generic_boolean",  "0F01", true  },
+    {"heat",             "1D00", false },
+    {"light",            "1E01", true  },
+    {"lock",             "1F01", true  },
+    {"moisture",         "2001", true  },
+    {"motion",           "2100", false },
+    {"moving",           "2201", true  },
+    {"occupancy",        "2301", true  },
+    {"opening",          "1100", false },
+    {"plug",             "2400", false },
+    {"power",            "1001", true  },
+    {"presence",         "2500", false },
+    {"problem",          "2601", true  },
+    {"running",          "2701", true  },
+    {"safety",           "2800", false },
+    {"smoke",            "2901", true  },
+    {"sound",            "2A00", false },
+    {"tamper",           "2B00", false },
+    {"vibration",        "2C01", true  },
+    {"window",           "2D01", true  },
+};
+// clang-format on
+
+class BTHomeBinaryDecoderTest : public ::testing::TestWithParam<BinarySensorTestCase> {};
+
+TEST_P(BTHomeBinaryDecoderTest, AsBool) {
+  const BinarySensorTestCase &tc = GetParam();
+  BTHomePayloadDecoder decoder(tc.payload, tc.len);
+  auto it = decoder.begin();
+  ASSERT_NE(it, decoder.end());
+  EXPECT_EQ((*it).as_bool(), tc.expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(BTHomeSpec, BTHomeBinaryDecoderTest, ::testing::ValuesIn(BINARY_TEST_CASES),
+                         [](const ::testing::TestParamInfo<BinarySensorTestCase> &info) {
                            return std::string(info.param.name);
                          });
 

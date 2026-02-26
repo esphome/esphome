@@ -20,7 +20,8 @@ template<size_t NUM_DEVICES> class DeviceListener : public esp32_ble_tracker::ES
     bool matched = false;
     for (auto &service_data : device.get_service_datas()) {
       if (!service_data.uuid.contains(0xD2, 0xFC)) {
-        ESP_LOGD(TAG, "not bthome service data");
+        MacAddressPtr source_address = device.address();
+        ESP_LOGD(TAG, "not bthome service data from %s", source_address.c_str());
         continue;
       }
 

@@ -1,13 +1,13 @@
 from esphome import core
 import esphome.codegen as cg
-from esphome.components import esp32_ble_tracker, sensor
+from esphome.components import binary_sensor, esp32_ble_tracker, sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS
 from esphome.core import CORE
 from esphome.cpp_generator import TemplateArguments, statement
 
 CODEOWNERS = ["@jpeletier"]
-DEPENDENCIES = ["esp32_ble_tracker", "sensor"]
+DEPENDENCIES = ["esp32_ble_tracker"]
 
 
 BLE_DEVICE_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA
@@ -21,6 +21,12 @@ Device = bthome_ns.class_("Device", DeviceBase)
 BTHomeObjectHandler = bthome_ns.class_("BTHomeObjectHandler")
 BTHomeSensor = bthome_ns.class_(
     "BTHomeSensor", BTHomeObjectHandler, sensor.Sensor, cg.Component
+)
+BTHomeBinarySensor = bthome_ns.class_(
+    "BTHomeBinarySensor",
+    BTHomeObjectHandler,
+    binary_sensor.BinarySensor,
+    cg.Component,
 )
 
 

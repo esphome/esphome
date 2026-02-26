@@ -1,10 +1,17 @@
 from dataclasses import dataclass
+from enum import Enum, auto
 
 from esphome import const
 import esphome.codegen as cg
 
 bthome_ns = cg.esphome_ns.namespace("bthome")
 bthome_object_types = bthome_ns.enum("BTHomeObjectType", True)
+
+
+class OTKind(Enum):
+    SENSOR = auto()
+    BINARY_SENSOR = auto()
+    TEXT_SENSOR = auto()
 
 
 @dataclass
@@ -15,6 +22,7 @@ class OT:
     unit: str = const.UNIT_EMPTY
     device_class: str | None = None
     state_class: str = const.STATE_CLASS_MEASUREMENT
+    kind: OTKind = OTKind.SENSOR
 
 
 _TI = const.STATE_CLASS_TOTAL_INCREASING
@@ -44,9 +52,11 @@ BTHOME_OBJECT_TYPES: dict[str, OT] = {
     "PM10_UGM3": OT(
         0x0E, const.UNIT_MICROGRAMS_PER_CUBIC_METER, const.DEVICE_CLASS_PM10
     ),
-    "GENERIC_BOOLEAN": OT(0x0F),
-    "POWER_ON": OT(0x10),
-    "OPENING_OPEN": OT(0x11),
+    "GENERIC_BOOLEAN": OT(0x0F, kind=OTKind.BINARY_SENSOR),
+    "POWER_ON": OT(0x10, kind=OTKind.BINARY_SENSOR),
+    "OPENING_OPEN": OT(
+        0x11, device_class=const.DEVICE_CLASS_OPENING, kind=OTKind.BINARY_SENSOR
+    ),
     "CO2_PPM": OT(
         0x12, const.UNIT_PARTS_PER_MILLION, const.DEVICE_CLASS_CARBON_DIOXIDE
     ),
@@ -56,31 +66,85 @@ BTHOME_OBJECT_TYPES: dict[str, OT] = {
         const.DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     ),
     "MOISTURE_PCT_E2": OT(0x14, const.UNIT_PERCENT, const.DEVICE_CLASS_MOISTURE),
-    "BATTERY_LOW": OT(0x15),
-    "BATTERY_CHARGING": OT(0x16),
-    "CO_DETECTED": OT(0x17),
-    "COLD_DETECTED": OT(0x18),
-    "CONNECTIVITY_CONNECTED": OT(0x19),
-    "DOOR_OPEN": OT(0x1A),
-    "GARAGE_DOOR_OPEN": OT(0x1B),
-    "GAS_DETECTED": OT(0x1C),
-    "HEAT_DETECTED": OT(0x1D),
-    "LIGHT_DETECTED": OT(0x1E),
-    "LOCK_UNLOCKED": OT(0x1F),
-    "MOISTURE_WET": OT(0x20),
-    "MOTION_DETECTED": OT(0x21),
-    "MOVING_ACTIVE": OT(0x22),
-    "OCCUPANCY_DETECTED": OT(0x23),
-    "PLUG_PLUGGED_IN": OT(0x24),
-    "PRESENCE_HOME": OT(0x25),
-    "PROBLEM_DETECTED": OT(0x26),
-    "RUNNING_ACTIVE": OT(0x27),
-    "SAFETY_SAFE": OT(0x28),
-    "SMOKE_DETECTED": OT(0x29),
-    "SOUND_DETECTED": OT(0x2A),
-    "TAMPER_ACTIVE": OT(0x2B),
-    "VIBRATION_DETECTED": OT(0x2C),
-    "WINDOW_OPEN": OT(0x2D),
+    "BATTERY_LOW": OT(
+        0x15, device_class=const.DEVICE_CLASS_BATTERY, kind=OTKind.BINARY_SENSOR
+    ),
+    "BATTERY_CHARGING": OT(
+        0x16,
+        device_class=const.DEVICE_CLASS_BATTERY_CHARGING,
+        kind=OTKind.BINARY_SENSOR,
+    ),
+    "CO_DETECTED": OT(
+        0x17,
+        device_class=const.DEVICE_CLASS_CARBON_MONOXIDE,
+        kind=OTKind.BINARY_SENSOR,
+    ),
+    "COLD_DETECTED": OT(
+        0x18, device_class=const.DEVICE_CLASS_COLD, kind=OTKind.BINARY_SENSOR
+    ),
+    "CONNECTIVITY_CONNECTED": OT(
+        0x19, device_class=const.DEVICE_CLASS_CONNECTIVITY, kind=OTKind.BINARY_SENSOR
+    ),
+    "DOOR_OPEN": OT(
+        0x1A, device_class=const.DEVICE_CLASS_DOOR, kind=OTKind.BINARY_SENSOR
+    ),
+    "GARAGE_DOOR_OPEN": OT(
+        0x1B, device_class=const.DEVICE_CLASS_OPENING, kind=OTKind.BINARY_SENSOR
+    ),
+    "GAS_DETECTED": OT(
+        0x1C, device_class=const.DEVICE_CLASS_GAS, kind=OTKind.BINARY_SENSOR
+    ),
+    "HEAT_DETECTED": OT(
+        0x1D, device_class=const.DEVICE_CLASS_HEAT, kind=OTKind.BINARY_SENSOR
+    ),
+    "LIGHT_DETECTED": OT(
+        0x1E, device_class=const.DEVICE_CLASS_LIGHT, kind=OTKind.BINARY_SENSOR
+    ),
+    "LOCK_UNLOCKED": OT(
+        0x1F, device_class=const.DEVICE_CLASS_LOCK, kind=OTKind.BINARY_SENSOR
+    ),
+    "MOISTURE_WET": OT(
+        0x20, device_class=const.DEVICE_CLASS_MOISTURE, kind=OTKind.BINARY_SENSOR
+    ),
+    "MOTION_DETECTED": OT(
+        0x21, device_class=const.DEVICE_CLASS_MOTION, kind=OTKind.BINARY_SENSOR
+    ),
+    "MOVING_ACTIVE": OT(
+        0x22, device_class=const.DEVICE_CLASS_MOVING, kind=OTKind.BINARY_SENSOR
+    ),
+    "OCCUPANCY_DETECTED": OT(
+        0x23, device_class=const.DEVICE_CLASS_OCCUPANCY, kind=OTKind.BINARY_SENSOR
+    ),
+    "PLUG_PLUGGED_IN": OT(
+        0x24, device_class=const.DEVICE_CLASS_PLUG, kind=OTKind.BINARY_SENSOR
+    ),
+    "PRESENCE_HOME": OT(
+        0x25, device_class=const.DEVICE_CLASS_PRESENCE, kind=OTKind.BINARY_SENSOR
+    ),
+    "PROBLEM_DETECTED": OT(
+        0x26, device_class=const.DEVICE_CLASS_PROBLEM, kind=OTKind.BINARY_SENSOR
+    ),
+    "RUNNING_ACTIVE": OT(
+        0x27, device_class=const.DEVICE_CLASS_RUNNING, kind=OTKind.BINARY_SENSOR
+    ),
+    "SAFETY_SAFE": OT(
+        0x28, device_class=const.DEVICE_CLASS_SAFETY, kind=OTKind.BINARY_SENSOR
+    ),
+    "SMOKE_DETECTED": OT(
+        0x29, device_class=const.DEVICE_CLASS_SMOKE, kind=OTKind.BINARY_SENSOR
+    ),
+    "SOUND_DETECTED": OT(
+        0x2A, device_class=const.DEVICE_CLASS_SOUND, kind=OTKind.BINARY_SENSOR
+    ),
+    "TAMPER_ACTIVE": OT(
+        0x2B, device_class=const.DEVICE_CLASS_TAMPER, kind=OTKind.BINARY_SENSOR
+    ),
+    "VIBRATION_DETECTED": OT(
+        0x2C, device_class=const.DEVICE_CLASS_VIBRATION, kind=OTKind.BINARY_SENSOR
+    ),
+    "WINDOW_OPEN": OT(
+        0x2D, device_class=const.DEVICE_CLASS_WINDOW, kind=OTKind.BINARY_SENSOR
+    ),
     "HUMIDITY_PCT_U8": OT(0x2E, const.UNIT_PERCENT, const.DEVICE_CLASS_HUMIDITY),
     "MOISTURE_PCT_U8": OT(0x2F, const.UNIT_PERCENT, const.DEVICE_CLASS_MOISTURE),
     "COUNT_U16": OT(0x3D),
@@ -113,8 +177,8 @@ BTHOME_OBJECT_TYPES: dict[str, OT] = {
     "TIMESTAMP": OT(0x50, device_class=const.DEVICE_CLASS_TIMESTAMP),
     "ACCELERATION_MSS_E3": OT(0x51, const.UNIT_METER_PER_SECOND_SQUARED),
     "GYROSCOPE_DEGS_E3": OT(0x52, const.UNIT_DEGREE_PER_SECOND),
-    "TEXT": OT(0x53),
-    "RAW": OT(0x54),
+    "TEXT": OT(0x53, kind=OTKind.TEXT_SENSOR),
+    "RAW": OT(0x54, kind=OTKind.TEXT_SENSOR),
     "VOLUME_STORAGE_L_E3": OT(
         0x55, const.UNIT_LITRE, const.DEVICE_CLASS_VOLUME_STORAGE
     ),
