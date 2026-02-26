@@ -594,7 +594,7 @@ async def set_indicator_values(indicator: Widget, config):
         if end_value is not None:
             lv.arc_set_end_angle(
                 indicator.obj,
-                lv_expr.get_needle_angle_for_value(indicator.obj, start_value),
+                lv_expr.get_needle_angle_for_value(indicator.obj, end_value),
             )
 
     if start_value is None:

@@ -20,7 +20,7 @@ from ..defines import (
     literal,
 )
 from ..helpers import add_lv_use
-from ..lv_validation import lv_bool, lv_color, lv_image, lv_text, pixels_or_percent
+from ..lv_validation import lv_bool, lv_image, lv_text, pixels_or_percent
 from ..lvcode import EVENT_ARG, LambdaContext, LocalVariable, lv, lv_expr, lv_obj
 from ..schemas import (
     STYLE_SCHEMA,
@@ -152,7 +152,6 @@ async def msgbox_to_code(top_layer, conf):
 
     async with LambdaContext(EVENT_ARG, where=messagebox_id) as close_action:
         outer_widget.add_flag(LV_OBJ_FLAG.HIDDEN)
-        outer_widget.set_style("bg_color", await lv_color.process("red"))
     if close_button:
         with LocalVariable(
             "close_btn_", lv_obj_t, lv_expr.msgbox_add_close_button(msgbox)

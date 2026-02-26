@@ -678,7 +678,7 @@ def _final_validate(config):
     :return:
     """
     fv = full_config.get()
-    if "lvgl" in fv and not all(x.get(CONF_BYTE_ORDER) in x for x in config):
+    if "lvgl" in fv and not all(CONF_BYTE_ORDER in x for x in config):
         config = config.copy()
         for c in config:
             if not c.get(CONF_BYTE_ORDER):
