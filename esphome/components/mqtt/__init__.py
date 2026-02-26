@@ -223,7 +223,7 @@ def validate_config(value):
         and value.get(CONF_VERIFY_SSL, True) is False
     ):
         raise cv.Invalid(
-            "Invalid MQTT configuration: cannot set 'verify_ssl' to false when 'certificate_authority' is set."
+            "cannot set 'verify_ssl' to false when 'certificate_authority' is set."
         )
     # Enable SSL if any of the SSL-related options are set
     ssl_related_options = [
@@ -236,6 +236,8 @@ def validate_config(value):
         (opt in value) if opt == CONF_VERIFY_SSL else (opt in value and value[opt])
         for opt in ssl_related_options
     ):
+        if CONF_TLS in value and value[CONF_TLS] is False:
+            raise cv.Invalid("'tls' must be enabled when using SSL-related options.")
         out[CONF_TLS] = True
     return out
 
@@ -464,6 +466,10 @@ async def to_code(config):
         cg.add(var.set_ssl(config[CONF_TLS]))
         cg.add(var.set_verify_ssl(config.get(CONF_VERIFY_SSL, True)))
 
+        if CONF_CLIENT_CERTIFICATE in config:
+            cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
+            cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
+
         if config.get(CONF_VERIFY_SSL, True):
             if CONF_CERTIFICATE_AUTHORITY in config:
                 cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
@@ -476,10 +482,6 @@ async def to_code(config):
                 # By default, ESPHome uses the CMN (common CAs) bundle which covers
                 # ~99% of websites including GitHub, Let's Encrypt, DigiCert, etc.
                 add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
-
-            if CONF_CLIENT_CERTIFICATE in config:
-                cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
-                cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
         else:
             add_idf_sdkconfig_option(
                 "CONFIG_ESP_TLS_INSECURE",
