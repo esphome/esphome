@@ -616,8 +616,9 @@ void Application::unregister_socket_fd(int fd) {
       continue;
 
     // Swap with last element and pop - O(1) removal since order doesn't matter.
-    // No need to unhook the netconn callback on ESP32 — all LwIP sockets share
-    // the same static event_callback, and the socket will be closed by the caller.
+    // No need to unhook the netconn callback on fast select platforms — all LwIP
+    // sockets share the same static event_callback, and the socket will be closed
+    // by the caller.
     if (i < this->socket_fds_.size() - 1)
       this->socket_fds_[i] = this->socket_fds_.back();
     this->socket_fds_.pop_back();

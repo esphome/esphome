@@ -5,7 +5,8 @@
 // 1. lwip/priv/sockets_priv.h conflicts with C++ compilation units
 // 2. The netconn callback is a C function pointer
 //
-// defines.h is force-included by the build system (-include flag), providing USE_LWIP_FAST_SELECT etc.
+// USE_ESP32 and USE_LIBRETINY platform flags (-D) control compilation of this file.
+// See the guard at the bottom of the header comment for details.
 //
 // Thread safety analysis
 // ======================
@@ -104,9 +105,9 @@
 //     critical sections). Multiple concurrent xTaskNotifyGive calls are safe —
 //     the notification count simply increments.
 
-// USE_ESP32 and USE_LIBRETINY are build flags (-D), always available to .c files.
-// USE_LWIP_FAST_SELECT is in the generated defines.h (force-included for .cpp but
-// may not reach .c files on all build systems), so we use platform flags here.
+// USE_ESP32 and USE_LIBRETINY are compiler -D flags, so they are always visible in this .c file.
+// Feature macros like USE_LWIP_FAST_SELECT may come from generated headers that are not included here,
+// so this implementation is enabled based on platform flags instead of USE_LWIP_FAST_SELECT.
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
 
 // LwIP headers must come first — they define netconn_callback, struct lwip_sock, etc.
