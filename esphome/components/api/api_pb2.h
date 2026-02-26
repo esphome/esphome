@@ -2,7 +2,6 @@
 // See script/api_protobuf/api_protobuf.py
 #pragma once
 
-#include "esphome/core/defines.h"
 #include "esphome/core/string_ref.h"
 
 #include "proto.h"
