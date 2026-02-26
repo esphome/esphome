@@ -294,9 +294,6 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
 
 #ifdef USE_LVGL_METER
 
-void lv_image_set_needle_value(lv_obj_t *obj, int value);
-void lv_arc_set_needle_value(lv_obj_t *obj, int value);
-
 class IndicatorLine : public LvCompound {
  public:
   IndicatorLine() = default;

@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.image import DOMAIN as IMAGE_DOMAIN
+from esphome.components.image import get_image_metadata
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR,
@@ -17,7 +17,6 @@ from esphome.const import (
     CONF_WIDTH,
     CONF_X,
 )
-from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import nullptr
 
@@ -513,18 +512,16 @@ class MeterType(WidgetType):
                     lw = await widget_to_code(props, line_indicator_type, scale_var)
                     await set_indicator_values(lw, v)
 
-                # Note: Image indicators (needles) are not directly supported by scale widget
-                # They would need to be implemented as separate image objects positioned over the scale
                 if t == CONF_IMAGE:
                     add_lv_use(CONF_IMAGE)
                     src = v[CONF_SRC]
-                    src_data = CORE.data[IMAGE_DOMAIN][str(src)]
+                    src_data = get_image_metadata(src.id)
                     pivot_x = await pixels.process(v[CONF_PIVOT_X])
                     pivot_y = await pixels.process(
-                        v.get(CONF_PIVOT_Y, src_data[CONF_HEIGHT] // 2)
+                        v.get(CONF_PIVOT_Y, src_data.height // 2)
                     )
                     props = {
-                        CONF_X: src_data[CONF_WIDTH] // 2 - pivot_x,
+                        CONF_X: src_data.width // 2 - pivot_x,
                         "transform_pivot_x": pivot_x,
                         "transform_pivot_y": pivot_y,
                         CONF_SRC: src,
@@ -533,6 +530,7 @@ class MeterType(WidgetType):
                         CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
                     }
                     iw = await widget_to_code(props, image_indicator_type, scale_var)
+                    await iw.set_property(CONF_SRC, await lv_image.process(src))
                     await set_indicator_values(iw, v)
 
         # Add a pivot
@@ -590,11 +588,13 @@ async def set_indicator_values(indicator: Widget, config):
     if indicator.type is arc_indicator_type:
         if start_value is not None:
             lv.arc_set_start_angle(
-                indicator.obj, lv.get_needle_angle_for_value(indicator.obj, start_value)
+                indicator.obj,
+                lv_expr.get_needle_angle_for_value(indicator.obj, start_value),
             )
         if end_value is not None:
             lv.arc_set_end_angle(
-                indicator.obj, lv.get_needle_angle_for_value(indicator.obj, start_value)
+                indicator.obj,
+                lv_expr.get_needle_angle_for_value(indicator.obj, start_value),
             )
 
     if start_value is None:
@@ -605,7 +605,6 @@ async def set_indicator_values(indicator: Widget, config):
         return
     if indicator.type is image_indicator_type:
         # Needle represented by an image
-        lv.image_set_needle_value(indicator.obj, start_value)
         lv_obj.set_style_transform_rotation(
             indicator.obj,
             lv.get_needle_angle_for_value(indicator.obj, start_value) * 10,
