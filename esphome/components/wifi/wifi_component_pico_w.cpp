@@ -24,8 +24,11 @@ static bool s_sta_had_ip = false;         // NOLINT(cppcoreguidelines-avoid-non-
 static size_t s_scan_result_count = 0;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
-  // STA mode is enabled by WiFi.beginNoBlock() via cyw43_arch_enable_sta_mode(),
-  // so we don't need to call cyw43_wifi_set_up() directly for STA.
+  if (sta.has_value() && sta.value()) {
+    // Enable STA mode so scanning works before the first beginNoBlock() call.
+    // Without this, cyw43_wifi_scan() fails because the radio isn't initialized.
+    cyw43_arch_enable_sta_mode();
+  }
 
   bool ap_state = false;
   if (ap.has_value()) {
