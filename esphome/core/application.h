@@ -118,6 +118,7 @@ static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for qu
 
 class Application {
  public:
+  ~Application() = delete;
   void pre_setup(const std::string &name, const std::string &friendly_name, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
@@ -697,7 +698,7 @@ class Application {
 };
 
 /// Global storage of Application pointer - only one Application can exist.
-extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+extern Application &App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
 // Inline implementations for hot-path functions
