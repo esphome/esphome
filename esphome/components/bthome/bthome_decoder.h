@@ -100,6 +100,11 @@ enum class BTHomeObjectType : uint8_t {
 
 };
 
+// Free functions for object type metadata (used by both decoder and encoder)
+size_t get_bthome_value_length(BTHomeObjectType obj_type);
+float bthome_scaling_factor(BTHomeObjectType type);
+bool bthome_is_signed(BTHomeObjectType type);
+
 struct BTHomeObject {
   BTHomeObjectType type = BTHomeObjectType::PACKET_ID;
   const uint8_t *data = nullptr;

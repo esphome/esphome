@@ -7,7 +7,7 @@ namespace bthome {
 
 static const char *const TAG = "bthome";
 
-static size_t get_bthome_value_length(BTHomeObjectType obj_type) {
+size_t get_bthome_value_length(BTHomeObjectType obj_type) {
   switch (obj_type) {
     // 1 Byte (uint8 / sint8)
     case BTHomeObjectType::PACKET_ID:
@@ -130,7 +130,7 @@ static int16_t read_sint16_le(const uint8_t *data) { return (int16_t) read_uint1
 
 static int32_t read_sint32_le(const uint8_t *data) { return (int32_t) read_uint32_le(data); }
 
-float BTHomeObject::scaling_factor() const {
+float bthome_scaling_factor(BTHomeObjectType type) {
   switch (type) {
     // 0.000001f scaling
     case BTHomeObjectType::SPEED_MS_I32_E6:
@@ -188,7 +188,7 @@ float BTHomeObject::scaling_factor() const {
   }
 }
 
-bool BTHomeObject::is_signed() const {
+bool bthome_is_signed(BTHomeObjectType type) {
   switch (type) {
     case BTHomeObjectType::ACCELERATION_MSS_I32_E6:
     case BTHomeObjectType::SPEED_MS_I32_E6:
@@ -208,6 +208,10 @@ bool BTHomeObject::is_signed() const {
       return false;
   }
 }
+
+float BTHomeObject::scaling_factor() const { return bthome_scaling_factor(this->type); }
+
+bool BTHomeObject::is_signed() const { return bthome_is_signed(this->type); }
 
 uint32_t BTHomeObject::as_uint() const {
   switch (length) {
