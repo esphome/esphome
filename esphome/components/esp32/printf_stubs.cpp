@@ -38,12 +38,16 @@ static int write_printf_buffer_(FILE *stream, char *buf, int len) {
   if (len < 0) {
     return len;
   }
-  if (static_cast<size_t>(len) >= PRINTF_BUFFER_SIZE) {
-    // Output was truncated — this should not happen in normal operation.
-    // Abort to make the issue visible rather than silently losing output.
+  size_t write_len = len;
+  if (write_len >= PRINTF_BUFFER_SIZE) {
+    // Output was truncated — flush what we have before aborting
+    // so the user sees context leading up to the overflow.
+    fwrite(buf, 1, PRINTF_BUFFER_SIZE - 1, stream);
     esp_system_abort("printf buffer overflow; set enable_full_printf: true in esp32 advanced config");
   }
-  fwrite(buf, 1, len, stream);
+  if (fwrite(buf, 1, write_len, stream) < write_len || ferror(stream)) {
+    return -1;
+  }
   return len;
 }
 
