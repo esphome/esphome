@@ -890,10 +890,10 @@ def final_validate(config):
                 )
             )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if config[CONF_VARIANT] != VARIANT_ESP32S3:
+        if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
             errs.append(
                 cv.Invalid(
-                    f"'{CONF_EXECUTE_FROM_PSRAM}' is only supported on {VARIANT_ESP32S3} variant",
+                    f"'{CONF_EXECUTE_FROM_PSRAM}' is not available on this esp32 variant",
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
@@ -1627,8 +1627,13 @@ async def to_code(config):
     _configure_lwip_max_sockets(conf)
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
+        if variant == VARIANT_ESP32S3:
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
+        elif variant == VARIANT_ESP32P4:
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
+        else:
+            raise ValueError("Unhandled ESP32 variant")
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides
