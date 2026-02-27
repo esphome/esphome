@@ -11,10 +11,15 @@ DEPENDENCIES = ["pn532"]
 
 def validate_uid(value):
     value = cv.string_strict(value)
-    for x in value.split("-"):
+    sep = "-"
+    if ":" in value:
+        sep = ":"
+    
+    parts = value.split(sep)
+    for x in parts:
         if len(x) != 2:
             raise cv.Invalid(
-                "Each part (separated by '-') of the UID must be two characters long."
+                f"Each part (separated by '{sep}') of the UID must be two characters long."
             )
         try:
             x = int(x, 16)
@@ -24,9 +29,9 @@ def validate_uid(value):
             ) from err
         if x < 0 or x > 255:
             raise cv.Invalid(
-                "Valid values for UID parts (separated by '-') are 00 to FF"
+                f"Valid values for UID parts (separated by '{sep}') are 00 to FF"
             )
-    return value
+    return "-".join(parts)
 
 
 PN532BinarySensor = pn532_ns.class_("PN532BinarySensor", binary_sensor.BinarySensor)

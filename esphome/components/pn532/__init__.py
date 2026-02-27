@@ -53,9 +53,7 @@ PN532_SCHEMA = cv.Schema(
             }
         ),
         cv.Optional(CONF_HEALTH_CHECK_ENABLED, default=True): cv.boolean,
-        cv.Optional(
-            CONF_HEALTH_CHECK_INTERVAL, default="60s"
-        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_HEALTH_CHECK_INTERVAL, default="60s"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_MAX_FAILED_CHECKS, default=3): cv.positive_int,
         cv.Optional(CONF_AUTO_RESET_ON_FAILURE, default=True): cv.boolean,
         cv.Optional(CONF_RF_FIELD_ENABLED, default=False): cv.boolean,
@@ -76,6 +74,8 @@ async def setup_pn532(var, config):
 
     cg.add(var.set_max_failed_checks(config[CONF_MAX_FAILED_CHECKS]))
     cg.add(var.set_auto_reset(config[CONF_AUTO_RESET_ON_FAILURE]))
+    cg.add(var.set_health_check_enabled(config[CONF_HEALTH_CHECK_ENABLED]))
+    cg.add(var.set_health_check_interval(config[CONF_HEALTH_CHECK_INTERVAL]))
     cg.add(var.set_rf_field_enabled(config[CONF_RF_FIELD_ENABLED]))
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])

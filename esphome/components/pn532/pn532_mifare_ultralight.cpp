@@ -8,42 +8,46 @@ namespace pn532 {
 
 static const char *const TAG = "pn532.mifare_ultralight";
 
-std::unique_ptr<nfc::NfcTag> PN532::read_mifare_ultralight_tag_(nfc::NfcTagUid &uid) {
+std::unique_ptr<nfc::NfcTag> PN532::read_mifare_ultralight_tag_(std::vector<uint8_t> &uid) {
   std::vector<uint8_t> data;
+
+  NfcTagUid nfc_uid;
+  nfc_uid.assign(uid.begin(), uid.end());
+
   // pages 3 to 6 contain various info we are interested in -- do one read to grab it all
   if (!this->read_mifare_ultralight_bytes_(3, nfc::MIFARE_ULTRALIGHT_PAGE_SIZE * nfc::MIFARE_ULTRALIGHT_READ_SIZE,
                                            data)) {
-    return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
+    return make_unique<nfc::NfcTag>(nfc_uid, nfc::NFC_FORUM_TYPE_2);
   }
 
   if (!this->is_mifare_ultralight_formatted_(data)) {
     ESP_LOGW(TAG, "Not NDEF formatted");
-    return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
+    return make_unique<nfc::NfcTag>(nfc_uid, nfc::NFC_FORUM_TYPE_2);
   }
 
   uint8_t message_length;
   uint8_t message_start_index;
   if (!this->find_mifare_ultralight_ndef_(data, message_length, message_start_index)) {
     ESP_LOGW(TAG, "Couldn't find NDEF message");
-    return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
+    return make_unique<nfc::NfcTag>(nfc_uid, nfc::NFC_FORUM_TYPE_2);
   }
   ESP_LOGVV(TAG, "NDEF message length: %u, start: %u", message_length, message_start_index);
 
   if (message_length == 0) {
-    return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
+    return make_unique<nfc::NfcTag>(nfc_uid, nfc::NFC_FORUM_TYPE_2);
   }
   // we already read pages 3-6 earlier -- pick up where we left off so we're not re-reading pages
   const uint8_t read_length = message_length + message_start_index > 12 ? message_length + message_start_index - 12 : 0;
   if (read_length) {
     if (!read_mifare_ultralight_bytes_(nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE + 3, read_length, data)) {
       ESP_LOGE(TAG, "Error reading tag data");
-      return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
+      return make_unique<nfc::NfcTag>(nfc_uid, nfc::NFC_FORUM_TYPE_2);
     }
   }
   // we need to trim off page 3 as well as any bytes ahead of message_start_index
   data.erase(data.begin(), data.begin() + message_start_index + nfc::MIFARE_ULTRALIGHT_PAGE_SIZE);
 
-  return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2, data);
+  return make_unique<nfc::NfcTag>(nfc_uid, nfc::NFC_FORUM_TYPE_2, data);
 }
 
 bool PN532::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, std::vector<uint8_t> &data) {
@@ -71,8 +75,7 @@ bool PN532::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes
     }
   }
 
-  char data_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
-  ESP_LOGVV(TAG, "Data read: %s", nfc::format_bytes_to(data_buf, data));
+  ESP_LOGVV(TAG, "Data read: %s", nfc::format_bytes(data).c_str());
 
   return true;
 }
@@ -114,7 +117,7 @@ bool PN532::find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6
   return false;
 }
 
-bool PN532::write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message) {
+bool PN532::write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
   uint32_t capacity = this->read_mifare_ultralight_capacity_();
 
   auto encoded = message->encode();
