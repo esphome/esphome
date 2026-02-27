@@ -70,6 +70,13 @@ select:
       0: Internal
       1: Floor
       2: Both
+  - platform: tuya
+    id: tuya_select_string
+    string_datapoint: 44
+    options:
+      - "auto"
+      - "manual"
+      - "eco"
 
 sensor:
   - platform: tuya

@@ -21,6 +21,15 @@ void TuyaFan::setup() {
         ESP_LOGV(TAG, "MCU reported speed of: %d", datapoint.value_int);
         this->speed = datapoint.value_int;
         this->publish_state();
+      } else if (datapoint.type == TuyaDatapointType::STRING) {
+        char *endptr;
+        this->speed = strtol(datapoint.value_string.c_str(), &endptr, 10);
+        if (*endptr != '\0') {
+          ESP_LOGE(TAG, "Speed has invalid value '%s'", datapoint.value_string.c_str());
+        } else {
+          ESP_LOGV(TAG, "MCU reported speed of: %d '%s'", this->speed, datapoint.value_string.c_str());
+          this->publish_state();
+        }
       }
       this->speed_type_ = datapoint.type;
     });
@@ -95,10 +104,13 @@ void TuyaFan::control(const fan::FanCall &call) {
     this->parent_->set_enum_datapoint_value(*this->direction_id_, enable);
   }
   if (this->speed_id_.has_value() && call.get_speed().has_value()) {
+    int speed = *call.get_speed();
     if (this->speed_type_ == TuyaDatapointType::ENUM) {
-      this->parent_->set_enum_datapoint_value(*this->speed_id_, *call.get_speed() - 1);
+      this->parent_->set_enum_datapoint_value(*this->speed_id_, speed - 1);
     } else if (this->speed_type_ == TuyaDatapointType::INTEGER) {
-      this->parent_->set_integer_datapoint_value(*this->speed_id_, *call.get_speed());
+      this->parent_->set_integer_datapoint_value(*this->speed_id_, speed);
+    } else if (this->speed_type_ == TuyaDatapointType::STRING) {
+      this->parent_->set_string_datapoint_value(*this->speed_id_, to_string(speed));
     }
   }
 }
