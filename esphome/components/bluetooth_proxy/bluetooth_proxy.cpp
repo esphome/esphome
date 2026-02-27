@@ -217,7 +217,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
         this->log_connection_info_(connection, "v3 without cache");
       }
-      uint64_to_bd_addr(msg.address, connection->remote_bda_);
+      esp32_ble::uint64_to_ble_addr(msg.address, connection->remote_bda_);
       connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
       connection->set_state(espbt::ClientState::DISCOVERED);
       this->send_connections_free();
@@ -255,14 +255,14 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR: {
       esp_bd_addr_t address;
-      uint64_to_bd_addr(msg.address, address);
+      esp32_ble::uint64_to_ble_addr(msg.address, address);
       esp_err_t ret = esp_ble_remove_bond_device(address);
       this->send_device_pairing(msg.address, ret == ESP_OK, ret);
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE: {
       esp_bd_addr_t address;
-      uint64_to_bd_addr(msg.address, address);
+      esp32_ble::uint64_to_ble_addr(msg.address, address);
       esp_err_t ret = esp_ble_gattc_cache_clean(address);
       api::BluetoothDeviceClearCacheResponse call;
       call.address = msg.address;

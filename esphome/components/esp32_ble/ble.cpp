@@ -738,6 +738,15 @@ uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
   return u;
 }
 
+void uint64_to_ble_addr(uint64_t address, esp_bd_addr_t bd_addr) {
+  bd_addr[0] = (address >> 40) & 0xff;
+  bd_addr[1] = (address >> 32) & 0xff;
+  bd_addr[2] = (address >> 24) & 0xff;
+  bd_addr[3] = (address >> 16) & 0xff;
+  bd_addr[4] = (address >> 8) & 0xff;
+  bd_addr[5] = (address >> 0) & 0xff;
+}
+
 ESP32BLE *global_ble = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::esp32_ble
