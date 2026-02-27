@@ -203,10 +203,8 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
 
   App.feed_wdt();
   while (code != 200 && code != 206 && tries <= this->tft_upload_http_retries_) {
-    ESP_LOGW(TAG, "HTTP fail: URL: %s; Error: %s, retry %d/%u",
-              this->tft_url_.c_str(),
-              HTTPClient::errorToString(code).c_str(), tries,
-              this->tft_upload_http_retries_);
+    ESP_LOGW(TAG, "HTTP fail: URL: %s; Error: %s, retry %d/%u", this->tft_url_.c_str(),
+             HTTPClient::errorToString(code).c_str(), tries, this->tft_upload_http_retries_);
 
     delay(250);  // NOLINT
     App.feed_wdt();

@@ -118,9 +118,9 @@ CONFIG_SCHEMA = (
                 ),
             ),
             cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
-            cv.Optional(
-                CONF_TFT_UPLOAD_HTTP_RETRIES, default=5
-            ): cv.int_range(min=0, max=20),
+            cv.Optional(CONF_TFT_UPLOAD_HTTP_RETRIES, default=5): cv.int_range(
+                min=0, max=20
+            ),
             cv.Optional(
                 CONF_TFT_UPLOAD_HTTP_TIMEOUT, default="15s"
             ): cv.positive_time_period_milliseconds,
@@ -197,19 +197,13 @@ async def to_code(config):
         )
 
         # TFT upload HTTP retries
-        cg.add(
-            var.set_tft_upload_http_retries(
-                config[CONF_TFT_UPLOAD_HTTP_RETRIES]
-            )
-        )
+        cg.add(var.set_tft_upload_http_retries(config[CONF_TFT_UPLOAD_HTTP_RETRIES]))
 
         # TFT upload watchdog timeout (optional, 0 = no adjustment)
         if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config:
             cg.add(
                 var.set_tft_upload_watchdog_timeout(
-                    config[
-                        CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT
-                    ].total_milliseconds
+                    config[CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT].total_milliseconds
                 )
             )
 
