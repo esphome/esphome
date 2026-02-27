@@ -79,18 +79,7 @@ void SEN6XComponent::setup() {
         this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
-      this->serial_number_.clear();
-      this->serial_number_.reserve(32);
-      for (const uint16_t word : raw_serial_number) {
-        const char c1 = static_cast<char>(word >> 8);
-        const char c2 = static_cast<char>(word & 0xFF);
-        if (c1 == '\0')
-          break;
-        this->serial_number_.push_back(c1);
-        if (c2 == '\0')
-          break;
-        this->serial_number_.push_back(c2);
-      }
+      this->serial_number_ = SEN6XComponent::sensirion_convert_to_string_in_place(raw_serial_number, 16);
       ESP_LOGI(TAG, "Serial number: %s", this->serial_number_.c_str());
 
       // Step 2: Read product name in next loop iteration
@@ -102,17 +91,7 @@ void SEN6XComponent::setup() {
           return;
         }
 
-        this->product_name_.clear();
-        for (const uint16_t word : raw_product_name) {
-          const char c1 = static_cast<char>(word >> 8);
-          const char c2 = static_cast<char>(word & 0xFF);
-          if (c1 == '\0')
-            break;
-          this->product_name_.push_back(c1);
-          if (c2 == '\0')
-            break;
-          this->product_name_.push_back(c2);
-        }
+        this->product_name_ = SEN6XComponent::sensirion_convert_to_string_in_place(raw_product_name, 16);
 
         Sen6xType inferred_type = this->infer_type_from_product_name_(this->product_name_);
         if (this->sen6x_type_ == UNKNOWN) {
@@ -127,6 +106,28 @@ void SEN6XComponent::setup() {
           ESP_LOGW(TAG, "Configured type (used) mismatches product '%s'", this->product_name_.c_str());
         }
         ESP_LOGI(TAG, "Product: %s", this->product_name_.c_str());
+
+        // Validate configured sensors against detected type and disable unsupported ones
+        const bool has_voc_nox = (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 ||
+                                  this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C);
+        const bool has_co2 = (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C);
+        const bool has_hcho = (this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C);
+        if (this->voc_sensor_ && !has_voc_nox) {
+          ESP_LOGE(TAG, "VOC requires SEN65, SEN66, SEN68, or SEN69C");
+          this->voc_sensor_ = nullptr;
+        }
+        if (this->nox_sensor_ && !has_voc_nox) {
+          ESP_LOGE(TAG, "NOx requires SEN65, SEN66, SEN68, or SEN69C");
+          this->nox_sensor_ = nullptr;
+        }
+        if (this->co2_sensor_ && !has_co2) {
+          ESP_LOGE(TAG, "CO2 requires SEN63C, SEN66, or SEN69C");
+          this->co2_sensor_ = nullptr;
+        }
+        if (this->hcho_sensor_ && !has_hcho) {
+          ESP_LOGE(TAG, "Formaldehyde requires SEN68 or SEN69C");
+          this->hcho_sensor_ = nullptr;
+        }
 
         // Step 3: Read firmware version and start measurements in next loop iteration
         this->set_timeout(0, [this]() {
@@ -146,7 +147,7 @@ void SEN6XComponent::setup() {
             return;
           }
 
-          this->startup_stable_after_ = App.get_loop_component_start_time() + 60000;
+          this->set_timeout(60000, [this]() { this->startup_complete_ = true; });
           this->initialized_ = true;
           ESP_LOGD(TAG, "Initialized");
         });
@@ -322,8 +323,7 @@ void SEN6XComponent::update() {
           }
         }
 
-        const uint32_t now = App.get_loop_component_start_time();
-        if (now < this->startup_stable_after_) {
+        if (!this->startup_complete_) {
           ESP_LOGD(TAG, "Startup delay, ignoring values");
           this->status_clear_warning();
           return;

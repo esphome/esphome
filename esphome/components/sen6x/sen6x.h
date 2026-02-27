@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
-#include "esphome/core/application.h"
 
 namespace esphome::sen6x {
 
@@ -38,7 +37,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   std::string serial_number_;
   uint8_t firmware_version_major_{0};
   uint8_t firmware_version_minor_{0};
-  uint32_t startup_stable_after_{0};
+  bool startup_complete_{false};
 };
 
 }  // namespace esphome::sen6x
