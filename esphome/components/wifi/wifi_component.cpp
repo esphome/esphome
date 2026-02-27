@@ -448,7 +448,7 @@ bool WiFiComponent::needs_full_scan_results_() const {
 
 #ifdef USE_IMPROV_SERIAL
   // Improv serial needs results during provisioning (before connected)
-  if (improv_serial::global_improv_serial_component != nullptr && !this->is_connected()) {
+  if (improv_serial::global_improv_serial_component != nullptr && this->state_ != WIFI_COMPONENT_STATE_STA_CONNECTED) {
     return true;
   }
 #endif
