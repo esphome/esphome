@@ -1,5 +1,6 @@
 #ifdef USE_HOST
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
