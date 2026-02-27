@@ -96,7 +96,8 @@ async def to_code(config):
     )
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_CUSTOM_SDIO_PINS", True)
     esp32.add_idf_sdkconfig_option(
-        "CONFIG_ESP_HOSTED_SDIO_CLOCK_FREQ_KHZ", int(config[CONF_SDIO_FREQUENCY] // 1000)
+        "CONFIG_ESP_HOSTED_SDIO_CLOCK_FREQ_KHZ",
+        int(config[CONF_SDIO_FREQUENCY] // 1000),
     )
 
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
