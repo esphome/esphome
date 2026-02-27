@@ -40,6 +40,20 @@ sensor:
     # These are also the defaults — explicit here for documentation purposes.
     min_voltage: 3.0   # 0%  – discharge cutoff
     max_voltage: 4.2   # 100% – fully charged
+    # Hardware voltage-divider calibration:
+    #   Default is 2.0 (nominal 1:1 resistor divider on the PCB).
+    #   In practice the ADC reads low due to component tolerances or a
+    #   protection diode in the battery path.
+    #
+    #   How to calibrate:
+    #     1. Charge the battery to a known voltage, then disconnect USB.
+    #     2. Measure the actual battery voltage with a multimeter.
+    #     3. Note the value reported by this sensor (= adc_mv / 1000 * 2.0).
+    #     4. Compute: voltage_divider = <multimeter_V> / (<sensor_V> / 2.0)
+    #        Example: multimeter = 4.19 V, sensor reports 3.48 V (factor 2.0
+    #                 assumed), so ADC read ~1740 mV.
+    #                 voltage_divider = 4.19 / 1.74 ≈ 2.41
+    voltage_divider: 2.41
     battery_voltage:
       id: batt_voltage
       name: "Battery voltage"

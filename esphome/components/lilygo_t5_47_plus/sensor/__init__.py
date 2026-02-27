@@ -22,6 +22,7 @@ DEPENDENCIES = ["esp32", "psram"]
 
 CONF_MIN_VOLTAGE = "min_voltage"
 CONF_MAX_VOLTAGE = "max_voltage"
+CONF_VOLTAGE_DIVIDER = "voltage_divider"
 
 LilygoT547PlusBattery = lilygo_t5_47_plus_ns.class_(
     "LilygoT547PlusBattery",
@@ -53,6 +54,7 @@ _SENSOR_SCHEMA = cv.Schema(
         cv.Optional(CONF_BATTERY_LEVEL): BATTERY_LEVEL_SCHEMA,
         cv.Optional(CONF_MIN_VOLTAGE, default=3.0): cv.float_range(min=2.5, max=3.5),
         cv.Optional(CONF_MAX_VOLTAGE, default=4.2): cv.float_range(min=3.7, max=4.5),
+        cv.Optional(CONF_VOLTAGE_DIVIDER, default=2.0): cv.float_range(min=1.0, max=10.0),
     }
 ).extend(cv.polling_component_schema("60s"))
 
@@ -68,6 +70,7 @@ async def to_code(config):
 
     cg.add(var.set_min_voltage(config[CONF_MIN_VOLTAGE]))
     cg.add(var.set_max_voltage(config[CONF_MAX_VOLTAGE]))
+    cg.add(var.set_voltage_divider(config[CONF_VOLTAGE_DIVIDER]))
 
     if battery_voltage_config := config.get(CONF_BATTERY_VOLTAGE):
         sens = await sensor.new_sensor(battery_voltage_config)

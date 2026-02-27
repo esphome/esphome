@@ -42,6 +42,11 @@ sensor:
   - platform: lilygo_t5_47_plus
     id: battery_sensor
     update_interval: never        # Updated once on boot via on_boot trigger
+    # Hardware voltage-divider calibration:
+    #   Default is 2.0 (nominal 1:1 resistor divider on the PCB).
+    #   Calibrate: measure battery with multimeter → divide by (adc_mV / 1000).
+    #   Example: 4.19 V measured, ADC reads ~1740 mV → 4.19 / 1.74 ≈ 2.41
+    voltage_divider: 2.41
     battery_voltage:
       id: batt_voltage
       name: "Battery voltage"
