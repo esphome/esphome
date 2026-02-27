@@ -9,7 +9,7 @@ esp32_hosted:
   d1_pin: GPIO10
   d2_pin: GPIO9
   d3_pin: GPIO8
-  sdio_frequency: 10000
+  sdio_frequency: 8MHz
 
 wifi:
   ssid: MySSID
