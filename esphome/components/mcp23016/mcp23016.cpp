@@ -8,7 +8,6 @@ namespace mcp23016 {
 static const char *const TAG = "mcp23016";
 
 void MCP23016::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t iocon;
   if (!this->read_reg_(MCP23016_IOCON0, &iocon)) {
     this->mark_failed();
@@ -23,14 +22,29 @@ void MCP23016::setup() {
   this->write_reg_(MCP23016_IODIR0, 0xFF);
   this->write_reg_(MCP23016_IODIR1, 0xFF);
 }
-bool MCP23016::digital_read(uint8_t pin) {
-  uint8_t bit = pin % 8;
+
+void MCP23016::loop() {
+  // Invalidate cache at the start of each loop
+  this->reset_pin_cache_();
+}
+bool MCP23016::digital_read_hw(uint8_t pin) {
   uint8_t reg_addr = pin < 8 ? MCP23016_GP0 : MCP23016_GP1;
   uint8_t value = 0;
-  this->read_reg_(reg_addr, &value);
-  return value & (1 << bit);
+  if (!this->read_reg_(reg_addr, &value)) {
+    return false;
+  }
+
+  // Update the appropriate part of input_mask_
+  if (pin < 8) {
+    this->input_mask_ = (this->input_mask_ & 0xFF00) | value;
+  } else {
+    this->input_mask_ = (this->input_mask_ & 0x00FF) | (uint16_t(value) << 8);
+  }
+  return true;
 }
-void MCP23016::digital_write(uint8_t pin, bool value) {
+
+bool MCP23016::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
+void MCP23016::digital_write_hw(uint8_t pin, bool value) {
   uint8_t reg_addr = pin < 8 ? MCP23016_OLAT0 : MCP23016_OLAT1;
   this->update_reg_(pin, value, reg_addr);
 }
@@ -85,10 +99,8 @@ void MCP23016GPIOPin::setup() { pin_mode(flags_); }
 void MCP23016GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool MCP23016GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void MCP23016GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-std::string MCP23016GPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%u via MCP23016", pin_);
-  return buffer;
+size_t MCP23016GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return buf_append_printf(buffer, len, 0, "%u via MCP23016", this->pin_);
 }
 
 }  // namespace mcp23016

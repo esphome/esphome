@@ -9,7 +9,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, coroutine
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import add, get_variable
+from esphome.cpp_generator import LogStringLiteral, add, add_define, get_variable
 from esphome.cpp_types import App
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import Registry, RegistryEntry
@@ -49,6 +49,7 @@ async def register_component(var, config):
         )
     CORE.component_ids.remove(id_)
     if CONF_SETUP_PRIORITY in config:
+        add_define("USE_SETUP_PRIORITY_OVERRIDE")
         add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))
     if CONF_UPDATE_INTERVAL in config:
         add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
@@ -76,7 +77,7 @@ async def register_component(var, config):
             "Error while finding name of component, please report this", exc_info=e
         )
     if name is not None:
-        add(var.set_component_source(name))
+        add(var.set_component_source(LogStringLiteral(name)))
 
     add(App.register_component(var))
     return var
@@ -115,7 +116,7 @@ async def build_registry_list(registry, config):
 
 async def past_safe_mode():
     if CONF_SAFE_MODE not in CORE.config:
-        return
+        return None
 
     def _safe_mode_generator():
         while True:

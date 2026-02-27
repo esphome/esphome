@@ -11,8 +11,6 @@ void DPS310Component::setup() {
   uint8_t coef_data_raw[DPS310_NUM_COEF_REGS];
   auto timer = DPS310_INIT_TIMEOUT;
   uint8_t reg = 0;
-
-  ESP_LOGCONFIG(TAG, "Running setup");
   // first, reset the sensor
   if (!this->write_byte(DPS310_REG_RESET, DPS310_CMD_RESET)) {
     this->mark_failed();
@@ -99,8 +97,6 @@ void DPS310Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
 }
-
-float DPS310Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void DPS310Component::update() {
   if (!this->update_in_progress_) {

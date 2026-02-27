@@ -67,8 +67,6 @@ void MMC5983Component::update() {
 }
 
 void MMC5983Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // Verify product id.
   const uint8_t mmc5983_product_id = 0x30;
   uint8_t id;
@@ -134,8 +132,6 @@ void MMC5983Component::dump_config() {
   LOG_SENSOR("  ", "Y", this->y_sensor_);
   LOG_SENSOR("  ", "Z", this->z_sensor_);
 }
-
-float MMC5983Component::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace mmc5983
 }  // namespace esphome

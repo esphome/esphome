@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import audio, esp32, speaker
+from esphome.components import audio, esp32, socket, speaker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
@@ -61,7 +61,7 @@ def _set_stream_limits(config):
 def _validate_source_speaker(config):
     fconf = fv.full_config.get()
 
-    # Get ID for the output speaker and add it to the source speakrs config to easily inherit properties
+    # Get ID for the output speaker and add it to the source speakers config to easily inherit properties
     path = fconf.get_path_for_id(config[CONF_ID])[:-3]
     path.append(CONF_OUTPUT_SPEAKER)
     output_speaker_id = fconf.get_config_for_path(path)
@@ -93,9 +93,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_NUM_CHANNELS): cv.int_range(min=1, max=2),
             cv.Optional(CONF_QUEUE_MODE, default=False): cv.boolean,
-            cv.SplitDefault(CONF_TASK_STACK_IN_PSRAM, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
-            ),
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
         }
     ),
     cv.only_on([PLATFORM_ESP32]),
@@ -113,6 +111,9 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    # Enable wake_loop_threadsafe for immediate command processing from other tasks
+    socket.require_wake_loop_threadsafe()
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -124,11 +125,13 @@ async def to_code(config):
 
     if task_stack_in_psram := config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(task_stack_in_psram))
-        if task_stack_in_psram:
-            if config[CONF_TASK_STACK_IN_PSRAM]:
-                esp32.add_idf_sdkconfig_option(
-                    "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
-                )
+        if task_stack_in_psram and config[CONF_TASK_STACK_IN_PSRAM]:
+            esp32.add_idf_sdkconfig_option(
+                "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
+            )
+
+    # Initialize FixedVector with exact count of source speakers
+    cg.add(var.init_source_speakers(len(config[CONF_SOURCE_SPEAKERS])))
 
     for speaker_config in config[CONF_SOURCE_SPEAKERS]:
         source_speaker = cg.new_Pvariable(speaker_config[CONF_ID])

@@ -109,7 +109,7 @@ template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
   void set_positive_output(float positive_output) { positive_output_ = positive_output; }
   void set_negative_output(float negative_output) { negative_output_ = negative_output; }
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     auto tuner = make_unique<PIDAutotuner>();
     tuner->set_noiseband(this->noiseband_);
     tuner->set_output_negative(this->negative_output_);
@@ -128,7 +128,7 @@ template<typename... Ts> class PIDResetIntegralTermAction : public Action<Ts...>
  public:
   PIDResetIntegralTermAction(PIDClimate *parent) : parent_(parent) {}
 
-  void play(Ts... x) { this->parent_->reset_integral_term(); }
+  void play(const Ts &...x) { this->parent_->reset_integral_term(); }
 
  protected:
   PIDClimate *parent_;
@@ -138,7 +138,7 @@ template<typename... Ts> class PIDSetControlParametersAction : public Action<Ts.
  public:
   PIDSetControlParametersAction(PIDClimate *parent) : parent_(parent) {}
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     auto kp = this->kp_.value(x...);
     auto ki = this->ki_.value(x...);
     auto kd = this->kd_.value(x...);

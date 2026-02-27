@@ -1,6 +1,8 @@
-import os
-import random
+import base64
+from pathlib import Path
+import secrets
 import string
+from typing import Literal, NotRequired, TypedDict, Unpack
 import unicodedata
 
 import voluptuous as vol
@@ -103,23 +105,33 @@ HARDWARE_BASE_CONFIGS = {
 }
 
 
-def sanitize_double_quotes(value):
+def sanitize_double_quotes(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def wizard_file(**kwargs):
+class WizardFileKwargs(TypedDict):
+    """Keyword arguments for wizard_file function."""
+
+    name: str
+    platform: Literal["ESP8266", "ESP32", "RP2040", "BK72XX", "LN882X", "RTL87XX"]
+    board: str
+    ssid: NotRequired[str]
+    psk: NotRequired[str]
+    ota_password: NotRequired[str]
+    api_encryption_key: NotRequired[str]
+    friendly_name: NotRequired[str]
+
+
+def wizard_file(**kwargs: Unpack[WizardFileKwargs]) -> str:
     letters = string.ascii_letters + string.digits
     ap_name_base = kwargs["name"].replace("_", " ").title()
     ap_name = f"{ap_name_base} Fallback Hotspot"
     if len(ap_name) > 32:
         ap_name = ap_name_base
     kwargs["fallback_name"] = ap_name
-    kwargs["fallback_psk"] = "".join(random.choice(letters) for _ in range(12))
+    kwargs["fallback_psk"] = "".join(secrets.choice(letters) for _ in range(12))
 
-    if kwargs.get("friendly_name"):
-        base = BASE_CONFIG_FRIENDLY
-    else:
-        base = BASE_CONFIG
+    base = BASE_CONFIG_FRIENDLY if kwargs.get("friendly_name") else BASE_CONFIG
 
     config = base.format(**kwargs)
 
@@ -132,9 +144,7 @@ def wizard_file(**kwargs):
 
     config += API_CONFIG
 
-    # Configure API
-    if "password" in kwargs:
-        config += f'  password: "{kwargs["password"]}"\n'
+    # Configure API encryption
     if "api_encryption_key" in kwargs:
         config += f'  encryption:\n    key: "{kwargs["api_encryption_key"]}"\n'
 
@@ -143,8 +153,6 @@ def wizard_file(**kwargs):
     config += "  - platform: esphome\n"
     if "ota_password" in kwargs:
         config += f'    password: "{kwargs["ota_password"]}"'
-    elif "password" in kwargs:
-        config += f'    password: "{kwargs["password"]}"'
 
     # Configuring wifi
     config += "\n\nwifi:\n"
@@ -183,7 +191,24 @@ captive_portal:
     return config
 
 
-def wizard_write(path, **kwargs):
+class WizardWriteKwargs(TypedDict):
+    """Keyword arguments for wizard_write function."""
+
+    name: str
+    type: Literal["basic", "empty", "upload"]
+    # Required for "basic" type
+    board: NotRequired[str]
+    platform: NotRequired[str]
+    ssid: NotRequired[str]
+    psk: NotRequired[str]
+    ota_password: NotRequired[str]
+    api_encryption_key: NotRequired[str]
+    friendly_name: NotRequired[str]
+    # Required for "upload" type
+    file_text: NotRequired[str]
+
+
+def wizard_write(path: Path, **kwargs: Unpack[WizardWriteKwargs]) -> bool:
     from esphome.components.bk72xx import boards as bk72xx_boards
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
@@ -192,34 +217,47 @@ def wizard_write(path, **kwargs):
     from esphome.components.rtl87xx import boards as rtl87xx_boards
 
     name = kwargs["name"]
-    board = kwargs["board"]
+    if kwargs["type"] == "empty":
+        file_text = ""
+        # Will be updated later after editing the file
+        hardware = "UNKNOWN"
+    elif kwargs["type"] == "upload":
+        file_text = kwargs["file_text"]
+        hardware = "UNKNOWN"
+    else:  # "basic"
+        board = kwargs["board"]
 
-    for key in ("ssid", "psk", "password", "ota_password"):
-        if key in kwargs:
-            kwargs[key] = sanitize_double_quotes(kwargs[key])
+        for key in ("ssid", "psk", "ota_password"):
+            if key in kwargs:
+                kwargs[key] = sanitize_double_quotes(kwargs[key])
+        if "platform" not in kwargs:
+            if board in esp8266_boards.BOARDS:
+                platform = "ESP8266"
+            elif board in esp32_boards.BOARDS:
+                platform = "ESP32"
+            elif board in rp2040_boards.BOARDS:
+                platform = "RP2040"
+            elif board in bk72xx_boards.BOARDS:
+                platform = "BK72XX"
+            elif board in ln882x_boards.BOARDS:
+                platform = "LN882X"
+            elif board in rtl87xx_boards.BOARDS:
+                platform = "RTL87XX"
+            else:
+                safe_print(color(AnsiFore.RED, f'The board "{board}" is unknown.'))
+                return False
+            kwargs["platform"] = platform
+        hardware = kwargs["platform"]
+        file_text = wizard_file(**kwargs)
 
-    if "platform" not in kwargs:
-        if board in esp8266_boards.BOARDS:
-            platform = "ESP8266"
-        elif board in esp32_boards.BOARDS:
-            platform = "ESP32"
-        elif board in rp2040_boards.BOARDS:
-            platform = "RP2040"
-        elif board in bk72xx_boards.BOARDS:
-            platform = "BK72XX"
-        elif board in ln882x_boards.BOARDS:
-            platform = "LN882X"
-        elif board in rtl87xx_boards.BOARDS:
-            platform = "RTL87XX"
-        else:
-            safe_print(color(AnsiFore.RED, f'The board "{board}" is unknown.'))
-            return False
-        kwargs["platform"] = platform
-    hardware = kwargs["platform"]
+    # Check if file already exists to prevent overwriting
+    if path.exists() and path.is_file():
+        safe_print(color(AnsiFore.RED, f'The file "{path}" already exists.'))
+        return False
 
-    write_file(path, wizard_file(**kwargs))
+    write_file(path, file_text)
     storage = StorageJSON.from_wizard(name, name, f"{name}.local", hardware)
-    storage_path = ext_storage_path(os.path.basename(path))
+    storage_path = ext_storage_path(path.name)
     storage.save(storage_path)
 
     return True
@@ -227,14 +265,14 @@ def wizard_write(path, **kwargs):
 
 if get_bool_env(ENV_QUICKWIZARD):
 
-    def sleep(time):
+    def sleep(time: float) -> None:
         pass
 
 else:
     from time import sleep
 
 
-def safe_print_step(step, big):
+def safe_print_step(step: int, big: str) -> None:
     safe_print()
     safe_print()
     safe_print(f"============= STEP {step} =============")
@@ -243,14 +281,14 @@ def safe_print_step(step, big):
     sleep(0.25)
 
 
-def default_input(text, default):
+def default_input(text: str, default: str) -> str:
     safe_print()
     safe_print(f"Press ENTER for default ({default})")
     return safe_input(text.format(default)) or default
 
 
 # From https://stackoverflow.com/a/518232/8924614
-def strip_accents(value):
+def strip_accents(value: str) -> str:
     return "".join(
         c
         for c in unicodedata.normalize("NFD", str(value))
@@ -258,7 +296,7 @@ def strip_accents(value):
     )
 
 
-def wizard(path):
+def wizard(path: Path) -> int:
     from esphome.components.bk72xx import boards as bk72xx_boards
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
@@ -266,14 +304,14 @@ def wizard(path):
     from esphome.components.rp2040 import boards as rp2040_boards
     from esphome.components.rtl87xx import boards as rtl87xx_boards
 
-    if not path.endswith(".yaml") and not path.endswith(".yml"):
+    if path.suffix not in (".yaml", ".yml"):
         safe_print(
-            f"Please make your configuration file {color(AnsiFore.CYAN, path)} have the extension .yaml or .yml"
+            f"Please make your configuration file {color(AnsiFore.CYAN, str(path))} have the extension .yaml or .yml"
         )
         return 1
-    if os.path.exists(path):
+    if path.exists():
         safe_print(
-            f"Uh oh, it seems like {color(AnsiFore.CYAN, path)} already exists, please delete that file first or chose another configuration file."
+            f"Uh oh, it seems like {color(AnsiFore.CYAN, str(path))} already exists, please delete that file first or chose another configuration file."
         )
         return 2
 
@@ -368,9 +406,7 @@ def wizard(path):
             "https://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
         )
     elif platform == "RP2040":
-        board_link = (
-            "https://www.raspberrypi.com/documentation/microcontrollers/rp2040.html"
-        )
+        board_link = "https://www.raspberrypi.com/documentation/microcontrollers/silicon.html#rp2040"
     elif platform in ["BK72XX", "LN882X", "RTL87XX"]:
         board_link = "https://docs.libretiny.eu/docs/status/supported/"
     else:
@@ -411,7 +447,7 @@ def wizard(path):
     safe_print("Options:")
     for board_id, board_data in boards_list:
         safe_print(f" - {board_id} - {board_data['name']}")
-        boards.append(board_id)
+        boards.append(board_id.lower())
 
     while True:
         board = safe_input(color(AnsiFore.BOLD_WHITE, "(board): "))
@@ -433,7 +469,7 @@ def wizard(path):
     sleep(1)
 
     # Do not create wifi if the board does not support it
-    if board not in ["rpipico"]:
+    if board != "rpipico":
         safe_print_step(3, WIFI_BIG)
         safe_print("In this step, I'm going to create the configuration for WiFi.")
         safe_print()
@@ -481,37 +517,66 @@ def wizard(path):
             "Almost there! ESPHome can automatically upload custom firmwares over WiFi "
             "(over the air) and integrates into Home Assistant with a native API."
         )
+        safe_print()
+        sleep(0.5)
+
+        # Generate encryption key (32 bytes, base64 encoded) for secure API communication
+        noise_psk = secrets.token_bytes(32)
+        api_encryption_key = base64.b64encode(noise_psk).decode()
+
         safe_print(
-            f"This can be insecure if you do not trust the WiFi network. Do you want to set a {color(AnsiFore.GREEN, 'password')} for connecting to this ESP?"
+            "For secure API communication, I've generated a random encryption key."
+        )
+        safe_print()
+        safe_print(
+            f"Your {color(AnsiFore.GREEN, 'API encryption key')} is: "
+            f"{color(AnsiFore.BOLD_WHITE, api_encryption_key)}"
+        )
+        safe_print()
+        safe_print("You'll need this key when adding the device to Home Assistant.")
+        sleep(1)
+
+        safe_print()
+        safe_print(
+            f"Do you want to set a {color(AnsiFore.GREEN, 'password')} for OTA updates? "
+            "This can be insecure if you do not trust the WiFi network."
         )
         safe_print()
         sleep(0.25)
         safe_print("Press ENTER for no password")
-        password = safe_input(color(AnsiFore.BOLD_WHITE, "(password): "))
+        ota_password = safe_input(color(AnsiFore.BOLD_WHITE, "(password): "))
     else:
-        ssid, password, psk = "", "", ""
+        ssid, psk = "", ""
+        api_encryption_key = None
+        ota_password = ""
 
-    if not wizard_write(
-        path=path,
-        name=name,
-        platform=platform,
-        board=board,
-        ssid=ssid,
-        psk=psk,
-        password=password,
-    ):
+    kwargs = {
+        "path": path,
+        "name": name,
+        "platform": platform,
+        "board": board,
+        "ssid": ssid,
+        "psk": psk,
+        "type": "basic",
+    }
+    if api_encryption_key:
+        kwargs["api_encryption_key"] = api_encryption_key
+    if ota_password:
+        kwargs["ota_password"] = ota_password
+
+    if not wizard_write(**kwargs):
         return 1
 
     safe_print()
     safe_print(
         color(AnsiFore.CYAN, "DONE! I've now written a new configuration file to ")
-        + color(AnsiFore.BOLD_CYAN, path)
+        + color(AnsiFore.BOLD_CYAN, str(path))
     )
     safe_print()
     safe_print("Next steps:")
     safe_print("  > Follow the rest of the getting started guide:")
     safe_print(
-        "  > https://esphome.io/guides/getting_started_command_line.html#adding-some-features"
+        "  > https://esphome.io/guides/getting_started_command_line/#adding-some-features"
     )
     safe_print("  > to learn how to customize ESPHome and install it to your device.")
     return 0

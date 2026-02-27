@@ -11,12 +11,12 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
 @pytest.mark.asyncio
-async def test_duplicate_entities_not_allowed_on_different_devices(
+async def test_duplicate_entities_on_different_devices(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test that duplicate entity names are NOT allowed on different devices."""
+    """Test that duplicate entity names are allowed on different devices."""
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Get device info
         device_info = await client.device_info()
@@ -38,8 +38,7 @@ async def test_duplicate_entities_not_allowed_on_different_devices(
         # Get entity list
         entities = await client.list_entities_services()
         all_entities: list[EntityInfo] = []
-        for entity_list in entities[0]:
-            all_entities.append(entity_list)
+        all_entities.extend(entities[0])
 
         # Group entities by type for easier testing
         sensors = [e for e in all_entities if e.__class__.__name__ == "SensorInfo"]
@@ -52,46 +51,42 @@ async def test_duplicate_entities_not_allowed_on_different_devices(
         switches = [e for e in all_entities if e.__class__.__name__ == "SwitchInfo"]
         buttons = [e for e in all_entities if e.__class__.__name__ == "ButtonInfo"]
         numbers = [e for e in all_entities if e.__class__.__name__ == "NumberInfo"]
-        selects = [e for e in all_entities if e.__class__.__name__ == "SelectInfo"]
 
-        # Scenario 1: Check that temperature sensors have unique names per device
-        temp_sensors = [s for s in sensors if "Temperature" in s.name]
+        # Scenario 1: Check sensors with same "Temperature" name on different devices
+        temp_sensors = [s for s in sensors if s.name == "Temperature"]
         assert len(temp_sensors) == 4, (
             f"Expected exactly 4 temperature sensors, got {len(temp_sensors)}"
         )
 
-        # Verify each sensor has a unique name
-        temp_names = set()
+        # Verify each sensor is on a different device
+        temp_device_ids = set()
         temp_object_ids = set()
 
         for sensor in temp_sensors:
-            temp_names.add(sensor.name)
+            temp_device_ids.add(sensor.device_id)
             temp_object_ids.add(sensor.object_id)
 
-        # Should have 4 unique names
-        assert len(temp_names) == 4, (
-            f"Temperature sensors should have unique names, got {temp_names}"
+            # All should have object_id "temperature" (no suffix)
+            assert sensor.object_id == "temperature", (
+                f"Expected object_id 'temperature', got '{sensor.object_id}'"
+            )
+
+        # Should have 4 different device IDs (including None for main device)
+        assert len(temp_device_ids) == 4, (
+            f"Temperature sensors should be on different devices, got {temp_device_ids}"
         )
 
-        # Object IDs should also be unique
-        assert len(temp_object_ids) == 4, (
-            f"Temperature sensors should have unique object_ids, got {temp_object_ids}"
-        )
-
-        # Scenario 2: Check binary sensors have unique names
-        status_binary = [b for b in binary_sensors if "Status" in b.name]
+        # Scenario 2: Check binary sensors "Status" on different devices
+        status_binary = [b for b in binary_sensors if b.name == "Status"]
         assert len(status_binary) == 3, (
             f"Expected exactly 3 status binary sensors, got {len(status_binary)}"
         )
 
-        # All should have unique object_ids
-        status_names = set()
+        # All should have object_id "status"
         for binary in status_binary:
-            status_names.add(binary.name)
-
-        assert len(status_names) == 3, (
-            f"Status binary sensors should have unique names, got {status_names}"
-        )
+            assert binary.object_id == "status", (
+                f"Expected object_id 'status', got '{binary.object_id}'"
+            )
 
         # Scenario 3: Check that sensor and binary_sensor can have same name
         temp_binary = [b for b in binary_sensors if b.name == "Temperature"]
@@ -100,86 +95,62 @@ async def test_duplicate_entities_not_allowed_on_different_devices(
         )
         assert temp_binary[0].object_id == "temperature"
 
-        # Scenario 4: Check text sensors have unique names
-        info_text = [t for t in text_sensors if "Device Info" in t.name]
+        # Scenario 4: Check text sensors "Device Info" on different devices
+        info_text = [t for t in text_sensors if t.name == "Device Info"]
         assert len(info_text) == 3, (
             f"Expected exactly 3 device info text sensors, got {len(info_text)}"
         )
 
-        # All should have unique names and object_ids
-        info_names = set()
+        # All should have object_id "device_info"
         for text in info_text:
-            info_names.add(text.name)
+            assert text.object_id == "device_info", (
+                f"Expected object_id 'device_info', got '{text.object_id}'"
+            )
 
-        assert len(info_names) == 3, (
-            f"Device info text sensors should have unique names, got {info_names}"
+        # Scenario 5: Check switches "Power" on different devices
+        power_switches = [s for s in switches if s.name == "Power"]
+        assert len(power_switches) == 3, (
+            f"Expected exactly 3 power switches, got {len(power_switches)}"
         )
 
-        # Scenario 5: Check switches have unique names
-        power_switches = [s for s in switches if "Power" in s.name]
-        assert len(power_switches) == 4, (
-            f"Expected exactly 4 power switches, got {len(power_switches)}"
-        )
-
-        # All should have unique names
-        power_names = set()
+        # All should have object_id "power"
         for switch in power_switches:
-            power_names.add(switch.name)
+            assert switch.object_id == "power", (
+                f"Expected object_id 'power', got '{switch.object_id}'"
+            )
 
-        assert len(power_names) == 4, (
-            f"Power switches should have unique names, got {power_names}"
-        )
-
-        # Scenario 6: Check reset buttons have unique names
-        reset_buttons = [b for b in buttons if "Reset" in b.name]
-        assert len(reset_buttons) == 3, (
-            f"Expected exactly 3 reset buttons, got {len(reset_buttons)}"
-        )
-
-        # All should have unique names
-        reset_names = set()
-        for button in reset_buttons:
-            reset_names.add(button.name)
-
-        assert len(reset_names) == 3, (
-            f"Reset buttons should have unique names, got {reset_names}"
-        )
-
-        # Scenario 7: Check empty name selects (should use device names)
-        empty_selects = [s for s in selects if s.name == ""]
-        assert len(empty_selects) == 3, (
-            f"Expected exactly 3 empty name selects, got {len(empty_selects)}"
+        # Scenario 6: Check empty name buttons (should use device name)
+        empty_buttons = [b for b in buttons if b.name == ""]
+        assert len(empty_buttons) == 3, (
+            f"Expected exactly 3 empty name buttons, got {len(empty_buttons)}"
         )
 
         # Group by device
-        c1_selects = [s for s in empty_selects if s.device_id == controller_1.device_id]
-        c2_selects = [s for s in empty_selects if s.device_id == controller_2.device_id]
+        c1_buttons = [b for b in empty_buttons if b.device_id == controller_1.device_id]
+        c2_buttons = [b for b in empty_buttons if b.device_id == controller_2.device_id]
 
         # For main device, device_id is 0
-        main_selects = [s for s in empty_selects if s.device_id == 0]
+        main_buttons = [b for b in empty_buttons if b.device_id == 0]
 
-        # Check object IDs for empty name entities - they should use device names
-        assert len(c1_selects) == 1 and c1_selects[0].object_id == "controller_1"
-        assert len(c2_selects) == 1 and c2_selects[0].object_id == "controller_2"
+        # Check object IDs for empty name entities
+        assert len(c1_buttons) == 1 and c1_buttons[0].object_id == "controller_1"
+        assert len(c2_buttons) == 1 and c2_buttons[0].object_id == "controller_2"
         assert (
-            len(main_selects) == 1
-            and main_selects[0].object_id == "duplicate-entities-test"
+            len(main_buttons) == 1
+            and main_buttons[0].object_id == "duplicate-entities-test"
         )
 
-        # Scenario 8: Check special characters in number names - now unique
-        temp_numbers = [n for n in numbers if "Temperature Setpoint!" in n.name]
+        # Scenario 7: Check special characters in number names
+        temp_numbers = [n for n in numbers if n.name == "Temperature Setpoint!"]
         assert len(temp_numbers) == 2, (
             f"Expected exactly 2 temperature setpoint numbers, got {len(temp_numbers)}"
         )
 
-        # Should have unique names
-        setpoint_names = set()
+        # Special characters should be sanitized to _ in object_id
         for number in temp_numbers:
-            setpoint_names.add(number.name)
-
-        assert len(setpoint_names) == 2, (
-            f"Temperature setpoint numbers should have unique names, got {setpoint_names}"
-        )
+            assert number.object_id == "temperature_setpoint_", (
+                f"Expected object_id 'temperature_setpoint_', got '{number.object_id}'"
+            )
 
         # Verify we can get states for all entities (ensures they're functional)
         loop = asyncio.get_running_loop()
@@ -192,7 +163,6 @@ async def test_duplicate_entities_not_allowed_on_different_devices(
             + len(switches)
             + len(buttons)
             + len(numbers)
-            + len(selects)
         )
 
         def on_state(state) -> None:
@@ -206,7 +176,7 @@ async def test_duplicate_entities_not_allowed_on_different_devices(
         # Wait for all entity states
         try:
             await asyncio.wait_for(states_future, timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(
                 f"Did not receive all entity states within 10 seconds. "
                 f"Expected {expected_count}, received {state_count}"

@@ -8,27 +8,31 @@ static const char *const TAG = "mcp3204";
 
 float MCP3204::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-void MCP3204::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-  this->spi_setup();
-}
+void MCP3204::setup() { this->spi_setup(); }
 
 void MCP3204::dump_config() {
-  ESP_LOGCONFIG(TAG, "MCP3204:");
+  ESP_LOGCONFIG(TAG,
+                "MCP3204:\n"
+                "  Reference Voltage: %.2fV",
+                this->reference_voltage_);
   LOG_PIN("  CS Pin:", this->cs_);
-  ESP_LOGCONFIG(TAG, "  Reference Voltage: %.2fV", this->reference_voltage_);
 }
 
-float MCP3204::read_data(uint8_t pin) {
-  uint8_t adc_primary_config = 0b00000110 | (pin >> 2);
-  uint8_t adc_secondary_config = pin << 6;
+float MCP3204::read_data(uint8_t pin, bool differential) {
+  uint8_t command, b0, b1;
+
+  command = (1 << 6) |                       // start bit
+            ((differential ? 0 : 1) << 5) |  // single or differential bit
+            ((pin & 0x07) << 2);             // pin
+
   this->enable();
-  this->transfer_byte(adc_primary_config);
-  uint8_t adc_primary_byte = this->transfer_byte(adc_secondary_config);
-  uint8_t adc_secondary_byte = this->transfer_byte(0x00);
+  this->transfer_byte(command);
+  b0 = this->transfer_byte(0x00);
+  b1 = this->transfer_byte(0x00);
   this->disable();
-  uint16_t digital_value = (adc_primary_byte << 8 | adc_secondary_byte) & 0b111111111111;
-  return float(digital_value) / 4096.000 * this->reference_voltage_;
+
+  uint16_t digital_value = encode_uint16(b0, b1) >> 4;
+  return float(digital_value) / 4096.000 * this->reference_voltage_;  // in V
 }
 
 }  // namespace mcp3204

@@ -103,7 +103,6 @@ bool MLX90393Cls::apply_all_settings_() {
 }
 
 void MLX90393Cls::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // note the two arguments A0 and A1 which are used to construct an i2c address
   // we can hard-code these because we never actually use the constructed address
   // see the transceive function above, which uses the address from I2CComponent
@@ -132,8 +131,6 @@ void MLX90393Cls::dump_config() {
   LOG_SENSOR("  ", "Z Axis", this->z_sensor_);
   LOG_SENSOR("  ", "Temperature", this->t_sensor_);
 }
-
-float MLX90393Cls::get_setup_priority() const { return setup_priority::DATA; }
 
 void MLX90393Cls::update() {
   MLX90393::txyz data;

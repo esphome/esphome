@@ -1,0 +1,20 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: 16
+      mode: INPUT_PULLDOWN_16
+    name: "GPIO16 Touch Sensor"
+    id: bs_gpio16
+
+  - platform: gpio
+    pin:
+      number: 5
+      mode: INPUT_PULLUP
+    name: "GPIO5 Button"
+    id: bs_gpio5

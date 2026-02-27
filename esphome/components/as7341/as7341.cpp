@@ -8,7 +8,6 @@ namespace as7341 {
 static const char *const TAG = "as7341";
 
 void AS7341Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   LOG_I2C_DEVICE(this);
 
   // Verify device ID
@@ -58,8 +57,6 @@ void AS7341Component::dump_config() {
   LOG_SENSOR("  ", "Clear", this->clear_);
   LOG_SENSOR("  ", "NIR", this->nir_);
 }
-
-float AS7341Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void AS7341Component::update() {
   this->read_channels(this->channel_readings_);

@@ -23,19 +23,6 @@ void SchedulerStringLifetimeComponent::run_string_lifetime_test() {
   test_vector_reallocation();
   test_string_move_semantics();
   test_lambda_capture_lifetime();
-
-  // Schedule final check
-  this->set_timeout("final_check", 200, [this]() {
-    ESP_LOGI(TAG, "Tests passed: %d", this->tests_passed_);
-    ESP_LOGI(TAG, "Tests failed: %d", this->tests_failed_);
-
-    if (this->tests_failed_ == 0) {
-      ESP_LOGI(TAG, "SUCCESS: All string lifetime tests passed!");
-    } else {
-      ESP_LOGE(TAG, "FAILURE: %d string lifetime tests failed!", this->tests_failed_);
-    }
-    ESP_LOGI(TAG, "String lifetime tests complete");
-  });
 }
 
 void SchedulerStringLifetimeComponent::run_test1() {
@@ -69,7 +56,6 @@ void SchedulerStringLifetimeComponent::run_test5() {
 }
 
 void SchedulerStringLifetimeComponent::run_final_check() {
-  ESP_LOGI(TAG, "String lifetime tests complete");
   ESP_LOGI(TAG, "Tests passed: %d", this->tests_passed_);
   ESP_LOGI(TAG, "Tests failed: %d", this->tests_failed_);
 
@@ -78,6 +64,7 @@ void SchedulerStringLifetimeComponent::run_final_check() {
   } else {
     ESP_LOGE(TAG, "FAILURE: %d string lifetime tests failed!", this->tests_failed_);
   }
+  ESP_LOGI(TAG, "String lifetime tests complete");
 }
 
 void SchedulerStringLifetimeComponent::test_temporary_string_lifetime() {

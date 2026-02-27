@@ -40,8 +40,6 @@ void RP2040PIOLEDStripLightOutput::dma_write_complete_handler_() {
 }
 
 void RP2040PIOLEDStripLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   size_t buffer_size = this->get_buffer_size_();
 
   RAMAllocator<uint8_t> allocator;

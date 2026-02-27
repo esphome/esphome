@@ -14,7 +14,6 @@ namespace adc {
 static const char *const TAG = "adc.rp2040";
 
 void ADCSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->get_name().c_str());
   static bool initialized = false;
   if (!initialized) {
     adc_init();
@@ -42,7 +41,7 @@ void ADCSensor::dump_config() {
 
 float ADCSensor::sample() {
   uint32_t raw = 0;
-  auto aggr = Aggregator(this->sampling_mode_);
+  auto aggr = Aggregator<uint32_t>(this->sampling_mode_);
 
   if (this->is_temperature_) {
     adc_set_temp_sensor_enabled(true);

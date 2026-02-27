@@ -4,20 +4,18 @@
 #ifdef USE_API
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 class APIConnection;
 
 // Macro for generating ListEntitiesIterator handlers
-// Calls schedule_message_ with try_send_*_info
+// Calls schedule_message_ which dispatches to try_send_*_info
 #define LIST_ENTITIES_HANDLER(entity_type, EntityClass, ResponseType) \
   bool ListEntitiesIterator::on_##entity_type(EntityClass *entity) { /* NOLINT(bugprone-macro-parentheses) */ \
-    return this->client_->schedule_message_(entity, &APIConnection::try_send_##entity_type##_info, \
-                                            ResponseType::MESSAGE_TYPE); \
+    return this->client_->schedule_message_(entity, ResponseType::MESSAGE_TYPE, ResponseType::ESTIMATED_SIZE); \
   }
 
-class ListEntitiesIterator : public ComponentIterator {
+class ListEntitiesIterator final : public ComponentIterator {
  public:
   ListEntitiesIterator(APIConnection *client);
 #ifdef USE_BINARY_SENSOR
@@ -44,7 +42,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_TEXT_SENSOR
   bool on_text_sensor(text_sensor::TextSensor *entity) override;
 #endif
+#ifdef USE_API_USER_DEFINED_ACTIONS
   bool on_service(UserServiceDescriptor *service) override;
+#endif
 #ifdef USE_CAMERA
   bool on_camera(camera::Camera *entity) override;
 #endif
@@ -81,6 +81,12 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_ALARM_CONTROL_PANEL
   bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *entity) override;
 #endif
+#ifdef USE_WATER_HEATER
+  bool on_water_heater(water_heater::WaterHeater *entity) override;
+#endif
+#ifdef USE_INFRARED
+  bool on_infrared(infrared::Infrared *entity) override;
+#endif
 #ifdef USE_EVENT
   bool on_event(event::Event *entity) override;
 #endif
@@ -88,12 +94,10 @@ class ListEntitiesIterator : public ComponentIterator {
   bool on_update(update::UpdateEntity *entity) override;
 #endif
   bool on_end() override;
-  bool completed() { return this->state_ == IteratorState::NONE; }
 
  protected:
   APIConnection *client_;
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

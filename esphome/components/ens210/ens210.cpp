@@ -87,7 +87,6 @@ static uint32_t crc7(uint32_t value) {
 }
 
 void ENS210Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t data[2];
   uint16_t part_id = 0;
   // Reset
@@ -136,8 +135,6 @@ void ENS210Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
-
-float ENS210Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void ENS210Component::update() {
   // Execute a single measurement

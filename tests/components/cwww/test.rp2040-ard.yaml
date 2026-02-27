@@ -3,4 +3,12 @@ substitutions:
   pin_o1: GPIO12
   pin_o2: GPIO13
 
+output:
+  - platform: ${light_platform}
+    id: light_output_1
+    pin: ${pin_o1}
+  - platform: ${light_platform}
+    id: light_output_2
+    pin: ${pin_o2}
+
 <<: !include common.yaml

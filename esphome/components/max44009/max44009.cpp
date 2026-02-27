@@ -21,7 +21,6 @@ static const uint8_t MAX44009_ERROR_HIGH_BYTE = -30;
 static const uint8_t MAX44009_ERROR_LOW_BYTE = -31;
 
 void MAX44009Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   bool state_ok = false;
   if (this->mode_ == MAX44009Mode::MAX44009_MODE_LOW_POWER) {
     state_ok = this->set_low_power_mode();
@@ -51,8 +50,6 @@ void MAX44009Sensor::dump_config() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
-
-float MAX44009Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
 void MAX44009Sensor::update() {
   // update sensor illuminance value

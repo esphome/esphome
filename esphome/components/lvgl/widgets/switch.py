@@ -1,8 +1,8 @@
+from esphome.const import CONF_SWITCH
+
 from ..defines import CONF_INDICATOR, CONF_KNOB, CONF_MAIN
 from ..types import LvBoolean
 from . import WidgetType
-
-CONF_SWITCH = "switch"
 
 
 class SwitchType(WidgetType):

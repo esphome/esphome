@@ -26,12 +26,6 @@ esphome:
       - dfplayer.volume_down
       - dfplayer.sleep
 
-uart:
-  - id: uart_dfplayer
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 dfplayer:
   on_finished_playback:
     then:

@@ -15,7 +15,6 @@ static const uint8_t TC74_DATA_READY_MASK = 0x40;
 // It is possible the "Data Ready" bit will not be set if the TC74 has not been powered on for at least 250ms, so it not
 // being set does not constitute a failure.
 void TC74Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t config_reg;
   if (this->read_register(TC74_REGISTER_CONFIGURATION, &config_reg, 1) != i2c::ERROR_OK) {
     this->mark_failed();
@@ -61,8 +60,6 @@ void TC74Component::read_temperature_() {
   this->publish_state(temperature_reg);
   this->status_clear_warning();
 }
-
-float TC74Component::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace tc74
 }  // namespace esphome

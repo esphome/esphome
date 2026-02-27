@@ -1,18 +1,32 @@
 #include "binary_sensor.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-
-namespace binary_sensor {
+namespace esphome::binary_sensor {
 
 static const char *const TAG = "binary_sensor";
 
+// Function implementation of LOG_BINARY_SENSOR macro to reduce code size
+void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj) {
+  if (obj == nullptr) {
+    return;
+  }
+
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+  LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
+}
+
 void BinarySensor::publish_state(bool new_state) {
+#ifdef USE_BINARY_SENSOR_FILTER
   if (this->filter_list_ == nullptr) {
+#endif
     this->send_state_internal(new_state);
+#ifdef USE_BINARY_SENSOR_FILTER
   } else {
     this->filter_list_->input(new_state);
   }
+#endif
 }
 void BinarySensor::publish_initial_state(bool new_state) {
   this->invalidate_state();
@@ -21,12 +35,23 @@ void BinarySensor::publish_initial_state(bool new_state) {
 void BinarySensor::send_state_internal(bool new_state) {
   // copy the new state to the visible property for backwards compatibility, before any callbacks
   this->state = new_state;
-  // Note that set_state_ de-dups and will only trigger callbacks if the state has actually changed
-  if (this->set_state_(new_state)) {
-    ESP_LOGD(TAG, "'%s': New state is %s", this->get_name().c_str(), ONOFF(new_state));
-  }
+  // Note that set_new_state_ de-dups and will only trigger callbacks if the state has actually changed
+  this->set_new_state(new_state);
 }
 
+bool BinarySensor::set_new_state(const optional<bool> &new_state) {
+  if (StatefulEntityBase::set_new_state(new_state)) {
+    // weirdly, this file could be compiled even without USE_BINARY_SENSOR defined
+#if defined(USE_BINARY_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
+    ControllerRegistry::notify_binary_sensor_update(this);
+#endif
+    ESP_LOGD(TAG, "'%s' >> %s", this->get_name().c_str(), ONOFFMAYBE(new_state));
+    return true;
+  }
+  return false;
+}
+
+#ifdef USE_BINARY_SENSOR_FILTER
 void BinarySensor::add_filter(Filter *filter) {
   filter->parent_ = this;
   if (this->filter_list_ == nullptr) {
@@ -38,13 +63,12 @@ void BinarySensor::add_filter(Filter *filter) {
     last_filter->next_ = filter;
   }
 }
-void BinarySensor::add_filters(const std::vector<Filter *> &filters) {
+void BinarySensor::add_filters(std::initializer_list<Filter *> filters) {
   for (Filter *filter : filters) {
     this->add_filter(filter);
   }
 }
+#endif  // USE_BINARY_SENSOR_FILTER
 bool BinarySensor::is_status_binary_sensor() const { return false; }
 
-}  // namespace binary_sensor
-
-}  // namespace esphome
+}  // namespace esphome::binary_sensor

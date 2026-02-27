@@ -3,13 +3,17 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import esp32, light
+from esphome.components import esp32, esp32_rmt, light
+from esphome.components.const import CONF_USE_PSRAM
+from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
+    CONF_INVERTED,
     CONF_IS_RGBW,
     CONF_MAX_REFRESH_RATE,
     CONF_NUM_LEDS,
+    CONF_NUMBER,
     CONF_OUTPUT_ID,
     CONF_PIN,
     CONF_RGB_ORDER,
@@ -57,7 +61,6 @@ CHIPSETS = {
     "SM16703": LEDStripTimings(300, 900, 900, 300, 0, 0),
 }
 
-CONF_USE_PSRAM = "use_psram"
 CONF_IS_WRGB = "is_wrgb"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
@@ -68,22 +71,26 @@ CONF_RESET_LOW = "reset_low"
 
 
 CONFIG_SCHEMA = cv.All(
+    esp32.only_on_variant(
+        unsupported=list(esp32_rmt.VARIANTS_NO_RMT),
+        msg_prefix="ESP32 RMT LED strip",
+    ),
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ESP32RMTLEDStripLightOutput),
-            cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
+            cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
             cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
                 esp32=192,
-                esp32_s2=192,
-                esp32_s3=192,
-                esp32_p4=192,
                 esp32_c3=96,
                 esp32_c5=96,
                 esp32_c6=96,
                 esp32_h2=96,
+                esp32_p4=192,
+                esp32_s2=192,
+                esp32_s3=192,
             ): cv.int_range(min=2),
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
@@ -91,7 +98,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IS_WRGB, default=False): cv.boolean,
             cv.Optional(CONF_USE_DMA): cv.All(
                 esp32.only_on_variant(
-                    supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
+                    supported=[esp32.VARIANT_ESP32P4, esp32.VARIANT_ESP32S3]
                 ),
                 cv.boolean,
             ),
@@ -127,12 +134,17 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
+    include_builtin_idf_component("esp_driver_rmt")
+
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
     await cg.register_component(var, config)
 
     cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
-    cg.add(var.set_pin(config[CONF_PIN]))
+    cg.add(var.set_pin(config[CONF_PIN][CONF_NUMBER]))
+    if config[CONF_PIN][CONF_INVERTED]:
+        cg.add(var.set_inverted(True))
 
     if CONF_MAX_REFRESH_RATE in config:
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))

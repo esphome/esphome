@@ -8,7 +8,6 @@ static const char *const TAG = "st7789v";
 static const size_t TEMP_BUFFER_SIZE = 128;
 
 void ST7789V::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
 #ifdef USE_POWER_SUPPLY
   this->power_.request();
   // the PowerSupply component takes care of post turn-on delay
@@ -128,15 +127,15 @@ void ST7789V::dump_config() {
                 "  Width: %u\n"
                 "  Height Offset: %u\n"
                 "  Width Offset: %u\n"
-                "  8-bit color mode: %s",
+                "  8-bit color mode: %s\n"
+                "  Data rate: %dMHz",
                 this->model_str_, this->height_, this->width_, this->offset_height_, this->offset_width_,
-                YESNO(this->eightbitcolor_));
+                YESNO(this->eightbitcolor_), (unsigned) (this->data_rate_ / 1000000));
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  B/L Pin: ", this->backlight_pin_);
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 #ifdef USE_POWER_SUPPLY
   ESP_LOGCONFIG(TAG, "  Power Supply Configured: yes");
 #endif
@@ -177,8 +176,9 @@ void ST7789V::write_display_data() {
   if (this->eightbitcolor_) {
     uint8_t temp_buffer[TEMP_BUFFER_SIZE];
     size_t temp_index = 0;
-    for (int line = 0; line < this->get_buffer_length_(); line = line + this->get_width_internal()) {
-      for (int index = 0; index < this->get_width_internal(); ++index) {
+    size_t width = static_cast<size_t>(this->get_width_internal());
+    for (size_t line = 0; line < this->get_buffer_length_(); line += width) {
+      for (size_t index = 0; index < width; ++index) {
         auto color = display::ColorUtil::color_to_565(
             display::ColorUtil::to_color(this->buffer_[index + line], display::ColorOrder::COLOR_ORDER_RGB,
                                          display::ColorBitness::COLOR_BITNESS_332, true));

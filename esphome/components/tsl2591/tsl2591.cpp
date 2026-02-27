@@ -43,7 +43,6 @@ void TSL2591Component::disable_if_power_saving_() {
 }
 
 void TSL2591Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for address 0x%02X", this->address_);
   switch (this->component_gain_) {
     case TSL2591_CGAIN_LOW:
       this->gain_ = TSL2591_GAIN_LOW;
@@ -247,8 +246,6 @@ void TSL2591Component::set_integration_time_and_gain(TSL2591IntegrationTime inte
 void TSL2591Component::set_power_save_mode(bool enable) { this->power_save_mode_enabled_ = enable; }
 
 void TSL2591Component::set_name(const char *name) { this->name_ = name; }
-
-float TSL2591Component::get_setup_priority() const { return setup_priority::DATA; }
 
 bool TSL2591Component::is_adc_valid() {
   uint8_t status;

@@ -7,8 +7,6 @@ namespace absolute_humidity {
 static const char *const TAG = "absolute_humidity.sensor";
 
 void AbsoluteHumidityComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->get_name().c_str());
-
   ESP_LOGD(TAG, "  Added callback for temperature '%s'", this->temperature_sensor_->get_name().c_str());
   this->temperature_sensor_->add_on_state_callback([this](float state) { this->temperature_callback_(state); });
   if (this->temperature_sensor_->has_state()) {
@@ -47,8 +45,6 @@ void AbsoluteHumidityComponent::dump_config() {
                 this->temperature_sensor_->get_name().c_str(), this->humidity_sensor_->get_name().c_str());
 }
 
-float AbsoluteHumidityComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 void AbsoluteHumidityComponent::loop() {
   if (!this->next_update_) {
     return;
@@ -63,11 +59,10 @@ void AbsoluteHumidityComponent::loop() {
       ESP_LOGW(TAG, "No valid state from temperature sensor!");
     }
     if (no_humidity) {
-      ESP_LOGW(TAG, "No valid state from temperature sensor!");
+      ESP_LOGW(TAG, "No valid state from humidity sensor!");
     }
-    ESP_LOGW(TAG, "Unable to calculate absolute humidity.");
     this->publish_state(NAN);
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR("Unable to calculate absolute humidity."));
     return;
   }
 
@@ -89,18 +84,17 @@ void AbsoluteHumidityComponent::loop() {
       es = es_wobus(temperature_c);
       break;
     default:
-      ESP_LOGE(TAG, "Invalid saturation vapor pressure equation selection!");
       this->publish_state(NAN);
-      this->status_set_error();
+      this->status_set_error(LOG_STR("Invalid saturation vapor pressure equation selection!"));
       return;
   }
-  ESP_LOGD(TAG, "Saturation vapor pressure %f kPa", es);
 
   // Calculate absolute humidity
   const float absolute_humidity = vapor_density(es, hr, temperature_k);
 
+  ESP_LOGD(TAG, "Saturation vapor pressure %f kPa, absolute humidity %f g/m³", es, absolute_humidity);
+
   // Publish absolute humidity
-  ESP_LOGD(TAG, "Publishing absolute humidity %f g/m³", absolute_humidity);
   this->status_clear_warning();
   this->publish_state(absolute_humidity);
 }
@@ -167,7 +161,7 @@ float AbsoluteHumidityComponent::es_wobus(float t) {
 }
 
 // From https://www.environmentalbiophysics.org/chalk-talk-how-to-calculate-absolute-humidity/
-// H/T to https://esphome.io/cookbook/bme280_environment.html
+// H/T to https://esphome.io/cookbook/bme280_environment/
 // H/T to https://carnotcycle.wordpress.com/2012/08/04/how-to-convert-relative-humidity-to-absolute-humidity/
 float AbsoluteHumidityComponent::vapor_density(float es, float hr, float ta) {
   // es = saturated vapor pressure (kPa)

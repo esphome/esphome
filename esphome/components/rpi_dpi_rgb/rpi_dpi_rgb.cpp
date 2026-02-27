@@ -1,12 +1,12 @@
 #ifdef USE_ESP32_VARIANT_ESP32S3
 #include "rpi_dpi_rgb.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace rpi_dpi_rgb {
 
 void RpiDpiRgb::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->reset_display_();
   esp_lcd_rgb_panel_config_t config{};
   config.flags.fb_in_psram = 1;
@@ -23,7 +23,6 @@ void RpiDpiRgb::setup() {
   config.timings.flags.pclk_active_neg = this->pclk_inverted_;
   config.timings.pclk_hz = this->pclk_frequency_;
   config.clk_src = LCD_CLK_SRC_PLL160M;
-  config.psram_trans_align = 64;
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
   for (size_t i = 0; i != data_pin_count; i++) {
     config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
@@ -42,7 +41,6 @@ void RpiDpiRgb::setup() {
   }
   ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
   ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
-  ESP_LOGCONFIG(TAG, "RPI_DPI_RGB setup complete");
 }
 void RpiDpiRgb::loop() {
   if (this->handle_ != nullptr)
@@ -129,14 +127,19 @@ void RpiDpiRgb::draw_pixel_at(int x, int y, Color color) {
 
 void RpiDpiRgb::dump_config() {
   ESP_LOGCONFIG("", "RPI_DPI_RGB LCD");
-  ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
-  ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
+  ESP_LOGCONFIG(TAG,
+                "  Height: %u\n"
+                "  Width: %u",
+                this->height_, this->width_);
   LOG_PIN("  DE Pin: ", this->de_pin_);
   LOG_PIN("  Enable Pin: ", this->enable_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
-  for (size_t i = 0; i != data_pin_count; i++)
-    ESP_LOGCONFIG(TAG, "  Data pin %d: %s", i, (this->data_pins_[i])->dump_summary().c_str());
+  char pin_summary[GPIO_SUMMARY_MAX_LEN];
+  for (size_t i = 0; i != data_pin_count; i++) {
+    this->data_pins_[i]->dump_summary(pin_summary, sizeof(pin_summary));
+    ESP_LOGCONFIG(TAG, "  Data pin %d: %s", i, pin_summary);
+  }
 }
 
 void RpiDpiRgb::reset_display_() const {

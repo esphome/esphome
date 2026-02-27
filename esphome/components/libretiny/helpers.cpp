@@ -26,6 +26,10 @@ void Mutex::unlock() { xSemaphoreGive(this->handle_); }
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 
+// LibreTiny doesn't support lwIP core locking, so this is a no-op
+LwIPLock::LwIPLock() {}
+LwIPLock::~LwIPLock() {}
+
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
   WiFi.macAddress(mac);
 }

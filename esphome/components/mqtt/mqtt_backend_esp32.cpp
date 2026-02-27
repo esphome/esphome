@@ -8,8 +8,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.idf";
 
@@ -153,19 +152,22 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
     case MQTT_EVENT_DATA: {
       static std::string topic;
       if (!event.topic.empty()) {
+        // When a single message arrives as multiple chunks, the topic will be empty
+        // on any but the first message, leading to event.topic being an empty string.
+        // To ensure handlers get the correct topic, cache the last seen topic to
+        // simulate always receiving the topic from underlying library
         topic = event.topic;
       }
       ESP_LOGV(TAG, "MQTT_EVENT_DATA %s", topic.c_str());
-      this->on_message_.call(!event.topic.empty() ? topic.c_str() : nullptr, event.data.data(), event.data.size(),
-                             event.current_data_offset, event.total_data_len);
+      this->on_message_.call(topic.c_str(), event.data.data(), event.data.size(), event.current_data_offset,
+                             event.total_data_len);
     } break;
     case MQTT_EVENT_ERROR:
       ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
       if (event.error_handle.error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
-        ESP_LOGE(TAG, "Last error code reported from esp-tls: 0x%x", event.error_handle.esp_tls_last_esp_err);
-        ESP_LOGE(TAG, "Last tls stack error number: 0x%x", event.error_handle.esp_tls_stack_err);
-        ESP_LOGE(TAG, "Last captured errno : %d (%s)", event.error_handle.esp_transport_sock_errno,
-                 strerror(event.error_handle.esp_transport_sock_errno));
+        ESP_LOGE(TAG, "Last esp-tls error: 0x%x, tls stack error: 0x%x, socket errno: %d (%s)",
+                 event.error_handle.esp_tls_last_esp_err, event.error_handle.esp_tls_stack_err,
+                 event.error_handle.esp_transport_sock_errno, strerror(event.error_handle.esp_transport_sock_errno));
       } else if (event.error_handle.error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
         ESP_LOGE(TAG, "Connection refused error: 0x%x", event.error_handle.connect_return_code);
       } else {
@@ -186,6 +188,11 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
   if (instance) {
     auto event = *static_cast<esp_mqtt_event_t *>(event_data);
     instance->mqtt_events_.emplace(event);
+
+    // Wake main loop immediately to process MQTT event instead of waiting for select() timeout
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+    App.wake_loop_threadsafe();
+#endif
   }
 }
 
@@ -223,16 +230,6 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
       this_mqtt->mqtt_event_pool_.release(elem);
     }
   }
-
-  // Clean up any remaining items in the queue
-  struct QueueElement *elem;
-  while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
-    this_mqtt->mqtt_event_pool_.release(elem);
-  }
-
-  // Note: EventPool destructor will clean up the pool itself
-  // Task will delete itself
-  vTaskDelete(nullptr);
 }
 
 bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos, bool retain, const char *payload,
@@ -269,7 +266,6 @@ bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos,
 }
 #endif  // USE_MQTT_IDF_ENQUEUE
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 #endif  // USE_ESP32
 #endif

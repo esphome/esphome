@@ -1,12 +1,12 @@
 #ifdef USE_ESP32_VARIANT_ESP32S3
 #include "st7701s.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace st7701s {
 
 void ST7701S::setup() {
-  esph_log_config(TAG, "Setting up ST7701S");
   this->spi_setup();
   this->write_init_sequence_();
 
@@ -25,7 +25,6 @@ void ST7701S::setup() {
   config.timings.flags.pclk_active_neg = this->pclk_inverted_;
   config.timings.pclk_hz = this->pclk_frequency_;
   config.clk_src = LCD_CLK_SRC_PLL160M;
-  config.psram_trans_align = 64;
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
   for (size_t i = 0; i != data_pin_count; i++) {
     config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
@@ -42,7 +41,6 @@ void ST7701S::setup() {
   if (err != ESP_OK) {
     esph_log_e(TAG, "lcd_new_rgb_panel failed: %s", esp_err_to_name(err));
   }
-  esph_log_config(TAG, "ST7701S setup complete");
 }
 
 void ST7701S::loop() {
@@ -186,8 +184,11 @@ void ST7701S::dump_config() {
   LOG_PIN("  DE Pin: ", this->de_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
-  for (size_t i = 0; i != data_pin_count; i++)
-    ESP_LOGCONFIG(TAG, "  Data pin %d: %s", i, (this->data_pins_[i])->dump_summary().c_str());
+  char pin_summary[GPIO_SUMMARY_MAX_LEN];
+  for (size_t i = 0; i != data_pin_count; i++) {
+    this->data_pins_[i]->dump_summary(pin_summary, sizeof(pin_summary));
+    ESP_LOGCONFIG(TAG, "  Data pin %d: %s", i, pin_summary);
+  }
   ESP_LOGCONFIG(TAG, "  SPI Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 }
 

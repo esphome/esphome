@@ -44,6 +44,10 @@ void Mutex::unlock() {}
 IRAM_ATTR InterruptLock::InterruptLock() { state_ = save_and_disable_interrupts(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { restore_interrupts(state_); }
 
+// RP2040 doesn't support lwIP core locking, so this is a no-op
+LwIPLock::LwIPLock() {}
+LwIPLock::~LwIPLock() {}
+
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
 #ifdef USE_WIFI
   WiFi.macAddress(mac);

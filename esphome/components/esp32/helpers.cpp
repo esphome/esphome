@@ -1,4 +1,5 @@
 #include "esphome/core/helpers.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_ESP32
 
@@ -29,6 +30,45 @@ void Mutex::unlock() { xSemaphoreGive(this->handle_); }
 // so should not be used as a mutex lock, only to get accurate timing
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
+
+#ifdef CONFIG_LWIP_TCPIP_CORE_LOCKING
+#include "lwip/priv/tcpip_priv.h"
+#endif
+
+LwIPLock::LwIPLock() {
+#ifdef CONFIG_LWIP_TCPIP_CORE_LOCKING
+  // When CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled, lwIP uses a global mutex to protect
+  // its internal state. Any thread can take this lock to safely access lwIP APIs.
+  //
+  // sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER) returns true if the current thread
+  // already holds the lwIP core lock. This prevents recursive locking attempts and
+  // allows nested LwIPLock instances to work correctly.
+  //
+  // If we don't already hold the lock, acquire it. This will block until the lock
+  // is available if another thread currently holds it.
+  if (!sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER)) {
+    LOCK_TCPIP_CORE();
+  }
+#endif
+}
+
+LwIPLock::~LwIPLock() {
+#ifdef CONFIG_LWIP_TCPIP_CORE_LOCKING
+  // Only release the lwIP core lock if this thread currently holds it.
+  //
+  // sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER) queries lwIP's internal lock
+  // ownership tracking. It returns true only if the current thread is registered
+  // as the lock holder.
+  //
+  // This check is essential because:
+  // 1. We may not have acquired the lock in the constructor (if we already held it)
+  // 2. The lock might have been released by other means between constructor and destructor
+  // 3. Calling UNLOCK_TCPIP_CORE() without holding the lock causes undefined behavior
+  if (sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER)) {
+    UNLOCK_TCPIP_CORE();
+  }
+#endif
+}
 
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
 #if defined(CONFIG_SOC_IEEE802154_SUPPORTED)

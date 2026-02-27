@@ -1,15 +1,13 @@
 #pragma once
 
+#include "esphome/components/output/float_output.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/automation.h"
-#include "esphome/components/output/float_output.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32S2)
 
-#ifdef USE_ESP_IDF
 #include <driver/dac_oneshot.h>
-#endif
 
 namespace esphome {
 namespace esp32_dac {
@@ -29,12 +27,10 @@ class ESP32DAC : public output::FloatOutput, public Component {
   void write_state(float state) override;
 
   InternalGPIOPin *pin_;
-#ifdef USE_ESP_IDF
   dac_oneshot_handle_t dac_handle_;
-#endif
 };
 
 }  // namespace esp32_dac
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32_VARIANT_ESP32 || USE_ESP32_VARIANT_ESP32S2

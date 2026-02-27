@@ -92,12 +92,12 @@ async def test_scheduler_string_name_stress(
         )
 
         # Call the service to start the test
-        client.execute_service(run_stress_test_service, {})
+        await client.execute_service(run_stress_test_service, {})
 
         # Wait for test to complete or crash
         try:
             await asyncio.wait_for(test_complete_future, timeout=30.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(
                 f"String name stress test timed out. Executed {len(executed_callbacks)} callbacks. "
                 f"This might indicate a deadlock."

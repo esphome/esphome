@@ -5,8 +5,10 @@
 #include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/version.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -22,19 +24,24 @@
 #include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt";
 
+// Disconnect reason strings indexed by MQTTClientDisconnectReason enum (0-8)
+PROGMEM_STRING_TABLE(MQTTDisconnectReasonStrings, "TCP disconnected", "Unacceptable Protocol Version",
+                     "Identifier Rejected", "Server Unavailable", "Malformed Credentials", "Not Authorized",
+                     "Not Enough Space", "TLS Bad Fingerprint", "DNS Resolve Error", "Unknown");
+
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
-  this->credentials_.client_id = App.get_name() + "-" + get_mac_address();
+  char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
+  get_mac_address_into_buffer(mac_addr);
+  this->credentials_.client_id = make_name_with_suffix(App.get_name(), '-', mac_addr, MAC_ADDRESS_BUFFER_SIZE - 1);
 }
 
 // Connection
 void MQTTClientComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
         if (index == 0)
@@ -57,14 +64,9 @@ void MQTTClientComponent::setup() {
   });
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
-    logger::global_logger->add_on_log_callback(
-        [this](int level, const char *tag, const char *message, size_t message_len) {
-          if (level <= this->log_level_ && this->is_connected()) {
-            this->publish({.topic = this->log_message_.topic,
-                           .payload = std::string(message, message_len),
-                           .qos = this->log_message_.qos,
-                           .retain = this->log_message_.retain});
-          }
+    logger::global_logger->add_log_callback(
+        this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
+          static_cast<MQTTClientComponent *>(self)->on_log(level, tag, message, message_len);
         });
   }
 #endif
@@ -74,10 +76,13 @@ void MQTTClientComponent::setup() {
         "esphome/discover", [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); },
         2);
 
-    std::string topic = "esphome/ping/";
-    topic.append(App.get_name());
+    // Format topic on stack - subscribe() copies it
+    // "esphome/ping/" (13) + name (ESPHOME_DEVICE_NAME_MAX_LEN) + null (1)
+    constexpr size_t ping_topic_buffer_size = 13 + ESPHOME_DEVICE_NAME_MAX_LEN + 1;
+    char ping_topic[ping_topic_buffer_size];
+    buf_append_printf(ping_topic, sizeof(ping_topic), 0, "esphome/ping/%s", App.get_name().c_str());
     this->subscribe(
-        topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
+        ping_topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
   }
 
   if (this->enable_on_boot_) {
@@ -89,76 +94,104 @@ void MQTTClientComponent::send_device_info_() {
   if (!this->is_connected() or !this->is_discovery_ip_enabled()) {
     return;
   }
-  std::string topic = "esphome/discover/";
-  topic.append(App.get_name());
+  // Format topic on stack to avoid heap allocation
+  // "esphome/discover/" (17) + name (ESPHOME_DEVICE_NAME_MAX_LEN) + null (1)
+  constexpr size_t topic_buffer_size = 17 + ESPHOME_DEVICE_NAME_MAX_LEN + 1;
+  char topic[topic_buffer_size];
+  buf_append_printf(topic, sizeof(topic), 0, "esphome/discover/%s", App.get_name().c_str());
 
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   this->publish_json(
       topic,
       [](JsonObject root) {
         uint8_t index = 0;
         for (auto &ip : network::get_ip_addresses()) {
           if (ip.is_set()) {
-            root["ip" + (index == 0 ? "" : esphome::to_string(index))] = ip.str();
+            char key[8];  // "ip" + up to 3 digits + null
+            char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+            if (index == 0) {
+              key[0] = 'i';
+              key[1] = 'p';
+              key[2] = '\0';
+            } else {
+              buf_append_printf(key, sizeof(key), 0, "ip%u", index);
+            }
+            ip.str_to(ip_buf);
+            root[key] = ip_buf;
             index++;
           }
         }
-        root["name"] = App.get_name();
+        root[ESPHOME_F("name")] = App.get_name();
         if (!App.get_friendly_name().empty()) {
-          root["friendly_name"] = App.get_friendly_name();
+          root[ESPHOME_F("friendly_name")] = App.get_friendly_name();
         }
 #ifdef USE_API
-        root["port"] = api::global_api_server->get_port();
+        root[ESPHOME_F("port")] = api::global_api_server->get_port();
 #endif
-        root["version"] = ESPHOME_VERSION;
-        root["mac"] = get_mac_address();
+        root[ESPHOME_F("version")] = ESPHOME_VERSION;
+        char mac_buf[MAC_ADDRESS_BUFFER_SIZE];
+        get_mac_address_into_buffer(mac_buf);
+        root[ESPHOME_F("mac")] = mac_buf;
 
 #ifdef USE_ESP8266
-        root["platform"] = "ESP8266";
+        root[ESPHOME_F("platform")] = ESPHOME_F("ESP8266");
 #endif
 #ifdef USE_ESP32
-        root["platform"] = "ESP32";
+        root[ESPHOME_F("platform")] = ESPHOME_F("ESP32");
 #endif
 #ifdef USE_LIBRETINY
-        root["platform"] = lt_cpu_get_model_name();
+        root[ESPHOME_F("platform")] = lt_cpu_get_model_name();
 #endif
 
-        root["board"] = ESPHOME_BOARD;
+        root[ESPHOME_F("board")] = ESPHOME_BOARD;
 #if defined(USE_WIFI)
-        root["network"] = "wifi";
+        root[ESPHOME_F("network")] = ESPHOME_F("wifi");
 #elif defined(USE_ETHERNET)
-        root["network"] = "ethernet";
+        root[ESPHOME_F("network")] = ESPHOME_F("ethernet");
 #endif
 
 #ifdef ESPHOME_PROJECT_NAME
-        root["project_name"] = ESPHOME_PROJECT_NAME;
-        root["project_version"] = ESPHOME_PROJECT_VERSION;
+        root[ESPHOME_F("project_name")] = ESPHOME_PROJECT_NAME;
+        root[ESPHOME_F("project_version")] = ESPHOME_PROJECT_VERSION;
 #endif  // ESPHOME_PROJECT_NAME
 
 #ifdef USE_DASHBOARD_IMPORT
-        root["package_import_url"] = dashboard_import::get_package_import_url();
+        root[ESPHOME_F("package_import_url")] = dashboard_import::get_package_import_url();
 #endif
 
 #ifdef USE_API_NOISE
-        if (api::global_api_server->get_noise_ctx()->has_psk()) {
-          root["api_encryption"] = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
-        } else {
-          root["api_encryption_supported"] = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
-        }
+        root[api::global_api_server->get_noise_ctx().has_psk() ? ESPHOME_F("api_encryption")
+                                                               : ESPHOME_F("api_encryption_supported")] =
+            ESPHOME_F("Noise_NNpsk0_25519_ChaChaPoly_SHA256");
 #endif
       },
       2, this->discovery_info_.retain);
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
+#ifdef USE_LOGGER
+void MQTTClientComponent::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  (void) tag;
+  if (level <= this->log_level_ && this->is_connected()) {
+    this->publish(this->log_message_.topic.c_str(), message, message_len, this->log_message_.qos,
+                  this->log_message_.retain);
+  }
+}
+#endif
+
 void MQTTClientComponent::dump_config() {
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  // clang-format off
   ESP_LOGCONFIG(TAG,
                 "MQTT:\n"
                 "  Server Address: %s:%u (%s)\n"
                 "  Username: " LOG_SECRET("'%s'") "\n"
-                                                  "  Client ID: " LOG_SECRET("'%s'") "\n"
-                                                                                     "  Clean Session: %s",
-                this->credentials_.address.c_str(), this->credentials_.port, this->ip_.str().c_str(),
+                "  Client ID: " LOG_SECRET("'%s'") "\n"
+                "  Clean Session: %s",
+                this->credentials_.address.c_str(), this->credentials_.port, this->ip_.str_to(ip_buf),
                 this->credentials_.username.c_str(), this->credentials_.client_id.c_str(),
                 YESNO(this->credentials_.clean_session));
+  // clang-format on
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }
@@ -191,13 +224,17 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
+  err_t err;
+  {
+    LwIPLock lock;
 #if USE_NETWORK_IPV6
-  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
-                                         MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV6_IPV4);
+    err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, MQTTClientComponent::dns_found_callback,
+                                     this, LWIP_DNS_ADDRTYPE_IPV6_IPV4);
 #else
-  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
-                                         MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
+    err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, MQTTClientComponent::dns_found_callback,
+                                     this, LWIP_DNS_ADDRTYPE_IPV4);
 #endif /* USE_NETWORK_IPV6 */
+  }
   switch (err) {
     case ERR_OK: {
       // Got IP immediately
@@ -239,7 +276,8 @@ void MQTTClientComponent::check_dnslookup_() {
     return;
   }
 
-  ESP_LOGD(TAG, "Resolved broker IP address to %s", this->ip_.str().c_str());
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  ESP_LOGD(TAG, "Resolved broker IP address to %s", this->ip_.str_to(ip_buf));
   this->start_connect_();
 }
 #if defined(USE_ESP8266) && LWIP_VERSION_MAJOR == 1
@@ -317,36 +355,8 @@ void MQTTClientComponent::loop() {
   mqtt_backend_.loop();
 
   if (this->disconnect_reason_.has_value()) {
-    const LogString *reason_s;
-    switch (*this->disconnect_reason_) {
-      case MQTTClientDisconnectReason::TCP_DISCONNECTED:
-        reason_s = LOG_STR("TCP disconnected");
-        break;
-      case MQTTClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
-        reason_s = LOG_STR("Unacceptable Protocol Version");
-        break;
-      case MQTTClientDisconnectReason::MQTT_IDENTIFIER_REJECTED:
-        reason_s = LOG_STR("Identifier Rejected");
-        break;
-      case MQTTClientDisconnectReason::MQTT_SERVER_UNAVAILABLE:
-        reason_s = LOG_STR("Server Unavailable");
-        break;
-      case MQTTClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS:
-        reason_s = LOG_STR("Malformed Credentials");
-        break;
-      case MQTTClientDisconnectReason::MQTT_NOT_AUTHORIZED:
-        reason_s = LOG_STR("Not Authorized");
-        break;
-      case MQTTClientDisconnectReason::ESP8266_NOT_ENOUGH_SPACE:
-        reason_s = LOG_STR("Not Enough Space");
-        break;
-      case MQTTClientDisconnectReason::TLS_BAD_FINGERPRINT:
-        reason_s = LOG_STR("TLS Bad Fingerprint");
-        break;
-      default:
-        reason_s = LOG_STR("Unknown");
-        break;
-    }
+    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(
+        static_cast<uint8_t>(*this->disconnect_reason_), MQTTDisconnectReasonStrings::LAST_INDEX);
     if (!network::is_connected()) {
       reason_s = LOG_STR("WiFi disconnected");
     }
@@ -382,6 +392,12 @@ void MQTTClientComponent::loop() {
 
         this->last_connected_ = now;
         this->resubscribe_subscriptions_();
+
+        // Process pending resends for all MQTT components centrally
+        // This is more efficient than each component polling in its own loop
+        for (MQTTComponent *component : this->children_) {
+          component->process_resend();
+        }
       }
       break;
   }
@@ -486,39 +502,49 @@ bool MQTTClientComponent::publish(const std::string &topic, const std::string &p
 
 bool MQTTClientComponent::publish(const std::string &topic, const char *payload, size_t payload_length, uint8_t qos,
                                   bool retain) {
-  return publish({.topic = topic, .payload = payload, .qos = qos, .retain = retain});
+  return this->publish(topic.c_str(), payload, payload_length, qos, retain);
 }
 
 bool MQTTClientComponent::publish(const MQTTMessage &message) {
+  return this->publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
+                       message.retain);
+}
+bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
+                                       bool retain) {
+  return this->publish_json(topic.c_str(), f, qos, retain);
+}
+
+bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t payload_length, uint8_t qos,
+                                  bool retain) {
   if (!this->is_connected()) {
-    // critical components will re-transmit their messages
     return false;
   }
-  bool logging_topic = this->log_message_.topic == message.topic;
-  bool ret = this->mqtt_backend_.publish(message);
+  size_t topic_len = strlen(topic);
+  bool logging_topic = (topic_len == this->log_message_.topic.size()) &&
+                       (memcmp(this->log_message_.topic.c_str(), topic, topic_len) == 0);
+  bool ret = this->mqtt_backend_.publish(topic, payload, payload_length, qos, retain);
   delay(0);
   if (!ret && !logging_topic && this->is_connected()) {
     delay(0);
-    ret = this->mqtt_backend_.publish(message);
+    ret = this->mqtt_backend_.publish(topic, payload, payload_length, qos, retain);
     delay(0);
   }
 
   if (!logging_topic) {
     if (ret) {
-      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d qos=%d)", message.topic.c_str(), message.payload.c_str(),
-               message.retain, message.qos);
+      ESP_LOGV(TAG, "Publish(topic='%s' retain=%d qos=%d)", topic, retain, qos);
+      ESP_LOGVV(TAG, "Publish payload (len=%u): '%.*s'", payload_length, static_cast<int>(payload_length), payload);
     } else {
-      ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). Will retry", message.topic.c_str(),
-               message.payload.length());
+      ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). Will retry", topic, payload_length);
       this->status_momentary_warning("publish", 1000);
     }
   }
   return ret != 0;
 }
-bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
-                                       bool retain) {
-  std::string message = json::build_json(f);
-  return this->publish(topic, message, qos, retain);
+
+bool MQTTClientComponent::publish_json(const char *topic, const json::json_build_t &f, uint8_t qos, bool retain) {
+  auto message = json::build_json(f);
+  return this->publish(topic, message.c_str(), message.size(), qos, retain);
 }
 
 void MQTTClientComponent::enable() {
@@ -597,8 +623,24 @@ static bool topic_match(const char *message, const char *subscription) {
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
 #ifdef USE_ESP8266
-  // on ESP8266, this is called in lwIP/AsyncTCP task; some components do not like running
-  // from a different task.
+  // IMPORTANT: This defer is REQUIRED to prevent stack overflow crashes on ESP8266.
+  //
+  // On ESP8266, this callback is invoked directly from the lwIP/AsyncTCP network stack
+  // which runs in the "sys" context with a very limited stack (~4KB). By the time we
+  // reach this function, the stack is already partially consumed by the network
+  // processing chain: tcp_input -> AsyncClient::_recv -> AsyncMqttClient::_onMessage -> here.
+  //
+  // MQTT subscription callbacks can trigger arbitrary user actions (automations, HTTP
+  // requests, sensor updates, etc.) which may have deep call stacks of their own.
+  // For example, an HTTP request action requires: DNS lookup -> TCP connect -> TLS
+  // handshake (if HTTPS) -> request formatting. This easily overflows the remaining
+  // system stack space, causing a LoadStoreAlignmentCause exception or silent corruption.
+  //
+  // By deferring to the main loop, we ensure callbacks execute with a fresh, full-size
+  // stack in the normal application context rather than the constrained network task.
+  //
+  // DO NOT REMOVE THIS DEFER without understanding the above. It may appear to work
+  // in simple tests but will cause crashes with complex automations.
   this->defer([this, topic, payload]() {
 #endif
     for (auto &subscription : this->subscriptions_) {
@@ -621,7 +663,8 @@ void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
 void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix) {
   if (App.is_name_add_mac_suffix_enabled() && (topic_prefix == check_topic_prefix)) {
-    this->topic_prefix_ = str_sanitize(App.get_name());
+    char buf[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
+    this->topic_prefix_ = str_sanitize_to(buf, App.get_name().c_str());
   } else {
     this->topic_prefix_ = topic_prefix;
   }
@@ -706,13 +749,6 @@ void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&call
   this->on_disconnect_.add(std::move(callback_copy));
 }
 
-#if ASYNC_TCP_SSL_ENABLED
-void MQTTClientComponent::add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint) {
-  this->mqtt_backend_.setSecure(true);
-  this->mqtt_backend_.addServerFingerprint(fingerprint.data());
-}
-#endif
-
 MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // MQTTMessageTrigger
@@ -740,7 +776,6 @@ void MQTTMessageTrigger::dump_config() {
 }
 float MQTTMessageTrigger::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTT

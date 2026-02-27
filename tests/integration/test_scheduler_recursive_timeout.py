@@ -79,12 +79,12 @@ async def test_scheduler_recursive_timeout(
         )
 
         # Call the service to start the test
-        client.execute_service(run_test_service, {})
+        await client.execute_service(run_test_service, {})
 
         # Wait for test to complete
         try:
             await asyncio.wait_for(test_complete_future, timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(
                 f"Recursive timeout test timed out. Got sequence: {execution_sequence}"
             )

@@ -39,7 +39,6 @@ static const LogString *pm2005_get_measuring_mode_string(int status) {
 static inline uint16_t get_sensor_value(const uint8_t *data, uint8_t i) { return data[i] * 0x100 + data[i + 1]; }
 
 void PM2005Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->sensor_type_ == PM2005) {
     this->situation_value_index_ = 3;
     this->pm_1_0_value_index_ = 4;

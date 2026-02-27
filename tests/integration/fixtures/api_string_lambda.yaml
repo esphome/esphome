@@ -1,0 +1,87 @@
+esphome:
+  name: api-string-lambda-test
+host:
+
+api:
+  actions:
+    # Service that tests string lambda functionality
+    - action: test_string_lambda
+      variables:
+        input_string: string
+      then:
+        # Log the input to verify service was called
+        - logger.log:
+            format: "Service called with string: %s"
+            args: [input_string.c_str()]
+
+        # This is the key test - using a lambda that returns x.c_str()
+        # where x is already a string. This would fail to compile in 2025.7.0b5
+        # with "no matching function for call to 'to_string(std::string)'"
+        # This is the exact case from issue #9539
+        - homeassistant.tag_scanned: !lambda 'return input_string.c_str();'
+
+        # Also test with homeassistant.event to verify our fix works with data fields
+        - homeassistant.event:
+            event: esphome.test_string_lambda
+            data:
+              value: !lambda 'return input_string.c_str();'
+
+    # Service that tests int lambda functionality
+    - action: test_int_lambda
+      variables:
+        input_number: int
+      then:
+        # Log the input to verify service was called
+        - logger.log:
+            format: "Service called with int: %d"
+            args: [input_number]
+
+        # Test that int lambdas still work correctly with to_string
+        # The TemplatableStringValue should automatically convert int to string
+        - homeassistant.event:
+            event: esphome.test_int_lambda
+            data:
+              value: !lambda 'return input_number;'
+
+    # Service that tests float lambda functionality
+    - action: test_float_lambda
+      variables:
+        input_float: float
+      then:
+        # Log the input to verify service was called
+        - logger.log:
+            format: "Service called with float: %.2f"
+            args: [input_float]
+
+        # Test that float lambdas still work correctly with to_string
+        # The TemplatableStringValue should automatically convert float to string
+        - homeassistant.event:
+            event: esphome.test_float_lambda
+            data:
+              value: !lambda 'return input_float;'
+
+    # Service that tests char* lambda functionality (e.g., from itoa or sprintf)
+    - action: test_char_ptr_lambda
+      variables:
+        input_number: int
+        input_string: string
+      then:
+        # Log the input to verify service was called
+        - logger.log:
+            format: "Service called with number for char* test: %d"
+            args: [input_number]
+
+        # Test that char* lambdas work correctly
+        # This would fail in issue #9628 with "invalid conversion from 'char*' to 'long long unsigned int'"
+        - homeassistant.event:
+            event: esphome.test_char_ptr_lambda
+            data:
+              # Test snprintf returning char*
+              decimal_value: !lambda 'static char buffer[20]; snprintf(buffer, sizeof(buffer), "%d", input_number); return buffer;'
+              # Test strdup returning char* (dynamically allocated)
+              string_copy: !lambda 'return strdup(input_string.c_str());'
+              # Test string literal (const char*)
+              literal: !lambda 'return "test literal";'
+
+logger:
+  level: DEBUG

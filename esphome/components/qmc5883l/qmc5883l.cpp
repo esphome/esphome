@@ -8,6 +8,7 @@ namespace esphome {
 namespace qmc5883l {
 
 static const char *const TAG = "qmc5883l";
+
 static const uint8_t QMC5883L_ADDRESS = 0x0D;
 
 static const uint8_t QMC5883L_REGISTER_DATA_X_LSB = 0x00;
@@ -24,7 +25,6 @@ static const uint8_t QMC5883L_REGISTER_CONTROL_2 = 0x0A;
 static const uint8_t QMC5883L_REGISTER_PERIOD = 0x0B;
 
 void QMC5883LComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Soft Reset
   if (!this->write_byte(QMC5883L_REGISTER_CONTROL_2, 1 << 7)) {
     this->error_code_ = COMMUNICATION_FAILED;
@@ -32,6 +32,10 @@ void QMC5883LComponent::setup() {
     return;
   }
   delay(10);
+
+  if (this->drdy_pin_) {
+    this->drdy_pin_->setup();
+  }
 
   uint8_t control_1 = 0;
   control_1 |= 0b01 << 0;  // MODE (Mode) -> 0b00=standby, 0b01=continuous
@@ -65,6 +69,7 @@ void QMC5883LComponent::setup() {
     high_freq_.start();
   }
 }
+
 void QMC5883LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "QMC5883L:");
   LOG_I2C_DEVICE(this);
@@ -78,11 +83,18 @@ void QMC5883LComponent::dump_config() {
   LOG_SENSOR("  ", "Z Axis", this->z_sensor_);
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_PIN("  DRDY Pin: ", this->drdy_pin_);
 }
-float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
+
 void QMC5883LComponent::update() {
   i2c::ErrorCode err;
   uint8_t status = false;
+
+  // If DRDY pin is configured and the data is not ready return.
+  if (this->drdy_pin_ && !this->drdy_pin_->digital_read()) {
+    return;
+  }
+
   // Status byte gets cleared when data is read, so we have to read this first.
   // If status and two axes are desired, it's possible to save one byte of traffic by enabling
   // ROL_PNT in setup and reading 7 bytes starting at the status register.
@@ -91,7 +103,9 @@ void QMC5883LComponent::update() {
   if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG) {
     err = this->read_register(QMC5883L_REGISTER_STATUS, &status, 1);
     if (err != i2c::ERROR_OK) {
-      this->status_set_warning(str_sprintf("status read failed (%d)", err).c_str());
+      char buf[32];
+      snprintf(buf, sizeof(buf), "status read failed (%d)", err);
+      this->status_set_warning(buf);
       return;
     }
   }
@@ -113,7 +127,9 @@ void QMC5883LComponent::update() {
   }
   err = this->read_bytes_16_le_(start, &raw[dest], 3 - dest);
   if (err != i2c::ERROR_OK) {
-    this->status_set_warning(str_sprintf("mag read failed (%d)", err).c_str());
+    char buf[32];
+    snprintf(buf, sizeof(buf), "mag read failed (%d)", err);
+    this->status_set_warning(buf);
     return;
   }
 
@@ -141,7 +157,9 @@ void QMC5883LComponent::update() {
     uint16_t raw_temp;
     err = this->read_bytes_16_le_(QMC5883L_REGISTER_TEMPERATURE_LSB, &raw_temp);
     if (err != i2c::ERROR_OK) {
-      this->status_set_warning(str_sprintf("temp read failed (%d)", err).c_str());
+      char buf[32];
+      snprintf(buf, sizeof(buf), "temp read failed (%d)", err);
+      this->status_set_warning(buf);
       return;
     }
     temp = int16_t(raw_temp) * 0.01f;
