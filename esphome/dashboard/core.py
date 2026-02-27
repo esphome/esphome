@@ -226,7 +226,7 @@ class ESPHomeDashboard:
                     _LOGGER.warning(
                         "Pre-build failed for %s: %s", entry.name, error_msg
                     )
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 failed += 1
                 _LOGGER.exception("Pre-build error for %s", entry.name)
                 await self.loop.run_in_executor(
