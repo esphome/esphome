@@ -31,6 +31,7 @@ class PN532BinarySensor;
 class PN532 : public PollingComponent {
  public:
   void setup() override;
+  void set_rf_field_enabled(bool enabled) { this->rf_field_enabled_ = enabled; }
 
   void dump_config() override;
 
@@ -54,14 +55,25 @@ class PN532 : public PollingComponent {
   void format_mode();
   void write_mode(nfc::NdefMessage *message);
   bool powerdown();
-
+  void set_max_failed_checks(uint8_t n) { this->max_failed_checks_ = n; }
+  void set_auto_reset(bool v) { this->auto_reset_ = v; }
+  void set_user_update_interval(uint32_t ms) { this->user_update_interval_ = ms; }
+  uint32_t user_update_interval_{1000};
+  uint32_t backoff_ms_{0};
+  
  protected:
   void turn_off_rf_();
   bool write_command_(const std::vector<uint8_t> &data);
   bool read_ack_();
   void send_ack_();
   void send_nack_();
-
+  bool reinit_();
+  bool sam_configured_{false};
+  uint8_t consecutive_failures_{0};
+  uint8_t max_failed_checks_{3};
+  bool auto_reset_{true};
+  bool rf_field_enabled_{false};
+  
   enum PN532ReadReady read_ready_(bool block);
   virtual bool is_read_ready() = 0;
   virtual bool write_data(const std::vector<uint8_t> &data) = 0;
@@ -76,7 +88,7 @@ class PN532 : public PollingComponent {
 
   std::unique_ptr<nfc::NfcTag> read_mifare_classic_tag_(nfc::NfcTagUid &uid);
   bool read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
-  bool write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, size_t len);
+  bool write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
   bool auth_mifare_classic_block_(nfc::NfcTagUid &uid, uint8_t block_num, uint8_t key_num, const uint8_t *key);
   bool format_mifare_classic_mifare_(nfc::NfcTagUid &uid);
   bool format_mifare_classic_ndef_(nfc::NfcTagUid &uid);
@@ -88,7 +100,7 @@ class PN532 : public PollingComponent {
   uint16_t read_mifare_ultralight_capacity_();
   bool find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
                                     uint8_t &message_start_index);
-  bool write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len);
+  bool write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &write_data);
   bool write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
   bool clean_mifare_ultralight_();
 
@@ -99,7 +111,7 @@ class PN532 : public PollingComponent {
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
   nfc::NfcTagUid current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
-  optional<uint32_t> rd_start_time_{};
+  uint32_t rd_start_time_{0};
   enum PN532ReadReady rd_ready_ { WOULDBLOCK };
   enum NfcTask {
     READ = 0,

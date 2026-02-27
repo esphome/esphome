@@ -31,7 +31,10 @@ void PN532::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Found chip PN5%02X, Firmware v%d.%d", version_data[0], version_data[1], version_data[2]);
+  ESP_LOGD(TAG,
+           "Found chip PN5%02X\n"
+           "Firmware ver. %d.%d",
+           version_data[0], version_data[1], version_data[2]);
 
   if (!this->write_command_({
           PN532_COMMAND_SAMCONFIGURATION,
@@ -74,7 +77,8 @@ void PN532::setup() {
     this->mark_failed();
     return;
   }
-
+  this->user_update_interval_ = this->update_interval_;
+  this->sam_configured_ = true;
   this->turn_off_rf_();
 }
 
@@ -107,18 +111,60 @@ void PN532::update() {
   for (auto *obj : this->binary_sensors_)
     obj->on_scan_end();
 
+  if (!this->sam_configured_) {
+    if (this->reinit_()) {
+      this->status_clear_warning();
+      this->consecutive_failures_ = 0;
+      // Restore normal update interval if we were in backoff
+      if (this->backoff_ms_ != 0) {
+        this->backoff_ms_ = 0;
+        this->set_update_interval(this->user_update_interval_);
+        ESP_LOGI(TAG, "PN532 recovered, resuming normal %dms scan interval", this->user_update_interval_);
+      }
+      this->requested_read_ = true;
+    } else {
+      this->status_set_warning();
+    }
+    return;
+  }
+
   if (!this->write_command_({
           PN532_COMMAND_INLISTPASSIVETARGET,
           0x01,  // max 1 card
           0x00,  // baud rate ISO14443A (106 kbit/s)
       })) {
+    // ── failure path ──────────────────────────────────────────────────
     ESP_LOGW(TAG, "Requesting tag read failed!");
     this->status_set_warning();
+    // Exponential backoff: 2s → 4s → 8s → ... → 60s max
+    uint32_t new_backoff = (this->backoff_ms_ == 0)
+        ? this->user_update_interval_ * 2
+        : std::min(this->backoff_ms_ * 2, (uint32_t) 60000);
+    if (new_backoff != this->backoff_ms_) {
+      this->backoff_ms_ = new_backoff;
+      this->set_update_interval(this->backoff_ms_);
+      ESP_LOGW(TAG, "Backing off to %dms retry interval", this->backoff_ms_);
+    }
+    if (++this->consecutive_failures_ >= this->max_failed_checks_) {
+      ESP_LOGW(TAG, "PN532 unresponsive, scheduling re-init...");
+      this->consecutive_failures_ = 0;
+      if (this->auto_reset_) {
+        this->sam_configured_ = false;
+      }
+    }
+    return;
     return;
   }
+
+  // ── success path ──────────────────────────────────────────────────
   this->status_clear_warning();
+  this->consecutive_failures_ = 0;
   this->requested_read_ = true;
 }
+
+
+
+
 
 void PN532::loop() {
   if (!this->requested_read_)
@@ -147,7 +193,8 @@ void PN532::loop() {
         trigger->process(tag);
     }
     this->current_uid_ = {};
-    this->turn_off_rf_();
+    if (!this->rf_field_enabled_)
+      this->turn_off_rf_();
     return;
   }
 
@@ -160,7 +207,8 @@ void PN532::loop() {
         trigger->process(tag);
     }
     this->current_uid_ = {};
-    this->turn_off_rf_();
+    if (!this->rf_field_enabled_)
+      this->turn_off_rf_();
     return;
   }
 
@@ -237,8 +285,8 @@ void PN532::loop() {
   }
 
   this->read_mode();
-
-  this->turn_off_rf_();
+  if (!this->rf_field_enabled_)
+    this->turn_off_rf_();
 }
 
 bool PN532::write_command_(const std::vector<uint8_t> &data) {
@@ -308,13 +356,13 @@ void PN532::send_nack_() {
 enum PN532ReadReady PN532::read_ready_(bool block) {
   if (this->rd_ready_ == READY) {
     if (block) {
-      this->rd_start_time_.reset();
+      this->rd_start_time_ = 0;
       this->rd_ready_ = WOULDBLOCK;
     }
     return READY;
   }
 
-  if (!this->rd_start_time_.has_value()) {
+  if (!this->rd_start_time_) {
     this->rd_start_time_ = millis();
   }
 
@@ -324,7 +372,7 @@ enum PN532ReadReady PN532::read_ready_(bool block) {
       break;
     }
 
-    if (millis() - *this->rd_start_time_ > 100) {
+    if (millis() - this->rd_start_time_ > 100) {
       ESP_LOGV(TAG, "Timed out waiting for readiness from PN532!");
       this->rd_ready_ = TIMEOUT;
       break;
@@ -340,7 +388,7 @@ enum PN532ReadReady PN532::read_ready_(bool block) {
 
   auto rdy = this->rd_ready_;
   if (block || rdy == TIMEOUT) {
-    this->rd_start_time_.reset();
+    this->rd_start_time_ = 0;
     this->rd_ready_ = WOULDBLOCK;
   }
   return rdy;
@@ -422,6 +470,53 @@ bool PN532::write_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message) {
   ESP_LOGE(TAG, "Unsupported Tag for formatting");
   return false;
 }
+
+bool PN532::reinit_() {
+  ESP_LOGW(TAG, "Attempting PN532 re-initialisation...");
+
+  // PN532 may still be booting — retry version command up to 5 times
+  bool version_ok = false;
+  for (int i = 0; i < 5; i++) {
+    delay(100);
+    if (this->write_command_({PN532_COMMAND_VERSION_DATA})) {
+      std::vector<uint8_t> ver;
+      if (this->read_response(PN532_COMMAND_VERSION_DATA, ver)) {
+        version_ok = true;
+        break;
+      }
+    }
+    ESP_LOGW(TAG, "Re-init: version attempt %d/5 failed", i + 1);
+  }
+  if (!version_ok)
+    return false;
+
+  if (!this->write_command_({PN532_COMMAND_SAMCONFIGURATION, 0x01, 0x14, 0x01})) {
+    ESP_LOGW(TAG, "Re-init: SAM wakeup failed");
+    return false;
+  }
+  std::vector<uint8_t> wakeup_result;
+  if (!this->read_response(PN532_COMMAND_SAMCONFIGURATION, wakeup_result)) {
+    ESP_LOGW(TAG, "Re-init: SAM wakeup response failed");
+    return false;
+  }
+
+  uint8_t sam_timeout = std::min<uint8_t>(255u, this->update_interval_ / 50);
+  if (!this->write_command_({PN532_COMMAND_SAMCONFIGURATION, 0x01, sam_timeout, 0x01})) {
+    ESP_LOGW(TAG, "Re-init: SAM config failed");
+    return false;
+  }
+  std::vector<uint8_t> sam_result;
+  if (!this->read_response(PN532_COMMAND_SAMCONFIGURATION, sam_result)) {
+    ESP_LOGW(TAG, "Re-init: SAM config response failed");
+    return false;
+  }
+  if (!this->rf_field_enabled_)
+    this->turn_off_rf_();
+  this->sam_configured_ = true;
+  ESP_LOGI(TAG, "PN532 re-initialised successfully!");
+  return true;
+}
+
 
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");
