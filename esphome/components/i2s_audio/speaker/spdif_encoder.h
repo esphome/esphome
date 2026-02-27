@@ -9,6 +9,7 @@
 #include <memory>
 #include <freertos/FreeRTOS.h>
 #include "esp_err.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::i2s_audio {
 
@@ -36,7 +37,7 @@ using SPDIFBlockCallback = esp_err_t (*)(void *user_ctx, uint32_t *data, size_t 
 
 class SPDIFEncoder {
  public:
-  /// @brief Initialize the BMC lookup table and working buffer
+  /// @brief Initialize the SPDIF working buffer
   /// @return true if setup was successful, false if allocation failed
   bool setup();
 
@@ -100,17 +101,10 @@ class SPDIFEncoder {
 
  protected:
   /// @brief Encode a single 16-bit PCM sample into the current block position
-  void encode_sample_(const uint8_t *pcm_sample);
+  HOT void encode_sample_(const uint8_t *pcm_sample);
 
   /// @brief Send the completed block via the appropriate callback
   esp_err_t send_block_(TickType_t ticks_to_wait);
-
-  /// @brief BMC-encode a range of bits (LUT-free)
-  /// @param data The data bits to encode (LSB first)
-  /// @param num_bits Number of bits to encode
-  /// @param phase Current BMC phase state (updated on return)
-  /// @return BMC-encoded output (2 bits per input bit)
-  static uint32_t bmc_encode(uint32_t data, uint8_t num_bits, bool &phase);
 
   /// @brief Build the channel status block from current configuration
   void build_channel_status_();
@@ -118,7 +112,11 @@ class SPDIFEncoder {
   /// @brief Get the channel status bit for a specific frame
   /// @param frame Frame number (0-191)
   /// @return The C bit value for this frame
-  bool get_channel_status_bit_(uint8_t frame) const;
+  ESPHOME_ALWAYS_INLINE inline bool get_channel_status_bit_(uint8_t frame) const {
+    // Channel status is 192 bits transmitted over 192 frames
+    // Bit N is transmitted in frame N, LSB-first within each byte
+    return (this->channel_status_[frame >> 3] >> (frame & 7)) & 1;
+  }
 
   // Member ordering optimized to minimize padding (largest alignment first)
 

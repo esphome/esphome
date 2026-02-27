@@ -16,6 +16,44 @@ static constexpr uint8_t PREAMBLE_B = 0x17;  // Block start (left channel, frame
 static constexpr uint8_t PREAMBLE_M = 0x1d;  // Left channel (not block start)
 static constexpr uint8_t PREAMBLE_W = 0x1b;  // Right channel
 
+// BMC encoding of 4 zero bits starting at phase HIGH: 00_11_00_11 = 0x33
+// Since both aux nibbles (bits 4-7, 8-11) are zero for 16-bit audio and phase is preserved, both are 0x33.
+static constexpr uint32_t BMC_ZERO_NIBBLE = 0x33;
+
+// Constexpr BMC encoder for compile-time LUT generation.
+// Encodes with start phase=true (HIGH). The complement property allows phase=false
+// via XOR: bmc_encode(v, N, false) == bmc_encode(v, N, true) ^ mask
+static constexpr uint16_t bmc_lut_encode(uint32_t data, uint8_t num_bits) {
+  uint16_t bmc = 0;
+  bool phase = true;
+  for (uint8_t i = 0; i < num_bits; i++) {
+    bool bit = (data >> i) & 1;
+    uint8_t bmc_pair = phase ? (bit ? 0b01 : 0b00) : (bit ? 0b10 : 0b11);
+    bmc |= static_cast<uint16_t>(bmc_pair) << ((num_bits - 1 - i) * 2);
+    if (!bit)
+      phase = !phase;
+  }
+  return bmc;
+}
+
+// 4-bit BMC lookup table: 16 entries (16 bytes in flash)
+// Index: 4-bit data value (0-15), always phase=true start
+static constexpr auto BMC_LUT_4 = [] {
+  std::array<uint8_t, 16> t{};
+  for (uint32_t i = 0; i < 16; i++)
+    t[i] = static_cast<uint8_t>(bmc_lut_encode(i, 4));
+  return t;
+}();
+
+// 8-bit BMC lookup table: 256 entries (512 bytes in flash)
+// Index: 8-bit data value (0-255), always phase=true start
+static constexpr auto BMC_LUT_8 = [] {
+  std::array<uint16_t, 256> t{};
+  for (uint32_t i = 0; i < 256; i++)
+    t[i] = bmc_lut_encode(i, 8);
+  return t;
+}();
+
 // Initialize S/PDIF buffer
 bool SPDIFEncoder::setup() {
   this->spdif_block_buf_ = std::make_unique<uint32_t[]>(SPDIF_BLOCK_SIZE_U32);
@@ -105,44 +143,7 @@ void SPDIFEncoder::build_channel_status_() {
   // Bytes 4-23 remain zero (word length not specified, no original sample freq, etc.)
 }
 
-bool SPDIFEncoder::get_channel_status_bit_(uint8_t frame) const {
-  // Channel status is 192 bits transmitted over 192 frames
-  // Bit N is transmitted in frame N, LSB-first within each byte
-  // Use bit operations instead of division/modulo for speed
-  return (this->channel_status_[frame >> 3] >> (frame & 7)) & 1;
-}
-
-// LUT-free BMC encoding
-// Encodes 'num_bits' bits from 'data', returns BMC output for MSB-first I2S transmission.
-// Data is processed LSB-first (S/PDIF order), but output is placed MSB-first.
-//
-// BMC encoding rules:
-// - Always transition at start of bit cell
-// - Additional transition in middle for '1' bit
-//
-// Phase HIGH: bit 0 -> 00 (end LOW),  bit 1 -> 01 (end HIGH)
-// Phase LOW:  bit 0 -> 11 (end HIGH), bit 1 -> 10 (end LOW)
-//
-// Key insight: '0' bits flip phase, '1' bits maintain it.
-//
-// Output bit placement (for MSB-first I2S transmission):
-// - Data bit 0's encoding goes to MSB of output (transmitted first)
-// - Data bit N-1's encoding goes to LSB of output (transmitted last)
-uint32_t SPDIFEncoder::bmc_encode(uint32_t data, uint8_t num_bits, bool &phase) {
-  uint32_t bmc = 0;
-  for (uint8_t i = 0; i < num_bits; i++) {
-    bool bit = (data >> i) & 1;
-    uint8_t bmc_pair = phase ? (bit ? 0b01 : 0b00) : (bit ? 0b10 : 0b11);
-    // Place at MSB-first position: data bit 0 -> highest bit positions
-    bmc |= static_cast<uint32_t>(bmc_pair) << ((num_bits - 1 - i) * 2);
-    if (!bit) {
-      phase = !phase;  // '0' flips phase, '1' maintains it
-    }
-  }
-  return bmc;
-}
-
-void SPDIFEncoder::encode_sample_(const uint8_t *pcm_sample) {
+HOT void SPDIFEncoder::encode_sample_(const uint8_t *pcm_sample) {
   // ============================================================================
   // Build raw 32-bit subframe (IEC 60958 format)
   // ============================================================================
@@ -188,7 +189,7 @@ void SPDIFEncoder::encode_sample_(const uint8_t *pcm_sample) {
   }
 
   // ============================================================================
-  // BMC encode the data portion (bits 4-31)
+  // BMC encode the data portion (bits 4-31) using lookup tables
   // ============================================================================
   // The I2S uses 16-bit halfword swap: bits 16-31 transmit before bits 0-15.
   // This applies to BOTH word[0] and word[1].
@@ -206,29 +207,29 @@ void SPDIFEncoder::encode_sample_(const uint8_t *pcm_sample) {
   //   - bits 0-15:  BMC(subframe bits 24-31) - audio high nibble + VUCP
   // ============================================================================
 
-  // All preambles end at phase HIGH (last bit = 1 for B, M, and W preambles)
-  bool phase = true;
+  // All preambles end at phase HIGH. Bits 4-11 are always zero for 16-bit audio;
+  // two zero nibbles flip phase 8 times total → back to HIGH.
+  // So bits 12-15 always start encoding at phase=true.
 
-  // Bits 4-11 are always zero for 16-bit audio.
-  // Pre-computed BMC for 4 zeros starting at phase HIGH:
-  // Each '0' bit produces 00 (HIGH) or 11 (LOW) and flips phase.
-  // 4 zeros flip phase 4 times → ends at same phase (HIGH).
-  // MSB-first output: 00_11_00_11 = 0x33
-  // Since both aux nibbles are zero and phase is preserved, both are 0x33.
-  static constexpr uint32_t BMC_ZERO_NIBBLE = 0x33;
+  // Bits 12-15: 4-bit LUT lookup (always phase=true start)
+  uint32_t nibble = (raw_subframe >> 12) & 0xF;
+  uint32_t bmc_12_15 = BMC_LUT_4[nibble];
 
-  // Encode subframe bits 12-15 (4 bits -> 8 BMC bits) - audio low nibble
-  // Phase is still HIGH after the two zero nibbles (4 + 4 phase flips = back to HIGH)
-  uint32_t bits_12_15 = (raw_subframe >> 12) & 0xF;
-  uint32_t bmc_12_15 = bmc_encode(bits_12_15, 4, phase);
+  // Phase tracking via branchless XOR mask:
+  // - 0x0000 means phase=true (use LUT value directly)
+  // - 0xFFFF means phase=false (complement LUT value)
+  // End phase = start XOR (popcount & 1) since zero-bits flip phase,
+  // and for even bit widths: #zeros parity == popcount parity.
+  uint32_t phase_mask = -(__builtin_popcount(nibble) & 1u) & 0xFFFF;
 
-  // Encode subframe bits 16-23 (8 bits -> 16 BMC bits) - audio mid byte
-  uint32_t bits_16_23 = (raw_subframe >> 16) & 0xFF;
-  uint32_t bmc_16_23 = bmc_encode(bits_16_23, 8, phase);
+  // Bits 16-23: 8-bit LUT lookup with phase correction
+  uint32_t byte_mid = (raw_subframe >> 16) & 0xFF;
+  uint32_t bmc_16_23 = BMC_LUT_8[byte_mid] ^ phase_mask;
+  phase_mask ^= -(__builtin_popcount(byte_mid) & 1u) & 0xFFFF;
 
-  // Encode subframe bits 24-31 (8 bits -> 16 BMC bits) - audio high nibble + VUCP
-  uint32_t bits_24_31 = (raw_subframe >> 24) & 0xFF;
-  uint32_t bmc_24_31 = bmc_encode(bits_24_31, 8, phase);
+  // Bits 24-31: 8-bit LUT lookup with phase correction
+  uint32_t byte_hi = (raw_subframe >> 24) & 0xFF;
+  uint32_t bmc_24_31 = BMC_LUT_8[byte_hi] ^ phase_mask;
 
   // ============================================================================
   // Combine with correct positioning for I2S transmission
@@ -260,7 +261,9 @@ void SPDIFEncoder::encode_sample_(const uint8_t *pcm_sample) {
   // ============================================================================
   if (!this->is_left_channel_) {
     // Completed a stereo frame, advance frame counter
-    this->frame_in_block_ = (this->frame_in_block_ + 1) % SPDIF_BLOCK_SAMPLES;
+    if (++this->frame_in_block_ >= SPDIF_BLOCK_SAMPLES) {
+      this->frame_in_block_ = 0;
+    }
   }
   this->is_left_channel_ = !this->is_left_channel_;
 }
@@ -303,7 +306,7 @@ size_t SPDIFEncoder::get_pending_pcm_bytes() const {
   return pending_samples * 2;  // 2 bytes per sample
 }
 
-esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ticks_to_wait, uint32_t *blocks_sent) {
+HOT esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ticks_to_wait, uint32_t *blocks_sent) {
   const uint8_t *pcm_data = src;
   const uint8_t *pcm_end = src + size;
   uint32_t block_count = 0;
