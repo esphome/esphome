@@ -11,8 +11,11 @@
 
 namespace esphome::safe_mode {
 
+/// RTC key for storing boot loop counter - used by safe_mode and preferences backends
+constexpr uint32_t RTC_KEY = 233825507UL;
+
 /// SafeModeComponent provides a safe way to recover from repeated boot failures
-class SafeModeComponent : public Component {
+class SafeModeComponent final : public Component {
  public:
   bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time, uint32_t boot_is_good_after);
 

@@ -124,14 +124,11 @@ class ESP32Preferences : public ESPPreferences {
       return true;
 
     ESP_LOGV(TAG, "Saving %zu items...", s_pending_save.size());
-    // goal try write all pending saves even if one fails
     int cached = 0, written = 0, failed = 0;
     esp_err_t last_err = ESP_OK;
     uint32_t last_key = 0;
 
-    // go through vector from back to front (makes erase easier/more efficient)
-    for (ssize_t i = s_pending_save.size() - 1; i >= 0; i--) {
-      const auto &save = s_pending_save[i];
+    for (const auto &save : s_pending_save) {
       char key_str[KEY_BUFFER_SIZE];
       snprintf(key_str, sizeof(key_str), "%" PRIu32, save.key);
       ESP_LOGVV(TAG, "Checking if NVS data %s has changed", key_str);
@@ -150,8 +147,9 @@ class ESP32Preferences : public ESPPreferences {
         ESP_LOGV(TAG, "NVS data not changed skipping %" PRIu32 "  len=%zu", save.key, save.len);
         cached++;
       }
-      s_pending_save.erase(s_pending_save.begin() + i);
     }
+    s_pending_save.clear();
+
     ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
              failed);
     if (failed > 0) {

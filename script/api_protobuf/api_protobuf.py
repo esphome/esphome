@@ -690,6 +690,14 @@ class MessageType(TypeInfo):
         return "encode_message"
 
     @property
+    def encode_content(self) -> str:
+        # Singular message fields pass force=false (skip empty messages)
+        # The default for encode_nested_message is force=true (for repeated fields)
+        return (
+            f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, false);"
+        )
+
+    @property
     def decode_length(self) -> str:
         # Override to return None for message types because we can't use template-based
         # decoding when the specific message type isn't known at compile time.
@@ -1905,6 +1913,37 @@ def build_type_usage_map(
     )
 
 
+def get_varint64_ifdef(
+    file_desc: descriptor.FileDescriptorProto,
+    message_ifdef_map: dict[str, str | None],
+) -> tuple[bool, str | None]:
+    """Check if 64-bit varint fields exist and get their common ifdef guard.
+
+    Returns:
+        (has_varint64, ifdef_guard) - has_varint64 is True if any fields exist,
+        ifdef_guard is the common guard or None if unconditional.
+    """
+    varint64_types = {
+        FieldDescriptorProto.TYPE_INT64,
+        FieldDescriptorProto.TYPE_UINT64,
+        FieldDescriptorProto.TYPE_SINT64,
+    }
+    ifdefs: set[str | None] = {
+        message_ifdef_map.get(msg.name)
+        for msg in file_desc.message_type
+        if not msg.options.deprecated
+        for field in msg.field
+        if not field.options.deprecated and field.type in varint64_types
+    }
+    if not ifdefs:
+        return False, None
+    if None in ifdefs:
+        # At least one 64-bit varint field is unconditional, so the guard must be unconditional.
+        return True, None
+    ifdefs.discard(None)
+    return True, ifdefs.pop() if len(ifdefs) == 1 else None
+
+
 def build_enum_type(desc, enum_ifdef_map) -> tuple[str, str, str]:
     """Builds the enum type.
 
@@ -2186,7 +2225,7 @@ def build_message_type(
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
-        o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{"
+        o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{"
         if len(encode) == 1 and len(encode[0]) + len(o) + 3 < 120:
             o += f" {encode[0]} }}\n"
         else:
@@ -2194,7 +2233,7 @@ def build_message_type(
             o += indent("\n".join(encode)) + "\n"
             o += "}\n"
         cpp += o
-        prot = "void encode(ProtoWriteBuffer buffer) const override;"
+        prot = "void encode(ProtoWriteBuffer &buffer) const override;"
         public_content.append(prot)
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
@@ -2270,9 +2309,18 @@ SOURCE_NAMES = {
     SOURCE_CLIENT: "SOURCE_CLIENT",
 }
 
-RECEIVE_CASES: dict[int, tuple[str, str | None]] = {}
+RECEIVE_CASES: dict[int, tuple[str, str | None, str]] = {}
 
 ifdefs: dict[str, str] = {}
+
+# Track messages with no fields (empty messages) for parameter elision
+EMPTY_MESSAGES: set[str] = set()
+
+# Track empty SOURCE_CLIENT messages that don't need class generation
+# These messages have no fields and are only received (never sent), so the
+# class definition (vtable, dump_to, message_name, ESTIMATED_SIZE) is dead code
+# that the compiler compiles but the linker strips away.
+SKIP_CLASS_GENERATION: set[str] = set()
 
 
 def get_opt(
@@ -2504,27 +2552,31 @@ def build_service_message_type(
         # Only add ifdef when we're actually generating content
         if ifdef is not None:
             hout += f"#ifdef {ifdef}\n"
-        # Generate receive
+        # Generate receive handler and switch case
         func = f"on_{snake}"
-        hout += f"virtual void {func}(const {mt.name} &value){{}};\n"
-        case = ""
-        case += f"{mt.name} msg;\n"
-        # Check if this message has any fields (excluding deprecated ones)
         has_fields = any(not field.options.deprecated for field in mt.field)
-        if has_fields:
-            # Normal case: decode the message
+        is_empty = not has_fields
+        if is_empty:
+            EMPTY_MESSAGES.add(mt.name)
+        hout += f"virtual void {func}({'' if is_empty else f'const {mt.name} &value'}){{}};\n"
+        case = ""
+        if not is_empty:
+            case += f"{mt.name} msg;\n"
             case += "msg.decode(msg_data, msg_size);\n"
-        else:
-            # Empty message optimization: skip decode since there are no fields
-            case += "// Empty message: no decode needed\n"
         if log:
             case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-            case += f'this->log_receive_message_(LOG_STR("{func}"), msg);\n'
+            if is_empty:
+                case += f'this->log_receive_message_(LOG_STR("{func}"));\n'
+            else:
+                case += f'this->log_receive_message_(LOG_STR("{func}"), msg);\n'
             case += "#endif\n"
-        case += f"this->{func}(msg);\n"
+        case += f"this->{func}({'msg' if not is_empty else ''});\n"
         case += "break;"
-        # Store the message name and ifdef with the case for later use
-        RECEIVE_CASES[id_] = (case, ifdef, mt.name)
+        if mt.name in SKIP_CLASS_GENERATION:
+            case_label = f"{id_} /* {mt.name} is empty */"
+        else:
+            case_label = f"{mt.name}::MESSAGE_TYPE"
+        RECEIVE_CASES[id_] = (case, ifdef, case_label)
 
         # Only close ifdef if we opened it
         if ifdef is not None:
@@ -2546,11 +2598,38 @@ def main() -> None:
 
     file = d.file[0]
 
+    # Build dynamic ifdef mappings early so we can emit USE_API_VARINT64 before includes
+    enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
+        build_type_usage_map(file)
+    )
+
+    # Find the ifdef guard for 64-bit varint fields (int64/uint64/sint64).
+    # Generated into api_pb2_defines.h so proto.h can include it, ensuring
+    # consistent ProtoVarInt layout across all translation units.
+    has_varint64, varint64_guard = get_varint64_ifdef(file, message_ifdef_map)
+
+    # Generate api_pb2_defines.h — included by proto.h to ensure all translation
+    # units see USE_API_VARINT64 consistently (avoids ODR violations in ProtoVarInt).
+    defines_content = FILE_HEADER
+    defines_content += "#pragma once\n\n"
+    defines_content += '#include "esphome/core/defines.h"\n'
+    if has_varint64:
+        lines = [
+            "#ifndef USE_API_VARINT64",
+            "#define USE_API_VARINT64",
+            "#endif",
+        ]
+        defines_content += "\n".join(wrap_with_ifdef(lines, varint64_guard))
+        defines_content += "\n"
+    defines_content += "\nnamespace esphome::api {}  // namespace esphome::api\n"
+
+    with open(root / "api_pb2_defines.h", "w", encoding="utf-8") as f:
+        f.write(defines_content)
+
     content = FILE_HEADER
     content += """\
 #pragma once
 
-#include "esphome/core/defines.h"
 #include "esphome/core/string_ref.h"
 
 #include "proto.h"
@@ -2681,11 +2760,6 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 
     content += "namespace enums {\n\n"
 
-    # Build dynamic ifdef mappings for both enums and messages
-    enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
-        build_type_usage_map(file)
-    )
-
     # Simple grouping of enums by ifdef
     current_ifdef = None
 
@@ -2720,6 +2794,19 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 
     mt = file.message_type
 
+    # Identify empty SOURCE_CLIENT messages that don't need class generation
+    for m in mt:
+        if m.options.deprecated:
+            continue
+        if not m.options.HasExtension(pb.id):
+            continue
+        source = message_source_map.get(m.name)
+        if source != SOURCE_CLIENT:
+            continue
+        has_fields = any(not field.options.deprecated for field in m.field)
+        if not has_fields:
+            SKIP_CLASS_GENERATION.add(m.name)
+
     # Collect messages by base class
     base_class_groups = collect_messages_by_base_class(mt)
 
@@ -2750,6 +2837,10 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 
         # Skip messages that aren't used (unless they have an ID/service message)
         if m.name not in used_messages and not m.options.HasExtension(pb.id):
+            continue
+
+        # Skip class generation for empty SOURCE_CLIENT messages
+        if m.name in SKIP_CLASS_GENERATION:
             continue
 
         s, c, dc = build_message_type(m, base_class_fields, message_source_map)
@@ -2839,6 +2930,7 @@ static const char *const TAG = "api.service";
     hpp += (
         "  void log_receive_message_(const LogString *name, const ProtoMessage &msg);\n"
     )
+    hpp += "  void log_receive_message_(const LogString *name);\n"
     hpp += " public:\n"
     hpp += "#endif\n\n"
 
@@ -2862,6 +2954,9 @@ static const char *const TAG = "api.service";
     cpp += "  DumpBuffer dump_buf;\n"
     cpp += '  ESP_LOGVV(TAG, "%s: %s", LOG_STR_ARG(name), msg.dump_to(dump_buf));\n'
     cpp += "}\n"
+    cpp += f"void {class_name}::log_receive_message_(const LogString *name) {{\n"
+    cpp += '  ESP_LOGVV(TAG, "%s: {}", LOG_STR_ARG(name));\n'
+    cpp += "}\n"
     cpp += "#endif\n\n"
 
     for mt in file.message_type:
@@ -2874,15 +2969,96 @@ static const char *const TAG = "api.service";
 
     cases = list(RECEIVE_CASES.items())
     cases.sort()
+
+    serv = file.service[0]
+
+    # Build a mapping of message input types to their authentication requirements
+    message_auth_map: dict[str, bool] = {}
+    message_conn_map: dict[str, bool] = {}
+
+    for m in serv.method:
+        inp = m.input_type[1:]
+        needs_conn = get_opt(m, pb.needs_setup_connection, True)
+        needs_auth = get_opt(m, pb.needs_authentication, True)
+
+        # Store authentication requirements for message types
+        message_auth_map[inp] = needs_auth
+        message_conn_map[inp] = needs_conn
+
+    # Categorize messages by their authentication requirements
+    no_conn_ids: set[int] = set()
+    conn_only_ids: set[int] = set()
+
+    # Build a reverse lookup from message id to message name for auth lookups
+    id_to_msg_name: dict[int, str] = {}
+    for mt in file.message_type:
+        id_ = get_opt(mt, pb.id)
+        if id_ is not None and not mt.options.deprecated:
+            id_to_msg_name[id_] = mt.name
+
+    for id_, (_, _, case_label) in cases:
+        msg_name = id_to_msg_name.get(id_, "")
+        if msg_name in message_auth_map:
+            needs_auth = message_auth_map[msg_name]
+            needs_conn = message_conn_map[msg_name]
+
+            if not needs_conn:
+                no_conn_ids.add(id_)
+            elif not needs_auth:
+                conn_only_ids.add(id_)
+
+    # Helper to generate case statements with ifdefs
+    def generate_cases(ids: set[int], comment: str) -> str:
+        result = ""
+        for id_ in sorted(ids):
+            _, ifdef, case_label = RECEIVE_CASES[id_]
+            if ifdef:
+                result += f"#ifdef {ifdef}\n"
+            result += f"    case {case_label}:  {comment}\n"
+            if ifdef:
+                result += "#endif\n"
+        return result
+
+    # Generate read_message with auth check before dispatch
     hpp += " protected:\n"
     hpp += "  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;\n"
+
     out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {{\n"
+
+    # Auth check block before dispatch switch
+    out += "  // Check authentication/connection requirements\n"
+    if no_conn_ids or conn_only_ids:
+        out += "  switch (msg_type) {\n"
+
+        if no_conn_ids:
+            out += generate_cases(no_conn_ids, "// No setup required")
+            out += "      break;\n"
+
+        if conn_only_ids:
+            out += generate_cases(conn_only_ids, "// Connection setup only")
+            out += "      if (!this->check_connection_setup_()) {\n"
+            out += "        return;\n"
+            out += "      }\n"
+            out += "      break;\n"
+
+        out += "    default:\n"
+        out += "      if (!this->check_authenticated_()) {\n"
+        out += "        return;\n"
+        out += "      }\n"
+        out += "      break;\n"
+        out += "  }\n"
+    else:
+        out += "  if (!this->check_authenticated_()) {\n"
+        out += "    return;\n"
+        out += "  }\n"
+
+    # Dispatch switch
     out += "  switch (msg_type) {\n"
-    for i, (case, ifdef, message_name) in cases:
+    for i, (case, ifdef, case_label) in cases:
         if ifdef is not None:
             out += f"#ifdef {ifdef}\n"
 
-        c = f"    case {message_name}::MESSAGE_TYPE: {{\n"
+        c = f"    case {case_label}: {{\n"
         c += indent(case, "      ") + "\n"
         c += "    }"
         out += c + "\n"
@@ -2893,129 +3069,6 @@ static const char *const TAG = "api.service";
     out += "  }\n"
     out += "}\n"
     cpp += out
-    hpp += "};\n"
-
-    serv = file.service[0]
-    class_name = "APIServerConnection"
-    hpp += "\n"
-    hpp += f"class {class_name} : public {class_name}Base {{\n"
-    hpp += " public:\n"
-    hpp_protected = ""
-    cpp += "\n"
-
-    # Build a mapping of message input types to their authentication requirements
-    message_auth_map: dict[str, bool] = {}
-    message_conn_map: dict[str, bool] = {}
-
-    m = serv.method[0]
-    for m in serv.method:
-        func = m.name
-        inp = m.input_type[1:]
-        ret = m.output_type[1:]
-        is_void = ret == "void"
-        snake = camel_to_snake(inp)
-        on_func = f"on_{snake}"
-        needs_conn = get_opt(m, pb.needs_setup_connection, True)
-        needs_auth = get_opt(m, pb.needs_authentication, True)
-
-        # Store authentication requirements for message types
-        message_auth_map[inp] = needs_auth
-        message_conn_map[inp] = needs_conn
-
-        ifdef = message_ifdef_map.get(inp, ifdefs.get(inp))
-
-        if ifdef is not None:
-            hpp += f"#ifdef {ifdef}\n"
-            hpp_protected += f"#ifdef {ifdef}\n"
-            cpp += f"#ifdef {ifdef}\n"
-
-        hpp_protected += f"  void {on_func}(const {inp} &msg) override;\n"
-
-        # For non-void methods, generate a send_ method instead of return-by-value
-        if is_void:
-            hpp += f"  virtual void {func}(const {inp} &msg) = 0;\n"
-        else:
-            hpp += f"  virtual bool send_{func}_response(const {inp} &msg) = 0;\n"
-
-        cpp += f"void {class_name}::{on_func}(const {inp} &msg) {{\n"
-
-        # No authentication check here - it's done in read_message
-        body = ""
-        if is_void:
-            body += f"this->{func}(msg);\n"
-        else:
-            body += f"if (!this->send_{func}_response(msg)) {{\n"
-            body += "  this->on_fatal_error();\n"
-            body += "}\n"
-
-        cpp += indent(body) + "\n" + "}\n"
-
-        if ifdef is not None:
-            hpp += "#endif\n"
-            hpp_protected += "#endif\n"
-            cpp += "#endif\n"
-
-    # Generate optimized read_message with authentication checking
-    # Categorize messages by their authentication requirements
-    no_conn_ids: set[int] = set()
-    conn_only_ids: set[int] = set()
-
-    for id_, (_, _, case_msg_name) in cases:
-        if case_msg_name in message_auth_map:
-            needs_auth = message_auth_map[case_msg_name]
-            needs_conn = message_conn_map[case_msg_name]
-
-            if not needs_conn:
-                no_conn_ids.add(id_)
-            elif not needs_auth:
-                conn_only_ids.add(id_)
-
-    # Generate override if we have messages that skip checks
-    if no_conn_ids or conn_only_ids:
-        # Helper to generate case statements with ifdefs
-        def generate_cases(ids: set[int], comment: str) -> str:
-            result = ""
-            for id_ in sorted(ids):
-                _, ifdef, msg_name = RECEIVE_CASES[id_]
-                if ifdef:
-                    result += f"#ifdef {ifdef}\n"
-                result += f"    case {msg_name}::MESSAGE_TYPE:  {comment}\n"
-                if ifdef:
-                    result += "#endif\n"
-            return result
-
-        hpp_protected += "  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;\n"
-
-        cpp += f"\nvoid {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {{\n"
-        cpp += "  // Check authentication/connection requirements for messages\n"
-        cpp += "  switch (msg_type) {\n"
-
-        # Messages that don't need any checks
-        if no_conn_ids:
-            cpp += generate_cases(no_conn_ids, "// No setup required")
-            cpp += "      break;  // Skip all checks for these messages\n"
-
-        # Messages that only need connection setup
-        if conn_only_ids:
-            cpp += generate_cases(conn_only_ids, "// Connection setup only")
-            cpp += "      if (!this->check_connection_setup_()) {\n"
-            cpp += "        return;  // Connection not setup\n"
-            cpp += "      }\n"
-            cpp += "      break;\n"
-
-        cpp += "    default:\n"
-        cpp += "      // All other messages require authentication (which includes connection check)\n"
-        cpp += "      if (!this->check_authenticated_()) {\n"
-        cpp += "        return;  // Authentication failed\n"
-        cpp += "      }\n"
-        cpp += "      break;\n"
-        cpp += "  }\n\n"
-        cpp += "  // Call base implementation to process the message\n"
-        cpp += f"  {class_name}Base::read_message(msg_size, msg_type, msg_data);\n"
-        cpp += "}\n"
-
-    hpp += " protected:\n"
-    hpp += hpp_protected
     hpp += "};\n"
 
     hpp += """\

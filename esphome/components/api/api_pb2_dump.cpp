@@ -321,6 +321,8 @@ template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::Climate
       return "CLIMATE_ACTION_DRYING";
     case enums::CLIMATE_ACTION_FAN:
       return "CLIMATE_ACTION_FAN";
+    case enums::CLIMATE_ACTION_DEFROSTING:
+      return "CLIMATE_ACTION_DEFROSTING";
     default:
       return "UNKNOWN";
   }
@@ -385,6 +387,10 @@ const char *proto_enum_to_string<enums::WaterHeaterCommandHasField>(enums::Water
       return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW";
     case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH:
       return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH";
+    case enums::WATER_HEATER_COMMAND_HAS_ON_STATE:
+      return "WATER_HEATER_COMMAND_HAS_ON_STATE";
+    case enums::WATER_HEATER_COMMAND_HAS_AWAY_STATE:
+      return "WATER_HEATER_COMMAND_HAS_AWAY_STATE";
     default:
       return "UNKNOWN";
   }
@@ -764,10 +770,6 @@ const char *PingResponse::dump_to(DumpBuffer &out) const {
   out.append("PingResponse {}");
   return out.c_str();
 }
-const char *DeviceInfoRequest::dump_to(DumpBuffer &out) const {
-  out.append("DeviceInfoRequest {}");
-  return out.c_str();
-}
 #ifdef USE_AREAS
 const char *AreaInfo::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "AreaInfo");
@@ -848,16 +850,8 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
 #endif
   return out.c_str();
 }
-const char *ListEntitiesRequest::dump_to(DumpBuffer &out) const {
-  out.append("ListEntitiesRequest {}");
-  return out.c_str();
-}
 const char *ListEntitiesDoneResponse::dump_to(DumpBuffer &out) const {
   out.append("ListEntitiesDoneResponse {}");
-  return out.c_str();
-}
-const char *SubscribeStatesRequest::dump_to(DumpBuffer &out) const {
-  out.append("SubscribeStatesRequest {}");
   return out.c_str();
 }
 #ifdef USE_BINARY_SENSOR
@@ -1191,10 +1185,6 @@ const char *NoiseEncryptionSetKeyResponse::dump_to(DumpBuffer &out) const {
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-const char *SubscribeHomeassistantServicesRequest::dump_to(DumpBuffer &out) const {
-  out.append("SubscribeHomeassistantServicesRequest {}");
-  return out.c_str();
-}
 const char *HomeassistantServiceMap::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "HomeassistantServiceMap");
   dump_field(out, "key", this->key);
@@ -1245,10 +1235,6 @@ const char *HomeassistantActionResponse::dump_to(DumpBuffer &out) const {
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-const char *SubscribeHomeAssistantStatesRequest::dump_to(DumpBuffer &out) const {
-  out.append("SubscribeHomeAssistantStatesRequest {}");
-  return out.c_str();
-}
 const char *SubscribeHomeAssistantStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SubscribeHomeAssistantStateResponse");
   dump_field(out, "entity_id", this->entity_id);
@@ -1924,10 +1910,6 @@ const char *BluetoothGATTNotifyDataResponse::dump_to(DumpBuffer &out) const {
   dump_bytes_field(out, "data", this->data_ptr_, this->data_len_);
   return out.c_str();
 }
-const char *SubscribeBluetoothConnectionsFreeRequest::dump_to(DumpBuffer &out) const {
-  out.append("SubscribeBluetoothConnectionsFreeRequest {}");
-  return out.c_str();
-}
 const char *BluetoothConnectionsFreeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothConnectionsFreeResponse");
   dump_field(out, "free", this->free);
@@ -1968,10 +1950,6 @@ const char *BluetoothDeviceUnpairingResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, "address", this->address);
   dump_field(out, "success", this->success);
   dump_field(out, "error", this->error);
-  return out.c_str();
-}
-const char *UnsubscribeBluetoothLEAdvertisementsRequest::dump_to(DumpBuffer &out) const {
-  out.append("UnsubscribeBluetoothLEAdvertisementsRequest {}");
   return out.c_str();
 }
 const char *BluetoothDeviceClearCacheResponse::dump_to(DumpBuffer &out) const {

@@ -7,6 +7,10 @@
 #include <span>
 #include <string>
 
+#ifdef USE_TIME_TIMEZONE
+#include "esphome/components/time/posix_tz.h"
+#endif
+
 namespace esphome {
 
 template<typename T> bool increment_time_value(T &current, uint16_t begin, uint16_t end);
@@ -70,14 +74,14 @@ struct ESPTime {
   /// @copydoc strftime(const std::string &format)
   std::string strftime(const char *format);
 
-  /// Check if this ESPTime is valid (all fields in range and year is greater than 2018)
+  /// Check if this ESPTime is valid (all fields in range and year is greater than or equal to 2019)
   bool is_valid() const { return this->year >= 2019 && this->fields_in_range(); }
 
   /// Check if all time fields of this ESPTime are in range.
   bool fields_in_range() const {
     return this->second < 61 && this->minute < 60 && this->hour < 24 && this->day_of_week > 0 &&
-           this->day_of_week < 8 && this->day_of_month > 0 && this->day_of_month < 32 && this->day_of_year > 0 &&
-           this->day_of_year < 367 && this->month > 0 && this->month < 13;
+           this->day_of_week < 8 && this->day_of_year > 0 && this->day_of_year < 367 && this->month > 0 &&
+           this->month < 13 && this->day_of_month > 0 && this->day_of_month <= days_in_month(this->month, this->year);
   }
 
   /** Convert a string to ESPTime struct as specified by the format argument.
@@ -105,11 +109,17 @@ struct ESPTime {
    * @return The generated ESPTime
    */
   static ESPTime from_epoch_local(time_t epoch) {
-    struct tm *c_tm = ::localtime(&epoch);
-    if (c_tm == nullptr) {
-      return ESPTime{};  // Return an invalid ESPTime
+#ifdef USE_TIME_TIMEZONE
+    struct tm local_tm;
+    if (time::epoch_to_local_tm(epoch, time::get_global_tz(), &local_tm)) {
+      return ESPTime::from_c_tm(&local_tm, epoch);
     }
-    return ESPTime::from_c_tm(c_tm, epoch);
+    // Fallback to UTC if conversion failed
+    return ESPTime::from_epoch_utc(epoch);
+#else
+    // No timezone support - return UTC (no TZ configured, localtime would return UTC anyway)
+    return ESPTime::from_epoch_utc(epoch);
+#endif
   }
   /** Convert an UTC epoch timestamp to a UTC time ESPTime instance.
    *

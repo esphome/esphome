@@ -13,7 +13,8 @@ from esphome.components.packet_transport import (
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
 from esphome.core import ID
-from esphome.cpp_generator import literal
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["network"]
@@ -23,8 +24,12 @@ MULTI_CONF = True
 udp_ns = cg.esphome_ns.namespace("udp")
 UDPComponent = udp_ns.class_("UDPComponent", cg.Component)
 UDPWriteAction = udp_ns.class_("UDPWriteAction", automation.Action)
-trigger_args = cg.std_vector.template(cg.uint8)
 trigger_argname = "data"
+# Listener callback type (non-owning span from UDP component)
+listener_args = cg.std_span.template(cg.uint8.operator("const"))
+listener_argtype = [(listener_args, trigger_argname)]
+# Automation/trigger type (owned vector, safe for deferred actions like delay)
+trigger_args = cg.std_vector.template(cg.uint8)
 trigger_argtype = [(trigger_args, trigger_argname)]
 
 CONF_ADDRESSES = "addresses"
@@ -61,33 +66,47 @@ RELOCATED = {
     )
 }
 
-CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(UDPComponent),
-        cv.Optional(CONF_PORT, default=18511): cv.Any(
-            cv.port,
-            cv.Schema(
+
+def _consume_udp_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for UDP component."""
+    from esphome.components import socket
+
+    # UDP uses up to 2 sockets: 1 broadcast + 1 listen
+    # Whether each is used depends on code generation, so register worst case
+    socket.consume_sockets(2, "udp", socket.SocketType.UDP)(config)
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.COMPONENT_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(UDPComponent),
+            cv.Optional(CONF_PORT, default=18511): cv.Any(
+                cv.port,
+                cv.Schema(
+                    {
+                        cv.Required(CONF_LISTEN_PORT): cv.port,
+                        cv.Required(CONF_BROADCAST_PORT): cv.port,
+                    }
+                ),
+            ),
+            cv.Optional(
+                CONF_LISTEN_ADDRESS, default="255.255.255.255"
+            ): cv.ipv4address_multi_broadcast,
+            cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
+                cv.ipv4address,
+            ),
+            cv.Optional(CONF_ON_RECEIVE): automation.validate_automation(
                 {
-                    cv.Required(CONF_LISTEN_PORT): cv.port,
-                    cv.Required(CONF_BROADCAST_PORT): cv.port,
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        Trigger.template(trigger_args)
+                    ),
                 }
             ),
-        ),
-        cv.Optional(
-            CONF_LISTEN_ADDRESS, default="255.255.255.255"
-        ): cv.ipv4address_multi_broadcast,
-        cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
-            cv.ipv4address,
-        ),
-        cv.Optional(CONF_ON_RECEIVE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    Trigger.template(trigger_args)
-                ),
-            }
-        ),
-    }
-).extend(RELOCATED)
+        }
+    ).extend(RELOCATED),
+    _consume_udp_sockets,
+)
 
 
 async def register_udp_client(var, config):
@@ -118,7 +137,13 @@ async def to_code(config):
             trigger_id, trigger_argtype, on_receive
         )
         trigger_lambda = await cg.process_lambda(
-            trigger.trigger(literal(trigger_argname)), trigger_argtype
+            trigger.trigger(
+                cg.std_vector.template(cg.uint8)(
+                    MockObj(trigger_argname).begin(),
+                    MockObj(trigger_argname).end(),
+                )
+            ),
+            listener_argtype,
         )
         cg.add(var.add_listener(trigger_lambda))
         cg.add(var.set_should_listen())
