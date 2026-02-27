@@ -167,7 +167,7 @@ void ESP32TouchComponent::setup() {
     touch_channel_config_t shield_cfg = {};
 #ifdef USE_ESP32_VARIANT_ESP32P4
     shield_cfg.active_thresh[0] = 0;
-    err = touch_sensor_new_channel(this->sens_handle_, 14, &shield_cfg, &shield_chan);
+    err = touch_sensor_new_channel(this->sens_handle_, SOC_TOUCH_MAX_CHAN_ID, &shield_cfg, &shield_chan);
 #else
     shield_cfg.active_thresh[0] = 0;
     shield_cfg.charge_speed = TOUCH_CHARGE_SPEED_7;
@@ -215,7 +215,7 @@ void ESP32TouchComponent::setup() {
   }
 
   // Do initial oneshot scans to populate baseline values
-  for (int32_t i = 0; i < ONESHOT_SCAN_COUNT; i++) {
+  for (uint32_t i = 0; i < ONESHOT_SCAN_COUNT; i++) {
     err = touch_sensor_trigger_oneshot_scanning(this->sens_handle_, ONESHOT_SCAN_TIMEOUT_MS);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Oneshot scan %d failed: %s", i, esp_err_to_name(err));
