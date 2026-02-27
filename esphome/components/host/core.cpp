@@ -1,5 +1,6 @@
 #ifdef USE_HOST
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
@@ -19,6 +20,7 @@ uint32_t IRAM_ATTR HOT millis() {
   uint32_t ms = round(spec.tv_nsec / 1e6);
   return ((uint32_t) seconds) * 1000U + ms;
 }
+uint64_t millis_64() { return App.scheduler.millis_64_impl_(millis()); }
 void HOT delay(uint32_t ms) {
   struct timespec ts;
   ts.tv_sec = ms / 1000;

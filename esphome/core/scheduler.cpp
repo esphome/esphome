@@ -28,8 +28,10 @@ static constexpr size_t MAX_POOL_SIZE = 5;
 // Set to 5 to match the pool size - when we have as many cancelled items as our
 // pool can hold, it's time to clean up and recycle them.
 static constexpr uint32_t MAX_LOGICALLY_DELETED_ITEMS = 5;
+#ifndef USE_ESP32
 // Half the 32-bit range - used to detect rollovers vs normal time progression
 static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
+#endif
 // max delay to start an interval sequence
 static constexpr uint32_t MAX_INTERVAL_DELAY = 5000;
 
@@ -150,8 +152,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     return;
   }
 
-  // Get fresh timestamp BEFORE taking lock - millis_64_ may need to acquire lock itself
-  const uint64_t now = this->millis_64_(millis());
+  // Get fresh 64-bit timestamp BEFORE taking lock
+  const uint64_t now_64 = millis_64();
 
   // Take lock early to protect scheduler_item_pool_ access
   LockGuard guard{this->lock_};
@@ -184,7 +186,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
       item->interval = delay;
       // first execution happens immediately after a random smallish offset
       uint32_t offset = this->calculate_interval_offset_(delay);
-      item->set_next_execution(now + offset);
+      item->set_next_execution(now_64 + offset);
 #ifdef ESPHOME_LOG_HAS_VERBOSE
       SchedulerNameLog name_log;
       ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms",
@@ -192,11 +194,11 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 #endif
     } else {
       item->interval = 0;
-      item->set_next_execution(now + delay);
+      item->set_next_execution(now_64 + delay);
     }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    this->debug_log_timer_(item.get(), name_type, static_name, hash_or_id, type, delay, now);
+    this->debug_log_timer_(item.get(), name_type, static_name, hash_or_id, type, delay, now_64);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
     // For retries, check if there's a cancelled timeout first
@@ -399,8 +401,7 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
     return {};
 
   auto &item = this->items_[0];
-  // Convert the fresh timestamp from caller (usually Application::loop()) to 64-bit
-  const auto now_64 = this->millis_64_(now);  // 'now' from parameter - fresh from caller
+  const auto now_64 = this->millis_64_from_(now);
   const uint64_t next_exec = item->get_next_execution();
   if (next_exec < now_64)
     return 0;
@@ -461,8 +462,8 @@ void HOT Scheduler::call(uint32_t now) {
   this->process_defer_queue_(now);
 #endif /* not ESPHOME_THREAD_SINGLE */
 
-  // Convert the fresh timestamp from main loop to 64-bit for scheduler operations
-  const auto now_64 = this->millis_64_(now);  // 'now' from parameter - fresh from Application::loop()
+  // Extend the caller's 32-bit timestamp to 64-bit for scheduler operations
+  const auto now_64 = this->millis_64_from_(now);
   this->process_to_add();
 
   // Track if any items were added to to_add_ during this call (intervals or from callbacks)
@@ -474,15 +475,18 @@ void HOT Scheduler::call(uint32_t now) {
   if (now_64 - last_print > 2000) {
     last_print = now_64;
     std::vector<SchedulerItemPtr> old_items;
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+#if !defined(USE_ESP32) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
     const auto last_dbg = this->last_millis_.load(std::memory_order_relaxed);
     const auto major_dbg = this->millis_major_.load(std::memory_order_relaxed);
     ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64 " (%" PRIu16 ", %" PRIu32 ")", this->items_.size(),
              this->scheduler_item_pool_.size(), now_64, major_dbg, last_dbg);
-#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
+#elif !defined(USE_ESP32)
     ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64 " (%" PRIu16 ", %" PRIu32 ")", this->items_.size(),
              this->scheduler_item_pool_.size(), now_64, this->millis_major_, this->last_millis_);
-#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
+#else
+    ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64, this->items_.size(), this->scheduler_item_pool_.size(),
+             now_64);
+#endif
     // Cleanup before debug output
     this->cleanup_();
     while (!this->items_.empty()) {
@@ -710,9 +714,8 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   return total_cancelled > 0;
 }
 
-uint64_t Scheduler::millis_64() { return this->millis_64_(millis()); }
-
-uint64_t Scheduler::millis_64_(uint32_t now) {
+#ifndef USE_ESP32
+uint64_t Scheduler::millis_64_impl_(uint32_t now) {
   // THREAD SAFETY NOTE:
   // This function has three implementations, based on the precompiler flags
   // - ESPHOME_THREAD_SINGLE - Runs on single-threaded platforms (ESP8266, RP2040, etc.)
@@ -869,6 +872,7 @@ uint64_t Scheduler::millis_64_(uint32_t now) {
     "No platform threading model defined. One of ESPHOME_THREAD_SINGLE, ESPHOME_THREAD_MULTI_NO_ATOMICS, or ESPHOME_THREAD_MULTI_ATOMICS must be defined."
 #endif
 }
+#endif  // not USE_ESP32
 
 bool HOT Scheduler::SchedulerItem::cmp(const SchedulerItemPtr &a, const SchedulerItemPtr &b) {
   // High bits are almost always equal (change only on 32-bit rollover ~49 days)
