@@ -299,7 +299,7 @@ class Scheduler {
   // On non-ESP32 platforms, millis_64() HAL function delegates to this method
   // which tracks 32-bit millis() rollover using millis_major_ and last_millis_.
   // On ESP32, millis_64() uses esp_timer_get_time() directly.
-  friend uint64_t ::esphome::millis_64();
+  friend uint64_t millis_64();
   uint64_t millis_64_impl_(uint32_t now);
 #endif
   // Cleanup logically deleted items from the scheduler
