@@ -208,7 +208,7 @@ def final_validation(config_list):
 async def to_code(configs):
     config_0 = configs[0]
     # Global configuration
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         add_idf_component(name="lvgl/lvgl", ref="9.4.0")
     else:
         cg.add_library("lvgl/lvgl", "9.4.0")
