@@ -27,6 +27,7 @@ static const size_t MAX_BUTTONS = 4;  // max number of buttons scanned
 
 void GT911Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {
+    // temporarily set the interrupt pin to output to control address selection
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);
     if (this->interrupt_pin_ != nullptr) {
@@ -79,6 +80,7 @@ void GT911Touchscreen::setup_internal_() {
   }
 
   if (this->x_raw_max_ == 0 || this->y_raw_max_ == 0) {
+    // no calibration? Attempt to read the max values from the touchscreen.
     if (err == i2c::ERROR_OK) {
       err = this->write(GET_MAX_VALUES, sizeof(GET_MAX_VALUES));
       if (err == i2c::ERROR_OK) {
