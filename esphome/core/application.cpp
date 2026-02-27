@@ -720,16 +720,15 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 #error "Application placement new requires Itanium C++ ABI (GCC/Clang)"
 #endif
 static_assert(std::is_default_constructible<Application>::value, "Application must be default-constructible");
-#ifdef __APPLE__
-// Mach-O prefixes an underscore to all symbols
-// On Mach-O, external symbols get an extra leading '_' prefix.
-// The Itanium ABI mangled name is "_ZN7esphome3AppE", so the Mach-O asm label is "__ZN7esphome3AppE".
+// __USER_LABEL_PREFIX__ is "_" on Mach-O (macOS) and empty on ELF (embedded targets).
+// String literal concatenation produces the correct platform-specific mangled symbol.
+#define ESPHOME_STRINGIFY2_(x) #x
+#define ESPHOME_STRINGIFY_(x) ESPHOME_STRINGIFY2_(x)
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-alignas(Application) char app_storage[sizeof(Application)] asm("__ZN7esphome3AppE");
-#else
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-alignas(Application) char app_storage[sizeof(Application)] asm("_ZN7esphome3AppE");
-#endif
+alignas(Application) char app_storage[sizeof(Application)] asm(
+    ESPHOME_STRINGIFY_(__USER_LABEL_PREFIX__) "_ZN7esphome3AppE");
+#undef ESPHOME_STRINGIFY_
+#undef ESPHOME_STRINGIFY2_
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
