@@ -147,9 +147,6 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     return;
   }
 
-  // Get fresh 64-bit timestamp BEFORE taking lock
-  const uint64_t now_64 = millis_64();
-
   // Take lock early to protect scheduler_item_pool_ access
   LockGuard guard{this->lock_};
 
@@ -176,6 +173,9 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   } else
 #endif /* not ESPHOME_THREAD_SINGLE */
   {
+    // Only non-defer items need a timestamp for scheduling
+    const uint64_t now_64 = millis_64();
+
     // Type-specific setup
     if (type == SchedulerItem::INTERVAL) {
       item->interval = delay;
