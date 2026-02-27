@@ -13,6 +13,19 @@
 #include <FreeRTOS.h>
 #include <queue.h>
 
+#ifdef USE_BK72XX
+extern "C" {
+#include <wlan_ui_pub.h>
+}
+#endif
+
+#ifdef USE_RTL87XX
+extern "C" {
+#include <wifi_conf.h>
+#include <wifi_structures.h>
+}
+#endif
+
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -760,10 +773,22 @@ bssid_t WiFiComponent::wifi_bssid() {
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
-  // TODO: Find direct LibreTiny API to avoid Arduino String allocation
+#ifdef USE_BK72XX
+  LinkStatusTypeDef link_status{};
+  bk_wlan_get_link_status(&link_status);
+  size_t len = strnlen(reinterpret_cast<const char *>(link_status.ssid), SSID_BUFFER_SIZE - 1);
+  memcpy(buffer.data(), link_status.ssid, len);
+#elif defined(USE_RTL87XX)
+  rtw_wifi_setting_t setting{};
+  wifi_get_setting("wlan0", &setting);
+  size_t len = strnlen(reinterpret_cast<const char *>(setting.ssid), SSID_BUFFER_SIZE - 1);
+  memcpy(buffer.data(), setting.ssid, len);
+#else
+  // LN882X: wifi_get_sta_conn_info() provides direct pointer access
   String ssid = WiFi.SSID();
   size_t len = std::min(static_cast<size_t>(ssid.length()), SSID_BUFFER_SIZE - 1);
   memcpy(buffer.data(), ssid.c_str(), len);
+#endif
   buffer[len] = '\0';
   return buffer.data();
 }
