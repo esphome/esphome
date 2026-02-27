@@ -21,14 +21,14 @@ static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max()
 
 uint64_t Millis64Impl::compute(uint32_t now) {
   // State variables for rollover tracking - static to persist across calls
-#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+#ifndef ESPHOME_THREAD_SINGLE
+  // Mutex for rollover serialization (taken only every ~49.7 days).
+  // A spinlock would be smaller (~1 byte vs ~80-100 bytes) but is unsafe on
+  // preemptive single-core RTOS platforms due to priority inversion: a high-priority
+  // task spinning would prevent the lock holder from running to release it.
   static Mutex lock;
 #endif
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-  // Spinlock for rollover serialization (taken only every ~49.7 days).
-  // Uses atomic_flag (1 byte) instead of a full FreeRTOS Mutex (~80-100 bytes)
-  // since the critical section is tiny and contention is near-zero.
-  static std::atomic_flag rollover_lock = ATOMIC_FLAG_INIT;
   /*
    * Multi-threaded platforms with atomic support: last_millis needs atomic for lock-free updates.
    * Writers publish last_millis with memory_order_release and readers use memory_order_acquire.
@@ -37,7 +37,7 @@ uint64_t Millis64Impl::compute(uint32_t now) {
    */
   static std::atomic<uint32_t> last_millis{0};
   /*
-   * Upper 16 bits of the 64-bit millis counter. Incremented only while holding spinlock;
+   * Upper 16 bits of the 64-bit millis counter. Incremented only while holding lock;
    * read concurrently. Atomic (relaxed) avoids a formal data race. Ordering relative
    * to last_millis is provided by its release store and the corresponding acquire loads.
    */
@@ -133,7 +133,7 @@ uint64_t Millis64Impl::compute(uint32_t now) {
   // Uses atomic operations with acquire/release semantics to ensure coherent
   // reads of millis_major and last_millis across cores. Features:
   // 1. Epoch-coherency retry loop to handle concurrent updates
-  // 2. Spinlock only taken for actual rollover detection (every ~49.7 days)
+  // 2. Lock only taken for actual rollover detection and update
   // 3. Lock-free CAS updates for normal forward time progression
   // 4. Memory ordering ensures cores see consistent time values
 
@@ -148,14 +148,12 @@ uint64_t Millis64Impl::compute(uint32_t now) {
      */
     uint32_t last = last_millis.load(std::memory_order_acquire);
 
-    // If we might be near a rollover (large backwards jump), take the spinlock
+    // If we might be near a rollover (large backwards jump), take the lock
     // This ensures rollover detection and last_millis update are atomic together
     if (now < last && (last - now) > HALF_MAX_UINT32) {
-      // Potential rollover - acquire spinlock for atomic rollover detection + update
-      while (rollover_lock.test_and_set(std::memory_order_acquire)) {
-        // Spin; critical section is ~5 instructions, contention near-zero
-      }
-      // Re-read with spinlock held
+      // Potential rollover - need lock for atomic rollover detection + update
+      LockGuard guard{lock};
+      // Re-read with lock held; mutex already provides ordering
       last = last_millis.load(std::memory_order_relaxed);
 
       if (now < last && (last - now) > HALF_MAX_UINT32) {
@@ -167,12 +165,11 @@ uint64_t Millis64Impl::compute(uint32_t now) {
 #endif /* ESPHOME_DEBUG_SCHEDULER */
       }
       /*
-       * Update last_millis while holding the spinlock to prevent races.
+       * Update last_millis while holding the lock to prevent races.
        * Publish the new low-word *after* bumping millis_major (done above)
        * so readers never see a mismatched pair.
        */
       last_millis.store(now, std::memory_order_release);
-      rollover_lock.clear(std::memory_order_release);
     } else {
       // Normal case: Try lock-free update, but only allow forward movement within same epoch
       // This prevents accidentally moving backwards across a rollover boundary
