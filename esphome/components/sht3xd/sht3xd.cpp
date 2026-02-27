@@ -29,27 +29,21 @@ static const uint16_t SHT3XD_COMMAND_FETCH_DATA = 0xE000;
 void SHT3XDComponent::setup() {
   uint16_t raw_serial_number[2]{0};
   if (!this->get_register(SHT3XD_COMMAND_READ_SERIAL_NUMBER_CLOCK_STRETCHING, raw_serial_number, 2)) {
-    this->error_code_ = READ_SERIAL_STRETCHED_FAILED;
     if (!this->get_register(SHT3XD_COMMAND_READ_SERIAL_NUMBER, raw_serial_number, 2, 10)) {
-      this->error_code_ = READ_SERIAL_FAILED;
+      ESP_LOGW(TAG, "Serial number read failed, continuing without it (clone or non-standard sensor)");
     }
   }
   this->serial_number_ = (uint32_t(raw_serial_number[0]) << 16) | uint32_t(raw_serial_number[1]);
 
   if (!this->write_command(this->heater_enabled_ ? SHT3XD_COMMAND_HEATER_ENABLE : SHT3XD_COMMAND_HEATER_DISABLE)) {
-    this->error_code_ = WRITE_HEATER_MODE_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to set heater mode"));
     return;
   }
 }
 
 void SHT3XDComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SHT3xD:");
-  if (this->error_code_ == WRITE_HEATER_MODE_FAILED) {
-    ESP_LOGD(TAG, "  Error writing heater mode");
-  }
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Communication with SHT3xD failed!");
     return;
   }
   ESP_LOGD(TAG,
