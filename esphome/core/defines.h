@@ -181,6 +181,11 @@
 #define USE_I2S_LEGACY
 #endif
 
+// Platforms with native 64-bit time sources (no rollover tracking needed)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR) || defined(USE_RP2040)
+#define USE_NATIVE_64BIT_TIME
+#endif
+
 // ESP32-specific feature flags
 #ifdef USE_ESP32
 #define USE_MQTT_IDF_ENQUEUE

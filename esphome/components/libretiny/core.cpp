@@ -3,7 +3,7 @@
 #include "core.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/application.h"
+#include "esphome/core/time_64.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
 
@@ -14,7 +14,7 @@ namespace esphome {
 
 void HOT yield() { ::yield(); }
 uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
-uint64_t millis_64() { return App.scheduler.millis_64_impl_(::millis()); }
+uint64_t millis_64() { return Millis64Impl::compute(::millis()); }
 uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
 void HOT delay(uint32_t ms) { ::delay(ms); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }
