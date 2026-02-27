@@ -23,7 +23,7 @@ CONF_D1_PIN = "d1_pin"
 CONF_D2_PIN = "d2_pin"
 CONF_D3_PIN = "d3_pin"
 CONF_SLOT = "slot"
-CONF_SDIO_SPEED_KHZ = "sdio_speed_khz"
+CONF_SDIO_FREQUENCY = "sdio_frequency"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -38,8 +38,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_D3_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_SLOT, default=1): cv.int_range(min=0, max=1),
-            cv.Optional(CONF_SDIO_SPEED_KHZ, default=40000): cv.int_range(
-                min=400, max=40000
+            cv.Optional(CONF_SDIO_FREQUENCY, default="40MHz"): cv.All(
+                cv.frequency, cv.Range(min=400e3, max=50e6)
             ),
         }
     ),
@@ -96,7 +96,7 @@ async def to_code(config):
     )
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_CUSTOM_SDIO_PINS", True)
     esp32.add_idf_sdkconfig_option(
-        "CONFIG_ESP_HOSTED_SDIO_CLOCK_FREQ_KHZ", config[CONF_SDIO_SPEED_KHZ]
+        "CONFIG_ESP_HOSTED_SDIO_CLOCK_FREQ_KHZ", int(config[CONF_SDIO_FREQUENCY]/1000)
     )
 
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
