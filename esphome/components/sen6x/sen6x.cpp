@@ -10,20 +10,20 @@ namespace esphome::sen6x {
 
 static const char *const TAG = "sen6x";
 
-static const uint16_t SEN6X_CMD_GET_DATA_READY_STATUS = 0x0202;
-static const uint16_t SEN6X_CMD_GET_FIRMWARE_VERSION = 0xD100;
-static const uint16_t SEN6X_CMD_GET_PRODUCT_NAME = 0xD014;
-static const uint16_t SEN6X_CMD_GET_SERIAL_NUMBER = 0xD033;
+static constexpr uint16_t SEN6X_CMD_GET_DATA_READY_STATUS = 0x0202;
+static constexpr uint16_t SEN6X_CMD_GET_FIRMWARE_VERSION = 0xD100;
+static constexpr uint16_t SEN6X_CMD_GET_PRODUCT_NAME = 0xD014;
+static constexpr uint16_t SEN6X_CMD_GET_SERIAL_NUMBER = 0xD033;
 
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT = 0x0300;  // SEN66 only!
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN62 = 0x04A3;
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN63C = 0x0471;
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN65 = 0x0446;
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN68 = 0x0467;
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN69C = 0x04B5;
+static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT = 0x0300;  // SEN66 only!
+static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN62 = 0x04A3;
+static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN63C = 0x0471;
+static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN65 = 0x0446;
+static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN68 = 0x0467;
+static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN69C = 0x04B5;
 
-static const uint16_t SEN6X_CMD_START_MEASUREMENTS = 0x0021;
-static const uint16_t SEN6X_CMD_RESET = 0xD304;
+static constexpr uint16_t SEN6X_CMD_START_MEASUREMENTS = 0x0021;
+static constexpr uint16_t SEN6X_CMD_RESET = 0xD304;
 
 static inline void set_read_command_and_words(SEN6XComponent::Sen6xType type, uint16_t &read_cmd, uint8_t &read_words) {
   read_cmd = SEN6X_CMD_READ_MEASUREMENT;
