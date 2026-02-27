@@ -6,8 +6,7 @@
 #include "esphome/core/optional.h"
 #include "i2c_bus.h"
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 #define LOG_I2C_DEVICE(this) ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
 
@@ -272,5 +271,4 @@ class I2CDevice {
   I2CBus *bus_{nullptr};   ///< pointer to I2CBus instance
 };
 
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c
