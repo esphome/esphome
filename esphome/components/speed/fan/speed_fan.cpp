@@ -7,15 +7,15 @@ namespace speed {
 static const char *const TAG = "speed.fan";
 
 void SpeedFan::setup() {
+  // Construct traits before restore so preset modes can be looked up by index
+  this->traits_ = fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
+  this->traits_.set_supported_preset_modes(this->preset_modes_);
+
   auto restore = this->restore_state_();
   if (restore.has_value()) {
     restore->apply(*this);
     this->write_state_();
   }
-
-  // Construct traits
-  this->traits_ = fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
-  this->traits_.set_supported_preset_modes(this->preset_modes_);
 }
 
 void SpeedFan::dump_config() { LOG_FAN("", "Speed Fan", this); }

@@ -1,5 +1,7 @@
 #include "ota_http_request.h"
 
+#include <cctype>
+
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
@@ -82,7 +84,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   uint32_t last_progress = 0;
   uint32_t update_start_time = millis();
   md5::MD5Digest md5_receive;
-  std::unique_ptr<char[]> md5_receive_str(new char[33]);
+  char md5_receive_str[33];
 
   if (this->md5_expected_.empty() && !this->http_get_md5_()) {
     return OTA_MD5_INVALID;
@@ -105,8 +107,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   // we will compute MD5 on the fly for verification -- Arduino OTA seems to ignore it
   md5_receive.init();
-  ESP_LOGV(TAG, "MD5Digest initialized\n"
-                "OTA backend begin");
+  ESP_LOGV(TAG, "MD5Digest initialized, OTA backend begin");
   auto backend = ota::make_ota_backend();
   auto error_code = backend->begin(container->content_length);
   if (error_code != ota::OTA_RESPONSE_OK) {
@@ -130,9 +131,15 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
     App.feed_wdt();
     yield();
 
-    auto result = http_read_loop_result(bufsize_or_error, last_data_time, read_timeout);
+    auto result = http_read_loop_result(bufsize_or_error, last_data_time, read_timeout, container->is_read_complete());
     if (result == HttpReadLoopResult::RETRY)
       continue;
+    // For non-chunked responses, COMPLETE is unreachable (loop condition checks bytes_read < content_length).
+    // For chunked responses, the decoder sets content_length = bytes_read when the final chunk arrives,
+    // which causes the loop condition to terminate. But COMPLETE can still be returned if the decoder
+    // finishes mid-read, so this is needed for correctness.
+    if (result == HttpReadLoopResult::COMPLETE)
+      break;
     if (result != HttpReadLoopResult::DATA) {
       if (result == HttpReadLoopResult::TIMEOUT) {
         ESP_LOGE(TAG, "Timeout reading data");
@@ -176,14 +183,14 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   // verify MD5 is as expected and act accordingly
   md5_receive.calculate();
-  md5_receive.get_hex(md5_receive_str.get());
-  this->md5_computed_ = md5_receive_str.get();
+  md5_receive.get_hex(md5_receive_str);
+  this->md5_computed_ = md5_receive_str;
   if (strncmp(this->md5_computed_.c_str(), this->md5_expected_.c_str(), MD5_SIZE) != 0) {
     ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", this->md5_computed_.c_str());
     this->cleanup_(std::move(backend), container);
     return ota::OTA_RESPONSE_ERROR_MD5_MISMATCH;
   } else {
-    backend->set_update_md5(md5_receive_str.get());
+    backend->set_update_md5(md5_receive_str);
   }
 
   container->end();
@@ -203,6 +210,26 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   ESP_LOGI(TAG, "Update complete");
   return ota::OTA_RESPONSE_OK;
 }
+
+// URL-encode characters that are not unreserved per RFC 3986 section 2.3.
+// This is needed for embedding userinfo (username/password) in URLs safely.
+static std::string url_encode(const std::string &str) {
+  std::string result;
+  result.reserve(str.size());
+  for (char c : str) {
+    if (std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~') {
+      result += c;
+    } else {
+      result += '%';
+      result += format_hex_pretty_char((static_cast<uint8_t>(c) >> 4) & 0x0F);
+      result += format_hex_pretty_char(static_cast<uint8_t>(c) & 0x0F);
+    }
+  }
+  return result;
+}
+
+void OtaHttpRequestComponent::set_password(const std::string &password) { this->password_ = url_encode(password); }
+void OtaHttpRequestComponent::set_username(const std::string &username) { this->username_ = url_encode(username); }
 
 std::string OtaHttpRequestComponent::get_url_with_auth_(const std::string &url) {
   if (this->username_.empty() || this->password_.empty()) {

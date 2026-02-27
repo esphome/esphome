@@ -4,7 +4,7 @@
 
 namespace esphome::epaper_spi {
 
-class EPaperSpectraE6 : public EPaperBase {
+class EPaperSpectraE6 final : public EPaperBase {
  public:
   EPaperSpectraE6(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                   size_t init_sequence_length)

@@ -11,8 +11,6 @@ namespace esphome::hc8 {
 
 class HC8Component : public PollingComponent, public uart::UARTDevice {
  public:
-  float get_setup_priority() const override;
-
   void setup() override;
   void update() override;
   void dump_config() override;
