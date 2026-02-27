@@ -78,8 +78,13 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
 #endif
 
-  auto ret = WiFi.begin(ap.ssid_.c_str(), ap.password_.c_str());
-  if (ret != WL_CONNECTED)
+  // Use beginNoBlock to avoid WiFi.begin()'s additional 2x timeout wait loop on top of
+  // CYW43::begin()'s internal blocking join. CYW43::begin() blocks for up to 10 seconds
+  // (default timeout) to complete the join - this is required because the LwipIntfDev netif
+  // setup depends on begin() succeeding. beginNoBlock() skips the outer wait loop, saving
+  // up to 20 additional seconds of blocking per attempt.
+  auto ret = WiFi.beginNoBlock(ap.ssid_.c_str(), ap.password_.c_str());
+  if (ret == WL_IDLE_STATUS)
     return false;
 
   return true;
@@ -116,13 +121,19 @@ const char *get_disconnect_reason_str(uint8_t reason) {
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
-  int status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
+  // Use cyw43_wifi_link_status instead of cyw43_tcpip_link_status because the Arduino
+  // framework's __wrap_cyw43_cb_tcpip_init is a no-op — the SDK's internal netif
+  // (cyw43_state.netif[]) is never initialized. cyw43_tcpip_link_status checks that netif's
+  // flags and would only fall through to cyw43_wifi_link_status when the flags aren't set.
+  // Using cyw43_wifi_link_status directly gives us the actual WiFi radio join state.
+  int status = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
   switch (status) {
     case CYW43_LINK_JOIN:
-    case CYW43_LINK_NOIP:
+      // WiFi joined, check if we have an IP address via the Arduino framework's WiFi class
+      if (WiFi.status() == WL_CONNECTED) {
+        return WiFiSTAConnectStatus::CONNECTED;
+      }
       return WiFiSTAConnectStatus::CONNECTING;
-    case CYW43_LINK_UP:
-      return WiFiSTAConnectStatus::CONNECTED;
     case CYW43_LINK_FAIL:
     case CYW43_LINK_BADAUTH:
       return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
@@ -139,18 +150,24 @@ int WiFiComponent::s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *r
 
 void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
   s_scan_result_count++;
-  const char *ssid_cstr = reinterpret_cast<const char *>(result->ssid);
+
+  // CYW43 scan results have ssid as a 32-byte buffer that is NOT null-terminated.
+  // Use ssid_len to create a properly terminated copy for string operations.
+  uint8_t len = std::min(result->ssid_len, static_cast<uint8_t>(sizeof(result->ssid)));
+  char ssid_buf[33];  // 32 max + null terminator
+  memcpy(ssid_buf, result->ssid, len);
+  ssid_buf[len] = '\0';
 
   // Skip networks that don't match any configured network (unless full results needed)
-  if (!this->needs_full_scan_results_() && !this->matches_configured_network_(ssid_cstr, result->bssid)) {
-    this->log_discarded_scan_result_(ssid_cstr, result->bssid, result->rssi, result->channel);
+  if (!this->needs_full_scan_results_() && !this->matches_configured_network_(ssid_buf, result->bssid)) {
+    this->log_discarded_scan_result_(ssid_buf, result->bssid, result->rssi, result->channel);
     return;
   }
 
   bssid_t bssid;
   std::copy(result->bssid, result->bssid + 6, bssid.begin());
-  WiFiScanResult res(bssid, ssid_cstr, strlen(ssid_cstr), result->channel, result->rssi,
-                     result->auth_mode != CYW43_AUTH_OPEN, ssid_cstr[0] == '\0');
+  WiFiScanResult res(bssid, ssid_buf, len, result->channel, result->rssi, result->auth_mode != CYW43_AUTH_OPEN,
+                     len == 0);
   if (std::find(this->scan_result_.begin(), this->scan_result_.end(), res) == this->scan_result_.end()) {
     this->scan_result_.push_back(res);
   }
@@ -167,7 +184,6 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
     ESP_LOGV(TAG, "cyw43_wifi_scan failed");
   }
   return err == 0;
-  return true;
 }
 
 #ifdef USE_WIFI_AP
@@ -212,8 +228,10 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *
 #endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() {
-  int err = cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
-  return err == 0;
+  // Use Arduino WiFi.disconnect() instead of raw cyw43_wifi_leave() to properly
+  // clean up the lwIP netif, DHCP client, and internal Arduino state.
+  WiFi.disconnect();
+  return true;
 }
 
 bssid_t WiFiComponent::wifi_bssid() {
@@ -269,9 +287,10 @@ void WiFiComponent::wifi_loop_() {
 
   // Poll for connection state changes
   // The arduino-pico WiFi library doesn't have event callbacks like ESP8266/ESP32,
-  // so we need to poll the link status to detect state changes
-  auto status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
-  bool is_connected = (status == CYW43_LINK_UP);
+  // so we need to poll the link status to detect state changes.
+  // Use WiFi.connected() which checks both the WiFi link and IP address via the
+  // Arduino framework's own netif (not the SDK's uninitialized one).
+  bool is_connected = WiFi.connected();
 
   // Detect connection state change
   if (is_connected && !s_sta_was_connected) {
