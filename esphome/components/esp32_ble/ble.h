@@ -155,6 +155,10 @@ class ESP32BLE : public Component {
 #endif
   static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
+  // Handle DISABLE and ENABLE transitions when not in the ACTIVE state.
+  // Other non-ACTIVE states (e.g. OFF, DISABLED) are currently treated as no-ops.
+  void __attribute__((noinline)) loop_handle_state_transition_not_active_();
+
   bool ble_setup_();
   bool ble_dismantle_();
   bool ble_pre_setup_();
@@ -212,17 +216,23 @@ extern ESP32BLE *global_ble;
 
 template<typename... Ts> class BLEEnabledCondition : public Condition<Ts...> {
  public:
-  bool check(const Ts &...x) override { return global_ble->is_active(); }
+  bool check(const Ts &...x) override { return global_ble != nullptr && global_ble->is_active(); }
 };
 
 template<typename... Ts> class BLEEnableAction : public Action<Ts...> {
  public:
-  void play(const Ts &...x) override { global_ble->enable(); }
+  void play(const Ts &...x) override {
+    if (global_ble != nullptr)
+      global_ble->enable();
+  }
 };
 
 template<typename... Ts> class BLEDisableAction : public Action<Ts...> {
  public:
-  void play(const Ts &...x) override { global_ble->disable(); }
+  void play(const Ts &...x) override {
+    if (global_ble != nullptr)
+      global_ble->disable();
+  }
 };
 
 }  // namespace esphome::esp32_ble

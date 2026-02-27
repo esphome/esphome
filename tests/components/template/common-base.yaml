@@ -9,6 +9,22 @@ esphome:
         id: template_sens
         state: !lambda "return 42.0;"
 
+    - water_heater.template.publish:
+        id: template_water_heater
+        target_temperature: 50.0
+        mode: ECO
+        away: false
+        is_on: true
+
+    # Templated
+    - water_heater.template.publish:
+        id: template_water_heater
+        current_temperature: !lambda "return 45.0;"
+        target_temperature: !lambda "return 55.0;"
+        mode: !lambda "return water_heater::WATER_HEATER_MODE_GAS;"
+        away: !lambda "return true;"
+        is_on: !lambda "return false;"
+
     # Test C++ API: set_template() with stateless lambda (no captures)
     # NOTE: set_template() is not intended to be a public API, but we test it to ensure it doesn't break.
     - lambda: |-
@@ -41,6 +57,17 @@ binary_sensor:
         // Garage Door is closed.
         return false;
       }
+  - platform: template
+    id: select_binary_sensor
+    name: Select is one or two
+    condition:
+      any:
+        - select.is:
+            id: template_select
+            options: [one, two]
+        - select.is:
+            id: template_select
+            lambda: return current == id(template_text).state;
   - platform: template
     id: other_binary_sensor
     name: "Garage Door Closed"
@@ -94,10 +121,13 @@ sensor:
             - 10.0 -> 12.1
             - 13.0 -> 14.0
       - clamp:
+          # Infinity and NaN will be clamped (NaN -> min_value, +Infinity -> max_value, -Infinity -> min_value)
           max_value: 10.0
           min_value: -10.0
       - debounce: 0.1s
       - delta: 5.0
+      - delta:
+          max_value: 2%
       - exponential_moving_average:
           alpha: 0.1
           send_every: 15
@@ -219,6 +249,44 @@ cover:
     stop_action:
       - logger.log: stop_action
     optimistic: true
+  - platform: template
+    name: "Template Cover with Triggers"
+    id: template_cover_with_triggers
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return COVER_OPEN;
+      }
+      return COVER_CLOSED;
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true
+    on_open:
+      - logger.log: "Cover on_open (deprecated)"
+    on_opened:
+      - logger.log: "Cover fully opened"
+    on_closed:
+      - logger.log: "Cover fully closed"
+    on_opening:
+      - logger.log: "Cover started opening"
+    on_closing:
+      - logger.log: "Cover started closing"
+    on_idle:
+      - logger.log: "Cover stopped moving"
+      - logger.log: "Cover stopped moving"
+      - if:
+          condition:
+            cover.is_open: template_cover_with_triggers
+          then:
+            logger.log: Cover is open
+      - if:
+          condition:
+            cover.is_closed: template_cover_with_triggers
+          then:
+            logger.log: Cover is closed
 
 number:
   - platform: template
@@ -231,6 +299,7 @@ number:
 
 select:
   - platform: template
+    id: template_select
     name: "Template select"
     optimistic: true
     options:
@@ -238,6 +307,47 @@ select:
       - two
       - three
     initial_option: two
+    # Test current_option() returning std::string_view - migration guide examples
+    on_value:
+      - lambda: |-
+          // Migration guide: Check if select has a state
+          // OLD: if (id(template_select).current_option() != nullptr)
+          // NEW: Check with .empty()
+          if (!id(template_select).current_option().empty()) {
+            ESP_LOGI("test", "Select has state");
+          }
+
+          // Migration guide: Compare option values
+          // OLD: if (strcmp(id(template_select).current_option(), "one") == 0)
+          // NEW: Direct comparison works safely even when empty
+          if (id(template_select).current_option() == "one") {
+            ESP_LOGI("test", "Option is 'one'");
+          }
+          if (id(template_select).current_option() != "two") {
+            ESP_LOGI("test", "Option is not 'two'");
+          }
+
+          // Migration guide: Logging options
+          // Option 1: Using .c_str() - StringRef guarantees null-termination
+          ESP_LOGI("test", "Current option: %s", id(template_select).current_option().c_str());
+
+          // Option 2: Using %.*s format with size
+          auto option = id(template_select).current_option();
+          ESP_LOGI("test", "Current option (safe): %.*s", (int) option.size(), option.c_str());
+
+          // Migration guide: Store in std::string
+          std::string stored_option(id(template_select).current_option());
+          ESP_LOGI("test", "Stored: %s", stored_option.c_str());
+  - platform: template
+    id: template_select_with_action
+    name: "Template select with action"
+    options:
+      - option_a
+      - option_b
+    set_action:
+      - logger.log:
+          format: "Selected: %s"
+          args: ["x.c_str()"]
 
 lock:
   - platform: template
@@ -276,6 +386,7 @@ valve:
 
 text:
   - platform: template
+    id: template_text
     name: "Template text"
     optimistic: true
     min_length: 0
@@ -298,6 +409,27 @@ alarm_control_panel:
     name: Alarm Panel
     codes:
       - "1234"
+
+water_heater:
+  - platform: template
+    id: template_water_heater
+    name: "Template Water Heater"
+    optimistic: true
+    current_temperature: !lambda "return 42.0f;"
+    target_temperature: !lambda "return 60.0f;"
+    mode: !lambda "return water_heater::WATER_HEATER_MODE_ECO;"
+    away: !lambda "return false;"
+    is_on: !lambda "return true;"
+    supported_modes:
+      - "OFF"
+      - ECO
+      - GAS
+      - ELECTRIC
+      - HEAT_PUMP
+      - HIGH_DEMAND
+      - PERFORMANCE
+    set_action:
+      - logger.log: "set_action"
 
 datetime:
   - platform: template

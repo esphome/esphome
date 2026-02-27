@@ -27,11 +27,13 @@ void BluetoothProxy::setup() {
   // Capture the configured scan mode from YAML before any API changes
   this->configured_scan_active_ = this->parent_->get_scan_active();
 
-  this->parent_->add_scanner_state_callback([this](esp32_ble_tracker::ScannerState state) {
-    if (this->api_connection_ != nullptr) {
-      this->send_bluetooth_scanner_state_(state);
-    }
-  });
+  this->parent_->add_scanner_state_listener(this);
+}
+
+void BluetoothProxy::on_scanner_state(esp32_ble_tracker::ScannerState state) {
+  if (this->api_connection_ != nullptr) {
+    this->send_bluetooth_scanner_state_(state);
+  }
 }
 
 void BluetoothProxy::send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state) {

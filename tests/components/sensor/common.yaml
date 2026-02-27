@@ -236,3 +236,10 @@ sensor:
           - multiply: 2.0
           - offset: 10.0
           - lambda: return x * 3.0;
+
+  # Testing measurement_angle state class
+  - platform: template
+    name: "Angle Sensor"
+    lambda: return 42.0;
+    update_interval: 1s
+    state_class: "measurement_angle"

@@ -1,4 +1,4 @@
-"""Tests for mpip_spi configuration validation."""
+"""Tests for mipi_spi configuration validation."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -227,23 +227,6 @@ def test_esp32s3_specific_errors(
         run_schema_validation(config)
 
 
-def test_framework_specific_errors(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """Test framework-specific configuration errors"""
-
-    set_core_config(
-        PlatformFramework.ESP32_ARDUINO,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
-    )
-
-    with pytest.raises(
-        cv.Invalid,
-        match=r"This feature is only available with framework\(s\) esp-idf",
-    ):
-        run_schema_validation({"model": "wt32-sc01-plus"})
-
-
 def test_custom_model_with_all_options(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
@@ -304,14 +287,14 @@ def test_all_predefined_models(
         config = {"model": name}
 
         # Get the pins required by this model and find a compatible variant
-        pins = [
-            pin
-            for pin in [
-                model.get_default(pin, None)
-                for pin in ("dc_pin", "reset_pin", "cs_pin")
-            ]
-            if pin is not None
-        ]
+        pins = []
+        for pin_name in ("dc_pin", "reset_pin", "cs_pin", "enable_pin"):
+            pin_value = model.get_default(pin_name, None)
+            if pin_value is not None:
+                if isinstance(pin_value, list):
+                    pins.extend(pin_value)
+                else:
+                    pins.append(pin_value)
         choose_variant_with_pins(pins)
 
         # Add required fields that don't have defaults

@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/fan/fan.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 class TemplateFan final : public Component, public fan::Fan {
  public:
@@ -27,5 +26,4 @@ class TemplateFan final : public Component, public fan::Fan {
   std::vector<const char *> preset_modes_{};
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

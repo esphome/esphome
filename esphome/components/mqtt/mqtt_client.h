@@ -24,8 +24,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 /** Callback for MQTT events.
  */
@@ -100,12 +99,7 @@ enum MQTTClientState {
 
 class MQTTComponent;
 
-class MQTTClientComponent : public Component
-#ifdef USE_LOGGER
-    ,
-                            public logger::LogListener
-#endif
-{
+class MQTTClientComponent : public Component {
  public:
   MQTTClientComponent();
 
@@ -143,21 +137,6 @@ class MQTTClientComponent : public Component
   bool is_discovery_enabled() const;
   bool is_discovery_ip_enabled() const;
 
-#if ASYNC_TCP_SSL_ENABLED
-  /** Add a SSL fingerprint to use for TCP SSL connections to the MQTT broker.
-   *
-   * To use this feature you first have to globally enable the `ASYNC_TCP_SSL_ENABLED` define flag.
-   * This function can be called multiple times and any certificate that matches any of the provided fingerprints
-   * will match. Calling this method will also automatically disable all non-ssl connections.
-   *
-   * @warning This is *not* secure and *not* how SSL is usually done. You'll have to add
-   *          a separate fingerprint for every certificate you use. Additionally, the hashing
-   *          algorithm used here due to the constraints of the MCU, SHA1, is known to be insecure.
-   *
-   * @param fingerprint The SSL fingerprint as a 20 value long std::array.
-   */
-  void add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint);
-#endif
 #ifdef USE_ESP32
   void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
@@ -230,6 +209,9 @@ class MQTTClientComponent : public Component
   bool publish(const std::string &topic, const char *payload, size_t payload_length, uint8_t qos = 0,
                bool retain = false);
 
+  /// Publish directly without creating MQTTMessage (avoids heap allocation for topic)
+  bool publish(const char *topic, const char *payload, size_t payload_length, uint8_t qos = 0, bool retain = false);
+
   /** Construct and send a JSON MQTT message.
    *
    * @param topic The topic.
@@ -237,6 +219,9 @@ class MQTTClientComponent : public Component
    * @param retain Whether to retain the message.
    */
   bool publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false);
+
+  /// Publish JSON directly without heap allocation for topic
+  bool publish_json(const char *topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false);
 
   /// Setup the MQTT client, registering a bunch of callbacks and attempting to connect.
   void setup() override;
@@ -247,7 +232,7 @@ class MQTTClientComponent : public Component
   float get_setup_priority() const override;
 
 #ifdef USE_LOGGER
-  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len);
 #endif
 
   void on_message(const std::string &topic, const std::string &payload);
@@ -379,17 +364,17 @@ class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
   }
 };
 
-class MQTTConnectTrigger : public Trigger<> {
+class MQTTConnectTrigger : public Trigger<bool> {
  public:
   explicit MQTTConnectTrigger(MQTTClientComponent *&client) {
-    client->set_on_connect([this](bool session_present) { this->trigger(); });
+    client->set_on_connect([this](bool session_present) { this->trigger(session_present); });
   }
 };
 
-class MQTTDisconnectTrigger : public Trigger<> {
+class MQTTDisconnectTrigger : public Trigger<MQTTClientDisconnectReason> {
  public:
   explicit MQTTDisconnectTrigger(MQTTClientComponent *&client) {
-    client->set_on_disconnect([this](MQTTClientDisconnectReason reason) { this->trigger(); });
+    client->set_on_disconnect([this](MQTTClientDisconnectReason reason) { this->trigger(reason); });
   }
 };
 
@@ -462,7 +447,6 @@ template<typename... Ts> class MQTTDisableAction : public Action<Ts...> {
   MQTTClientComponent *parent_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTT

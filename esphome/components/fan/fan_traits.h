@@ -47,10 +47,13 @@ class FanTraits {
   bool supports_preset_modes() const { return !this->preset_modes_.empty(); }
   /// Find and return the matching preset mode pointer from supported modes, or nullptr if not found.
   const char *find_preset_mode(const char *preset_mode) const {
-    if (preset_mode == nullptr)
+    return this->find_preset_mode(preset_mode, preset_mode ? strlen(preset_mode) : 0);
+  }
+  const char *find_preset_mode(const char *preset_mode, size_t len) const {
+    if (preset_mode == nullptr || len == 0)
       return nullptr;
     for (const char *mode : this->preset_modes_) {
-      if (strcmp(mode, preset_mode) == 0) {
+      if (strncmp(mode, preset_mode, len) == 0 && mode[len] == '\0') {
         return mode;  // Return pointer from traits
       }
     }

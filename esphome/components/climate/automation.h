@@ -3,8 +3,7 @@
 #include "esphome/core/automation.h"
 #include "climate.h"
 
-namespace esphome {
-namespace climate {
+namespace esphome::climate {
 
 template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
@@ -58,5 +57,4 @@ class StateTrigger : public Trigger<Climate &> {
   }
 };
 
-}  // namespace climate
-}  // namespace esphome
+}  // namespace esphome::climate

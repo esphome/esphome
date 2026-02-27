@@ -1,9 +1,13 @@
 #ifdef USE_ESP32_VARIANT_ESP32P4
 #include <utility>
 #include "mipi_dsi.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mipi_dsi {
+
+// Maximum bytes to log for init commands (truncated if larger)
+static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
 
 static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
   auto *sem = static_cast<SemaphoreHandle_t *>(user_ctx);
@@ -121,8 +125,11 @@ void MIPI_DSI::setup() {
         }
       }
       const auto *ptr = vec.data() + index;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+      char hex_buf[format_hex_pretty_size(MIPI_DSI_MAX_CMD_LOG_BYTES)];
+#endif
       ESP_LOGVV(TAG, "Command %02X, length %d, byte(s) %s", cmd, num_args,
-                format_hex_pretty(ptr, num_args, '.', false).c_str());
+                format_hex_pretty_to(hex_buf, ptr, num_args, '.'));
       err = esp_lcd_panel_io_tx_param(this->io_handle_, cmd, ptr, num_args);
       if (err != ESP_OK) {
         this->smark_failed(LOG_STR("lcd_panel_io_tx_param failed"), err);
@@ -293,6 +300,13 @@ void MIPI_DSI::draw_pixel_at(int x, int y, Color color) {
 void MIPI_DSI::fill(Color color) {
   if (!this->check_buffer_())
     return;
+
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   switch (this->color_depth_) {
     case display::COLOR_BITNESS_565: {
       auto *ptr_16 = reinterpret_cast<uint16_t *>(this->buffer_);
@@ -360,7 +374,7 @@ void MIPI_DSI::dump_config() {
                 "\n  Swap X/Y: %s"
                 "\n  Rotation: %d degrees"
                 "\n  DSI Lanes: %u"
-                "\n  Lane Bit Rate: %uMbps"
+                "\n  Lane Bit Rate: %.0fMbps"
                 "\n  HSync Pulse Width: %u"
                 "\n  HSync Back Porch: %u"
                 "\n  HSync Front Porch: %u"
@@ -371,7 +385,7 @@ void MIPI_DSI::dump_config() {
                 "\n  Display Pixel Mode: %d bit"
                 "\n  Color Order: %s"
                 "\n  Invert Colors: %s"
-                "\n  Pixel Clock: %dMHz",
+                "\n  Pixel Clock: %.1fMHz",
                 this->model_, this->width_, this->height_, YESNO(this->madctl_ & (MADCTL_XFLIP | MADCTL_MX)),
                 YESNO(this->madctl_ & (MADCTL_YFLIP | MADCTL_MY)), YESNO(this->madctl_ & MADCTL_MV), this->rotation_,
                 this->lanes_, this->lane_bit_rate_, this->hsync_pulse_width_, this->hsync_back_porch_,

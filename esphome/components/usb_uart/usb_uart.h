@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart_component.h"
@@ -97,7 +97,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   bool peek_byte(uint8_t *data) override;
   ;
   bool read_array(uint8_t *data, size_t len) override;
-  int available() override { return static_cast<int>(this->input_buffer_.get_available()); }
+  size_t available() override { return this->input_buffer_.get_available(); }
   void flush() override {}
   void check_logger_conflict() override {}
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
@@ -173,4 +173,4 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
 }  // namespace usb_uart
 }  // namespace esphome
 
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

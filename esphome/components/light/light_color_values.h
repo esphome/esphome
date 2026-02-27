@@ -82,26 +82,7 @@ class LightColorValues {
    * @param completion The completion value. 0 -> start, 1 -> end.
    * @return The linearly interpolated LightColorValues.
    */
-  static LightColorValues lerp(const LightColorValues &start, const LightColorValues &end, float completion) {
-    // Directly interpolate the raw values to avoid getter/setter overhead.
-    // This is safe because:
-    // - All LightColorValues have their values clamped when set via the setters
-    // - std::lerp guarantees output is in the same range as inputs
-    // - Therefore the output doesn't need clamping, so we can skip the setters
-    LightColorValues v;
-    v.color_mode_ = end.color_mode_;
-    v.state_ = std::lerp(start.state_, end.state_, completion);
-    v.brightness_ = std::lerp(start.brightness_, end.brightness_, completion);
-    v.color_brightness_ = std::lerp(start.color_brightness_, end.color_brightness_, completion);
-    v.red_ = std::lerp(start.red_, end.red_, completion);
-    v.green_ = std::lerp(start.green_, end.green_, completion);
-    v.blue_ = std::lerp(start.blue_, end.blue_, completion);
-    v.white_ = std::lerp(start.white_, end.white_, completion);
-    v.color_temperature_ = std::lerp(start.color_temperature_, end.color_temperature_, completion);
-    v.cold_white_ = std::lerp(start.cold_white_, end.cold_white_, completion);
-    v.warm_white_ = std::lerp(start.warm_white_, end.warm_white_, completion);
-    return v;
-  }
+  static LightColorValues lerp(const LightColorValues &start, const LightColorValues &end, float completion);
 
   /** Normalize the color (RGB/W) component.
    *
@@ -114,15 +95,18 @@ class LightColorValues {
    */
   void normalize_color() {
     if (this->color_mode_ & ColorCapability::RGB) {
-      float max_value = fmaxf(this->get_red(), fmaxf(this->get_green(), this->get_blue()));
+      float max_value = fmaxf(this->red_, fmaxf(this->green_, this->blue_));
+      // Assign directly to avoid redundant clamp in set_red/green/blue.
+      // Values are guaranteed in [0,1]: inputs are already clamped to [0,1],
+      // and dividing by max_value (the largest) keeps results in [0,1].
       if (max_value == 0.0f) {
-        this->set_red(1.0f);
-        this->set_green(1.0f);
-        this->set_blue(1.0f);
+        this->red_ = 1.0f;
+        this->green_ = 1.0f;
+        this->blue_ = 1.0f;
       } else {
-        this->set_red(this->get_red() / max_value);
-        this->set_green(this->get_green() / max_value);
-        this->set_blue(this->get_blue() / max_value);
+        this->red_ /= max_value;
+        this->green_ /= max_value;
+        this->blue_ /= max_value;
       }
     }
   }
@@ -294,6 +278,8 @@ class LightColorValues {
   float get_warm_white() const { return this->warm_white_; }
   /// Set the warm white property of these light color values. In range 0.0 to 1.0.
   void set_warm_white(float warm_white) { this->warm_white_ = clamp(warm_white, 0.0f, 1.0f); }
+
+  friend class LightCall;
 
  protected:
   float state_;  ///< ON / OFF, float for transition

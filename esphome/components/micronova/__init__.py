@@ -4,59 +4,73 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-CODEOWNERS = ["@jorre05"]
+CODEOWNERS = ["@jorre05", "@edenhaus"]
 
 DEPENDENCIES = ["uart"]
 
-CONF_MICRONOVA_ID = "micronova_id"
+DOMAIN = "micronova"
+CONF_MICRONOVA_ID = f"{DOMAIN}_id"
 CONF_ENABLE_RX_PIN = "enable_rx_pin"
 CONF_MEMORY_LOCATION = "memory_location"
 CONF_MEMORY_ADDRESS = "memory_address"
+DEFAULT_POLLING_INTERVAL = "60s"
 
-micronova_ns = cg.esphome_ns.namespace("micronova")
+micronova_ns = cg.esphome_ns.namespace(DOMAIN)
 
-MicroNovaFunctions = micronova_ns.enum("MicroNovaFunctions", is_class=True)
-MICRONOVA_FUNCTIONS_ENUM = {
-    "STOVE_FUNCTION_SWITCH": MicroNovaFunctions.STOVE_FUNCTION_SWITCH,
-    "STOVE_FUNCTION_ROOM_TEMPERATURE": MicroNovaFunctions.STOVE_FUNCTION_ROOM_TEMPERATURE,
-    "STOVE_FUNCTION_THERMOSTAT_TEMPERATURE": MicroNovaFunctions.STOVE_FUNCTION_THERMOSTAT_TEMPERATURE,
-    "STOVE_FUNCTION_FUMES_TEMPERATURE": MicroNovaFunctions.STOVE_FUNCTION_FUMES_TEMPERATURE,
-    "STOVE_FUNCTION_STOVE_POWER": MicroNovaFunctions.STOVE_FUNCTION_STOVE_POWER,
-    "STOVE_FUNCTION_FAN_SPEED": MicroNovaFunctions.STOVE_FUNCTION_FAN_SPEED,
-    "STOVE_FUNCTION_STOVE_STATE": MicroNovaFunctions.STOVE_FUNCTION_STOVE_STATE,
-    "STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR": MicroNovaFunctions.STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR,
-    "STOVE_FUNCTION_WATER_TEMPERATURE": MicroNovaFunctions.STOVE_FUNCTION_WATER_TEMPERATURE,
-    "STOVE_FUNCTION_WATER_PRESSURE": MicroNovaFunctions.STOVE_FUNCTION_WATER_PRESSURE,
-    "STOVE_FUNCTION_POWER_LEVEL": MicroNovaFunctions.STOVE_FUNCTION_POWER_LEVEL,
-    "STOVE_FUNCTION_CUSTOM": MicroNovaFunctions.STOVE_FUNCTION_CUSTOM,
-}
+MicroNova = micronova_ns.class_("MicroNova", cg.Component, uart.UARTDevice)
+MicroNovaListener = micronova_ns.class_("MicroNovaListener", cg.PollingComponent)
 
-MicroNova = micronova_ns.class_("MicroNova", cg.PollingComponent, uart.UARTDevice)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(MicroNova),
+        cv.Required(CONF_ENABLE_RX_PIN): pins.gpio_output_pin_schema,
+    }
+).extend(uart.UART_DEVICE_SCHEMA)
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(MicroNova),
-            cv.Required(CONF_ENABLE_RX_PIN): pins.gpio_output_pin_schema,
-        }
-    )
-    .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.polling_component_schema("60s"))
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    DOMAIN,
+    baud_rate=1200,
+    require_rx=True,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=2,
 )
 
 
-def MICRONOVA_LISTENER_SCHEMA(default_memory_location, default_memory_address):
-    return cv.Schema(
+def MICRONOVA_ADDRESS_SCHEMA(
+    *,
+    default_memory_location: int | None = None,
+    default_memory_address: int | None = None,
+    is_polling_component: bool,
+):
+    location_key = (
+        cv.Optional(CONF_MEMORY_LOCATION, default=default_memory_location)
+        if default_memory_location is not None
+        else cv.Required(CONF_MEMORY_LOCATION)
+    )
+    address_key = (
+        cv.Optional(CONF_MEMORY_ADDRESS, default=default_memory_address)
+        if default_memory_address is not None
+        else cv.Required(CONF_MEMORY_ADDRESS)
+    )
+    schema = cv.Schema(
         {
             cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
-            cv.Optional(
-                CONF_MEMORY_LOCATION, default=default_memory_location
-            ): cv.hex_int_range(),
-            cv.Optional(
-                CONF_MEMORY_ADDRESS, default=default_memory_address
-            ): cv.hex_int_range(),
+            location_key: cv.hex_int_range(min=0x00, max=0x79),
+            address_key: cv.hex_int_range(min=0x00, max=0xFF),
         }
     )
+    if is_polling_component:
+        schema = schema.extend(cv.polling_component_schema(DEFAULT_POLLING_INTERVAL))
+    return schema
+
+
+async def to_code_micronova_listener(mv, var, config):
+    await cg.register_component(var, config)
+    cg.add(mv.register_micronova_listener(var))
+    cg.add(var.set_memory_location(config[CONF_MEMORY_LOCATION]))
+    cg.add(var.set_memory_address(config[CONF_MEMORY_ADDRESS]))
 
 
 async def to_code(config):

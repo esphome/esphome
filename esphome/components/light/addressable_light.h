@@ -70,7 +70,7 @@ class AddressableLight : public LightOutput, public Component {
     this->state_parent_ = state;
   }
   void update_state(LightState *state) override;
-  void schedule_show() { this->state_parent_->next_write_ = true; }
+  void schedule_show() { this->state_parent_->schedule_write_(); }
 
 #ifdef USE_POWER_SUPPLY
   void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }

@@ -25,7 +25,8 @@ void ADE7953::setup() {
     this->ade_write_8(PGA_V_8, pga_v_);
     this->ade_write_8(PGA_IA_8, pga_ia_);
     this->ade_write_8(PGA_IB_8, pga_ib_);
-    this->ade_write_32(AVGAIN_32, vgain_);
+    this->ade_write_32(AVGAIN_32, avgain_);
+    this->ade_write_32(BVGAIN_32, bvgain_);
     this->ade_write_32(AIGAIN_32, aigain_);
     this->ade_write_32(BIGAIN_32, bigain_);
     this->ade_write_32(AWGAIN_32, awgain_);
@@ -34,7 +35,8 @@ void ADE7953::setup() {
     this->ade_read_8(PGA_V_8, &pga_v_);
     this->ade_read_8(PGA_IA_8, &pga_ia_);
     this->ade_read_8(PGA_IB_8, &pga_ib_);
-    this->ade_read_32(AVGAIN_32, &vgain_);
+    this->ade_read_32(AVGAIN_32, &avgain_);
+    this->ade_read_32(BVGAIN_32, &bvgain_);
     this->ade_read_32(AIGAIN_32, &aigain_);
     this->ade_read_32(BIGAIN_32, &bigain_);
     this->ade_read_32(AWGAIN_32, &awgain_);
@@ -63,13 +65,14 @@ void ADE7953::dump_config() {
                 "  PGA_V_8: 0x%X\n"
                 "  PGA_IA_8: 0x%X\n"
                 "  PGA_IB_8: 0x%X\n"
-                "  VGAIN_32: 0x%08jX\n"
+                "  AVGAIN_32: 0x%08jX\n"
+                "  BVGAIN_32: 0x%08jX\n"
                 "  AIGAIN_32: 0x%08jX\n"
                 "  BIGAIN_32: 0x%08jX\n"
                 "  AWGAIN_32: 0x%08jX\n"
                 "  BWGAIN_32: 0x%08jX",
-                this->use_acc_energy_regs_, pga_v_, pga_ia_, pga_ib_, (uintmax_t) vgain_, (uintmax_t) aigain_,
-                (uintmax_t) bigain_, (uintmax_t) awgain_, (uintmax_t) bwgain_);
+                this->use_acc_energy_regs_, pga_v_, pga_ia_, pga_ib_, (uintmax_t) avgain_, (uintmax_t) bvgain_,
+                (uintmax_t) aigain_, (uintmax_t) bigain_, (uintmax_t) awgain_, (uintmax_t) bwgain_);
 }
 
 #define ADE_PUBLISH_(name, val, factor) \

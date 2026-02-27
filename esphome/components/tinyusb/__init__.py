@@ -1,10 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import esp32
-from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    add_idf_component,
+    add_idf_sdkconfig_option,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID

@@ -18,8 +18,6 @@ class PM1006Component : public PollingComponent, public uart::UARTDevice {
   void loop() override;
   void update() override;
 
-  float get_setup_priority() const override;
-
  protected:
   optional<bool> check_byte_() const;
   void parse_data_();

@@ -11,8 +11,7 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart.arduino_rp2040";
 
@@ -187,13 +186,11 @@ bool RP2040UartComponent::read_array(uint8_t *data, size_t len) {
 #endif
   return true;
 }
-int RP2040UartComponent::available() { return this->serial_->available(); }
+size_t RP2040UartComponent::available() { return this->serial_->available(); }
 void RP2040UartComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
   this->serial_->flush();
 }
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_RP2040
