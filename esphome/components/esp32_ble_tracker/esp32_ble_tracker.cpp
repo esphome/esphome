@@ -247,9 +247,14 @@ void ESP32BLETracker::start_scan_(bool first) {
 #ifdef USE_ESP32_BLE_DEVICE
   this->already_discovered_.clear();
 #endif
+  uint16_t list_size = 0;
+  esp_err_t err = esp_ble_gap_get_whitelist_size(&list_size);  // NOLINT(inclusive-language)
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_get_whitelist_size failed: %d", err);  // NOLINT(inclusive-language)
+  }
   this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
-  this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
+  this->scan_params_.scan_filter_policy = list_size == 0 ? BLE_SCAN_FILTER_ALLOW_ALL : BLE_SCAN_FILTER_ALLOW_ONLY_WLST;
   this->scan_params_.scan_interval = this->scan_interval_;
   this->scan_params_.scan_window = this->scan_window_;
 
@@ -259,7 +264,7 @@ void ESP32BLETracker::start_scan_(bool first) {
   this->scan_timeout_ms_ = this->scan_duration_ * 2000;
   this->scan_timeout_state_ = ScanTimeoutState::MONITORING;
 
-  esp_err_t err = esp_ble_gap_set_scan_params(&this->scan_params_);
+  err = esp_ble_gap_set_scan_params(&this->scan_params_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_scan_params failed: %d", err);
     return;

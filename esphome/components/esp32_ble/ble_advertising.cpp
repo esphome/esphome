@@ -13,7 +13,8 @@ namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble.advertising";
 
-BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time) : advertising_cycle_time_(advertising_cycle_time) {
+BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time, bool allowed_addresses_is_empty)
+    : advertising_cycle_time_(advertising_cycle_time) {
   this->advertising_data_.set_scan_rsp = false;
   this->advertising_data_.include_name = true;
   this->advertising_data_.include_txpower = true;
@@ -33,7 +34,8 @@ BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time) : advertising_cy
   this->advertising_params_.adv_type = ADV_TYPE_IND;
   this->advertising_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
   this->advertising_params_.channel_map = ADV_CHNL_ALL;
-  this->advertising_params_.adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
+  this->advertising_params_.adv_filter_policy =
+      allowed_addresses_is_empty ? ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY : ADV_FILTER_ALLOW_SCAN_WLST_CON_WLST;
   this->advertising_params_.peer_addr_type = BLE_ADDR_TYPE_PUBLIC;
 }
 

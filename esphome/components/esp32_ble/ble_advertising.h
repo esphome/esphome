@@ -19,7 +19,7 @@ class ESPBTUUID;
 
 class BLEAdvertising {
  public:
-  BLEAdvertising(uint32_t advertising_cycle_time);
+  BLEAdvertising(uint32_t advertising_cycle_time, bool allowed_addresses_is_empty);
 
   void loop();
 

@@ -125,6 +125,10 @@ class ESP32BLE : public Component {
   }
   uint32_t get_advertising_cycle_time() const { return this->advertising_cycle_time_; }
 
+  void set_allowed_addresses(const std::initializer_list<uint64_t> &allowed_addresses) {
+    allowed_addresses_ = allowed_addresses;
+  }
+
   void enable();
   void disable();
   bool is_active();
@@ -214,6 +218,7 @@ class ESP32BLE : public Component {
   // Large objects (size depends on template parameters, but typically aligned to 4 bytes)
   esphome::LockFreeQueue<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_events_;
   esphome::EventPool<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_event_pool_;
+  std::vector<uint64_t> allowed_addresses_;
 
   // 4-byte aligned members
 #ifdef USE_ESP32_BLE_ADVERTISING

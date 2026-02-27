@@ -14,7 +14,9 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_ON_BOOT,
     CONF_ESPHOME,
+    CONF_FILTER,
     CONF_ID,
+    CONF_MAC_ADDRESS,
     CONF_MAX_CONNECTIONS,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
@@ -294,6 +296,13 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_MAX_CONNECTIONS, default=DEFAULT_MAX_CONNECTIONS): cv.All(
             cv.positive_int, cv.Range(min=1, max=IDF_MAX_CONNECTIONS)
+        ),
+        cv.Optional(CONF_FILTER, default={}): cv.All(
+            cv.Schema(
+                {
+                    cv.Optional(CONF_MAC_ADDRESS): cv.ensure_list(cv.mac_address),
+                }
+            ),
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -594,6 +603,10 @@ async def to_code(config):
     if config[CONF_ADVERTISING]:
         cg.add_define("USE_ESP32_BLE_ADVERTISING")
         cg.add_define("USE_ESP32_BLE_UUID")
+
+    if config[CONF_FILTER] and config[CONF_FILTER][CONF_MAC_ADDRESS]:
+        allowed_addresses = [it.as_hex for it in config[CONF_FILTER][CONF_MAC_ADDRESS]]
+        cg.add(var.set_allowed_addresses(allowed_addresses))
 
     # Schedule the handler defines to be added after all components register
     CORE.add_job(_add_ble_handler_defines)

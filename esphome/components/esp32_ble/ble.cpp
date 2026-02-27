@@ -156,7 +156,8 @@ bool ESP32BLE::ble_pre_setup_() {
 void ESP32BLE::advertising_init_() {
   if (this->advertising_ != nullptr)
     return;
-  this->advertising_ = new BLEAdvertising(this->advertising_cycle_time_);  // NOLINT(cppcoreguidelines-owning-memory)
+  this->advertising_ = new BLEAdvertising(this->advertising_cycle_time_,
+                                          this->allowed_addresses_.empty());  // NOLINT(cppcoreguidelines-owning-memory)
 
   this->advertising_->set_scan_response(true);
   this->advertising_->set_min_preferred_interval(0x06);
@@ -328,6 +329,28 @@ bool ESP32BLE::ble_setup_() {
     }
   }
 #endif  // ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
+
+  if (!this->allowed_addresses_.empty()) {
+    ESP_LOGD(TAG, "clear allowed addresses list");
+    err = esp_ble_gap_clear_whitelist();  // NOLINT(inclusive-language)
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_ble_gap_clear_whitelist failed: %d", err);  // NOLINT(inclusive-language)
+      return false;
+    }
+
+    for (const uint64_t &mac : this->allowed_addresses_) {
+      esp_bd_addr_t esp_address;
+      esp32_ble::uint64_to_ble_addr(mac, esp_address);
+      char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(esp_address, mac_buf);
+      ESP_LOGD(TAG, "add to allowed addresses list: %s", mac_buf);
+      err = esp_ble_gap_update_whitelist(true, esp_address, BLE_WL_ADDR_TYPE_PUBLIC);  // NOLINT(inclusive-language)
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ble_gap_update_whitelist failed: %d", err);  // NOLINT(inclusive-language)
+        return false;
+      }
+    }
+  }
 
   // BLE takes some time to be fully set up, 200ms should be more than enough
   delay(200);  // NOLINT
@@ -614,8 +637,9 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // Ignore these GAP events as they are not relevant for our use case
     case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
     case ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT:
-    case ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT:       // BLE 5.0 PHY update complete
-    case ESP_GAP_BLE_CHANNEL_SELECT_ALGORITHM_EVT:  // BLE 5.0 channel selection algorithm
+    case ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT:        // BLE 5.0 PHY update complete
+    case ESP_GAP_BLE_CHANNEL_SELECT_ALGORITHM_EVT:   // BLE 5.0 channel selection algorithm
+    case ESP_GAP_BLE_UPDATE_WHITELIST_COMPLETE_EVT:  // NOLINT(inclusive-language)
       return;
 
     default:
