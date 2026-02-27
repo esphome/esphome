@@ -377,7 +377,19 @@ void ESP32TouchComponent::loop() {
     if (child->last_state_) {
       uint32_t time_diff = now - child->last_touch_time_;
       if (time_diff > RELEASE_TIMEOUT_MS) {
-#ifndef USE_ESP32_VARIANT_ESP32
+#ifdef USE_ESP32_VARIANT_ESP32
+        // V1: Verify actual state before declaring release
+        // on_active_cb only fires once on transition, so last_touch_time_ is not refreshed while held
+        uint32_t value = 0;
+        touch_channel_read_data(child->chan_handle_, TOUCH_CHAN_DATA_TYPE_SMOOTH, &value);
+        child->value_ = value;
+
+        if (value < child->get_threshold()) {
+          // Still touched - reset timer
+          child->last_touch_time_ = now;
+          continue;
+        }
+#else
         // V2/V3: Verify actual state before declaring release
         uint32_t value = 0;
         touch_channel_read_data(child->chan_handle_, TOUCH_CHAN_DATA_TYPE_SMOOTH, &value);
