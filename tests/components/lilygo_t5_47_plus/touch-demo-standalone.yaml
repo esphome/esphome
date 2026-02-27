@@ -1,0 +1,66 @@
+---
+# LilyGo T5 4.7" Plus - Touch Demo (standalone, for ESPHome web installer)
+#
+# Board config (ESP32-S3, 16MB flash, OPI PSRAM, Arduino) comes from the fork
+# via packages - no manual board settings needed.
+# Touch events are logged via ESP_LOGI:
+#   [touch] TOUCH x=<x> y=<y>
+#   [touch] RELEASE
+
+esphome:
+  name: lilygo-t547-touch-demo
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          ESP_LOGI("app", "on_boot fired - updating display");
+      - component.update: my_display
+      - lambda: |-
+          ESP_LOGI("app", "display update done");
+
+# Board config from fork (ESP32-S3, 16MB flash, OPI PSRAM, Arduino framework)
+packages:
+  board: github://hbast/esphome/esphome/components/lilygo_t5_47_plus/board_config.yaml@feature_lilygo_t5_47_plus
+
+# Component from fork
+external_components:
+  - source:
+      type: git
+      url: https://github.com/hbast/esphome
+      ref: feature_lilygo_t5_47_plus
+    components:
+      - lilygo_t5_47_plus
+    refresh: 1h
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+font:
+  - file: "gfonts://Roboto"
+    id: font_main
+    size: 40
+    glyphs: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -.,:"
+
+touchscreen:
+  - platform: lilygo_t5_47_plus
+    id: my_touch
+    update_interval: 100ms
+    transform:
+      swap_xy: true
+      mirror_y: true
+    on_touch:
+      - lambda: |-
+          ESP_LOGI("touch", "TOUCH x=%d y=%d", touch.x, touch.y);
+    on_release:
+      - lambda: |-
+          ESP_LOGI("touch", "RELEASE");
+
+display:
+  - platform: lilygo_t5_47_plus
+    id: my_display
+    greyscale: false
+    update_interval: never
+    lambda: |-
+      it.fill(COLOR_OFF);  // COLOR_OFF = black input → 0xFF in EPD buffer = white paper
+      it.print(480, 220, id(font_main), TextAlign::CENTER, "Touch Demo");
+      it.print(480, 300, id(font_main), TextAlign::CENTER, "see ESP logs for coordinates");

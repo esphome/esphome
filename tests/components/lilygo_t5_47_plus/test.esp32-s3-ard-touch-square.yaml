@@ -22,11 +22,6 @@ packages:
 logger:
   hardware_uart: USB_SERIAL_JTAG
 
-i2c:
-  sda: GPIO18
-  scl: GPIO17
-  frequency: 400kHz
-
 globals:
   - id: sq_x
     type: int

@@ -17,11 +17,6 @@ packages:
 logger:
   hardware_uart: USB_SERIAL_JTAG
 
-i2c:
-  sda: GPIO18
-  scl: GPIO17
-  frequency: 400kHz
-
 touchscreen:
   - platform: lilygo_t5_47_plus
     id: my_touch
