@@ -154,9 +154,7 @@ class ESPHomeDashboard:
     async def _async_prebuild_devices(self) -> None:
         """Pre-build firmware for devices that need a version update."""
         entries = self.entries.async_all()
-        devices_to_build = [
-            entry for entry in entries if entry.update_available
-        ]
+        devices_to_build = [entry for entry in entries if entry.update_available]
 
         if not devices_to_build:
             _LOGGER.info(
@@ -181,9 +179,7 @@ class ESPHomeDashboard:
         for idx, entry in enumerate(devices_to_build, start=1):
             config_path = str(self.settings.rel_path(entry.filename))
             old_version = entry.update_old
-            _LOGGER.info(
-                "Pre-building %s (%d/%d)", entry.name, idx, total
-            )
+            _LOGGER.info("Pre-building %s (%d/%d)", entry.name, idx, total)
             try:
                 returncode, _stdout, stderr = await async_run_system_command(
                     [*DASHBOARD_COMMAND, "compile", config_path]
@@ -191,9 +187,7 @@ class ESPHomeDashboard:
                 if returncode == 0:
                     succeeded += 1
                     # Refresh cached storage so update_available becomes False
-                    await self.loop.run_in_executor(
-                        None, entry.load_from_disk
-                    )
+                    await self.loop.run_in_executor(None, entry.load_from_disk)
                     self.bus.async_fire(
                         DashboardEvent.PRE_BUILD_STATUS,
                         {
@@ -262,9 +256,7 @@ class ESPHomeDashboard:
                 "failed": failed,
             },
         )
-        _LOGGER.info(
-            "Pre-build complete: %d succeeded, %d failed", succeeded, failed
-        )
+        _LOGGER.info("Pre-build complete: %d succeeded, %d failed", succeeded, failed)
 
     async def async_run(self) -> None:
         """Run the dashboard."""
