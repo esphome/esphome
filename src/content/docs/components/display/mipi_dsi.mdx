@@ -32,21 +32,37 @@ The display panels controlled by the driver may be of various types, including T
 chip and panel combination requires a specific set of initialisation commands, and standard initialisation sequences are provided for many common
 boards and chips, but the driver is also designed to be customisable in YAML for other displays.
 
-## Supported boards and driver chips
+## Supported driver chips, display panels and boards
 
-There are specific configurations for several ESP32 boards with integrated displays. For those boards
-the predefined configuration will set the correct pins and dimensions for the display.
+### Driver chips
 
 For custom displays, the driver can be configured with the correct pins and dimensions, and the driver chip can be
 specified, or a custom init sequence can be provided.
-
-### Driver chips
 
 | Driver Chip | Typical Dimensions |
 | ----------- | ------------------ |
 | CUSTOM      | Customisable       |
 
+### Standalone displays
+
+These are standalone display panels incorporating a driver chip and display panel. The `transform`, `rotation`, or other
+layout parameters may need to be specified to suit a specific usage scenario. These displays typically do not
+physically expose reset or enable pins but they may have a connector for an I²C bus for a touchscreen or to
+control the backlight. Check the manufacturer's documentation for information on how to use them.
+Some of these displays are used by ESP32 boards defined in the next section.
+
+| Model                      | Manufacturer | Dimensions          | Product Description                                                                                |
+| -------------------------- | ------------ | -------------------- | -------------------------------------------------------------------------------------------------- |
+| WAVESHARE-10.1-DSI-TOUCH-A | Waveshare    | 800x1280            | [https://www.waveshare.com/wiki/10.1-DSI-TOUCH-A](https://www.waveshare.com/wiki/10.1-DSI-TOUCH-A) |
+| WAVESHARE-8-DSI-TOUCH-A    | Waveshare    | 800x1280            | [https://www.waveshare.com/wiki/8-DSI-TOUCH-A](https://www.waveshare.com/wiki/8-DSI-TOUCH-A)       |
+| WAVESHARE-7-DSI-TOUCH-A    | Waveshare    | 720x1280            | [https://www.waveshare.com/wiki/7-DSI-TOUCH-A](https://www.waveshare.com/wiki/7-DSI-TOUCH-A)       |
+| WAVESHARE-4-DSI-TOUCH-C    | Waveshare    | 720x720 (round)     | [https://www.waveshare.com/wiki/4-DSI-TOUCH-C](https://www.waveshare.com/wiki/4-DSI-TOUCH-C)       |
+| WAVESHARE-3.4-DSI-TOUCH-C  | Waveshare    | 800x800 (round)     | [https://www.waveshare.com/wiki/3.4-DSI-TOUCH-C](https://www.waveshare.com/wiki/3.4-DSI-TOUCH-C)   |
+
 ### Boards with integrated displays
+
+These are specific configurations for several ESP32 boards with integrated displays.  The predefined configuration
+will set the correct pins and dimensions for the display.
 
 | Model                  | Manufacturer | Product Description                                                           |
 | ---------------------- | ------------ | ----------------------------------------------------------------------------- |
