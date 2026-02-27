@@ -35,8 +35,8 @@ class LLDPTransmitter {
         tx_fast_count_{LLDP_TX_FAST_COUNT},
         tx_interval_{LLDP_TX_INTERVAL},
         tx_hold_{LLDP_TX_HOLD},
-        state_{TXStateReconnect} {
-    this->recalc_ttl();
+        state_{TX_STATE_RECONNECT} {
+    this->recalc_ttl_();
   }
 
   // setup() opens the L2TAP device on the given ethernet handle
@@ -50,7 +50,7 @@ class LLDPTransmitter {
   esp_err_t transmit();
 
   // restart() causes the state engine to delay 1 second then start a fast-mode burst.
-  void restart() { this->state_ = TXStateReconnect; };
+  void restart() { this->state_ = TX_STATE_RECONNECT; };
 
   // Setup (Required): set_mac() - sets MAC address, must match system
   void set_mac(uint8_t mac[ETH_HWADDR_LEN]) { memcpy(this->mac_addr_.addr, mac, ETH_HWADDR_LEN); };
@@ -68,19 +68,19 @@ class LLDPTransmitter {
   // set_tx_fast_count() sets the number of packets to burst upon (re)connection
   void set_tx_fast_count(uint16_t count) {
     this->tx_fast_count_ = std::min(std::max(count, uint16_t(1)), uint16_t(LLDP_PROTO_MAX_FAST_COUNT));
-    this->recalc_ttl();
+    this->recalc_ttl_();
   };
 
   // set_tx_interval() sets the non-burst interval (in seconds) to transmit frames at
   void set_tx_interval(uint16_t interval) {
     this->tx_interval_ = std::min(std::max(interval, uint16_t(1)), uint16_t(LLDP_PROTO_MAX_INTERVAL));
-    this->recalc_ttl();
+    this->recalc_ttl_();
   };
 
   // set_tx_hold() sets the hold value, used to calculate the overall TTL
   void set_tx_hold(uint16_t hold) {
     this->tx_hold_ = std::min(std::max(hold, uint16_t(1)), uint16_t(LLDP_PROTO_MAX_HOLD));
-    this->recalc_ttl();
+    this->recalc_ttl_();
   };
 
   // get_ttl() - returns calculated time-to-live value
@@ -101,9 +101,9 @@ class LLDPTransmitter {
 
  protected:
   enum TXState : uint8_t {
-    TXStateReconnect,
-    TXStateFastMode,
-    TXStateNormal,
+    TX_STATE_RECONNECT,
+    TX_STATE_FAST_MODE,
+    TX_STATE_NORMAL,
   };
 
   network::IPAddresses ip_addresses_;
@@ -120,11 +120,11 @@ class LLDPTransmitter {
   uint16_t tx_hold_;
   TXState state_;
 
-  // generate() creates the LLDPDU, returning false on error
-  bool generate(uint8_t *buf, size_t buf_len, size_t *pkt_len);
+  // generate_() creates the LLDPDU, returning false on error
+  bool generate_(uint8_t *buf, size_t buf_len, size_t *pkt_len);
 
   // Recalculate TTL based on interval and hold values
-  void recalc_ttl() {
+  void recalc_ttl_() {
     this->calc_ttl_ = std::min(static_cast<uint32_t>(this->tx_interval_) * this->tx_hold_ + 1,
                                static_cast<uint32_t>(LLDP_PROTO_MAX_TTL));
   };

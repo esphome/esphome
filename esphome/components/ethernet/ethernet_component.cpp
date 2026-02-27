@@ -344,7 +344,7 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_LLDP
         // Restart the LLDP transmitter so we do a burst of messages when first
         // (re)connecting.
-        this->lldp.restart();
+        this->lldp_.restart();
 #endif /* USE_ETHERNET_LLDP */
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
         this->connect_trigger_.trigger();
@@ -486,8 +486,8 @@ void EthernetComponent::dump_config() {
                 "  TX Interval: %u\n"
                 "  TX Hold: %u\n"
                 "  TTL (calculated): %u",
-                this->lldp.get_port(), this->lldp.get_system_name(), this->lldp.get_system_description(),
-                this->lldp_tx_fast_count_, this->lldp_tx_interval_, this->lldp_tx_hold_, this->lldp.get_ttl());
+                this->lldp_.get_port(), this->lldp_.get_system_name(), this->lldp_.get_system_description(),
+                this->lldp_tx_fast_count_, this->lldp_tx_interval_, this->lldp_tx_hold_, this->lldp_.get_ttl());
 #endif /* USE_ETHERNET_LLDP */
 }
 
@@ -777,31 +777,32 @@ void EthernetComponent::dump_connect_params_() {
 esp_err_t EthernetComponent::lldp_setup_(uint8_t mac_addr[6]) {
   esp_err_t ret;
 
-  if ((ret = this->lldp.setup(this->eth_handle_)) != ESP_OK) {
+  ret = this->lldp_.setup(this->eth_handle_);
+  if (ret != ESP_OK) {
     return ret;
   }
 
   // Configure LLDP transmitter
-  this->lldp.set_mac(mac_addr);
-  this->lldp.set_tx_fast_count(this->lldp_tx_fast_count_);
-  this->lldp.set_tx_interval(this->lldp_tx_interval_);
-  this->lldp.set_tx_hold(this->lldp_tx_hold_);
+  this->lldp_.set_mac(mac_addr);
+  this->lldp_.set_tx_fast_count(this->lldp_tx_fast_count_);
+  this->lldp_.set_tx_interval(this->lldp_tx_interval_);
+  this->lldp_.set_tx_hold(this->lldp_tx_hold_);
   if (this->lldp_port_ != nullptr) {
-    this->lldp.set_port(this->lldp_port_);
+    this->lldp_.set_port(this->lldp_port_);
   }
   if (this->lldp_name_ != nullptr) {
     // If a name has been set, use it
-    this->lldp.set_system_name(this->lldp_name_);
+    this->lldp_.set_system_name(this->lldp_name_);
   } else {
     // Otherwise use the ESPHome app name
-    this->lldp.set_system_name(App.get_name().c_str());
+    this->lldp_.set_system_name(App.get_name().c_str());
   }
   if (this->lldp_desc_ != nullptr) {
     // If a description has been set, use it
-    this->lldp.set_system_description(this->lldp_desc_);
+    this->lldp_.set_system_description(this->lldp_desc_);
   } else {
     // Otherwise use the default value from determined at the top of this file.
-    this->lldp.set_system_description(LLDP_DEFAULT_DESCRIPTION);
+    this->lldp_.set_system_description(LLDP_DEFAULT_DESCRIPTION);
   }
 
   // Set up 1-second tick handler for the LLDP transmit engine
@@ -814,17 +815,17 @@ void EthernetComponent::lldp_timer_tick_() {
   esp_err_t err;
 
   // Run the timer state engine to see if we're ready to transmit
-  if (!this->lldp.should_transmit()) {
+  if (!this->lldp_.should_transmit()) {
     return;
   }
 
   // Update current management IP addresses
   auto ips = this->get_ip_addresses();
-  this->lldp.set_ips(ips);
+  this->lldp_.set_ips(ips);
 
   // Generate and transmit the LLDP packet
-  if ((err = this->lldp.transmit()); err != ESP_OK) {
-    ESP_LOGE(TAG, "lldp.transmit() failed: (%d) %s", err, esp_err_to_name(err));
+  if ((err = this->lldp_.transmit()); err != ESP_OK) {
+    ESP_LOGE(TAG, "lldp_.transmit() failed: (%d) %s", err, esp_err_to_name(err));
   }
 }
 #endif /* USE_ETHERNET_LLDP */

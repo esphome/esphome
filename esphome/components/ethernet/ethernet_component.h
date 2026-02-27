@@ -162,7 +162,7 @@ class EthernetComponent : public Component {
 
 #ifdef USE_ETHERNET_LLDP
   // The LLDPTransmitter instance itself
-  LLDPTransmitter lldp;
+  LLDPTransmitter lldp_;
   // Configuration values
   uint16_t lldp_tx_fast_count_{LLDP_TX_FAST_COUNT};
   uint16_t lldp_tx_interval_{LLDP_TX_INTERVAL};
