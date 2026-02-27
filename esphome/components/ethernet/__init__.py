@@ -498,9 +498,6 @@ async def to_code(config):
             var.get_disconnect_trigger(), [], on_disconnect_config
         )
 
-    if CORE.using_arduino:
-        cg.add_library("WiFi", None)
-
     CORE.add_job(final_step)
 
 
