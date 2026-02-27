@@ -12,7 +12,11 @@ import threading
 from typing import Any
 
 from esphome import const
-from esphome.storage_json import StorageJSON, ext_storage_path, ignored_devices_storage_path
+from esphome.storage_json import (
+    StorageJSON,
+    ext_storage_path,
+    ignored_devices_storage_path,
+)
 
 from ..zeroconf import DiscoveredImport
 from .const import DASHBOARD_COMMAND, DashboardEvent
@@ -91,7 +95,9 @@ def _restore_storage_version(entry: DashboardEntry, old_version: str) -> None:
         _LOGGER.debug("Could not restore storage version for %s", entry.filename)
 
 
-def _cleanup_old_firmware(entry: DashboardEntry, old_firmware_path: Path | None) -> None:
+def _cleanup_old_firmware(
+    entry: DashboardEntry, old_firmware_path: Path | None
+) -> None:
     """Delete the previous firmware binary after a successful re-compile.
 
     After a version upgrade the compiler may produce a binary at a new path.

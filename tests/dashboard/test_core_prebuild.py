@@ -63,9 +63,7 @@ def mock_restore_storage_version() -> Generator[Mock]:
 @pytest.fixture
 def mock_storage_json_load() -> Generator[Mock]:
     """Fixture to mock StorageJSON.load in core module (returns None by default)."""
-    with patch(
-        "esphome.dashboard.core.StorageJSON.load", return_value=None
-    ) as mock:
+    with patch("esphome.dashboard.core.StorageJSON.load", return_value=None) as mock:
         yield mock
 
 
