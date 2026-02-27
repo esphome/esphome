@@ -111,9 +111,7 @@ class ESP32TouchComponent final : public Component {
 
   // Helper methods for loop() logic
   void process_setup_mode_logging_(uint32_t now);
-  bool should_check_for_releases_(uint32_t now);
   void publish_initial_state_if_needed_(ESP32TouchBinarySensor *child, uint32_t now);
-  void check_and_disable_loop_if_all_released_(size_t pads_off);
 
   // Unified callbacks for new API
   static bool on_active_cb(touch_sensor_handle_t handle, const touch_active_event_data_t *event, void *ctx);
@@ -123,7 +121,6 @@ class ESP32TouchComponent final : public Component {
   std::vector<ESP32TouchBinarySensor *> children_;
   bool setup_mode_{false};
   uint32_t setup_mode_last_log_print_{0};
-  uint32_t last_release_check_{0};
 
   // Controller handle (new API)
   touch_sensor_handle_t sens_handle_{nullptr};
@@ -205,7 +202,6 @@ class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
   const uint32_t wakeup_threshold_{0};
 
   // Track last touch time for timeout-based release detection
-  uint32_t last_touch_time_{0};
   bool initial_state_published_{false};
 };
 

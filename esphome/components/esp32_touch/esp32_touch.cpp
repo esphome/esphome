@@ -16,8 +16,7 @@ template<size_t N> static const char *lookup_str(const char *const (&table)[N], 
 static const char *const TAG = "esp32_touch";
 
 static constexpr uint32_t SETUP_MODE_LOG_INTERVAL_MS = 250;
-static constexpr uint32_t RELEASE_TIMEOUT_MS = 1500;
-static constexpr uint32_t RELEASE_CHECK_INTERVAL_MS = RELEASE_TIMEOUT_MS / 4;
+static constexpr uint32_t INITIAL_STATE_DELAY_MS = 1500;
 static constexpr uint32_t ONESHOT_SCAN_COUNT = 3;
 static constexpr uint32_t ONESHOT_SCAN_TIMEOUT_MS = 2000;
 
@@ -242,15 +241,13 @@ void ESP32TouchComponent::dump_config() {
                 "Config for ESP32 Touch Hub:\n"
                 "  Measurement interval: %.1fus\n"
                 "  Low Voltage Reference: %s\n"
-                "  High Voltage Reference: %s\n"
-                "  Release Timeout: %" PRIu32 "ms",
-                this->meas_interval_us_, lv_s, hv_s, RELEASE_TIMEOUT_MS);
+                "  High Voltage Reference: %s",
+                this->meas_interval_us_, lv_s, hv_s);
 #else
   ESP_LOGCONFIG(TAG,
                 "Config for ESP32 Touch Hub:\n"
-                "  Measurement interval: %.1fus\n"
-                "  Release Timeout: %" PRIu32 "ms",
-                this->meas_interval_us_, RELEASE_TIMEOUT_MS);
+                "  Measurement interval: %.1fus",
+                this->meas_interval_us_);
 #endif
 
 #ifdef USE_ESP32_VARIANT_ESP32
@@ -341,9 +338,6 @@ void ESP32TouchComponent::loop() {
 #endif
 
       bool new_state = event.is_active;
-      if (new_state) {
-        child->last_touch_time_ = now;
-      }
 
       if (new_state != child->last_state_) {
         child->initial_state_published_ = true;
@@ -365,56 +359,14 @@ void ESP32TouchComponent::loop() {
     }
   }
 
-  // Safety timeout check for releases
-  if (!this->should_check_for_releases_(now)) {
-    return;
-  }
-
-  size_t pads_off = 0;
+  // Publish initial OFF state for sensors that haven't received events yet
   for (auto *child : this->children_) {
     this->publish_initial_state_if_needed_(child, now);
-
-    if (child->last_state_) {
-      uint32_t time_diff = now - child->last_touch_time_;
-      if (time_diff > RELEASE_TIMEOUT_MS) {
-#ifdef USE_ESP32_VARIANT_ESP32
-        // V1: Verify actual state before declaring release
-        // on_active_cb only fires once on transition, so last_touch_time_ is not refreshed while held
-        uint32_t value = 0;
-        touch_channel_read_data(child->chan_handle_, TOUCH_CHAN_DATA_TYPE_SMOOTH, &value);
-        child->value_ = value;
-
-        if (value < child->get_threshold()) {
-          // Still touched - reset timer
-          child->last_touch_time_ = now;
-          continue;
-        }
-#else
-        // V2/V3: Verify actual state before declaring release
-        uint32_t value = 0;
-        touch_channel_read_data(child->chan_handle_, TOUCH_CHAN_DATA_TYPE_SMOOTH, &value);
-        uint32_t benchmark = 0;
-        touch_channel_read_data(child->chan_handle_, TOUCH_CHAN_DATA_TYPE_BENCHMARK, &benchmark);
-        child->value_ = value;
-        child->benchmark_ = benchmark;
-
-        if (value > benchmark + child->get_threshold()) {
-          // Still touched - reset timer
-          child->last_touch_time_ = now;
-          continue;
-        }
-#endif
-        child->last_state_ = false;
-        child->publish_state(false);
-        ESP_LOGV(TAG, "Touch Pad '%s' state: OFF (timeout)", child->get_name().c_str());
-        pads_off++;
-      }
-    } else {
-      pads_off++;
-    }
   }
 
-  this->check_and_disable_loop_if_all_released_(pads_off);
+  if (!this->setup_mode_) {
+    this->disable_loop();
+  }
 }
 
 void ESP32TouchComponent::on_shutdown() {
@@ -533,27 +485,13 @@ void ESP32TouchComponent::process_setup_mode_logging_(uint32_t now) {
   }
 }
 
-bool ESP32TouchComponent::should_check_for_releases_(uint32_t now) {
-  if (now - this->last_release_check_ < RELEASE_CHECK_INTERVAL_MS) {
-    return false;
-  }
-  this->last_release_check_ = now;
-  return true;
-}
-
 void ESP32TouchComponent::publish_initial_state_if_needed_(ESP32TouchBinarySensor *child, uint32_t now) {
   if (!child->initial_state_published_) {
-    if (now > RELEASE_TIMEOUT_MS) {
+    if (now > INITIAL_STATE_DELAY_MS) {
       child->publish_initial_state(false);
       child->initial_state_published_ = true;
       ESP_LOGV(TAG, "Touch Pad '%s' state: OFF (initial)", child->get_name().c_str());
     }
-  }
-}
-
-void ESP32TouchComponent::check_and_disable_loop_if_all_released_(size_t pads_off) {
-  if (pads_off == this->children_.size() && !this->setup_mode_) {
-    this->disable_loop();
   }
 }
 
