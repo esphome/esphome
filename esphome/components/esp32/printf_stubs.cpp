@@ -39,7 +39,7 @@ static constexpr size_t PRINTF_BUFFER_SIZE = 512;
 // ESP-IDF log handler, and the SDK's printf/fprintf calls only exist in
 // debug/assert paths that are never reached in normal operation.
 // The buffer overflow check is purely defensive and should never trigger.
-static int write_printf_buffer_(FILE *stream, char *buf, int len) {
+static int write_printf_buffer(FILE *stream, char *buf, int len) {
   if (len < 0) {
     return len;
   }
@@ -59,7 +59,7 @@ extern "C" {
 
 int __wrap_vprintf(const char *fmt, va_list ap) {
   char buf[PRINTF_BUFFER_SIZE];
-  return write_printf_buffer_(stdout, buf, vsnprintf(buf, sizeof(buf), fmt, ap));
+  return write_printf_buffer(stdout, buf, vsnprintf(buf, sizeof(buf), fmt, ap));
 }
 
 int __wrap_printf(const char *fmt, ...) {
@@ -74,7 +74,7 @@ int __wrap_fprintf(FILE *stream, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   char buf[PRINTF_BUFFER_SIZE];
-  int len = write_printf_buffer_(stream, buf, vsnprintf(buf, sizeof(buf), fmt, ap));
+  int len = write_printf_buffer(stream, buf, vsnprintf(buf, sizeof(buf), fmt, ap));
   va_end(ap);
   return len;
 }
