@@ -5,6 +5,7 @@
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include <esp32-hal-gpio.h>
+#include <esp_sleep.h>
 
 namespace esphome {
 namespace lilygo_t5_47_plus {
@@ -75,10 +76,34 @@ void LilygoT547PlusDisplay::fill(Color color) {
 void LilygoT547PlusDisplay::dump_config() {
   LOG_DISPLAY("", "LilygoT547PlusDisplay", this);
   LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  Greyscale: %s", this->greyscale_ ? "true" : "false");
+  // Log why the ESP32-S3 woke up — helps verify deep sleep is working
+  esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+  switch (cause) {
+    case ESP_SLEEP_WAKEUP_UNDEFINED:
+      ESP_LOGCONFIG(TAG, "  Wakeup cause: power-on / normal reset");
+      break;
+    case ESP_SLEEP_WAKEUP_TIMER:
+      ESP_LOGCONFIG(TAG, "  Wakeup cause: timer (deep sleep)");
+      break;
+    case ESP_SLEEP_WAKEUP_EXT0:
+      ESP_LOGCONFIG(TAG, "  Wakeup cause: ext0 pin");
+      break;
+    case ESP_SLEEP_WAKEUP_EXT1:
+      ESP_LOGCONFIG(TAG, "  Wakeup cause: ext1 pin(s)");
+      break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD:
+      ESP_LOGCONFIG(TAG, "  Wakeup cause: touch pad");
+      break;
+    default:
+      ESP_LOGCONFIG(TAG, "  Wakeup cause: other (%d)", (int) cause);
+      break;
+  }
 }
 
 void LilygoT547PlusDisplay::display() {
   uint32_t t0 = esphome::millis();
+  ESP_LOGD(TAG, "Refreshing EPD...");
 
   epd_poweron();
   uint32_t t1 = esphome::millis();
@@ -92,8 +117,15 @@ void LilygoT547PlusDisplay::display() {
   epd_poweroff();
   uint32_t t4 = esphome::millis();
 
-  ESP_LOGV(TAG, "display(): poweron=%ums, clear=%ums, draw=%ums, poweroff=%ums, total=%ums", t1 - t0, t2 - t1, t3 - t2,
-           t4 - t3, t4 - t0);
+  ESP_LOGD(TAG, "EPD refresh done: poweron=%ums clear=%ums draw=%ums poweroff=%ums total=%ums",
+           t1 - t0, t2 - t1, t3 - t2, t4 - t3, t4 - t0);
+}
+
+void LilygoT547PlusDisplay::on_safe_shutdown() {
+  // Fully power off the EPD supply before entering deep sleep.
+  // The e-paper retains its image without power, so this is safe.
+  epd_poweroff_all();
+  ESP_LOGD(TAG, "EPD powered off for shutdown");
 }
 
 }  // namespace lilygo_t5_47_plus
