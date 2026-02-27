@@ -1,5 +1,12 @@
 const fs = require('fs');
 const { DOCS_PR_PATTERNS } = require('./constants');
+const {
+  COMPONENT_REGEX,
+  detectComponents,
+  hasCoreChanges,
+  hasDashboardChanges,
+  hasGitHubActionsChanges,
+} = require('../detect-tags');
 
 // Strategy: Merge branch detection
 async function detectMergeBranch(context) {
@@ -20,15 +27,13 @@ async function detectMergeBranch(context) {
 // Strategy: Component and platform labeling
 async function detectComponentPlatforms(changedFiles, apiData) {
   const labels = new Set();
-  const componentRegex = /^esphome\/components\/([^\/]+)\//;
   const targetPlatformRegex = new RegExp(`^esphome\/components\/(${apiData.targetPlatforms.join('|')})/`);
 
-  for (const file of changedFiles) {
-    const componentMatch = file.match(componentRegex);
-    if (componentMatch) {
-      labels.add(`component: ${componentMatch[1]}`);
-    }
+  for (const comp of detectComponents(changedFiles)) {
+    labels.add(`component: ${comp}`);
+  }
 
+  for (const file of changedFiles) {
     const platformMatch = file.match(targetPlatformRegex);
     if (platformMatch) {
       labels.add(`platform: ${platformMatch[1]}`);
@@ -90,15 +95,9 @@ async function detectNewPlatforms(prFiles, apiData) {
 // Strategy: Core files detection
 async function detectCoreChanges(changedFiles) {
   const labels = new Set();
-  const coreFiles = changedFiles.filter(file =>
-    file.startsWith('esphome/core/') ||
-    (file.startsWith('esphome/') && file.split('/').length === 2)
-  );
-
-  if (coreFiles.length > 0) {
+  if (hasCoreChanges(changedFiles)) {
     labels.add('core');
   }
-
   return labels;
 }
 
@@ -131,29 +130,18 @@ async function detectPRSize(prFiles, totalAdditions, totalDeletions, totalChange
 // Strategy: Dashboard changes
 async function detectDashboardChanges(changedFiles) {
   const labels = new Set();
-  const dashboardFiles = changedFiles.filter(file =>
-    file.startsWith('esphome/dashboard/') ||
-    file.startsWith('esphome/components/dashboard_import/')
-  );
-
-  if (dashboardFiles.length > 0) {
+  if (hasDashboardChanges(changedFiles)) {
     labels.add('dashboard');
   }
-
   return labels;
 }
 
 // Strategy: GitHub Actions changes
 async function detectGitHubActionsChanges(changedFiles) {
   const labels = new Set();
-  const githubActionsFiles = changedFiles.filter(file =>
-    file.startsWith('.github/workflows/')
-  );
-
-  if (githubActionsFiles.length > 0) {
+  if (hasGitHubActionsChanges(changedFiles)) {
     labels.add('github-actions');
   }
-
   return labels;
 }
 
@@ -259,7 +247,7 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
   const { owner, repo } = context.repo;
 
   // Compile regex once for better performance
-  const componentFileRegex = /^esphome\/components\/([^\/]+)\//;
+  const componentFileRegex = COMPONENT_REGEX;
 
   // Get files that are modified or added in components directory
   const componentFiles = changedFiles.filter(file => componentFileRegex.test(file));
