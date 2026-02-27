@@ -4,6 +4,7 @@
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
 #include <zephyr/random/random.h>
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
@@ -17,6 +18,7 @@ static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 
 void yield() { ::k_yield(); }
 uint32_t millis() { return k_ticks_to_ms_floor32(k_uptime_ticks()); }
+uint64_t millis_64() { return App.scheduler.millis_64_impl_(millis()); }
 uint32_t micros() { return k_ticks_to_us_floor32(k_uptime_ticks()); }
 void delayMicroseconds(uint32_t us) { ::k_usleep(us); }
 void delay(uint32_t ms) { ::k_msleep(ms); }

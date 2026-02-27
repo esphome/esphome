@@ -10,6 +10,7 @@
 #endif
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -117,12 +118,12 @@ class Scheduler {
   bool cancel_retry(Component *component, uint32_t id);
 
   /// Get 64-bit millisecond timestamp (handles 32-bit millis() rollover)
-  uint64_t millis_64();
+  uint64_t millis_64() { return esphome::millis_64(); }
 
-  // Calculate when the next scheduled item should run
-  // @param now Fresh timestamp from millis() - must not be stale/cached
-  // Returns the time in milliseconds until the next scheduled item, or nullopt if no items
-  // This method performs cleanup of removed items before checking the schedule
+  // Calculate when the next scheduled item should run.
+  // @param now On ESP32, unused for 64-bit extension (native); on other platforms, extended to 64-bit via rollover.
+  // Returns the time in milliseconds until the next scheduled item, or nullopt if no items.
+  // This method performs cleanup of removed items before checking the schedule.
   // IMPORTANT: This method should only be called from the main thread (loop task).
   optional<uint32_t> next_schedule_in(uint32_t now);
 
@@ -282,7 +283,25 @@ class Scheduler {
   // Common implementation for cancel_retry
   bool cancel_retry_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
 
-  uint64_t millis_64_(uint32_t now);
+  // Extend a 32-bit millis() value to 64-bit. Use when the caller already has a fresh now.
+  // On ESP32, ignores now and uses esp_timer_get_time() directly (native 64-bit).
+  // On non-ESP32, extends now to 64-bit using rollover tracking.
+  uint64_t millis_64_from_(uint32_t now) {
+#ifdef USE_ESP32
+    (void) now;
+    return millis_64();
+#else
+    return this->millis_64_impl_(now);
+#endif
+  }
+
+#ifndef USE_ESP32
+  // On non-ESP32 platforms, millis_64() HAL function delegates to this method
+  // which tracks 32-bit millis() rollover using millis_major_ and last_millis_.
+  // On ESP32, millis_64() uses esp_timer_get_time() directly.
+  friend uint64_t millis_64();
+  uint64_t millis_64_impl_(uint32_t now);
+#endif
   // Cleanup logically deleted items from the scheduler
   // Returns the number of items remaining after cleanup
   // IMPORTANT: This method should only be called from the main thread (loop task).
@@ -549,6 +568,9 @@ class Scheduler {
   //   to synchronize between tasks (see https://github.com/esphome/backlog/issues/52)
   std::vector<SchedulerItemPtr> scheduler_item_pool_;
 
+#ifndef USE_ESP32
+  // On ESP32, millis_64() uses esp_timer_get_time() directly; no rollover tracking needed.
+  // On other platforms, these fields track 32-bit millis() rollover for millis_64_impl_().
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   /*
    * Multi-threaded platforms with atomic support: last_millis_ needs atomic for lock-free updates
@@ -577,6 +599,7 @@ class Scheduler {
 #else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
   uint16_t millis_major_{0};
 #endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
+#endif /* not USE_ESP32 */
 };
 
 }  // namespace esphome
