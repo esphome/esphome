@@ -16,6 +16,10 @@
 
 esphome:
   name: lilygo-t547-deep-sleep
+  on_boot:
+    priority: 600
+    then:
+      - component.update: battery_sensor
 
 packages:
   board: !include ../../../esphome/components/lilygo_t5_47_plus/board_config.yaml
@@ -36,7 +40,7 @@ font:
 sensor:
   - platform: lilygo_t5_47_plus
     id: battery_sensor
-    update_interval: 5s
+    update_interval: never        # Updated once on boot via on_boot trigger
     battery_voltage:
       id: batt_voltage
       name: "Battery voltage"
