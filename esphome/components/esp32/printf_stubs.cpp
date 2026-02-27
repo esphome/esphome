@@ -29,6 +29,8 @@
 
 #include "esp_system.h"
 
+namespace esphome::esp32 {}
+
 static constexpr size_t PRINTF_BUFFER_SIZE = 512;
 
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
