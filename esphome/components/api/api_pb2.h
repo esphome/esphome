@@ -116,6 +116,7 @@ enum ClimateAction : uint32_t {
   CLIMATE_ACTION_IDLE = 4,
   CLIMATE_ACTION_DRYING = 5,
   CLIMATE_ACTION_FAN = 6,
+  CLIMATE_ACTION_DEFROSTING = 7,
 };
 enum ClimatePreset : uint32_t {
   CLIMATE_PRESET_NONE = 0,
