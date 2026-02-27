@@ -24,6 +24,7 @@ class LilygoT547PlusDisplay : public display::DisplayBuffer {
   void fill(Color color) override;
 
   void setup() override;
+  void on_safe_shutdown() override;
 
   bool get_greyscale() { return this->greyscale_; }
 
