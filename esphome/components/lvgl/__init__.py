@@ -32,6 +32,7 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 from esphome.yaml_util import load_yaml
 
+from ..esp32 import add_idf_component
 from . import defines as df, helpers, lv_validation as lvalid, widgets
 from .automation import focused_widgets, layers_to_code, lvgl_update, refreshed_widgets
 from .encoders import (
@@ -207,7 +208,7 @@ def final_validation(config_list):
 async def to_code(configs):
     config_0 = configs[0]
     # Global configuration
-    cg.add_library("lvgl/lvgl", "9.4.0")
+    add_idf_component(name="lvgl/lvgl", ref="9.4.0")
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     df.add_define("_LV_KCONFIG_PRESENT")
