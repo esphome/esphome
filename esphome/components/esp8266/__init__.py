@@ -205,6 +205,7 @@ async def to_code(config):
             "pre:testing_mode.py",
             "pre:exclude_updater.py",
             "pre:exclude_waveform.py",
+            "pre:remove_float_scanf.py",
             "post:post_build.py",
         ],
     )
@@ -341,4 +342,9 @@ def copy_files() -> None:
     copy_file_if_changed(
         exclude_waveform_file,
         CORE.relative_build_path("exclude_waveform.py"),
+    )
+    remove_float_scanf_file = dir / "remove_float_scanf.py.script"
+    copy_file_if_changed(
+        remove_float_scanf_file,
+        CORE.relative_build_path("remove_float_scanf.py"),
     )

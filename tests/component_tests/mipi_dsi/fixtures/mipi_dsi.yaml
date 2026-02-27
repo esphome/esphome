@@ -22,6 +22,23 @@ display:
     id: p4_86
     model: "WAVESHARE-P4-86-PANEL"
     rotation: 180
+  - platform: mipi_dsi
+    model: custom
+    id: custom_id
+    dimensions:
+      width: 400
+      height: 1280
+    hsync_back_porch: 40
+    hsync_pulse_width: 30
+    hsync_front_porch: 40
+    vsync_back_porch: 20
+    vsync_pulse_width: 10
+    vsync_front_porch: 20
+    pclk_frequency: 48Mhz
+    lane_bit_rate: 1.2Gbps
+    rotation: 180
+    transform: disabled
+    init_sequence:
 i2c:
   sda: GPIO7
   scl: GPIO8

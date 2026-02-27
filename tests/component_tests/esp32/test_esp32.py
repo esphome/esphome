@@ -2,13 +2,17 @@
 Test ESP32 configuration
 """
 
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from esphome.components.esp32 import VARIANTS
+from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
 import esphome.config_validation as cv
 from esphome.const import CONF_ESPHOME, PlatformFramework
+from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
 
 
@@ -70,7 +74,7 @@ def test_esp32_config(
                     "advanced": {"execute_from_psram": True},
                 },
             },
-            r"'execute_from_psram' is only supported on ESP32S3 variant @ data\['framework'\]\['advanced'\]\['execute_from_psram'\]",
+            r"'execute_from_psram' is not available on this esp32 variant @ data\['framework'\]\['advanced'\]\['execute_from_psram'\]",
             id="execute_from_psram_invalid_for_variant_config",
         ),
         pytest.param(
@@ -82,7 +86,18 @@ def test_esp32_config(
                 },
             },
             r"'execute_from_psram' requires PSRAM to be configured @ data\['framework'\]\['advanced'\]\['execute_from_psram'\]",
-            id="execute_from_psram_requires_psram_config",
+            id="execute_from_psram_requires_psram_s3_config",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32p4",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"execute_from_psram": True},
+                },
+            },
+            r"'execute_from_psram' requires PSRAM to be configured @ data\['framework'\]\['advanced'\]\['execute_from_psram'\]",
+            id="execute_from_psram_requires_psram_p4_config",
         ),
         pytest.param(
             {
@@ -108,3 +123,39 @@ def test_esp32_configuration_errors(
 
     with pytest.raises(cv.Invalid, match=error_match):
         FINAL_VALIDATE_SCHEMA(CONFIG_SCHEMA(config))
+
+
+def test_execute_from_psram_s3_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that execute_from_psram on ESP32-S3 sets the correct sdkconfig options."""
+    generate_main(component_config_path("execute_from_psram_s3.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_SPIRAM_FETCH_INSTRUCTIONS") is True
+    assert sdkconfig.get("CONFIG_SPIRAM_RODATA") is True
+    assert "CONFIG_SPIRAM_XIP_FROM_PSRAM" not in sdkconfig
+
+
+def test_execute_from_psram_p4_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that execute_from_psram on ESP32-P4 sets the correct sdkconfig options."""
+    generate_main(component_config_path("execute_from_psram_p4.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_SPIRAM_XIP_FROM_PSRAM") is True
+    assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
+    assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
+
+
+def test_execute_from_psram_disabled_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that without execute_from_psram, no XIP sdkconfig options are set."""
+    generate_main(component_config_path("execute_from_psram_disabled.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
+    assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
+    assert "CONFIG_SPIRAM_XIP_FROM_PSRAM" not in sdkconfig
