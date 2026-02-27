@@ -121,7 +121,7 @@ class Scheduler {
   uint64_t millis_64() { return esphome::millis_64(); }
 
   // Calculate when the next scheduled item should run
-  // @param now Unused, kept for API compatibility
+  // @param now On ESP32, unused (native 64-bit); on other platforms, extended to 64-bit via rollover tracking
   // Returns the time in milliseconds until the next scheduled item, or nullopt if no items
   // This method performs cleanup of removed items before checking the schedule
   // IMPORTANT: This method should only be called from the main thread (loop task).
@@ -299,7 +299,7 @@ class Scheduler {
   // On non-ESP32 platforms, millis_64() HAL function delegates to this method
   // which tracks 32-bit millis() rollover using millis_major_ and last_millis_.
   // On ESP32, millis_64() uses esp_timer_get_time() directly.
-  friend uint64_t millis_64();
+  friend uint64_t ::esphome::millis_64();
   uint64_t millis_64_impl_(uint32_t now);
 #endif
   // Cleanup logically deleted items from the scheduler
