@@ -10,15 +10,17 @@ import logging
 import threading
 from typing import Any
 
-from esphome.storage_json import ignored_devices_storage_path
+from esphome import const
+from esphome.storage_json import ext_storage_path, ignored_devices_storage_path
 
 from ..zeroconf import DiscoveredImport
-from .const import DashboardEvent
+from .const import DASHBOARD_COMMAND, DashboardEvent
 from .dns import DNSCache
-from .entries import DashboardEntries
+from .entries import DashboardEntries, DashboardEntry
 from .settings import DashboardSettings
 from .status.mdns import MDNSStatus
 from .status.ping import PingStatus
+from .util.subprocess import async_run_system_command
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,6 +67,27 @@ class EventBus:
 
         for listener in self._listeners.get(event_type, set()):
             listener(event)
+
+
+def _restore_storage_version(entry: DashboardEntry, old_version: str) -> None:
+    """Restore the esphome_version in the storage JSON after a failed build.
+
+    ``esphome compile`` writes the storage JSON during code generation (before
+    PlatformIO runs).  If the compile ultimately fails we must roll the version
+    back so the next server restart retries the build.
+    """
+    storage_path = ext_storage_path(entry.filename)
+    try:
+        with storage_path.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        if data.get("esphome_version") != old_version:
+            data["esphome_version"] = old_version
+            with storage_path.open("w", encoding="utf-8") as fh:
+                json.dump(data, fh, indent=2)
+                fh.write("\n")
+            entry.load_from_disk()
+    except (OSError, json.JSONDecodeError):
+        _LOGGER.debug("Could not restore storage version for %s", entry.filename)
 
 
 class ESPHomeDashboard:
@@ -128,11 +151,128 @@ class ESPHomeDashboard:
     def _async_start_ping_status(self, ping_status: PingStatus) -> None:
         self._ping_status_task = asyncio.create_task(ping_status.async_run())
 
+    async def _async_prebuild_devices(self) -> None:
+        """Pre-build firmware for devices that need a version update."""
+        entries = self.entries.async_all()
+        devices_to_build = [
+            entry for entry in entries if entry.update_available
+        ]
+
+        if not devices_to_build:
+            _LOGGER.info(
+                "All devices already built for version %s, skipping pre-build",
+                const.__version__,
+            )
+            return
+
+        total = len(devices_to_build)
+        _LOGGER.info(
+            "Pre-building firmware for %d device(s) (version %s)",
+            total,
+            const.__version__,
+        )
+        self.bus.async_fire(
+            DashboardEvent.PRE_BUILD_STATUS,
+            {"status": "started", "total": total, "version": const.__version__},
+        )
+
+        succeeded = 0
+        failed = 0
+        for idx, entry in enumerate(devices_to_build, start=1):
+            config_path = str(self.settings.rel_path(entry.filename))
+            old_version = entry.update_old
+            _LOGGER.info(
+                "Pre-building %s (%d/%d)", entry.name, idx, total
+            )
+            try:
+                returncode, _stdout, stderr = await async_run_system_command(
+                    [*DASHBOARD_COMMAND, "compile", config_path]
+                )
+                if returncode == 0:
+                    succeeded += 1
+                    # Refresh cached storage so update_available becomes False
+                    await self.loop.run_in_executor(
+                        None, entry.load_from_disk
+                    )
+                    self.bus.async_fire(
+                        DashboardEvent.PRE_BUILD_STATUS,
+                        {
+                            "status": "device_done",
+                            "filename": entry.filename,
+                            "name": entry.name,
+                            "current": idx,
+                            "total": total,
+                        },
+                    )
+                    _LOGGER.info("Pre-build succeeded for %s", entry.name)
+                else:
+                    failed += 1
+                    error_msg = stderr.decode(errors="replace")[-500:]
+                    # esphome compile updates the storage JSON during code
+                    # generation before PlatformIO runs.  If the compile
+                    # ultimately fails we must restore the old version so the
+                    # next server restart retries the build.
+                    await self.loop.run_in_executor(
+                        None,
+                        _restore_storage_version,
+                        entry,
+                        old_version,
+                    )
+                    self.bus.async_fire(
+                        DashboardEvent.PRE_BUILD_STATUS,
+                        {
+                            "status": "device_failed",
+                            "filename": entry.filename,
+                            "name": entry.name,
+                            "error": error_msg,
+                            "current": idx,
+                            "total": total,
+                        },
+                    )
+                    _LOGGER.warning(
+                        "Pre-build failed for %s: %s", entry.name, error_msg
+                    )
+            except Exception:
+                failed += 1
+                _LOGGER.exception("Pre-build error for %s", entry.name)
+                await self.loop.run_in_executor(
+                    None,
+                    _restore_storage_version,
+                    entry,
+                    old_version,
+                )
+                self.bus.async_fire(
+                    DashboardEvent.PRE_BUILD_STATUS,
+                    {
+                        "status": "device_failed",
+                        "filename": entry.filename,
+                        "name": entry.name,
+                        "error": "Unexpected error",
+                        "current": idx,
+                        "total": total,
+                    },
+                )
+
+        self.bus.async_fire(
+            DashboardEvent.PRE_BUILD_STATUS,
+            {
+                "status": "finished",
+                "total": total,
+                "succeeded": succeeded,
+                "failed": failed,
+            },
+        )
+        _LOGGER.info(
+            "Pre-build complete: %d succeeded, %d failed", succeeded, failed
+        )
+
     async def async_run(self) -> None:
         """Run the dashboard."""
         settings = self.settings
         mdns_task: asyncio.Task | None = None
         await self.entries.async_update_entries()
+
+        self.async_create_background_task(self._async_prebuild_devices())
 
         mdns_status = MDNSStatus(self)
         ping_status = PingStatus(self)

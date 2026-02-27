@@ -14,6 +14,7 @@ class DashboardEvent(StrEnum):
     IMPORTABLE_DEVICE_ADDED = "importable_device_added"
     IMPORTABLE_DEVICE_REMOVED = "importable_device_removed"
     INITIAL_STATE = "initial_state"  # Sent on WebSocket connection
+    PRE_BUILD_STATUS = "pre_build_status"
     PONG = "pong"  # Response to client ping
 
     # Client -> Server events (frontend sends to backend)

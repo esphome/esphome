@@ -150,13 +150,17 @@ async def dashboard() -> DashboardTestHelper:
     assert DASHBOARD.settings.using_password is False
     assert DASHBOARD.settings.on_ha_addon is True
     assert DASHBOARD.settings.using_auth is False
-    task = asyncio.create_task(DASHBOARD.async_run())
-    # Wait for initial device loading to complete
-    await DASHBOARD.entries.async_request_update_entries()
-    client = AsyncHTTPClient()
-    io_loop = IOLoop(make_current=False)
-    yield DashboardTestHelper(io_loop, client, port)
-    task.cancel()
+    with patch(
+        "esphome.dashboard.core.ESPHomeDashboard._async_prebuild_devices",
+        new_callable=AsyncMock,
+    ):
+        task = asyncio.create_task(DASHBOARD.async_run())
+        # Wait for initial device loading to complete
+        await DASHBOARD.entries.async_request_update_entries()
+        client = AsyncHTTPClient()
+        io_loop = IOLoop(make_current=False)
+        yield DashboardTestHelper(io_loop, client, port)
+        task.cancel()
     sock.close()
     client.close()
     io_loop.close()

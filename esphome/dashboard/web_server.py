@@ -684,6 +684,10 @@ class DashboardEventsWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHand
                 DashboardEvent.IMPORTABLE_DEVICE_REMOVED,
                 self._on_importable_removed,
             ),
+            async_add_listener(
+                DashboardEvent.PRE_BUILD_STATUS,
+                self._on_pre_build_status,
+            ),
         ]
 
     def _on_entry_state_changed(self, event: Event) -> None:
@@ -727,6 +731,12 @@ class DashboardEventsWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHand
         """Handle importable device removed event."""
         self._safe_send_message(
             {"event": DashboardEvent.IMPORTABLE_DEVICE_REMOVED, "data": event.data}
+        )
+
+    def _on_pre_build_status(self, event: Event) -> None:
+        """Handle pre-build status event."""
+        self._safe_send_message(
+            {"event": DashboardEvent.PRE_BUILD_STATUS, "data": event.data}
         )
 
     def _safe_send_message(self, message: dict[str, Any]) -> None:
