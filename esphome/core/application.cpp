@@ -713,6 +713,7 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 #endif
 }
 
+// Singleton instance of Application, never destroyed since it's needed until reboot
 static Application *_inst = new Application();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 Application &App = *_inst;                      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
