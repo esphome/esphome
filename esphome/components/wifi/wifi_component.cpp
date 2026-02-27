@@ -448,7 +448,7 @@ bool WiFiComponent::needs_full_scan_results_() const {
 
 #ifdef USE_IMPROV_SERIAL
   // Improv serial needs results during provisioning (before connected)
-  if (improv_serial::global_improv_serial_component != nullptr && this->state_ != WIFI_COMPONENT_STATE_STA_CONNECTED) {
+  if (improv_serial::global_improv_serial_component != nullptr && !this->is_connected()) {
     return true;
   }
 #endif
@@ -2121,7 +2121,7 @@ bool WiFiComponent::can_proceed() {
 #endif
 
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
-bool WiFiComponent::is_connected() {
+bool WiFiComponent::is_connected() const {
   return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
          this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
 }

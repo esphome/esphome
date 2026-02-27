@@ -622,7 +622,7 @@ void WiFiComponent::wifi_pre_setup_() {
   this->wifi_mode_(false, false);
 }
 
-WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
+WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   station_status_t status = wifi_station_get_connect_status();
   if (status == STATION_GOT_IP)
     return WiFiSTAConnectStatus::CONNECTED;
