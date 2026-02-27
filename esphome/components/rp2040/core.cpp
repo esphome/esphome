@@ -3,6 +3,7 @@
 #include "core.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
 #include "hardware/watchdog.h"
@@ -11,6 +12,7 @@ namespace esphome {
 
 void HOT yield() { ::yield(); }
 uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
+uint64_t millis_64() { return App.scheduler.millis_64_impl_(::millis()); }
 void HOT delay(uint32_t ms) { ::delay(ms); }
 uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
