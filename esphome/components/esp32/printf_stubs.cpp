@@ -11,7 +11,9 @@
  * so the SDK's vprintf() path is dead code at runtime. The fprintf()
  * and printf() calls in SDK components are only in debug/assert paths
  * (gpio_dump_io_configuration, ringbuf diagnostics) that are either
- * GC'd or never called.
+ * GC'd or never called. Crash backtraces and panic output are
+ * unaffected — they use esp_rom_printf() which is a ROM function
+ * and does not go through libc.
  *
  * These stubs redirect through vsnprintf() (which uses _svfprintf_r
  * already in the binary) and fwrite(), allowing the linker to
