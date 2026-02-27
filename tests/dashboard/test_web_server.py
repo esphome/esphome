@@ -1371,6 +1371,25 @@ async def test_websocket_importable_device_removed(
 
 
 @pytest.mark.asyncio
+async def test_websocket_pre_build_status(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket pre-build status event."""
+    DASHBOARD.bus.async_fire(
+        DashboardEvent.PRE_BUILD_STATUS,
+        {"status": "started", "total": 2, "version": "2026.2.0"},
+    )
+
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "pre_build_status"
+    assert data["data"]["status"] == "started"
+    assert data["data"]["total"] == 2
+    assert data["data"]["version"] == "2026.2.0"
+
+
+@pytest.mark.asyncio
 async def test_websocket_importable_device_already_configured(
     dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
 ) -> None:
