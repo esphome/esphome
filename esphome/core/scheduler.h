@@ -10,12 +10,10 @@
 #endif
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
-
-// Declared in hal.h - forward declare to avoid circular include
-uint64_t millis_64();
 
 class Component;
 struct RetryArgs;
