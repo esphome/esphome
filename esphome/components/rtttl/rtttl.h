@@ -46,8 +46,8 @@ class Rtttl : public Component {
   }
 
  protected:
-  inline uint8_t get_integer_() {
-    uint8_t ret = 0;
+  inline uint16_t get_integer_() {
+    uint16_t ret = 0;
     while (isdigit(this->rtttl_[this->position_])) {
       ret = (ret * 10) + (this->rtttl_[this->position_++] - '0');
     }
@@ -87,7 +87,7 @@ class Rtttl : public Component {
 
 #ifdef USE_OUTPUT
   /// The output to write the sound to.
-  output::FloatOutput *output_;
+  output::FloatOutput *output_{nullptr};
 #endif  // USE_OUTPUT
 
 #ifdef USE_SPEAKER

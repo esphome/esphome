@@ -790,8 +790,15 @@ def _detect_variant(value):
             engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
             if engineering_sample is None:
                 _LOGGER.warning(
-                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3). "
-                    "If you have an early engineering sample (pre-rev3), set 'engineering_sample: true'."
+                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3).\n"
+                    "If you have an early engineering sample (pre-rev3), add this to your config:\n"
+                    "\n"
+                    "  esp32:\n"
+                    "    engineering_sample: true\n"
+                    "\n"
+                    "To check your chip revision, look for 'chip revision: vX.Y' in the boot log.\n"
+                    "Engineering samples will show a revision below v3.0.\n"
+                    "The 'debug:' component also reports the revision (e.g. Revision: 100 = v1.0, 300 = v3.0)."
                 )
             elif engineering_sample:
                 value[CONF_BOARD] = "esp32-p4-evboard"
@@ -883,10 +890,10 @@ def final_validate(config):
                 )
             )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if config[CONF_VARIANT] != VARIANT_ESP32S3:
+        if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
             errs.append(
                 cv.Invalid(
-                    f"'{CONF_EXECUTE_FROM_PSRAM}' is only supported on {VARIANT_ESP32S3} variant",
+                    f"'{CONF_EXECUTE_FROM_PSRAM}' is not available on this esp32 variant",
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
@@ -1620,8 +1627,13 @@ async def to_code(config):
     _configure_lwip_max_sockets(conf)
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
+        if variant == VARIANT_ESP32S3:
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
+        elif variant == VARIANT_ESP32P4:
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
+        else:
+            raise ValueError("Unhandled ESP32 variant")
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides
