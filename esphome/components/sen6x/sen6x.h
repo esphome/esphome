@@ -169,7 +169,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<uint32_t> auto_cleaning_interval_s_;
   bool measurement_started_{false};
   uint32_t startup_delay_ms_{60000};
-  uint32_t startup_stable_after_{0};
+  bool startup_complete_{false};
   uint32_t last_stop_ms_{0};
   uint32_t last_cleaning_ms_{0};
   bool auto_clean_restart_pending_{false};
