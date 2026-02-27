@@ -1,5 +1,0 @@
-esp32_ble:
-  io_capability: keyboard_display
-  max_key_size: 16
-  min_key_size: 7
-  auth_req_mode: sc_mitm_bond

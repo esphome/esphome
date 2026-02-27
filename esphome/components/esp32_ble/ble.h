@@ -52,6 +52,7 @@ enum IoCapability {
   IO_CAP_KBDISP = ESP_IO_CAP_KBDISP,
 };
 
+#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
 enum AuthReqMode {
   AUTH_REQ_NO_BOND = ESP_LE_AUTH_NO_BOND,
   AUTH_REQ_BOND = ESP_LE_AUTH_BOND,
@@ -62,6 +63,7 @@ enum AuthReqMode {
   AUTH_REQ_SC_MITM = ESP_LE_AUTH_REQ_SC_MITM,
   AUTH_REQ_SC_MITM_BOND = ESP_LE_AUTH_REQ_SC_MITM_BOND,
 };
+#endif
 
 enum BLEComponentState : uint8_t {
   /** Nothing has been initialized yet. */

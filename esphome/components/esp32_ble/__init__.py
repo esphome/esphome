@@ -21,6 +21,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
@@ -296,6 +297,23 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+def _validate_key_sizes(config: ConfigType) -> ConfigType:
+    if (
+        CONF_MIN_KEY_SIZE in config
+        and CONF_MAX_KEY_SIZE in config
+        and config[CONF_MIN_KEY_SIZE] > config[CONF_MAX_KEY_SIZE]
+    ):
+        raise cv.Invalid(
+            f"min_key_size ({config[CONF_MIN_KEY_SIZE]}) must be "
+            f"less than or equal to "
+            f"max_key_size ({config[CONF_MAX_KEY_SIZE]})"
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _validate_key_sizes)
 
 
 bt_uuid16_format = "XXXX"

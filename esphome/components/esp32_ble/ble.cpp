@@ -717,7 +717,7 @@ void ESP32BLE::dump_config() {
       ESP_LOGCONFIG(TAG, "  Key Size: %u - %u", this->min_key_size_, this->max_key_size_);
     } else if (this->max_key_size_) {
       ESP_LOGCONFIG(TAG, "  Key Size: <default> - %u", this->max_key_size_);
-    } else if (this->max_key_size_) {
+    } else if (this->min_key_size_) {
       ESP_LOGCONFIG(TAG, "  Key Size: %u - <default>", this->min_key_size_);
     }
 #endif  // ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
