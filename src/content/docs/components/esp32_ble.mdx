@@ -25,6 +25,9 @@ esp32_ble:
   max_connections: 3  # Default, total BLE connections
   # advertising: true  # Only needed for advanced use cases
   max_notifications: 12  # Default, increase if needed
+  # auth_req_mode: sc_mitm_bond  # Optional, for advanced security
+  # max_key_size: 16  # Optional, encryption key size (7-16)
+  # min_key_size: 7   # Optional, encryption key size (7-16)
 ```
 
 ## Configuration variables
@@ -83,6 +86,23 @@ esp32_ble:
 
 > [!NOTE]
 > The `max_notifications` option controls the `CONFIG_BT_GATTC_NOTIF_REG_MAX` ESP-IDF setting. This limit is per GATT client interface, not per connection. If you're using ESPHome as a Bluetooth proxy with multiple devices that have many characteristics requiring notifications, you may need to increase this value. The error `status=128` in logs indicates you've hit this limit.
+
+- **max_key_size** (*Optional*, integer): Maximum encryption key size to support. Must be between `7` and `16`. Leave unspecified to use the ESP32 default unless your device needs special handling.
+
+- **min_key_size** (*Optional*, integer): Minimum encryption key size requirement from peer. Must be between `7` and `16`. Leave unspecified to use the ESP32 default unless your device needs special handling.
+
+- **auth_req_mode** (*Optional*, enum): The authentication request mode. Defaults to the ESP-IDF default. Leave unspecified unless your device needs special handling.
+
+  - `no_bond` - No bonding
+  - `bond` - Bonding
+  - `mitm` - MITM only
+  - `bond_mitm` - Bonding with MITM
+  - `sc_only` - Secure connections only
+  - `sc_bond` - Secure connections with bonding
+  - `sc_mitm` - Secure connections with MITM
+  - `sc_mitm_bond` - Secure connections with MITM and bonding
+
+  See [ESP32 SDK Documentation](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/bluetooth/esp_gap_ble.html#c.ESP_LE_AUTH_NO_BOND) for details on these modes.
 
 ## `ble.disable` Action
 
