@@ -3,7 +3,6 @@
 #include "usb_uart.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
-#include "esphome/components/uart/uart_debugger.h"
 
 #include <cinttypes>
 
@@ -136,23 +135,12 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
   }
 #ifdef USE_UART_DEBUGGER
   if (this->debug_) {
-    // Log hex without heap allocation: format up to 16 bytes at a time onto the stack.
-    // ">>> XX,XX,...,XX\0" → 4 + 16*3 bytes = 52 chars per batch.
     constexpr size_t BATCH = 16;
-    char buf[4 + BATCH * 3];
+    char buf[4 + format_hex_pretty_size(BATCH)];  // ">>> " + "XX,XX,...,XX\0"
     for (size_t off = 0; off < len; off += BATCH) {
       size_t n = std::min(len - off, BATCH);
-      size_t pos = 0;
-      buf[pos++] = '>';
-      buf[pos++] = '>';
-      buf[pos++] = '>';
-      buf[pos++] = ' ';
-      for (size_t i = 0; i < n; i++) {
-        if (i > 0)
-          buf[pos++] = ',';
-        pos += snprintf(buf + pos, sizeof(buf) - pos, "%02X", data[off + i]);
-      }
-      buf[pos] = '\0';
+      memcpy(buf, ">>> ", 4);
+      format_hex_pretty_to(buf + 4, sizeof(buf) - 4, data + off, n, ',');
       ESP_LOGD(TAG, "%s", buf);
     }
   }
@@ -227,8 +215,10 @@ void USBUartComponent::loop() {
 
 #ifdef USE_UART_DEBUGGER
     if (channel->debug_) {
-      uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX, std::vector<uint8_t>(chunk->data, chunk->data + chunk->length),
-                               ',');  // NOLINT()
+      char buf[4 + format_hex_pretty_size(UsbDataChunk::MAX_CHUNK_SIZE)];  // "<<< " + hex
+      memcpy(buf, "<<< ", 4);
+      format_hex_pretty_to(buf + 4, sizeof(buf) - 4, chunk->data, chunk->length, ',');
+      ESP_LOGD(TAG, "%s", buf);
     }
 #endif
 
