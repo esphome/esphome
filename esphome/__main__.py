@@ -1512,6 +1512,11 @@ def parse_args(argv):
     parser_dashboard.add_argument(
         "--socket", help="Make the dashboard serve under a unix socket", type=str
     )
+    parser_dashboard.add_argument(
+        "--no-auto-build",
+        help="Disable automatic firmware pre-build for out-of-date devices on startup.",
+        action="store_true",
+    )
 
     parser_vscode = subparsers.add_parser("vscode")
     parser_vscode.add_argument("configuration", help="Your YAML configuration file.")

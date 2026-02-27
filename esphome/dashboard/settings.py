@@ -27,6 +27,7 @@ class DashboardSettings:
         "cookie_secret",
         "absolute_config_dir",
         "verbose",
+        "_auto_build",
     )
 
     def __init__(self) -> None:
@@ -39,6 +40,7 @@ class DashboardSettings:
         self.cookie_secret: str | None = None
         self.absolute_config_dir: Path | None = None
         self.verbose: bool = False
+        self._auto_build: bool = True
 
     def parse_args(self, args: Any) -> None:
         """Parse the arguments."""
@@ -52,6 +54,7 @@ class DashboardSettings:
         self.config_dir = Path(args.configuration)
         self.absolute_config_dir = self.config_dir.resolve()
         self.verbose = args.verbose
+        self._auto_build = not args.no_auto_build
         # Set to a sentinel file so .parent gives us the config directory.
         # Previously this was `os.path.join(self.config_dir, ".")` which worked because
         # os.path.dirname("/config/.") returns "/config", but Path("/config/.").parent
@@ -80,6 +83,17 @@ class DashboardSettings:
     @property
     def streamer_mode(self) -> bool:
         return get_bool_env("ESPHOME_STREAMER_MODE")
+
+    @property
+    def auto_build(self) -> bool:
+        """Whether to auto-build firmware for out-of-date devices on startup.
+
+        Controlled by ``--no-auto-build`` CLI flag or
+        ``ESPHOME_DASHBOARD_AUTO_BUILD`` env var (defaults to True).
+        """
+        if not self._auto_build:
+            return False
+        return get_bool_env("ESPHOME_DASHBOARD_AUTO_BUILD", default=True)
 
     def check_password(self, username: str, password: str) -> bool:
         if not self.using_auth:

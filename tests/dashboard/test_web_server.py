@@ -140,6 +140,7 @@ async def dashboard() -> DashboardTestHelper:
         ha_addon=True,
         configuration=get_fixture_path("conf"),
         port=port,
+        no_auto_build=False,
     )
     DASHBOARD.settings.parse_args(args)
     app = web_server.make_app()
@@ -1634,6 +1635,7 @@ async def test_dashboard_yaml_loading_with_packages_and_secrets(
         username=None,
         ha_addon=False,
         verbose=False,
+        no_auto_build=False,
     )
     DASHBOARD.settings.parse_args(args)
 

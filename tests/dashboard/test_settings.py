@@ -208,6 +208,7 @@ def test_config_path_parent_resolves_to_config_dir(tmp_path: Path) -> None:
         username=None,
         ha_addon=False,
         verbose=False,
+        no_auto_build=False,
     )
     settings.parse_args(args)
 
@@ -222,6 +223,102 @@ def test_config_path_parent_resolves_to_config_dir(tmp_path: Path) -> None:
     # Verify that CORE.config_path itself uses the sentinel file
     assert CORE.config_path.name == "___DASHBOARD_SENTINEL___.yaml"
     assert not CORE.config_path.exists()  # Sentinel file doesn't actually exist
+
+
+# -- auto_build property tests --
+
+
+def test_auto_build_defaults_to_true(dashboard_settings: DashboardSettings) -> None:
+    """Test auto_build is True by default (no CLI flag, no env var)."""
+    assert dashboard_settings.auto_build is True
+
+
+def test_auto_build_disabled_by_cli_flag(tmp_path: Path) -> None:
+    """Test --no-auto-build CLI flag disables auto_build."""
+    settings = DashboardSettings()
+    args = Namespace(
+        configuration=str(tmp_path),
+        password=None,
+        username=None,
+        ha_addon=False,
+        verbose=False,
+        no_auto_build=True,
+    )
+    settings.parse_args(args)
+
+    assert settings.auto_build is False
+
+
+def test_auto_build_enabled_by_cli_flag(tmp_path: Path) -> None:
+    """Test auto_build remains True when --no-auto-build is not passed."""
+    settings = DashboardSettings()
+    args = Namespace(
+        configuration=str(tmp_path),
+        password=None,
+        username=None,
+        ha_addon=False,
+        verbose=False,
+        no_auto_build=False,
+    )
+    settings.parse_args(args)
+
+    assert settings.auto_build is True
+
+
+def test_auto_build_disabled_by_env_var(
+    dashboard_settings: DashboardSettings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test ESPHOME_DASHBOARD_AUTO_BUILD=false env var disables auto_build."""
+    monkeypatch.setenv("ESPHOME_DASHBOARD_AUTO_BUILD", "false")
+    assert dashboard_settings.auto_build is False
+
+
+def test_auto_build_enabled_by_env_var(
+    dashboard_settings: DashboardSettings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test ESPHOME_DASHBOARD_AUTO_BUILD=true env var keeps auto_build enabled."""
+    monkeypatch.setenv("ESPHOME_DASHBOARD_AUTO_BUILD", "true")
+    assert dashboard_settings.auto_build is True
+
+
+def test_auto_build_cli_flag_overrides_env_var(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test --no-auto-build takes precedence even if env var says true."""
+    monkeypatch.setenv("ESPHOME_DASHBOARD_AUTO_BUILD", "true")
+    settings = DashboardSettings()
+    args = Namespace(
+        configuration=str(tmp_path),
+        password=None,
+        username=None,
+        ha_addon=False,
+        verbose=False,
+        no_auto_build=True,
+    )
+    settings.parse_args(args)
+
+    assert settings.auto_build is False
+
+
+def test_auto_build_env_var_zero_disables(
+    dashboard_settings: DashboardSettings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test ESPHOME_DASHBOARD_AUTO_BUILD=0 disables auto_build."""
+    monkeypatch.setenv("ESPHOME_DASHBOARD_AUTO_BUILD", "0")
+    assert dashboard_settings.auto_build is False
+
+
+def test_auto_build_env_var_one_enables(
+    dashboard_settings: DashboardSettings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test ESPHOME_DASHBOARD_AUTO_BUILD=1 enables auto_build."""
+    monkeypatch.setenv("ESPHOME_DASHBOARD_AUTO_BUILD", "1")
+    assert dashboard_settings.auto_build is True
 
 
 @pytest.fixture

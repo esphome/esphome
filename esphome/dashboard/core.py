@@ -264,7 +264,10 @@ class ESPHomeDashboard:
         mdns_task: asyncio.Task | None = None
         await self.entries.async_update_entries()
 
-        self.async_create_background_task(self._async_prebuild_devices())
+        if settings.auto_build:
+            self.async_create_background_task(self._async_prebuild_devices())
+        else:
+            _LOGGER.info("Automatic firmware pre-build is disabled")
 
         mdns_status = MDNSStatus(self)
         ping_status = PingStatus(self)

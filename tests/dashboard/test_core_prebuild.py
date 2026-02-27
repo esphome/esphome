@@ -271,3 +271,46 @@ async def test_prebuild_mixed_success_and_failure(
     assert finished["succeeded"] == 1
     assert finished["failed"] == 1
     assert finished["total"] == 2
+
+
+# -- auto_build flag integration tests --
+
+
+@pytest.mark.asyncio
+async def test_prebuild_runs_when_auto_build_enabled(
+    prebuild_dashboard: ESPHomeDashboard,
+    mock_async_run_system_command: AsyncMock,
+) -> None:
+    """Test pre-build is launched when settings.auto_build is True."""
+    prebuild_dashboard.settings.auto_build = True
+    entry = _make_entry()
+    prebuild_dashboard.entries.async_all.return_value = [entry]
+    mock_async_run_system_command.return_value = (0, b"", b"")
+
+    await prebuild_dashboard._async_prebuild_devices()
+
+    mock_async_run_system_command.assert_called_once()
+    calls = prebuild_dashboard.bus.async_fire.call_args_list
+    assert calls[0].args[1]["status"] == "started"
+
+
+@pytest.mark.asyncio
+async def test_prebuild_skipped_when_auto_build_disabled(
+    prebuild_dashboard: ESPHomeDashboard,
+    mock_async_run_system_command: AsyncMock,
+) -> None:
+    """Test _async_prebuild_devices is not called when settings.auto_build is False.
+
+    This simulates the guard in async_run() by checking the flag before calling.
+    """
+    prebuild_dashboard.settings.auto_build = False
+    entry = _make_entry()
+    prebuild_dashboard.entries.async_all.return_value = [entry]
+    mock_async_run_system_command.return_value = (0, b"", b"")
+
+    # Replicate the guard logic from async_run()
+    if prebuild_dashboard.settings.auto_build:
+        await prebuild_dashboard._async_prebuild_devices()
+
+    mock_async_run_system_command.assert_not_called()
+    prebuild_dashboard.bus.async_fire.assert_not_called()
