@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cinttypes>
 #include <cmath>
+#include <type_traits>
 
 #ifdef USE_ESP32
 #if (ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 1)
@@ -1334,20 +1335,61 @@ void WiFiComponent::start_scanning() {
 // Using insertion sort instead of std::stable_sort saves flash memory
 // by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)
 // IMPORTANT: This sort is stable (preserves relative order of equal elements)
+//
+// Uses raw memcpy instead of copy assignment to avoid CompactString's
+// destructor/constructor overhead (heap delete[]/new[] for long SSIDs).
+// Copy assignment calls ~CompactString() then placement-new for every shift,
+// which means delete[]/new[] per shift for heap-allocated SSIDs. With 70+
+// networks (e.g., captive portal showing full scan results), this caused
+// event loop blocking from hundreds of heap operations in a tight loop.
+//
+// This is safe because we're permuting elements within the same array —
+// each slot is overwritten exactly once, so no ownership duplication occurs.
+// All members of WiFiScanResult are either trivially copyable (bssid, channel,
+// rssi, priority, flags) or CompactString, which stores either inline data or
+// a heap pointer — never a self-referential pointer (unlike std::string's SSO
+// on some implementations). This was not possible before PR#13472 replaced
+// std::string with CompactString, since std::string's internal layout is
+// implementation-defined and may use self-referential pointers.
+//
+// TODO: If C++ standardizes std::trivially_relocatable, add the assertion for
+// WiFiScanResult/CompactString here to formally express the memcpy safety guarantee.
 template<typename VectorType> static void insertion_sort_scan_results(VectorType &results) {
+  // memcpy-based sort requires no self-referential pointers or virtual dispatch.
+  // These static_asserts guard the assumptions. If any fire, the memcpy sort
+  // must be reviewed for safety before updating the expected values.
+  //
+  // No vtable pointers (memcpy would corrupt vptr)
+  static_assert(!std::is_polymorphic<WiFiScanResult>::value, "WiFiScanResult must not have vtable");
+  static_assert(!std::is_polymorphic<CompactString>::value, "CompactString must not have vtable");
+  // Standard layout ensures predictable memory layout with no virtual bases
+  // and no mixed-access-specifier reordering
+  static_assert(std::is_standard_layout<WiFiScanResult>::value, "WiFiScanResult must be standard layout");
+  static_assert(std::is_standard_layout<CompactString>::value, "CompactString must be standard layout");
+  // Size checks catch added/removed fields that may need safety review
+  static_assert(sizeof(WiFiScanResult) == 32, "WiFiScanResult size changed - verify memcpy sort is still safe");
+  static_assert(sizeof(CompactString) == 20, "CompactString size changed - verify memcpy sort is still safe");
+  // Alignment must match for reinterpret_cast of key_buf to be valid
+  static_assert(alignof(WiFiScanResult) <= alignof(std::max_align_t), "WiFiScanResult alignment exceeds max_align_t");
   const size_t size = results.size();
+  constexpr size_t elem_size = sizeof(WiFiScanResult);
+  // Suppress warnings for intentional memcpy on non-trivially-copyable type.
+  // Safety is guaranteed by the static_asserts above and the permutation invariant.
+  // NOLINTNEXTLINE(bugprone-undefined-memory-manipulation)
+  auto *memcpy_fn = &memcpy;
   for (size_t i = 1; i < size; i++) {
-    // Make a copy to avoid issues with move semantics during comparison
-    WiFiScanResult key = results[i];
+    alignas(WiFiScanResult) uint8_t key_buf[elem_size];
+    memcpy_fn(key_buf, &results[i], elem_size);
+    const auto &key = *reinterpret_cast<const WiFiScanResult *>(key_buf);
     int32_t j = i - 1;
 
     // Move elements that are worse than key to the right
     // For stability, we only move if key is strictly better than results[j]
     while (j >= 0 && wifi_scan_result_is_better(key, results[j])) {
-      results[j + 1] = results[j];
+      memcpy_fn(&results[j + 1], &results[j], elem_size);
       j--;
     }
-    results[j + 1] = key;
+    memcpy_fn(&results[j + 1], key_buf, elem_size);
   }
 }
 

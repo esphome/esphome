@@ -10,8 +10,7 @@
 #include <initializer_list>
 #include <memory>
 
-namespace esphome {
-namespace text_sensor {
+namespace esphome::text_sensor {
 
 class TextSensor;
 
@@ -84,5 +83,4 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
 #endif
 };
 
-}  // namespace text_sensor
-}  // namespace esphome
+}  // namespace esphome::text_sensor

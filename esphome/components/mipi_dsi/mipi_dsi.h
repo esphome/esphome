@@ -47,7 +47,7 @@ class MIPI_DSI : public display::Display {
 
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_enable_pins(std::vector<GPIOPin *> enable_pins) { this->enable_pins_ = std::move(enable_pins); }
-  void set_pclk_frequency(uint32_t pclk_frequency) { this->pclk_frequency_ = pclk_frequency; }
+  void set_pclk_frequency(float pclk_frequency) { this->pclk_frequency_ = pclk_frequency; }
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
   void set_hsync_back_porch(uint16_t hsync_back_porch) { this->hsync_back_porch_ = hsync_back_porch; }
@@ -58,7 +58,7 @@ class MIPI_DSI : public display::Display {
   void set_vsync_front_porch(uint16_t vsync_front_porch) { this->vsync_front_porch_ = vsync_front_porch; }
   void set_init_sequence(const std::vector<uint8_t> &init_sequence) { this->init_sequence_ = init_sequence; }
   void set_model(const char *model) { this->model_ = model; }
-  void set_lane_bit_rate(uint16_t lane_bit_rate) { this->lane_bit_rate_ = lane_bit_rate; }
+  void set_lane_bit_rate(float lane_bit_rate) { this->lane_bit_rate_ = lane_bit_rate; }
   void set_lanes(uint8_t lanes) { this->lanes_ = lanes; }
   void set_madctl(uint8_t madctl) { this->madctl_ = madctl; }
 
@@ -95,9 +95,9 @@ class MIPI_DSI : public display::Display {
   uint16_t vsync_front_porch_ = 10;
   const char *model_{"Unknown"};
   std::vector<uint8_t> init_sequence_{};
-  uint16_t pclk_frequency_ = 16;  // in MHz
-  uint16_t lane_bit_rate_{1500};  // in Mbps
-  uint8_t lanes_{2};              // 1, 2, 3 or 4 lanes
+  float pclk_frequency_ = 16;  // in MHz
+  float lane_bit_rate_{1500};  // in Mbps
+  uint8_t lanes_{2};           // 1, 2, 3 or 4 lanes
 
   bool invert_colors_{};
   display::ColorOrder color_mode_{display::COLOR_ORDER_BGR};

@@ -19,8 +19,7 @@
 #include <driver/spi_master.h>
 #endif
 
-namespace esphome {
-namespace ethernet {
+namespace esphome::ethernet {
 
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
 // work around IDF compile issue on P4 https://github.com/espressif/esp-idf/pull/15637
@@ -881,7 +880,6 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
 
 #endif
 
-}  // namespace ethernet
-}  // namespace esphome
+}  // namespace esphome::ethernet
 
 #endif  // USE_ESP32
