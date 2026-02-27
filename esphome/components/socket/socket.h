@@ -71,7 +71,7 @@ class Socket {
   int get_fd() const { return -1; }
 #endif
 
-  /// Check if socket has data ready to read
+  /// Check if socket has data ready to read. Must only be called from the main loop thread.
   /// For select()-based sockets: non-virtual, checks Application's select() results
   /// For LWIP raw TCP sockets: virtual, checks internal buffer state
 #ifdef USE_SOCKET_SELECT_SUPPORT
