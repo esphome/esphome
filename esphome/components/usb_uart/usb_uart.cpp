@@ -134,6 +134,29 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
     ESP_LOGV(TAG, "Channel not initialised - write ignored");
     return;
   }
+#ifdef USE_UART_DEBUGGER
+  if (this->debug_) {
+    // Log hex without heap allocation: format up to 16 bytes at a time onto the stack.
+    // ">>> XX,XX,...,XX\0" → 4 + 16*3 bytes = 52 chars per batch.
+    constexpr size_t BATCH = 16;
+    char buf[4 + BATCH * 3];
+    for (size_t off = 0; off < len; off += BATCH) {
+      size_t n = std::min(len - off, BATCH);
+      size_t pos = 0;
+      buf[pos++] = '>';
+      buf[pos++] = '>';
+      buf[pos++] = '>';
+      buf[pos++] = ' ';
+      for (size_t i = 0; i < n; i++) {
+        if (i > 0)
+          buf[pos++] = ',';
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "%02X", data[off + i]);
+      }
+      buf[pos] = '\0';
+      ESP_LOGD(TAG, "%s", buf);
+    }
+  }
+#endif
   while (len > 0) {
     UsbOutputChunk *chunk = this->output_pool_.allocate();
     if (chunk == nullptr) {
@@ -357,12 +380,6 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
   };
 
   const uint8_t len = chunk->length;
-#ifdef USE_UART_DEBUGGER
-  if (channel->debug_) {
-    uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX, std::vector<uint8_t>(chunk->data, chunk->data + len),
-                             ',');  // NOLINT()
-  }
-#endif
   if (!this->transfer_out(ep->bEndpointAddress, callback, chunk->data, len)) {
     // Transfer submission failed — return chunk and release flag so callers can retry.
     channel->output_pool_.release(chunk);
