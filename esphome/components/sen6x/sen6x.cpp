@@ -3,7 +3,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
-#include <cinttypes>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -12,34 +11,34 @@ namespace esphome::sen6x {
 
 static const char *const TAG = "sen6x";
 
-static const uint16_t SEN6X_CMD_GET_DATA_READY_STATUS = 0x0202;
-static const uint16_t SEN6X_CMD_GET_FIRMWARE_VERSION = 0xD100;
-static const uint16_t SEN6X_CMD_GET_PRODUCT_NAME = 0xD014;
-static const uint16_t SEN6X_CMD_GET_SERIAL_NUMBER = 0xD033;
-static const uint16_t SEN6X_CMD_NOX_ALGORITHM_TUNING = 0x60E1;
+static constexpr uint16_t SEN6X_CMD_GET_DATA_READY_STATUS = 0x0202;
+static constexpr uint16_t SEN6X_CMD_GET_FIRMWARE_VERSION = 0xD100;
+static constexpr uint16_t SEN6X_CMD_GET_PRODUCT_NAME = 0xD014;
+static constexpr uint16_t SEN6X_CMD_GET_SERIAL_NUMBER = 0xD033;
+static constexpr uint16_t SEN6X_CMD_NOX_ALGORITHM_TUNING = 0x60E1;
 
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT = 0x0300;  // SEN66 only!
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN62 = 0x04A3;
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN63C = 0x0471;
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN65 = 0x0446;
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN68 = 0x0467;
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN69C = 0x04B5;
-static const uint16_t SEN6X_CMD_RHT_ACCELERATION_MODE = 0x6100;  // Set Temperature Acceleration Parameters
+static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT = 0x0300;  // SEN66 only!
+static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN62 = 0x04A3;
+static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN63C = 0x0471;
+static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN65 = 0x0446;
+static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN68 = 0x0467;
+static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN69C = 0x04B5;
+static constexpr uint16_t SEN6X_CMD_RHT_ACCELERATION_MODE = 0x6100;  // Set Temperature Acceleration Parameters
 
-static const uint16_t SEN6X_CMD_START_CLEANING_FAN = 0x5607;
-static const uint16_t SEN6X_CMD_START_MEASUREMENTS = 0x0021;
-static const uint16_t SEN6X_CMD_STOP_MEASUREMENTS = 0x0104;
-static const uint16_t SEN6X_CMD_TEMPERATURE_COMPENSATION = 0x60B2;
-static const uint16_t SEN6X_CMD_VOC_ALGORITHM_STATE = 0x6181;
-static const uint16_t SEN6X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
-static const uint16_t SEN6X_CMD_SHT_HEATER_ACTIVATE = 0x6765;
-static const uint16_t SEN6X_CMD_SHT_HEATER_MEASUREMENTS = 0x6790;
-static const uint16_t SEN6X_CMD_CO2_FORCE_RECALIBRATION = 0x6707;
-static const uint16_t SEN6X_CMD_CO2_SENSOR_FACTORY_RESET = 0x6754;
-static const uint16_t SEN6X_CMD_CO2_SENSOR_AUTOMATIC_SELF_CAL = 0x6711;
-static const uint16_t SEN6X_CMD_AMBIENT_PRESSURE = 0x6720;
-static const uint16_t SEN6X_CMD_SENSOR_ALTITUDE = 0x6736;
-static const uint16_t SEN6X_CMD_RESET = 0xD304;
+static constexpr uint16_t SEN6X_CMD_START_CLEANING_FAN = 0x5607;
+static constexpr uint16_t SEN6X_CMD_START_MEASUREMENTS = 0x0021;
+static constexpr uint16_t SEN6X_CMD_STOP_MEASUREMENTS = 0x0104;
+static constexpr uint16_t SEN6X_CMD_TEMPERATURE_COMPENSATION = 0x60B2;
+static constexpr uint16_t SEN6X_CMD_VOC_ALGORITHM_STATE = 0x6181;
+static constexpr uint16_t SEN6X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
+static constexpr uint16_t SEN6X_CMD_SHT_HEATER_ACTIVATE = 0x6765;
+static constexpr uint16_t SEN6X_CMD_SHT_HEATER_MEASUREMENTS = 0x6790;
+static constexpr uint16_t SEN6X_CMD_CO2_FORCE_RECALIBRATION = 0x6707;
+static constexpr uint16_t SEN6X_CMD_CO2_SENSOR_FACTORY_RESET = 0x6754;
+static constexpr uint16_t SEN6X_CMD_CO2_SENSOR_AUTOMATIC_SELF_CAL = 0x6711;
+static constexpr uint16_t SEN6X_CMD_AMBIENT_PRESSURE = 0x6720;
+static constexpr uint16_t SEN6X_CMD_SENSOR_ALTITUDE = 0x6736;
+static constexpr uint16_t SEN6X_CMD_RESET = 0xD304;
 
 static const int8_t SEN6X_INDEX_SCALE_FACTOR = 10;                            // used for VOC and NOx index values
 static const int8_t SEN6X_MIN_INDEX_VALUE = 1 * SEN6X_INDEX_SCALE_FACTOR;     // must be adjusted by the scale factor
