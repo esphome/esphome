@@ -713,8 +713,8 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 #endif
 }
 
-static Application *_inst = new Application();
-Application &App = *_inst;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static Application *_inst = new Application();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+Application &App = *_inst;                      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
