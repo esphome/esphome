@@ -52,12 +52,12 @@ void BL0942::loop() {
     return;
   }
   if (avail < sizeof(buffer)) {
-    if (!this->rx_start_) {
+    if (!this->rx_start_.has_value()) {
       this->rx_start_ = millis();
-    } else if (millis() > this->rx_start_ + PKT_TIMEOUT_MS) {
+    } else if (millis() - *this->rx_start_ > PKT_TIMEOUT_MS) {
       ESP_LOGW(TAG, "Junk on wire. Throwing away partial message (%zu bytes)", avail);
       this->read_array((uint8_t *) &buffer, avail);
-      this->rx_start_ = 0;
+      this->rx_start_.reset();
     }
     return;
   }
@@ -67,7 +67,7 @@ void BL0942::loop() {
       this->received_package_(&buffer);
     }
   }
-  this->rx_start_ = 0;
+  this->rx_start_.reset();
 }
 
 bool BL0942::validate_checksum_(DataPacket *data) {

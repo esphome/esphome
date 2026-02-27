@@ -10,6 +10,7 @@
 #endif
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -33,7 +34,7 @@ class Scheduler {
   // std::string overload - deprecated, use const char* or uint32_t instead
   // Remove before 2026.7.0
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> &&func);
 
   /** Set a timeout with a const char* name.
    *
@@ -43,11 +44,11 @@ class Scheduler {
    *   - A static const char* variable
    *   - A pointer with lifetime >= the scheduled task
    */
-  void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> &&func);
   /// Set a timeout with a numeric ID (zero heap allocation)
-  void set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> &&func);
   /// Set a timeout with an internal scheduler ID (separate namespace from component NUMERIC_ID)
-  void set_timeout(Component *component, InternalSchedulerID id, uint32_t timeout, std::function<void()> func) {
+  void set_timeout(Component *component, InternalSchedulerID id, uint32_t timeout, std::function<void()> &&func) {
     this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID_INTERNAL, nullptr,
                             static_cast<uint32_t>(id), timeout, std::move(func));
   }
@@ -62,7 +63,7 @@ class Scheduler {
   }
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> &&func);
 
   /** Set an interval with a const char* name.
    *
@@ -72,11 +73,11 @@ class Scheduler {
    *   - A static const char* variable
    *   - A pointer with lifetime >= the scheduled task
    */
-  void set_interval(Component *component, const char *name, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, const char *name, uint32_t interval, std::function<void()> &&func);
   /// Set an interval with a numeric ID (zero heap allocation)
-  void set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> &&func);
   /// Set an interval with an internal scheduler ID (separate namespace from component NUMERIC_ID)
-  void set_interval(Component *component, InternalSchedulerID id, uint32_t interval, std::function<void()> func) {
+  void set_interval(Component *component, InternalSchedulerID id, uint32_t interval, std::function<void()> &&func) {
     this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID_INTERNAL, nullptr,
                             static_cast<uint32_t>(id), interval, std::move(func));
   }
@@ -117,12 +118,12 @@ class Scheduler {
   bool cancel_retry(Component *component, uint32_t id);
 
   /// Get 64-bit millisecond timestamp (handles 32-bit millis() rollover)
-  uint64_t millis_64();
+  uint64_t millis_64() { return esphome::millis_64(); }
 
-  // Calculate when the next scheduled item should run
-  // @param now Fresh timestamp from millis() - must not be stale/cached
-  // Returns the time in milliseconds until the next scheduled item, or nullopt if no items
-  // This method performs cleanup of removed items before checking the schedule
+  // Calculate when the next scheduled item should run.
+  // @param now On ESP32, unused for 64-bit extension (native); on other platforms, extended to 64-bit via rollover.
+  // Returns the time in milliseconds until the next scheduled item, or nullopt if no items.
+  // This method performs cleanup of removed items before checking the schedule.
   // IMPORTANT: This method should only be called from the main thread (loop task).
   optional<uint32_t> next_schedule_in(uint32_t now);
 
@@ -142,6 +143,19 @@ class Scheduler {
   };
 
  protected:
+  struct SchedulerItem;
+
+  // Custom deleter for SchedulerItem unique_ptr that prevents the compiler from
+  // inlining the destructor at every destruction site. On BK7231N (Thumb-1), GCC
+  // inlines ~unique_ptr<SchedulerItem> (~30 bytes: null check + ~std::function +
+  // operator delete) at every destruction site, while ESP32/ESP8266/RTL8720CF outline
+  // it into a single helper. This noinline deleter ensures only one copy exists.
+  // operator() is defined in scheduler.cpp to prevent inlining.
+  struct SchedulerItemDeleter {
+    void operator()(SchedulerItem *ptr) const noexcept;
+  };
+  using SchedulerItemPtr = std::unique_ptr<SchedulerItem, SchedulerItemDeleter>;
+
   struct SchedulerItem {
     // Ordered by size to minimize padding
     Component *component;
@@ -233,7 +247,7 @@ class Scheduler {
       name_type_ = type;
     }
 
-    static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
+    static bool cmp(const SchedulerItemPtr &a, const SchedulerItemPtr &b);
 
     // Note: We use 48 bits total (32 + 16), stored in a 64-bit value for API compatibility.
     // The upper 16 bits of the 64-bit value are always zero, which is fine since
@@ -255,7 +269,7 @@ class Scheduler {
   // Common implementation for both timeout and interval
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
   void set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type, const char *static_name,
-                         uint32_t hash_or_id, uint32_t delay, std::function<void()> func, bool is_retry = false,
+                         uint32_t hash_or_id, uint32_t delay, std::function<void()> &&func, bool is_retry = false,
                          bool skip_cancel = false);
 
   // Common implementation for retry - Remove before 2026.8.0
@@ -269,17 +283,34 @@ class Scheduler {
   // Common implementation for cancel_retry
   bool cancel_retry_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
 
-  uint64_t millis_64_(uint32_t now);
+  // Extend a 32-bit millis() value to 64-bit. Use when the caller already has a fresh now.
+  // On ESP32, ignores now and uses esp_timer_get_time() directly (native 64-bit).
+  // On non-ESP32, extends now to 64-bit using rollover tracking.
+  uint64_t millis_64_from_(uint32_t now) {
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR)
+    (void) now;
+    return millis_64();
+#else
+    return this->millis_64_impl_(now);
+#endif
+  }
+
+#if !defined(USE_ESP32) && !defined(USE_HOST) && !defined(USE_ZEPHYR)
+  // On platforms without native 64-bit time, millis_64() HAL function delegates to this
+  // method which tracks 32-bit millis() rollover using millis_major_ and last_millis_.
+  friend uint64_t millis_64();
+  uint64_t millis_64_impl_(uint32_t now);
+#endif
   // Cleanup logically deleted items from the scheduler
   // Returns the number of items remaining after cleanup
   // IMPORTANT: This method should only be called from the main thread (loop task).
   size_t cleanup_();
   // Remove and return the front item from the heap
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  std::unique_ptr<SchedulerItem> pop_raw_locked_();
+  SchedulerItemPtr pop_raw_locked_();
   // Get or create a scheduler item from the pool
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  std::unique_ptr<SchedulerItem> get_item_from_pool_locked_();
+  SchedulerItemPtr get_item_from_pool_locked_();
 
  private:
   // Helper to cancel items - must be called with lock held
@@ -303,9 +334,9 @@ class Scheduler {
   // Helper function to check if item matches criteria for cancellation
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   // IMPORTANT: Must be called with scheduler lock held
-  inline bool HOT matches_item_locked_(const std::unique_ptr<SchedulerItem> &item, Component *component,
-                                       NameType name_type, const char *static_name, uint32_t hash_or_id,
-                                       SchedulerItem::Type type, bool match_retry, bool skip_removed = true) const {
+  inline bool HOT matches_item_locked_(const SchedulerItemPtr &item, Component *component, NameType name_type,
+                                       const char *static_name, uint32_t hash_or_id, SchedulerItem::Type type,
+                                       bool match_retry, bool skip_removed = true) const {
     // THREAD SAFETY: Check for nullptr first to prevent LoadProhibited crashes. On multi-threaded
     // platforms, items can be moved out of defer_queue_ during processing, leaving nullptr entries.
     // PR #11305 added nullptr checks in callers (mark_matching_items_removed_locked_()), but this check
@@ -340,7 +371,7 @@ class Scheduler {
   // IMPORTANT: Only call from main loop context! Recycling clears the callback,
   // so calling from another thread while the callback is executing causes use-after-free.
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  void recycle_item_main_loop_(std::unique_ptr<SchedulerItem> item);
+  void recycle_item_main_loop_(SchedulerItemPtr item);
 
   // Helper to perform full cleanup when too many items are cancelled
   void full_cleanup_removed_items_();
@@ -396,7 +427,7 @@ class Scheduler {
     // Merge lock acquisitions: instead of separate locks for move-out and recycle (2N+1 total),
     // recycle each item after re-acquiring the lock for the next iteration (N+1 total).
     // The lock is held across: recycle → loop condition → move-out, then released for execution.
-    std::unique_ptr<SchedulerItem> item;
+    SchedulerItemPtr item;
 
     this->lock_.lock();
     while (this->defer_queue_front_ < defer_queue_end) {
@@ -496,9 +527,10 @@ class Scheduler {
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   // Returns the number of items marked for removal
   // IMPORTANT: Must be called with scheduler lock held
-  size_t mark_matching_items_removed_locked_(std::vector<std::unique_ptr<SchedulerItem>> &container,
-                                             Component *component, NameType name_type, const char *static_name,
-                                             uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry) {
+  __attribute__((noinline)) size_t mark_matching_items_removed_locked_(std::vector<SchedulerItemPtr> &container,
+                                                                       Component *component, NameType name_type,
+                                                                       const char *static_name, uint32_t hash_or_id,
+                                                                       SchedulerItem::Type type, bool match_retry) {
     size_t count = 0;
     for (auto &item : container) {
       // Skip nullptr items (can happen in defer_queue_ when items are being processed)
@@ -514,15 +546,15 @@ class Scheduler {
   }
 
   Mutex lock_;
-  std::vector<std::unique_ptr<SchedulerItem>> items_;
-  std::vector<std::unique_ptr<SchedulerItem>> to_add_;
+  std::vector<SchedulerItemPtr> items_;
+  std::vector<SchedulerItemPtr> to_add_;
 #ifndef ESPHOME_THREAD_SINGLE
   // Single-core platforms don't need the defer queue and save ~32 bytes of RAM
   // Using std::vector instead of std::deque avoids 512-byte chunked allocations
   // Index tracking avoids O(n) erase() calls when draining the queue each loop
-  std::vector<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
-  size_t defer_queue_front_{0};  // Index of first valid item in defer_queue_ (tracks consumed items)
-#endif                           /* ESPHOME_THREAD_SINGLE */
+  std::vector<SchedulerItemPtr> defer_queue_;  // FIFO queue for defer() calls
+  size_t defer_queue_front_{0};                // Index of first valid item in defer_queue_ (tracks consumed items)
+#endif                                         /* ESPHOME_THREAD_SINGLE */
   uint32_t to_remove_{0};
 
   // Memory pool for recycling SchedulerItem objects to reduce heap churn.
@@ -533,8 +565,11 @@ class Scheduler {
   // - The pool significantly reduces heap fragmentation which is critical because heap allocation/deallocation
   //   can stall the entire system, causing timing issues and dropped events for any components that need
   //   to synchronize between tasks (see https://github.com/esphome/backlog/issues/52)
-  std::vector<std::unique_ptr<SchedulerItem>> scheduler_item_pool_;
+  std::vector<SchedulerItemPtr> scheduler_item_pool_;
 
+#if !defined(USE_ESP32) && !defined(USE_HOST) && !defined(USE_ZEPHYR)
+  // On platforms with native 64-bit time (ESP32, Host, Zephyr), no rollover tracking needed.
+  // On other platforms, these fields track 32-bit millis() rollover for millis_64_impl_().
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   /*
    * Multi-threaded platforms with atomic support: last_millis_ needs atomic for lock-free updates
@@ -563,6 +598,7 @@ class Scheduler {
 #else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
   uint16_t millis_major_{0};
 #endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
+#endif /* !USE_ESP32 && !USE_HOST && !USE_ZEPHYR */
 };
 
 }  // namespace esphome
