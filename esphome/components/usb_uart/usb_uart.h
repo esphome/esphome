@@ -8,9 +8,10 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
 #include <atomic>
+#include <functional>
 
-namespace esphome {
-namespace usb_uart {
+namespace esphome::usb_uart {
+
 class USBUartTypeCdcAcm;
 class USBUartComponent;
 class USBUartChannel;
@@ -31,6 +32,7 @@ struct CdcEps {
   const usb_ep_desc_t *out_ep;
   uint8_t bulk_interface_number;
   uint8_t interrupt_interface_number;
+  bool comm_interface_claimed{false};
 };
 
 enum UARTParityOptions {
@@ -83,6 +85,16 @@ struct UsbDataChunk {
   void release() {}
 };
 
+// Structure for queuing outgoing USB data chunks (one per USB FS packet)
+struct UsbOutputChunk {
+  static constexpr size_t MAX_CHUNK_SIZE = 64;  // USB FS MPS
+  uint8_t data[MAX_CHUNK_SIZE];
+  uint8_t length;
+
+  // Required for EventPool - no cleanup needed for POD types
+  void release() {}
+};
+
 class USBUartChannel : public uart::UARTComponent, public Parented<USBUartComponent> {
   friend class USBUartComponent;
   friend class USBUartTypeCdcAcm;
@@ -90,24 +102,32 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCH34X;
 
  public:
-  USBUartChannel(uint8_t index, uint16_t buffer_size)
-      : index_(index), input_buffer_(RingBuffer(buffer_size)), output_buffer_(RingBuffer(buffer_size)) {}
+  // Number of output chunk slots per channel (8 × 64 bytes = 512 bytes peak, lazily allocated)
+  static constexpr uint8_t USB_OUTPUT_CHUNK_COUNT = 8;
+
+  USBUartChannel(uint8_t index, uint16_t buffer_size) : index_(index), input_buffer_(RingBuffer(buffer_size)) {}
   void write_array(const uint8_t *data, size_t len) override;
-  ;
   bool peek_byte(uint8_t *data) override;
-  ;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override { return this->input_buffer_.get_available(); }
-  void flush() override {}
+  void flush() override;
   void check_logger_conflict() override {}
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
 
+  /// Register a callback invoked immediately after data is pushed to the input ring buffer.
+  /// Called from USBUartComponent::loop() in the main loop context.
+  /// Allows consumers (e.g. ZigbeeProxy) to process bytes in the same loop iteration
+  /// they arrive, eliminating one full main-loop-wakeup cycle of latency.
+  void set_rx_callback(std::function<void()> cb) { this->rx_callback_ = std::move(cb); }
+
  protected:
   // Larger structures first for better alignment
   RingBuffer input_buffer_;
-  RingBuffer output_buffer_;
+  LockFreeQueue<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_queue_;
+  EventPool<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_pool_;
+  std::function<void()> rx_callback_{};
   CdcEps cdc_dev_{};
   // Enum (likely 4 bytes)
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
@@ -150,8 +170,12 @@ class USBUartTypeCdcAcm : public USBUartComponent {
  protected:
   virtual std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl);
   void on_connected() override;
-  virtual void enable_channels();
   void on_disconnected() override;
+  virtual void enable_channels();
+  /// Resets per-channel transfer flags and posts the first bulk IN transfer.
+  /// Called by enable_channels() and by vendor-specific subclass overrides that
+  /// handle their own line-coding setup before starting data flow.
+  void start_channels();
 };
 
 class USBUartTypeCP210X : public USBUartTypeCdcAcm {
@@ -170,7 +194,6 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
   void enable_channels() override;
 };
 
-}  // namespace usb_uart
-}  // namespace esphome
+}  // namespace esphome::usb_uart
 
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

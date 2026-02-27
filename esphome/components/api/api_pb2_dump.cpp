@@ -321,6 +321,8 @@ template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::Climate
       return "CLIMATE_ACTION_DRYING";
     case enums::CLIMATE_ACTION_FAN:
       return "CLIMATE_ACTION_FAN";
+    case enums::CLIMATE_ACTION_DEFROSTING:
+      return "CLIMATE_ACTION_DEFROSTING";
     default:
       return "UNKNOWN";
   }
@@ -385,6 +387,10 @@ const char *proto_enum_to_string<enums::WaterHeaterCommandHasField>(enums::Water
       return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW";
     case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH:
       return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH";
+    case enums::WATER_HEATER_COMMAND_HAS_ON_STATE:
+      return "WATER_HEATER_COMMAND_HAS_ON_STATE";
+    case enums::WATER_HEATER_COMMAND_HAS_AWAY_STATE:
+      return "WATER_HEATER_COMMAND_HAS_AWAY_STATE";
     default:
       return "UNKNOWN";
   }

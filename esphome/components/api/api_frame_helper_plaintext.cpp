@@ -21,7 +21,12 @@ static const char *const TAG = "api.plaintext";
 static constexpr size_t API_MAX_LOG_BYTES = 168;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-#define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, this->client_peername_, ##__VA_ARGS__)
+#define HELPER_LOG(msg, ...) \
+  do { \
+    char peername_buf[socket::SOCKADDR_STR_LEN]; \
+    this->get_peername_to(peername_buf); \
+    ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, peername_buf, ##__VA_ARGS__); \
+  } while (0)
 #else
 #define HELPER_LOG(msg, ...) ((void) 0)
 #endif
@@ -290,9 +295,8 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
     buf_start[header_offset] = 0x00;  // indicator
 
     // Encode varints directly into buffer
-    ProtoVarInt(msg.payload_size).encode_to_buffer_unchecked(buf_start + header_offset + 1, size_varint_len);
-    ProtoVarInt(msg.message_type)
-        .encode_to_buffer_unchecked(buf_start + header_offset + 1 + size_varint_len, type_varint_len);
+    encode_varint_to_buffer(msg.payload_size, buf_start + header_offset + 1);
+    encode_varint_to_buffer(msg.message_type, buf_start + header_offset + 1 + size_varint_len);
 
     // Add iovec for this message (header + payload)
     size_t msg_len = static_cast<size_t>(total_header_len + msg.payload_size);

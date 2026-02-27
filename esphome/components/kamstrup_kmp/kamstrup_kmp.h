@@ -1,5 +1,6 @@
 #pragma once
 
+#include <queue>
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
