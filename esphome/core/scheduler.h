@@ -120,10 +120,10 @@ class Scheduler {
   /// Get 64-bit millisecond timestamp (handles 32-bit millis() rollover)
   uint64_t millis_64() { return esphome::millis_64(); }
 
-  // Calculate when the next scheduled item should run
-  // @param now On ESP32, unused (native 64-bit); on other platforms, extended to 64-bit via rollover tracking
-  // Returns the time in milliseconds until the next scheduled item, or nullopt if no items
-  // This method performs cleanup of removed items before checking the schedule
+  // Calculate when the next scheduled item should run.
+  // @param now On ESP32, unused for 64-bit extension (native); on other platforms, extended to 64-bit via rollover.
+  // Returns the time in milliseconds until the next scheduled item, or nullopt if no items.
+  // This method performs cleanup of removed items before checking the schedule.
   // IMPORTANT: This method should only be called from the main thread (loop task).
   optional<uint32_t> next_schedule_in(uint32_t now);
 
