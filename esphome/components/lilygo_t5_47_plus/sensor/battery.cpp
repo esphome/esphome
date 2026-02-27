@@ -40,8 +40,7 @@ void LilygoT547PlusBattery::setup() {
 
 void LilygoT547PlusBattery::dump_config() {
   ESP_LOGCONFIG(TAG, "LilyGo T5 4.7\" Plus Battery Sensor:");
-  ESP_LOGCONFIG(TAG, "  ADC pin: GPIO%d", BATT_PIN);
-  ESP_LOGCONFIG(TAG, "  Voltage range: %.2f V (0%%) – %.2f V (100%%)", this->min_voltage_, this->max_voltage_);
+  ESP_LOGCONFIG(TAG, "  ADC pin: GPIO%d", BATT_PIN);  ESP_LOGCONFIG(TAG, "  Voltage divider factor: %.3f", this->voltage_divider_);  ESP_LOGCONFIG(TAG, "  Voltage range: %.2f V (0%%) – %.2f V (100%%)", this->min_voltage_, this->max_voltage_);
   LOG_SENSOR("  ", "Battery voltage", this->battery_voltage_sensor_);
   LOG_SENSOR("  ", "Battery level", this->battery_level_sensor_);
   LOG_UPDATE_INTERVAL(this);
@@ -74,8 +73,11 @@ float LilygoT547PlusBattery::read_battery_voltage_() {
   // analogReadMilliVolts() uses eFuse calibration automatically (if available)
   uint32_t mv = analogReadMilliVolts(BATT_PIN);
 
-  // 1:1 voltage divider (factor 2), then convert to volts
-  float voltage = (static_cast<float>(mv) * 2.0f) / 1000.0f;
+  // Apply hardware voltage-divider factor, then convert mV → V.
+  // Default 2.0 = 1:1 resistor divider. Adjust via voltage_divider config
+  // option if the sensor reads low (e.g. due to a protection diode or
+  // non-standard resistor values).
+  float voltage = (static_cast<float>(mv) * this->voltage_divider_) / 1000.0f;
 
   // Clamp to configurable maximum (fully charged)
   voltage = std::min(voltage, this->max_voltage_);

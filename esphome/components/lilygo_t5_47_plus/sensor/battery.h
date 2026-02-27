@@ -18,8 +18,16 @@ namespace lilygo_t5_47_plus {
  *   - ESP32-S3: GPIO14 (ADC2, channel 3)
  *   - ESP32 (original): GPIO36 (ADC1, channel 0)
  *
- * The hardware uses a 1:1 voltage divider (factor 2), i.e.:
- *   battery voltage = ADC reading × 2
+ * The hardware uses a voltage divider before BATT_PIN to scale the battery
+ * voltage into the ADC input range:
+ *   battery voltage = ADC reading × voltage_divider
+ *
+ * The default divider factor is 2.0 (1:1 resistor-divider, R1 = R2).
+ * If your board has a protection diode or different resistors, calibrate by
+ * measuring the actual battery voltage with a multimeter and computing:
+ *   voltage_divider: <actual_V> / (<adc_mV> / 1000)
+ * Example: 4.19 V measured, sensor reports 3.48 V with default factor 2.0:
+ *   ADC reads 1740 mV  →  correct divider = 4.19 / 1.74 ≈ 2.41
  *
  * IMPORTANT: POWER_EN must be active before each ADC measurement because
  * the voltage divider circuit shares the same supply path as the e-paper
@@ -35,6 +43,11 @@ class LilygoT547PlusBattery : public PollingComponent {
   void set_min_voltage(float min_voltage) { this->min_voltage_ = min_voltage; }
   /** Maximum voltage (V) mapped to 100% — fully charged. Default: 4.20 V. */
   void set_max_voltage(float max_voltage) { this->max_voltage_ = max_voltage; }
+  /**
+   * Hardware voltage-divider factor: battery_voltage = adc_mv / 1000 × factor.
+   * Default 2.0 (1:1 resistor divider). Increase if the sensor reads low.
+   */
+  void set_voltage_divider(float divider) { this->voltage_divider_ = divider; }
 
   void setup() override;
   void update() override;
@@ -57,6 +70,7 @@ class LilygoT547PlusBattery : public PollingComponent {
 
   float min_voltage_{3.00f};  // discharge cutoff → 0 %
   float max_voltage_{4.20f};  // fully charged  → 100 %
+  float voltage_divider_{2.0f};  // hardware voltage-divider factor (default: 1:1 = ×2)
 };
 
 }  // namespace lilygo_t5_47_plus
