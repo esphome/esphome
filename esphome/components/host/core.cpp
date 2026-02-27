@@ -20,7 +20,11 @@ uint32_t IRAM_ATTR HOT millis() {
   uint32_t ms = round(spec.tv_nsec / 1e6);
   return ((uint32_t) seconds) * 1000U + ms;
 }
-uint64_t millis_64() { return App.scheduler.millis_64_impl_(millis()); }
+uint64_t millis_64() {
+  struct timespec spec;
+  clock_gettime(CLOCK_MONOTONIC, &spec);
+  return static_cast<uint64_t>(spec.tv_sec) * 1000ULL + static_cast<uint64_t>(spec.tv_nsec) / 1000000ULL;
+}
 void HOT delay(uint32_t ms) {
   struct timespec ts;
   ts.tv_sec = ms / 1000;
