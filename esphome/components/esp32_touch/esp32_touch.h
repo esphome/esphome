@@ -24,11 +24,9 @@ namespace esphome::esp32_touch {
 // - ESP32-S2/S3 v2, ESP32-P4 v3: on_active/on_inactive fire from hardware ISR context.
 //   Release detection via on_inactive is used, with timeout as safety fallback.
 
-static const uint32_t SETUP_MODE_LOG_INTERVAL_MS = 250;
-
 class ESP32TouchBinarySensor;
 
-class ESP32TouchComponent : public Component {
+class ESP32TouchComponent final : public Component {
  public:
   void register_touch_pad(ESP32TouchBinarySensor *pad) { this->children_.push_back(pad); }
 
@@ -126,8 +124,6 @@ class ESP32TouchComponent : public Component {
   bool setup_mode_{false};
   uint32_t setup_mode_last_log_print_{0};
   uint32_t last_release_check_{0};
-  uint32_t release_timeout_ms_{1500};
-  uint32_t release_check_interval_ms_{50};
 
   // Controller handle (new API)
   touch_sensor_handle_t sens_handle_{nullptr};
@@ -146,9 +142,6 @@ class ESP32TouchComponent : public Component {
   touch_volt_lim_l_t low_voltage_reference_{TOUCH_VOLT_LIM_L_0V5};
   touch_volt_lim_h_t high_voltage_reference_{TOUCH_VOLT_LIM_H_2V7};
 #endif
-
-  // Common constants
-  static constexpr uint32_t MINIMUM_RELEASE_TIME_MS = 100;
 
 #ifdef USE_ESP32_VARIANT_ESP32
   // ESP32 v1 specific
