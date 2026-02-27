@@ -53,7 +53,9 @@ PN532_SCHEMA = cv.Schema(
             }
         ),
         cv.Optional(CONF_HEALTH_CHECK_ENABLED, default=True): cv.boolean,
-        cv.Optional(CONF_HEALTH_CHECK_INTERVAL, default="60s"): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_HEALTH_CHECK_INTERVAL, default="60s"
+        ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_MAX_FAILED_CHECKS, default=3): cv.positive_int,
         cv.Optional(CONF_AUTO_RESET_ON_FAILURE, default=True): cv.boolean,
         cv.Optional(CONF_RF_FIELD_ENABLED, default=False): cv.boolean,

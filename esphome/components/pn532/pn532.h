@@ -19,15 +19,12 @@ namespace pn532 {
  * Robustly identify the UID type used by the NFC component.
  * Newer versions use StaticVector, older ones use std::vector.
  */
-template<typename T>
-struct nfc_uid_type_extractor {
-  using type = std::vector<uint8_t>;
-};
+template<typename T> struct nfc_uid_type_extractor { using type = std::vector<uint8_t>; };
 
-template<>
-struct nfc_uid_type_extractor<nfc::NfcTag> {
+template<> struct nfc_uid_type_extractor<nfc::NfcTag> {
   // Try to extract type from NfcTag::get_uid() return type
-  using type = typename std::remove_cv<typename std::remove_reference<decltype(std::declval<nfc::NfcTag>().get_uid())>::type>::type;
+  using type = typename std::remove_cv<
+      typename std::remove_reference<decltype(std::declval<nfc::NfcTag>().get_uid())>::type>::type;
 };
 
 using NfcTagUid = typename nfc_uid_type_extractor<nfc::NfcTag>::type;
@@ -97,7 +94,7 @@ class PN532 : public PollingComponent {
   void set_user_update_interval(uint32_t ms) { this->user_update_interval_ = ms; }
   uint32_t user_update_interval_{1000};
   uint32_t backoff_ms_{0};
-  
+
  protected:
   void turn_off_rf_();
   bool write_command_(const std::vector<uint8_t> &data);
@@ -113,7 +110,7 @@ class PN532 : public PollingComponent {
   bool health_check_enabled_{true};
   uint32_t health_check_interval_{60000};
   uint32_t last_health_check_{0};
-  
+
   enum PN532ReadReady read_ready_(bool block);
   virtual bool is_read_ready() = 0;
   virtual bool write_data(const std::vector<uint8_t> &data) = 0;
@@ -152,7 +149,7 @@ class PN532 : public PollingComponent {
   std::vector<uint8_t> current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
   uint32_t rd_start_time_{0};
-  enum PN532ReadReady rd_ready_{WOULDBLOCK};
+  enum PN532ReadReady rd_ready_ { WOULDBLOCK };
   enum NfcTask {
     READ = 0,
     CLEAN,

@@ -158,7 +158,7 @@ void PN532::update() {
         return;
       }
       ESP_LOGV(TAG, "Health check passed");
-      this->consecutive_failures_ = 0; // Reset consecutive failures on success
+      this->consecutive_failures_ = 0;  // Reset consecutive failures on success
     }
   }
 
@@ -171,9 +171,8 @@ void PN532::update() {
     ESP_LOGW(TAG, "Requesting tag read failed!");
     this->status_set_warning();
     // Exponential backoff: 2s → 4s → 8s → ... → 60s max
-    uint32_t new_backoff = (this->backoff_ms_ == 0)
-        ? this->user_update_interval_ * 2
-        : std::min(this->backoff_ms_ * 2, (uint32_t) 60000);
+    uint32_t new_backoff =
+        (this->backoff_ms_ == 0) ? this->user_update_interval_ * 2 : std::min(this->backoff_ms_ * 2, (uint32_t) 60000);
     if (new_backoff != this->backoff_ms_) {
       this->backoff_ms_ = new_backoff;
       this->set_update_interval(this->backoff_ms_);
@@ -195,10 +194,6 @@ void PN532::update() {
   this->consecutive_failures_ = 0;
   this->requested_read_ = true;
 }
-
-
-
-
 
 void PN532::loop() {
   if (!this->requested_read_)
@@ -558,7 +553,6 @@ bool PN532::reinit_() {
   ESP_LOGI(TAG, "PN532 re-initialised successfully!");
   return true;
 }
-
 
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");
