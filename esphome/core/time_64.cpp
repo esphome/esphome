@@ -5,16 +5,20 @@
 #include "time_64.h"
 
 #include "esphome/core/helpers.h"
+#ifdef ESPHOME_DEBUG_SCHEDULER
 #include "esphome/core/log.h"
+#include <cinttypes>
+#endif
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
 #include <atomic>
 #endif
-#include <cinttypes>
 #include <limits>
 
 namespace esphome {
 
+#ifdef ESPHOME_DEBUG_SCHEDULER
 static const char *const TAG = "time_64";
+#endif
 
 uint64_t Millis64Impl::compute(uint32_t now) {
   // Half the 32-bit range - used to detect rollovers vs normal time progression
