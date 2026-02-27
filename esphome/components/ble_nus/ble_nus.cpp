@@ -87,20 +87,29 @@ void BLENUS::setup() {
   global_ble_nus = this;
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr && this->expose_log_) {
-    logger::global_logger->add_on_log_callback(
-        [this](int level, const char *tag, const char *message, size_t message_len) {
-          this->write_array(reinterpret_cast<const uint8_t *>(message), message_len);
-          const char c = '\n';
-          this->write_array(reinterpret_cast<const uint8_t *>(&c), 1);
+    logger::global_logger->add_log_callback(
+        this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
+          static_cast<BLENUS *>(self)->on_log(level, tag, message, message_len);
         });
   }
-
 #endif
 }
 
+#ifdef USE_LOGGER
+void BLENUS::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  (void) level;
+  (void) tag;
+  this->write_array(reinterpret_cast<const uint8_t *>(message), message_len);
+  const char c = '\n';
+  this->write_array(reinterpret_cast<const uint8_t *>(&c), 1);
+}
+#endif
+
 void BLENUS::dump_config() {
-  ESP_LOGCONFIG(TAG, "ble nus:");
-  ESP_LOGCONFIG(TAG, "  log: %s", YESNO(this->expose_log_));
+  ESP_LOGCONFIG(TAG,
+                "ble nus:\n"
+                "  log: %s",
+                YESNO(this->expose_log_));
   uint32_t mtu = 0;
   bt_conn *conn = this->conn_.load();
   if (conn) {

@@ -5,6 +5,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#ifdef USE_API_USER_DEFINED_ACTIONS
+#include "user_services.h"
+#endif
 
 namespace esphome::api {
 
@@ -69,6 +72,12 @@ LIST_ENTITIES_HANDLER(media_player, media_player::MediaPlayer, ListEntitiesMedia
 #ifdef USE_ALARM_CONTROL_PANEL
 LIST_ENTITIES_HANDLER(alarm_control_panel, alarm_control_panel::AlarmControlPanel,
                       ListEntitiesAlarmControlPanelResponse)
+#endif
+#ifdef USE_WATER_HEATER
+LIST_ENTITIES_HANDLER(water_heater, water_heater::WaterHeater, ListEntitiesWaterHeaterResponse)
+#endif
+#ifdef USE_INFRARED
+LIST_ENTITIES_HANDLER(infrared, infrared::Infrared, ListEntitiesInfraredResponse)
 #endif
 #ifdef USE_EVENT
 LIST_ENTITIES_HANDLER(event, event::Event, ListEntitiesEventResponse)

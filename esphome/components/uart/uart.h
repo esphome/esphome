@@ -6,8 +6,7 @@
 #include "esphome/core/log.h"
 #include "uart_component.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 class UARTDevice {
  public:
@@ -44,7 +43,7 @@ class UARTDevice {
     return res;
   }
 
-  int available() { return this->parent_->available(); }
+  size_t available() { return this->parent_->available(); }
 
   void flush() { this->parent_->flush(); }
 
@@ -74,5 +73,4 @@ class UARTDevice {
   UARTComponent *parent_{nullptr};
 };
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart

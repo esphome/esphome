@@ -1,5 +1,6 @@
 import importlib
 import logging
+from pathlib import Path
 import pkgutil
 
 from esphome.automation import build_automation, validate_automation
@@ -26,6 +27,7 @@ from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
+from esphome.yaml_util import load_yaml
 
 from . import defines as df, helpers, lv_validation as lvalid, widgets
 from .automation import disp_update, focused_widgets, refreshed_widgets
@@ -37,7 +39,6 @@ from .encoders import (
     initial_focus_to_code,
 )
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
-from .hello_world import get_hello_world
 from .keypads import KEYPADS_CONFIG, keypads_to_code
 from .lv_validation import lv_bool, lv_images_used
 from .lvcode import LvContext, LvglComponent, lvgl_static
@@ -84,6 +85,7 @@ DEPENDENCIES = ["display"]
 AUTO_LOAD = ["key_provider"]
 CODEOWNERS = ["@clydebarrow"]
 LOGGER = logging.getLogger(__name__)
+HELLO_WORLD_FILE = "hello_world.yaml"
 
 
 SIMPLE_TRIGGERS = (
@@ -108,7 +110,7 @@ LV_CONF_H_FORMAT = """\
 
 
 def generate_lv_conf_h():
-    definitions = [as_macro(m, v) for m, v in df.lv_defines.items()]
+    definitions = [as_macro(m, v) for m, v in df.get_data(df.KEY_LV_DEFINES).items()]
     definitions.sort()
     return LV_CONF_H_FORMAT.format("\n".join(definitions))
 
@@ -140,11 +142,11 @@ def multi_conf_validate(configs: list[dict]):
                 )
 
 
-def final_validation(configs):
-    if len(configs) != 1:
-        multi_conf_validate(configs)
+def final_validation(config_list):
+    if len(config_list) != 1:
+        multi_conf_validate(config_list)
     global_config = full_config.get()
-    for config in configs:
+    for config in config_list:
         if (pages := config.get(CONF_PAGES)) and all(p[df.CONF_SKIP] for p in pages):
             raise cv.Invalid("At least one page must not be skipped")
         for display_id in config[df.CONF_DISPLAYS]:
@@ -190,6 +192,14 @@ def final_validation(configs):
                 raise cv.Invalid(
                     f"Widget '{w}' does not have any dynamic properties to refresh",
                 )
+        # Do per-widget type final validation for update actions
+        for widget_type, update_configs in df.get_data(df.KEY_UPDATED_WIDGETS).items():
+            for conf in update_configs:
+                for id_conf in conf.get(CONF_ID, ()):
+                    name = id_conf[CONF_ID]
+                    path = global_config.get_path_for_id(name)
+                    widget_conf = global_config.get_config_for_path(path[:-1])
+                    widget_type.final_validate(name, conf, widget_conf, path[1:])
 
 
 async def to_code(configs):
@@ -246,9 +256,11 @@ async def to_code(configs):
             True,
             type=lv_font_t.operator("ptr").operator("const"),
         )
+        # static=False because LV_FONT_CUSTOM_DECLARE creates an extern declaration
         cg.new_variable(
             globfont_id,
             MockObj(await lvalid.lv_font.process(default_font), "->").get_lv_font(),
+            static=False,
         )
         add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)
     else:
@@ -276,6 +288,7 @@ async def to_code(configs):
             config[df.CONF_FULL_REFRESH],
             config[CONF_DRAW_ROUNDING],
             config[df.CONF_RESUME_ON_INPUT],
+            config[df.CONF_UPDATE_WHEN_DISPLAY_IDLE],
         )
         await cg.register_component(lv_component, config)
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
@@ -345,7 +358,8 @@ def display_schema(config):
 def add_hello_world(config):
     if df.CONF_WIDGETS not in config and CONF_PAGES not in config:
         LOGGER.info("No pages or widgets configured, creating default hello_world page")
-        config[df.CONF_WIDGETS] = any_widget_schema()(get_hello_world())
+        hello_world_path = Path(__file__).parent / HELLO_WORLD_FILE
+        config[df.CONF_WIDGETS] = any_widget_schema()(load_yaml(hello_world_path))
     return config
 
 
@@ -373,6 +387,9 @@ LVGL_SCHEMA = cv.All(
                     df.CONF_DEFAULT_FONT, default="montserrat_14"
                 ): lvalid.lv_font,
                 cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
+                cv.Optional(
+                    df.CONF_UPDATE_WHEN_DISPLAY_IDLE, default=False
+                ): cv.boolean,
                 cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
                 cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
                 cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(

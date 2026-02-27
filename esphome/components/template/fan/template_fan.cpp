@@ -1,21 +1,20 @@
 #include "template_fan.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 static const char *const TAG = "template.fan";
 
 void TemplateFan::setup() {
+  // Construct traits before restore so preset modes can be looked up by index
+  this->traits_ =
+      fan::FanTraits(this->has_oscillating_, this->speed_count_ > 0, this->has_direction_, this->speed_count_);
+  this->traits_.set_supported_preset_modes(this->preset_modes_);
+
   auto restore = this->restore_state_();
   if (restore.has_value()) {
     restore->apply(*this);
   }
-
-  // Construct traits
-  this->traits_ =
-      fan::FanTraits(this->has_oscillating_, this->speed_count_ > 0, this->has_direction_, this->speed_count_);
-  this->traits_.set_supported_preset_modes(this->preset_modes_);
 }
 
 void TemplateFan::dump_config() { LOG_FAN("", "Template Fan", this); }
@@ -29,10 +28,9 @@ void TemplateFan::control(const fan::FanCall &call) {
     this->oscillating = *call.get_oscillating();
   if (call.get_direction().has_value() && this->has_direction_)
     this->direction = *call.get_direction();
-  this->set_preset_mode_(call.get_preset_mode());
+  this->apply_preset_mode_(call);
 
   this->publish_state();
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

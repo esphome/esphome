@@ -21,7 +21,7 @@ static const float SENSOR_SCALE = 0.01f;  // Sensor resolution in degrees Celsiu
 void STTS22HComponent::setup() {
   // Check if device is a STTS22H
   if (!this->is_stts22h_sensor_()) {
-    this->mark_failed("Device is not a STTS22H sensor");
+    this->mark_failed(LOG_STR("Device is not a STTS22H sensor"));
     return;
   }
 
@@ -61,12 +61,12 @@ float STTS22HComponent::read_temperature_() {
 bool STTS22HComponent::is_stts22h_sensor_() {
   uint8_t whoami_value;
   if (this->read_register(WHOAMI_REG, &whoami_value, 1) != i2c::NO_ERROR) {
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
 
   if (whoami_value != WHOAMI_STTS22H_IDENTIFICATION) {
-    this->mark_failed("Unexpected WHOAMI identifier. Sensor is not a STTS22H");
+    this->mark_failed(LOG_STR("Unexpected WHOAMI identifier. Sensor is not a STTS22H"));
     return false;
   }
 
@@ -77,7 +77,7 @@ void STTS22HComponent::initialize_sensor_() {
   // Read current CTRL_REG configuration
   uint8_t ctrl_value;
   if (this->read_register(CTRL_REG, &ctrl_value, 1) != i2c::NO_ERROR) {
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -86,14 +86,14 @@ void STTS22HComponent::initialize_sensor_() {
   // FREERUN bit must be cleared (see sensor documentation)
   ctrl_value &= ~FREERUN_CTRL_ENABLE_FLAG;  // Clear FREERUN bit
   if (this->write_register(CTRL_REG, &ctrl_value, 1) != i2c::NO_ERROR) {
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   // Enable LOW ODR mode and ADD_INC
   ctrl_value |= LOW_ODR_CTRL_ENABLE_FLAG | ADD_INC_ENABLE_FLAG;  // Set LOW ODR bit and ADD_INC bit
   if (this->write_register(CTRL_REG, &ctrl_value, 1) != i2c::NO_ERROR) {
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }

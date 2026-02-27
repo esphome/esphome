@@ -16,7 +16,7 @@ with warnings.catch_warnings():
 
 import contextlib
 
-from esphome.const import CONF_KEY, CONF_PASSWORD, CONF_PORT, __version__
+from esphome.const import CONF_KEY, CONF_PORT, __version__
 from esphome.core import CORE
 
 from . import CONF_ENCRYPTION
@@ -35,7 +35,6 @@ async def async_run_logs(config: dict[str, Any], addresses: list[str]) -> None:
     conf = config["api"]
     name = config["esphome"]["name"]
     port: int = int(conf[CONF_PORT])
-    password: str = conf[CONF_PASSWORD]
     noise_psk: str | None = None
     if (encryption := conf.get(CONF_ENCRYPTION)) and (key := encryption.get(CONF_KEY)):
         noise_psk = key
@@ -50,7 +49,7 @@ async def async_run_logs(config: dict[str, Any], addresses: list[str]) -> None:
     cli = APIClient(
         addresses[0],  # Primary address for compatibility
         port,
-        password,
+        "",  # Password auth removed in 2026.1.0
         client_info=f"ESPHome Logs {__version__}",
         noise_psk=noise_psk,
         addresses=addresses,  # Pass all addresses for automatic retry

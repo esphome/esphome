@@ -3,8 +3,7 @@
 #include <cstdint>
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace climate {
+namespace esphome::climate {
 
 /// Enum for all modes a climate device can be in.
 /// NOTE: If adding values, update ClimateModeMask in climate_traits.h to use the new last value
@@ -42,6 +41,8 @@ enum ClimateAction : uint8_t {
   CLIMATE_ACTION_DRYING = 5,
   /// The climate device is in fan only mode
   CLIMATE_ACTION_FAN = 6,
+  /// The climate device is defrosting
+  CLIMATE_ACTION_DEFROSTING = 7,
 };
 
 /// NOTE: If adding values, update ClimateFanModeMask in climate_traits.h to use the new last value
@@ -132,5 +133,4 @@ const LogString *climate_swing_mode_to_string(ClimateSwingMode mode);
 /// Convert the given PresetMode to a human-readable string.
 const LogString *climate_preset_to_string(ClimatePreset preset);
 
-}  // namespace climate
-}  // namespace esphome
+}  // namespace esphome::climate

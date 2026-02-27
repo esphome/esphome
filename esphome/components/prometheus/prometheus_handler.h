@@ -41,12 +41,14 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void add_label_name(EntityBase *obj, const std::string &value) { relabel_map_name_.insert({obj, value}); }
 
   bool canHandle(AsyncWebServerRequest *request) const override {
-    if (request->method() == HTTP_GET) {
-      if (request->url() == "/metrics")
-        return true;
-    }
-
-    return false;
+    if (request->method() != HTTP_GET)
+      return false;
+#ifdef USE_ESP32
+    char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+    return request->url_to(url_buf) == "/metrics";
+#else
+    return request->url() == ESPHOME_F("/metrics");
+#endif
   }
 
   void handleRequest(AsyncWebServerRequest *req) override;
@@ -66,6 +68,14 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void add_area_label_(AsyncResponseStream *stream, std::string &area);
   void add_node_label_(AsyncResponseStream *stream, std::string &node);
   void add_friendly_name_label_(AsyncResponseStream *stream, std::string &friendly_name);
+  /// Print metric name and common labels (id, area, node, friendly_name, name)
+#ifdef USE_ESP8266
+  void print_metric_labels_(AsyncResponseStream *stream, const __FlashStringHelper *metric_name, EntityBase *obj,
+                            std::string &area, std::string &node, std::string &friendly_name);
+#else
+  void print_metric_labels_(AsyncResponseStream *stream, const char *metric_name, EntityBase *obj, std::string &area,
+                            std::string &node, std::string &friendly_name);
+#endif
 
 #ifdef USE_SENSOR
   /// Return the type for prometheus
@@ -199,7 +209,7 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void climate_setting_row_(AsyncResponseStream *stream, climate::Climate *obj, std::string &area, std::string &node,
                             std::string &friendly_name, std::string &setting, const LogString *setting_value);
   void climate_value_row_(AsyncResponseStream *stream, climate::Climate *obj, std::string &area, std::string &node,
-                          std::string &friendly_name, std::string &category, std::string &climate_value);
+                          std::string &friendly_name, std::string &category, const char *climate_value);
 #endif
 
   web_server_base::WebServerBase *base_;

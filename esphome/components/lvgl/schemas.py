@@ -1,6 +1,9 @@
+from collections.abc import Callable
+
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
 from esphome.components.time import RealTimeClock
+from esphome.config_validation import prepend_path
 from esphome.const import (
     CONF_ARGS,
     CONF_FORMAT,
@@ -19,7 +22,14 @@ from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
 
 from . import defines as df, lv_validation as lvalid
-from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
+from .defines import (
+    CONF_SCROLL_DIR,
+    CONF_SCROLL_SNAP_X,
+    CONF_SCROLL_SNAP_Y,
+    CONF_SCROLLBAR_MODE,
+    CONF_TIME_FORMAT,
+    LV_GRAD_DIR,
+)
 from .helpers import CONF_IF_NAN, requires_component, validate_printf
 from .layout import (
     FLEX_OBJ_SCHEMA,
@@ -233,8 +243,18 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
         cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
             "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
         ).one_of,
+        cv.Optional(CONF_SCROLL_DIR): df.SCROLL_DIRECTIONS.one_of,
+        cv.Optional(CONF_SCROLL_SNAP_X): df.SNAP_DIRECTIONS.one_of,
+        cv.Optional(CONF_SCROLL_SNAP_Y): df.SNAP_DIRECTIONS.one_of,
     }
 )
+
+OBJ_PROPERTIES = {
+    CONF_SCROLL_SNAP_X,
+    CONF_SCROLL_SNAP_Y,
+    CONF_SCROLL_DIR,
+    CONF_SCROLLBAR_MODE,
+}
 
 # Also allow widget specific properties for use in style definitions
 FULL_STYLE_SCHEMA = STYLE_SCHEMA.extend(
@@ -293,19 +313,36 @@ def automation_schema(typ: LvType):
     }
 
 
-def base_update_schema(widget_type, parts):
+def _update_widget(widget_type: WidgetType) -> Callable[[dict], dict]:
     """
-    Create a schema for updating a widgets style properties, states and flags
+    During validation of update actions, create a map of action types to affected widgets
+    for use in final validation.
+    :param widget_type:
+    :return:
+    """
+
+    def validator(value: dict) -> dict:
+        df.get_data(df.KEY_UPDATED_WIDGETS).setdefault(widget_type, []).append(value)
+        return value
+
+    return validator
+
+
+def base_update_schema(widget_type: WidgetType | LvType, parts):
+    """
+    Create a schema for updating a widget's style properties, states and flags.
     :param widget_type: The type of the ID
     :param parts:  The allowable parts to specify
     :return:
     """
-    return part_schema(parts).extend(
+
+    w_type = widget_type.w_type if isinstance(widget_type, WidgetType) else widget_type
+    schema = part_schema(parts).extend(
         {
             cv.Required(CONF_ID): cv.ensure_list(
                 cv.maybe_simple_value(
                     {
-                        cv.Required(CONF_ID): cv.use_id(widget_type),
+                        cv.Required(CONF_ID): cv.use_id(w_type),
                     },
                     key=CONF_ID,
                 )
@@ -314,11 +351,9 @@ def base_update_schema(widget_type, parts):
         }
     )
 
-
-def create_modify_schema(widget_type):
-    return base_update_schema(widget_type.w_type, widget_type.parts).extend(
-        widget_type.modify_schema
-    )
+    if isinstance(widget_type, WidgetType):
+        schema.add_extra(_update_widget(widget_type))
+    return schema
 
 
 def obj_schema(widget_type: WidgetType):
@@ -401,6 +436,7 @@ def container_schema(widget_type: WidgetType, extras=None):
     schema = schema.extend(widget_type.schema)
 
     def validator(value):
+        value = value or {}
         return append_layout_schema(schema, value)(value)
 
     return validator
@@ -422,7 +458,10 @@ def any_widget_schema(extras=None):
     def validator(value):
         if isinstance(value, dict):
             # Convert to list
+            is_dict = True
             value = [{k: v} for k, v in value.items()]
+        else:
+            is_dict = False
         if not isinstance(value, list):
             raise cv.Invalid("Expected a list of widgets")
         result = []
@@ -443,7 +482,9 @@ def any_widget_schema(extras=None):
                 )
             # Apply custom validation
             value = widget_type.validate(value or {})
-            result.append({key: container_validator(value)})
+            path = [key] if is_dict else [index, key]
+            with prepend_path(path):
+                result.append({key: container_validator(value)})
         return result
 
     return validator

@@ -164,21 +164,21 @@ void BedJetClimate::control(const ClimateCall &call) {
       return;
     }
   } else if (call.has_custom_preset()) {
-    const char *preset = call.get_custom_preset();
+    auto preset = call.get_custom_preset();
     bool result;
 
-    if (strcmp(preset, "M1") == 0) {
+    if (preset == "M1") {
       result = this->parent_->button_memory1();
-    } else if (strcmp(preset, "M2") == 0) {
+    } else if (preset == "M2") {
       result = this->parent_->button_memory2();
-    } else if (strcmp(preset, "M3") == 0) {
+    } else if (preset == "M3") {
       result = this->parent_->button_memory3();
-    } else if (strcmp(preset, "LTD HT") == 0) {
+    } else if (preset == "LTD HT") {
       result = this->parent_->button_heat();
-    } else if (strcmp(preset, "EXT HT") == 0) {
+    } else if (preset == "EXT HT") {
       result = this->parent_->button_ext_heat();
     } else {
-      ESP_LOGW(TAG, "Unsupported preset: %s", preset);
+      ESP_LOGW(TAG, "Unsupported preset: %.*s", (int) preset.size(), preset.c_str());
       return;
     }
 
@@ -208,10 +208,11 @@ void BedJetClimate::control(const ClimateCall &call) {
       this->set_fan_mode_(fan_mode);
     }
   } else if (call.has_custom_fan_mode()) {
-    const char *fan_mode = call.get_custom_fan_mode();
-    auto fan_index = bedjet_fan_speed_to_step(fan_mode);
+    auto fan_mode = call.get_custom_fan_mode();
+    auto fan_index = bedjet_fan_speed_to_step(fan_mode.c_str());
     if (fan_index <= 19) {
-      ESP_LOGV(TAG, "[%s] Converted fan mode %s to bedjet fan step %d", this->get_name().c_str(), fan_mode, fan_index);
+      ESP_LOGV(TAG, "[%s] Converted fan mode %.*s to bedjet fan step %d", this->get_name().c_str(),
+               (int) fan_mode.size(), fan_mode.c_str(), fan_index);
       bool result = this->parent_->set_fan_index(fan_index);
       if (result) {
         this->set_custom_fan_mode_(fan_mode);

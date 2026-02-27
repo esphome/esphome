@@ -29,13 +29,17 @@ static const char *const TAG = "mdns";
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
+#ifndef USE_SENDSPIN_PORT
+#define USE_SENDSPIN_PORT 8928  // NOLINT
+#endif
+
 // Define all constant strings using the macro
 MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
 
 // Wrap build-time defines into flash storage
 MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
 
-void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
+void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf) {
   // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
   // in mdns/__init__.py. If you add a new service here, update both locations.
 
@@ -86,7 +90,9 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
       txt_records.push_back({MDNS_STR(TXT_FRIENDLY_NAME), MDNS_STR(friendly_name.c_str())});
     }
     txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)});
-    txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(this->add_dynamic_txt_value(get_mac_address()))});
+
+    // MAC address: passed from caller (either member buffer or stack buffer depending on USE_MDNS_STORE_SERVICES)
+    txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(mac_address_buf)});
 
 #ifdef USE_ESP8266
     MDNS_STATIC_CONST_CHAR(PLATFORM_ESP8266, "ESP8266");
@@ -148,6 +154,18 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   prom_service.port = USE_WEBSERVER_PORT;
 #endif
 
+#ifdef USE_SENDSPIN
+  MDNS_STATIC_CONST_CHAR(SERVICE_SENDSPIN, "_sendspin");
+  MDNS_STATIC_CONST_CHAR(TXT_SENDSPIN_PATH, "path");
+  MDNS_STATIC_CONST_CHAR(VALUE_SENDSPIN_PATH, "/sendspin");
+
+  auto &sendspin_service = services.emplace_next();
+  sendspin_service.service_type = MDNS_STR(SERVICE_SENDSPIN);
+  sendspin_service.proto = MDNS_STR(SERVICE_TCP);
+  sendspin_service.port = USE_SENDSPIN_PORT;
+  sendspin_service.txt_records = {{MDNS_STR(TXT_SENDSPIN_PATH), MDNS_STR(VALUE_SENDSPIN_PATH)}};
+#endif
+
 #ifdef USE_WEBSERVER
   MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
 
@@ -157,7 +175,8 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   web_service.port = USE_WEBSERVER_PORT;
 #endif
 
-#if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_WEBSERVER) && !defined(USE_MDNS_EXTRA_SERVICES)
+#if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_SENDSPIN) && !defined(USE_WEBSERVER) && \
+    !defined(USE_MDNS_EXTRA_SERVICES)
   MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
   MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
 

@@ -21,7 +21,6 @@ from ..defines import (
     CONF_MAIN,
     CONF_PAD_COLUMN,
     CONF_PAD_ROW,
-    CONF_SCROLLBAR_MODE,
     CONF_STYLES,
     CONF_WIDGETS,
     OBJ_FLAGS,
@@ -45,7 +44,7 @@ from ..lvcode import (
     lv_obj,
     lv_Pvariable,
 )
-from ..schemas import ALL_STYLES, STYLE_REMAP, WIDGET_TYPES
+from ..schemas import ALL_STYLES, OBJ_PROPERTIES, STYLE_REMAP, WIDGET_TYPES
 from ..types import LV_STATE, LvType, WidgetType, lv_coord_t, lv_obj_t, lv_obj_t_ptr
 
 EVENT_LAMB = "event_lamb__"
@@ -383,7 +382,7 @@ async def set_obj_properties(w: Widget, config):
         clrs = join_enums(flag_clr, "LV_OBJ_FLAG_")
         w.clear_flag(clrs)
     for key, value in lambs.items():
-        lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
+        lamb = await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
         flag = f"LV_OBJ_FLAG_{key.upper()}"
         with LvConditional(call_lambda(lamb)) as cond:
             w.add_flag(flag)
@@ -408,13 +407,14 @@ async def set_obj_properties(w: Widget, config):
             clears = join_enums(clears, "LV_STATE_")
             w.clear_state(clears)
         for key, value in lambs.items():
-            lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
+            lamb = await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
             state = f"LV_STATE_{key.upper()}"
             with LvConditional(call_lambda(lamb)) as cond:
                 w.add_state(state)
                 cond.else_()
                 w.clear_state(state)
-    await w.set_property(CONF_SCROLLBAR_MODE, config, lv_name="obj")
+    for property in OBJ_PROPERTIES:
+        await w.set_property(property, config, lv_name="obj")
 
 
 async def add_widgets(parent: Widget, config: dict):

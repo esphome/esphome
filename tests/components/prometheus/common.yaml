@@ -112,6 +112,25 @@ cover:
       }
       return COVER_CLOSED;
 
+light:
+  - platform: binary
+    name: "Binary Light"
+    output: test_output
+  - platform: monochromatic
+    name: "Brightness Light"
+    output: test_output
+  - platform: rgb
+    name: "RGB Light"
+    red: test_output
+    green: test_output
+    blue: test_output
+  - platform: rgbw
+    name: "RGBW Light"
+    red: test_output
+    green: test_output
+    blue: test_output
+    white: test_output
+
 lock:
   - platform: template
     id: template_lock1
@@ -122,6 +141,14 @@ lock:
       return LOCK_STATE_UNLOCKED;
     optimistic: true
 
+output:
+  - platform: template
+    id: test_output
+    type: float
+    write_action:
+      - lambda: |-
+          // no-op for CI/build tests
+          (void)state;
 select:
   - platform: template
     id: template_select1

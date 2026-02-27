@@ -48,7 +48,9 @@ class ESP32BLEBeacon : public Component, public GAPEventHandler, public Parented
   void set_min_interval(uint16_t val) { this->min_interval_ = val; }
   void set_max_interval(uint16_t val) { this->max_interval_ = val; }
   void set_measured_power(int8_t val) { this->measured_power_ = val; }
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   void set_tx_power(esp_power_level_t val) { this->tx_power_ = val; }
+#endif
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
  protected:
@@ -60,7 +62,9 @@ class ESP32BLEBeacon : public Component, public GAPEventHandler, public Parented
   uint16_t min_interval_{};
   uint16_t max_interval_{};
   int8_t measured_power_{};
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   esp_power_level_t tx_power_{};
+#endif
   esp_ble_adv_params_t ble_adv_params_;
   bool advertising_{false};
 };

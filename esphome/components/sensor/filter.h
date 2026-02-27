@@ -1,14 +1,15 @@
 #pragma once
 
-#include <queue>
+#include "esphome/core/defines.h"
+#ifdef USE_SENSOR_FILTER
+
 #include <utility>
 #include <vector>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 class Sensor;
 
@@ -380,18 +381,46 @@ class ThrottleWithPriorityFilter : public ValueListFilter {
   uint32_t min_time_between_inputs_;
 };
 
-class TimeoutFilter : public Filter, public Component {
+// Base class for timeout filters - contains common loop logic
+class TimeoutFilterBase : public Filter, public Component {
  public:
-  explicit TimeoutFilter(uint32_t time_period);
-  explicit TimeoutFilter(uint32_t time_period, const TemplatableValue<float> &new_value);
-
-  optional<float> new_value(float value) override;
-
+  void loop() override;
   float get_setup_priority() const override;
 
  protected:
-  uint32_t time_period_;
-  optional<TemplatableValue<float>> value_;
+  explicit TimeoutFilterBase(uint32_t time_period) : time_period_(time_period) { this->disable_loop(); }
+  virtual float get_output_value() = 0;
+
+  uint32_t time_period_;            // 4 bytes (timeout duration in ms)
+  uint32_t timeout_start_time_{0};  // 4 bytes (when the timeout was started)
+  // Total base: 8 bytes
+};
+
+// Timeout filter for "last" mode - outputs the last received value after timeout
+class TimeoutFilterLast : public TimeoutFilterBase {
+ public:
+  explicit TimeoutFilterLast(uint32_t time_period) : TimeoutFilterBase(time_period) {}
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  float get_output_value() override { return this->pending_value_; }
+  float pending_value_{0};  // 4 bytes (value to output when timeout fires)
+  // Total: 8 (base) + 4 = 12 bytes + vtable ptr + Component overhead
+};
+
+// Timeout filter with configured value - evaluates TemplatableValue after timeout
+class TimeoutFilterConfigured : public TimeoutFilterBase {
+ public:
+  explicit TimeoutFilterConfigured(uint32_t time_period, const TemplatableValue<float> &new_value)
+      : TimeoutFilterBase(time_period), value_(new_value) {}
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  float get_output_value() override { return this->value_.value(); }
+  TemplatableValue<float> value_;  // 16 bytes (configured output value, can be lambda)
+  // Total: 8 (base) + 16 = 24 bytes + vtable ptr + Component overhead
 };
 
 class DebounceFilter : public Filter, public Component {
@@ -425,15 +454,21 @@ class HeartbeatFilter : public Filter, public Component {
 
 class DeltaFilter : public Filter {
  public:
-  explicit DeltaFilter(float delta, bool percentage_mode);
+  explicit DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1);
+
+  void set_baseline(float (*fn)(float));
 
   optional<float> new_value(float value) override;
 
  protected:
-  float delta_;
-  float current_delta_;
+  // These values represent linear equations for the min and max values but in practice only one of a0 and a1 will be
+  // non-zero Each limit is calculated as fabs(a0 + value * a1)
+
+  float min_a0_, min_a1_, max_a0_, max_a1_;
+  // default baseline is the previous value
+  float (*baseline_)(float) = [](float last_value) { return last_value; };
+
   float last_value_{NAN};
-  bool percentage_mode_;
 };
 
 class OrFilter : public Filter {
@@ -604,5 +639,6 @@ class StreamingMovingAverageFilter : public StreamingFilter {
   size_t valid_count_{0};
 };
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor
+
+#endif  // USE_SENSOR_FILTER

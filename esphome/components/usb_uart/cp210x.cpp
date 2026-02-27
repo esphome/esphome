@@ -1,12 +1,11 @@
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "usb_uart.h"
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
-namespace esphome {
-namespace usb_uart {
+namespace esphome::usb_uart {
 
 using namespace bytebuffer;
 /**
@@ -58,8 +57,8 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
     ESP_LOGE(TAG, "get_active_config_descriptor failed");
     return {};
   }
-  ESP_LOGD(TAG, "bDeviceClass: %u, bDeviceSubClass: %u", device_desc->bDeviceClass, device_desc->bDeviceSubClass);
-  ESP_LOGD(TAG, "bNumInterfaces: %u", config_desc->bNumInterfaces);
+  ESP_LOGD(TAG, "bDeviceClass: %u, bDeviceSubClass: %u, bNumInterfaces: %u", device_desc->bDeviceClass,
+           device_desc->bDeviceSubClass, config_desc->bNumInterfaces);
   if (device_desc->bDeviceClass != 0) {
     ESP_LOGE(TAG, "bDeviceClass != 0");
     return {};
@@ -119,8 +118,8 @@ void USBUartTypeCP210X::enable_channels() {
     this->control_transfer(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_BAUDRATE, 0, channel->index_, callback,
                            baud.get_data());
   }
-  USBUartTypeCdcAcm::enable_channels();
+  this->start_channels();
 }
-}  // namespace usb_uart
-}  // namespace esphome
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+}  // namespace esphome::usb_uart
+
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

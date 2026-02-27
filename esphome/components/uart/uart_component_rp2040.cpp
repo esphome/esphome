@@ -11,8 +11,7 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart.arduino_rp2040";
 
@@ -116,8 +115,8 @@ void RP2040UartComponent::setup() {
 
   if (tx_hw == -1 || rx_hw == -1 || tx_hw != rx_hw) {
     ESP_LOGV(TAG, "Using SerialPIO");
-    pin_size_t tx = this->tx_pin_ == nullptr ? SerialPIO::NOPIN : this->tx_pin_->get_pin();
-    pin_size_t rx = this->rx_pin_ == nullptr ? SerialPIO::NOPIN : this->rx_pin_->get_pin();
+    pin_size_t tx = this->tx_pin_ == nullptr ? NOPIN : this->tx_pin_->get_pin();
+    pin_size_t rx = this->rx_pin_ == nullptr ? NOPIN : this->rx_pin_->get_pin();
     auto *serial = new SerialPIO(tx, rx, this->rx_buffer_size_);  // NOLINT(cppcoreguidelines-owning-memory)
     serial->begin(this->baud_rate_, config);
     if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
@@ -187,13 +186,11 @@ bool RP2040UartComponent::read_array(uint8_t *data, size_t len) {
 #endif
   return true;
 }
-int RP2040UartComponent::available() { return this->serial_->available(); }
+size_t RP2040UartComponent::available() { return this->serial_->available(); }
 void RP2040UartComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
   this->serial_->flush();
 }
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_RP2040

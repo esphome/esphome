@@ -51,15 +51,19 @@ class AssignmentExpression(Expression):
 
 
 class VariableDeclarationExpression(Expression):
-    __slots__ = ("type", "modifier", "name")
+    __slots__ = ("type", "modifier", "name", "static")
 
-    def __init__(self, type_, modifier, name):
+    def __init__(
+        self, type_: "MockObj", modifier: str, name: ID, *, static: bool = False
+    ) -> None:
         self.type = type_
         self.modifier = modifier
         self.name = name
+        self.static = static
 
-    def __str__(self):
-        return f"{self.type} {self.modifier}{self.name}"
+    def __str__(self) -> str:
+        prefix = "static " if self.static else ""
+        return f"{prefix}{self.type} {self.modifier}{self.name}"
 
 
 class ExpressionList(Expression):
@@ -420,7 +424,7 @@ class ProgmemAssignmentExpression(AssignmentExpression):
         super().__init__(type_, "", name, rhs)
 
     def __str__(self):
-        return f"static const {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
 
 
 class StaticConstAssignmentExpression(AssignmentExpression):
@@ -456,6 +460,16 @@ def statement(expression: Expression | Statement) -> Statement:
     if isinstance(expression, Statement):
         return expression
     return ExpressionStatement(expression)
+
+
+def literal(name: str) -> "MockObj":
+    """Create a literal name that will appear in the generated code
+    not surrounded by quotes.
+
+    :param name: The name of the literal.
+    :return: The literal as a MockObj.
+    """
+    return MockObj(name, "")
 
 
 def variable(
@@ -507,13 +521,17 @@ def with_local_variable(id_: ID, rhs: SafeExpType, callback: Callable, *args) ->
     CORE.add(RawStatement("}"))  # output closing curly brace
 
 
-def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
+def new_variable(
+    id_: ID, rhs: SafeExpType, type_: "MockObj" = None, *, static: bool = True
+) -> "MockObj":
     """Declare and define a new variable, not pointer type, in the code generation.
 
     :param id_: The ID used to declare the variable.
     :param rhs: The expression to place on the right hand side of the assignment.
     :param type_: Manually define a type for the variable, only use this when it's not possible
       to do so during config validation phase (for example because of template arguments).
+    :param static: If True (default), declare with static storage class for optimization.
+      Set to False when the variable must have external linkage (e.g., to match library declarations).
 
     :return: The new variable as a MockObj.
     """
@@ -522,7 +540,7 @@ def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj
     obj = MockObj(id_, ".")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, "", id_)
+    decl = VariableDeclarationExpression(id_.type, "", id_, static=static)
     CORE.add_global(decl)
     assignment = AssignmentExpression(None, "", id_, rhs)
     CORE.add(assignment)
@@ -544,7 +562,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     obj = MockObj(id_, "->")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, "*", id_)
+    decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
     CORE.add_global(decl)
     assignment = AssignmentExpression(None, None, id_, rhs)
     CORE.add(assignment)
@@ -635,7 +653,7 @@ async def get_variable(id_: ID) -> "MockObj":
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
 
-    This is a coroutine, you need to await it with a 'await' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
 
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
@@ -648,7 +666,7 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
 
-    This is a coroutine, you need to await it with a 'await' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
 
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
@@ -657,9 +675,9 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
 
 
 async def process_lambda(
-    value: Lambda,
+    value: Lambda | Expression,
     parameters: TemplateArgsType,
-    capture: str = "=",
+    capture: str = "",
     return_type: SafeExpType = None,
 ) -> LambdaExpression | None:
     """Process the given lambda value into a LambdaExpression.
@@ -681,6 +699,14 @@ async def process_lambda(
 
     if value is None:
         return None
+    # Inadvertently passing a malformed parameters value will lead to the build process mysteriously hanging at the
+    # "Generating C++ source..." stage, so check here to save the developer's hair.
+    assert isinstance(parameters, list) and all(
+        isinstance(p, tuple) and len(p) == 2 for p in parameters
+    )
+    if isinstance(value, Expression):
+        value = Lambda(value)
+
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
         full_id, var = await get_variable_with_full_id(id)
@@ -701,12 +727,6 @@ async def process_lambda(
         else:
             parts[i * 3 + 1] = var
         parts[i * 3 + 2] = ""
-
-    # All id() references are global variables in generated C++ code.
-    # Global variables should not be captured - they're accessible everywhere.
-    # Use empty capture instead of capture-by-value.
-    if capture == "=":
-        capture = ""
 
     if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
         location = value.esp_range.start_mark

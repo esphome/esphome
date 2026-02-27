@@ -2,6 +2,9 @@
 #ifdef USE_ZEPHYR
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
 #include <shell/shell_bt_nus.h>
 #include <atomic>
 
@@ -20,6 +23,9 @@ class BLENUS : public Component {
   void loop() override;
   size_t write_array(const uint8_t *data, size_t len);
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
+#ifdef USE_LOGGER
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len);
+#endif
 
  protected:
   static void send_enabled_callback(bt_nus_send_status status);

@@ -11,7 +11,7 @@ DEPENDENCIES = ["rp2040"]
 rp2040_pwm_ns = cg.esphome_ns.namespace("rp2040_pwm")
 RP2040PWM = rp2040_pwm_ns.class_("RP2040PWM", output.FloatOutput, cg.Component)
 SetFrequencyAction = rp2040_pwm_ns.class_("SetFrequencyAction", automation.Action)
-validate_frequency = cv.All(cv.frequency, cv.Range(min=1.0e-6))
+validate_frequency = cv.All(cv.frequency, cv.float_range(min=1.0e-6))
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {

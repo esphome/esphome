@@ -55,7 +55,7 @@ def CONFIG_SCHEMA(conf):
     if conf:
         raise cv.Invalid(
             "This component has been moved in 1.16, please see the docs for updated "
-            "instructions. https://esphome.io/components/binary_sensor/pn532.html"
+            "instructions. https://esphome.io/components/binary_sensor/pn532/"
         )
 
 
