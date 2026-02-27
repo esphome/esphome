@@ -21,7 +21,9 @@ static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max()
 
 uint64_t Millis64Impl::compute(uint32_t now) {
   // State variables for rollover tracking - static to persist across calls
+#ifndef ESPHOME_THREAD_SINGLE
   static Mutex lock;
+#endif
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   /*
    * Multi-threaded platforms with atomic support: last_millis needs atomic for lock-free updates.
