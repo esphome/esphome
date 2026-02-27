@@ -721,7 +721,12 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 #endif
 static_assert(std::is_default_constructible<Application>::value, "Application must be default-constructible");
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+#ifdef __APPLE__
+// Mach-O prefixes an underscore to all symbols
+alignas(Application) char app_storage[sizeof(Application)] asm("__ZN7esphome3AppE");
+#else
 alignas(Application) char app_storage[sizeof(Application)] asm("_ZN7esphome3AppE");
+#endif
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
