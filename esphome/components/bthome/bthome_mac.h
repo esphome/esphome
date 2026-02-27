@@ -5,21 +5,20 @@
 
 namespace esphome {
 namespace bthome {
-
-class MacAddress {
+class MacAddressPtr;
+class __attribute__((packed)) MacAddress {
  public:
   MacAddress() = default;
   MacAddress(const uint8_t *addr);
   MacAddress(uint64_t addr);
+  MacAddress(const MacAddressPtr &addr);
 
   MacAddress &operator=(const uint8_t *addr);
 
   operator const uint8_t *() const;
 
-  bool operator==(const uint8_t *other) const;
   bool operator==(const MacAddress &other) const;
-  bool operator!=(const uint8_t *other) const;
-  bool operator!=(const MacAddress &other) const;
+  bool operator==(const MacAddressPtr &other) const;
 
   const char *c_str() const;
 
@@ -35,10 +34,8 @@ class MacAddressPtr {
 
   operator const uint8_t *() const { return this->addr_; }
 
-  bool operator==(const uint8_t *other) const;
   bool operator==(const MacAddressPtr &other) const;
-  bool operator!=(const uint8_t *other) const;
-  bool operator!=(const MacAddressPtr &other) const;
+  bool operator==(const MacAddress &other) const;
 
   const char *c_str() const;
 

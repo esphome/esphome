@@ -1,72 +1,14 @@
 #include "bthome_device.h"
 #include "bthome_decoder.h"
+#include "bthome_encryption.h"
 #include "esphome/core/log.h"
 
 #include <cstring>
-
-#ifdef USE_BTHOME_DECRYPTION
-#include "mbedtls/ccm.h"
-#endif
 
 namespace esphome {
 namespace bthome {
 
 static const char *TAG = "bthome";
-
-#ifdef USE_BTHOME_DECRYPTION
-
-static constexpr size_t BTHOME_MIC_SIZE = 4;
-static constexpr size_t BTHOME_COUNTER_SIZE = 4;
-static constexpr size_t BTHOME_NONCE_SIZE = 13;
-
-static uint8_t bthome_decrypted_buf[31];
-
-static bool bthome_decrypt(const uint8_t *data, size_t &data_size, const uint8_t *source_address,
-                           const EncryptionKey &key) {
-  if (data_size <= 1 + BTHOME_COUNTER_SIZE + BTHOME_MIC_SIZE) {
-    ESP_LOGVV(TAG, "Encrypted BTHome payload too short: %zu", data_size);
-    return false;
-  }
-
-  const size_t ciphertext_size = data_size - 1 - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE;
-  if (ciphertext_size > sizeof(bthome_decrypted_buf)) {
-    ESP_LOGVV(TAG, "Decrypted BTHome payload too large: %zu", ciphertext_size);
-    return false;
-  }
-
-  std::array<uint8_t, BTHOME_NONCE_SIZE> nonce{};
-  memcpy(nonce.data(), source_address, MAC_ADDRESS_SIZE);
-  nonce[6] = 0xD2;
-  nonce[7] = 0xFC;
-  nonce[8] = data[0];
-  memcpy(nonce.data() + 9, &data[data_size - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE], BTHOME_COUNTER_SIZE);
-
-  const uint8_t *ciphertext = data + 1;
-  const uint8_t *mic = data + data_size - BTHOME_MIC_SIZE;
-
-  mbedtls_ccm_context ctx;
-  mbedtls_ccm_init(&ctx);
-
-  int ret = mbedtls_ccm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, key.data(), key.size() * 8);
-  if (ret) {
-    ESP_LOGVV(TAG, "mbedtls_ccm_setkey() failed.");
-    mbedtls_ccm_free(&ctx);
-    return false;
-  }
-
-  ret = mbedtls_ccm_auth_decrypt(&ctx, ciphertext_size, nonce.data(), nonce.size(), nullptr, 0, ciphertext,
-                                 bthome_decrypted_buf, mic, BTHOME_MIC_SIZE);
-  mbedtls_ccm_free(&ctx);
-  if (ret) {
-    ESP_LOGVV(TAG, "BTHome decryption failed (ret=%d).", ret);
-    return false;
-  }
-
-  data_size = ciphertext_size;
-  return true;
-}
-
-#endif  // USE_BTHOME_DECRYPTION
 
 bool DeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, size_t data_size) {
   if (this->address_ != source_address) {
@@ -84,12 +26,12 @@ bool DeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, s
       return true;
     }
 
-    payload_size = data_size;
-    if (!bthome_decrypt(data, payload_size, source_address, this->encryption_key.value())) {
+    payload =
+        bthome_decrypt(data + 1, data_size - 1, source_address, header, this->encryption_key.value(), payload_size);
+    if (payload == nullptr) {
       ESP_LOGVV(TAG, "Failed to decrypt BTHome frame from %s", source_address.c_str());
       return true;
     }
-    payload = bthome_decrypted_buf;
   } else {
     if (this->encryption_key.has_value()) {
       ESP_LOGE(TAG, "Unencrypted BTHome frame received with bindkey configured for %s", source_address.c_str());

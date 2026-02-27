@@ -2,6 +2,7 @@
 #include "bthome_handler.h"
 #include "bthome_mac.h"
 #include "esphome/core/optional.h"
+#include "esphome/core/defines.h"
 
 #include <array>
 #include <cstddef>

@@ -14,6 +14,8 @@ MacAddress::MacAddress(uint64_t addr) {
   }
 }
 
+MacAddress::MacAddress(const MacAddressPtr &addr) : MacAddress((const uint8_t *) addr) {}
+
 MacAddress &MacAddress::operator=(const uint8_t *addr) {
   std::memcpy(this->addr_, addr, sizeof(this->addr_));
   return *this;
@@ -21,19 +23,16 @@ MacAddress &MacAddress::operator=(const uint8_t *addr) {
 
 MacAddress::operator const uint8_t *() const { return this->addr_; }
 
-bool MacAddress::operator==(const uint8_t *other) const {
-  return std::memcmp(this->addr_, other, sizeof(this->addr_)) == 0;
-}
-bool MacAddress::operator==(const MacAddress &other) const { return *this == static_cast<const uint8_t *>(other); }
-bool MacAddress::operator!=(const uint8_t *other) const { return !(*this == other); }
-bool MacAddress::operator!=(const MacAddress &other) const { return !(*this == other); }
+bool MacAddress::operator==(const MacAddress &other) const { return MacAddressPtr(*this) == MacAddressPtr(other); }
 
-bool MacAddressPtr::operator==(const uint8_t *other) const {
-  return std::memcmp(this->addr_, other, MAC_ADDRESS_SIZE) == 0;
+bool MacAddress::operator==(const MacAddressPtr &other) const { return MacAddressPtr(*this) == other; }
+
+bool MacAddressPtr::operator==(const MacAddressPtr &other) const {
+  return std::memcmp(this->addr_, other.addr_, MAC_ADDRESS_SIZE) == 0;
+  ;
 }
-bool MacAddressPtr::operator==(const MacAddressPtr &other) const { return *this == other.addr_; }
-bool MacAddressPtr::operator!=(const uint8_t *other) const { return !(*this == other); }
-bool MacAddressPtr::operator!=(const MacAddressPtr &other) const { return !(*this == other); }
+
+bool MacAddressPtr::operator==(const MacAddress &other) const { return *this == MacAddressPtr(other); }
 
 const char *MacAddressPtr::c_str() const {
   static char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];

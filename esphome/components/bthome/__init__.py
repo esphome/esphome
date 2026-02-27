@@ -155,3 +155,12 @@ async def to_code(config):
         cg.add_define("USE_BTHOME_DECRYPTION")
 
     await esp32_ble_tracker.register_ble_device(listener, config)
+
+
+# This function is executed instead of to_code() during c++ testing
+async def to_code_testing(config):
+    # During testing, enable encryption code unconditionally
+    cg.add_define("USE_BTHOME_DECRYPTION")
+
+    # Pull mbedtls for testing in host environment
+    cg.add_library("baracodadailyhealthtech/mbedtls", "3.6.1-1", None)

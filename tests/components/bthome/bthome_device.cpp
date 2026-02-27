@@ -152,7 +152,7 @@ TEST_F(BTHomeDeviceTest, ParseDataNoMatchingHandler) {
   bool result = device.parse_data(test_mac_, payload, sizeof(payload));
 
   EXPECT_TRUE(result);
-  // No handlers should have processed the object
+  // No handler should have processed the object
   EXPECT_EQ(handler1.processed_objects().size(), 0);
   EXPECT_EQ(handler2.processed_objects().size(), 0);
 }
