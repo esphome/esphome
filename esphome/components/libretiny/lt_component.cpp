@@ -4,8 +4,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace libretiny {
+namespace esphome::libretiny {
 
 static const char *const TAG = "lt.component";
 
@@ -28,7 +27,6 @@ void LTComponent::dump_config() {
 
 float LTComponent::get_setup_priority() const { return setup_priority::LATE; }
 
-}  // namespace libretiny
-}  // namespace esphome
+}  // namespace esphome::libretiny
 
 #endif  // USE_LIBRETINY
