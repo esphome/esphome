@@ -16,10 +16,10 @@ namespace esphome {
 
 static const char *const TAG = "time_64";
 
-// Half the 32-bit range - used to detect rollovers vs normal time progression
-static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
-
 uint64_t Millis64Impl::compute(uint32_t now) {
+  // Half the 32-bit range - used to detect rollovers vs normal time progression
+  static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
+
   // State variables for rollover tracking - static to persist across calls
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   // Mutex for rollover serialization (taken only every ~49.7 days).
