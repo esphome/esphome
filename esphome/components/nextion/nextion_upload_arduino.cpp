@@ -5,6 +5,7 @@
 
 #include <cinttypes>
 #include "esphome/components/network/util.h"
+#include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -136,6 +137,9 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
 bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGD(TAG, "TFT upload requested, exit reparse: %s, URL: %s", YESNO(exit_reparse), this->tft_url_.c_str());
 
+  // Temporarily adjust watchdog timeout for the duration of the TFT upload
+  watchdog::WatchdogManager wdm(this->tft_upload_watchdog_timeout_);
+
   if (this->connection_state_.is_updating_) {
     ESP_LOGW(TAG, "Upload in progress");
     return false;
@@ -166,7 +170,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   // Define the configuration for the HTTP client
   ESP_LOGV(TAG, "Init HTTP client, heap: %" PRIu32, EspClass::getFreeHeap());
   HTTPClient http_client;
-  http_client.setTimeout(15000);  // Yes 15 seconds.... Helps 8266s along
+  http_client.setTimeout(this->tft_upload_http_timeout_);
 
   bool begin_status = false;
 #ifdef USE_ESP8266
@@ -192,15 +196,17 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   http_client.collectHeaders(header_names, 1);
   ESP_LOGD(TAG, "URL: %s", this->tft_url_.c_str());
   http_client.setReuse(true);
-  // try up to 5 times. DNS sometimes needs a second try or so
+
   int tries = 1;
   int code = http_client.GET();
   delay(100);  // NOLINT
 
   App.feed_wdt();
-  while (code != 200 && code != 206 && tries <= 5) {
-    ESP_LOGW(TAG, "HTTP fail: URL: %s; Error: %s, retry %d/5", this->tft_url_.c_str(),
-             HTTPClient::errorToString(code).c_str(), tries);
+  while (code != 200 && code != 206 && tries <= this->tft_upload_http_retries_) {
+    ESP_LOGW(TAG, "HTTP fail: URL: %s; Error: %s, retry %d/%u",
+              this->tft_url_.c_str(),
+              HTTPClient::errorToString(code).c_str(), tries,
+              this->tft_upload_http_retries_);
 
     delay(250);  // NOLINT
     App.feed_wdt();

@@ -191,6 +191,17 @@ void Nextion::dump_config() {
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
   ESP_LOGCONFIG(TAG, "  Max queue size: %zu", this->max_queue_size_);
 #endif
+#ifdef USE_NEXTION_TFT_UPLOAD
+  ESP_LOGCONFIG(TAG, "  TFT URL: %s", this->tft_url_.c_str());
+  ESP_LOGCONFIG(TAG, "  TFT upload HTTP timeout: %" PRIu32 "ms",
+                this->tft_upload_http_timeout_);
+  ESP_LOGCONFIG(TAG, "  TFT upload HTTP retries: %u",
+                this->tft_upload_http_retries_);
+  if (this->tft_upload_watchdog_timeout_ > 0) {
+    ESP_LOGCONFIG(TAG, "  TFT upload WDT timeout: %" PRIu32 "ms",
+                  this->tft_upload_watchdog_timeout_);
+  }
+#endif  // USE_NEXTION_TFT_UPLOAD
 }
 
 void Nextion::update() {

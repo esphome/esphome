@@ -33,6 +33,9 @@ from .base_component import (
     CONF_SKIP_CONNECTION_HANDSHAKE,
     CONF_START_UP_PAGE,
     CONF_STARTUP_OVERRIDE_MS,
+    CONF_TFT_UPLOAD_HTTP_RETRIES,
+    CONF_TFT_UPLOAD_HTTP_TIMEOUT,
+    CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
     CONF_TFT_URL,
     CONF_TOUCH_SLEEP_TIMEOUT,
     CONF_WAKE_UP_PAGE,
@@ -115,6 +118,15 @@ CONFIG_SCHEMA = (
                 ),
             ),
             cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
+            cv.Optional(
+                CONF_TFT_UPLOAD_HTTP_RETRIES, default=5
+            ): cv.int_range(min=0, max=20),
+            cv.Optional(
+                CONF_TFT_UPLOAD_HTTP_TIMEOUT, default="15s"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_TFT_URL): cv.url,
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.Any(
                 0, cv.int_range(min=3, max=65535)
@@ -176,6 +188,31 @@ async def to_code(config):
     if CONF_TFT_URL in config:
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
+
+        # TFT upload HTTP timeout
+        cg.add(
+            var.set_tft_upload_http_timeout(
+                config[CONF_TFT_UPLOAD_HTTP_TIMEOUT].total_milliseconds
+            )
+        )
+
+        # TFT upload HTTP retries
+        cg.add(
+            var.set_tft_upload_http_retries(
+                config[CONF_TFT_UPLOAD_HTTP_RETRIES]
+            )
+        )
+
+        # TFT upload watchdog timeout (optional, 0 = no adjustment)
+        if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config:
+            cg.add(
+                var.set_tft_upload_watchdog_timeout(
+                    config[
+                        CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT
+                    ].total_milliseconds
+                )
+            )
+
         if CORE.is_esp32:
             # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
             esp32.include_builtin_idf_component("esp_http_client")
