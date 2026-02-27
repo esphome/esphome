@@ -44,7 +44,7 @@ from .base_component import (
 CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
 
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["binary_sensor", "switch", "sensor", "text_sensor"]
+AUTO_LOAD = ["binary_sensor", "switch", "sensor", "text_sensor", "watchdog"]
 
 NextionSetBrightnessAction = nextion_ns.class_(
     "NextionSetBrightnessAction", automation.Action
