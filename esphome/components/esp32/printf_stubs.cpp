@@ -33,15 +33,16 @@ namespace esphome::esp32 {}
 
 static constexpr size_t PRINTF_BUFFER_SIZE = 512;
 
-// Write formatted buffer to stream, aborting on overflow.
+// These stubs are essentially dead code at runtime — ESPHome replaces the
+// ESP-IDF log handler, and the SDK's printf/fprintf calls only exist in
+// debug/assert paths that are never reached in normal operation.
+// The buffer overflow check is purely defensive and should never trigger.
 static int write_printf_buffer_(FILE *stream, char *buf, int len) {
   if (len < 0) {
     return len;
   }
   size_t write_len = len;
   if (write_len >= PRINTF_BUFFER_SIZE) {
-    // Output was truncated — flush what we have before aborting
-    // so the user sees context leading up to the overflow.
     fwrite(buf, 1, PRINTF_BUFFER_SIZE - 1, stream);
     esp_system_abort("printf buffer overflow; set enable_full_printf: true in esp32 advanced config");
   }
