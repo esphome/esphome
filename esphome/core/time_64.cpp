@@ -21,14 +21,12 @@ static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max()
 
 uint64_t Millis64Impl::compute(uint32_t now) {
   // State variables for rollover tracking - static to persist across calls
-#ifndef ESPHOME_THREAD_SINGLE
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
   // Mutex for rollover serialization (taken only every ~49.7 days).
   // A spinlock would be smaller (~1 byte vs ~80-100 bytes) but is unsafe on
   // preemptive single-core RTOS platforms due to priority inversion: a high-priority
   // task spinning would prevent the lock holder from running to release it.
   static Mutex lock;
-#endif
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
   /*
    * Multi-threaded platforms with atomic support: last_millis needs atomic for lock-free updates.
    * Writers publish last_millis with memory_order_release and readers use memory_order_acquire.
@@ -42,10 +40,14 @@ uint64_t Millis64Impl::compute(uint32_t now) {
    * to last_millis is provided by its release store and the corresponding acquire loads.
    */
   static std::atomic<uint16_t> millis_major{0};
-#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
+#elif !defined(ESPHOME_THREAD_SINGLE) /* ESPHOME_THREAD_MULTI_NO_ATOMICS */
+  static Mutex lock;
   static uint32_t last_millis{0};
   static uint16_t millis_major{0};
-#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
+#else                                 /* ESPHOME_THREAD_SINGLE */
+  static uint32_t last_millis{0};
+  static uint16_t millis_major{0};
+#endif
 
   // THREAD SAFETY NOTE:
   // This function has three implementations, based on the precompiler flags
