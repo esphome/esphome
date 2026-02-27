@@ -10,7 +10,11 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from esphome.dashboard.const import DashboardEvent
-from esphome.dashboard.core import ESPHomeDashboard, _restore_storage_version
+from esphome.dashboard.core import (
+    ESPHomeDashboard,
+    _cleanup_old_firmware,
+    _restore_storage_version,
+)
 
 
 def _make_entry(
@@ -57,7 +61,18 @@ def mock_restore_storage_version() -> Generator[Mock]:
 
 
 @pytest.fixture
-def prebuild_dashboard() -> ESPHomeDashboard:
+def mock_storage_json_load() -> Generator[Mock]:
+    """Fixture to mock StorageJSON.load in core module (returns None by default)."""
+    with patch(
+        "esphome.dashboard.core.StorageJSON.load", return_value=None
+    ) as mock:
+        yield mock
+
+
+@pytest.fixture
+def prebuild_dashboard(
+    mock_storage_json_load: Mock, mock_ext_storage_path: Mock
+) -> ESPHomeDashboard:
     """Create an ESPHomeDashboard with mocked bus and loop for pre-build testing."""
     dash = ESPHomeDashboard()
     dash.bus = Mock()
@@ -314,3 +329,177 @@ async def test_prebuild_skipped_when_auto_build_disabled(
 
     mock_async_run_system_command.assert_not_called()
     prebuild_dashboard.bus.async_fire.assert_not_called()
+
+
+# -- _cleanup_old_firmware tests --
+
+
+def test_cleanup_deletes_old_firmware_when_path_changes(
+    mock_ext_storage_path: Mock, tmp_path: Path
+) -> None:
+    """Test old firmware binary is deleted when the new path differs."""
+    old_bin = tmp_path / "old_firmware.bin"
+    old_bin.write_bytes(b"\x00" * 100)
+
+    # Storage now points to a new firmware path
+    storage_file = mock_ext_storage_path.storage_file
+    new_bin = tmp_path / "new_firmware.bin"
+    storage_file.write_text(
+        json.dumps(
+            {
+                "storage_version": 1,
+                "name": "device",
+                "firmware_bin_path": str(new_bin),
+            }
+        )
+    )
+
+    entry = Mock()
+    entry.filename = "device.yaml"
+
+    _cleanup_old_firmware(entry, old_bin)
+
+    assert not old_bin.exists()
+
+
+def test_cleanup_does_not_delete_when_paths_match(
+    mock_ext_storage_path: Mock, tmp_path: Path
+) -> None:
+    """Test old firmware is NOT deleted when old and new paths are the same."""
+    firmware_bin = tmp_path / "firmware.bin"
+    firmware_bin.write_bytes(b"\x00" * 100)
+
+    storage_file = mock_ext_storage_path.storage_file
+    storage_file.write_text(
+        json.dumps(
+            {
+                "storage_version": 1,
+                "name": "device",
+                "firmware_bin_path": str(firmware_bin),
+            }
+        )
+    )
+
+    entry = Mock()
+    entry.filename = "device.yaml"
+
+    _cleanup_old_firmware(entry, firmware_bin)
+
+    assert firmware_bin.exists()
+
+
+def test_cleanup_does_not_delete_on_failed_build(tmp_path: Path) -> None:
+    """Test old firmware is NOT deleted when old_firmware_path is None."""
+    entry = Mock()
+    entry.filename = "device.yaml"
+
+    # None means we couldn't read the storage before build — do nothing
+    _cleanup_old_firmware(entry, None)
+
+
+def test_cleanup_handles_missing_old_file(
+    mock_ext_storage_path: Mock, tmp_path: Path
+) -> None:
+    """Test missing old firmware file does not raise."""
+    old_bin = tmp_path / "nonexistent_firmware.bin"
+
+    storage_file = mock_ext_storage_path.storage_file
+    new_bin = tmp_path / "new_firmware.bin"
+    storage_file.write_text(
+        json.dumps(
+            {
+                "storage_version": 1,
+                "name": "device",
+                "firmware_bin_path": str(new_bin),
+            }
+        )
+    )
+
+    entry = Mock()
+    entry.filename = "device.yaml"
+
+    # Should not raise
+    _cleanup_old_firmware(entry, old_bin)
+
+
+def test_cleanup_handles_corrupt_storage(tmp_path: Path) -> None:
+    """Test corrupt/missing storage JSON does not raise."""
+    old_bin = tmp_path / "firmware.bin"
+    old_bin.write_bytes(b"\x00" * 100)
+
+    entry = Mock()
+    entry.filename = "device.yaml"
+
+    with patch(
+        "esphome.dashboard.core.ext_storage_path",
+        return_value=tmp_path / "nonexistent.json",
+    ):
+        # Should not raise — StorageJSON.load returns None for missing files
+        _cleanup_old_firmware(entry, old_bin)
+
+    # Old file should still exist since we couldn't read the new path
+    assert old_bin.exists()
+
+
+# -- Pre-build loop firmware cleanup integration tests --
+
+
+@pytest.mark.asyncio
+async def test_prebuild_cleans_up_old_firmware_on_success(
+    prebuild_dashboard: ESPHomeDashboard,
+    mock_async_run_system_command: AsyncMock,
+    mock_storage_json_load: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test successful build triggers old firmware cleanup."""
+    from esphome.storage_json import StorageJSON
+
+    old_bin = tmp_path / "old_firmware.bin"
+    old_bin.write_bytes(b"\x00" * 100)
+    new_bin = tmp_path / "new_firmware.bin"
+
+    entry = _make_entry()
+    prebuild_dashboard.entries.async_all.return_value = [entry]
+    mock_async_run_system_command.return_value = (0, b"", b"")
+
+    # Build mock StorageJSON objects for old and new firmware paths
+    old_storage = Mock(spec=StorageJSON)
+    old_storage.firmware_bin_path = old_bin
+    new_storage = Mock(spec=StorageJSON)
+    new_storage.firmware_bin_path = new_bin
+
+    # First call (before compile) returns old storage,
+    # second call (inside _cleanup_old_firmware) returns new storage
+    mock_storage_json_load.side_effect = [old_storage, new_storage]
+
+    await prebuild_dashboard._async_prebuild_devices()
+
+    assert not old_bin.exists()
+
+
+@pytest.mark.asyncio
+async def test_prebuild_does_not_cleanup_on_failure(
+    prebuild_dashboard: ESPHomeDashboard,
+    mock_async_run_system_command: AsyncMock,
+    mock_storage_json_load: Mock,
+    mock_restore_storage_version: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test failed build does NOT trigger firmware cleanup."""
+    from esphome.storage_json import StorageJSON
+
+    old_bin = tmp_path / "old_firmware.bin"
+    old_bin.write_bytes(b"\x00" * 100)
+
+    entry = _make_entry()
+    prebuild_dashboard.entries.async_all.return_value = [entry]
+    mock_async_run_system_command.return_value = (1, b"", b"build error")
+
+    old_storage = Mock(spec=StorageJSON)
+    old_storage.firmware_bin_path = old_bin
+    mock_storage_json_load.return_value = old_storage
+
+    await prebuild_dashboard._async_prebuild_devices()
+
+    # Old firmware should NOT be deleted on failure
+    assert old_bin.exists()

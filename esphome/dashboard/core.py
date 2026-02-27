@@ -7,11 +7,12 @@ from dataclasses import dataclass
 from functools import partial
 import json
 import logging
+from pathlib import Path
 import threading
 from typing import Any
 
 from esphome import const
-from esphome.storage_json import ext_storage_path, ignored_devices_storage_path
+from esphome.storage_json import StorageJSON, ext_storage_path, ignored_devices_storage_path
 
 from ..zeroconf import DiscoveredImport
 from .const import DASHBOARD_COMMAND, DashboardEvent
@@ -88,6 +89,33 @@ def _restore_storage_version(entry: DashboardEntry, old_version: str) -> None:
             entry.load_from_disk()
     except (OSError, json.JSONDecodeError):
         _LOGGER.debug("Could not restore storage version for %s", entry.filename)
+
+
+def _cleanup_old_firmware(entry: DashboardEntry, old_firmware_path: Path | None) -> None:
+    """Delete the previous firmware binary after a successful re-compile.
+
+    After a version upgrade the compiler may produce a binary at a new path.
+    This removes the stale binary from the previous version to reclaim storage.
+    """
+    if old_firmware_path is None:
+        return
+    try:
+        storage = StorageJSON.load(ext_storage_path(entry.filename))
+        if storage is None or storage.firmware_bin_path is None:
+            return
+        if storage.firmware_bin_path == old_firmware_path:
+            return
+        if old_firmware_path.is_file():
+            old_firmware_path.unlink()
+            _LOGGER.debug(
+                "Removed old firmware binary for %s: %s",
+                entry.filename,
+                old_firmware_path,
+            )
+    except Exception:  # pylint: disable=broad-except
+        _LOGGER.debug(
+            "Could not clean up old firmware for %s", entry.filename, exc_info=True
+        )
 
 
 class ESPHomeDashboard:
@@ -179,6 +207,12 @@ class ESPHomeDashboard:
         for idx, entry in enumerate(devices_to_build, start=1):
             config_path = str(self.settings.rel_path(entry.filename))
             old_version = entry.update_old
+            # Record the current firmware path so we can clean it up after
+            # a successful re-compile produces a binary at a new path.
+            old_storage = StorageJSON.load(ext_storage_path(entry.filename))
+            old_firmware_path = (
+                old_storage.firmware_bin_path if old_storage is not None else None
+            )
             _LOGGER.info("Pre-building %s (%d/%d)", entry.name, idx, total)
             try:
                 returncode, _stdout, stderr = await async_run_system_command(
@@ -188,6 +222,12 @@ class ESPHomeDashboard:
                     succeeded += 1
                     # Refresh cached storage so update_available becomes False
                     await self.loop.run_in_executor(None, entry.load_from_disk)
+                    await self.loop.run_in_executor(
+                        None,
+                        _cleanup_old_firmware,
+                        entry,
+                        old_firmware_path,
+                    )
                     self.bus.async_fire(
                         DashboardEvent.PRE_BUILD_STATUS,
                         {
