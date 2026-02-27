@@ -44,9 +44,9 @@ void OxtController::send_to_mcu_(const OxtDimmerChannel *updated_channel) {
     ESP_LOGE(TAG, "Unable to find channel index");
     return;
   }
-
-  ESP_LOGV(TAG, "Frame: %s", format_hex_pretty(reinterpret_cast<uint8_t *>(&frame), sizeof(frame)).c_str());
   this->write_array(reinterpret_cast<uint8_t *>(&frame), sizeof(frame));
+  char vbuf[sizeof(frame) * 2 + 1];
+  ESP_LOGV(TAG, "Frame: %s", format_hex_pretty_to(vbuf, reinterpret_cast<uint8_t *>(&frame), sizeof(frame)));
 }
 
 light::LightTraits OxtDimmerChannel::get_traits() {
