@@ -18,7 +18,7 @@
     "remark-github-blockquote-alert": "^2.0.1",
     "remark-math": "^6.0.0",
     "sharp": "^0.34.5",
-    "starlight-blog": "^0.25.2"
+    "starlight-blog": "^0.25.3"
   },
   "repository": {
     "type": "git",
