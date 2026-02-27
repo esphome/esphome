@@ -396,16 +396,13 @@ void SEN6XComponent::update() {
         this->temperature_sensor_->publish_state(this->last_temperature_);
       if (this->humidity_sensor_ != nullptr)
         this->humidity_sensor_->publish_state(this->last_humidity_);
-      const bool has_gas_index = this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 ||
-                                 this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C;
-      if (this->voc_sensor_ != nullptr && has_gas_index)
+      if (this->voc_sensor_ != nullptr)
         this->voc_sensor_->publish_state(this->last_voc_);
-      if (this->nox_sensor_ != nullptr && has_gas_index)
+      if (this->nox_sensor_ != nullptr)
         this->nox_sensor_->publish_state(this->last_nox_);
-      if (this->hcho_sensor_ != nullptr && (this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C))
+      if (this->hcho_sensor_ != nullptr)
         this->hcho_sensor_->publish_state(this->last_hcho_);
-      if (this->co2_sensor_ != nullptr &&
-          (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C))
+      if (this->co2_sensor_ != nullptr)
         this->co2_sensor_->publish_state(this->last_co2_);
       this->status_clear_warning();
     }
@@ -581,13 +578,13 @@ void SEN6XComponent::update() {
           this->temperature_sensor_->publish_state(temperature);
         if (this->humidity_sensor_ != nullptr)
           this->humidity_sensor_->publish_state(humidity);
-        if (this->voc_sensor_ != nullptr && voc_index >= 0)
+        if (this->voc_sensor_ != nullptr)
           this->voc_sensor_->publish_state(voc);
-        if (this->nox_sensor_ != nullptr && nox_index >= 0)
+        if (this->nox_sensor_ != nullptr)
           this->nox_sensor_->publish_state(nox);
-        if (this->hcho_sensor_ != nullptr && hcho_index >= 0)
+        if (this->hcho_sensor_ != nullptr)
           this->hcho_sensor_->publish_state(hcho);
-        if (this->co2_sensor_ != nullptr && co2_index >= 0)
+        if (this->co2_sensor_ != nullptr)
           this->co2_sensor_->publish_state(co2);
 
         // Store VOC baseline periodically to flash (after measurement reads to avoid I2C conflicts)
