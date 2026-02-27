@@ -80,7 +80,7 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
 
  public:
   T *pop() {
-    uint8_t current_head = head_.load(std::memory_order_acquire);
+    uint8_t current_head = head_.load(std::memory_order_relaxed);
 
     if (current_head == tail_.load(std::memory_order_acquire)) {
       return nullptr;  // Empty
