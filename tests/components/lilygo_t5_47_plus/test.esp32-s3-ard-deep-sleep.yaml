@@ -17,7 +17,7 @@
 esphome:
   name: lilygo-t547-deep-sleep
   on_boot:
-    priority: 600
+    priority: -100   # Fire after all components are fully set up
     then:
       - component.update: battery_sensor
       - component.update: epd
