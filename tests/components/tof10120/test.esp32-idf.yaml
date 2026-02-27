@@ -1,9 +1,4 @@
-i2c:
-  - id: i2c_tof10120
-    scl: 16
-    sda: 17
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
-sensor:
-  - platform: tof10120
-    name: Distance sensor
-    update_interval: 5s
+<<: !include common.yaml

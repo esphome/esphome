@@ -1,0 +1,68 @@
+vbus:
+
+binary_sensor:
+  - platform: vbus
+    model: deltasol_bs_plus
+    relay1:
+      name: BS Plus Relay 1 On
+    relay2:
+      name: BS Plus Relay 2 On
+    sensor1_error:
+      name: BS Plus Sensor 1 Error
+  - platform: vbus
+    model: deltasol_bs2
+    sensor1_error:
+      name: BS2 Sensor 1 Error
+    sensor2_error:
+      name: BS2 Sensor 2 Error
+    sensor3_error:
+      name: BS2 Sensor 3 Error
+    sensor4_error:
+      name: BS2 Sensor 4 Error
+  - platform: vbus
+    model: custom
+    command: 0x100
+    source: 0x1234
+    dest: 0x10
+    binary_sensors:
+      - id: vcustom_b
+        name: VBus Custom Binary Sensor
+        lambda: return x[0] & 1;
+
+sensor:
+  - platform: vbus
+    model: deltasol c
+    temperature_1:
+      name: DeltaSol C Temperature 1
+    temperature_2:
+      name: DeltaSol C Temperature 2
+    temperature_3:
+      name: DeltaSol C Temperature 3
+    operating_hours_1:
+      name: DeltaSol C Operating Hours 1
+    heat_quantity:
+      name: DeltaSol C Heat Quantity
+    time:
+      name: DeltaSol C System Time
+  - platform: vbus
+    model: deltasol_bs2
+    temperature_1:
+      name: BS2 Temperature 1
+    temperature_2:
+      name: BS2 Temperature 2
+    temperature_3:
+      name: BS2 Temperature 3
+    temperature_4:
+      name: BS2 Temperature 4
+    pump_speed_1:
+      name: BS2 Pump Speed 1
+    pump_speed_2:
+      name: BS2 Pump Speed 2
+    operating_hours_1:
+      name: BS2 Operating Hours 1
+    operating_hours_2:
+      name: BS2 Operating Hours 2
+    heat_quantity:
+      name: BS2 Heat Quantity
+    version:
+      name: BS2 Firmware Version

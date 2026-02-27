@@ -1,0 +1,4 @@
+mcp23s17:
+  - id: mcp23s17_hub
+    cs_pin: ${cs_pin}
+    deviceaddress: 0

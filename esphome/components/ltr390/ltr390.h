@@ -1,7 +1,5 @@
 #pragma once
 
-#include <tuple>
-#include <vector>
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
@@ -44,7 +42,6 @@ enum LTR390RESOLUTION {
 
 class LTR390Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -61,23 +58,24 @@ class LTR390Component : public PollingComponent, public i2c::I2CDevice {
   void set_uv_sensor(sensor::Sensor *uv_sensor) { this->uv_sensor_ = uv_sensor; }
 
  protected:
+  static constexpr uint8_t ENABLED_MODE_ALS = 1 << 0;
+  static constexpr uint8_t ENABLED_MODE_UVS = 1 << 1;
+
   optional<uint32_t> read_sensor_data_(LTR390MODE mode);
 
   void read_als_();
   void read_uvs_();
 
-  void read_mode_(int mode_index);
+  void read_mode_(LTR390MODE mode);
+  void standby_();
 
-  bool reading_;
-
-  // a list of modes and corresponding read functions
-  std::vector<std::tuple<LTR390MODE, std::function<void()>>> mode_funcs_;
+  bool reading_{false};
+  uint8_t enabled_modes_{0};
 
   LTR390GAIN gain_als_;
   LTR390GAIN gain_uv_;
   LTR390RESOLUTION res_als_;
   LTR390RESOLUTION res_uv_;
-  float sensitivity_uv_;
   float wfac_;
 
   sensor::Sensor *light_sensor_{nullptr};

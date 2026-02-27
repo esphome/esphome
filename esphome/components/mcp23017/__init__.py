@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, mcp23x17_base, mcp23xxx_base
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
 AUTO_LOAD = ["mcp23x17_base"]
@@ -24,5 +24,5 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = await mcp23xxx_base.register_mcp23xxx(config)
+    var = await mcp23xxx_base.register_mcp23xxx(config, mcp23x17_base.NUM_PINS)
     await i2c.register_i2c_device(var, config)

@@ -1,12 +1,8 @@
-from esphome import pins, automation
+from esphome import automation, pins
+import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.const import (
-    CONF_FREQUENCY,
-    CONF_ID,
-    CONF_PIN,
-)
+from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_PIN
 
 DEPENDENCIES = ["libretiny"]
 
@@ -18,7 +14,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.Required(CONF_ID): cv.declare_id(LibreTinyPWM),
         cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Optional(CONF_FREQUENCY, default="1kHz"): cv.frequency,
+        cv.Optional(CONF_FREQUENCY, default="1kHz"): cv.All(
+            cv.frequency, cv.float_range(min=0, min_included=False)
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

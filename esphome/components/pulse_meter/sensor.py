@@ -1,13 +1,13 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation, pins
+import esphome.codegen as cg
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_INTERNAL_FILTER,
     CONF_INTERNAL_FILTER_MODE,
-    CONF_PIN,
     CONF_NUMBER,
+    CONF_PIN,
     CONF_TIMEOUT,
     CONF_TOTAL,
     CONF_VALUE,

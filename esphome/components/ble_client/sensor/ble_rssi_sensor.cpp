@@ -6,16 +6,19 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
 static const char *const TAG = "ble_rssi_sensor";
 
-void BLEClientRSSISensor::loop() {}
+void BLEClientRSSISensor::loop() {
+  // Parent BLEClientNode has a loop() method, but this component uses
+  // polling via update() and BLE GAP callbacks so loop isn't needed
+  this->disable_loop();
+}
 
 void BLEClientRSSISensor::dump_config() {
   LOG_SENSOR("", "BLE Client RSSI Sensor", this);
-  ESP_LOGCONFIG(TAG, "  MAC address        : %s", this->parent()->address_str().c_str());
+  ESP_LOGCONFIG(TAG, "  MAC address        : %s", this->parent()->address_str());
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -65,15 +68,14 @@ void BLEClientRSSISensor::update() {
   this->get_rssi_();
 }
 void BLEClientRSSISensor::get_rssi_() {
-  ESP_LOGV(TAG, "requesting rssi from %s", this->parent()->address_str().c_str());
+  ESP_LOGV(TAG, "requesting rssi from %s", this->parent()->address_str());
   auto status = esp_ble_gap_read_rssi(this->parent()->get_remote_bda());
   if (status != ESP_OK) {
-    ESP_LOGW(TAG, "esp_ble_gap_read_rssi error, address=%s, status=%d", this->parent()->address_str().c_str(), status);
+    ESP_LOGW(TAG, "esp_ble_gap_read_rssi error, address=%s, status=%d", this->parent()->address_str(), status);
     this->status_set_warning();
     this->publish_state(NAN);
   }
 }
 
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 #endif

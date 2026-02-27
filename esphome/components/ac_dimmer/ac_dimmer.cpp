@@ -1,19 +1,18 @@
-#ifdef USE_ARDUINO
-
 #include "ac_dimmer.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
+#include <numbers>
 
 #ifdef USE_ESP8266
 #include <core_esp8266_waveform.h>
 #endif
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#include <esp32-hal-timer.h>
+
+#ifdef USE_ESP32
+#include "hw_timer_esp_idf.h"
 #endif
 
-namespace esphome {
-namespace ac_dimmer {
+namespace esphome::ac_dimmer {
 
 static const char *const TAG = "ac_dimmer";
 
@@ -26,7 +25,14 @@ static AcDimmerDataStore *all_dimmers[32];  // NOLINT(cppcoreguidelines-avoid-no
 /// However other factors like gate driver propagation time
 /// are also considered and a really low value is not important
 /// See also: https://github.com/esphome/issues/issues/1632
-static const uint32_t GATE_ENABLE_TIME = 50;
+static constexpr uint32_t GATE_ENABLE_TIME = 50;
+
+#ifdef USE_ESP32
+/// Timer frequency in Hz (1 MHz = 1µs resolution)
+static constexpr uint32_t TIMER_FREQUENCY_HZ = 1000000;
+/// Timer interrupt interval in microseconds
+static constexpr uint64_t TIMER_INTERVAL_US = 50;
+#endif
 
 /// Function called from timer interrupt
 /// Input is current time in microseconds (micros())
@@ -114,13 +120,14 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
     // fully off, disable output immediately
     this->gate_pin.digital_write(false);
   } else {
+    auto min_us = this->cycle_time_us * this->min_power / 1000;
     if (this->method == DIM_METHOD_TRAILING) {
       this->enable_time_us = 1;  // cannot be 0
-      this->disable_time_us = std::max((uint32_t) 10, this->value * this->cycle_time_us / 65535);
+      // calculate time until disable in µs with integer arithmetic and take into account min_power
+      this->disable_time_us = std::max((uint32_t) 10, this->value * (this->cycle_time_us - min_us) / 65535 + min_us);
     } else {
       // calculate time until enable in µs: (1.0-value)*cycle_time, but with integer arithmetic
       // also take into account min_power
-      auto min_us = this->cycle_time_us * this->min_power / 1000;
       this->enable_time_us = std::max((uint32_t) 1, ((65535 - this->value) * (this->cycle_time_us - min_us)) / 65535);
 
       if (this->method == DIM_METHOD_LEADING_PULSE) {
@@ -152,7 +159,7 @@ void IRAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
 #ifdef USE_ESP32
 // ESP32 implementation, uses basically the same code but needs to wrap
 // timer_interrupt() function to auto-reschedule
-static hw_timer_t *dimmer_timer = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static HWTimer *dimmer_timer = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 void IRAM_ATTR HOT AcDimmerDataStore::s_timer_intr() { timer_interrupt(); }
 #endif
 
@@ -192,29 +199,38 @@ void AcDimmer::setup() {
   setTimer1Callback(&timer_interrupt);
 #endif
 #ifdef USE_ESP32
-  // 80 Divider -> 1 count=1µs
-  dimmer_timer = timerBegin(0, 80, true);
-  timerAttachInterrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr, true);
-  // For ESP32, we can't use dynamic interval calculation because the timerX functions
-  // are not callable from ISR (placed in flash storage).
-  // Here we just use an interrupt firing every 50 µs.
-  timerAlarmWrite(dimmer_timer, 50, true);
-  timerAlarmEnable(dimmer_timer);
+  if (dimmer_timer == nullptr) {
+    dimmer_timer = timer_begin(TIMER_FREQUENCY_HZ);
+    if (dimmer_timer == nullptr) {
+      ESP_LOGE(TAG, "Failed to create GPTimer for AC dimmer");
+      this->mark_failed();
+      return;
+    }
+    timer_attach_interrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr);
+    // For ESP32, we can't use dynamic interval calculation because the timerX functions
+    // are not callable from ISR (placed in flash storage).
+    // Here we just use an interrupt firing every 50 µs.
+    timer_alarm(dimmer_timer, TIMER_INTERVAL_US, true, 0);
+  }
 #endif
 }
+
 void AcDimmer::write_state(float state) {
-  state = std::acos(1 - (2 * state)) / 3.14159;  // RMS power compensation
+  state = std::acos(1 - (2 * state)) / std::numbers::pi;  // RMS power compensation
   auto new_value = static_cast<uint16_t>(roundf(state * 65535));
   if (new_value != 0 && this->store_.value == 0)
     this->store_.init_cycle = this->init_with_half_cycle_;
   this->store_.value = new_value;
 }
+
 void AcDimmer::dump_config() {
-  ESP_LOGCONFIG(TAG, "AcDimmer:");
+  ESP_LOGCONFIG(TAG,
+                "AcDimmer:\n"
+                "   Min Power: %.1f%%\n"
+                "   Init with half cycle: %s",
+                this->store_.min_power / 10.0f, YESNO(this->init_with_half_cycle_));
   LOG_PIN("  Output Pin: ", this->gate_pin_);
   LOG_PIN("  Zero-Cross Pin: ", this->zero_cross_pin_);
-  ESP_LOGCONFIG(TAG, "   Min Power: %.1f%%", this->store_.min_power / 10.0f);
-  ESP_LOGCONFIG(TAG, "   Init with half cycle: %s", YESNO(this->init_with_half_cycle_));
   if (method_ == DIM_METHOD_LEADING_PULSE) {
     ESP_LOGCONFIG(TAG, "   Method: leading pulse");
   } else if (method_ == DIM_METHOD_LEADING) {
@@ -227,7 +243,4 @@ void AcDimmer::dump_config() {
   ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
 }
 
-}  // namespace ac_dimmer
-}  // namespace esphome
-
-#endif  // USE_ARDUINO
+}  // namespace esphome::ac_dimmer

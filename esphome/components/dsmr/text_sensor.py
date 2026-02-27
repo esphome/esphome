@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_INTERNAL
-from . import Dsmr, CONF_DSMR_ID
+
+from . import CONF_DSMR_ID, Dsmr
 
 AUTO_LOAD = ["dsmr"]
 
@@ -17,11 +18,17 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("electricity_failure_log"): text_sensor.text_sensor_schema(),
         cv.Optional("message_short"): text_sensor.text_sensor_schema(),
         cv.Optional("message_long"): text_sensor.text_sensor_schema(),
+        cv.Optional("equipment_id"): text_sensor.text_sensor_schema(),
         cv.Optional("gas_equipment_id"): text_sensor.text_sensor_schema(),
+        cv.Optional("gas_equipment_id_be"): text_sensor.text_sensor_schema(),
         cv.Optional("thermal_equipment_id"): text_sensor.text_sensor_schema(),
         cv.Optional("water_equipment_id"): text_sensor.text_sensor_schema(),
         cv.Optional("sub_equipment_id"): text_sensor.text_sensor_schema(),
         cv.Optional("gas_delivered_text"): text_sensor.text_sensor_schema(),
+        cv.Optional("fw_core_checksum"): text_sensor.text_sensor_schema(),
+        cv.Optional("fw_core_version"): text_sensor.text_sensor_schema(),
+        cv.Optional("fw_module_checksum"): text_sensor.text_sensor_schema(),
+        cv.Optional("fw_module_version"): text_sensor.text_sensor_schema(),
         cv.Optional("telegram"): text_sensor.text_sensor_schema().extend(
             {cv.Optional(CONF_INTERNAL, default=True): cv.boolean}
         ),

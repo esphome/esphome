@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import ina2xx_base, spi
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODEL
 
 AUTO_LOAD = ["ina2xx_base"]

@@ -1,15 +1,14 @@
 import sys
-from typing import Any, Union
+from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.config_validation import Invalid
-from esphome.const import CONF_GROUP, CONF_ID, CONF_STATE, CONF_TYPE
+from esphome.const import CONF_DEFAULT, CONF_GROUP, CONF_ID, CONF_STATE, CONF_TYPE
 from esphome.core import ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import CallExpression, MockObj
+from esphome.cpp_generator import MockObj
 
 from ..defines import (
-    CONF_DEFAULT,
     CONF_FLEX_ALIGN_CROSS,
     CONF_FLEX_ALIGN_MAIN,
     CONF_FLEX_ALIGN_TRACK,
@@ -22,7 +21,6 @@ from ..defines import (
     CONF_MAIN,
     CONF_PAD_COLUMN,
     CONF_PAD_ROW,
-    CONF_SCROLLBAR_MODE,
     CONF_STYLES,
     CONF_WIDGETS,
     OBJ_FLAGS,
@@ -46,7 +44,7 @@ from ..lvcode import (
     lv_obj,
     lv_Pvariable,
 )
-from ..schemas import ALL_STYLES, STYLE_REMAP, WIDGET_TYPES
+from ..schemas import ALL_STYLES, OBJ_PROPERTIES, STYLE_REMAP, WIDGET_TYPES
 from ..types import LV_STATE, LvType, WidgetType, lv_coord_t, lv_obj_t, lv_obj_t_ptr
 
 EVENT_LAMB = "event_lamb__"
@@ -68,7 +66,6 @@ class Widget:
         self.type = wtype
         self.config = config
         self.scale = 1.0
-        self.step = 1.0
         self.range_from = -sys.maxsize
         self.range_to = sys.maxsize
         if wtype.is_compound():
@@ -190,7 +187,7 @@ class Widget:
         for matrix buttons
         :return:
         """
-        return None
+        return
 
     def get_max(self):
         return self.type.get_max(self.config)
@@ -215,17 +212,14 @@ class LvScrActType(WidgetType):
     """
 
     def __init__(self):
-        super().__init__("lv_scr_act()", lv_obj_t, ())
+        super().__init__("lv_scr_act()", lv_obj_t, (), is_mock=True)
 
     async def to_code(self, w, config: dict):
         return []
 
 
-lv_scr_act_spec = LvScrActType()
-
-
 def get_scr_act(lv_comp: MockObj) -> Widget:
-    return Widget.create(None, lv_comp.get_scr_act(), lv_scr_act_spec, {})
+    return Widget.create(None, lv_comp.get_scr_act(), LvScrActType(), {})
 
 
 def get_widget_generator(wid):
@@ -263,7 +257,7 @@ async def wait_for_widgets():
     await FakeAwaitable(widgets_wait_generator())
 
 
-async def get_widgets(config: Union[dict, list], id: str = CONF_ID) -> list[Widget]:
+async def get_widgets(config: dict | list, id: str = CONF_ID) -> list[Widget]:
     if not config:
         return []
     if not isinstance(config, list):
@@ -341,7 +335,10 @@ async def set_obj_properties(w: Widget, config):
         if layout_type == TYPE_FLEX:
             lv_obj.set_flex_flow(w.obj, literal(layout[CONF_FLEX_FLOW]))
             main = literal(layout[CONF_FLEX_ALIGN_MAIN])
-            cross = literal(layout[CONF_FLEX_ALIGN_CROSS])
+            cross = layout[CONF_FLEX_ALIGN_CROSS]
+            if cross == "LV_FLEX_ALIGN_STRETCH":
+                cross = "LV_FLEX_ALIGN_CENTER"
+            cross = literal(cross)
             track = literal(layout[CONF_FLEX_ALIGN_TRACK])
             lv_obj.set_flex_align(w.obj, main, cross, track)
     parts = collect_parts(config)
@@ -385,7 +382,7 @@ async def set_obj_properties(w: Widget, config):
         clrs = join_enums(flag_clr, "LV_OBJ_FLAG_")
         w.clear_flag(clrs)
     for key, value in lambs.items():
-        lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
+        lamb = await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
         flag = f"LV_OBJ_FLAG_{key.upper()}"
         with LvConditional(call_lambda(lamb)) as cond:
             w.add_flag(flag)
@@ -410,13 +407,14 @@ async def set_obj_properties(w: Widget, config):
             clears = join_enums(clears, "LV_STATE_")
             w.clear_state(clears)
         for key, value in lambs.items():
-            lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
+            lamb = await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
             state = f"LV_STATE_{key.upper()}"
             with LvConditional(call_lambda(lamb)) as cond:
                 w.add_state(state)
                 cond.else_()
                 w.clear_state(state)
-    await w.set_property(CONF_SCROLLBAR_MODE, config, lv_name="obj")
+    for property in OBJ_PROPERTIES:
+        await w.set_property(property, config, lv_name="obj")
 
 
 async def add_widgets(parent: Widget, config: dict):
@@ -440,7 +438,7 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
     :return:
     """
     spec: WidgetType = WIDGET_TYPES[w_type]
-    creator = spec.obj_creator(parent, w_cnfig)
+    creator = await spec.obj_creator(parent, w_cnfig)
     add_lv_use(spec.name)
     add_lv_use(*spec.get_uses())
     wid = w_cnfig[CONF_ID]
@@ -448,13 +446,25 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
     if spec.is_compound():
         var = cg.new_Pvariable(wid)
         lv_add(var.set_obj(creator))
+        spec.on_create(var.obj, w_cnfig)
     else:
         var = lv_Pvariable(lv_obj_t, wid)
         lv_assign(var, creator)
+        spec.on_create(var, w_cnfig)
 
     w = Widget.create(wid, var, spec, w_cnfig)
     if theme := theme_widget_map.get(w_type):
-        lv_add(CallExpression(theme, w.obj))
+        for part, states in theme.items():
+            part = "LV_PART_" + part.upper()
+            for state, style in states.items():
+                state = "LV_STATE_" + state.upper()
+                if state == "LV_STATE_DEFAULT":
+                    lv_state = literal(part)
+                elif part == "LV_PART_MAIN":
+                    lv_state = literal(state)
+                else:
+                    lv_state = join_enums((state, part))
+                lv.obj_add_style(w.obj, style, lv_state)
     await set_obj_properties(w, w_cnfig)
     await add_widgets(w, w_cnfig)
     await spec.to_code(w, w_cnfig)

@@ -4,21 +4,33 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const char *const TAG = "http_request";
 
 void HttpRequestComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "HTTP Request:");
-  ESP_LOGCONFIG(TAG, "  Timeout: %ums", this->timeout_);
-  ESP_LOGCONFIG(TAG, "  User-Agent: %s", this->useragent_);
-  ESP_LOGCONFIG(TAG, "  Follow redirects: %s", YESNO(this->follow_redirects_));
-  ESP_LOGCONFIG(TAG, "  Redirect limit: %d", this->redirect_limit_);
+  ESP_LOGCONFIG(TAG,
+                "HTTP Request:\n"
+                "  Timeout: %ums\n"
+                "  User-Agent: %s\n"
+                "  Follow redirects: %s\n"
+                "  Redirect limit: %d",
+                this->timeout_, this->useragent_, YESNO(this->follow_redirects_), this->redirect_limit_);
   if (this->watchdog_timeout_ > 0) {
     ESP_LOGCONFIG(TAG, "  Watchdog Timeout: %" PRIu32 "ms", this->watchdog_timeout_);
   }
 }
 
-}  // namespace http_request
-}  // namespace esphome
+std::string HttpContainer::get_response_header(const std::string &header_name) {
+  auto lower = str_lower_case(header_name);
+  for (const auto &entry : this->response_headers_) {
+    if (entry.name == lower) {
+      ESP_LOGD(TAG, "Header with name %s found with value %s", lower.c_str(), entry.value.c_str());
+      return entry.value;
+    }
+  }
+  ESP_LOGW(TAG, "No header with name %s found", lower.c_str());
+  return "";
+}
+
+}  // namespace esphome::http_request

@@ -23,64 +23,30 @@ enum Device {
   TF_CARD = 2,
 };
 
+// See the datasheet here:
+// https://github.com/DFRobot/DFRobotDFPlayerMini/blob/master/doc/FN-M16P%2BEmbedded%2BMP3%2BAudio%2BModule%2BDatasheet.pdf
 class DFPlayer : public uart::UARTDevice, public Component {
  public:
   void loop() override;
 
-  void next() {
-    this->ack_set_is_playing_ = true;
-    this->send_cmd_(0x01);
-  }
-  void previous() {
-    this->ack_set_is_playing_ = true;
-    this->send_cmd_(0x02);
-  }
-  void play_mp3(uint16_t file) {
-    this->ack_set_is_playing_ = true;
-    this->send_cmd_(0x12, file);
-  }
-  void play_file(uint16_t file) {
-    this->ack_set_is_playing_ = true;
-    this->send_cmd_(0x03, file);
-  }
-  void play_file_loop(uint16_t file) {
-    this->ack_set_is_playing_ = true;
-    this->send_cmd_(0x08, file);
-  }
+  void next();
+  void previous();
+  void play_mp3(uint16_t file);
+  void play_file(uint16_t file);
+  void play_file_loop(uint16_t file);
   void play_folder(uint16_t folder, uint16_t file);
-  void play_folder_loop(uint16_t folder) {
-    this->ack_set_is_playing_ = true;
-    this->send_cmd_(0x17, folder);
-  }
-  void volume_up() { this->send_cmd_(0x04); }
-  void volume_down() { this->send_cmd_(0x05); }
-  void set_device(Device device) { this->send_cmd_(0x09, device); }
-  void set_volume(uint8_t volume) { this->send_cmd_(0x06, volume); }
-  void set_eq(EqPreset preset) { this->send_cmd_(0x07, preset); }
-  void sleep() {
-    this->ack_reset_is_playing_ = true;
-    this->send_cmd_(0x0A);
-  }
-  void reset() {
-    this->ack_reset_is_playing_ = true;
-    this->send_cmd_(0x0C);
-  }
-  void start() {
-    this->ack_set_is_playing_ = true;
-    this->send_cmd_(0x0D);
-  }
-  void pause() {
-    this->ack_reset_is_playing_ = true;
-    this->send_cmd_(0x0E);
-  }
-  void stop() {
-    this->ack_reset_is_playing_ = true;
-    this->send_cmd_(0x16);
-  }
-  void random() {
-    this->ack_set_is_playing_ = true;
-    this->send_cmd_(0x18);
-  }
+  void play_folder_loop(uint16_t folder);
+  void volume_up();
+  void volume_down();
+  void set_device(Device device);
+  void set_volume(uint8_t volume);
+  void set_eq(EqPreset preset);
+  void sleep();
+  void reset();
+  void start();
+  void pause();
+  void stop();
+  void random();
 
   bool is_playing() { return is_playing_; }
   void dump_config() override;
@@ -111,7 +77,7 @@ class DFPlayer : public uart::UARTDevice, public Component {
   class ACTION_CLASS : /* NOLINT */ \
                        public Action<Ts...>, \
                        public Parented<DFPlayer> { \
-    void play(Ts... x) override { this->parent_->ACTION_METHOD(); } \
+    void play(const Ts &...x) override { this->parent_->ACTION_METHOD(); } \
   };
 
 DFPLAYER_SIMPLE_ACTION(NextAction, next)
@@ -121,7 +87,7 @@ template<typename... Ts> class PlayMp3Action : public Action<Ts...>, public Pare
  public:
   TEMPLATABLE_VALUE(uint16_t, file)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto file = this->file_.value(x...);
     this->parent_->play_mp3(file);
   }
@@ -132,7 +98,7 @@ template<typename... Ts> class PlayFileAction : public Action<Ts...>, public Par
   TEMPLATABLE_VALUE(uint16_t, file)
   TEMPLATABLE_VALUE(bool, loop)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto file = this->file_.value(x...);
     auto loop = this->loop_.value(x...);
     if (loop) {
@@ -149,7 +115,7 @@ template<typename... Ts> class PlayFolderAction : public Action<Ts...>, public P
   TEMPLATABLE_VALUE(uint16_t, file)
   TEMPLATABLE_VALUE(bool, loop)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto folder = this->folder_.value(x...);
     auto file = this->file_.value(x...);
     auto loop = this->loop_.value(x...);
@@ -165,7 +131,7 @@ template<typename... Ts> class SetDeviceAction : public Action<Ts...>, public Pa
  public:
   TEMPLATABLE_VALUE(Device, device)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto device = this->device_.value(x...);
     this->parent_->set_device(device);
   }
@@ -175,7 +141,7 @@ template<typename... Ts> class SetVolumeAction : public Action<Ts...>, public Pa
  public:
   TEMPLATABLE_VALUE(uint8_t, volume)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto volume = this->volume_.value(x...);
     this->parent_->set_volume(volume);
   }
@@ -185,7 +151,7 @@ template<typename... Ts> class SetEqAction : public Action<Ts...>, public Parent
  public:
   TEMPLATABLE_VALUE(EqPreset, eq)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto eq = this->eq_.value(x...);
     this->parent_->set_eq(eq);
   }
@@ -202,7 +168,7 @@ DFPLAYER_SIMPLE_ACTION(VolumeDownAction, volume_down)
 
 template<typename... Ts> class DFPlayerIsPlayingCondition : public Condition<Ts...>, public Parented<DFPlayer> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_playing(); }
+  bool check(const Ts &...x) override { return this->parent_->is_playing(); }
 };
 
 class DFPlayerFinishedPlaybackTrigger : public Trigger<> {

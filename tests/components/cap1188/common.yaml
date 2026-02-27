@@ -1,0 +1,7 @@
+cap1188:
+  id: cap1188_component
+  i2c_id: i2c_bus
+  address: 0x29
+  reset_pin: ${reset_pin}
+  touch_threshold: 0x20
+  allow_multiple_touches: true

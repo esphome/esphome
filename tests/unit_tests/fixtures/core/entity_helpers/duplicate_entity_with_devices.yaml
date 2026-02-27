@@ -1,0 +1,26 @@
+esphome:
+  name: test-duplicate-devices
+  devices:
+    - id: device1
+      name: "Device 1"
+    - id: device2
+      name: "Device 2"
+
+esp32:
+  board: esp32dev
+
+sensor:
+  # Same name on different devices - should pass
+  - platform: template
+    device_id: device1
+    name: "Temperature"
+    lambda: return 21.0;
+  - platform: template
+    device_id: device2
+    name: "Temperature"
+    lambda: return 22.0;
+  # Duplicate on same device - should fail
+  - platform: template
+    device_id: device1
+    name: "Temperature"
+    lambda: return 23.0;

@@ -48,7 +48,6 @@ class BME68xBSEC2Component : public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void loop() override;
 
   void set_algorithm_output(AlgorithmOutput algorithm_output) { this->algorithm_output_ = algorithm_output; }
@@ -113,13 +112,11 @@ class BME68xBSEC2Component : public Component {
 
   struct bme68x_heatr_conf bme68x_heatr_conf_;
   uint8_t op_mode_;  // operating mode of sensor
-  bool sleep_mode_;
   bsec_library_return_t bsec_status_{BSEC_OK};
   int8_t bme68x_status_{BME68X_OK};
 
   int64_t last_time_ms_{0};
   uint32_t millis_overflow_counter_{0};
-  int64_t next_call_ns_{0};
 
   std::queue<std::function<void()>> queue_;
 

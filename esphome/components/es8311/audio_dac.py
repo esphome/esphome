@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
 import esphome.config_validation as cv
-from esphome.const import CONF_BITS_PER_SAMPLE, CONF_ID, CONF_SAMPLE_RATE
+from esphome.const import CONF_BITS_PER_SAMPLE, CONF_ID, CONF_MIC_GAIN, CONF_SAMPLE_RATE
 
 CODEOWNERS = ["@kroimon", "@kahrendt"]
 DEPENDENCIES = ["i2c"]
@@ -10,7 +10,6 @@ DEPENDENCIES = ["i2c"]
 es8311_ns = cg.esphome_ns.namespace("es8311")
 ES8311 = es8311_ns.class_("ES8311", AudioDac, cg.Component, i2c.I2CDevice)
 
-CONF_MIC_GAIN = "mic_gain"
 CONF_USE_MCLK = "use_mclk"
 CONF_USE_MICROPHONE = "use_microphone"
 
@@ -23,7 +22,6 @@ ES8311_BITS_PER_SAMPLE_ENUM = {
 
 es8311_mic_gain = es8311_ns.enum("ES8311MicGain")
 ES8311_MIC_GAIN_ENUM = {
-    "MIN": es8311_mic_gain.ES8311_MIC_GAIN_MIN,
     "0DB": es8311_mic_gain.ES8311_MIC_GAIN_0DB,
     "6DB": es8311_mic_gain.ES8311_MIC_GAIN_6DB,
     "12DB": es8311_mic_gain.ES8311_MIC_GAIN_12DB,
@@ -32,7 +30,6 @@ ES8311_MIC_GAIN_ENUM = {
     "30DB": es8311_mic_gain.ES8311_MIC_GAIN_30DB,
     "36DB": es8311_mic_gain.ES8311_MIC_GAIN_36DB,
     "42DB": es8311_mic_gain.ES8311_MIC_GAIN_42DB,
-    "MAX": es8311_mic_gain.ES8311_MIC_GAIN_MAX,
 }
 
 

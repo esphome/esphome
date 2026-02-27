@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_FIELD_STRENGTH_X,
@@ -8,13 +8,15 @@ from esphome.const import (
     CONF_FIELD_STRENGTH_Z,
     CONF_HEADING,
     CONF_ID,
-    ICON_MAGNET,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_MICROTESLA,
-    UNIT_DEGREES,
-    ICON_SCREEN_ROTATION,
     CONF_UPDATE_INTERVAL,
+    ICON_MAGNET,
+    ICON_SCREEN_ROTATION,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_DEGREES,
+    UNIT_MICROTESLA,
 )
+
+CONF_AUTO_SET_RESET = "auto_set_reset"
 
 DEPENDENCIES = ["i2c"]
 
@@ -54,6 +56,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_FIELD_STRENGTH_Y): field_strength_schema,
             cv.Optional(CONF_FIELD_STRENGTH_Z): field_strength_schema,
             cv.Optional(CONF_HEADING): heading_schema,
+            cv.Optional(CONF_AUTO_SET_RESET, default=True): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -88,3 +91,5 @@ async def to_code(config):
     if CONF_HEADING in config:
         sens = await sensor.new_sensor(config[CONF_HEADING])
         cg.add(var.set_heading_sensor(sens))
+    if CONF_AUTO_SET_RESET in config:
+        cg.add(var.set_auto_set_reset(config[CONF_AUTO_SET_RESET]))

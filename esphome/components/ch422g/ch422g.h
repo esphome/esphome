@@ -23,7 +23,9 @@ class CH422GComponent : public Component, public i2c::I2CDevice {
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
   float get_setup_priority() const override;
+#ifdef USE_LOOP_PRIORITY
   float get_loop_priority() const override;
+#endif
   void dump_config() override;
 
  protected:
@@ -50,12 +52,14 @@ class CH422GGPIOPin : public GPIOPin {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
 
   void set_parent(CH422GComponent *parent) { parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
   void set_flags(gpio::Flags flags);
+
+  gpio::Flags get_flags() const override { return this->flags_; }
 
  protected:
   CH422GComponent *parent_{};

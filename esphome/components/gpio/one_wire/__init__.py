@@ -1,8 +1,9 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
-from esphome.const import CONF_ID, CONF_PIN
+import esphome.codegen as cg
 from esphome.components.one_wire import OneWireBus
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_PIN
+
 from .. import gpio_ns
 
 CODEOWNERS = ["@ssieb"]

@@ -1,8 +1,10 @@
 remote_transmitter:
-  id: rcvr
-  pin: ${pin}
-  rmt_channel: ${rmt_channel}
-  carrier_duty_percent: 50%
+  - id: xmitr
+    pin: ${pin}
+    carrier_duty_percent: 50%
+    non_blocking: true
+    clock_resolution: ${clock_resolution}
+    rmt_symbols: ${rmt_symbols}
 
 packages:
   buttons: !include common-buttons.yaml

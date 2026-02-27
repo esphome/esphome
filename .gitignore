@@ -91,6 +91,10 @@ venv-*/
 # mypy
 .mypy_cache/
 
+# nix
+/default.nix
+/shell.nix
+
 .pioenvs
 .piolibdeps
 .pio
@@ -143,3 +147,4 @@ sdkconfig.*
 /components
 /managed_components
 
+api-docs/

@@ -28,8 +28,6 @@ static const uint8_t MCP9600_REGISTER_ALERT4_LIMIT = 0x13;
 static const uint8_t MCP9600_REGISTER_DEVICE_ID = 0x20;
 
 void MCP9600Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MCP9600...");
-
   uint16_t dev_id = 0;
   this->read_byte_16(MCP9600_REGISTER_DEVICE_ID, &dev_id);
   this->device_id_ = (uint8_t) (dev_id >> 8);
@@ -65,12 +63,12 @@ void MCP9600Component::setup() {
 }
 
 void MCP9600Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "MCP9600:");
+  ESP_LOGCONFIG(TAG,
+                "MCP9600:\n"
+                "  Device ID: 0x%x",
+                this->device_id_);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-
-  ESP_LOGCONFIG(TAG, "  Device ID: 0x%x", this->device_id_);
-
   LOG_SENSOR("  ", "Hot Junction Temperature", this->hot_junction_sensor_);
   LOG_SENSOR("  ", "Cold Junction Temperature", this->cold_junction_sensor_);
 

@@ -27,7 +27,7 @@ void TOF10120Sensor::setup() {}
 
 void TOF10120Sensor::update() {
   if (!this->write_bytes(TOF10120_DISTANCE_REGISTER, TOF10120_READ_DISTANCE_CMD, sizeof(TOF10120_READ_DISTANCE_CMD))) {
-    ESP_LOGE(TAG, "Communication with TOF10120 failed on write");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
     return;
   }
@@ -39,7 +39,7 @@ void TOF10120Sensor::update() {
   }
   delay(TOF10120_DEFAULT_DELAY);
   if (this->read(data, 2) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Communication with TOF10120 failed on read");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
     return;
   }

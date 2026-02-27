@@ -1,11 +1,12 @@
-import esphome.codegen as cg
 from esphome import automation
-import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_EC,
+    CONF_ID,
     CONF_TEMPERATURE,
+    CONF_TEMPERATURE_COMPENSATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
@@ -18,7 +19,6 @@ DEPENDENCIES = ["i2c"]
 
 CONF_SOLUTION = "solution"
 CONF_TEMPERATURE_SENSOR = "temperature_sensor"
-CONF_TEMPERATURE_COMPENSATION = "temperature_compensation"
 CONF_TEMPERATURE_COEFFICIENT = "temperature_coefficient"
 
 ufire_ec_ns = cg.esphome_ns.namespace("ufire_ec")
@@ -122,5 +122,4 @@ UFIRE_EC_RESET_SCHEMA = cv.Schema(
 )
 async def ufire_ec_reset_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)

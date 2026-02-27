@@ -1,6 +1,6 @@
 #include "float_output.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace output {
@@ -32,7 +32,7 @@ void FloatOutput::set_level(float state) {
   }
 #endif
 
-  if (!(state == 0.0f && this->zero_means_zero_))  // regardless of min_power_, 0.0 means off
+  if (state != 0.0f || !this->zero_means_zero_)  // regardless of min_power_, 0.0 means off
     state = (state * (this->max_power_ - this->min_power_)) + this->min_power_;
 
   if (this->is_inverted())

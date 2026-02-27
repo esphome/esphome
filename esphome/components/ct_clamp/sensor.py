@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_SENSOR,
     DEVICE_CLASS_CURRENT,

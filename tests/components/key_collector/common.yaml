@@ -1,0 +1,50 @@
+matrix_keypad:
+  id: keypad
+  rows:
+    - pin: ${pin_r0}
+    - pin: ${pin_r1}
+  columns:
+    - pin: ${pin_c0}
+    - pin: ${pin_c1}
+  keys: "1234"
+  has_pulldowns: true
+
+key_collector:
+  - id: reader
+    source_id: keypad
+    min_length: 4
+    max_length: 4
+    on_progress:
+      - logger.log:
+          format: "input progress: '%s', started by '%c'"
+          args: ['x.c_str()', "(start == 0 ? '~' : start)"]
+      - logger.log:
+          format: "second listener - progress: '%s'"
+          args: ['x.c_str()']
+    on_result:
+      - logger.log:
+          format: "input result: '%s', started by '%c', ended by '%c'"
+          args: ['x.c_str()', "(start == 0 ? '~' : start)", "(end == 0 ? '~' : end)"]
+      - logger.log:
+          format: "second listener - result: '%s'"
+          args: ['x.c_str()']
+    on_timeout:
+      - logger.log:
+          format: "input timeout: '%s', started by '%c'"
+          args: ['x.c_str()', "(start == 0 ? '~' : start)"]
+      - logger.log:
+          format: "second listener - timeout: '%s'"
+          args: ['x.c_str()']
+    enable_on_boot: false
+
+button:
+  - platform: template
+    id: button0
+    on_press:
+      - key_collector.enable:
+      - key_collector.disable:
+
+text_sensor:
+  - platform: key_collector
+    id: collected_keys
+    source_id: reader

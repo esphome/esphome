@@ -11,7 +11,7 @@ namespace dfrobot_sen0395 {
 template<typename... Ts>
 class DfrobotSen0395ResetAction : public Action<Ts...>, public Parented<DfrobotSen0395Component> {
  public:
-  void play(Ts... x) { this->parent_->enqueue(make_unique<ResetSystemCommand>()); }
+  void play(const Ts &...x) { this->parent_->enqueue(make_unique<ResetSystemCommand>()); }
 };
 
 template<typename... Ts>
@@ -33,7 +33,7 @@ class DfrobotSen0395SettingsAction : public Action<Ts...>, public Parented<Dfrob
   TEMPLATABLE_VALUE(float, det_min4)
   TEMPLATABLE_VALUE(float, det_max4)
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     this->parent_->enqueue(make_unique<PowerCommand>(0));
     if (this->factory_reset_.has_value() && this->factory_reset_.value(x...) == true) {
       this->parent_->enqueue(make_unique<FactoryResetCommand>());

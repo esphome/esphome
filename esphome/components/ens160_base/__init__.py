@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPENSATION,
     CONF_ECO2,
@@ -28,21 +28,21 @@ UNIT_INDEX = "index"
 
 CONFIG_SCHEMA_BASE = cv.Schema(
     {
-        cv.Required(CONF_ECO2): sensor.sensor_schema(
+        cv.Optional(CONF_ECO2): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_MILLION,
             icon=ICON_MOLECULE_CO2,
             accuracy_decimals=0,
             device_class=DEVICE_CLASS_CARBON_DIOXIDE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Required(CONF_TVOC): sensor.sensor_schema(
+        cv.Optional(CONF_TVOC): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_BILLION,
             icon=ICON_RADIATOR,
             accuracy_decimals=0,
             device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Required(CONF_AQI): sensor.sensor_schema(
+        cv.Optional(CONF_AQI): sensor.sensor_schema(
             icon=ICON_CHEMICAL_WEAPON,
             accuracy_decimals=0,
             device_class=DEVICE_CLASS_AQI,
@@ -62,12 +62,15 @@ async def to_code_base(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    sens = await sensor.new_sensor(config[CONF_ECO2])
-    cg.add(var.set_co2(sens))
-    sens = await sensor.new_sensor(config[CONF_TVOC])
-    cg.add(var.set_tvoc(sens))
-    sens = await sensor.new_sensor(config[CONF_AQI])
-    cg.add(var.set_aqi(sens))
+    if eco2_config := config.get(CONF_ECO2):
+        sens = await sensor.new_sensor(eco2_config)
+        cg.add(var.set_co2(sens))
+    if tvoc_config := config.get(CONF_TVOC):
+        sens = await sensor.new_sensor(tvoc_config)
+        cg.add(var.set_tvoc(sens))
+    if aqi_config := config.get(CONF_AQI):
+        sens = await sensor.new_sensor(aqi_config)
+        cg.add(var.set_aqi(sens))
 
     if compensation_config := config.get(CONF_COMPENSATION):
         sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE])

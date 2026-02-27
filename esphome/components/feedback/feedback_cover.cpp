@@ -1,6 +1,7 @@
 #include "feedback_cover.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace feedback {
@@ -220,7 +221,7 @@ void FeedbackCover::set_open_obstacle_sensor(binary_sensor::BinarySensor *open_o
 void FeedbackCover::loop() {
   if (this->current_operation == COVER_OPERATION_IDLE)
     return;
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   // Recompute position every loop cycle
   this->recompute_position_();
@@ -334,18 +335,18 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
 
   switch (dir) {
     case COVER_OPERATION_IDLE:
-      trig = this->stop_trigger_;
+      trig = &this->stop_trigger_;
       break;
     case COVER_OPERATION_OPENING:
       this->last_operation_ = dir;
-      trig = this->open_trigger_;
+      trig = &this->open_trigger_;
 #ifdef USE_BINARY_SENSOR
       obstacle = this->open_obstacle_;
 #endif
       break;
     case COVER_OPERATION_CLOSING:
       this->last_operation_ = dir;
-      trig = this->close_trigger_;
+      trig = &this->close_trigger_;
 #ifdef USE_BINARY_SENSOR
       obstacle = this->close_obstacle_;
 #endif

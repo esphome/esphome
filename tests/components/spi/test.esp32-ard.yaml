@@ -1,5 +1,6 @@
-spi:
-  - id: spi_spi
-    clk_pin: 16
-    mosi_pin: 17
-    miso_pin: 15
+substitutions:
+  clk_pin: GPIO16
+  mosi_pin: GPIO17
+  miso_pin: GPIO15
+
+<<: !include common.yaml

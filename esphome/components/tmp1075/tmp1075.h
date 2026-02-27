@@ -36,9 +36,8 @@ struct TMP1075Config {
       uint8_t shutdown : 1;  // Sets the device in shutdown mode to conserve power.
                              // 0: Device is in continuous conversion
                              // 1: Device is in shutdown mode
-      uint8_t unused : 8;
     } fields;
-    uint16_t regvalue;
+    uint8_t regvalue;
   };
 };
 
@@ -58,8 +57,6 @@ class TMP1075Sensor : public PollingComponent, public sensor::Sensor, public i2c
  public:
   void setup() override;
   void update() override;
-
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void dump_config() override;
 

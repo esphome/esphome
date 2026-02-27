@@ -12,7 +12,7 @@ void Sen21231Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "SEN21231:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with SEN21231 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   ESP_LOGI(TAG, "SEN21231: %s", this->is_failed() ? "FAILED" : "OK");
   LOG_UPDATE_INTERVAL(this);

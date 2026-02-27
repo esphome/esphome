@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
-from esphome.const import CONF_FORMAT, CONF_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_FORMAT
 
 from .. import CONF_OBIS_CODE, CONF_SERVER_ID, CONF_SML_ID, Sml, obis_code, sml_ns
 
@@ -19,9 +19,8 @@ SML_TYPES = {
 
 SmlTextSensor = sml_ns.class_("SmlTextSensor", text_sensor.TextSensor, cg.Component)
 
-CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
+CONFIG_SCHEMA = text_sensor.text_sensor_schema(SmlTextSensor).extend(
     {
-        cv.GenerateID(): cv.declare_id(SmlTextSensor),
         cv.GenerateID(CONF_SML_ID): cv.use_id(Sml),
         cv.Required(CONF_OBIS_CODE): obis_code,
         cv.Optional(CONF_SERVER_ID, default=""): cv.string,
@@ -31,13 +30,12 @@ CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(
-        config[CONF_ID],
+    var = await text_sensor.new_text_sensor(
+        config,
         config[CONF_SERVER_ID],
         config[CONF_OBIS_CODE],
         config[CONF_FORMAT],
     )
     await cg.register_component(var, config)
-    await text_sensor.register_text_sensor(var, config)
     sml = await cg.get_variable(config[CONF_SML_ID])
     cg.add(sml.register_sml_listener(var))

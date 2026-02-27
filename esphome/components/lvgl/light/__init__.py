@@ -4,9 +4,8 @@ from esphome.components.light import LightOutput
 import esphome.config_validation as cv
 from esphome.const import CONF_GAMMA_CORRECT, CONF_OUTPUT_ID
 
-from ..defines import CONF_LVGL_ID, CONF_WIDGET
+from ..defines import CONF_WIDGET
 from ..lvcode import LvContext
-from ..schemas import LVGL_SCHEMA
 from ..types import LvType, lvgl_ns
 from ..widgets import get_widgets, wait_for_widgets
 
@@ -18,16 +17,15 @@ CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
         cv.Required(CONF_WIDGET): cv.use_id(lv_led_t),
         cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(LVLight),
     }
-).extend(LVGL_SCHEMA)
+)
 
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
 
-    paren = await cg.get_variable(config[CONF_LVGL_ID])
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
     await wait_for_widgets()
-    async with LvContext(paren) as ctx:
+    async with LvContext() as ctx:
         ctx.add(var.set_obj(widget.obj))

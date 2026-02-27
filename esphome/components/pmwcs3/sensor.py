@@ -1,14 +1,14 @@
-import esphome.codegen as cg
 from esphome import automation
-import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_ADDRESS,
-    CONF_TEMPERATURE,
     CONF_EC,
-    STATE_CLASS_MEASUREMENT,
+    CONF_ID,
+    CONF_TEMPERATURE,
     ICON_THERMOMETER,
+    STATE_CLASS_MEASUREMENT,
 )
 
 CODEOWNERS = ["@SeByDocKy"]
@@ -114,8 +114,7 @@ PMWCS3_CALIBRATION_SCHEMA = cv.Schema(
 )
 async def pmwcs3_calibration_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 PMWCS3_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(

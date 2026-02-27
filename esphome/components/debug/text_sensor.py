@@ -1,6 +1,6 @@
+import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
     CONF_DEVICE,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -8,7 +8,11 @@ from esphome.const import (
     ICON_RESTART,
 )
 
-from . import CONF_DEBUG_ID, DebugComponent
+from . import (  # noqa: F401  pylint: disable=unused-import
+    CONF_DEBUG_ID,
+    FILTER_SOURCE_FILES,
+    DebugComponent,
+)
 
 DEPENDENCIES = ["debug"]
 

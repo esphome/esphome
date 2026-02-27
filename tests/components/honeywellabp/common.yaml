@@ -1,0 +1,9 @@
+sensor:
+  - platform: honeywellabp
+    cs_pin: ${cs_pin}
+    pressure:
+      name: Honeywell pressure
+      min_pressure: 0
+      max_pressure: 15
+    temperature:
+      name: Honeywell temperature

@@ -6,8 +6,7 @@
 #include "esphome/core/log.h"
 #include "uart_component.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 class UARTDevice {
  public:
@@ -17,6 +16,12 @@ class UARTDevice {
   void set_uart_parent(UARTComponent *parent) { this->parent_ = parent; }
 
   void write_byte(uint8_t data) { this->parent_->write_byte(data); }
+
+  void set_rx_full_threshold(size_t rx_full_threshold) { this->parent_->set_rx_full_threshold(rx_full_threshold); }
+  void set_rx_full_threshold_ms(size_t time) { this->parent_->set_rx_full_threshold_ms(time); }
+  size_t get_rx_full_threshold() { return this->parent_->get_rx_full_threshold(); }
+  void set_rx_timeout(size_t rx_timeout) { this->parent_->set_rx_timeout(rx_timeout); }
+  size_t get_rx_timeout() { return this->parent_->get_rx_timeout(); }
 
   void write_array(const uint8_t *data, size_t len) { this->parent_->write_array(data, len); }
   void write_array(const std::vector<uint8_t> &data) { this->parent_->write_array(data); }
@@ -38,9 +43,9 @@ class UARTDevice {
     return res;
   }
 
-  int available() { return this->parent_->available(); }
+  size_t available() { return this->parent_->available(); }
 
-  void flush() { return this->parent_->flush(); }
+  void flush() { this->parent_->flush(); }
 
   // Compat APIs
   int read() {
@@ -68,5 +73,4 @@ class UARTDevice {
   UARTComponent *parent_{nullptr};
 };
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart

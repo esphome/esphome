@@ -1,0 +1,21 @@
+esphome:
+  on_boot:
+    then:
+      - ufire_ec.calibrate_probe:
+          id: ufire_ec_board
+          solution: 0.146
+          temperature: !lambda "return id(test_sensor).state;"
+      - ufire_ec.reset:
+
+sensor:
+  - platform: template
+    id: test_sensor
+    lambda: "return 21;"
+  - platform: ufire_ec
+    i2c_id: i2c_bus
+    id: ufire_ec_board
+    ec:
+      name: Ufire EC
+    temperature_sensor: test_sensor
+    temperature_compensation: 20.0
+    temperature_coefficient: 0.019

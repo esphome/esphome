@@ -1,12 +1,12 @@
 import esphome.codegen as cg
+from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, binary_sensor
 from esphome.const import (
-    CONF_ID,
-    CONF_PORT,
-    CONF_NAME,
-    CONF_SENSORS,
     CONF_BINARY_SENSORS,
+    CONF_ID,
+    CONF_NAME,
+    CONF_PORT,
+    CONF_SENSORS,
 )
 
 AUTO_LOAD = ["socket"]

@@ -8,9 +8,7 @@ namespace sx1509 {
 static const char *const TAG = "sx1509";
 
 void SX1509Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SX1509Component...");
-
-  ESP_LOGV(TAG, "  Resetting devices...");
+  ESP_LOGV(TAG, "  Resetting devices");
   if (!this->write_byte(REG_RESET, 0x12)) {
     this->mark_failed();
     return;
@@ -41,6 +39,9 @@ void SX1509Component::dump_config() {
 }
 
 void SX1509Component::loop() {
+  // Reset cache at the start of each loop
+  this->reset_pin_cache_();
+
   if (this->has_keypad_) {
     if (millis() - this->last_loop_timestamp_ < min_loop_period_)
       return;
@@ -48,21 +49,47 @@ void SX1509Component::loop() {
     uint16_t key_data = this->read_key_data();
     for (auto *binary_sensor : this->keypad_binary_sensors_)
       binary_sensor->process(key_data);
+    if (this->keys_.empty())
+      return;
+    if (key_data == 0) {
+      this->last_key_ = 0;
+      return;
+    }
+    int row, col;
+    for (row = 0; row < 7; row++) {
+      if (key_data & (1 << row))
+        break;
+    }
+    for (col = 8; col < 15; col++) {
+      if (key_data & (1 << col))
+        break;
+    }
+    col -= 8;
+    uint8_t key = this->keys_[row * this->cols_ + col];
+    if (key == this->last_key_)
+      return;
+    this->last_key_ = key;
+    ESP_LOGV(TAG, "row %d, col %d, key '%c'", row, col, key);
+    for (auto &trigger : this->key_triggers_)
+      trigger->trigger(key);
+    this->send_key_(key);
   }
 }
 
-bool SX1509Component::digital_read(uint8_t pin) {
+bool SX1509Component::digital_read_hw(uint8_t pin) {
+  // Always read all pins when any input pin is accessed
+  return this->read_byte_16(REG_DATA_B, &this->input_mask_);
+}
+
+bool SX1509Component::digital_read_cache(uint8_t pin) {
+  // Return cached value for input pins, false for output pins
   if (this->ddr_mask_ & (1 << pin)) {
-    uint16_t temp_reg_data;
-    if (!this->read_byte_16(REG_DATA_B, &temp_reg_data))
-      return false;
-    if (temp_reg_data & (1 << pin))
-      return true;
+    return (this->input_mask_ & (1 << pin)) != 0;
   }
   return false;
 }
 
-void SX1509Component::digital_write(uint8_t pin, bool bit_value) {
+void SX1509Component::digital_write_hw(uint8_t pin, bool bit_value) {
   if ((~this->ddr_mask_) & (1 << pin)) {
     // If the pin is an output, write high/low
     uint16_t temp_reg_data = 0;
@@ -230,9 +257,9 @@ void SX1509Component::setup_keypad_() {
   scan_time_bits &= 0b111;  // Scan time is bits 2:0
   temp_byte = sleep_time_ | scan_time_bits;
   this->write_byte(REG_KEY_CONFIG_1, temp_byte);
-  rows_ = (rows_ - 1) & 0b111;  // 0 = off, 0b001 = 2 rows, 0b111 = 8 rows, etc.
-  cols_ = (cols_ - 1) & 0b111;  // 0b000 = 1 column, ob111 = 8 columns, etc.
-  this->write_byte(REG_KEY_CONFIG_2, (rows_ << 3) | cols_);
+  temp_byte = ((this->rows_ - 1) & 0b111) << 3;  // 0 = off, 0b001 = 2 rows, 0b111 = 8 rows, etc.
+  temp_byte |= (this->cols_ - 1) & 0b111;        // 0b000 = 1 column, ob111 = 8 columns, etc.
+  this->write_byte(REG_KEY_CONFIG_2, temp_byte);
 }
 
 uint16_t SX1509Component::read_key_data() {

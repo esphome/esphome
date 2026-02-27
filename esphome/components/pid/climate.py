@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import climate, sensor, output
+import esphome.codegen as cg
+from esphome.components import climate, output, sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_HUMIDITY_SENSOR, CONF_ID, CONF_SENSOR
 
 pid_ns = cg.esphome_ns.namespace("pid")
@@ -41,9 +41,8 @@ CONF_KI_MULTIPLIER = "ki_multiplier"
 CONF_KD_MULTIPLIER = "kd_multiplier"
 
 CONFIG_SCHEMA = cv.All(
-    climate.CLIMATE_SCHEMA.extend(
+    climate.climate_schema(PIDClimate).extend(
         {
-            cv.GenerateID(): cv.declare_id(PIDClimate),
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE): cv.temperature,
@@ -51,8 +50,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_DEADBAND_PARAMETERS): cv.Schema(
                 {
-                    cv.Required(CONF_THRESHOLD_HIGH): cv.temperature,
-                    cv.Required(CONF_THRESHOLD_LOW): cv.temperature,
+                    cv.Required(CONF_THRESHOLD_HIGH): cv.temperature_delta,
+                    cv.Required(CONF_THRESHOLD_LOW): cv.temperature_delta,
                     cv.Optional(CONF_KP_MULTIPLIER, default=0.1): cv.float_,
                     cv.Optional(CONF_KI_MULTIPLIER, default=0.0): cv.float_,
                     cv.Optional(CONF_KD_MULTIPLIER, default=0.0): cv.float_,
@@ -80,9 +79,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await climate.new_climate(config)
     await cg.register_component(var, config)
-    await climate.register_climate(var, config)
 
     sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_sensor(sens))

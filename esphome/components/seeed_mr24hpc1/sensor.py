@@ -7,6 +7,7 @@ from esphome.const import (
     DEVICE_CLASS_SPEED,
     UNIT_METER,
 )
+
 from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
 CONF_CUSTOM_PRESENCE_OF_DETECTION = "custom_presence_of_detection"

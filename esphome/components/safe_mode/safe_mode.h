@@ -5,11 +5,17 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace safe_mode {
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+#include <esp_ota_ops.h>
+#endif
+
+namespace esphome::safe_mode {
+
+/// RTC key for storing boot loop counter - used by safe_mode and preferences backends
+constexpr uint32_t RTC_KEY = 233825507UL;
 
 /// SafeModeComponent provides a safe way to recover from repeated boot failures
-class SafeModeComponent : public Component {
+class SafeModeComponent final : public Component {
  public:
   bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time, uint32_t boot_is_good_after);
 
@@ -25,26 +31,37 @@ class SafeModeComponent : public Component {
 
   void on_safe_shutdown() override;
 
+  void mark_successful();
+
+#ifdef USE_SAFE_MODE_CALLBACK
   void add_on_safe_mode_callback(std::function<void()> &&callback) {
     this->safe_mode_callback_.add(std::move(callback));
   }
+#endif
 
  protected:
   void write_rtc_(uint32_t val);
   uint32_t read_rtc_();
 
-  bool boot_successful_{false};                   ///< set to true after boot is considered successful
+  // Group all 4-byte aligned members together to avoid padding
   uint32_t safe_mode_boot_is_good_after_{60000};  ///< The amount of time after which the boot is considered successful
   uint32_t safe_mode_enable_time_{60000};         ///< The time safe mode should remain active for
   uint32_t safe_mode_rtc_value_{0};
   uint32_t safe_mode_start_time_{0};  ///< stores when safe mode was enabled
+  // Group 1-byte members together to minimize padding
+  bool boot_successful_{false};  ///< set to true after boot is considered successful
   uint8_t safe_mode_num_attempts_{0};
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+  esp_ota_img_states_t ota_state_{ESP_OTA_IMG_UNDEFINED};
+#endif
+  // Larger objects at the end
   ESPPreferenceObject rtc_;
+#ifdef USE_SAFE_MODE_CALLBACK
   CallbackManager<void()> safe_mode_callback_{};
+#endif
 
   static const uint32_t ENTER_SAFE_MODE_MAGIC =
       0x5afe5afe;  ///< a magic number to indicate that safe mode should be entered on next boot
 };
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode

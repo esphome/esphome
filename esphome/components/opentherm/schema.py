@@ -2,22 +2,26 @@
 # inputs of the OpenTherm component.
 
 from dataclasses import dataclass
-from typing import Optional, TypeVar
+from typing import Any, TypeVar
 
+import esphome.config_validation as cv
 from esphome.const import (
+    DEVICE_CLASS_COLD,
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_HEAT,
+    DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_PROBLEM,
+    DEVICE_CLASS_TEMPERATURE,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_NONE,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
     UNIT_EMPTY,
     UNIT_KILOWATT,
     UNIT_MICROAMP,
     UNIT_PERCENT,
     UNIT_REVOLUTIONS_PER_MINUTE,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_EMPTY,
-    DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
-    STATE_CLASS_TOTAL_INCREASING,
 )
 
 
@@ -57,10 +61,11 @@ TSchema = TypeVar("TSchema", bound=EntitySchema)
 class SensorSchema(EntitySchema):
     accuracy_decimals: int
     state_class: str
-    unit_of_measurement: Optional[str] = None
-    icon: Optional[str] = None
-    device_class: Optional[str] = None
+    unit_of_measurement: str | None = None
+    icon: str | None = None
+    device_class: str | None = None
     disabled_by_default: bool = False
+    order: int | None = None
 
 
 SENSORS: dict[str, SensorSchema] = {
@@ -188,11 +193,23 @@ SENSORS: dict[str, SensorSchema] = {
         description="Boiler fan speed",
         unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
         accuracy_decimals=0,
+        icon="mdi:fan",
         device_class=DEVICE_CLASS_EMPTY,
         state_class=STATE_CLASS_MEASUREMENT,
         message="FAN_SPEED",
         keep_updated=True,
-        message_data="u16",
+        message_data="u8_lb_60",
+    ),
+    "fan_speed_setpoint": SensorSchema(
+        description="Boiler fan speed setpoint",
+        unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
+        accuracy_decimals=0,
+        icon="mdi:fan",
+        device_class=DEVICE_CLASS_EMPTY,
+        state_class=STATE_CLASS_MEASUREMENT,
+        message="FAN_SPEED",
+        keep_updated=True,
+        message_data="u8_hb_60",
     ),
     "flame_current": SensorSchema(
         description="Boiler flame current",
@@ -384,6 +401,7 @@ SENSORS: dict[str, SensorSchema] = {
         message="OT_VERSION_DEVICE",
         keep_updated=False,
         message_data="f88",
+        order=2,
     ),
     "device_type": SensorSchema(
         description="Device product type",
@@ -394,6 +412,7 @@ SENSORS: dict[str, SensorSchema] = {
         message="VERSION_DEVICE",
         keep_updated=False,
         message_data="u8_hb",
+        order=0,
     ),
     "device_version": SensorSchema(
         description="Device product version",
@@ -404,6 +423,7 @@ SENSORS: dict[str, SensorSchema] = {
         message="VERSION_DEVICE",
         keep_updated=False,
         message_data="u8_lb",
+        order=0,
     ),
     "device_id": SensorSchema(
         description="Device ID code",
@@ -414,6 +434,7 @@ SENSORS: dict[str, SensorSchema] = {
         message="DEVICE_CONFIG",
         keep_updated=False,
         message_data="u8_lb",
+        order=4,
     ),
     "otc_hc_ratio_ub": SensorSchema(
         description="OTC heat curve ratio upper bound",
@@ -434,5 +455,437 @@ SENSORS: dict[str, SensorSchema] = {
         message="OTC_CURVE_BOUNDS",
         keep_updated=False,
         message_data="u8_lb",
+    ),
+}
+
+
+@dataclass
+class BinarySensorSchema(EntitySchema):
+    icon: str | None = None
+    device_class: str | None = None
+    order: int | None = None
+
+
+BINARY_SENSORS: dict[str, BinarySensorSchema] = {
+    "fault_indication": BinarySensorSchema(
+        description="Status: Fault indication",
+        device_class=DEVICE_CLASS_PROBLEM,
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_lb_0",
+    ),
+    "ch_active": BinarySensorSchema(
+        description="Status: Central Heating active",
+        device_class=DEVICE_CLASS_HEAT,
+        icon="mdi:radiator",
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_lb_1",
+    ),
+    "dhw_active": BinarySensorSchema(
+        description="Status: Domestic Hot Water active",
+        device_class=DEVICE_CLASS_HEAT,
+        icon="mdi:faucet",
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_lb_2",
+    ),
+    "flame_on": BinarySensorSchema(
+        description="Status: Flame on",
+        device_class=DEVICE_CLASS_HEAT,
+        icon="mdi:fire",
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_lb_3",
+    ),
+    "cooling_active": BinarySensorSchema(
+        description="Status: Cooling active",
+        device_class=DEVICE_CLASS_COLD,
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_lb_4",
+    ),
+    "ch2_active": BinarySensorSchema(
+        description="Status: Central Heating 2 active",
+        device_class=DEVICE_CLASS_HEAT,
+        icon="mdi:radiator",
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_lb_5",
+    ),
+    "diagnostic_indication": BinarySensorSchema(
+        description="Status: Diagnostic event",
+        device_class=DEVICE_CLASS_PROBLEM,
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_lb_6",
+    ),
+    "electricity_production": BinarySensorSchema(
+        description="Status: Electricity production",
+        device_class=DEVICE_CLASS_PROBLEM,
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_lb_7",
+    ),
+    "dhw_present": BinarySensorSchema(
+        description="Configuration: DHW present",
+        message="DEVICE_CONFIG",
+        keep_updated=False,
+        message_data="flag8_hb_0",
+        order=4,
+    ),
+    "control_type_on_off": BinarySensorSchema(
+        description="Configuration: Control type is on/off",
+        message="DEVICE_CONFIG",
+        keep_updated=False,
+        message_data="flag8_hb_1",
+        order=4,
+    ),
+    "cooling_supported": BinarySensorSchema(
+        description="Configuration: Cooling supported",
+        message="DEVICE_CONFIG",
+        keep_updated=False,
+        message_data="flag8_hb_2",
+        order=4,
+    ),
+    "dhw_storage_tank": BinarySensorSchema(
+        description="Configuration: DHW storage tank",
+        message="DEVICE_CONFIG",
+        keep_updated=False,
+        message_data="flag8_hb_3",
+        order=4,
+    ),
+    "controller_pump_control_allowed": BinarySensorSchema(
+        description="Configuration: Controller pump control allowed",
+        message="DEVICE_CONFIG",
+        keep_updated=False,
+        message_data="flag8_hb_4",
+        order=4,
+    ),
+    "ch2_present": BinarySensorSchema(
+        description="Configuration: CH2 present",
+        message="DEVICE_CONFIG",
+        keep_updated=False,
+        message_data="flag8_hb_5",
+        order=4,
+    ),
+    "water_filling": BinarySensorSchema(
+        description="Configuration: Remote water filling",
+        message="DEVICE_CONFIG",
+        keep_updated=False,
+        message_data="flag8_hb_6",
+        order=4,
+    ),
+    "heat_mode": BinarySensorSchema(
+        description="Configuration: Heating or cooling",
+        message="DEVICE_CONFIG",
+        keep_updated=False,
+        message_data="flag8_hb_7",
+        order=4,
+    ),
+    "dhw_setpoint_transfer_enabled": BinarySensorSchema(
+        description="Remote boiler parameters: DHW setpoint transfer enabled",
+        message="REMOTE",
+        keep_updated=False,
+        message_data="flag8_hb_0",
+    ),
+    "max_ch_setpoint_transfer_enabled": BinarySensorSchema(
+        description="Remote boiler parameters: CH maximum setpoint transfer enabled",
+        message="REMOTE",
+        keep_updated=False,
+        message_data="flag8_hb_1",
+    ),
+    "dhw_setpoint_rw": BinarySensorSchema(
+        description="Remote boiler parameters: DHW setpoint read/write",
+        message="REMOTE",
+        keep_updated=False,
+        message_data="flag8_lb_0",
+    ),
+    "max_ch_setpoint_rw": BinarySensorSchema(
+        description="Remote boiler parameters: CH maximum setpoint read/write",
+        message="REMOTE",
+        keep_updated=False,
+        message_data="flag8_lb_1",
+    ),
+    "service_request": BinarySensorSchema(
+        description="Service required",
+        device_class=DEVICE_CLASS_PROBLEM,
+        message="FAULT_FLAGS",
+        keep_updated=True,
+        message_data="flag8_hb_0",
+    ),
+    "lockout_reset": BinarySensorSchema(
+        description="Lockout Reset",
+        device_class=DEVICE_CLASS_PROBLEM,
+        message="FAULT_FLAGS",
+        keep_updated=True,
+        message_data="flag8_hb_1",
+    ),
+    "low_water_pressure": BinarySensorSchema(
+        description="Low water pressure fault",
+        device_class=DEVICE_CLASS_PROBLEM,
+        message="FAULT_FLAGS",
+        keep_updated=True,
+        message_data="flag8_hb_2",
+    ),
+    "flame_fault": BinarySensorSchema(
+        description="Flame fault",
+        device_class=DEVICE_CLASS_PROBLEM,
+        message="FAULT_FLAGS",
+        keep_updated=True,
+        message_data="flag8_hb_3",
+    ),
+    "air_pressure_fault": BinarySensorSchema(
+        description="Air pressure fault",
+        device_class=DEVICE_CLASS_PROBLEM,
+        message="FAULT_FLAGS",
+        keep_updated=True,
+        message_data="flag8_hb_4",
+    ),
+    "water_over_temp": BinarySensorSchema(
+        description="Water overtemperature",
+        device_class=DEVICE_CLASS_PROBLEM,
+        message="FAULT_FLAGS",
+        keep_updated=True,
+        message_data="flag8_hb_5",
+    ),
+}
+
+
+@dataclass
+class SwitchSchema(EntitySchema):
+    default_mode: str | None = None
+
+
+SWITCHES: dict[str, SwitchSchema] = {
+    "ch_enable": SwitchSchema(
+        description="Central Heating enabled",
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_hb_0",
+        default_mode="restore_default_off",
+    ),
+    "dhw_enable": SwitchSchema(
+        description="Domestic Hot Water enabled",
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_hb_1",
+        default_mode="restore_default_off",
+    ),
+    "cooling_enable": SwitchSchema(
+        description="Cooling enabled",
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_hb_2",
+        default_mode="restore_default_off",
+    ),
+    "otc_active": SwitchSchema(
+        description="Outside temperature compensation active",
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_hb_3",
+        default_mode="restore_default_off",
+    ),
+    "ch2_active": SwitchSchema(
+        description="Central Heating 2 active",
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_hb_4",
+        default_mode="restore_default_off",
+    ),
+    "summer_mode_active": SwitchSchema(
+        description="Summer mode active",
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_hb_5",
+        default_mode="restore_default_off",
+    ),
+    "dhw_block": SwitchSchema(
+        description="DHW blocked",
+        message="STATUS",
+        keep_updated=True,
+        message_data="flag8_hb_6",
+        default_mode="restore_default_off",
+    ),
+}
+
+
+@dataclass
+class AutoConfigure:
+    message: str
+    message_data: str
+
+
+@dataclass
+class InputSchema(EntitySchema):
+    unit_of_measurement: str
+    step: float
+    range: tuple[int, int]
+    icon: str | None = None
+    auto_max_value: AutoConfigure | None = None
+    auto_min_value: AutoConfigure | None = None
+
+
+INPUTS: dict[str, InputSchema] = {
+    "t_set": InputSchema(
+        description="Control setpoint: temperature setpoint for the boiler's supply water",
+        unit_of_measurement=UNIT_CELSIUS,
+        step=0.1,
+        message="CH_SETPOINT",
+        keep_updated=True,
+        message_data="f88",
+        range=(0, 100),
+        auto_max_value=AutoConfigure(message="MAX_CH_SETPOINT", message_data="f88"),
+    ),
+    "t_set_ch2": InputSchema(
+        description="Control setpoint 2: temperature setpoint for the boiler's supply water on the second heating circuit",
+        unit_of_measurement=UNIT_CELSIUS,
+        step=0.1,
+        message="CH2_SETPOINT",
+        keep_updated=True,
+        message_data="f88",
+        range=(0, 100),
+        auto_max_value=AutoConfigure(message="MAX_CH_SETPOINT", message_data="f88"),
+    ),
+    "cooling_control": InputSchema(
+        description="Cooling control signal",
+        unit_of_measurement=UNIT_PERCENT,
+        step=1.0,
+        message="COOLING_CONTROL",
+        keep_updated=True,
+        message_data="f88",
+        range=(0, 100),
+    ),
+    "t_dhw_set": InputSchema(
+        description="Domestic hot water temperature setpoint",
+        unit_of_measurement=UNIT_CELSIUS,
+        step=0.1,
+        message="DHW_SETPOINT",
+        keep_updated=True,
+        message_data="f88",
+        range=(0, 127),
+        auto_min_value=AutoConfigure(message="DHW_BOUNDS", message_data="s8_lb"),
+        auto_max_value=AutoConfigure(message="DHW_BOUNDS", message_data="s8_hb"),
+    ),
+    "max_t_set": InputSchema(
+        description="Maximum allowable CH water setpoint",
+        unit_of_measurement=UNIT_CELSIUS,
+        step=0.1,
+        message="MAX_CH_SETPOINT",
+        keep_updated=True,
+        message_data="f88",
+        range=(0, 127),
+        auto_min_value=AutoConfigure(message="CH_BOUNDS", message_data="s8_lb"),
+        auto_max_value=AutoConfigure(message="CH_BOUNDS", message_data="s8_hb"),
+    ),
+    "t_room_set": InputSchema(
+        description="Current room temperature setpoint (informational)",
+        unit_of_measurement=UNIT_CELSIUS,
+        step=0.1,
+        message="ROOM_SETPOINT",
+        keep_updated=True,
+        message_data="f88",
+        range=(-40, 127),
+    ),
+    "t_room_set_ch2": InputSchema(
+        description="Current room temperature setpoint on CH2 (informational)",
+        unit_of_measurement=UNIT_CELSIUS,
+        step=0.1,
+        message="ROOM_SETPOINT_CH2",
+        keep_updated=True,
+        message_data="f88",
+        range=(-40, 127),
+    ),
+    "t_room": InputSchema(
+        description="Current sensed room temperature (informational)",
+        unit_of_measurement=UNIT_CELSIUS,
+        step=0.1,
+        message="ROOM_TEMP",
+        keep_updated=True,
+        message_data="f88",
+        range=(-40, 127),
+    ),
+    "max_rel_mod_level": InputSchema(
+        description="Maximum relative modulation level",
+        unit_of_measurement=UNIT_PERCENT,
+        step=1,
+        icon="mdi:percent",
+        message="MAX_MODULATION_LEVEL",
+        keep_updated=True,
+        message_data="f88",
+        range=(0, 100),
+    ),
+    "otc_hc_ratio": InputSchema(
+        description="OTC heat curve ratio",
+        unit_of_measurement=UNIT_CELSIUS,
+        step=0.1,
+        message="OTC_CURVE_RATIO",
+        keep_updated=True,
+        message_data="f88",
+        range=(0, 127),
+        auto_min_value=AutoConfigure(message="OTC_CURVE_BOUNDS", message_data="u8_lb"),
+        auto_max_value=AutoConfigure(message="OTC_CURVE_BOUNDS", message_data="u8_hb"),
+    ),
+}
+
+
+@dataclass
+class SettingSchema(EntitySchema):
+    backing_type: str
+    validation_schema: cv.Schema
+    default_value: Any
+    order: int | None = None
+
+
+SETTINGS: dict[str, SettingSchema] = {
+    "controller_product_type": SettingSchema(
+        description="Controller product type",
+        message="VERSION_CONTROLLER",
+        keep_updated=False,
+        message_data="u8_hb",
+        backing_type="uint8_t",
+        validation_schema=cv.int_range(min=0, max=255),
+        default_value=0,
+        order=1,
+    ),
+    "controller_product_version": SettingSchema(
+        description="Controller product version",
+        message="VERSION_CONTROLLER",
+        keep_updated=False,
+        message_data="u8_lb",
+        backing_type="uint8_t",
+        validation_schema=cv.int_range(min=0, max=255),
+        default_value=0,
+        order=1,
+    ),
+    "opentherm_version_controller": SettingSchema(
+        description="Version of OpenTherm implemented by controller",
+        message="OT_VERSION_CONTROLLER",
+        keep_updated=False,
+        message_data="f88",
+        backing_type="float",
+        validation_schema=cv.positive_float,
+        default_value=0,
+        order=3,
+    ),
+    "controller_configuration": SettingSchema(
+        description="Controller configuration",
+        message="CONTROLLER_CONFIG",
+        keep_updated=False,
+        message_data="u8_hb",
+        backing_type="uint8_t",
+        validation_schema=cv.int_range(min=0, max=255),
+        default_value=0,
+        order=5,
+    ),
+    "controller_id": SettingSchema(
+        description="Controller ID code",
+        message="CONTROLLER_CONFIG",
+        keep_updated=False,
+        message_data="u8_lb",
+        backing_type="uint8_t",
+        validation_schema=cv.int_range(min=0, max=255),
+        default_value=0,
+        order=5,
     ),
 }

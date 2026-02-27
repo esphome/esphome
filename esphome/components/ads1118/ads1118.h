@@ -34,7 +34,6 @@ class ADS1118 : public Component,
   ADS1118() = default;
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   /// Helper method to request a measurement from a sensor.
   float request_measurement(ADS1118Multiplexer multiplexer, ADS1118Gain gain, bool temperature_mode);
 

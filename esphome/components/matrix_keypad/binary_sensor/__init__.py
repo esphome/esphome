@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_ID, CONF_KEY, CONF_ROW, CONF_COL
-from .. import MatrixKeypad, matrix_keypad_ns, CONF_KEYPAD_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_COL, CONF_ID, CONF_KEY, CONF_ROW
+
+from .. import CONF_KEYPAD_ID, MatrixKeypad, matrix_keypad_ns
 
 DEPENDENCIES = ["matrix_keypad"]
 
