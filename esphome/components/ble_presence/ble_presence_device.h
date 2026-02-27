@@ -101,7 +101,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   }
 
   void loop() override {
-    if (this->found_ && this->last_seen_ + this->timeout_ < millis())
+    if (this->found_ && millis() - this->last_seen_ > this->timeout_)
       this->set_found_(false);
   }
   void dump_config() override;

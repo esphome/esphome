@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome {
-namespace switch_ {
+namespace esphome::switch_ {
 
 template<typename... Ts> class TurnOnAction : public Action<Ts...> {
  public:
@@ -104,5 +103,4 @@ template<typename... Ts> class SwitchPublishAction : public Action<Ts...> {
   Switch *switch_;
 };
 
-}  // namespace switch_
-}  // namespace esphome
+}  // namespace esphome::switch_

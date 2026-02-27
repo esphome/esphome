@@ -439,6 +439,21 @@ template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallb
 /// @name Mathematics
 ///@{
 
+/// Compute 10^exp using iterative multiplication/division.
+/// Avoids pulling in powf/__ieee754_powf (~2.3KB flash) for small integer exponents.
+/// Matches powf(10, exp) for the int8_t exponent range used by sensor accuracy_decimals.
+inline float pow10_int(int8_t exp) {
+  float result = 1.0f;
+  if (exp >= 0) {
+    for (int8_t i = 0; i < exp; i++)
+      result *= 10.0f;
+  } else {
+    for (int8_t i = exp; i < 0; i++)
+      result /= 10.0f;
+  }
+  return result;
+}
+
 /// Remap \p value from the range (\p min, \p max) to (\p min_out, \p max_out).
 template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
   return (value - min) * (max_out - min_out) / (max - min) + min_out;
