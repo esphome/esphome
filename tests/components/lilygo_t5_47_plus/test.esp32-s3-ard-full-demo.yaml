@@ -1,0 +1,179 @@
+---
+# Full demo for LILYGO T5 4.7" Plus
+#
+# Features:
+#   - Battery level shown as text ("45%") and a progress bar
+#   - Three shapes: filled circle, filled square, outlined triangle
+#   - Touch input: every touch randomises positions of all objects
+#   - Touch coordinates logged to the console
+#
+# Display is 960×540 px. COLOR_OFF (black input) = white paper; COLOR_ON = black ink.
+# Touch transform: swap_xy + mirror_y maps the raw GT911 coordinates to display pixels.
+
+esphome:
+  name: lilygo-t547-full-demo
+  on_boot:
+    # Trigger the first display refresh after all components have initialised.
+    # priority -100 runs after sensors/displays are ready.
+    - priority: -100
+      then:
+        - lambda: |-
+            id(is_refreshing) = true;
+            id(my_display).update();
+            id(is_refreshing) = false;
+
+# Board config: ESP32-S3, 16MB flash, 8MB OPI PSRAM, Arduino framework, I2C
+packages:
+  board: github://hbast/esphome/esphome/components/lilygo_t5_47_plus/board_config.yaml@feature_lilygo_t5_47_plus
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/hbast/esphome
+      ref: feature_lilygo_t5_47_plus
+    components: [lilygo_t5_47_plus]
+    refresh: 1h
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+# ── Fonts ──────────────────────────────────────────────────────────────────────
+font:
+  - file: "gfonts://Roboto"
+    id: font_large
+    size: 56
+    glyphs: "0123456789% -"
+  - file: "gfonts://Roboto"
+    id: font_small
+    size: 28
+    glyphs: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -.,:%"
+
+# ── Battery sensor ──────────────────────────────────────────────────────────────
+sensor:
+  - platform: lilygo_t5_47_plus
+    id: battery_sensor
+    update_interval: 60s
+    battery_level:
+      id: batt_level
+      name: "Battery Level"
+
+# ── Object positions (randomised on each touch) ────────────────────────────────
+globals:
+  # Flag: ignore touch events while e-paper is refreshing (~2-4 s)
+  - id: is_refreshing
+    type: bool
+    initial_value: 'false'
+
+  # Battery label position (top-left of text bounding box, roughly)
+  - id: batt_x
+    type: int
+    initial_value: '80'
+  - id: batt_y
+    type: int
+    initial_value: '80'
+
+  # Filled circle: centre position, fixed radius 60 px
+  - id: circle_x
+    type: int
+    initial_value: '300'
+  - id: circle_y
+    type: int
+    initial_value: '300'
+
+  # Filled square: top-left corner, 120×120 px
+  - id: sq_x
+    type: int
+    initial_value: '550'
+  - id: sq_y
+    type: int
+    initial_value: '200'
+
+  # Triangle: apex position; legs extend 90 px down-left and down-right
+  - id: tri_x
+    type: int
+    initial_value: '750'
+  - id: tri_y
+    type: int
+    initial_value: '180'
+
+# ── Touchscreen ─────────────────────────────────────────────────────────────────
+touchscreen:
+  - platform: lilygo_t5_47_plus
+    id: my_touch
+    display: my_display
+    update_interval: 50ms
+    transform:
+      swap_xy: true
+      mirror_y: true
+    on_touch:
+      - lambda: |-
+          // Ignore touches while the display is still refreshing
+          if (id(is_refreshing)) return;
+
+          ESP_LOGI("demo", "TOUCH x=%d y=%d", touch.x, touch.y);
+
+          id(is_refreshing) = true;
+
+          // Randomise battery label position (keep within display, font ~56px tall)
+          id(batt_x) = 80 + esp_random() % (960 - 80 - 200);
+          id(batt_y) = 60 + esp_random() % (540 - 60 - 80);
+
+          // Randomise circle centre (radius 60, keep fully on screen)
+          id(circle_x) = 60 + esp_random() % (960 - 120);
+          id(circle_y) = 60 + esp_random() % (540 - 120);
+
+          // Randomise square top-left (120×120)
+          id(sq_x) = esp_random() % (960 - 120);
+          id(sq_y) = esp_random() % (540 - 120);
+
+          // Randomise triangle apex (base extends 90 px down, 90 px wide)
+          id(tri_x) = 90 + esp_random() % (960 - 180);
+          id(tri_y) = esp_random() % (540 - 100);
+
+          id(my_display).update();
+          id(is_refreshing) = false;
+
+# ── Display ─────────────────────────────────────────────────────────────────────
+display:
+  - platform: lilygo_t5_47_plus
+    id: my_display
+    greyscale: false
+    update_interval: never
+    lambda: |-
+      // White background
+      it.fill(COLOR_OFF);
+
+      // ── Battery level ──────────────────────────────────────────────────────
+      if (id(batt_level).has_state()) {
+        it.printf(id(batt_x), id(batt_y), id(font_large), COLOR_ON,
+                  "%.0f%%", id(batt_level).state);
+
+        // Small progress bar under the label (160×16 px)
+        int bar_x = id(batt_x);
+        int bar_y = id(batt_y) + 64;
+        it.rectangle(bar_x, bar_y, 160, 16, COLOR_ON);
+        int fill_w = static_cast<int>(id(batt_level).state / 100.0f * 156.0f);
+        if (fill_w > 0) {
+          it.filled_rectangle(bar_x + 2, bar_y + 2, fill_w, 12, COLOR_ON);
+        }
+      } else {
+        it.print(id(batt_x), id(batt_y), id(font_large), COLOR_ON, "--%");
+      }
+
+      // ── Filled circle (radius 60 px) ───────────────────────────────────────
+      it.filled_circle(id(circle_x), id(circle_y), 60, COLOR_ON);
+
+      // ── Filled square (120×120 px) ─────────────────────────────────────────
+      it.filled_rectangle(id(sq_x), id(sq_y), 120, 120, COLOR_ON);
+
+      // ── Triangle: apex at (tri_x, tri_y), base 180 px wide, 100 px tall ───
+      // Drawn as three lines (outline) since filled_triangle is not universal
+      int tx = id(tri_x);
+      int ty = id(tri_y);
+      it.line(tx,        ty,       tx - 90, ty + 100, COLOR_ON);  // left leg
+      it.line(tx,        ty,       tx + 90, ty + 100, COLOR_ON);  // right leg
+      it.line(tx - 90,   ty + 100, tx + 90, ty + 100, COLOR_ON);  // base
+
+      // ── Instructions (static) ──────────────────────────────────────────────
+      it.print(480, 510, id(font_small), COLOR_ON, TextAlign::CENTER,
+               "Touch anywhere to shuffle");

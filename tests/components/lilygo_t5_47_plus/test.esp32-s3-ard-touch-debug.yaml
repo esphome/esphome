@@ -1,0 +1,19 @@
+---
+# Debug: I2C + Display (no touchscreen)
+# Purpose: Isolate whether I2C + EPD display combination causes crash
+
+esphome:
+  name: lilygo-t547-touch-debug
+
+packages:
+  board: !include ../../../esphome/components/lilygo_t5_47_plus/board_config.yaml
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+  level: VERBOSE
+
+display:
+  - platform: lilygo_t5_47_plus
+    id: my_display
+    greyscale: false
+    update_interval: never
