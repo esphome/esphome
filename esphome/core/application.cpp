@@ -722,7 +722,8 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 static_assert(std::is_default_constructible<Application>::value, "Application must be default-constructible");
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 #ifdef __APPLE__
-// Mach-O prefixes an underscore to all symbols
+// On Mach-O, external symbols get an extra leading '_' prefix.
+// The Itanium ABI mangled name is "_ZN7esphome3AppE", so the Mach-O asm label is "__ZN7esphome3AppE".
 alignas(Application) char app_storage[sizeof(Application)] asm("__ZN7esphome3AppE");
 #else
 alignas(Application) char app_storage[sizeof(Application)] asm("_ZN7esphome3AppE");
