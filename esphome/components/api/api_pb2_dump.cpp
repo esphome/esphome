@@ -321,6 +321,8 @@ template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::Climate
       return "CLIMATE_ACTION_DRYING";
     case enums::CLIMATE_ACTION_FAN:
       return "CLIMATE_ACTION_FAN";
+    case enums::CLIMATE_ACTION_DEFROSTING:
+      return "CLIMATE_ACTION_DEFROSTING";
     default:
       return "UNKNOWN";
   }
