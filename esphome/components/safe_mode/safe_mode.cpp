@@ -63,11 +63,7 @@ void SafeModeComponent::dump_config() {
 
 float SafeModeComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
-void SafeModeComponent::mark_boot_ok(bool explicitly) {
-  if (explicitly) {
-    ESP_LOGD(TAG, "Explicitly marking boot as successful");
-  }
-
+void SafeModeComponent::mark_boot_ok() {
   this->clean_rtc();
   this->boot_successful_ = true;
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)

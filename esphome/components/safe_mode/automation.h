@@ -17,7 +17,7 @@ class SafeModeTrigger final : public Trigger<> {
 template<typename... Ts> class MarkBootOkAction : public Action<Ts...> {
  public:
   explicit MarkBootOkAction(SafeModeComponent *parent) : parent_(parent) {}
-  void play(const Ts &...x) override { this->parent_->mark_boot_ok(true); }
+  void play(const Ts &...x) override { this->parent_->mark_boot_ok(); }
 
  protected:
   SafeModeComponent *parent_;
