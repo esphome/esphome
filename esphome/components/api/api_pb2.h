@@ -2,7 +2,6 @@
 // See script/api_protobuf/api_protobuf.py
 #pragma once
 
-#include "esphome/core/defines.h"
 #include "esphome/core/string_ref.h"
 
 #include "proto.h"
@@ -123,6 +122,7 @@ enum ClimateAction : uint32_t {
   CLIMATE_ACTION_IDLE = 4,
   CLIMATE_ACTION_DRYING = 5,
   CLIMATE_ACTION_FAN = 6,
+  CLIMATE_ACTION_DEFROSTING = 7,
 };
 enum ClimatePreset : uint32_t {
   CLIMATE_PRESET_NONE = 0,

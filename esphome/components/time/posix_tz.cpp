@@ -25,11 +25,11 @@ static inline int days_in_year(int year) { return is_leap_year(year) ? 366 : 365
 static int __attribute__((noinline)) days_to_year(int64_t &days) {
   int year = 1970;
   int diy;
-  while (days >= (diy = days_in_year(year))) {
+  while (days >= (diy = days_in_year(year)) && year < 2200) {
     days -= diy;
     year++;
   }
-  while (days < 0) {
+  while (days < 0 && year > 1900) {
     year--;
     days += days_in_year(year);
   }

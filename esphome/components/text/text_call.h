@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "text_traits.h"
 
-namespace esphome {
-namespace text {
+namespace esphome::text {
 
 class Text;
 
@@ -21,5 +20,4 @@ class TextCall {
   void validate_();
 };
 
-}  // namespace text
-}  // namespace esphome
+}  // namespace esphome::text
