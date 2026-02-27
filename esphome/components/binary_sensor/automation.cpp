@@ -29,10 +29,8 @@ void MultiClickTrigger::on_state_(bool state) {
     // Start matching
     MultiClickTriggerEvent evt = this->timing_[0];
     if (evt.state == state) {
-      ESP_LOGV(TAG,
-               "START min=%" PRIu32 " max=%" PRIu32 "\n"
-               "Multi Click: Starting multi click action!",
-               evt.min_length, evt.max_length);
+      ESP_LOGV(TAG, "START min=%" PRIu32 " max=%" PRIu32, evt.min_length, evt.max_length);
+      ESP_LOGV(TAG, "Multi Click: Starting multi click action!");
       this->at_index_ = 1;
       if (this->timing_.size() == 1 && evt.max_length == 4294967294UL) {
         this->set_timeout(MULTICLICK_TRIGGER_ID, evt.min_length, [this]() { this->trigger_(); });

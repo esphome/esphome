@@ -49,7 +49,7 @@ struct ModelDimensions {
   uint8_t width;
   uint8_t height;
 };
-static const ModelDimensions MODEL_DIMS[] PROGMEM = {
+static constexpr ModelDimensions MODEL_DIMS[] PROGMEM = {
     {128, 32},   // SSD1306_MODEL_128_32
     {128, 64},   // SSD1306_MODEL_128_64
     {96, 16},    // SSD1306_MODEL_96_16
