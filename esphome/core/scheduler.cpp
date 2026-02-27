@@ -28,7 +28,7 @@ static constexpr size_t MAX_POOL_SIZE = 5;
 // Set to 5 to match the pool size - when we have as many cancelled items as our
 // pool can hold, it's time to clean up and recycle them.
 static constexpr uint32_t MAX_LOGICALLY_DELETED_ITEMS = 5;
-#ifndef USE_ESP32
+#if !defined(USE_ESP32) && !defined(USE_HOST)
 // Half the 32-bit range - used to detect rollovers vs normal time progression
 static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
 #endif
@@ -475,12 +475,12 @@ void HOT Scheduler::call(uint32_t now) {
   if (now_64 - last_print > 2000) {
     last_print = now_64;
     std::vector<SchedulerItemPtr> old_items;
-#if !defined(USE_ESP32) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
+#if !defined(USE_ESP32) && !defined(USE_HOST) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
     const auto last_dbg = this->last_millis_.load(std::memory_order_relaxed);
     const auto major_dbg = this->millis_major_.load(std::memory_order_relaxed);
     ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64 " (%" PRIu16 ", %" PRIu32 ")", this->items_.size(),
              this->scheduler_item_pool_.size(), now_64, major_dbg, last_dbg);
-#elif !defined(USE_ESP32)
+#elif !defined(USE_ESP32) && !defined(USE_HOST)
     ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64 " (%" PRIu16 ", %" PRIu32 ")", this->items_.size(),
              this->scheduler_item_pool_.size(), now_64, this->millis_major_, this->last_millis_);
 #else
@@ -714,7 +714,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   return total_cancelled > 0;
 }
 
-#ifndef USE_ESP32
+#if !defined(USE_ESP32) && !defined(USE_HOST)
 uint64_t Scheduler::millis_64_impl_(uint32_t now) {
   // THREAD SAFETY NOTE:
   // This function has three implementations, based on the precompiler flags
@@ -872,7 +872,7 @@ uint64_t Scheduler::millis_64_impl_(uint32_t now) {
     "No platform threading model defined. One of ESPHOME_THREAD_SINGLE, ESPHOME_THREAD_MULTI_NO_ATOMICS, or ESPHOME_THREAD_MULTI_ATOMICS must be defined."
 #endif
 }
-#endif  // not USE_ESP32
+#endif  // !USE_ESP32 && !USE_HOST
 
 bool HOT Scheduler::SchedulerItem::cmp(const SchedulerItemPtr &a, const SchedulerItemPtr &b) {
   // High bits are almost always equal (change only on 32-bit rollover ~49 days)
