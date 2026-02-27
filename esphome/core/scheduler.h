@@ -287,7 +287,7 @@ class Scheduler {
   // On ESP32, ignores now and uses esp_timer_get_time() directly (native 64-bit).
   // On non-ESP32, extends now to 64-bit using rollover tracking.
   uint64_t millis_64_from_(uint32_t now) {
-#if defined(USE_ESP32) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR)
     (void) now;
     return millis_64();
 #else
@@ -295,7 +295,7 @@ class Scheduler {
 #endif
   }
 
-#if !defined(USE_ESP32) && !defined(USE_HOST)
+#if !defined(USE_ESP32) && !defined(USE_HOST) && !defined(USE_ZEPHYR)
   // On platforms without native 64-bit time, millis_64() HAL function delegates to this
   // method which tracks 32-bit millis() rollover using millis_major_ and last_millis_.
   friend uint64_t millis_64();
@@ -567,8 +567,8 @@ class Scheduler {
   //   to synchronize between tasks (see https://github.com/esphome/backlog/issues/52)
   std::vector<SchedulerItemPtr> scheduler_item_pool_;
 
-#if !defined(USE_ESP32) && !defined(USE_HOST)
-  // On platforms with native 64-bit time (ESP32, Host), no rollover tracking needed.
+#if !defined(USE_ESP32) && !defined(USE_HOST) && !defined(USE_ZEPHYR)
+  // On platforms with native 64-bit time (ESP32, Host, Zephyr), no rollover tracking needed.
   // On other platforms, these fields track 32-bit millis() rollover for millis_64_impl_().
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   /*
@@ -598,7 +598,7 @@ class Scheduler {
 #else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
   uint16_t millis_major_{0};
 #endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
-#endif /* !USE_ESP32 && !USE_HOST */
+#endif /* !USE_ESP32 && !USE_HOST && !USE_ZEPHYR */
 };
 
 }  // namespace esphome
