@@ -63,7 +63,7 @@ void SafeModeComponent::dump_config() {
 
 float SafeModeComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
-void SafeModeComponent::mark_boot_ok() {
+void SafeModeComponent::mark_successful() {
   this->clean_rtc();
   this->boot_successful_ = true;
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
@@ -78,7 +78,7 @@ void SafeModeComponent::loop() {
   if (!this->boot_successful_ && (millis() - this->safe_mode_start_time_) > this->safe_mode_boot_is_good_after_) {
     // successful boot, reset counter
     ESP_LOGI(TAG, "Boot seems successful; resetting boot loop counter");
-    this->mark_boot_ok(false);
+    this->mark_successful();
   }
 }
 

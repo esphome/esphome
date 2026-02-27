@@ -14,13 +14,9 @@ class SafeModeTrigger final : public Trigger<> {
 };
 #endif  // USE_SAFE_MODE_CALLBACK
 
-template<typename... Ts> class MarkBootOkAction : public Action<Ts...> {
+template<typename... Ts> class MarkSuccessfulAction : public Action<Ts...>, public Parented<SafeModeComponent> {
  public:
-  explicit MarkBootOkAction(SafeModeComponent *parent) : parent_(parent) {}
-  void play(const Ts &...x) override { this->parent_->mark_boot_ok(); }
-
- protected:
-  SafeModeComponent *parent_;
+  void play(const Ts &...x) override { this->parent_->mark_successful(); }
 };
 
 }  // namespace esphome::safe_mode

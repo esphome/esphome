@@ -21,7 +21,7 @@ CONF_ON_SAFE_MODE = "on_safe_mode"
 safe_mode_ns = cg.esphome_ns.namespace("safe_mode")
 SafeModeComponent = safe_mode_ns.class_("SafeModeComponent", cg.Component)
 SafeModeTrigger = safe_mode_ns.class_("SafeModeTrigger", automation.Trigger.template())
-MarkBootOkAction = safe_mode_ns.class_("MarkBootOkAction", automation.Action)
+MarkSuccessfulAction = safe_mode_ns.class_("MarkSuccessfulAction", automation.Action)
 
 
 def _remove_id_if_disabled(value):
@@ -55,17 +55,19 @@ CONFIG_SCHEMA = cv.All(
 
 
 @automation.register_action(
-    "safe_mode.mark_boot_ok",
-    MarkBootOkAction,
+    "safe_mode.mark_successful",
+    MarkSuccessfulAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(SafeModeComponent),
         }
     ),
 )
-async def safe_mode_mark_boot_ok_to_code(config, action_id, template_arg, args):
+async def safe_mode_mark_successful_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
+    var = cg.new_Pvariable(action_id, template_arg)
+    cg.add(var.set_parent(parent))
+    return var
 
 
 @coroutine_with_priority(CoroPriority.APPLICATION)

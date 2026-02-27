@@ -19,4 +19,4 @@ switch:
 
 esphome:
   on_boot:
-    - safe_mode.mark_boot_ok
+    - safe_mode.mark_successful
