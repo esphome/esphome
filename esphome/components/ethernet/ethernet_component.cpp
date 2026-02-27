@@ -485,10 +485,9 @@ void EthernetComponent::dump_config() {
                 "  TX Fast Count: %u\n"
                 "  TX Interval: %u\n"
                 "  TX Hold: %u\n"
-                "  TTL (calculated): %u\n",
+                "  TTL (calculated): %u",
                 this->lldp.get_port(), this->lldp.get_system_name(), this->lldp.get_system_description(),
-                this->use_lldp_tx_fast_count_, this->use_lldp_tx_interval_, this->use_lldp_tx_hold_,
-                this->lldp.get_ttl());
+                this->lldp_tx_fast_count_, this->lldp_tx_interval_, this->lldp_tx_hold_, this->lldp.get_ttl());
 #endif /* USE_ETHERNET_LLDP */
 }
 
@@ -784,22 +783,22 @@ esp_err_t EthernetComponent::lldp_setup_(uint8_t mac_addr[6]) {
 
   // Configure LLDP transmitter
   this->lldp.set_mac(mac_addr);
-  this->lldp.set_tx_fast_count(this->use_lldp_tx_fast_count_);
-  this->lldp.set_tx_interval(this->use_lldp_tx_interval_);
-  this->lldp.set_tx_hold(this->use_lldp_tx_hold_);
-  if (strlen(this->use_lldp_port_)) {
-    this->lldp.set_port(this->use_lldp_port_);
+  this->lldp.set_tx_fast_count(this->lldp_tx_fast_count_);
+  this->lldp.set_tx_interval(this->lldp_tx_interval_);
+  this->lldp.set_tx_hold(this->lldp_tx_hold_);
+  if (this->lldp_port_ != nullptr) {
+    this->lldp.set_port(this->lldp_port_);
   }
-  if (strlen(this->use_lldp_name_)) {
+  if (this->lldp_name_ != nullptr) {
     // If a name has been set, use it
-    this->lldp.set_system_name(this->use_lldp_name_);
+    this->lldp.set_system_name(this->lldp_name_);
   } else {
     // Otherwise use the ESPHome app name
     this->lldp.set_system_name(App.get_name().c_str());
   }
-  if (strlen(this->use_lldp_desc_)) {
+  if (this->lldp_desc_ != nullptr) {
     // If a description has been set, use it
-    this->lldp.set_system_description(this->use_lldp_desc_);
+    this->lldp.set_system_description(this->lldp_desc_);
   } else {
     // Otherwise use the default value from determined at the top of this file.
     this->lldp.set_system_description(LLDP_DEFAULT_DESCRIPTION);

@@ -179,9 +179,11 @@ MANUAL_IP_SCHEMA = cv.Schema(
 
 LLDP_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_PORT): cv.string_strict,
-        cv.Optional(CONF_SYSTEM_NAME): cv.string_strict,
-        cv.Optional(CONF_SYSTEM_DESCRIPTION): cv.string_strict,
+        cv.Optional(CONF_PORT): cv.All(cv.string_strict, cv.Length(max=128)),
+        cv.Optional(CONF_SYSTEM_NAME): cv.All(cv.string_strict, cv.Length(max=128)),
+        cv.Optional(CONF_SYSTEM_DESCRIPTION): cv.All(
+            cv.string_strict, cv.Length(max=128)
+        ),
         cv.Optional(CONF_TX_FAST_COUNT, default=4): cv.int_range(min=1, max=8),
         cv.Optional(CONF_TX_INTERVAL, default=30): cv.int_range(min=1, max=3600),
         cv.Optional(CONF_TX_HOLD, default=4): cv.int_range(min=1, max=100),

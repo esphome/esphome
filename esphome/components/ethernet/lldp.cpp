@@ -11,9 +11,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <string>
-#include <array>
-
 #include "esphome/core/log.h"
 #include "lwip/ip_addr.h"
 // For ETHTYPE_LLDP
@@ -23,8 +20,9 @@
 #include "esp_eth.h"
 #include "esp_vfs_l2tap.h"
 
-#define SIZE_TLV_END (2)
-#define LLDP_STRING_MAX_SIZE_T ((size_t) LLDP_STRING_MAX)
+// LLDP "Nearest bridge" multicast address:
+static constexpr eth_addr LLDP_NEAREST_BRIDGE_MAC = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x0e};
+static constexpr size_t SIZE_TLV_END = 2;
 
 namespace esphome::ethernet {
 
@@ -59,15 +57,15 @@ struct lldp_mgmt_ipv6 {
 //
 // This needs to match up with the TLVs (and their sizes) used in LLDPTransmitter::generate()
 //
-const size_t PKT_MAX = sizeof(struct eth_hdr)                    /* eth_hdr */
-                       + 2 + 1 + 6                               /* Chassis ID (MAC) TLV */
-                       + 2 + 1 + LLDP_STRING_MAX                 /* Port ID TLV */
-                       + 2 + 2                                   /* TTL TLV */
-                       + 2 + LLDP_STRING_MAX                     /* System Name TLV */
-                       + 2 + LLDP_STRING_MAX                     /* System Description TLV */
-                       + 2 + 4                                   /* Capabilities TLV */
-                       + 5 * (2 + sizeof(struct lldp_mgmt_ipv6)) /* [0..5] IPv6 Management Address TLVs */
-                       + SIZE_TLV_END;                           /* END TLV */
+static constexpr size_t PKT_MAX = sizeof(struct eth_hdr)                    /* eth_hdr */
+                                  + 2 + 1 + 6                               /* Chassis ID (MAC) TLV */
+                                  + 2 + 1 + LLDP_STRING_MAX                 /* Port ID TLV */
+                                  + 2 + 2                                   /* TTL TLV */
+                                  + 2 + LLDP_STRING_MAX                     /* System Name TLV */
+                                  + 2 + LLDP_STRING_MAX                     /* System Description TLV */
+                                  + 2 + 4                                   /* Capabilities TLV */
+                                  + 5 * (2 + sizeof(struct lldp_mgmt_ipv6)) /* [0..5] IPv6 Management Address TLVs */
+                                  + SIZE_TLV_END;                           /* END TLV */
 
 // LLDPPacket is a convenience class for building LLDP packets using an existing memory buffer.
 class LLDPPacket {
@@ -88,7 +86,7 @@ class LLDPPacket {
     PORT_ID_SUBTYPE_IFNAME = 5,
   };
   // begin() starts generation of a new packet
-  bool begin(struct eth_addr &src_mac, struct eth_addr &dst_mac);
+  bool begin(const struct eth_addr &src_mac, const struct eth_addr &dst_mac);
 
   // append_tlv() appends a simple TLV
   bool append_tlv(TLV tlv, size_t len, const uint8_t *data);
@@ -105,7 +103,7 @@ class LLDPPacket {
   size_t used_;
 };
 
-bool LLDPPacket::begin(struct eth_addr &src_mac, struct eth_addr &dst_mac) {
+bool LLDPPacket::begin(const struct eth_addr &src_mac, const struct eth_addr &dst_mac) {
   if (this->len_ < sizeof(struct eth_hdr)) {
     return false;
   }
@@ -179,7 +177,7 @@ esp_err_t LLDPTransmitter::setup(esp_eth_handle_t eth_handle) {
     return err;
   }
 
-  int fd = ::open(L2TAP_VFS_DEFAULT_PATH, 0);
+  int fd = ::open(L2TAP_VFS_DEFAULT_PATH, O_WRONLY);
   if (fd < 0) {
     ESP_LOGE(TAG, "L2TAP open(%s) failed: (%d) %s", L2TAP_VFS_DEFAULT_PATH, errno, strerror(errno));
     return ESP_FAIL;
@@ -220,7 +218,7 @@ bool LLDPTransmitter::should_transmit() {
       }
       this->state_ = TXStateNormal;
       this->state_message_interval_ = this->tx_interval_;
-      // FALLTHROUGH
+      [[fallthrough]];
     case TXStateNormal:
       if (--this->state_message_interval_ > 0) {
         return false;
@@ -247,19 +245,19 @@ esp_err_t LLDPTransmitter::transmit() {
     // If the ethernet port is not connected (no link, maybe other cases), this
     // will return errno 5 - EIO "I/O error". The file descriptor starts
     // working again when the link is reestablished.
-    ESP_LOGE(TAG, "LLDP L2TAP write(%d, %d) error %d: %s", this->l2tap_fd_, pkt_len, errno, strerror(errno));
+    ESP_LOGE(TAG, "LLDP L2TAP write(%d, %zu) error %d: %s", this->l2tap_fd_, pkt_len, errno, strerror(errno));
     return ESP_FAIL;
   }
   if (ret != pkt_len) {
-    ESP_LOGE(TAG, "LLDP L2TAP short write(%d, %d): only wrote %d bytes", this->l2tap_fd_, pkt_len, ret);
+    ESP_LOGE(TAG, "LLDP L2TAP short write(%d, %zu): only wrote %d bytes", this->l2tap_fd_, pkt_len, ret);
     return ESP_FAIL;
   }
 
-  ESP_LOGD(TAG, "Sent %d byte LLDPDU successfully", pkt_len);
+  ESP_LOGD(TAG, "Sent %zu byte LLDPDU successfully", pkt_len);
   return ESP_OK;
 }
 
-void LLDPTransmitter::set_ips(network::IPAddresses &ips) {
+void LLDPTransmitter::set_ips(const network::IPAddresses &ips) {
   uint8_t save_idx = 0;
 
   // Clear the saved address list
@@ -285,11 +283,6 @@ void LLDPTransmitter::set_ips(network::IPAddresses &ips) {
   }
 }
 
-#define LLDP_ERROR_CHECK(ret) \
-  if (!ret) { \
-    return false; \
-  }
-
 // Generate the LLDP packet into the given buffer.
 //
 // On success, true is returned, and the final packet length is stored into pkt_len.
@@ -308,48 +301,56 @@ bool LLDPTransmitter::generate(uint8_t *buf, size_t buf_len, size_t *pkt_len) {
   LLDPPacket pkt(buf, buf_len);
 
   // Start the packet off by building an ethernet header
-  pkt.begin(this->mac_addr_, this->lldp_multicast_mac_);
+  if (!pkt.begin(this->mac_addr_, LLDP_NEAREST_BRIDGE_MAC)) {
+    return false;
+  }
 
   // MANDATORY TLVs
   // ==============
 
   // Send Chassis ID TLV with our MAC address
-  auto ret = pkt.append_tlv_subtype(LLDPPacket::TLV_CHASSIS_ID, LLDPPacket::CHASSIS_ID_SUBTYPE_MAC, ETH_HWADDR_LEN,
-                                    this->mac_addr_.addr);
-  LLDP_ERROR_CHECK(ret);
+  if (!pkt.append_tlv_subtype(LLDPPacket::TLV_CHASSIS_ID, LLDPPacket::CHASSIS_ID_SUBTYPE_MAC, ETH_HWADDR_LEN,
+                              this->mac_addr_.addr)) {
+    return false;
+  }
 
   // Send Port ID with our interface name
-  ret = pkt.append_tlv_subtype(LLDPPacket::TLV_PORT_ID, LLDPPacket::PORT_ID_SUBTYPE_IFNAME,
-                               std::min(strlen(this->port_), LLDP_STRING_MAX_SIZE_T), (const uint8_t *) this->port_);
-  LLDP_ERROR_CHECK(ret);
+  if (!pkt.append_tlv_subtype(LLDPPacket::TLV_PORT_ID, LLDPPacket::PORT_ID_SUBTYPE_IFNAME,
+                              std::min(strlen(this->port_), LLDP_STRING_MAX), (const uint8_t *) this->port_)) {
+    return false;
+  }
 
   // Send our TTL value
   uint16_t ttl_data = htons(this->calc_ttl_);
-  ret = pkt.append_tlv(LLDPPacket::TLV_TTL, 2, (uint8_t *) &ttl_data);
-  LLDP_ERROR_CHECK(ret);
+  if (!pkt.append_tlv(LLDPPacket::TLV_TTL, 2, (uint8_t *) &ttl_data)) {
+    return false;
+  }
 
   // OPTIONAL TLVs
   // =============
 
   // Send System Name if set
-  if (strlen(this->system_name_)) {
-    ret = pkt.append_tlv(LLDPPacket::TLV_SYSTEM_NAME, std::min(strlen(this->system_name_), LLDP_STRING_MAX_SIZE_T),
-                         (uint8_t *) this->system_name_);
-    LLDP_ERROR_CHECK(ret);
+  if (this->system_name_ != nullptr) {
+    if (!pkt.append_tlv(LLDPPacket::TLV_SYSTEM_NAME, std::min(strlen(this->system_name_), LLDP_STRING_MAX),
+                        (uint8_t *) this->system_name_)) {
+      return false;
+    }
   }
 
   // Send System Description if set
-  if (strlen(this->system_description_)) {
-    ret = pkt.append_tlv(LLDPPacket::TLV_SYSTEM_DESCRIPTION,
-                         std::min(strlen(this->system_description_), LLDP_STRING_MAX_SIZE_T),
-                         (uint8_t *) this->system_description_);
-    LLDP_ERROR_CHECK(ret);
+  if (this->system_description_ != nullptr) {
+    if (!pkt.append_tlv(LLDPPacket::TLV_SYSTEM_DESCRIPTION,
+                        std::min(strlen(this->system_description_), LLDP_STRING_MAX),
+                        (uint8_t *) this->system_description_)) {
+      return false;
+    }
   }
 
   // Send Capabilities as "station only"
   uint8_t caps[] = {0x00, 0b10000000, 0x00, 0b10000000};
-  ret = pkt.append_tlv(LLDPPacket::TLV_CAPABILITIES, 4, caps);
-  LLDP_ERROR_CHECK(ret);
+  if (!pkt.append_tlv(LLDPPacket::TLV_CAPABILITIES, 4, caps)) {
+    return false;
+  }
 
   // Pre-build structures for IPv4 and IPv6 versions of the Management Address
   // TLV.
@@ -379,21 +380,24 @@ bool LLDPTransmitter::generate(uint8_t *buf, size_t buf_len, size_t *pkt_len) {
     if (IP_IS_V6(&ip)) {
       ip6_addr_t *ip6 = ip_2_ip6(&ip);
       memcpy(mgmt_ipv6.addr, ip6->addr, sizeof(mgmt_ipv6.addr));
-      ret = pkt.append_tlv(LLDPPacket::TLV_MANAGEMENT_ADDRESS, sizeof(mgmt_ipv6), (const uint8_t *) &mgmt_ipv6);
-      LLDP_ERROR_CHECK(ret);
+      if (!pkt.append_tlv(LLDPPacket::TLV_MANAGEMENT_ADDRESS, sizeof(mgmt_ipv6), (const uint8_t *) &mgmt_ipv6)) {
+        return false;
+      }
       continue;
     }
 #endif
     ip4_addr_t *ip4 = ip_2_ip4(&ip);
     mgmt_ipv4.addr = ip4->addr;
-    ret = pkt.append_tlv(LLDPPacket::TLV_MANAGEMENT_ADDRESS, sizeof(mgmt_ipv4), (const uint8_t *) &mgmt_ipv4);
-    LLDP_ERROR_CHECK(ret);
+    if (!pkt.append_tlv(LLDPPacket::TLV_MANAGEMENT_ADDRESS, sizeof(mgmt_ipv4), (const uint8_t *) &mgmt_ipv4)) {
+      return false;
+    }
   }
 
   // Final MANDATORY end-of-data TLV; should never fail as space is reserved for
   // it, but check anyway.
-  ret = pkt.append_tlv(LLDPPacket::TLV_END, 0, NULL);
-  LLDP_ERROR_CHECK(ret);
+  if (!pkt.append_tlv(LLDPPacket::TLV_END, 0, NULL)) {
+    return false;
+  }
 
   // All TLVs added successfully; store the length and return success.
   *pkt_len = pkt.get_used();
