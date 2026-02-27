@@ -10,9 +10,7 @@ CONF_STEP_VERTICAL = "step_vertical"
 CONF_STEP_HORIZONTAL = "step_horizontal"
 CONF_ECONOMY = "economy"
 
-FujitsuGeneralButton = fujitsu_general_ns.class_(
-    "FujitsuGeneralButton", button.Button, cg.Component
-)
+FujitsuGeneralButton = fujitsu_general_ns.class_("FujitsuGeneralButton", button.Button)
 
 BUTTON_CONFIGS = (
     (
@@ -51,10 +49,7 @@ async def to_code(config):
     for key, default_name, command, _ in BUTTON_CONFIGS:
         if button_conf := config.get(key):
             var = cg.new_Pvariable(
-                button_conf[cv.CONF_ID],
-                default_name,
-                getattr(fujitsu_general_ns, command),
+                button_conf[cv.CONF_ID], getattr(fujitsu_general_ns, command)
             )
             await button.register_button(var, button_conf)
-            await cg.register_component(var, button_conf)
             await cg.register_parented(var, parent)

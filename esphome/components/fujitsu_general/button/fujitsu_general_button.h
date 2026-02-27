@@ -9,16 +9,13 @@
 namespace esphome {
 namespace fujitsu_general {
 
-class FujitsuGeneralButton : public button::Button, public Component, public Parented<FujitsuGeneralClimate> {
+class FujitsuGeneralButton : public button::Button, public Parented<FujitsuGeneralClimate> {
  public:
-  FujitsuGeneralButton(const char *name, uint8_t command_byte) : name_(name), command_byte_(command_byte) {}
-
-  void dump_config() override;
+  FujitsuGeneralButton(uint8_t command_byte) : command_byte_(command_byte) {}
 
  protected:
   void press_action() override;
 
-  const char *name_;
   uint8_t command_byte_;
 };
 
