@@ -727,8 +727,17 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 #error "Application placement new requires Itanium C++ ABI (GCC/Clang)"
 #endif
 static_assert(std::is_default_constructible<Application>::value, "Application must be default-constructible");
+// __USER_LABEL_PREFIX__ is "_" on Mach-O (macOS) and empty on ELF (embedded targets).
+// String literal concatenation produces the correct platform-specific mangled symbol.
+// Two-level macro needed: # stringifies before expansion, so the
+// indirection forces __USER_LABEL_PREFIX__ to expand first.
+#define ESPHOME_STRINGIFY_IMPL_(x) #x
+#define ESPHOME_STRINGIFY_(x) ESPHOME_STRINGIFY_IMPL_(x)
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-alignas(Application) char app_storage[sizeof(Application)] asm("_ZN7esphome3AppE");
+alignas(Application) char app_storage[sizeof(Application)] asm(
+    ESPHOME_STRINGIFY_(__USER_LABEL_PREFIX__) "_ZN7esphome3AppE");
+#undef ESPHOME_STRINGIFY_
+#undef ESPHOME_STRINGIFY_IMPL_
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
