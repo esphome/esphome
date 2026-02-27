@@ -18,6 +18,8 @@ static const char *const TAG = "esp32_touch";
 static constexpr uint32_t SETUP_MODE_LOG_INTERVAL_MS = 250;
 static constexpr uint32_t RELEASE_TIMEOUT_MS = 1500;
 static constexpr uint32_t RELEASE_CHECK_INTERVAL_MS = RELEASE_TIMEOUT_MS / 4;
+static constexpr uint32_t ONESHOT_SCAN_COUNT = 3;
+static constexpr uint32_t ONESHOT_SCAN_TIMEOUT_MS = 2000;
 
 // V1: called from esp_timer context (software filter)
 // V2/V3: called from ISR context
@@ -53,6 +55,7 @@ void ESP32TouchComponent::setup() {
   touch_sensor_sample_config_t sample_cfg = TOUCH_SENSOR_V1_DEFAULT_SAMPLE_CONFIG(
       this->charge_duration_ms_, this->low_voltage_reference_, this->high_voltage_reference_);
 #elif defined(USE_ESP32_VARIANT_ESP32P4)
+  // div_num=8 (data scaling divisor), coarse_freq_tune=2, fine_freq_tune=2
   touch_sensor_sample_config_t sample_cfg = TOUCH_SENSOR_V3_DEFAULT_SAMPLE_CONFIG(8, 2, 2);
   sample_cfg.charge_times = this->charge_times_;
 #else
@@ -212,8 +215,11 @@ void ESP32TouchComponent::setup() {
   }
 
   // Do initial oneshot scans to populate baseline values
-  for (int i = 0; i < 3; i++) {
-    touch_sensor_trigger_oneshot_scanning(this->sens_handle_, 2000);
+  for (int32_t i = 0; i < ONESHOT_SCAN_COUNT; i++) {
+    err = touch_sensor_trigger_oneshot_scanning(this->sens_handle_, ONESHOT_SCAN_TIMEOUT_MS);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Oneshot scan %d failed: %s", i, esp_err_to_name(err));
+    }
   }
 
   err = touch_sensor_start_continuous_scanning(this->sens_handle_);

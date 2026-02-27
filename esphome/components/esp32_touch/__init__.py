@@ -325,8 +325,9 @@ async def to_code(config):
         # V2/V3: charge_times (approximate conversion from duration)
         # The old API used clock cycles; the new API uses charge_times count.
         # Default is 500 for V2/V3. Use measurement_duration as a rough scaling factor.
+        # 65535 / 8192 ≈ 7.9999 maps the microsecond duration to charge_times.
         charge_times = int(
-            round(config[CONF_MEASUREMENT_DURATION].total_microseconds * 7.99987793)
+            round(config[CONF_MEASUREMENT_DURATION].total_microseconds * (65535 / 8192))
         )
         charge_times = max(charge_times, 1)
         cg.add(touch.set_charge_times(charge_times))
