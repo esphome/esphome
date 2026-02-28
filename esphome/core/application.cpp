@@ -93,6 +93,7 @@ void Application::register_component_(Component *comp) {
   global_setup_heap_stats->record_component_registered(comp);
 #endif
 }
+
 void Application::setup() {
   ESP_LOGI(TAG, "Running through setup()");
   ESP_LOGV(TAG, "Sorting components by setup priority");
