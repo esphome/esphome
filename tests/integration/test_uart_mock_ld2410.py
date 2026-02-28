@@ -1,12 +1,19 @@
 """Integration test for LD2410 component with mock UART.
 
 Tests:
-1. Happy path - valid data frame publishes correct sensor values
-2. Garbage resilience - random bytes don't crash the component
-3. Truncated frame handling - partial frame doesn't corrupt state
-4. Buffer overflow recovery - overflow resets the parser
-5. Post-overflow parsing - next valid frame after overflow is parsed correctly
-6. TX logging - verifies LD2410 sends expected setup commands
+test_uart_mock_ld2410 (normal mode):
+  1. Happy path - valid data frame publishes correct sensor values
+  2. Garbage resilience - random bytes don't crash the component
+  3. Truncated frame handling - partial frame doesn't corrupt state
+  4. Buffer overflow recovery - overflow resets the parser
+  5. Post-overflow parsing - next valid frame after overflow is parsed correctly
+  6. TX logging - verifies LD2410 sends expected setup commands
+
+test_uart_mock_ld2410_engineering (engineering mode):
+  1. Engineering mode frames with per-gate energy data and light sensor
+  2. Multi-byte still distance (291cm) using high byte > 0
+  3. Out pin presence binary sensor
+  4. Gate energy sensor values from real device captures
 """
 
 from __future__ import annotations
@@ -237,3 +244,149 @@ async def test_uart_mock_ld2410(
         initial_hs = initial_state_helper.initial_states.get(has_still_entity.key)
         assert initial_hs is not None and isinstance(initial_hs, BinarySensorState)
         assert initial_hs.state is True, "Has still target should be True"
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2410_engineering(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test LD2410 engineering mode with per-gate energy, light, and multi-byte distance."""
+    external_components_path = str(
+        Path(__file__).parent / "fixtures" / "external_components"
+    )
+    yaml_config = yaml_config.replace(
+        "EXTERNAL_COMPONENT_PATH", external_components_path
+    )
+
+    loop = asyncio.get_running_loop()
+
+    # Track sensor state updates (after initial state is swallowed)
+    sensor_states: dict[str, list[float]] = {
+        "moving_distance": [],
+        "still_distance": [],
+        "moving_energy": [],
+        "still_energy": [],
+        "detection_distance": [],
+        "light": [],
+        "gate_0_move_energy": [],
+        "gate_1_move_energy": [],
+        "gate_2_move_energy": [],
+        "gate_0_still_energy": [],
+        "gate_1_still_energy": [],
+        "gate_2_still_energy": [],
+    }
+    binary_states: dict[str, list[bool]] = {
+        "has_target": [],
+        "has_moving_target": [],
+        "has_still_target": [],
+        "out_pin_presence": [],
+    }
+
+    # Signal when we see Phase 3 frame (still_distance = 291)
+    phase3_received = loop.create_future()
+
+    def on_state(state: EntityState) -> None:
+        if isinstance(state, SensorState) and not state.missing_state:
+            sensor_name = key_to_sensor.get(state.key)
+            if sensor_name and sensor_name in sensor_states:
+                sensor_states[sensor_name].append(state.state)
+                if (
+                    sensor_name == "still_distance"
+                    and state.state == pytest.approx(291.0)
+                    and not phase3_received.done()
+                ):
+                    phase3_received.set_result(True)
+        elif isinstance(state, BinarySensorState):
+            sensor_name = key_to_sensor.get(state.key)
+            if sensor_name and sensor_name in binary_states:
+                binary_states[sensor_name].append(state.state)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+
+        all_names = list(sensor_states.keys()) + list(binary_states.keys())
+        key_to_sensor = build_key_to_entity_mapping(entities, all_names)
+
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
+
+        # Phase 1 initial values (engineering mode frame):
+        # moving=30, energy=100, still=30, energy=100, detect=0
+        moving_dist_entity = find_entity(entities, "moving_distance", SensorInfo)
+        assert moving_dist_entity is not None
+        initial_moving = initial_state_helper.initial_states.get(moving_dist_entity.key)
+        assert initial_moving is not None and isinstance(initial_moving, SensorState)
+        assert initial_moving.state == pytest.approx(30.0), (
+            f"Initial moving distance should be 30, got {initial_moving.state}"
+        )
+
+        still_dist_entity = find_entity(entities, "still_distance", SensorInfo)
+        assert still_dist_entity is not None
+        initial_still = initial_state_helper.initial_states.get(still_dist_entity.key)
+        assert initial_still is not None and isinstance(initial_still, SensorState)
+        assert initial_still.state == pytest.approx(30.0), (
+            f"Initial still distance should be 30, got {initial_still.state}"
+        )
+
+        # Verify engineering mode sensors from initial state
+        # Gate 0 moving energy = 0x64 = 100
+        gate0_move_entity = find_entity(entities, "gate_0_move_energy", SensorInfo)
+        assert gate0_move_entity is not None
+        initial_g0m = initial_state_helper.initial_states.get(gate0_move_entity.key)
+        assert initial_g0m is not None and isinstance(initial_g0m, SensorState)
+        assert initial_g0m.state == pytest.approx(100.0), (
+            f"Gate 0 move energy should be 100, got {initial_g0m.state}"
+        )
+
+        # Gate 1 moving energy = 0x41 = 65
+        gate1_move_entity = find_entity(entities, "gate_1_move_energy", SensorInfo)
+        assert gate1_move_entity is not None
+        initial_g1m = initial_state_helper.initial_states.get(gate1_move_entity.key)
+        assert initial_g1m is not None and isinstance(initial_g1m, SensorState)
+        assert initial_g1m.state == pytest.approx(65.0), (
+            f"Gate 1 move energy should be 65, got {initial_g1m.state}"
+        )
+
+        # Light sensor = 0x57 = 87
+        light_entity = find_entity(entities, "light", SensorInfo)
+        assert light_entity is not None
+        initial_light = initial_state_helper.initial_states.get(light_entity.key)
+        assert initial_light is not None and isinstance(initial_light, SensorState)
+        assert initial_light.state == pytest.approx(87.0), (
+            f"Light sensor should be 87, got {initial_light.state}"
+        )
+
+        # Out pin presence = 0x01 = True
+        out_pin_entity = find_entity(entities, "out_pin_presence", BinarySensorInfo)
+        assert out_pin_entity is not None
+        initial_out = initial_state_helper.initial_states.get(out_pin_entity.key)
+        assert initial_out is not None and isinstance(initial_out, BinarySensorState)
+        assert initial_out.state is True, "Out pin presence should be True"
+
+        # Wait for Phase 3 frame (still_distance = 291cm, multi-byte)
+        try:
+            await asyncio.wait_for(phase3_received, timeout=15.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for Phase 3 frame. Received sensor states:\n"
+                f"  still_distance: {sensor_states['still_distance']}\n"
+                f"  moving_distance: {sensor_states['moving_distance']}"
+            )
+
+        # Phase 3: still distance = 0x0123 = 291cm (multi-byte distance test)
+        phase3_still = [
+            v for v in sensor_states["still_distance"] if v == pytest.approx(291.0)
+        ]
+        assert len(phase3_still) >= 1, (
+            f"Expected still_distance=291, got: {sensor_states['still_distance']}"
+        )

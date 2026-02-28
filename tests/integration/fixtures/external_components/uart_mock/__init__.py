@@ -1,16 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.uart import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BAUD_RATE,
-    CONF_DATA,
-    CONF_DATA_BITS,
-    CONF_DELAY,
-    CONF_ID,
-    CONF_INTERVAL,
-    CONF_PARITY,
-    CONF_STOP_BITS,
-)
+from esphome.const import CONF_BAUD_RATE, CONF_DATA, CONF_DELAY, CONF_ID, CONF_INTERVAL
 
 CODEOWNERS = ["@esphome/tests"]
 MULTI_CONF = True
