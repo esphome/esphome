@@ -120,10 +120,10 @@ void YashimaClimate::setup() {
 }
 
 void YashimaClimate::control(const climate::ClimateCall &call) {
-  if (call.get_mode().has_value())
-    this->mode = *call.get_mode();
-  if (call.get_target_temperature().has_value())
-    this->target_temperature = *call.get_target_temperature();
+  if (auto val = call.get_mode(); val.has_value())
+    this->mode = *val;
+  if (auto val = call.get_target_temperature(); val.has_value())
+    this->target_temperature = *val;
 
   this->transmit_state_();
   this->publish_state();

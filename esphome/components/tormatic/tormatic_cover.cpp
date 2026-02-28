@@ -66,8 +66,8 @@ void Tormatic::control(const cover::CoverCall &call) {
     return;
   }
 
-  if (call.get_position().has_value()) {
-    auto pos = call.get_position().value();
+  if (auto pos_val = call.get_position(); pos_val.has_value()) {
+    auto pos = *pos_val;
     this->control_position_(pos);
     return;
   }

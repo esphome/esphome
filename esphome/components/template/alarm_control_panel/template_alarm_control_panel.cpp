@@ -257,14 +257,16 @@ void TemplateAlarmControlPanel::bypass_before_arming() {
 }
 
 void TemplateAlarmControlPanel::control(const AlarmControlPanelCall &call) {
-  if (call.get_state()) {
-    if (call.get_state() == ACP_STATE_ARMED_AWAY) {
+  auto opt_state = call.get_state();
+  if (opt_state) {
+    auto state = *opt_state;
+    if (state == ACP_STATE_ARMED_AWAY) {
       this->arm_(call.get_code(), ACP_STATE_ARMED_AWAY, this->arming_away_time_);
-    } else if (call.get_state() == ACP_STATE_ARMED_HOME) {
+    } else if (state == ACP_STATE_ARMED_HOME) {
       this->arm_(call.get_code(), ACP_STATE_ARMED_HOME, this->arming_home_time_);
-    } else if (call.get_state() == ACP_STATE_ARMED_NIGHT) {
+    } else if (state == ACP_STATE_ARMED_NIGHT) {
       this->arm_(call.get_code(), ACP_STATE_ARMED_NIGHT, this->arming_night_time_);
-    } else if (call.get_state() == ACP_STATE_DISARMED) {
+    } else if (state == ACP_STATE_DISARMED) {
       if (!this->is_code_valid_(call.get_code())) {
         ESP_LOGW(TAG, "Not disarming code doesn't match");
         return;
@@ -274,13 +276,12 @@ void TemplateAlarmControlPanel::control(const AlarmControlPanelCall &call) {
 #ifdef USE_BINARY_SENSOR
       this->bypassed_sensor_indicies_.clear();
 #endif
-    } else if (call.get_state() == ACP_STATE_TRIGGERED) {
+    } else if (state == ACP_STATE_TRIGGERED) {
       this->publish_state(ACP_STATE_TRIGGERED);
-    } else if (call.get_state() == ACP_STATE_PENDING) {
+    } else if (state == ACP_STATE_PENDING) {
       this->publish_state(ACP_STATE_PENDING);
     } else {
-      ESP_LOGE(TAG, "State not yet implemented: %s",
-               LOG_STR_ARG(alarm_control_panel_state_to_string(*call.get_state())));
+      ESP_LOGE(TAG, "State not yet implemented: %s", LOG_STR_ARG(alarm_control_panel_state_to_string(state)));
     }
   }
 }
