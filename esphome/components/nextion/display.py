@@ -118,11 +118,9 @@ CONFIG_SCHEMA = (
                 ),
             ),
             cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
-            cv.Optional(CONF_TFT_UPLOAD_HTTP_RETRIES, default=5): cv.int_range(
-                min=0, max=20
-            ),
+            cv.Optional(CONF_TFT_UPLOAD_HTTP_RETRIES, default=5): cv.uint8_t,
             cv.Optional(
-                CONF_TFT_UPLOAD_HTTP_TIMEOUT, default="15s"
+                CONF_TFT_UPLOAD_HTTP_TIMEOUT, default="4.5s"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(
                 CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT
