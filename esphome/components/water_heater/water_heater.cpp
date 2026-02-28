@@ -23,6 +23,11 @@ WaterHeaterCall &WaterHeaterCall::set_mode(WaterHeaterMode mode) {
   return *this;
 }
 
+WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode, size_t len) {
+  // Delegate to null-terminated version; input from web request is already null-terminated
+  return this->set_mode(mode);
+}
+
 WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode) {
   if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("OFF")) == 0) {
     this->set_mode(WATER_HEATER_MODE_OFF);
