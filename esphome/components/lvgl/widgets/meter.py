@@ -24,6 +24,7 @@ from .. import obj_spec, set_obj_properties
 from ..automation import action_to_code
 from ..defines import (
     CHILD_ALIGNMENTS,
+    CONF_ADJUSTABLE,
     CONF_ALIGN,
     CONF_CONTAINER,
     CONF_END_VALUE,
@@ -482,11 +483,15 @@ class MeterType(WidgetType):
                         "arc_color": v[CONF_COLOR],
                         "arc_opa": v[CONF_OPA],
                         "id": iid,
+                        CONF_ADJUSTABLE: False,
                         CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
                     }
                     if pad_all := v.get(CONF_PADDING, v.get(CONF_R_MOD, 0)):
                         props["pad_all"] = pad_all
                     lw = await widget_to_code(props, arc_indicator_type, scale_var)
+                    lv_obj.remove_style(lw.obj, nullptr, LV_PART.KNOB)
+                    lv_obj.remove_style(lw.obj, nullptr, LV_PART.INDICATOR)
+                    lw.clear_flag(LV_OBJ_FLAG.CLICKABLE)
                     await set_indicator_values(lw, v)
 
                 if t == CONF_LINE:
