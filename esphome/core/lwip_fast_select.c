@@ -126,6 +126,12 @@
 
 #include <stddef.h>
 
+// IRAM_ATTR is defined by esp_attr.h (included via FreeRTOS headers) on ESP32.
+// On LibreTiny it's not defined — provide a no-op fallback.
+#ifndef IRAM_ATTR
+#define IRAM_ATTR
+#endif
+
 // Compile-time verification of thread safety assumptions.
 // On ESP32 (Xtensa/RISC-V) and LibreTiny (ARM Cortex-M), naturally-aligned
 // reads/writes up to 32 bits are atomic.
