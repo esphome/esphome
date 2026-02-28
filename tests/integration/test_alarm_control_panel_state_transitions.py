@@ -53,11 +53,13 @@ async def test_alarm_control_panel_state_transitions(
     chime_future: asyncio.Future[bool] = loop.create_future()
     ready_futures: list[asyncio.Future[bool]] = []
     cleared_future: asyncio.Future[bool] = loop.create_future()
+    condition_future: asyncio.Future[str] = loop.create_future()
 
     # Patterns to match log output from callbacks
     chime_pattern = re.compile(r"Chime activated")
     ready_pattern = re.compile(r"Sensors ready state changed")
     cleared_pattern = re.compile(r"Alarm cleared")
+    condition_pattern = re.compile(r"Condition (is_armed_\w+) true during pending")
 
     def on_log_line(line: str) -> None:
         log_lines.append(line)
@@ -71,6 +73,8 @@ async def test_alarm_control_panel_state_transitions(
                     break
         if not cleared_future.done() and cleared_pattern.search(line):
             cleared_future.set_result(True)
+        if not condition_future.done() and (match := condition_pattern.search(line)):
+            condition_future.set_result(match.group(1))
 
     async with (
         run_compiled(yaml_config, line_callback=on_log_line),
@@ -253,6 +257,19 @@ async def test_alarm_control_panel_state_transitions(
             await asyncio.wait_for(cleared_future, timeout=1.0)
         except TimeoutError:
             pytest.fail(f"on_cleared callback not fired. Log lines: {log_lines[-20:]}")
+
+        # Verify is_armed_away condition was held true
+        try:
+            condition_result = await asyncio.wait_for(condition_future, timeout=1.0)
+            assert condition_result == "is_armed_away", (
+                f"Expected condition 'is_armed_away' to be true during pending, "
+                f"but got '{condition_result}' instead. Log lines: {log_lines[-20:]}"
+            )
+        except TimeoutError:
+            pytest.fail(
+                f"on_pending callback not fired or no condition met. "
+                f"Log lines: {log_lines[-20:]}"
+            )
 
         # Disarm
         client.alarm_control_panel_command(

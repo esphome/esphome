@@ -49,6 +49,24 @@ alarm_control_panel:
     on_pending:
       then:
         - logger.log: "### PENDING ###"
+        - if:
+            condition:
+              alarm_control_panel.is_armed_home:
+                id: alarmcontrolpanel2
+            then:
+              - logger.log: "### PENDING HOME ###"
+        - if:
+            condition:
+              alarm_control_panel.is_armed_night:
+                id: alarmcontrolpanel2
+            then:
+              - logger.log: "### PENDING NIGHT ###"
+        - if:
+            condition:
+              alarm_control_panel.is_armed_away:
+                id: alarmcontrolpanel2
+            then:
+              - logger.log: "### PENDING AWAY ###"
     on_arming:
       then:
         - logger.log: "### ARMING ###"

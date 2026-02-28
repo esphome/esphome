@@ -128,6 +128,11 @@ class AlarmControlPanel : public EntityBase {
    */
   AlarmControlPanelState get_state() const { return this->current_state_; }
 
+  /** Get the desired (or previous) state.
+   * This always returns a stable state based on the user's last command (DISARMED or one of the ARMED_* states).
+   */
+  AlarmControlPanelState get_desired_state() const { return this->desired_state_; }
+
   // is the state one of the armed states
   bool is_state_armed(AlarmControlPanelState state);
 

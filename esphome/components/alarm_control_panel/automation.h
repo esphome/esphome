@@ -95,9 +95,9 @@ template<typename... Ts> class TriggeredAction : public Action<Ts...> {
   AlarmControlPanel *alarm_control_panel_;
 };
 
-template<typename... Ts> class AlarmControlPanelCondition : public Condition<Ts...> {
+template<typename... Ts> class AlarmControlPlanelIsArmedCondition : public Condition<Ts...> {
  public:
-  AlarmControlPanelCondition(AlarmControlPanel *parent) : parent_(parent) {}
+  AlarmControlPlanelIsArmedCondition(AlarmControlPanel *parent) : parent_(parent) {}
   bool check(const Ts &...x) override {
     return this->parent_->is_state_armed(this->parent_->get_state()) ||
            this->parent_->get_state() == ACP_STATE_PENDING || this->parent_->get_state() == ACP_STATE_TRIGGERED;
@@ -106,5 +106,24 @@ template<typename... Ts> class AlarmControlPanelCondition : public Condition<Ts.
  protected:
   AlarmControlPanel *parent_;
 };
+
+template<AlarmControlPanelState DesiredState, typename... Ts>
+class AlarmControlPanelDesiredStateCondition : public Condition<Ts...> {
+ public:
+  AlarmControlPanelDesiredStateCondition(AlarmControlPanel *parent) : parent_(parent) {}
+  bool check(const Ts &...x) override { return this->parent_->get_desired_state() == DesiredState; }
+
+ protected:
+  AlarmControlPanel *parent_;
+};
+
+template<typename... Ts>
+using AlarmControlPanelIsArmedHomeCondition = AlarmControlPanelDesiredStateCondition<ACP_STATE_ARMED_HOME, Ts...>;
+
+template<typename... Ts>
+using AlarmControlPanelIsArmedNightCondition = AlarmControlPanelDesiredStateCondition<ACP_STATE_ARMED_NIGHT, Ts...>;
+
+template<typename... Ts>
+using AlarmControlPanelIsArmedAwayCondition = AlarmControlPanelDesiredStateCondition<ACP_STATE_ARMED_AWAY, Ts...>;
 
 }  // namespace esphome::alarm_control_panel

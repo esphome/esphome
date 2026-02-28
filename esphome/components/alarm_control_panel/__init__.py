@@ -50,8 +50,17 @@ TriggeredAction = alarm_control_panel_ns.class_("TriggeredAction", automation.Ac
 ChimeAction = alarm_control_panel_ns.class_("ChimeAction", automation.Action)
 ReadyAction = alarm_control_panel_ns.class_("ReadyAction", automation.Action)
 
-AlarmControlPanelCondition = alarm_control_panel_ns.class_(
-    "AlarmControlPanelCondition", automation.Condition
+AlarmControlPlanelIsArmedCondition = alarm_control_panel_ns.class_(
+    "AlarmControlPlanelIsArmedCondition", automation.Condition
+)
+AlarmControlPanelIsArmedHomeCondition = alarm_control_panel_ns.class_(
+    "AlarmControlPanelIsArmedHomeCondition", automation.Condition
+)
+AlarmControlPanelIsArmedNightCondition = alarm_control_panel_ns.class_(
+    "AlarmControlPanelIsArmedNightCondition", automation.Condition
+)
+AlarmControlPanelIsArmedAwayCondition = alarm_control_panel_ns.class_(
+    "AlarmControlPanelIsArmedAwayCondition", automation.Condition
 )
 
 _ALARM_CONTROL_PANEL_SCHEMA = (
@@ -297,7 +306,7 @@ async def alarm_action_chime_to_code(config, action_id, template_arg, args):
 )
 @automation.register_condition(
     "alarm_control_panel.ready",
-    AlarmControlPanelCondition,
+    AlarmControlPlanelIsArmedCondition,
     ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
 )
 async def alarm_action_ready_to_code(config, action_id, template_arg, args):
@@ -307,10 +316,46 @@ async def alarm_action_ready_to_code(config, action_id, template_arg, args):
 
 @automation.register_condition(
     "alarm_control_panel.is_armed",
-    AlarmControlPanelCondition,
+    AlarmControlPlanelIsArmedCondition,
     ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
 )
 async def alarm_control_panel_is_armed_to_code(
+    config, condition_id, template_arg, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)
+
+
+@automation.register_condition(
+    "alarm_control_panel.is_armed_home",
+    AlarmControlPanelIsArmedHomeCondition,
+    ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
+)
+async def alarm_control_panel_is_armed_home_to_code(
+    config, condition_id, template_arg, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)
+
+
+@automation.register_condition(
+    "alarm_control_panel.is_armed_night",
+    AlarmControlPanelIsArmedNightCondition,
+    ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
+)
+async def alarm_control_panel_is_armed_night_to_code(
+    config, condition_id, template_arg, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)
+
+
+@automation.register_condition(
+    "alarm_control_panel.is_armed_away",
+    AlarmControlPanelIsArmedAwayCondition,
+    ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
+)
+async def alarm_control_panel_is_armed_away_to_code(
     config, condition_id, template_arg, args
 ):
     paren = await cg.get_variable(config[CONF_ID])
