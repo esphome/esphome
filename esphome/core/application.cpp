@@ -79,7 +79,7 @@ static void insertion_sort_by_priority(Iterator first, Iterator last) {
   }
 }
 
-void Application::register_component_impl_(Component *comp) { this->components_.push_back(comp); }
+void Application::register_component_(Component *comp) { this->components_.push_back(comp); }
 void Application::setup() {
   ESP_LOGI(TAG, "Running through setup()");
   ESP_LOGV(TAG, "Sorting components by setup priority");
