@@ -1,7 +1,16 @@
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_BAUD_RATE, CONF_DATA, CONF_ID, CONF_INTERVAL
+from esphome.const import (
+    CONF_BAUD_RATE,
+    CONF_DATA,
+    CONF_DATA_BITS,
+    CONF_DELAY,
+    CONF_ID,
+    CONF_INTERVAL,
+    CONF_PARITY,
+    CONF_STOP_BITS,
+)
 
 CODEOWNERS = ["@esphome/tests"]
 MULTI_CONF = True
@@ -15,11 +24,7 @@ CONF_INJECTIONS = "injections"
 CONF_RESPONSES = "responses"
 CONF_INJECT_RX = "inject_rx"
 CONF_EXPECT_TX = "expect_tx"
-CONF_DELAY = "delay"
 CONF_PERIODIC_RX = "periodic_rx"
-CONF_STOP_BITS = "stop_bits"
-CONF_DATA_BITS = "data_bits"
-CONF_PARITY = "parity"
 
 UART_PARITY_OPTIONS = {
     "NONE": uart.UARTParityOptions.UART_CONFIG_PARITY_NONE,
