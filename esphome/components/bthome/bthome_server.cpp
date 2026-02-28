@@ -57,26 +57,49 @@ void BTHomeServerBase::on_advertise_() {
   auto sensors = this->get_local_sensors();
   this->encoder_.reset();
 
-  // Pack sensors starting from next_sensor_index_, greedily filling the frame
+  // Pack sensors starting from next_sensor_index_
+  // All sensors of the same type must fit in the same frame
   size_t start = this->next_sensor_index_;
-  size_t packed = 0;
 
-  for (size_t i = 0; i < sensors.size(); i++) {
+  for (size_t i = 0; i < sensors.size();) {
     size_t idx = (start + i) % sensors.size();
     BTHomeLocalBase *sensor = sensors[idx];
+    BTHomeObjectType current_type = sensor->get_object_type();
 
-    // Check if this sensor fits
-    if (this->encoder_.get_remaining() < sensor->get_encoded_size()) {
-      // Frame is full — stop here
+    // Find the complete group of consecutive sensors with the same type
+    size_t group_size = 1;
+    for (size_t j = 1; j < sensors.size() && i + j < sensors.size(); j++) {
+      size_t next_idx = (start + i + j) % sensors.size();
+      if (sensors[next_idx]->get_object_type() != current_type) {
+        break;
+      }
+      group_size++;
+    }
+
+    // Calculate total size needed for this group
+    size_t group_encoded_size = 0;
+    for (size_t j = 0; j < group_size; j++) {
+      size_t member_idx = (start + i + j) % sensors.size();
+      group_encoded_size += sensors[member_idx]->get_encoded_size();
+    }
+
+    // Check if entire group fits
+    if (this->encoder_.get_remaining() < group_encoded_size) {
+      // Group doesn't fit — skip this group and come back to it next time
       this->next_sensor_index_ = idx;
       break;
     }
 
-    sensor->write(this->encoder_);
-    packed++;
+    // Add entire group to frame
+    for (size_t j = 0; j < group_size; j++) {
+      size_t member_idx = (start + i + j) % sensors.size();
+      sensors[member_idx]->write(this->encoder_);
+    }
 
-    // If we've packed all sensors, wrap around
-    if (packed == sensors.size()) {
+    i += group_size;
+
+    // If we've processed all sensors, wrap around
+    if (i >= sensors.size()) {
       this->next_sensor_index_ = 0;
       break;
     }
@@ -91,14 +114,10 @@ void BTHomeServerBase::send_frame_() {
   // Build BTHome header byte
   BTHomeHeader header{};
   header.version = BTHOME_VERSION_2;
-#ifdef USE_BTHOME_DECRYPTION
-  header.encrypted = this->encryption_key_.has_value() ? 1 : 0;
-#endif
-
   const uint8_t *payload = this->encoder_.get_buffer();
   size_t payload_size = this->encoder_.get_size();
-
 #ifdef USE_BTHOME_DECRYPTION
+  header.encrypted = this->encryption_key_.has_value() ? 1 : 0;
   size_t encrypted_size = 0;
   const uint8_t *encrypted = nullptr;
   if (this->encryption_key_.has_value()) {
@@ -166,6 +185,9 @@ void BTHomeServerBase::advertise_immediate_(BTHomeObjectType type) {
 }
 
 void BTHomeServerBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+  if (!this->advertising_) {
+    return;
+  }
   switch (event) {
     case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT: {
       if (this->advertising_) {
