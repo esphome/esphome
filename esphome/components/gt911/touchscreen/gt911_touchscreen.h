@@ -30,7 +30,9 @@ class GT911Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice 
   void dump_config() override;
   bool can_proceed() override { return this->setup_done_; }
 
-  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
+  /// Set a interrupt pin (supports hardware interrupts or expander connected).
+  void set_interrupt_pin(GPIOPin *pin) { this->interrupt_pin_ = pin; }
+
   void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
   void register_button_listener(GT911ButtonListener *listener) { this->button_listeners_.push_back(listener); }
 
@@ -49,7 +51,7 @@ class GT911Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice 
   /// @brief True if the touchscreen setup has completed successfully.
   bool setup_done_{false};
 
-  InternalGPIOPin *interrupt_pin_{nullptr};
+  GPIOPin *interrupt_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   std::vector<GT911ButtonListener *> button_listeners_;
   uint8_t button_state_{0xFF};  // last button state. Initial FF guarantees first update.

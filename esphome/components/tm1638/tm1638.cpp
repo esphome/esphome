@@ -35,9 +35,6 @@ void TM1638Component::setup() {
   this->set_intensity(intensity_);
 
   this->reset_();  // all LEDs off
-
-  for (uint8_t i = 0; i < 8; i++)  // zero fill print buffer
-    this->buffer_[i] = 0;
 }
 
 void TM1638Component::dump_config() {

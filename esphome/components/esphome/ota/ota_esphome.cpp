@@ -28,10 +28,9 @@ static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
 
 void ESPHomeOTAComponent::setup() {
-  this->server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
+  this->server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
   if (this->server_ == nullptr) {
-    this->log_socket_error_(LOG_STR("creation"));
-    this->mark_failed();
+    this->server_failed_(LOG_STR("creation"));
     return;
   }
   int enable = 1;
@@ -42,8 +41,7 @@ void ESPHomeOTAComponent::setup() {
   }
   err = this->server_->setblocking(false);
   if (err != 0) {
-    this->log_socket_error_(LOG_STR("non-blocking"));
-    this->mark_failed();
+    this->server_failed_(LOG_STR("nonblocking"));
     return;
   }
 
@@ -51,22 +49,19 @@ void ESPHomeOTAComponent::setup() {
 
   socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
   if (sl == 0) {
-    this->log_socket_error_(LOG_STR("set sockaddr"));
-    this->mark_failed();
+    this->server_failed_(LOG_STR("set sockaddr"));
     return;
   }
 
   err = this->server_->bind((struct sockaddr *) &server, sizeof(server));
   if (err != 0) {
-    this->log_socket_error_(LOG_STR("bind"));
-    this->mark_failed();
+    this->server_failed_(LOG_STR("bind"));
     return;
   }
 
   err = this->server_->listen(1);  // Only one client at a time
   if (err != 0) {
-    this->log_socket_error_(LOG_STR("listen"));
-    this->mark_failed();
+    this->server_failed_(LOG_STR("listen"));
     return;
   }
 }
@@ -370,11 +365,13 @@ void ESPHomeOTAComponent::handle_data_() {
 
 error:
   this->write_byte_(static_cast<uint8_t>(error_code));
-  this->cleanup_connection_();
 
+  // Abort backend before cleanup - cleanup_connection_() destroys the backend
   if (this->backend_ != nullptr && update_started) {
     this->backend_->abort();
   }
+
+  this->cleanup_connection_();
 
   this->status_momentary_error("err", 5000);
 #ifdef USE_OTA_STATE_LISTENER
@@ -451,6 +448,15 @@ void ESPHomeOTAComponent::log_start_(const LogString *phase) {
 
 void ESPHomeOTAComponent::log_remote_closed_(const LogString *during) {
   ESP_LOGW(TAG, "Remote closed at %s", LOG_STR_ARG(during));
+}
+
+void ESPHomeOTAComponent::server_failed_(const LogString *msg) {
+  this->log_socket_error_(msg);
+  // No explicit close() needed — listen sockets have no active connections on
+  // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).
+  delete this->server_;
+  this->server_ = nullptr;
+  this->mark_failed();
 }
 
 bool ESPHomeOTAComponent::handle_read_error_(ssize_t read, const LogString *desc) {
@@ -561,11 +567,9 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
     //   [1+hex_size...1+2*hex_size-1]: cnonce (hex_size bytes) - client's nonce
     //   [1+2*hex_size...1+3*hex_size-1]: response (hex_size bytes) - client's hash
 
-    // CRITICAL ESP32-S3 HARDWARE SHA ACCELERATION: Hash object must stay in same stack frame
+    // CRITICAL ESP32-S2/S3 HARDWARE SHA ACCELERATION: Hash object must stay in same stack frame
     // (no passing to other functions). All hash operations must happen in this function.
-    // NOTE: On ESP32-S3 with IDF 5.5.x, the SHA256 context must be properly aligned for
-    // hardware SHA acceleration DMA operations.
-    alignas(32) sha256::SHA256 hasher;
+    sha256::SHA256 hasher;
 
     const size_t hex_size = hasher.get_size() * 2;
     const size_t nonce_len = hasher.get_size() / 4;
@@ -637,11 +641,9 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
   const char *cnonce = nonce + hex_size;
   const char *response = cnonce + hex_size;
 
-  // CRITICAL ESP32-S3 HARDWARE SHA ACCELERATION: Hash object must stay in same stack frame
+  // CRITICAL ESP32-S2/S3 HARDWARE SHA ACCELERATION: Hash object must stay in same stack frame
   // (no passing to other functions). All hash operations must happen in this function.
-  // NOTE: On ESP32-S3 with IDF 5.5.x, the SHA256 context must be properly aligned for
-  // hardware SHA acceleration DMA operations.
-  alignas(32) sha256::SHA256 hasher;
+  sha256::SHA256 hasher;
 
   hasher.init();
   hasher.add(this->password_.c_str(), this->password_.length());

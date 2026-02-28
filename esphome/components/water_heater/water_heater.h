@@ -75,7 +75,8 @@ class WaterHeaterCall {
   WaterHeaterCall(WaterHeater *parent);
 
   WaterHeaterCall &set_mode(WaterHeaterMode mode);
-  WaterHeaterCall &set_mode(const std::string &mode);
+  WaterHeaterCall &set_mode(const char *mode);
+  WaterHeaterCall &set_mode(const std::string &mode) { return this->set_mode(mode.c_str()); }
   WaterHeaterCall &set_target_temperature(float temperature);
   WaterHeaterCall &set_target_temperature_low(float temperature);
   WaterHeaterCall &set_target_temperature_high(float temperature);
@@ -89,7 +90,22 @@ class WaterHeaterCall {
   float get_target_temperature_low() const { return this->target_temperature_low_; }
   float get_target_temperature_high() const { return this->target_temperature_high_; }
   /// Get state flags value
+  ESPDEPRECATED("get_state() is deprecated, use get_away() and get_on() instead. (Removed in 2026.8.0)", "2026.2.0")
   uint32_t get_state() const { return this->state_; }
+
+  optional<bool> get_away() const {
+    if (this->state_mask_ & WATER_HEATER_STATE_AWAY) {
+      return (this->state_ & WATER_HEATER_STATE_AWAY) != 0;
+    }
+    return {};
+  }
+
+  optional<bool> get_on() const {
+    if (this->state_mask_ & WATER_HEATER_STATE_ON) {
+      return (this->state_ & WATER_HEATER_STATE_ON) != 0;
+    }
+    return {};
+  }
 
  protected:
   void validate_();
@@ -99,6 +115,7 @@ class WaterHeaterCall {
   float target_temperature_low_{NAN};
   float target_temperature_high_{NAN};
   uint32_t state_{0};
+  uint32_t state_mask_{0};
 };
 
 struct WaterHeaterCallInternal : public WaterHeaterCall {
@@ -110,6 +127,7 @@ struct WaterHeaterCallInternal : public WaterHeaterCall {
     this->target_temperature_low_ = restore.target_temperature_low_;
     this->target_temperature_high_ = restore.target_temperature_high_;
     this->state_ = restore.state_;
+    this->state_mask_ = restore.state_mask_;
     return *this;
   }
 };
@@ -177,7 +195,7 @@ class WaterHeaterTraits {
   WaterHeaterModeMask supported_modes_;
 };
 
-class WaterHeater : public EntityBase, public Component {
+class WaterHeater : public EntityBase {
  public:
   WaterHeaterMode get_mode() const { return this->mode_; }
   float get_current_temperature() const { return this->current_temperature_; }
@@ -204,15 +222,14 @@ class WaterHeater : public EntityBase, public Component {
 #endif
   virtual void control(const WaterHeaterCall &call) = 0;
 
-  void setup() override;
-
-  optional<WaterHeaterCall> restore_state();
-
  protected:
   virtual WaterHeaterTraits traits() = 0;
 
   /// Log the traits of this water heater for dump_config().
   void dump_traits_(const char *tag);
+
+  /// Restore the state of the water heater, call this from your setup() method.
+  optional<WaterHeaterCall> restore_state_();
 
   /// Set the mode of the water heater. Should only be called from control().
   void set_mode_(WaterHeaterMode mode) { this->mode_ = mode; }

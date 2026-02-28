@@ -37,10 +37,6 @@ struct SavedNoisePsk {
 
 class APIServer : public Component,
                   public Controller
-#ifdef USE_LOGGER
-    ,
-                  public logger::LogListener
-#endif
 #ifdef USE_CAMERA
     ,
                   public camera::CameraListener
@@ -56,7 +52,7 @@ class APIServer : public Component,
   void on_shutdown() override;
   bool teardown() override;
 #ifdef USE_LOGGER
-  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len);
 #endif
 #ifdef USE_CAMERA
   void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
@@ -185,6 +181,9 @@ class APIServer : public Component,
 #ifdef USE_ZWAVE_PROXY
   void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
 #endif
+#ifdef USE_IR_RF
+  void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
+#endif
 
   bool is_connected(bool state_subscription_only = false) const;
 
@@ -202,20 +201,20 @@ class APIServer : public Component,
   };
 
   // New const char* overload (for internal components - zero allocation)
-  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> f);
-  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> f);
+  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
+  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
 
   // std::string overload with StringRef callback (for custom_api_device.h with zero-allocation callback)
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                      std::function<void(StringRef)> f);
+                                      std::function<void(StringRef)> &&f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                std::function<void(StringRef)> f);
+                                std::function<void(StringRef)> &&f);
 
   // Legacy std::string overload (for custom_api_device.h - converts StringRef to std::string for callback)
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                      std::function<void(const std::string &)> f);
+                                      std::function<void(const std::string &)> &&f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                std::function<void(const std::string &)> f);
+                                std::function<void(const std::string &)> &&f);
 
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
 #endif
@@ -224,36 +223,46 @@ class APIServer : public Component,
 #endif
 
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
+  Trigger<std::string, std::string> *get_client_connected_trigger() { return &this->client_connected_trigger_; }
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_disconnected_trigger() const {
-    return this->client_disconnected_trigger_;
-  }
+  Trigger<std::string, std::string> *get_client_disconnected_trigger() { return &this->client_disconnected_trigger_; }
 #endif
 
  protected:
+  // Accept incoming socket connections. Only called when socket has pending connections.
+  void __attribute__((noinline)) accept_new_connections_();
+  // Remove a disconnected client by index. Swaps with last element and pops.
+  void __attribute__((noinline)) remove_client_(size_t client_index);
+
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
                          const psk_t &active_psk, bool make_active);
 #endif  // USE_API_NOISE
 #ifdef USE_API_HOMEASSISTANT_STATES
   // Helper methods to reduce code duplication
-  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> f,
+  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f,
                                bool once);
-  void add_state_subscription_(std::string entity_id, optional<std::string> attribute, std::function<void(StringRef)> f,
-                               bool once);
+  void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
+                               std::function<void(StringRef)> &&f, bool once);
   // Legacy helper: wraps std::string callback and delegates to StringRef version
   void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                               std::function<void(const std::string &)> f, bool once);
+                               std::function<void(const std::string &)> &&f, bool once);
 #endif  // USE_API_HOMEASSISTANT_STATES
+  // No explicit close() needed — listen sockets have no active connections on
+  // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).
+  inline void destroy_socket_() {
+    delete this->socket_;
+    this->socket_ = nullptr;
+  }
+  void socket_failed_(const LogString *msg);
   // Pointers and pointer-like types first (4 bytes each)
-  std::unique_ptr<socket::Socket> socket_ = nullptr;
+  socket::Socket *socket_{nullptr};
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<std::string, std::string> client_connected_trigger_;
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> *client_disconnected_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<std::string, std::string> client_disconnected_trigger_;
 #endif
 
   // 4-byte aligned types
@@ -262,7 +271,11 @@ class APIServer : public Component,
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
-  std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
+  // Shared proto write buffer for all connections.
+  // Not pre-allocated: all send paths call prepare_first_message_buffer() which
+  // reserves the exact needed size. Pre-allocating here would cause heap fragmentation
+  // since the buffer would almost always reallocate on first use.
+  std::vector<uint8_t> shared_write_buffer_;
 #ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
 #endif

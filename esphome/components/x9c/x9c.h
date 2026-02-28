@@ -18,7 +18,7 @@ class X9cOutput : public output::FloatOutput, public Component {
   void setup() override;
   void dump_config() override;
 
-  void trim_value(int change_amount);
+  void trim_value(int32_t change_amount);
 
  protected:
   void write_state(float state) override;

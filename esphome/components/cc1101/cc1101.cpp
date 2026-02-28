@@ -152,6 +152,13 @@ void CC1101Component::setup() {
   }
 }
 
+void CC1101Component::call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi) {
+  for (auto &listener : this->listeners_) {
+    listener->on_packet(packet, freq_offset, rssi, lqi);
+  }
+  this->packet_trigger_.trigger(packet, freq_offset, rssi, lqi);
+}
+
 void CC1101Component::loop() {
   if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr ||
       !this->gdo0_pin_->digital_read()) {
@@ -198,7 +205,7 @@ void CC1101Component::loop() {
   bool crc_ok = (this->state_.LQI & STATUS_CRC_OK_MASK) != 0;
   uint8_t lqi = this->state_.LQI & STATUS_LQI_MASK;
   if (this->state_.CRC_EN == 0 || crc_ok) {
-    this->packet_trigger_->trigger(this->packet_, freq_offset, rssi, lqi);
+    this->call_listeners_(this->packet_, freq_offset, rssi, lqi);
   }
 
   // Return to rx
@@ -235,6 +242,9 @@ void CC1101Component::begin_tx() {
   if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
   }
+  // Transition through IDLE to bypass CCA (Clear Channel Assessment) which can
+  // block TX entry when strobing from RX, and to ensure FS_AUTOCAL calibration
+  this->enter_idle_();
   if (!this->enter_tx_()) {
     ESP_LOGW(TAG, "Failed to enter TX state!");
   }
@@ -245,6 +255,8 @@ void CC1101Component::begin_rx() {
   if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
   }
+  // Transition through IDLE to ensure FS_AUTOCAL calibration occurs
+  this->enter_idle_();
   if (!this->enter_rx_()) {
     ESP_LOGW(TAG, "Failed to enter RX state!");
   }

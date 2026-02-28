@@ -22,7 +22,7 @@ void ZigbeeBinarySensor::setup() {
     ZB_ZCL_SET_ATTRIBUTE(this->endpoint_, ZB_ZCL_CLUSTER_ID_BINARY_INPUT, ZB_ZCL_CLUSTER_SERVER_ROLE,
                          ZB_ZCL_ATTR_BINARY_INPUT_PRESENT_VALUE_ID, &this->cluster_attributes_->present_value,
                          ZB_FALSE);
-    this->parent_->flush();
+    this->parent_->force_report();
   });
 }
 

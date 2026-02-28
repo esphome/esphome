@@ -27,7 +27,7 @@ class MQTTUpdateComponent : public mqtt::MQTTComponent {
 
  protected:
   /// "update" component type.
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   update::UpdateEntity *update_;

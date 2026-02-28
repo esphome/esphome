@@ -1,10 +1,16 @@
 import logging
+import math
 
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_USE_PSRAM
-from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    const,
+    get_esp32_variant,
+    only_on_variant,
+)
 from esphome.components.network import (
     has_high_performance_networking,
     ip_address_literal,
@@ -36,6 +42,7 @@ from esphome.const import (
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_ERROR,
+    CONF_OUTPUT_POWER,
     CONF_PASSWORD,
     CONF_POWER_SAVE_MODE,
     CONF_PRIORITY,
@@ -52,6 +59,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from . import wpa2_eap
 
@@ -63,6 +71,7 @@ _LOGGER = logging.getLogger(__name__)
 
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
+CONF_BAND_MODE = "band_mode"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
 
@@ -87,6 +96,13 @@ WIFI_POWER_SAVE_MODES = {
     "NONE": WiFiPowerSaveMode.WIFI_POWER_SAVE_NONE,
     "LIGHT": WiFiPowerSaveMode.WIFI_POWER_SAVE_LIGHT,
     "HIGH": WiFiPowerSaveMode.WIFI_POWER_SAVE_HIGH,
+}
+
+WiFiBandMode = cg.global_ns.enum("wifi_band_mode_t")
+WIFI_BAND_MODES = {
+    "AUTO": WiFiBandMode.WIFI_BAND_MODE_AUTO,
+    "2.4GHZ": WiFiBandMode.WIFI_BAND_MODE_2G_ONLY,
+    "5GHZ": WiFiBandMode.WIFI_BAND_MODE_5G_ONLY,
 }
 
 WifiMinAuthMode = wifi_ns.enum("WifiMinAuthMode")
@@ -238,17 +254,45 @@ def _apply_min_auth_mode_default(config):
 def final_validate(config):
     has_sta = bool(config.get(CONF_NETWORKS, True))
     has_ap = CONF_AP in config
-    has_improv = "esp32_improv" in fv.full_config.get()
-    has_improv_serial = "improv_serial" in fv.full_config.get()
+    full_config = fv.full_config.get()
+    has_improv = "esp32_improv" in full_config
+    has_improv_serial = "improv_serial" in full_config
+    has_captive_portal = "captive_portal" in full_config
+    has_web_server = "web_server" in full_config
     if not (has_sta or has_ap or has_improv or has_improv_serial):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create."
         )
+    if has_ap and not has_captive_portal and not has_web_server:
+        _LOGGER.warning(
+            "WiFi AP is configured but neither captive_portal nor web_server is enabled. "
+            "The AP will not be usable for configuration or monitoring. "
+            "Add 'captive_portal:' or 'web_server:' to your configuration."
+        )
+
+
+def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
+    """Register UDP PCBs used internally by lwIP for DHCP and DNS.
+
+    Only needed on LibreTiny where we directly set MEMP_NUM_UDP_PCB (the raw
+    PCB pool shared by both application sockets and lwIP internals like DHCP/DNS).
+    On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket layer —
+    DHCP/DNS use raw udp_new() which bypasses it entirely.
+    """
+    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x):
+        return config
+    from esphome.components import socket
+
+    # lwIP allocates UDP PCBs for DHCP client and DNS resolver internally.
+    # These are not application sockets but consume MEMP_NUM_UDP_PCB pool entries.
+    socket.consume_sockets(2, "wifi.lwip_internal", socket.SocketType.UDP)(config)
+    return config
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
     final_validate,
     validate_variant,
+    _consume_wifi_sockets,
 )
 
 
@@ -279,11 +323,6 @@ def _validate(config):
         config = config.copy()
         config[CONF_NETWORKS] = []
 
-    if config.get(CONF_FAST_CONNECT, False):
-        networks = config.get(CONF_NETWORKS, [])
-        if not networks:
-            raise cv.Invalid("At least one network required for fast_connect!")
-
     if CONF_USE_ADDRESS not in config:
         use_address = CORE.name + config[CONF_DOMAIN]
         if CONF_MANUAL_IP in config:
@@ -306,7 +345,6 @@ def _validate(config):
     return config
 
 
-CONF_OUTPUT_POWER = "output_power"
 CONF_PASSIVE_SCAN = "passive_scan"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -347,6 +385,11 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.SplitDefault(CONF_ENABLE_RRM, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
+            ),
+            cv.Optional(CONF_BAND_MODE): cv.All(
+                cv.enum(WIFI_BAND_MODES, upper=True),
+                cv.only_on_esp32,
+                only_on_variant(supported=[const.VARIANT_ESP32C5]),
             ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
@@ -489,6 +532,13 @@ async def to_code(config):
         cg.add(var.set_passive_scan(True))
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
+        if CORE.is_esp32:
+            # Set PHY max TX power to match output_power so calibration also uses
+            # reduced power. This prevents brownout during PHY init on marginal
+            # power supplies, which is critical for OTA updates with rollback enabled.
+            # Kconfig range is 10-20, ESPHome allows 8.5-20.5
+            phy_tx_power = max(10, min(20, math.ceil(config[CONF_OUTPUT_POWER])))
+            add_idf_sdkconfig_option("CONFIG_ESP_PHY_MAX_WIFI_TX_POWER", phy_tx_power)
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))
@@ -506,6 +556,13 @@ async def to_code(config):
         cg.add_library("ESP8266WiFi", None)
     elif CORE.is_rp2040:
         cg.add_library("WiFi", None)
+        # RP2040's mDNS library (LEAmDNS) relies on LwipIntf::stateUpCB() to restart
+        # mDNS when the network interface reconnects. However, this callback is disabled
+        # in the arduino-pico framework. As a workaround, we block component setup until
+        # WiFi is connected via can_proceed(), ensuring mDNS.begin() is called with an
+        # active connection. This define enables the loop priority sorting infrastructure
+        # used during the setup blocking phase.
+        cg.add_define("USE_LOOP_PRIORITY")
 
     if CORE.is_esp32:
         if config[CONF_ENABLE_BTM] or config[CONF_ENABLE_RRM]:
@@ -515,6 +572,8 @@ async def to_code(config):
             cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
         if config[CONF_ENABLE_RRM]:
             cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
+        if CONF_BAND_MODE in config:
+            cg.add(var.set_band_mode(config[CONF_BAND_MODE]))
 
     if config.get(CONF_USE_PSRAM):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
@@ -576,11 +635,13 @@ async def to_code(config):
     await cg.past_safe_mode()
 
     if on_connect_config := config.get(CONF_ON_CONNECT):
+        cg.add_define("USE_WIFI_CONNECT_TRIGGER")
         await automation.build_automation(
             var.get_connect_trigger(), [], on_connect_config
         )
 
     if on_disconnect_config := config.get(CONF_ON_DISCONNECT):
+        cg.add_define("USE_WIFI_DISCONNECT_TRIGGER")
         await automation.build_automation(
             var.get_disconnect_trigger(), [], on_disconnect_config
         )
@@ -615,7 +676,11 @@ async def wifi_disable_to_code(config, action_id, template_arg, args):
 
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
 RUNTIME_POWER_SAVE_KEY = "wifi_runtime_power_save"
-WIFI_LISTENERS_KEY = "wifi_listeners"
+# Keys for listener counts
+IP_STATE_LISTENERS_KEY = "wifi_ip_state_listeners"
+SCAN_RESULTS_LISTENERS_KEY = "wifi_scan_results_listeners"
+CONNECT_STATE_LISTENERS_KEY = "wifi_connect_state_listeners"
+POWER_SAVE_LISTENERS_KEY = "wifi_power_save_listeners"
 
 
 def request_wifi_scan_results():
@@ -641,15 +706,28 @@ def enable_runtime_power_save_control():
     CORE.data[RUNTIME_POWER_SAVE_KEY] = True
 
 
-def request_wifi_listeners() -> None:
-    """Request that WiFi state listeners be compiled in.
+def request_wifi_ip_state_listener() -> None:
+    """Request an IP state listener slot."""
+    CORE.data[IP_STATE_LISTENERS_KEY] = CORE.data.get(IP_STATE_LISTENERS_KEY, 0) + 1
 
-    Components that need to be notified about WiFi state changes (IP address changes,
-    scan results, connection state) should call this function during their code generation.
-    This enables the add_ip_state_listener(), add_scan_results_listener(),
-    and add_connect_state_listener() APIs.
-    """
-    CORE.data[WIFI_LISTENERS_KEY] = True
+
+def request_wifi_scan_results_listener() -> None:
+    """Request a scan results listener slot."""
+    CORE.data[SCAN_RESULTS_LISTENERS_KEY] = (
+        CORE.data.get(SCAN_RESULTS_LISTENERS_KEY, 0) + 1
+    )
+
+
+def request_wifi_connect_state_listener() -> None:
+    """Request a connect state listener slot."""
+    CORE.data[CONNECT_STATE_LISTENERS_KEY] = (
+        CORE.data.get(CONNECT_STATE_LISTENERS_KEY, 0) + 1
+    )
+
+
+def request_wifi_power_save_listener() -> None:
+    """Request a power save listener slot."""
+    CORE.data[POWER_SAVE_LISTENERS_KEY] = CORE.data.get(POWER_SAVE_LISTENERS_KEY, 0) + 1
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -661,8 +739,25 @@ async def final_step():
         )
     if CORE.data.get(RUNTIME_POWER_SAVE_KEY, False):
         cg.add_define("USE_WIFI_RUNTIME_POWER_SAVE")
-    if CORE.data.get(WIFI_LISTENERS_KEY, False):
-        cg.add_define("USE_WIFI_LISTENERS")
+
+    # Generate listener defines - each listener type has its own #ifdef
+    ip_state_count = CORE.data.get(IP_STATE_LISTENERS_KEY, 0)
+    scan_results_count = CORE.data.get(SCAN_RESULTS_LISTENERS_KEY, 0)
+    connect_state_count = CORE.data.get(CONNECT_STATE_LISTENERS_KEY, 0)
+    power_save_count = CORE.data.get(POWER_SAVE_LISTENERS_KEY, 0)
+
+    if ip_state_count:
+        cg.add_define("USE_WIFI_IP_STATE_LISTENERS")
+        cg.add_define("ESPHOME_WIFI_IP_STATE_LISTENERS", ip_state_count)
+    if scan_results_count:
+        cg.add_define("USE_WIFI_SCAN_RESULTS_LISTENERS")
+        cg.add_define("ESPHOME_WIFI_SCAN_RESULTS_LISTENERS", scan_results_count)
+    if connect_state_count:
+        cg.add_define("USE_WIFI_CONNECT_STATE_LISTENERS")
+        cg.add_define("ESPHOME_WIFI_CONNECT_STATE_LISTENERS", connect_state_count)
+    if power_save_count:
+        cg.add_define("USE_WIFI_POWER_SAVE_LISTENERS")
+        cg.add_define("ESPHOME_WIFI_POWER_SAVE_LISTENERS", power_save_count)
 
 
 @automation.register_action(

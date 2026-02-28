@@ -275,8 +275,19 @@ void LD2410Component::restart_and_read_all_info() {
 }
 
 void LD2410Component::loop() {
-  while (this->available()) {
-    this->readline_(this->read());
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[MAX_LINE_LENGTH];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+
+    for (size_t i = 0; i < to_read; i++) {
+      this->readline_(buf[i]);
+    }
   }
 }
 
@@ -442,7 +453,8 @@ bool LD2410Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Baud rate change");
 #ifdef USE_SELECT
       if (this->baud_rate_select_ != nullptr) {
-        ESP_LOGE(TAG, "Change baud rate to %s and reinstall", this->baud_rate_select_->current_option());
+        auto baud = this->baud_rate_select_->current_option();
+        ESP_LOGE(TAG, "Change baud rate to %.*s and reinstall", (int) baud.size(), baud.c_str());
       }
 #endif
       break;
@@ -477,11 +489,8 @@ bool LD2410Component::handle_ack_data_() {
       this->out_pin_level_ = this->buffer_data_[12];
       const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
       const auto *out_pin_level_str = find_str(OUT_PIN_LEVELS_BY_UINT, this->out_pin_level_);
-      ESP_LOGV(TAG,
-               "Light function: %s\n"
-               "Light threshold: %u\n"
-               "Out pin level: %s",
-               light_function_str, this->light_threshold_, out_pin_level_str);
+      ESP_LOGV(TAG, "Light function: %s, threshold: %u, out pin level: %s", light_function_str, this->light_threshold_,
+               out_pin_level_str);
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr) {
         this->light_function_select_->publish_state(light_function_str);
@@ -596,8 +605,9 @@ void LD2410Component::readline_(int readch) {
     // We should never get here, but just in case...
     ESP_LOGW(TAG, "Max command length exceeded; ignoring");
     this->buffer_pos_ = 0;
+    return;
   }
-  if (this->buffer_pos_ < 4) {
+  if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
     return;  // Not enough data to process yet
   }
   if (ld2410::validate_header_footer(DATA_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
@@ -766,10 +776,10 @@ void LD2410Component::set_light_out_control() {
 #endif
 #ifdef USE_SELECT
   if (this->light_function_select_ != nullptr && this->light_function_select_->has_state()) {
-    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->current_option());
+    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->current_option().c_str());
   }
   if (this->out_pin_level_select_ != nullptr && this->out_pin_level_select_->has_state()) {
-    this->out_pin_level_ = find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option());
+    this->out_pin_level_ = find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().c_str());
   }
 #endif
   this->set_config_mode_(true);

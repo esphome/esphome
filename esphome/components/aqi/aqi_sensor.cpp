@@ -44,8 +44,7 @@ void AQISensor::calculate_aqi_() {
     return;
   }
 
-  uint16_t aqi =
-      calculator->get_aqi(static_cast<uint16_t>(this->pm_2_5_value_), static_cast<uint16_t>(this->pm_10_0_value_));
+  uint16_t aqi = calculator->get_aqi(this->pm_2_5_value_, this->pm_10_0_value_);
   this->publish_state(aqi);
 }
 

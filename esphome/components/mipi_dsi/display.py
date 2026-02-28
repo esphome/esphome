@@ -39,6 +39,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
+    CONF_DISABLED,
     CONF_ENABLE_PIN,
     CONF_ID,
     CONF_INIT_SEQUENCE,
@@ -87,38 +88,27 @@ COLOR_DEPTHS = {
 
 def model_schema(config):
     model = MODELS[config[CONF_MODEL].upper()]
-    transform = cv.Schema(
-        {
-            cv.Required(CONF_MIRROR_X): cv.boolean,
-            cv.Required(CONF_MIRROR_Y): cv.boolean,
-        }
-    )
-    if model.get_default(CONF_SWAP_XY) != cv.UNDEFINED:
-        transform = transform.extend(
+    model.defaults[CONF_SWAP_XY] = cv.UNDEFINED
+    transform = cv.Any(
+        cv.Schema(
             {
+                cv.Required(CONF_MIRROR_X): cv.boolean,
+                cv.Required(CONF_MIRROR_Y): cv.boolean,
                 cv.Optional(CONF_SWAP_XY): cv.invalid(
-                    "Axis swapping not supported by this model"
-                )
+                    "Axis swapping not supported by DSI displays"
+                ),
             }
-        )
-    else:
-        transform = transform.extend(
-            {
-                cv.Required(CONF_SWAP_XY): cv.boolean,
-            }
-        )
+        ),
+        cv.one_of(CONF_DISABLED, lower=True),
+    )
     # CUSTOM model will need to provide a custom init sequence
     iseqconf = (
         cv.Required(CONF_INIT_SEQUENCE)
         if model.initsequence is None
         else cv.Optional(CONF_INIT_SEQUENCE)
     )
-    swap_xy = config.get(CONF_TRANSFORM, {}).get(CONF_SWAP_XY, False)
-
-    # Dimensions are optional if the model has a default width and the swap_xy transform is not overridden
-    cv_dimensions = (
-        cv.Optional if model.get_default(CONF_WIDTH) and not swap_xy else cv.Required
-    )
+    # Dimensions are optional if the model has a default width
+    cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
     pixel_modes = (PIXEL_MODE_16BIT, PIXEL_MODE_24BIT, "16", "24")
     schema = display.FULL_DISPLAY_SCHEMA.extend(
         {
@@ -213,9 +203,9 @@ async def to_code(config):
     cg.add(var.set_vsync_pulse_width(config[CONF_VSYNC_PULSE_WIDTH]))
     cg.add(var.set_vsync_back_porch(config[CONF_VSYNC_BACK_PORCH]))
     cg.add(var.set_vsync_front_porch(config[CONF_VSYNC_FRONT_PORCH]))
-    cg.add(var.set_pclk_frequency(int(config[CONF_PCLK_FREQUENCY] / 1e6)))
+    cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY] / 1.0e6))
     cg.add(var.set_lanes(int(config[CONF_LANES])))
-    cg.add(var.set_lane_bit_rate(int(config[CONF_LANE_BIT_RATE] / 1e6)))
+    cg.add(var.set_lane_bit_rate(config[CONF_LANE_BIT_RATE] / 1.0e6))
     if reset_pin := config.get(CONF_RESET_PIN):
         reset = await cg.gpio_pin_expression(reset_pin)
         cg.add(var.set_reset_pin(reset))
