@@ -1,6 +1,6 @@
 #pragma once
 
-// Fast socket monitoring for ESP32 (ESP-IDF LwIP)
+// Fast socket monitoring for ESP32 and LibreTiny (LwIP >= 2.1.3)
 // Replaces lwip_select() with direct rcvevent reads and FreeRTOS task notifications.
 
 #include <stdbool.h>

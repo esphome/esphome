@@ -1,11 +1,12 @@
-// Fast socket monitoring for ESP32 (ESP-IDF LwIP)
+// Fast socket monitoring for ESP32 and LibreTiny (LwIP >= 2.1.3)
 // Replaces lwip_select() with direct rcvevent reads and FreeRTOS task notifications.
 //
 // This must be a .c file (not .cpp) because:
-// 1. lwip/priv/sockets_priv.h conflicts with C++ compilation units that include bootloader headers
+// 1. lwip/priv/sockets_priv.h conflicts with C++ compilation units
 // 2. The netconn callback is a C function pointer
 //
-// defines.h is force-included by the build system (-include flag), providing USE_ESP32 etc.
+// USE_ESP32 and USE_LIBRETINY platform flags (-D) control compilation of this file.
+// See the guard at the bottom of the header comment for details.
 //
 // Thread safety analysis
 // ======================
@@ -81,20 +82,21 @@
 //     Written by main loop in hook_socket(). Never restored — all LwIP sockets share
 //     the same static event_callback (DEFAULT_SOCKET_EVENTCB), so the wrapper stays permanently.
 //     Read by TCP/IP thread when invoking the callback.
-//     Safe: 32-bit aligned pointer writes are atomic on Xtensa and RISC-V (ESP32).
-//     The TCP/IP thread will see either the old or new pointer atomically — never a
-//     torn value. Both the wrapper and original callbacks are valid at all times
-//     (the wrapper itself calls the original), so either value is correct.
+//     Safe: 32-bit aligned pointer writes are atomic on Xtensa, RISC-V (ESP32),
+//     and ARM Cortex-M (LibreTiny). The TCP/IP thread will see either the old or
+//     new pointer atomically — never a torn value. Both the wrapper and original
+//     callbacks are valid at all times (the wrapper itself calls the original),
+//     so either value is correct.
 //
 //   sock->rcvevent (s16_t, 2 bytes):
 //     Written by TCP/IP thread in event_callback under SYS_ARCH_PROTECT.
 //     Read by main loop in has_data() via volatile cast.
-//     Safe: SYS_ARCH_UNPROTECT releases a FreeRTOS mutex, which internally
-//     uses a critical section with memory barrier (rsync on dual-core Xtensa; on
-//     single-core builds the spinlock is compiled out, but cross-core visibility is
-//     not an issue). The volatile cast prevents the compiler
-//     from caching the read. Aligned 16-bit reads are single-instruction loads on
-//     Xtensa (L16SI) and RISC-V (LH), which cannot produce torn values.
+//     Safe: SYS_ARCH_UNPROTECT releases a FreeRTOS mutex (ESP32) or resumes the
+//     scheduler (LibreTiny), both providing a memory barrier. The volatile cast
+//     prevents the compiler from caching the read. Aligned 16-bit reads are
+//     single-instruction loads on Xtensa (L16SI), RISC-V (LH), and ARM Cortex-M
+//     (LDRH), which cannot produce torn values. On single-core chips (LibreTiny,
+//     ESP32-C3/C6/H2) cross-core visibility is not an issue.
 //
 //   FreeRTOS task notification value:
 //     Written by TCP/IP thread (xTaskNotifyGive in callback) and background tasks
@@ -103,20 +105,30 @@
 //     critical sections). Multiple concurrent xTaskNotifyGive calls are safe —
 //     the notification count simply increments.
 
-#ifdef USE_ESP32
+// USE_ESP32 and USE_LIBRETINY are compiler -D flags, so they are always visible in this .c file.
+// Feature macros like USE_LWIP_FAST_SELECT may come from generated headers that are not included here,
+// so this implementation is enabled based on platform flags instead of USE_LWIP_FAST_SELECT.
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
 
 // LwIP headers must come first — they define netconn_callback, struct lwip_sock, etc.
 #include <lwip/api.h>
 #include <lwip/priv/sockets_priv.h>
+// FreeRTOS include paths differ: ESP-IDF uses freertos/ prefix, LibreTiny does not
+#ifdef USE_ESP32
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#else
+#include <FreeRTOS.h>
+#include <task.h>
+#endif
 
 #include "esphome/core/lwip_fast_select.h"
 
 #include <stddef.h>
 
 // Compile-time verification of thread safety assumptions.
-// On ESP32 (Xtensa/RISC-V), naturally-aligned reads/writes up to 32 bits are atomic.
+// On ESP32 (Xtensa/RISC-V) and LibreTiny (ARM Cortex-M), naturally-aligned
+// reads/writes up to 32 bits are atomic.
 // These asserts ensure our cross-thread shared state meets those requirements.
 
 // Pointer types must fit in a single 32-bit store (atomic write)
@@ -126,7 +138,7 @@ _Static_assert(sizeof(netconn_callback) <= 4, "netconn_callback must be <= 4 byt
 // rcvevent must fit in a single atomic read
 _Static_assert(sizeof(((struct lwip_sock *) 0)->rcvevent) <= 4, "rcvevent must be <= 4 bytes for atomic access");
 
-// Struct member alignment — natural alignment guarantees atomicity on Xtensa/RISC-V.
+// Struct member alignment — natural alignment guarantees atomicity on Xtensa/RISC-V/ARM.
 // Misaligned access would not be atomic even if the size is <= 4 bytes.
 _Static_assert(offsetof(struct netconn, callback) % sizeof(netconn_callback) == 0,
                "netconn.callback must be naturally aligned for atomic access");
@@ -183,9 +195,9 @@ bool esphome_lwip_socket_has_data(int fd) {
     return false;
   // volatile prevents the compiler from caching/reordering this cross-thread read.
   // The write side (TCP/IP thread) commits via SYS_ARCH_UNPROTECT which releases a
-  // FreeRTOS mutex with a memory barrier (rsync on Xtensa), ensuring the value is
-  // visible. Aligned 16-bit reads are single-instruction loads (L16SI/LH) on
-  // Xtensa/RISC-V and cannot produce torn values.
+  // FreeRTOS mutex (ESP32) or resumes the scheduler (LibreTiny), ensuring the value
+  // is visible. Aligned 16-bit reads are single-instruction loads (L16SI/LH/LDRH) on
+  // Xtensa/RISC-V/ARM and cannot produce torn values.
   return *(volatile s16_t *) &sock->rcvevent > 0;
 }
 
@@ -200,7 +212,7 @@ void esphome_lwip_hook_socket(int fd) {
     s_original_callback = sock->conn->callback;
   }
 
-  // Replace with our wrapper. Atomic on ESP32 (32-bit aligned pointer write).
+  // Replace with our wrapper. Atomic on all supported platforms (32-bit aligned pointer write).
   // TCP/IP thread sees either old or new pointer — both are valid.
   sock->conn->callback = esphome_socket_event_callback;
 }
@@ -213,4 +225,4 @@ void esphome_lwip_wake_main_loop(void) {
   }
 }
 
-#endif  // USE_ESP32
+#endif  // defined(USE_ESP32) || defined(USE_LIBRETINY)

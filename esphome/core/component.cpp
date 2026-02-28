@@ -211,7 +211,7 @@ bool Component::cancel_retry(uint32_t id) {
 
 void Component::call_loop_() { this->loop(); }
 void Component::call_setup() { this->setup(); }
-void Component::call_dump_config() {
+void Component::call_dump_config_() {
   this->dump_config();
   if (this->is_failed()) {
     // Look up error message from global vector
