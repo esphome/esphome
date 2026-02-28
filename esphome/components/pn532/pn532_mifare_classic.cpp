@@ -84,8 +84,7 @@ bool PN532::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &
   return true;
 }
 
-bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num,
-                                       const uint8_t *key) {
+bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num, const uint8_t *key) {
   std::vector<uint8_t> data({
       PN532_COMMAND_INDATAEXCHANGE,
       0x01,       // One card
