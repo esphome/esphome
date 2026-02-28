@@ -1,5 +1,14 @@
 #pragma once
 
+// ============================================================================
+// HOST-ONLY TEST COMPONENT — DO NOT COPY TO PRODUCTION CODE
+//
+// This component runs exclusively on the host platform for integration testing.
+// It intentionally uses std::vector, std::deque, and dynamic allocation which
+// would be inappropriate for production embedded components. Do not use this
+// code as a reference for writing ESPHome components targeting real hardware.
+// ============================================================================
+
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart_component.h"
 #include <deque>

@@ -1,3 +1,6 @@
+// Host-only test component — do not copy to production code.
+// See uart_mock.h for details.
+
 #include "uart_mock.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -13,7 +16,7 @@ void MockUartComponent::setup() {
 }
 
 void MockUartComponent::loop() {
-  uint32_t now = millis();
+  uint32_t now = App.get_loop_component_start_time();
 
   // Initialize scenario start time on first loop() call, after all components have
   // finished setup(). This prevents injection delays from being consumed during setup.
