@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <algorithm>
 
-namespace esphome {
-namespace waveshare_io_ch32v003 {
+namespace esphome::waveshare_io_ch32v003 {
 
 static const char *const TAG = "waveshare_io_ch32v003.output";
 
@@ -17,5 +16,4 @@ void WaveshareIOCH32V003Output::write_state(float state) {
   this->parent_->set_pwm_value(final_pwm_value);
 }
 
-}  // namespace waveshare_io_ch32v003
-}  // namespace esphome
+}  // namespace esphome::waveshare_io_ch32v003

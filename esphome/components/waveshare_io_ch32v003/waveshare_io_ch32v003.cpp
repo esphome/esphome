@@ -1,8 +1,7 @@
 #include "waveshare_io_ch32v003.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace waveshare_io_ch32v003 {
+namespace esphome::waveshare_io_ch32v003 {
 
 static const uint8_t IO_EXTENSION_DIRECTION = 0x02;
 static const uint8_t IO_EXTENSION_IO_OUTPUT_ADDR = 0x03;
@@ -174,5 +173,4 @@ void WaveshareIOCH32V003GPIOPin::set_flags(gpio::Flags flags) {
   this->parent_->pin_mode(this->pin_, flags);
 }
 
-}  // namespace waveshare_io_ch32v003
-}  // namespace esphome
+}  // namespace esphome::waveshare_io_ch32v003

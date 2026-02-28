@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace waveshare_io_ch32v003 {
+namespace esphome::waveshare_io_ch32v003 {
 
 class WaveshareIOCH32V003Component : public Component,
                                      public i2c::I2CDevice,
@@ -67,5 +66,4 @@ class WaveshareIOCH32V003GPIOPin : public GPIOPin, public Parented<WaveshareIOCH
   gpio::Flags flags_{};
 };
 
-}  // namespace waveshare_io_ch32v003
-}  // namespace esphome
+}  // namespace esphome::waveshare_io_ch32v003

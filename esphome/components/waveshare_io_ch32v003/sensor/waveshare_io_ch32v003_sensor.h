@@ -8,8 +8,7 @@
 
 #include "../waveshare_io_ch32v003.h"
 
-namespace esphome {
-namespace waveshare_io_ch32v003 {
+namespace esphome::waveshare_io_ch32v003 {
 
 class WaveshareIOCH32V003Sensor : public sensor::Sensor,
                                   public PollingComponent,
@@ -24,8 +23,7 @@ class WaveshareIOCH32V003Sensor : public sensor::Sensor,
   float sample() override;
 
  protected:
-  float reference_voltage_;
+  float reference_voltage_{9.9f};  // Default reference voltage for ADC calculations, can be overridden by user config
 };
 
-}  // namespace waveshare_io_ch32v003
-}  // namespace esphome
+}  // namespace esphome::waveshare_io_ch32v003

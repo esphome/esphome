@@ -3,8 +3,7 @@
 #include "../waveshare_io_ch32v003.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace waveshare_io_ch32v003 {
+namespace esphome::waveshare_io_ch32v003 {
 
 class WaveshareIOCH32V003Output : public output::FloatOutput, public Parented<WaveshareIOCH32V003Component> {
  public:
@@ -20,5 +19,4 @@ class WaveshareIOCH32V003Output : public output::FloatOutput, public Parented<Wa
   uint8_t pwm_max_value_{247};
 };
 
-}  // namespace waveshare_io_ch32v003
-}  // namespace esphome
+}  // namespace esphome::waveshare_io_ch32v003

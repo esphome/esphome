@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace waveshare_io_ch32v003 {
+namespace esphome::waveshare_io_ch32v003 {
 
 static const char *const TAG = "waveshare_io_ch32v003.sensor";
 
@@ -25,5 +24,4 @@ float WaveshareIOCH32V003Sensor::sample() {
 
 void WaveshareIOCH32V003Sensor::update() { this->publish_state(this->sample()); }
 
-}  // namespace waveshare_io_ch32v003
-}  // namespace esphome
+}  // namespace esphome::waveshare_io_ch32v003
