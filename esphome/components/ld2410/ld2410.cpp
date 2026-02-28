@@ -359,17 +359,14 @@ void LD2410Component::handle_periodic_data_() {
     Detect distance: 16~17th bytes
   */
 #ifdef USE_SENSOR
-  SAFE_PUBLISH_SENSOR(
-      this->moving_target_distance_sensor_,
-      ld24xx::two_byte_to_uint16(this->buffer_data_[MOVING_TARGET_LOW], this->buffer_data_[MOVING_TARGET_HIGH]))
+  SAFE_PUBLISH_SENSOR(this->moving_target_distance_sensor_,
+                      encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]))
   SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY])
-  SAFE_PUBLISH_SENSOR(
-      this->still_target_distance_sensor_,
-      ld24xx::two_byte_to_uint16(this->buffer_data_[STILL_TARGET_LOW], this->buffer_data_[STILL_TARGET_HIGH]));
+  SAFE_PUBLISH_SENSOR(this->still_target_distance_sensor_,
+                      encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]));
   SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY]);
-  SAFE_PUBLISH_SENSOR(
-      this->detection_distance_sensor_,
-      ld24xx::two_byte_to_uint16(this->buffer_data_[DETECT_DISTANCE_LOW], this->buffer_data_[DETECT_DISTANCE_HIGH]));
+  SAFE_PUBLISH_SENSOR(this->detection_distance_sensor_,
+                      encode_uint16(this->buffer_data_[DETECT_DISTANCE_HIGH], this->buffer_data_[DETECT_DISTANCE_LOW]));
 
   if (engineering_mode) {
     /*
@@ -576,8 +573,8 @@ bool LD2410Component::handle_ack_data_() {
       /*
         None Duration: 33~34th bytes
       */
-      updates.push_back(set_number_value(this->timeout_number_,
-                                         ld24xx::two_byte_to_uint16(this->buffer_data_[32], this->buffer_data_[33])));
+      updates.push_back(
+          set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[33], this->buffer_data_[32])));
       for (auto &update : updates) {
         update();
       }
