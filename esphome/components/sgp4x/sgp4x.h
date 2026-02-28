@@ -81,14 +81,14 @@ class SGP4xComponent : public PollingComponent, public sensor::Sensor, public se
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t std_initial, uint16_t gain_factor) {
-    voc_tuning_params_ = GasTuning{
+    this->voc_tuning_params_ = GasTuning{
         index_offset, learning_time_offset_hours, learning_time_gain_hours, gating_max_duration_minutes, std_initial,
         gain_factor};
   }
   void set_nox_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t gain_factor) {
-    nox_tuning_params_ =
+    this->nox_tuning_params_ =
         GasTuning{index_offset, learning_time_offset_hours, learning_time_gain_hours, gating_max_duration_minutes, 50,
                   gain_factor};
   }

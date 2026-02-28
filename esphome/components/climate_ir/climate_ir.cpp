@@ -75,12 +75,12 @@ void ClimateIR::control(const climate::ClimateCall &call) {
     this->mode = *val;
   if (auto val = call.get_target_temperature(); val.has_value())
     this->target_temperature = *val;
-  if (call.get_fan_mode().has_value())
-    this->fan_mode = call.get_fan_mode();
+  if (auto val = call.get_fan_mode(); val.has_value())
+    this->fan_mode = val;
   if (auto val = call.get_swing_mode(); val.has_value())
     this->swing_mode = *val;
-  if (call.get_preset().has_value())
-    this->preset = call.get_preset();
+  if (auto val = call.get_preset(); val.has_value())
+    this->preset = val;
   this->transmit_state();
   this->publish_state();
 }

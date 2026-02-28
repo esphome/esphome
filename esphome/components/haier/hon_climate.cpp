@@ -938,7 +938,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
         break;
     }
     should_publish = should_publish || (!old_fan_mode.has_value()) ||
-                     (old_fan_mode.value_or(CLIMATE_FAN_AUTO) != fan_mode.value_or(CLIMATE_FAN_AUTO));
+                     (old_fan_mode.value_or(CLIMATE_FAN_AUTO) != this->fan_mode.value_or(CLIMATE_FAN_AUTO));
   }
   // Display status
   // should be before "Climate mode" because it is changing this->mode
