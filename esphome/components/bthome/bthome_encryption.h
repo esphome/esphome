@@ -6,7 +6,7 @@
 
 #ifdef USE_BTHOME_DECRYPTION
 #include "bthome_device.h"
-#include "bthome_mac.h"
+#include "helpers.h"
 
 namespace esphome {
 namespace bthome {

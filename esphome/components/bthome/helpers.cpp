@@ -1,4 +1,4 @@
-#include "bthome_mac.h"
+#include "helpers.h"
 
 #include <cstring>
 
@@ -40,7 +40,7 @@ const char *MacAddressPtr::c_str() const {
   return buf;
 }
 
-const char *MacAddress::c_str() const { return MacAddress(*this).c_str(); }
+const char *MacAddress::c_str() const { return MacAddressPtr(*this).c_str(); }
 
 }  // namespace bthome
 }  // namespace esphome

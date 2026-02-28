@@ -34,7 +34,10 @@ BTHomeBinarySensor = bthome_ns.class_(
 
 # Server-side classes
 server_ns = bthome_ns.namespace("server")
-BTHomeServer = server_ns.class_("BTHomeServer", cg.Component, esp32_ble.GAPEventHandler)
+BTHomeServerBase = server_ns.class_(
+    "BTHomeServerBase", cg.Component, esp32_ble.GAPEventHandler
+)
+BTHomeServer = server_ns.class_("BTHomeServer", BTHomeServerBase)
 BTHomeLocalSensor = server_ns.class_("BTHomeLocalSensor")
 BTHomeLocalBinarySensor = server_ns.class_("BTHomeLocalBinarySensor")
 
@@ -244,6 +247,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(esp32_ble.CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
+            cv.GenerateID(): cv.declare_id(BTHomeServerBase),
             cv.Optional(CONF_REMOTE_DEVICES): [_REMOTE_DEVICE_SCHEMA],
             cv.Optional(CONF_BINDKEY): cv.bind_key,
             cv.Optional(CONF_SENSORS): [_SERVER_SENSOR_SCHEMA],
@@ -361,12 +365,13 @@ async def _server_to_code(config):
     all_entries.sort(key=lambda e: e[0])
 
     n = len(all_entries)
-
     # Create BTHomeServer<N>
+    server_id = config[CONF_ID]
     server_var = cg.new_Pvariable(
-        core.ID("bthome_server", False, BTHomeServer),
+        core.ID(str(server_id), False, BTHomeServer),
         TemplateArguments(n),
     )
+
     await cg.register_component(server_var, {})
 
     # Register GAP event handler
