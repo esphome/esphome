@@ -7,20 +7,21 @@ namespace esphome {
 namespace bthome {
 namespace server {
 
+static constexpr esp_ble_adv_params_t BLE_ADV_PARAMS{
+    .adv_int_min = 0x20,  // 20ms
+    .adv_int_max = 0x40,  // 40ms
+    .adv_type = ADV_TYPE_NONCONN_IND,
+    .own_addr_type = BLE_ADDR_TYPE_PUBLIC,
+    .channel_map = ADV_CHNL_ALL,
+    .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
+};
+
 void BTHomeServerBase::setup() {
   // Read local BLE MAC address
   const uint8_t *mac = esp_bt_dev_get_address();
   if (mac != nullptr) {
     this->local_mac_ = MacAddress(mac);
   }
-
-  // Configure advertising parameters (non-connectable, undirected)
-  this->ble_adv_params_.adv_int_min = 0x20;  // 20ms
-  this->ble_adv_params_.adv_int_max = 0x40;  // 40ms
-  this->ble_adv_params_.adv_type = ADV_TYPE_NONCONN_IND;
-  this->ble_adv_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
-  this->ble_adv_params_.channel_map = ADV_CHNL_ALL;
-  this->ble_adv_params_.adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
 
   // Register raw advertisement callback for cycling
   esp32_ble::global_ble->advertising_register_raw_advertisement_callback([this](bool advertise) {
@@ -168,7 +169,7 @@ void BTHomeServerBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_g
   switch (event) {
     case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT: {
       if (this->advertising_) {
-        esp_err_t err = esp_ble_gap_start_advertising(&this->ble_adv_params_);
+        esp_err_t err = esp_ble_gap_start_advertising((esp_ble_adv_params_t *) &BLE_ADV_PARAMS);
         if (err != ESP_OK) {
           ESP_LOGW("bthome.server", "esp_ble_gap_start_advertising failed: %s", esp_err_to_name(err));
         }

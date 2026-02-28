@@ -67,7 +67,6 @@ class BTHomeServerBase : public Component, public esp32_ble::GAPEventHandler {
   size_t next_sensor_index_{0};
   BTHomeEncoder encoder_;
   bool advertising_{false};
-  esp_ble_adv_params_t ble_adv_params_{};
   MacAddress local_mac_;
   uint8_t adv_buffer_[BLE_ADV_MAX_SIZE]{};
 
