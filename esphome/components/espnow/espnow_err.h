@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_ESP8266)
 
 #include <esp_err.h>
 #include <esp_now.h>
@@ -16,4 +16,4 @@ static const esp_err_t ESP_ERR_ESPNOW_PEER_NOT_PAIRED = (ESP_ERR_ESPNOW_CMP_BASE
 
 }  // namespace esphome::espnow
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 || ESP8266

@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_EPS8266)
 
 #include "espnow_component.h"
 
@@ -172,4 +172,4 @@ class OnBroadcastedTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_
 
 }  // namespace esphome::espnow
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 || USE_ESP8266

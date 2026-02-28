@@ -1,6 +1,6 @@
 #include "espnow_transport.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_ESP8266)
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -89,4 +89,4 @@ bool ESPNowTransport::on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *
 }  // namespace espnow
 }  // namespace esphome
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 || ESP8266

@@ -3,7 +3,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_ESP8266)
 
 #include "esphome/core/event_pool.h"
 #include "esphome/core/lock_free_queue.h"
@@ -180,4 +180,4 @@ extern ESPNowComponent *global_esp_now;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 }  // namespace esphome::espnow
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 || ESP8266
