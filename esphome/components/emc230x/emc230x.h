@@ -165,6 +165,13 @@ class Emc230xComponent : public Component, public i2c::I2CDevice {
    */
   void set_spin_up_time(uint8_t fan, Emc230xSpinUpTime spin_up_time) { this->spin_up_times_[fan - 1] = spin_up_time; }
 
+  /** Helper function to check if a given fan number is valid for the detected EMC230X model and log if not
+   *
+   * @param fan The fan number to check
+   * @return true if the fan number is valid for the detected model, false otherwise
+   */
+  bool chek_fan_valid(uint8_t fan);
+
   /** Sets the duty cycle for a given fan.
    *
    * @param fan The fan number

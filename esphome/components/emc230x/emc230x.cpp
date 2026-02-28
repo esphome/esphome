@@ -170,7 +170,6 @@ void Emc230xComponent::setup() {
   // Identify the specific EMC230X model type by reading the Product ID register
   uint8_t product_id;
   if (!this->read_byte(EMC230X_REGISTER_PRODUCT_ID, &product_id)) {
-    ESP_LOGE(TAG, "Failed to read Product ID");
     this->mark_failed(LOG_STR("Failed to read Product ID"));
     return;
   }
@@ -192,7 +191,6 @@ void Emc230xComponent::setup() {
       this->fan_count_ = 5;
       break;
     default:
-      ESP_LOGE(TAG, "Unknown Product ID: 0x%02X", product_id);
       this->mark_failed(LOG_STR("Unknown Product ID"));
       return;
   }
@@ -224,15 +222,13 @@ void Emc230xComponent::setup() {
   }
   // Write the PWM output configuration
   if (!this->write_byte(EMC230X_REGISTER_PWM_OUTPUT_CONFIG, pwm_output_config)) {
-    ESP_LOGE(TAG, "Failed to write PWM output configuration");
-    this->mark_failed(LOG_STR("Failed to write PWM output configuration"));
+    this->mark_failed(LOG_STR("Failed to write PWM output config"));
     return;
   }
   // Write the PWM frequency base registers
   if (!this->write_byte(EMC230X_REGISTER_PWM_BASE_F123, pwm_base_f123) ||
       !this->write_byte(EMC230X_REGISTER_PWM_BASE_F45, pwm_base_f45)) {
-    ESP_LOGE(TAG, "Failed to write PWM frequency configuration");
-    this->mark_failed(LOG_STR("Failed to write PWM frequency configuration"));
+    this->mark_failed(LOG_STR("Failed to write PWM freq config"));
     return;
   }
 
@@ -240,7 +236,6 @@ void Emc230xComponent::setup() {
   for (size_t i = 0; i < this->fan_count_; i++) {
     // Set the PWM divider for this fan
     if (!this->write_byte(EMC230X_FAN_REGISTER_BASES[i] + EMC230X_REGISTER_FAN_PWM_DIVIDE, this->pwm_dividers_[i])) {
-      ESP_LOGE(TAG, "Failed to write PWM divider for fan %d", i + 1);
       this->mark_failed(LOG_STR("Failed to write PWM divider"));
       return;
     }
@@ -261,8 +256,7 @@ void Emc230xComponent::setup() {
 
     // Write the spin configuration to the appropriate register
     if (!this->write_byte(EMC230X_FAN_REGISTER_BASES[i] + EMC230X_REGISTER_FAN_SPIN, spin_config)) {
-      ESP_LOGE(TAG, "Failed to write spin configuration for fan %d", i + 1);
-      this->mark_failed(LOG_STR("Failed to write spin configuration"));
+      this->mark_failed(LOG_STR("Failed to write spin config"));
       return;
     }
 
@@ -280,14 +274,12 @@ void Emc230xComponent::setup() {
 
     // Write the fan configuration 2 to the appropriate register
     if (!this->write_byte(EMC230X_FAN_REGISTER_BASES[i] + EMC230X_REGISTER_FAN_CONFIG_2, fan_config_2)) {
-      ESP_LOGE(TAG, "Failed to write configuration 2 for fan %d", i + 1);
-      this->mark_failed(LOG_STR("Failed to write configuration 2"));
+      this->mark_failed(LOG_STR("Failed to write config 2 register"));
       return;
     }
 
     // Set the fan maximum step size
     if (!this->write_byte(EMC230X_FAN_REGISTER_BASES[i] + EMC230X_REGISTER_FAN_MAX_STEP, this->max_step_sizes_[i])) {
-      ESP_LOGE(TAG, "Failed to write max step size for fan %d", i + 1);
       this->mark_failed(LOG_STR("Failed to write max step size"));
       return;
     }
@@ -305,8 +297,7 @@ void Emc230xComponent::setup() {
 
     // Write the fan configuration to the appropriate register
     if (!this->write_byte(EMC230X_FAN_REGISTER_BASES[i] + EMC230X_REGISTER_FAN_CONFIG, fan_config)) {
-      ESP_LOGE(TAG, "Failed to write configuration for fan %d", i + 1);
-      this->mark_failed(LOG_STR("Failed to write configuration"));
+      this->mark_failed(LOG_STR("Failed to write config register"));
       return;
     }
 
@@ -338,31 +329,45 @@ void Emc230xComponent::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
-  ESP_LOGCONFIG(TAG, "  Model: %s", emc230x_model_to_str(this->emc230x_model_));
-  ESP_LOGCONFIG(TAG, "  Watchdog: %s", YESNO(this->watchdog_));
+  ESP_LOGCONFIG(TAG,
+                "  Model: %s\n"
+                "  Watchdog: %s",
+                emc230x_model_to_str(this->emc230x_model_), YESNO(this->watchdog_));
   for (size_t i = 0; i < this->fan_count_; i++) {
-    ESP_LOGCONFIG(TAG, "  Fan %d:", i + 1);
-    ESP_LOGCONFIG(TAG, "    PWM Output Type: %s", this->pwm_push_pull_[i] ? "Push-Pull" : "Open-Drain");
-    ESP_LOGCONFIG(TAG, "    PWM Frequency: %s", pwm_frequency_to_str(this->pwm_frequencies_[i]));
-    ESP_LOGCONFIG(TAG, "    PWM Divider: %d", this->pwm_dividers_[i]);
-    ESP_LOGCONFIG(TAG, "    Pulses per Revolution: %d", this->pulses_per_revolution_[i]);
-    ESP_LOGCONFIG(TAG, "    Minimum speed Measurement: %s",
-                  min_speed_measurement_to_str(this->min_speed_measurements_[i]));
-    ESP_LOGCONFIG(TAG, "    RPM Conversion Constant: %u", this->rpm_conversion_constants_[i]);
-    ESP_LOGCONFIG(TAG, "    Update Time: %s", update_time_to_str(this->update_times_[i]));
-    ESP_LOGCONFIG(TAG, "    Max Step Size: %d", this->max_step_sizes_[i]);
-    ESP_LOGCONFIG(TAG, "    Noise Filter: %s", YESNO(this->noise_filters_[i]));
-    ESP_LOGCONFIG(TAG, "    Spin-up Kick: %s", YESNO(this->spin_up_kick_[i]));
-    ESP_LOGCONFIG(TAG, "    Spin-up Level: %s", spin_up_level_to_str(this->spin_up_levels_[i]));
-    ESP_LOGCONFIG(TAG, "    Spin-up Time: %s", spin_up_time_to_str(this->spin_up_times_[i]));
+    ESP_LOGCONFIG(TAG,
+                  "  Fan %d:\n"
+                  "    PWM Output Type: %s\n"
+                  "    PWM Frequency: %s\n"
+                  "    PWM Divider: %d\n"
+                  "    Pulses per Revolution: %d\n"
+                  "    Minimum speed Measurement: %s\n"
+                  "    RPM Conversion Constant: %u\n"
+                  "    Update Time: %s\n"
+                  "    Max Step Size: %d\n"
+                  "    Noise Filter: %s\n"
+                  "    Spin-up Kick: %s\n"
+                  "    Spin-up Level: %s\n"
+                  "    Spin-up Time: %s",
+                  i + 1, this->pwm_push_pull_[i] ? "Push-Pull" : "Open-Drain",
+                  pwm_frequency_to_str(this->pwm_frequencies_[i]), this->pwm_dividers_[i],
+                  this->pulses_per_revolution_[i], min_speed_measurement_to_str(this->min_speed_measurements_[i]),
+                  this->rpm_conversion_constants_[i], update_time_to_str(this->update_times_[i]),
+                  this->max_step_sizes_[i], YESNO(this->noise_filters_[i]), YESNO(this->spin_up_kick_[i]),
+                  spin_up_level_to_str(this->spin_up_levels_[i]), spin_up_time_to_str(this->spin_up_times_[i]));
   }
 }
 
-void Emc230xComponent::set_duty_cycle(uint8_t fan, float value) {
+bool Emc230xComponent::chek_fan_valid(uint8_t fan) {
   if (fan > this->fan_count_) {
-    ESP_LOGE(TAG, "Invalid fan number %d. This model only supports %d fans.", fan, this->fan_count_);
-    return;
+    ESP_LOGW(TAG, "Invalid fan %d. Model only supports %d fans", fan, this->fan_count_);
+    return false;
   }
+  return true;
+}
+
+void Emc230xComponent::set_duty_cycle(uint8_t fan, float value) {
+  if (!this->chek_fan_valid(fan))
+    return;
 
   uint8_t duty_cycle = remap(value, 0.0f, 1.0f, (uint8_t) 0, (uint8_t) 255);
   ESP_LOGD(TAG, "Setting fan %d duty cycle to %d (%.1f%%)", fan, duty_cycle, value * 100.0f);
@@ -374,10 +379,8 @@ void Emc230xComponent::set_duty_cycle(uint8_t fan, float value) {
 }
 
 float Emc230xComponent::get_speed(uint8_t fan) {
-  if (fan > this->fan_count_) {
-    ESP_LOGE(TAG, "Invalid fan number %d. This model only supports %d fans.", fan, this->fan_count_);
+  if (!this->chek_fan_valid(fan))
     return NAN;
-  }
 
   const uint8_t fan_base = EMC230X_FAN_REGISTER_BASES[fan - 1];
   uint8_t tach_high, tach_low;
@@ -389,6 +392,7 @@ float Emc230xComponent::get_speed(uint8_t fan) {
   }
 
   uint16_t tach_count = ((uint16_t) tach_high << 5) | ((tach_low >> 3) & 0x1F);
+  ESP_LOGV(TAG, "Fan %d tach reading: %d", fan, tach_count);
 
   // Edge cases
   if (tach_count == 0 || tach_high == 0xFF) {
