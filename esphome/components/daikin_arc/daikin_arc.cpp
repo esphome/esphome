@@ -176,7 +176,7 @@ uint8_t DaikinArcClimate::operation_mode_() {
 
 uint16_t DaikinArcClimate::fan_speed_() {
   uint16_t fan_speed;
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
     case climate::CLIMATE_FAN_LOW:
       fan_speed = DAIKIN_FAN_1 << 8;
       break;

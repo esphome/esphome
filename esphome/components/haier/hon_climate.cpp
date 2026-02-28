@@ -893,7 +893,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
     } else {
       this->preset = CLIMATE_PRESET_NONE;
     }
-    should_publish = should_publish || (!old_preset.has_value()) || (old_preset.value() != this->preset.value());
+    should_publish = should_publish || (!old_preset.has_value()) ||
+                     (old_preset.value_or(CLIMATE_PRESET_NONE) != this->preset.value_or(CLIMATE_PRESET_NONE));
   }
   {
     // Target temperature
@@ -936,7 +937,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
         this->fan_mode = CLIMATE_FAN_HIGH;
         break;
     }
-    should_publish = should_publish || (!old_fan_mode.has_value()) || (old_fan_mode.value() != fan_mode.value());
+    should_publish = should_publish || (!old_fan_mode.has_value()) ||
+                     (old_fan_mode.value_or(CLIMATE_FAN_AUTO) != fan_mode.value_or(CLIMATE_FAN_AUTO));
   }
   // Display status
   // should be before "Climate mode" because it is changing this->mode

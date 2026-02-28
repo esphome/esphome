@@ -84,7 +84,7 @@ void ThermostatClimate::refresh() {
   this->switch_to_mode_(this->mode, false);
   this->switch_to_action_(this->compute_action_(), false);
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
-  this->switch_to_fan_mode_(this->fan_mode.value(), false);
+  this->switch_to_fan_mode_(this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), false);
   this->switch_to_swing_mode_(this->swing_mode, false);
   this->switch_to_humidity_control_action_(this->compute_humidity_control_action_());
   this->check_humidity_change_trigger_();
