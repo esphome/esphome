@@ -65,7 +65,7 @@ float SN74HC165Component::get_setup_priority() const { return setup_priority::IO
 bool SN74HC165GPIOPin::digital_read() { return this->parent_->digital_read_(this->pin_) != this->inverted_; }
 
 size_t SN74HC165GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "%u via SN74HC165", this->pin_);
+  return buf_append_printf(buffer, len, 0, "%u via SN74HC165", this->pin_);
 }
 
 }  // namespace sn74hc165

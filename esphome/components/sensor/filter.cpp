@@ -1,14 +1,22 @@
+#include "esphome/core/defines.h"
+#ifdef USE_SENSOR_FILTER
+
 #include "filter.h"
 #include <cmath>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "sensor.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 static const char *const TAG = "sensor.filter";
+
+// Filter scheduler IDs.
+// Each filter is its own Component instance, so the scheduler scopes
+// IDs by component pointer — no risk of collisions between instances.
+constexpr uint32_t FILTER_ID = 0;
 
 // Filter
 void Filter::input(float value) {
@@ -192,7 +200,7 @@ optional<float> ThrottleAverageFilter::new_value(float value) {
   return {};
 }
 void ThrottleAverageFilter::setup() {
-  this->set_interval("throttle_average", this->time_period_, [this]() {
+  this->set_interval(FILTER_ID, this->time_period_, [this]() {
     ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
     if (this->n_ == 0) {
       if (this->have_nan_)
@@ -233,7 +241,7 @@ ValueListFilter::ValueListFilter(std::initializer_list<TemplatableValue<float>> 
 
 bool ValueListFilter::value_matches_any_(float sensor_value) {
   int8_t accuracy = this->parent_->get_accuracy_decimals();
-  float accuracy_mult = powf(10.0f, accuracy);
+  float accuracy_mult = pow10_int(accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
 
   for (auto &filter_value : this->values_) {
@@ -292,22 +300,27 @@ optional<float> ThrottleWithPriorityFilter::new_value(float value) {
 }
 
 // DeltaFilter
-DeltaFilter::DeltaFilter(float delta, bool percentage_mode)
-    : delta_(delta), current_delta_(delta), last_value_(NAN), percentage_mode_(percentage_mode) {}
+DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
+    : min_a0_(min_a0), min_a1_(min_a1), max_a0_(max_a0), max_a1_(max_a1) {}
+
+void DeltaFilter::set_baseline(float (*fn)(float)) { this->baseline_ = fn; }
+
 optional<float> DeltaFilter::new_value(float value) {
-  if (std::isnan(value)) {
-    if (std::isnan(this->last_value_)) {
-      return {};
-    } else {
-      return this->last_value_ = value;
-    }
+  // Always yield the first value.
+  if (std::isnan(this->last_value_)) {
+    this->last_value_ = value;
+    return value;
   }
-  float diff = fabsf(value - this->last_value_);
-  if (std::isnan(this->last_value_) || (diff > 0.0f && diff >= this->current_delta_)) {
-    if (this->percentage_mode_) {
-      this->current_delta_ = fabsf(value * this->delta_);
-    }
-    return this->last_value_ = value;
+  // calculate min and max using the linear equation
+  float ref = this->baseline_(this->last_value_);
+  float min = fabsf(this->min_a0_ + ref * this->min_a1_);
+  float max = fabsf(this->max_a0_ + ref * this->max_a1_);
+  float delta = fabsf(value - ref);
+  // if there is no reference, e.g. for the first value, just accept this one,
+  // otherwise accept only if within range.
+  if (delta > min && delta <= max) {
+    this->last_value_ = value;
+    return value;
   }
   return {};
 }
@@ -379,7 +392,7 @@ optional<float> TimeoutFilterConfigured::new_value(float value) {
 
 // DebounceFilter
 optional<float> DebounceFilter::new_value(float value) {
-  this->set_timeout("debounce", this->time_period_, [this, value]() { this->output(value); });
+  this->set_timeout(FILTER_ID, this->time_period_, [this, value]() { this->output(value); });
 
   return {};
 }
@@ -402,7 +415,7 @@ optional<float> HeartbeatFilter::new_value(float value) {
 }
 
 void HeartbeatFilter::setup() {
-  this->set_interval("heartbeat", this->time_period_, [this]() {
+  this->set_interval(FILTER_ID, this->time_period_, [this]() {
     ESP_LOGVV(TAG, "HeartbeatFilter(%p)::interval(has_value=%s, last_input=%f)", this, YESNO(this->has_value_),
               this->last_input_);
     if (!this->has_value_)
@@ -441,22 +454,18 @@ optional<float> CalibratePolynomialFilter::new_value(float value) {
 ClampFilter::ClampFilter(float min, float max, bool ignore_out_of_range)
     : min_(min), max_(max), ignore_out_of_range_(ignore_out_of_range) {}
 optional<float> ClampFilter::new_value(float value) {
-  if (std::isfinite(value)) {
-    if (std::isfinite(this->min_) && value < this->min_) {
-      if (this->ignore_out_of_range_) {
-        return {};
-      } else {
-        return this->min_;
-      }
+  if (std::isfinite(this->min_) && !(value >= this->min_)) {
+    if (this->ignore_out_of_range_) {
+      return {};
     }
+    return this->min_;
+  }
 
-    if (std::isfinite(this->max_) && value > this->max_) {
-      if (this->ignore_out_of_range_) {
-        return {};
-      } else {
-        return this->max_;
-      }
+  if (std::isfinite(this->max_) && !(value <= this->max_)) {
+    if (this->ignore_out_of_range_) {
+      return {};
     }
+    return this->max_;
   }
   return value;
 }
@@ -464,7 +473,7 @@ optional<float> ClampFilter::new_value(float value) {
 RoundFilter::RoundFilter(uint8_t precision) : precision_(precision) {}
 optional<float> RoundFilter::new_value(float value) {
   if (std::isfinite(value)) {
-    float accuracy_mult = powf(10.0f, this->precision_);
+    float accuracy_mult = pow10_int(this->precision_);
     return roundf(accuracy_mult * value) / accuracy_mult;
   }
   return value;
@@ -574,5 +583,6 @@ void StreamingMovingAverageFilter::reset_batch() {
   this->valid_count_ = 0;
 }
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor
+
+#endif  // USE_SENSOR_FILTER

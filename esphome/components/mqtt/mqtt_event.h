@@ -25,7 +25,7 @@ class MQTTEventComponent : public mqtt::MQTTComponent {
 
  protected:
   bool publish_event_(const std::string &event_type);
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   event::Event *event_;

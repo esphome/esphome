@@ -32,8 +32,10 @@ from esphome.__main__ import (
     has_mqtt_ip_lookup,
     has_mqtt_logging,
     has_non_ip_address,
+    has_ota,
     has_resolvable_address,
     mqtt_get_ip,
+    run_esphome,
     run_miniterm,
     show_logs,
     upload_program,
@@ -331,7 +333,9 @@ def test_choose_upload_log_host_with_mixed_hostnames_and_ips() -> None:
 
 def test_choose_upload_log_host_with_ota_list() -> None:
     """Test with OTA as the only item in the list."""
-    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
 
     result = choose_upload_log_host(
         default=["OTA"],
@@ -344,7 +348,7 @@ def test_choose_upload_log_host_with_ota_list() -> None:
 @pytest.mark.usefixtures("mock_has_mqtt_logging")
 def test_choose_upload_log_host_with_ota_list_mqtt_fallback() -> None:
     """Test with OTA list falling back to MQTT when no address."""
-    setup_core(config={CONF_OTA: {}, "mqtt": {}})
+    setup_core(config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}], "mqtt": {}})
 
     result = choose_upload_log_host(
         default=["OTA"],
@@ -407,7 +411,9 @@ def test_choose_upload_log_host_with_serial_device_with_ports(
 
 def test_choose_upload_log_host_with_ota_device_with_ota_config() -> None:
     """Test OTA device when OTA is configured."""
-    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
 
     result = choose_upload_log_host(
         default="OTA",
@@ -474,7 +480,9 @@ def test_choose_upload_log_host_with_ota_device_no_fallback() -> None:
 @pytest.mark.usefixtures("mock_choose_prompt")
 def test_choose_upload_log_host_multiple_devices() -> None:
     """Test with multiple devices including special identifiers."""
-    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
 
     mock_ports = [MockSerialPort("/dev/ttyUSB0", "USB Serial")]
 
@@ -513,7 +521,9 @@ def test_choose_upload_log_host_no_defaults_with_serial_ports(
 @pytest.mark.usefixtures("mock_no_serial_ports")
 def test_choose_upload_log_host_no_defaults_with_ota() -> None:
     """Test interactive mode with OTA option."""
-    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
 
     with patch(
         "esphome.__main__.choose_prompt", return_value="192.168.1.100"
@@ -574,7 +584,11 @@ def test_choose_upload_log_host_no_defaults_with_all_options(
 ) -> None:
     """Test interactive mode with all options available."""
     setup_core(
-        config={CONF_OTA: {}, CONF_API: {}, CONF_MQTT: {CONF_BROKER: "mqtt.local"}},
+        config={
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+            CONF_API: {},
+            CONF_MQTT: {CONF_BROKER: "mqtt.local"},
+        },
         address="192.168.1.100",
     )
 
@@ -603,7 +617,11 @@ def test_choose_upload_log_host_no_defaults_with_all_options_logging(
 ) -> None:
     """Test interactive mode with all options available."""
     setup_core(
-        config={CONF_OTA: {}, CONF_API: {}, CONF_MQTT: {CONF_BROKER: "mqtt.local"}},
+        config={
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+            CONF_API: {},
+            CONF_MQTT: {CONF_BROKER: "mqtt.local"},
+        },
         address="192.168.1.100",
     )
 
@@ -631,7 +649,9 @@ def test_choose_upload_log_host_no_defaults_with_all_options_logging(
 @pytest.mark.usefixtures("mock_no_serial_ports")
 def test_choose_upload_log_host_check_default_matches() -> None:
     """Test when check_default matches an available option."""
-    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
 
     result = choose_upload_log_host(
         default=None,
@@ -703,7 +723,10 @@ def test_choose_upload_log_host_mixed_resolved_unresolved() -> None:
 
 def test_choose_upload_log_host_ota_both_conditions() -> None:
     """Test OTA device when both OTA and API are configured and enabled."""
-    setup_core(config={CONF_OTA: {}, CONF_API: {}}, address="192.168.1.100")
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}], CONF_API: {}},
+        address="192.168.1.100",
+    )
 
     result = choose_upload_log_host(
         default="OTA",
@@ -718,7 +741,7 @@ def test_choose_upload_log_host_ota_ip_all_options() -> None:
     """Test OTA device when both static IP, OTA, API and MQTT are configured and enabled but MDNS not."""
     setup_core(
         config={
-            CONF_OTA: {},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
             CONF_API: {},
             CONF_MQTT: {
                 CONF_BROKER: "mqtt.local",
@@ -743,7 +766,7 @@ def test_choose_upload_log_host_ota_local_all_options() -> None:
     """Test OTA device when both static IP, OTA, API and MQTT are configured and enabled but MDNS not."""
     setup_core(
         config={
-            CONF_OTA: {},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
             CONF_API: {},
             CONF_MQTT: {
                 CONF_BROKER: "mqtt.local",
@@ -768,7 +791,7 @@ def test_choose_upload_log_host_ota_ip_all_options_logging() -> None:
     """Test OTA device when both static IP, OTA, API and MQTT are configured and enabled but MDNS not."""
     setup_core(
         config={
-            CONF_OTA: {},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
             CONF_API: {},
             CONF_MQTT: {
                 CONF_BROKER: "mqtt.local",
@@ -793,7 +816,7 @@ def test_choose_upload_log_host_ota_local_all_options_logging() -> None:
     """Test OTA device when both static IP, OTA, API and MQTT are configured and enabled but MDNS not."""
     setup_core(
         config={
-            CONF_OTA: {},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
             CONF_API: {},
             CONF_MQTT: {
                 CONF_BROKER: "mqtt.local",
@@ -816,7 +839,7 @@ def test_choose_upload_log_host_ota_local_all_options_logging() -> None:
 @pytest.mark.usefixtures("mock_no_mqtt_logging")
 def test_choose_upload_log_host_no_address_with_ota_config() -> None:
     """Test OTA device when OTA is configured but no address is set."""
-    setup_core(config={CONF_OTA: {}})
+    setup_core(config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
 
     with pytest.raises(
         EsphomeError, match="All specified devices .* could not be resolved"
@@ -1531,8 +1554,41 @@ def test_has_mqtt() -> None:
     assert has_mqtt() is False
 
     # Test with other components but no MQTT
-    setup_core(config={CONF_API: {}, CONF_OTA: {}})
+    setup_core(config={CONF_API: {}, CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
     assert has_mqtt() is False
+
+
+def test_has_ota() -> None:
+    """Test has_ota function.
+
+    The has_ota function should only return True when OTA is configured
+    with platform: esphome, not when only platform: http_request is configured.
+    This is because CLI OTA upload only works with the esphome platform.
+    """
+    # Test with OTA esphome platform configured
+    setup_core(config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    assert has_ota() is True
+
+    # Test with OTA http_request platform only (should return False)
+    # This is the bug scenario from issue #13783
+    setup_core(config={CONF_OTA: [{CONF_PLATFORM: "http_request"}]})
+    assert has_ota() is False
+
+    # Test without OTA configured
+    setup_core(config={})
+    assert has_ota() is False
+
+    # Test with multiple OTA platforms including esphome
+    setup_core(
+        config={
+            CONF_OTA: [{CONF_PLATFORM: "http_request"}, {CONF_PLATFORM: CONF_ESPHOME}]
+        }
+    )
+    assert has_ota() is True
+
+    # Test with empty OTA list
+    setup_core(config={CONF_OTA: []})
+    assert has_ota() is False
 
 
 def test_get_port_type() -> None:
@@ -1988,7 +2044,7 @@ esp32:
     clean_output = strip_ansi_codes(captured.out)
 
     assert "test-device_123.yaml" in clean_output
-    assert "Updating" in clean_output
+    assert "Processing" in clean_output
     assert "SUCCESS" in clean_output
     assert "SUMMARY" in clean_output
 
@@ -2895,6 +2951,7 @@ def test_run_miniterm_batches_lines_with_same_timestamp(
 
     mock_serial = MockSerial([chunk, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -2933,6 +2990,7 @@ def test_run_miniterm_different_chunks_different_timestamps(
 
     mock_serial = MockSerial([chunk1, chunk2, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -2963,6 +3021,7 @@ def test_run_miniterm_handles_split_lines() -> None:
 
     mock_serial = MockSerial([chunk1, chunk2, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -3001,6 +3060,7 @@ def test_run_miniterm_backtrace_state_maintained() -> None:
 
     mock_serial = MockSerial([backtrace_chunk, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -3066,6 +3126,7 @@ def test_run_miniterm_handles_empty_reads(
 
     mock_serial = MockSerial([b"", chunk, b"", MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -3138,6 +3199,7 @@ def test_run_miniterm_buffer_limit_prevents_unbounded_growth() -> None:
 
     mock_serial = MockSerial([large_data_no_newline, final_line, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -3172,3 +3234,66 @@ def test_run_miniterm_buffer_limit_prevents_unbounded_growth() -> None:
     x_count = printed_line.count("X")
     assert x_count < 150, f"Expected truncation but got {x_count} X's"
     assert x_count == 95, f"Expected 95 X's after truncation but got {x_count}"
+
+
+def test_run_esphome_multiple_configs_with_secrets(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+    capfd: CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test run_esphome with multiple configs and secrets file.
+
+    Verifies:
+    - Multiple configs use subprocess isolation
+    - Secrets files are skipped with warning
+    - Secrets files don't appear in summary
+    """
+    # Create two config files and a secrets file
+    yaml_file1 = tmp_path / "device1.yaml"
+    yaml_file1.write_text("""
+esphome:
+  name: device1
+
+esp32:
+  board: nodemcu-32s
+""")
+    yaml_file2 = tmp_path / "device2.yaml"
+    yaml_file2.write_text("""
+esphome:
+  name: device2
+
+esp32:
+  board: nodemcu-32s
+""")
+    secrets_file = tmp_path / "secrets.yaml"
+    secrets_file.write_text("wifi_password: secret123\n")
+
+    setup_core(tmp_path=tmp_path)
+    mock_run_external_process.return_value = 0
+
+    # run_esphome expects argv[0] to be the program name (gets sliced off by parse_args)
+    with caplog.at_level(logging.WARNING):
+        result = run_esphome(
+            ["esphome", "compile", str(yaml_file1), str(secrets_file), str(yaml_file2)]
+        )
+
+    assert result == 0
+
+    # Check secrets file was skipped with warning
+    assert "Skipping secrets file" in caplog.text
+    assert "secrets.yaml" in caplog.text
+
+    captured = capfd.readouterr()
+    clean_output = strip_ansi_codes(captured.out)
+
+    # Both config files should be processed
+    assert "device1.yaml" in clean_output
+    assert "device2.yaml" in clean_output
+    assert "SUMMARY" in clean_output
+
+    # Secrets should not appear in summary
+    summary_section = (
+        clean_output.split("SUMMARY")[1] if "SUMMARY" in clean_output else ""
+    )
+    assert "secrets.yaml" not in summary_section

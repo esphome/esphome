@@ -197,6 +197,9 @@ lvgl:
         - lvgl.label.update:
             id: msgbox_label
             text: Unloaded
+        - lvgl.label.update:
+            id: msgbox_label
+            text: "" # Empty text
       on_all_events:
         logger.log:
           format: "Event %s"

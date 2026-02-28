@@ -5,6 +5,7 @@ sensor:
 
 climate:
   - platform: thermostat
+    id: test_thermostat
     name: Test Thermostat
     sensor: thermostat_sensor
     humidity_sensor: thermostat_sensor
@@ -15,6 +16,19 @@ climate:
       - name: Away
         default_target_temperature_low: 16°C
         default_target_temperature_high: 20°C
+    on_state:
+      - lambda: |-
+          // Test get_custom_preset() returns std::string_view
+          // "Default Preset" is a custom preset (not a standard ClimatePreset name)
+          if (id(test_thermostat).has_custom_preset()) {
+            auto preset = id(test_thermostat).get_custom_preset();
+            // Compare with string literal using ==
+            if (preset == "Default Preset") {
+              ESP_LOGD("test", "Preset is Default Preset");
+            }
+            // Log using %.*s format for StringRef
+            ESP_LOGD("test", "Custom preset: %.*s", (int) preset.size(), preset.c_str());
+          }
     idle_action:
       - logger.log: idle_action
     cool_action:

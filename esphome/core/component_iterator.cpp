@@ -169,6 +169,12 @@ void ComponentIterator::advance() {
       break;
 #endif
 
+#ifdef USE_INFRARED
+    case IteratorState::INFRARED:
+      this->process_platform_item_(App.get_infrareds(), &ComponentIterator::on_infrared);
+      break;
+#endif
+
 #ifdef USE_EVENT
     case IteratorState::EVENT:
       this->process_platform_item_(App.get_events(), &ComponentIterator::on_event);

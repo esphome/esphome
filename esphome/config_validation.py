@@ -70,6 +70,7 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PLATFORM_RP2040,
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
@@ -682,7 +683,7 @@ def only_with_framework(
     def validator_(obj):
         if CORE.target_framework not in frameworks:
             err_str = f"This feature is only available with framework(s) {', '.join([framework.value for framework in frameworks])}"
-            if suggestion := suggestions.get(CORE.target_framework, None):
+            if suggestion := suggestions.get(CORE.target_framework):
                 (component, docs_path) = suggestion
                 err_str += f"\nPlease use '{component}'"
                 if docs_path:
@@ -695,6 +696,7 @@ def only_with_framework(
 
 only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
+only_on_nrf52 = only_on(PLATFORM_NRF52)
 only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework(Framework.ARDUINO)
 
@@ -1046,20 +1048,20 @@ def mac_address(value):
     return core.MACAddress(*parts_int)
 
 
-def bind_key(value):
+def bind_key(value, *, name="Bind key"):
     value = string_strict(value)
     parts = [value[i : i + 2] for i in range(0, len(value), 2)]
     if len(parts) != 16:
-        raise Invalid("Bind key must consist of 16 hexadecimal numbers")
+        raise Invalid(f"{name} must consist of 16 hexadecimal numbers")
     parts_int = []
     if any(len(part) != 2 for part in parts):
-        raise Invalid("Bind key must be format XX")
+        raise Invalid(f"{name} must be format XX")
     for part in parts:
         try:
             parts_int.append(int(part, 16))
         except ValueError:
             # pylint: disable=raise-missing-from
-            raise Invalid("Bind key must be hex values from 00 to FF")
+            raise Invalid(f"{name} must be hex values from 00 to FF")
 
     return "".join(f"{part:02X}" for part in parts_int)
 
@@ -1403,6 +1405,17 @@ def requires_component(comp):
     return validator
 
 
+def conflicts_with_component(comp):
+    """Validate that this option cannot be specified when the component `comp` is loaded."""
+
+    def validator(value):
+        if comp in CORE.loaded_integrations:
+            raise Invalid(f"This option is not compatible with component {comp}")
+        return value
+
+    return validator
+
+
 uint8_t = int_range(min=0, max=255)
 uint16_t = int_range(min=0, max=65535)
 uint32_t = int_range(min=0, max=4294967295)
@@ -1627,7 +1640,10 @@ def dimensions(value):
         if width <= 0 or height <= 0:
             raise Invalid("Width and height must at least be 1")
         return [width, height]
-    value = string(value)
+    if not isinstance(value, str):
+        raise Invalid(
+            "Dimensions must be a string (WIDTHxHEIGHT). Got a number instead, try quoting the value."
+        )
     match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
         raise Invalid(
@@ -1966,7 +1982,9 @@ MQTT_COMPONENT_SCHEMA = Schema(
         Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
         Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
         Optional(CONF_SUBSCRIBE_QOS): All(requires_component("mqtt"), mqtt_qos),
-        Optional(CONF_STATE_TOPIC): All(requires_component("mqtt"), publish_topic),
+        Optional(CONF_STATE_TOPIC): All(
+            requires_component("mqtt"), templatable(publish_topic)
+        ),
         Optional(CONF_AVAILABILITY): All(
             requires_component("mqtt"), Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)
         ),
@@ -1975,7 +1993,9 @@ MQTT_COMPONENT_SCHEMA = Schema(
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
-        Optional(CONF_COMMAND_TOPIC): All(requires_component("mqtt"), subscribe_topic),
+        Optional(CONF_COMMAND_TOPIC): All(
+            requires_component("mqtt"), templatable(subscribe_topic)
+        ),
         Optional(CONF_COMMAND_RETAIN): All(requires_component("mqtt"), boolean),
     }
 )

@@ -374,7 +374,7 @@ void MIPI_DSI::dump_config() {
                 "\n  Swap X/Y: %s"
                 "\n  Rotation: %d degrees"
                 "\n  DSI Lanes: %u"
-                "\n  Lane Bit Rate: %uMbps"
+                "\n  Lane Bit Rate: %.0fMbps"
                 "\n  HSync Pulse Width: %u"
                 "\n  HSync Back Porch: %u"
                 "\n  HSync Front Porch: %u"
@@ -385,7 +385,7 @@ void MIPI_DSI::dump_config() {
                 "\n  Display Pixel Mode: %d bit"
                 "\n  Color Order: %s"
                 "\n  Invert Colors: %s"
-                "\n  Pixel Clock: %dMHz",
+                "\n  Pixel Clock: %.1fMHz",
                 this->model_, this->width_, this->height_, YESNO(this->madctl_ & (MADCTL_XFLIP | MADCTL_MX)),
                 YESNO(this->madctl_ & (MADCTL_YFLIP | MADCTL_MY)), YESNO(this->madctl_ & MADCTL_MV), this->rotation_,
                 this->lanes_, this->lane_bit_rate_, this->hsync_pulse_width_, this->hsync_back_porch_,

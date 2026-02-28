@@ -5,6 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <algorithm>
 #include <cinttypes>
 #include <cstring>
@@ -27,10 +28,48 @@ static constexpr size_t MAX_POOL_SIZE = 5;
 // Set to 5 to match the pool size - when we have as many cancelled items as our
 // pool can hold, it's time to clean up and recycle them.
 static constexpr uint32_t MAX_LOGICALLY_DELETED_ITEMS = 5;
+#if !defined(USE_ESP32) && !defined(USE_HOST) && !defined(USE_ZEPHYR) && !defined(USE_RP2040)
 // Half the 32-bit range - used to detect rollovers vs normal time progression
 static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
+#endif
 // max delay to start an interval sequence
 static constexpr uint32_t MAX_INTERVAL_DELAY = 5000;
+
+// Prevent inlining of SchedulerItem deletion. On BK7231N (Thumb-1), GCC inlines
+// ~unique_ptr<SchedulerItem> (~30 bytes each) at every destruction site. Defining
+// the deleter in the .cpp file ensures a single copy of the destructor + operator delete.
+void Scheduler::SchedulerItemDeleter::operator()(SchedulerItem *ptr) const noexcept { delete ptr; }
+
+#if defined(ESPHOME_LOG_HAS_VERBOSE) || defined(ESPHOME_DEBUG_SCHEDULER)
+// Helper struct for formatting scheduler item names consistently in logs
+// Uses a stack buffer to avoid heap allocation
+// Uses ESPHOME_snprintf_P/ESPHOME_PSTR for ESP8266 to keep format strings in flash
+struct SchedulerNameLog {
+  char buffer[20];  // Enough for "id:4294967295" or "hash:0xFFFFFFFF" or "(null)"
+
+  // Format a scheduler item name for logging
+  // Returns pointer to formatted string (either static_name or internal buffer)
+  const char *format(Scheduler::NameType name_type, const char *static_name, uint32_t hash_or_id) {
+    using NameType = Scheduler::NameType;
+    if (name_type == NameType::STATIC_STRING) {
+      if (static_name)
+        return static_name;
+      // Copy "(null)" to buffer to keep it in flash on ESP8266
+      ESPHOME_strncpy_P(buffer, ESPHOME_PSTR("(null)"), sizeof(buffer));
+      return buffer;
+    } else if (name_type == NameType::HASHED_STRING) {
+      ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("hash:0x%08" PRIX32), hash_or_id);
+      return buffer;
+    } else if (name_type == NameType::NUMERIC_ID) {
+      ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("id:%" PRIu32), hash_or_id);
+      return buffer;
+    } else {  // NUMERIC_ID_INTERNAL
+      ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("iid:%" PRIu32), hash_or_id);
+      return buffer;
+    }
+  }
+};
+#endif
 
 // Uncomment to debug scheduler
 // #define ESPHOME_DEBUG_SCHEDULER
@@ -75,150 +114,183 @@ static void validate_static_string(const char *name) {
 // iterating over them from the loop task is fine; but iterating from any other context requires the lock to be held to
 // avoid the main thread modifying the list while it is being accessed.
 
-// Common implementation for both timeout and interval
-void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type type, bool is_static_string,
-                                      const void *name_ptr, uint32_t delay, std::function<void()> func, bool is_retry,
-                                      bool skip_cancel) {
-  // Get the name as const char*
-  const char *name_cstr = this->get_name_cstr_(is_static_string, name_ptr);
+// Calculate random offset for interval timers
+// Extracted from set_timer_common_ to reduce code size - float math + random_float()
+// only needed for intervals, not timeouts
+uint32_t Scheduler::calculate_interval_offset_(uint32_t delay) {
+  return static_cast<uint32_t>(std::min(delay / 2, MAX_INTERVAL_DELAY) * random_float());
+}
 
+// Check if a retry was already cancelled in items_ or to_add_
+// Extracted from set_timer_common_ to reduce code size - retry path is cold and deprecated
+// Remove before 2026.8.0 along with all retry code
+bool Scheduler::is_retry_cancelled_locked_(Component *component, NameType name_type, const char *static_name,
+                                           uint32_t hash_or_id) {
+  for (auto *container : {&this->items_, &this->to_add_}) {
+    for (auto &item : *container) {
+      if (item && this->is_item_removed_locked_(item.get()) &&
+          this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, SchedulerItem::TIMEOUT,
+                                     /* match_retry= */ true, /* skip_removed= */ false)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Common implementation for both timeout and interval
+// name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
+void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type,
+                                      const char *static_name, uint32_t hash_or_id, uint32_t delay,
+                                      std::function<void()> &&func, bool is_retry, bool skip_cancel) {
   if (delay == SCHEDULER_DONT_RUN) {
-    // Still need to cancel existing timer if name is not empty
+    // Still need to cancel existing timer if we have a name/id
     if (!skip_cancel) {
       LockGuard guard{this->lock_};
-      this->cancel_item_locked_(component, name_cstr, type);
+      this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type);
     }
     return;
   }
 
-  // Get fresh timestamp BEFORE taking lock - millis_64_ may need to acquire lock itself
-  const uint64_t now = this->millis_64_(millis());
+  // Get fresh 64-bit timestamp BEFORE taking lock
+  const uint64_t now_64 = millis_64();
 
   // Take lock early to protect scheduler_item_pool_ access
   LockGuard guard{this->lock_};
 
   // Create and populate the scheduler item
-  std::unique_ptr<SchedulerItem> item;
-  if (!this->scheduler_item_pool_.empty()) {
-    // Reuse from pool
-    item = std::move(this->scheduler_item_pool_.back());
-    this->scheduler_item_pool_.pop_back();
-#ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_.size());
-#endif
-  } else {
-    // Allocate new if pool is empty
-    item = make_unique<SchedulerItem>();
-#ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGD(TAG, "Allocated new item (pool empty)");
-#endif
-  }
+  auto item = this->get_item_from_pool_locked_();
   item->component = component;
-  item->set_name(name_cstr, !is_static_string);
+  item->set_name(name_type, static_name, hash_or_id);
   item->type = type;
   item->callback = std::move(func);
   // Reset remove flag - recycled items may have been cancelled (remove=true) in previous use
   this->set_item_removed_(item.get(), false);
   item->is_retry = is_retry;
 
+  // Determine target container: defer_queue_ for deferred items, to_add_ for everything else.
+  // Using a pointer lets both paths share the cancel + push_back epilogue.
+  auto *target = &this->to_add_;
+
 #ifndef ESPHOME_THREAD_SINGLE
   // Special handling for defer() (delay = 0, type = TIMEOUT)
   // Single-core platforms don't need thread-safe defer handling
   if (delay == 0 && type == SchedulerItem::TIMEOUT) {
     // Put in defer queue for guaranteed FIFO execution
-    if (!skip_cancel) {
-      this->cancel_item_locked_(component, name_cstr, type);
-    }
-    this->defer_queue_.push_back(std::move(item));
-    return;
-  }
+    target = &this->defer_queue_;
+  } else
 #endif /* not ESPHOME_THREAD_SINGLE */
-
-  // Type-specific setup
-  if (type == SchedulerItem::INTERVAL) {
-    item->interval = delay;
-    // first execution happens immediately after a random smallish offset
-    // Calculate random offset (0 to min(interval/2, 5s))
-    uint32_t offset = (uint32_t) (std::min(delay / 2, MAX_INTERVAL_DELAY) * random_float());
-    item->set_next_execution(now + offset);
-    ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms", name_cstr ? name_cstr : "", delay,
-             offset);
-  } else {
-    item->interval = 0;
-    item->set_next_execution(now + delay);
-  }
+  {
+    // Type-specific setup
+    if (type == SchedulerItem::INTERVAL) {
+      item->interval = delay;
+      // first execution happens immediately after a random smallish offset
+      uint32_t offset = this->calculate_interval_offset_(delay);
+      item->set_next_execution(now_64 + offset);
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+      SchedulerNameLog name_log;
+      ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms",
+               name_log.format(name_type, static_name, hash_or_id), delay, offset);
+#endif
+    } else {
+      item->interval = 0;
+      item->set_next_execution(now_64 + delay);
+    }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-  this->debug_log_timer_(item.get(), is_static_string, name_cstr, type, delay, now);
+    this->debug_log_timer_(item.get(), name_type, static_name, hash_or_id, type, delay, now_64);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
-  // For retries, check if there's a cancelled timeout first
-  if (is_retry && name_cstr != nullptr && type == SchedulerItem::TIMEOUT &&
-      (has_cancelled_timeout_in_container_locked_(this->items_, component, name_cstr, /* match_retry= */ true) ||
-       has_cancelled_timeout_in_container_locked_(this->to_add_, component, name_cstr, /* match_retry= */ true))) {
-    // Skip scheduling - the retry was cancelled
+    // For retries, check if there's a cancelled timeout first
+    // Skip check for anonymous retries (STATIC_STRING with nullptr) - they can't be cancelled by name
+    if (is_retry && (name_type != NameType::STATIC_STRING || static_name != nullptr) &&
+        type == SchedulerItem::TIMEOUT &&
+        this->is_retry_cancelled_locked_(component, name_type, static_name, hash_or_id)) {
+      // Skip scheduling - the retry was cancelled
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGD(TAG, "Skipping retry '%s' - found cancelled item", name_cstr);
+      SchedulerNameLog skip_name_log;
+      ESP_LOGD(TAG, "Skipping retry '%s' - found cancelled item",
+               skip_name_log.format(name_type, static_name, hash_or_id));
 #endif
-    return;
+      return;
+    }
   }
 
-  // If name is provided, do atomic cancel-and-add (unless skip_cancel is true)
-  // Cancel existing items
+  // Common epilogue: atomic cancel-and-add (unless skip_cancel is true)
   if (!skip_cancel) {
-    this->cancel_item_locked_(component, name_cstr, type);
+    this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type);
   }
-  // Add new item directly to to_add_
-  // since we have the lock held
-  this->to_add_.push_back(std::move(item));
+  target->push_back(std::move(item));
 }
 
-void HOT Scheduler::set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func) {
-  this->set_timer_common_(component, SchedulerItem::TIMEOUT, true, name, timeout, std::move(func));
+void HOT Scheduler::set_timeout(Component *component, const char *name, uint32_t timeout,
+                                std::function<void()> &&func) {
+  this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::STATIC_STRING, name, 0, timeout,
+                          std::move(func));
 }
 
 void HOT Scheduler::set_timeout(Component *component, const std::string &name, uint32_t timeout,
-                                std::function<void()> func) {
-  this->set_timer_common_(component, SchedulerItem::TIMEOUT, false, &name, timeout, std::move(func));
+                                std::function<void()> &&func) {
+  this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::HASHED_STRING, nullptr, fnv1a_hash(name),
+                          timeout, std::move(func));
+}
+void HOT Scheduler::set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> &&func) {
+  this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID, nullptr, id, timeout,
+                          std::move(func));
 }
 bool HOT Scheduler::cancel_timeout(Component *component, const std::string &name) {
-  return this->cancel_item_(component, false, &name, SchedulerItem::TIMEOUT);
+  return this->cancel_item_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name), SchedulerItem::TIMEOUT);
 }
 bool HOT Scheduler::cancel_timeout(Component *component, const char *name) {
-  return this->cancel_item_(component, true, name, SchedulerItem::TIMEOUT);
+  return this->cancel_item_(component, NameType::STATIC_STRING, name, 0, SchedulerItem::TIMEOUT);
+}
+bool HOT Scheduler::cancel_timeout(Component *component, uint32_t id) {
+  return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::TIMEOUT);
 }
 void HOT Scheduler::set_interval(Component *component, const std::string &name, uint32_t interval,
-                                 std::function<void()> func) {
-  this->set_timer_common_(component, SchedulerItem::INTERVAL, false, &name, interval, std::move(func));
+                                 std::function<void()> &&func) {
+  this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::HASHED_STRING, nullptr, fnv1a_hash(name),
+                          interval, std::move(func));
 }
 
 void HOT Scheduler::set_interval(Component *component, const char *name, uint32_t interval,
-                                 std::function<void()> func) {
-  this->set_timer_common_(component, SchedulerItem::INTERVAL, true, name, interval, std::move(func));
+                                 std::function<void()> &&func) {
+  this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::STATIC_STRING, name, 0, interval,
+                          std::move(func));
+}
+void HOT Scheduler::set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> &&func) {
+  this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID, nullptr, id, interval,
+                          std::move(func));
 }
 bool HOT Scheduler::cancel_interval(Component *component, const std::string &name) {
-  return this->cancel_item_(component, false, &name, SchedulerItem::INTERVAL);
+  return this->cancel_item_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name), SchedulerItem::INTERVAL);
 }
 bool HOT Scheduler::cancel_interval(Component *component, const char *name) {
-  return this->cancel_item_(component, true, name, SchedulerItem::INTERVAL);
+  return this->cancel_item_(component, NameType::STATIC_STRING, name, 0, SchedulerItem::INTERVAL);
 }
+bool HOT Scheduler::cancel_interval(Component *component, uint32_t id) {
+  return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::INTERVAL);
+}
+
+// Suppress deprecation warnings for RetryResult usage in the still-present (but deprecated) retry implementation.
+// Remove before 2026.8.0 along with all retry code.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 struct RetryArgs {
   // Ordered to minimize padding on 32-bit systems
   std::function<RetryResult(uint8_t)> func;
   Component *component;
   Scheduler *scheduler;
-  const char *name;  // Points to static string or owned copy
+  // Union for name storage - only one is used based on name_type
+  union {
+    const char *static_name;  // For STATIC_STRING
+    uint32_t hash_or_id;      // For HASHED_STRING or NUMERIC_ID
+  } name_;
   uint32_t current_interval;
   float backoff_increase_factor;
+  Scheduler::NameType name_type;  // Discriminator for name_ union
   uint8_t retry_countdown;
-  bool name_is_dynamic;  // True if name needs delete[]
-
-  ~RetryArgs() {
-    if (this->name_is_dynamic && this->name) {
-      delete[] this->name;
-    }
-  }
 };
 
 void retry_handler(const std::shared_ptr<RetryArgs> &args) {
@@ -226,31 +298,38 @@ void retry_handler(const std::shared_ptr<RetryArgs> &args) {
   if (retry_result == RetryResult::DONE || args->retry_countdown <= 0)
     return;
   // second execution of `func` happens after `initial_wait_time`
-  // Pass is_static_string=true because args->name is owned by the shared_ptr<RetryArgs>
+  // args->name_ is owned by the shared_ptr<RetryArgs>
   // which is captured in the lambda and outlives the SchedulerItem
+  const char *static_name = (args->name_type == Scheduler::NameType::STATIC_STRING) ? args->name_.static_name : nullptr;
+  uint32_t hash_or_id = (args->name_type != Scheduler::NameType::STATIC_STRING) ? args->name_.hash_or_id : 0;
   args->scheduler->set_timer_common_(
-      args->component, Scheduler::SchedulerItem::TIMEOUT, true, args->name, args->current_interval,
-      [args]() { retry_handler(args); }, /* is_retry= */ true);
+      args->component, Scheduler::SchedulerItem::TIMEOUT, args->name_type, static_name, hash_or_id,
+      args->current_interval, [args]() { retry_handler(args); },
+      /* is_retry= */ true);
   // backoff_increase_factor applied to third & later executions
   args->current_interval *= args->backoff_increase_factor;
 }
 
-void HOT Scheduler::set_retry_common_(Component *component, bool is_static_string, const void *name_ptr,
-                                      uint32_t initial_wait_time, uint8_t max_attempts,
+void HOT Scheduler::set_retry_common_(Component *component, NameType name_type, const char *static_name,
+                                      uint32_t hash_or_id, uint32_t initial_wait_time, uint8_t max_attempts,
                                       std::function<RetryResult(uint8_t)> func, float backoff_increase_factor) {
-  const char *name_cstr = this->get_name_cstr_(is_static_string, name_ptr);
-
-  if (name_cstr != nullptr)
-    this->cancel_retry(component, name_cstr);
+  this->cancel_retry_(component, name_type, static_name, hash_or_id);
 
   if (initial_wait_time == SCHEDULER_DONT_RUN)
     return;
 
-  ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%" PRIu32 ", max_attempts=%u, backoff_factor=%0.1f)",
-            name_cstr ? name_cstr : "", initial_wait_time, max_attempts, backoff_increase_factor);
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+  {
+    SchedulerNameLog name_log;
+    ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%" PRIu32 ", max_attempts=%u, backoff_factor=%0.1f)",
+              name_log.format(name_type, static_name, hash_or_id), initial_wait_time, max_attempts,
+              backoff_increase_factor);
+  }
+#endif
 
   if (backoff_increase_factor < 0.0001) {
-    ESP_LOGE(TAG, "backoff_factor %0.1f too small, using 1.0: %s", backoff_increase_factor, name_cstr ? name_cstr : "");
+    ESP_LOGE(TAG, "set_retry: backoff_factor %0.1f too small, using 1.0: %s", backoff_increase_factor,
+             (name_type == NameType::STATIC_STRING && static_name) ? static_name : "");
     backoff_increase_factor = 1;
   }
 
@@ -258,57 +337,59 @@ void HOT Scheduler::set_retry_common_(Component *component, bool is_static_strin
   args->func = std::move(func);
   args->component = component;
   args->scheduler = this;
+  args->name_type = name_type;
+  if (name_type == NameType::STATIC_STRING) {
+    args->name_.static_name = static_name;
+  } else {
+    args->name_.hash_or_id = hash_or_id;
+  }
   args->current_interval = initial_wait_time;
   args->backoff_increase_factor = backoff_increase_factor;
   args->retry_countdown = max_attempts;
 
-  // Store name - either as static pointer or owned copy
-  if (name_cstr == nullptr || name_cstr[0] == '\0') {
-    // Empty or null name - use empty string literal
-    args->name = "";
-    args->name_is_dynamic = false;
-  } else if (is_static_string) {
-    // Static string - just store the pointer
-    args->name = name_cstr;
-    args->name_is_dynamic = false;
-  } else {
-    // Dynamic string - make a copy
-    size_t len = strlen(name_cstr);
-    char *copy = new char[len + 1];
-    memcpy(copy, name_cstr, len + 1);
-    args->name = copy;
-    args->name_is_dynamic = true;
-  }
-
   // First execution of `func` immediately - use set_timer_common_ with is_retry=true
-  // Pass is_static_string=true because args->name is owned by the shared_ptr<RetryArgs>
-  // which is captured in the lambda and outlives the SchedulerItem
   this->set_timer_common_(
-      component, SchedulerItem::TIMEOUT, true, args->name, 0, [args]() { retry_handler(args); },
+      component, SchedulerItem::TIMEOUT, name_type, static_name, hash_or_id, 0, [args]() { retry_handler(args); },
       /* is_retry= */ true);
+}
+
+void HOT Scheduler::set_retry(Component *component, const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
+                              std::function<RetryResult(uint8_t)> func, float backoff_increase_factor) {
+  this->set_retry_common_(component, NameType::STATIC_STRING, name, 0, initial_wait_time, max_attempts, std::move(func),
+                          backoff_increase_factor);
+}
+
+bool HOT Scheduler::cancel_retry_(Component *component, NameType name_type, const char *static_name,
+                                  uint32_t hash_or_id) {
+  return this->cancel_item_(component, name_type, static_name, hash_or_id, SchedulerItem::TIMEOUT,
+                            /* match_retry= */ true);
+}
+bool HOT Scheduler::cancel_retry(Component *component, const char *name) {
+  return this->cancel_retry_(component, NameType::STATIC_STRING, name, 0);
 }
 
 void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
                               uint8_t max_attempts, std::function<RetryResult(uint8_t)> func,
                               float backoff_increase_factor) {
-  this->set_retry_common_(component, false, &name, initial_wait_time, max_attempts, std::move(func),
-                          backoff_increase_factor);
+  this->set_retry_common_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name), initial_wait_time,
+                          max_attempts, std::move(func), backoff_increase_factor);
 }
 
-void HOT Scheduler::set_retry(Component *component, const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
-                              std::function<RetryResult(uint8_t)> func, float backoff_increase_factor) {
-  this->set_retry_common_(component, true, name, initial_wait_time, max_attempts, std::move(func),
-                          backoff_increase_factor);
-}
 bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) {
-  return this->cancel_retry(component, name.c_str());
+  return this->cancel_retry_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name));
 }
 
-bool HOT Scheduler::cancel_retry(Component *component, const char *name) {
-  // Cancel timeouts that have is_retry flag set
-  LockGuard guard{this->lock_};
-  return this->cancel_item_locked_(component, name, SchedulerItem::TIMEOUT, /* match_retry= */ true);
+void HOT Scheduler::set_retry(Component *component, uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
+                              std::function<RetryResult(uint8_t)> func, float backoff_increase_factor) {
+  this->set_retry_common_(component, NameType::NUMERIC_ID, nullptr, id, initial_wait_time, max_attempts,
+                          std::move(func), backoff_increase_factor);
 }
+
+bool HOT Scheduler::cancel_retry(Component *component, uint32_t id) {
+  return this->cancel_retry_(component, NameType::NUMERIC_ID, nullptr, id);
+}
+
+#pragma GCC diagnostic pop  // End suppression of deprecated RetryResult warnings
 
 optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // IMPORTANT: This method should only be called from the main thread (loop task).
@@ -320,8 +401,7 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
     return {};
 
   auto &item = this->items_[0];
-  // Convert the fresh timestamp from caller (usually Application::loop()) to 64-bit
-  const auto now_64 = this->millis_64_(now);  // 'now' from parameter - fresh from caller
+  const auto now_64 = this->millis_64_from_(now);
   const uint64_t next_exec = item->get_next_execution();
   if (next_exec < now_64)
     return 0;
@@ -336,32 +416,54 @@ void Scheduler::full_cleanup_removed_items_() {
   // 4. No operations inside can block or take other locks, so no deadlock risk
   LockGuard guard{this->lock_};
 
-  std::vector<std::unique_ptr<SchedulerItem>> valid_items;
-
-  // Move all non-removed items to valid_items, recycle removed ones
-  for (auto &item : this->items_) {
-    if (!is_item_removed_(item.get())) {
-      valid_items.push_back(std::move(item));
+  // Compact in-place: move valid items forward, recycle removed ones
+  size_t write = 0;
+  for (size_t read = 0; read < this->items_.size(); ++read) {
+    if (!is_item_removed_locked_(this->items_[read].get())) {
+      if (write != read) {
+        this->items_[write] = std::move(this->items_[read]);
+      }
+      ++write;
     } else {
-      // Recycle removed items
-      this->recycle_item_main_loop_(std::move(item));
+      this->recycle_item_main_loop_(std::move(this->items_[read]));
     }
   }
-
-  // Replace items_ with the filtered list
-  this->items_ = std::move(valid_items);
+  this->items_.erase(this->items_.begin() + write, this->items_.end());
   // Rebuild the heap structure since items are no longer in heap order
   std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   this->to_remove_ = 0;
 }
+
+#ifndef ESPHOME_THREAD_SINGLE
+void Scheduler::compact_defer_queue_locked_() {
+  // Rare case: new items were added during processing - compact the vector
+  // This only happens when:
+  // 1. A deferred callback calls defer() again, or
+  // 2. Another thread calls defer() while we're processing
+  //
+  // Move unprocessed items (added during this loop) to the front for next iteration
+  //
+  // SAFETY: Compacted items may include cancelled items (marked for removal via
+  // cancel_item_locked_() during execution). This is safe because should_skip_item_()
+  // checks is_item_removed_() before executing, so cancelled items will be skipped
+  // and recycled on the next loop iteration.
+  size_t remaining = this->defer_queue_.size() - this->defer_queue_front_;
+  for (size_t i = 0; i < remaining; i++) {
+    this->defer_queue_[i] = std::move(this->defer_queue_[this->defer_queue_front_ + i]);
+  }
+  // Use erase() instead of resize() to avoid instantiating _M_default_append
+  // (saves ~156 bytes flash). Erasing from the end is O(1) - no shifting needed.
+  this->defer_queue_.erase(this->defer_queue_.begin() + remaining, this->defer_queue_.end());
+}
+#endif /* not ESPHOME_THREAD_SINGLE */
 
 void HOT Scheduler::call(uint32_t now) {
 #ifndef ESPHOME_THREAD_SINGLE
   this->process_defer_queue_(now);
 #endif /* not ESPHOME_THREAD_SINGLE */
 
-  // Convert the fresh timestamp from main loop to 64-bit for scheduler operations
-  const auto now_64 = this->millis_64_(now);  // 'now' from parameter - fresh from Application::loop()
+  // Extend the caller's 32-bit timestamp to 64-bit for scheduler operations
+  const auto now_64 = this->millis_64_from_(now);
   this->process_to_add();
 
   // Track if any items were added to to_add_ during this call (intervals or from callbacks)
@@ -372,29 +474,34 @@ void HOT Scheduler::call(uint32_t now) {
 
   if (now_64 - last_print > 2000) {
     last_print = now_64;
-    std::vector<std::unique_ptr<SchedulerItem>> old_items;
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    std::vector<SchedulerItemPtr> old_items;
+#if !defined(USE_ESP32) && !defined(USE_HOST) && !defined(USE_ZEPHYR) && !defined(USE_RP2040) && \
+    defined(ESPHOME_THREAD_MULTI_ATOMICS)
     const auto last_dbg = this->last_millis_.load(std::memory_order_relaxed);
     const auto major_dbg = this->millis_major_.load(std::memory_order_relaxed);
     ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64 " (%" PRIu16 ", %" PRIu32 ")", this->items_.size(),
              this->scheduler_item_pool_.size(), now_64, major_dbg, last_dbg);
-#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
+#elif !defined(USE_ESP32) && !defined(USE_HOST) && !defined(USE_ZEPHYR) && !defined(USE_RP2040)
     ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64 " (%" PRIu16 ", %" PRIu32 ")", this->items_.size(),
              this->scheduler_item_pool_.size(), now_64, this->millis_major_, this->last_millis_);
-#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
+#else
+    ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64, this->items_.size(), this->scheduler_item_pool_.size(),
+             now_64);
+#endif
     // Cleanup before debug output
     this->cleanup_();
     while (!this->items_.empty()) {
-      std::unique_ptr<SchedulerItem> item;
+      SchedulerItemPtr item;
       {
         LockGuard guard{this->lock_};
         item = this->pop_raw_locked_();
       }
 
-      const char *name = item->get_name();
+      SchedulerNameLog name_log;
       bool is_cancelled = is_item_removed_(item.get());
       ESP_LOGD(TAG, "  %s '%s/%s' interval=%" PRIu32 " next_execution in %" PRIu64 "ms at %" PRIu64 "%s",
-               item->get_type_str(), LOG_STR_ARG(item->get_source()), name ? name : "(null)", item->interval,
+               item->get_type_str(), LOG_STR_ARG(item->get_source()),
+               name_log.format(item->get_name_type(), item->get_name(), item->get_name_hash_or_id()), item->interval,
                item->get_next_execution() - now_64, item->get_next_execution(), is_cancelled ? " [CANCELLED]" : "");
 
       old_items.push_back(std::move(item));
@@ -441,7 +548,7 @@ void HOT Scheduler::call(uint32_t now) {
     // Multi-threaded platforms without atomics: must take lock to safely read remove flag
     {
       LockGuard guard{this->lock_};
-      if (is_item_removed_(item.get())) {
+      if (is_item_removed_locked_(item.get())) {
         this->recycle_item_main_loop_(this->pop_raw_locked_());
         this->to_remove_--;
         continue;
@@ -458,10 +565,13 @@ void HOT Scheduler::call(uint32_t now) {
 #endif
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    const char *item_name = item->get_name();
-    ESP_LOGV(TAG, "Running %s '%s/%s' with interval=%" PRIu32 " next_execution=%" PRIu64 " (now=%" PRIu64 ")",
-             item->get_type_str(), LOG_STR_ARG(item->get_source()), item_name ? item_name : "(null)", item->interval,
-             item->get_next_execution(), now_64);
+    {
+      SchedulerNameLog name_log;
+      ESP_LOGV(TAG, "Running %s '%s/%s' with interval=%" PRIu32 " next_execution=%" PRIu64 " (now=%" PRIu64 ")",
+               item->get_type_str(), LOG_STR_ARG(item->get_source()),
+               name_log.format(item->get_name_type(), item->get_name(), item->get_name_hash_or_id()), item->interval,
+               item->get_next_execution(), now_64);
+    }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
     // Warning: During callback(), a lot of stuff can happen, including:
@@ -475,7 +585,7 @@ void HOT Scheduler::call(uint32_t now) {
     // during the function call and know if we were cancelled.
     auto executed_item = this->pop_raw_locked_();
 
-    if (executed_item->remove) {
+    if (this->is_item_removed_locked_(executed_item.get())) {
       // We were removed/cancelled in the function call, recycle and continue
       this->to_remove_--;
       this->recycle_item_main_loop_(std::move(executed_item));
@@ -502,7 +612,7 @@ void HOT Scheduler::call(uint32_t now) {
 void HOT Scheduler::process_to_add() {
   LockGuard guard{this->lock_};
   for (auto &it : this->to_add_) {
-    if (is_item_removed_(it.get())) {
+    if (is_item_removed_locked_(it.get())) {
       // Recycle cancelled items
       this->recycle_item_main_loop_(std::move(it));
       continue;
@@ -535,14 +645,14 @@ size_t HOT Scheduler::cleanup_() {
   LockGuard guard{this->lock_};
   while (!this->items_.empty()) {
     auto &item = this->items_[0];
-    if (!item->remove)
+    if (!this->is_item_removed_locked_(item.get()))
       break;
     this->to_remove_--;
     this->recycle_item_main_loop_(this->pop_raw_locked_());
   }
   return this->items_.size();
 }
-std::unique_ptr<Scheduler::SchedulerItem> HOT Scheduler::pop_raw_locked_() {
+Scheduler::SchedulerItemPtr HOT Scheduler::pop_raw_locked_() {
   std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
 
   // Move the item out before popping - this is the item that was at the front of the heap
@@ -560,33 +670,29 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   return guard.finish();
 }
 
-// Common implementation for cancel operations
-bool HOT Scheduler::cancel_item_(Component *component, bool is_static_string, const void *name_ptr,
-                                 SchedulerItem::Type type) {
-  // Get the name as const char*
-  const char *name_cstr = this->get_name_cstr_(is_static_string, name_ptr);
-
-  // obtain lock because this function iterates and can be called from non-loop task context
+// Common implementation for cancel operations - handles locking
+bool HOT Scheduler::cancel_item_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
+                                 SchedulerItem::Type type, bool match_retry) {
   LockGuard guard{this->lock_};
-  return this->cancel_item_locked_(component, name_cstr, type);
+  return this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, match_retry);
 }
 
-// Helper to cancel items by name - must be called with lock held
-bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_cstr, SchedulerItem::Type type,
-                                        bool match_retry) {
-  // Early return if name is invalid - no items to cancel
-  if (name_cstr == nullptr) {
+// Helper to cancel items - must be called with lock held
+// name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
+bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type, const char *static_name,
+                                        uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry) {
+  // Early return if static string name is invalid
+  if (name_type == NameType::STATIC_STRING && static_name == nullptr) {
     return false;
   }
 
   size_t total_cancelled = 0;
 
-  // Check all containers for matching items
 #ifndef ESPHOME_THREAD_SINGLE
   // Mark items in defer queue as cancelled (they'll be skipped when processed)
   if (type == SchedulerItem::TIMEOUT) {
-    total_cancelled +=
-        this->mark_matching_items_removed_locked_(this->defer_queue_, component, name_cstr, type, match_retry);
+    total_cancelled += this->mark_matching_items_removed_locked_(this->defer_queue_, component, name_type, static_name,
+                                                                 hash_or_id, type, match_retry);
   }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
@@ -596,24 +702,27 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
   // would destroy the callback while it's running (use-after-free).
   // Only the main loop in call() should recycle items after execution completes.
   if (!this->items_.empty()) {
-    size_t heap_cancelled =
-        this->mark_matching_items_removed_locked_(this->items_, component, name_cstr, type, match_retry);
+    size_t heap_cancelled = this->mark_matching_items_removed_locked_(this->items_, component, name_type, static_name,
+                                                                      hash_or_id, type, match_retry);
     total_cancelled += heap_cancelled;
     this->to_remove_ += heap_cancelled;
   }
 
   // Cancel items in to_add_
-  total_cancelled += this->mark_matching_items_removed_locked_(this->to_add_, component, name_cstr, type, match_retry);
+  total_cancelled += this->mark_matching_items_removed_locked_(this->to_add_, component, name_type, static_name,
+                                                               hash_or_id, type, match_retry);
 
   return total_cancelled > 0;
 }
 
-uint64_t Scheduler::millis_64_(uint32_t now) {
+#if !defined(USE_ESP32) && !defined(USE_HOST) && !defined(USE_ZEPHYR) && !defined(USE_RP2040)
+uint64_t Scheduler::millis_64_impl_(uint32_t now) {
   // THREAD SAFETY NOTE:
   // This function has three implementations, based on the precompiler flags
   // - ESPHOME_THREAD_SINGLE - Runs on single-threaded platforms (ESP8266, RP2040, etc.)
-  // - ESPHOME_THREAD_MULTI_NO_ATOMICS - Runs on multi-threaded platforms without atomics (LibreTiny)
-  // - ESPHOME_THREAD_MULTI_ATOMICS - Runs on multi-threaded platforms with atomics (ESP32, HOST, etc.)
+  // - ESPHOME_THREAD_MULTI_NO_ATOMICS - Runs on multi-threaded platforms without atomics (LibreTiny BK72xx)
+  // - ESPHOME_THREAD_MULTI_ATOMICS - Runs on multi-threaded platforms with atomics (ESP32, HOST, LibreTiny
+  // RTL87xx/LN882x, etc.)
   //
   // Make sure all changes are synchronized if you edit this function.
   //
@@ -660,7 +769,7 @@ uint64_t Scheduler::millis_64_(uint32_t now) {
 
   // Define a safe window around the rollover point (10 seconds)
   // This covers any reasonable scheduler delays or thread preemption
-  static const uint32_t ROLLOVER_WINDOW = 10000;  // 10 seconds in milliseconds
+  static constexpr uint32_t ROLLOVER_WINDOW = 10000;  // 10 seconds in milliseconds
 
   // Check if we're near the rollover boundary (close to std::numeric_limits<uint32_t>::max() or just past 0)
   bool near_rollover = (last > (std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW)) || (now < ROLLOVER_WINDOW);
@@ -764,9 +873,9 @@ uint64_t Scheduler::millis_64_(uint32_t now) {
     "No platform threading model defined. One of ESPHOME_THREAD_SINGLE, ESPHOME_THREAD_MULTI_NO_ATOMICS, or ESPHOME_THREAD_MULTI_ATOMICS must be defined."
 #endif
 }
+#endif  // !USE_ESP32 && !USE_HOST && !USE_ZEPHYR && !USE_RP2040
 
-bool HOT Scheduler::SchedulerItem::cmp(const std::unique_ptr<SchedulerItem> &a,
-                                       const std::unique_ptr<SchedulerItem> &b) {
+bool HOT Scheduler::SchedulerItem::cmp(const SchedulerItemPtr &a, const SchedulerItemPtr &b) {
   // High bits are almost always equal (change only on 32-bit rollover ~49 days)
   // Optimize for common case: check low bits first when high bits are equal
   return (a->next_execution_high_ == b->next_execution_high_) ? (a->next_execution_low_ > b->next_execution_low_)
@@ -777,15 +886,13 @@ bool HOT Scheduler::SchedulerItem::cmp(const std::unique_ptr<SchedulerItem> &a,
 // IMPORTANT: Caller must hold the scheduler lock before calling this function.
 // This protects scheduler_item_pool_ from concurrent access by other threads
 // that may be acquiring items from the pool in set_timer_common_().
-void Scheduler::recycle_item_main_loop_(std::unique_ptr<SchedulerItem> item) {
+void Scheduler::recycle_item_main_loop_(SchedulerItemPtr item) {
   if (!item)
     return;
 
   if (this->scheduler_item_pool_.size() < MAX_POOL_SIZE) {
     // Clear callback to release captured resources
     item->callback = nullptr;
-    // Clear dynamic name if any
-    item->clear_dynamic_name();
     this->scheduler_item_pool_.push_back(std::move(item));
 #ifdef ESPHOME_DEBUG_SCHEDULER
     ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_.size());
@@ -799,24 +906,44 @@ void Scheduler::recycle_item_main_loop_(std::unique_ptr<SchedulerItem> item) {
 }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-void Scheduler::debug_log_timer_(const SchedulerItem *item, bool is_static_string, const char *name_cstr,
-                                 SchedulerItem::Type type, uint32_t delay, uint64_t now) {
+void Scheduler::debug_log_timer_(const SchedulerItem *item, NameType name_type, const char *static_name,
+                                 uint32_t hash_or_id, SchedulerItem::Type type, uint32_t delay, uint64_t now) {
   // Validate static strings in debug mode
-  if (is_static_string && name_cstr != nullptr) {
-    validate_static_string(name_cstr);
+  if (name_type == NameType::STATIC_STRING && static_name != nullptr) {
+    validate_static_string(static_name);
   }
 
   // Debug logging
+  SchedulerNameLog name_log;
   const char *type_str = (type == SchedulerItem::TIMEOUT) ? "timeout" : "interval";
   if (type == SchedulerItem::TIMEOUT) {
     ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
-             name_cstr ? name_cstr : "(null)", type_str, delay);
+             name_log.format(name_type, static_name, hash_or_id), type_str, delay);
   } else {
     ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ", offset=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
-             name_cstr ? name_cstr : "(null)", type_str, delay,
+             name_log.format(name_type, static_name, hash_or_id), type_str, delay,
              static_cast<uint32_t>(item->get_next_execution() - now));
   }
 }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
+
+// Helper to get or create a scheduler item from the pool
+// IMPORTANT: Caller must hold the scheduler lock before calling this function.
+Scheduler::SchedulerItemPtr Scheduler::get_item_from_pool_locked_() {
+  SchedulerItemPtr item;
+  if (!this->scheduler_item_pool_.empty()) {
+    item = std::move(this->scheduler_item_pool_.back());
+    this->scheduler_item_pool_.pop_back();
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_.size());
+#endif
+  } else {
+    item = SchedulerItemPtr(new SchedulerItem());
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    ESP_LOGD(TAG, "Allocated new item (pool empty)");
+#endif
+  }
+  return item;
+}
 
 }  // namespace esphome

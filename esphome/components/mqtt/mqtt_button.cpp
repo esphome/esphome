@@ -39,7 +39,7 @@ void MQTTButtonComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
-std::string MQTTButtonComponent::component_type() const { return "button"; }
+MQTT_COMPONENT_TYPE(MQTTButtonComponent, "button")
 const EntityBase *MQTTButtonComponent::get_entity() const { return this->button_; }
 
 }  // namespace esphome::mqtt
