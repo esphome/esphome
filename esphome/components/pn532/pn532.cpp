@@ -172,7 +172,7 @@ void PN532::update() {
         return;
       }
       ESP_LOGV(TAG, "Health check passed");
-      this->consecutive_failures_ = 0; // Reset consecutive failures on success
+      this->consecutive_failures_ = 0;  // Reset consecutive failures on success
     }
   }
 
@@ -208,10 +208,6 @@ void PN532::update() {
   this->consecutive_failures_ = 0;
   this->requested_read_ = true;
 }
-
-
-
-
 
 void PN532::loop() {
   if (!this->requested_read_)
@@ -563,7 +559,6 @@ bool PN532::reinit_() {
   ESP_LOGI(TAG, "PN532 re-initialised successfully!");
   return true;
 }
-
 
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");
