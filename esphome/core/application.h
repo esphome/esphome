@@ -109,8 +109,8 @@ class Socket;
 }  // namespace esphome::socket
 
 // Forward declarations for friend access from codegen-generated setup()
-void setup();
-void original_setup();  // Used by cpp unit tests which replace setup() with gtest runner
+void setup();           // NOLINT(readability-redundant-declaration) - may be declared in Arduino.h
+void original_setup();  // NOLINT(readability-redundant-declaration) - used by cpp unit tests
 
 namespace esphome {
 
