@@ -31,6 +31,8 @@ class SafeModeComponent final : public Component {
 
   void on_safe_shutdown() override;
 
+  void mark_successful();
+
 #ifdef USE_SAFE_MODE_CALLBACK
   void add_on_safe_mode_callback(std::function<void()> &&callback) {
     this->safe_mode_callback_.add(std::move(callback));

@@ -890,10 +890,10 @@ def final_validate(config):
                 )
             )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if config[CONF_VARIANT] != VARIANT_ESP32S3:
+        if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
             errs.append(
                 cv.Invalid(
-                    f"'{CONF_EXECUTE_FROM_PSRAM}' is only supported on {VARIANT_ESP32S3} variant",
+                    f"'{CONF_EXECUTE_FROM_PSRAM}' is not available on this esp32 variant",
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
@@ -952,6 +952,7 @@ CONF_HEAP_IN_IRAM = "heap_in_iram"
 CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 CONF_USE_FULL_CERTIFICATE_BUNDLE = "use_full_certificate_bundle"
 CONF_DISABLE_DEBUG_STUBS = "disable_debug_stubs"
+CONF_ENABLE_FULL_PRINTF = "enable_full_printf"
 CONF_DISABLE_OCD_AWARE = "disable_ocd_aware"
 CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY = "disable_usb_serial_jtag_secondary"
 CONF_DISABLE_DEV_NULL_VFS = "disable_dev_null_vfs"
@@ -1126,6 +1127,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(
                     CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, default=[]
                 ): cv.ensure_list(cv.string_strict),
+                cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
                 cv.Optional(CONF_DISABLE_DEBUG_STUBS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_OCD_AWARE, default=True): cv.boolean,
                 cv.Optional(
@@ -1469,6 +1471,14 @@ async def to_code(config):
             "_ZSt25__throw_bad_function_callv",
         ]:
             cg.add_build_flag(f"-Wl,--wrap={mangled}")
+
+        # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
+        # (~11 KB). See printf_stubs.cpp for implementation.
+        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF]:
+            cg.add_define("USE_FULL_PRINTF")
+        else:
+            for symbol in ("vprintf", "printf", "fprintf"):
+                cg.add_build_flag(f"-Wl,--wrap={symbol}")
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
@@ -1627,8 +1637,13 @@ async def to_code(config):
     _configure_lwip_max_sockets(conf)
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
+        if variant == VARIANT_ESP32S3:
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
+        elif variant == VARIANT_ESP32P4:
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
+        else:
+            raise ValueError("Unhandled ESP32 variant")
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides

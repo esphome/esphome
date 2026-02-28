@@ -291,7 +291,7 @@ class Component {
 
   void call_loop_();
   virtual void call_setup();
-  virtual void call_dump_config();
+  void call_dump_config_();
 
   /// Helper to set component state (clears state bits and sets new state)
   void set_component_state_(uint8_t state);
