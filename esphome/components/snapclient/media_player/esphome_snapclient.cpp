@@ -101,7 +101,7 @@ void SnapClientComponent::loop() {
   }
 }
 
-media_player::MediaPlayerState SnapClientComponent::get_state_from_player_state(player_state_e state) {
+media_player::MediaPlayerState SnapClientComponent::get_state_from_player_state_(player_state_e state) {
   switch (state) {
     case IDLE:
       return media_player::MEDIA_PLAYER_STATE_IDLE;

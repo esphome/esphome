@@ -447,7 +447,6 @@ esphome/components/sm2335/* @Cossid
 esphome/components/sml/* @alengwenus
 esphome/components/smt100/* @piechade
 esphome/components/sn74hc165/* @jesserockz
-esphome/components/snapclient/* @luar123
 esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
 esphome/components/sound_level/* @kahrendt
