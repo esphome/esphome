@@ -163,7 +163,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void save_to_flash_(float value);
   float restore_from_flash_();
   bool get_timeout_status_(uint32_t check_millis);
-  uint8_t count_targets_in_zone_(const Zone &zone, bool is_moving);
+  void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;

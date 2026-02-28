@@ -292,16 +292,19 @@ void LD2450Component::loop() {
   }
 }
 
-// Count targets in zone
-uint8_t LD2450Component::count_targets_in_zone_(const Zone &zone, bool is_moving) {
-  uint8_t count = 0;
-  for (auto &index : this->target_info_) {
-    if (index.x > zone.x1 && index.x < zone.x2 && index.y > zone.y1 && index.y < zone.y2 &&
-        index.is_moving == is_moving) {
-      count++;
+// Count targets in zone (single pass for both still and moving)
+void LD2450Component::count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving) {
+  still = 0;
+  moving = 0;
+  for (auto &target : this->target_info_) {
+    if (target.x > zone.x1 && target.x < zone.x2 && target.y > zone.y1 && target.y < zone.y2) {
+      if (target.is_moving) {
+        moving++;
+      } else {
+        still++;
+      }
     }
   }
-  return count;
 }
 
 // Service reset_radar_zone
@@ -551,8 +554,7 @@ void LD2450Component::handle_periodic_data_() {
   uint8_t zone_moving_targets = 0;
   uint8_t zone_all_targets = 0;
   for (index = 0; index < MAX_ZONES; index++) {
-    zone_still_targets = this->count_targets_in_zone_(this->zone_config_[index], false);
-    zone_moving_targets = this->count_targets_in_zone_(this->zone_config_[index], true);
+    this->count_targets_in_zone_(this->zone_config_[index], zone_still_targets, zone_moving_targets);
     zone_all_targets = zone_still_targets + zone_moving_targets;
 
     // Publish Still Target Count in Zones
