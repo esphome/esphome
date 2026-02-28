@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_BAUD_RATE,
     CONF_BYTES,
     CONF_DATA,
+    CONF_DATA_BITS,
     CONF_DEBUG,
     CONF_DELIMITER,
     CONF_DIRECTION,
@@ -21,10 +22,12 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_NUMBER,
+    CONF_PARITY,
     CONF_PORT,
     CONF_RX_BUFFER_SIZE,
     CONF_RX_PIN,
     CONF_SEQUENCE,
+    CONF_STOP_BITS,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
     CONF_TX_PIN,
@@ -215,9 +218,6 @@ UART_PARITY_OPTIONS = {
     "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
 }
 
-CONF_STOP_BITS = "stop_bits"
-CONF_DATA_BITS = "data_bits"
-CONF_PARITY = "parity"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
 CONF_RX_TIMEOUT = "rx_timeout"
 
