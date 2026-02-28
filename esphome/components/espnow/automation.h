@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ESP32) || defined(USE_EPS8266)
+#if defined(USE_ESP32) || defined(USE_ESP8266)
 
 #include "espnow_component.h"
 
