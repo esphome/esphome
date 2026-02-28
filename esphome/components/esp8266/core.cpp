@@ -3,6 +3,7 @@
 #include "core.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
 #include <Arduino.h>
@@ -14,9 +15,10 @@ extern "C" {
 
 namespace esphome {
 
-void IRAM_ATTR HOT yield() { ::yield(); }
+void HOT yield() { ::yield(); }
 uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
-void IRAM_ATTR HOT delay(uint32_t ms) { ::delay(ms); }
+uint64_t millis_64() { return App.scheduler.millis_64_impl_(::millis()); }
+void HOT delay(uint32_t ms) { ::delay(ms); }
 uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 void arch_restart() {
@@ -27,7 +29,7 @@ void arch_restart() {
   }
 }
 void arch_init() {}
-void IRAM_ATTR HOT arch_feed_wdt() { system_soft_wdt_feed(); }
+void HOT arch_feed_wdt() { system_soft_wdt_feed(); }
 
 uint8_t progmem_read_byte(const uint8_t *addr) {
   return pgm_read_byte(addr);  // NOLINT
