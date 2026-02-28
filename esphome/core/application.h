@@ -521,7 +521,7 @@ class Application {
 #endif
 #endif
 
-  void register_component_(Component *comp);
+  __attribute__((noinline)) void register_component_(Component *comp);
 
   void calculate_looping_components_();
   void add_looping_components_by_state_(bool match_loop_done);
