@@ -9,7 +9,6 @@
 #include "esphome/core/gpio.h"
 #include "driver/gpio.h"
 #include "soc/gpio_num.h"
-#include "soc/uart_pins.h"
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -18,13 +17,6 @@
 namespace esphome::uart {
 
 static const char *const TAG = "uart.idf";
-
-/// Check if a pin number matches one of the default UART0 GPIO pins.
-/// These pins may have residual state from the boot console that requires
-/// explicit reset before UART reconfiguration (ESP-IDF issue #17459).
-static constexpr bool is_default_uart0_pin(int8_t pin_num) {
-  return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
-}
 
 uart_config_t IDFUARTComponent::get_config_() {
   uart_parity_t parity = UART_PARITY_DISABLE;
@@ -149,34 +141,12 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
-  int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
-  int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
-  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
-
-  // Workaround for ESP-IDF issue: https://github.com/espressif/esp-idf/issues/17459
-  // Commit 9ed617fb17 removed gpio_func_sel() calls from uart_set_pin(), which breaks
-  // UART on default UART0 pins that may have residual state from boot console.
-  // Reset these pins before configuring UART to ensure they're in a clean state.
-  if (is_default_uart0_pin(tx)) {
-    gpio_reset_pin(static_cast<gpio_num_t>(tx));
-  }
-  if (is_default_uart0_pin(rx)) {
-    gpio_reset_pin(static_cast<gpio_num_t>(rx));
-  }
-
-  // Setup pins after reset to configure GPIO direction and pull resistors.
-  // For UART0 default pins, setup() must always be called because gpio_reset_pin()
-  // above sets GPIO_MODE_DISABLE which disables the input buffer. Without setup(),
-  // uart_set_pin() on ESP-IDF 5.4.2+ does not re-enable the input buffer for
-  // IOMUX-connected pins, so the RX pin cannot receive data (see issue #10132).
-  // For other pins, only call setup() if pull or open-drain flags are set to avoid
-  // disturbing the default pin state which breaks some external components (#11823).
   auto setup_pin_if_needed = [](InternalGPIOPin *pin) {
     if (!pin) {
       return;
     }
     const auto mask = gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN;
-    if (is_default_uart0_pin(pin->get_pin()) || (pin->get_flags() & mask) != gpio::Flags::FLAG_NONE) {
+    if ((pin->get_flags() & mask) != gpio::Flags::FLAG_NONE) {
       pin->setup();
     }
   };
@@ -185,6 +155,10 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   if (this->rx_pin_ != this->tx_pin_) {
     setup_pin_if_needed(this->tx_pin_);
   }
+
+  int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
+  int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
+  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
 
   uint32_t invert = 0;
   if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
