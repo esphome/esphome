@@ -637,7 +637,8 @@ bool LD2412Component::handle_ack_data_() {
       */
       updates.push_back(set_number_value(this->timeout_number_,
                                          ld24xx::two_byte_to_uint16(this->buffer_data_[12], this->buffer_data_[13])));
-      ESP_LOGV(TAG, "timeout_number_: %u", ld24xx::two_byte_to_uint16(this->buffer_data_[12], this->buffer_data_[13]));
+      ESP_LOGV(TAG, "timeout_number_: %u",
+               static_cast<unsigned int>(ld24xx::two_byte_to_uint16(this->buffer_data_[12], this->buffer_data_[13])));
       /*
         Output pin configuration: 13th bytes
       */
