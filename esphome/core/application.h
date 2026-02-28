@@ -521,7 +521,14 @@ class Application {
 #endif
 #endif
 
-  __attribute__((noinline)) void register_component_(Component *comp);
+  /// Register a component - only callable from codegen-generated setup() via friend access.
+  template<class C> C *register_component_(C *c) {
+    static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
+    this->register_component_impl_((Component *) c);
+    return c;
+  }
+
+  void register_component_impl_(Component *comp);
 
   void calculate_looping_components_();
   void add_looping_components_by_state_(bool match_loop_done);
