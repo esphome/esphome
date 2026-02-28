@@ -239,4 +239,20 @@ void IRAM_ATTR esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task
   }
 }
 
+// Wake the main loop from any context (ISR, thread, or main loop).
+// Detects ISR context and delegates to the appropriate variant:
+//   ESP32 (Xtensa/RISC-V): xPortInIsrContext() — checks interrupt nesting counter
+//   LibreTiny (ARM Cortex-M): __get_IPSR() — reads IPSR register (0 = task context)
+void IRAM_ATTR esphome_lwip_wake_main_loop_any_context(void) {
+#ifdef USE_ESP32
+  if (xPortInIsrContext()) {
+#else
+  if (__get_IPSR() != 0) {
+#endif
+    esphome_lwip_wake_main_loop_from_isr(NULL);
+  } else {
+    esphome_lwip_wake_main_loop();
+  }
+}
+
 #endif  // defined(USE_ESP32) || defined(USE_LIBRETINY)

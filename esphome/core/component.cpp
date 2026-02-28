@@ -323,6 +323,13 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // 8. Race condition with main loop is handled by clearing flag before processing
   this->pending_enable_loop_ = true;
   App.has_pending_enable_loop_requests_ = true;
+#ifdef USE_LWIP_FAST_SELECT
+  // Wake the main loop if sleeping in ulTaskNotifyTake(). Without this,
+  // the main loop would not wake until the select timeout expires (~16ms).
+  // Uses xPortInIsrContext() to pick xTaskNotifyGive (task) or
+  // vTaskNotifyGiveFromISR (ISR) — safe from any calling context.
+  Application::wake_loop_any_context();
+#endif
 }
 void Component::reset_to_construction_state() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {

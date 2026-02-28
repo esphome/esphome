@@ -33,6 +33,10 @@ void esphome_lwip_wake_main_loop(void);
 /// @param px_higher_priority_task_woken Set to pdTRUE if a context switch is needed.
 void esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task_woken);
 
+/// Wake the main loop task from any context (ISR, thread, or main loop).
+/// Detects the calling context and uses the appropriate FreeRTOS API.
+void esphome_lwip_wake_main_loop_any_context(void);
+
 #ifdef __cplusplus
 }
 #endif
