@@ -134,7 +134,7 @@ void SpeakerMediaPlayer::watch_media_commands_() {
         delete media_command.url.value();
       }
       if (media_command.file.has_value()) {
-        playlist_item.file = *media_command.file;
+        playlist_item.file = media_command.file;
       }
 
       if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
