@@ -108,8 +108,9 @@ namespace esphome::socket {
 class Socket;
 }  // namespace esphome::socket
 
-// Forward declaration for friend access from codegen-generated setup()
+// Forward declarations for friend access from codegen-generated setup()
 void setup();
+void original_setup();  // Used by cpp unit tests which replace setup() with gtest runner
 
 namespace esphome {
 
@@ -505,6 +506,7 @@ class Application {
   friend Component;
   friend class socket::Socket;
   friend void ::setup();
+  friend void ::original_setup();
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
   /// Fast path for Socket::ready() via friendship - skips negative fd check.
