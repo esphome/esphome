@@ -5,7 +5,12 @@ import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 import esphome.config_validation as cv
-from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT, CONF_PRIORITY, CONF_TIMEOUT
+from esphome.const import (
+    CONF_ENABLE_IPV6,
+    CONF_MIN_IPV6_ADDR_COUNT,
+    CONF_PRIORITY,
+    CONF_TIMEOUT,
+)
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 
