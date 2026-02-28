@@ -78,7 +78,7 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
           return false;
         }
 
-        auto ibeacon = device.get_ibeacon().value();
+        auto ibeacon = *device.get_ibeacon();
 
         if (this->ibeacon_uuid_ != ibeacon.get_uuid()) {
           return false;

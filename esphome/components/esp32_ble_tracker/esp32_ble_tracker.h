@@ -107,7 +107,7 @@ class ESPBTDevice {
     for (auto &it : this->manufacturer_datas_) {
       auto res = ESPBLEiBeacon::from_manufacturer_data(it);
       if (res.has_value())
-        return *res;
+        return res;
     }
     return {};
   }

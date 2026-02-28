@@ -80,7 +80,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
           return false;
         }
 
-        auto ibeacon = device.get_ibeacon().value();
+        auto ibeacon = *device.get_ibeacon();
 
         if (this->ibeacon_uuid_ != ibeacon.get_uuid()) {
           return false;
