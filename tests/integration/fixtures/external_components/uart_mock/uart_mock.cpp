@@ -48,11 +48,13 @@ void MockUartComponent::loop() {
 }
 
 void MockUartComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Mock UART Component:");
-  ESP_LOGCONFIG(TAG, "  Baud Rate: %u", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Injections: %zu", this->injections_.size());
-  ESP_LOGCONFIG(TAG, "  Responses: %zu", this->responses_.size());
-  ESP_LOGCONFIG(TAG, "  Periodic RX: %zu", this->periodic_rx_.size());
+  ESP_LOGCONFIG(TAG,
+                "Mock UART Component:\n"
+                "  Baud Rate: %u\n"
+                "  Injections: %zu\n"
+                "  Responses: %zu\n"
+                "  Periodic RX: %zu",
+                this->baud_rate_, this->injections_.size(), this->responses_.size(), this->periodic_rx_.size());
 }
 
 void MockUartComponent::write_array(const uint8_t *data, size_t len) {
