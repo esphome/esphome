@@ -1,0 +1,149 @@
+---
+description: "Instructions for setting up SEN6x Series Environmental Sensor for PM, RH/T, VOC, NOx, CO2 and HCHO measurements."
+title: "SEN6x Series Environmental Sensor"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+The `sen6x` sensor platform allows you to use your Sensirion
+[SEN62](https://sensirion.com/products/catalog/SEN62/),
+[SEN63C](https://sensirion.com/products/catalog/SEN63C/),
+[SEN65](https://sensirion.com/products/catalog/SEN65/),
+[SEN66](https://sensirion.com/products/catalog/SEN66/),
+[SEN68](https://sensirion.com/products/catalog/SEN68/) and
+[SEN69C](https://sensirion.com/products/catalog/SEN69C/) Environmental sensor
+([datasheet](https://sensirion.com/media/documents/FAFC548D/693FBB15/PS_DS_SEN6x.pdf))
+sensors with ESPHome.
+
+The [I²C Bus](/components/i2c) is required to be set up in your configuration for this sensor to work.
+
+![SEN6x Environmental Sensor](/images/sen6x.webp)
+
+| Sensor | PM | RH/T | VOC | NOx | CO₂ | HCHO |
+|--------|:--:|:----:|:---:|:---:|:---:|:----:|
+| SEN62  | ✓  |  ✓   |     |     |     |      |
+| SEN63C | ✓  |  ✓   |     |     |  ✓  |      |
+| SEN65  | ✓  |  ✓   |  ✓  |  ✓  |     |      |
+| SEN66  | ✓  |  ✓   |  ✓  |  ✓  |  ✓  |      |
+| SEN68  | ✓  |  ✓   |  ✓  |  ✓  |     |  ✓   |
+| SEN69C | ✓  |  ✓   |  ✓  |  ✓  |  ✓  |  ✓   |
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: sen6x
+    type: SEN69C
+    pm_1_0:
+      name: PM <1µm Weight concentration
+    pm_2_5:
+      name: PM <2.5µm Weight concentration
+    pm_4_0:
+      name: PM <4µm Weight concentration
+    pm_10_0:
+      name: PM <10µm Weight concentration
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity
+    voc:
+      name: VOC
+    nox:
+      name: NOx
+    co2:
+      name: Carbon Dioxide
+    formaldehyde:
+      name: Formaldehyde
+```
+
+## Configuration variables
+
+- **type** (*Optional*): The type of sensor. If not specified, sensor type will be auto-detected. If specified,
+  the value will override auto-detection. In case of mismatch, a warning will be provided in the log.
+
+  - SEN62
+  - SEN63C
+  - SEN65
+  - SEN66
+  - SEN68
+  - SEN69C
+
+- **pm_1_0** (*Optional*): The information for the **Weight Concentration** sensor for fine particles up to 1μm.
+  Readings in µg/m³.
+
+  - All options from [Sensor](/components/sensor).
+
+- **pm_2_5** (*Optional*): The information for the **Weight Concentration** sensor for fine particles up to 2.5μm.
+  Readings in µg/m³.
+
+  - All options from [Sensor](/components/sensor).
+
+- **pm_4_0** (*Optional*): The information for the **Weight Concentration** sensor for coarse particles up to 4μm.
+  Readings in µg/m³.
+
+  - All options from [Sensor](/components/sensor).
+
+- **pm_10_0** (*Optional*): The information for the **Weight Concentration** sensor for coarse particles up to 10μm.
+  Readings in µg/m³.
+
+  - All options from [Sensor](/components/sensor).
+
+- **temperature** (*Optional*): Temperature.
+
+  - All options from [Sensor](/components/sensor).
+
+- **humidity** (*Optional*): Relative Humidity.
+
+  - All options from [Sensor](/components/sensor).
+
+- **voc** (*Optional*): VOC Index. Note: only available with SEN65, SEN66, SEN68 or SEN69C. The sensor will be
+  ignored on unsupported models.
+
+  - All options from [Sensor](/components/sensor).
+
+- **nox** (*Optional*): NOx Index. Note: only available with SEN65, SEN66, SEN68 or SEN69C. The sensor will be
+  ignored on unsupported models.
+
+  - All options from [Sensor](/components/sensor).
+
+- **co2** (*Optional*): The **carbon dioxide** concentration in ppm. Note: only available with SEN63C, SEN66 or
+  SEN69C. The sensor will be ignored on unsupported models.
+
+  - All options from [Sensor](/components/sensor).
+
+- **formaldehyde** (*Optional*): The Formaldehyde (HCHO) concentration in ppb. Note: only available with SEN68 or
+  SEN69C. The sensor will be ignored on unsupported models.
+
+  - All options from [Sensor](/components/sensor).
+
+- **address** (*Optional*, int): Manually specify the I²C address of the sensor.
+  Defaults to `0x6B`.
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor.
+  Defaults to `60s`.
+
+> [!NOTE]
+> The sensor needs about a minute "warm-up". The VOC and NOx gas index algorithm needs a
+> number of samples before the values stabilize.
+
+## Wiring
+
+The sensor has a JST GHR-06V-S 6 pin type connector, with a 1.25mm pitch. The cable needs this connector:
+
+![JST GHR-06V-S 6-pin connector](./images/jst6pin.png)
+
+Pins 2 and 5 (GND) and pins 1 and 6 (VDD) are connected internally.
+
+For better stability, the SDA and SCL lines require suitable pull-up resistors.
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [Sen5x Series Environmental sensor](/components/sensor/sen5x/)
+- [Absolute Humidity](/components/sensor/absolute_humidity/)
+- [SDS011 Particulate Matter Sensor](/components/sensor/sds011/)
+- [PMSX003 Particulate Matter Sensor](/components/sensor/pmsx003/)
+- [CCS811 eCO_2 and Volatile Organic Compound Sensor](/components/sensor/ccs811/)
+- [SCD4X CO₂, Temperature and Relative Humidity Sensor](/components/sensor/scd4x/)
+- [SPS30 Particulate Matter Sensor](/components/sensor/sps30/)
+- [SGP40 Volatile Organic Compound Sensor and SGP41 VOC and NOx Sensor](/components/sensor/sgp4x/)
+- <APIRef text="sen6x.h" path="sen6x/sen6x.h" />
