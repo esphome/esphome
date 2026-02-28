@@ -245,19 +245,8 @@ def number_schema(
     return _NUMBER_SCHEMA.extend(schema)
 
 
-@setup_entity("number")
-async def setup_number_core_(
-    var, config, *, min_value: float, max_value: float, step: float
-):
-    cg.add(var.traits.set_min_value(min_value))
-    cg.add(var.traits.set_max_value(max_value))
-    cg.add(var.traits.set_step(step))
-
-    # Only set if non-default to avoid bloating setup() function
-    # (mode_ is initialized to NUMBER_MODE_AUTO in the header)
-    if config[CONF_MODE] != NumberMode.NUMBER_MODE_AUTO:
-        cg.add(var.traits.set_mode(config[CONF_MODE]))
-
+@coroutine_with_priority(CoroPriority.AUTOMATION)
+async def _build_number_automations(var, config):
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(float, "x")], conf)
@@ -271,6 +260,22 @@ async def setup_number_core_(
             template_ = await cg.templatable(conf[CONF_BELOW], [(float, "x")], float)
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
+
+
+@setup_entity("number")
+async def setup_number_core_(
+    var, config, *, min_value: float, max_value: float, step: float
+):
+    cg.add(var.traits.set_min_value(min_value))
+    cg.add(var.traits.set_max_value(max_value))
+    cg.add(var.traits.set_step(step))
+
+    # Only set if non-default to avoid bloating setup() function
+    # (mode_ is initialized to NUMBER_MODE_AUTO in the header)
+    if config[CONF_MODE] != NumberMode.NUMBER_MODE_AUTO:
+        cg.add(var.traits.set_mode(config[CONF_MODE]))
+
+    CORE.add_job(_build_number_automations, var, config)
 
     setup_device_class(config)
     setup_unit_of_measurement(config)

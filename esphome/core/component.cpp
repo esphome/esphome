@@ -297,10 +297,6 @@ void Component::mark_failed() {
   // Also remove from loop since failed components shouldn't loop
   App.disable_component_loop_(this);
 }
-void Component::set_component_state_(uint8_t state) {
-  this->component_state_ &= ~COMPONENT_STATE_MASK;
-  this->component_state_ |= state;
-}
 void Component::disable_loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
     ESP_LOGVV(TAG, "%s loop disabled", LOG_STR_ARG(this->get_component_log_str()));
