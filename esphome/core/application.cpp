@@ -79,24 +79,7 @@ static void insertion_sort_by_priority(Iterator first, Iterator last) {
   }
 }
 
-void Application::register_component_(Component *comp) {
-  if (comp == nullptr) {
-    ESP_LOGW(TAG, "Tried to register null component!");
-    return;
-  }
-
-  for (auto *c : this->components_) {
-    if (comp == c) {
-      ESP_LOGW(TAG, "Component %s already registered! (%p)", LOG_STR_ARG(c->get_component_log_str()), c);
-      return;
-    }
-  }
-  if (this->components_.size() >= ESPHOME_COMPONENT_COUNT) {
-    ESP_LOGE(TAG, "Cannot register component %s - at capacity!", LOG_STR_ARG(comp->get_component_log_str()));
-    return;
-  }
-  this->components_.push_back(comp);
-}
+void Application::register_component_(Component *comp) { this->components_.push_back(comp); }
 void Application::setup() {
   ESP_LOGI(TAG, "Running through setup()");
   ESP_LOGV(TAG, "Sorting components by setup priority");

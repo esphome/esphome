@@ -108,6 +108,9 @@ namespace esphome::socket {
 class Socket;
 }  // namespace esphome::socket
 
+// Forward declaration for friend access from codegen-generated setup()
+void setup();
+
 namespace esphome {
 
 // Teardown timeout constant (in milliseconds)
@@ -246,13 +249,6 @@ class Application {
 #endif
 
   /// Reserve space for components to avoid memory fragmentation
-
-  /// Register the component in this Application instance.
-  template<class C> C *register_component(C *c) {
-    static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
-    this->register_component_((Component *) c);
-    return c;
-  }
 
   /// Set up all the registered components. Call this at the end of your setup() function.
   void setup();
@@ -508,6 +504,7 @@ class Application {
  protected:
   friend Component;
   friend class socket::Socket;
+  friend void ::setup();
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
   /// Fast path for Socket::ready() via friendship - skips negative fd check.
