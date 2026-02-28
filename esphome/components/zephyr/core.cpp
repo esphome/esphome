@@ -16,7 +16,8 @@ static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 #endif
 
 void yield() { ::k_yield(); }
-uint32_t millis() { return k_ticks_to_ms_floor32(k_uptime_ticks()); }
+uint32_t millis() { return static_cast<uint32_t>(millis_64()); }
+uint64_t millis_64() { return static_cast<uint64_t>(k_uptime_get()); }
 uint32_t micros() { return k_ticks_to_us_floor32(k_uptime_ticks()); }
 void delayMicroseconds(uint32_t us) { ::k_usleep(us); }
 void delay(uint32_t ms) { ::k_msleep(ms); }

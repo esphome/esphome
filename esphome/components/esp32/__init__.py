@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_BOARD,
     CONF_COMPONENTS,
     CONF_DISABLED,
+    CONF_ENABLE_OTA_ROLLBACK,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
     CONF_IGNORE_EFUSE_CUSTOM_MAC,
@@ -90,7 +91,6 @@ CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
 CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
-CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_RELEASE = "release"
@@ -790,8 +790,15 @@ def _detect_variant(value):
             engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
             if engineering_sample is None:
                 _LOGGER.warning(
-                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3). "
-                    "If you have an early engineering sample (pre-rev3), set 'engineering_sample: true'."
+                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3).\n"
+                    "If you have an early engineering sample (pre-rev3), add this to your config:\n"
+                    "\n"
+                    "  esp32:\n"
+                    "    engineering_sample: true\n"
+                    "\n"
+                    "To check your chip revision, look for 'chip revision: vX.Y' in the boot log.\n"
+                    "Engineering samples will show a revision below v3.0.\n"
+                    "The 'debug:' component also reports the revision (e.g. Revision: 100 = v1.0, 300 = v3.0)."
                 )
             elif engineering_sample:
                 value[CONF_BOARD] = "esp32-p4-evboard"
@@ -883,10 +890,10 @@ def final_validate(config):
                 )
             )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if config[CONF_VARIANT] != VARIANT_ESP32S3:
+        if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
             errs.append(
                 cv.Invalid(
-                    f"'{CONF_EXECUTE_FROM_PSRAM}' is only supported on {VARIANT_ESP32S3} variant",
+                    f"'{CONF_EXECUTE_FROM_PSRAM}' is not available on this esp32 variant",
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
@@ -1258,21 +1265,15 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     This function runs in to_code() after all components have registered their socket needs.
     User-provided sdkconfig_options take precedence.
     """
-    from esphome.components.socket import KEY_SOCKET_CONSUMERS
+    from esphome.components.socket import get_socket_counts
 
     # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
     user_max_sockets = conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_LWIP_MAX_SOCKETS")
 
-    socket_consumers: dict[str, int] = CORE.data.get(KEY_SOCKET_CONSUMERS, {})
-    total_sockets = sum(socket_consumers.values())
-
-    # Early return if no sockets registered and no user override
-    if total_sockets == 0 and user_max_sockets is None:
-        return
-
-    components_list = ", ".join(
-        f"{name}={count}" for name, count in sorted(socket_consumers.items())
-    )
+    # CONFIG_LWIP_MAX_SOCKETS is a single VFS socket pool shared by all socket
+    # types (TCP clients, TCP listeners, and UDP). Include all three counts.
+    sc = get_socket_counts()
+    total_sockets = sc.tcp + sc.udp + sc.tcp_listen
 
     # User specified their own value - respect it but warn if insufficient
     if user_max_sockets is not None:
@@ -1281,22 +1282,23 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
             user_max_sockets,
         )
 
-        # Warn if user's value is less than what components need
-        if total_sockets > 0:
-            user_sockets_int = 0
-            with contextlib.suppress(ValueError, TypeError):
-                user_sockets_int = int(user_max_sockets)
+        user_sockets_int = 0
+        with contextlib.suppress(ValueError, TypeError):
+            user_sockets_int = int(user_max_sockets)
 
-            if user_sockets_int < total_sockets:
-                _LOGGER.warning(
-                    "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
-                    "needs %d sockets (registered: %s). You may experience socket "
-                    "exhaustion errors. Consider increasing to at least %d.",
-                    user_sockets_int,
-                    total_sockets,
-                    components_list,
-                    total_sockets,
-                )
+        if user_sockets_int < total_sockets:
+            _LOGGER.warning(
+                "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
+                "needs %d sockets (%d TCP + %d UDP + %d TCP_LISTEN). You may "
+                "experience socket exhaustion errors. Consider increasing to "
+                "at least %d.",
+                user_sockets_int,
+                total_sockets,
+                sc.tcp,
+                sc.udp,
+                sc.tcp_listen,
+                total_sockets,
+            )
         # User's value already added via sdkconfig_options processing
         return
 
@@ -1305,11 +1307,19 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     max_sockets = max(DEFAULT_MAX_SOCKETS, total_sockets)
 
     log_level = logging.INFO if max_sockets > DEFAULT_MAX_SOCKETS else logging.DEBUG
+    sock_min = " (min)" if max_sockets > total_sockets else ""
     _LOGGER.log(
         log_level,
-        "Setting CONFIG_LWIP_MAX_SOCKETS to %d (registered: %s)",
+        "Setting CONFIG_LWIP_MAX_SOCKETS to %d%s "
+        "(TCP=%d [%s], UDP=%d [%s], TCP_LISTEN=%d [%s])",
         max_sockets,
-        components_list,
+        sock_min,
+        sc.tcp,
+        sc.tcp_details,
+        sc.udp,
+        sc.udp_details,
+        sc.tcp_listen,
+        sc.tcp_listen_details,
     )
 
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
@@ -1617,8 +1627,13 @@ async def to_code(config):
     _configure_lwip_max_sockets(conf)
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
+        if variant == VARIANT_ESP32S3:
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
+        elif variant == VARIANT_ESP32P4:
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
+        else:
+            raise ValueError("Unhandled ESP32 variant")
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides

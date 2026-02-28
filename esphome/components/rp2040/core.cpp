@@ -5,15 +5,17 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
+#include "hardware/timer.h"
 #include "hardware/watchdog.h"
 
 namespace esphome {
 
 void HOT yield() { ::yield(); }
-uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
+uint64_t millis_64() { return time_us_64() / 1000ULL; }
+uint32_t HOT millis() { return static_cast<uint32_t>(millis_64()); }
 void HOT delay(uint32_t ms) { ::delay(ms); }
-uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
-void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
+uint32_t HOT micros() { return ::micros(); }
+void HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 void arch_restart() {
   watchdog_reboot(0, 0, 10);
   while (1) {
@@ -35,7 +37,7 @@ uint8_t progmem_read_byte(const uint8_t *addr) {
 const char *progmem_read_ptr(const char *const *addr) {
   return reinterpret_cast<const char *>(pgm_read_ptr(addr));  // NOLINT
 }
-uint32_t IRAM_ATTR HOT arch_get_cpu_cycle_count() { return ulMainGetRunTimeCounterValue(); }
+uint32_t HOT arch_get_cpu_cycle_count() { return ulMainGetRunTimeCounterValue(); }
 uint32_t arch_get_cpu_freq_hz() { return RP2040::f_cpu(); }
 
 }  // namespace esphome

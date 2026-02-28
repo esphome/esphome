@@ -375,7 +375,7 @@ json::SerializationBuffer<> WebServer::get_config_json() {
   JsonObject root = builder.root();
 
   root[ESPHOME_F("title")] = App.get_friendly_name().empty() ? App.get_name().c_str() : App.get_friendly_name().c_str();
-  char comment_buffer[ESPHOME_COMMENT_SIZE];
+  char comment_buffer[Application::ESPHOME_COMMENT_SIZE_MAX];
   App.get_comment_string(comment_buffer);
   root[ESPHOME_F("comment")] = comment_buffer;
 #if defined(USE_WEBSERVER_OTA_DISABLED) || !defined(USE_WEBSERVER_OTA)
@@ -385,6 +385,7 @@ json::SerializationBuffer<> WebServer::get_config_json() {
 #endif
   root[ESPHOME_F("log")] = this->expose_log_;
   root[ESPHOME_F("lang")] = "en";
+  root[ESPHOME_F("uptime")] = static_cast<uint32_t>(millis_64() / 1000);
 
   return builder.serialize();
 }
@@ -411,7 +412,12 @@ void WebServer::setup() {
 
   // doesn't need defer functionality - if the queue is full, the client JS knows it's alive because it's clearly
   // getting a lot of events
-  this->set_interval(10000, [this]() { this->events_.try_send_nodefer("", "ping", millis(), 30000); });
+  this->set_interval(10000, [this]() {
+    char buf[32];
+    auto uptime = static_cast<uint32_t>(millis_64() / 1000);
+    buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%u}", uptime);
+    this->events_.try_send_nodefer(buf, "ping", millis(), 30000);
+  });
 }
 void WebServer::loop() { this->events_.loop(); }
 
@@ -1484,6 +1490,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     parse_string_param_(request, ESPHOME_F("mode"), call, &decltype(call)::set_mode);
     parse_string_param_(request, ESPHOME_F("fan_mode"), call, &decltype(call)::set_fan_mode);
     parse_string_param_(request, ESPHOME_F("swing_mode"), call, &decltype(call)::set_swing_mode);
+    parse_string_param_(request, ESPHOME_F("preset"), call, &decltype(call)::set_preset);
 
     // Parse temperature parameters
     // static_cast needed to disambiguate overloaded setters (float vs optional<float>)
@@ -1524,7 +1531,7 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
     JsonArray opt = root[ESPHOME_F("modes")].to<JsonArray>();
     for (climate::ClimateMode m : traits.get_supported_modes())
       opt.add(PSTR_LOCAL(climate::climate_mode_to_string(m)));
-    if (!traits.get_supported_custom_fan_modes().empty()) {
+    if (traits.get_supports_fan_modes()) {
       JsonArray opt = root[ESPHOME_F("fan_modes")].to<JsonArray>();
       for (climate::ClimateFanMode m : traits.get_supported_fan_modes())
         opt.add(PSTR_LOCAL(climate::climate_fan_mode_to_string(m)));
@@ -1540,12 +1547,12 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
       for (auto swing_mode : traits.get_supported_swing_modes())
         opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
     }
-    if (traits.get_supports_presets() && obj->preset.has_value()) {
+    if (traits.get_supports_presets()) {
       JsonArray opt = root[ESPHOME_F("presets")].to<JsonArray>();
       for (climate::ClimatePreset m : traits.get_supported_presets())
         opt.add(PSTR_LOCAL(climate::climate_preset_to_string(m)));
     }
-    if (!traits.get_supported_custom_presets().empty() && obj->has_custom_preset()) {
+    if (!traits.get_supported_custom_presets().empty()) {
       JsonArray opt = root[ESPHOME_F("custom_presets")].to<JsonArray>();
       for (auto const &custom_preset : traits.get_supported_custom_presets())
         opt.add(custom_preset);
@@ -1585,6 +1592,11 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
         std::isnan(obj->current_temperature)
             ? "NA"
             : (value_accuracy_to_buf(temp_buf, obj->current_temperature, current_accuracy), temp_buf);
+  }
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY)) {
+    root[ESPHOME_F("current_humidity")] = std::isnan(obj->current_humidity)
+                                              ? "NA"
+                                              : (value_accuracy_to_buf(temp_buf, obj->current_humidity, 0), temp_buf);
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
