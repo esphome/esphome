@@ -528,10 +528,11 @@ void LD2450Component::handle_periodic_data_() {
     } else {
       direction = DIRECTION_STATIONARY;
     }
-    text_sensor::TextSensor *tsd = this->direction_text_sensors_[index];
-    const auto *dir_str = find_str(ld2450::DIRECTION_BY_UINT, direction);
-    if (tsd != nullptr && (!tsd->has_state() || tsd->get_state() != dir_str)) {
-      tsd->publish_state(dir_str);
+    if (this->direction_dedup_[index].next(direction)) {
+      text_sensor::TextSensor *tsd = this->direction_text_sensors_[index];
+      if (tsd != nullptr) {
+        tsd->publish_state(find_str(ld2450::DIRECTION_BY_UINT, direction));
+      }
     }
 #endif
 
