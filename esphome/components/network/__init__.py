@@ -21,7 +21,7 @@ CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 
 # Network priority tracking
 KEY_NETWORK_PRIORITY = "network_priority"
-VALID_NETWORK_TYPES = ["ethernet", "wifi"]
+VALID_NETWORK_TYPES = ["ethernet", "openthread", "wifi", "modem"]
 # Setup priority base values — first in list gets the highest priority
 NETWORK_PRIORITY_BASE = 300.0
 NETWORK_PRIORITY_STEP = 100.0
