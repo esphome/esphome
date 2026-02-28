@@ -501,7 +501,7 @@ class Application {
   void wake_loop_threadsafe();
 #endif
 
-#if defined(USE_WAKE_LOOP_THREADSAFE) && defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_LWIP_FAST_SELECT
   /// Wake the main event loop from an ISR.
   /// Uses vTaskNotifyGiveFromISR() — <1 us, ISR-safe.
   /// Only available on platforms with fast select (ESP32, LibreTiny).
