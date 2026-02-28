@@ -521,7 +521,7 @@ class Application {
 #endif
 #endif
 
-  inline void register_component_(Component *comp) { this->components_.push_back(comp); }
+  void register_component_(Component *comp);
 
   void calculate_looping_components_();
   void add_looping_components_by_state_(bool match_loop_done);
