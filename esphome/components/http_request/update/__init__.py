@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import update
+from esphome.components import ota, update
 import esphome.config_validation as cv
 from esphome.const import CONF_SOURCE
 
@@ -38,6 +38,6 @@ async def to_code(config):
 
     cg.add(var.set_source_url(config[CONF_SOURCE]))
 
-    cg.add_define("USE_OTA_STATE_CALLBACK")
+    ota.request_ota_state_listeners()
 
     await cg.register_component(var, config)

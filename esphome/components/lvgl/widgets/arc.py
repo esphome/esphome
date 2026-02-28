@@ -85,11 +85,11 @@ class ArcType(NumberType):
             lv.arc_set_range(w.obj, min_value, max_value)
 
         await w.set_property(
-            CONF_START_ANGLE,
+            "bg_start_angle",
             await lv_angle_degrees.process(config.get(CONF_START_ANGLE)),
         )
         await w.set_property(
-            CONF_END_ANGLE, await lv_angle_degrees.process(config.get(CONF_END_ANGLE))
+            "bg_end_angle", await lv_angle_degrees.process(config.get(CONF_END_ANGLE))
         )
         await w.set_property(
             CONF_ROTATION, await lv_angle_degrees.process(config.get(CONF_ROTATION))

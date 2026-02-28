@@ -1,4 +1,13 @@
+esphome:
+  on_boot:
+    then:
+      - lambda: |-
+          // Test deprecated std::string overload still compiles
+          std::string key = "00112233445566778899aabbccddeeff";
+          id(dsmr_instance).set_decryption_key(key);
+
 dsmr:
+  id: dsmr_instance
   decryption_key: 00112233445566778899aabbccddeeff
   max_telegram_length: 1000
   request_pin: ${request_pin}

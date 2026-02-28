@@ -114,14 +114,22 @@ void StatsdComponent::update() {
     // This implies you can't explicitly set a gauge to a negative number without first setting it to zero.
     if (val < 0) {
       if (this->prefix_) {
-        out.append(str_sprintf("%s.", this->prefix_));
+        out.append(this->prefix_);
+        out.append(".");
       }
-      out.append(str_sprintf("%s:0|g\n", s.name));
+      out.append(s.name);
+      out.append(":0|g\n");
     }
     if (this->prefix_) {
-      out.append(str_sprintf("%s.", this->prefix_));
+      out.append(this->prefix_);
+      out.append(".");
     }
-    out.append(str_sprintf("%s:%f|g\n", s.name, val));
+    out.append(s.name);
+    // Buffer for ":" + value + "|g\n".
+    // %f with -DBL_MAX can produce up to 321 chars, plus ":" and "|g\n" (4) + null = 326
+    char val_buf[330];
+    buf_append_printf(val_buf, sizeof(val_buf), 0, ":%f|g\n", val);
+    out.append(val_buf);
 
     if (out.length() > SEND_THRESHOLD) {
       this->send_(&out);

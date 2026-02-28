@@ -83,14 +83,14 @@ void CST816Touchscreen::update_touches() {
 }
 
 void CST816Touchscreen::dump_config() {
-  ESP_LOGCONFIG(TAG, "CST816 Touchscreen:");
-  LOG_I2C_DEVICE(this);
-  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
-  LOG_PIN("  Reset Pin: ", this->reset_pin_);
   ESP_LOGCONFIG(TAG,
+                "CST816 Touchscreen:\n"
                 "  X Raw Min: %d, X Raw Max: %d\n"
                 "  Y Raw Min: %d, Y Raw Max: %d",
                 this->x_raw_min_, this->x_raw_max_, this->y_raw_min_, this->y_raw_max_);
+  LOG_I2C_DEVICE(this);
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
   const char *name;
   switch (this->chip_id_) {
     case CST716_CHIP_ID:

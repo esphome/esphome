@@ -94,13 +94,13 @@ def parse_symbol_line(line: str) -> tuple[str, str, int, str] | None:
         return None
 
     # Find section, size, and name
+    # Try each part as a potential section name
     for i, part in enumerate(parts):
-        if not part.startswith("."):
-            continue
-
+        # Skip parts that are clearly flags, addresses, or other metadata
+        # Sections start with '.' (standard ELF) or are known section names (Zephyr)
         section = map_section_name(part)
         if not section:
-            break
+            continue
 
         # Need at least size field after section
         if i + 1 >= len(parts):

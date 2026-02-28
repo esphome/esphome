@@ -3,16 +3,8 @@
 #include <cstdint>
 #include "gpio.h"
 
-#if defined(USE_ESP32_FRAMEWORK_ESP_IDF)
+#if defined(USE_ESP32)
 #include <esp_attr.h>
-#ifndef PROGMEM
-#define PROGMEM
-#endif
-
-#elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
-
-#include <esp_attr.h>
-
 #ifndef PROGMEM
 #define PROGMEM
 #endif
@@ -40,6 +32,7 @@ namespace esphome {
 
 void yield();
 uint32_t millis();
+uint64_t millis_64();
 uint32_t micros();
 void delay(uint32_t ms);
 void delayMicroseconds(uint32_t us);  // NOLINT(readability-identifier-naming)

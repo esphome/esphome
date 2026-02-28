@@ -14,6 +14,7 @@ esphome:
 wifi:
   use_psram: true
   min_auth_mode: WPA
+  post_connect_roaming: false
   manual_ip:
     static_ip: 192.168.1.100
     gateway: 192.168.1.1

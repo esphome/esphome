@@ -91,7 +91,5 @@ void HoneywellHIComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-float HoneywellHIComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace honeywell_hih_i2c
 }  // namespace esphome

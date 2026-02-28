@@ -51,6 +51,9 @@ if platform.system() == "Windows":
 
 import pty  # not available on Windows
 
+# Register assert rewrite for entity_utils so assertions have proper error messages
+pytest.register_assert_rewrite("tests.integration.entity_utils")
+
 
 def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
     """Get environment variables for PlatformIO with shared cache."""
@@ -194,6 +197,7 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
             "  platformio_options:\n"
             "    build_flags:\n"
             '      - "-DDEBUG"  # Enable assert() statements\n'
+            '      - "-DESPHOME_DEBUG_API"  # Enable API protocol asserts\n'
             '      - "-g"       # Add debug symbols',
         )
 
