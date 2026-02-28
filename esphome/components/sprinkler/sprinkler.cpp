@@ -89,21 +89,21 @@ void SprinklerValveOperator::loop() {
   uint32_t now = App.get_loop_component_start_time();
   switch (this->state_) {
     case STARTING:
-      if ((now - this->start_millis_.value()) > this->start_delay_) {  // NOLINT(bugprone-unchecked-optional-access)
+      if ((now - *this->start_millis_) > this->start_delay_) {  // NOLINT(bugprone-unchecked-optional-access)
         this->run_();  // start_delay_ has been exceeded, so ensure both valves are on and update the state
       }
       break;
 
     case ACTIVE:
-      if ((now - this->start_millis_.value()) >  // NOLINT(bugprone-unchecked-optional-access)
+      if ((now - *this->start_millis_) >  // NOLINT(bugprone-unchecked-optional-access)
           (this->start_delay_ + this->run_duration_)) {
         this->stop();  // start_delay_ + run_duration_ has been exceeded, start shutting down
       }
       break;
 
     case STOPPING:
-      if ((now - this->stop_millis_.value()) > this->stop_delay_) {  // NOLINT(bugprone-unchecked-optional-access)
-        this->kill_();  // stop_delay_has been exceeded, ensure all valves are off
+      if ((now - *this->stop_millis_) > this->stop_delay_) {  // NOLINT(bugprone-unchecked-optional-access)
+        this->kill_();                                        // stop_delay_has been exceeded, ensure all valves are off
       }
       break;
 
