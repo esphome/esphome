@@ -500,6 +500,16 @@ class Application {
   /// On other platforms: uses UDP loopback socket
   void wake_loop_threadsafe();
 #endif
+
+#if defined(USE_WAKE_LOOP_THREADSAFE) && defined(USE_LWIP_FAST_SELECT)
+  /// Wake the main event loop from an ISR.
+  /// Uses vTaskNotifyGiveFromISR() — <1 us, ISR-safe.
+  /// Only available on platforms with fast select (ESP32, LibreTiny).
+  /// @param pxHigherPriorityTaskWoken Set to pdTRUE if a context switch is needed.
+  static void IRAM_ATTR wake_loop_isrsafe(int *pxHigherPriorityTaskWoken) {
+    esphome_lwip_wake_main_loop_from_isr(pxHigherPriorityTaskWoken);
+  }
+#endif
 #endif
 
  protected:
