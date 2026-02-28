@@ -37,8 +37,8 @@ void EndstopCover::control(const CoverCall &call) {
       }
     }
   }
-  if (call.get_position().has_value()) {
-    auto pos = *call.get_position();
+  if (auto opt_pos = call.get_position(); opt_pos.has_value()) {
+    auto pos = *opt_pos;
     if (pos == this->position) {
       // already at target
     } else {

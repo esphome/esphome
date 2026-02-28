@@ -18,12 +18,12 @@ fan::FanTraits BinaryFan::get_traits() {
   return fan::FanTraits(this->oscillating_ != nullptr, false, this->direction_ != nullptr, 0);
 }
 void BinaryFan::control(const fan::FanCall &call) {
-  if (call.get_state().has_value())
-    this->state = *call.get_state();
-  if (call.get_oscillating().has_value())
-    this->oscillating = *call.get_oscillating();
-  if (call.get_direction().has_value())
-    this->direction = *call.get_direction();
+  if (auto val = call.get_state(); val.has_value())
+    this->state = *val;
+  if (auto val = call.get_oscillating(); val.has_value())
+    this->oscillating = *val;
+  if (auto val = call.get_direction(); val.has_value())
+    this->direction = *val;
 
   this->write_state_();
   this->publish_state();

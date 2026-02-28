@@ -485,8 +485,8 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 void DaikinArcClimate::control(const climate::ClimateCall &call) {
-  if (call.get_target_humidity().has_value()) {
-    this->target_humidity = *call.get_target_humidity();
+  if (auto val = call.get_target_humidity(); val.has_value()) {
+    this->target_humidity = *val;
   }
   climate_ir::ClimateIR::control(call);
 }
