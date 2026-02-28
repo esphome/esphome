@@ -10,7 +10,7 @@ from esphome.components.i2s_audio import (
     register_i2s_audio_component,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_NAME, CONF_PORT
+from esphome.const import CONF_AUDIO_DAC, CONF_NAME, CONF_PORT
 from esphome.core import CORE
 
 CODEOWNERS = ["@luar123"]
@@ -19,7 +19,6 @@ DEPENDENCIES = ["esp32", "i2s_audio"]
 AUTO_LOAD = ["socket"]
 
 CONF_HOSTNAME = "hostname"
-CONF_AUDIO_DAC = "audio_dac"
 CONF_MUTE_PIN = "mute_pin"
 
 SNAPCLIENT_GIT_VERSION = "5300808b590ca131e57a4f3a664946b97174a1fe"

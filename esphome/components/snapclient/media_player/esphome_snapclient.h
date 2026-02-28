@@ -17,11 +17,11 @@
 namespace esphome {
 namespace snapclient {
 
-typedef struct audioDACdata_s {
+using audioDACdata_t = struct audioDACdata_s {
   bool playerMute;
   bool stateMute;
   int volume;
-} audioDACdata_t;
+};
 
 static const char *const TAG = "snapclient";
 
@@ -46,7 +46,7 @@ class SnapClientComponent : public i2s_audio::I2SAudioOut, public media_player::
   player_state_e player_state{IDLE};
 
  protected:
-  media_player::MediaPlayerState get_state_from_player_state_(player_state_e state);
+  media_player::MediaPlayerState get_state_from_player_state(player_state_e state);
   void control(const media_player::MediaPlayerCall &call) override;
 
   void set_mute_(bool mute);
