@@ -9,51 +9,45 @@ import subprocess
 
 from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE
 from esphome.core import CORE, EsphomeError
+from esphome.espidf_framework import check_esp_idf_install, get_framework_env
 
 _LOGGER = logging.getLogger(__name__)
 
+# Caches
+_esphome_esp_idf_paths_cache = {}
+_idf_env_cache = {}
 
-def _get_idf_path() -> Path | None:
+
+def _get_esphome_esp_idf_paths(
+    version: str | None = None,
+) -> tuple[os.PathLike, os.PathLike]:
+    if version not in _esphome_esp_idf_paths_cache:
+        _esphome_esp_idf_paths_cache[version] = check_esp_idf_install(version)
+    return _esphome_esp_idf_paths_cache[version]
+
+
+def _get_idf_path(version: str | None = None) -> Path | None:
     """Get IDF_PATH from environment or common locations."""
-    # Check environment variable first
+    # Use provided IDF framework if available
     if "IDF_PATH" in os.environ:
-        path = Path(os.environ["IDF_PATH"])
-        if path.is_dir():
-            return path
-
-    # Check common installation locations
-    common_paths = [
-        Path.home() / "esp" / "esp-idf",
-        Path.home() / ".espressif" / "esp-idf",
-        Path("/opt/esp-idf"),
-    ]
-
-    for path in common_paths:
-        if path.is_dir() and (path / "tools" / "idf.py").is_file():
-            return path
-
-    return None
+        return Path(os.environ["IDF_PATH"])
+    return Path(_get_esphome_esp_idf_paths(version)[0])
 
 
-def _get_idf_env() -> dict[str, str]:
+def _get_idf_env(version: str | None = None) -> dict[str, str]:
     """Get environment variables needed for ESP-IDF build.
 
     Requires the user to have sourced export.sh before running esphome.
     """
-    env = os.environ.copy()
+    if version not in _idf_env_cache:
+        _idf_env_cache[version] = os.environ
 
-    idf_path = _get_idf_path()
-    if idf_path is None:
-        raise EsphomeError(
-            "ESP-IDF not found. Please install ESP-IDF and source export.sh:\n"
-            "  git clone -b v5.3.2 --recursive https://github.com/espressif/esp-idf.git ~/esp-idf\n"
-            "  cd ~/esp-idf && ./install.sh\n"
-            "  source ~/esp-idf/export.sh\n"
-            "See: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/"
-        )
-
-    env["IDF_PATH"] = str(idf_path)
-    return env
+        # Use provided IDF framework if available
+        if "IDF_PATH" not in os.environ:
+            _idf_env_cache[version] |= get_framework_env(
+                *_get_esphome_esp_idf_paths(version)
+            )
+    return _idf_env_cache[version]
 
 
 def run_idf_py(
@@ -65,9 +59,10 @@ def run_idf_py(
         raise EsphomeError("ESP-IDF not found")
 
     env = _get_idf_env()
+    python_executable = shutil.which("python", path=env.get("PATH", None))
     idf_py = idf_path / "tools" / "idf.py"
 
-    cmd = ["python", str(idf_py)] + list(args)
+    cmd = [python_executable, str(idf_py)] + list(args)
 
     if cwd is None:
         cwd = CORE.build_path
@@ -236,8 +231,11 @@ def create_factory_bin() -> bool:
     output_path = get_factory_firmware_path()
     chip = flash_data.get("extra_esptool_args", {}).get("chip", "esp32")
 
+    env = _get_idf_env()
+    python_executable = shutil.which("python", path=env.get("PATH", None))
+
     cmd = [
-        "python",
+        python_executable,
         "-m",
         "esptool",
         "--chip",
@@ -250,7 +248,7 @@ def create_factory_bin() -> bool:
     ] + sections
 
     _LOGGER.info("Creating factory.bin...")
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, env=env, capture_output=True, text=True, check=False)
 
     if result.returncode != 0:
         _LOGGER.error("Failed to create factory.bin: %s", result.stderr)
