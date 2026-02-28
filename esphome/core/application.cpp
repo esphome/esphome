@@ -542,8 +542,7 @@ void Application::enable_pending_loops_() {
     // Clear the pending flag and enable the loop
     component->pending_enable_loop_ = false;
     ESP_LOGVV(TAG, "%s loop enabled from ISR", LOG_STR_ARG(component->get_component_log_str()));
-    component->component_state_ &= ~COMPONENT_STATE_MASK;
-    component->component_state_ |= COMPONENT_STATE_LOOP;
+    component->set_component_state_(COMPONENT_STATE_LOOP);
 
     // Move to active section
     this->activate_looping_component_(i);
