@@ -19,15 +19,17 @@ namespace pn532 {
  * Robustly identify the UID type used by the NFC component.
  * Newer versions use StaticVector, older ones use std::vector.
  */
-template<typename T> struct nfc_uid_type_extractor { using type = std::vector<uint8_t>; };
-
-template<> struct nfc_uid_type_extractor<nfc::NfcTag> {
-  // Try to extract type from NfcTag::get_uid() return type
-  using type = typename std::remove_cv<
-      typename std::remove_reference<decltype(std::declval<nfc::NfcTag>().get_uid())>::type>::type;
+template<typename T> struct NfcUidTypeExtractor {
+  using type = std::vector<uint8_t>;
 };
 
-using NfcTagUid = typename nfc_uid_type_extractor<nfc::NfcTag>::type;
+template<> struct NfcUidTypeExtractor<nfc::NfcTag> {
+  // Try to extract type from NfcTag::get_uid() return type
+  using type = typename std::remove_cv<typename std::remove_reference<decltype(
+      std::declval<nfc::NfcTag>().get_uid())>::type>::type;
+};
+
+using NfcTagUid = typename NfcUidTypeExtractor<nfc::NfcTag>::type;
 
 static const uint8_t PN532_COMMAND_VERSION_DATA = 0x02;
 static const uint8_t PN532_COMMAND_SAMCONFIGURATION = 0x14;
@@ -151,7 +153,7 @@ class PN532 : public PollingComponent {
   std::vector<uint8_t> current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
   uint32_t rd_start_time_{0};
-  enum PN532ReadReady rd_ready_ { WOULDBLOCK };
+  enum PN532ReadReady rd_ready_{WOULDBLOCK};
   enum NfcTask {
     READ = 0,
     CLEAN,
