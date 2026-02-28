@@ -19,14 +19,12 @@ namespace pn532 {
  * Robustly identify the UID type used by the NFC component.
  * Newer versions use StaticVector, older ones use std::vector.
  */
-template<typename T> struct NfcUidTypeExtractor {
-  using type = std::vector<uint8_t>;
-};
+template<typename T> struct NfcUidTypeExtractor { using type = std::vector<uint8_t>; };
 
 template<> struct NfcUidTypeExtractor<nfc::NfcTag> {
   // Try to extract type from NfcTag::get_uid() return type
-  using type = typename std::remove_cv<typename std::remove_reference<decltype(
-      std::declval<nfc::NfcTag>().get_uid())>::type>::type;
+  using type = typename std::remove_cv<
+      typename std::remove_reference<decltype(std::declval<nfc::NfcTag>().get_uid())>::type>::type;
 };
 
 using NfcTagUid = typename NfcUidTypeExtractor<nfc::NfcTag>::type;

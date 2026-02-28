@@ -172,7 +172,8 @@ void PN532::update() {
         }
         return;
       }
-      this->consecutive_failures_ = 0;
+      this->consecutive_failures_ = 0;  // Reset consecutive failures on success
+      ESP_LOGV(TAG, "Health check passed");
     }
   }
 
