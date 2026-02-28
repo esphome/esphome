@@ -50,8 +50,8 @@ TriggeredAction = alarm_control_panel_ns.class_("TriggeredAction", automation.Ac
 ChimeAction = alarm_control_panel_ns.class_("ChimeAction", automation.Action)
 ReadyAction = alarm_control_panel_ns.class_("ReadyAction", automation.Action)
 
-AlarmControlPlanelIsArmedCondition = alarm_control_panel_ns.class_(
-    "AlarmControlPlanelIsArmedCondition", automation.Condition
+AlarmControlPanelIsArmedCondition = alarm_control_panel_ns.class_(
+    "AlarmControlPanelIsArmedCondition", automation.Condition
 )
 AlarmControlPanelIsArmedHomeCondition = alarm_control_panel_ns.class_(
     "AlarmControlPanelIsArmedHomeCondition", automation.Condition
@@ -306,7 +306,7 @@ async def alarm_action_chime_to_code(config, action_id, template_arg, args):
 )
 @automation.register_condition(
     "alarm_control_panel.ready",
-    AlarmControlPlanelIsArmedCondition,
+    AlarmControlPanelIsArmedCondition,
     ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
 )
 async def alarm_action_ready_to_code(config, action_id, template_arg, args):
@@ -316,7 +316,7 @@ async def alarm_action_ready_to_code(config, action_id, template_arg, args):
 
 @automation.register_condition(
     "alarm_control_panel.is_armed",
-    AlarmControlPlanelIsArmedCondition,
+    AlarmControlPanelIsArmedCondition,
     ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
 )
 async def alarm_control_panel_is_armed_to_code(

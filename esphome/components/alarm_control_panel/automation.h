@@ -95,9 +95,9 @@ template<typename... Ts> class TriggeredAction : public Action<Ts...> {
   AlarmControlPanel *alarm_control_panel_;
 };
 
-template<typename... Ts> class AlarmControlPlanelIsArmedCondition : public Condition<Ts...> {
+template<typename... Ts> class AlarmControlPanelIsArmedCondition : public Condition<Ts...> {
  public:
-  AlarmControlPlanelIsArmedCondition(AlarmControlPanel *parent) : parent_(parent) {}
+  AlarmControlPanelIsArmedCondition(AlarmControlPanel *parent) : parent_(parent) {}
   bool check(const Ts &...x) override {
     return this->parent_->is_state_armed(this->parent_->get_state()) ||
            this->parent_->get_state() == ACP_STATE_PENDING || this->parent_->get_state() == ACP_STATE_TRIGGERED;
