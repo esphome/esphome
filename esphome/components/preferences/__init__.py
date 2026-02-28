@@ -7,7 +7,7 @@ from esphome.coroutine import CoroPriority
 CODEOWNERS = ["@esphome/core"]
 
 preferences_ns = cg.esphome_ns.namespace("preferences")
-IntervalSyncer = preferences_ns.class_("IntervalSyncer", cg.Component)
+IntervalSyncer = preferences_ns.class_("IntervalSyncer", cg.PollingComponent)
 
 CONF_FLASH_WRITE_INTERVAL = "flash_write_interval"
 CONFIG_SCHEMA = cv.Schema(
