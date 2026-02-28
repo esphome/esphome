@@ -173,8 +173,6 @@ static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0x
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
-static inline int two_byte_to_int(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
-
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
@@ -363,15 +361,15 @@ void LD2410Component::handle_periodic_data_() {
 #ifdef USE_SENSOR
   SAFE_PUBLISH_SENSOR(
       this->moving_target_distance_sensor_,
-      ld2410::two_byte_to_int(this->buffer_data_[MOVING_TARGET_LOW], this->buffer_data_[MOVING_TARGET_HIGH]))
+      ld24xx::two_byte_to_uint16(this->buffer_data_[MOVING_TARGET_LOW], this->buffer_data_[MOVING_TARGET_HIGH]))
   SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY])
   SAFE_PUBLISH_SENSOR(
       this->still_target_distance_sensor_,
-      ld2410::two_byte_to_int(this->buffer_data_[STILL_TARGET_LOW], this->buffer_data_[STILL_TARGET_HIGH]));
+      ld24xx::two_byte_to_uint16(this->buffer_data_[STILL_TARGET_LOW], this->buffer_data_[STILL_TARGET_HIGH]));
   SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY]);
   SAFE_PUBLISH_SENSOR(
       this->detection_distance_sensor_,
-      ld2410::two_byte_to_int(this->buffer_data_[DETECT_DISTANCE_LOW], this->buffer_data_[DETECT_DISTANCE_HIGH]));
+      ld24xx::two_byte_to_uint16(this->buffer_data_[DETECT_DISTANCE_LOW], this->buffer_data_[DETECT_DISTANCE_HIGH]));
 
   if (engineering_mode) {
     /*
@@ -579,7 +577,7 @@ bool LD2410Component::handle_ack_data_() {
         None Duration: 33~34th bytes
       */
       updates.push_back(set_number_value(this->timeout_number_,
-                                         ld2410::two_byte_to_int(this->buffer_data_[32], this->buffer_data_[33])));
+                                         ld24xx::two_byte_to_uint16(this->buffer_data_[32], this->buffer_data_[33])));
       for (auto &update : updates) {
         update();
       }

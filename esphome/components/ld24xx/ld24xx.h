@@ -39,6 +39,9 @@
 
 namespace esphome::ld24xx {
 
+/// Parse a little-endian 16-bit unsigned value from two bytes.
+static inline uint16_t two_byte_to_uint16(uint8_t low, uint8_t high) { return ((uint16_t) high << 8) | low; }
+
 // Helper to find index of value in constexpr array
 template<size_t N> optional<size_t> find_index(const uint32_t (&arr)[N], uint32_t value) {
   for (size_t i = 0; i < N; i++) {
