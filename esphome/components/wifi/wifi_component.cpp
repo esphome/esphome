@@ -1094,8 +1094,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   }
 
 #ifdef USE_WIFI_WPA2_EAP
-  if (ap.get_eap().has_value()) {
-    EAPAuth eap_config = ap.get_eap().value();
+  auto eap_opt = ap.get_eap();
+  if (eap_opt.has_value()) {
+    EAPAuth eap_config = *eap_opt;
     // clang-format off
     ESP_LOGV(
         TAG,
@@ -1129,8 +1130,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
     ESP_LOGV(TAG, "  Channel not set");
   }
 #ifdef USE_WIFI_MANUAL_IP
-  if (ap.get_manual_ip().has_value()) {
-    ManualIP m = *ap.get_manual_ip();
+  auto manual_ip = ap.get_manual_ip();
+  if (manual_ip.has_value()) {
+    ManualIP m = *manual_ip;
     char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
