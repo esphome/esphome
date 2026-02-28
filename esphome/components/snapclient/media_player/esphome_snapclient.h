@@ -5,6 +5,7 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
+#include "esphome/components/media_player/media_player.h"
 #include "esphome/components/i2s_audio/i2s_audio.h"
 #include "esphome/core/gpio.h"
 #include "player.h"
@@ -24,33 +25,47 @@ typedef struct audioDACdata_s {
 
 static const char *const TAG = "snapclient";
 
-class SnapClientComponent : public i2s_audio::I2SAudioOut, public Component {
+class SnapClientComponent : public i2s_audio::I2SAudioOut, public media_player::MediaPlayer, public Component {
  public:
   void set_mute_pin(GPIOPin *mute_pin) { this->mute_pin_ = mute_pin; }
   void setup() override;
   void loop() override;
   // void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  float get_setup_priority() const override { return setup_priority::LATE; }
   void set_dout_pin(uint8_t pin) { this->dout_pin_ = pin; }
 #ifdef USE_AUDIO_DAC
   void set_audio_dac(audio_dac::AudioDac *audio_dac) { this->audio_dac_ = audio_dac; }
 #endif
-  bool get_mute_state() { return this->mute_state_; }
-  void set_config(std::string name, std::string host, int port) {
-    this->name_ = std::move(name);
-    this->host_ = std::move(host);
-    this->port_ = port;
-  }
+
+  media_player::MediaPlayerTraits get_traits() override;
+  bool is_muted() const override { return this->mute_state_; }
+
   void set_mute_from_isr(bool mute, bool set_state);
   void set_volume_from_isr(int volume);
   SemaphoreHandle_t playerStateChangedMutex;
-  player_state_e state{IDLE};
+  player_state_e player_state{IDLE};
 
  protected:
+  media_player::MediaPlayerState get_state_from_player_state_(player_state_e state);
+  void control(const media_player::MediaPlayerCall &call) override;
+
+  void set_mute_(bool mute);
+  void set_volume_(float volume, bool publish = true);
+
   void dac_control_();
-  std::string name_;
-  std::string host_;
-  int port_;
+  bool has_lock_{false};
+  bool lock_() {
+    if (!this->has_lock_ && this->parent_->try_lock()) {
+      this->has_lock_ = true;
+    }
+    return this->has_lock_;
+  }
+  void unlock_() {
+    if (this->has_lock_) {
+      this->parent_->unlock();
+      this->has_lock_ = false;
+    }
+  }
   float volume_{1.0f};
   bool mute_state_{true};
   GPIOPin *mute_pin_{nullptr};

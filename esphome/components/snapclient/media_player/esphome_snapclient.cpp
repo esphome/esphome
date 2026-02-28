@@ -4,6 +4,10 @@
 #include "esphome_snapclient.h"
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
+#include "esphome/components/media_player/media_player.h"
+#ifdef USE_WIFI
+#include "esphome/components/wifi/wifi_component.h"
+#endif
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -15,8 +19,7 @@
 #include "snapclient.h"
 #include "player.h"
 
-namespace esphome {
-namespace snapclient {
+namespace esphome::snapclient {
 
 SnapClientComponent *global_snapclient = nullptr;
 
@@ -33,7 +36,7 @@ static void player_state_changed() {
 }
 
 void SnapClientComponent::setup() {
-  if (!this->parent_->try_lock()) {
+  if (!this->lock_()) {
     this->mark_failed();
     return;
   }
@@ -77,15 +80,37 @@ void SnapClientComponent::loop() {
 
   if (xSemaphoreTake(this->playerStateChangedMutex, 0) == pdTRUE) {
     player_state_e state_new = get_player_state();
-    if (state_new != this->state) {
-      ESP_LOGI(TAG, "Player state changed: %d -> %d", this->state, state_new);
+    if (state_new != this->player_state) {
+      ESP_LOGD(TAG, "Player state changed: %d -> %d", this->player_state, state_new);
       if (state_new == PAUSED) {
-        this->parent_->unlock();
-      } else if (this->state == PAUSED && !this->parent_->try_lock()) {
+        this->unlock_();
+      } else if (this->player_state == PAUSED && !this->lock_()) {
         pause_player(true);
       }
-      this->state = state_new;
+#ifdef USE_WIFI
+      if (state_new == PLAYING) {
+        wifi::global_wifi_component->request_high_performance();
+      } else {
+        wifi::global_wifi_component->release_high_performance();
+      }
+#endif
+      this->player_state = state_new;
+      this->state = this->get_state_from_player_state_(state_new);
+      this->publish_state();
     }
+  }
+}
+
+media_player::MediaPlayerState SnapClientComponent::get_state_from_player_state_(player_state_e state) {
+  switch (state) {
+    case IDLE:
+      return media_player::MEDIA_PLAYER_STATE_IDLE;
+    case PLAYING:
+      return media_player::MEDIA_PLAYER_STATE_PLAYING;
+    case PAUSED:
+      return media_player::MEDIA_PLAYER_STATE_PAUSED;
+    default:
+      return media_player::MEDIA_PLAYER_STATE_NONE;
   }
 }
 
@@ -147,8 +172,73 @@ void SnapClientComponent::set_volume_from_isr(int volume) {
   xSemaphoreGive(this->audio_dac_semaphore_);
 }
 
-}  // namespace snapclient
-}  // namespace esphome
+void SnapClientComponent::set_mute_(bool mute) {
+  // send mute to snapserver
+}
+
+void SnapClientComponent::set_volume_(float volume, bool publish) {
+  // send volume to snapserver
+}
+
+void SnapClientComponent::control(const media_player::MediaPlayerCall &call) {
+  media_player::MediaPlayerState play_state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+
+  if (call.get_volume().has_value()) {
+    this->set_volume_(call.get_volume().value());
+  }
+  if (call.get_command().has_value()) {
+    switch (call.get_command().value()) {
+      case media_player::MEDIA_PLAYER_COMMAND_MUTE:
+        this->set_mute_(true);
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
+        this->set_mute_(false);
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP: {
+        break;
+      }
+      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN: {
+        break;
+      }
+      default:
+        break;
+    }
+    switch (call.get_command().value()) {
+      case media_player::MEDIA_PLAYER_COMMAND_PLAY:
+        if (this->lock_())
+          pause_player(false);
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_PAUSE:
+        pause_player(true);
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_STOP:
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
+        if (this->player_state == PAUSED) {
+          if (this->lock_())
+            pause_player(false);
+        } else {
+          pause_player(true);
+        }
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+media_player::MediaPlayerTraits SnapClientComponent::get_traits() {
+  auto traits = media_player::MediaPlayerTraits();
+  traits.clear_feature_flags(
+      media_player::MediaPlayerEntityFeature::PLAY_MEDIA | media_player::MediaPlayerEntityFeature::BROWSE_MEDIA |
+      media_player::MediaPlayerEntityFeature::STOP | media_player::MediaPlayerEntityFeature::VOLUME_SET |
+      media_player::MediaPlayerEntityFeature::VOLUME_MUTE | media_player::MediaPlayerEntityFeature::MEDIA_ANNOUNCE);
+  traits.add_feature_flags(media_player::MediaPlayerEntityFeature::PLAY |
+                           media_player::MediaPlayerEntityFeature::PAUSE);
+  return traits;
+};
+
+}  // namespace esphome::snapclient
 
 #endif
 #endif

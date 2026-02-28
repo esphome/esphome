@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import audio_dac, socket
+from esphome.components import audio_dac, media_player, socket, wifi
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.i2s_audio import (
     CONF_I2S_DOUT_PIN,
@@ -10,7 +10,7 @@ from esphome.components.i2s_audio import (
     register_i2s_audio_component,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME, CONF_PORT
+from esphome.const import CONF_NAME, CONF_PORT
 from esphome.core import CORE
 
 CODEOWNERS = ["@luar123"]
@@ -22,12 +22,12 @@ CONF_HOSTNAME = "hostname"
 CONF_AUDIO_DAC = "audio_dac"
 CONF_MUTE_PIN = "mute_pin"
 
-SNAPCLIENT_GIT_VERSION = "component"
+SNAPCLIENT_GIT_VERSION = "5300808b590ca131e57a4f3a664946b97174a1fe"
 SNAPCLIENT_GIT_REPO = "https://github.com/luar123/snapclient.git"
 
 snapclient_ns = cg.esphome_ns.namespace("snapclient")
 SnapClientComponent = snapclient_ns.class_(
-    "SnapClientComponent", cg.Component, I2SAudioOut
+    "SnapClientComponent", cg.Component, media_player.MediaPlayer, I2SAudioOut
 )
 
 
@@ -39,11 +39,14 @@ def _consume_sockets(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    i2s_audio_component_schema(
-        SnapClientComponent,
-        default_sample_rate=44100,
-        default_channel=CONF_STEREO,
-        default_bits_per_sample="16bit",
+    media_player.media_player_schema(SnapClientComponent)
+    .extend(
+        i2s_audio_component_schema(
+            SnapClientComponent,
+            default_sample_rate=44100,
+            default_channel=CONF_STEREO,
+            default_bits_per_sample="16bit",
+        )
     )
     .extend(
         {
@@ -91,17 +94,13 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_SNAPSERVER_USE_MDNS", False)
     add_idf_sdkconfig_option("CONFIG_SNAPCLIENT_NAME", config[CONF_NAME])
     add_idf_sdkconfig_option("CONFIG_FREERTOS_TASK_NOTIFICATION_ARRAY_ENTRIES", 2)
-    # add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", True)
-    # add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_CORE_LOCKING", False)
 
-    # fix for esp-idf 5.4
-    # cg.add_build_flag("-Wno-error=incompatible-pointer-types")
+    wifi.enable_runtime_power_save_control()
 
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await media_player.new_media_player(config)
     await cg.register_component(var, config)
     await register_i2s_audio_component(var, config)
     cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
-    cg.add(var.set_config(config[CONF_NAME], config[CONF_HOSTNAME], config[CONF_PORT]))
     if CONF_MUTE_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_MUTE_PIN])
         cg.add(var.set_mute_pin(pin))
