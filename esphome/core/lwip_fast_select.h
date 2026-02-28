@@ -30,8 +30,8 @@ void esphome_lwip_wake_main_loop(void);
 
 /// Wake the main loop task from an ISR — costs <1 us.
 /// ISR-safe variant using vTaskNotifyGiveFromISR().
-/// @param pxHigherPriorityTaskWoken Set to pdTRUE if a context switch is needed.
-void esphome_lwip_wake_main_loop_from_isr(int *pxHigherPriorityTaskWoken);
+/// @param px_higher_priority_task_woken Set to pdTRUE if a context switch is needed.
+void esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task_woken);
 
 #ifdef __cplusplus
 }

@@ -206,7 +206,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   // Register ISR callback to wake the main loop when UART data arrives.
   // The callback runs in ISR context and uses vTaskNotifyGiveFromISR() to
   // wake the main loop task directly — no queue or FreeRTOS task needed.
-  uart_set_select_notif_callback(this->uart_num_, IDFUARTComponent::uart_rx_isr_callback_);
+  uart_set_select_notif_callback(this->uart_num_, IDFUARTComponent::uart_rx_isr_callback);
 #endif  // USE_UART_WAKE_LOOP_ON_RX
 
   if (dump_config) {
@@ -339,8 +339,8 @@ void IDFUARTComponent::check_logger_conflict() {}
 #ifdef USE_UART_WAKE_LOOP_ON_RX
 // ISR callback invoked by the ESP-IDF UART driver when data arrives.
 // Wakes the main loop directly via vTaskNotifyGiveFromISR() — no queue or task needed.
-void IRAM_ATTR IDFUARTComponent::uart_rx_isr_callback_(uart_port_t uart_num, uart_select_notif_t uart_select_notif,
-                                                       BaseType_t *task_woken) {
+void IRAM_ATTR IDFUARTComponent::uart_rx_isr_callback(uart_port_t uart_num, uart_select_notif_t uart_select_notif,
+                                                      BaseType_t *task_woken) {
   if (uart_select_notif == UART_SELECT_READ_NOTIF) {
     Application::wake_loop_isrsafe(task_woken);
   }

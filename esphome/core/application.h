@@ -505,9 +505,9 @@ class Application {
   /// Wake the main event loop from an ISR.
   /// Uses vTaskNotifyGiveFromISR() — <1 us, ISR-safe.
   /// Only available on platforms with fast select (ESP32, LibreTiny).
-  /// @param pxHigherPriorityTaskWoken Set to pdTRUE if a context switch is needed.
-  static void IRAM_ATTR wake_loop_isrsafe(int *pxHigherPriorityTaskWoken) {
-    esphome_lwip_wake_main_loop_from_isr(pxHigherPriorityTaskWoken);
+  /// @param px_higher_priority_task_woken Set to pdTRUE if a context switch is needed.
+  static void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
+    esphome_lwip_wake_main_loop_from_isr(px_higher_priority_task_woken);
   }
 #endif
 #endif

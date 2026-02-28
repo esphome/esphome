@@ -60,8 +60,7 @@ class IDFUARTComponent : public UARTComponent, public Component {
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
   // ISR callback for UART RX data notification — wakes the main loop directly.
-  static void uart_rx_isr_callback_(uart_port_t uart_num, uart_select_notif_t uart_select_notif,
-                                    BaseType_t *task_woken);
+  static void uart_rx_isr_callback(uart_port_t uart_num, uart_select_notif_t uart_select_notif, BaseType_t *task_woken);
 #endif  // USE_UART_WAKE_LOOP_ON_RX
 };
 
