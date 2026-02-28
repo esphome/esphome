@@ -106,6 +106,8 @@ class PN532 : public PollingComponent {
   void send_nack_();
   bool reinit_();
   bool sam_configured_{false};
+  uint8_t reinit_attempts_{0};
+  uint32_t last_reinit_attempt_{0};
   uint8_t consecutive_failures_{0};
   uint8_t max_failed_checks_{3};
   bool auto_reset_{true};

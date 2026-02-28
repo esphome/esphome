@@ -112,9 +112,17 @@ void PN532::update() {
     obj->on_scan_end();
 
   if (!this->sam_configured_) {
+    uint32_t now = millis();
+    if (this->reinit_attempts_ > 0 && now - this->last_reinit_attempt_ < 100) {
+      // Too soon for another re-init attempt
+      return;
+    }
+    this->last_reinit_attempt_ = now;
+
     if (this->reinit_()) {
       this->status_clear_warning();
       this->consecutive_failures_ = 0;
+      this->reinit_attempts_ = 0;
       // Restore normal update interval if we were in backoff
       if (this->backoff_ms_ != 0) {
         this->backoff_ms_ = 0;
@@ -124,6 +132,10 @@ void PN532::update() {
       this->requested_read_ = true;
     } else {
       this->status_set_warning();
+      if (++this->reinit_attempts_ >= 5) {
+        ESP_LOGW(TAG, "PN532 re-initialisation failed after 5 attempts");
+        this->reinit_attempts_ = 0;
+      }
     }
     return;
   }
@@ -141,6 +153,7 @@ void PN532::update() {
           this->consecutive_failures_ = 0;
           if (this->auto_reset_) {
             this->sam_configured_ = false;
+            this->reinit_attempts_ = 0;
           }
         }
         return;
@@ -153,6 +166,7 @@ void PN532::update() {
           this->consecutive_failures_ = 0;
           if (this->auto_reset_) {
             this->sam_configured_ = false;
+            this->reinit_attempts_ = 0;
           }
         }
         return;
@@ -171,9 +185,8 @@ void PN532::update() {
     ESP_LOGW(TAG, "Requesting tag read failed!");
     this->status_set_warning();
     // Exponential backoff: 2s → 4s → 8s → ... → 60s max
-    uint32_t new_backoff = (this->backoff_ms_ == 0)
-        ? this->user_update_interval_ * 2
-        : std::min(this->backoff_ms_ * 2, (uint32_t) 60000);
+    uint32_t new_backoff =
+        (this->backoff_ms_ == 0) ? this->user_update_interval_ * 2 : std::min(this->backoff_ms_ * 2, (uint32_t) 60000);
     if (new_backoff != this->backoff_ms_) {
       this->backoff_ms_ = new_backoff;
       this->set_update_interval(this->backoff_ms_);
@@ -184,9 +197,9 @@ void PN532::update() {
       this->consecutive_failures_ = 0;
       if (this->auto_reset_) {
         this->sam_configured_ = false;
+        this->reinit_attempts_ = 0;
       }
     }
-    return;
     return;
   }
 
@@ -516,21 +529,13 @@ bool PN532::write_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
 bool PN532::reinit_() {
   ESP_LOGW(TAG, "Attempting PN532 re-initialisation...");
 
-  // PN532 may still be booting — retry version command up to 5 times
-  bool version_ok = false;
-  for (int i = 0; i < 5; i++) {
-    delay(100);
-    if (this->write_command_({PN532_COMMAND_VERSION_DATA})) {
-      std::vector<uint8_t> ver;
-      if (this->read_response(PN532_COMMAND_VERSION_DATA, ver)) {
-        version_ok = true;
-        break;
-      }
-    }
-    ESP_LOGW(TAG, "Re-init: version attempt %d/5 failed", i + 1);
-  }
-  if (!version_ok)
+  if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
     return false;
+  }
+  std::vector<uint8_t> ver;
+  if (!this->read_response(PN532_COMMAND_VERSION_DATA, ver)) {
+    return false;
+  }
 
   if (!this->write_command_({PN532_COMMAND_SAMCONFIGURATION, 0x01, 0x14, 0x01})) {
     ESP_LOGW(TAG, "Re-init: SAM wakeup failed");
