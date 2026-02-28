@@ -256,7 +256,7 @@ void Application::process_dump_config_() {
 #endif
   }
 
-  this->components_[this->dump_config_at_]->call_dump_config();
+  this->components_[this->dump_config_at_]->call_dump_config_();
   this->dump_config_at_++;
 }
 
