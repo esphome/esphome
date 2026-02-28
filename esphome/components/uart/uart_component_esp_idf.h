@@ -3,11 +3,11 @@
 #ifdef USE_ESP32
 
 #include <driver/uart.h>
+#include "esphome/core/component.h"
+#include "uart_component.h"
 #ifdef USE_UART_WAKE_LOOP_ON_RX
 #include <driver/uart_select.h>
 #endif
-#include "esphome/core/component.h"
-#include "uart_component.h"
 
 namespace esphome::uart {
 
