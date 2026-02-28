@@ -470,10 +470,6 @@ const LogString *get_disconnect_reason_str(uint8_t reason) {
   return LOG_STR("Unspecified");
 }
 
-// TODO: This callback runs in ESP8266 system context with limited stack (~2KB).
-// All listener notifications should be deferred to wifi_loop_() via pending_ flags
-// to avoid stack overflow. Currently only connect_state is deferred; disconnect,
-// IP, and scan listeners still run in this context and should be migrated.
 void WiFiComponent::wifi_event_callback(System_Event_t *event) {
   switch (event->event) {
     case EVENT_STAMODE_CONNECTED: {
