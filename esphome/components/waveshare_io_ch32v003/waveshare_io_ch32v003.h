@@ -34,7 +34,9 @@ class WaveshareIOCH32V003Component : public Component,
   bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
 
+#ifdef USE_LOOP_PRIORITY
   float get_loop_priority() const override;
+#endif
 
   uint8_t mode_mask_{0x00};    // Mask for the pin mode - 1 means output, 0 means input
   uint8_t output_mask_{0x00};  // The mask to write as output state - 1 means HIGH, 0 means LOW

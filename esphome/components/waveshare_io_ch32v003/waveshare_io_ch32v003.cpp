@@ -157,7 +157,9 @@ float WaveshareIOCH32V003Component::get_setup_priority() const { return setup_pr
 
 // Run our loop() method very early in the loop, so that we cache read values
 // before other components call our digital_read() method.
+#ifdef USE_LOOP_PRIORITY
 float WaveshareIOCH32V003Component::get_loop_priority() const { return 9.0f; }  // Just after WIFI
+#endif
 
 void WaveshareIOCH32V003GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool WaveshareIOCH32V003GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) ^ this->inverted_; }
