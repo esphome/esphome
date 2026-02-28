@@ -32,6 +32,7 @@ namespace esphome {
 
 void yield();
 uint32_t millis();
+uint64_t millis_64();
 uint32_t micros();
 void delay(uint32_t ms);
 void delayMicroseconds(uint32_t us);  // NOLINT(readability-identifier-naming)

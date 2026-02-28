@@ -5,6 +5,7 @@
 #include <functional>
 #include <string>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
@@ -117,7 +118,9 @@ class Component {
    *
    * @return The loop priority of this component
    */
+#ifdef USE_LOOP_PRIORITY
   virtual float get_loop_priority() const;
+#endif
 
   void call();
 
@@ -288,7 +291,7 @@ class Component {
 
   void call_loop_();
   virtual void call_setup();
-  virtual void call_dump_config();
+  void call_dump_config_();
 
   /// Helper to set component state (clears state bits and sets new state)
   void set_component_state_(uint8_t state);

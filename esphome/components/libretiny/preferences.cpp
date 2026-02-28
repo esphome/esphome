@@ -8,8 +8,7 @@
 #include <cstring>
 #include <memory>
 
-namespace esphome {
-namespace libretiny {
+namespace esphome::libretiny {
 
 static const char *const TAG = "lt.preferences";
 
@@ -194,7 +193,9 @@ void setup_preferences() {
   global_preferences = &s_preferences;
 }
 
-}  // namespace libretiny
+}  // namespace esphome::libretiny
+
+namespace esphome {
 
 ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

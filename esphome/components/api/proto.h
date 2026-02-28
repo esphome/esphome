@@ -1,5 +1,6 @@
 #pragma once
 
+#include "api_pb2_defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -110,59 +111,78 @@ class ProtoVarInt {
 #endif
     if (len == 0)
       return {};
-
-    // Most common case: single-byte varint (values 0-127)
+    // Fast path: single-byte varints (0-127) are the most common case
+    // (booleans, small enums, field tags). Avoid loop overhead entirely.
     if ((buffer[0] & 0x80) == 0) {
       *consumed = 1;
       return ProtoVarInt(buffer[0]);
     }
-
-    // General case for multi-byte varints
-    // Since we know buffer[0]'s high bit is set, initialize with its value
-    uint64_t result = buffer[0] & 0x7F;
-    uint8_t bitpos = 7;
-
-    // A 64-bit varint is at most 10 bytes (ceil(64/7)). Reject overlong encodings
-    // to avoid undefined behavior from shifting uint64_t by >= 64 bits.
-    uint32_t max_len = std::min(len, uint32_t(10));
-
-    // Start from the second byte since we've already processed the first
-    for (uint32_t i = 1; i < max_len; i++) {
+    // 32-bit phase: process remaining bytes with native 32-bit shifts.
+    // Without USE_API_VARINT64: cover bytes 1-4 (shifts 7, 14, 21, 28) — the uint32_t
+    // shift at byte 4 (shift by 28) may lose bits 32-34, but those are always zero for valid uint32 values.
+    // With USE_API_VARINT64: cover bytes 1-3 (shifts 7, 14, 21) so parse_wide handles
+    // byte 4+ with full 64-bit arithmetic (avoids truncating values > UINT32_MAX).
+    uint32_t result32 = buffer[0] & 0x7F;
+#ifdef USE_API_VARINT64
+    uint32_t limit = std::min(len, uint32_t(4));
+#else
+    uint32_t limit = std::min(len, uint32_t(5));
+#endif
+    for (uint32_t i = 1; i < limit; i++) {
       uint8_t val = buffer[i];
-      result |= uint64_t(val & 0x7F) << uint64_t(bitpos);
-      bitpos += 7;
+      result32 |= uint32_t(val & 0x7F) << (i * 7);
       if ((val & 0x80) == 0) {
         *consumed = i + 1;
-        return ProtoVarInt(result);
+        return ProtoVarInt(result32);
       }
     }
-
-    return {};  // Incomplete or invalid varint
+    // 64-bit phase for remaining bytes (BLE addresses etc.)
+#ifdef USE_API_VARINT64
+    return parse_wide(buffer, len, consumed, result32);
+#else
+    return {};
+#endif
   }
+
+#ifdef USE_API_VARINT64
+ protected:
+  /// Continue parsing varint bytes 4-9 with 64-bit arithmetic.
+  /// Separated to keep 64-bit shift code (__ashldi3 on 32-bit platforms) out of the common path.
+  static optional<ProtoVarInt> parse_wide(const uint8_t *buffer, uint32_t len, uint32_t *consumed, uint32_t result32)
+      __attribute__((noinline));
+
+ public:
+#endif
 
   constexpr uint16_t as_uint16() const { return this->value_; }
   constexpr uint32_t as_uint32() const { return this->value_; }
-  constexpr uint64_t as_uint64() const { return this->value_; }
   constexpr bool as_bool() const { return this->value_; }
   constexpr int32_t as_int32() const {
     // Not ZigZag encoded
-    return static_cast<int32_t>(this->as_int64());
-  }
-  constexpr int64_t as_int64() const {
-    // Not ZigZag encoded
-    return static_cast<int64_t>(this->value_);
+    return static_cast<int32_t>(this->value_);
   }
   constexpr int32_t as_sint32() const {
     // with ZigZag encoding
     return decode_zigzag32(static_cast<uint32_t>(this->value_));
   }
+#ifdef USE_API_VARINT64
+  constexpr uint64_t as_uint64() const { return this->value_; }
+  constexpr int64_t as_int64() const {
+    // Not ZigZag encoded
+    return static_cast<int64_t>(this->value_);
+  }
   constexpr int64_t as_sint64() const {
     // with ZigZag encoding
     return decode_zigzag64(this->value_);
   }
+#endif
 
  protected:
+#ifdef USE_API_VARINT64
   uint64_t value_;
+#else
+  uint32_t value_;
+#endif
 };
 
 // Forward declarations for decode_to_message, encode_message and encode_packed_sint32
@@ -217,21 +237,26 @@ class Proto32Bit {
 
 class ProtoWriteBuffer {
  public:
-  ProtoWriteBuffer(std::vector<uint8_t> *buffer) : buffer_(buffer) {}
-  void write(uint8_t value) { this->buffer_->push_back(value); }
+  ProtoWriteBuffer(std::vector<uint8_t> *buffer) : buffer_(buffer), pos_(buffer->data() + buffer->size()) {}
+  ProtoWriteBuffer(std::vector<uint8_t> *buffer, size_t write_pos)
+      : buffer_(buffer), pos_(buffer->data() + write_pos) {}
   void encode_varint_raw(uint32_t value) {
     while (value > 0x7F) {
-      this->buffer_->push_back(static_cast<uint8_t>(value | 0x80));
+      this->debug_check_bounds_(1);
+      *this->pos_++ = static_cast<uint8_t>(value | 0x80);
       value >>= 7;
     }
-    this->buffer_->push_back(static_cast<uint8_t>(value));
+    this->debug_check_bounds_(1);
+    *this->pos_++ = static_cast<uint8_t>(value);
   }
   void encode_varint_raw_64(uint64_t value) {
     while (value > 0x7F) {
-      this->buffer_->push_back(static_cast<uint8_t>(value | 0x80));
+      this->debug_check_bounds_(1);
+      *this->pos_++ = static_cast<uint8_t>(value | 0x80);
       value >>= 7;
     }
-    this->buffer_->push_back(static_cast<uint8_t>(value));
+    this->debug_check_bounds_(1);
+    *this->pos_++ = static_cast<uint8_t>(value);
   }
   /**
    * Encode a field key (tag/wire type combination).
@@ -245,23 +270,18 @@ class ProtoWriteBuffer {
    *
    * Following https://protobuf.dev/programming-guides/encoding/#structure
    */
-  void encode_field_raw(uint32_t field_id, uint32_t type) {
-    uint32_t val = (field_id << 3) | (type & WIRE_TYPE_MASK);
-    this->encode_varint_raw(val);
-  }
+  void encode_field_raw(uint32_t field_id, uint32_t type) { this->encode_varint_raw((field_id << 3) | type); }
   void encode_string(uint32_t field_id, const char *string, size_t len, bool force = false) {
     if (len == 0 && !force)
       return;
 
     this->encode_field_raw(field_id, 2);  // type 2: Length-delimited string
     this->encode_varint_raw(len);
-
-    // Using resize + memcpy instead of insert provides significant performance improvement:
-    // ~10-11x faster for 16-32 byte strings, ~3x faster for 64-byte strings
-    // as it avoids iterator checks and potential element moves that insert performs
-    size_t old_size = this->buffer_->size();
-    this->buffer_->resize(old_size + len);
-    std::memcpy(this->buffer_->data() + old_size, string, len);
+    // Direct memcpy into pre-sized buffer — avoids push_back() per-byte capacity checks
+    // and vector::insert() iterator overhead. ~10-11x faster for 16-32 byte strings.
+    this->debug_check_bounds_(len);
+    std::memcpy(this->pos_, string, len);
+    this->pos_ += len;
   }
   void encode_string(uint32_t field_id, const std::string &value, bool force = false) {
     this->encode_string(field_id, value.data(), value.size(), force);
@@ -288,17 +308,26 @@ class ProtoWriteBuffer {
     if (!value && !force)
       return;
     this->encode_field_raw(field_id, 0);  // type 0: Varint - bool
-    this->buffer_->push_back(value ? 0x01 : 0x00);
+    this->debug_check_bounds_(1);
+    *this->pos_++ = value ? 0x01 : 0x00;
   }
-  void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
+  // noinline: 51 call sites; inlining causes net code growth vs a single out-of-line copy
+  __attribute__((noinline)) void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
       return;
 
     this->encode_field_raw(field_id, 5);  // type 5: 32-bit fixed32
-    this->write((value >> 0) & 0xFF);
-    this->write((value >> 8) & 0xFF);
-    this->write((value >> 16) & 0xFF);
-    this->write((value >> 24) & 0xFF);
+    this->debug_check_bounds_(4);
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    // Protobuf fixed32 is little-endian, so direct copy works
+    std::memcpy(this->pos_, &value, 4);
+    this->pos_ += 4;
+#else
+    *this->pos_++ = (value >> 0) & 0xFF;
+    *this->pos_++ = (value >> 8) & 0xFF;
+    *this->pos_++ = (value >> 16) & 0xFF;
+    *this->pos_++ = (value >> 24) & 0xFF;
+#endif
   }
   // NOTE: Wire type 1 (64-bit fixed: double, fixed64, sfixed64) is intentionally
   // not supported to reduce overhead on embedded systems. All ESPHome devices are
@@ -334,11 +363,20 @@ class ProtoWriteBuffer {
   }
   /// Encode a packed repeated sint32 field (zero-copy from vector)
   void encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values);
-  void encode_message(uint32_t field_id, const ProtoMessage &value);
+  /// Encode a nested message field (force=true for repeated, false for singular)
+  void encode_message(uint32_t field_id, const ProtoMessage &value, bool force = true);
   std::vector<uint8_t> *get_buffer() const { return buffer_; }
 
  protected:
+#ifdef ESPHOME_DEBUG_API
+  void debug_check_bounds_(size_t bytes, const char *caller = __builtin_FUNCTION());
+  void debug_check_encode_size_(uint32_t field_id, uint32_t expected, ptrdiff_t actual);
+#else
+  void debug_check_bounds_([[maybe_unused]] size_t bytes) {}
+#endif
+
   std::vector<uint8_t> *buffer_;
+  uint8_t *pos_;
 };
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -416,9 +454,11 @@ class ProtoMessage {
  public:
   virtual ~ProtoMessage() = default;
   // Default implementation for messages with no fields
-  virtual void encode(ProtoWriteBuffer buffer) const {}
+  virtual void encode(ProtoWriteBuffer &buffer) const {}
   // Default implementation for messages with no fields
   virtual void calculate_size(ProtoSize &size) const {}
+  // Convenience: calculate and return size directly (defined after ProtoSize)
+  uint32_t calculated_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   virtual const char *dump_to(DumpBuffer &out) const = 0;
   virtual const char *message_name() const { return "unknown"; }
@@ -877,6 +917,14 @@ class ProtoSize {
   }
 };
 
+// Implementation of methods that depend on ProtoSize being fully defined
+
+inline uint32_t ProtoMessage::calculated_size() const {
+  ProtoSize size;
+  this->calculate_size(size);
+  return size.get_size();
+}
+
 // Implementation of encode_packed_sint32 - must be after ProtoSize is defined
 inline void ProtoWriteBuffer::encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values) {
   if (values.empty())
@@ -897,30 +945,30 @@ inline void ProtoWriteBuffer::encode_packed_sint32(uint32_t field_id, const std:
 }
 
 // Implementation of encode_message - must be after ProtoMessage is defined
-inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessage &value) {
-  this->encode_field_raw(field_id, 2);  // type 2: Length-delimited message
-
+inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessage &value, bool force) {
   // Calculate the message size first
   ProtoSize msg_size;
   value.calculate_size(msg_size);
   uint32_t msg_length_bytes = msg_size.get_size();
 
-  // Calculate how many bytes the length varint needs
-  uint32_t varint_length_bytes = ProtoSize::varint(msg_length_bytes);
+  // Skip empty singular messages (matches add_message_field which skips when nested_size == 0)
+  // Repeated messages (force=true) are always encoded since an empty item is meaningful
+  if (msg_length_bytes == 0 && !force)
+    return;
 
-  // Reserve exact space for the length varint
-  size_t begin = this->buffer_->size();
-  this->buffer_->resize(this->buffer_->size() + varint_length_bytes);
+  this->encode_field_raw(field_id, 2);  // type 2: Length-delimited message
 
-  // Write the length varint directly
-  encode_varint_to_buffer(msg_length_bytes, this->buffer_->data() + begin);
+  // Write the length varint directly through pos_
+  this->encode_varint_raw(msg_length_bytes);
 
-  // Now encode the message content - it will append to the buffer
-  value.encode(*this);
-
+  // Encode nested message - pos_ advances directly through the reference
 #ifdef ESPHOME_DEBUG_API
-  // Verify that the encoded size matches what we calculated
-  assert(this->buffer_->size() == begin + varint_length_bytes + msg_length_bytes);
+  uint8_t *start = this->pos_;
+  value.encode(*this);
+  if (static_cast<uint32_t>(this->pos_ - start) != msg_length_bytes)
+    this->debug_check_encode_size_(field_id, msg_length_bytes, this->pos_ - start);
+#else
+  value.encode(*this);
 #endif
 }
 
