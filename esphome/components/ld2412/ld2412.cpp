@@ -192,7 +192,7 @@ static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0x
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
-static inline int two_byte_to_int(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
+static inline int two_byte_to_int(uint8_t firstbyte, uint8_t secondbyte) { return (secondbyte << 8) | firstbyte; }
 
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
