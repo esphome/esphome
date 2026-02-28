@@ -225,4 +225,12 @@ void esphome_lwip_wake_main_loop(void) {
   }
 }
 
+// Wake the main loop from an ISR. ISR-safe variant.
+void IRAM_ATTR esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task_woken) {
+  TaskHandle_t task = s_main_loop_task;
+  if (task != NULL) {
+    vTaskNotifyGiveFromISR(task, (BaseType_t *) px_higher_priority_task_woken);
+  }
+}
+
 #endif  // defined(USE_ESP32) || defined(USE_LIBRETINY)
