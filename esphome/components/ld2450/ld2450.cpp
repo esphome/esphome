@@ -168,15 +168,6 @@ static inline int16_t hex_to_signed_int(const uint8_t *buffer, uint8_t offset) {
   return dec_val;
 }
 
-static inline float calculate_angle(float base, float hypotenuse) {
-  if (base < 0.0f || hypotenuse <= 0.0f) {
-    return 0.0f;
-  }
-  float angle_radians = acosf(base / hypotenuse);
-  float angle_degrees = angle_radians * (180.0f / std::numbers::pi_v<float>);
-  return angle_degrees;
-}
-
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
@@ -510,11 +501,8 @@ void LD2450Component::handle_periodic_data_() {
     }
 #ifdef USE_SENSOR
     SAFE_PUBLISH_SENSOR(this->move_distance_sensors_[index], td);
-    // ANGLE
-    angle = ld2450::calculate_angle(static_cast<float>(ty), static_cast<float>(td));
-    if (tx > 0) {
-      angle = angle * -1;
-    }
+    // ANGLE - atan2f computes angle from Y axis directly, no sqrt/division needed
+    angle = atan2f(static_cast<float>(-tx), static_cast<float>(ty)) * (180.0f / std::numbers::pi_v<float>);
     SAFE_PUBLISH_SENSOR(this->move_angle_sensors_[index], angle);
 #endif
 #ifdef USE_TEXT_SENSOR
