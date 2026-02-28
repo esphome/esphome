@@ -11,58 +11,6 @@ namespace esphome::micronova {
 static const char *const TAG = "micronova";
 static constexpr uint8_t WRITE_QUEUE_SIZE = 10;
 
-/// Fixed-size circular buffer with FIFO semantics and iteration support.
-///
-/// We use a tiny fixed-size ring buffer here to avoid dynamic allocations from std::deque/std::queue
-/// (which can be wasteful on MCUs), while still being able to iterate for de-duplication.
-template<typename T, uint8_t N> class CommandRingBuffer {
- public:
-  class Iterator {
-   public:
-    Iterator(const CommandRingBuffer *buf, uint8_t pos) : buf_(buf), pos_(pos) {}
-    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % N]; }
-    Iterator &operator++() {
-      ++pos_;
-      return *this;
-    }
-    bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
-
-   private:
-    const CommandRingBuffer *buf_;
-    uint8_t pos_;
-  };
-
-  bool push(const T &value) {
-    if (this->count_ >= N) {
-      return false;
-    }
-    this->data_[this->tail_] = value;
-    this->tail_ = (this->tail_ + 1) % N;
-    ++this->count_;
-    return true;
-  }
-
-  void pop() {
-    if (this->count_ > 0) {
-      this->head_ = (this->head_ + 1) % N;
-      --this->count_;
-    }
-  }
-
-  T &front() { return this->data_[this->head_]; }
-  size_t size() const { return this->count_; }
-  bool empty() const { return this->count_ == 0; }
-
-  Iterator begin() const { return Iterator(this, 0); }
-  Iterator end() const { return Iterator(this, this->count_); }
-
- protected:
-  T data_[N]{};
-  uint8_t head_{0};
-  uint8_t tail_{0};
-  uint8_t count_{0};
-};
-
 /// Represents a command to be sent to the stove
 /// Write commands have the high bit (0x80) set in memory_location
 struct MicroNovaCommand {
@@ -148,10 +96,10 @@ class MicroNova : public Component, public uart::UARTDevice {
   GPIOPin *enable_rx_pin_;
 
 #ifdef USE_MICRONOVA_WRITER
-  CommandRingBuffer<MicroNovaCommand, WRITE_QUEUE_SIZE> write_queue_;
+  StaticRingBuffer<MicroNovaCommand, WRITE_QUEUE_SIZE> write_queue_;
 #endif
 #ifdef MICRONOVA_LISTENER_COUNT
-  CommandRingBuffer<MicroNovaCommand, MICRONOVA_LISTENER_COUNT> read_queue_;
+  StaticRingBuffer<MicroNovaCommand, MICRONOVA_LISTENER_COUNT> read_queue_;
 #endif
   MicroNovaCommand current_command_;
   uint32_t transmission_time_{0};  ///< Time when current command was sent
