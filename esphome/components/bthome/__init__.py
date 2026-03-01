@@ -16,9 +16,7 @@ AUTO_LOAD = ["esp32_ble"]
 BLE_DEVICE_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA
 
 bthome_ns = cg.esphome_ns.namespace("bthome")
-DeviceListener = bthome_ns.class_(
-    "DeviceListener", esp32_ble_tracker.ESPBTDeviceListener
-)
+DeviceListener = bthome_ns.class_("DeviceListener")
 DeviceBase = bthome_ns.class_("DeviceBase")
 Device = bthome_ns.class_("Device", DeviceBase)
 BTHomeObjectHandler = bthome_ns.class_("BTHomeObjectHandler")
@@ -31,7 +29,10 @@ BTHomeBinarySensor = bthome_ns.class_(
     binary_sensor.BinarySensor,
     cg.Component,
 )
-BTHomeESP32BLEAdapter = bthome_ns.class_("ESP32BLEAdapter")
+BTHomeESP32BLEAdvertiser = bthome_ns.class_("ESP32BLEAdvertiser")
+ESP32BLEListener = bthome_ns.class_(
+    "ESP32BLEListener", esp32_ble_tracker.ESPBTDeviceListener
+)
 
 # Server-side classes
 server_ns = bthome_ns.namespace("server")
@@ -343,7 +344,10 @@ async def _client_to_code(config):
     if has_encryption:
         cg.add_define("USE_BTHOME_DECRYPTION")
 
-    await esp32_ble_tracker.register_ble_device(listener, config)
+    ble_listener_id = core.ID("bthome_ble_listener", False, ESP32BLEListener)
+    ble_listener = cg.new_Pvariable(ble_listener_id)
+    cg.add(ble_listener.setup(listener))
+    await esp32_ble_tracker.register_ble_device(ble_listener, config)
 
 
 async def _server_to_code(config):
@@ -368,7 +372,7 @@ async def _server_to_code(config):
     n = len(all_entries)
     # Create BTHomeServer<N>
     esp32_ble_adapter = cg.new_Pvariable(
-        core.ID("bthome_ble_adapter", False, BTHomeESP32BLEAdapter)
+        core.ID("bthome_ble_adapter", False, BTHomeESP32BLEAdvertiser)
     )
     server_id = config[CONF_ID]
     server_var = cg.new_Pvariable(

@@ -18,7 +18,7 @@ namespace esphome::bthome::server::testing {
 // MockBLEAdapter — gmock implementation of IBLEAdapter
 // ---------------------------------------------------------------------------
 
-class MockBLEAdapter : public ::esphome::bthome::IBLEAdapter {
+class MockBLEAdapter : public ::esphome::bthome::IBLEAdvertiser {
  public:
   MOCK_METHOD(void, setup, (::esphome::bthome::IBLEAdvHandler *), (override));
   MOCK_METHOD(::esphome::bthome::MacAddressPtr, get_local_mac, (), (override));

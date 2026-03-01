@@ -4,6 +4,7 @@
 
 #ifdef USE_ESP32
 #include "esphome/components/esp32_ble/ble.h"
+#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
 #endif
@@ -11,15 +12,16 @@
 #include <esp_gap_ble_api.h>
 #include "esp_bt_device.h"
 
-// ---------------------------------------------------------------------------
-// ESP32BLEAdapter — maps to ESP-IDF BLE calls
-// ---------------------------------------------------------------------------
 namespace esphome {
 namespace bthome {
 
+// ---------------------------------------------------------------------------
+// ESP32BLEAdvertiser — maps to ESP-IDF BLE advertising calls
+// ---------------------------------------------------------------------------
+
 #ifdef USE_BTHOME_SERVER
 
-class ESP32BLEAdapter : public IBLEAdapter, public esp32_ble::GAPEventHandler {
+class ESP32BLEAdvertiser : public IBLEAdvertiser, public esp32_ble::GAPEventHandler {
  private:
   bool advertising_{false};
 
@@ -34,6 +36,21 @@ class ESP32BLEAdapter : public IBLEAdapter, public esp32_ble::GAPEventHandler {
 };
 
 #endif  // USE_BTHOME_SERVER
+
+// ---------------------------------------------------------------------------
+// ESP32BLEListener — receives BLE advertisements and dispatches BTHome data
+// ---------------------------------------------------------------------------
+
+class ESP32BLEListener : public IBLEListener, public esp32_ble_tracker::ESPBTDeviceListener {
+ public:
+  void setup(IBTHomeListener *listener) override { this->listener_ = listener; }
+
+ protected:
+  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+
+ private:
+  IBTHomeListener *listener_{nullptr};
+};
 
 }  // namespace bthome
 }  // namespace esphome

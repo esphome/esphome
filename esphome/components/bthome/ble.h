@@ -21,10 +21,10 @@ class IBLEAdvHandler {
   virtual void on_advertise(bool active) = 0;
 };
 
-// Abstract adapter interface for all BLE operations — platform agnostic
-class IBLEAdapter {
+// Abstract adapter interface for all Advertising BLE operations — platform agnostic
+class IBLEAdvertiser {
  public:
-  virtual ~IBLEAdapter() = default;
+  virtual ~IBLEAdvertiser() = default;
 
   virtual void setup(IBLEAdvHandler *) = 0;
 
@@ -33,6 +33,21 @@ class IBLEAdapter {
 
   // Pushes raw advertisement data to the BLE controller.
   virtual void config_adv_data_raw(const uint8_t *data, size_t len) = 0;
+};
+
+// Handler interface for incoming BTHome data — implemented by DeviceListener
+class IBTHomeListener {
+ public:
+  virtual ~IBTHomeListener() = default;
+  // Called with already-validated BTHome data (header byte + payload). Returns true if handled.
+  virtual bool on_bthome_data(MacAddressPtr source, const uint8_t *data, size_t size) = 0;
+};
+
+// Abstract adapter interface for scanning BLE operations — platform agnostic
+class IBLEListener {
+ public:
+  virtual ~IBLEListener() = default;
+  virtual void setup(IBTHomeListener *) = 0;
 };
 
 }  // namespace bthome

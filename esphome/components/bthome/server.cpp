@@ -9,7 +9,7 @@ namespace server {
 // BTHomeServerBase
 // ---------------------------------------------------------------------------
 
-BTHomeServerBase::BTHomeServerBase(IBLEAdapter *ble_adapter) : ble_adapter_(ble_adapter) {}
+BTHomeServerBase::BTHomeServerBase(IBLEAdvertiser *ble_adapter) : ble_adapter_(ble_adapter) {}
 
 void BTHomeServerBase::setup() {
   this->ble_adapter_->setup(this);
