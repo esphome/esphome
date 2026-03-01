@@ -231,6 +231,15 @@ void ESPNowComponent::enable_() {
     return;
   }
 
+#if defined(USE_ESP8266)
+  err = esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
+  if (err != ESPNOW_OK) {
+    ESP_LOGE(TAG, "esp_now_set_self_role failed: %d", err);
+    this->mark_failed();
+    return;
+  }
+#endif
+
   err = esp_now_register_recv_cb(on_data_received);
   if (err != ESPNOW_OK) {
     ESP_LOGE(TAG, "esp_now_register_recv_cb failed: %s", LOG_STR_ARG(espnow_error_to_str(err)));
