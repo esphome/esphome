@@ -24,7 +24,7 @@ namespace server {
 // Base class with most implementation (non-template)
 class BTHomeServerBase : public Component, public IBLEAdvHandler {
  public:
-  explicit BTHomeServerBase(IBLEAdapter *adapter);
+  explicit BTHomeServerBase(IBLEAdapter *ble_adapter);
 
   void setup() override;
   void dump_config() override;
@@ -48,7 +48,7 @@ class BTHomeServerBase : public Component, public IBLEAdvHandler {
   void send_frame_();
   void advertise_immediate_(BTHomeObjectType type);
 
-  IBLEAdapter *adapter_{nullptr};
+  IBLEAdapter *ble_adapter_{nullptr};
   size_t next_sensor_index_{0};
   BTHomeEncoder encoder_;
   bool advertising_{false};
@@ -64,7 +64,7 @@ class BTHomeServerBase : public Component, public IBLEAdvHandler {
 // Template class — only holds the sensor array
 template<size_t N> class BTHomeServer : public BTHomeServerBase {
  public:
-  explicit BTHomeServer(IBLEAdapter *adapter = nullptr) : BTHomeServerBase(adapter) {}
+  explicit BTHomeServer(IBLEAdapter *ble_adapter = nullptr) : BTHomeServerBase(ble_adapter) {}
 
   void set_local_sensor(size_t index, BTHomeLocalBase *sensor) override { this->local_sensors_[index] = sensor; }
 

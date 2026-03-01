@@ -9,13 +9,13 @@ namespace server {
 // BTHomeServerBase
 // ---------------------------------------------------------------------------
 
-BTHomeServerBase::BTHomeServerBase(IBLEAdapter *adapter) : adapter_(adapter) {}
+BTHomeServerBase::BTHomeServerBase(IBLEAdapter *ble_adapter) : ble_adapter_(ble_adapter) {}
 
 void BTHomeServerBase::setup() {
-  this->adapter_->setup(this);
+  this->ble_adapter_->setup(this);
 
   // Read local BLE MAC address
-  MacAddressPtr mac = this->adapter_->get_local_mac();
+  MacAddressPtr mac = this->ble_adapter_->get_local_mac();
   if (mac != nullptr) {
     this->local_mac_ = mac;
   }
@@ -154,7 +154,7 @@ void BTHomeServerBase::send_frame_() {
   memcpy(&this->adv_buffer_[pos], payload, payload_size);
   pos += payload_size;
 
-  this->adapter_->config_adv_data_raw(this->adv_buffer_, pos);
+  this->ble_adapter_->config_adv_data_raw(this->adv_buffer_, pos);
 }
 
 void BTHomeServerBase::advertise_immediate_(BTHomeObjectType type) {
