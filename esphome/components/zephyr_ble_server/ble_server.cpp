@@ -75,7 +75,7 @@ void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
 }
 
 #ifdef CONFIG_BT_SMP
-static void identity_resolved(struct bt_conn *conn, const bt_addr_le_t *rpa, const bt_addr_le_t *identity) {
+static void identity_resolved(bt_conn *conn, const bt_addr_le_t *rpa, const bt_addr_le_t *identity) {
   char addr_identity[BT_ADDR_LE_STR_LEN];
   char addr_rpa[BT_ADDR_LE_STR_LEN];
 
@@ -85,7 +85,7 @@ static void identity_resolved(struct bt_conn *conn, const bt_addr_le_t *rpa, con
   ESP_LOGD(TAG, "Identity resolved %s -> %s", addr_rpa, addr_identity);
 }
 
-static void security_changed(struct bt_conn *conn, bt_security_t level, enum bt_security_err err) {
+static void security_changed(bt_conn *conn, bt_security_t level, bt_security_err err) {
   char addr[BT_ADDR_LE_STR_LEN];
 
   bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
@@ -97,7 +97,7 @@ static void security_changed(struct bt_conn *conn, bt_security_t level, enum bt_
   }
 }
 
-static void pairing_complete(struct bt_conn *conn, bool bonded) {
+static void pairing_complete(bt_conn *conn, bool bonded) {
   char addr[BT_ADDR_LE_STR_LEN];
 
   bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
@@ -105,12 +105,14 @@ static void pairing_complete(struct bt_conn *conn, bool bonded) {
   ESP_LOGD(TAG, "Pairing completed: %s, bonded: %d", addr, bonded);
 }
 
-static void pairing_failed(struct bt_conn *conn, enum bt_security_err reason) {
+static void pairing_failed(bt_conn *conn, bt_security_err reason) {
   char addr[BT_ADDR_LE_STR_LEN];
 
   bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
   ESP_LOGE(TAG, "Pairing failed conn: %s, reason %d", addr, reason);
+
+  bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 }
 
 static void bond_deleted(uint8_t id, const bt_addr_le_t *peer) {
@@ -124,7 +126,7 @@ static struct bt_conn_auth_info_cb conn_auth_info_callbacks = {
     .pairing_complete = pairing_complete, .pairing_failed = pairing_failed, .bond_deleted = bond_deleted};
 #endif
 
-static void auth_passkey_display(struct bt_conn *conn, unsigned int passkey) {
+static void auth_passkey_display(bt_conn *conn, unsigned int passkey) {
   char addr[BT_ADDR_LE_STR_LEN];
   char passkey_str[7];
 
@@ -135,7 +137,7 @@ static void auth_passkey_display(struct bt_conn *conn, unsigned int passkey) {
   ESP_LOGI(TAG, "Passkey for %s: %s", addr, passkey_str);
 }
 
-void conn_addr_str(struct bt_conn *conn, char *addr, size_t len) {
+void conn_addr_str(bt_conn *conn, char *addr, size_t len) {
   struct bt_conn_info info;
 
   if (bt_conn_get_info(conn, &info) < 0) {
@@ -154,7 +156,7 @@ void conn_addr_str(struct bt_conn *conn, char *addr, size_t len) {
   }
 }
 
-static void auth_cancel(struct bt_conn *conn) {
+static void auth_cancel(bt_conn *conn) {
   char addr[BT_ADDR_LE_STR_LEN];
 
   conn_addr_str(conn, addr, sizeof(addr));
@@ -162,7 +164,7 @@ static void auth_cancel(struct bt_conn *conn) {
   ESP_LOGI(TAG, "Pairing cancelled: %s", addr);
 }
 
-void BLEServer::auth_passkey_confirm(struct bt_conn *conn, unsigned int passkey) {
+void BLEServer::auth_passkey_confirm(bt_conn *conn, unsigned int passkey) {
   char addr[BT_ADDR_LE_STR_LEN];
   char passkey_str[7];
 
@@ -174,7 +176,7 @@ void BLEServer::auth_passkey_confirm(struct bt_conn *conn, unsigned int passkey)
   global_ble_server->defer([passkey]() { global_ble_server->passkey_cb_(passkey); });
 }
 
-static void auth_pairing_confirm(struct bt_conn *conn) {
+static void auth_pairing_confirm(bt_conn *conn) {
   /* Automatically confirm pairing request from the device side. */
   auto err = bt_conn_auth_pairing_confirm(conn);
   if (err) {
@@ -247,7 +249,7 @@ static const char *role_str(uint8_t role) {
   return "Unknown";
 }
 
-static void connection_info(struct bt_conn *conn, void *user_data) {
+static void connection_info(bt_conn *conn, void *user_data) {
   char addr[BT_ADDR_LE_STR_LEN];
   struct bt_conn_info info;
 
