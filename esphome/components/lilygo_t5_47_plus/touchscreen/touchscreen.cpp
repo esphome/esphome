@@ -36,11 +36,13 @@ void LilygoT547PlusTouchscreen::setup() {
   // a soft-reset without a full power cycle), the chip may be at the alternate
   // address. Try the fallback automatically so tinkerers don't get stuck.
   if (this->write(nullptr, 0) != i2c::ERROR_OK) {
-    uint8_t fallback = (this->address_ == 0x5D) ? 0x14 : 0x5D;
-    ESP_LOGW(TAG, "GT911 not found at 0x%02X, trying fallback 0x%02X", this->address_, fallback);
+    uint8_t original = this->address_;
+    uint8_t fallback = (original == 0x5D) ? 0x14 : 0x5D;
+    ESP_LOGW(TAG, "GT911 not found at 0x%02X, trying fallback 0x%02X", original, fallback);
     this->set_i2c_address(fallback);
     if (this->write(nullptr, 0) != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, "GT911 not found at 0x%02X or 0x%02X - power-cycle the board", fallback, this->address_);
+      this->set_i2c_address(original);
+      ESP_LOGE(TAG, "GT911 not found at 0x%02X or 0x%02X - power-cycle the board", original, fallback);
       this->mark_failed();
       return;
     }

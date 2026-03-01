@@ -14,11 +14,14 @@ LilygoT547PlusTouchscreen = lilygo_t5_47_plus_ns.class_(
     i2c.I2CDevice,
 )
 
-CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(LilygoT547PlusTouchscreen),
-    }
-).extend(i2c.i2c_device_schema(0x5D))
+CONFIG_SCHEMA = cv.All(
+    touchscreen.TOUCHSCREEN_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(LilygoT547PlusTouchscreen),
+        }
+    ).extend(i2c.i2c_device_schema(0x5D)),
+    cv.only_with_arduino,
+)
 
 
 async def to_code(config):

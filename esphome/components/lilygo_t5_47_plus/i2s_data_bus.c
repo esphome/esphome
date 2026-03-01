@@ -1,8 +1,8 @@
 // Copyright (c) 2019-2022 Valentin Roland (github.com/vroland)
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Original source: https://github.com/vroland/epdiy
-// Modified by Xinyuan-LilyGO (GPL-3.0): https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
+// Modified by Xinyuan-LilyGO; combined work licensed under GPL-3.0-or-later: https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
 // Modified for ESPHome: added LCD clock source for ESP-IDF 5.x compatibility
 
 /******************************************************************************/
@@ -365,7 +365,7 @@ void i2s_bus_init(i2s_bus_config *cfg) {
                                                  cfg->data_1,
                                              },
                                          .bus_width = 8,
-                                         .max_transfer_bytes = (cfg->epd_row_width + 32) / 4};
+                                         .max_transfer_bytes = cfg->epd_row_width / 4};
   ESP_ERROR_CHECK(esp_lcd_new_i80_bus(&bus_config, &i80_bus));
 
   esp_lcd_panel_io_i80_config_t io_config = {

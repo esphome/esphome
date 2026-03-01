@@ -4,17 +4,13 @@ esphome:
   name: display-lilygo-t547-full
   friendly_name: "LILYGO T5 4.7\" Plus Full Test"
   platformio_options:
-    board: lilygo-t5-47-plus-s3
-    board_dir: ../../components/lilygo_t5_47_plus/boards
     board_build.arduino.memory_type: qio_opi
 
 esp32:
-  board: lilygo-t5-47-plus-s3
+  board: esp32-s3-devkitc-1
   variant: esp32s3
   framework:
     type: arduino
-    version: 3.1.0
-    platform_version: 6.9.0
 
 psram:
   mode: octal

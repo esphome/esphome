@@ -1,8 +1,8 @@
 // Copyright (c) 2019-2022 Valentin Roland (github.com/vroland)
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Original source: https://github.com/vroland/epdiy
-// Modified by Xinyuan-LilyGO (GPL-3.0): https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
+// Modified by Xinyuan-LilyGO; combined work licensed under GPL-3.0-or-later: https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
 
 #ifndef _ED047TC1_H_
 #define _ED047TC1_H_

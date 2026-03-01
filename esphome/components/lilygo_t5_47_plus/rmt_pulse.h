@@ -1,8 +1,8 @@
 // Copyright (c) 2019-2022 Valentin Roland (github.com/vroland)
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Original source: https://github.com/vroland/epdiy
-// Modified by Xinyuan-LilyGO (GPL-3.0): https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
+// Modified by Xinyuan-LilyGO; combined work licensed under GPL-3.0-or-later: https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
 
 /**
  * Emit a pulse of precise length on a pin, using the RMT peripheral.
@@ -56,7 +56,7 @@ void rmt_pulse_init(gpio_num_t pin);
  * @param low_time_us  Pulse low time in us.
  * @param wait         Block until the pulse is finished.
  */
-void IRAM_ATTR pulse_ckv_us(uint16_t high_time_us, uint16_t low_time_us, bool wait);
+void pulse_ckv_us(uint16_t high_time_us, uint16_t low_time_us, bool wait);
 
 /**
  * @brief Indicates if the rmt is currently sending a pulse.
@@ -72,7 +72,7 @@ bool IRAM_ATTR rmt_busy();
  * @param low_time_us  Pulse low time in clock ticks.
  * @param wait         Block until the pulse is finished.
  */
-void IRAM_ATTR pulse_ckv_ticks(uint16_t high_time_us, uint16_t low_time_us, bool wait);
+void pulse_ckv_ticks(uint16_t high_time_us, uint16_t low_time_us, bool wait);
 
 #ifdef __cplusplus
 }

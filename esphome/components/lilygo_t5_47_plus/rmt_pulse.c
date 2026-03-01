@@ -1,8 +1,8 @@
 // Copyright (c) 2019-2022 Valentin Roland (github.com/vroland)
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Original source: https://github.com/vroland/epdiy
-// Modified by Xinyuan-LilyGO (GPL-3.0): https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
+// Modified by Xinyuan-LilyGO; combined work licensed under GPL-3.0-or-later: https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
 // Modified for ESPHome: rewritten from legacy RMT API to ESP-IDF 5.x RMT driver
 
 /******************************************************************************/
@@ -78,11 +78,11 @@ void rmt_pulse_init(gpio_num_t pin) {
   ESP_ERROR_CHECK(rmt_enable(rmt_chan));
 
   // Create copy encoder for simple symbol transmission
-  rmt_copy_encoder_config_t copy_encoder_config = {};
+  rmt_copy_encoder_config_t copy_encoder_config = {0};
   ESP_ERROR_CHECK(rmt_new_copy_encoder(&copy_encoder_config, &rmt_encoder));
 }
 
-void IRAM_ATTR pulse_ckv_ticks(uint16_t high_time_ticks, uint16_t low_time_ticks, bool wait) {
+void pulse_ckv_ticks(uint16_t high_time_ticks, uint16_t low_time_ticks, bool wait) {
   rmt_symbol_word_t rmt_symbol;
 
   if (high_time_ticks > 0) {
@@ -105,7 +105,7 @@ void IRAM_ATTR pulse_ckv_ticks(uint16_t high_time_ticks, uint16_t low_time_ticks
   }
 }
 
-void IRAM_ATTR pulse_ckv_us(uint16_t high_time_us, uint16_t low_time_us, bool wait) {
+void pulse_ckv_us(uint16_t high_time_us, uint16_t low_time_us, bool wait) {
   pulse_ckv_ticks(10 * high_time_us, 10 * low_time_us, wait);
 }
 

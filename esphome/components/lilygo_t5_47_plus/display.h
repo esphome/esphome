@@ -28,10 +28,7 @@ class LilygoT547PlusDisplay : public display::DisplayBuffer {
 
   bool get_greyscale() { return this->greyscale_; }
 
-  display::DisplayType get_display_type() override {
-    return this->get_greyscale() ? display::DisplayType::DISPLAY_TYPE_GRAYSCALE
-                                 : display::DisplayType::DISPLAY_TYPE_BINARY;
-  }
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_GRAYSCALE; }
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;

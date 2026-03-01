@@ -1,8 +1,8 @@
 // Copyright (c) 2019-2022 Valentin Roland (github.com/vroland)
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Original source: https://github.com/vroland/epdiy
-// Modified by Xinyuan-LilyGO (GPL-3.0): https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
+// Modified by Xinyuan-LilyGO; combined work licensed under GPL-3.0-or-later: https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
 
 /******************************************************************************/
 /***        include files                                                   ***/
@@ -56,11 +56,23 @@ static epd_config_register_t config_reg;
 
 /*
  * Write bits directly using the registers.
- * Won't work for some pins (>= 32).
+ * Supports both GPIO < 32 and GPIO >= 32.
  */
-inline static void fast_gpio_set_hi(gpio_num_t gpio_num) { GPIO.out_w1ts = (1 << gpio_num); }
+inline static void fast_gpio_set_hi(gpio_num_t gpio_num) {
+  if (gpio_num < 32) {
+    GPIO.out_w1ts = (1 << gpio_num);
+  } else {
+    GPIO.out1_w1ts.val = (1 << (gpio_num - 32));
+  }
+}
 
-inline static void fast_gpio_set_lo(gpio_num_t gpio_num) { GPIO.out_w1tc = (1 << gpio_num); }
+inline static void fast_gpio_set_lo(gpio_num_t gpio_num) {
+  if (gpio_num < 32) {
+    GPIO.out_w1tc = (1 << gpio_num);
+  } else {
+    GPIO.out1_w1tc.val = (1 << (gpio_num - 32));
+  }
+}
 
 inline static void IRAM_ATTR push_cfg_bit(bool bit) {
   fast_gpio_set_lo(CFG_CLK);

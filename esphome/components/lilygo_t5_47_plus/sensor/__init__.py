@@ -63,6 +63,7 @@ _SENSOR_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.All(
     _SENSOR_SCHEMA,
     cv.has_at_least_one_key(CONF_BATTERY_VOLTAGE, CONF_BATTERY_LEVEL),
+    cv.only_with_arduino,
 )
 
 

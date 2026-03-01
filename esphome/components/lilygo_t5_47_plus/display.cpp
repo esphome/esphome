@@ -23,21 +23,11 @@ void LilygoT547PlusDisplay::setup() {
   uint32_t buffer_size = this->get_buffer_length_();
   ESP_LOGD(TAG, "Buffer size: %u bytes", buffer_size);
 
-  if (this->buffer_ != nullptr) {
-    free(this->buffer_);  // NOLINT
-  }
-
-  this->buffer_ = (uint8_t *) ps_malloc(buffer_size);
-
+  this->buffer_ = (uint8_t *) heap_caps_malloc(buffer_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (this->buffer_ == nullptr) {
-    // Try regular heap_caps_malloc as fallback
-    this->buffer_ = (uint8_t *) heap_caps_malloc(buffer_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-
-    if (this->buffer_ == nullptr) {
-      ESP_LOGE(TAG, "Could not allocate display buffer (%u bytes). Is PSRAM enabled?", buffer_size);
-      this->mark_failed();
-      return;
-    }
+    ESP_LOGE(TAG, "Could not allocate display buffer (%u bytes). Is PSRAM enabled?", buffer_size);
+    this->mark_failed();
+    return;
   }
 
   memset(this->buffer_, 0xFF, buffer_size);

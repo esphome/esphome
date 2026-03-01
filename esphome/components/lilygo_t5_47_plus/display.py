@@ -15,7 +15,7 @@ CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(LilygoT547PlusDisplay),
-            cv.Optional(CONF_GREYSCALE, default=False): cv.boolean,
+            cv.Optional(CONF_GREYSCALE, default=True): cv.boolean,
         }
     ).extend(cv.polling_component_schema("5s")),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
