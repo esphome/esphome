@@ -140,8 +140,9 @@ void BTHomeServerBase::send_frame_() {
 #endif
 
   // Build raw advertisement: [flags][service data AD]
-  size_t svc_data_len = 1 + 2 + 1 + payload_size;    // AD type + UUID(2) + header + payload
-  size_t total = BLE_FLAGS_SIZE + 1 + svc_data_len;  // flags + length byte + service data
+  // svc_data_len = the value written into the AD element length field (everything after it)
+  size_t svc_data_len = sizeof(BLE_AD_TYPE_SVC_DATA_16) + sizeof(uint16_t) + sizeof(BTHomeHeader) + payload_size;
+  size_t total = BLE_FLAGS_SIZE + BLE_SVC_HEADER_SIZE + sizeof(BTHomeHeader) + payload_size;
 
   if (total > BLE_ADV_MAX_SIZE) {
     ESP_LOGW("bthome.server", "Advertisement too large: %zu > %zu", total, BLE_ADV_MAX_SIZE);
@@ -150,15 +151,15 @@ void BTHomeServerBase::send_frame_() {
 
   size_t pos = 0;
   // BLE Flags AD structure
-  this->adv_buffer_[pos++] = 0x02;  // Length
-  this->adv_buffer_[pos++] = 0x01;  // AD Type: Flags
-  this->adv_buffer_[pos++] = 0x06;  // General Discoverable + BR/EDR Not Supported
+  this->adv_buffer_[pos++] = BLE_FLAGS_SIZE - 1;  // Length (payload bytes only)
+  this->adv_buffer_[pos++] = BLE_AD_TYPE_FLAGS;
+  this->adv_buffer_[pos++] = BLE_AD_FLAGS_VALUE;
 
   // Service Data AD structure
   this->adv_buffer_[pos++] = static_cast<uint8_t>(svc_data_len);  // Length
-  this->adv_buffer_[pos++] = 0x16;                                // AD Type: Service Data 16-bit UUID
-  this->adv_buffer_[pos++] = 0xD2;                                // BTHome UUID low byte
-  this->adv_buffer_[pos++] = 0xFC;                                // BTHome UUID high byte
+  this->adv_buffer_[pos++] = BLE_AD_TYPE_SVC_DATA_16;
+  this->adv_buffer_[pos++] = BTHOME_SVC_UUID_LOW;
+  this->adv_buffer_[pos++] = BTHOME_SVC_UUID_HIGH;
 
   // BTHome header
   uint8_t header_byte;

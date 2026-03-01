@@ -9,8 +9,16 @@ namespace bthome {
 static constexpr size_t BLE_FLAGS_SIZE = 3;       // [02 01 06]
 static constexpr size_t BLE_SVC_HEADER_SIZE = 4;  // [LL 16 D2 FC]
 static constexpr size_t BLE_ADV_MAX_SIZE = 31;
+
+static constexpr uint8_t BLE_AD_TYPE_FLAGS = 0x01;        // AD type: Flags
+static constexpr uint8_t BLE_AD_FLAGS_VALUE = 0x06;       // General Discoverable + BR/EDR Not Supported
+static constexpr uint8_t BLE_AD_TYPE_SVC_DATA_16 = 0x16;  // AD type: Service Data – 16-bit UUID
+
+static constexpr uint8_t BTHOME_SVC_UUID_LOW = 0xD2;   // BTHome service UUID low byte  (0xFCD2)
+static constexpr uint8_t BTHOME_SVC_UUID_HIGH = 0xFC;  // BTHome service UUID high byte
 static constexpr uint8_t BTHOME_VERSION_2 = 0x02;
 
+// Handler interface for advertisement state changes (e.g. to trigger a new advertisement)
 class IBLEAdvHandler {
  public:
   virtual ~IBLEAdvHandler() = default;
