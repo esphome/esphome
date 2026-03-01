@@ -12,9 +12,9 @@ from esphome.const import (
     CONF_ON_ERROR,
     CONF_TRIGGER_ID,
     CONF_WIFI,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
 )
-
-from esphome.const import PLATFORM_ESP32, PLATFORM_ESP8266
 from esphome.core import HexInt
 from esphome.types import ConfigType
 

@@ -93,11 +93,11 @@ static const LogString *espnow_error_to_str(espnow_err_t error) {
 }
 
 #if defined(USE_ESP32) && defined(ESP_IDF_VERSION_VAL)
-  #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
 void on_send_report(const esp_now_send_info_t *info, esp_now_send_status_t status)
-  #else
+#else
 void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
-  #endif
+#endif
 #elif defined(USE_ESP32)
 void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
 #else
@@ -108,16 +108,16 @@ void on_send_report(uint8_t *mac_addr, uint8_t status)
   if (global_esp_now != nullptr) {
     char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
 #if defined(USE_ESP32) && defined(ESP_IDF_VERSION_VAL)
-  #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
     format_mac_addr_upper(info->des_addr, peer_buf);
-  #else
+#else
     format_mac_addr_upper(mac_addr, peer_buf);
-  #endif
+#endif
 #else
     format_mac_addr_upper(mac_addr, peer_buf);
 #endif
     ESP_LOGVV(TAG, "Send callback peer=%s status=%d (%s) ch=%u", peer_buf, status,
-          LOG_STR_ARG(espnow_send_status_to_str(status)), global_esp_now->wifi_channel_);
+              LOG_STR_ARG(espnow_send_status_to_str(status)), global_esp_now->wifi_channel_);
   }
 #endif
 
@@ -131,11 +131,11 @@ void on_send_report(uint8_t *mac_addr, uint8_t status)
 
 // Load new packet data (replaces previous packet)
 #if defined(USE_ESP32) && defined(ESP_IDF_VERSION_VAL)
-  #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
   packet->load_sent_data(info->des_addr, status);
-  #else
+#else
   packet->load_sent_data(mac_addr, status);
-  #endif
+#endif
 #elif defined(USE_ESP32)
   packet->load_sent_data(mac_addr, status);
 #else
@@ -480,8 +480,7 @@ espnow_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *p
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(peer_address, peer_buf);
-      ESP_LOGVV(TAG, "Peer %s not in table, adding dynamically (auto_add=%s)", peer_buf,
-            YESNO(this->auto_add_peer_));
+      ESP_LOGVV(TAG, "Peer %s not in table, adding dynamically (auto_add=%s)", peer_buf, YESNO(this->auto_add_peer_));
 #endif
       espnow_err_t err = this->add_peer(peer_address);
       if (err != ESPNOW_OK) {

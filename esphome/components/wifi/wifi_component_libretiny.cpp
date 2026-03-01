@@ -634,7 +634,7 @@ void WiFiComponent::wifi_pre_setup_() {
   // Make sure WiFi is in clean state before anything starts
   this->wifi_mode_(false, false);
 }
-WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
+WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   // Use state machine instead of querying WiFi.status() directly
   // State is updated in main loop from queued events, ensuring thread safety
   switch (s_sta_state) {

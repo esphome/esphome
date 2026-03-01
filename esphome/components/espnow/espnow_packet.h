@@ -54,15 +54,15 @@ class ESPNowPacket {
 #endif
 
 #if defined(USE_ESP32) && defined(ESP_IDF_VERSION_VAL)
-  #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
   // Constructor for sent data
   ESPNowPacket(const esp_now_send_info_t *info, esp_now_send_status_t status) {
     this->init_sent_data_(info->src_addr, status);
   }
-  #else
+#else
   // Constructor for sent data
   ESPNowPacket(const uint8_t *mac_addr, espnow_send_status_t status) { this->init_sent_data_(mac_addr, status); }
-  #endif
+#endif
 #elif defined(USE_ESP32)
   // Constructor for sent data
   ESPNowPacket(const uint8_t *mac_addr, espnow_send_status_t status) { this->init_sent_data_(mac_addr, status); }
@@ -109,10 +109,10 @@ class ESPNowPacket {
   union {
     // NOLINTNEXTLINE(readability-identifier-naming)
     struct received_data {
-      ESPNowRecvInfo info;                 // Information about the received packet
-      uint8_t data[ESPNOW_MAX_DATA_LEN];   // Data received in the packet
-      uint8_t size;                        // Size of the received data
-      WifiPacketRxControl rx_ctrl;         // Status of the received packet
+      ESPNowRecvInfo info;                // Information about the received packet
+      uint8_t data[ESPNOW_MAX_DATA_LEN];  // Data received in the packet
+      uint8_t size;                       // Size of the received data
+      WifiPacketRxControl rx_ctrl;        // Status of the received packet
     } receive;
 
     // NOLINTNEXTLINE(readability-identifier-naming)
@@ -192,10 +192,10 @@ class ESPNowSendPacket {
     this->callback_ = nullptr;  // Reset callback
   }
 
-  uint8_t address_[ESPNOW_ETH_ALEN]{0};    // MAC address of the peer to send the packet to
-  uint8_t data_[ESPNOW_MAX_DATA_LEN]{0};   // Data to send
-  uint8_t size_{0};                        // Size of the data to send, must be <= ESPNOW_MAX_DATA_LEN
-  send_callback_t callback_{nullptr};      // Callback to call when the send operation is complete
+  uint8_t address_[ESPNOW_ETH_ALEN]{0};   // MAC address of the peer to send the packet to
+  uint8_t data_[ESPNOW_MAX_DATA_LEN]{0};  // Data to send
+  uint8_t size_{0};                       // Size of the data to send, must be <= ESPNOW_MAX_DATA_LEN
+  send_callback_t callback_{nullptr};     // Callback to call when the send operation is complete
 
  private:
   void init_data_(const uint8_t *peer_address, const uint8_t *payload, size_t size) {
