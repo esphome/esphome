@@ -29,7 +29,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
 
     # Symbol size threshold for detailed analysis
     SYMBOL_SIZE_THRESHOLD: int = (
-        100  # Show symbols larger than this in detailed analysis
+        10  # Show symbols larger than this in detailed analysis
     )
     # Lower threshold for RAM symbols (RAM is more constrained)
     RAM_SYMBOL_SIZE_THRESHOLD: int = 24
