@@ -362,6 +362,12 @@ void ESPNowComponent::loop() {
     if (new_channel != this->wifi_channel_) {
       ESP_LOGI(TAG, "Wifi Channel is changed from %d to %d.", this->wifi_channel_, new_channel);
       this->wifi_channel_ = new_channel;
+#if defined(USE_ESP8266)
+      for (const auto &peer : this->peers_) {
+        (void) this->del_peer(peer.address);
+        (void) this->add_peer(peer.address);
+      }
+#endif
     }
   }
 #endif
@@ -546,8 +552,7 @@ espnow_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
     memcpy(peer_info.peer_addr, peer, ESPNOW_ETH_ALEN);
     espnow_err_t err = esp_now_add_peer(&peer_info);
 #else
-    espnow_err_t err = esp_now_add_peer(const_cast<uint8_t *>(peer), ESP_NOW_ROLE_COMBO, this->wifi_channel_,
-                                        nullptr, 0);
+  espnow_err_t err = esp_now_add_peer(const_cast<uint8_t *>(peer), ESP_NOW_ROLE_CONTROLLER, 0, nullptr, 0);
 #endif
 
     if (err != ESPNOW_OK) {
