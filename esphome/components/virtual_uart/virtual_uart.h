@@ -16,6 +16,11 @@ class VirtualUARTComponent : public uart::UARTComponent, public Component {
     std::vector<uint8_t> buf(data, data + len);
     if (tx_hook_)
       tx_hook_(buf);
+#ifdef USE_UART_DEBUGGER
+    for (size_t i = 0; i < len; i++) {
+      this->debug_callback_.call(esphome::uart::UART_DIRECTION_TX, data[i]);
+    }
+#endif
   }
 
   virtual bool peek_byte(uint8_t *data) override {
@@ -32,6 +37,11 @@ class VirtualUARTComponent : public uart::UARTComponent, public Component {
       data[i] = rx_buffer_.front();
       rx_buffer_.pop();
     }
+#ifdef USE_UART_DEBUGGER
+    for (size_t i = 0; i < len; i++) {
+      this->debug_callback_.call(esphome::uart::UART_DIRECTION_RX, data[i]);
+    }
+#endif
     return true;
   }
 
