@@ -117,15 +117,15 @@ with the `water_heater.template.publish` action.
 Configuration options:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the template water heater.
-- **current_temperature** (*Optional*, [templatable](/automations/templates), float):
+- **current_temperature** (*Optional*, float, [templatable](/automations/templates)):
   The current measured temperature to publish.
-- **target_temperature** (*Optional*, [templatable](/automations/templates), float):
+- **target_temperature** (*Optional*, float, [templatable](/automations/templates)):
   The target setpoint temperature to publish.
-- **mode** (*Optional*, [templatable](/automations/templates), string):
+- **mode** (*Optional*, string, [templatable](/automations/templates)):
   The operation mode to publish. See [Water Heater Modes](/components/water_heater#water-heater-modes) for options.
-- **away** (*Optional*, [templatable](/automations/templates), boolean):
+- **away** (*Optional*, boolean, [templatable](/automations/templates)):
   The away mode state to publish.
-- **is_on** (*Optional*, [templatable](/automations/templates), boolean):
+- **is_on** (*Optional*, boolean, [templatable](/automations/templates)):
   The boolean On/Off state to publish.
 
 > [!NOTE]
