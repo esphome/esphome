@@ -1,12 +1,15 @@
 """Battery voltage and level sensor for LILYGO T5 4.7" Plus."""
 
 import esphome.codegen as cg
-from esphome.components import sensor
+from esphome.components import esp32, sensor
+from esphome.components.esp32.const import VARIANT_ESP32S3
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BATTERY_VOLTAGE,
     CONF_ID,
+    CONF_MAX_VOLTAGE,
+    CONF_VOLTAGE_DIVIDER,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_VOLTAGE,
     ICON_BATTERY,
@@ -21,8 +24,6 @@ CODEOWNERS = ["@hbast"]
 DEPENDENCIES = ["esp32", "psram"]
 
 CONF_MIN_VOLTAGE = "min_voltage"
-CONF_MAX_VOLTAGE = "max_voltage"
-CONF_VOLTAGE_DIVIDER = "voltage_divider"
 
 LilygoT547PlusBattery = lilygo_t5_47_plus_ns.class_(
     "LilygoT547PlusBattery",
@@ -64,6 +65,7 @@ CONFIG_SCHEMA = cv.All(
     _SENSOR_SCHEMA,
     cv.has_at_least_one_key(CONF_BATTERY_VOLTAGE, CONF_BATTERY_LEVEL),
     cv.only_with_arduino,
+    esp32.only_on_variant(supported=[VARIANT_ESP32S3]),
 )
 
 

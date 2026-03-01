@@ -9,44 +9,40 @@
  * A high-level library for drawing to an EPD.
  */
 
-#ifndef _EPD_DRIVER_H_
-#define _EPD_DRIVER_H_
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/******************************************************************************/
-/***        include files                                                   ***/
-/******************************************************************************/
-
-#include <esp_attr.h>
+#pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
 #include "board_pins.h"
-/******************************************************************************/
-/***        macro definitions                                               ***/
-/******************************************************************************/
+
+#ifdef ESP_PLATFORM
+#include <esp_attr.h>
+#else
+#ifndef IRAM_ATTR
+#define IRAM_ATTR  // NOLINT
+#endif
+#endif
+
+#ifdef __cplusplus
+namespace esphome {
+namespace lilygo_t5_47_plus {
+extern "C" {
+#endif
 
 /**
  * @brief Width of the display area in pixels.
  */
-#define EPD_WIDTH 960
+#define EPD_WIDTH 960  // NOLINT
 
 /**
  * @brief Height of the display area in pixels.
  */
-#define EPD_HEIGHT 540
-
-/******************************************************************************/
-/***        type definitions                                                ***/
-/******************************************************************************/
+#define EPD_HEIGHT 540  // NOLINT
 
 /**
  * @brief An area on the display.
  */
-typedef struct {
+typedef struct {  // NOLINT(modernize-use-using)
   int32_t x;      /** Horizontal position. */
   int32_t y;      /** Vertical position. */
   int32_t width;  /** Area / image width, must be positive. */
@@ -56,7 +52,7 @@ typedef struct {
 /**
  * @brief The image drawing mode.
  */
-typedef enum {
+typedef enum {  // NOLINT(modernize-use-using)
   BLACK_ON_WHITE = 1 << 0, /** Draw black / grayscale image on a white display. */
   WHITE_ON_WHITE = 1 << 1, /** "Draw with white ink" on a white display. */
   WHITE_ON_BLACK = 1 << 2, /** Draw with white ink on a black display. */
@@ -72,20 +68,12 @@ enum DrawFlags {
 /**
  * @brief Font properties.
  */
-typedef struct {
+typedef struct {  // NOLINT(modernize-use-using)
   uint8_t fg_color : 4;    /** Foreground color */
   uint8_t bg_color : 4;    /** Background color */
   uint32_t fallback_glyph; /** Use the glyph for this codepoint for missing glyphs. */
   uint32_t flags;          /** Additional flags, reserved for future use */
 } FontProperties;
-
-/******************************************************************************/
-/***        exported variables                                              ***/
-/******************************************************************************/
-
-/******************************************************************************/
-/***        exported functions                                              ***/
-/******************************************************************************/
 
 /**
  * @brief Initialize the ePaper display
@@ -332,7 +320,7 @@ void epd_fill_triangle(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x
 /**
  * @brief Font data stored PER GLYPH
  */
-typedef struct {
+typedef struct {  // NOLINT(modernize-use-using)
   uint8_t width;            /** Bitmap dimensions in pixels */
   uint8_t height;           /** Bitmap dimensions in pixels */
   uint8_t advance_x;        /** Distance to advance cursor (x axis) */
@@ -345,7 +333,7 @@ typedef struct {
 /**
  * @brief Glyph interval structure
  */
-typedef struct {
+typedef struct {  // NOLINT(modernize-use-using)
   uint32_t first;  /** The first unicode code point of the interval */
   uint32_t last;   /** The last unicode code point of the interval */
   uint32_t offset; /** Index of the first code point into the glyph array */
@@ -354,7 +342,7 @@ typedef struct {
 /**
  * @brief Data stored for FONT AS A WHOLE
  */
-typedef struct {
+typedef struct {  // NOLINT(modernize-use-using)
   uint8_t *bitmap;            /** Glyph bitmaps, concatenated */
   GFXglyph *glyph;            /** Glyph array */
   UnicodeInterval *intervals; /** Valid unicode intervals for this font */
@@ -396,10 +384,7 @@ void get_glyph(const GFXfont *font, uint32_t code_point, GFXglyph **glyph);
 void write_string(const GFXfont *font, const char *string, int32_t *cursor_x, int32_t *cursor_y, uint8_t *framebuffer);
 
 #ifdef __cplusplus
-}
+}  // extern "C"
+}  // namespace lilygo_t5_47_plus
+}  // namespace esphome
 #endif
-
-#endif
-/******************************************************************************/
-/***        END OF FILE                                                     ***/
-/******************************************************************************/

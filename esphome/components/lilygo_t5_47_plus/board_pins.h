@@ -1,6 +1,8 @@
 #pragma once
 
 #ifdef __cplusplus
+namespace esphome {
+namespace lilygo_t5_47_plus {
 extern "C" {
 #endif
 
@@ -49,5 +51,7 @@ static const int GPIO_CS = 39;
 #endif
 
 #ifdef __cplusplus
-}
+}  // extern "C"
+}  // namespace lilygo_t5_47_plus
+}  // namespace esphome
 #endif

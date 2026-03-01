@@ -35,7 +35,7 @@ static const std::array<std::pair<float, float>, 10> VOLTAGE_CURVE = {{
 
 void LilygoT547PlusBattery::setup() {
   // Configure ADC pin as input (not strictly required, but explicit)
-  pinMode(BATT_PIN, INPUT);
+  pinMode(BATT_PIN, INPUT);  // NOLINT
 }
 
 void LilygoT547PlusBattery::dump_config() {

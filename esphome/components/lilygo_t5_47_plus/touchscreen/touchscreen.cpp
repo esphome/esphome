@@ -22,12 +22,12 @@ inline bool i2c_ok(i2c::ErrorCode err, LilygoT547PlusTouchscreen *ts) {
 
 void LilygoT547PlusTouchscreen::setup() {
   // GPIO47 wakeup sequence — required by this board for GT911 initialization.
-  // Matches the LilyGo reference: TouchDrvGT911::wakeup()
-  //   pinMode(_irq, OUTPUT); digitalWrite(_irq, HIGH); delay(8); pinMode(_irq, INPUT);
-  pinMode(TOUCH_INT_PIN, OUTPUT);
-  digitalWrite(TOUCH_INT_PIN, HIGH);
+  // Matches the LilyGo reference: TouchDrvGT911::wakeup()  // NOLINT
+  //   pinMode(_irq, OUTPUT); digitalWrite(_irq, HIGH); delay(8); pinMode(_irq, INPUT);  // NOLINT
+  pinMode(TOUCH_INT_PIN, OUTPUT);    // NOLINT
+  digitalWrite(TOUCH_INT_PIN, HIGH);  // NOLINT
   delay(10);
-  pinMode(TOUCH_INT_PIN, INPUT);
+  pinMode(TOUCH_INT_PIN, INPUT);  // NOLINT
   ESP_LOGD(TAG, "GT911 wakeup: GPIO%d HIGH→INPUT done", TOUCH_INT_PIN);
 
   // Verify I2C communication.

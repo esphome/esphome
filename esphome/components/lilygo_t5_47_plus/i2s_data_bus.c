@@ -27,7 +27,7 @@
 /***        macro definitions                                               ***/
 /******************************************************************************/
 
-#define USER_I2S_REG 0
+#define USER_I2S_REG 0  // NOLINT
 
 /******************************************************************************/
 /***        type definitions                                                ***/
@@ -199,9 +199,9 @@ void IRAM_ATTR i2s_start_line_output() {
 #if !USER_I2S_REG
 static bool notify_trans_done(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata,
                               void *user_ctx) {
-  // gpio_set_level(start_pulse_pin, 1);
   output_done = true;
-  return output_done;
+  // Return false: no higher-priority task was woken, so no context switch needed.
+  return false;
 }
 #endif
 
@@ -396,14 +396,28 @@ void i2s_bus_init(i2s_bus_config *cfg) {
 #endif
 
 void i2s_deinit() {
-  esp_intr_free(gI2S_intr_handle);
+#if USER_I2S_REG
+  if (gI2S_intr_handle != NULL) {
+    esp_intr_free(gI2S_intr_handle);
+    gI2S_intr_handle = NULL;
+  }
 
   free(i2s_state.buf_a);
+  i2s_state.buf_a = NULL;
   free(i2s_state.buf_b);
+  i2s_state.buf_b = NULL;
   free((void *) i2s_state.dma_desc_a);
+  i2s_state.dma_desc_a = NULL;
   free((void *) i2s_state.dma_desc_b);
+  i2s_state.dma_desc_b = NULL;
 
   periph_module_disable(PERIPH_I2S1_MODULE);
+#else
+  if (io_handle != NULL) {
+    esp_lcd_panel_io_del(io_handle);
+    io_handle = NULL;
+  }
+#endif
 }
 
 /******************************************************************************/

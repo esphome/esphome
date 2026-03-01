@@ -10,34 +10,29 @@
  * data to the display, based on the I2S peripheral.
  */
 
-#ifndef _I2S_DATA_BUS_H_
-#define _I2S_DATA_BUS_H_
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/******************************************************************************/
-/***        include files                                                   ***/
-/******************************************************************************/
+#pragma once
 
 #include <driver/gpio.h>
-#include <esp_attr.h>
-
 #include <stdint.h>
 
-/******************************************************************************/
-/***        macro definitions                                               ***/
-/******************************************************************************/
+#ifdef ESP_PLATFORM
+#include <esp_attr.h>
+#else
+#ifndef IRAM_ATTR
+#define IRAM_ATTR  // NOLINT
+#endif
+#endif
 
-/******************************************************************************/
-/***        type definitions                                                ***/
-/******************************************************************************/
+#ifdef __cplusplus
+namespace esphome {
+namespace lilygo_t5_47_plus {
+extern "C" {
+#endif
 
 /**
  * I2S bus configuration parameters.
  */
-typedef struct {
+typedef struct {  // NOLINT(modernize-use-using)
   /// GPIO numbers of the parallel bus pins.
   gpio_num_t data_0;
   gpio_num_t data_1;
@@ -51,20 +46,12 @@ typedef struct {
   /// Data clock pin.
   gpio_num_t clock;
 
-  /// "Start Pulse", enabling data input on the slave device (active low)
+  /// "Start Pulse", enabling data input on the target device (active low)
   gpio_num_t start_pulse;
 
   // Width of a display row in pixels.
   uint32_t epd_row_width;
 } i2s_bus_config;
-
-/******************************************************************************/
-/***        exported variables                                              ***/
-/******************************************************************************/
-
-/******************************************************************************/
-/***        exported functions                                              ***/
-/******************************************************************************/
 
 /**
  * @brief Initialize the I2S data bus for communication with a 8bit parallel
@@ -101,10 +88,7 @@ bool IRAM_ATTR i2s_is_busy();
 void i2s_deinit();
 
 #ifdef __cplusplus
-}
+}  // extern "C"
+}  // namespace lilygo_t5_47_plus
+}  // namespace esphome
 #endif
-
-#endif
-/******************************************************************************/
-/***        END OF FILE                                                     ***/
-/******************************************************************************/

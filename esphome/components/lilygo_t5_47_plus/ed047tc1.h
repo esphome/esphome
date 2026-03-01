@@ -5,24 +5,16 @@
 // Modified by Xinyuan-LilyGO; combined work licensed under GPL-3.0-or-later:
 // https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
 
-#ifndef _ED047TC1_H_
-#define _ED047TC1_H_
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/******************************************************************************/
-/***        include files                                                   ***/
-/******************************************************************************/
+#pragma once
 
 #include <driver/gpio.h>
-
 #include <stdint.h>
 
-/******************************************************************************/
-/***        macro definitions                                               ***/
-/******************************************************************************/
+#ifdef __cplusplus
+namespace esphome {
+namespace lilygo_t5_47_plus {
+extern "C" {
+#endif
 
 #if CONFIG_IDF_TARGET_ESP32
 
@@ -76,21 +68,7 @@ extern "C" {
 #error "Unknown SOC"
 #endif
 
-/******************************************************************************/
-/***        type definitions                                                ***/
-/******************************************************************************/
-
-/******************************************************************************/
-/***        exported variables                                              ***/
-/******************************************************************************/
-
-/******************************************************************************/
-/***        exported functions                                              ***/
-/******************************************************************************/
-
 void epd_base_init(uint32_t epd_row_width);
-void epd_poweron();
-void epd_poweroff();
 
 /**
  * @brief Start a draw cycle.
@@ -139,10 +117,7 @@ uint8_t *epd_get_current_buffer();
 void epd_switch_buffer();
 
 #ifdef __cplusplus
-}
+}  // extern "C"
+}  // namespace lilygo_t5_47_plus
+}  // namespace esphome
 #endif
-
-#endif
-/******************************************************************************/
-/***        END OF FILE                                                     ***/
-/******************************************************************************/

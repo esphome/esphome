@@ -9,37 +9,24 @@
  * Emit a pulse of precise length on a pin, using the RMT peripheral.
  */
 
-#ifndef _RMT_PULSE_H_
-#define _RMT_PULSE_H_
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/******************************************************************************/
-/***        include files                                                   ***/
-/******************************************************************************/
+#pragma once
 
 #include <stdint.h>
-
 #include <driver/gpio.h>
+
+#ifdef ESP_PLATFORM
 #include <esp_attr.h>
+#else
+#ifndef IRAM_ATTR
+#define IRAM_ATTR  // NOLINT
+#endif
+#endif
 
-/******************************************************************************/
-/***        macro definitions                                               ***/
-/******************************************************************************/
-
-/******************************************************************************/
-/***        type definitions                                                ***/
-/******************************************************************************/
-
-/******************************************************************************/
-/***        exported variables                                              ***/
-/******************************************************************************/
-
-/******************************************************************************/
-/***        exported functions                                              ***/
-/******************************************************************************/
+#ifdef __cplusplus
+namespace esphome {
+namespace lilygo_t5_47_plus {
+extern "C" {
+#endif
 
 /**
  * @brief Initializes RMT Channel 0 with a pin for RMT pulsing.
@@ -71,10 +58,7 @@ void pulse_ckv_us(uint16_t high_time_us, uint16_t low_time_us, bool wait);
 void pulse_ckv_ticks(uint16_t high_time_us, uint16_t low_time_us, bool wait);
 
 #ifdef __cplusplus
-}
+}  // extern "C"
+}  // namespace lilygo_t5_47_plus
+}  // namespace esphome
 #endif
-
-#endif
-/******************************************************************************/
-/***        END OF FILE                                                     ***/
-/******************************************************************************/
