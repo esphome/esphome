@@ -31,6 +31,11 @@ esphome:
         id(template_sens).set_template([]() -> std::optional<float> {
           return 123.0f;
         });
+    # Test that esphome::optional alias still works for backward compatibility
+    - lambda: |-
+        id(template_sens).set_template([]() -> esphome::optional<float> {
+          return 42.0f;
+        });
 
     - datetime.date.set:
         id: test_date

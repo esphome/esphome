@@ -68,3 +68,18 @@ def test_text_config_lamda_is_set(generate_main):
     # Then
     assert "it_4->set_template([]() -> std::optional<std::string> {" in main_cpp
     assert 'return std::string{"Hello"};' in main_cpp
+
+
+def test_esphome_optional_alias_works(generate_main):
+    """
+    Test that esphome::optional alias compiles (backward compatibility)
+    """
+    # Given
+
+    # When
+    main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
+
+    # Then
+    # Codegen emits std::optional, but esphome::optional must also work
+    # via the using alias in esphome/core/optional.h
+    assert "std::optional<std::string>" in main_cpp
