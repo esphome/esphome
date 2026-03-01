@@ -85,7 +85,9 @@ void store_component_error_message(const Component *component, const char *messa
 static constexpr uint16_t WARN_IF_BLOCKING_INCREMENT_MS =
     10U;  ///< How long the blocking time must be larger to warn again
 
+#ifdef USE_LOOP_PRIORITY
 float Component::get_loop_priority() const { return 0.0f; }
+#endif
 
 float Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -209,7 +211,7 @@ bool Component::cancel_retry(uint32_t id) {
 
 void Component::call_loop_() { this->loop(); }
 void Component::call_setup() { this->setup(); }
-void Component::call_dump_config() {
+void Component::call_dump_config_() {
   this->dump_config();
   if (this->is_failed()) {
     // Look up error message from global vector
@@ -294,10 +296,6 @@ void Component::mark_failed() {
   this->status_set_error();
   // Also remove from loop since failed components shouldn't loop
   App.disable_component_loop_(this);
-}
-void Component::set_component_state_(uint8_t state) {
-  this->component_state_ &= ~COMPONENT_STATE_MASK;
-  this->component_state_ |= state;
 }
 void Component::disable_loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
@@ -385,31 +383,30 @@ bool Component::is_idle() const { return (this->component_state_ & COMPONENT_STA
 bool Component::can_proceed() { return true; }
 bool Component::status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
 bool Component::status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
+bool Component::set_status_flag_(uint8_t flag) {
+  if ((this->component_state_ & flag) != 0)
+    return false;
+  this->component_state_ |= flag;
+  App.app_state_ |= flag;
+  return true;
+}
 
 void Component::status_set_warning(const char *message) {
-  // Don't spam the log. This risks missing different warning messages though.
-  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+  if (!this->set_status_flag_(STATUS_LED_WARNING))
     return;
-  this->component_state_ |= STATUS_LED_WARNING;
-  App.app_state_ |= STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? message : LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_set_warning(const LogString *message) {
-  // Don't spam the log. This risks missing different warning messages though.
-  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+  if (!this->set_status_flag_(STATUS_LED_WARNING))
     return;
-  this->component_state_ |= STATUS_LED_WARNING;
-  App.app_state_ |= STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_set_error() { this->status_set_error((const LogString *) nullptr); }
 void Component::status_set_error(const char *message) {
-  if ((this->component_state_ & STATUS_LED_ERROR) != 0)
+  if (!this->set_status_flag_(STATUS_LED_ERROR))
     return;
-  this->component_state_ |= STATUS_LED_ERROR;
-  App.app_state_ |= STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? message : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
@@ -417,10 +414,8 @@ void Component::status_set_error(const char *message) {
   }
 }
 void Component::status_set_error(const LogString *message) {
-  if ((this->component_state_ & STATUS_LED_ERROR) != 0)
+  if (!this->set_status_flag_(STATUS_LED_ERROR))
     return;
-  this->component_state_ |= STATUS_LED_ERROR;
-  App.app_state_ |= STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {

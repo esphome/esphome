@@ -213,6 +213,7 @@ esphome/components/hbridge/light/* @DotNetDann
 esphome/components/hbridge/switch/* @dwmw2
 esphome/components/hc8/* @omartijn
 esphome/components/hdc2010/* @optimusprimespace @ssieb
+esphome/components/hdc302x/* @joshuasing
 esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
@@ -428,6 +429,7 @@ esphome/components/select/* @esphome/core
 esphome/components/sen0321/* @notjj
 esphome/components/sen21231/* @shreyaskarnik
 esphome/components/sen5x/* @martgras
+esphome/components/sen6x/* @martgras @mebner86 @mikelawrence @tuct
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
 esphome/components/sfa30/* @ghsensdev

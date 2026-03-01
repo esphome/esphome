@@ -201,20 +201,20 @@ class APIServer : public Component,
   };
 
   // New const char* overload (for internal components - zero allocation)
-  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> f);
-  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> f);
+  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
+  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
 
   // std::string overload with StringRef callback (for custom_api_device.h with zero-allocation callback)
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                      std::function<void(StringRef)> f);
+                                      std::function<void(StringRef)> &&f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                std::function<void(StringRef)> f);
+                                std::function<void(StringRef)> &&f);
 
   // Legacy std::string overload (for custom_api_device.h - converts StringRef to std::string for callback)
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                      std::function<void(const std::string &)> f);
+                                      std::function<void(const std::string &)> &&f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                std::function<void(const std::string &)> f);
+                                std::function<void(const std::string &)> &&f);
 
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
 #endif
@@ -241,16 +241,23 @@ class APIServer : public Component,
 #endif  // USE_API_NOISE
 #ifdef USE_API_HOMEASSISTANT_STATES
   // Helper methods to reduce code duplication
-  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> f,
+  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f,
                                bool once);
-  void add_state_subscription_(std::string entity_id, optional<std::string> attribute, std::function<void(StringRef)> f,
-                               bool once);
+  void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
+                               std::function<void(StringRef)> &&f, bool once);
   // Legacy helper: wraps std::string callback and delegates to StringRef version
   void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                               std::function<void(const std::string &)> f, bool once);
+                               std::function<void(const std::string &)> &&f, bool once);
 #endif  // USE_API_HOMEASSISTANT_STATES
+  // No explicit close() needed — listen sockets have no active connections on
+  // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).
+  inline void destroy_socket_() {
+    delete this->socket_;
+    this->socket_ = nullptr;
+  }
+  void socket_failed_(const LogString *msg);
   // Pointers and pointer-like types first (4 bytes each)
-  std::unique_ptr<socket::Socket> socket_ = nullptr;
+  socket::Socket *socket_{nullptr};
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   Trigger<std::string, std::string> client_connected_trigger_;
 #endif

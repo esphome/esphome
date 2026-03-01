@@ -603,7 +603,7 @@ DELTA_SCHEMA = cv.Any(
 def _get_delta(value):
     if isinstance(value, str):
         assert value.endswith("%")
-        return 0.0, float(value[:-1])
+        return 0.0, float(value[:-1]) / 100.0
     return value, 0.0
 
 
@@ -888,24 +888,8 @@ async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
-async def setup_sensor_core_(var, config):
-    await setup_entity(var, config, "sensor")
-
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
-    if (state_class := config.get(CONF_STATE_CLASS)) is not None:
-        cg.add(var.set_state_class(state_class))
-    if (unit_of_measurement := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
-        cg.add(var.set_unit_of_measurement(unit_of_measurement))
-    if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
-        cg.add(var.set_accuracy_decimals(accuracy_decimals))
-    # Only set force_update if True (default is False)
-    if config[CONF_FORCE_UPDATE]:
-        cg.add(var.set_force_update(True))
-    if config.get(CONF_FILTERS):  # must exist and not be empty
-        filters = await build_filters(config[CONF_FILTERS])
-        cg.add(var.set_filters(filters))
-
+@coroutine_with_priority(CoroPriority.AUTOMATION)
+async def _build_sensor_automations(var, config):
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(float, "x")], conf)
@@ -922,6 +906,28 @@ async def setup_sensor_core_(var, config):
             template_ = await cg.templatable(below, [(float, "x")], float)
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
+
+
+async def setup_sensor_core_(var, config):
+    await setup_entity(var, config, "sensor")
+
+    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
+        cg.add(var.set_device_class(device_class))
+    if (state_class := config.get(CONF_STATE_CLASS)) is not None:
+        cg.add(var.set_state_class(state_class))
+    if (unit_of_measurement := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
+        cg.add(var.set_unit_of_measurement(unit_of_measurement))
+    if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
+        cg.add(var.set_accuracy_decimals(accuracy_decimals))
+    # Only set force_update if True (default is False)
+    if config[CONF_FORCE_UPDATE]:
+        cg.add(var.set_force_update(True))
+    if config.get(CONF_FILTERS):  # must exist and not be empty
+        cg.add_define("USE_SENSOR_FILTER")
+        filters = await build_filters(config[CONF_FILTERS])
+        cg.add(var.set_filters(filters))
+
+    CORE.add_job(_build_sensor_automations, var, config)
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
