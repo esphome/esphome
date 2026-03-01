@@ -42,6 +42,7 @@ from ..defines import (
     LV_PART,
     LV_SCALE_MODE,
     get_remapped_uses,
+    get_warnings,
 )
 from ..helpers import add_lv_use, lvgl_components_required
 from ..lv_validation import (
@@ -83,13 +84,13 @@ from .line import CONF_LINE
 CONF_ANGLE_RANGE = "angle_range"
 CONF_COLOR_END = "color_end"
 CONF_COLOR_START = "color_start"
+CONF_DRAW_TICKS_ON_TOP = "draw_ticks_on_top"
 CONF_IMAGE_ID = "image_id"
 CONF_INDICATORS = "indicators"
 CONF_LINE_ID = "line_id"
 CONF_LABEL_GAP = "label_gap"
 CONF_MAJOR = "major"
 CONF_METER = "meter"
-CONF_PADDING = "padding"
 CONF_PIVOT = "pivot"
 CONF_R_MOD = "r_mod"
 CONF_RADIAL_OFFSET = "radial_offset"
@@ -168,22 +169,17 @@ INDICATOR_IMG_SCHEMA = cv.Schema(
         cv.Optional(CONF_OPA, default=1.0): opacity,
     }
 )
-INDICATOR_ARC_SCHEMA = (
-    cv.Schema(
-        {
-            cv.Optional(CONF_WIDTH, default=4): cv.int_,
-            cv.Optional(CONF_COLOR, default=0): lv_color,
-            cv.Optional(CONF_R_MOD): padding,
-            cv.Optional(CONF_PADDING): padding,
-            cv.Optional(CONF_VALUE): lv_float,
-            cv.Optional(CONF_START_VALUE): lv_float,
-            cv.Optional(CONF_END_VALUE): lv_float,
-            cv.Optional(CONF_OPA): opacity,
-        }
-    )
-    .add_extra(cv.has_at_most_one_key(CONF_R_MOD, CONF_PADDING))
-    .add_extra(cv.has_at_most_one_key(CONF_VALUE, CONF_START_VALUE))
-)
+INDICATOR_ARC_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_WIDTH, default=4): cv.int_,
+        cv.Optional(CONF_COLOR, default=0): lv_color,
+        cv.Optional(CONF_R_MOD): padding,
+        cv.Optional(CONF_VALUE): lv_float,
+        cv.Optional(CONF_START_VALUE): lv_float,
+        cv.Optional(CONF_END_VALUE): lv_float,
+        cv.Optional(CONF_OPA): opacity,
+    }
+).add_extra(cv.has_at_most_one_key(CONF_VALUE, CONF_START_VALUE))
 
 INDICATOR_TICKS_SCHEMA = cv.Schema(
     {
@@ -253,6 +249,7 @@ SCALE_SCHEMA = cv.Schema(
         cv.Optional(CONF_ANGLE_RANGE, default=270): lv_angle_degrees,
         cv.Optional(CONF_ROTATION, default=0): lv_angle_degrees,
         cv.Optional(CONF_INDICATORS): cv.ensure_list(INDICATOR_SCHEMA),
+        cv.Optional(CONF_DRAW_TICKS_ON_TOP, default=True): bool,
     }
 )
 
@@ -396,8 +393,10 @@ class MeterType(WidgetType):
                         "arc_opa": v[CONF_OPA],
                         "arc_rounded": v.get("arc_rounded", False),
                     }
-                    if pad_all := v.get(CONF_PADDING, -v.get(CONF_R_MOD, 0)):
-                        props["pad_all"] = pad_all
+                    if CONF_R_MOD in v:
+                        get_warnings().add(
+                            "The 'r_mod' indicator property is not supported in LVGL 9.x and will be ignored."
+                        )
                     arc_style = LVStyle(f"meter_arc_{iid.id}", props)
                     tvar = cg.Pvariable(iid, lv_expr.scale_add_section(scale_var))
                     lv.scale_section_set_style(
@@ -478,6 +477,9 @@ class MeterType(WidgetType):
             if ticks := scale_conf.get(CONF_TICKS):
                 # Set total tick count
                 lv.scale_set_total_tick_count(scale_var, ticks[CONF_COUNT])
+                lv.scale_set_draw_ticks_on_top(
+                    scale_var, scale_conf[CONF_DRAW_TICKS_ON_TOP]
+                )
 
                 # Set tick styling
                 lv_obj.set_style_length(
