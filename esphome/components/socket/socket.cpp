@@ -89,7 +89,7 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol) {
 #endif /* USE_NETWORK_IPV6 */
 }
 
-std::unique_ptr<ListenSocket> socket_ip_listen_loop_monitored(int type, int protocol) {
+std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
 #if USE_NETWORK_IPV6
   return socket_listen_loop_monitored(AF_INET6, type, protocol);
 #else

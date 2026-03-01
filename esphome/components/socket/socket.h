@@ -60,7 +60,7 @@ std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol);
 /// Create a listening socket and monitor it for data in the main loop.
 std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type, int protocol);
 /// Create a listening socket in the newest available IP domain and monitor it.
-std::unique_ptr<ListenSocket> socket_ip_listen_loop_monitored(int type, int protocol);
+std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol);
 
 /// Set a sockaddr to the specified address and port for the IP version used by socket_ip().
 /// @param addr Destination sockaddr structure

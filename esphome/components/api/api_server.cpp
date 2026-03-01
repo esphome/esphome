@@ -54,8 +54,7 @@ void APIServer::setup() {
 #endif
 #endif
 
-  this->socket_ =
-      socket::socket_ip_listen_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
+  this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
   if (this->socket_ == nullptr) {
     this->socket_failed_(LOG_STR("creation"));
     return;
