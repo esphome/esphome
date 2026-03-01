@@ -14,8 +14,7 @@
 #include "esphome/components/audio_dac/audio_dac.h"
 #endif
 
-namespace esphome {
-namespace snapclient {
+namespace esphome::snapclient {
 
 using audioDACdata_t = struct AudioDaCdataS {
   bool playerMute;
@@ -80,8 +79,7 @@ class SnapClientComponent : public i2s_audio::I2SAudioOut, public media_player::
 #endif
 };
 
-}  // namespace snapclient
-}  // namespace esphome
+}  // namespace esphome::snapclient
 
 #endif
 #endif

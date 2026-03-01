@@ -2,6 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import audio_dac, media_player, socket, wifi
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
+from esphome.components.ethernet import SPI_ETHERNET_TYPES
 from esphome.components.i2s_audio import (
     CONF_I2S_DOUT_PIN,
     CONF_STEREO,
@@ -10,7 +11,7 @@ from esphome.components.i2s_audio import (
     register_i2s_audio_component,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_AUDIO_DAC, CONF_NAME, CONF_PORT
+from esphome.const import CONF_AUDIO_DAC, CONF_NAME, CONF_PORT, CONF_TYPE
 from esphome.core import CORE
 
 CODEOWNERS = ["@luar123"]
@@ -93,7 +94,12 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_SNAPSERVER_USE_MDNS", False)
     add_idf_sdkconfig_option("CONFIG_SNAPCLIENT_NAME", config[CONF_NAME])
     add_idf_sdkconfig_option("CONFIG_FREERTOS_TASK_NOTIFICATION_ARRAY_ENTRIES", 2)
-
+    ethernet = CORE.config.get("ethernet")
+    if ethernet:
+        if ethernet.get(CONF_TYPE) in SPI_ETHERNET_TYPES:
+            add_idf_sdkconfig_option("CONFIG_SNAPCLIENT_USE_SPI_ETHERNET", True)
+        else:
+            add_idf_sdkconfig_option("CONFIG_SNAPCLIENT_USE_INTERNAL_ETHERNET", True)
     wifi.enable_runtime_power_save_control()
 
     var = await media_player.new_media_player(config)
