@@ -31,6 +31,7 @@ BTHomeBinarySensor = bthome_ns.class_(
     binary_sensor.BinarySensor,
     cg.Component,
 )
+BTHomeESP32BLEAdapter = bthome_ns.class_("ESP32BLEAdapter")
 
 # Server-side classes
 server_ns = bthome_ns.namespace("server")
@@ -366,17 +367,17 @@ async def _server_to_code(config):
 
     n = len(all_entries)
     # Create BTHomeServer<N>
+    esp32_ble_adapter = cg.new_Pvariable(
+        core.ID("bthome_ble_adapter", False, BTHomeESP32BLEAdapter)
+    )
     server_id = config[CONF_ID]
     server_var = cg.new_Pvariable(
         core.ID(str(server_id), False, BTHomeServer),
         TemplateArguments(n),
+        esp32_ble_adapter,
     )
 
     await cg.register_component(server_var, {})
-
-    # Register GAP event handler
-    ble_var = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
-    esp32_ble.register_gap_event_handler(ble_var, server_var)
 
     # Encryption
     has_encryption = False
