@@ -441,7 +441,7 @@ ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
   return ret;
 }
 
-ssize_t LWIPRawImpl::internal_write(const void *buf, size_t len) {
+ssize_t LWIPRawImpl::internal_write_(const void *buf, size_t len) {
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
     return -1;
@@ -473,7 +473,7 @@ ssize_t LWIPRawImpl::internal_write(const void *buf, size_t len) {
   return to_send;
 }
 
-int LWIPRawImpl::internal_output() {
+int LWIPRawImpl::internal_output_() {
   LWIP_LOG("tcp_output(%p)", this->pcb_);
   err_t err = tcp_output(this->pcb_);
   if (err == ERR_ABRT) {
@@ -489,7 +489,7 @@ int LWIPRawImpl::internal_output() {
 }
 
 ssize_t LWIPRawImpl::write(const void *buf, size_t len) {
-  ssize_t written = this->internal_write(buf, len);
+  ssize_t written = this->internal_write_(buf, len);
   if (written == -1)
     return -1;
   if (written == 0) {
@@ -497,7 +497,7 @@ ssize_t LWIPRawImpl::write(const void *buf, size_t len) {
     return 0;
   }
   if (this->nodelay_) {
-    int err = this->internal_output();
+    int err = this->internal_output_();
     if (err == -1)
       return -1;
   }
@@ -507,7 +507,7 @@ ssize_t LWIPRawImpl::write(const void *buf, size_t len) {
 ssize_t LWIPRawImpl::writev(const struct iovec *iov, int iovcnt) {
   ssize_t written = 0;
   for (int i = 0; i < iovcnt; i++) {
-    ssize_t err = this->internal_write(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+    ssize_t err = this->internal_write_(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
     if (err == -1) {
       if (written != 0) {
         // if we already read some don't return an error
@@ -524,7 +524,7 @@ ssize_t LWIPRawImpl::writev(const struct iovec *iov, int iovcnt) {
     return 0;
   }
   if (this->nodelay_) {
-    int err = this->internal_output();
+    int err = this->internal_output_();
     if (err == -1)
       return -1;
   }

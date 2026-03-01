@@ -35,8 +35,8 @@ class LWIPRawCommon {
   int close();
   int shutdown(int how);
 
-  int getpeername(struct sockaddr *addr, socklen_t *addrlen);
-  int getsockname(struct sockaddr *addr, socklen_t *addrlen);
+  int getpeername(struct sockaddr *name, socklen_t *addrlen);
+  int getsockname(struct sockaddr *name, socklen_t *addrlen);
 
   /// Format peer address into a fixed-size buffer (no heap allocation)
   size_t getpeername_to(std::span<char, SOCKADDR_STR_LEN> buf);
@@ -112,8 +112,8 @@ class LWIPRawImpl : public LWIPRawCommon {
   static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err);
 
  protected:
-  ssize_t internal_write(const void *buf, size_t len);
-  int internal_output();
+  ssize_t internal_write_(const void *buf, size_t len);
+  int internal_output_();
 
   pbuf *rx_buf_ = nullptr;
   size_t rx_buf_offset_ = 0;
