@@ -117,8 +117,8 @@ void LilygoT547PlusDisplay::display() {
   epd_poweroff();
   uint32_t t4 = esphome::millis();
 
-  ESP_LOGD(TAG, "EPD refresh done: poweron=%ums clear=%ums draw=%ums poweroff=%ums total=%ums",
-           t1 - t0, t2 - t1, t3 - t2, t4 - t3, t4 - t0);
+  ESP_LOGD(TAG, "EPD refresh done: poweron=%ums clear=%ums draw=%ums poweroff=%ums total=%ums", t1 - t0, t2 - t1,
+           t3 - t2, t4 - t3, t4 - t0);
 }
 
 void LilygoT547PlusDisplay::on_safe_shutdown() {

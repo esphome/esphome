@@ -279,6 +279,9 @@ esphome/components/libretiny_pwm/* @kuba2k2
 esphome/components/light/* @esphome/core
 esphome/components/lightwaverf/* @max246
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
+esphome/components/lilygo_t5_47_plus/* @hbast
+esphome/components/lilygo_t5_47_plus/sensor/* @hbast
+esphome/components/lilygo_t5_47_plus/touchscreen/* @hbast
 esphome/components/lm75b/* @beormund
 esphome/components/ln882x/* @lamauny
 esphome/components/lock/* @esphome/core

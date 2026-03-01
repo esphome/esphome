@@ -63,61 +63,51 @@ static rmt_encoder_handle_t rmt_encoder = NULL;
 /***        exported functions                                              ***/
 /******************************************************************************/
 
-void rmt_pulse_init(gpio_num_t pin)
-{
-    rmt_tx_channel_config_t tx_chan_config = {
-        .clk_src = RMT_CLK_SRC_DEFAULT,
-        .gpio_num = pin,
-        .mem_block_symbols = 64,
-        .resolution_hz = 10000000, // 10MHz, 0.1us resolution
-        .trans_queue_depth = 4,
-        .flags.invert_out = false,
-        .flags.with_dma = false,
-    };
-    
-    ESP_ERROR_CHECK(rmt_new_tx_channel(&tx_chan_config, &rmt_chan));
-    ESP_ERROR_CHECK(rmt_enable(rmt_chan));
-    
-    // Create copy encoder for simple symbol transmission
-    rmt_copy_encoder_config_t copy_encoder_config = {};
-    ESP_ERROR_CHECK(rmt_new_copy_encoder(&copy_encoder_config, &rmt_encoder));
+void rmt_pulse_init(gpio_num_t pin) {
+  rmt_tx_channel_config_t tx_chan_config = {
+      .clk_src = RMT_CLK_SRC_DEFAULT,
+      .gpio_num = pin,
+      .mem_block_symbols = 64,
+      .resolution_hz = 10000000,  // 10MHz, 0.1us resolution
+      .trans_queue_depth = 4,
+      .flags.invert_out = false,
+      .flags.with_dma = false,
+  };
+
+  ESP_ERROR_CHECK(rmt_new_tx_channel(&tx_chan_config, &rmt_chan));
+  ESP_ERROR_CHECK(rmt_enable(rmt_chan));
+
+  // Create copy encoder for simple symbol transmission
+  rmt_copy_encoder_config_t copy_encoder_config = {};
+  ESP_ERROR_CHECK(rmt_new_copy_encoder(&copy_encoder_config, &rmt_encoder));
 }
 
+void IRAM_ATTR pulse_ckv_ticks(uint16_t high_time_ticks, uint16_t low_time_ticks, bool wait) {
+  rmt_symbol_word_t rmt_symbol;
 
-void IRAM_ATTR pulse_ckv_ticks(uint16_t high_time_ticks,
-                               uint16_t low_time_ticks, bool wait)
-{
-    rmt_symbol_word_t rmt_symbol;
-    
-    if (high_time_ticks > 0)
-    {
-        rmt_symbol.level0 = 1;
-        rmt_symbol.duration0 = high_time_ticks;
-        rmt_symbol.level1 = 0;
-        rmt_symbol.duration1 = low_time_ticks;
-    }
-    else
-    {
-        rmt_symbol.level0 = 1;
-        rmt_symbol.duration0 = low_time_ticks;
-        rmt_symbol.level1 = 0;
-        rmt_symbol.duration1 = 0;
-    }
-    
-    if (wait) {
-        ESP_ERROR_CHECK(rmt_transmit(rmt_chan, rmt_encoder, &rmt_symbol, sizeof(rmt_symbol_word_t), &rmt_tx_config));
-        ESP_ERROR_CHECK(rmt_tx_wait_all_done(rmt_chan, -1));
-    } else {
-        rmt_transmit(rmt_chan, rmt_encoder, &rmt_symbol, sizeof(rmt_symbol_word_t), &rmt_tx_config);
-    }
+  if (high_time_ticks > 0) {
+    rmt_symbol.level0 = 1;
+    rmt_symbol.duration0 = high_time_ticks;
+    rmt_symbol.level1 = 0;
+    rmt_symbol.duration1 = low_time_ticks;
+  } else {
+    rmt_symbol.level0 = 1;
+    rmt_symbol.duration0 = low_time_ticks;
+    rmt_symbol.level1 = 0;
+    rmt_symbol.duration1 = 0;
+  }
+
+  if (wait) {
+    ESP_ERROR_CHECK(rmt_transmit(rmt_chan, rmt_encoder, &rmt_symbol, sizeof(rmt_symbol_word_t), &rmt_tx_config));
+    ESP_ERROR_CHECK(rmt_tx_wait_all_done(rmt_chan, -1));
+  } else {
+    rmt_transmit(rmt_chan, rmt_encoder, &rmt_symbol, sizeof(rmt_symbol_word_t), &rmt_tx_config);
+  }
 }
 
-
-void IRAM_ATTR pulse_ckv_us(uint16_t high_time_us, uint16_t low_time_us, bool wait)
-{
-    pulse_ckv_ticks(10 * high_time_us, 10 * low_time_us, wait);
+void IRAM_ATTR pulse_ckv_us(uint16_t high_time_us, uint16_t low_time_us, bool wait) {
+  pulse_ckv_ticks(10 * high_time_us, 10 * low_time_us, wait);
 }
-
 
 // bool IRAM_ATTR rmt_busy()
 // {

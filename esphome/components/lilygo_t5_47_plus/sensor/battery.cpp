@@ -40,7 +40,9 @@ void LilygoT547PlusBattery::setup() {
 
 void LilygoT547PlusBattery::dump_config() {
   ESP_LOGCONFIG(TAG, "LilyGo T5 4.7\" Plus Battery Sensor:");
-  ESP_LOGCONFIG(TAG, "  ADC pin: GPIO%d", BATT_PIN);  ESP_LOGCONFIG(TAG, "  Voltage divider factor: %.3f", this->voltage_divider_);  ESP_LOGCONFIG(TAG, "  Voltage range: %.2f V (0%%) – %.2f V (100%%)", this->min_voltage_, this->max_voltage_);
+  ESP_LOGCONFIG(TAG, "  ADC pin: GPIO%d", BATT_PIN);
+  ESP_LOGCONFIG(TAG, "  Voltage divider factor: %.3f", this->voltage_divider_);
+  ESP_LOGCONFIG(TAG, "  Voltage range: %.2f V (0%%) – %.2f V (100%%)", this->min_voltage_, this->max_voltage_);
   LOG_SENSOR("  ", "Battery voltage", this->battery_voltage_sensor_);
   LOG_SENSOR("  ", "Battery level", this->battery_level_sensor_);
   LOG_UPDATE_INTERVAL(this);

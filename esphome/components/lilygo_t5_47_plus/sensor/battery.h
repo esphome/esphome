@@ -68,8 +68,8 @@ class LilygoT547PlusBattery : public PollingComponent {
   sensor::Sensor *battery_voltage_sensor_{nullptr};
   sensor::Sensor *battery_level_sensor_{nullptr};
 
-  float min_voltage_{3.00f};  // discharge cutoff → 0 %
-  float max_voltage_{4.20f};  // fully charged  → 100 %
+  float min_voltage_{3.00f};     // discharge cutoff → 0 %
+  float max_voltage_{4.20f};     // fully charged  → 100 %
   float voltage_divider_{2.0f};  // hardware voltage-divider factor (default: 1:1 = ×2)
 };
 
