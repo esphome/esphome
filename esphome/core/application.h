@@ -107,7 +107,7 @@
 namespace esphome::socket {
 #ifdef USE_SOCKET_SELECT_SUPPORT
 /// Shared ready() helper for fd-based socket implementations.
-bool socket_ready_fd(int fd, bool loop_monitored);
+bool socket_ready_fd(int fd, bool loop_monitored);  // NOLINT(readability-redundant-declaration)
 #endif
 }  // namespace esphome::socket
 
