@@ -299,6 +299,12 @@ class Component {
     this->component_state_ |= state;
   }
 
+  /// Helper to set a status LED flag on both this component and the app.
+  /// Returns true if the flag was newly set, false if it was already set.
+  /// Note: Callers often use the return value to decide whether to log a warning/error,
+  /// so once a flag is set, subsequent (potentially different) messages may be suppressed.
+  bool set_status_flag_(uint8_t flag);
+
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
    * This will call f every interval ms. Can be cancelled via CancelInterval().
