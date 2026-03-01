@@ -40,8 +40,9 @@ void PN532::setup() {
            version_data[0], version_data[1], version_data[2]);
 
   if (version_data[1] != 0x01 || version_data[3] != 0x07) {
-    ESP_LOGW(TAG, "PN532 firmware response looks non-standard (Ver: 0x%02X, Support: 0x%02X) - "
-                  "you may have a counterfeit chip which could cause unreliable behavior.",
+    ESP_LOGW(TAG,
+             "PN532 firmware response looks non-standard (Ver: 0x%02X, Support: 0x%02X) - "
+             "you may have a counterfeit chip which could cause unreliable behavior.",
              version_data[1], version_data[3]);
   }
 
@@ -192,7 +193,7 @@ void PN532::update() {
       })) {
     ESP_LOGW(TAG, "Requesting tag read failed!");
     this->status_set_warning();
-    
+
     for (auto &ptag : this->persistent_tags_) {
       ptag.missing_count++;
     }
@@ -273,7 +274,10 @@ void PN532::loop() {
   for (auto &ptag : this->persistent_tags_) {
     bool found = false;
     for (const auto &new_uid : new_uids) {
-      if (ptag.uid == new_uid) { found = true; break; }
+      if (ptag.uid == new_uid) {
+        found = true;
+        break;
+      }
     }
     if (!found) {
       ptag.missing_count++;
@@ -288,19 +292,23 @@ void PN532::loop() {
   for (auto &target : targets) {
     bool is_known = false;
     for (auto &ptag : this->persistent_tags_) {
-      if (target.uid == ptag.uid) { is_known = true; break; }
+      if (target.uid == ptag.uid) {
+        is_known = true;
+        break;
+      }
     }
 
     if (!is_known) {
       this->persistent_tags_.push_back({target.uid, 0});
       this->current_uids_.push_back(target.uid);
       auto tag = this->read_tag_(target.tg, target.uid);
-      for (auto *trigger : this->triggers_ontag_) trigger->process(tag);
-      
+      for (auto *trigger : this->triggers_ontag_)
+        trigger->process(tag);
+
       NfcTagUid nfc_uid;
       nfc_uid.assign(target.uid.begin(), target.uid.end());
       ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid(nfc_uid).c_str());
-      
+
       if (next_task_ != READ) {
         if (next_task_ == CLEAN) {
           this->clean_tag_(target.tg, target.uid);
@@ -319,7 +327,7 @@ void PN532::loop() {
       }
     }
   }
-  
+
   this->process_binary_sensors_();
 
   if (new_uids.empty() && !this->rf_field_enabled_) {
@@ -328,18 +336,22 @@ void PN532::loop() {
 }
 
 void PN532::process_removed_tags_(const std::vector<std::vector<uint8_t>> &new_uids) {
-  for (auto it = this->persistent_tags_.begin(); it != this->persistent_tags_.end(); ) {
+  for (auto it = this->persistent_tags_.begin(); it != this->persistent_tags_.end();) {
     if (it->missing_count >= 5) {
       std::vector<uint8_t> uid_copy = it->uid;
-      
+
       NfcTagUid nfc_uid;
       nfc_uid.assign(uid_copy.begin(), uid_copy.end());
       auto tag = make_unique<nfc::NfcTag>(nfc_uid);
-      
+
       ESP_LOGD(TAG, "Tag removed (threshold 5): %s", nfc::format_uid(nfc_uid).c_str());
-      for (auto *trigger : this->triggers_ontagremoved_) trigger->process(tag);
+      for (auto *trigger : this->triggers_ontagremoved_)
+        trigger->process(tag);
       for (auto uit = this->current_uids_.begin(); uit != this->current_uids_.end(); ++uit) {
-        if (*uit == uid_copy) { this->current_uids_.erase(uit); break; }
+        if (*uit == uid_copy) {
+          this->current_uids_.erase(uit);
+          break;
+        }
       }
       it = this->persistent_tags_.erase(it);
     } else {
@@ -357,13 +369,13 @@ void PN532::process_binary_sensors_() {
   for (auto *bin_sens : this->binary_sensors_) {
     bool found_in_persistent = false;
     for (const auto &ptag : this->persistent_tags_) {
-      if (bin_sens->process(ptag.uid)) { // bin_sens->process returns true and sets found_ = true if UID matches
+      if (bin_sens->process(ptag.uid)) {  // bin_sens->process returns true and sets found_ = true if UID matches
         found_in_persistent = true;
         break;
       }
     }
     if (!found_in_persistent) {
-      bin_sens->on_scan_end(); // This resets found_ and publishes false
+      bin_sens->on_scan_end();  // This resets found_ and publishes false
     }
   }
 }
@@ -378,7 +390,10 @@ bool PN532::write_command_(const std::vector<uint8_t> &data) {
   write_data.push_back(~real_length + 1);
   write_data.push_back(0xD4);
   uint8_t checksum = 0xD4;
-  for (uint8_t dat : data) { write_data.push_back(dat); checksum += dat; }
+  for (uint8_t dat : data) {
+    write_data.push_back(dat);
+    checksum += dat;
+  }
   write_data.push_back(~checksum + 1);
   write_data.push_back(0x00);
   this->write_data(write_data);
@@ -433,9 +448,7 @@ enum PN532ReadReady PN532::read_ready_(bool block) {
   return rdy;
 }
 
-void PN532::turn_off_rf_() {
-  this->write_command_({PN532_COMMAND_RFCONFIGURATION, 0x01, 0x00});
-}
+void PN532::turn_off_rf_() { this->write_command_({PN532_COMMAND_RFCONFIGURATION, 0x01, 0x00}); }
 
 std::unique_ptr<nfc::NfcTag> PN532::read_tag_(uint8_t tg, std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
@@ -453,7 +466,10 @@ std::unique_ptr<nfc::NfcTag> PN532::read_tag_(uint8_t tg, std::vector<uint8_t> &
 void PN532::read_mode() { this->next_task_ = READ; }
 void PN532::clean_mode() { this->next_task_ = CLEAN; }
 void PN532::format_mode() { this->next_task_ = FORMAT; }
-void PN532::write_mode(nfc::NdefMessage *message) { this->next_task_ = WRITE; this->next_task_message_to_write_ = message; }
+void PN532::write_mode(nfc::NdefMessage *message) {
+  this->next_task_ = WRITE;
+  this->next_task_message_to_write_ = message;
+}
 
 bool PN532::clean_tag_(uint8_t tg, std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
@@ -527,7 +543,8 @@ bool PN532::reinit_() {
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");
   LOG_UPDATE_INTERVAL(this);
-  for (auto *child : this->binary_sensors_) LOG_BINARY_SENSOR("  ", "Tag", child);
+  for (auto *child : this->binary_sensors_)
+    LOG_BINARY_SENSOR("  ", "Tag", child);
 }
 
 bool PN532BinarySensor::process(const std::vector<uint8_t> &data) {

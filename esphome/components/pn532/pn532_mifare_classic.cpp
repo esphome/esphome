@@ -92,10 +92,10 @@ bool PN532::read_mifare_classic_block_(uint8_t tg, uint8_t block_num, std::vecto
   return true;
 }
 
-bool PN532::auth_mifare_classic_block_(uint8_t tg, std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num, const uint8_t *key) {
+bool PN532::auth_mifare_classic_block_(uint8_t tg, std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num,
+                                       const uint8_t *key) {
   std::vector<uint8_t> data({
-      PN532_COMMAND_INDATAEXCHANGE,
-      tg,
+      PN532_COMMAND_INDATAEXCHANGE, tg,
       key_num,    // Mifare Key slot
       block_num,  // Block number
   });
