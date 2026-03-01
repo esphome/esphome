@@ -111,7 +111,7 @@ CONF_TICK_STYLE = "tick_style"
 
 # For compatibility, keep meter types but map to scale
 lv_scale_t = LvType("lv_scale_t")
-lv_meter_t = lv_obj_t
+lv_meter_t = LvType("lv_meter_t")
 lv_meter_indicator_t = lv_obj_t
 lv_meter_indicator_ticks_t = LvType(
     "lv_scale_section_t", parents=(lv_meter_indicator_t,)
@@ -316,7 +316,7 @@ class MeterType(WidgetType):
     def __init__(self):
         super().__init__(
             CONF_METER,
-            lv_obj_t,  # Use scale widget instead of meter
+            lv_meter_t,
             # Note that mapping from 8.x to 9.x, indicator styling is applied to needles, and tick styling
             # is migrated to indicator
             (CONF_MAIN, CONF_INDICATOR, CONF_TICKS, CONF_ITEMS),
