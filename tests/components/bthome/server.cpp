@@ -627,4 +627,95 @@ TEST_F(BTHomeServerTest, SetLocalSensorStoresSensorInSpan) {
   EXPECT_EQ(sensors[2], &sensor2_);
 }
 
+// ===========================================================================
+// Encryption tests
+//
+// 3-sensor payload (BATTERY_PCT=75, TEMPERATURE_C_E2=22.5, HUMIDITY_PCT_E2=60):
+//   {0x01, 0x4B}             BATTERY_PCT: type + 75 as uint8
+//   {0x02, 0xCA, 0x08}       TEMPERATURE_C_E2: type + 2250 (22.5*100) as int16 LE
+//   {0x03, 0x70, 0x17}       HUMIDITY_PCT_E2: type + 6000 (60.0*100) as uint16 LE
+//   = 8 bytes plaintext
+//
+// Encrypted blob: ciphertext(8) + counter(4 LE) + MIC(4) = 16 bytes
+// Full frame:     flags(3) + svc-hdr(4) + BTHome-hdr(1) + blob(16) = 24 bytes
+// Counter bytes:  frame[16..19]
+// ===========================================================================
+
+class BTHomeServerEncryptionTest : public ::testing::Test {
+ protected:
+  static constexpr uint8_t MAC_BYTES[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+  static constexpr EncryptionKey TEST_KEY = {0x23, 0x1d, 0x39, 0xc1, 0xd7, 0xcc, 0x1a, 0xb1,
+                                             0xae, 0xe2, 0x24, 0xcd, 0x09, 0x6d, 0xb9, 0x32};
+
+  NiceMock<MockBLEAdapter> adapter_;
+  TestableBTHomeServer<3> server_{&adapter_};
+
+  MockLocalSensor sensor0_{BTHomeObjectType::BATTERY_PCT, 75.0f};
+  MockLocalSensor sensor1_{BTHomeObjectType::TEMPERATURE_C_E2, 22.5f};
+  MockLocalSensor sensor2_{BTHomeObjectType::HUMIDITY_PCT_E2, 60.0f};
+
+  std::vector<uint8_t> last_frame_;
+
+  void SetUp() override {
+    server_.set_local_sensor(0, &sensor0_);
+    server_.set_local_sensor(1, &sensor1_);
+    server_.set_local_sensor(2, &sensor2_);
+    server_.set_encryption_key(
+        {0x23, 0x1d, 0x39, 0xc1, 0xd7, 0xcc, 0x1a, 0xb1, 0xae, 0xe2, 0x24, 0xcd, 0x09, 0x6d, 0xb9, 0x32});
+
+    ON_CALL(adapter_, get_local_mac()).WillByDefault(Return(MacAddressPtr(MAC_BYTES)));
+    ON_CALL(adapter_, config_adv_data_raw(_, _)).WillByDefault(Invoke([this](const uint8_t *data, size_t len) {
+      last_frame_.assign(data, data + len);
+    }));
+    server_.setup();
+  }
+};
+
+// The BTHome header byte must have the encrypted bit set when a key is configured.
+TEST_F(BTHomeServerEncryptionTest, EncryptedFrameHasEncryptedHeaderBit) {
+  server_.on_advertise(true);
+
+  ASSERT_GE(last_frame_.size(), 8u);
+  BTHomeHeader hdr{};
+  memcpy(&hdr, &last_frame_[7], 1);
+  EXPECT_EQ(hdr.version, BTHOME_VERSION_2);
+  EXPECT_EQ(hdr.encrypted, 1u);
+}
+
+// The encrypted blob in the frame must decrypt back to the original sensor payload.
+TEST_F(BTHomeServerEncryptionTest, EncryptedPayloadDecryptsToSensorData) {
+  server_.on_advertise(true);
+
+  // 3 flags + 4 svc-hdr + 1 BTHome-hdr + 16 encrypted blob = 24 bytes total
+  ASSERT_EQ(last_frame_.size(), 24u);
+
+  BTHomeHeader hdr{.encrypted = 1, .trigger_based = 0, .version = 2};
+  size_t plaintext_size = 0;
+  const uint8_t *plaintext = bthome_decrypt(last_frame_.data() + 8, last_frame_.size() - 8, MacAddressPtr(MAC_BYTES),
+                                            hdr, TEST_KEY, plaintext_size);
+
+  ASSERT_NE(plaintext, nullptr) << "Decryption failed";
+
+  // Expected: BATTERY_PCT(75) + TEMPERATURE_C_E2(22.5) + HUMIDITY_PCT_E2(60.0)
+  const std::vector<uint8_t> expected = {0x01, 0x4B, 0x02, 0xCA, 0x08, 0x03, 0x70, 0x17};
+  ASSERT_EQ(plaintext_size, expected.size());
+  EXPECT_EQ(std::vector<uint8_t>(plaintext, plaintext + plaintext_size), expected);
+}
+
+// The counter embedded in the encrypted blob must increment on each advertisement.
+TEST_F(BTHomeServerEncryptionTest, CounterIncrementsEachAdvertisement) {
+  server_.on_advertise(true);
+  ASSERT_EQ(last_frame_.size(), 24u);
+  uint32_t counter0;
+  memcpy(&counter0, last_frame_.data() + 16, sizeof(counter0));
+
+  last_frame_.clear();
+  server_.on_advertise(true);
+  ASSERT_EQ(last_frame_.size(), 24u);
+  uint32_t counter1;
+  memcpy(&counter1, last_frame_.data() + 16, sizeof(counter1));
+
+  EXPECT_EQ(counter1, counter0 + 1u);
+}
+
 }  // namespace esphome::bthome::server::testing
