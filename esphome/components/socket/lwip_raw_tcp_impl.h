@@ -68,6 +68,7 @@ class LWIPRawImpl : public LWIPRawCommon {
 
   void init();
 
+  // Non-listening sockets return error
   std::unique_ptr<LWIPRawImpl> accept(struct sockaddr *, socklen_t *) {
     errno = EINVAL;
     return nullptr;
@@ -75,6 +76,8 @@ class LWIPRawImpl : public LWIPRawCommon {
   std::unique_ptr<LWIPRawImpl> accept_loop_monitored(struct sockaddr *addr, socklen_t *addrlen) {
     return this->accept(addr, addrlen);
   }
+  // Regular sockets can't be converted to listening - this shouldn't happen
+  // as listen() should only be called on sockets created for listening
   int listen(int) {
     errno = EOPNOTSUPP;
     return -1;
@@ -88,6 +91,7 @@ class LWIPRawImpl : public LWIPRawCommon {
   ssize_t write(const void *buf, size_t len);
   ssize_t writev(const struct iovec *iov, int iovcnt);
   ssize_t sendto(const void *, size_t, int, const struct sockaddr *, socklen_t) {
+    // return ::sendto(fd_, buf, len, flags, to, tolen);
     errno = ENOSYS;
     return -1;
   }
@@ -99,6 +103,7 @@ class LWIPRawImpl : public LWIPRawCommon {
       return -1;
     }
     if (blocking) {
+      // blocking operation not supported
       errno = EINVAL;
       return -1;
     }
@@ -171,9 +176,23 @@ class LWIPRawListenImpl : public LWIPRawCommon {
   err_t accept_fn_(struct tcp_pcb *newpcb, err_t err);
   static err_t s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err);
 
+  // Accept queue - holds incoming connections briefly until the event loop calls accept()
+  // This is NOT a connection pool - just a temporary queue between LWIP callbacks and the main loop
+  // 3 slots is plenty since connections are pulled out quickly by the event loop
+  //
+  // Memory analysis: std::array<3> vs original std::queue implementation:
+  // - std::queue uses std::deque internally which on 32-bit systems needs:
+  //   24 bytes (deque object) + 32+ bytes (map array) + heap allocations
+  //   Total: ~56+ bytes minimum, plus heap fragmentation
+  // - std::array<3>: 12 bytes fixed (3 pointers × 4 bytes)
+  // Saves ~44+ bytes RAM per listening socket + avoids ALL heap allocations
+  // Used on ESP8266 and RP2040 (platforms using LWIP_TCP implementation)
+  //
+  // By using a separate listening socket class, regular connected sockets save
+  // 16 bytes (12 bytes array + 1 byte count + 3 bytes padding) of memory overhead on 32-bit systems
   static constexpr size_t MAX_ACCEPTED_SOCKETS = 3;
   std::array<std::unique_ptr<LWIPRawImpl>, MAX_ACCEPTED_SOCKETS> accepted_sockets_;
-  uint8_t accepted_socket_count_ = 0;
+  uint8_t accepted_socket_count_ = 0;  // Number of sockets currently in queue
 };
 
 }  // namespace esphome::socket

@@ -330,6 +330,11 @@ void LWIPRawImpl::init() {
 }
 
 void LWIPRawImpl::s_err_fn(void *arg, err_t err) {
+  // "If a connection is aborted because of an error, the application is alerted of this event by
+  // the err callback."
+  // pcb is already freed when this callback is called
+  // ERR_RST: connection was reset by remote host
+  // ERR_ABRT: aborted through tcp_abort or TCP timer
   auto *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
   ESP_LOGVV(TAG, "socket %p: err(err=%d)", arg_this, err);
   arg_this->pcb_ = nullptr;
@@ -343,6 +348,8 @@ err_t LWIPRawImpl::s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, er
 err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
   LWIP_LOG("recv(pb=%p err=%d)", pb, err);
   if (err != 0) {
+    // "An error code if there has been an error receiving Only return ERR_ABRT if you have
+    // called tcp_abort from within the callback function!"
     this->rx_closed_ = true;
     return ERR_OK;
   }
@@ -477,6 +484,10 @@ int LWIPRawImpl::internal_output_() {
   LWIP_LOG("tcp_output(%p)", this->pcb_);
   err_t err = tcp_output(this->pcb_);
   if (err == ERR_ABRT) {
+    // sometimes lwip returns ERR_ABRT for no apparent reason
+    // the connection works fine afterwards, and back with ESPAsyncTCP we
+    // indirectly also ignored this error
+    // FIXME: figure out where this is returned and what it means in this context
     LWIP_LOG("  -> err ERR_ABRT");
     return 0;
   }
@@ -604,6 +615,10 @@ int LWIPRawListenImpl::listen(int backlog) {
 err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   LWIP_LOG("accept(newpcb=%p err=%d)", newpcb, err);
   if (err != ERR_OK || newpcb == nullptr) {
+    // "An error code if there has been an error accepting. Only return ERR_ABRT if you have
+    // called tcp_abort from within the callback function!"
+    // https://www.nongnu.org/lwip/2_1_x/tcp_8h.html#a00517abce6856d6c82f0efebdafb734d
+    // nothing to do here, we just don't push it to the queue
     return ERR_OK;
   }
   // Check if we've reached the maximum accept queue size
