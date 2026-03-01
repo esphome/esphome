@@ -70,9 +70,6 @@ async def to_code(config):
 
     cg.add_define("USE_ZIGBEE_PROXY")
 
-    # Request UART to wake the main loop when data arrives for low-latency processing
-    uart.request_wake_loop_on_rx()
-
     # Set buffer size via define for compile-time allocation
     if CONF_BUFFER_SIZE in config:
         cg.add_define("ZIGBEE_PROXY_BUFFER_SIZE", config[CONF_BUFFER_SIZE])
