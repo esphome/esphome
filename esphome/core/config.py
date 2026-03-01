@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import logging
 import os
 from pathlib import Path
@@ -515,10 +516,11 @@ async def _add_looping_components() -> None:
     if not entries:
         return
 
-    # Build constexpr sum for the exact count
+    # Build constexpr sum for the exact count, deduplicating by type
+    type_counts = Counter(entries)
     terms = [
-        f"(!std::is_same_v<decltype(&{cpp_type}::loop), decltype(&Component::loop)>)"
-        for cpp_type in entries
+        f"({count} * !std::is_same_v<decltype(&{cpp_type}::loop), decltype(&Component::loop)>)"
+        for cpp_type, count in type_counts.items()
     ]
     constexpr_expr = " + \\\n  ".join(terms)
     cg.add_global(
