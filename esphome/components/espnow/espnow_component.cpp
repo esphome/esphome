@@ -34,6 +34,7 @@ static const int CONFIG_ESPNOW_WAKE_INTERVAL = 100;
 
 ESPNowComponent *global_esp_now = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 static const LogString *espnow_send_status_to_str(espnow_send_status_t status) {
 #if defined(USE_ESP8266)
   switch (status) {
@@ -54,6 +55,7 @@ static const LogString *espnow_send_status_to_str(espnow_send_status_t status) {
   return LOG_STR("Send Unknown");
 #endif
 }
+#endif
 
 static const LogString *espnow_error_to_str(espnow_err_t error) {
   switch (error) {
