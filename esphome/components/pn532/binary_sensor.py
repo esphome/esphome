@@ -14,7 +14,7 @@ def validate_uid(value):
     sep = "-"
     if ":" in value:
         sep = ":"
-    
+
     parts = value.split(sep)
     for x in parts:
         if len(x) != 2:
