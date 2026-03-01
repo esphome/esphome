@@ -21,6 +21,11 @@ MacAddress &MacAddress::operator=(const uint8_t *addr) {
   return *this;
 }
 
+MacAddress &MacAddress::operator=(MacAddressPtr addr) {
+  this->operator=((const uint8_t *) addr);
+  return *this;
+}
+
 MacAddress::operator const uint8_t *() const { return this->addr_; }
 
 bool MacAddress::operator==(const MacAddress &other) const { return MacAddressPtr(*this) == MacAddressPtr(other); }
@@ -29,10 +34,10 @@ bool MacAddress::operator==(const MacAddressPtr &other) const { return MacAddres
 
 bool MacAddressPtr::operator==(const MacAddressPtr &other) const {
   return std::memcmp(this->addr_, other.addr_, MAC_ADDRESS_SIZE) == 0;
-  ;
 }
 
 bool MacAddressPtr::operator==(const MacAddress &other) const { return *this == MacAddressPtr(other); }
+bool MacAddressPtr::operator==(std::nullptr_t) const { return this->addr_ == nullptr; }
 
 const char *MacAddressPtr::c_str() const {
   static char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];

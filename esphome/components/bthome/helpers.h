@@ -26,6 +26,7 @@ class __attribute__((packed)) MacAddress {
   MacAddress(const MacAddressPtr &addr);
 
   MacAddress &operator=(const uint8_t *addr);
+  MacAddress &operator=(MacAddressPtr addr);
 
   operator const uint8_t *() const;
 
@@ -48,6 +49,7 @@ class MacAddressPtr {
 
   bool operator==(const MacAddressPtr &other) const;
   bool operator==(const MacAddress &other) const;
+  bool operator==(std::nullptr_t) const;
 
   const char *c_str() const;
 
