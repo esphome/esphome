@@ -387,16 +387,8 @@ void Application::teardown_components(uint32_t timeout_ms) {
 }
 
 void Application::calculate_looping_components_() {
-  // Count total components that need looping
-  size_t total_looping = 0;
-  for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop()) {
-      total_looping++;
-    }
-  }
-
-  // Initialize FixedVector with exact size - no reallocation possible
-  this->looping_components_.init(total_looping);
+  // FixedVector capacity was pre-initialized by codegen with the exact count
+  // of components that override loop(), computed at C++ compile time.
 
   // Add all components with loop override that aren't already LOOP_DONE
   // Some components (like logger) may call disable_loop() during initialization
