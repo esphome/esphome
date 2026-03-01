@@ -33,6 +33,9 @@
 #endif
 #endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#include "esphome/components/socket/socket.h"
+#endif
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -513,6 +516,10 @@ class Application {
   /// Wake the main event loop from any context (ISR, thread, or main loop).
   /// Detects the calling context and uses the appropriate FreeRTOS API.
   static void IRAM_ATTR wake_loop_any_context() { esphome_lwip_wake_main_loop_any_context(); }
+#elif defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  /// Wake the main event loop from any context (ISR, thread, or main loop).
+  /// On ESP8266: sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
+  static void IRAM_ATTR wake_loop_any_context() { socket::socket_wake(); }
 #endif
 #endif
 
