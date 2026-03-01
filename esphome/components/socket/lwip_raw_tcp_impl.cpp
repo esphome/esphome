@@ -68,7 +68,7 @@ int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
   }
   if (name == nullptr) {
     errno = EINVAL;
-    return 0;
+    return -1;
   }
   ip_addr_t ip;
   in_port_t port;
@@ -609,6 +609,7 @@ int LWIPRawListenImpl::listen(int backlog) {
   LWIP_LOG("tcp_arg(%p)", this->pcb_);
   tcp_arg(this->pcb_, this);
   tcp_accept(this->pcb_, LWIPRawListenImpl::s_accept_fn);
+  tcp_err(this->pcb_, LWIPRawListenImpl::s_err_fn);
   return 0;
 }
 
