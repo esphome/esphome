@@ -184,7 +184,7 @@ void SnapClientComponent::set_volume_(float volume, bool publish) {
 }
 
 void SnapClientComponent::control(const media_player::MediaPlayerCall &call) {
-  if (this->state == media_player::MEDIA_PLAYER_STATE_OFF  || this->state == media_player::MEDIA_PLAYER_STATE_NONE) {
+  if (this->state == media_player::MEDIA_PLAYER_STATE_OFF || this->state == media_player::MEDIA_PLAYER_STATE_NONE) {
     ESP_LOGW(TAG, "Player is off. Ignoring control command.");
     return;
   }
