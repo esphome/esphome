@@ -18,16 +18,18 @@ void ControllerRegistry::notify(void *obj, DispatchFunc dispatch) {
 
 // Macro for standard registry notification dispatch - calls on_<entity_name>_update()
 // Each wrapper passes a small trampoline lambda that calls the correct virtual method.
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define CONTROLLER_REGISTRY_NOTIFY(entity_type, entity_name) \
-  void ControllerRegistry::notify_##entity_name##_update(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
+  void ControllerRegistry::notify_##entity_name##_update(entity_type *obj) { \
     notify(obj, [](Controller *c, void *o) { c->on_##entity_name##_update(static_cast<entity_type *>(o)); }); \
   }
 
 // Macro for entities where controller method has no "_update" suffix (Event, Update)
 #define CONTROLLER_REGISTRY_NOTIFY_NO_UPDATE_SUFFIX(entity_type, entity_name) \
-  void ControllerRegistry::notify_##entity_name(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
+  void ControllerRegistry::notify_##entity_name(entity_type *obj) { \
     notify(obj, [](Controller *c, void *o) { c->on_##entity_name(static_cast<entity_type *>(o)); }); \
   }
+// NOLINTEND(bugprone-macro-parentheses)
 
 #ifdef USE_BINARY_SENSOR
 CONTROLLER_REGISTRY_NOTIFY(binary_sensor::BinarySensor, binary_sensor)
