@@ -626,6 +626,10 @@ class Application {
   static void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
     esphome_lwip_wake_main_loop_from_isr(px_higher_priority_task_woken);
   }
+
+  /// Wake the main event loop from any context (ISR, thread, or main loop).
+  /// Detects the calling context and uses the appropriate FreeRTOS API.
+  static void IRAM_ATTR wake_loop_any_context() { esphome_lwip_wake_main_loop_any_context(); }
 #endif
 #endif
 
