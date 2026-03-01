@@ -141,11 +141,8 @@ def switch_schema(
     return _SWITCH_SCHEMA.extend(schema)
 
 
-async def setup_switch_core_(var, config):
-    await setup_entity(var, config, "switch")
-
-    if (inverted := config.get(CONF_INVERTED)) is not None:
-        cg.add(var.set_inverted(inverted))
+@coroutine_with_priority(CoroPriority.AUTOMATION)
+async def _build_switch_automations(var, config):
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(bool, "x")], conf)
@@ -155,6 +152,15 @@ async def setup_switch_core_(var, config):
     for conf in config.get(CONF_ON_TURN_OFF, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+
+
+async def setup_switch_core_(var, config):
+    await setup_entity(var, config, "switch")
+
+    if (inverted := config.get(CONF_INVERTED)) is not None:
+        cg.add(var.set_inverted(inverted))
+
+    CORE.add_job(_build_switch_automations, var, config)
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)

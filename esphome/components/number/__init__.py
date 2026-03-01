@@ -240,6 +240,23 @@ def number_schema(
     return _NUMBER_SCHEMA.extend(schema)
 
 
+@coroutine_with_priority(CoroPriority.AUTOMATION)
+async def _build_number_automations(var, config):
+    for conf in config.get(CONF_ON_VALUE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(float, "x")], conf)
+    for conf in config.get(CONF_ON_VALUE_RANGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await cg.register_component(trigger, conf)
+        if CONF_ABOVE in conf:
+            template_ = await cg.templatable(conf[CONF_ABOVE], [(float, "x")], float)
+            cg.add(trigger.set_min(template_))
+        if CONF_BELOW in conf:
+            template_ = await cg.templatable(conf[CONF_BELOW], [(float, "x")], float)
+            cg.add(trigger.set_max(template_))
+        await automation.build_automation(trigger, [(float, "x")], conf)
+
+
 async def setup_number_core_(
     var, config, *, min_value: float, max_value: float, step: float
 ):
@@ -254,19 +271,7 @@ async def setup_number_core_(
     if config[CONF_MODE] != NumberMode.NUMBER_MODE_AUTO:
         cg.add(var.traits.set_mode(config[CONF_MODE]))
 
-    for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(float, "x")], conf)
-    for conf in config.get(CONF_ON_VALUE_RANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await cg.register_component(trigger, conf)
-        if CONF_ABOVE in conf:
-            template_ = await cg.templatable(conf[CONF_ABOVE], [(float, "x")], float)
-            cg.add(trigger.set_min(template_))
-        if CONF_BELOW in conf:
-            template_ = await cg.templatable(conf[CONF_BELOW], [(float, "x")], float)
-            cg.add(trigger.set_max(template_))
-        await automation.build_automation(trigger, [(float, "x")], conf)
+    CORE.add_job(_build_number_automations, var, config)
 
     if (unit_of_measurement := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
         cg.add(var.traits.set_unit_of_measurement(unit_of_measurement))
