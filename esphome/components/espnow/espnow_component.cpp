@@ -72,7 +72,7 @@ static const LogString *espnow_error_to_str(espnow_err_t error) {
     case ESPNOW_ERR_NOT_INIT:
       return LOG_STR("Not init");
     case ESPNOW_ERR_NO_MEM:
-      return LOG_STR("Our of memory");
+      return LOG_STR("Out of memory");
     case ESPNOW_OK:
       return LOG_STR("OK");
 #if defined(USE_ESP32)
