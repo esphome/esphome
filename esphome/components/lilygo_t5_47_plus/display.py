@@ -3,7 +3,6 @@ from esphome.components import display
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES
 
-
 lilygo_t5_47_plus_ns = cg.esphome_ns.namespace("lilygo_t5_47_plus")
 LilygoT547PlusDisplay = lilygo_t5_47_plus_ns.class_(
     "LilygoT547PlusDisplay", cg.PollingComponent, display.DisplayBuffer
