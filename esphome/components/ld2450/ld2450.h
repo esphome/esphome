@@ -194,7 +194,8 @@ class LD2450Component : public Component, public uart::UARTDevice {
   std::array<SensorWithDedup<uint8_t> *, MAX_ZONES> zone_moving_target_count_sensors_{};
 #endif
 #ifdef USE_TEXT_SENSOR
-  std::array<text_sensor::TextSensor *, 3> direction_text_sensors_{};
+  std::array<text_sensor::TextSensor *, MAX_TARGETS> direction_text_sensors_{};
+  std::array<Deduplicator<uint8_t>, MAX_TARGETS> direction_dedup_{};
 #endif
 
   LazyCallbackManager<void()> data_callback_;
