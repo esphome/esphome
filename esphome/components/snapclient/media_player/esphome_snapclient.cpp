@@ -67,12 +67,15 @@ void SnapClientComponent::setup() {
   dsp_processor_init();
 #endif
   this->network_initialized_ = false;
+  this->state = media_player::MEDIA_PLAYER_STATE_OFF;
 }
 
 void SnapClientComponent::loop() {
   if (!this->network_initialized_ && network::is_connected()) {
     start_snapcast();
     this->network_initialized_ = true;
+    this->state = this->get_state_from_player_state_(this->player_state);
+    this->publish_state();
   }
   if (xQueueReceive(this->audio_q_hdl_, &(this->dac_data_), 0) == pdTRUE) {
     this->dac_control_();
