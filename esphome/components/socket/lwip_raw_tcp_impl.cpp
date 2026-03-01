@@ -44,7 +44,22 @@ void IRAM_ATTR socket_wake() {
 
 static const char *const TAG = "socket.lwip";
 
+// set to 1 to enable verbose lwip logging
+#if 0  // NOLINT(readability-avoid-unconditional-preprocessor-if)
+#define LWIP_LOG(msg, ...) ESP_LOGVV(TAG, "socket %p: " msg, this, ##__VA_ARGS__)
+#else
+#define LWIP_LOG(msg, ...)
+#endif
+
 // ---- LWIPRawCommon methods ----
+
+LWIPRawCommon::~LWIPRawCommon() {
+  if (this->pcb_ != nullptr) {
+    LWIP_LOG("tcp_abort(%p)", this->pcb_);
+    tcp_abort(this->pcb_);
+    this->pcb_ = nullptr;
+  }
+}
 
 int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
   if (this->pcb_ == nullptr) {
@@ -307,6 +322,24 @@ LWIPRawImpl::~LWIPRawImpl() {
   // Base class destructor handles pcb_ cleanup via tcp_abort
 }
 
+void LWIPRawImpl::init() {
+  LWIP_LOG("init(%p)", this->pcb_);
+  tcp_arg(this->pcb_, this);
+  tcp_recv(this->pcb_, LWIPRawImpl::s_recv_fn);
+  tcp_err(this->pcb_, LWIPRawImpl::s_err_fn);
+}
+
+void LWIPRawImpl::s_err_fn(void *arg, err_t err) {
+  auto *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
+  ESP_LOGVV(TAG, "socket %p: err(err=%d)", arg_this, err);
+  arg_this->pcb_ = nullptr;
+}
+
+err_t LWIPRawImpl::s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err) {
+  auto *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
+  return arg_this->recv_fn(pb, err);
+}
+
 err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
   LWIP_LOG("recv(pb=%p err=%d)", pb, err);
   if (err != 0) {
@@ -502,6 +535,24 @@ ssize_t LWIPRawImpl::writev(const struct iovec *iov, int iovcnt) {
 
 LWIPRawListenImpl::~LWIPRawListenImpl() {
   // Base class destructor handles pcb_ cleanup via tcp_abort
+}
+
+void LWIPRawListenImpl::init() {
+  LWIP_LOG("init(%p)", this->pcb_);
+  tcp_arg(this->pcb_, this);
+  tcp_accept(this->pcb_, LWIPRawListenImpl::s_accept_fn);
+  tcp_err(this->pcb_, LWIPRawListenImpl::s_err_fn);
+}
+
+void LWIPRawListenImpl::s_err_fn(void *arg, err_t err) {
+  auto *arg_this = reinterpret_cast<LWIPRawListenImpl *>(arg);
+  ESP_LOGVV(TAG, "socket %p: err(err=%d)", arg_this, err);
+  arg_this->pcb_ = nullptr;
+}
+
+err_t LWIPRawListenImpl::s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err) {
+  auto *arg_this = reinterpret_cast<LWIPRawListenImpl *>(arg);
+  return arg_this->accept_fn_(newpcb, err);
 }
 
 std::unique_ptr<LWIPRawImpl> LWIPRawListenImpl::accept(struct sockaddr *addr, socklen_t *addrlen) {

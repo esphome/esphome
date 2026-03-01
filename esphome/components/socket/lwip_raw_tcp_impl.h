@@ -21,26 +21,13 @@ namespace esphome::socket {
 // Forward declaration
 class LWIPRawImpl;
 
-// set to 1 to enable verbose lwip logging
-#if 0  // NOLINT(readability-avoid-unconditional-preprocessor-if)
-#define LWIP_LOG(msg, ...) ESP_LOGVV("socket.lwip", "socket %p: " msg, this, ##__VA_ARGS__)
-#else
-#define LWIP_LOG(msg, ...)
-#endif
-
 /// Non-virtual common base for LWIP raw TCP sockets.
 /// Provides shared fields and methods for both connected and listening sockets.
 /// No virtual methods — pure code sharing.
 class LWIPRawCommon {
  public:
   LWIPRawCommon(sa_family_t family, struct tcp_pcb *pcb) : pcb_(pcb), family_(family) {}
-  ~LWIPRawCommon() {
-    if (this->pcb_ != nullptr) {
-      LWIP_LOG("tcp_abort(%p)", this->pcb_);
-      tcp_abort(this->pcb_);
-      this->pcb_ = nullptr;
-    }
-  }
+  ~LWIPRawCommon();
   LWIPRawCommon(const LWIPRawCommon &) = delete;
   LWIPRawCommon &operator=(const LWIPRawCommon &) = delete;
 
@@ -79,12 +66,7 @@ class LWIPRawImpl : public LWIPRawCommon {
   using LWIPRawCommon::LWIPRawCommon;
   ~LWIPRawImpl();
 
-  void init() {
-    LWIP_LOG("init(%p)", this->pcb_);
-    tcp_arg(this->pcb_, this);
-    tcp_recv(this->pcb_, LWIPRawImpl::s_recv_fn);
-    tcp_err(this->pcb_, LWIPRawImpl::s_err_fn);
-  }
+  void init();
 
   std::unique_ptr<LWIPRawImpl> accept(struct sockaddr *, socklen_t *) {
     errno = EINVAL;
@@ -124,21 +106,10 @@ class LWIPRawImpl : public LWIPRawCommon {
   }
   int loop() { return 0; }
 
-  void err_fn(err_t err) {
-    LWIP_LOG("err(err=%d)", err);
-    this->pcb_ = nullptr;
-  }
   err_t recv_fn(struct pbuf *pb, err_t err);
 
-  static void s_err_fn(void *arg, err_t err) {
-    auto *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
-    arg_this->err_fn(err);
-  }
-
-  static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err) {
-    auto *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
-    return arg_this->recv_fn(pb, err);
-  }
+  static void s_err_fn(void *arg, err_t err);
+  static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err);
 
  protected:
   ssize_t internal_write(const void *buf, size_t len);
@@ -156,12 +127,7 @@ class LWIPRawListenImpl : public LWIPRawCommon {
   using LWIPRawCommon::LWIPRawCommon;
   ~LWIPRawListenImpl();
 
-  void init() {
-    LWIP_LOG("init(%p)", this->pcb_);
-    tcp_arg(this->pcb_, this);
-    tcp_accept(this->pcb_, LWIPRawListenImpl::s_accept_fn);
-    tcp_err(this->pcb_, LWIPRawListenImpl::s_err_fn);
-  }
+  void init();
 
   bool ready() const { return this->accepted_socket_count_ > 0; }
 
@@ -199,23 +165,11 @@ class LWIPRawListenImpl : public LWIPRawCommon {
   int setblocking(bool) { return 0; }
   int loop() { return 0; }
 
-  void err_fn(err_t err) {
-    LWIP_LOG("err(err=%d)", err);
-    this->pcb_ = nullptr;
-  }
-
-  static void s_err_fn(void *arg, err_t err) {
-    auto *arg_this = reinterpret_cast<LWIPRawListenImpl *>(arg);
-    arg_this->err_fn(err);
-  }
+  static void s_err_fn(void *arg, err_t err);
 
  private:
   err_t accept_fn_(struct tcp_pcb *newpcb, err_t err);
-
-  static err_t s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err) {
-    auto *arg_this = reinterpret_cast<LWIPRawListenImpl *>(arg);
-    return arg_this->accept_fn_(newpcb, err);
-  }
+  static err_t s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err);
 
   static constexpr size_t MAX_ACCEPTED_SOCKETS = 3;
   std::array<std::unique_ptr<LWIPRawImpl>, MAX_ACCEPTED_SOCKETS> accepted_sockets_;
