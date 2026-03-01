@@ -24,7 +24,6 @@ from .. import obj_spec, set_obj_properties
 from ..automation import action_to_code
 from ..defines import (
     CHILD_ALIGNMENTS,
-    CONF_ADJUSTABLE,
     CONF_ALIGN,
     CONF_CONTAINER,
     CONF_END_VALUE,
@@ -482,8 +481,8 @@ class MeterType(WidgetType):
                         "arc_width": v[CONF_WIDTH],
                         "arc_color": v[CONF_COLOR],
                         "arc_opa": v[CONF_OPA],
+                        "arc_rounded": False,
                         "id": iid,
-                        CONF_ADJUSTABLE: False,
                         CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
                     }
                     if pad_all := v.get(CONF_PADDING, v.get(CONF_R_MOD, 0)):
