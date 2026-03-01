@@ -1,0 +1,14 @@
+emc230x:
+  i2c_id: i2c_bus
+
+output:
+  - platform: emc230x
+    id: fan1_output
+    fan: 1
+
+sensor:
+  - platform: emc230x
+    fan: 1
+    speed:
+      id: "fan1_speed_sensor"
+      name: "Fan 1 Speed Sensor"
