@@ -33,29 +33,29 @@ sensor:
 
 ## Configuration variables
 
-- **temperature** (_Optional_): The information for the temperature sensor.
+- **temperature** (*Optional*): The information for the temperature sensor.
   All options from [Sensor](/components/sensor).
 
-- **pressure** (_Optional_): The information for the pressure sensor.
+- **pressure** (*Optional*): The information for the pressure sensor.
   All options from [Sensor](/components/sensor).
 
-- **humidity** (_Optional_): The information for the humidity sensor.
+- **humidity** (*Optional*): The information for the humidity sensor.
 
-  - **address** (_Optional_, int): Manually specify the I²C address of
+  - **address** (*Optional*, int): Manually specify the I²C address of
     the humidity sensor. Defaults to `0x40`.
 
-  - **i2c_id** (_Optional_, [ID](/guides/configuration-types#id)): Manually specify the ID of the [I²C Component](/components/i2c) if your
+  - **i2c_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the [I²C Component](/components/i2c) if your
     configuration uses multiple I²C buses. This should match the `i2c_id` documented below.
 
   - All other options from [Sensor](/components/sensor).
 
-- **address** (_Optional_, int): Manually specify the I²C address of
+- **address** (*Optional*, int): Manually specify the I²C address of
   the temperature & pressure sensor. Defaults to `0x76`.
 
-- **i2c_id** (_Optional_, [ID](/guides/configuration-types#id)): Manually specify the ID of the [I²C Component](/components/i2c) if your
+- **i2c_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the [I²C Component](/components/i2c) if your
   configuration uses multiple I²C buses. This should match the `i2c_id` inside of `humidity`, documented above.
 
-- **update_interval** (_Optional_, [Time](/guides/configuration-types#time)): The interval to check the
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
 ## I²C Addresses
