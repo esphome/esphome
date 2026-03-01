@@ -6,7 +6,7 @@ namespace x9c {
 
 static const char *const TAG = "x9c.output";
 
-void X9cOutput::trim_value(int change_amount) {
+void X9cOutput::trim_value(int32_t change_amount) {
   if (change_amount == 0) {
     return;
   }
@@ -34,8 +34,6 @@ void X9cOutput::trim_value(int change_amount) {
 }
 
 void X9cOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up X9C Potentiometer with initial value of %f", this->initial_value_);
-
   this->inc_pin_->get_pin();
   this->inc_pin_->setup();
   this->inc_pin_->digital_write(false);
@@ -49,27 +47,29 @@ void X9cOutput::setup() {
 
   if (this->initial_value_ <= 0.50) {
     this->trim_value(-101);  // Set min value (beyond 0)
-    this->trim_value(static_cast<uint32_t>(roundf(this->initial_value_ * 100)));
+    this->trim_value(lroundf(this->initial_value_ * 100));
   } else {
     this->trim_value(101);  // Set max value (beyond 100)
-    this->trim_value(static_cast<uint32_t>(roundf(this->initial_value_ * 100) - 100));
+    this->trim_value(lroundf(this->initial_value_ * 100) - 100);
   }
   this->pot_value_ = this->initial_value_;
   this->write_state(this->initial_value_);
 }
 
 void X9cOutput::write_state(float state) {
-  this->trim_value(static_cast<uint32_t>(roundf((state - this->pot_value_) * 100)));
+  this->trim_value(lroundf((state - this->pot_value_) * 100));
   this->pot_value_ = state;
 }
 
 void X9cOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "X9C Potentiometer Output:");
+  ESP_LOGCONFIG(TAG,
+                "X9C Potentiometer Output:\n"
+                "  Initial Value: %f\n"
+                "  Step Delay: %d",
+                this->initial_value_, this->step_delay_);
   LOG_PIN("  Chip Select Pin: ", this->cs_pin_);
   LOG_PIN("  Increment Pin: ", this->inc_pin_);
   LOG_PIN("  Up/Down Pin: ", this->ud_pin_);
-  ESP_LOGCONFIG(TAG, "  Initial Value: %f", this->initial_value_);
-  ESP_LOGCONFIG(TAG, "  Step Delay: %d", this->step_delay_);
   LOG_FLOAT_OUTPUT(this);
 }
 

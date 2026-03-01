@@ -5,10 +5,8 @@ CODEOWNERS = ["@dentra"]
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema({}),
-    cv.only_with_esp_idf,
+    cv.only_on_esp32,
 )
-
-AUTO_LOAD = ["web_server"]
 
 
 async def to_code(config):

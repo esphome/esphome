@@ -28,6 +28,11 @@ class Sdl : public display::Display {
     this->width_ = width;
     this->height_ = height;
   }
+  void set_window_options(uint32_t window_options) { this->window_options_ = window_options; }
+  void set_position(uint16_t pos_x, uint16_t pos_y) {
+    this->pos_x_ = pos_x;
+    this->pos_y_ = pos_y;
+  }
   int get_width() override { return this->width_; }
   int get_height() override { return this->height_; }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -49,6 +54,9 @@ class Sdl : public display::Display {
   void redraw_(SDL_Rect &rect);
   int width_{};
   int height_{};
+  uint32_t window_options_{0};
+  int pos_x_{SDL_WINDOWPOS_UNDEFINED};
+  int pos_y_{SDL_WINDOWPOS_UNDEFINED};
   SDL_Renderer *renderer_{};
   SDL_Window *window_{};
   SDL_Texture *texture_{};

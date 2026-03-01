@@ -7,7 +7,7 @@
 namespace esphome {
 namespace ota {
 
-class ArduinoLibreTinyOTABackend : public OTABackend {
+class ArduinoLibreTinyOTABackend final : public OTABackend {
  public:
   OTAResponseTypes begin(size_t image_size) override;
   void set_update_md5(const char *md5) override;
@@ -15,6 +15,9 @@ class ArduinoLibreTinyOTABackend : public OTABackend {
   OTAResponseTypes end() override;
   void abort() override;
   bool supports_compression() override { return false; }
+
+ private:
+  bool md5_set_{false};
 };
 
 }  // namespace ota

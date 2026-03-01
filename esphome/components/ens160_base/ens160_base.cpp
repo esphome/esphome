@@ -49,8 +49,6 @@ static const uint8_t ENS160_DATA_STATUS_NEWGPR = 0x01;
 static const uint8_t ENS160_DATA_AQI = 0x07;
 
 void ENS160Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ENS160...");
-
   // check part_id
   uint16_t part_id;
   if (!this->read_bytes(ENS160_REG_PART_ID, reinterpret_cast<uint8_t *>(&part_id), 2)) {
@@ -153,14 +151,17 @@ void ENS160Component::update() {
   }
 
   // verbose status logging
-  ESP_LOGV(TAG, "Status: ENS160 STATAS bit    0x%x",
-           (ENS160_DATA_STATUS_STATAS & (status_value)) == ENS160_DATA_STATUS_STATAS);
-  ESP_LOGV(TAG, "Status: ENS160 STATER bit    0x%x",
-           (ENS160_DATA_STATUS_STATER & (status_value)) == ENS160_DATA_STATUS_STATER);
-  ESP_LOGV(TAG, "Status: ENS160 VALIDITY FLAG 0x%02x", (ENS160_DATA_STATUS_VALIDITY & status_value) >> 2);
-  ESP_LOGV(TAG, "Status: ENS160 NEWDAT bit    0x%x",
-           (ENS160_DATA_STATUS_NEWDAT & (status_value)) == ENS160_DATA_STATUS_NEWDAT);
-  ESP_LOGV(TAG, "Status: ENS160 NEWGPR bit    0x%x",
+  ESP_LOGV(TAG,
+           "ENS160 Status Register: 0x%02x\n"
+           "  STATAS bit    0x%x\n"
+           "  STATER bit    0x%x\n"
+           "  VALIDITY FLAG 0x%02x\n"
+           "  NEWDAT bit    0x%x\n"
+           "  NEWGPR bit    0x%x",
+           status_value, (ENS160_DATA_STATUS_STATAS & (status_value)) == ENS160_DATA_STATUS_STATAS,
+           (ENS160_DATA_STATUS_STATER & (status_value)) == ENS160_DATA_STATUS_STATER,
+           (ENS160_DATA_STATUS_VALIDITY & status_value) >> 2,
+           (ENS160_DATA_STATUS_NEWDAT & (status_value)) == ENS160_DATA_STATUS_NEWDAT,
            (ENS160_DATA_STATUS_NEWGPR & (status_value)) == ENS160_DATA_STATUS_NEWGPR);
 
   data_ready = ENS160_DATA_STATUS_NEWDAT & status_value;
@@ -279,7 +280,7 @@ void ENS160Component::dump_config() {
 
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Communication failed! Is the sensor connected?");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case READ_FAILED:
       ESP_LOGE(TAG, "Error reading from register");

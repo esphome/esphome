@@ -12,8 +12,10 @@ using namespace esphome::cover;
 
 void TimeBasedCover::dump_config() {
   LOG_COVER("", "Time Based Cover", this);
-  ESP_LOGCONFIG(TAG, "  Open Duration: %.1fs", this->open_duration_ / 1e3f);
-  ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
+  ESP_LOGCONFIG(TAG,
+                "  Open Duration: %.1fs\n"
+                "  Close Duration: %.1fs",
+                this->open_duration_ / 1e3f, this->close_duration_ / 1e3f);
 }
 void TimeBasedCover::setup() {
   auto restore = this->restore_state_();
@@ -49,7 +51,7 @@ void TimeBasedCover::loop() {
     this->last_publish_time_ = now;
   }
 }
-float TimeBasedCover::get_setup_priority() const { return setup_priority::DATA; }
+
 CoverTraits TimeBasedCover::get_traits() {
   auto traits = CoverTraits();
   traits.set_supports_stop(true);
@@ -130,15 +132,15 @@ void TimeBasedCover::start_direction_(CoverOperation dir) {
   Trigger<> *trig;
   switch (dir) {
     case COVER_OPERATION_IDLE:
-      trig = this->stop_trigger_;
+      trig = &this->stop_trigger_;
       break;
     case COVER_OPERATION_OPENING:
       this->last_operation_ = dir;
-      trig = this->open_trigger_;
+      trig = &this->open_trigger_;
       break;
     case COVER_OPERATION_CLOSING:
       this->last_operation_ = dir;
-      trig = this->close_trigger_;
+      trig = &this->close_trigger_;
       break;
     default:
       return;

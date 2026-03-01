@@ -145,7 +145,6 @@ void OpenthermHub::process_response(OpenthermData &data) {
 }
 
 void OpenthermHub::setup() {
-  ESP_LOGD(TAG, "Setting up OpenTherm component");
   this->opentherm_ = make_unique<OpenTherm>(this->in_pin_, this->out_pin_);
   if (!this->opentherm_->initialize()) {
     ESP_LOGE(TAG, "Failed to initialize OpenTherm protocol. See previous log messages for details.");
@@ -396,16 +395,20 @@ void OpenthermHub::dump_config() {
   this->write_initial_messages_(initial_messages);
   this->write_repeating_messages_(repeating_messages);
 
-  ESP_LOGCONFIG(TAG, "OpenTherm:");
+  ESP_LOGCONFIG(TAG,
+                "OpenTherm:\n"
+                "  Sync mode: %s\n"
+                "  Sensors: %s\n"
+                "  Binary sensors: %s\n"
+                "  Switches: %s\n"
+                "  Input sensors: %s\n"
+                "  Outputs: %s\n"
+                "  Numbers: %s",
+                YESNO(this->sync_mode_), SHOW(OPENTHERM_SENSOR_LIST(ID, )), SHOW(OPENTHERM_BINARY_SENSOR_LIST(ID, )),
+                SHOW(OPENTHERM_SWITCH_LIST(ID, )), SHOW(OPENTHERM_INPUT_SENSOR_LIST(ID, )),
+                SHOW(OPENTHERM_OUTPUT_LIST(ID, )), SHOW(OPENTHERM_NUMBER_LIST(ID, )));
   LOG_PIN("  In: ", this->in_pin_);
   LOG_PIN("  Out: ", this->out_pin_);
-  ESP_LOGCONFIG(TAG, "  Sync mode: %s", YESNO(this->sync_mode_));
-  ESP_LOGCONFIG(TAG, "  Sensors: %s", SHOW(OPENTHERM_SENSOR_LIST(ID, )));
-  ESP_LOGCONFIG(TAG, "  Binary sensors: %s", SHOW(OPENTHERM_BINARY_SENSOR_LIST(ID, )));
-  ESP_LOGCONFIG(TAG, "  Switches: %s", SHOW(OPENTHERM_SWITCH_LIST(ID, )));
-  ESP_LOGCONFIG(TAG, "  Input sensors: %s", SHOW(OPENTHERM_INPUT_SENSOR_LIST(ID, )));
-  ESP_LOGCONFIG(TAG, "  Outputs: %s", SHOW(OPENTHERM_OUTPUT_LIST(ID, )));
-  ESP_LOGCONFIG(TAG, "  Numbers: %s", SHOW(OPENTHERM_NUMBER_LIST(ID, )));
   ESP_LOGCONFIG(TAG, "  Initial requests:");
   for (auto type : initial_messages) {
     ESP_LOGCONFIG(TAG, "  - %d (%s)", type, this->opentherm_->message_id_to_str(type));

@@ -1,0 +1,13 @@
+# Common QSPI configuration for ESP32-S3 IDF tests
+# For components that need QuadSPI (qspi_dbi displays)
+
+spi:
+  - id: quad_spi
+    type: quad
+    interface: spi3
+    clk_pin: 47
+    data_pins:
+      - 40
+      - 41
+      - 42
+      - 43

@@ -13,17 +13,16 @@ static const uint8_t C_M1106_CMD_SET_CO2_CALIB_RESPONSE[4] = {0x16, 0x01, 0x03, 
 
 uint8_t cm1106_checksum(const uint8_t *response, size_t len) {
   uint8_t crc = 0;
-  for (int i = 0; i < len - 1; i++) {
+  for (size_t i = 0; i < len - 1; i++) {
     crc -= response[i];
   }
   return crc;
 }
 
 void CM1106Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up CM1106...");
   uint8_t response[8] = {0};
   if (!this->cm1106_write_command_(C_M1106_CMD_GET_CO2, sizeof(C_M1106_CMD_GET_CO2), response, sizeof(response))) {
-    ESP_LOGE(TAG, "Communication with CM1106 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -38,7 +37,7 @@ void CM1106Component::update() {
   }
 
   if (response[0] != 0x16 || response[1] != 0x05 || response[2] != 0x01) {
-    ESP_LOGW(TAG, "Got wrong UART response from CM1106: %02X %02X %02X %02X...", response[0], response[1], response[2],
+    ESP_LOGW(TAG, "Got wrong UART response from CM1106: %02X %02X %02X %02X", response[0], response[1], response[2],
              response[3]);
     this->status_set_warning();
     return;
@@ -104,7 +103,7 @@ void CM1106Component::dump_config() {
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   this->check_uart_settings(9600);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with CM1106 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

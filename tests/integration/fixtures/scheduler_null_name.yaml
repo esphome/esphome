@@ -1,0 +1,43 @@
+esphome:
+  name: scheduler-null-name
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+  services:
+    - service: test_null_name
+      then:
+        - lambda: |-
+            // First, create a scenario that would trigger the crash
+            // The crash happens when defer() is called with a name that would be cancelled
+
+            // Test 1: Create a defer with a valid name
+            App.scheduler.set_timeout(nullptr, "test_defer", 0, []() {
+              ESP_LOGI("TEST", "First defer should be cancelled");
+            });
+
+            // Test 2: Create another defer with the same name - this triggers cancel_item_locked_
+            // In the unfixed code, this would crash if the name was NULL
+            App.scheduler.set_timeout(nullptr, "test_defer", 0, []() {
+              ESP_LOGI("TEST", "Second defer executed");
+            });
+
+            // Test 3: Now test with nullptr - this is the actual crash scenario
+            // Create a defer item without a name (like voice assistant does)
+            const char* null_name = nullptr;
+            App.scheduler.set_timeout(nullptr, null_name, 0, []() {
+              ESP_LOGI("TEST", "Defer with null name executed");
+            });
+
+            // Test 4: Create another defer with null name - this would trigger the crash
+            App.scheduler.set_timeout(nullptr, null_name, 0, []() {
+              ESP_LOGI("TEST", "Second null defer executed");
+            });
+
+            // Test 5: Verify scheduler still works
+            App.scheduler.set_timeout(nullptr, "valid_timeout", 50, []() {
+              ESP_LOGI("TEST", "Test completed successfully");
+            });

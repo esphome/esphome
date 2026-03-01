@@ -1,29 +1,27 @@
 import esphome.codegen as cg
-from esphome.components.uart import (
-    CONF_DATA_BITS,
-    CONF_PARITY,
-    CONF_STOP_BITS,
-    UARTComponent,
-)
+from esphome.components import socket
+from esphome.components.uart import UARTComponent
 from esphome.components.usb_host import register_usb_client, usb_device_schema
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_BUFFER_SIZE,
     CONF_CHANNELS,
+    CONF_DATA_BITS,
     CONF_DEBUG,
     CONF_DUMMY_RECEIVER,
     CONF_ID,
+    CONF_PARITY,
+    CONF_STOP_BITS,
 )
 from esphome.cpp_types import Component
 
-AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
+AUTO_LOAD = ["uart", "usb_host", "bytebuffer", "socket"]
 CODEOWNERS = ["@clydebarrow"]
 
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
 USBUartComponent = usb_uart_ns.class_("USBUartComponent", Component)
 USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
-
 
 UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
@@ -117,6 +115,10 @@ CONFIG_SCHEMA = cv.ensure_list(
 
 
 async def to_code(config):
+    # Enable wake_loop_threadsafe for low-latency USB data processing
+    # The USB task queues data events that need immediate processing
+    socket.require_wake_loop_threadsafe()
+
     for device in config:
         var = await register_usb_client(device)
         for index, channel in enumerate(device[CONF_CHANNELS]):

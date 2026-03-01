@@ -37,6 +37,8 @@ class AnsiStyle(Enum):
 
 
 def color(col: AnsiFore, msg: str, reset: bool = True) -> str:
+    if col == AnsiFore.KEEP:
+        return msg
     s = col.value + msg
     if reset and col:
         s += AnsiStyle.RESET_ALL.value
@@ -59,7 +61,13 @@ class ESPHomeLogFormatter(logging.Formatter):
             "ERROR": AnsiFore.RED.value,
             "CRITICAL": AnsiFore.RED.value,
         }.get(record.levelname, "")
-        return f"{prefix}{formatted}{AnsiStyle.RESET_ALL.value}"
+        message = f"{prefix}{formatted}{AnsiStyle.RESET_ALL.value}"
+        if CORE.dashboard:
+            try:  # noqa: SIM105
+                message = message.replace("\033", "\\033")
+            except UnicodeEncodeError:
+                pass
+        return message
 
 
 def setup_log(

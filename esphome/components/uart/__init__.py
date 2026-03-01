@@ -1,45 +1,63 @@
+from logging import getLogger
+import math
 import re
 
 from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AFTER,
     CONF_BAUD_RATE,
     CONF_BYTES,
     CONF_DATA,
+    CONF_DATA_BITS,
     CONF_DEBUG,
     CONF_DELIMITER,
     CONF_DIRECTION,
     CONF_DUMMY_RECEIVER,
     CONF_DUMMY_RECEIVER_ID,
+    CONF_FLOW_CONTROL_PIN,
     CONF_ID,
-    CONF_INVERT,
-    CONF_INVERTED,
     CONF_LAMBDA,
     CONF_NUMBER,
+    CONF_PARITY,
     CONF_PORT,
     CONF_RX_BUFFER_SIZE,
     CONF_RX_PIN,
     CONF_SEQUENCE,
+    CONF_STOP_BITS,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
     CONF_TX_PIN,
     CONF_UART_ID,
     PLATFORM_HOST,
+    PlatformFramework,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.yaml_util import make_data_base
 
+_LOGGER = getLogger(__name__)
+
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "uart"
+
+
+def AUTO_LOAD() -> list[str]:
+    """Ideally, we would only auto-load socket only when wake_loop_on_rx is requested;
+    however, AUTO_LOAD is examined before wake_loop_on_rx is set, so instead, since ESP32
+    always uses socket select support in the main app, we'll just ensure it's loaded here.
+    """
+    if CORE.is_esp32:
+        return ["socket"]
+    return []
+
+
 uart_ns = cg.esphome_ns.namespace("uart")
 UARTComponent = uart_ns.class_("UARTComponent")
 
 IDFUARTComponent = uart_ns.class_("IDFUARTComponent", UARTComponent, cg.Component)
-ESP32ArduinoUARTComponent = uart_ns.class_(
-    "ESP32ArduinoUARTComponent", UARTComponent, cg.Component
-)
 ESP8266UartComponent = uart_ns.class_(
     "ESP8266UartComponent", UARTComponent, cg.Component
 )
@@ -49,9 +67,9 @@ LibreTinyUARTComponent = uart_ns.class_(
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
 
+
 NATIVE_UART_CLASSES = (
     str(IDFUARTComponent),
-    str(ESP32ArduinoUARTComponent),
     str(ESP8266UartComponent),
     str(RP2040UartComponent),
     str(LibreTinyUARTComponent),
@@ -117,20 +135,6 @@ def validate_rx_pin(value):
     return value
 
 
-def validate_invert_esp32(config):
-    if (
-        CORE.is_esp32
-        and CORE.using_arduino
-        and CONF_TX_PIN in config
-        and CONF_RX_PIN in config
-        and config[CONF_TX_PIN][CONF_INVERTED] != config[CONF_RX_PIN][CONF_INVERTED]
-    ):
-        raise cv.Invalid(
-            "Different invert values for TX and RX pin are not supported for ESP32 when using Arduino."
-        )
-    return config
-
-
 def validate_host_config(config):
     if CORE.is_host:
         if CONF_TX_PIN in config or CONF_RX_PIN in config:
@@ -145,14 +149,26 @@ def validate_host_config(config):
     return config
 
 
+def validate_rx_buffer_size(config):
+    if CORE.is_esp32:
+        # ESP32 UART hardware FIFO is 128 bytes (LP UART is 16 bytes, but we use 128 as safe minimum)
+        # rx_buffer_size must be greater than the hardware FIFO length
+        min_buffer_size = 128
+        if config[CONF_RX_BUFFER_SIZE] <= min_buffer_size:
+            _LOGGER.warning(
+                "UART rx_buffer_size (%d bytes) is too small and must be greater than the hardware "
+                "FIFO size (%d bytes). The buffer size will be automatically adjusted at runtime.",
+                config[CONF_RX_BUFFER_SIZE],
+                min_buffer_size,
+            )
+    return config
+
+
 def _uart_declare_type(value):
     if CORE.is_esp8266:
         return cv.declare_id(ESP8266UartComponent)(value)
     if CORE.is_esp32:
-        if CORE.using_arduino:
-            return cv.declare_id(ESP32ArduinoUARTComponent)(value)
-        if CORE.using_esp_idf:
-            return cv.declare_id(IDFUARTComponent)(value)
+        return cv.declare_id(IDFUARTComponent)(value)
     if CORE.is_rp2040:
         return cv.declare_id(RP2040UartComponent)(value)
     if CORE.is_libretiny:
@@ -169,9 +185,8 @@ UART_PARITY_OPTIONS = {
     "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
 }
 
-CONF_STOP_BITS = "stop_bits"
-CONF_DATA_BITS = "data_bits"
-CONF_PARITY = "parity"
+CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
+CONF_RX_TIMEOUT = "rx_timeout"
 
 UARTDirection = uart_ns.enum("UARTDirection")
 UART_DIRECTIONS = {
@@ -239,22 +254,28 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
             cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_PIN): validate_rx_pin,
+            cv.Optional(CONF_FLOW_CONTROL_PIN): cv.All(
+                cv.only_on_esp32, pins.internal_gpio_output_pin_schema
+            ),
             cv.Optional(CONF_PORT): cv.All(validate_port, cv.only_on(PLATFORM_HOST)),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
+            cv.Optional(CONF_RX_FULL_THRESHOLD): cv.All(
+                cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=1, max=120)
+            ),
+            cv.SplitDefault(CONF_RX_TIMEOUT, esp32=2): cv.All(
+                cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=0, max=92)
+            ),
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
             cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
                 UART_PARITY_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_INVERT): cv.invalid(
-                "This option has been removed. Please instead use invert in the tx/rx pin schemas."
-            ),
             cv.Optional(CONF_DEBUG): maybe_empty_debug,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN, CONF_PORT),
-    validate_invert_esp32,
     validate_host_config,
+    validate_rx_buffer_size,
 )
 
 
@@ -296,15 +317,57 @@ async def to_code(config):
     if CONF_RX_PIN in config:
         rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
         cg.add(var.set_rx_pin(rx_pin))
+    if CONF_FLOW_CONTROL_PIN in config:
+        flow_control_pin = await cg.gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
+        cg.add(var.set_flow_control_pin(flow_control_pin))
     if CONF_PORT in config:
         cg.add(var.set_name(config[CONF_PORT]))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
+    if CORE.is_esp32:
+        if CONF_RX_FULL_THRESHOLD not in config:
+            # Calculate rx_full_threshold to be 10ms
+            bytelength = config[CONF_DATA_BITS] + config[CONF_STOP_BITS] + 1
+            if config[CONF_PARITY] != "NONE":
+                bytelength += 1
+            config[CONF_RX_FULL_THRESHOLD] = max(
+                1,
+                min(
+                    120,
+                    math.floor((config[CONF_BAUD_RATE] / (bytelength * 1000 / 10)) - 1),
+                ),
+            )
+        cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
+        cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))
 
     if CONF_DEBUG in config:
         await debug_to_code(config[CONF_DEBUG], var)
+
+    # ESP8266: Enable the Arduino Serial objects that might be used based on pin config
+    # The C++ code selects hardware serial at runtime based on these pin combinations:
+    # - Serial (UART0): TX=1 or null, RX=3 or null
+    # - Serial (UART0 swap): TX=15 or null, RX=13 or null
+    # - Serial1: TX=2 or null, RX=8 or null
+    if CORE.is_esp8266:
+        from esphome.components.esp8266.const import enable_serial, enable_serial1
+
+        tx_num = config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None
+        rx_num = config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None
+
+        # Check if this config could use Serial (UART0 regular or swap)
+        if (tx_num is None or tx_num in (1, 15)) and (
+            rx_num is None or rx_num in (3, 13)
+        ):
+            enable_serial()
+            cg.add_define("USE_ESP8266_UART_SERIAL")
+        # Check if this config could use Serial1
+        if (tx_num is None or tx_num == 2) and (rx_num is None or rx_num == 8):
+            enable_serial1()
+            cg.add_define("USE_ESP8266_UART_SERIAL1")
+
+    CORE.add_job(final_step)
 
 
 # A schema to use for all UART devices, all UART integrations must extend this!
@@ -337,7 +400,7 @@ def final_validate_device_schema(
 
     def validate_pin(opt, device):
         def validator(value):
-            if opt in device:
+            if opt in device and not CORE.testing_mode:
                 raise cv.Invalid(
                     f"The uart {opt} is used both by {name} and {device[opt]}, "
                     f"but can only be used by one. Please create a new uart bus for {name}."
@@ -408,7 +471,7 @@ def final_validate_device_schema(
 async def register_uart_device(var, config):
     """Register a UART device, setting up all the internal values.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
     """
     parent = await cg.get_variable(config[CONF_UART_ID])
     cg.add(var.set_uart_parent(parent))
@@ -436,5 +499,40 @@ async def uart_write_to_code(config, action_id, template_arg, args):
         templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
     else:
-        cg.add(var.set_data_static(data))
+        # Generate static array in flash to avoid RAM copy
+        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
+        cg.add(var.set_data_static(arr, len(data)))
     return var
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure optional UART features."""
+    if CORE.is_esp32 and CORE.has_networking:
+        # Wake-on-RX is essentially free on ESP32 (just an ISR function pointer
+        # registration) — enable by default to reduce RX buffer overflow risk
+        # by waking the main loop immediately when data arrives.
+        # Requires networking for the wake_loop_isrsafe() infrastructure.
+        from esphome.components import socket
+
+        socket.require_wake_loop_threadsafe()
+        cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "uart_component_esp_idf.cpp": {
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.ESP32_ARDUINO,
+        },
+        "uart_component_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "uart_component_host.cpp": {PlatformFramework.HOST_NATIVE},
+        "uart_component_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "uart_component_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+    }
+)

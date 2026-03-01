@@ -1,0 +1,15 @@
+substitutions:
+  var1: '1'
+  var2: '2'
+  a: alpha
+test_list:
+  - values:
+      - var1: '1'
+      - a: A
+      - b: B-default
+      - c: The value of C is C
+  - values:
+      - var1: '1'
+      - a: alpha
+      - b: beta
+      - c: The value of C is $c

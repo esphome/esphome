@@ -9,7 +9,7 @@ namespace restart {
 static const char *const TAG = "restart.button";
 
 void RestartButton::press_action() {
-  ESP_LOGI(TAG, "Restarting device...");
+  ESP_LOGI(TAG, "Restarting device");
   // Let MQTT settle a bit
   delay(100);  // NOLINT
   App.safe_reboot();

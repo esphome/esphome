@@ -1,30 +1,29 @@
-async_timeout==5.0.1; python_version <= "3.10"
-cryptography==45.0.1
-voluptuous==0.15.2
-PyYAML==6.0.2
+cryptography==46.0.5
+voluptuous==0.16.0
+PyYAML==6.0.3
 paho-mqtt==1.6.1
 colorama==0.4.6
 icmplib==3.0.4
-tornado==6.5.1
+tornado==6.5.4
 tzlocal==5.3.1    # from time
 tzdata>=2021.1  # from time
 pyserial==3.5
-platformio==6.1.18  # When updating platformio, also update /docker/Dockerfile
-esptool==4.8.1
-click==8.1.7
-esphome-dashboard==20250514.0
-aioesphomeapi==31.1.0
-zeroconf==0.147.0
-puremagic==1.29
-ruamel.yaml==0.18.11 # dashboard_import
+platformio==6.1.19
+esptool==5.2.0
+click==8.3.1
+esphome-dashboard==20260210.0
+aioesphomeapi==44.2.0
+zeroconf==0.148.0
+puremagic==1.30
+ruamel.yaml==0.19.1 # dashboard_import
+ruamel.yaml.clib==0.2.15 # dashboard_import
 esphome-glyphsets==0.2.0
-pillow==10.4.0
-cairosvg==2.8.2
+pillow==12.1.1
+resvg-py==0.2.6
 freetype-py==2.5.1
-
-# esp-idf requires this, but doesn't bundle it by default
-# https://github.com/espressif/esp-idf/blob/220590d599e134d7a5e7f1e683cc4550349ffbf8/requirements.txt#L24
-kconfiglib==13.7.1
+jinja2==3.1.6
+bleak==2.1.1
+requests==2.32.5
 
 # esp-idf >= 5.0 requires this
 pyparsing >= 3.0

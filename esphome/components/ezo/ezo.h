@@ -38,7 +38,6 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void loop() override;
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override { return setup_priority::DATA; };
 
   // I2C
   void set_address(uint8_t address);
@@ -93,7 +92,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   std::deque<std::unique_ptr<EzoCommand>> commands_;
   int new_address_;
 
-  void add_command_(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300);
+  void add_command_(const char *command, EzoCommandType command_type, uint16_t delay_ms = 300);
 
   void set_calibration_point_(EzoCalibrationType type, float value);
 

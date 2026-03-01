@@ -3,17 +3,18 @@
 #include "gpio.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace esp8266 {
+namespace esphome::esp8266 {
 
 static const char *const TAG = "esp8266";
 
 static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
-  if (flags == gpio::FLAG_INPUT) {  // NOLINT(bugprone-branch-clone)
-    return INPUT;
-  } else if (flags == gpio::FLAG_OUTPUT) {
+  if (flags == gpio::FLAG_OUTPUT || flags == (gpio::FLAG_OUTPUT | gpio::FLAG_INPUT)) {
     return OUTPUT;
-  } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
+  }
+  if (flags == gpio::FLAG_INPUT) {
+    return INPUT;
+  }
+  if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
     if (pin == 16) {
       // GPIO16 doesn't have a pullup, so pinMode would fail.
       // However, sometimes this method is called with pullup mode anyway
@@ -22,13 +23,14 @@ static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
       return INPUT;
     }
     return INPUT_PULLUP;
-  } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN)) {
-    return INPUT_PULLDOWN_16;
-  } else if (flags == (gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN)) {
-    return OUTPUT_OPEN_DRAIN;
-  } else {
-    return 0;
   }
+  if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN)) {
+    return INPUT_PULLDOWN_16;
+  }
+  if (flags == (gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN)) {
+    return OUTPUT_OPEN_DRAIN;
+  }
+  return INPUT;
 }
 
 struct ISRPinArg {
@@ -40,6 +42,7 @@ struct ISRPinArg {
   volatile uint32_t *mode_set_reg;
   volatile uint32_t *mode_clr_reg;
   volatile uint32_t *func_reg;
+  volatile uint32_t *control_reg;
   uint32_t mask;
 };
 
@@ -54,6 +57,7 @@ ISRInternalGPIOPin ESP8266GPIOPin::to_isr() const {
     arg->mode_set_reg = &GPES;
     arg->mode_clr_reg = &GPEC;
     arg->func_reg = &GPF(this->pin_);
+    arg->control_reg = &GPC(this->pin_);
     arg->mask = 1 << this->pin_;
   } else {
     arg->in_reg = &GP16I;
@@ -62,6 +66,7 @@ ISRInternalGPIOPin ESP8266GPIOPin::to_isr() const {
     arg->mode_set_reg = &GP16E;
     arg->mode_clr_reg = nullptr;
     arg->func_reg = &GPF16;
+    arg->control_reg = nullptr;
     arg->mask = 1;
   }
   return ISRInternalGPIOPin((void *) arg);
@@ -93,10 +98,8 @@ void ESP8266GPIOPin::pin_mode(gpio::Flags flags) {
   pinMode(pin_, flags_to_mode(flags, pin_));  // NOLINT
 }
 
-std::string ESP8266GPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "GPIO%u", pin_);
-  return buffer;
+size_t ESP8266GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return buf_append_printf(buffer, len, 0, "GPIO%u", this->pin_);
 }
 
 bool ESP8266GPIOPin::digital_read() {
@@ -107,9 +110,11 @@ void ESP8266GPIOPin::digital_write(bool value) {
 }
 void ESP8266GPIOPin::detach_interrupt() const { detachInterrupt(pin_); }
 
-}  // namespace esp8266
+}  // namespace esphome::esp8266
 
-using namespace esp8266;
+namespace esphome {
+
+using esp8266::ISRPinArg;
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   auto *arg = reinterpret_cast<ISRPinArg *>(this->arg_);
@@ -126,9 +131,9 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
     }
   } else {
     if (value != arg->inverted) {
-      *arg->out_set_reg |= 1;
+      *arg->out_set_reg = *arg->out_set_reg | 1;
     } else {
-      *arg->out_set_reg &= ~1;
+      *arg->out_set_reg = *arg->out_set_reg & ~1;
     }
   }
 }
@@ -143,24 +148,30 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   if (arg->pin < 16) {
     if (flags & gpio::FLAG_OUTPUT) {
       *arg->mode_set_reg = arg->mask;
-    } else {
+      if (flags & gpio::FLAG_OPEN_DRAIN) {
+        *arg->control_reg = *arg->control_reg | (1 << GPCD);
+      } else {
+        *arg->control_reg &= ~(1 << GPCD);
+      }
+    } else if (flags & gpio::FLAG_INPUT) {
       *arg->mode_clr_reg = arg->mask;
     }
     if (flags & gpio::FLAG_PULLUP) {
-      *arg->func_reg |= 1 << GPFPU;
+      *arg->func_reg = *arg->func_reg | (1 << GPFPU);
+      *arg->control_reg = *arg->control_reg | (1 << GPCD);
     } else {
-      *arg->func_reg &= ~(1 << GPFPU);
+      *arg->func_reg = *arg->func_reg & ~(1 << GPFPU);
     }
   } else {
     if (flags & gpio::FLAG_OUTPUT) {
-      *arg->mode_set_reg |= 1;
+      *arg->mode_set_reg = *arg->mode_set_reg | 1;
     } else {
-      *arg->mode_set_reg &= ~1;
+      *arg->mode_set_reg = *arg->mode_set_reg & ~1;
     }
     if (flags & gpio::FLAG_PULLDOWN) {
-      *arg->func_reg |= 1 << GP16FPD;
+      *arg->func_reg = *arg->func_reg | (1 << GP16FPD);
     } else {
-      *arg->func_reg &= ~(1 << GP16FPD);
+      *arg->func_reg = *arg->func_reg & ~(1 << GP16FPD);
     }
   }
 }

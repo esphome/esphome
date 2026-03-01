@@ -1,12 +1,15 @@
-#if defined(USE_ESP_IDF) && defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S3)
 #include "qspi_dbi.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace qspi_dbi {
 
+// Maximum bytes to log in verbose hex output
+static constexpr size_t QSPI_DBI_MAX_LOG_BYTES = 64;
+
 void QspiDbi::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up QSPI_DBI");
   this->spi_setup();
   if (this->enable_pin_ != nullptr) {
     this->enable_pin_->setup();
@@ -113,7 +116,6 @@ void QspiDbi::write_init_sequence_() {
   }
   this->reset_params_(true);
   this->setup_complete_ = true;
-  ESP_LOGCONFIG(TAG, "QSPI_DBI setup complete");
 }
 
 void QspiDbi::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
@@ -176,7 +178,11 @@ void QspiDbi::write_to_display_(int x_start, int y_start, int w, int h, const ui
   this->disable();
 }
 void QspiDbi::write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
-  ESP_LOGV(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty(bytes, len).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(QSPI_DBI_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGV(TAG, "Command %02X, length %d, bytes %s", cmd, len,
+           format_hex_pretty_to(hex_buf, sizeof(hex_buf), bytes, len));
   this->enable();
   this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
   this->disable();
@@ -210,12 +216,14 @@ void QspiDbi::write_sequence_(const std::vector<uint8_t> &vec) {
 void QspiDbi::dump_config() {
   ESP_LOGCONFIG("", "QSPI_DBI Display");
   ESP_LOGCONFIG("", "Model: %s", this->model_);
-  ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
-  ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
-  ESP_LOGCONFIG(TAG, "  Draw rounding: %u", this->draw_rounding_);
+  ESP_LOGCONFIG(TAG,
+                "  Height: %u\n"
+                "  Width: %u\n"
+                "  Draw rounding: %u\n"
+                "  SPI Data rate: %uMHz",
+                this->height_, this->width_, this->draw_rounding_, (unsigned) (this->data_rate_ / 1000000));
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  SPI Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 }
 
 }  // namespace qspi_dbi

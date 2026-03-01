@@ -1,6 +1,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome {
 
@@ -8,72 +9,130 @@ static const char *const TAG = "entity_base";
 
 // Entity Name
 const StringRef &EntityBase::get_name() const { return this->name_; }
-void EntityBase::set_name(const char *name) {
+void EntityBase::set_name(const char *name) { this->set_name(name, 0); }
+void EntityBase::set_name(const char *name, uint32_t object_id_hash) {
   this->name_ = StringRef(name);
   if (this->name_.empty()) {
-    this->name_ = StringRef(App.get_friendly_name());
-    this->has_own_name_ = false;
+#ifdef USE_DEVICES
+    if (this->device_ != nullptr) {
+      this->name_ = StringRef(this->device_->get_name());
+    } else
+#endif
+    {
+      // Bug-for-bug compatibility with OLD behavior:
+      // - With MAC suffix: OLD code used App.get_friendly_name() directly (no fallback)
+      // - Without MAC suffix: OLD code used pre-computed object_id with fallback to device name
+      const std::string &friendly = App.get_friendly_name();
+      if (App.is_name_add_mac_suffix_enabled()) {
+        // MAC suffix enabled - use friendly_name directly (even if empty) for compatibility
+        this->name_ = StringRef(friendly);
+      } else {
+        // No MAC suffix - fallback to device name if friendly_name is empty
+        this->name_ = StringRef(!friendly.empty() ? friendly : App.get_name());
+      }
+    }
+    this->flags_.has_own_name = false;
+    // Dynamic name - must calculate hash at runtime
+    this->calc_object_id_();
   } else {
-    this->has_own_name_ = true;
+    this->flags_.has_own_name = true;
+    // Static name - use pre-computed hash if provided
+    if (object_id_hash != 0) {
+      this->object_id_hash_ = object_id_hash;
+    } else {
+      this->calc_object_id_();
+    }
   }
 }
 
-// Entity Internal
-bool EntityBase::is_internal() const { return this->internal_; }
-void EntityBase::set_internal(bool internal) { this->internal_ = internal; }
-
-// Entity Disabled by Default
-bool EntityBase::is_disabled_by_default() const { return this->disabled_by_default_; }
-void EntityBase::set_disabled_by_default(bool disabled_by_default) { this->disabled_by_default_ = disabled_by_default; }
-
 // Entity Icon
 std::string EntityBase::get_icon() const {
+#ifdef USE_ENTITY_ICON
   if (this->icon_c_str_ == nullptr) {
     return "";
   }
   return this->icon_c_str_;
+#else
+  return "";
+#endif
 }
-void EntityBase::set_icon(const char *icon) { this->icon_c_str_ = icon; }
+void EntityBase::set_icon(const char *icon) {
+#ifdef USE_ENTITY_ICON
+  this->icon_c_str_ = icon;
+#else
+  // No-op when USE_ENTITY_ICON is not defined
+#endif
+}
 
-// Entity Category
-EntityCategory EntityBase::get_entity_category() const { return this->entity_category_; }
-void EntityBase::set_entity_category(EntityCategory entity_category) { this->entity_category_ = entity_category; }
-
-// Entity Object ID
+// Entity Object ID - computed on-demand from name
 std::string EntityBase::get_object_id() const {
-  // Check if `App.get_friendly_name()` is constant or dynamic.
-  if (!this->has_own_name_ && App.is_name_add_mac_suffix_enabled()) {
-    // `App.get_friendly_name()` is dynamic.
-    return str_sanitize(str_snake_case(App.get_friendly_name()));
-  } else {
-    // `App.get_friendly_name()` is constant.
-    if (this->object_id_c_str_ == nullptr) {
-      return "";
-    }
-    return this->object_id_c_str_;
-  }
-}
-void EntityBase::set_object_id(const char *object_id) {
-  this->object_id_c_str_ = object_id;
-  this->calc_object_id_();
+  char buf[OBJECT_ID_MAX_LEN];
+  size_t len = this->write_object_id_to(buf, sizeof(buf));
+  return std::string(buf, len);
 }
 
-// Calculate Object ID Hash from Entity Name
+// Calculate Object ID Hash directly from name using snake_case + sanitize
 void EntityBase::calc_object_id_() {
-  // Check if `App.get_friendly_name()` is constant or dynamic.
-  if (!this->has_own_name_ && App.is_name_add_mac_suffix_enabled()) {
-    // `App.get_friendly_name()` is dynamic.
-    const auto object_id = str_sanitize(str_snake_case(App.get_friendly_name()));
-    // FNV-1 hash
-    this->object_id_hash_ = fnv1_hash(object_id);
-  } else {
-    // `App.get_friendly_name()` is constant.
-    // FNV-1 hash
-    this->object_id_hash_ = fnv1_hash(this->object_id_c_str_);
+  this->object_id_hash_ = fnv1_hash_object_id(this->name_.c_str(), this->name_.size());
+}
+
+size_t EntityBase::write_object_id_to(char *buf, size_t buf_size) const {
+  size_t len = std::min(this->name_.size(), buf_size - 1);
+  for (size_t i = 0; i < len; i++) {
+    buf[i] = to_sanitized_char(to_snake_case_char(this->name_[i]));
   }
+  buf[len] = '\0';
+  return len;
+}
+
+StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) const {
+  size_t len = this->write_object_id_to(buf.data(), buf.size());
+  return StringRef(buf.data(), len);
 }
 
 uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }
+
+// Migrate preference data from old_key to new_key if they differ.
+// This helper is exposed so callers with custom key computation (like TextPrefs)
+// can use it for manual migration. See: https://github.com/esphome/backlog/issues/85
+//
+// FUTURE IMPLEMENTATION:
+// This will require raw load/save methods on ESPPreferenceObject that take uint8_t* and size.
+//   void EntityBase::migrate_entity_preference_(size_t size, uint32_t old_key, uint32_t new_key) {
+//     if (old_key == new_key)
+//       return;
+//     auto old_pref = global_preferences->make_preference(size, old_key);
+//     auto new_pref = global_preferences->make_preference(size, new_key);
+//     SmallBufferWithHeapFallback<64> buffer(size);
+//     if (old_pref.load(buffer.data(), size)) {
+//       new_pref.save(buffer.data(), size);
+//     }
+//   }
+
+ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
+  // This helper centralizes preference creation to enable fixing hash collisions.
+  // See: https://github.com/esphome/backlog/issues/85
+  //
+  // COLLISION PROBLEM: get_preference_hash() uses fnv1_hash on sanitized object_id.
+  // Multiple entity names can sanitize to the same object_id:
+  //   - "Living Room" and "living_room" both become "living_room"
+  //   - UTF-8 names like "温度" and "湿度" both become "__" (underscores)
+  // This causes entities to overwrite each other's stored preferences.
+  //
+  // FUTURE MIGRATION: When implementing get_preference_hash_v2() that hashes
+  // the original entity name (not sanitized object_id):
+  //
+  //   uint32_t old_key = this->get_preference_hash() ^ version;
+  //   uint32_t new_key = this->get_preference_hash_v2() ^ version;
+  //   this->migrate_entity_preference_(size, old_key, new_key);
+  //   return global_preferences->make_preference(size, new_key);
+  //
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  uint32_t key = this->get_preference_hash() ^ version;
+#pragma GCC diagnostic pop
+  return global_preferences->make_preference(size, key);
+}
 
 std::string EntityBase_DeviceClass::get_device_class() {
   if (this->device_class_ == nullptr) {
@@ -91,6 +150,26 @@ std::string EntityBase_UnitOfMeasurement::get_unit_of_measurement() {
 }
 void EntityBase_UnitOfMeasurement::set_unit_of_measurement(const char *unit_of_measurement) {
   this->unit_of_measurement_ = unit_of_measurement;
+}
+
+#ifdef USE_ENTITY_ICON
+void log_entity_icon(const char *tag, const char *prefix, const EntityBase &obj) {
+  if (!obj.get_icon_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj.get_icon_ref().c_str());
+  }
+}
+#endif
+
+void log_entity_device_class(const char *tag, const char *prefix, const EntityBase_DeviceClass &obj) {
+  if (!obj.get_device_class_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj.get_device_class_ref().c_str());
+  }
+}
+
+void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase_UnitOfMeasurement &obj) {
+  if (!obj.get_unit_of_measurement_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Unit of Measurement: '%s'", prefix, obj.get_unit_of_measurement_ref().c_str());
+  }
 }
 
 }  // namespace esphome

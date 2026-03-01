@@ -6,14 +6,13 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace uptime {
+namespace esphome::uptime {
 
 static const char *const TAG = "uptime.sensor";
 
 void UptimeTimestampSensor::setup() {
   this->time_->add_on_time_sync_callback([this]() {
-    if (this->has_state_)
+    if (this->has_state())
       return;  // No need to update the timestamp if it's already set
 
     auto now = this->time_->now();
@@ -33,7 +32,6 @@ void UptimeTimestampSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Type: Timestamp");
 }
 
-}  // namespace uptime
-}  // namespace esphome
+}  // namespace esphome::uptime
 
 #endif  // USE_TIME

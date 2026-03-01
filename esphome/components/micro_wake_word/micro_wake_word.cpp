@@ -1,7 +1,8 @@
 #include "micro_wake_word.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -72,8 +73,6 @@ void MicroWakeWord::dump_config() {
 }
 
 void MicroWakeWord::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up microWakeWord...");
-
   this->frontend_config_.window.size_ms = FEATURE_DURATION_MS;
   this->frontend_config_.window.step_size_ms = this->features_step_size_;
   this->frontend_config_.filterbank.num_channels = PREPROCESSOR_FEATURE_SIZE;
@@ -120,18 +119,20 @@ void MicroWakeWord::setup() {
     }
   });
 
-#ifdef USE_OTA
-  ota::get_global_ota_callback()->add_on_state_callback(
-      [this](ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
-        if (state == ota::OTA_STARTED) {
-          this->suspend_task_();
-        } else if (state == ota::OTA_ERROR) {
-          this->resume_task_();
-        }
-      });
+#ifdef USE_OTA_STATE_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
-  ESP_LOGCONFIG(TAG, "Micro Wake Word initialized");
 }
+
+#ifdef USE_OTA_STATE_LISTENER
+void MicroWakeWord::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
+  if (state == ota::OTA_STARTED) {
+    this->suspend_task_();
+  } else if (state == ota::OTA_ERROR) {
+    this->resume_task_();
+  }
+}
+#endif
 
 void MicroWakeWord::inference_task(void *params) {
   MicroWakeWord *this_mww = (MicroWakeWord *) params;
@@ -300,8 +301,7 @@ void MicroWakeWord::loop() {
         // uses floating point operations.
         if (!FrontendPopulateState(&this->frontend_config_, &this->frontend_state_,
                                    this->microphone_source_->get_audio_stream_info().get_sample_rate())) {
-          this->status_momentary_error(
-              "Failed to allocate buffers for spectrogram feature processor, attempting again in 1 second", 1000);
+          this->status_momentary_error("frontend_alloc", 1000);
           return;
         }
 
@@ -310,7 +310,7 @@ void MicroWakeWord::loop() {
 
         if (this->inference_task_handle_ == nullptr) {
           FrontendFreeStateContents(&this->frontend_state_);  // Deallocate frontend state
-          this->status_momentary_error("Task failed to start, attempting again in 1 second", 1000);
+          this->status_momentary_error("task_start", 1000);
         }
       }
       break;
@@ -325,7 +325,7 @@ void MicroWakeWord::loop() {
           ESP_LOGD(TAG, "Detected '%s' with sliding average probability is %.2f and max probability is %.2f",
                    detection_event.wake_word->c_str(), (detection_event.average_probability / uint8_to_float_divisor),
                    (detection_event.max_probability / uint8_to_float_divisor));
-          this->wake_word_detected_trigger_->trigger(*detection_event.wake_word);
+          this->wake_word_detected_trigger_.trigger(*detection_event.wake_word);
           if (this->stop_after_detection_) {
             this->stop();
           }
@@ -429,6 +429,12 @@ void MicroWakeWord::process_probabilities_() {
         if (vad_state.detected) {
 #endif
           xQueueSend(this->detection_queue_, &wake_word_state, portMAX_DELAY);
+
+          // Wake main loop immediately to process wake word detection
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+          App.wake_loop_threadsafe();
+#endif
+
           model->reset_probabilities();
 #ifdef USE_MICRO_WAKE_WORD_VAD
         } else {
@@ -467,4 +473,4 @@ bool MicroWakeWord::update_model_probabilities_(const int8_t audio_features[PREP
 }  // namespace micro_wake_word
 }  // namespace esphome
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

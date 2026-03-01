@@ -1,6 +1,7 @@
 #include "slow_pwm_output.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/gpio.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace slow_pwm {
@@ -20,7 +21,9 @@ void SlowPWMOutput::set_output_state_(bool new_state) {
   }
   if (new_state != current_state_) {
     if (this->pin_) {
-      ESP_LOGV(TAG, "Switching output pin %s to %s", this->pin_->dump_summary().c_str(), ONOFF(new_state));
+      char pin_summary[GPIO_SUMMARY_MAX_LEN];
+      this->pin_->dump_summary(pin_summary, sizeof(pin_summary));
+      ESP_LOGV(TAG, "Switching output pin %s to %s", pin_summary, ONOFF(new_state));
     } else {
       ESP_LOGV(TAG, "Switching to %s", ONOFF(new_state));
     }
@@ -63,8 +66,10 @@ void SlowPWMOutput::dump_config() {
   if (this->turn_off_trigger_) {
     ESP_LOGCONFIG(TAG, "  Turn off automation configured");
   }
-  ESP_LOGCONFIG(TAG, "  Period: %d ms", this->period_);
-  ESP_LOGCONFIG(TAG, "  Restart cycle on state change: %s", YESNO(this->restart_cycle_on_state_change_));
+  ESP_LOGCONFIG(TAG,
+                "  Period: %d ms\n"
+                "  Restart cycle on state change: %s",
+                this->period_, YESNO(this->restart_cycle_on_state_change_));
   LOG_FLOAT_OUTPUT(this);
 }
 

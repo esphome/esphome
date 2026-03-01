@@ -33,8 +33,8 @@ class ModbusBinarySensor : public Component, public binary_sensor::BinarySensor,
 
   void dump_config() override;
 
-  using transform_func_t = std::function<optional<bool>(ModbusBinarySensor *, bool, const std::vector<uint8_t> &)>;
-  void set_template(transform_func_t &&f) { this->transform_func_ = f; }
+  using transform_func_t = optional<bool> (*)(ModbusBinarySensor *, bool, const std::vector<uint8_t> &);
+  void set_template(transform_func_t f) { this->transform_func_ = f; }
 
  protected:
   optional<transform_func_t> transform_func_{nullopt};

@@ -1,0 +1,11 @@
+# Common I2C configuration for BK72XX Arduino tests
+
+substitutions:
+  scl_pin: P26
+  sda_pin: P24
+
+i2c:
+  - id: i2c_bus
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+    scan: true

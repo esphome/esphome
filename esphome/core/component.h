@@ -5,9 +5,15 @@
 #include <functional>
 #include <string>
 
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 
 namespace esphome {
+
+// Forward declaration for LogString
+struct LogString;
 
 /** Default setup priorities for components of different types.
  *
@@ -16,56 +22,65 @@ namespace esphome {
 namespace setup_priority {
 
 /// For communication buses like i2c/spi
-extern const float BUS;
+inline constexpr float BUS = 1000.0f;
 /// For components that represent GPIO pins like PCF8573
-extern const float IO;
+inline constexpr float IO = 900.0f;
 /// For components that deal with hardware and are very important like GPIO switch
-extern const float HARDWARE;
+inline constexpr float HARDWARE = 800.0f;
 /// For components that import data from directly connected sensors like DHT.
-extern const float DATA;
-/// Alias for DATA (here for compatibility reasons)
-extern const float HARDWARE_LATE;
+inline constexpr float DATA = 600.0f;
 /// For components that use data from sensors like displays
-extern const float PROCESSOR;
-extern const float BLUETOOTH;
-extern const float AFTER_BLUETOOTH;
-extern const float WIFI;
-extern const float ETHERNET;
+inline constexpr float PROCESSOR = 400.0f;
+inline constexpr float BLUETOOTH = 350.0f;
+inline constexpr float AFTER_BLUETOOTH = 300.0f;
+inline constexpr float WIFI = 250.0f;
+inline constexpr float ETHERNET = 250.0f;
 /// For components that should be initialized after WiFi and before API is connected.
-extern const float BEFORE_CONNECTION;
+inline constexpr float BEFORE_CONNECTION = 220.0f;
 /// For components that should be initialized after WiFi is connected.
-extern const float AFTER_WIFI;
+inline constexpr float AFTER_WIFI = 200.0f;
 /// For components that should be initialized after a data connection (API/MQTT) is connected.
-extern const float AFTER_CONNECTION;
+inline constexpr float AFTER_CONNECTION = 100.0f;
 /// For components that should be initialized at the very end of the setup process.
-extern const float LATE;
+inline constexpr float LATE = -100.0f;
 
 }  // namespace setup_priority
 
-static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
+inline constexpr uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 
-#define LOG_UPDATE_INTERVAL(this) \
-  if (this->get_update_interval() == SCHEDULER_DONT_RUN) { \
-    ESP_LOGCONFIG(TAG, "  Update Interval: never"); \
-  } else if (this->get_update_interval() < 100) { \
-    ESP_LOGCONFIG(TAG, "  Update Interval: %.3fs", this->get_update_interval() / 1000.0f); \
-  } else { \
-    ESP_LOGCONFIG(TAG, "  Update Interval: %.1fs", this->get_update_interval() / 1000.0f); \
-  }
+/// Type-safe scheduler IDs for core base classes.
+/// Uses a separate NameType (NUMERIC_ID_INTERNAL) so IDs can never collide
+/// with component-level NUMERIC_ID values, even if the uint32_t values overlap.
+enum class InternalSchedulerID : uint32_t {
+  POLLING_UPDATE = 0,  // PollingComponent interval
+  DELAY_ACTION = 1,    // DelayAction timeout
+};
 
-extern const uint32_t COMPONENT_STATE_MASK;
-extern const uint32_t COMPONENT_STATE_CONSTRUCTION;
-extern const uint32_t COMPONENT_STATE_SETUP;
-extern const uint32_t COMPONENT_STATE_LOOP;
-extern const uint32_t COMPONENT_STATE_FAILED;
-extern const uint32_t STATUS_LED_MASK;
-extern const uint32_t STATUS_LED_OK;
-extern const uint32_t STATUS_LED_WARNING;
-extern const uint32_t STATUS_LED_ERROR;
+// Forward declaration
+class PollingComponent;
 
+// Function declaration for LOG_UPDATE_INTERVAL
+void log_update_interval(const char *tag, PollingComponent *component);
+
+#define LOG_UPDATE_INTERVAL(this) log_update_interval(TAG, this)
+
+// Component state uses bits 0-2 (8 states, 5 used)
+inline constexpr uint8_t COMPONENT_STATE_MASK = 0x07;
+inline constexpr uint8_t COMPONENT_STATE_CONSTRUCTION = 0x00;
+inline constexpr uint8_t COMPONENT_STATE_SETUP = 0x01;
+inline constexpr uint8_t COMPONENT_STATE_LOOP = 0x02;
+inline constexpr uint8_t COMPONENT_STATE_FAILED = 0x03;
+inline constexpr uint8_t COMPONENT_STATE_LOOP_DONE = 0x04;
+// Status LED uses bits 3-4
+inline constexpr uint8_t STATUS_LED_MASK = 0x18;
+inline constexpr uint8_t STATUS_LED_OK = 0x00;
+inline constexpr uint8_t STATUS_LED_WARNING = 0x08;
+inline constexpr uint8_t STATUS_LED_ERROR = 0x10;
+
+// Remove before 2026.8.0
 enum class RetryResult { DONE, RETRY };
 
-extern const uint32_t WARN_IF_BLOCKING_OVER_MS;
+inline constexpr uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;
 
 class Component {
  public:
@@ -103,14 +118,49 @@ class Component {
    *
    * @return The loop priority of this component
    */
+#ifdef USE_LOOP_PRIORITY
   virtual float get_loop_priority() const;
+#endif
 
   void call();
 
   virtual void on_shutdown() {}
   virtual void on_safe_shutdown() {}
 
-  uint32_t get_component_state() const;
+  /** Called during teardown to allow component to gracefully finish operations.
+   *
+   * @return true if teardown is complete, false if more time is needed
+   */
+  virtual bool teardown() { return true; }
+
+  /** Called after teardown is complete to power down hardware.
+   *
+   * This is called after all components have finished their teardown process,
+   * making it safe to power down hardware like ethernet PHY.
+   */
+  virtual void on_powerdown() {}
+
+  uint8_t get_component_state() const;
+
+  /** Reset this component back to the construction state to allow setup to run again.
+   *
+   * This can be used by components that have recoverable failures to attempt setup again.
+   */
+  void reset_to_construction_state();
+
+  /** Check if this component has completed setup and is in the loop state.
+   *
+   * @return True if in loop state, false otherwise.
+   */
+  bool is_in_loop_state() const;
+
+  /** Check if this component is idle.
+   * Being idle means being in LOOP_DONE state.
+   * This means the component has completed setup, is not failed, but its loop is currently disabled.
+   *
+   * @return True if the component is idle
+   */
+  bool is_idle() const;
 
   /** Mark this component as failed. Any future timeouts/intervals/setup/loop will no longer be called.
    *
@@ -118,12 +168,65 @@ class Component {
    * For example, i2c based components can check if the remote device is responding and otherwise
    * mark the component as failed. Eventually this will also enable smart status LEDs.
    */
-  virtual void mark_failed();
+  void mark_failed();
 
+  // Remove before 2026.6.0
+  ESPDEPRECATED("Use mark_failed(LOG_STR(\"static string literal\")) instead. Do NOT use .c_str() from temporary "
+                "strings. Will stop working in 2026.6.0",
+                "2025.12.0")
   void mark_failed(const char *message) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    this->status_set_error(message);
+#pragma GCC diagnostic pop
+    this->mark_failed();
+  }
+
+  void mark_failed(const LogString *message) {
     this->status_set_error(message);
     this->mark_failed();
   }
+
+  /** Disable this component's loop. The loop() method will no longer be called.
+   *
+   * This is useful for components that only need to run for a certain period of time
+   * or when inactive, saving CPU cycles.
+   *
+   * @note Components should call this->disable_loop() on themselves, not on other components.
+   *       This ensures the component's state is properly updated along with the loop partition.
+   */
+  void disable_loop();
+
+  /** Enable this component's loop. The loop() method will be called normally.
+   *
+   * This is useful for components that transition between active and inactive states
+   * and need to re-enable their loop() method when becoming active again.
+   *
+   * @note Components should call this->enable_loop() on themselves, not on other components.
+   *       This ensures the component's state is properly updated along with the loop partition.
+   */
+  void enable_loop();
+
+  /** Thread and ISR-safe version of enable_loop() that can be called from any context.
+   *
+   * This method defers the actual enable via enable_pending_loops_ to the main loop,
+   * making it safe to call from ISR handlers, timer callbacks, other threads,
+   * or any interrupt context.
+   *
+   * @note The actual loop enabling will happen on the next main loop iteration.
+   * @note Only one pending enable request is tracked per component.
+   * @note There is no disable_loop_soon_any_context() on purpose - it would race
+   *       against enable calls and synchronization would get too complex
+   *       to provide a safe version that would work for each component.
+   *
+   *       Use disable_loop() from the main thread only.
+   *
+   *       If you need to disable the loop from ISR, carefully implement
+   *       it in the component itself, with an ISR safe approach, and call
+   *       disable_loop() in its next ::loop() iteration. Implementations
+   *       will need to carefully consider all possible race conditions.
+   */
+  void enable_loop_soon_any_context();
 
   bool is_failed() const;
 
@@ -135,17 +238,38 @@ class Component {
 
   bool status_has_error() const;
 
-  void status_set_warning(const char *message = "unspecified");
+  void status_set_warning(const char *message = nullptr);
+  void status_set_warning(const LogString *message);
 
-  void status_set_error(const char *message = "unspecified");
+  void status_set_error();  // Set error flag without message
+  // Remove before 2026.6.0
+  ESPDEPRECATED("Use status_set_error(LOG_STR(\"static string literal\")) instead. Do NOT use .c_str() from temporary "
+                "strings. Will stop working in 2026.6.0",
+                "2025.12.0")
+  void status_set_error(const char *message);
+  void status_set_error(const LogString *message);
 
   void status_clear_warning();
 
   void status_clear_error();
 
-  void status_momentary_warning(const std::string &name, uint32_t length = 5000);
+  /** Set warning status flag and automatically clear it after a timeout.
+   *
+   * @param name Identifier for the timeout (used to cancel/replace existing timeouts with the same name).
+   *             Must be a static string literal (stored in flash/rodata), not a temporary or dynamic string.
+   *             This is NOT a message to display - use status_set_warning() with a message if logging is needed.
+   * @param length Duration in milliseconds before the warning is automatically cleared.
+   */
+  void status_momentary_warning(const char *name, uint32_t length = 5000);
 
-  void status_momentary_error(const std::string &name, uint32_t length = 5000);
+  /** Set error status flag and automatically clear it after a timeout.
+   *
+   * @param name Identifier for the timeout (used to cancel/replace existing timeouts with the same name).
+   *             Must be a static string literal (stored in flash/rodata), not a temporary or dynamic string.
+   *             This is NOT a message to display - use status_set_error() with a message if logging is needed.
+   * @param length Duration in milliseconds before the error is automatically cleared.
+   */
+  void status_momentary_error(const char *name, uint32_t length = 5000);
 
   bool has_overridden_loop() const;
 
@@ -153,21 +277,33 @@ class Component {
    *
    * This is set by the ESPHome core, and should not be called manually.
    */
-  void set_component_source(const char *source) { component_source_ = source; }
-  /** Get the integration where this component was declared as a string.
+  void set_component_source(const LogString *source) { component_source_ = source; }
+  /** Get the integration where this component was declared as a LogString for logging.
    *
-   * Returns "<unknown>" if source not set
+   * Returns LOG_STR("<unknown>") if source not set
    */
-  const char *get_component_source() const;
+  const LogString *get_component_log_str() const;
 
   bool should_warn_of_blocking(uint32_t blocking_time);
 
  protected:
   friend class Application;
 
-  virtual void call_loop();
+  void call_loop_();
   virtual void call_setup();
-  virtual void call_dump_config();
+  void call_dump_config_();
+
+  /// Helper to set component state (clears state bits and sets new state)
+  inline void set_component_state_(uint8_t state) {
+    this->component_state_ &= ~COMPONENT_STATE_MASK;
+    this->component_state_ |= state;
+  }
+
+  /// Helper to set a status LED flag on both this component and the app.
+  /// Returns true if the flag was newly set, false if it was already set.
+  /// Note: Callers often use the return value to decide whether to log a warning/error,
+  /// so once a flag is set, subsequent (potentially different) messages may be suppressed.
+  bool set_status_flag_(uint8_t flag);
 
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
@@ -191,7 +327,35 @@ class Component {
    *
    * @see cancel_interval()
    */
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   void set_interval(const std::string &name, uint32_t interval, std::function<void()> &&f);  // NOLINT
+
+  /** Set an interval function with a const char* name.
+   *
+   * IMPORTANT: The provided name pointer must remain valid for the lifetime of the scheduler item.
+   * This means the name should be:
+   *   - A string literal (e.g., "update")
+   *   - A static const char* variable
+   *   - A pointer with lifetime >= the scheduled task
+   *
+   * For dynamic strings, use the std::string overload instead.
+   *
+   * @param name The identifier for this interval function (must have static lifetime)
+   * @param interval The interval in ms
+   * @param f The function to call
+   */
+  void set_interval(const char *name, uint32_t interval, std::function<void()> &&f);  // NOLINT
+
+  /** Set an interval function with a numeric ID (zero heap allocation).
+   *
+   * @param id The numeric identifier for this interval function
+   * @param interval The interval in ms
+   * @param f The function to call
+   */
+  void set_interval(uint32_t id, uint32_t interval, std::function<void()> &&f);  // NOLINT
+
+  void set_interval(InternalSchedulerID id, uint32_t interval, std::function<void()> &&f);  // NOLINT
 
   void set_interval(uint32_t interval, std::function<void()> &&f);  // NOLINT
 
@@ -200,50 +364,47 @@ class Component {
    * @param name The identifier for this interval function.
    * @return Whether an interval functions was deleted.
    */
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   bool cancel_interval(const std::string &name);  // NOLINT
+  bool cancel_interval(const char *name);         // NOLINT
+  bool cancel_interval(uint32_t id);              // NOLINT
+  bool cancel_interval(InternalSchedulerID id);   // NOLINT
 
-  /** Set an retry function with a unique name. Empty name means no cancelling possible.
-   *
-   * This will call the retry function f on the next scheduler loop. f should return RetryResult::DONE if
-   * it is successful and no repeat is required. Otherwise, returning RetryResult::RETRY will call f
-   * again in the future.
-   *
-   * The first retry of f happens after `initial_wait_time` milliseconds. The delay between retries is
-   * increased by multiplying by `backoff_increase_factor` each time. If no backoff_increase_factor is
-   * supplied (default = 1.0), the wait time will stay constant.
-   *
-   * The retry function f needs to accept a single argument: the number of attempts remaining. On the
-   * final retry of f, this value will be 0.
-   *
-   * This retry function can also be cancelled by name via cancel_retry().
-   *
-   * IMPORTANT: Do not rely on this having correct timing. This is only called from
-   * loop() and therefore can be significantly delayed.
-   *
-   * REMARK: It is an error to supply a negative or zero `backoff_increase_factor`, and 1.0 will be used instead.
-   *
-   * REMARK: The interval between retries is stored into a `uint32_t`, so this doesn't behave correctly
-   * if `initial_wait_time * (backoff_increase_factor ** (max_attempts - 2))` overflows.
-   *
-   * @param name The identifier for this retry function.
-   * @param initial_wait_time The time in ms before f is called again
-   * @param max_attempts The maximum number of executions
-   * @param f The function (or lambda) that should be called
-   * @param backoff_increase_factor time between retries is multiplied by this factor on every retry after the first
-   * @see cancel_retry()
-   */
+  /// @deprecated set_retry is deprecated. Use set_timeout or set_interval instead. Removed in 2026.8.0.
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,       // NOLINT
                  std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
 
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
+  void set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,              // NOLINT
+                 std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
+
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
+  void set_retry(uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,                   // NOLINT
+                 std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
+
+  // Remove before 2026.8.0
+  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
+                "2026.2.0")
   void set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,  // NOLINT
                  float backoff_increase_factor = 1.0f);                                                      // NOLINT
 
-  /** Cancel a retry function.
-   *
-   * @param name The identifier for this retry function.
-   * @return Whether a retry function was deleted.
-   */
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
   bool cancel_retry(const std::string &name);  // NOLINT
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
+  bool cancel_retry(const char *name);  // NOLINT
+  // Remove before 2026.8.0
+  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
+  bool cancel_retry(uint32_t id);  // NOLINT
 
   /** Set a timeout function with a unique name.
    *
@@ -259,7 +420,35 @@ class Component {
    *
    * @see cancel_timeout()
    */
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   void set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+
+  /** Set a timeout function with a const char* name.
+   *
+   * IMPORTANT: The provided name pointer must remain valid for the lifetime of the scheduler item.
+   * This means the name should be:
+   *   - A string literal (e.g., "init")
+   *   - A static const char* variable
+   *   - A pointer with lifetime >= the timeout duration
+   *
+   * For dynamic strings, use the std::string overload instead.
+   *
+   * @param name The identifier for this timeout function (must have static lifetime)
+   * @param timeout The timeout in ms
+   * @param f The function to call
+   */
+  void set_timeout(const char *name, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+
+  /** Set a timeout function with a numeric ID (zero heap allocation).
+   *
+   * @param id The numeric identifier for this timeout function
+   * @param timeout The timeout in ms
+   * @param f The function to call
+   */
+  void set_timeout(uint32_t id, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+
+  void set_timeout(InternalSchedulerID id, uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
   void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
@@ -268,7 +457,12 @@ class Component {
    * @param name The identifier for this timeout function.
    * @return Whether a timeout functions was deleted.
    */
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   bool cancel_timeout(const std::string &name);  // NOLINT
+  bool cancel_timeout(const char *name);         // NOLINT
+  bool cancel_timeout(uint32_t id);              // NOLINT
+  bool cancel_timeout(InternalSchedulerID id);   // NOLINT
 
   /** Defer a callback to the next loop() call.
    *
@@ -277,19 +471,48 @@ class Component {
    * @param name The name of the defer function.
    * @param f The callback.
    */
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* overload instead. Removed in 2026.7.0", "2026.1.0")
   void defer(const std::string &name, std::function<void()> &&f);  // NOLINT
+
+  /** Defer a callback to the next loop() call with a const char* name.
+   *
+   * IMPORTANT: The provided name pointer must remain valid for the lifetime of the deferred task.
+   * This means the name should be:
+   *   - A string literal (e.g., "update")
+   *   - A static const char* variable
+   *   - A pointer with lifetime >= the deferred execution
+   *
+   * For dynamic strings, use the std::string overload instead.
+   *
+   * @param name The name of the defer function (must have static lifetime)
+   * @param f The callback
+   */
+  void defer(const char *name, std::function<void()> &&f);  // NOLINT
 
   /// Defer a callback to the next loop() call.
   void defer(std::function<void()> &&f);  // NOLINT
 
-  /// Cancel a defer callback using the specified name, name must not be empty.
-  bool cancel_defer(const std::string &name);  // NOLINT
+  /// Defer a callback with a numeric ID (zero heap allocation)
+  void defer(uint32_t id, std::function<void()> &&f);  // NOLINT
 
-  uint32_t component_state_{0x0000};  ///< State of this component.
-  float setup_priority_override_{NAN};
-  const char *component_source_{nullptr};
-  uint32_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};
-  std::string error_message_{};
+  /// Cancel a defer callback using the specified name, name must not be empty.
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use const char* overload instead. Removed in 2026.7.0", "2026.1.0")
+  bool cancel_defer(const std::string &name);  // NOLINT
+  bool cancel_defer(const char *name);         // NOLINT
+  bool cancel_defer(uint32_t id);              // NOLINT
+
+  // Ordered for optimal packing on 32-bit systems
+  const LogString *component_source_{nullptr};
+  uint16_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};  ///< Warn if blocked for this many ms (max 65.5s)
+  /// State of this component - each bit has a purpose:
+  /// Bits 0-2: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED, 0x04=LOOP_DONE)
+  /// Bit 3: STATUS_LED_WARNING
+  /// Bit 4: STATUS_LED_ERROR
+  /// Bits 5-7: Unused - reserved for future expansion
+  uint8_t component_state_{0x00};
+  volatile bool pending_enable_loop_{false};  ///< ISR-safe flag for enable_loop_soon_any_context
 };
 
 /** This class simplifies creating components that periodically check a state.
@@ -339,16 +562,21 @@ class PollingComponent : public Component {
 
 class WarnIfComponentBlockingGuard {
  public:
-  WarnIfComponentBlockingGuard(Component *component, uint32_t start_time);
+  WarnIfComponentBlockingGuard(Component *component, uint32_t start_time)
+      : started_(start_time), component_(component) {}
 
   // Finish the timing operation and return the current time
   uint32_t finish();
 
-  ~WarnIfComponentBlockingGuard();
+  ~WarnIfComponentBlockingGuard() = default;
 
  protected:
   uint32_t started_;
   Component *component_;
 };
+
+// Function to clear setup priority overrides after all components are set up
+// Only has an implementation when USE_SETUP_PRIORITY_OVERRIDE is defined
+void clear_setup_priority_overrides();
 
 }  // namespace esphome

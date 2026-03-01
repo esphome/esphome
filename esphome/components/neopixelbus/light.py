@@ -1,8 +1,12 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import light
-from esphome.components.esp32 import get_esp32_variant
-from esphome.components.esp32.const import VARIANT_ESP32C3, VARIANT_ESP32S3
+from esphome.components.esp32 import (
+    VARIANT_ESP32C3,
+    VARIANT_ESP32S3,
+    get_esp32_variant,
+    include_builtin_idf_component,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
@@ -15,6 +19,7 @@ from esphome.const import (
     CONF_PIN,
     CONF_TYPE,
     CONF_VARIANT,
+    Framework,
 )
 from esphome.core import CORE
 
@@ -162,7 +167,15 @@ def _validate_method(value):
 
 
 CONFIG_SCHEMA = cv.All(
-    cv.only_with_arduino,
+    cv.only_with_framework(
+        frameworks=Framework.ARDUINO,
+        suggestions={
+            Framework.ESP_IDF: (
+                "esp32_rmt_led_strip",
+                "light/esp32_rmt_led_strip",
+            )
+        },
+    ),
     cv.require_framework_version(
         esp8266_arduino=cv.Version(2, 4, 0),
         esp32_arduino=cv.Version(0, 0, 0),
@@ -186,8 +199,20 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    if CORE.is_esp8266:
+        # NeoPixelBus library unconditionally includes NeoEsp8266UartMethod.h
+        # which references Serial and Serial1, so we must enable both
+        from esphome.components.esp8266.const import enable_serial, enable_serial1
+
+        enable_serial()
+        enable_serial1()
+
     has_white = "W" in config[CONF_TYPE]
     method = config[CONF_METHOD]
+
+    # Re-enable ESP-IDF's RMT driver if using RMT method (excluded by default)
+    if CORE.is_esp32 and method[CONF_TYPE] == METHOD_ESP32_RMT:
+        include_builtin_idf_component("esp_driver_rmt")
 
     method_template = METHODS[method[CONF_TYPE]].to_code(
         method, config[CONF_VARIANT], config[CONF_INVERT]
@@ -215,4 +240,10 @@ async def to_code(config):
 
     # https://github.com/Makuna/NeoPixelBus/blob/master/library.json
     # Version Listed Here: https://registry.platformio.org/libraries/makuna/NeoPixelBus/versions
-    cg.add_library("makuna/NeoPixelBus", "2.7.3")
+    if CORE.is_esp32:
+        # disable built in rgb support as it uses the new RMT drivers and will
+        # conflict with NeoPixelBus which uses the legacy drivers
+        cg.add_build_flag("-DESP32_ARDUINO_NO_RGB_BUILTIN")
+        cg.add_library("makuna/NeoPixelBus", "2.8.0")
+    else:
+        cg.add_library("makuna/NeoPixelBus", "2.7.3")

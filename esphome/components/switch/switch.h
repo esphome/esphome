@@ -2,11 +2,10 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
-#include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace switch_ {
+namespace esphome::switch_ {
 
 #define SUB_SWITCH(name) \
  protected: \
@@ -16,12 +15,12 @@ namespace switch_ {
   void set_##name##_switch(switch_::Switch *s) { this->name##_switch_ = s; }
 
 // bit0: on/off. bit1: persistent. bit2: inverted. bit3: disabled
-const int RESTORE_MODE_ON_MASK = 0x01;
-const int RESTORE_MODE_PERSISTENT_MASK = 0x02;
-const int RESTORE_MODE_INVERTED_MASK = 0x04;
-const int RESTORE_MODE_DISABLED_MASK = 0x08;
+constexpr int RESTORE_MODE_ON_MASK = 0x01;
+constexpr int RESTORE_MODE_PERSISTENT_MASK = 0x02;
+constexpr int RESTORE_MODE_INVERTED_MASK = 0x04;
+constexpr int RESTORE_MODE_DISABLED_MASK = 0x08;
 
-enum SwitchRestoreMode {
+enum SwitchRestoreMode : uint8_t {
   SWITCH_ALWAYS_OFF = !RESTORE_MODE_ON_MASK,
   SWITCH_ALWAYS_ON = RESTORE_MODE_ON_MASK,
   SWITCH_RESTORE_DEFAULT_OFF = RESTORE_MODE_PERSISTENT_MASK,
@@ -49,12 +48,20 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
    */
   void publish_state(bool state);
 
-  /// The current reported state of the binary sensor.
-  bool state;
-
   /// Indicates whether or not state is to be retrieved from flash and how
   SwitchRestoreMode restore_mode{SWITCH_RESTORE_DEFAULT_OFF};
 
+  /// The current reported state of the binary sensor.
+  bool state;
+
+  /** Control this switch using a boolean state value.
+   *
+   * This method provides a unified interface for setting the switch state based on a boolean parameter.
+   * It automatically calls turn_on() when state is true or turn_off() when state is false.
+   *
+   * @param target_state The desired state: true to turn the switch ON, false to turn it OFF.
+   */
+  void control(bool target_state);
   /** Turn this switch on. This is called by the front-end.
    *
    * For implementing switches, please override write_state.
@@ -123,14 +130,19 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
    */
   virtual void write_state(bool state) = 0;
 
-  CallbackManager<void(bool)> state_callback_{};
-  bool inverted_{false};
-  Deduplicator<bool> publish_dedup_;
+  // Pointer first (4 bytes)
   ESPPreferenceObject rtc_;
+
+  // LazyCallbackManager (4 bytes on 32-bit - nullptr when empty)
+  LazyCallbackManager<void(bool)> state_callback_{};
+
+  // Small types grouped together
+  Deduplicator<bool> publish_dedup_;  // 2 bytes (bool has_value_ + bool last_value_)
+  bool inverted_{false};              // 1 byte
+  // Total: 3 bytes, 1 byte padding
 };
 
 #define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))
 void log_switch(const char *tag, const char *prefix, const char *type, Switch *obj);
 
-}  // namespace switch_
-}  // namespace esphome
+}  // namespace esphome::switch_

@@ -31,7 +31,9 @@ def define_has_settings(keys: list[str], schemas: dict[str, SettingSchema]) -> N
         cg.RawExpression(
             " sep ".join(
                 map(
-                    lambda key: f"F({schemas[key].backing_type}, {key}_setting, {schemas[key].default_value})",
+                    lambda key: (
+                        f"F({schemas[key].backing_type}, {key}_setting, {schemas[key].default_value})"
+                    ),
                     keys,
                 )
             )

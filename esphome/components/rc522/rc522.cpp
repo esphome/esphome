@@ -1,4 +1,5 @@
 #include "rc522.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 // Based on:
@@ -11,31 +12,10 @@ static const uint8_t WAIT_I_RQ = 0x30;  // RxIRq and IdleIRq
 
 static const char *const TAG = "rc522";
 
+// Max UID size for RFID tags (4, 7, or 10 bytes)
+static constexpr size_t RC522_MAX_UID_SIZE = 10;
+
 static const uint8_t RESET_COUNT = 5;
-
-std::string format_buffer(uint8_t *b, uint8_t len) {
-  char buf[32];
-  int offset = 0;
-  for (uint8_t i = 0; i < len; i++) {
-    const char *format = "%02X";
-    if (i + 1 < len)
-      format = "%02X-";
-    offset += sprintf(buf + offset, format, b[i]);
-  }
-  return std::string(buf);
-}
-
-std::string format_uid(std::vector<uint8_t> &uid) {
-  char buf[32];
-  int offset = 0;
-  for (size_t i = 0; i < uid.size(); i++) {
-    const char *format = "%02X";
-    if (i + 1 < uid.size())
-      format = "%02X-";
-    offset += sprintf(buf + offset, format, uid[i]);
-  }
-  return std::string(buf);
-}
 
 void RC522::setup() {
   state_ = STATE_SETUP;
@@ -46,7 +26,7 @@ void RC522::setup() {
     reset_pin_->pin_mode(gpio::FLAG_INPUT);
 
     if (!reset_pin_->digital_read()) {  // The MFRC522 chip is in power down mode.
-      ESP_LOGV(TAG, "Power down mode detected. Hard resetting...");
+      ESP_LOGV(TAG, "Power down mode detected. Hard resetting");
       reset_pin_->pin_mode(gpio::FLAG_OUTPUT);  // Now set the resetPowerDownPin as digital output.
       reset_pin_->digital_write(false);         // Make sure we have a clean LOW state.
       delayMicroseconds(2);             // 8.8.1 Reset timing requirements says about 100ns. Let us be generous: 2μsl
@@ -101,7 +81,7 @@ void RC522::dump_config() {
     case NONE:
       break;
     case RESET_FAILED:
-      ESP_LOGE(TAG, "Reset command failed!");
+      ESP_LOGE(TAG, "Reset command failed");
       break;
   }
 
@@ -214,8 +194,9 @@ void RC522::loop() {
         if (status == STATUS_TIMEOUT) {
           ESP_LOGV(TAG, "STATE_READ_SERIAL_DONE -> TIMEOUT (no tag present) %d", status);
         } else {
+          char hex_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
           ESP_LOGW(TAG, "Unexpected response. Read status is %d. Read bytes: %d (%s)", status, back_length_,
-                   format_buffer(buffer_, 9).c_str());
+                   format_hex_pretty_to(hex_buf, buffer_, back_length_, '-'));
         }
 
         state_ = STATE_DONE;
@@ -239,7 +220,7 @@ void RC522::loop() {
 
       std::vector<uint8_t> rfid_uid(std::begin(uid_buffer_), std::begin(uid_buffer_) + uid_idx_);
       uid_idx_ = 0;
-      // ESP_LOGD(TAG, "Processing '%s'", format_uid(rfid_uid).c_str());
+      // ESP_LOGD(TAG, "Processing '%s'", format_hex_pretty(rfid_uid, '-', false).c_str());  // NOLINT
       pcd_antenna_off_();
       state_ = STATE_INIT;  // scan again on next update
       bool report = true;
@@ -260,13 +241,18 @@ void RC522::loop() {
         trigger->process(rfid_uid);
 
       if (report) {
-        ESP_LOGD(TAG, "Found new tag '%s'", format_uid(rfid_uid).c_str());
+        char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+        ESP_LOGD(TAG, "Found new tag '%s'", format_hex_pretty_to(uid_buf, rfid_uid.data(), rfid_uid.size(), '-'));
       }
       break;
     }
     case STATE_DONE: {
       if (!this->current_uid_.empty()) {
-        ESP_LOGV(TAG, "Tag '%s' removed", format_uid(this->current_uid_).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+        char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+        ESP_LOGV(TAG, "Tag '%s' removed",
+                 format_hex_pretty_to(uid_buf, this->current_uid_.data(), this->current_uid_.size(), '-'));
+#endif
         for (auto *trigger : this->triggers_ontagremoved_)
           trigger->process(this->current_uid_);
       }
@@ -292,7 +278,7 @@ void RC522::pcd_reset_() {
     return;
 
   if (reset_count_ == RESET_COUNT) {
-    ESP_LOGI(TAG, "Soft reset...");
+    ESP_LOGI(TAG, "Soft reset");
     // Issue the SoftReset command.
     pcd_write_register(COMMAND_REG, PCD_SOFT_RESET);
   }
@@ -300,14 +286,14 @@ void RC522::pcd_reset_() {
   // Expect the PowerDown bit in CommandReg to be cleared (max 3x50ms)
   if ((pcd_read_register(COMMAND_REG) & (1 << 4)) == 0) {
     reset_count_ = 0;
-    ESP_LOGI(TAG, "Device online.");
+    ESP_LOGI(TAG, "Device online");
     // Wait for initialize
     reset_timeout_ = millis();
     return;
   }
 
   if (--reset_count_ == 0) {
-    ESP_LOGE(TAG, "Unable to reset RC522.");
+    ESP_LOGE(TAG, "Unable to reset");
     this->error_code_ = RESET_FAILED;
     mark_failed();
   }
@@ -361,7 +347,10 @@ void RC522::pcd_clear_register_bit_mask_(PcdRegister reg,  ///< The register to 
  * @return STATUS_OK on success, STATUS_??? otherwise.
  */
 void RC522::pcd_transceive_data_(uint8_t send_len) {
-  ESP_LOGV(TAG, "PCD TRANSCEIVE: RX: %s", format_buffer(buffer_, send_len).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+  ESP_LOGV(TAG, "PCD TRANSCEIVE: RX: %s", format_hex_pretty_to(hex_buf, buffer_, send_len, '-'));
+#endif
   delayMicroseconds(1000);  // we need 1 ms delay between antenna on and those communication commands
   send_len_ = send_len;
   // Prepare values for BitFramingReg
@@ -435,7 +424,11 @@ RC522::StatusCode RC522::await_transceive_() {
              error_reg_value);  // TODO: is this always due to collissions?
     return STATUS_ERROR;
   }
-  ESP_LOGV(TAG, "received %d bytes: %s", back_length_, format_buffer(buffer_ + send_len_, back_length_).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+  ESP_LOGV(TAG, "received %d bytes: %s", back_length_,
+           format_hex_pretty_to(hex_buf, buffer_ + send_len_, back_length_, '-'));
+#endif
 
   return STATUS_OK;
 }
@@ -499,7 +492,10 @@ bool RC522BinarySensor::process(std::vector<uint8_t> &data) {
   this->found_ = result;
   return result;
 }
-void RC522Trigger::process(std::vector<uint8_t> &data) { this->trigger(format_uid(data)); }
+void RC522Trigger::process(std::vector<uint8_t> &data) {
+  char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+  this->trigger(format_hex_pretty_to(uid_buf, data.data(), data.size(), '-'));
+}
 
 }  // namespace rc522
 }  // namespace esphome

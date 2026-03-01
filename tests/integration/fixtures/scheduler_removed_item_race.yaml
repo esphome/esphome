@@ -1,0 +1,139 @@
+esphome:
+  name: scheduler-removed-item-race
+
+host:
+
+api:
+  services:
+    - service: run_test
+      then:
+        - script.execute: run_test_script
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: test_passed
+    type: bool
+    initial_value: 'true'
+  - id: removed_item_executed
+    type: int
+    initial_value: '0'
+  - id: normal_item_executed
+    type: int
+    initial_value: '0'
+
+sensor:
+  - platform: template
+    id: test_sensor
+    name: "Test Sensor"
+    update_interval: never
+    lambda: return 0.0;
+
+script:
+  - id: run_test_script
+    then:
+      - logger.log: "=== Starting Removed Item Race Test ==="
+
+      # This test creates a scenario where:
+      # 1. First item in heap is NOT cancelled (cleanup stops immediately)
+      # 2. Items behind it ARE cancelled (remain in heap after cleanup)
+      # 3. All items execute at the same time, including cancelled ones
+
+      - lambda: |-
+          // The key to hitting the race:
+          // 1. Add items in a specific order to control heap structure
+          // 2. Cancel ONLY items that won't be at the front
+          // 3. Ensure the first item stays non-cancelled so cleanup_() stops immediately
+
+          // Schedule all items to execute at the SAME time (1ms from now)
+          // Using 1ms instead of 0 to avoid defer queue on multi-core platforms
+          // This ensures they'll all be ready together and go through the heap
+          const uint32_t exec_time = 1;
+
+          // CRITICAL: Add a non-cancellable item FIRST
+          // This will be at the front of the heap and block cleanup_()
+          App.scheduler.set_timeout(id(test_sensor), "blocker", exec_time, []() {
+            ESP_LOGD("test", "Blocker timeout executed (expected) - was at front of heap");
+            id(normal_item_executed)++;
+          });
+
+          // Now add items that we WILL cancel
+          // These will be behind the blocker in the heap
+          App.scheduler.set_timeout(id(test_sensor), "cancel_1", exec_time, []() {
+            ESP_LOGE("test", "RACE: Cancelled timeout 1 executed after being cancelled!");
+            id(removed_item_executed)++;
+            id(test_passed) = false;
+          });
+
+          App.scheduler.set_timeout(id(test_sensor), "cancel_2", exec_time, []() {
+            ESP_LOGE("test", "RACE: Cancelled timeout 2 executed after being cancelled!");
+            id(removed_item_executed)++;
+            id(test_passed) = false;
+          });
+
+          App.scheduler.set_timeout(id(test_sensor), "cancel_3", exec_time, []() {
+            ESP_LOGE("test", "RACE: Cancelled timeout 3 executed after being cancelled!");
+            id(removed_item_executed)++;
+            id(test_passed) = false;
+          });
+
+          // Add some more normal items
+          App.scheduler.set_timeout(id(test_sensor), "normal_1", exec_time, []() {
+            ESP_LOGD("test", "Normal timeout 1 executed (expected)");
+            id(normal_item_executed)++;
+          });
+
+          App.scheduler.set_timeout(id(test_sensor), "normal_2", exec_time, []() {
+            ESP_LOGD("test", "Normal timeout 2 executed (expected)");
+            id(normal_item_executed)++;
+          });
+
+          App.scheduler.set_timeout(id(test_sensor), "normal_3", exec_time, []() {
+            ESP_LOGD("test", "Normal timeout 3 executed (expected)");
+            id(normal_item_executed)++;
+          });
+
+          // Force items into the heap before cancelling
+          App.scheduler.process_to_add();
+
+          // NOW cancel the items - they're behind "blocker" in the heap
+          // When cleanup_() runs, it will see "blocker" (not removed) at the front
+          // and stop immediately, leaving cancel_1, cancel_2, cancel_3 in the heap
+          bool c1 = App.scheduler.cancel_timeout(id(test_sensor), "cancel_1");
+          bool c2 = App.scheduler.cancel_timeout(id(test_sensor), "cancel_2");
+          bool c3 = App.scheduler.cancel_timeout(id(test_sensor), "cancel_3");
+
+          ESP_LOGD("test", "Cancelled items (behind blocker): %s, %s, %s",
+                   c1 ? "true" : "false",
+                   c2 ? "true" : "false",
+                   c3 ? "true" : "false");
+
+          // The heap now has:
+          // - "blocker" at front (not cancelled)
+          // - cancelled items behind it (marked remove=true but still in heap)
+          // - When all execute at once, cleanup_() stops at "blocker"
+          // - The loop then executes ALL ready items including cancelled ones
+
+          ESP_LOGD("test", "Setup complete. Blocker at front prevents cleanup of cancelled items behind it");
+
+      # Wait for all timeouts to execute (or not)
+      - delay: 20ms
+
+      # Check results
+      - lambda: |-
+          ESP_LOGI("test", "=== Test Results ===");
+          ESP_LOGI("test", "Normal items executed: %d (expected 4)", id(normal_item_executed));
+          ESP_LOGI("test", "Removed items executed: %d (expected 0)", id(removed_item_executed));
+
+          if (id(removed_item_executed) > 0) {
+            ESP_LOGE("test", "TEST FAILED: %d cancelled items were executed!", id(removed_item_executed));
+            id(test_passed) = false;
+          } else if (id(normal_item_executed) != 4) {
+            ESP_LOGE("test", "TEST FAILED: Expected 4 normal items, got %d", id(normal_item_executed));
+            id(test_passed) = false;
+          } else {
+            ESP_LOGI("test", "TEST PASSED: No cancelled items were executed");
+          }
+
+          ESP_LOGI("test", "=== Test Complete ===");

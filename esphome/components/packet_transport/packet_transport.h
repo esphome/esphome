@@ -8,9 +8,10 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
-#
-#include <vector>
+
 #include <map>
+#include <span>
+#include <vector>
 
 /**
  * Providing packet encoding functions for exchanging data with a remote host.
@@ -27,6 +28,10 @@ struct Provider {
   std::vector<uint8_t> encryption_key;
   const char *name;
   uint32_t last_code[2];
+  uint32_t last_key_response_time;
+#ifdef USE_STATUS_SENSOR
+  binary_sensor::BinarySensor *status_sensor{nullptr};
+#endif
 };
 
 #ifdef USE_SENSOR
@@ -75,10 +80,7 @@ class PacketTransport : public PollingComponent {
 
   void add_provider(const char *hostname) {
     if (this->providers_.count(hostname) == 0) {
-      Provider provider;
-      provider.encryption_key = std::vector<uint8_t>{};
-      provider.last_code[0] = 0;
-      provider.last_code[1] = 0;
+      Provider provider{};
       provider.name = hostname;
       this->providers_[hostname] = provider;
 #ifdef USE_SENSOR
@@ -90,6 +92,7 @@ class PacketTransport : public PollingComponent {
     }
   }
 
+  void set_is_provider(bool is_provider) { this->is_provider_ = is_provider; }
   void set_encryption_key(std::vector<uint8_t> key) { this->encryption_key_ = std::move(key); }
   void set_rolling_code_enable(bool enable) { this->rolling_code_enable_ = enable; }
   void set_ping_pong_enable(bool enable) { this->ping_pong_enable_ = enable; }
@@ -97,6 +100,11 @@ class PacketTransport : public PollingComponent {
   void set_provider_encryption(const char *name, std::vector<uint8_t> key) {
     this->providers_[name].encryption_key = std::move(key);
   }
+#ifdef USE_STATUS_SENSOR
+  void set_provider_status_sensor(const char *name, binary_sensor::BinarySensor *sensor) {
+    this->providers_[name].status_sensor = sensor;
+  }
+#endif
   void set_platform_name(const char *name) { this->platform_name_ = name; }
 
  protected:
@@ -106,7 +114,7 @@ class PacketTransport : public PollingComponent {
   virtual bool should_send() { return true; }
 
   // to be called by child classes when a data packet is received.
-  void process_(const std::vector<uint8_t> &data);
+  void process_(std::span<const uint8_t> data);
   void send_data_(bool all);
   void flush_();
   void add_data_(uint8_t key, const char *id, float data);
@@ -123,7 +131,7 @@ class PacketTransport : public PollingComponent {
   uint32_t ping_pong_recyle_time_{};
   uint32_t last_key_time_{};
   bool resend_ping_key_{};
-  bool resend_data_{};
+  bool is_provider_{};
   const char *name_{};
   ESPPreferenceObject pref_{};
 

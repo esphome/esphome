@@ -1,7 +1,8 @@
 #include "daly_bms.h"
 #include <vector>
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace daly_bms {
@@ -102,8 +103,6 @@ void DalyBmsComponent::loop() {
     }
   }
 }
-
-float DalyBmsComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void DalyBmsComponent::request_data_(uint8_t data_id) {
   uint8_t request_message[DALY_FRAME_SIZE];

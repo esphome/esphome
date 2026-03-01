@@ -1,0 +1,11 @@
+# ESPAsyncWebServer includes <Hash.h> expecting the Arduino-Pico framework's Hash
+# library (which provides sha1() functions). However, the Crypto-no-arduino library
+# (used by dsmr) also provides a Hash.h that can shadow the framework version when
+# PlatformIO's chain+ LDF mode auto-discovers it as a dependency.
+# Prepend the framework Hash path to CXXFLAGS so it is found first.
+import os
+
+Import("env")
+framework_dir = env.PioPlatform().get_package_dir("framework-arduinopico")
+hash_src = os.path.join(framework_dir, "libraries", "Hash", "src")
+env.Prepend(CXXFLAGS=["-I" + hash_src])

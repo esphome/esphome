@@ -1,0 +1,19 @@
+remote_transmitter:
+  id: ir_transmitter
+  pin: ${tx_pin}
+  carrier_duty_percent: 50%
+
+# Test various hardware types with transmitter/receiver using infrared platform
+infrared:
+  # Infrared transmitter
+  - platform: ir_rf_proxy
+    id: ir_tx
+    name: "IR Transmitter"
+    remote_transmitter_id: ir_transmitter
+
+  # RF 433MHz transmitter
+  - platform: ir_rf_proxy
+    id: rf_433_tx
+    name: "RF 433 Transmitter"
+    frequency: 433 MHz
+    remote_transmitter_id: ir_transmitter

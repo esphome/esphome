@@ -1,7 +1,7 @@
 #include "midea_ir.h"
 #include "midea_data.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/components/coolix/coolix.h"
 
 namespace esphome {
@@ -165,7 +165,8 @@ bool MideaIR::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 bool MideaIR::on_midea_(const MideaData &data) {
-  ESP_LOGV(TAG, "Decoded Midea IR data: %s", data.to_string().c_str());
+  char buf[MideaData::TO_STR_BUFFER_SIZE];
+  ESP_LOGV(TAG, "Decoded Midea IR data: %s", data.to_str(buf));
   if (data.type() == MideaData::MIDEA_TYPE_CONTROL) {
     const ControlData status = data;
     if (status.get_mode() != climate::CLIMATE_MODE_FAN_ONLY)

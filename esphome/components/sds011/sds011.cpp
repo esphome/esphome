@@ -67,9 +67,11 @@ void SDS011Component::set_working_state(bool working_state) {
 }
 
 void SDS011Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "SDS011:");
-  ESP_LOGCONFIG(TAG, "  Update Interval: %u min", this->update_interval_min_);
-  ESP_LOGCONFIG(TAG, "  RX-only mode: %s", ONOFF(this->rx_mode_only_));
+  ESP_LOGCONFIG(TAG,
+                "SDS011:\n"
+                "  Update Interval: %u min\n"
+                "  RX-only mode: %s",
+                this->update_interval_min_, ONOFF(this->rx_mode_only_));
   LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
   this->check_uart_settings(9600);
@@ -105,8 +107,6 @@ void SDS011Component::loop() {
     }
   }
 }
-
-float SDS011Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void SDS011Component::set_rx_mode_only(bool rx_mode_only) { this->rx_mode_only_ = rx_mode_only; }
 
@@ -180,9 +180,6 @@ void SDS011Component::parse_data_() {
   }
 }
 
-uint16_t SDS011Component::get_16_bit_uint_(uint8_t start_index) const {
-  return (uint16_t(this->data_[start_index + 1]) << 8) | uint16_t(this->data_[start_index]);
-}
 void SDS011Component::set_update_interval_min(uint8_t update_interval_min) {
   this->update_interval_min_ = update_interval_min;
 }

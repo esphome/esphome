@@ -1,6 +1,6 @@
 #include "rotary_encoder.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace rotary_encoder {
@@ -129,12 +129,10 @@ void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore 
 }
 
 void RotaryEncoderSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Rotary Encoder '%s'...", this->name_.c_str());
-
   int32_t initial_value = 0;
   switch (this->restore_mode_) {
     case ROTARY_ENCODER_RESTORE_DEFAULT_ZERO:
-      this->rtc_ = global_preferences->make_preference<int32_t>(this->get_object_id_hash());
+      this->rtc_ = this->make_entity_preference<int32_t>();
       if (!this->rtc_.load(&initial_value)) {
         initial_value = 0;
       }
@@ -237,7 +235,6 @@ void RotaryEncoderSensor::loop() {
   }
 }
 
-float RotaryEncoderSensor::get_setup_priority() const { return setup_priority::DATA; }
 void RotaryEncoderSensor::set_restore_mode(RotaryEncoderRestoreMode restore_mode) {
   this->restore_mode_ = restore_mode;
 }

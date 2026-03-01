@@ -1,15 +1,5 @@
-i2c:
-  - id: i2c_cst226
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
-spi:
-  - id: spi_ili9xxx
-    clk_pin: ${clk_pin}
-    mosi_pin: ${mosi_pin}
-
 display:
-  - id: my_display
+  - id: cst226_display
     platform: ili9xxx
     model: ili9342
     cs_pin: ${cs_pin}
@@ -19,7 +9,9 @@ display:
 
 touchscreen:
   - id: ts_cst226
+    i2c_id: i2c_bus
     platform: cst226
+    display: cst226_display
     interrupt_pin: ${interrupt_pin}
     reset_pin: ${reset_pin}
 

@@ -1,7 +1,7 @@
 #include "lcd_display.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace lcd_base {
@@ -45,7 +45,7 @@ void LCDDisplay::setup() {
   // TODO dotsize
 
   // Commands can only be sent 40ms after boot-up, so let's wait if we're close
-  const uint8_t now = millis();
+  const uint32_t now = millis();
   if (now < 40)
     delay(40u - now);
 

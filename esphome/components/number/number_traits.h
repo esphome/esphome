@@ -3,8 +3,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace number {
+namespace esphome::number {
 
 enum NumberMode : uint8_t {
   NUMBER_MODE_AUTO = 0,
@@ -35,5 +34,4 @@ class NumberTraits : public EntityBase_DeviceClass, public EntityBase_UnitOfMeas
   NumberMode mode_{NUMBER_MODE_AUTO};
 };
 
-}  // namespace number
-}  // namespace esphome
+}  // namespace esphome::number

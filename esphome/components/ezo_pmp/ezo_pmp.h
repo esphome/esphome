@@ -23,7 +23,6 @@ namespace ezo_pmp {
 class EzoPMP : public PollingComponent, public i2c::I2CDevice {
  public:
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; };
 
   void loop() override;
   void update() override;
@@ -120,7 +119,7 @@ template<typename... Ts> class EzoPMPFindAction : public Action<Ts...> {
  public:
   EzoPMPFindAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
-  void play(Ts... x) override { this->ezopmp_->find(); }
+  void play(const Ts &...x) override { this->ezopmp_->find(); }
 
  protected:
   EzoPMP *ezopmp_;
@@ -130,7 +129,7 @@ template<typename... Ts> class EzoPMPDoseContinuouslyAction : public Action<Ts..
  public:
   EzoPMPDoseContinuouslyAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
-  void play(Ts... x) override { this->ezopmp_->dose_continuously(); }
+  void play(const Ts &...x) override { this->ezopmp_->dose_continuously(); }
 
  protected:
   EzoPMP *ezopmp_;
@@ -140,7 +139,7 @@ template<typename... Ts> class EzoPMPDoseVolumeAction : public Action<Ts...> {
  public:
   EzoPMPDoseVolumeAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
-  void play(Ts... x) override { this->ezopmp_->dose_volume(this->volume_.value(x...)); }
+  void play(const Ts &...x) override { this->ezopmp_->dose_volume(this->volume_.value(x...)); }
   TEMPLATABLE_VALUE(double, volume)
 
  protected:
@@ -151,7 +150,7 @@ template<typename... Ts> class EzoPMPDoseVolumeOverTimeAction : public Action<Ts
  public:
   EzoPMPDoseVolumeOverTimeAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->ezopmp_->dose_volume_over_time(this->volume_.value(x...), this->duration_.value(x...));
   }
   TEMPLATABLE_VALUE(double, volume)
@@ -165,7 +164,7 @@ template<typename... Ts> class EzoPMPDoseWithConstantFlowRateAction : public Act
  public:
   EzoPMPDoseWithConstantFlowRateAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->ezopmp_->dose_with_constant_flow_rate(this->volume_.value(x...), this->duration_.value(x...));
   }
   TEMPLATABLE_VALUE(double, volume)
@@ -179,7 +178,7 @@ template<typename... Ts> class EzoPMPSetCalibrationVolumeAction : public Action<
  public:
   EzoPMPSetCalibrationVolumeAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
-  void play(Ts... x) override { this->ezopmp_->set_calibration_volume(this->volume_.value(x...)); }
+  void play(const Ts &...x) override { this->ezopmp_->set_calibration_volume(this->volume_.value(x...)); }
   TEMPLATABLE_VALUE(double, volume)
 
  protected:
@@ -190,7 +189,7 @@ template<typename... Ts> class EzoPMPClearTotalVolumeDispensedAction : public Ac
  public:
   EzoPMPClearTotalVolumeDispensedAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
-  void play(Ts... x) override { this->ezopmp_->clear_total_volume_dosed(); }
+  void play(const Ts &...x) override { this->ezopmp_->clear_total_volume_dosed(); }
 
  protected:
   EzoPMP *ezopmp_;
@@ -200,7 +199,7 @@ template<typename... Ts> class EzoPMPClearCalibrationAction : public Action<Ts..
  public:
   EzoPMPClearCalibrationAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
-  void play(Ts... x) override { this->ezopmp_->clear_calibration(); }
+  void play(const Ts &...x) override { this->ezopmp_->clear_calibration(); }
 
  protected:
   EzoPMP *ezopmp_;
@@ -210,7 +209,7 @@ template<typename... Ts> class EzoPMPPauseDosingAction : public Action<Ts...> {
  public:
   EzoPMPPauseDosingAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
-  void play(Ts... x) override { this->ezopmp_->pause_dosing(); }
+  void play(const Ts &...x) override { this->ezopmp_->pause_dosing(); }
 
  protected:
   EzoPMP *ezopmp_;
@@ -220,7 +219,7 @@ template<typename... Ts> class EzoPMPStopDosingAction : public Action<Ts...> {
  public:
   EzoPMPStopDosingAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
-  void play(Ts... x) override { this->ezopmp_->stop_dosing(); }
+  void play(const Ts &...x) override { this->ezopmp_->stop_dosing(); }
 
  protected:
   EzoPMP *ezopmp_;
@@ -230,7 +229,7 @@ template<typename... Ts> class EzoPMPChangeI2CAddressAction : public Action<Ts..
  public:
   EzoPMPChangeI2CAddressAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
-  void play(Ts... x) override { this->ezopmp_->change_i2c_address(this->address_.value(x...)); }
+  void play(const Ts &...x) override { this->ezopmp_->change_i2c_address(this->address_.value(x...)); }
   TEMPLATABLE_VALUE(int, address)
 
  protected:
@@ -241,7 +240,7 @@ template<typename... Ts> class EzoPMPArbitraryCommandAction : public Action<Ts..
  public:
   EzoPMPArbitraryCommandAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
-  void play(Ts... x) override { this->ezopmp_->exec_arbitrary_command(this->command_.value(x...)); }
+  void play(const Ts &...x) override { this->ezopmp_->exec_arbitrary_command(this->command_.value(x...)); }
   TEMPLATABLE_VALUE(std::string, command)
 
  protected:

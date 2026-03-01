@@ -1,3 +1,6 @@
+usb_host:
+  max_transfer_requests: 32
+
 usb_uart:
   - id: uart_0
     type: cdc_acm

@@ -1,6 +1,65 @@
 esphome:
   on_boot:
     then:
+      # Test LightEffect::get_name() returns StringRef
+      - lambda: |-
+          // Test LightEffect::get_name() returns StringRef
+          auto &effects = id(test_monochromatic_light).get_effects();
+          if (!effects.empty()) {
+            // Test: get_name() returns StringRef
+            StringRef name = effects[0]->get_name();
+
+            // Test: comparison with string literal works directly
+            if (name == "Strobe") {
+              ESP_LOGI("test", "Found Strobe effect");
+            }
+
+            // Test: safe logging with %.*s format
+            ESP_LOGI("test", "Effect name: %.*s", (int) name.size(), name.c_str());
+
+            // Test: .c_str() for functions expecting const char*
+            ESP_LOGI("test", "Effect: %s", name.c_str());
+
+            // Test: explicit conversion to std::string
+            std::string name_str(name.c_str(), name.size());
+            ESP_LOGI("test", "As string: %s", name_str.c_str());
+
+            // Test: size() method
+            ESP_LOGI("test", "Name length: %d", (int) name.size());
+          }
+
+      # Test LightState::get_effect_name() returns StringRef
+      - lambda: |-
+          // Test LightState::get_effect_name() returns StringRef
+          StringRef current_effect = id(test_monochromatic_light).get_effect_name();
+
+          // Test: comparison with "None" works directly
+          if (current_effect == "None") {
+            ESP_LOGI("test", "No effect active");
+          }
+
+          // Test: safe logging
+          ESP_LOGI("test", "Current effect: %.*s", (int) current_effect.size(), current_effect.c_str());
+
+      # Test str_equals_case_insensitive with StringRef
+      - lambda: |-
+          // Test str_equals_case_insensitive(StringRef, StringRef)
+          auto &effects = id(test_monochromatic_light).get_effects();
+          if (!effects.empty()) {
+            StringRef name = effects[0]->get_name();
+
+            // Test: case-insensitive comparison
+            if (str_equals_case_insensitive(name, "STROBE")) {
+              ESP_LOGI("test", "Case-insensitive match works");
+            }
+
+            // Test: case-insensitive with StringRef from string
+            std::string search = "strobe";
+            if (str_equals_case_insensitive(StringRef(search.c_str(), search.size()), name)) {
+              ESP_LOGI("test", "Reverse comparison works");
+            }
+          }
+
       - light.toggle: test_binary_light
       - light.turn_off: test_rgb_light
       - light.turn_on:
@@ -12,11 +71,51 @@ esphome:
       - light.control:
           id: test_monochromatic_light
           state: on
+      # Test static effect name resolution at codegen time
+      - light.turn_on:
+          id: test_monochromatic_light
+          effect: Strobe
+      - light.turn_on:
+          id: test_monochromatic_light
+          effect: none
+      # Test resolving a different effect on the same light
+      - light.control:
+          id: test_monochromatic_light
+          effect: My Flicker
+      # Test effect: None (capitalized)
+      - light.control:
+          id: test_monochromatic_light
+          effect: None
+      # Test effect lambda with no args (on_boot has empty Ts...)
+      - light.turn_on:
+          id: test_monochromatic_light
+          effect: !lambda 'return "Strobe";'
+      # Test effect lambda with non-empty args (repeat passes uint32_t iteration)
+      - repeat:
+          count: 3
+          then:
+            - light.turn_on:
+                id: test_monochromatic_light
+                effect: !lambda 'return iteration > 1 ? "Strobe" : "none";'
       - light.dim_relative:
           id: test_monochromatic_light
           relative_brightness: 5%
           brightness_limits:
             max_brightness: 90%
+      - light.turn_on:
+          id: test_addressable_transition
+          brightness: 50%
+          red: 100%
+          green: 0%
+          blue: 0%
+          transition_length: 500ms
+      - light.turn_on:
+          id: test_addressable_transition
+          brightness: 100%
+          red: 0%
+          green: 100%
+          blue: 0%
+          transition_length: 1s
 
 light:
   - platform: binary
@@ -114,7 +213,7 @@ light:
     warm_white_color_temperature: 500 mireds
   - platform: rgb
     id: test_rgb_light_initial_state
-    name: RGB Light
+    name: RGB Light Initial State
     red: test_ledc_1
     green: test_ledc_2
     blue: test_ledc_3
@@ -123,3 +222,49 @@ light:
       red: 100%
       green: 50%
       blue: 50%
+  # Test StrobeLightEffect with multiple colors
+  - platform: monochromatic
+    id: test_strobe_multiple
+    name: Strobe Multiple Colors
+    output: test_ledc_1
+    effects:
+      - strobe:
+          name: Strobe Multi
+          colors:
+            - state: true
+              brightness: 100%
+              duration: 500ms
+            - state: false
+              duration: 250ms
+            - state: true
+              brightness: 50%
+              duration: 500ms
+  # Test StrobeLightEffect with transition
+  - platform: rgb
+    id: test_strobe_transition
+    name: Strobe With Transition
+    red: test_ledc_1
+    green: test_ledc_2
+    blue: test_ledc_3
+    effects:
+      - strobe:
+          name: Strobe Transition
+          colors:
+            - state: true
+              red: 100%
+              green: 0%
+              blue: 0%
+              duration: 1s
+              transition_length: 500ms
+            - state: true
+              red: 0%
+              green: 100%
+              blue: 0%
+              duration: 1s
+              transition_length: 500ms
+  - platform: partition
+    id: test_addressable_transition
+    name: Addressable Transition Test
+    default_transition_length: 1s
+    segments:
+      - single_light_id: test_rgb_light
