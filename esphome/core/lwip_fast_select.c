@@ -247,7 +247,7 @@ void IRAM_ATTR esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task
 // Avoids depending on CMSIS __get_IPSR() which may not be declared/available
 // in all LibreTiny chip family toolchains (e.g. beken-72xx).
 static inline uint32_t esphome_get_ipsr(void) {
-  uint32_t ipsr;
+  uint32_t ipsr = 0;
   __asm volatile("mrs %0, ipsr" : "=r"(ipsr));
   return ipsr;
 }
