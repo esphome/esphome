@@ -1,8 +1,8 @@
 """Battery voltage and level sensor for LILYGO T5 4.7" Plus."""
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BATTERY_VOLTAGE,
@@ -54,7 +54,9 @@ _SENSOR_SCHEMA = cv.Schema(
         cv.Optional(CONF_BATTERY_LEVEL): BATTERY_LEVEL_SCHEMA,
         cv.Optional(CONF_MIN_VOLTAGE, default=3.0): cv.float_range(min=2.5, max=3.5),
         cv.Optional(CONF_MAX_VOLTAGE, default=4.2): cv.float_range(min=3.7, max=4.5),
-        cv.Optional(CONF_VOLTAGE_DIVIDER, default=2.0): cv.float_range(min=1.0, max=10.0),
+        cv.Optional(CONF_VOLTAGE_DIVIDER, default=2.0): cv.float_range(
+            min=1.0, max=10.0
+        ),
     }
 ).extend(cv.polling_component_schema("60s"))
 

@@ -44,16 +44,16 @@ display:
     lambda: |-
       // Title
       it.printf(480, 20, id(font_title), TextAlign::TOP_CENTER, "LILYGO T5 4.7\" Plus");
-      
+
       // Time display
       it.strftime(480, 100, id(font_large), TextAlign::TOP_CENTER, "%H:%M", id(ha_time).now());
       it.strftime(480, 180, id(font_medium), TextAlign::TOP_CENTER, "%A, %d. %B %Y", id(ha_time).now());
-      
+
       // Status
       it.printf(10, 270, id(font_small), "WiFi: %s", id(wifi_status).state ? "Connected" : "Disconnected");
       it.printf(10, 300, id(font_small), "IP: %s", WiFi.localIP().toString().c_str());
       it.printf(10, 330, id(font_small), "Uptime: %.1f hours", id(uptime_sensor).state / 3600.0);
-      
+
       // Graphics demo
       it.rectangle(10, 370, 940, 160);
       it.line(10, 370, 950, 530);

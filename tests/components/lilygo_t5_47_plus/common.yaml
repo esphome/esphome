@@ -1,0 +1,22 @@
+display:
+  - platform: lilygo_t5_47_plus
+    id: lilygo_display
+    greyscale: true
+    update_interval: 60s
+
+sensor:
+  - platform: lilygo_t5_47_plus
+    update_interval: 60s
+    battery_voltage:
+      name: Battery Voltage
+    battery_level:
+      name: Battery Level
+
+touchscreen:
+  - platform: lilygo_t5_47_plus
+    display: lilygo_display
+    update_interval: 300ms
+    on_touch:
+      - logger.log:
+          format: "Touch at (%d, %d)"
+          args: [touch.x, touch.y]

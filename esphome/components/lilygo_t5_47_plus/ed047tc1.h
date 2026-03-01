@@ -72,7 +72,7 @@ extern "C" {
 #define D0 GPIO_NUM_8
 
 #else
-    #error "Unknown SOC"
+#error "Unknown SOC"
 #endif
 
 /******************************************************************************/
@@ -117,17 +117,17 @@ void epd_end_frame();
  *       This sequence of operations allows for pipelining data preparation and
  *       transfer, reducing total refresh times.
  */
-void  epd_output_row(uint32_t output_time_dus);
+void epd_output_row(uint32_t output_time_dus);
 
 /**
  * @brief Skip a row without writing to it.
  */
-void  epd_skip();
+void epd_skip();
 
 /**
  * @brief Get the currently writable line buffer.
  */
-uint8_t *  epd_get_current_buffer();
+uint8_t *epd_get_current_buffer();
 
 /**
  * @brief Switches front and back line buffer.
@@ -135,7 +135,7 @@ uint8_t *  epd_get_current_buffer();
  * @note If the switched-to line buffer is currently in use, this function
  *       blocks until transmission is done.
  */
-void  epd_switch_buffer();
+void epd_switch_buffer();
 
 #ifdef __cplusplus
 }

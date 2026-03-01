@@ -1,41 +1,8 @@
----
-# Test configuration for LILYGO T5 4.7" Plus with Arduino framework
-esphome:
-  name: lilygo-t547-test-ard
-  friendly_name: "LILYGO T5 4.7\" Plus Test (Arduino)"
-
-# Load board configuration (includes ESP32, PSRAM, and all platformio settings)
 packages:
-  board: !include ../../../esphome/components/lilygo_t5_47_plus/board_config.yaml
+  i2c: !include ../../test_build_components/common/i2c/esp32-s3-ard.yaml
 
-logger:
-  level: DEBUG
+psram:
+  mode: octal
+  speed: 80MHz
 
-api:
-
-ota:
-  - platform: esphome
-
-wifi:
-  ssid: "MySSID"
-  password: "MyPassword"
-  ap:
-    ssid: "Lilygo-T547-Fallback"
-
-display:
-  - platform: lilygo_t5_47_plus
-    id: lilygo_display
-    greyscale: true
-    update_interval: 30s
-    lambda: |-
-      it.print(10, 10, id(my_font), "LILYGO T5 4.7\" E-Paper Test");
-      it.print(10, 50, id(my_font), "Current time: 2026-02-21 - 16:12");
-      it.rectangle(10, 100, 200, 100);
-      it.line(10, 100, 210, 200);
-      it.circle(400, 150, 50);
-
-
-font:
-  - file: "gfonts://Roboto"
-    id: my_font
-    size: 20
+<<: !include common.yaml
