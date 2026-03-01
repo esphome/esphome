@@ -53,13 +53,13 @@ openthread:
 ### Configuration variables
 
 - **device_type** (*Optional*, enum): OpenThread Device Type, either `FTD` or `MTD`. Defaults to `FTD`.
-- **channel** (int): Channel number from 11 to 26
-- **network_name** (string): A human-readable Network Name
-- **network_key** (string): OpenThread network key
-- **pan_id** (string): 2-byte Personal Area Network ID (PAN ID)
-- **ext_pan_id** (string): 8-byte Extended Personal Area Network ID (XPAN ID)
-- **pskc** (string): PSKc is used to authenticate an external Thread Commissioner to a Thread network
-- **mesh_local_prefix** (ipv6network): Used to build Mesh-Local IPv6 addresses (ML-EIDs), which are unique to each Thread device within the network partition
+- **channel** (*Optional*, int): Channel number from 11 to 26
+- **network_name** (*Optional*, string): A human-readable Network Name
+- **network_key** (*Optional*, string): OpenThread network key
+- **pan_id** (*Optional*, string): 2-byte Personal Area Network ID (PAN ID)
+- **ext_pan_id** (*Optional*, string): 8-byte Extended Personal Area Network ID (XPAN ID)
+- **pskc** (*Optional*, string): PSKc is used to authenticate an external Thread Commissioner to a Thread network
+- **mesh_local_prefix** (*Optional*, ipv6network): Used to build Mesh-Local IPv6 addresses (ML-EIDs), which are unique to each Thread device within the network partition
 - **force_dataset** (*Optional*, bool): Forces ESPHome configuration to override any previously stored OpenThread
   network dataset on the device, ensuring configured parameters are always applied at startup. Defaults to `false`
 - **use_address** (*Optional*, string): Manually override what address to use to connect
@@ -81,7 +81,7 @@ openthread:
 
 ### Configuration variables
 
-- **tlv** (string): dataset TLVs from the Thread information in Home Assistant
+- **tlv** (*Optional*, string): dataset TLVs from the Thread information in Home Assistant
 
 ## OpenThread Device Type
 

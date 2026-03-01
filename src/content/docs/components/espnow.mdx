@@ -113,8 +113,8 @@ on_...:
 
 #### Configuration variables
 
-- **address** (**Required**, [templatable](/automations/templates), MAC Address): The MAC address of the receiving device to send to.
-- **data** (**Required**, [templatable](/automations/templates), string or list of bytes): The data to be sent.
+- **address** (**Required**, MAC Address, [templatable](/automations/templates)): The MAC address of the receiving device to send to.
+- **data** (**Required**, string or list of bytes, [templatable](/automations/templates)): The data to be sent.
 - **wait_for_sent** (*Optional*, boolean): The automation will wait for the data to be sent and for the `on_sent` or `on_error`
   actions to be finished before continuing with the next action.
   Defaults to `true`.
@@ -145,7 +145,7 @@ on_...:
 
 #### Configuration variables
 
-- **data** (**Required**, [templatable](/automations/templates), string or list of bytes): The data to be sent.
+- **data** (**Required**, string or list of bytes, [templatable](/automations/templates)): The data to be sent.
 
 <span id="espnow-peer_add-action"></span>
 
@@ -163,7 +163,7 @@ on_...:
 
 #### Configuration variables
 
-- **address** (**Required**, MAC Address): The Peer address that needs to be added to the list of allowed peers.
+- **address** (**Required**, MAC Address, [templatable](/automations/templates)): The Peer address that needs to be added to the list of allowed peers.
 
 <span id="espnow-peer_delete-action"></span>
 
@@ -181,7 +181,7 @@ on_...:
 
 #### Configuration variables
 
-- **address** (**Required**, MAC Address): The Peer address that needs to be removed from the list of allowed peers.
+- **address** (**Required**, MAC Address, [templatable](/automations/templates)): The Peer address that needs to be removed from the list of allowed peers.
 
 <span id="espnow-set_channel-action"></span>
 
@@ -198,7 +198,7 @@ on_...:
 
 #### Configuration variables
 
-- **channel** (**Required**, int): This can be a value between `0` and `15`. The maximum channel number depends on the country or region where you are using the device (for example, channels 1-11 are allowed in the US and most of Europe, 1-13 in many other countries, and 1-14 in Japan). For details, see the [Wi-Fi channel regulations by country](https://en.wikipedia.org/wiki/List_of_WLAN_channels) or consult the [Espressif ESP-NOW documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html). `0` means that espnow will set the channel number itself (most of the time it would be `1`  ).
+- **channel** (**Required**, int, [templatable](/automations/templates)): This can be a value between `0` and `15`. The maximum channel number depends on the country or region where you are using the device (for example, channels 1-11 are allowed in the US and most of Europe, 1-13 in many other countries, and 1-14 in Japan). For details, see the [Wi-Fi channel regulations by country](https://en.wikipedia.org/wiki/List_of_WLAN_channels) or consult the [Espressif ESP-NOW documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html). `0` means that espnow will set the channel number itself (most of the time it would be `1`  ).
 
 <span id="espnow-peers"></span>
 
