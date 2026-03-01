@@ -36,6 +36,9 @@
 #include "esphome/components/socket/socket.h"
 #endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#include "esphome/components/socket/socket.h"
+#endif
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
