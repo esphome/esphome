@@ -3,6 +3,7 @@
 #if defined(USE_ESP32) || defined(USE_ESP8266)
 
 #include "espnow_err.h"
+#include "espnow_compat.h"
 
 #include <cstdint>
 #include <cstring>
@@ -10,14 +11,14 @@
 #include <memory>
 #include <vector>
 
-#include <esp_err.h>
+#if defined(USE_ESP32)
 #include <esp_idf_version.h>
-#include <esp_now.h>
+#endif
 
 namespace esphome::espnow {
 
-static const uint8_t ESPNOW_BROADCAST_ADDR[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-static const uint8_t ESPNOW_MULTICAST_ADDR[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE};
+static const uint8_t ESPNOW_BROADCAST_ADDR[ESPNOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+static const uint8_t ESPNOW_MULTICAST_ADDR[ESPNOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE};
 
 struct WifiPacketRxControl {
   int8_t rssi;         // Received Signal Strength Indicator (RSSI) of packet, unit: dBm
@@ -26,12 +27,12 @@ struct WifiPacketRxControl {
 };
 
 struct ESPNowRecvInfo {
-  uint8_t src_addr[ESP_NOW_ETH_ALEN]; /**< Source address of ESPNOW packet */
-  uint8_t des_addr[ESP_NOW_ETH_ALEN]; /**< Destination address of ESPNOW packet */
-  wifi_pkt_rx_ctrl_t *rx_ctrl;        /**< Rx control info of ESPNOW packet */
+  uint8_t src_addr[ESPNOW_ETH_ALEN]; /**< Source address of ESPNOW packet */
+  uint8_t des_addr[ESPNOW_ETH_ALEN]; /**< Destination address of ESPNOW packet */
+  WifiPacketRxControl *rx_ctrl;      /**< Rx control info of ESPNOW packet */
 };
 
-using send_callback_t = std::function<void(esp_err_t)>;
+using send_callback_t = std::function<void(espnow_err_t)>;
 
 class ESPNowPacket {
  public:
@@ -42,18 +43,24 @@ class ESPNowPacket {
   };
 
   // Constructor for received data
+#if defined(USE_ESP32)
   ESPNowPacket(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
     this->init_received_data_(info, data, size);
   };
+#else
+  ESPNowPacket(const uint8_t *src_addr, const uint8_t *data, uint8_t size, const uint8_t *des_addr = nullptr) {
+    this->init_received_data_(src_addr, data, size, des_addr);
+  };
+#endif
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if defined(USE_ESP32) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
   // Constructor for sent data
   ESPNowPacket(const esp_now_send_info_t *info, esp_now_send_status_t status) {
     this->init_sent_data_(info->src_addr, status);
   }
 #else
   // Constructor for sent data
-  ESPNowPacket(const uint8_t *mac_addr, esp_now_send_status_t status) { this->init_sent_data_(mac_addr, status); }
+  ESPNowPacket(const uint8_t *mac_addr, espnow_send_status_t status) { this->init_sent_data_(mac_addr, status); }
 #endif
 
   // Default constructor for pre-allocation in pool
@@ -61,12 +68,28 @@ class ESPNowPacket {
 
   void release() {}
 
-  void load_received_data(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
+  void load_received_data(
+#if defined(USE_ESP32)
+      const esp_now_recv_info_t *info,
+#else
+      const uint8_t *src_addr,
+#endif
+      const uint8_t *data,
+#if defined(USE_ESP32)
+      int size
+#else
+      uint8_t size, const uint8_t *des_addr = nullptr
+#endif
+  ) {
     this->type_ = RECEIVED;
+#if defined(USE_ESP32)
     this->init_received_data_(info, data, size);
+#else
+    this->init_received_data_(src_addr, data, size, des_addr);
+#endif
   }
 
-  void load_sent_data(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  void load_sent_data(const uint8_t *mac_addr, espnow_send_status_t status) {
     this->type_ = SENT;
     this->init_sent_data_(mac_addr, status);
   }
@@ -79,15 +102,15 @@ class ESPNowPacket {
     // NOLINTNEXTLINE(readability-identifier-naming)
     struct received_data {
       ESPNowRecvInfo info;                 // Information about the received packet
-      uint8_t data[ESP_NOW_MAX_DATA_LEN];  // Data received in the packet
+      uint8_t data[ESPNOW_MAX_DATA_LEN];   // Data received in the packet
       uint8_t size;                        // Size of the received data
       WifiPacketRxControl rx_ctrl;         // Status of the received packet
     } receive;
 
     // NOLINTNEXTLINE(readability-identifier-naming)
     struct sent_data {
-      uint8_t address[ESP_NOW_ETH_ALEN];
-      esp_now_send_status_t status;
+      uint8_t address[ESPNOW_ETH_ALEN];
+      espnow_send_status_t status;
     } sent;
   } packet_;
 
@@ -97,20 +120,37 @@ class ESPNowPacket {
   const ESPNowRecvInfo &get_receive_info() const { return this->packet_.receive.info; }
 
  private:
+#if defined(USE_ESP32)
   void init_received_data_(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
-    memcpy(this->packet_.receive.info.src_addr, info->src_addr, ESP_NOW_ETH_ALEN);
-    memcpy(this->packet_.receive.info.des_addr, info->des_addr, ESP_NOW_ETH_ALEN);
+    memcpy(this->packet_.receive.info.src_addr, info->src_addr, ESPNOW_ETH_ALEN);
+    memcpy(this->packet_.receive.info.des_addr, info->des_addr, ESPNOW_ETH_ALEN);
     memcpy(this->packet_.receive.data, data, size);
     this->packet_.receive.size = size;
 
     this->packet_.receive.rx_ctrl.rssi = info->rx_ctrl->rssi;
     this->packet_.receive.rx_ctrl.timestamp = info->rx_ctrl->timestamp;
 
-    this->packet_.receive.info.rx_ctrl = reinterpret_cast<wifi_pkt_rx_ctrl_t *>(&this->packet_.receive.rx_ctrl);
+    this->packet_.receive.info.rx_ctrl = &this->packet_.receive.rx_ctrl;
   }
+#else
+  void init_received_data_(const uint8_t *src_addr, const uint8_t *data, uint8_t size, const uint8_t *des_addr) {
+    memcpy(this->packet_.receive.info.src_addr, src_addr, ESPNOW_ETH_ALEN);
+    if (des_addr != nullptr) {
+      memcpy(this->packet_.receive.info.des_addr, des_addr, ESPNOW_ETH_ALEN);
+    } else {
+      memcpy(this->packet_.receive.info.des_addr, ESPNOW_BROADCAST_ADDR, ESPNOW_ETH_ALEN);
+    }
+    memcpy(this->packet_.receive.data, data, size);
+    this->packet_.receive.size = size;
 
-  void init_sent_data_(const uint8_t *mac_addr, esp_now_send_status_t status) {
-    memcpy(this->packet_.sent.address, mac_addr, ESP_NOW_ETH_ALEN);
+    this->packet_.receive.rx_ctrl.rssi = 0;
+    this->packet_.receive.rx_ctrl.timestamp = 0;
+    this->packet_.receive.info.rx_ctrl = &this->packet_.receive.rx_ctrl;
+  }
+#endif
+
+  void init_sent_data_(const uint8_t *mac_addr, espnow_send_status_t status) {
+    memcpy(this->packet_.sent.address, mac_addr, ESPNOW_ETH_ALEN);
     this->packet_.sent.status = status;
   }
 };
@@ -144,15 +184,15 @@ class ESPNowSendPacket {
     this->callback_ = nullptr;  // Reset callback
   }
 
-  uint8_t address_[ESP_NOW_ETH_ALEN]{0};   // MAC address of the peer to send the packet to
-  uint8_t data_[ESP_NOW_MAX_DATA_LEN]{0};  // Data to send
-  uint8_t size_{0};                        // Size of the data to send, must be <= ESP_NOW_MAX_DATA_LEN
+  uint8_t address_[ESPNOW_ETH_ALEN]{0};    // MAC address of the peer to send the packet to
+  uint8_t data_[ESPNOW_MAX_DATA_LEN]{0};   // Data to send
+  uint8_t size_{0};                        // Size of the data to send, must be <= ESPNOW_MAX_DATA_LEN
   send_callback_t callback_{nullptr};      // Callback to call when the send operation is complete
 
  private:
   void init_data_(const uint8_t *peer_address, const uint8_t *payload, size_t size) {
-    memcpy(this->address_, peer_address, ESP_NOW_ETH_ALEN);
-    if (size > ESP_NOW_MAX_DATA_LEN) {
+    memcpy(this->address_, peer_address, ESPNOW_ETH_ALEN);
+    if (size > ESPNOW_MAX_DATA_LEN) {
       this->size_ = 0;
       return;
     }

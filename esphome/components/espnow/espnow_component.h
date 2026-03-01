@@ -7,12 +7,13 @@
 
 #include "esphome/core/event_pool.h"
 #include "esphome/core/lock_free_queue.h"
+#include "espnow_compat.h"
 #include "espnow_packet.h"
 
+#if defined(USE_ESP32)
 #include <esp_idf_version.h>
-
 #include <esp_mac.h>
-#include <esp_now.h>
+#endif
 
 #include <array>
 #include <map>
@@ -26,7 +27,7 @@ namespace esphome::espnow {
 static constexpr size_t MAX_ESP_NOW_SEND_QUEUE_SIZE = 16;
 static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 16;
 
-using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
+using peer_address_t = std::array<uint8_t, ESPNOW_ETH_ALEN>;
 
 enum class ESPNowTriggers : uint8_t {
   TRIGGER_NONE = 0,
@@ -47,10 +48,12 @@ enum ESPNowState : uint8_t {
 };
 
 struct ESPNowPeer {
-  uint8_t address[ESP_NOW_ETH_ALEN];  // MAC address of the peer
+  uint8_t address[ESPNOW_ETH_ALEN];  // MAC address of the peer
 
-  bool operator==(const ESPNowPeer &other) const { return memcmp(this->address, other.address, ESP_NOW_ETH_ALEN) == 0; }
-  bool operator==(const uint8_t *other) const { return memcmp(this->address, other, ESP_NOW_ETH_ALEN) == 0; }
+  bool operator==(const ESPNowPeer &other) const {
+    return memcmp(this->address, other.address, ESPNOW_ETH_ALEN) == 0;
+  }
+  bool operator==(const uint8_t *other) const { return memcmp(this->address, other, ESPNOW_ETH_ALEN) == 0; }
 };
 
 /// Handler interface for receiving ESPNow packets from unknown peers
@@ -100,13 +103,13 @@ class ESPNowComponent : public Component {
   // Add a peer to the internal list of peers
   void add_peer(peer_address_t address) {
     ESPNowPeer peer;
-    memcpy(peer.address, address.data(), ESP_NOW_ETH_ALEN);
+    memcpy(peer.address, address.data(), ESPNOW_ETH_ALEN);
     this->peers_.push_back(peer);
   }
   // Add a peer with the esp_now api and add to the internal list if doesnt exist already
-  esp_err_t add_peer(const uint8_t *peer);
+  espnow_err_t add_peer(const uint8_t *peer);
   // Remove a peer with the esp_now api and remove from the internal list if exists
-  esp_err_t del_peer(const uint8_t *peer);
+  espnow_err_t del_peer(const uint8_t *peer);
 
   void set_wifi_channel(uint8_t channel) { this->wifi_channel_ = channel; }
   void apply_wifi_channel();
@@ -129,12 +132,12 @@ class ESPNowComponent : public Component {
   /// @param payload Data payload to send
   /// @param callback Callback to call when the send operation is complete
   /// @return ESP_OK on success, or an error code on failure
-  esp_err_t send(const uint8_t *peer_address, const std::vector<uint8_t> &payload,
+  espnow_err_t send(const uint8_t *peer_address, const std::vector<uint8_t> &payload,
                  const send_callback_t &callback = nullptr) {
     return this->send(peer_address, payload.data(), payload.size(), callback);
   }
-  esp_err_t send(const uint8_t *peer_address, const uint8_t *payload, size_t size,
-                 const send_callback_t &callback = nullptr);
+  espnow_err_t send(const uint8_t *peer_address, const uint8_t *payload, size_t size,
+                    const send_callback_t &callback = nullptr);
 
   void register_received_handler(ESPNowReceivedPacketHandler *handler) { this->received_handlers_.push_back(handler); }
   void register_unknown_peer_handler(ESPNowUnknownPeerHandler *handler) {
@@ -145,11 +148,16 @@ class ESPNowComponent : public Component {
   }
 
  protected:
+#if defined(USE_ESP32)
   friend void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size);
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+  #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
   friend void on_send_report(const esp_now_send_info_t *info, esp_now_send_status_t status);
-#else
+  #else
   friend void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status);
+  #endif
+#elif defined(USE_ESP8266)
+  friend void on_data_received(uint8_t *mac_addr, uint8_t *data, uint8_t size);
+  friend void on_send_report(uint8_t *mac_addr, uint8_t status);
 #endif
 
   void enable_();
@@ -161,7 +169,7 @@ class ESPNowComponent : public Component {
 
   std::vector<ESPNowPeer> peers_{};
 
-  uint8_t own_address_[ESP_NOW_ETH_ALEN]{0};
+  uint8_t own_address_[ESPNOW_ETH_ALEN]{0};
   LockFreeQueue<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_queue_{};
   EventPool<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_pool_{};
 

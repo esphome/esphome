@@ -43,14 +43,14 @@ void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {
     return;
   }
 
-  if (buf.size() > ESP_NOW_MAX_DATA_LEN) {
-    ESP_LOGE(TAG, "Packet too large: %zu bytes (max %d)", buf.size(), ESP_NOW_MAX_DATA_LEN);
+  if (buf.size() > ESPNOW_MAX_DATA_LEN) {
+    ESP_LOGE(TAG, "Packet too large: %zu bytes (max %d)", buf.size(), ESPNOW_MAX_DATA_LEN);
     return;
   }
 
   // Send to configured peer address
-  this->parent_->send(this->peer_address_.data(), buf.data(), buf.size(), [](esp_err_t err) {
-    if (err != ESP_OK) {
+  this->parent_->send(this->peer_address_.data(), buf.data(), buf.size(), [](espnow_err_t err) {
+    if (err != ESPNOW_OK) {
       ESP_LOGW(TAG, "Send failed: %d", err);
     }
   });
