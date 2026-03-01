@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "esphome/components/bthome/bthome_device.h"
+#include "esphome/components/bthome/device.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::bthome::testing {

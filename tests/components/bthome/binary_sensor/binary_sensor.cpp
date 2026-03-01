@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "esphome/components/bthome/binary_sensor/bthome_binary_sensor.h"
+#include "esphome/components/bthome/binary_sensor/binary_sensor.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::bthome::testing {

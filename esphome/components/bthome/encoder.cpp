@@ -1,4 +1,4 @@
-#include "bthome_encoder.h"
+#include "encoder.h"
 
 #include <cmath>
 #include <cstring>

@@ -1,6 +1,6 @@
-#include "bthome_device.h"
-#include "bthome_decoder.h"
-#include "bthome_encryption.h"
+#include "device.h"
+#include "decoder.h"
+#include "encryption.h"
 #include "esphome/core/log.h"
 
 #include <cstring>

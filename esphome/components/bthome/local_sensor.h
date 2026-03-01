@@ -2,8 +2,8 @@
 #include <cstddef>
 #include <functional>
 
-#include "bthome_decoder.h"
-#include "bthome_encoder.h"
+#include "decoder.h"
+#include "encoder.h"
 #include "helpers.h"
 
 namespace esphome {

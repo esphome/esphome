@@ -4,9 +4,9 @@
 #include <functional>
 #include <span>
 
-#include "bthome_decoder.h"
-#include "bthome_encoder.h"
-#include "bthome_local_sensor.h"
+#include "decoder.h"
+#include "encoder.h"
+#include "local_sensor.h"
 #include "helpers.h"
 #include "ble.h"
 #include "esphome/core/component.h"
@@ -14,7 +14,7 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_BTHOME_DECRYPTION
-#include "bthome_encryption.h"
+#include "encryption.h"
 #endif
 
 namespace esphome {

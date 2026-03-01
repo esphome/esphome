@@ -5,7 +5,7 @@
 #include "esphome/core/defines.h"
 
 #ifdef USE_BTHOME_DECRYPTION
-#include "bthome_device.h"
+#include "device.h"
 #include "helpers.h"
 
 namespace esphome {

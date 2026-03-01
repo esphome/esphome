@@ -1,5 +1,5 @@
 #pragma once
-#include "bthome_decoder.h"
+#include "decoder.h"
 
 namespace esphome {
 namespace bthome {

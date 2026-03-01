@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <ostream>
-#include "esphome/components/bthome/bthome_decoder.h"
+#include "esphome/components/bthome/decoder.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::bthome::testing {

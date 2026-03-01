@@ -1,4 +1,4 @@
-#include "bthome_server.h"
+#include "server.h"
 #include "ble_esp32.h"
 
 namespace esphome {

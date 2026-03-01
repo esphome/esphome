@@ -1,5 +1,5 @@
 #pragma once
-#include "bthome_device.h"
+#include "device.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
 #include <array>

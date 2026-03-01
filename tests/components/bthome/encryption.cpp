@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "esphome/components/bthome/bthome_encryption.h"
+#include "esphome/components/bthome/encryption.h"
 #include "esphome/core/helpers.h"
 
 #include <vector>

@@ -1,4 +1,4 @@
-#include "bthome_encryption.h"
+#include "encryption.h"
 
 #ifdef USE_BTHOME_DECRYPTION
 

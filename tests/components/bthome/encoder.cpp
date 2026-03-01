@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <cmath>
-#include "esphome/components/bthome/bthome_encoder.h"
-#include "esphome/components/bthome/bthome_decoder.h"
+#include "esphome/components/bthome/encoder.h"
+#include "esphome/components/bthome/decoder.h"
 
 namespace esphome::bthome::server::testing {
 

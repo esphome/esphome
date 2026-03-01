@@ -1,4 +1,4 @@
-#include "bthome_sensor.h"
+#include "sensor.h"
 
 namespace esphome {
 namespace bthome {

@@ -1,5 +1,5 @@
 #pragma once
-#include "bthome_handler.h"
+#include "handler.h"
 #include "helpers.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/defines.h"

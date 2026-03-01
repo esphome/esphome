@@ -3,7 +3,7 @@
 #include <cstddef>
 
 #include "esphome/core/defines.h"
-#include "bthome_decoder.h"
+#include "decoder.h"
 
 #ifndef BTHOME_SERVER_MAX_PAYLOAD
 #define BTHOME_SERVER_MAX_PAYLOAD 23

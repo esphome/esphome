@@ -1,4 +1,4 @@
-#include "bthome_decoder.h"
+#include "decoder.h"
 
 #include "esphome/core/log.h"
 

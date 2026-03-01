@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <cmath>
-#include "esphome/components/bthome/sensor/bthome_sensor.h"
+#include "esphome/components/bthome/sensor/sensor.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::bthome::testing {

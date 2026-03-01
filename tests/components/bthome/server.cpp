@@ -4,7 +4,7 @@
 #include <vector>
 
 #define USE_BTHOME_SERVER
-#include "esphome/components/bthome/bthome_server.h"
+#include "esphome/components/bthome/server.h"
 #include "esphome/components/bthome/ble.h"
 
 using ::testing::_;
