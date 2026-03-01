@@ -17,6 +17,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
+import esphome.final_validate as fv
 
 from .. import lilygo_t5_47_plus_ns
 
@@ -67,6 +68,23 @@ CONFIG_SCHEMA = cv.All(
     cv.only_with_arduino,
     esp32.only_on_variant(supported=[VARIANT_ESP32S3]),
 )
+
+
+def _validate_display_present(config):
+    # epd_poweron()/epd_poweroff_all() require the shift-register GPIOs to be
+    # initialised by epd_base_init(), which is called from the display setup.
+    full = fv.full_config.get()
+    displays = full.get("display", [])
+    if not any(d.get("platform") == "lilygo_t5_47_plus" for d in displays):
+        raise cv.Invalid(
+            "lilygo_t5_47_plus battery sensor requires the lilygo_t5_47_plus "
+            "display platform (the EPD power path must be initialized for "
+            "battery ADC readings)"
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _validate_display_present
 
 
 async def to_code(config):

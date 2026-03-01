@@ -5,6 +5,7 @@
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include <esp32-hal-gpio.h>
+#include <esp_heap_caps.h>
 #include <esp_sleep.h>
 
 namespace esphome {

@@ -151,6 +151,7 @@ void epd_init() {
   conversion_lut = (uint8_t *) heap_caps_malloc(1 << 16, MALLOC_CAP_8BIT);
   assert(conversion_lut != NULL);
   output_queue = xQueueCreate(64, EPD_WIDTH / 2);
+  assert(output_queue != NULL);
 }
 
 void epd_push_pixels(Rect_t area, int16_t time, int32_t color) {
@@ -565,7 +566,7 @@ void epd_fill_triangle(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x
 }
 
 void epd_copy_to_framebuffer(Rect_t image_area, uint8_t *image_data, uint8_t *framebuffer) {
-  assert(image_data != NULL || framebuffer != NULL);
+  assert(image_data != NULL && framebuffer != NULL);
 
   for (uint32_t i = 0; i < image_area.width * image_area.height; i++) {
     uint32_t value_index = i;
@@ -685,8 +686,8 @@ void IRAM_ATTR epd_draw_image(Rect_t area, uint8_t *data, DrawMode_t mode) {
     };
 
     TaskHandle_t t1, t2;
-    xTaskCreatePinnedToCore((void (*)(void *)) provide_out, "privide_out", 8192, &p1, 10, &t1, 0);
-    xTaskCreatePinnedToCore((void (*)(void *)) feed_display, "render", 8192, &p2, 10, &t2, 1);
+    xTaskCreatePinnedToCore((void (*)(void *)) provide_out, "provide_out", 8192, &p1, 2, &t1, 0);
+    xTaskCreatePinnedToCore((void (*)(void *)) feed_display, "render", 8192, &p2, 2, &t2, 1);
 
     xSemaphoreTake(fetch_sem, portMAX_DELAY);
     xSemaphoreTake(feed_sem, portMAX_DELAY);

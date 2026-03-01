@@ -92,6 +92,8 @@ void LilygoT547PlusTouchscreen::update_touches() {
   err = this->read(&touch_state, 1);
   if (!i2c_ok(err, this))
     return;
+  // I2C communication succeeded — clear any previous COMM_FAIL warning
+  this->status_clear_warning();
   this->write(CLEAR_TOUCH_STATE, sizeof(CLEAR_TOUCH_STATE));
 
   uint8_t num_of_touches = touch_state & 0x07;
