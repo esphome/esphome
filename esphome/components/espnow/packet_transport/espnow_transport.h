@@ -20,9 +20,7 @@ class ESPNowTransport : public packet_transport::PacketTransport,
   void setup() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void set_peer_address(peer_address_t address) {
-    memcpy(this->peer_address_.data(), address.data(), ESPNOW_ETH_ALEN);
-  }
+  void set_peer_address(peer_address_t address) { memcpy(this->peer_address_.data(), address.data(), ESPNOW_ETH_ALEN); }
 
   // ESPNow handler interface
   bool on_received(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override;

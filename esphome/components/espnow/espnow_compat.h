@@ -43,7 +43,7 @@ static constexpr espnow_send_status_t ESPNOW_SEND_SUCCESS = 0;
 
 inline bool espnow_send_status_success(espnow_send_status_t status) { return status == ESPNOW_SEND_SUCCESS; }
 inline bool espnow_is_peer_exist(const uint8_t *mac_addr) {
-	return esp_now_is_peer_exist(const_cast<uint8_t *>(mac_addr)) == ESPNOW_OK;
+  return esp_now_is_peer_exist(const_cast<uint8_t *>(mac_addr)) == ESPNOW_OK;
 }
 
 }  // namespace esphome::espnow
