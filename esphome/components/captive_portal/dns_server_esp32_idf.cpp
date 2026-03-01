@@ -53,7 +53,7 @@ void DNSServer::start(const network::IPAddress &ip) {
 #endif
 
   // Create loop-monitored UDP socket
-  this->socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_UDP).release();
+  this->socket_ = socket::socket_ip_listen_loop_monitored(SOCK_DGRAM, IPPROTO_UDP).release();
   if (this->socket_ == nullptr) {
     ESP_LOGE(TAG, "Socket create failed");
     return;
