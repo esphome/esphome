@@ -239,38 +239,18 @@ void IRAM_ATTR esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task
 }
 
 // Wake the main loop from any context (ISR, thread, or main loop).
-// Detects ISR context and delegates to the appropriate variant:
-//   ESP32 (Xtensa/RISC-V): xPortInIsrContext() — checks interrupt nesting counter
-//   LibreTiny (ARM Cortex-M): IPSR register read via inline asm (0 = task context)
-#ifdef USE_LIBRETINY
-// Read the ARM Cortex-M IPSR register directly via inline asm.
-// Avoids depending on CMSIS __get_IPSR() which may not be declared/available
-// in all LibreTiny chip family toolchains (e.g. beken-72xx).
-static inline IRAM_ATTR uint32_t esphome_get_ipsr(void) {
-  uint32_t ipsr = 0;
-  __asm volatile("mrs %0, ipsr" : "=r"(ipsr));
-  return ipsr;
-}
-#endif
-
-void IRAM_ATTR esphome_lwip_wake_main_loop_any_context(void) {
+// ESP32-only: uses xPortInIsrContext() to detect ISR context.
+// LibreTiny is excluded because it lacks IRAM_ATTR support needed for ISR-safe paths.
 #ifdef USE_ESP32
+void IRAM_ATTR esphome_lwip_wake_main_loop_any_context(void) {
   if (xPortInIsrContext()) {
-#else
-  if (esphome_get_ipsr() != 0) {
-#endif
     int px_higher_priority_task_woken = 0;
     esphome_lwip_wake_main_loop_from_isr(&px_higher_priority_task_woken);
-#ifdef USE_ESP32
-    // On ESP32, explicitly request context switch if a higher-priority task was woken.
-    // On LibreTiny (ARM Cortex-M), portYIELD_FROM_ISR is not available — FreeRTOS
-    // sets the PendSV bit internally when needed, so the switch happens automatically
-    // when the ISR returns.
     portYIELD_FROM_ISR(px_higher_priority_task_woken);
-#endif
   } else {
     esphome_lwip_wake_main_loop();
   }
 }
+#endif
 
 #endif  // USE_LWIP_FAST_SELECT
