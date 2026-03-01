@@ -64,11 +64,11 @@ sensor:
 
 - **compensation** (*Optional*): The block containing sensors used for compensation. If not set defaults will be used.
 
-  - **temperature_source** (*Optional*, [ID](/guides/configuration-types#id)): Give an external temperature sensor ID
-    here. This can improve the sensor's internal calculations. Defaults to `25`
+  - **temperature_source** (**Required**, [ID](/guides/configuration-types#id)): Give an external temperature sensor ID
+    here. This can improve the sensor's internal calculations.
 
-  - **humidity_source** (*Optional*, [ID](/guides/configuration-types#id)): Give an external humidity sensor ID
-    here. This can improve the sensor's internal calculations. Defaults to `50`
+  - **humidity_source** (**Required**, [ID](/guides/configuration-types#id)): Give an external humidity sensor ID
+    here. This can improve the sensor's internal calculations.
 
 ## Example With Compensation
 
