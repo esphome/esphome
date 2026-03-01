@@ -58,6 +58,8 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+MULTI_CONF = True
+
 CONFIG_INJECT_RX_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(VirtualUART),
