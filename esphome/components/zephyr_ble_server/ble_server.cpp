@@ -121,7 +121,6 @@ static void bond_deleted(uint8_t id, const bt_addr_le_t *peer) {
   bt_addr_le_to_str(peer, addr, sizeof(addr));
   ESP_LOGD(TAG, "Bond deleted for %s, id %u", addr, id);
 }
-#endif
 
 static void auth_passkey_display(bt_conn *conn, unsigned int passkey) {
   char addr[BT_ADDR_LE_STR_LEN];
@@ -188,6 +187,8 @@ static void auth_pairing_confirm(bt_conn *conn) {
   ESP_LOGI(TAG, "Pairing confirmed: %s", addr);
 }
 
+#endif
+
 void BLEServer::setup() {
   global_ble_server = this;
   int err = 0;
@@ -222,9 +223,9 @@ void BLEServer::setup() {
   }
 #endif
   // callback cannot be used to start scanning due to race conditions with BT_SETTINGS
-  int rc = bt_enable(nullptr);
-  if (rc) {
-    ESP_LOGE(TAG, "Bluetooth enable failed: %d", rc);
+  err = bt_enable(nullptr);
+  if (err) {
+    ESP_LOGE(TAG, "Bluetooth enable failed: %d", err);
     return;
   }
 #ifdef CONFIG_BT_SETTINGS
@@ -268,7 +269,7 @@ static void connection_info(bt_conn *conn, void *user_data) {
       break;
   }
 }
-#ifdef CONFIG_BT_SMP
+#ifdef CONFIG_BT_BONDABLE
 static void bond_info(const struct bt_bond_info *info, void *user_data) {
   char addr[BT_ADDR_LE_STR_LEN];
 
@@ -294,7 +295,7 @@ void BLEServer::dump_config() {
 
 #ifdef ESPHOME_LOG_HAS_DEBUG
   bt_conn_foreach(BT_CONN_TYPE_ALL, connection_info, nullptr);
-#ifdef CONFIG_BT_SMP
+#ifdef CONFIG_BT_BONDABLE
   bt_foreach_bond(BT_ID_DEFAULT, bond_info, nullptr);
 #endif
 #endif
