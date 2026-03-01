@@ -315,7 +315,7 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // This method is thread and ISR-safe because:
   // 1. Only performs simple assignments to volatile variables (atomic on all platforms)
   // 2. No read-modify-write operations that could be interrupted
-  // 3. No memory allocation, object construction, or function calls
+  // 3. No memory allocation or object construction; the only call (wake_loop_any_context) is ISR-safe
   // 4. IRAM_ATTR ensures code is in IRAM, not flash (required for ISR execution)
   // 5. Components are never destroyed, so no use-after-free concerns
   // 6. App is guaranteed to be initialized before any ISR could fire
