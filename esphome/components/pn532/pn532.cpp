@@ -405,7 +405,8 @@ bool PN532::read_ack_() {
   if (!this->read_data(data, 6)) {
     return false;
   }
-  return (data[1] == 0x00 && data[2] == 0x00 && data[3] == 0xFF && data[4] == 0x00 && data[5] == 0xFF && data[6] == 0x00);
+  return (data[1] == 0x00 && data[2] == 0x00 && data[3] == 0xFF && data[4] == 0x00 && data[5] == 0xFF &&
+          data[6] == 0x00);
 }
 
 void PN532::send_ack_() { this->write_data({0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00}); }
@@ -457,7 +458,8 @@ std::unique_ptr<nfc::NfcTag> PN532::read_tag_(uint8_t tg, std::vector<uint8_t> &
   if (type == nfc::TAG_TYPE_2) {
     return this->read_mifare_ultralight_tag_(tg, uid);
   }
-  NfcTagUid nfc_uid; nfc_uid.assign(uid.begin(), uid.end());
+  NfcTagUid nfc_uid;
+  nfc_uid.assign(uid.begin(), uid.end());
   return make_unique<nfc::NfcTag>(nfc_uid);
 }
 
