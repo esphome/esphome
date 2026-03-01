@@ -166,14 +166,18 @@ void PN532::update() {
       this->last_health_check_ = now;
       if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
         if (++this->consecutive_failures_ >= this->max_failed_checks_) {
-          if (this->auto_reset_) this->sam_configured_ = false;
+          if (this->auto_reset_) {
+            this->sam_configured_ = false;
+          }
         }
         return;
       }
       std::vector<uint8_t> version_data;
       if (!this->read_response(PN532_COMMAND_VERSION_DATA, version_data)) {
         if (++this->consecutive_failures_ >= this->max_failed_checks_) {
-          if (this->auto_reset_) this->sam_configured_ = false;
+          if (this->auto_reset_) {
+            this->sam_configured_ = false;
+          }
         }
         return;
       }
@@ -245,11 +249,15 @@ void PN532::loop() {
     uint8_t num_targets = read[0];
     uint8_t cursor = 1;
     for (uint8_t i = 0; i < num_targets; i++) {
-      if (cursor + 5 > read.size()) break;
+      if (cursor + 5 > read.size()) {
+        break;
+      }
       uint8_t tg = read[cursor];
       uint8_t sel_res = read[cursor + 3];
       uint8_t nfcid_length = read[cursor + 4];
-      if (cursor + 5 + nfcid_length > read.size()) break;
+      if (cursor + 5 + nfcid_length > read.size()) {
+        break;
+      }
       std::vector<uint8_t> nfcid(read.begin() + cursor + 5, read.begin() + cursor + 5 + nfcid_length);
       new_uids.push_back(nfcid);
       targets.push_back({tg, nfcid});
@@ -294,9 +302,11 @@ void PN532::loop() {
       ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid(nfc_uid).c_str());
       
       if (next_task_ != READ) {
-        if (next_task_ == CLEAN) this->clean_tag_(target.tg, target.uid);
-        else if (next_task_ == FORMAT) this->format_tag_(target.tg, target.uid);
-        else if (next_task_ == WRITE && this->next_task_message_to_write_ != nullptr) {
+        if (next_task_ == CLEAN) {
+          this->clean_tag_(target.tg, target.uid);
+        } else if (next_task_ == FORMAT) {
+          this->format_tag_(target.tg, target.uid);
+        } else if (next_task_ == WRITE && this->next_task_message_to_write_ != nullptr) {
           if (this->format_tag_(target.tg, target.uid)) {
             if (this->write_tag_(target.tg, target.uid, this->next_task_message_to_write_)) {
               delete this->next_task_message_to_write_;
@@ -377,7 +387,9 @@ bool PN532::write_command_(const std::vector<uint8_t> &data) {
 
 bool PN532::read_ack_() {
   std::vector<uint8_t> data;
-  if (!this->read_data(data, 6)) return false;
+  if (!this->read_data(data, 6)) {
+    return false;
+  }
   return (data[1] == 0x00 && data[2] == 0x00 && data[3] == 0xFF && data[4] == 0x00 && data[5] == 0xFF && data[6] == 0x00);
 }
 
@@ -386,10 +398,15 @@ void PN532::send_nack_() { this->write_data({0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00}
 
 enum PN532ReadReady PN532::read_ready_(bool block) {
   if (this->rd_ready_ == READY) {
-    if (block) { this->rd_start_time_ = 0; this->rd_ready_ = WOULDBLOCK; }
+    if (block) {
+      this->rd_start_time_ = 0;
+      this->rd_ready_ = WOULDBLOCK;
+    }
     return READY;
   }
-  if (!this->rd_start_time_) this->rd_start_time_ = millis();
+  if (!this->rd_start_time_) {
+    this->rd_start_time_ = millis();
+  }
   while (true) {
     if (this->is_read_ready()) {
       this->rd_latency_ms_ = millis() - this->rd_start_time_;
@@ -401,11 +418,17 @@ enum PN532ReadReady PN532::read_ready_(bool block) {
       this->rd_ready_ = TIMEOUT;
       break;
     }
-    if (!block) { this->rd_ready_ = WOULDBLOCK; break; }
+    if (!block) {
+      this->rd_ready_ = WOULDBLOCK;
+      break;
+    }
     yield();
   }
   auto rdy = this->rd_ready_;
-  if (block || rdy == TIMEOUT) { this->rd_start_time_ = 0; this->rd_ready_ = WOULDBLOCK; }
+  if (block || rdy == TIMEOUT) {
+    this->rd_start_time_ = 0;
+    this->rd_ready_ = WOULDBLOCK;
+  }
   return rdy;
 }
 
@@ -415,8 +438,12 @@ void PN532::turn_off_rf_() {
 
 std::unique_ptr<nfc::NfcTag> PN532::read_tag_(uint8_t tg, std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
-  if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) return this->read_mifare_classic_tag_(tg, uid);
-  if (type == nfc::TAG_TYPE_2) return this->read_mifare_ultralight_tag_(tg, uid);
+  if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
+    return this->read_mifare_classic_tag_(tg, uid);
+  }
+  if (type == nfc::TAG_TYPE_2) {
+    return this->read_mifare_ultralight_tag_(tg, uid);
+  }
   NfcTagUid nfc_uid; nfc_uid.assign(uid.begin(), uid.end());
   return make_unique<nfc::NfcTag>(nfc_uid);
 }
@@ -428,38 +455,64 @@ void PN532::write_mode(nfc::NdefMessage *message) { this->next_task_ = WRITE; th
 
 bool PN532::clean_tag_(uint8_t tg, std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
-  if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) return this->format_mifare_classic_mifare_(tg, uid);
-  if (type == nfc::TAG_TYPE_2) return this->clean_mifare_ultralight_(tg);
+  if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
+    return this->format_mifare_classic_mifare_(tg, uid);
+  }
+  if (type == nfc::TAG_TYPE_2) {
+    return this->clean_mifare_ultralight_(tg);
+  }
   return false;
 }
 
 bool PN532::format_tag_(uint8_t tg, std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
-  if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) return this->format_mifare_classic_ndef_(tg, uid);
-  if (type == nfc::TAG_TYPE_2) return this->clean_mifare_ultralight_(tg);
+  if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
+    return this->format_mifare_classic_ndef_(tg, uid);
+  }
+  if (type == nfc::TAG_TYPE_2) {
+    return this->clean_mifare_ultralight_(tg);
+  }
   return false;
 }
 
 bool PN532::write_tag_(uint8_t tg, std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
   uint8_t type = nfc::guess_tag_type(uid.size());
-  if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) return this->write_mifare_classic_tag_(tg, uid, message);
-  if (type == nfc::TAG_TYPE_2) return this->write_mifare_ultralight_tag_(tg, uid, message);
+  if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
+    return this->write_mifare_classic_tag_(tg, uid, message);
+  }
+  if (type == nfc::TAG_TYPE_2) {
+    return this->write_mifare_ultralight_tag_(tg, uid, message);
+  }
   return false;
 }
 
 bool PN532::reinit_() {
   ESP_LOGW(TAG, "Attempting PN532 re-initialisation...");
-  if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) return false;
+  if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
+    return false;
+  }
   std::vector<uint8_t> ver;
-  if (!this->read_response(PN532_COMMAND_VERSION_DATA, ver)) return false;
-  if (!this->write_command_({PN532_COMMAND_SAMCONFIGURATION, 0x01, 0x14, 0x01})) return false;
+  if (!this->read_response(PN532_COMMAND_VERSION_DATA, ver)) {
+    return false;
+  }
+  if (!this->write_command_({PN532_COMMAND_SAMCONFIGURATION, 0x01, 0x14, 0x01})) {
+    return false;
+  }
   std::vector<uint8_t> wakeup_result;
-  if (!this->read_response(PN532_COMMAND_SAMCONFIGURATION, wakeup_result)) return false;
+  if (!this->read_response(PN532_COMMAND_SAMCONFIGURATION, wakeup_result)) {
+    return false;
+  }
   uint8_t sam_timeout = std::min<uint8_t>(255u, this->update_interval_ / 50);
-  if (!this->write_command_({PN532_COMMAND_SAMCONFIGURATION, 0x01, sam_timeout, 0x01})) return false;
+  if (!this->write_command_({PN532_COMMAND_SAMCONFIGURATION, 0x01, sam_timeout, 0x01})) {
+    return false;
+  }
   std::vector<uint8_t> sam_result;
-  if (!this->read_response(PN532_COMMAND_SAMCONFIGURATION, sam_result)) return false;
-  if (!this->rf_field_enabled_) this->turn_off_rf_();
+  if (!this->read_response(PN532_COMMAND_SAMCONFIGURATION, sam_result)) {
+    return false;
+  }
+  if (!this->rf_field_enabled_) {
+    this->turn_off_rf_();
+  }
   this->sam_configured_ = true;
 
   // Set MaxRetries for passive activation to 2
@@ -476,9 +529,17 @@ void PN532::dump_config() {
 }
 
 bool PN532BinarySensor::process(const std::vector<uint8_t> &data) {
-  if (data.size() != this->uid_.size()) return false;
-  for (size_t i = 0; i < data.size(); i++) { if (data[i] != this->uid_[i]) return false; }
-  this->publish_state(true); this->found_ = true; return true;
+  if (data.size() != this->uid_.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < data.size(); i++) {
+    if (data[i] != this->uid_[i]) {
+      return false;
+    }
+  }
+  this->publish_state(true);
+  this->found_ = true;
+  return true;
 }
 
 }  // namespace pn532

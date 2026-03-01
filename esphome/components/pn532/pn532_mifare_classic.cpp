@@ -17,9 +17,8 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_classic_tag_(uint8_t tg, std::ve
   nfc_uid.assign(uid.begin(), uid.end());
 
   bool authenticated = false;
-  if (this->auth_mifare_classic_block_(tg, uid, current_block, nfc::MIFARE_CMD_AUTH_A, nfc::NDEF_KEY)) {
-    authenticated = true;
-  } else if (this->auth_mifare_classic_block_(tg, uid, current_block, nfc::MIFARE_CMD_AUTH_A, nfc::DEFAULT_KEY)) {
+  if (this->auth_mifare_classic_block_(tg, uid, current_block, nfc::MIFARE_CMD_AUTH_A, nfc::NDEF_KEY) ||
+      this->auth_mifare_classic_block_(tg, uid, current_block, nfc::MIFARE_CMD_AUTH_A, nfc::DEFAULT_KEY)) {
     authenticated = true;
   }
 
