@@ -6,6 +6,10 @@
 #include "esphome/core/optional.h"
 #include "headers.h"
 
+#ifdef USE_LWIP_FAST_SELECT
+struct lwip_sock;
+#endif
+
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 
 // Include only the active implementation's header.
@@ -36,7 +40,10 @@ using Socket = LWIPRawImpl;
 using ListenSocket = LWIPRawListenImpl;
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_LWIP_FAST_SELECT
+/// Shared ready() helper using cached lwip_sock pointer for direct rcvevent read.
+bool socket_ready(struct lwip_sock *cached_sock, bool loop_monitored);
+#elif defined(USE_SOCKET_SELECT_SUPPORT)
 /// Shared ready() helper for fd-based socket implementations.
 /// Checks if the Application's select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored);
