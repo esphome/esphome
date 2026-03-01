@@ -116,8 +116,8 @@ void on_send_report(uint8_t *mac_addr, uint8_t status)
 #else
     format_mac_addr_upper(mac_addr, peer_buf);
 #endif
-    ESP_LOGV(TAG, "Send callback peer=%s status=%d (%s) ch=%u", peer_buf, status,
-             LOG_STR_ARG(espnow_send_status_to_str(status)), global_esp_now->wifi_channel_);
+    ESP_LOGVV(TAG, "Send callback peer=%s status=%d (%s) ch=%u", peer_buf, status,
+          LOG_STR_ARG(espnow_send_status_to_str(status)), global_esp_now->wifi_channel_);
   }
 #endif
 
@@ -397,8 +397,8 @@ void ESPNowComponent::loop() {
           char hex_buf[format_hex_pretty_size(ESPNOW_MAX_DATA_LEN)];
           format_mac_addr_upper(info.src_addr, src_buf);
           format_mac_addr_upper(info.des_addr, dst_buf);
-          ESP_LOGV(TAG, "<<< [%s -> %s] %s", src_buf, dst_buf,
-                   format_hex_pretty_to(hex_buf, packet->packet_.receive.data, packet->packet_.receive.size));
+          ESP_LOGVV(TAG, "<<< [%s -> %s] %s", src_buf, dst_buf,
+                    format_hex_pretty_to(hex_buf, packet->packet_.receive.data, packet->packet_.receive.size));
 #endif
           if (memcmp(info.des_addr, ESPNOW_BROADCAST_ADDR, ESPNOW_ETH_ALEN) == 0) {
             for (auto *handler : this->broadcasted_handlers_) {
@@ -418,7 +418,7 @@ void ESPNowComponent::loop() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
         char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(packet->packet_.sent.address, addr_buf);
-        ESP_LOGV(TAG, ">>> [%s] %s", addr_buf, LOG_STR_ARG(espnow_send_status_to_str(packet->packet_.sent.status)));
+        ESP_LOGVV(TAG, ">>> [%s] %s", addr_buf, LOG_STR_ARG(espnow_send_status_to_str(packet->packet_.sent.status)));
 #endif
         if (this->current_send_packet_ != nullptr) {
           this->current_send_packet_->callback_(packet->packet_.sent.status);
@@ -480,7 +480,8 @@ espnow_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *p
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(peer_address, peer_buf);
-      ESP_LOGV(TAG, "Peer %s not in table, adding dynamically (auto_add=%s)", peer_buf, YESNO(this->auto_add_peer_));
+      ESP_LOGVV(TAG, "Peer %s not in table, adding dynamically (auto_add=%s)", peer_buf,
+            YESNO(this->auto_add_peer_));
 #endif
       espnow_err_t err = this->add_peer(peer_address);
       if (err != ESPNOW_OK) {
@@ -514,8 +515,8 @@ void ESPNowComponent::send_() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(packet->address_, addr_buf);
-  ESP_LOGV(TAG, "Sending packet to %s size=%u ch=%u peer_exists=%s", addr_buf, packet->size_, this->wifi_channel_,
-           YESNO(espnow_is_peer_exist(packet->address_)));
+  ESP_LOGVV(TAG, "Sending packet to %s size=%u ch=%u peer_exists=%s", addr_buf, packet->size_, this->wifi_channel_,
+            YESNO(espnow_is_peer_exist(packet->address_)));
 #endif
 
   this->current_send_packet_ = packet;
@@ -566,7 +567,7 @@ espnow_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
     format_mac_addr_upper(peer, peer_buf);
-    ESP_LOGV(TAG, "Added peer %s on channel %u", peer_buf, this->wifi_channel_);
+    ESP_LOGVV(TAG, "Added peer %s on channel %u", peer_buf, this->wifi_channel_);
 #endif
   }
   bool found = false;
