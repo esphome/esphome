@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Original source: https://github.com/vroland/epdiy
-// Modified by Xinyuan-LilyGO; combined work licensed under GPL-3.0-or-later: https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
-// Modified for ESPHome: added LCD clock source for ESP-IDF 5.x compatibility
+// Modified by Xinyuan-LilyGO; combined work licensed under GPL-3.0-or-later:
+// https://github.com/Xinyuan-LilyGO/LilyGo-EPD47 Modified for ESPHome: added LCD clock source for ESP-IDF 5.x
+// compatibility
 
 /******************************************************************************/
 /***        include files                                                   ***/
