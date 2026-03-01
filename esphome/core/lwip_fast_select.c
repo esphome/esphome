@@ -261,7 +261,13 @@ void IRAM_ATTR esphome_lwip_wake_main_loop_any_context(void) {
 #endif
     int px_higher_priority_task_woken = 0;
     esphome_lwip_wake_main_loop_from_isr(&px_higher_priority_task_woken);
+#ifdef USE_ESP32
+    // On ESP32, explicitly request context switch if a higher-priority task was woken.
+    // On LibreTiny (ARM Cortex-M), portYIELD_FROM_ISR is not available — FreeRTOS
+    // sets the PendSV bit internally when needed, so the switch happens automatically
+    // when the ISR returns.
     portYIELD_FROM_ISR(px_higher_priority_task_woken);
+#endif
   } else {
     esphome_lwip_wake_main_loop();
   }
