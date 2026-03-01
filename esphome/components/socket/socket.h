@@ -126,7 +126,8 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
 /// On ESP8266, lwip callbacks set a flag and call esp_schedule() to wake the delay.
 void socket_delay(uint32_t ms);
 
-/// Called by lwip callbacks to signal socket activity and wake delay.
+/// Signal socket/IO activity and wake the main loop from esp_delay() early.
+/// ISR-safe: uses IRAM_ATTR internally and only sets a volatile flag + esp_schedule().
 void socket_wake();
 #endif
 
