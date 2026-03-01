@@ -329,6 +329,7 @@ class InfoResponseProtoMessage : public ProtoMessage {
 #endif
 
  protected:
+  ~InfoResponseProtoMessage() = default;
 };
 
 class StateResponseProtoMessage : public ProtoMessage {
@@ -339,6 +340,7 @@ class StateResponseProtoMessage : public ProtoMessage {
 #endif
 
  protected:
+  ~StateResponseProtoMessage() = default;
 };
 
 class CommandProtoMessage : public ProtoDecodableMessage {
@@ -349,6 +351,7 @@ class CommandProtoMessage : public ProtoDecodableMessage {
 #endif
 
  protected:
+  ~CommandProtoMessage() = default;
 };
 class HelloRequest final : public ProtoDecodableMessage {
  public:
