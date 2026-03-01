@@ -552,7 +552,14 @@ ssize_t LWIPRawImpl::writev(const struct iovec *iov, int iovcnt) {
 // ---- LWIPRawListenImpl methods ----
 
 LWIPRawListenImpl::~LWIPRawListenImpl() {
-  // Base class destructor handles pcb_ cleanup via tcp_abort
+  // Listen PCBs must use tcp_close(), not tcp_abort().
+  // tcp_abandon() asserts pcb->state != LISTEN and would access
+  // fields that don't exist in the smaller tcp_pcb_listen struct.
+  // Close here and null pcb_ so the base destructor skips tcp_abort.
+  if (this->pcb_ != nullptr) {
+    tcp_close(this->pcb_);
+    this->pcb_ = nullptr;
+  }
 }
 
 void LWIPRawListenImpl::init() {
