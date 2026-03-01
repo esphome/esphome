@@ -51,7 +51,8 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_ultralight_tag_(uint8_t tg, std:
   return make_unique<nfc::NfcTag>(nfc_uid, nfc::NFC_FORUM_TYPE_2, data);
 }
 
-bool PN532::read_mifare_ultralight_bytes_(uint8_t tg, uint8_t start_page, uint16_t num_bytes, std::vector<uint8_t> &data) {
+bool PN532::read_mifare_ultralight_bytes_(uint8_t tg, uint8_t start_page, uint16_t num_bytes,
+                                          std::vector<uint8_t> &data) {
   const uint8_t read_increment = nfc::MIFARE_ULTRALIGHT_READ_SIZE * nfc::MIFARE_ULTRALIGHT_PAGE_SIZE;
   std::vector<uint8_t> response;
 
@@ -153,7 +154,7 @@ bool PN532::write_mifare_ultralight_tag_(uint8_t tg, std::vector<uint8_t> &uid, 
     }
     index += nfc::MIFARE_ULTRALIGHT_PAGE_SIZE;
     current_page++;
-    delay(10); // Small delay to allow NTAG216 to process the write
+    delay(10);  // Small delay to allow NTAG216 to process the write
     yield();
   }
   return true;

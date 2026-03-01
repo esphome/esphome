@@ -19,14 +19,12 @@ namespace pn532 {
  * Robustly identify the UID type used by the NFC component.
  * Newer versions use StaticVector, older ones use std::vector.
  */
-template<typename T> struct NfcUidTypeExtractor {
-  using type = std::vector<uint8_t>;
-};
+template<typename T> struct NfcUidTypeExtractor { using type = std::vector<uint8_t>; };
 
 template<> struct NfcUidTypeExtractor<nfc::NfcTag> {
   // Try to extract type from NfcTag::get_uid() return type
-  using type = typename std::remove_cv<typename std::remove_reference<decltype(
-      std::declval<nfc::NfcTag>().get_uid())>::type>::type;
+  using type = typename std::remove_cv<
+      typename std::remove_reference<decltype(std::declval<nfc::NfcTag>().get_uid())>::type>::type;
 };
 
 using NfcTagUid = typename NfcUidTypeExtractor<nfc::NfcTag>::type;
@@ -134,7 +132,8 @@ class PN532 : public PollingComponent {
   std::unique_ptr<nfc::NfcTag> read_mifare_classic_tag_(uint8_t tg, std::vector<uint8_t> &uid);
   bool read_mifare_classic_block_(uint8_t tg, uint8_t block_num, std::vector<uint8_t> &data);
   bool write_mifare_classic_block_(uint8_t tg, uint8_t block_num, std::vector<uint8_t> &data);
-  bool auth_mifare_classic_block_(uint8_t tg, std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num, const uint8_t *key);
+  bool auth_mifare_classic_block_(uint8_t tg, std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num,
+                                  const uint8_t *key);
   bool format_mifare_classic_mifare_(uint8_t tg, std::vector<uint8_t> &uid);
   bool format_mifare_classic_ndef_(uint8_t tg, std::vector<uint8_t> &uid);
   bool write_mifare_classic_tag_(uint8_t tg, std::vector<uint8_t> &uid, nfc::NdefMessage *message);
@@ -163,7 +162,7 @@ class PN532 : public PollingComponent {
   nfc::NdefMessage *next_task_message_to_write_;
   uint32_t rd_start_time_{0};
   uint32_t rd_latency_ms_{0};
-  enum PN532ReadReady rd_ready_{WOULDBLOCK};
+  enum PN532ReadReady rd_ready_ { WOULDBLOCK };
   enum NfcTask {
     READ = 0,
     CLEAN,
