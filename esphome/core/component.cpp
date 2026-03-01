@@ -383,31 +383,30 @@ bool Component::is_idle() const { return (this->component_state_ & COMPONENT_STA
 bool Component::can_proceed() { return true; }
 bool Component::status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
 bool Component::status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
+bool Component::set_status_flag_(uint8_t flag) {
+  if ((this->component_state_ & flag) != 0)
+    return false;
+  this->component_state_ |= flag;
+  App.app_state_ |= flag;
+  return true;
+}
 
 void Component::status_set_warning(const char *message) {
-  // Don't spam the log. This risks missing different warning messages though.
-  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+  if (!this->set_status_flag_(STATUS_LED_WARNING))
     return;
-  this->component_state_ |= STATUS_LED_WARNING;
-  App.app_state_ |= STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? message : LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_set_warning(const LogString *message) {
-  // Don't spam the log. This risks missing different warning messages though.
-  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+  if (!this->set_status_flag_(STATUS_LED_WARNING))
     return;
-  this->component_state_ |= STATUS_LED_WARNING;
-  App.app_state_ |= STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_set_error() { this->status_set_error((const LogString *) nullptr); }
 void Component::status_set_error(const char *message) {
-  if ((this->component_state_ & STATUS_LED_ERROR) != 0)
+  if (!this->set_status_flag_(STATUS_LED_ERROR))
     return;
-  this->component_state_ |= STATUS_LED_ERROR;
-  App.app_state_ |= STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? message : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
@@ -415,10 +414,8 @@ void Component::status_set_error(const char *message) {
   }
 }
 void Component::status_set_error(const LogString *message) {
-  if ((this->component_state_ & STATUS_LED_ERROR) != 0)
+  if (!this->set_status_flag_(STATUS_LED_ERROR))
     return;
-  this->component_state_ |= STATUS_LED_ERROR;
-  App.app_state_ |= STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
