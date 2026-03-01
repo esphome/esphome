@@ -105,10 +105,9 @@
 //     critical sections). Multiple concurrent xTaskNotifyGive calls are safe —
 //     the notification count simply increments.
 
-// USE_ESP32 and USE_LIBRETINY are compiler -D flags, so they are always visible in this .c file.
-// Feature macros like USE_LWIP_FAST_SELECT may come from generated headers that are not included here,
-// so this implementation is enabled based on platform flags instead of USE_LWIP_FAST_SELECT.
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+// USE_LWIP_FAST_SELECT is set via -D build flag (not cg.add_define) so it is
+// visible in both .c and .cpp translation units.
+#ifdef USE_LWIP_FAST_SELECT
 
 // LwIP headers must come first — they define netconn_callback, struct lwip_sock, etc.
 #include <lwip/api.h>
@@ -242,17 +241,30 @@ void IRAM_ATTR esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task
 // Wake the main loop from any context (ISR, thread, or main loop).
 // Detects ISR context and delegates to the appropriate variant:
 //   ESP32 (Xtensa/RISC-V): xPortInIsrContext() — checks interrupt nesting counter
-//   LibreTiny (ARM Cortex-M): __get_IPSR() — reads IPSR register (0 = task context)
+//   LibreTiny (ARM Cortex-M): IPSR register read via inline asm (0 = task context)
+#ifdef USE_LIBRETINY
+// Read the ARM Cortex-M IPSR register directly via inline asm.
+// Avoids depending on CMSIS __get_IPSR() which may not be declared/available
+// in all LibreTiny chip family toolchains (e.g. beken-72xx).
+static inline uint32_t esphome_get_ipsr(void) {
+  uint32_t ipsr;
+  __asm volatile("mrs %0, ipsr" : "=r"(ipsr));
+  return ipsr;
+}
+#endif
+
 void IRAM_ATTR esphome_lwip_wake_main_loop_any_context(void) {
 #ifdef USE_ESP32
   if (xPortInIsrContext()) {
 #else
-  if (__get_IPSR() != 0) {
+  if (esphome_get_ipsr() != 0) {
 #endif
-    esphome_lwip_wake_main_loop_from_isr(NULL);
+    int px_higher_priority_task_woken = 0;
+    esphome_lwip_wake_main_loop_from_isr(&px_higher_priority_task_woken);
+    portYIELD_FROM_ISR(px_higher_priority_task_woken);
   } else {
     esphome_lwip_wake_main_loop();
   }
 }
 
-#endif  // defined(USE_ESP32) || defined(USE_LIBRETINY)
+#endif  // USE_LWIP_FAST_SELECT

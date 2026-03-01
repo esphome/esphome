@@ -326,8 +326,9 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
 #ifdef USE_LWIP_FAST_SELECT
   // Wake the main loop if sleeping in ulTaskNotifyTake(). Without this,
   // the main loop would not wake until the select timeout expires (~16ms).
-  // Uses xPortInIsrContext() to pick xTaskNotifyGive (task) or
-  // vTaskNotifyGiveFromISR (ISR) — safe from any calling context.
+  // Uses platform-specific context detection to choose the correct notify
+  // API (task vs ISR), e.g. xPortInIsrContext() on ESP32 or IPSR register
+  // on LibreTiny — safe from any calling context.
   Application::wake_loop_any_context();
 #endif
 }

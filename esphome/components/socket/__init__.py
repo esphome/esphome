@@ -191,7 +191,7 @@ async def to_code(config):
     # ESP32 and LibreTiny both have LwIP >= 2.1.3 with lwip_socket_dbg_get_socket()
     # and FreeRTOS task notifications — enable fast select to bypass lwip_select()
     if CORE.is_esp32 or CORE.is_libretiny:
-        cg.add_define("USE_LWIP_FAST_SELECT")
+        cg.add_build_flag("-DUSE_LWIP_FAST_SELECT")
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
