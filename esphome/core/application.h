@@ -111,6 +111,10 @@ namespace esphome::socket {
 class Socket;
 }  // namespace esphome::socket
 
+// Forward declarations for friend access from codegen-generated setup()
+void setup();           // NOLINT(readability-redundant-declaration) - may be declared in Arduino.h
+void original_setup();  // NOLINT(readability-redundant-declaration) - used by cpp unit tests
+
 namespace esphome {
 
 // Teardown timeout constant (in milliseconds)
@@ -256,13 +260,6 @@ class Application {
 #endif
 
   /// Reserve space for components to avoid memory fragmentation
-
-  /// Register the component in this Application instance.
-  template<class C> C *register_component(C *c) {
-    static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
-    this->register_component_((Component *) c);
-    return c;
-  }
 
   /// Set up all the registered components. Call this at the end of your setup() function.
   void setup();
@@ -517,11 +514,23 @@ class Application {
   /// On other platforms: uses UDP loopback socket
   void wake_loop_threadsafe();
 #endif
+
+#if defined(USE_WAKE_LOOP_THREADSAFE) && defined(USE_LWIP_FAST_SELECT)
+  /// Wake the main event loop from an ISR.
+  /// Uses vTaskNotifyGiveFromISR() — <1 us, ISR-safe.
+  /// Only available on platforms with fast select (ESP32, LibreTiny).
+  /// @param px_higher_priority_task_woken Set to pdTRUE if a context switch is needed.
+  static void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
+    esphome_lwip_wake_main_loop_from_isr(px_higher_priority_task_woken);
+  }
+#endif
 #endif
 
  protected:
   friend Component;
   friend class socket::Socket;
+  friend void ::setup();
+  friend void ::original_setup();
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
   /// Fast path for Socket::ready() via friendship - skips negative fd check.
