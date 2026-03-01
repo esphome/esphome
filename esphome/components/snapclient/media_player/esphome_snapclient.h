@@ -31,7 +31,7 @@ class SnapClientComponent : public i2s_audio::I2SAudioOut, public media_player::
   void setup() override;
   void loop() override;
   // void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::LATE; }
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void set_dout_pin(uint8_t pin) { this->dout_pin_ = pin; }
 #ifdef USE_AUDIO_DAC
   void set_audio_dac(audio_dac::AudioDac *audio_dac) { this->audio_dac_ = audio_dac; }
