@@ -2,6 +2,7 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/gpio.h"
 
 namespace esphome {
 namespace gt911 {
@@ -26,15 +27,17 @@ static const size_t MAX_BUTTONS = 4;  // max number of buttons scanned
 
 void GT911Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {
+    // temporarily set the interrupt pin to output to control address selection
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);
     if (this->interrupt_pin_ != nullptr) {
-      // temporarily set the interrupt pin to output to control address selection
+      this->interrupt_pin_->setup();
       this->interrupt_pin_->pin_mode(gpio::FLAG_OUTPUT);
       this->interrupt_pin_->digital_write(false);
     }
     delay(2);
-    this->reset_pin_->digital_write(true);  // wait at least T3+T4 ms as per the datasheet
+    this->reset_pin_->digital_write(true);
+    // wait at least T3+T4 ms as per the datasheet
     this->set_timeout(5 + 50 + 1, [this] { this->setup_internal_(); });
     return;
   }
@@ -43,11 +46,10 @@ void GT911Touchscreen::setup() {
 
 void GT911Touchscreen::setup_internal_() {
   if (this->interrupt_pin_ != nullptr) {
-    // set pre-configured input mode
-    this->interrupt_pin_->setup();
+    if (this->interrupt_pin_->is_internal())
+      this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
   }
 
-  // check the configuration of the int line.
   uint8_t data[4];
   i2c::ErrorCode err = this->write(GET_SWITCHES, sizeof(GET_SWITCHES));
   if (err != i2c::ERROR_OK && this->address_ == PRIMARY_ADDRESS) {
@@ -58,12 +60,25 @@ void GT911Touchscreen::setup_internal_() {
     err = this->read(data, 1);
     if (err == i2c::ERROR_OK) {
       ESP_LOGD(TAG, "Switches ADDR: 0x%02X DATA: 0x%02X", this->address_, data[0]);
+
+      // data[0] & 1 == 1  =>  controller uses falling edge  =>  active-low
+      // data[0] & 1 == 0  =>  controller uses rising  edge  =>  active-high
+      bool active_high = !(data[0] & 1);
+
       if (this->interrupt_pin_ != nullptr) {
-        this->attach_interrupt_(this->interrupt_pin_,
-                                (data[0] & 1) ? gpio::INTERRUPT_FALLING_EDGE : gpio::INTERRUPT_RISING_EDGE);
+        if (this->interrupt_pin_->is_internal()) {
+          // Direct MCU pin: attach a hardware interrupt, no polling needed.
+          this->attach_interrupt_(static_cast<InternalGPIOPin *>(this->interrupt_pin_),
+                                  active_high ? gpio::INTERRUPT_RISING_EDGE : gpio::INTERRUPT_FALLING_EDGE);
+          ESP_LOGD(TAG, "Interrupt pin: hardware interrupt, active %s", active_high ? "HIGH" : "LOW");
+        } else {
+          // IO expander pin: leave as output for configuration only.
+          ESP_LOGD(TAG, "Interrupt pin: IO expander polling mode, active %s", active_high ? "HIGH" : "LOW");
+        }
       }
     }
   }
+
   if (this->x_raw_max_ == 0 || this->y_raw_max_ == 0) {
     // no calibration? Attempt to read the max values from the touchscreen.
     if (err == i2c::ERROR_OK) {
