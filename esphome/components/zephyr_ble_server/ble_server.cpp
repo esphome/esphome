@@ -93,7 +93,7 @@ static void security_changed(struct bt_conn *conn, bt_security_t level, enum bt_
   if (!err) {
     ESP_LOGD(TAG, "Security changed: %s level %u", addr, level);
   } else {
-    ESP_LOGD(TAG, "Security failed: %s level %u err %d", addr, level, err);
+    ESP_LOGE(TAG, "Security failed: %s level %u err %d", addr, level, err);
   }
 }
 
@@ -110,7 +110,7 @@ static void pairing_failed(struct bt_conn *conn, enum bt_security_err reason) {
 
   bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-  ESP_LOGD(TAG, "Pairing failed conn: %s, reason %d", addr, reason);
+  ESP_LOGE(TAG, "Pairing failed conn: %s, reason %d", addr, reason);
 }
 
 static void bond_deleted(uint8_t id, const bt_addr_le_t *peer) {
@@ -149,6 +149,7 @@ void conn_addr_str(struct bt_conn *conn, char *addr, size_t len) {
       break;
     default:
       ESP_LOGE(TAG, "Not implemented");
+      addr[0] = '\0';
       break;
   }
 }
