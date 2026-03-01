@@ -121,7 +121,7 @@ const float AS7343::XYZ_PER_COUNT[3][NUM_CHANNELS] = {
     {-0.31295, -0.57885, 10.00197, -0.31281, -0.19657, -0.11077, 0.00000, -0.06132, -0.03536, -0.06025, -0.12174, 0, 0}
 };
 
-// 1. Following matrices are based on Golden Device calibration matrix 
+// 1. Following matrices are based on Golden Device calibration matrix
 //    These are convoluted matrices for quick calculations based on SPD reconstruction
 // 1.1. E fullband irradiance (W/m²)
 const float AS7343::IRRAD_MW_PER_COUNT[NUM_CHANNELS] = {
