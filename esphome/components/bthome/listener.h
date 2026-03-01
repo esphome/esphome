@@ -1,4 +1,5 @@
 #pragma once
+#include "helpers.h"
 #include "device.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
@@ -19,7 +20,7 @@ template<size_t NUM_DEVICES> class DeviceListener : public esp32_ble_tracker::ES
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
     bool matched = false;
     for (auto &service_data : device.get_service_datas()) {
-      if (!service_data.uuid.contains(0xD2, 0xFC)) {
+      if (!service_data.uuid.contains(BTHOME_SVC_UUID_LOW, BTHOME_SVC_UUID_HIGH)) {
         MacAddressPtr source_address = device.address();
         ESP_LOGD(TAG, "not bthome service data from %s", source_address.c_str());
         continue;
@@ -38,7 +39,7 @@ template<size_t NUM_DEVICES> class DeviceListener : public esp32_ble_tracker::ES
 
       BTHomeHeader &header = *(BTHomeHeader *) &data[0];
 
-      if (header.version != 0x02) {
+      if (header.version != BTHOME_VERSION_2) {
         ESP_LOGVV(TAG, "Unsupported BTHome version %u", header.version);
         return false;
       }

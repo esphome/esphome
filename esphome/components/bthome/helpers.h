@@ -10,6 +10,10 @@ namespace bthome {
 
 using EncryptionKey = std::array<uint8_t, 16>;
 
+static constexpr uint8_t BTHOME_SVC_UUID_LOW = 0xD2;   // BTHome service UUID low byte  (0xFCD2)
+static constexpr uint8_t BTHOME_SVC_UUID_HIGH = 0xFC;  // BTHome service UUID high byte
+static constexpr uint8_t BTHOME_VERSION_2 = 0x02;
+
 struct BTHomeHeader {
   uint8_t encrypted : 1;      // bit 0: encrypted data
   uint8_t : 1;                // bit 1: reserved
