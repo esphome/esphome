@@ -6,6 +6,7 @@ import threading
 from unittest.mock import Mock, patch
 
 from esphome.core import EsphomeError
+from esphome.dashboard.entries import EntryStateSource, bool_to_entry_state
 from esphome.dashboard.status.mqtt import MqttStatusThread
 
 
@@ -126,3 +127,109 @@ def test_mqtt_status_thread_stops_during_retry_wait() -> None:
 
     # Exactly one attempt: we exit during the first wait().
     assert mock_prepare.call_count == 1
+
+
+def test_mqtt_status_thread_tracks_host_status_topic_and_prevents_offline_reset() -> (
+    None
+):
+    """Host entries with `<name>/status=online` should not be forced offline by polling."""
+    stop_event = threading.Event()
+
+    mqtt_ping_request = Mock()
+    mqtt_ping_request.clear = Mock()
+
+    entries = Mock()
+    host_entry = Mock()
+    host_entry.name = "host1"
+    host_entry.target_platform = "host"
+    entries.all.return_value = [host_entry]
+    entries.get_by_name.side_effect = lambda name: (
+        {host_entry} if name == "host1" else []
+    )
+    entries.set_state_if_online_or_source = Mock()
+    entries.set_state_if_source = Mock()
+
+    dashboard = Mock()
+    dashboard.entries = entries
+    dashboard.stop_event = stop_event
+    dashboard.mqtt_ping_request = mqtt_ping_request
+
+    client = Mock()
+
+    def prepare_side_effect(config, topics, on_message, on_connect, *args, **kwargs):
+        assert "esphome/discover/#" in topics
+        assert "+/status" in topics
+        msg = Mock()
+        msg.topic = "host1/status"
+        msg.payload = b"online"
+        on_message(client, None, msg)
+        return client
+
+    def wait_side_effect(*args, **kwargs):
+        stop_event.set()
+        return True
+
+    mqtt_ping_request.wait.side_effect = wait_side_effect
+
+    with (
+        patch(
+            "esphome.dashboard.status.mqtt.mqtt.prepare",
+            side_effect=prepare_side_effect,
+        ),
+        patch("esphome.dashboard.status.mqtt._POLL_INTERVAL", 0.01),
+    ):
+        MqttStatusThread(dashboard).run()
+
+    entries.set_state_if_online_or_source.assert_called_with(
+        host_entry, bool_to_entry_state(True, EntryStateSource.MQTT)
+    )
+    entries.set_state_if_source.assert_not_called()
+
+
+def test_mqtt_status_thread_ignores_status_topic_for_non_host_entries() -> None:
+    """Non-host entries should not be marked online based on `<name>/status`."""
+    stop_event = threading.Event()
+
+    mqtt_ping_request = Mock()
+    mqtt_ping_request.clear = Mock()
+
+    entries = Mock()
+    entry = Mock()
+    entry.name = "node1"
+    entry.target_platform = "esp32"
+    entries.all.return_value = [entry]
+    entries.get_by_name.side_effect = lambda name: {entry} if name == "node1" else []
+    entries.set_state_if_online_or_source = Mock()
+    entries.set_state_if_source = Mock()
+
+    dashboard = Mock()
+    dashboard.entries = entries
+    dashboard.stop_event = stop_event
+    dashboard.mqtt_ping_request = mqtt_ping_request
+
+    client = Mock()
+
+    def prepare_side_effect(config, topics, on_message, on_connect, *args, **kwargs):
+        msg = Mock()
+        msg.topic = "node1/status"
+        msg.payload = b"online"
+        on_message(client, None, msg)
+        return client
+
+    def wait_side_effect(*args, **kwargs):
+        stop_event.set()
+        return True
+
+    mqtt_ping_request.wait.side_effect = wait_side_effect
+
+    with (
+        patch(
+            "esphome.dashboard.status.mqtt.mqtt.prepare",
+            side_effect=prepare_side_effect,
+        ),
+        patch("esphome.dashboard.status.mqtt._POLL_INTERVAL", 0.01),
+    ):
+        MqttStatusThread(dashboard).run()
+
+    entries.set_state_if_online_or_source.assert_not_called()
+    entries.set_state_if_source.assert_called()

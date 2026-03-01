@@ -34,6 +34,21 @@ class MqttStatusThread(threading.Thread):
         super().__init__()
         self.dashboard = dashboard
 
+    @staticmethod
+    def _extract_name_from_default_status_topic(topic: str) -> str | None:
+        """Extract an entry name from a default MQTT status topic.
+
+        ESPHome's default MQTT birth/will topic is `<topic_prefix>/status`, and by default
+        `topic_prefix` is the node name. For safety we only treat topics of the exact form
+        `<name>/status` (one segment) as candidates.
+        """
+        if not topic.endswith("/status"):
+            return None
+        if topic.count("/") != 1:
+            return None
+        name = topic.split("/", 1)[0]
+        return name or None
+
     def run(self) -> None:
         """Run the status thread."""
         dashboard = self.dashboard
@@ -41,21 +56,57 @@ class MqttStatusThread(threading.Thread):
         current_entries = entries.all()
 
         config = mqtt.config_from_env()
-        topic = "esphome/discover/#"
+        discover_topic = "esphome/discover/#"
+        status_topic = "+/status"
+        online_from_status: set[str] = set()
 
         def on_message(client, userdata, msg):
             payload = msg.payload.decode(errors="backslashreplace")
-            if len(payload) > 0:
-                data = json.loads(payload)
-                if "name" not in data:
+            if (
+                status_name := self._extract_name_from_default_status_topic(msg.topic)
+            ) is not None:
+                if not (matching_entries := entries.get_by_name(status_name)):
                     return
-                if matching_entries := entries.get_by_name(data["name"]):
-                    for entry in matching_entries:
-                        # Only override state if we don't have a state from another source
-                        # or we have a state from MQTT and the device is reachable
+
+                # Tight heuristic: only treat `<name>/status` as authoritative for host nodes.
+                host_entries = [
+                    entry
+                    for entry in matching_entries
+                    if entry.target_platform == "host"
+                ]
+                if not host_entries:
+                    return
+
+                if payload == "online":
+                    online_from_status.add(status_name)
+                    for entry in host_entries:
                         entries.set_state_if_online_or_source(
                             entry, bool_to_entry_state(True, EntryStateSource.MQTT)
                         )
+                elif payload == "offline":
+                    online_from_status.discard(status_name)
+                    for entry in host_entries:
+                        entries.set_state_if_source(
+                            entry, bool_to_entry_state(False, EntryStateSource.MQTT)
+                        )
+                return
+
+            if not payload or not msg.topic.startswith("esphome/discover/"):
+                return
+
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                return
+            if "name" not in data:
+                return
+            if matching_entries := entries.get_by_name(data["name"]):
+                for entry in matching_entries:
+                    # Only override state if we don't have a state from another source
+                    # or we have a state from MQTT and the device is reachable
+                    entries.set_state_if_online_or_source(
+                        entry, bool_to_entry_state(True, EntryStateSource.MQTT)
+                    )
 
         def on_connect(client, userdata, flags, return_code):
             client.publish("esphome/discover", None, retain=False)
@@ -68,7 +119,7 @@ class MqttStatusThread(threading.Thread):
             try:
                 client = mqtt.prepare(
                     config,
-                    [topic],
+                    [discover_topic, status_topic],
                     on_message,
                     on_connect,
                     None,
@@ -94,6 +145,8 @@ class MqttStatusThread(threading.Thread):
             # will be set to true on on_message
             for entry in current_entries:
                 # Only override state if we don't have a state from another source
+                if entry.target_platform == "host" and entry.name in online_from_status:
+                    continue
                 entries.set_state_if_source(
                     entry, bool_to_entry_state(False, EntryStateSource.MQTT)
                 )
