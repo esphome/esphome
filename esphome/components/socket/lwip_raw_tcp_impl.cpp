@@ -616,7 +616,9 @@ int LWIPRawListenImpl::listen(int backlog) {
   LWIP_LOG("tcp_arg(%p)", this->pcb_);
   tcp_arg(this->pcb_, this);
   tcp_accept(this->pcb_, LWIPRawListenImpl::s_accept_fn);
-  tcp_err(this->pcb_, LWIPRawListenImpl::s_err_fn);
+  // Note: tcp_err() is NOT re-registered here. tcp_listen_with_backlog() converts the
+  // full tcp_pcb to a smaller tcp_pcb_listen struct that lacks the errf field.
+  // Calling tcp_err() on a listen PCB writes past the struct boundary (undefined behavior).
   return 0;
 }
 
