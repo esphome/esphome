@@ -114,7 +114,10 @@
 #endif
 
 namespace esphome::socket {
-class Socket;
+#ifdef USE_SOCKET_SELECT_SUPPORT
+/// Shared ready() helper for fd-based socket implementations.
+bool socket_ready_fd(int fd, bool loop_monitored);  // NOLINT(readability-redundant-declaration)
+#endif
 }  // namespace esphome::socket
 
 // Forward declarations for friend access from codegen-generated setup()
@@ -649,7 +652,9 @@ class Application {
 
  protected:
   friend Component;
-  friend class socket::Socket;
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  friend bool socket::socket_ready_fd(int fd, bool loop_monitored);
+#endif
   friend void ::setup();
   friend void ::original_setup();
 
