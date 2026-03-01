@@ -121,9 +121,6 @@ static void bond_deleted(uint8_t id, const bt_addr_le_t *peer) {
   bt_addr_le_to_str(peer, addr, sizeof(addr));
   ESP_LOGD(TAG, "Bond deleted for %s, id %u", addr, id);
 }
-
-static struct bt_conn_auth_info_cb conn_auth_info_callbacks = {
-    .pairing_complete = pairing_complete, .pairing_failed = pairing_failed, .bond_deleted = bond_deleted};
 #endif
 
 static void auth_passkey_display(bt_conn *conn, unsigned int passkey) {
@@ -207,6 +204,8 @@ void BLEServer::setup() {
 
   bt_conn_cb_register(&conn_callbacks);
 #ifdef CONFIG_BT_SMP
+  static struct bt_conn_auth_info_cb conn_auth_info_callbacks = {
+      .pairing_complete = pairing_complete, .pairing_failed = pairing_failed, .bond_deleted = bond_deleted};
   err = bt_conn_auth_info_cb_register(&conn_auth_info_callbacks);
   if (err) {
     ESP_LOGE(TAG, "Failed to register authorization info callbacks.");
