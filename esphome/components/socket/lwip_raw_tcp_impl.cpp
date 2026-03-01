@@ -319,6 +319,13 @@ int LWIPRawCommon::ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *n
 // ---- LWIPRawImpl methods ----
 
 LWIPRawImpl::~LWIPRawImpl() {
+  // Free any received pbufs that LWIP transferred ownership of via recv_fn.
+  // tcp_abort() in the base destructor won't free these since LWIP considers
+  // ownership transferred once the recv callback accepts them.
+  if (this->rx_buf_ != nullptr) {
+    pbuf_free(this->rx_buf_);
+    this->rx_buf_ = nullptr;
+  }
   // Base class destructor handles pcb_ cleanup via tcp_abort
 }
 
