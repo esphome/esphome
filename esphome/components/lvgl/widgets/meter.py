@@ -110,9 +110,10 @@ CONF_TICK_STYLE = "tick_style"
 
 
 # For compatibility, keep meter types but map to scale
-lv_scale_t = LvType("lv_scale_t")
+lv_scale_t = LvType("lv_obj_t")
 lv_meter_t = LvType("lv_meter_t")
-lv_meter_indicator_t = lv_obj_t
+lv_scale_section_t = LvType("lv_scale_section_t")
+lv_meter_indicator_t = LvType("lv_meter_indicator_t")
 lv_meter_indicator_ticks_t = LvType(
     "lv_scale_section_t", parents=(lv_meter_indicator_t,)
 )
@@ -227,7 +228,7 @@ INDICATOR_SCHEMA = cv.Schema(
 
 SCALE_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(lv_obj_t),
+        cv.GenerateID(): cv.declare_id(lv_scale_t),
         cv.Optional(CONF_TICKS): cv.Schema(
             {
                 cv.Optional(CONF_COUNT, default=12): cv.positive_int,
@@ -295,13 +296,19 @@ line_indicator_type = WidgetType(
     is_mock=True,
 )
 
-arc_indicator_type = WidgetType(
-    CONF_INDICATOR,
-    lv_meter_indicator_arc_t,
-    (CONF_MAIN,),
-    lv_name=CONF_ARC,
-    is_mock=True,
-)
+
+class SectionType(WidgetType):
+    def __init__(self):
+        super().__init__(
+            "scale_section",
+            lv_meter_indicator_arc_t,
+            (CONF_MAIN,),
+            is_mock=True,
+            lv_name="scale_section",
+        )
+
+
+arc_indicator_type = SectionType()
 
 image_indicator_type = WidgetType(
     CONF_INDICATOR,
@@ -369,6 +376,104 @@ class MeterType(WidgetType):
             # Set rotation if specified
             if rotation:
                 lv.scale_set_rotation(scale_var, rotation)
+
+            # Handle indicators as sections
+            for indicator in scale_conf.get(CONF_INDICATORS, ()):
+                (t, v) = next(iter(indicator.items()))
+                iid = v[CONF_ID]
+
+                # Enable getting the meter to which this belongs.
+
+                # Set section range based on indicator values
+                start_value = await get_start_value(v) or scale_conf[CONF_RANGE_FROM]
+                end_value = await get_end_value(v) or scale_conf[CONF_RANGE_TO]
+
+                # Create and apply styles based on indicator type
+                if t == CONF_ARC:
+                    props = {
+                        "arc_width": v[CONF_WIDTH],
+                        "arc_color": v[CONF_COLOR],
+                        "arc_opa": v[CONF_OPA],
+                        "arc_rounded": v.get("arc_rounded", False),
+                    }
+                    if pad_all := v.get(CONF_PADDING, -v.get(CONF_R_MOD, 0)):
+                        props["pad_all"] = pad_all
+                    arc_style = LVStyle(f"meter_arc_{iid.id}", props)
+                    tvar = cg.Pvariable(iid, lv_expr.scale_add_section(scale_var))
+                    lv.scale_section_set_style(
+                        tvar, LV_PART.MAIN, await arc_style.get_var()
+                    )
+                    lw = Widget(tvar, arc_indicator_type)
+                    await set_indicator_values(lw, v)
+
+                if t == CONF_TICK_STYLE:
+                    # No object created for this
+                    color_start = await lv_color.process(v[CONF_COLOR_START])
+                    color_end = await lv_color.process(v[CONF_COLOR_END])
+                    local = v[CONF_LOCAL]
+                    if color_start and color_end:
+                        async with LambdaContext(
+                            [(lv_event_t.operator("ptr"), "e")]
+                        ) as lambda_:
+                            lv.scale_draw_event_cb(
+                                lambda_.get_parameter(0),
+                                start_value,
+                                end_value,
+                                color_start,
+                                color_end,
+                                local,
+                            )
+                        lv_obj.add_event_cb(
+                            scale_var,
+                            await lambda_.get_lambda(),
+                            LV_EVENT.DRAW_TASK_ADDED,
+                            nullptr,
+                        )
+                        lv.obj_add_flag(scale_var, LV_OBJ_FLAG.SEND_DRAW_TASK_EVENTS)
+
+                if t == CONF_LINE:
+                    add_lv_use(CONF_LINE)
+                    # Needle represented by a line
+                    if CONF_LENGTH in v:
+                        length = v[CONF_LENGTH]
+                    elif r_mod := v.get(CONF_R_MOD):
+                        get_remapped_uses().add(CONF_R_MOD)
+                        length = -abs(r_mod)
+                    else:
+                        length = 1.0
+                    props = {
+                        CONF_ID: v[CONF_ID],
+                        CONF_OPA: v[CONF_OPA],
+                        CONF_LINE_WIDTH: v[CONF_WIDTH],
+                        "line_color": v[CONF_COLOR],
+                        "line_rounded": True,
+                        CONF_ALIGN: CHILD_ALIGNMENTS.TOP_LEFT,
+                        CONF_LENGTH: length,
+                        CONF_RADIAL_OFFSET: v[CONF_RADIAL_OFFSET],
+                    }
+                    lw = await widget_to_code(props, line_indicator_type, scale_var)
+                    await set_indicator_values(lw, v)
+
+                if t == CONF_IMAGE:
+                    add_lv_use(CONF_IMAGE)
+                    src = v[CONF_SRC]
+                    src_data = get_image_metadata(src.id)
+                    pivot_x = await pixels.process(v[CONF_PIVOT_X])
+                    pivot_y = await pixels.process(
+                        v.get(CONF_PIVOT_Y, src_data.height // 2)
+                    )
+                    props = {
+                        CONF_X: src_data.width // 2 - pivot_x,
+                        "transform_pivot_x": pivot_x,
+                        "transform_pivot_y": pivot_y,
+                        CONF_SRC: src,
+                        CONF_OPA: v[CONF_OPA],
+                        CONF_ID: v[CONF_ID],
+                        CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
+                    }
+                    iw = await widget_to_code(props, image_indicator_type, scale_var)
+                    await iw.set_property(CONF_SRC, await lv_image.process(src))
+                    await set_indicator_values(iw, v)
 
             if ticks := scale_conf.get(CONF_TICKS):
                 # Set total tick count
@@ -438,105 +543,6 @@ class MeterType(WidgetType):
             else:
                 lv.scale_set_total_tick_count(scale_var, 0)
 
-            # Handle indicators as sections
-            for indicator in scale_conf.get(CONF_INDICATORS, ()):
-                (t, v) = next(iter(indicator.items()))
-                iid = v[CONF_ID]
-
-                # Enable getting the meter to which this belongs.
-
-                # Set section range based on indicator values
-                start_value = await get_start_value(v) or scale_conf[CONF_RANGE_FROM]
-                end_value = await get_end_value(v) or scale_conf[CONF_RANGE_TO]
-
-                # Create and apply styles based on indicator type
-                if t == CONF_TICK_STYLE:
-                    # No object created for this
-                    color_start = await lv_color.process(v[CONF_COLOR_START])
-                    color_end = await lv_color.process(v[CONF_COLOR_END])
-                    local = v[CONF_LOCAL]
-                    if color_start and color_end:
-                        async with LambdaContext(
-                            [(lv_event_t.operator("ptr"), "e")]
-                        ) as lambda_:
-                            lv.scale_draw_event_cb(
-                                lambda_.get_parameter(0),
-                                start_value,
-                                end_value,
-                                color_start,
-                                color_end,
-                                local,
-                            )
-                        lv_obj.add_event_cb(
-                            scale_var,
-                            await lambda_.get_lambda(),
-                            LV_EVENT.DRAW_TASK_ADDED,
-                            nullptr,
-                        )
-                        lv.obj_add_flag(scale_var, LV_OBJ_FLAG.SEND_DRAW_TASK_EVENTS)
-
-                if t == CONF_ARC:
-                    add_lv_use(CONF_ARC)
-                    props = {
-                        "arc_width": v[CONF_WIDTH],
-                        "arc_color": v[CONF_COLOR],
-                        "arc_opa": v[CONF_OPA],
-                        "arc_rounded": False,
-                        "id": iid,
-                        CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
-                    }
-                    if pad_all := v.get(CONF_PADDING, v.get(CONF_R_MOD, 0)):
-                        props["pad_all"] = pad_all
-                    lw = await widget_to_code(props, arc_indicator_type, scale_var)
-                    lv_obj.remove_style(lw.obj, nullptr, LV_PART.KNOB)
-                    lv_obj.remove_style(lw.obj, nullptr, LV_PART.INDICATOR)
-                    lw.clear_flag(LV_OBJ_FLAG.CLICKABLE)
-                    await set_indicator_values(lw, v)
-
-                if t == CONF_LINE:
-                    add_lv_use(CONF_LINE)
-                    # Needle represented by a line
-                    if CONF_LENGTH in v:
-                        length = v[CONF_LENGTH]
-                    elif r_mod := v.get(CONF_R_MOD):
-                        get_remapped_uses().add(CONF_R_MOD)
-                        length = -abs(r_mod)
-                    else:
-                        length = 1.0
-                    props = {
-                        CONF_ID: v[CONF_ID],
-                        CONF_OPA: v[CONF_OPA],
-                        CONF_LINE_WIDTH: v[CONF_WIDTH],
-                        "line_color": v[CONF_COLOR],
-                        "line_rounded": True,
-                        CONF_ALIGN: CHILD_ALIGNMENTS.TOP_LEFT,
-                        CONF_LENGTH: length,
-                        CONF_RADIAL_OFFSET: v[CONF_RADIAL_OFFSET],
-                    }
-                    lw = await widget_to_code(props, line_indicator_type, scale_var)
-                    await set_indicator_values(lw, v)
-
-                if t == CONF_IMAGE:
-                    add_lv_use(CONF_IMAGE)
-                    src = v[CONF_SRC]
-                    src_data = get_image_metadata(src.id)
-                    pivot_x = await pixels.process(v[CONF_PIVOT_X])
-                    pivot_y = await pixels.process(
-                        v.get(CONF_PIVOT_Y, src_data.height // 2)
-                    )
-                    props = {
-                        CONF_X: src_data.width // 2 - pivot_x,
-                        "transform_pivot_x": pivot_x,
-                        "transform_pivot_y": pivot_y,
-                        CONF_SRC: src,
-                        CONF_OPA: v[CONF_OPA],
-                        CONF_ID: v[CONF_ID],
-                        CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
-                    }
-                    iw = await widget_to_code(props, image_indicator_type, scale_var)
-                    await iw.set_property(CONF_SRC, await lv_image.process(src))
-                    await set_indicator_values(iw, v)
-
         # Add a pivot
         # Get the default style
         pivot_style = PIVOT_STYLE.copy()
@@ -577,7 +583,7 @@ async def set_indicator_values(indicator: Widget, config):
     """Update scale section values (replaces meter indicator values)"""
     start_value = await get_start_value(config)
     end_value = await get_end_value(config)
-    if indicator.type is scale_spec:
+    if indicator.type is arc_indicator_type:
         # For scale sections, we update the range
         if start_value is not None and end_value is not None:
             lv.scale_section_set_range(indicator.obj, start_value, end_value)
@@ -588,18 +594,6 @@ async def set_indicator_values(indicator: Widget, config):
             # If only end value, assume range from 0 to end_value
             lv.scale_section_set_range(indicator.obj, 0, end_value)
         return
-
-    if indicator.type is arc_indicator_type:
-        if start_value is not None:
-            lv.arc_set_start_angle(
-                indicator.obj,
-                lv_expr.get_needle_angle_for_value(indicator.obj, start_value),
-            )
-        if end_value is not None:
-            lv.arc_set_end_angle(
-                indicator.obj,
-                lv_expr.get_needle_angle_for_value(indicator.obj, end_value),
-            )
 
     if start_value is None:
         return
