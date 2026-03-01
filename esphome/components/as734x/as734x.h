@@ -68,7 +68,6 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(irradiance_photopic);
   SUB_SENSOR(irradiance_par);
   SUB_SENSOR(ppfd);
-  SUB_SENSOR(ct);
   SUB_SENSOR(color_temperature);
   SUB_SENSOR(saturation_level);
 
