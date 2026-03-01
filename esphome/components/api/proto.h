@@ -452,7 +452,8 @@ class DumpBuffer {
 
 class ProtoMessage {
  public:
-  virtual ~ProtoMessage() = default;
+  // No virtual destructor - messages are never deleted polymorphically
+  // (all are stack-allocated and used through references)
   // Default implementation for messages with no fields
   virtual void encode(ProtoWriteBuffer &buffer) const {}
   // Default implementation for messages with no fields

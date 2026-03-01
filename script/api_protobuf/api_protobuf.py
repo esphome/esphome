@@ -2473,8 +2473,7 @@ def build_base_class(
     out = f"class {base_class_name} : public {parent_class} {{\n"
     out += " public:\n"
 
-    # Add destructor with override
-    public_content.insert(0, f"~{base_class_name}() override = default;")
+    # No virtual destructor - messages are never deleted polymorphically
 
     # Base classes don't implement encode/decode/calculate_size
     # Derived classes handle these with their specific field numbers

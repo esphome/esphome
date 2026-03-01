@@ -316,7 +316,6 @@ enum ZWaveProxyRequestType : uint32_t {
 
 class InfoResponseProtoMessage : public ProtoMessage {
  public:
-  ~InfoResponseProtoMessage() override = default;
   StringRef object_id{};
   uint32_t key{0};
   StringRef name{};
@@ -334,7 +333,6 @@ class InfoResponseProtoMessage : public ProtoMessage {
 
 class StateResponseProtoMessage : public ProtoMessage {
  public:
-  ~StateResponseProtoMessage() override = default;
   uint32_t key{0};
 #ifdef USE_DEVICES
   uint32_t device_id{0};
@@ -345,7 +343,6 @@ class StateResponseProtoMessage : public ProtoMessage {
 
 class CommandProtoMessage : public ProtoDecodableMessage {
  public:
-  ~CommandProtoMessage() override = default;
   uint32_t key{0};
 #ifdef USE_DEVICES
   uint32_t device_id{0};
