@@ -232,9 +232,28 @@ TEST_F(BTHomeServerTest, OnAdvertiseSendsFrameWhenActive) {
   server_.on_advertise(true);
 }
 
-TEST_F(BTHomeServerTest, OnAdvertiseNoFrameWhenFirstSensorInvalid) {
-  // sensor0 is first; if it has no state the whole iteration stops immediately
+TEST_F(BTHomeServerTest, OnAdvertiseSkipsInvalidGroupAndSendsValidOnes) {
+  // sensor0 (BATTERY_PCT) is invalid; sensor1 and sensor2 are valid.
+  // The algorithm must skip sensor0's group and continue to encode sensor1 + sensor2.
   sensor0_.invalidate();
+  do_setup();
+
+  std::vector<uint8_t> captured;
+  EXPECT_CALL(adapter_, config_adv_data_raw(_, _)).WillOnce(Invoke([&captured](const uint8_t *data, size_t len) {
+    captured.assign(data, data + len);
+  }));
+  server_.on_advertise(true);
+
+  auto frame = parse_adv_frame(captured);
+  ASSERT_TRUE(frame.valid);
+  // sensor1 (3 bytes) + sensor2 (3 bytes) = 6 bytes
+  EXPECT_EQ(frame.payload.size(), sensor1_.get_encoded_size() + sensor2_.get_encoded_size());
+}
+
+TEST_F(BTHomeServerTest, OnAdvertiseNoFrameWhenAllSensorsInvalid) {
+  sensor0_.invalidate();
+  sensor1_.invalidate();
+  sensor2_.invalidate();
   do_setup();
   EXPECT_CALL(adapter_, config_adv_data_raw(_, _)).Times(0);
   server_.on_advertise(true);
@@ -302,7 +321,8 @@ TEST_F(BTHomeServerTest, OnAdvertiseSameTypeGroupWrittenTogether) {
   EXPECT_EQ(frame.payload.size(), 6u);
 }
 
-// An invalid sensor inside a same-type group causes the entire group to be skipped.
+// An invalid sensor inside a same-type group causes the entire group to be skipped,
+// but iteration continues so subsequent valid groups are still encoded.
 TEST_F(BTHomeServerTest, OnAdvertiseSameTypeGroupSkippedIfMemberInvalid) {
   MockLocalSensor valid_a{BTHomeObjectType::BATTERY_PCT, 50.0f};
   MockLocalSensor invalid_b{BTHomeObjectType::BATTERY_PCT, 0.0f};  // will be invalidated
@@ -312,14 +332,20 @@ TEST_F(BTHomeServerTest, OnAdvertiseSameTypeGroupSkippedIfMemberInvalid) {
 
   TestableBTHomeServer<3> srv{&adapter_};
   srv.set_local_sensor(0, &valid_a);
-  srv.set_local_sensor(1, &invalid_b);  // same type as valid_a → invalidates group
+  srv.set_local_sensor(1, &invalid_b);  // same type as valid_a → group_encoded_size=0 → skip group
   srv.set_local_sensor(2, &valid_c);
   srv.setup();
 
-  // sensor0 is alone in a group (type BATTERY, size 2), but sensor1 is also BATTERY
-  // and invalid → the BATTERY group (sensors 0+1) gets group_encoded_size=0 → skip
-  EXPECT_CALL(adapter_, config_adv_data_raw(_, _)).Times(0);
+  std::vector<uint8_t> captured;
+  EXPECT_CALL(adapter_, config_adv_data_raw(_, _)).WillOnce(Invoke([&captured](const uint8_t *data, size_t len) {
+    captured.assign(data, data + len);
+  }));
   srv.on_advertise(true);
+
+  // BATTERY group (sensors 0+1) is skipped; HUMIDITY group (sensor 2) is encoded
+  auto frame = parse_adv_frame(captured);
+  ASSERT_TRUE(frame.valid);
+  EXPECT_EQ(frame.payload.size(), valid_c.get_encoded_size());  // 3 bytes
 }
 
 // ===========================================================================

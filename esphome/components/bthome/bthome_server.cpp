@@ -80,9 +80,19 @@ void BTHomeServerBase::on_advertise(bool active) {
       group_encoded_size += encoded_size;
     }
 
-    // Check if entire group can be sent
-    if (group_encoded_size == 0 || this->encoder_.get_remaining() < group_encoded_size) {
-      // Group doesn't fit or invalid sensor value — skip this group and come back to it next time
+    if (group_encoded_size == 0) {
+      // Invalid sensor in group — skip this group entirely, continue to next
+      i += group_size;
+      if (i >= sensors.size()) {
+        this->next_sensor_index_ = 0;
+        break;
+      }
+      continue;
+    }
+
+    // Check if entire group fits in the remaining frame space
+    if (this->encoder_.get_remaining() < group_encoded_size) {
+      // Group doesn't fit — stop here and come back to this group next time
       this->next_sensor_index_ = idx;
       break;
     }
