@@ -110,8 +110,8 @@ Change the URL where the image is downloaded from. A re-download will be automat
 #### Configuration variables
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The image to update the URL for.
-- **url** (**Required**, url): The new URL to download the image from.
-- **update** (*Optional*, bool): If `true`, the image will be updated (fetched) immediately after setting the new URL. If `false`, the URL will be set but the image will **not** be updated until you call the `update` action. Defaults to `true`
+- **url** (**Required**, url, [templatable](/automations/templates)): The new URL to download the image from.
+- **update** (*Optional*, bool, [templatable](/automations/templates)): If `true`, the image will be updated (fetched) immediately after setting the new URL. If `false`, the URL will be set but the image will **not** be updated until you call the `update` action. Defaults to `true`
 
 ```yaml
 on_...:

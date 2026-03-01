@@ -28,7 +28,7 @@ voice_assistant:
 
 ## Configuration variables
 
-- **microphone** (**Required**, [Microphone Source Configuration](/components/microphone#config-microphone-source)): The
+- **microphone** (*Optional*, [Microphone Source Configuration](/components/microphone#config-microphone-source)): The
   [microphone](/components/microphone/) settings to use for input.
 
 - **micro_wake_word** (*Optional*, [ID](/guides/configuration-types#id)): The [micro_wake_word](/components/micro_wake_word/)
@@ -142,7 +142,7 @@ Listens for one voice command then stops.
 #### Configuration variables
 
 - **silence_detection** (*Optional*, boolean): Enable silence detection. Defaults to `true`.
-- **wake_word** (*Optional*, string): The wake word that was used to trigger the voice assistant
+- **wake_word** (*Optional*, string, [templatable](/automations/templates)): The wake word that was used to trigger the voice assistant
   when using on-device wake word such as [Micro Wake Word](/components/micro_wake_word/).
 
 Call `voice_assistant.stop` to signal the end of the voice command if `silence_detection` is set to `false`.

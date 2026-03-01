@@ -194,7 +194,7 @@ on_...:
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the mmWave sensor on which settings should be
   changed. If only one radar is defined, this is optional.
 
-- **factory_reset** (*Optional*, boolean): If set to true, a factory reset of the sensor will be performed (before
+- **factory_reset** (*Optional*, boolean, [templatable](/automations/templates)): If set to `true`, a factory reset of the sensor will be performed (before
   changing other options if present). Ignored if not set or set to `false`.
 
 - **detection_segments** (*Optional*, list): A list of detection segments. A segment specifies from where to where
@@ -228,15 +228,15 @@ on_...:
 
 - **output_latency** (*Optional*, dictionary):
 
-  - **delay_after_detect** (**Required**, [Time](/guides/configuration-types#time)): Time to wait before signaling that a person was
-    detected. Specify in steps of 25 ms. Factory default is 2.5s. Value is tempatable: Return seconds value
-    (100 ms = 0.1). Returning -1 keeps the value unchanged.
+  - **delay_after_detect** (**Required**, [Time](/guides/configuration-types#time), [templatable](/automations/templates)): Time to wait before signaling that a person was
+    detected. Specify in steps of 25 ms. Factory default is 2.5s.
+    Returning -1 keeps the value unchanged.
 
-  - **delay_after_disappear** (**Required**, [Time](/guides/configuration-types#time)): Time to wait before signaling that a person
-    is no longer detected. Specify in steps of 25 ms. Factory default is 10 s. Value is tempatable: Return seconds
-    value (100 ms = 0.1). Returning -1 keeps the value unchanged.
+  - **delay_after_disappear** (**Required**, [Time](/guides/configuration-types#time), [templatable](/automations/templates)): Time to wait before signaling that a person
+    is no longer detected. Specify in steps of 25 ms. Factory default is 10 s.
+    Returning -1 keeps the value unchanged.
 
-- **sensitivity** (*Optional*, int): Set the sensitivity of the sensor. Ranges from 0 to 9. Value is tempatable:
+- **sensitivity** (*Optional*, int, [templatable](/automations/templates)): Set the sensitivity of the sensor. Ranges from 0 to 9.
   Return 0-9. Returning -1 keeps the value unchanged.
 
 ### `dfrobot_sen0395.reset` Action

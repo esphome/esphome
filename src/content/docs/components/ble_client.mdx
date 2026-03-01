@@ -260,7 +260,7 @@ on_...:
 ### Configuration variables
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): ID of the associated BLE client.
-- **passkey** (**Required**, int): The 6-digit passkey.
+- **passkey** (**Required**, int, [templatable](/automations/templates)): The 6-digit passkey.
 
 <span id="ble_client-numeric_comparison_reply_action"></span>
 
@@ -281,7 +281,7 @@ on_...:
 ### Configuration variables
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): ID of the associated BLE client.
-- **accept** (**Required**, boolean): Should be `true` if the passkeys
+- **accept** (**Required**, boolean, [templatable](/automations/templates)): Should be `true` if the passkeys
   displayed on both BLE devices are matching.
 
 <span id="ble_client-remove_bond_action"></span>
