@@ -412,7 +412,7 @@ void ESPNowComponent::loop() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
         char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(packet->packet_.sent.address, addr_buf);
-        ESP_LOGV(TAG, ">>> [%s] %s", addr_buf, LOG_STR_ARG(espnow_error_to_str(packet->packet_.sent.status)));
+        ESP_LOGV(TAG, ">>> [%s] %s", addr_buf, LOG_STR_ARG(espnow_send_status_to_str(packet->packet_.sent.status)));
 #endif
         if (this->current_send_packet_ != nullptr) {
           this->current_send_packet_->callback_(packet->packet_.sent.status);
