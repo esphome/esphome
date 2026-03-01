@@ -1,6 +1,6 @@
-#include "socket.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "socket.h"
 
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 
@@ -75,7 +75,7 @@ static std::unique_ptr<BSDSocketImpl> create_socket(int domain, int type, int pr
   int ret = ::socket(domain, type, protocol);
   if (ret == -1)
     return nullptr;
-  return std::unique_ptr<BSDSocketImpl>{new BSDSocketImpl(ret, loop_monitored)};
+  return make_unique<BSDSocketImpl>(ret, loop_monitored);
 }
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
