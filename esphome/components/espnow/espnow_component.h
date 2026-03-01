@@ -5,10 +5,13 @@
 
 #if defined(USE_ESP32) || defined(USE_ESP8266)
 
-#include "esphome/core/event_pool.h"
 #include "esphome/core/lock_free_queue.h"
 #include "espnow_compat.h"
 #include "espnow_packet.h"
+
+#if defined(USE_ESP32)
+#include "esphome/core/event_pool.h"
+#endif
 
 #if defined(USE_ESP32)
 #include <esp_idf_version.h>
@@ -22,6 +25,54 @@
 #include <vector>
 
 namespace esphome::espnow {
+
+#if defined(USE_ESP8266)
+template<class T, uint8_t SIZE> class EventPool {
+ public:
+  T *allocate() { return new T(); }
+  void release(T *event) { delete event; }
+};
+
+template<class T, uint8_t SIZE> class EventQueue {
+ public:
+  void push(T *item) {
+    uint8_t next = (this->tail_ + 1) % SIZE;
+    if (next == this->head_) {
+      this->increment_dropped_count();
+      return;
+    }
+    this->items_[this->tail_] = item;
+    this->tail_ = next;
+  }
+
+  T *pop() {
+    if (this->head_ == this->tail_) {
+      return nullptr;
+    }
+    T *item = this->items_[this->head_];
+    this->head_ = (this->head_ + 1) % SIZE;
+    return item;
+  }
+
+  void increment_dropped_count() { this->dropped_count_++; }
+
+  uint16_t get_and_reset_dropped_count() {
+    uint16_t count = this->dropped_count_;
+    this->dropped_count_ = 0;
+    return count;
+  }
+
+ protected:
+  T *items_[SIZE]{nullptr};
+  uint8_t head_{0};
+  uint8_t tail_{0};
+  uint16_t dropped_count_{0};
+};
+
+template<class T, uint8_t SIZE> using PacketQueue = EventQueue<T, SIZE>;
+#else
+template<class T, uint8_t SIZE> using PacketQueue = LockFreeQueue<T, SIZE>;
+#endif
 
 // Maximum size of the ESPNow event queue - must be power of 2 for lock-free queue
 static constexpr size_t MAX_ESP_NOW_SEND_QUEUE_SIZE = 16;
@@ -170,10 +221,10 @@ class ESPNowComponent : public Component {
   std::vector<ESPNowPeer> peers_{};
 
   uint8_t own_address_[ESPNOW_ETH_ALEN]{0};
-  LockFreeQueue<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_queue_{};
+  PacketQueue<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_queue_{};
   EventPool<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_pool_{};
 
-  LockFreeQueue<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE> send_packet_queue_{};
+  PacketQueue<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE> send_packet_queue_{};
   EventPool<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE> send_packet_pool_{};
   ESPNowSendPacket *current_send_packet_{nullptr};  // Currently sending packet, nullptr if none
 

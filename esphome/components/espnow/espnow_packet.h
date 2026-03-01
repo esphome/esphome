@@ -53,11 +53,19 @@ class ESPNowPacket {
   };
 #endif
 
-#if defined(USE_ESP32) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if defined(USE_ESP32) && defined(ESP_IDF_VERSION_VAL)
+  #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
   // Constructor for sent data
   ESPNowPacket(const esp_now_send_info_t *info, esp_now_send_status_t status) {
     this->init_sent_data_(info->src_addr, status);
   }
+  #else
+  // Constructor for sent data
+  ESPNowPacket(const uint8_t *mac_addr, espnow_send_status_t status) { this->init_sent_data_(mac_addr, status); }
+  #endif
+#elif defined(USE_ESP32)
+  // Constructor for sent data
+  ESPNowPacket(const uint8_t *mac_addr, espnow_send_status_t status) { this->init_sent_data_(mac_addr, status); }
 #else
   // Constructor for sent data
   ESPNowPacket(const uint8_t *mac_addr, espnow_send_status_t status) { this->init_sent_data_(mac_addr, status); }

@@ -69,8 +69,12 @@ static const LogString *espnow_error_to_str(espnow_err_t error) {
   }
 }
 
-#if defined(USE_ESP32) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if defined(USE_ESP32) && defined(ESP_IDF_VERSION_VAL)
+  #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
 void on_send_report(const esp_now_send_info_t *info, esp_now_send_status_t status)
+  #else
+void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
+  #endif
 #elif defined(USE_ESP32)
 void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
 #else
@@ -86,8 +90,14 @@ void on_send_report(uint8_t *mac_addr, uint8_t status)
   }
 
 // Load new packet data (replaces previous packet)
-#if defined(USE_ESP32) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if defined(USE_ESP32) && defined(ESP_IDF_VERSION_VAL)
+  #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
   packet->load_sent_data(info->des_addr, status);
+  #else
+  packet->load_sent_data(mac_addr, status);
+  #endif
+#elif defined(USE_ESP32)
+  packet->load_sent_data(mac_addr, status);
 #else
   packet->load_sent_data(mac_addr, status);
 #endif
@@ -312,7 +322,7 @@ void ESPNowComponent::loop() {
     switch (packet->type_) {
       case ESPNowPacket::RECEIVED: {
         const ESPNowRecvInfo info = packet->get_receive_info();
-        if (!esp_now_is_peer_exist(info.src_addr)) {
+        if (!espnow_is_peer_exist(info.src_addr)) {
           bool handled = false;
           for (auto *handler : this->unknown_peer_handlers_) {
             if (handler->on_unknown_peer(info, packet->packet_.receive.data, packet->packet_.receive.size)) {
@@ -325,7 +335,7 @@ void ESPNowComponent::loop() {
           }
         }
         // Intentionally left as if instead of else in case the peer is added above
-        if (esp_now_is_peer_exist(info.src_addr)) {
+        if (espnow_is_peer_exist(info.src_addr)) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
           char src_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
           char dst_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -410,7 +420,7 @@ espnow_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *p
     return ESPNOW_ERR_OWN_ADDRESS;
   } else if (size > ESPNOW_MAX_DATA_LEN) {
     return ESPNOW_ERR_DATA_SIZE;
-  } else if (!esp_now_is_peer_exist(peer_address)) {
+  } else if (!espnow_is_peer_exist(peer_address)) {
     if (memcmp(peer_address, ESPNOW_BROADCAST_ADDR, ESPNOW_ETH_ALEN) == 0 || this->auto_add_peer_) {
       espnow_err_t err = this->add_peer(peer_address);
       if (err != ESPNOW_OK) {
@@ -467,7 +477,7 @@ espnow_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
     return ESPNOW_ERR_INVALID_MAC;
   }
 
-  if (!esp_now_is_peer_exist(peer)) {
+  if (!espnow_is_peer_exist(peer)) {
 #if defined(USE_ESP32)
     esp_now_peer_info_t peer_info = {};
     memset(&peer_info, 0, sizeof(esp_now_peer_info_t));
@@ -507,7 +517,7 @@ espnow_err_t ESPNowComponent::del_peer(const uint8_t *peer) {
   if (this->state_ != ESPNOW_STATE_ENABLED || this->is_failed()) {
     return ESPNOW_ERR_NOT_INIT;
   }
-  if (esp_now_is_peer_exist(peer)) {
+  if (espnow_is_peer_exist(peer)) {
     espnow_err_t err = esp_now_del_peer(const_cast<uint8_t *>(peer));
     if (err != ESPNOW_OK) {
       char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
