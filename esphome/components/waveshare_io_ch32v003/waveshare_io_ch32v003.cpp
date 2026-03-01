@@ -167,7 +167,9 @@ void WaveshareIOCH32V003GPIOPin::digital_write(bool value) {
   this->parent_->digital_write(this->pin_, value ^ this->inverted_);
 }
 
-std::string WaveshareIOCH32V003GPIOPin::dump_summary() const { return str_sprintf("EXIO%u via WaveshareIO", pin_); }
+size_t WaveshareIOCH32V003GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return snprintf(buffer, len, "EXIO%u via WaveshareIO", this->pin_);
+}
 void WaveshareIOCH32V003GPIOPin::set_flags(gpio::Flags flags) {
   flags_ = flags;
   this->parent_->pin_mode(this->pin_, flags);
