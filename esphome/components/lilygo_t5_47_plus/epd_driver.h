@@ -52,7 +52,7 @@ typedef struct {  // NOLINT(modernize-use-using)
 /**
  * @brief The image drawing mode.
  */
-typedef enum {  // NOLINT(modernize-use-using)
+typedef enum {             // NOLINT(modernize-use-using)
   BLACK_ON_WHITE = 1 << 0, /** Draw black / grayscale image on a white display. */
   WHITE_ON_WHITE = 1 << 1, /** "Draw with white ink" on a white display. */
   WHITE_ON_BLACK = 1 << 2, /** Draw with white ink on a black display. */
@@ -68,7 +68,7 @@ enum DrawFlags {
 /**
  * @brief Font properties.
  */
-typedef struct {  // NOLINT(modernize-use-using)
+typedef struct {           // NOLINT(modernize-use-using)
   uint8_t fg_color : 4;    /** Foreground color */
   uint8_t bg_color : 4;    /** Background color */
   uint32_t fallback_glyph; /** Use the glyph for this codepoint for missing glyphs. */
@@ -320,7 +320,7 @@ void epd_fill_triangle(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x
 /**
  * @brief Font data stored PER GLYPH
  */
-typedef struct {  // NOLINT(modernize-use-using)
+typedef struct {            // NOLINT(modernize-use-using)
   uint8_t width;            /** Bitmap dimensions in pixels */
   uint8_t height;           /** Bitmap dimensions in pixels */
   uint8_t advance_x;        /** Distance to advance cursor (x axis) */
@@ -333,7 +333,7 @@ typedef struct {  // NOLINT(modernize-use-using)
 /**
  * @brief Glyph interval structure
  */
-typedef struct {  // NOLINT(modernize-use-using)
+typedef struct {   // NOLINT(modernize-use-using)
   uint32_t first;  /** The first unicode code point of the interval */
   uint32_t last;   /** The last unicode code point of the interval */
   uint32_t offset; /** Index of the first code point into the glyph array */
@@ -342,7 +342,7 @@ typedef struct {  // NOLINT(modernize-use-using)
 /**
  * @brief Data stored for FONT AS A WHOLE
  */
-typedef struct {  // NOLINT(modernize-use-using)
+typedef struct {              // NOLINT(modernize-use-using)
   uint8_t *bitmap;            /** Glyph bitmaps, concatenated */
   GFXglyph *glyph;            /** Glyph array */
   UnicodeInterval *intervals; /** Valid unicode intervals for this font */

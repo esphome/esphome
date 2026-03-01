@@ -24,7 +24,7 @@ void LilygoT547PlusTouchscreen::setup() {
   // GPIO47 wakeup sequence — required by this board for GT911 initialization.
   // Matches the LilyGo reference: TouchDrvGT911::wakeup()  // NOLINT
   //   pinMode(_irq, OUTPUT); digitalWrite(_irq, HIGH); delay(8); pinMode(_irq, INPUT);  // NOLINT
-  pinMode(TOUCH_INT_PIN, OUTPUT);    // NOLINT
+  pinMode(TOUCH_INT_PIN, OUTPUT);     // NOLINT
   digitalWrite(TOUCH_INT_PIN, HIGH);  // NOLINT
   delay(10);
   pinMode(TOUCH_INT_PIN, INPUT);  // NOLINT
