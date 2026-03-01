@@ -69,11 +69,11 @@ cover:
 - **open_moving_current_threshold** (**Required**, float): The amount of current in Amps the motor
   should drain to consider the cover is opening.
 
-- **open_obstacle_current_threshold** (**Required**, float): The amount of current in Amps the motor
+- **open_obstacle_current_threshold** (*Optional*, float): The amount of current in Amps the motor
   should drain to consider the cover is blocked during opening.
 
 - **close_sensor** (**Required**, [ID](/guides/configuration-types#id)): The close current sensor.
-- **close_action** (*Optional*, [Action](/automations/actions#all-actions)): The action that should
+- **close_action** (**Required**, [Action](/automations/actions#all-actions)): The action that should
   be performed when the remote requests the cover to be closed.
 
 - **close_duration** (**Required**, [Time](/guides/configuration-types#time)): The amount of time it takes the cover
@@ -82,7 +82,7 @@ cover:
 - **close_moving_current_threshold** (**Required**, float): The amount of current in Amps the motor
   should drain to consider the cover is closing.
 
-- **close_obstacle_current_threshold** (**Required**, float): The amount of current in Amps the motor
+- **close_obstacle_current_threshold** (*Optional*, float): The amount of current in Amps the motor
   should drain to consider the cover is blocked during closing.
 
 - **stop_action** (**Required**, [Action](/automations/actions#all-actions)): The action that should

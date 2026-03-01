@@ -166,9 +166,9 @@ on_...:
 Configuration variables:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The valve to control.
-- **stop** (*Optional*, boolean): Whether to stop the valve.
-- **state** (*Optional*, string): The state to set the valve to - one of `OPEN` or `CLOSE`.
-- **position** (*Optional*, float): The valve position to set.
+- **stop** (*Optional*, boolean, [templatable](/automations/templates)): Whether to stop the valve.
+- **state** (*Optional*, string, [templatable](/automations/templates)): The state to set the valve to - one of `OPEN` or `CLOSE`.
+- **position** (*Optional*, float, [templatable](/automations/templates)): The valve position to set.
 
   - `0.0` = `0%` = `CLOSED`
   - `1.0` = `100%` = `OPEN`
