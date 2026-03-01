@@ -6,7 +6,7 @@ from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS
 from esphome.core import CORE
 from esphome.cpp_generator import TemplateArguments, statement
 
-from .bthome import BTHOME_OBJECT_TYPES, OTKind
+from .bthome import BTHOME_OBJECT_TYPES, OBJECT_TYPES_BY_ID, OTKind
 
 CODEOWNERS = ["@jpeletier"]
 DEPENDENCIES = ["esp32", "esp32_ble_tracker"]
@@ -92,91 +92,13 @@ BTHOME_BINARY_TYPES = {
     k for k, v in BTHOME_OBJECT_TYPES.items() if v.kind == OTKind.BINARY_SENSOR
 }
 
-# Value lengths matching bthome_decoder.cpp get_bthome_value_length()
-_VALUE_LENGTHS = {
-    1: {
-        0x00,
-        0x01,
-        0x09,
-        0x2E,
-        0x2F,
-        0x46,
-        0x57,
-        0x58,
-        0x59,
-        0x60,
-        0x0F,
-        0x10,
-        0x11,
-        0x15,
-        0x16,
-        0x17,
-        0x18,
-        0x19,
-        0x1A,
-        0x1B,
-        0x1C,
-        0x1D,
-        0x1E,
-        0x1F,
-        0x20,
-        0x21,
-        0x22,
-        0x23,
-        0x24,
-        0x25,
-        0x26,
-        0x27,
-        0x28,
-        0x29,
-        0x2A,
-        0x2B,
-        0x2C,
-        0x2D,
-    },
-    2: {
-        0x02,
-        0x03,
-        0x06,
-        0x07,
-        0x08,
-        0x0C,
-        0x0D,
-        0x0E,
-        0x12,
-        0x13,
-        0x14,
-        0x3D,
-        0x3F,
-        0x40,
-        0x41,
-        0x43,
-        0x44,
-        0x45,
-        0x47,
-        0x48,
-        0x49,
-        0x4A,
-        0x51,
-        0x52,
-        0x56,
-        0x5A,
-        0x5D,
-        0x5E,
-        0x5F,
-        0x61,
-    },
-    3: {0x04, 0x05, 0x0A, 0x0B, 0x42, 0x4B},
-    4: {0x3E, 0x4C, 0x4D, 0x4E, 0x4F, 0x50, 0x55, 0x5B, 0x5C, 0x62, 0x63},
-}
-
 
 def _get_value_length(object_id: int) -> int:
     """Return the encoded byte length for a BTHome object type."""
-    for length, ids in _VALUE_LENGTHS.items():
-        if object_id in ids:
-            return length
-    return 0
+    if object_id < 0 or object_id >= len(OBJECT_TYPES_BY_ID):
+        return 0
+
+    return OBJECT_TYPES_BY_ID[object_id].size
 
 
 _SERVER_SENSOR_SCHEMA = cv.Schema(
