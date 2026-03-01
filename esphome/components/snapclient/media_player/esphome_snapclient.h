@@ -1,9 +1,10 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
 #ifdef USE_ESP32
 #ifndef USE_I2S_LEGACY
 
-#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/components/media_player/media_player.h"
 #include "esphome/components/i2s_audio/i2s_audio.h"

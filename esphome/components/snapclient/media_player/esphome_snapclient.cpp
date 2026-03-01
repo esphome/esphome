@@ -1,6 +1,6 @@
+#include "esphome/core/defines.h"
 #ifdef USE_ESP32
 #ifndef USE_I2S_LEGACY
-
 #include "esphome_snapclient.h"
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
