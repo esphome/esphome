@@ -66,7 +66,6 @@ void LilygoT547PlusDisplay::fill(Color color) {
 void LilygoT547PlusDisplay::dump_config() {
   LOG_DISPLAY("", "LilygoT547PlusDisplay", this);
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Greyscale: %s", this->greyscale_ ? "true" : "false");
   // Log why the ESP32-S3 woke up — helps verify deep sleep is working
   esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
   switch (cause) {

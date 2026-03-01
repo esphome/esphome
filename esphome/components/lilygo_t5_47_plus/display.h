@@ -13,8 +13,6 @@ namespace lilygo_t5_47_plus {
 
 class LilygoT547PlusDisplay : public display::DisplayBuffer {
  public:
-  void set_greyscale(bool greyscale) { this->greyscale_ = greyscale; }
-
   float get_setup_priority() const override;
 
   void dump_config() override;
@@ -26,8 +24,6 @@ class LilygoT547PlusDisplay : public display::DisplayBuffer {
   void setup() override;
   void on_safe_shutdown() override;
 
-  bool get_greyscale() { return this->greyscale_; }
-
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_GRAYSCALE; }
 
  protected:
@@ -38,8 +34,6 @@ class LilygoT547PlusDisplay : public display::DisplayBuffer {
   int get_height_internal() override { return 540; }
 
   size_t get_buffer_length_();
-
-  bool greyscale_{false};
 };
 
 }  // namespace lilygo_t5_47_plus

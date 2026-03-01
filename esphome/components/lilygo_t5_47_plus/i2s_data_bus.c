@@ -187,7 +187,12 @@ void IRAM_ATTR i2s_start_line_output() {
 void IRAM_ATTR i2s_start_line_output() {
   output_done = false;
 
-  esp_lcd_panel_io_tx_color(io_handle, 0, buffer, (960 + 32) / 4);
+  esp_err_t err = esp_lcd_panel_io_tx_color(io_handle, 0, buffer, (960 + 32) / 4);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_lcd_panel_io_tx_color failed: %s", esp_err_to_name(err));
+    // Mark output as done to avoid deadlocks waiting for a callback that will never come
+    output_done = true;
+  }
 }
 #endif
 

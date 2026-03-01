@@ -233,7 +233,7 @@ static int32_t utf8_len(const uint8_t ch) {
     ++len;
   }
   if (len > 4) { /* Malformed leading byte */
-    assert(0 && "invalid unicode.");
+    assert(0 && "invalid unicode");
   }
   return len;
 }

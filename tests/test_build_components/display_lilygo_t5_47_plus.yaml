@@ -35,7 +35,6 @@ time:
 display:
   - platform: lilygo_t5_47_plus
     id: lilygo_display
-    greyscale: true
     update_interval: 5min
     lambda: |-
       // Title

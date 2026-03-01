@@ -60,11 +60,6 @@ void rmt_pulse_init(gpio_num_t pin);
 void pulse_ckv_us(uint16_t high_time_us, uint16_t low_time_us, bool wait);
 
 /**
- * @brief Indicates if the rmt is currently sending a pulse.
- */
-bool IRAM_ATTR rmt_busy();
-
-/**
  * @brief Outputs a single pulse (high -> low) on the configured pin.
  *
  * @note This function will always wait for a previous call to finish.

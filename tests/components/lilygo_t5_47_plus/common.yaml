@@ -1,7 +1,6 @@
 display:
   - platform: lilygo_t5_47_plus
     id: lilygo_display
-    greyscale: true
     update_interval: 60s
 
 sensor:
