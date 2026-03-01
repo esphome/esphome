@@ -76,6 +76,8 @@ inline constexpr uint8_t STATUS_LED_MASK = 0x18;
 inline constexpr uint8_t STATUS_LED_OK = 0x00;
 inline constexpr uint8_t STATUS_LED_WARNING = 0x08;
 inline constexpr uint8_t STATUS_LED_ERROR = 0x10;
+// Component loop override flag uses bit 5 (set at registration time)
+inline constexpr uint8_t COMPONENT_HAS_LOOP = 0x20;
 
 // Remove before 2026.8.0
 enum class RetryResult { DONE, RETRY };
@@ -271,7 +273,7 @@ class Component {
    */
   void status_momentary_error(const char *name, uint32_t length = 5000);
 
-  bool has_overridden_loop() const;
+  bool has_overridden_loop() const { return (this->component_state_ & COMPONENT_HAS_LOOP) != 0; }
 
   /** Set where this component was loaded from for some debug messages.
    *
@@ -510,7 +512,8 @@ class Component {
   /// Bits 0-2: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED, 0x04=LOOP_DONE)
   /// Bit 3: STATUS_LED_WARNING
   /// Bit 4: STATUS_LED_ERROR
-  /// Bits 5-7: Unused - reserved for future expansion
+  /// Bit 5: Has overridden loop() (set at registration time)
+  /// Bits 6-7: Unused - reserved for future expansion
   uint8_t component_state_{0x00};
   volatile bool pending_enable_loop_{false};  ///< ISR-safe flag for enable_loop_soon_any_context
 };

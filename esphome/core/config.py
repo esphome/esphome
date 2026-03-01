@@ -504,6 +504,39 @@ async def _add_controller_registry_define() -> None:
         cg.add_define("CONTROLLER_REGISTRY_MAX", controller_count)
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_looping_components() -> None:
+    # Emit a constexpr that computes the looping component count at C++ compile time
+    # and pre-init the FixedVector with the exact capacity. Uses std::is_same_v to
+    # detect loop() overrides. The constexpr goes in main.cpp's global section where
+    # all component types are in scope. calculate_looping_components_() then skips
+    # the counting pass and only does the two population passes.
+    entries = CORE.data.get("looping_component_entries", [])
+    if not entries:
+        return
+
+    # Build constexpr sum for the exact count
+    terms = [
+        f"(!std::is_same_v<decltype(&{cpp_type}::loop), decltype(&Component::loop)>)"
+        for cpp_type in entries
+    ]
+    constexpr_expr = " + \\\n  ".join(terms)
+    cg.add_global(
+        cg.RawStatement(
+            f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
+            f"  {constexpr_expr};"
+        )
+    )
+
+    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
+    # can skip the counting pass
+    cg.add(
+        cg.RawExpression(
+            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+        )
+    )
+
+
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.global_ns.namespace("esphome").using)
@@ -527,6 +560,7 @@ async def to_code(config: ConfigType) -> None:
 
     CORE.add_job(_add_platform_defines)
     CORE.add_job(_add_controller_registry_define)
+    CORE.add_job(_add_looping_components)
 
     CORE.add_job(_add_automations, config)
 

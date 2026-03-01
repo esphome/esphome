@@ -5,6 +5,7 @@
 #include <limits>
 #include <span>
 #include <string>
+#include <type_traits>
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -671,7 +672,14 @@ class Application {
 #endif
 #endif
 
-  void register_component_(Component *comp);
+  /// Register a component, detecting loop() override at compile time.
+  /// The template resolves &T::loop vs &Component::loop as a constexpr bool
+  /// and forwards it to register_component_impl_ which stores it in component_state_.
+  template<typename T> void register_component_(T *comp) {
+    this->register_component_impl_(comp, !std::is_same_v<decltype(&T::loop), decltype(&Component::loop)>);
+  }
+
+  void register_component_impl_(Component *comp, bool has_loop);
 
   void calculate_looping_components_();
   void add_looping_components_by_state_(bool match_loop_done);
