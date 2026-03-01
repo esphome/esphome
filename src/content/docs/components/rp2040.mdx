@@ -37,7 +37,7 @@ rp2040:
 
 ## Configuration variables
 
-- **board** (*Optional*, string): The board type. Valid option is `rpipicow`.
+- **board** (**Required**, string): The board type. Valid option is `rpipicow`.
 - **watchdog_timeout** (*Optional*, string): The timeout to apply to the RP2040 watchdog (in seconds or milliseconds).
   When the device hangs for that period of time, it will reboot. Defaults to `8388ms` (maximum). Set to `0s` to
   disable the watchdog entirely.

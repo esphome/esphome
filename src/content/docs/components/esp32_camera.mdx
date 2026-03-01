@@ -30,7 +30,7 @@ esp32_camera:
 
 ## Configuration variables
 
-- **name** (**Required**, string): The name of the camera.
+- **name** (*Optional*, string): The name of the camera.
 - **icon** (*Optional*, icon): Manually set the icon to use for the camera in the frontend.
 - **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
   not be exposed to the frontend (like Home Assistant). Only specifying an `id` without
@@ -59,7 +59,7 @@ Connection Options:
   - **frequency** (*Optional*, frequency): The frequency of the external clock, must be between `8MHz`
     and `20MHz`. Defaults to `20MHz`.
 
-- **i2c_id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the [I²C bus](/components/i2c) the camera is connected to.
+- **i2c_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the [I²C bus](/components/i2c) the camera is connected to.
 - **reset_pin** (*Optional*, pin): The ESP pin the reset pin of the camera is connected to.
   If set, this will reset the camera before the ESP boots.
 

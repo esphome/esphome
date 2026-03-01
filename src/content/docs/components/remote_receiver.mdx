@@ -441,7 +441,7 @@ Remote code selection (exactly one of these has to be included):
 - **dyson**: Trigger on a decoded dyson cool AM07 infrared remote code with the given data.
 
   - **code** (**Required**, int): The 16-bit code to trigger on, e.g. 0x1200=power, 0x1215=fan++,0x122a=swing..., see dumper output for more info.
-  - **index** (**Required**, int): The 8-bit rolling index [0..3], to be increased with every transmit, see dumper output for more info.
+  - **index** (*Optional*, int): The 8-bit rolling index [0..3], to be increased with every transmit, see dumper output for more info.
 
 - **gobox**: Trigger on a decoded Go-Box remote code with the given data.
 
@@ -454,7 +454,7 @@ Remote code selection (exactly one of these has to be included):
 - **keeloq**: Trigger on a decoded KeeLoq RF remote code with the given data.
 
   - **address** (**Required**, int): The 32-bit ID code to trigger on, see dumper output for more info.
-  - **command** (**Required**, int): The 8-bit switch/command to listen for. If omitted, will match on any command/button.
+  - **command** (*Optional*, int): The 8-bit switch/command to listen for. If omitted, will match on any command/button.
 
 - **haier**: Trigger on a Haier remote code with the given code.
 
