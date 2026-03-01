@@ -294,7 +294,10 @@ class Component {
   void call_dump_config_();
 
   /// Helper to set component state (clears state bits and sets new state)
-  void set_component_state_(uint8_t state);
+  inline void set_component_state_(uint8_t state) {
+    this->component_state_ &= ~COMPONENT_STATE_MASK;
+    this->component_state_ |= state;
+  }
 
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
