@@ -16,6 +16,12 @@ namespace server {
 class BTHomeLocalBinarySensor : public BTHomeLocalBase {
  public:
   void set_source(binary_sensor::BinarySensor *source) { this->source_ = source; }
+  size_t get_encoded_size() const override {
+    if (!source_->has_state()) {
+      return 0;  // Don't include in frame if state is not valid
+    }
+    return sizeof(BTHomeHeader) + get_bthome_value_length(this->object_type_);
+  }
   bool write(BTHomeEncoder &encoder) const override {
     return encoder.write_bool(this->object_type_, this->source_->state);
   }

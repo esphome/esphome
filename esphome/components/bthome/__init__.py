@@ -379,6 +379,10 @@ async def _server_to_code(config):
 
     await cg.register_component(server_var, {})
 
+    # Register GAP event handler
+    ble_var = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
+    esp32_ble.register_gap_event_handler(ble_var, esp32_ble_adapter)
+
     # Encryption
     has_encryption = False
     if CONF_BINDKEY in config:

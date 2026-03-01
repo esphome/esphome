@@ -21,7 +21,6 @@ void ESP32BLEAdapter::setup(IBLEAdvHandler *adv_handler) {
     this->advertising_ = active;
     adv_handler->on_advertise(active);
   });
-  esp32_ble::global_ble->register_gap_event_handler(this);
 }
 
 void ESP32BLEAdapter::config_adv_data_raw(const uint8_t *data, size_t len) {
