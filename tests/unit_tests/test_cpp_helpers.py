@@ -14,9 +14,13 @@ async def test_gpio_pin_expression__conf_is_none(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_register_component(monkeypatch):
-    var = Mock(base="foo.bar")
+    base_mock = Mock()
+    base_mock.__str__ = lambda self: "foo.bar"
+    base_mock.type = Mock()
+    base_mock.type.__str__ = lambda self: "foo::Bar"
+    var = Mock(base=base_mock)
 
-    app_mock = Mock(register_component=Mock(return_value=var))
+    app_mock = Mock(register_component_=Mock(return_value=var))
     monkeypatch.setattr(ch, "App", app_mock)
 
     core_mock = Mock(component_ids=["foo.bar"])
@@ -29,7 +33,7 @@ async def test_register_component(monkeypatch):
 
     assert actual is var
     assert add_mock.call_count == 2
-    app_mock.register_component.assert_called_with(var)
+    app_mock.register_component_.assert_called_with(var)
     assert core_mock.component_ids == []
 
 
@@ -46,9 +50,13 @@ async def test_register_component__no_component_id(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_register_component__with_setup_priority(monkeypatch):
-    var = Mock(base="foo.bar")
+    base_mock = Mock()
+    base_mock.__str__ = lambda self: "foo.bar"
+    base_mock.type = Mock()
+    base_mock.type.__str__ = lambda self: "foo::Bar"
+    var = Mock(base=base_mock)
 
-    app_mock = Mock(register_component=Mock(return_value=var))
+    app_mock = Mock(register_component_=Mock(return_value=var))
     monkeypatch.setattr(ch, "App", app_mock)
 
     core_mock = Mock(component_ids=["foo.bar"])
@@ -68,5 +76,5 @@ async def test_register_component__with_setup_priority(monkeypatch):
     assert actual is var
     add_mock.assert_called()
     assert add_mock.call_count == 4
-    app_mock.register_component.assert_called_with(var)
+    app_mock.register_component_.assert_called_with(var)
     assert core_mock.component_ids == []

@@ -63,18 +63,22 @@ void SafeModeComponent::dump_config() {
 
 float SafeModeComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
+void SafeModeComponent::mark_successful() {
+  this->clean_rtc();
+  this->boot_successful_ = true;
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+  // Mark OTA partition as valid to prevent rollback
+  esp_ota_mark_app_valid_cancel_rollback();
+#endif
+  // Disable loop since we no longer need to check
+  this->disable_loop();
+}
+
 void SafeModeComponent::loop() {
   if (!this->boot_successful_ && (millis() - this->safe_mode_start_time_) > this->safe_mode_boot_is_good_after_) {
     // successful boot, reset counter
     ESP_LOGI(TAG, "Boot seems successful; resetting boot loop counter");
-    this->clean_rtc();
-    this->boot_successful_ = true;
-#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
-    // Mark OTA partition as valid to prevent rollback
-    esp_ota_mark_app_valid_cancel_rollback();
-#endif
-    // Disable loop since we no longer need to check
-    this->disable_loop();
+    this->mark_successful();
   }
 }
 

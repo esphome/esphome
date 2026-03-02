@@ -1,6 +1,6 @@
 #pragma once
 
-// Fast socket monitoring for ESP32 (ESP-IDF LwIP)
+// Fast socket monitoring for ESP32 and LibreTiny (LwIP >= 2.1.3)
 // Replaces lwip_select() with direct rcvevent reads and FreeRTOS task notifications.
 
 #include <stdbool.h>
@@ -27,6 +27,18 @@ void esphome_lwip_hook_socket(int fd);
 /// Wake the main loop task from another FreeRTOS task — costs <1 us.
 /// NOT ISR-safe — must only be called from task context.
 void esphome_lwip_wake_main_loop(void);
+
+/// Wake the main loop task from an ISR — costs <1 us.
+/// ISR-safe variant using vTaskNotifyGiveFromISR().
+/// @param px_higher_priority_task_woken Set to pdTRUE if a context switch is needed.
+void esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task_woken);
+
+/// Wake the main loop task from any context (ISR, thread, or main loop).
+/// ESP32-only: uses xPortInIsrContext() to detect ISR context.
+/// LibreTiny lacks IRAM_ATTR support needed for ISR-safe paths.
+#ifdef USE_ESP32
+void esphome_lwip_wake_main_loop_any_context(void);
+#endif
 
 #ifdef __cplusplus
 }
