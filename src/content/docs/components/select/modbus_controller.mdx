@@ -9,7 +9,8 @@ registers.
 ## Configuration variables
 
 - **address** (**Required**, int): The start address of the first or only register
-  of the Select (can be decimal or hexadecimal).
+  of the Select (can be decimal or hexadecimal). Note that only Holding registers
+  are supported.
 
 - **optionsmap** (**Required**, Map[str, int]): Provide a mapping from options (str) of
   this Select to values (int) of the modbus register and vice versa. All options and

@@ -92,8 +92,8 @@ on_...:
 
 Configuration options:
 
-- **file** (*Optional*, int, [templatable](/automations/templates)): The global track
-  number (from all tracks in the device). If not specified plays the first track.
+- **file** (**Required**, int, [templatable](/automations/templates)): The global track
+  number (from all tracks in the device).
 
 - **loop** (*Optional*, boolean, [templatable](/automations/templates)): Repeats playing
   the same track. Defaults to `false`.
@@ -229,7 +229,7 @@ on_...:
 
 Configuration options:
 
-- **eq_preset** (**Required**): Eq Preset value. Valid values are `NORMAL`, `POP`, `ROCK`, `JAZZ`,
+- **eq_preset** (**Required**, enum, [templatable](/automations/templates)): Eq Preset value. Valid values are `NORMAL`, `POP`, `ROCK`, `JAZZ`,
   `CLASSIC` and `BASS`.
 
 ## `dfplayer.sleep` Action

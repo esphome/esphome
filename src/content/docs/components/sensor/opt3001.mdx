@@ -33,7 +33,7 @@ sensor:
 
 ## Configuration variables
 
-- **name** (**Required**, string): The name for the sensor.
+- **name** (*Optional*, string): The name for the sensor.
 - **address** (*Optional*, int): Manually specify the I²C address of the sensor.
   Defaults to `0x44` (address if address pin is pulled low). If the address pin is pulled high,
   the address is `0x45`. If the address pin is connected to SDA, the address is `0x46`. If the

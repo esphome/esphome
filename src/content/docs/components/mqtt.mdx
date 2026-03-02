@@ -736,10 +736,10 @@ on_...:
    The MQTT topic to publish the message.
 
 - **payload** (**Required**, [lambda](/automations/templates#config-lambda)): The message content.
-- **qos** (*Optional*, int): The [Quality of Service](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels)
+- **qos** (*Optional*, int, [templatable](/automations/templates)): The [Quality of Service](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels)
    level of the topic. Defaults to 0.
 
-- **retain** (*Optional*, boolean): If the published message should
+- **retain** (*Optional*, boolean, [templatable](/automations/templates)): If the published message should
    have a retain flag on or not. Defaults to `false`.
 
 > [!NOTE]

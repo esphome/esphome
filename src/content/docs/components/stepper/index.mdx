@@ -233,7 +233,7 @@ on_...:
 Configuration variables:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the stepper.
-- **speed** (**Required**, [templatable](/automations/templates), float): The speed
+- **speed** (**Required**, float, [templatable](/automations/templates)): The speed
   in `steps/s` (steps per seconds) to drive the stepper at.
 
 <span id="stepper-set_acceleration_action"></span>
@@ -252,7 +252,7 @@ on_...:
 Configuration variables:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the stepper.
-- **acceleration** (**Required**, [templatable](/automations/templates), float): The acceleration
+- **acceleration** (**Required**, float, [templatable](/automations/templates)): The acceleration
   in `steps/s^2` (steps per seconds squared) to use when starting to move.
 
 <span id="stepper-set_deceleration_action"></span>
@@ -271,7 +271,7 @@ on_...:
 Configuration variables:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the stepper.
-- **deceleration** (**Required**, [templatable](/automations/templates), float): The same as `acceleration`,
+- **deceleration** (**Required**, float, [templatable](/automations/templates)): The same as `acceleration`,
   but for when the motor is decelerating shortly before reaching the set position.
 
 <span id="stepper-ha-config"></span>

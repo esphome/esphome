@@ -35,7 +35,7 @@ sensor:
 
 ## Configuration variables
 
-- **tvoc** (**Required**): The information for the total Volatile Organic Compounds sensor.
+- **tvoc** (*Optional*): The information for the total Volatile Organic Compounds sensor.
   All options from [Sensor](/components/sensor).
 
 - **address** (*Optional*, int): Manually specify the I²C address of
@@ -109,7 +109,7 @@ on_...:
 Configuration options:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the AGS10 sensor.
-- **address** (**Required**, int): New I2C address.
+- **address** (**Required**, int, [templatable](/automations/templates)): New I2C address.
 
 ## See Also
 

@@ -202,7 +202,7 @@ on_...:
 
 #### Configuration variables
 
-- **action** (**Required**, string): The Home Assistant [Action](https://www.home-assistant.io/docs/scripts/service-calls/)
+- **action** (**Required**, string, [templatable](/automations/templates)): The Home Assistant [Action](https://www.home-assistant.io/docs/scripts/service-calls/)
   to perform.
 
 - **data** (*Optional*, mapping): Optional *static* data to perform the action with.
@@ -215,7 +215,7 @@ on_...:
 - **capture_response** (*Optional*, boolean): Enable capturing the response from the Home Assistant action call.
   When enabled, `on_success` must be configured. Defaults to `false`.
 
-- **response_template** (*Optional*, [templatable](/automations/templates), string): Optional Jinja template to process
+- **response_template** (*Optional*, string, [templatable](/automations/templates)): Optional Jinja template to process
   the action response data. This template is evaluated on the Home Assistant side with Home Assistant's templating engine.
   Requires `capture_response: true`.
 
@@ -347,7 +347,7 @@ on_...:
 
 #### Configuration variables
 
-- **tag** (**Required**, [templatable](/automations/templates), string): The id of the scanned tag
+- **tag** (**Required**, string, [templatable](/automations/templates)): The id of the scanned tag
 
 ## Triggers
 
@@ -397,7 +397,7 @@ This [Condition](/automations/actions#all-conditions) checks if at least one cli
 
 #### Configuration variables
 
-- **state_subscription_only** (*Optional*, boolean): If enabled, only counts clients that have subscribed to entity state updates. This filters out logger-only connections (such as `esphome logs` command), which can cause false positives when waiting for Home Assistant. Defaults to `false`.
+- **state_subscription_only** (*Optional*, boolean, [templatable](/automations/templates)): If enabled, only counts clients that have subscribed to entity state updates. This filters out logger-only connections (such as `esphome logs` command), which can cause false positives when waiting for Home Assistant. Defaults to `false`.
 
 **Check if any client is connected:**
 

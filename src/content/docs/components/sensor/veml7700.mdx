@@ -122,22 +122,22 @@ sensor:
 
 ## Configuration variables
 
-- **auto_mode** (_Optional_, boolean): Automatic gain and integration time selection. Defaults to `True`.
-- **integration_time** (_Optional_, [Time](/guides/configuration-types#time)):
+- **auto_mode** (*Optional*, boolean): Automatic gain and integration time selection. Defaults to `True`.
+- **integration_time** (*Optional*, [Time](/guides/configuration-types#time)):
   The amount of time the sensor is exposed. Valid values are `25ms`, `50ms`, `100ms` _(default)_,
   `200ms`, `400ms`, `800ms`. _In automatic mode it sets starting value_.
 
-- **gain** (_Optional_, string): The gain the device will use for the internal ADC. Valid values are
+- **gain** (*Optional*, string): The gain the device will use for the internal ADC. Valid values are
   `1/8x` _(default)_, `1/4x`, `1x`, `2x`. Higher values are better in low-light conditions.
   _In automatic mode it sets starting gain value_.
 
-- **lux_compensation** (_Optional_, boolean): Lux compensation formula is used as per manufacturer.
+- **lux_compensation** (*Optional*, boolean): Lux compensation formula is used as per manufacturer.
   Defaults to `True`.
 
-- **glass_attenuation_factor** (_Optional_): The attenuation factor of glass if it's behind some glass
+- **glass_attenuation_factor** (*Optional*): The attenuation factor of glass if it's behind some glass
   or plastic facia. Default is `1.0` means `100%` transmissivity. `2` means `50%` transmissivity etc.
 
-- **update_interval** (_Optional_, [Time](/guides/configuration-types#time)): The interval for checking the sensors.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval for checking the sensors.
   Defaults to `60s`.
 
 - All other options for I²C devices described at [I²C Bus](/components/i2c).
@@ -151,13 +151,13 @@ All options from [Sensor](/components/sensor) are supported.
 
 However, if you don't need any other options, you can just use shorthands like this: `ambient_light: Ambient light`.
 
-- **ambient_light** (_Optional_): Illuminance for visible light (_ALS channel_), lx.
-- **full_spectrum** (_Optional_): Illuminance for the full spectrum sensor (_WHITE channel_), lx.
-- **infrared** (_Optional_): Calculated illuminance for the Near-IR spectrum (_WHITE_ minus _ALS_), lx.
-- **ambient_light_counts** (_Optional_): The reading for visible light (_ALS channel_), counts.
-- **full_spectrum_counts** (_Optional_): The reading for the full spectrum sensor (_WHITE channel_), counts.
-- **actual_gain** (_Optional_): The value of gain used for reported values. Particularly useful when "auto_mode" is selected.
-- **actual_integration_time** (_Optional_): Integration time used for reported values, ms. Particularly useful when "auto_mode" is selected.
+- **ambient_light** (*Optional*): Illuminance for visible light (_ALS channel_), lx.
+- **full_spectrum** (*Optional*): Illuminance for the full spectrum sensor (_WHITE channel_), lx.
+- **infrared** (*Optional*): Calculated illuminance for the Near-IR spectrum (_WHITE_ minus _ALS_), lx.
+- **ambient_light_counts** (*Optional*): The reading for visible light (_ALS channel_), counts.
+- **full_spectrum_counts** (*Optional*): The reading for the full spectrum sensor (_WHITE channel_), counts.
+- **actual_gain** (*Optional*): The value of gain used for reported values. Particularly useful when "auto_mode" is selected.
+- **actual_integration_time** (*Optional*): Integration time used for reported values, ms. Particularly useful when "auto_mode" is selected.
 
 ## See Also
 

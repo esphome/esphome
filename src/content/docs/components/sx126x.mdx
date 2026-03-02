@@ -45,7 +45,7 @@ sx126x:
 
 - **busy_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Busy pin.
 - **cs_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): SPI chip select pin.
-- **dio1_pin** (**Optional**, [Pin Schema](/guides/configuration-types#pin-schema)): Digital IO pin 1.
+- **dio1_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Digital IO pin 1.
 - **rst_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): Reset pin.
 - **frequency** (**Required**, frequency): Frequency in Hz of the transceiver.
 - **hw_version** (**Required**, enum): Valid values are `sx1261`, `sx1262`, `sx1268` or `llcc68`.
@@ -198,7 +198,7 @@ on_...:
 
 #### Configuration variables
 
-- **data** (**Required**, list): The packet to send, length should match the configured
+- **data** (**Required**, list, [templatable](/automations/templates)): The packet to send, length should match the configured
   payload_length.
 
 ## LoRa

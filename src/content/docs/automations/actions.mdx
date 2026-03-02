@@ -261,7 +261,7 @@ on_...:
 
 #### Configuration variables
 
-- **count** (**Required**, int): The number of times the action should be repeated. The counter is available to
+- **count** (**Required**, int, [templatable](/automations/templates)): The number of times the action should be repeated. The counter is available to
   lambdas using the implicit script parameter `iteration`.
 
 - **then** (**Required**, [Action](#all-actions)): The action to repeat.
@@ -298,7 +298,7 @@ on_...:
 #### Configuration variables
 
 - **condition** (**Required**, [Condition](#all-conditions)): The condition to wait to become true.
-- **timeout** (*Optional*, [Time](/guides/configuration-types#time)): Time to wait before timing out. Defaults to never timing out.
+- **timeout** (*Optional*, [Time](/guides/configuration-types#time), [templatable](/automations/templates)): Time to wait before timing out. Defaults to never timing out.
 
 <span id="while_action"></span>
 

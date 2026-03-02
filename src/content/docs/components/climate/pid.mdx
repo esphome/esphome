@@ -375,11 +375,11 @@ on_...:
 Configuration variables:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): ID of the PID Climate to start autotuning for.
-- **kp** (**Required**, float): The factor for the proportional term of the PID controller.
-- **ki** (*Optional*, float): The factor for the integral term of the PID controller.
+- **kp** (**Required**, float, [templatable](/automations/templates)): The factor for the proportional term of the PID controller.
+- **ki** (*Optional*, float, [templatable](/automations/templates)): The factor for the integral term of the PID controller.
   Defaults to `0`.
 
-- **kd** (*Optional*, float): The factor for the derivative term of the PID controller.
+- **kd** (*Optional*, float, [templatable](/automations/templates)): The factor for the derivative term of the PID controller.
   Defaults to `0`.
 
 ## `climate.pid.reset_integral_term` Action

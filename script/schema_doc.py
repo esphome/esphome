@@ -227,7 +227,7 @@ def md_get_next_title(md_file, lines, index):
         if is_configuration_variables_title_alike(line):
             if line.startswith("#"):
                 see_also.set_title_slug(line)
-            elif args.debug_level > 3:
+            elif args.debug_level > 6:
                 print(
                     f"{md_file}:{index + 1} {DOC_CONFIGURATION_VARIABLES} title is not # marked. Cannot generate slug link"
                 )
@@ -412,9 +412,11 @@ def convert_links(md_file, index, docs):
     return re.sub(REGEX_LOCAL_LINK, replacer_local, docs)
 
 
-def set_schema_doc(md_file, index, schema, prop_name, prop_types, doc):
-    TYPE_TEMPLATABLE = "[templatable](#config-templatable)"
+def is_templatable_type(type_part):
+    return re.search(r"\[templatable\]", type_part) is not None
 
+
+def set_schema_doc(md_file, index, schema, prop_name, prop_types, doc):
     matched_config = find_schema_prop(schema, prop_name)
     if matched_config:
         converted_doc = make_doc_with_see_also(md_file, index, doc)
@@ -425,6 +427,7 @@ def set_schema_doc(md_file, index, schema, prop_name, prop_types, doc):
             config_optionality = matched_config.get(JSON_KEY, "")
             if (
                 prop_name != "id"
+                and config_optionality != "GeneratedID"
                 and optionality != config_optionality.lower()
                 and args.debug_level > 3
             ):
@@ -432,7 +435,7 @@ def set_schema_doc(md_file, index, schema, prop_name, prop_types, doc):
                     f"{md_file}:{index} {prop_name} Key {config_optionality} in ESPHome does not match {optionality} in docs"
                 )
 
-            templatable = TYPE_TEMPLATABLE in type_parts[1:]
+            templatable = any(is_templatable_type(p) for p in type_parts[1:])
             config_templatable = matched_config.get(JSON_TEMPLATABLE, False)
             if templatable != config_templatable and args.debug_level > 3:
                 print(
@@ -440,7 +443,7 @@ def set_schema_doc(md_file, index, schema, prop_name, prop_types, doc):
                 )
 
             # Document with type information, unless the type just says templatable
-            if len(type_parts) > 1 and type_parts[1] != TYPE_TEMPLATABLE:
+            if len(type_parts) > 1 and not is_templatable_type(type_parts[1]):
                 prop_type = convert_links(md_file, index, type_parts[1])
                 matched_config[JSON_DOCS] = f"**{prop_type}**: {converted_doc}"
                 stats.props += 1
@@ -531,7 +534,7 @@ def process_schema(
                 next_index = md_skip_level(lines, index)
                 continue
             if matched_config.get(JSON_CV_TYPE, []) not in ["enum", "schema"]:
-                if args.debug_level > 2:
+                if args.debug_level > 6:
                     print(
                         f"{md_file}:{index} {lines[index]} : an indentation increase for a {matched_config.get(JSON_CV_TYPE, 'unknown')}"
                     )
@@ -830,10 +833,6 @@ if __name__ == "__main__":
                     )
                 elif len(parts) == 3:
                     # platform.component.action
-                    if parts[1] not in core["components"]:
-                        print(
-                            f"{md_file}:{index} Found {config_type} {title} with invalid name format"
-                        )
                     title_config_vars = (
                         (json_get(parts[1]) or {})
                         .get(f"{parts[1]}.{parts[0]}", {})

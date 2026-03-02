@@ -60,7 +60,7 @@ sx127x:
   be used. Maximum length is 256. Must be greater than zero when using a `spreading_factor` of 6.
 
 - **crc_enable** (**Optional**, bool): Enables a payload CRC calculation/check.
-- **preamble_size** (**Required**, int): Length of the preamble in symbols, minimum of 6.
+- **preamble_size** (*Optional*, int): Length of the preamble in symbols, minimum of 6.
 - **spreading_factor** (**Optional**, int): Spreading factor, values range from 6 to 12. Defaults to 7.
 - **coding_rate** (**Optional**, enum): Coding rate, values can be `CR_4_5`, `CR_4_6`, `CR_4_7`
   or `CR_4_8`. Defaults to `CR_4_5`.
@@ -76,7 +76,7 @@ sx127x:
   `31_3kHz`, `41_7kHz`, `50_0kHz`, `62_5kHz`, `83_3kHz`, `100_0kHz`, `125_0kHz`,
   `166_7kHz`, `200_0kHz` or `250_0kHz`.
 
-- **packet_mode** (**Required**, bool): In packet mode bytes are sent via the `send_packet`
+- **packet_mode** (*Optional*, bool): In packet mode bytes are sent via the `send_packet`
   automation and received with the `on_packet` trigger. If not enabled continuous mode is
   used and raw data is sent and received on DIO2.
 
@@ -87,7 +87,7 @@ sx127x:
 - **bitrate** (**Optional**, int): Bit rate of the signal. Required in packet mode and recommended
   in continuous mode. Normally the inverse of the bit duration, eg 1 / 208 us is 4800 bps.
 
-- **bitsync** (**Required**, bool): Enables the receive bit synchronizer. Required in packet mode.
+- **bitsync** (*Optional*, bool): Enables the receive bit synchronizer. Required in packet mode.
   Recommended in continuous mode, however if there is no preamble plus high noise it may be better to
   turn it off.
 
@@ -199,7 +199,7 @@ on_...:
 
 ### Configuration variables
 
-- **data** (**Required**, list): The packet to send, length should match the configured
+- **data** (**Required**, list, [templatable](/automations/templates)): The packet to send, length should match the configured
   payload_length.
 
 ## LoRa

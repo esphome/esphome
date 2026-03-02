@@ -74,17 +74,17 @@ If you do specify them they will override any default.
   - `Waveshare 1.47in 172X320` (round-rectangular display -- some pixels are "deleted" from corners to form rounded shape)
   - `Custom` For other displays not listed above
 
-- **height** (**Required**, int): Sets height of display in pixels. Defaults depends `model`.
-- **width** (**Required**, int): Sets width of display. Defaults depends `model`.
-- **offset_height** (**Required**, int): When `model` is set to "Custom", use this to specify the display's vertical
-  offset in pixels. This option may not be specified when the `model` is not set to "Custom". Defaults depends `model`.
+- **height** (*Optional*, int): Sets height of display in pixels. Default depends on `model`.
+- **width** (*Optional*, int): Sets width of display. Default depends on `model`.
+- **offset_height** (*Optional*, int): When `model` is set to "Custom", use this to specify the display's vertical
+  offset in pixels. This option may not be specified when the `model` is not set to "Custom". Default depends on `model`.
 
-- **offset_width** (**Required**, int): When `model` is set to "Custom", use this to specify the display's horizontal
-  offset in pixels. This option may not be specified when the `model` is not set to "Custom". Defaults depends `model`.
+- **offset_width** (*Optional*, int): When `model` is set to "Custom", use this to specify the display's horizontal
+  offset in pixels. This option may not be specified when the `model` is not set to "Custom". Default depends on `model`.
 
-- **cs_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The CS pin. Defaults depends `model`.
-- **dc_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The DC pin. Defaults depends `model`.
-- **reset_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The RESET pin. Defaults depends `model`.
+- **cs_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The CS pin. Default depends on `model`.
+- **dc_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The DC pin. Default depends on `model`.
+- **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The RESET pin. Default depends on `model`.
 - **eightbitcolor** (*Optional*, boolean): Limits the supported color depth to eight bits. May be useful on
   memory-constrained devices. Defaults to `false`.
 

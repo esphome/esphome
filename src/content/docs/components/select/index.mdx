@@ -99,7 +99,7 @@ Configuration variables:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the select to test.
 - **options** (*Optional*, list): A string, or list of strings to compare with the current selection. The condition is true if any match.
-- **lambda** (*Optional*, [templatable](/automations/templates)): A lambda returning a boolean value. The current selection is passed in a `StringRef` argument called `current`.
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): A lambda returning a boolean value. The current selection is passed in a `StringRef` argument called `current`.
 
 Only one of `options` and `lambda` must be provided.
 

@@ -139,18 +139,18 @@ on_...:
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the sensor on which settings should be
   changed. If only one radar is defined, this is optional.
 
-- **hw_frontend_reset** (*Optional*, boolean): If set to true, a reset of the analog frontend will be performed before
+- **hw_frontend_reset** (*Optional*, boolean, [templatable](/automations/templates)): If set to true, a reset of the analog frontend will be performed before
   changing other options. Ignored if not set or set to `false`. Upon applying the settings a frontend reset
   will be performed anyway, this is only useful if the sensor is not answering or locked up.
 
-- **frequency** (*Optional*, enum): Any of the possible frequencies (5696, 5715, 5730, 5748, 5765, 5784, 5800, 5819, 5836, 5851, 5869, 5888) in MHz. Defaults to `5800MHz`.
-- **sensing_distance** (*Optional*, int): A unitless number, in range 0-1023, specifying the maximum distance to detect motion
-- **poweron_selfcheck_time** (*Optional*, int): The delay to perform self check and calibration on power on. Recommended not to change this
-- **protect_time** (*Optional*, int): The delay after an end-of-trigger event where the detection will not trigger anymore. Max 65535ms
-- **trigger_base** (*Optional*, int): The delay while a detection must be active to change the state of the sensor. Max 65535ms
-- **trigger_keep** (*Optional*, int): The delay that the output will stay high after a detection event. This is usually what you want to change.
-- **stage_gain** (*Optional*, int): The analog gain to use for threshold test. Any value in range 0-12, with 12 being the lowest gain and 0 the highest
-- **power_consumption** (*Optional*, int): Any of the possible power profile (48, 56, 63, 70, 77, 91, 105, 115, 40, 44, 47, 51, 54, 61, 68, 78) in µA
+- **frequency** (*Optional*, enum, [templatable](/automations/templates)): Any of the possible frequencies (5696, 5715, 5730, 5748, 5765, 5784, 5800, 5819, 5836, 5851, 5869, 5888) in MHz. Defaults to `5800MHz`.
+- **sensing_distance** (*Optional*, int, [templatable](/automations/templates)): A unitless number, in range 0-1023, specifying the maximum distance to detect motion
+- **poweron_selfcheck_time** (*Optional*, int, [templatable](/automations/templates)): The delay to perform self check and calibration on power on. Recommended not to change this
+- **protect_time** (*Optional*, int, [templatable](/automations/templates)): The delay after an end-of-trigger event where the detection will not trigger anymore. Max 65535ms
+- **trigger_base** (*Optional*, int, [templatable](/automations/templates)): The delay while a detection must be active to change the state of the sensor. Max 65535ms
+- **trigger_keep** (*Optional*, int, [templatable](/automations/templates)): The delay that the output will stay high after a detection event. This is usually what you want to change.
+- **stage_gain** (*Optional*, int, [templatable](/automations/templates)): The analog gain to use for threshold test. Any value in range 0-12, with 12 being the lowest gain and 0 the highest
+- **power_consumption** (*Optional*, int, [templatable](/automations/templates)): Any of the possible power profile (48, 56, 63, 70, 77, 91, 105, 115, 40, 44, 47, 51, 54, 61, 68, 78) in µA
 
 ### `at581x.reset` Action
 

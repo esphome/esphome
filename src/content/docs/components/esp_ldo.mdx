@@ -50,12 +50,12 @@ on_...:
 
 ### Configuration variables
 
-- **id** (**Required**, [ID](/guides/configuration-types#config-id)): The ID of the LDO to adjust.
-- **voltage** (**Required**, voltage): The desired output voltage. Must be in the range ``0.5V`` to ``2.7V``.
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the LDO to adjust.
+- **voltage** (**Required**, voltage, [templatable](/automations/templates)): The desired output voltage. Must be in the range ``0.5V`` to ``2.7V``.
 
 ## Notes
 
-- The LDO output voltage may deviate by approximately 50–100 mV from the configured value.
+- The LDO output voltage may deviate by approximately 50-100 mV from the configured value.
 - Channels 1 and 2 are connected to the chip's internal flash and PSRAM power domains on most ESP32-P4 modules.
   Only use these channels if your specific board schematic confirms they are routed to an external pad and are
   not powering internal components.

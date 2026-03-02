@@ -30,7 +30,7 @@ remote_transmitter:
 ## Configuration variables
 
 - **pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin to transmit the remote signal on.
-- **carrier_duty_percent** (*Optional*, int): How much of the time the remote is on. For example, infrared protocols
+- **carrier_duty_percent** (**Required**, int): How much of the time the remote is on. For example, infrared protocols
   modulate the signal using a carrier signal. Set this to `50%` if you're using IR LEDs and `100%` for RF
   applications like 433 MHz transmitters.
 
@@ -109,8 +109,8 @@ on_...:
 - **repeat** (*Optional*): Defines the number of times the code is repeated when transmitted. By default, codes are
   sent only once.
 
-  - **times** ([templatable](/automations/templates), int): The number of times to repeat the code.
-  - **wait_time** ([templatable](/automations/templates), [Time](/guides/configuration-types#time)): The time to wait between repeats (in
+  - **times** (int, [templatable](/automations/templates)): The number of times to repeat the code.
+  - **wait_time** ([Time](/guides/configuration-types#time), [templatable](/automations/templates)): The time to wait between repeats (in
     µs as a result of a [lambda](/automations/templates#config-lambda)).
 
 - **transmitter_id** (*Optional*, [ID](/guides/configuration-types#id)): The remote transmitter to send the remote code with. Defaults to
@@ -140,30 +140,30 @@ on_...:
 
 #### Configuration variables
 
-- **source_address** (**Required**, int): The source address to send the command from,
+- **source_address** (**Required**, int, [templatable](/automations/templates)): The source address to send the command from,
   see received messages for more info. For indoor stations the last byte of the address
   represents the apartment number set by the dials on the back of the indoor station and is
   transmitted in hexadecimal format.
 
-- **destination_address** (**Required**, int): The destination address to send the command to,
+- **destination_address** (**Required**, int, [templatable](/automations/templates)): The destination address to send the command to,
   see received messages for more info.
 
-- **three_byte_address** (*Optional*, boolean): The length of the source and destination address. `false`
+- **three_byte_address** (*Optional*, boolean, [templatable](/automations/templates)): The length of the source and destination address. `false`
   means two bytes and `true` means three bytes. Please check the received messages to see which address length
   is used by your system. For example, `[XXXX > XXXX]` appears in the receiver log for two byte addresses and
   `[XXXXXX > XXXXXX]` for three byte addresses. Defaults to `false`.
 
-- **retransmission** (*Optional*, boolean): Should only be `true` if this message has been transmitted
+- **retransmission** (*Optional*, boolean, [templatable](/automations/templates)): Should only be `true` if this message has been transmitted
   before with the same `message_id`. Typically, messages are transmitted up to three times with a 1 second
   interval if no reply is received. Defaults to `false`.
 
-- **message_type** (**Required**, int): The message type, see dumper output for more info.
+- **message_type** (**Required**, int, [templatable](/automations/templates)): The message type, see dumper output for more info.
   The highest bit indicates a reply.
 
-- **message_id** (*Optional*, int): The message ID, see dumper output for more info.
+- **message_id** (*Optional*, int, [templatable](/automations/templates)): The message ID, see dumper output for more info.
   Defaults to a randomly generated ID if this message is not a reply or retransmission.
 
-- **data** (*Optional*, 0-7 bytes list): The code to send.
+- **data** (*Optional*, 0-7 bytes list, [templatable](/automations/templates)): The code to send.
   Usually you only need to copy this directly from the dumper output. Defaults to `[]`
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -188,9 +188,9 @@ on_...:
 
 #### Configuration variables
 
-- **address** (**Required**, int): The address to send the command to, see dumper output for more details.
-- **data** (**Required**, list): The command to send, A length of 2-35 bytes can be specified for one packet.
-- **carrier_frequency** (*Optional*, float): Set a frequency to send the signal
+- **address** (**Required**, int, [templatable](/automations/templates)): The address to send the command to, see dumper output for more details.
+- **data** (**Required**, list, [templatable](/automations/templates)): The command to send; a length of 2-35 bytes can be specified for one packet.
+- **carrier_frequency** (*Optional*, float, [templatable](/automations/templates)): Set a frequency to send the signal
   with for infrared signals. Defaults to `38000Hz`.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -213,8 +213,8 @@ on_...:
 
 #### Configuration variables
 
-- **source** (**Required**, int): The 8-bit source to send, e.g. 0x00=video,0x01=audio,..., see dumper output for more info.
-- **command** (**Required**, int): The command to send, e.g. 0x01=num1, 0x0d=mute,..., see dumper output for more info.
+- **source** (**Required**, int, [templatable](/automations/templates)): The 8-bit source to send, e.g. 0x00=video,0x01=audio,..., see dumper output for more info.
+- **command** (**Required**, int, [templatable](/automations/templates)): The command to send, e.g. 0x01=num1, 0x0d=mute,..., see dumper output for more info.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_byronsx"></span>
@@ -232,8 +232,8 @@ on_...:
 
 #### Configuration variables
 
-- **address** (**Required**, int): The 8-bit ID to send, see dumper output for more info.
-- **command** (**Required**, int): The command to send, see dumper output for more info.
+- **address** (**Required**, int, [templatable](/automations/templates)): The 8-bit ID to send, see dumper output for more info.
+- **command** (*Optional*, int, [templatable](/automations/templates)): The command to send, see dumper output for more info. Defaults to `0x10`.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_canalsat"></span>
@@ -256,11 +256,11 @@ on_...:
 
 #### Configuration variables
 
-- **device** (**Required**, int): The device to send to, see dumper output for more details.
-- **address** (*Optional*, int): The address (or sub-device) to send to, see dumper output for more details.
+- **device** (**Required**, int, [templatable](/automations/templates)): The device to send to, see dumper output for more details.
+- **address** (*Optional*, int, [templatable](/automations/templates)): The address (or sub-device) to send to, see dumper output for more details.
   Defaults to `0`.
 
-- **command** (**Required**, int): The command to send.
+- **command** (**Required**, int, [templatable](/automations/templates)): The command to send.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_canalsatld"></span>
@@ -283,11 +283,11 @@ on_...:
 
 #### Configuration variables
 
-- **device** (**Required**, int): The device to send to, see dumper output for more details.
-- **address** (*Optional*, int): The address (or sub-device) to send to, see dumper output for more details.
+- **device** (**Required**, int, [templatable](/automations/templates)): The device to send to, see dumper output for more details.
+- **address** (*Optional*, int, [templatable](/automations/templates)): The address (or sub-device) to send to, see dumper output for more details.
   Defaults to `0`.
 
-- **command** (**Required**, int): The command to send.
+- **command** (**Required**, int, [templatable](/automations/templates)): The command to send.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_coolix"></span>
@@ -305,10 +305,10 @@ on_...:
 
 #### Configuration variables
 
-- **first** (**Required**, [templatable](/automations/templates), uint32_t): The first 24-bit Coolix code to send;
+- **first** (**Required**, uint32_t, [templatable](/automations/templates)): The first 24-bit Coolix code to send;
   see dumper output for more info.
 
-- **second** (*Optional*, [templatable](/automations/templates), uint32_t): The second 24-bit Coolix code to send;
+- **second** (*Optional*, uint32_t, [templatable](/automations/templates)): The second 24-bit Coolix code to send;
   see dumper output for more info.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -328,8 +328,8 @@ on_...:
 
 #### Configuration variables
 
-- **address** (*Optional*, int): The number of the receiver to target, between 1 and 16 inclusive. Defaults to `1`.
-- **command** (**Required**, int): The command to send, between 0 and 63 inclusive.
+- **address** (*Optional*, int, [templatable](/automations/templates)): The number of the receiver to target, between 1 and 16 inclusive. Defaults to `1`.
+- **command** (**Required**, int, [templatable](/automations/templates)): The command to send, between 0 and 63 inclusive.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 You can find a list of commands in the
@@ -352,10 +352,10 @@ on_...:
 
 #### Configuration variables
 
-- **id** (**Required**, int): The 24-bit ID to send. Each remote has a unique one.
-- **channel** (**Required**, int): The 8-bit channel to send, between 0 and 255 inclusive.
-- **button** (**Required**, int): The 4-bit button to send, between 0 and 15 inclusive.
-- **check** (**Required**, int): The 4-bit check to send. Includes an indication that a button is being held down.
+- **id** (**Required**, int, [templatable](/automations/templates)): The 24-bit ID to send. Each remote has a unique one.
+- **channel** (**Required**, int, [templatable](/automations/templates)): The 8-bit channel to send, between 0 and 255 inclusive.
+- **button** (**Required**, int, [templatable](/automations/templates)): The 4-bit button to send, between 0 and 15 inclusive.
+- **check** (**Required**, int, [templatable](/automations/templates)): The 4-bit check to send. Includes an indication that a button is being held down.
   See dumper output for more info.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -376,9 +376,9 @@ on_...:
 
 #### Configuration variables
 
-- **address** (**Required**, int): The 16-bit ID to send, see dumper output for more info.
-- **channel** (**Required**, int): The switch/channel to send, between 0 and 127 inclusive.
-- **command** (**Required**, int): The command to send, between 0 and 63 inclusive.
+- **address** (**Required**, int, [templatable](/automations/templates)): The 16-bit ID to send, see dumper output for more info.
+- **channel** (**Required**, int, [templatable](/automations/templates)): The switch/channel to send, between 0 and 127 inclusive.
+- **command** (**Required**, int, [templatable](/automations/templates)): The command to send, between 0 and 63 inclusive.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_dyson"></span>
@@ -399,9 +399,9 @@ on_...:
 
 #### Configuration variables
 
-- **code** (**Required**, int): The 16-bit code to trigger on, e.g. 0x1200=power, 0x1215=fan++,
+- **code** (**Required**, int, [templatable](/automations/templates)): The 16-bit code to trigger on, e.g. 0x1200=power, 0x1215=fan++,
   0x122a=swing..., see dumper output for more info.
-- **index** (**Required**, int): The 8-bit rolling index (range=0..3).
+- **index** (*Optional*, int, [templatable](/automations/templates)): The 8-bit rolling index. Defaults to `0xFF`.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 > [!NOTE]
@@ -423,7 +423,7 @@ on_...:
 
 #### Configuration variables
 
-- **code** (**Required**, int): The command to send. Known commands are:
+- **code** (**Required**, int, [templatable](/automations/templates)): The command to send. Known commands are:
   - MENU = 0xaa55,
   - RETURN = 0x22dd,
   - UP = 0x0af5,
@@ -454,7 +454,7 @@ on_...:
 
 #### Configuration variables
 
-- **data** (**Required**, int): The JVC code to send, see dumper output for more info.
+- **data** (**Required**, int, [templatable](/automations/templates)): The JVC code to send, see dumper output for more info.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_keeloq"></span>
@@ -476,10 +476,10 @@ on_...:
 
 #### Configuration variables
 
-- **address** (**Required**, int): The 32-bit address to send, see dumper output for more info.
-- **command** (**Required**, int): The 4 bit command/button code to send, see dumper output for more info.
-- **code** (*Optional*, int): The 32 bit encrypted field to send. Defaults to all zeros.
-- **level** (*Optional*, boolean): Low battery level status bit. Defaults to false.
+- **address** (**Required**, int, [templatable](/automations/templates)): The 32-bit address to send, see dumper output for more info.
+- **command** (*Optional*, int, [templatable](/automations/templates)): The 4-bit command/button code to send, see dumper output for more info. Defaults to `0x10`.
+- **code** (**Required**, int, [templatable](/automations/templates)): The 32-bit encrypted field to send.
+- **level** (*Optional*, boolean, [templatable](/automations/templates)): Low battery level status bit. Defaults to false.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 - A repeat **wait_time** of 15ms as shown replicates the repetition of an HCS301.
 
@@ -498,7 +498,7 @@ on_...:
 
 #### Configuration variables
 
-- **code** (**Required**, list): The 13 byte Haier code to send.
+- **code** (**Required**, list, [templatable](/automations/templates)): The 13 byte Haier code to send.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_lg"></span>
@@ -516,8 +516,8 @@ on_...:
 
 #### Configuration variables
 
-- **data** (**Required**, int): The LG code to send, see dumper output for more info.
-- **nbits** (*Optional*, int): The number of bits to send. Defaults to `28`.
+- **data** (**Required**, int, [templatable](/automations/templates)): The LG code to send, see dumper output for more info.
+- **nbits** (*Optional*, int, [templatable](/automations/templates)): The number of bits to send. Defaults to `28`.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_magiquest"></span>
@@ -535,8 +535,8 @@ on_...:
 
 #### Configuration variables
 
-- **wand_id** (**Required**, int): The wand ID to send, as a hex integer. See the dumper output for your wand ID.
-- **magnitude** (*Optional*, int): The magnitude of swishes and swirls the wand should transmit. See the dumper output
+- **wand_id** (**Required**, int, [templatable](/automations/templates)): The wand ID to send, as a hex integer. See the dumper output for your wand ID.
+- **magnitude** (*Optional*, int, [templatable](/automations/templates)): The magnitude of swishes and swirls the wand should transmit. See the dumper output
   for examples. If omitted, sends 0xFFFF (which the real wand never uses).
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -589,9 +589,9 @@ on_...:
 
 #### Configuration variables
 
-- **address** (**Required**, int): The 16-bit address to send, see dumper output for more details.
-- **command** (**Required**, int): The 16-bit NEC command to send.
-- **command_repeats** (*Optional*, int): The number of times the command bytes are sent in one transmission.
+- **address** (**Required**, int, [templatable](/automations/templates)): The 16-bit address to send, see dumper output for more details.
+- **command** (**Required**, int, [templatable](/automations/templates)): The 16-bit NEC command to send.
+- **command_repeats** (*Optional*, int, [templatable](/automations/templates)): The number of times the command bytes are sent in one transmission.
   Defaults to `1`.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -612,13 +612,13 @@ on_...:
 
 #### Configuration variables
 
-- **device** (**Required**, int): The Nexa device code to send, see dumper output for more info.
-- **state** (**Required**, int): The Nexa state code to send (0-OFF, 1-ON, 2-DIMMER LEVEL), see dumper output for more
+- **device** (**Required**, int, [templatable](/automations/templates)): The Nexa device code to send, see dumper output for more info.
+- **state** (**Required**, int, [templatable](/automations/templates)): The Nexa state code to send (0-OFF, 1-ON, 2-DIMMER LEVEL), see dumper output for more
   info.
 
-- **group** (**Required**, int): The Nexa group code to send, see dumper output for more info.
-- **channel** (**Required**, int): The Nexa channel code to send, see dumper output for more info.
-- **level** (**Required**, int): The Nexa level code to send, see dumper output for more info.
+- **group** (**Required**, int, [templatable](/automations/templates)): The Nexa group code to send, see dumper output for more info.
+- **channel** (**Required**, int, [templatable](/automations/templates)): The Nexa channel code to send, see dumper output for more info.
+- **level** (**Required**, int, [templatable](/automations/templates)): The Nexa level code to send, see dumper output for more info.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_panasonic"></span>
@@ -636,8 +636,8 @@ on_...:
 
 #### Configuration variables
 
-- **address** (**Required**, int): The address to send the command to, see dumper output for more details.
-- **command** (**Required**, int): The command to send.
+- **address** (**Required**, int, [templatable](/automations/templates)): The address to send the command to, see dumper output for more details.
+- **command** (**Required**, int, [templatable](/automations/templates)): The command to send.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_pioneer"></span>
@@ -657,8 +657,8 @@ on_...:
 
 #### Configuration variables
 
-- **rc_code_1** (**Required**, int): The remote control code to send, see dumper output for more details.
-- **rc_code_2** (*Optional*, int): The secondary remote control code to send; some codes are sent in
+- **rc_code_1** (**Required**, int, [templatable](/automations/templates)): The remote control code to send, see dumper output for more details.
+- **rc_code_2** (*Optional*, int, [templatable](/automations/templates)): The secondary remote control code to send; some codes are sent in
   two parts.
 
 - Note that `repeat` is still optional, however **Pioneer devices may require that a given code is
@@ -685,7 +685,7 @@ on_...:
 
 #### Configuration variables
 
-- **data** (**Required**, string): The raw code to send specified as a string. Many remote control Pronto codes can be
+- **data** (**Required**, string, [templatable](/automations/templates)): The raw code to send specified as a string. Many remote control Pronto codes can be
   found on [http://remotecentral.com](http://remotecentral.com)
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -710,11 +710,11 @@ on_...:
 
 #### Configuration variables
 
-- **code** (**Required**, list): The raw code to send as a list of integers.
+- **code** (**Required**, list, [templatable](/automations/templates)): The raw code to send as a list of integers.
   Positive numbers represent a digital high signal and negative numbers a digital low signal.
   The number itself encodes how long the signal should last (in microseconds).
 
-- **carrier_frequency** (*Optional*, float): Optionally set a frequency to send the signal
+- **carrier_frequency** (*Optional*, float, [templatable](/automations/templates)): Optionally set a frequency to send the signal
   with for infrared signals. Defaults to `0Hz`.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -734,8 +734,8 @@ on_...:
 
 #### Configuration variables
 
-- **address** (**Required**, int): The address to send, see dumper output for more details.
-- **command** (**Required**, int): The RC5 command to send.
+- **address** (**Required**, int, [templatable](/automations/templates)): The address to send, see dumper output for more details.
+- **command** (**Required**, int, [templatable](/automations/templates)): The RC5 command to send.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_rc6"></span>
@@ -753,8 +753,8 @@ on_...:
 
 #### Configuration variables
 
-- **address** (**Required**, int): The address to send, see dumper output for more details.
-- **command** (**Required**, int): The RC6 command to send.
+- **address** (**Required**, int, [templatable](/automations/templates)): The address to send, see dumper output for more details.
+- **command** (**Required**, int, [templatable](/automations/templates)): The RC6 command to send.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_rc_switch_raw"></span>
@@ -773,8 +773,8 @@ on_...:
 
 #### Configuration variables
 
-- **code** (**Required**, string): The raw code to send, copy this from the dump output.
-- **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
+- **code** (**Required**, string, [templatable](/automations/templates)): The raw code to send, copy this from the dump output.
+- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
   for more information.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -797,10 +797,10 @@ on_...:
 
 #### Configuration variables
 
-- **group** (**Required**, string): The group to send the command to.
-- **device** (**Required**, string): The device in the group to send the command to.
-- **state** (**Required**, boolean): The on/off state to send.
-- **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
+- **group** (**Required**, string, [templatable](/automations/templates)): The group to send the command to.
+- **device** (**Required**, string, [templatable](/automations/templates)): The device in the group to send the command to.
+- **state** (**Required**, boolean, [templatable](/automations/templates)): The on/off state to send.
+- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
   for more information.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -815,18 +815,18 @@ remote transmitter.
 ```yaml
 on_...:
   - remote_transmitter.transmit_rc_switch_type_b:
-      address: '0100'
-      channel: '1011'
+      address: 1
+      channel: 3
       state: off
       protocol: 1
 ```
 
 #### Configuration variables
 
-- **address** (**Required**, int): The address to send the command to.
-- **channel** (**Required**, int): The channel to send the command to.
-- **state** (**Required**, boolean): The on/off state to send.
-- **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
+- **address** (**Required**, int, [templatable](/automations/templates)): The address to send the command to.
+- **channel** (**Required**, int, [templatable](/automations/templates)): The channel to send the command to.
+- **state** (**Required**, boolean, [templatable](/automations/templates)): The on/off state to send.
+- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
   for more information.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -850,11 +850,11 @@ on_...:
 
 #### Configuration variables
 
-- **family** (**Required**, string): The family to send the command to. Range is `a` to `p`.
-- **group** (**Required**, int): The group to send the command to. Range is 1 to 4.
-- **device** (**Required**, int): The device to send the command to. Range is 1 to 4.
-- **state** (**Required**, boolean): The on/off state to send.
-- **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
+- **family** (**Required**, string, [templatable](/automations/templates)): The family to send the command to. Range is `a` to `p`.
+- **group** (**Required**, int, [templatable](/automations/templates)): The group to send the command to. Range is 1 to 4.
+- **device** (**Required**, int, [templatable](/automations/templates)): The device to send the command to. Range is 1 to 4.
+- **state** (**Required**, boolean, [templatable](/automations/templates)): The on/off state to send.
+- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
   for more information.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -877,10 +877,10 @@ on_...:
 
 #### Configuration variables
 
-- **group** (**Required**, int): The group to send the command to. Range is 1 to 4.
-- **device** (**Required**, int): The device to send the command to. Range is 1 to 3.
-- **state** (**Required**, boolean): The on/off state to send.
-- **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
+- **group** (**Required**, string, [templatable](/automations/templates)): The group to send the command to. Range is `a` to `d`.
+- **device** (**Required**, int, [templatable](/automations/templates)): The device to send the command to. Range is 1 to 3.
+- **state** (**Required**, boolean, [templatable](/automations/templates)): The on/off state to send.
+- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
   for more information.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -902,7 +902,7 @@ on_...:
 
 #### Configuration variables
 
-- **data** (**Required**, int): The Roomba code to send, see dumper output for more info.
+- **data** (**Required**, int, [templatable](/automations/templates)): The Roomba code to send, see dumper output for more info.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 **Important:**
@@ -932,8 +932,8 @@ on_...:
 
 #### Configuration variables
 
-- **data** (**Required**, int): The data to send, see dumper output for more details.
-- **nbits** (*Optional*, int): The number of bits to send. Defaults to `32`.
+- **data** (**Required**, int, [templatable](/automations/templates)): The data to send, see dumper output for more details.
+- **nbits** (*Optional*, int, [templatable](/automations/templates)): The number of bits to send. Defaults to `32`.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_samsung36"></span>
@@ -952,8 +952,8 @@ on_...:
 
 #### Configuration variables
 
-- **address** (**Required**, int): The address to send, see dumper output for more details.
-- **command** (**Required**, int): The Samsung36 command to send, see dumper output for more details.
+- **address** (**Required**, int, [templatable](/automations/templates)): The address to send, see dumper output for more details.
+- **command** (**Required**, int, [templatable](/automations/templates)): The Samsung36 command to send, see dumper output for more details.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_symphony"></span>
@@ -975,9 +975,9 @@ on_...:
 
 #### Configuration variables
 
-- **data** (**Required**, int): The Symphony code to send, see dumper output for more info.
-- **nbits** (**Required**, int): The number of bits to send. Typical values: `8`, `12`, or `16`.
-- **command_repeats** (*Optional*, int): Number of times to send the same frame in one transmission.
+- **data** (**Required**, int, [templatable](/automations/templates)): The Symphony code to send, see dumper output for more info.
+- **nbits** (**Required**, int, [templatable](/automations/templates)): The number of bits to send. Typical values: `8`, `12`, or `16`.
+- **command_repeats** (*Optional*, int, [templatable](/automations/templates)): Number of times to send the same frame in one transmission.
   Defaults to `2` to match typical handsets.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -997,8 +997,8 @@ on_...:
 
 #### Configuration variables
 
-- **data** (**Required**, int): The Sony code to send, see dumper output for more info.
-- **nbits** (*Optional*, int): The number of bits to send. Defaults to `12`.
+- **data** (**Required**, int, [templatable](/automations/templates)): The Sony code to send, see dumper output for more info.
+- **nbits** (*Optional*, int, [templatable](/automations/templates)): The number of bits to send. Defaults to `12`.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_toshiba_ac"></span>
@@ -1019,8 +1019,8 @@ on_...:
 
 #### Configuration variables
 
-- **rc_code_1** (**Required**, int): The remote control code to send, see dumper output for more details.
-- **rc_code_2** (*Optional*, int): The secondary remote control code to send; some codes are sent in
+- **rc_code_1** (**Required**, int, [templatable](/automations/templates)): The remote control code to send, see dumper output for more details.
+- **rc_code_2** (*Optional*, int, [templatable](/automations/templates)): The secondary remote control code to send; some codes are sent in
   two parts.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -1040,7 +1040,7 @@ on_...:
 
 #### Configuration variables
 
-- **code** (**Required**, list): The 14 byte Mirage code to send.
+- **code** (**Required**, list, [templatable](/automations/templates)): The 14 byte Mirage code to send.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_toto"></span>
@@ -1060,9 +1060,9 @@ on_...:
 
 #### Configuration variables
 
-- **command** (**Required**, int): The 1-byte Toto command code to send. Range is 0 to 0xFF.
-- **rc_code_1** (*Optional*, int): The first 4-bit Toto code (usually a command parameter) to send. Range is 0 to 0xF.
-- **rc_code_2** (*Optional*, int): The second 4-bit Toto code (usually a command parameter) to send. Range is 0 to 0xF.
+- **command** (**Required**, int, [templatable](/automations/templates)): The 1-byte Toto command code to send. Range is 0 to 0xFF.
+- **rc_code_1** (*Optional*, int, [templatable](/automations/templates)): The first 4-bit Toto code (usually a command parameter) to send. Range is 0 to 0xF.
+- **rc_code_2** (*Optional*, int, [templatable](/automations/templates)): The second 4-bit Toto code (usually a command parameter) to send. Range is 0 to 0xF.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 > [!NOTE]
@@ -1085,7 +1085,7 @@ on_...:
 - **transmitter_id** (*Optional*, [ID](/guides/configuration-types#id)): The remote transmitter to set the pin value on. Defaults to
   the first one defined in the configuration.
 
-- **value** (**Required**, bool): The output value of the pin.
+- **value** (**Required**, bool, [templatable](/automations/templates)): The output value of the pin.
 
 <span id="remote_transmitter-rc_switch-protocol"></span>
 

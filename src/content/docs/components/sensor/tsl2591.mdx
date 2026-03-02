@@ -113,15 +113,15 @@ sensor:
 
 For the TSL2591 device:
 
-- **id** (_Optional_, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
-- **name** (_Optional_, string): A user-friendly name for this TSL2591 device.
-- **address** (_Optional_, int): Manually specify the I²C address of the device.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
+- **name** (*Optional*, string): A user-friendly name for this TSL2591 device.
+- **address** (*Optional*, int): Manually specify the I²C address of the device.
   Defaults to `0x29`.
   It is not possible to change this for this device without additional hardware.
   It also automatically uses a secondary address of `0x28` (see the datasheet),
   making that address unavailable for other devices on the same I²C bus.
 
-- **integration_time** (_Optional_, [Time](/guides/configuration-types#time)):
+- **integration_time** (*Optional*, [Time](/guides/configuration-types#time)):
   The time the device will use for each measurement. Longer means more accurate values.
   You cannot specify an arbitrary amount of time. It must be the equivalent of one of:
 
@@ -132,7 +132,7 @@ For the TSL2591 device:
   - `500ms`
   - `600ms`
 
-- **gain** (_Optional_, string): The gain the device will use. Higher values are better in low-light conditions.
+- **gain** (*Optional*, string): The gain the device will use. Higher values are better in low-light conditions.
   Multipliers here are approximate. Values below on the same line are aliases.
   You cannot specify an arbitrary gain multiplier. It must be one of:
 
@@ -142,16 +142,16 @@ For the TSL2591 device:
   - `maximum`, `max`, `9500x`
   - `auto` _(default)_
 
-- **update_interval** (_Optional_, [Time](/guides/configuration-types#time)): The interval for checking the sensors.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval for checking the sensors.
   Defaults to `60s`.
 
-- **power_save_mode** (_Optional_, boolean): Should the device be powered down between update intervals?
+- **power_save_mode** (*Optional*, boolean): Should the device be powered down between update intervals?
   Defaults to `True`.
 
-- **device_factor** (_Optional_, float): The default is `53.0`.
+- **device_factor** (*Optional*, float): The default is `53.0`.
   The device factor to be used as part of the lux equation for `calculated_lux`.
 
-- **glass_attenuation_factor** (_Optional_, float): The default is `7.7`.
+- **glass_attenuation_factor** (*Optional*, float): The default is `7.7`.
   The glass attenuation factor to be used as part of the lux equation for `calculated_lux`.
 
 - All other options for I²C devices described at [I²C Bus](/components/i2c).
@@ -159,23 +159,23 @@ For the TSL2591 device:
 You can configure all or any subset of the sensors described earlier.
 Each configured sensor is reported separately on each `update_interval`.
 
-- **full_spectrum** (_Optional_): The reading for the full spectrum sensor.
+- **full_spectrum** (*Optional*): The reading for the full spectrum sensor.
 
   - All options from [Sensor](/components/sensor).
 
-- **infrared** (_Optional_): The reading for the infrared sensor.
+- **infrared** (*Optional*): The reading for the infrared sensor.
 
   - All options from [Sensor](/components/sensor).
 
-- **visible** (_Optional_): The reading for visible light.
+- **visible** (*Optional*): The reading for visible light.
 
   - All options from [Sensor](/components/sensor).
 
-- **calculated_lux** (_Optional_): The value of the calculated lux.
+- **calculated_lux** (*Optional*): The value of the calculated lux.
 
   - All options from [Sensor](/components/sensor).
 
-- **actual_gain** (_Optional_): The value of gain used for reported values. Particularly useful when gain is set to "auto".
+- **actual_gain** (*Optional*): The value of gain used for reported values. Particularly useful when gain is set to "auto".
 
   - All options from [Sensor](/components/sensor).
 

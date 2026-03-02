@@ -44,7 +44,7 @@ sensor:
 
 ## `ufire_ise.calibrate_probe_high` Action
 
-The pH probe have to be calibrated. For this you need know the pH reference value and temperature
+The pH probe have to be calibrated. For this you need to know the pH reference value
 of the calibration high solution.
 
 ```yaml
@@ -59,19 +59,18 @@ on_...:
   - sensor.ufire_ise_board.calibrate_probe_high:
       id: ufire_ise_board
       solution: 7.0
-      temperature: !lambda "return id(temperature_liquid).state;"
 ```
 
 Configuration options:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the ufire pH sensor.
-- **solution** (**Required**, float): Solution reference pH value.
+- **solution** (**Required**, float, [templatable](/automations/templates)): Solution reference pH value.
 
 <span id="sensor-ufire_ise-calibrate_probe_low_action"></span>
 
 ## `ufire_ise.calibrate_probe_low` Action
 
-The pH probe have to be calibrated. For this you need know the pH reference value and temperature
+The pH probe have to be calibrated. For this you need to know the pH reference value
 of the calibration low solution.
 
 ```yaml
@@ -86,13 +85,12 @@ on_...:
   - sensor.ufire_ise_board.calibrate_probe_low:
       id: ufire_ise_board
       solution: 4.0
-      temperature: !lambda "return id(temperature_liquid).state;"
 ```
 
 Configuration options:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the ufire pH sensor.
-- **solution** (**Required**, float): Solution reference pH value.
+- **solution** (**Required**, float, [templatable](/automations/templates)): Solution reference pH value.
 
 <span id="sensor-ufire_ise-reset_action"></span>
 
