@@ -40,7 +40,7 @@ struct MDNSService {
   FixedVector<MDNSTXTRecord> txt_records;
 };
 
-class MDNSComponent : public Component {
+class MDNSComponent final : public Component {
  public:
   void setup() override;
   void dump_config() override;

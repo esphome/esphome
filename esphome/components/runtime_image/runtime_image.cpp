@@ -2,6 +2,7 @@
 #include "image_decoder.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include <algorithm>
 #include <cstring>
 
 #ifdef USE_RUNTIME_IMAGE_BMP
@@ -42,6 +43,14 @@ int RuntimeImage::resize(int width, int height) {
   // Use fixed dimensions if specified (0 means auto-resize)
   int target_width = this->fixed_width_ ? this->fixed_width_ : width;
   int target_height = this->fixed_height_ ? this->fixed_height_ : height;
+
+  // When both fixed dimensions are set, scale uniformly to preserve aspect ratio
+  if (this->fixed_width_ && this->fixed_height_ && width > 0 && height > 0) {
+    float scale =
+        std::min(static_cast<float>(this->fixed_width_) / width, static_cast<float>(this->fixed_height_) / height);
+    target_width = static_cast<int>(width * scale);
+    target_height = static_cast<int>(height * scale);
+  }
 
   size_t result = this->resize_buffer_(target_width, target_height);
   if (result > 0 && this->progressive_display_) {

@@ -12,8 +12,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
-namespace esphome {
-namespace libretiny {
+namespace esphome::libretiny {
 
 class LTComponent : public Component {
  public:
@@ -30,7 +29,6 @@ class LTComponent : public Component {
 #endif  // USE_TEXT_SENSOR
 };
 
-}  // namespace libretiny
-}  // namespace esphome
+}  // namespace esphome::libretiny
 
 #endif  // USE_LIBRETINY
