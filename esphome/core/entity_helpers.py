@@ -269,7 +269,7 @@ def setup_entity(var_or_platform, config=None, platform=None):
         return decorator
 
     # Direct call mode: await setup_entity(var, config, "camera")
-    async def _do():
+    async def _do() -> None:
         await _setup_entity_impl(var_or_platform, config, platform)
         finalize_entity_strings(var_or_platform, config)
 
