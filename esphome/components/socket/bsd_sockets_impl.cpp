@@ -59,12 +59,6 @@ int BSDSocketImpl::setblocking(bool blocking) {
   return 0;
 }
 
-#ifdef USE_LWIP_FAST_SELECT
-bool BSDSocketImpl::ready() const { return socket_ready(this->cached_sock_, this->loop_monitored_); }
-#else
-bool BSDSocketImpl::ready() const { return socket_ready_fd(this->fd_, this->loop_monitored_); }
-#endif
-
 size_t BSDSocketImpl::getpeername_to(std::span<char, SOCKADDR_STR_LEN> buf) {
   struct sockaddr_storage storage;
   socklen_t len = sizeof(storage);

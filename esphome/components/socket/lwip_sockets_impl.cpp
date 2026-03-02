@@ -59,12 +59,6 @@ int LwIPSocketImpl::setblocking(bool blocking) {
   return 0;
 }
 
-#ifdef USE_LWIP_FAST_SELECT
-bool LwIPSocketImpl::ready() const { return socket_ready(this->cached_sock_, this->loop_monitored_); }
-#else
-bool LwIPSocketImpl::ready() const { return socket_ready_fd(this->fd_, this->loop_monitored_); }
-#endif
-
 size_t LwIPSocketImpl::getpeername_to(std::span<char, SOCKADDR_STR_LEN> buf) {
   struct sockaddr_storage storage;
   socklen_t len = sizeof(storage);

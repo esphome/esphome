@@ -51,6 +51,18 @@ inline bool socket_ready(struct lwip_sock *cached_sock, bool loop_monitored) {
 bool socket_ready_fd(int fd, bool loop_monitored);
 #endif
 
+// Inline ready() — defined here because it depends on socket_ready/socket_ready_fd
+// declared above, while the impl headers are included before those declarations.
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+inline bool Socket::ready() const {
+#ifdef USE_LWIP_FAST_SELECT
+  return socket_ready(this->cached_sock_, this->loop_monitored_);
+#else
+  return socket_ready_fd(this->fd_, this->loop_monitored_);
+#endif
+}
+#endif
+
 /// Create a socket of the given domain, type and protocol.
 std::unique_ptr<Socket> socket(int domain, int type, int protocol);
 /// Create a socket in the newest available IP domain (IPv6 or IPv4) of the given type and protocol.
