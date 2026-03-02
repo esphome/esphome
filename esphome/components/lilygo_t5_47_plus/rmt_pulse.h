@@ -51,11 +51,11 @@ void pulse_ckv_us(uint16_t high_time_us, uint16_t low_time_us, bool wait);
  *
  * @note This function will always wait for a previous call to finish.
  *
- * @param high_time_us Pulse high time clock ticks.
- * @param low_time_us  Pulse low time in clock ticks.
- * @param wait         Block until the pulse is finished.
+ * @param high_time_ticks Pulse high time in clock ticks.
+ * @param low_time_ticks  Pulse low time in clock ticks.
+ * @param wait            Block until the pulse is finished.
  */
-void pulse_ckv_ticks(uint16_t high_time_us, uint16_t low_time_us, bool wait);
+void pulse_ckv_ticks(uint16_t high_time_ticks, uint16_t low_time_ticks, bool wait);
 
 #ifdef __cplusplus
 }  // extern "C"
