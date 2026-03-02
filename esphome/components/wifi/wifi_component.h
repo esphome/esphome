@@ -10,6 +10,7 @@
 
 #include <span>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #ifdef USE_LIBRETINY
@@ -223,6 +224,14 @@ class CompactString {
 };
 
 static_assert(sizeof(CompactString) == 20, "CompactString must be exactly 20 bytes");
+// CompactString is not trivially copyable (non-trivial destructor/copy for heap case).
+// However, its layout has no self-referential pointers: storage_[] contains either inline
+// data or an external heap pointer — never a pointer to itself. This is unlike libstdc++
+// std::string SSO where _M_p points to _M_local_buf within the same object.
+// This property allows memcpy-based permutation sorting where each element ends up in
+// exactly one slot (no ownership duplication). These asserts document that layout property.
+static_assert(std::is_standard_layout<CompactString>::value, "CompactString must be standard layout");
+static_assert(!std::is_polymorphic<CompactString>::value, "CompactString must not have vtable");
 
 class WiFiAP {
   friend class WiFiComponent;
@@ -434,7 +443,7 @@ class WiFiComponent : public Component {
 
   void set_reboot_timeout(uint32_t reboot_timeout);
 
-  bool is_connected();
+  bool is_connected() const;
 
   void set_power_save_mode(WiFiPowerSaveMode power_save);
   void set_min_auth_mode(WifiMinAuthMode min_auth_mode) { min_auth_mode_ = min_auth_mode; }
@@ -668,7 +677,7 @@ class WiFiComponent : public Component {
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
-  WiFiSTAConnectStatus wifi_sta_connect_status_();
+  WiFiSTAConnectStatus wifi_sta_connect_status_() const;
   bool wifi_scan_start_(bool passive);
 
 #ifdef USE_WIFI_AP

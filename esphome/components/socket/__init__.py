@@ -149,9 +149,10 @@ def require_wake_loop_threadsafe() -> None:
     ):
         CORE.data[KEY_WAKE_LOOP_THREADSAFE_REQUIRED] = True
         cg.add_define("USE_WAKE_LOOP_THREADSAFE")
-        if not CORE.is_esp32:
-            # Only non-ESP32 platforms need a UDP socket for wake notifications.
-            # ESP32 uses FreeRTOS task notifications instead (no socket needed).
+        if not CORE.is_esp32 and not CORE.is_libretiny:
+            # Only platforms without fast select need a UDP socket for wake
+            # notifications. ESP32 and LibreTiny use FreeRTOS task notifications
+            # instead (no socket needed).
             consume_sockets(1, "socket.wake_loop_threadsafe", SocketType.UDP)({})
 
 
@@ -187,6 +188,11 @@ async def to_code(config):
     elif impl == IMPLEMENTATION_BSD_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")
         cg.add_define("USE_SOCKET_SELECT_SUPPORT")
+    # ESP32 and LibreTiny both have LwIP >= 2.1.3 with lwip_socket_dbg_get_socket()
+    # and FreeRTOS task notifications — enable fast select to bypass lwip_select().
+    # Only when not using lwip_tcp, which does not provide select() support.
+    if (CORE.is_esp32 or CORE.is_libretiny) and impl != IMPLEMENTATION_LWIP_TCP:
+        cg.add_build_flag("-DUSE_LWIP_FAST_SELECT")
 
 
 def FILTER_SOURCE_FILES() -> list[str]:

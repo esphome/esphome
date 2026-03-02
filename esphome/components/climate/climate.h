@@ -41,6 +41,8 @@ class ClimateCall {
   ClimateCall &set_mode(optional<ClimateMode> mode);
   /// Set the mode of the climate device based on a string.
   ClimateCall &set_mode(const std::string &mode);
+  /// Set the mode of the climate device based on a C string.
+  ClimateCall &set_mode(const char *mode, size_t len);
   /// Set the target temperature of the climate device.
   ClimateCall &set_target_temperature(float target_temperature);
   /// Set the target temperature of the climate device.
@@ -87,6 +89,8 @@ class ClimateCall {
   ClimateCall &set_swing_mode(optional<ClimateSwingMode> swing_mode);
   /// Set the swing mode of the climate device based on a string.
   ClimateCall &set_swing_mode(const std::string &swing_mode);
+  /// Set the swing mode of the climate device based on a C string.
+  ClimateCall &set_swing_mode(const char *swing_mode, size_t len);
   /// Set the preset of the climate device.
   ClimateCall &set_preset(ClimatePreset preset);
   /// Set the preset of the climate device.

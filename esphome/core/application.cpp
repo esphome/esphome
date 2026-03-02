@@ -9,10 +9,17 @@
 #endif
 #ifdef USE_ESP32
 #include <esp_chip_info.h>
+#endif
+#ifdef USE_LWIP_FAST_SELECT
 #include "esphome/core/lwip_fast_select.h"
+#ifdef USE_ESP32
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#else
+#include <FreeRTOS.h>
+#include <task.h>
 #endif
+#endif  // USE_LWIP_FAST_SELECT
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
@@ -72,21 +79,9 @@ static void insertion_sort_by_priority(Iterator first, Iterator last) {
   }
 }
 
-void Application::register_component_(Component *comp) {
-  if (comp == nullptr) {
-    ESP_LOGW(TAG, "Tried to register null component!");
-    return;
-  }
-
-  for (auto *c : this->components_) {
-    if (comp == c) {
-      ESP_LOGW(TAG, "Component %s already registered! (%p)", LOG_STR_ARG(c->get_component_log_str()), c);
-      return;
-    }
-  }
-  if (this->components_.size() >= ESPHOME_COMPONENT_COUNT) {
-    ESP_LOGE(TAG, "Cannot register component %s - at capacity!", LOG_STR_ARG(comp->get_component_log_str()));
-    return;
+void Application::register_component_impl_(Component *comp, bool has_loop) {
+  if (has_loop) {
+    comp->component_state_ |= COMPONENT_HAS_LOOP;
   }
   this->components_.push_back(comp);
 }
@@ -147,14 +142,14 @@ void Application::setup() {
   clear_setup_priority_overrides();
 #endif
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_ESP32)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
   // Initialize fast select: saves main loop task handle for xTaskNotifyGive wake.
-  // Always init on ESP32 — the fast path (rcvevent reads + ulTaskNotifyTake) is used
-  // unconditionally when USE_SOCKET_SELECT_SUPPORT is enabled.
+  // The fast path (rcvevent reads + ulTaskNotifyTake) is used unconditionally
+  // when USE_LWIP_FAST_SELECT is enabled (ESP32 and LibreTiny).
   esphome_lwip_fast_select_init();
 #endif
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
-  // Set up wake socket for waking main loop from tasks (non-ESP32 only)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+  // Set up wake socket for waking main loop from tasks (platforms without fast select only)
   this->setup_wake_loop_threadsafe_();
 #endif
 
@@ -249,7 +244,7 @@ void Application::process_dump_config_() {
 #endif
   }
 
-  this->components_[this->dump_config_at_]->call_dump_config();
+  this->components_[this->dump_config_at_]->call_dump_config_();
   this->dump_config_at_++;
 }
 
@@ -392,16 +387,8 @@ void Application::teardown_components(uint32_t timeout_ms) {
 }
 
 void Application::calculate_looping_components_() {
-  // Count total components that need looping
-  size_t total_looping = 0;
-  for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop()) {
-      total_looping++;
-    }
-  }
-
-  // Initialize FixedVector with exact size - no reallocation possible
-  this->looping_components_.init(total_looping);
+  // FixedVector capacity was pre-initialized by codegen with the exact count
+  // of components that override loop(), computed at C++ compile time.
 
   // Add all components with loop override that aren't already LOOP_DONE
   // Some components (like logger) may call disable_loop() during initialization
@@ -518,8 +505,7 @@ void Application::enable_pending_loops_() {
     // Clear the pending flag and enable the loop
     component->pending_enable_loop_ = false;
     ESP_LOGVV(TAG, "%s loop enabled from ISR", LOG_STR_ARG(component->get_component_log_str()));
-    component->component_state_ &= ~COMPONENT_STATE_MASK;
-    component->component_state_ |= COMPONENT_STATE_LOOP;
+    component->set_component_state_(COMPONENT_STATE_LOOP);
 
     // Move to active section
     this->activate_looping_component_(i);
@@ -532,7 +518,7 @@ void Application::enable_pending_loops_() {
 }
 
 void Application::before_loop_tasks_(uint32_t loop_start_time) {
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_ESP32)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
   // Drain wake notifications first to clear socket for next wake
   this->drain_wake_notifications_();
 #endif
@@ -585,7 +571,7 @@ bool Application::register_socket_fd(int fd) {
 #endif
 
   this->socket_fds_.push_back(fd);
-#ifdef USE_ESP32
+#ifdef USE_LWIP_FAST_SELECT
   // Hook the socket's netconn callback for instant wake on receive events
   esphome_lwip_hook_socket(fd);
 #else
@@ -609,12 +595,13 @@ void Application::unregister_socket_fd(int fd) {
       continue;
 
     // Swap with last element and pop - O(1) removal since order doesn't matter.
-    // No need to unhook the netconn callback on ESP32 — all LwIP sockets share
-    // the same static event_callback, and the socket will be closed by the caller.
+    // No need to unhook the netconn callback on fast select platforms — all LwIP
+    // sockets share the same static event_callback, and the socket will be closed
+    // by the caller.
     if (i < this->socket_fds_.size() - 1)
       this->socket_fds_[i] = this->socket_fds_.back();
     this->socket_fds_.pop_back();
-#ifndef USE_ESP32
+#ifndef USE_LWIP_FAST_SELECT
     this->socket_fds_changed_ = true;
     // Only recalculate max_fd if we removed the current max
     if (fd == this->max_fd_) {
@@ -633,8 +620,8 @@ void Application::unregister_socket_fd(int fd) {
 
 void Application::yield_with_select_(uint32_t delay_ms) {
   // Delay while monitoring sockets. When delay_ms is 0, always yield() to ensure other tasks run.
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_ESP32)
-  // ESP32 fast path: reads rcvevent directly via lwip_socket_dbg_get_socket() (~215 ns per socket).
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
+  // Fast path (ESP32/LibreTiny): reads rcvevent directly via lwip_socket_dbg_get_socket().
   // Safe because this runs on the main loop which owns socket lifetime (create, read, close).
   if (delay_ms == 0) [[unlikely]] {
     yield();
@@ -659,9 +646,8 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay_ms));
 
 #elif defined(USE_SOCKET_SELECT_SUPPORT)
-  // Non-ESP32 select() path (LibreTiny bk72xx/rtl87xx, host platform).
-  // ESP32 is excluded by the #if above — both BSD_SOCKETS and LWIP_SOCKETS on ESP32
-  // use LwIP under the hood, so the fast path handles all ESP32 socket implementations.
+  // Fallback select() path (host platform and any future platforms without fast select).
+  // ESP32 and LibreTiny are excluded by the #if above — they use the fast path.
   if (!this->socket_fds_.empty()) [[likely]] {
     // Update fd_set if socket list has changed
     if (this->socket_fds_changed_) [[unlikely]] {
@@ -713,16 +699,33 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 #endif
 }
 
-Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// App storage — asm label shares the linker symbol with "extern Application App".
+// char[] is trivially destructible, so no __cxa_atexit or destructor chain is emitted.
+// Constructed via placement new in the generated setup().
+#ifndef __GXX_ABI_VERSION
+#error "Application placement new requires Itanium C++ ABI (GCC/Clang)"
+#endif
+static_assert(std::is_default_constructible<Application>::value, "Application must be default-constructible");
+// __USER_LABEL_PREFIX__ is "_" on Mach-O (macOS) and empty on ELF (embedded targets).
+// String literal concatenation produces the correct platform-specific mangled symbol.
+// Two-level macro needed: # stringifies before expansion, so the
+// indirection forces __USER_LABEL_PREFIX__ to expand first.
+#define ESPHOME_STRINGIFY_IMPL_(x) #x
+#define ESPHOME_STRINGIFY_(x) ESPHOME_STRINGIFY_IMPL_(x)
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+alignas(Application) char app_storage[sizeof(Application)] asm(
+    ESPHOME_STRINGIFY_(__USER_LABEL_PREFIX__) "_ZN7esphome3AppE");
+#undef ESPHOME_STRINGIFY_
+#undef ESPHOME_STRINGIFY_IMPL_
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
-#ifdef USE_ESP32
+#ifdef USE_LWIP_FAST_SELECT
 void Application::wake_loop_threadsafe() {
   // Direct FreeRTOS task notification — <1 us, task context only (NOT ISR-safe)
   esphome_lwip_wake_main_loop();
 }
-#else   // !USE_ESP32
+#else   // !USE_LWIP_FAST_SELECT
 
 void Application::setup_wake_loop_threadsafe_() {
   // Create UDP socket for wake notifications
@@ -790,7 +793,7 @@ void Application::wake_loop_threadsafe() {
     lwip_send(this->wake_socket_fd_, &dummy, 1, 0);
   }
 }
-#endif  // USE_ESP32
+#endif  // USE_LWIP_FAST_SELECT
 
 #endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
