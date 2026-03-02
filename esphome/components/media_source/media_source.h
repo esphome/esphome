@@ -39,7 +39,7 @@ class MediaSourceListener {
  public:
   // Callbacks that all sources use to send data and state changes to the orchestrator.
   /// @brief Send audio data to the listener
-  virtual size_t write_audio(uint8_t *data, size_t length, uint32_t timeout_ms,
+  virtual size_t write_audio(const uint8_t *data, size_t length, uint32_t timeout_ms,
                              const audio::AudioStreamInfo &stream_info) = 0;
   /// @brief Notify listener of state changes
   virtual void report_state(MediaSourceState state) = 0;
@@ -102,14 +102,14 @@ class MediaSource {
   bool has_listener() const { return this->listener_ != nullptr; }
 
   /// @brief Write audio data to the listener
-  /// @param data Pointer to audio data buffer
+  /// @param data Pointer to audio data buffer (not modified by this method)
   /// @param length Number of bytes to write
   /// @param timeout_ms Milliseconds to wait if the listener can't accept data immediately
   /// @param stream_info Audio stream format information
   /// @return Number of bytes written, or 0 if no listener is set
-  size_t write_output(uint8_t *data, size_t length, uint32_t timeout_ms, const audio::AudioStreamInfo &stream_info) {
+  size_t write_output(const uint8_t *data, size_t length, uint32_t timeout_ms, const audio::AudioStreamInfo &stream_info) {
     if (this->listener_ != nullptr) {
-      return this->listener_->write_audio(data, length, timeout_ms, stream_info);
+      return this->listener_->write_audio(const_cast<uint8_t *>(data), length, timeout_ms, stream_info);
     }
     return 0;
   }

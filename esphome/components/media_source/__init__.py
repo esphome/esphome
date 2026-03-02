@@ -20,6 +20,7 @@ async def register_media_source(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     CORE.register_platform_component("media_source", var)
+    return var
 
 
 _MEDIA_SOURCE_SCHEMA = cv.Schema({})
