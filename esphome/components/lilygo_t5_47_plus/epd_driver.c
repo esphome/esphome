@@ -227,10 +227,13 @@ void IRAM_ATTR calc_epd_input_4bpp(uint32_t *line_data, uint8_t *epd_input, uint
     uint16_t v3 = *(line_data_16++);
     uint16_t v4 = *(line_data_16++);
 #if USER_I2S_REG
-    uint32_t pixel = conversion_lut[v1] << 16 | conversion_lut[v2] << 24 | conversion_lut[v3] | conversion_lut[v4] << 8;
+    // Cast to uint32_t before shifting to avoid undefined behaviour: uint8_t is promoted to
+    // signed int, and shifting a 0xFF value left by 24 would overflow a 32-bit signed integer.
+    uint32_t pixel = (uint32_t) conversion_lut[v1] << 16 | (uint32_t) conversion_lut[v2] << 24 |
+                     (uint32_t) conversion_lut[v3] | (uint32_t) conversion_lut[v4] << 8;
 #else
-    uint32_t pixel =
-        (conversion_lut[v1]) << 0 | (conversion_lut[v2]) << 8 | (conversion_lut[v3]) << 16 | (conversion_lut[v4]) << 24;
+    uint32_t pixel = (uint32_t) conversion_lut[v1] | (uint32_t) conversion_lut[v2] << 8 |
+                     (uint32_t) conversion_lut[v3] << 16 | (uint32_t) conversion_lut[v4] << 24;
 #endif
     wide_epd_input[j] = pixel;
   }
@@ -668,6 +671,12 @@ void IRAM_ATTR epd_draw_image(Rect_t area, uint8_t *data, DrawMode_t mode) {
 
   SemaphoreHandle_t fetch_sem = xSemaphoreCreateBinary();
   SemaphoreHandle_t feed_sem = xSemaphoreCreateBinary();
+  if (fetch_sem == NULL || feed_sem == NULL) {
+    ESP_LOGE("epd_driver", "Failed to create EPD semaphores (out of memory)");
+    vSemaphoreDelete(fetch_sem);
+    vSemaphoreDelete(feed_sem);
+    return;
+  }
   vTaskDelay(10);
   for (uint8_t k = 0; k < frame_count; k++) {
     OutputParams p1 = {

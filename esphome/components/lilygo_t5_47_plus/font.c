@@ -158,6 +158,10 @@ void write_mode(const GFXfont *font, const char *string, int32_t *cursor_x, int3
     buf_width = (w / 2 + w % 2);
     buf_height = h;
     buffer = (uint8_t *) malloc(buf_width * buf_height);
+    if (buffer == NULL) {
+      ESP_LOGE("font.c", "Failed to allocate text render buffer (%dx%d)", buf_width, buf_height);
+      return;
+    }
     memset(buffer, 255, buf_width * buf_height);
     local_cursor_y = buf_height - baseline_height;
   } else {

@@ -92,12 +92,14 @@ static void IRAM_ATTR i2s_int_hdl(void *arg);
 static int32_t current_buffer = 0;
 #endif
 
+#if USER_I2S_REG
 /**
  * @brief The I2S state instance.
  */
 static i2s_parallel_state_t i2s_state;
 
 static intr_handle_t gI2S_intr_handle = NULL;
+#endif
 
 /**
  * @brief Indicates the device has finished its transmission and is ready again.
