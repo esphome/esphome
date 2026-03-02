@@ -373,11 +373,19 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason 0x%02x", this->connection_index_, this->address_str_,
                  param->disconnect.reason);
       }
-      // Don't transition to IDLE yet - wait for CLOSE_EVT to ensure the controller has
-      // fully freed resources (L2CAP channels, ATT resources, HCI connection handle).
-      // Transitioning to IDLE here would allow reconnection before cleanup is complete,
-      // causing the controller to reject the new connection (status=133) or crash
-      // with ASSERT_PARAM in lld_evt.c.
+      // For active disconnects (esp_ble_gattc_close), CLOSE_EVT arrives before
+      // DISCONNECT_EVT. If CLOSE_EVT already transitioned us to IDLE, don't go
+      // backwards to DISCONNECTING — the connection is already fully cleaned up.
+      if (this->state() == espbt::ClientState::IDLE) {
+        break;
+      }
+      // For passive disconnects (remote device disconnected or link lost),
+      // DISCONNECT_EVT arrives first. Don't transition to IDLE yet — wait for
+      // CLOSE_EVT to ensure the controller has fully freed resources (L2CAP
+      // channels, ATT resources, HCI connection handle). Transitioning to IDLE
+      // here would allow reconnection before cleanup is complete, causing the
+      // controller to reject the new connection (status=133) or crash with
+      // ASSERT_PARAM in lld_evt.c.
       this->release_services();
       this->set_disconnecting_();
       break;
