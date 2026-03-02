@@ -76,19 +76,19 @@ UPTIME_VALUES = [
 
 
 @pytest.mark.parametrize("us", BOUNDARY_VALUES, ids=lambda v: f"us={v}")
-def test_32bit_boundary_values(us):
+def test_32bit_boundary_values(us: int) -> None:
     assert micros_to_millis(us) == reference_32(us)
 
 
 @pytest.mark.parametrize("hi", HI_VALUES, ids=lambda v: f"hi={v}")
 @pytest.mark.parametrize("lo_offset", LO_VALUES, ids=lambda v: f"lo={v}")
-def test_32bit_hi_lo_combinations(hi, lo_offset):
+def test_32bit_hi_lo_combinations(hi: int, lo_offset: int) -> None:
     us = (hi << 32) | lo_offset
     assert micros_to_millis(us) == reference_32(us)
 
 
 @pytest.mark.parametrize("hi", [1, 50, 100, 500, 1000, 5000], ids=lambda v: f"hi={v}")
-def test_32bit_carry_boundary(hi):
+def test_32bit_carry_boundary(hi: int) -> None:
     """Test around the adj overflow boundary (hi * R + lo > UINT32_MAX)."""
     base = hi << 35
     hi_r = hi * R
@@ -102,11 +102,11 @@ def test_32bit_carry_boundary(hi):
 @pytest.mark.parametrize(
     "us", UPTIME_VALUES, ids=["30_days", "1_year", "near_safe_limit"]
 )
-def test_32bit_realistic_uptimes(us):
+def test_32bit_realistic_uptimes(us: int) -> None:
     assert micros_to_millis(us) == reference_32(us)
 
 
-def test_32bit_shift_boundary_mod8():
+def test_32bit_shift_boundary_mod8() -> None:
     """Values where us % 8 varies — exercises the >>3 shift edge."""
     for base in [0, 1000, 8000, UINT32_MAX, 603 << 32]:
         for offset in range(8):
@@ -118,19 +118,19 @@ def test_32bit_shift_boundary_mod8():
 
 
 @pytest.mark.parametrize("us", BOUNDARY_VALUES, ids=lambda v: f"us={v}")
-def test_64bit_boundary_values(us):
+def test_64bit_boundary_values(us: int) -> None:
     assert micros_to_millis_64(us) == reference_64(us)
 
 
 @pytest.mark.parametrize("hi", HI_VALUES, ids=lambda v: f"hi={v}")
 @pytest.mark.parametrize("lo_offset", LO_VALUES, ids=lambda v: f"lo={v}")
-def test_64bit_hi_lo_combinations(hi, lo_offset):
+def test_64bit_hi_lo_combinations(hi: int, lo_offset: int) -> None:
     us = (hi << 32) | lo_offset
     assert micros_to_millis_64(us) == reference_64(us)
 
 
 @pytest.mark.parametrize("hi", [1, 50, 100, 500, 1000, 5000], ids=lambda v: f"hi={v}")
-def test_64bit_carry_boundary(hi):
+def test_64bit_carry_boundary(hi: int) -> None:
     """Test around the adj overflow boundary for 64-bit result."""
     base = hi << 35
     hi_r = hi * R
@@ -144,11 +144,11 @@ def test_64bit_carry_boundary(hi):
 @pytest.mark.parametrize(
     "us", UPTIME_VALUES, ids=["30_days", "1_year", "near_safe_limit"]
 )
-def test_64bit_realistic_uptimes(us):
+def test_64bit_realistic_uptimes(us: int) -> None:
     assert micros_to_millis_64(us) == reference_64(us)
 
 
-def test_64bit_shift_boundary_mod8():
+def test_64bit_shift_boundary_mod8() -> None:
     """Values where us % 8 varies — exercises the >>3 shift edge."""
     for base in [0, 1000, 8000, UINT32_MAX, 603 << 32]:
         for offset in range(8):
@@ -156,7 +156,7 @@ def test_64bit_shift_boundary_mod8():
             assert micros_to_millis_64(us) == reference_64(us)
 
 
-def test_64bit_preserves_upper_bits():
+def test_64bit_preserves_upper_bits() -> None:
     """Verify 64-bit variant does not truncate large results."""
     # 30-day uptime: result > UINT32_MAX
     us = 2_592_000_000_000
@@ -172,14 +172,14 @@ def test_64bit_preserves_upper_bits():
 # --- Shared tests ---
 
 
-def test_constants_match():
+def test_constants_match() -> None:
     """Verify the Euclidean decomposition constants are correct."""
     assert Q == 34359738
     assert R == 46
     assert Q * D + R == (1 << 32)
 
 
-def test_constexpr_values():
+def test_constexpr_values() -> None:
     """Values suitable for static_assert in C++ if made constexpr."""
     assert micros_to_millis(0) == 0
     assert micros_to_millis(999) == 0
@@ -190,7 +190,7 @@ def test_constexpr_values():
     assert micros_to_millis_64(2_592_000_000_000) == 2_592_000_000
 
 
-def test_32bit_and_64bit_agree_when_result_fits():
+def test_32bit_and_64bit_agree_when_result_fits() -> None:
     """Both variants agree when result fits in 32 bits."""
     for us in [0, 1000, 999_999, UINT32_MAX]:
         assert micros_to_millis(us) == micros_to_millis_64(us)
