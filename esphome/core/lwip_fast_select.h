@@ -31,9 +31,10 @@ struct lwip_sock *esphome_lwip_get_sock(int fd);
 
 /// Check if a cached LwIP socket has data ready via unlocked hint read of rcvevent.
 /// This avoids lwIP core lock contention between the main loop (CPU0) and
-/// streaming/networking work (CPU1). Correctness is preserved because sockets are
-/// nonblocking and EWOULDBLOCK is handled as normal — a stale hint simply means
-/// we retry on the next loop iteration.
+/// streaming/networking work (CPU1). Correctness is preserved because callers
+/// already handle EWOULDBLOCK on nonblocking sockets — a stale hint simply causes
+/// a harmless retry on the next loop iteration. In practice, stale reads have not
+/// been observed across multi-day testing, but the design does not depend on that.
 ///
 /// The sock pointer must have been obtained from esphome_lwip_get_sock() and must
 /// remain valid (caller owns socket lifetime — no concurrent close).
