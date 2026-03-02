@@ -34,6 +34,7 @@ int LwIPSocketImpl::close() {
 #ifdef USE_LWIP_FAST_SELECT
     if (this->loop_monitored_) {
       App.unregister_socket(this->cached_sock_);
+      this->cached_sock_ = nullptr;
     }
 #else
     if (this->loop_monitored_) {
