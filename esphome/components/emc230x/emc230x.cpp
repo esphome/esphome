@@ -164,6 +164,14 @@ static const char *spin_up_time_to_str(Emc230xSpinUpTime spin_up_time) {
   }
 }
 
+bool Emc230xComponent::is_valid_fan_number(uint8_t fan) const {
+  if (fan == 0 || fan > this->fan_count_) {
+    ESP_LOGW(TAG, "Invalid fan %u configured. Model supports 1-%u", fan, this->fan_count_);
+    return false;
+  }
+  return true;
+}
+
 float Emc230xComponent::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 void Emc230xComponent::setup() {
@@ -243,8 +251,9 @@ void Emc230xComponent::setup() {
     // Configure the spin-up settings for this fan
     uint8_t spin_config = 0;
 
-    // Enable spin-up 100% drive kick if configured (bit 5)
+    // Disable spin-up 100% drive kick when not configured (bit 5)
     if (!this->spin_up_kick_[i]) {
+      // Setting bit 5 to 1 disables the spin-up kick
       spin_config |= 1 << 5;
     }
 
@@ -357,16 +366,8 @@ void Emc230xComponent::dump_config() {
   }
 }
 
-bool Emc230xComponent::chek_fan_valid(uint8_t fan) {
-  if (fan > this->fan_count_) {
-    ESP_LOGW(TAG, "Invalid fan %d. Model only supports %d fans", fan, this->fan_count_);
-    return false;
-  }
-  return true;
-}
-
 void Emc230xComponent::set_duty_cycle(uint8_t fan, float value) {
-  if (!this->chek_fan_valid(fan))
+  if (!this->is_valid_fan_number(fan))
     return;
 
   uint8_t duty_cycle = remap(value, 0.0f, 1.0f, (uint8_t) 0, (uint8_t) 255);
@@ -379,7 +380,7 @@ void Emc230xComponent::set_duty_cycle(uint8_t fan, float value) {
 }
 
 float Emc230xComponent::get_speed(uint8_t fan) {
-  if (!this->chek_fan_valid(fan))
+  if (!this->is_valid_fan_number(fan))
     return NAN;
 
   const uint8_t fan_base = EMC230X_FAN_REGISTER_BASES[fan - 1];

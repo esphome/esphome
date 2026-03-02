@@ -10,7 +10,7 @@ static const uint8_t MAX_FANS = 5;
 // Enum listing all supported EMC230X models.
 enum Emc230xModel { EMC2301, EMC2302, EMC2303, EMC2305 };
 
-/** Enum listing all PWM frequencys supported by the EMC230X family.
+/** Enum listing all PWM frequencies supported by the EMC230X family.
  *
  * Specific values of the enum correspond to the PWM frequency register settings from the EMC230X datasheet
  */
@@ -131,7 +131,7 @@ class Emc230xComponent : public Component, public i2c::I2CDevice {
   /** Sets the maximum step size for ramp rate control for a given fan
    *
    * @param fan The fan number
-   * @param max_step_size The maximum step size to use for this fan (0-255). Set to 0 to disable ramp rate control.
+   * @param max_step_size The maximum step size to use for this fan (0-31). Set to 0 to disable ramp rate control.
    */
   void set_max_step_size(uint8_t fan, uint8_t max_step_size) { this->max_step_sizes_[fan - 1] = max_step_size; }
 
@@ -165,12 +165,13 @@ class Emc230xComponent : public Component, public i2c::I2CDevice {
    */
   void set_spin_up_time(uint8_t fan, Emc230xSpinUpTime spin_up_time) { this->spin_up_times_[fan - 1] = spin_up_time; }
 
-  /** Helper function to check if a given fan number is valid for the detected EMC230X model and log if not
+  /** Returns whether the given fan number is valid for the detected EMC230X model
+   * Logs a warning if the fan number is invalid
    *
    * @param fan The fan number to check
    * @return true if the fan number is valid for the detected model, false otherwise
    */
-  bool chek_fan_valid(uint8_t fan);
+  bool is_valid_fan_number(uint8_t fan) const;
 
   /** Sets the duty cycle for a given fan.
    *
