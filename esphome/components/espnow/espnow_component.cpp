@@ -363,7 +363,8 @@ void ESPNowComponent::loop() {
       ESP_LOGI(TAG, "Wifi Channel is changed from %d to %d.", this->wifi_channel_, new_channel);
       this->wifi_channel_ = new_channel;
 #if defined(USE_ESP8266)
-      for (const auto &peer : this->peers_) {
+      auto peers_copy = this->peers_;
+      for (const auto &peer : peers_copy) {
         (void) this->del_peer(peer.address);
         (void) this->add_peer(peer.address);
       }
