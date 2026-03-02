@@ -236,33 +236,44 @@ def get_base_entity_object_id(
     return sanitize(snake_case(base_str))
 
 
-def setup_entity(platform: str) -> Callable:
-    """Decorator for component setup functions.
+def setup_entity(var_or_platform, config=None, platform=None):
+    """Set up entity properties — works as both decorator and direct call.
 
-    Wraps the function to:
-    1. Set up common entity properties (name, icon, etc.)
-    2. Run the wrapped function (which may call setup_device_class, etc.)
-    3. Finalize entity strings (pack dc/uom/icon indices into uint32_t)
-
-    Usage::
+    Decorator mode::
 
         @setup_entity("sensor")
         async def setup_sensor_core_(var, config):
             setup_device_class(config)
             setup_unit_of_measurement(config)
             ...
+
+    Direct call mode (for entities with no extra string properties)::
+
+        await setup_entity(var, config, "camera")
     """
+    if isinstance(var_or_platform, str) and config is None:
+        # Decorator mode: @setup_entity("sensor")
+        platform = var_or_platform
 
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        async def wrapper(var: MockObj, config: ConfigType, *args, **kwargs) -> None:
-            await _setup_entity_impl(var, config, platform)
-            await func(var, config, *args, **kwargs)
-            finalize_entity_strings(var, config)
+        def decorator(func: Callable) -> Callable:
+            @functools.wraps(func)
+            async def wrapper(
+                var: MockObj, config: ConfigType, *args, **kwargs
+            ) -> None:
+                await _setup_entity_impl(var, config, platform)
+                await func(var, config, *args, **kwargs)
+                finalize_entity_strings(var, config)
 
-        return wrapper
+            return wrapper
 
-    return decorator
+        return decorator
+
+    # Direct call mode: await setup_entity(var, config, "camera")
+    async def _do():
+        await _setup_entity_impl(var_or_platform, config, platform)
+        finalize_entity_strings(var_or_platform, config)
+
+    return _do()
 
 
 async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) -> None:
