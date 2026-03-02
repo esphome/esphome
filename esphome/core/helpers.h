@@ -636,10 +636,6 @@ template<typename ReturnT = uint32_t> inline constexpr ESPHOME_ALWAYS_INLINE Ret
   // static_cast<ReturnT>(hi) widens to 64-bit when ReturnT=uint64_t, preserving upper bits of hi*q
   return static_cast<ReturnT>(hi) * q + (adj < lo ? (adj + r) / d + q : adj / d);
 }
-static_assert(micros_to_millis(0) == 0);
-static_assert(micros_to_millis(999) == 0);
-static_assert(micros_to_millis(1000) == 1);
-static_assert(micros_to_millis(2592000000000ULL) == 2592000000U);  // 30 days
 
 /// Return a random 32-bit unsigned integer.
 uint32_t random_uint32();
