@@ -40,9 +40,7 @@ async def test_uart_mock_modbus(
     sensor_states: dict[str, list[float]] = {
         "basic_register": [],
     }
-    binary_states: dict[str, list[bool]] = {}
 
-    # Signal when we see recovery frame values
     basic_register_changed = loop.create_future()
 
     def on_state(state: EntityState) -> None:
@@ -64,7 +62,7 @@ async def test_uart_mock_modbus(
         entities, _ = await client.list_entities_services()
 
         # Build key mappings for all sensor types
-        all_names = list(sensor_states.keys()) + list(binary_states.keys())
+        all_names = list(sensor_states.keys())
         key_to_sensor = build_key_to_entity_mapping(entities, all_names)
 
         # Set up initial state helper
@@ -110,9 +108,7 @@ async def test_uart_mock_modbus_timing(
     sensor_states: dict[str, list[float]] = {
         "sdm_voltage": [],
     }
-    binary_states: dict[str, list[bool]] = {}
 
-    # Signal when we see recovery frame values
     voltage_changed = loop.create_future()
 
     def on_state(state: EntityState) -> None:
@@ -135,7 +131,7 @@ async def test_uart_mock_modbus_timing(
         entities, _ = await client.list_entities_services()
 
         # Build key mappings for all sensor types
-        all_names = list(sensor_states.keys()) + list(binary_states.keys())
+        all_names = list(sensor_states.keys())
         key_to_sensor = build_key_to_entity_mapping(entities, all_names)
 
         # Set up initial state helper
