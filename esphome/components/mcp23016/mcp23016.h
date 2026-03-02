@@ -19,9 +19,9 @@ enum MCP23016GPIORegisters {
   // 1 side
   MCP23016_GP1 = 0x01,
   MCP23016_OLAT1 = 0x03,
-  MCP23016_IPOL1 = 0x04,
+  MCP23016_IPOL1 = 0x05,
   MCP23016_IODIR1 = 0x07,
-  MCP23016_INTCAP1 = 0x08,
+  MCP23016_INTCAP1 = 0x09,
   MCP23016_IOCON1 = 0x0B,
 };
 
@@ -46,7 +46,7 @@ class MCP23016 : public Component, public i2c::I2CDevice, public gpio_expander::
   // write a value to a given register
   bool write_reg_(uint8_t reg, uint16_t value);
   // update registers with given pin value.
-  void update_reg_(uint8_t pin, bool pin_value, uint16_t reg_a);
+  void update_reg_(uint8_t pin, bool pin_value, uint8_t reg_a);
 
   uint16_t olat_{0x0000};
   // Cache for input values (16-bit combined for both banks)

@@ -9,9 +9,11 @@ static const char *const TAG = "mcp23016";
 
 void MCP23016::setup() {
   uint16_t iocon;
-  // first byte written to icon1 second byte to iocon 0
-  // in order to keep the pin to register simple (ie. register = 1 << pin)
-  // high order byte need to go to register 1, and low to register 0
+  // MCP23016 registers operate as paired 16-bit registers. Addressing the
+  // odd register (e.g. IOCON1) reads/writes that register first, then wraps
+  // to the even register (IOCON0) in the same pair. Starting from the odd
+  // address gives the correct byte order for 1 << pin mapping:
+  // high byte = port 1 (pins 8-15), low byte = port 0 (pins 0-7).
   if (!this->read_reg_(MCP23016_IOCON1, &iocon)) {
     this->mark_failed();
     return;
@@ -39,7 +41,7 @@ void MCP23016::pin_mode(uint8_t pin, gpio::Flags flags) {
     this->update_reg_(pin, false, MCP23016_IODIR1);
   }
 }
-float MCP23016::get_setup_priority() const { return setup_priority::BUS; }
+float MCP23016::get_setup_priority() const { return setup_priority::IO; }
 bool MCP23016::read_reg_(uint8_t reg, uint16_t *value) {
   if (this->is_failed())
     return false;
@@ -52,7 +54,7 @@ bool MCP23016::write_reg_(uint8_t reg, uint16_t value) {
 
   return this->write_byte_16(reg, value);
 }
-void MCP23016::update_reg_(uint8_t pin, bool pin_value, uint16_t reg_addr) {
+void MCP23016::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   uint16_t reg_value = 0;
 
   if (reg_addr == MCP23016_OLAT1) {
