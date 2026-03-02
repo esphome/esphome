@@ -29,8 +29,35 @@ namespace esphome::espnow {
 #if defined(USE_ESP8266)
 template<class T, uint8_t SIZE> class EventPool {
  public:
-  T *allocate() { return new T(); }
-  void release(T *event) { delete event; }
+  T *allocate() {
+    for (uint8_t i = 0; i < SIZE; i++) {
+      if (!this->used_[i]) {
+        this->used_[i] = true;
+        T *obj = &this->storage_[i];
+        // Reset the object to a default-constructed state to match heap semantics.
+        *obj = T();
+        return obj;
+      }
+    }
+    // Pool exhausted
+    return nullptr;
+  }
+
+  void release(T *event) {
+    if (event == nullptr)
+      return;
+    // Find the slot corresponding to this pointer and mark it as free again.
+    for (uint8_t i = 0; i < SIZE; i++) {
+      if (&this->storage_[i] == event) {
+        this->used_[i] = false;
+        break;
+      }
+    }
+  }
+
+ protected:
+  T storage_[SIZE];
+  bool used_[SIZE]{false};
 };
 
 template<class T, uint8_t SIZE> class EventQueue {
