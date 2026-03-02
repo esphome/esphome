@@ -583,6 +583,7 @@ void Application::unregister_socket(struct lwip_sock *sock) {
 #elif defined(USE_SOCKET_SELECT_SUPPORT)
 bool Application::register_socket_fd(int fd) {
   // WARNING: This function is NOT thread-safe and must only be called from the main loop
+  // It modifies socket_fds_ and related variables without locking
   if (fd < 0)
     return false;
 
@@ -608,6 +609,7 @@ bool Application::register_socket_fd(int fd) {
 
 void Application::unregister_socket_fd(int fd) {
   // WARNING: This function is NOT thread-safe and must only be called from the main loop
+  // It modifies socket_fds_ and related variables without locking
   if (fd < 0)
     return;
 
