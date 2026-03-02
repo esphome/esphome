@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 
+#include <array>
+
 namespace esphome::emc230x {
 
 static const uint8_t MAX_FANS = 5;
