@@ -4,21 +4,21 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_CHANNEL,
+    CONF_DATA_BITS,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OUTPUT,
+    CONF_PARITY,
+    CONF_STOP_BITS,
 )
 
 CODEOWNERS = ["@DrCoolZic"]
 AUTO_LOAD = ["uart"]
 
 MULTI_CONF = True
-CONF_DATA_BITS = "data_bits"
-CONF_STOP_BITS = "stop_bits"
-CONF_PARITY = "parity"
 CONF_CRYSTAL = "crystal"
 CONF_UART = "uart"
 CONF_TEST_MODE = "test_mode"

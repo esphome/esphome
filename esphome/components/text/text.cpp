@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <cstring>
 
-namespace esphome {
-namespace text {
+namespace esphome::text {
 
 static const char *const TAG = "text";
 
@@ -34,5 +33,4 @@ void Text::add_on_state_callback(std::function<void(const std::string &)> &&call
   this->state_callback_.add(std::move(callback));
 }
 
-}  // namespace text
-}  // namespace esphome
+}  // namespace esphome::text
