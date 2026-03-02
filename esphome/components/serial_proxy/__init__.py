@@ -12,6 +12,8 @@ Home Assistant to connect to the serial port and send/receive data to/from
 an arbitrary serial device.
 """
 
+from dataclasses import dataclass
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
@@ -40,7 +42,18 @@ CONF_DTR_PIN = "dtr_pin"
 CONF_PORT_TYPE = "port_type"
 CONF_RTS_PIN = "rts_pin"
 
-KEY_SERIAL_PROXY_COUNT = "serial_proxy_count"
+DOMAIN = "serial_proxy"
+
+
+@dataclass
+class SerialProxyData:
+    count: int = 0
+
+
+def _get_data() -> SerialProxyData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = SerialProxyData()
+    return CORE.data[DOMAIN]
 
 
 CONFIG_SCHEMA = (
@@ -61,7 +74,7 @@ CONFIG_SCHEMA = (
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_serial_proxy_count_define():
     """Emit the SERIAL_PROXY_COUNT define once with the final instance count."""
-    count = CORE.data.get(KEY_SERIAL_PROXY_COUNT, 0)
+    count = _get_data().count
     if count > 0:
         cg.add_define("SERIAL_PROXY_COUNT", count)
 
@@ -76,11 +89,11 @@ async def to_code(config):
     cg.add_define("USE_SERIAL_PROXY")
 
     # Track instance count for the FINAL priority define
-    count = CORE.data.setdefault(KEY_SERIAL_PROXY_COUNT, 0)
-    CORE.data[KEY_SERIAL_PROXY_COUNT] = count + 1
-    if count == 0:
+    data = _get_data()
+    if data.count == 0:
         # Schedule the count define job only once (on the first instance)
         CORE.add_job(_add_serial_proxy_count_define)
+    data.count += 1
 
     if CONF_RTS_PIN in config:
         rts_pin = await cg.gpio_pin_expression(config[CONF_RTS_PIN])

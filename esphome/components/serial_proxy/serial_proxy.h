@@ -12,8 +12,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/uart/uart.h"
 
-#include <string>
-
 // Forward-declare to avoid pulling api_pb2.h (which contains names conflicting
 // with Zephyr logging macros) into translation units via application.h.
 namespace esphome::api::enums {
@@ -39,10 +37,10 @@ class SerialProxy : public uart::UARTDevice, public Component {
   void set_instance_index(uint32_t index) { this->instance_index_ = index; }
 
   /// Set the human-readable port name (from YAML configuration)
-  void set_name(const std::string &name) { this->name_ = name; }
+  void set_name(const char *name) { this->name_ = name; }
 
   /// Get the human-readable port name
-  const std::string &get_name() const { return this->name_; }
+  const char *get_name() const { return this->name_; }
 
   /// Set the port type (from YAML configuration)
   void set_port_type(api::enums::SerialProxyPortType port_type) { this->port_type_ = port_type; }
@@ -86,8 +84,8 @@ class SerialProxy : public uart::UARTDevice, public Component {
   /// Instance index for identifying this proxy in API messages
   uint32_t instance_index_{0};
 
-  /// Human-readable port name
-  std::string name_;
+  /// Human-readable port name (points to a string literal in flash)
+  const char *name_{nullptr};
 
   /// Port type
   api::enums::SerialProxyPortType port_type_{};

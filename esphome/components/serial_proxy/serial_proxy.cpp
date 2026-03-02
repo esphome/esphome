@@ -51,7 +51,7 @@ void SerialProxy::dump_config() {
                 "  Port Type: %s\n"
                 "  RTS Pin: %s\n"
                 "  DTR Pin: %s",
-                this->instance_index_, this->name_.c_str(),
+                this->instance_index_, this->name_ != nullptr ? this->name_ : "",
                 this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485   ? "RS485"
                 : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232 ? "RS232"
                                                                                : "TTL",

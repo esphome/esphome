@@ -742,7 +742,7 @@ class Application {
   StaticVector<infrared::Infrared *, ESPHOME_ENTITY_INFRARED_COUNT> infrareds_{};
 #endif
 #ifdef USE_SERIAL_PROXY
-  std::vector<serial_proxy::SerialProxy *> serial_proxies_{};
+  StaticVector<serial_proxy::SerialProxy *, SERIAL_PROXY_COUNT> serial_proxies_{};
 #endif
 #ifdef USE_UPDATE
   StaticVector<update::UpdateEntity *, ESPHOME_ENTITY_UPDATE_COUNT> updates_{};
