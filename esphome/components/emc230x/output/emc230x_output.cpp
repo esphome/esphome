@@ -2,8 +2,6 @@
 
 namespace esphome::emc230x {
 
-static const char *const TAG = "emc230x.component";
-
 void Emc230xOutput::write_state(float state) { this->parent_->set_duty_cycle(this->fan_, state); }
 
 }  // namespace esphome::emc230x
