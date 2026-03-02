@@ -8,7 +8,6 @@ import shutil
 import subprocess
 
 from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE
-from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME
 from esphome.core import CORE, EsphomeError
 
 _LOGGER = logging.getLogger(__name__)
@@ -124,15 +123,12 @@ def run_compile(config, verbose: bool) -> int:
         write_project(minimal=False)
 
     # Build
-    args = ["build"]
+    args = []
 
     if verbose:
         args.append("-v")
 
-    # Add parallel job limit if configured
-    if CONF_COMPILE_PROCESS_LIMIT in config.get(CONF_ESPHOME, {}):
-        limit = config[CONF_ESPHOME][CONF_COMPILE_PROCESS_LIMIT]
-        args.extend(["-j", str(limit)])
+    args.append("build")
 
     # Set the sdkconfig file
     sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
