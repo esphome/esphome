@@ -603,24 +603,30 @@ inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str
 /// calling __udivdi3 (software 64-bit divide, ~1200 ns on Xtensa @ 240 MHz).
 ///
 /// On 32-bit targets, GCC does not optimize 64-bit constant division into a
-/// multiply-by-reciprocal. This uses the Euclidean division identity to
-/// decompose the 64-bit division into a single 32-bit division:
+/// multiply-by-reciprocal. Since 1000 = 8 * 125, we first right-shift by 3
+/// (free divide-by-8), then use the Euclidean division identity to decompose
+/// the remaining 64-bit divide-by-125 into a single 32-bit division:
 ///
-///   2^32 = Q * 1000 + R  (4294967 * 1000 + 296)
-///   (hi * 2^32 + lo) / 1000 = hi * Q + (hi * R + lo) / 1000
+///   floor(us / 1000) = floor(floor(us / 8) / 125)    [exact for integers]
+///   2^32 = Q * 125 + R  (34359738 * 125 + 46)
+///   (hi * 2^32 + lo) / 125 = hi * Q + (hi * R + lo) / 125
 ///
-/// GCC optimizes the remaining 32-bit "/ 1000U" into a multiply-by-reciprocal
+/// GCC optimizes the remaining 32-bit "/ 125U" into a multiply-by-reciprocal
 /// (mulhu + shift), so no division instruction is emitted.
+///
+/// Safe for us up to ~3.2e18 (~101,700 years of microseconds).
 ///
 /// See: https://en.wikipedia.org/wiki/Euclidean_division
 /// See: https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
 inline ESPHOME_ALWAYS_INLINE uint32_t micros_to_millis(uint64_t us) {
-  static constexpr uint32_t D = 1000U;
-  static constexpr uint32_t Q = static_cast<uint32_t>((1ULL << 32) / D);  // 4294967
-  static constexpr uint32_t R = static_cast<uint32_t>((1ULL << 32) % D);  // 296
-  uint32_t lo = static_cast<uint32_t>(us);
-  uint32_t hi = static_cast<uint32_t>(us >> 32);
-  // Combine remainder term: hi * (2^32 % 1000) + lo
+  static constexpr uint32_t D = 125U;
+  static constexpr uint32_t Q = static_cast<uint32_t>((1ULL << 32) / D);  // 34359738
+  static constexpr uint32_t R = static_cast<uint32_t>((1ULL << 32) % D);  // 46
+  // 1000 = 8 * 125; divide-by-8 is a free shift
+  uint64_t x = us >> 3;
+  uint32_t lo = static_cast<uint32_t>(x);
+  uint32_t hi = static_cast<uint32_t>(x >> 32);
+  // Combine remainder term: hi * (2^32 % 125) + lo
   uint32_t adj = hi * R + lo;
   // If adj overflowed, the true value is 2^32 + adj; apply the identity again
   return hi * Q + (adj < lo ? (adj + R) / D + Q : adj / D);
