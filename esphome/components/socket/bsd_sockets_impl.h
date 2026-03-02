@@ -83,7 +83,7 @@ class BSDSocketImpl {
     return ::write(this->fd_, buf, len);
 #endif
   }
-  ssize_t send(void *buf, size_t len, int flags) { return ::send(this->fd_, buf, len, flags); }
+  ssize_t send(const void *buf, size_t len, int flags) { return ::send(this->fd_, buf, len, flags); }
   ssize_t writev(const struct iovec *iov, int iovcnt) {
 #if defined(USE_ESP32)
     return ::lwip_writev(this->fd_, iov, iovcnt);
