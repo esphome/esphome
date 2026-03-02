@@ -527,32 +527,28 @@ template<std::integral T> constexpr uint32_t fnv1a_hash_extend(uint32_t hash, T 
 constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
 inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
 
-/// Divide a uint64_t by 1000 and return the low 32 bits of the quotient.
+/// Convert a 64-bit microsecond count to a 32-bit millisecond count without
+/// calling __udivdi3 (software 64-bit divide, ~1200 ns on Xtensa @ 240 MHz).
 ///
 /// On 32-bit targets, GCC does not optimize 64-bit constant division into a
-/// multiply-by-reciprocal and instead calls __udivdi3 (software 64-bit divide,
-/// ~1200 ns on Xtensa @ 240 MHz). This uses the Euclidean division identity to
+/// multiply-by-reciprocal. This uses the Euclidean division identity to
 /// decompose the 64-bit division into a single 32-bit division:
 ///
-///   2^32 = 4294967 * 1000 + 296    (Q * D + R)
-///
-/// Therefore: (hi * 2^32 + lo) / 1000 = hi * Q + (hi * R + lo) / 1000
+///   2^32 = Q * 1000 + R  (4294967 * 1000 + 296)
+///   (hi * 2^32 + lo) / 1000 = hi * Q + (hi * R + lo) / 1000
 ///
 /// GCC optimizes the remaining 32-bit "/ 1000U" into a multiply-by-reciprocal
 /// (mulhu + shift), so no division instruction is emitted.
 ///
-/// Only the low 32 bits of the quotient are returned (same 49.7-day wrap as millis()).
-///
 /// See: https://en.wikipedia.org/wiki/Euclidean_division
 /// See: https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
-inline ESPHOME_ALWAYS_INLINE uint32_t fast_div1000_32(uint64_t us) {
+inline ESPHOME_ALWAYS_INLINE uint32_t micros_to_millis(uint64_t us) {
   static constexpr uint32_t D = 1000U;
   static constexpr uint32_t Q = static_cast<uint32_t>((1ULL << 32) / D);  // 4294967
   static constexpr uint32_t R = static_cast<uint32_t>((1ULL << 32) % D);  // 296
   uint32_t lo = static_cast<uint32_t>(us);
   uint32_t hi = static_cast<uint32_t>(us >> 32);
   // Combine remainder term: hi * (2^32 % 1000) + lo
-  // Safe for us < (14510024 << 32), i.e. ~6.2e16 (~1,975 years of microseconds)
   uint32_t adj = hi * R + lo;
   // If adj overflowed, the true value is 2^32 + adj; apply the identity again
   return hi * Q + (adj < lo ? (adj + R) / D + Q : adj / D);

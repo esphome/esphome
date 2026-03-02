@@ -22,7 +22,7 @@ extern "C" __attribute__((weak)) void initArduino() {}
 namespace esphome {
 
 void HOT yield() { vPortYield(); }
-uint32_t IRAM_ATTR HOT millis() { return fast_div1000_32(static_cast<uint64_t>(esp_timer_get_time())); }
+uint32_t IRAM_ATTR HOT millis() { return micros_to_millis(static_cast<uint64_t>(esp_timer_get_time())); }
 uint64_t HOT millis_64() { return static_cast<uint64_t>(esp_timer_get_time()) / 1000ULL; }
 void HOT delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
 uint32_t IRAM_ATTR HOT micros() { return (uint32_t) esp_timer_get_time(); }
