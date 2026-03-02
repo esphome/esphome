@@ -41,7 +41,7 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(float, color_temperature)
   TEMPLATABLE_VALUE(float, cold_white)
   TEMPLATABLE_VALUE(float, warm_white)
-  TEMPLATABLE_VALUE(std::string, effect)
+  TEMPLATABLE_VALUE(uint32_t, effect)
 
   void play(const Ts &...x) override {
     auto call = this->parent_->make_call();

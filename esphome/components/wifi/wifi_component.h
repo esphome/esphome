@@ -443,7 +443,7 @@ class WiFiComponent : public Component {
 
   void set_reboot_timeout(uint32_t reboot_timeout);
 
-  bool is_connected();
+  bool is_connected() const;
 
   void set_power_save_mode(WiFiPowerSaveMode power_save);
   void set_min_auth_mode(WifiMinAuthMode min_auth_mode) { min_auth_mode_ = min_auth_mode; }
@@ -677,7 +677,7 @@ class WiFiComponent : public Component {
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
-  WiFiSTAConnectStatus wifi_sta_connect_status_();
+  WiFiSTAConnectStatus wifi_sta_connect_status_() const;
   bool wifi_scan_start_(bool passive);
 
 #ifdef USE_WIFI_AP
