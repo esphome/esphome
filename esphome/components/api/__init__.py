@@ -541,17 +541,24 @@ async def homeassistant_service_to_code(
     # Initialize FixedVectors with exact sizes from config
     cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
-        templ = await cg.templatable(value, args, cg.std_string)
+        # output_type=None because lambdas can return non-string types (int,
+        # float, char*) that TemplatableStringValue converts via to_string.
+        # Static strings are manually wrapped for PROGMEM on ESP8266.
+        templ = await cg.templatable(value, args, None)
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
         cg.add(var.add_data(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
-        templ = await cg.templatable(value, args, cg.std_string)
+        templ = await cg.templatable(value, args, None)
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
         cg.add(var.add_data_template(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
-        templ = await cg.templatable(value, args, cg.std_string)
+        templ = await cg.templatable(value, args, None)
         cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     if on_error := config.get(CONF_ON_ERROR):
@@ -627,17 +634,24 @@ async def homeassistant_event_to_code(config, action_id, template_arg, args):
     # Initialize FixedVectors with exact sizes from config
     cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
-        templ = await cg.templatable(value, args, cg.std_string)
+        # output_type=None because lambdas can return non-string types (int,
+        # float, char*) that TemplatableStringValue converts via to_string.
+        # Static strings are manually wrapped for PROGMEM on ESP8266.
+        templ = await cg.templatable(value, args, None)
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
         cg.add(var.add_data(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
-        templ = await cg.templatable(value, args, cg.std_string)
+        templ = await cg.templatable(value, args, None)
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
         cg.add(var.add_data_template(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
-        templ = await cg.templatable(value, args, cg.std_string)
+        templ = await cg.templatable(value, args, None)
         cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     return var
