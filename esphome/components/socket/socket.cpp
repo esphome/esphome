@@ -51,13 +51,19 @@ static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t
 
 // Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf) {
+#if LWIP_IPV4
   if (addr_ptr->sa_family == AF_INET && len >= sizeof(const struct sockaddr_in)) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in *>(addr_ptr);
     if (esphome_inet_ntop4(&addr->sin_addr, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
   }
+#endif
 #if USE_NETWORK_IPV6
+#if LWIP_IPV4
   else if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
+#else
+  if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
+#endif /* LWIP_IPV4 */
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(addr_ptr);
 #ifdef USE_HOST
     // Format IPv4-mapped IPv6 addresses as regular IPv4 (POSIX layout, no LWIP union)
@@ -144,6 +150,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
     return sizeof(sockaddr_in6);
   }
 #endif /* USE_NETWORK_IPV6 */
+#if LWIP_IPV4
   if (addrlen < sizeof(sockaddr_in)) {
     errno = EINVAL;
     return 0;
@@ -154,6 +161,10 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   server->sin_addr.s_addr = inet_addr(ip_address);
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);
+#else
+  errno = EINVAL;
+  return 0;
+#endif /* LWIP_IPV4 */
 }
 
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port) {

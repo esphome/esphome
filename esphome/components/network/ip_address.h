@@ -75,45 +75,57 @@ struct IPAddress {
   }
 #else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
+#if LWIP_IPV4
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
     IP_ADDR4(&ip_addr_, first, second, third, fourth);
   }
+#endif
   IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
   IPAddress(const char *in_address) { ipaddr_aton(in_address, &ip_addr_); }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
+#if LWIP_IPV4
   IPAddress(ip4_addr_t *other_ip) {
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t));
 #if USE_ESP32 && LWIP_IPV6
     ip_addr_.type = IPADDR_TYPE_V4;
 #endif
   }
+#endif /* LWIP_IPV4 */
 #if USE_ARDUINO
   IPAddress(const arduino_ns::IPAddress &other_ip) { ip_addr_set_ip4_u32(&ip_addr_, other_ip); }
 #endif
 #if LWIP_IPV6
   IPAddress(ip6_addr_t *other_ip) {
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip6_addr_t));
+#if LWIP_IPV4
     ip_addr_.type = IPADDR_TYPE_V6;
+#endif
   }
 #endif /* LWIP_IPV6 */
 
 #ifdef USE_ESP32
 #if LWIP_IPV6
   IPAddress(esp_ip6_addr_t *other_ip) {
+#if LWIP_IPV4
     memcpy((void *) &ip_addr_.u_addr.ip6, (void *) other_ip, sizeof(esp_ip6_addr_t));
     ip_addr_.type = IPADDR_TYPE_V6;
+#else
+    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip6_addr_t));
+#endif
   }
 #endif /* LWIP_IPV6 */
+#if LWIP_IPV4
   IPAddress(esp_ip4_addr_t *other_ip) {
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t));
 #if LWIP_IPV6
     ip_addr_.type = IPADDR_TYPE_V4;
 #endif
   }
+#endif /* LWIP_IPV4 */
   IPAddress(esp_ip_addr_t *other_ip) {
 #if LWIP_IPV6
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_));
-#else
+#elif LWIP_IPV4
     memcpy((void *) &ip_addr_, (void *) &other_ip->u_addr.ip4, sizeof(ip_addr_));
 #endif
   }
@@ -121,11 +133,12 @@ struct IPAddress {
     esp_ip_addr_t tmp;
 #if LWIP_IPV6
     memcpy((void *) &tmp, (void *) &ip_addr_, sizeof(ip_addr_));
-#else
+#elif LWIP_IPV4
     memcpy((void *) &tmp.u_addr.ip4, (void *) &ip_addr_, sizeof(ip_addr_));
 #endif /* LWIP_IPV6 */
     return tmp;
   }
+#if LWIP_IPV4
   operator esp_ip4_addr_t() const {
     esp_ip4_addr_t tmp;
 #if LWIP_IPV6
@@ -135,10 +148,11 @@ struct IPAddress {
 #endif /* LWIP_IPV6 */
     return tmp;
   }
+#endif /* LWIP_IPV4 */
 #endif /* USE_ESP32 */
 
   operator ip_addr_t() const { return ip_addr_; }
-#if LWIP_IPV6
+#if LWIP_IPV6 && LWIP_IPV4
   operator ip4_addr_t() const { return *ip_2_ip4(&ip_addr_); }
 #endif /* LWIP_IPV6 */
 
@@ -170,9 +184,9 @@ struct IPAddress {
   bool operator!=(const IPAddress &other) const { return !ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   IPAddress &operator+=(uint8_t increase) {
     if (IP_IS_V4(&ip_addr_)) {
-#if LWIP_IPV6
+#if LWIP_IPV6 && LWIP_IPV4
       (((u8_t *) (&ip_addr_.u_addr.ip4))[3]) += increase;
-#else
+#elif LWIP_IPV4
       (((u8_t *) (&ip_addr_.addr))[3]) += increase;
 #endif /* LWIP_IPV6 */
     }
