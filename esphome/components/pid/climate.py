@@ -6,6 +6,9 @@ from esphome.const import CONF_HUMIDITY_SENSOR, CONF_ID, CONF_SENSOR
 
 pid_ns = cg.esphome_ns.namespace("pid")
 PIDClimate = pid_ns.class_("PIDClimate", climate.Climate, cg.Component)
+LevelAndDirectionOutput = pid_ns.class_(
+    "LevelAndDirectionOutput", cg.Component, output.LevelAndDirectionOutput
+)
 PIDAutotuneAction = pid_ns.class_("PIDAutotuneAction", automation.Action)
 PIDResetIntegralTermAction = pid_ns.class_(
     "PIDResetIntegralTermAction", automation.Action
@@ -23,6 +26,9 @@ CONF_KD = "kd"
 CONF_CONTROL_PARAMETERS = "control_parameters"
 CONF_COOL_OUTPUT = "cool_output"
 CONF_HEAT_OUTPUT = "heat_output"
+CONF_LEVEL_AND_DIRECTION_OUTPUT = "level_and_direction_output"
+CONF_LEVEL = "level"
+CONF_DIRECTION = "direction"
 CONF_NOISEBAND = "noiseband"
 CONF_POSITIVE_OUTPUT = "positive_output"
 CONF_NEGATIVE_OUTPUT = "negative_output"
@@ -40,12 +46,31 @@ CONF_KP_MULTIPLIER = "kp_multiplier"
 CONF_KI_MULTIPLIER = "ki_multiplier"
 CONF_KD_MULTIPLIER = "kd_multiplier"
 
+
+def _validate_pid_outputs(config):
+    if CONF_LEVEL_AND_DIRECTION_OUTPUT in config and (
+        CONF_COOL_OUTPUT in config or CONF_HEAT_OUTPUT in config
+    ):
+        raise cv.Invalid(
+            "Cannot use both 'level_and_direction_output' and 'heat_output'/'cool_output'. "
+            "Use either level_and_direction_output or separate heat/cool outputs."
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     climate.climate_schema(PIDClimate).extend(
         {
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE): cv.temperature,
+            cv.Optional(CONF_LEVEL_AND_DIRECTION_OUTPUT): cv.Schema(
+                {
+                    cv.GenerateID(): cv.declare_id(LevelAndDirectionOutput),
+                    cv.Required(CONF_LEVEL): cv.use_id(output.FloatOutput),
+                    cv.Required(CONF_DIRECTION): cv.use_id(output.BinaryOutput),
+                }
+            ),
             cv.Optional(CONF_COOL_OUTPUT): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_DEADBAND_PARAMETERS): cv.Schema(
@@ -74,7 +99,12 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
-    cv.has_at_least_one_key(CONF_COOL_OUTPUT, CONF_HEAT_OUTPUT),
+    cv.All(
+        cv.has_at_least_one_key(
+            CONF_LEVEL_AND_DIRECTION_OUTPUT, CONF_COOL_OUTPUT, CONF_HEAT_OUTPUT
+        ),
+        _validate_pid_outputs,
+    ),
 )
 
 
@@ -89,6 +119,15 @@ async def to_code(config):
         sens = await cg.get_variable(config[CONF_HUMIDITY_SENSOR])
         cg.add(var.set_humidity_sensor(sens))
 
+    if CONF_LEVEL_AND_DIRECTION_OUTPUT in config:
+        ldo_conf = config[CONF_LEVEL_AND_DIRECTION_OUTPUT]
+        ldo = cg.new_Pvariable(ldo_conf[CONF_ID])
+        await cg.register_component(ldo, ldo_conf)
+        level_out = await cg.get_variable(ldo_conf[CONF_LEVEL])
+        cg.add(ldo.set_level_output(level_out))
+        direction_out = await cg.get_variable(ldo_conf[CONF_DIRECTION])
+        cg.add(ldo.set_direction_output(direction_out))
+        cg.add(var.set_level_and_direction_output(ldo))
     if CONF_COOL_OUTPUT in config:
         out = await cg.get_variable(config[CONF_COOL_OUTPUT])
         cg.add(var.set_cool_output(out))

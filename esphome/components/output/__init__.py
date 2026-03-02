@@ -38,6 +38,7 @@ BinaryOutput = output_ns.class_("BinaryOutput")
 BinaryOutputPtr = BinaryOutput.operator("ptr")
 FloatOutput = output_ns.class_("FloatOutput", BinaryOutput)
 FloatOutputPtr = FloatOutput.operator("ptr")
+LevelAndDirectionOutput = output_ns.class_("LevelAndDirectionOutput")
 
 # Actions
 TurnOffAction = output_ns.class_("TurnOffAction", automation.Action)

@@ -94,17 +94,23 @@ void PIDClimate::dump_config() {
 void PIDClimate::write_output_(float value) {
   this->output_value_ = value;
 
-  // first ensure outputs are off (both outputs not active at the same time)
-  if (this->supports_cool_() && value >= 0)
-    this->cool_output_->set_level(0.0f);
-  if (this->supports_heat_() && value <= 0)
-    this->heat_output_->set_level(0.0f);
+  if (this->level_and_direction_output_ != nullptr) {
+    this->level_and_direction_output_->set_reverse(value < 0.0f);
+    this->level_and_direction_output_->set_level(
+        std::min(1.0f, value >= 0.0f ? value : -value));
+  } else {
+    // first ensure outputs are off (both outputs not active at the same time)
+    if (this->supports_cool_() && value >= 0)
+      this->cool_output_->set_level(0.0f);
+    if (this->supports_heat_() && value <= 0)
+      this->heat_output_->set_level(0.0f);
 
-  // value < 0 means cool, > 0 means heat
-  if (this->supports_cool_() && value < 0)
-    this->cool_output_->set_level(std::min(1.0f, -value));
-  if (this->supports_heat_() && value > 0)
-    this->heat_output_->set_level(std::min(1.0f, value));
+    // value < 0 means cool, > 0 means heat
+    if (this->supports_cool_() && value < 0)
+      this->cool_output_->set_level(std::min(1.0f, -value));
+    if (this->supports_heat_() && value > 0)
+      this->heat_output_->set_level(std::min(1.0f, value));
+  }
 
   // Update action variable for user feedback what's happening
   climate::ClimateAction new_action;
