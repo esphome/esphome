@@ -315,7 +315,7 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // This method is thread and ISR-safe because:
   // 1. Only performs simple assignments to volatile variables (atomic on all platforms)
   // 2. No read-modify-write operations that could be interrupted
-  // 3. No memory allocation, object construction, or function calls
+  // 3. No memory allocation or object construction; on ESP32 the only call (wake_loop_any_context) is ISR-safe
   // 4. IRAM_ATTR ensures code is in IRAM, not flash (required for ISR execution)
   // 5. Components are never destroyed, so no use-after-free concerns
   // 6. App is guaranteed to be initialized before any ISR could fire
@@ -323,6 +323,12 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // 8. Race condition with main loop is handled by clearing flag before processing
   this->pending_enable_loop_ = true;
   App.has_pending_enable_loop_requests_ = true;
+#if defined(USE_LWIP_FAST_SELECT) && defined(USE_ESP32)
+  // Wake the main loop if sleeping in ulTaskNotifyTake(). Without this,
+  // the main loop would not wake until the select timeout expires (~16ms).
+  // Uses xPortInIsrContext() to choose the correct FreeRTOS notify API.
+  Application::wake_loop_any_context();
+#endif
 }
 void Component::reset_to_construction_state() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {

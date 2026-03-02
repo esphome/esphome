@@ -55,6 +55,9 @@ def set_sdkconfig_options(config):
     # Console is the transport layer for CLI; disable it too since CLI is disabled
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_CONSOLE_ENABLE", False)
 
+    # Diag unused, if needed for lab/cert/etc tests then enable separately
+    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DIAG", False)
+
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
 
     if tlv := config.get(CONF_TLV):

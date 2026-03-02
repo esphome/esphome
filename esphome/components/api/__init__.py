@@ -76,7 +76,7 @@ SERVICE_ARG_NATIVE_TYPES: dict[str, MockObj] = {
     "bool": cg.bool_,
     "int": cg.int32,
     "float": cg.float_,
-    "string": cg.std_string,
+    "string": cg.StringRef,
     "bool[]": cg.FixedVector.template(cg.bool_).operator("const").operator("ref"),
     "int[]": cg.FixedVector.template(cg.int32).operator("const").operator("ref"),
     "float[]": cg.FixedVector.template(cg.float_).operator("const").operator("ref"),
@@ -380,9 +380,18 @@ async def to_code(config: ConfigType) -> None:
                 if is_optional:
                     func_args.append((cg.bool_, "return_response"))
 
+            # Check if action chain has non-synchronous actions that would make
+            # non-owning StringRef dangle (rx_buf_ reused after delay)
+            has_non_synchronous = automation.has_non_synchronous_actions(
+                conf.get(CONF_THEN, [])
+            )
+
             service_arg_names: list[str] = []
             for name, var_ in conf[CONF_VARIABLES].items():
                 native = SERVICE_ARG_NATIVE_TYPES[var_]
+                # Fall back to std::string for string args if non-synchronous actions exist
+                if has_non_synchronous and native is cg.StringRef:
+                    native = cg.std_string
                 service_template_args.append(native)
                 func_args.append((native, name))
                 service_arg_names.append(name)
@@ -509,11 +518,13 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     "homeassistant.action",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "homeassistant.service",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def homeassistant_service_to_code(
     config: ConfigType,
@@ -604,6 +615,7 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     "homeassistant.event",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def homeassistant_event_to_code(config, action_id, template_arg, args):
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
@@ -644,6 +656,7 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
     "homeassistant.tag_scanned",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
