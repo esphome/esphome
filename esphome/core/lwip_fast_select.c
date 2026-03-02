@@ -150,6 +150,10 @@ _Static_assert(offsetof(struct netconn, callback) % sizeof(netconn_callback) == 
 _Static_assert(offsetof(struct lwip_sock, rcvevent) % sizeof(((struct lwip_sock *) 0)->rcvevent) == 0,
                "lwip_sock.rcvevent must be naturally aligned for atomic access");
 
+// Verify the hardcoded offset used in the header's inline esphome_lwip_socket_has_data().
+_Static_assert(offsetof(struct lwip_sock, rcvevent) == ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET,
+               "lwip_sock.rcvevent offset changed — update ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET in lwip_fast_select.h");
+
 // Task handle for the main loop — written once in init(), read from TCP/IP and background tasks.
 static TaskHandle_t s_main_loop_task = NULL;
 
@@ -196,17 +200,6 @@ static inline struct lwip_sock *get_sock(int fd) {
 
 struct lwip_sock *esphome_lwip_get_sock(int fd) {
   return get_sock(fd);
-}
-
-// Hot path: caller has already cached the lwip_sock pointer at registration time.
-// No fd lookup, no null checks — just a volatile 16-bit load of rcvevent.
-bool esphome_lwip_socket_has_data(struct lwip_sock *sock) {
-  // volatile prevents the compiler from caching/reordering this cross-thread read.
-  // The write side (TCP/IP thread) commits via SYS_ARCH_UNPROTECT which releases a
-  // FreeRTOS mutex (ESP32) or resumes the scheduler (LibreTiny), ensuring the value
-  // is visible. Aligned 16-bit reads are single-instruction loads (L16SI/LH/LDRH) on
-  // Xtensa/RISC-V/ARM and cannot produce torn values.
-  return *(volatile s16_t *) &sock->rcvevent > 0;
 }
 
 void esphome_lwip_hook_socket(struct lwip_sock *sock) {

@@ -4,6 +4,16 @@
 // Replaces lwip_select() with direct rcvevent reads and FreeRTOS task notifications.
 
 #include <stdbool.h>
+#include <stdint.h>
+
+// Forward declare lwip_sock for C++ callers that store cached pointers.
+// The full definition is only available in the .c file (lwip/priv/sockets_priv.h
+// conflicts with C++ compilation units).
+struct lwip_sock;
+
+// Byte offset of rcvevent (s16_t) within struct lwip_sock.
+// Verified at compile time in lwip_fast_select.c via _Static_assert.
+#define ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET 8
 
 // Forward declare lwip_sock for C++ callers that store cached pointers.
 // The full definition is only available in the .c file (lwip/priv/sockets_priv.h
@@ -26,8 +36,17 @@ struct lwip_sock *esphome_lwip_get_sock(int fd);
 /// Check if a cached LwIP socket has data ready via direct rcvevent read.
 /// The sock pointer must have been obtained from esphome_lwip_get_sock() and must
 /// remain valid (caller owns socket lifetime — no concurrent close).
-/// Hot path: no fd lookup, no null checks — just a volatile 16-bit load.
-bool esphome_lwip_socket_has_data(struct lwip_sock *sock);
+/// Hot path: inlined volatile 16-bit load — no function call overhead.
+/// Uses offset-based access because lwip/priv/sockets_priv.h conflicts with C++.
+/// The offset is verified at compile time in lwip_fast_select.c.
+static inline bool esphome_lwip_socket_has_data(struct lwip_sock *sock) {
+  // volatile prevents the compiler from caching/reordering this cross-thread read.
+  // The write side (TCP/IP thread) commits via SYS_ARCH_UNPROTECT which releases a
+  // FreeRTOS mutex (ESP32) or resumes the scheduler (LibreTiny), ensuring the value
+  // is visible. Aligned 16-bit reads are single-instruction loads (L16SI/LH/LDRH) on
+  // Xtensa/RISC-V/ARM and cannot produce torn values.
+  return *(volatile int16_t *) ((char *) sock + ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET) > 0;
+}
 
 /// Hook a socket's netconn callback to notify the main loop task on receive events.
 /// Wraps the original event_callback with one that also calls xTaskNotifyGive().
