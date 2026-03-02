@@ -6,8 +6,7 @@
 #include <cstdint>
 #include <string>
 
-namespace esphome {
-namespace media_source {
+namespace esphome::media_source {
 
 enum class MediaSourceState : uint8_t {
   IDLE,     // Not playing, ready to accept play_uri
@@ -157,5 +156,4 @@ class MediaSource {
   MediaSourceListener *listener_{nullptr};
 };
 
-}  // namespace media_source
-}  // namespace esphome
+}  // namespace esphome::media_source
