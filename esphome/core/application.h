@@ -648,7 +648,6 @@ class Application {
   /// Detects the calling context and uses the appropriate FreeRTOS API.
   static void IRAM_ATTR wake_loop_any_context() { esphome_lwip_wake_main_loop_any_context(); }
 #endif
-#endif
 
 #if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
   /// Wake the main event loop from any context (ISR, thread, or main loop).
