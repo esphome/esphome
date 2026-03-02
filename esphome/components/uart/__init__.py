@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from logging import getLogger
 import math
 import re
@@ -115,38 +114,6 @@ UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
-
-
-@dataclass
-class UARTData:
-    """State data for UART component configuration generation."""
-
-    wake_loop_on_rx: bool = False
-
-
-def _get_data() -> UARTData:
-    """Get UART component data from CORE.data."""
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = UARTData()
-    return CORE.data[DOMAIN]
-
-
-def request_wake_loop_on_rx() -> None:
-    """Request that the UART wake the main loop when data is received.
-
-    Components that need low-latency notification of incoming UART data
-    should call this function during their code generation.
-    This enables the RX event task which wakes the main loop when data arrives.
-    """
-    data = _get_data()
-    if not data.wake_loop_on_rx:
-        data.wake_loop_on_rx = True
-
-        # UART RX event task uses wake_loop_threadsafe() to notify the main loop
-        # Automatically enable the socket wake infrastructure when RX wake is requested
-        from esphome.components import socket
-
-        socket.require_wake_loop_threadsafe()
 
 
 def validate_raw_data(value):
@@ -542,7 +509,14 @@ async def uart_write_to_code(config, action_id, template_arg, args):
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
-    if _get_data().wake_loop_on_rx:
+    if CORE.is_esp32 and CORE.has_networking:
+        # Wake-on-RX is essentially free on ESP32 (just an ISR function pointer
+        # registration) — enable by default to reduce RX buffer overflow risk
+        # by waking the main loop immediately when data arrives.
+        # Requires networking for the wake_loop_isrsafe() infrastructure.
+        from esphome.components import socket
+
+        socket.require_wake_loop_threadsafe()
         cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 
