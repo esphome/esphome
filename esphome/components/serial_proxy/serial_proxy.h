@@ -90,7 +90,7 @@ class SerialProxy : public uart::UARTDevice, public Component {
   std::string name_;
 
   /// Port type
-  api::enums::SerialProxyPortType port_type_{api::enums::SERIAL_PROXY_PORT_TYPE_TTL};
+  api::enums::SerialProxyPortType port_type_{};
 
   /// Optional GPIO pins for modem control
   GPIOPin *rts_pin_{nullptr};
