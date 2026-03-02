@@ -140,8 +140,10 @@
 _Static_assert(sizeof(TaskHandle_t) <= 4, "TaskHandle_t must be <= 4 bytes for atomic access");
 _Static_assert(sizeof(netconn_callback) <= 4, "netconn_callback must be <= 4 bytes for atomic access");
 
-// rcvevent must fit in a single atomic read
-_Static_assert(sizeof(((struct lwip_sock *) 0)->rcvevent) <= 4, "rcvevent must be <= 4 bytes for atomic access");
+// rcvevent must be exactly 2 bytes (s16_t) — the inline in lwip_fast_select.h reads it as int16_t.
+// If lwIP changes this to int or similar, the offset assert would still pass but the load width would be wrong.
+_Static_assert(sizeof(((struct lwip_sock *) 0)->rcvevent) == 2,
+               "rcvevent size changed — update int16_t cast in esphome_lwip_socket_has_data() in lwip_fast_select.h");
 
 // Struct member alignment — natural alignment guarantees atomicity on Xtensa/RISC-V/ARM.
 // Misaligned access would not be atomic even if the size is <= 4 bytes.
