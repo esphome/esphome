@@ -2,7 +2,13 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, output, sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_HUMIDITY_SENSOR, CONF_ID, CONF_SENSOR
+from esphome.const import (
+    CONF_DIRECTION,
+    CONF_HUMIDITY_SENSOR,
+    CONF_ID,
+    CONF_LEVEL,
+    CONF_SENSOR,
+)
 
 pid_ns = cg.esphome_ns.namespace("pid")
 PIDClimate = pid_ns.class_("PIDClimate", climate.Climate, cg.Component)
@@ -27,8 +33,6 @@ CONF_CONTROL_PARAMETERS = "control_parameters"
 CONF_COOL_OUTPUT = "cool_output"
 CONF_HEAT_OUTPUT = "heat_output"
 CONF_LEVEL_AND_DIRECTION_OUTPUT = "level_and_direction_output"
-CONF_LEVEL = "level"
-CONF_DIRECTION = "direction"
 CONF_NOISEBAND = "noiseband"
 CONF_POSITIVE_OUTPUT = "positive_output"
 CONF_NEGATIVE_OUTPUT = "negative_output"
