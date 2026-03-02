@@ -66,7 +66,9 @@ class AddressableLight : public LightOutput, public Component {
         Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
   }
   void setup_state(LightState *state) override {
-    this->correction_.calculate_gamma_table(state->get_gamma_correct());
+#ifdef USE_LIGHT_GAMMA_LUT
+    this->correction_.set_gamma_table(state->get_gamma_table());
+#endif
     this->state_parent_ = state;
   }
   void update_state(LightState *state) override;
