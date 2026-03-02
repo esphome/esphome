@@ -95,14 +95,6 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
   return create_socket(domain, type, protocol, true);
 }
 
-std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol) {
-  return create_socket(domain, type, protocol, false);
-}
-
-std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type, int protocol) {
-  return create_socket(domain, type, protocol, true);
-}
-
 }  // namespace esphome::socket
 
 #endif  // USE_SOCKET_IMPL_BSD_SOCKETS
