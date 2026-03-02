@@ -492,7 +492,7 @@ MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "mqtt.publish", MQTTPublishAction, MQTT_PUBLISH_ACTION_SCHEMA
+    "mqtt.publish", MQTTPublishAction, MQTT_PUBLISH_ACTION_SCHEMA, synchronous=True
 )
 async def mqtt_publish_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -521,7 +521,10 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "mqtt.publish_json", MQTTPublishJsonAction, MQTT_PUBLISH_JSON_ACTION_SCHEMA
+    "mqtt.publish_json",
+    MQTTPublishJsonAction,
+    MQTT_PUBLISH_JSON_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
