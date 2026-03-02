@@ -60,6 +60,7 @@ void arch_restart() { sys_reboot(SYS_REBOOT_COLD); }
 uint32_t arch_get_cpu_cycle_count() { return k_cycle_get_32(); }
 uint32_t arch_get_cpu_freq_hz() { return sys_clock_hw_cycles_per_sec(); }
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
+uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
 
 Mutex::Mutex() {
   auto *mutex = new k_mutex();
