@@ -52,7 +52,7 @@ def set_sdkconfig_options(config):
 
     # There is a conflict if the logger's uart also uses the default UART, which is seen as a watchdog failure on "ot_cli"
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_CLI", False)
-    # Without CLI, also (default enabled) OT console unneeded:
+    # Console is the transport layer for CLI; disable it too since CLI is disabled
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_CONSOLE_ENABLE", False)
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
