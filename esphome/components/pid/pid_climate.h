@@ -23,8 +23,7 @@ class PIDClimate : public climate::Climate, public Component {
   void set_humidity_sensor(sensor::Sensor *sensor) { humidity_sensor_ = sensor; }
   void set_cool_output(output::FloatOutput *cool_output) { cool_output_ = cool_output; }
   void set_heat_output(output::FloatOutput *heat_output) { heat_output_ = heat_output; }
-  void set_level_and_direction_output(
-      output::LevelAndDirectionOutput *level_and_direction_output) {
+  void set_level_and_direction_output(output::LevelAndDirectionOutput *level_and_direction_output) {
     level_and_direction_output_ = level_and_direction_output;
   }
   void set_kp(float kp) { controller_.kp_ = kp; }
@@ -86,14 +85,8 @@ class PIDClimate : public climate::Climate, public Component {
 
   void update_pid_();
 
-  bool supports_cool_() const {
-    return this->level_and_direction_output_ != nullptr ||
-           this->cool_output_ != nullptr;
-  }
-  bool supports_heat_() const {
-    return this->level_and_direction_output_ != nullptr ||
-           this->heat_output_ != nullptr;
-  }
+  bool supports_cool_() const { return this->level_and_direction_output_ != nullptr || this->cool_output_ != nullptr; }
+  bool supports_heat_() const { return this->level_and_direction_output_ != nullptr || this->heat_output_ != nullptr; }
 
   void write_output_(float value);
 
