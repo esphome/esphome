@@ -646,8 +646,8 @@ void IRAM_ATTR epd_draw_frame_1bit(Rect_t area, uint8_t *ptr, DrawMode_t mode, i
       if (area.x % 8 != 0 && area.x < EPD_WIDTH) {
         // shift to right
         shifted = true;
-        bit_shift_buffer_right(buf_start, min_u32(line_bytes + 1, (uint32_t) line + EPD_WIDTH / 8 - (uint32_t) buf_start),
-                               area.x % 8);
+        bit_shift_buffer_right(
+            buf_start, min_u32(line_bytes + 1, (uint32_t) line + EPD_WIDTH / 8 - (uint32_t) buf_start), area.x % 8);
       }
       lp = line;
     }
