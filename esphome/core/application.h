@@ -120,9 +120,9 @@ namespace esphome {
 
 /// SFINAE helper: resolves to true when &T::loop compiles and differs from &Component::loop.
 /// Falls back to true when &T::loop is ambiguous (e.g. multiple inheritance with separate loop() methods).
-template<typename T, typename = void> struct has_loop_override : std::true_type {};
+template<typename T, typename = void> struct HasLoopOverride : std::true_type {};
 template<typename T>
-struct has_loop_override<T, std::void_t<decltype(&T::loop)>>
+struct HasLoopOverride<T, std::void_t<decltype(&T::loop)>>
     : std::bool_constant<!std::is_same_v<decltype(&T::loop), decltype(&Component::loop)>> {};
 
 // Teardown timeout constant (in milliseconds)
@@ -551,9 +551,9 @@ class Application {
 #endif
 
   /// Register a component, detecting loop() override at compile time.
-  /// Uses has_loop_override<T> which handles ambiguous &T::loop from multiple inheritance.
+  /// Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance.
   template<typename T> void register_component_(T *comp) {
-    this->register_component_impl_(comp, has_loop_override<T>::value);
+    this->register_component_impl_(comp, HasLoopOverride<T>::value);
   }
 
   void register_component_impl_(Component *comp, bool has_loop);
