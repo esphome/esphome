@@ -5,6 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "../board_pins.h"
 
 namespace esphome {
 namespace lilygo_t5_47_plus {
@@ -18,7 +19,7 @@ static const uint8_t GET_TOUCHES[] = {0x81, 0x4F};
 static const uint8_t GET_SWITCHES[] = {0x80, 0x4D};
 static const uint8_t GET_MAX_VALUES[] = {0x80, 0x48};
 
-static constexpr uint8_t TOUCH_INT_PIN = 47;
+// Use the board-level TOUCH_INT constant from board_pins.h (GPIO47 on ESP32-S3).
 static constexpr size_t MAX_TOUCHES = 5;
 
 /// Touchscreen driver for the LilyGo T5 4.7" Plus board.

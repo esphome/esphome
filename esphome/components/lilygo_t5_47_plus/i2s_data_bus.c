@@ -155,7 +155,13 @@ void IRAM_ATTR i2s_switch_buffer() {
   current_buffer = !current_buffer;
 }
 #else
-void IRAM_ATTR i2s_switch_buffer() {}
+void IRAM_ATTR i2s_switch_buffer() {
+  // For the esp_lcd path (USER_I2S_REG == 0), a single static buffer is used.
+  // Block until the previous async transfer is done so we don't overwrite
+  // data still being transmitted to the EPD.
+  while (i2s_is_busy())
+    ;
+}
 #endif
 
 #if USER_I2S_REG
@@ -199,6 +205,9 @@ void IRAM_ATTR i2s_start_line_output() {
 #if !USER_I2S_REG
 static bool notify_trans_done(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata,
                               void *user_ctx) {
+  (void) panel_io;
+  (void) edata;
+  (void) user_ctx;
   output_done = true;
   // Return false: no higher-priority task was woken, so no context switch needed.
   return false;

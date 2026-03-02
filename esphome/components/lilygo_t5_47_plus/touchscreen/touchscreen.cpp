@@ -24,11 +24,11 @@ void LilygoT547PlusTouchscreen::setup() {
   // GPIO47 wakeup sequence — required by this board for GT911 initialization.
   // Matches the LilyGo reference: TouchDrvGT911::wakeup()  // NOLINT
   //   pinMode(_irq, OUTPUT); digitalWrite(_irq, HIGH); delay(8); pinMode(_irq, INPUT);  // NOLINT
-  pinMode(TOUCH_INT_PIN, OUTPUT);     // NOLINT
-  digitalWrite(TOUCH_INT_PIN, HIGH);  // NOLINT
+  pinMode(TOUCH_INT, OUTPUT);     // NOLINT
+  digitalWrite(TOUCH_INT, HIGH);  // NOLINT
   delay(10);
-  pinMode(TOUCH_INT_PIN, INPUT);  // NOLINT
-  ESP_LOGD(TAG, "GT911 wakeup: GPIO%d HIGH→INPUT done", TOUCH_INT_PIN);
+  pinMode(TOUCH_INT, INPUT);  // NOLINT
+  ESP_LOGD(TAG, "GT911 wakeup: GPIO%d HIGH→INPUT done", TOUCH_INT);
 
   // Verify I2C communication.
   // The GT911 I2C address (0x5D or 0x14) is latched at hardware reset depending
@@ -126,7 +126,7 @@ void LilygoT547PlusTouchscreen::update_touches() {
 void LilygoT547PlusTouchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "LilyGo T5 4.7\" Plus Touchscreen (GT911):");
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  INT Pin: GPIO%d (wakeup only, no interrupt)", TOUCH_INT_PIN);
+  ESP_LOGCONFIG(TAG, "  INT Pin: GPIO%d (wakeup only, no interrupt)", TOUCH_INT);
 }
 
 }  // namespace lilygo_t5_47_plus

@@ -102,7 +102,9 @@ void pulse_ckv_ticks(uint16_t high_time_ticks, uint16_t low_time_ticks, bool wai
     ESP_ERROR_CHECK(rmt_transmit(rmt_chan, rmt_encoder, &rmt_symbol, sizeof(rmt_symbol_word_t), &rmt_tx_config));
     ESP_ERROR_CHECK(rmt_tx_wait_all_done(rmt_chan, -1));
   } else {
-    rmt_transmit(rmt_chan, rmt_encoder, &rmt_symbol, sizeof(rmt_symbol_word_t), &rmt_tx_config);
+    // Non-blocking: still check for errors (e.g. TX queue full) to avoid
+    // silently dropping timing-critical gate driver pulses.
+    ESP_ERROR_CHECK(rmt_transmit(rmt_chan, rmt_encoder, &rmt_symbol, sizeof(rmt_symbol_word_t), &rmt_tx_config));
   }
 }
 

@@ -51,14 +51,16 @@ void LilygoT547PlusDisplay::update() {
 void HOT LilygoT547PlusDisplay::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
-  uint8_t gs = 255 - ((color.red * 2126 / 10000) + (color.green * 7152 / 10000) + (color.blue * 722 / 10000));
+  // EPD convention: 0x00=black, 0xFF=white — same as standard RGB luminance.
+  uint8_t gs = (color.red * 2126 / 10000) + (color.green * 7152 / 10000) + (color.blue * 722 / 10000);
   epd_draw_pixel(x, y, gs, this->buffer_);
 }
 
 void LilygoT547PlusDisplay::fill(Color color) {
   if (this->buffer_ == nullptr)
     return;
-  uint8_t gs = 255 - ((color.red * 2126 / 10000) + (color.green * 7152 / 10000) + (color.blue * 722 / 10000));
+  // EPD convention: 0x00=black, 0xFF=white — same as standard RGB luminance.
+  uint8_t gs = (color.red * 2126 / 10000) + (color.green * 7152 / 10000) + (color.blue * 722 / 10000);
   // 4-bit per pixel: pack same value into both nibbles
   uint8_t fill_byte = (gs & 0xF0) | (gs >> 4);
   memset(this->buffer_, fill_byte, this->get_buffer_length_());
