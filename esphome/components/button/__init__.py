@@ -123,7 +123,9 @@ BUTTON_PRESS_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("button.press", PressAction, BUTTON_PRESS_SCHEMA)
+@automation.register_action(
+    "button.press", PressAction, BUTTON_PRESS_SCHEMA, synchronous=True
+)
 async def button_press_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

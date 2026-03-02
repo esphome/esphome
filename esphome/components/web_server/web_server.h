@@ -533,13 +533,13 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
     }
   }
 
-  // Generic helper to parse and apply a string parameter
+  // Generic helper to parse and apply a string parameter using const char* setter (avoids std::string allocation)
   template<typename T, typename Ret>
-  void parse_string_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
-                           Ret (T::*setter)(const std::string &)) {
+  void parse_cstr_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
+                         Ret (T::*setter)(const char *, size_t)) {
     if (request->hasArg(param_name)) {
       const auto &value = request->arg(param_name);
-      (call.*setter)(std::string(value.c_str(), value.length()));
+      (call.*setter)(value.c_str(), value.length());
     }
   }
 
