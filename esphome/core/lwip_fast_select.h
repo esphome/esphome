@@ -43,7 +43,9 @@ struct lwip_sock *esphome_lwip_get_sock(int fd);
 static inline bool esphome_lwip_socket_has_data(struct lwip_sock *sock) {
   // Unlocked hint read — no lwIP core lock needed.
   // volatile prevents the compiler from caching/reordering this cross-thread read.
-  // Aligned 16-bit reads are single-instruction loads (L16SI/LH/LDRH) on
+  // The write side (TCP/IP thread) commits via SYS_ARCH_UNPROTECT which releases a
+  // FreeRTOS mutex (ESP32) or resumes the scheduler (LibreTiny), ensuring the value
+  // is visible. Aligned 16-bit reads are single-instruction loads (L16SI/LH/LDRH) on
   // Xtensa/RISC-V/ARM and cannot produce torn values.
   return *(volatile int16_t *) ((char *) sock + (int) ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET) > 0;
 }
