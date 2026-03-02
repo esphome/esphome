@@ -599,8 +599,12 @@ template<std::integral T> constexpr uint32_t fnv1a_hash_extend(uint32_t hash, T 
 constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
 inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
 
-/// Convert a 64-bit microsecond count to a 32-bit millisecond count without
-/// calling __udivdi3 (software 64-bit divide, ~1200 ns on Xtensa @ 240 MHz).
+/// Convert a 64-bit microsecond count to milliseconds without calling
+/// __udivdi3 (software 64-bit divide, ~1200 ns on Xtensa @ 240 MHz).
+///
+/// Returns uint32_t by default (for millis()), or uint64_t when requested
+/// (for millis_64()). The only difference is whether hi * Q is truncated
+/// to 32 bits or widened to 64.
 ///
 /// On 32-bit targets, GCC does not optimize 64-bit constant division into a
 /// multiply-by-reciprocal. Since 1000 = 8 * 125, we first right-shift by 3
@@ -618,7 +622,7 @@ inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str
 ///
 /// See: https://en.wikipedia.org/wiki/Euclidean_division
 /// See: https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
-inline constexpr ESPHOME_ALWAYS_INLINE uint32_t micros_to_millis(uint64_t us) {
+template<typename ReturnT = uint32_t> inline constexpr ESPHOME_ALWAYS_INLINE ReturnT micros_to_millis(uint64_t us) {
   constexpr uint32_t D = 125U;
   constexpr uint32_t Q = static_cast<uint32_t>((1ULL << 32) / D);  // 34359738
   constexpr uint32_t R = static_cast<uint32_t>((1ULL << 32) % D);  // 46
@@ -629,7 +633,8 @@ inline constexpr ESPHOME_ALWAYS_INLINE uint32_t micros_to_millis(uint64_t us) {
   // Combine remainder term: hi * (2^32 % 125) + lo
   uint32_t adj = hi * R + lo;
   // If adj overflowed, the true value is 2^32 + adj; apply the identity again
-  return hi * Q + (adj < lo ? (adj + R) / D + Q : adj / D);
+  // static_cast<ReturnT>(hi) widens to 64-bit when ReturnT=uint64_t, preserving upper bits of hi*Q
+  return static_cast<ReturnT>(hi) * Q + (adj < lo ? (adj + R) / D + Q : adj / D);
 }
 
 /// Return a random 32-bit unsigned integer.
