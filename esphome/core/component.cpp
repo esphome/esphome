@@ -496,18 +496,6 @@ void Component::set_setup_priority(float priority) {
 }
 #endif
 
-bool Component::has_overridden_loop() const {
-#if defined(USE_HOST) || defined(CLANG_TIDY)
-  return true;
-#else
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpmf-conversions"
-  bool loop_overridden = (void *) (this->*(&Component::loop)) != (void *) (&Component::loop);
-#pragma GCC diagnostic pop
-  return loop_overridden;
-#endif
-}
-
 PollingComponent::PollingComponent(uint32_t update_interval) : update_interval_(update_interval) {}
 
 void PollingComponent::call_setup() {

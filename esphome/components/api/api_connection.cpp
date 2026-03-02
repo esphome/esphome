@@ -889,7 +889,7 @@ uint16_t APIConnection::try_send_text_info(EntityBase *entity, APIConnection *co
 }
 void APIConnection::on_text_command_request(const TextCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(text::Text, text, text)
-  call.set_value(msg.state);
+  call.set_value(msg.state.c_str(), msg.state.size());
   call.perform();
 }
 #endif
@@ -1360,7 +1360,7 @@ void APIConnection::on_alarm_control_panel_command_request(const AlarmControlPan
       call.pending();
       break;
   }
-  call.set_code(msg.code);
+  call.set_code(msg.code.c_str(), msg.code.size());
   call.perform();
 }
 #endif

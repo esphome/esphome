@@ -5,6 +5,7 @@
 #include <limits>
 #include <span>
 #include <string>
+#include <type_traits>
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -105,7 +106,10 @@
 #endif
 
 namespace esphome::socket {
-class Socket;
+#ifdef USE_SOCKET_SELECT_SUPPORT
+/// Shared ready() helper for fd-based socket implementations.
+bool socket_ready_fd(int fd, bool loop_monitored);  // NOLINT(readability-redundant-declaration)
+#endif
 }  // namespace esphome::socket
 
 // Forward declarations for friend access from codegen-generated setup()
@@ -113,6 +117,14 @@ void setup();           // NOLINT(readability-redundant-declaration) - may be de
 void original_setup();  // NOLINT(readability-redundant-declaration) - used by cpp unit tests
 
 namespace esphome {
+
+/// SFINAE helper: detects whether T overrides Component::loop().
+/// When &T::loop is ambiguous (multiple inheritance with separate loop() methods),
+/// the ambiguity itself proves an override exists, so the true_type default is correct.
+template<typename T, typename = void> struct HasLoopOverride : std::true_type {};
+template<typename T>
+struct HasLoopOverride<T, std::void_t<decltype(&T::loop)>>
+    : std::bool_constant<!std::is_same_v<decltype(&T::loop), decltype(&Component::loop)>> {};
 
 // Teardown timeout constant (in milliseconds)
 // For reboots, it's more important to shut down quickly than disconnect cleanly
@@ -520,7 +532,9 @@ class Application {
 
  protected:
   friend Component;
-  friend class socket::Socket;
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  friend bool socket::socket_ready_fd(int fd, bool loop_monitored);
+#endif
   friend void ::setup();
   friend void ::original_setup();
 
@@ -537,7 +551,13 @@ class Application {
 #endif
 #endif
 
-  void register_component_(Component *comp);
+  /// Register a component, detecting loop() override at compile time.
+  /// Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance.
+  template<typename T> void register_component_(T *comp) {
+    this->register_component_impl_(comp, HasLoopOverride<T>::value);
+  }
+
+  void register_component_impl_(Component *comp, bool has_loop);
 
   void calculate_looping_components_();
   void add_looping_components_by_state_(bool match_loop_done);
