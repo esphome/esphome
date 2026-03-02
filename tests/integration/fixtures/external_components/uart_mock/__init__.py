@@ -4,6 +4,8 @@ from esphome.components import uart
 from esphome.components.uart import (
     CONF_RX_FULL_THRESHOLD,
     CONF_RX_TIMEOUT,
+    debug_to_code,
+    maybe_empty_debug,
     validate_raw_data,
 )
 import esphome.config_validation as cv
@@ -11,6 +13,7 @@ from esphome.const import (
     CONF_BAUD_RATE,
     CONF_DATA,
     CONF_DATA_BITS,
+    CONF_DEBUG,
     CONF_DELAY,
     CONF_ID,
     CONF_INTERVAL,
@@ -99,6 +102,7 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MockUartTXTrigger),
             }
         ),
+        cv.Optional(CONF_DEBUG): maybe_empty_debug,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -156,3 +160,6 @@ async def to_code(config):
         await automation.build_automation(
             trigger, [(cg.std_vector.template(cg.uint8), "data")], conf
         )
+
+    if CONF_DEBUG in config:
+        await debug_to_code(config[CONF_DEBUG], var)
