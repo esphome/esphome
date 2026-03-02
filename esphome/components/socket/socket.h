@@ -127,7 +127,7 @@ void socket_delay(uint32_t ms);
 
 /// Signal socket/IO activity and wake the main loop from esp_delay() early.
 /// ISR-safe: uses IRAM_ATTR internally and only sets a volatile flag + esp_schedule().
-void socket_wake();
+void socket_wake();  // NOLINT(readability-redundant-declaration)
 #endif
 
 }  // namespace esphome::socket
