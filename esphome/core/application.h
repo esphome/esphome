@@ -127,6 +127,13 @@ void original_setup();  // NOLINT(readability-redundant-declaration) - used by c
 
 namespace esphome {
 
+/// SFINAE helper: resolves to true when &T::loop compiles and differs from &Component::loop.
+/// Falls back to true when &T::loop is ambiguous (e.g. multiple inheritance with separate loop() methods).
+template<typename T, typename = void> struct has_loop_override : std::true_type {};
+template<typename T>
+struct has_loop_override<T, std::void_t<decltype(&T::loop)>>
+    : std::bool_constant<!std::is_same_v<decltype(&T::loop), decltype(&Component::loop)>> {};
+
 // Teardown timeout constant (in milliseconds)
 // For reboots, it's more important to shut down quickly than disconnect cleanly
 // since we're not entering deep sleep. The only consequence of not shutting down
@@ -669,10 +676,9 @@ class Application {
 #endif
 
   /// Register a component, detecting loop() override at compile time.
-  /// The template resolves &T::loop vs &Component::loop as a constexpr bool
-  /// and forwards it to register_component_impl_ which stores it in component_state_.
+  /// Uses has_loop_override<T> which handles ambiguous &T::loop from multiple inheritance.
   template<typename T> void register_component_(T *comp) {
-    this->register_component_impl_(comp, !std::is_same_v<decltype(&T::loop), decltype(&Component::loop)>);
+    this->register_component_impl_(comp, has_loop_override<T>::value);
   }
 
   void register_component_impl_(Component *comp, bool has_loop);
