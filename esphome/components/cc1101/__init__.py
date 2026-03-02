@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_DATA,
     CONF_FREQUENCY,
     CONF_ID,
+    CONF_OUTPUT_POWER,
     CONF_VALUE,
     CONF_WAIT_TIME,
 )
@@ -22,7 +23,6 @@ ns = cg.esphome_ns.namespace("cc1101")
 CC1101Component = ns.class_("CC1101Component", cg.Component, spi.SPIDevice)
 
 # Config keys
-CONF_OUTPUT_POWER = "output_power"
 CONF_RX_ATTENUATION = "rx_attenuation"
 CONF_DC_BLOCKING_FILTER = "dc_blocking_filter"
 CONF_IF_FREQUENCY = "if_frequency"

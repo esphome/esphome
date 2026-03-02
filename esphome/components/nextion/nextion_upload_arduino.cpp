@@ -25,11 +25,7 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
   uint32_t range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
   ESP_LOGD(TAG, "Range start: %" PRIu32, range_start);
   if (range_size <= 0 or range_end <= range_start) {
-    ESP_LOGE(TAG, "Invalid range");
-    ESP_LOGD(TAG,
-             "Range end: %" PRIu32 "\n"
-             "Range size: %" PRIu32,
-             range_end, range_size);
+    ESP_LOGE(TAG, "Invalid range end: %" PRIu32 ", size: %" PRIu32, range_end, range_size);
     return -1;
   }
 
@@ -138,11 +134,7 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
 }
 
 bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
-  ESP_LOGD(TAG,
-           "TFT upload requested\n"
-           "Exit reparse: %s\n"
-           "URL: %s",
-           YESNO(exit_reparse), this->tft_url_.c_str());
+  ESP_LOGD(TAG, "TFT upload requested, exit reparse: %s, URL: %s", YESNO(exit_reparse), this->tft_url_.c_str());
 
   if (this->connection_state_.is_updating_) {
     ESP_LOGW(TAG, "Upload in progress");
@@ -172,10 +164,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGD(TAG, "Baud rate: %" PRIu32, baud_rate);
 
   // Define the configuration for the HTTP client
-  ESP_LOGV(TAG,
-           "Init HTTP client\n"
-           "Heap: %" PRIu32,
-           EspClass::getFreeHeap());
+  ESP_LOGV(TAG, "Init HTTP client, heap: %" PRIu32, EspClass::getFreeHeap());
   HTTPClient http_client;
   http_client.setTimeout(15000);  // Yes 15 seconds.... Helps 8266s along
 
@@ -262,10 +251,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   this->reset_(false);
   delay(250);  // NOLINT
 
-  ESP_LOGV(TAG,
-           "Heap: %" PRIu32 "\n"
-           "Upload cmd: %s",
-           EspClass::getFreeHeap(), command);
+  ESP_LOGV(TAG, "Heap: %" PRIu32 ", upload cmd: %s", EspClass::getFreeHeap(), command);
   this->send_command_(command);
 
   if (baud_rate != this->original_baud_rate_) {
