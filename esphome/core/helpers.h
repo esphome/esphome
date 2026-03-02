@@ -621,10 +621,10 @@ inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str
 ///
 /// See: https://en.wikipedia.org/wiki/Euclidean_division
 /// See: https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
-inline ESPHOME_ALWAYS_INLINE uint32_t micros_to_millis(uint64_t us) {
-  static constexpr uint32_t D = 125U;
-  static constexpr uint32_t Q = static_cast<uint32_t>((1ULL << 32) / D);  // 34359738
-  static constexpr uint32_t R = static_cast<uint32_t>((1ULL << 32) % D);  // 46
+inline constexpr ESPHOME_ALWAYS_INLINE uint32_t micros_to_millis(uint64_t us) {
+  constexpr uint32_t D = 125U;
+  constexpr uint32_t Q = static_cast<uint32_t>((1ULL << 32) / D);  // 34359738
+  constexpr uint32_t R = static_cast<uint32_t>((1ULL << 32) % D);  // 46
   // 1000 = 8 * 125; divide-by-8 is a free shift
   uint64_t x = us >> 3;
   uint32_t lo = static_cast<uint32_t>(x);
