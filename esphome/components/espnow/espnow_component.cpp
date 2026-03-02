@@ -502,7 +502,13 @@ espnow_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *p
   // Load the packet data
   packet->load_data(peer_address, payload, size, callback);
   // Push the packet to the send queue
-  this->send_packet_queue_.push(packet);
+  if (!this->send_packet_queue_.push(packet)) {
+    this->send_packet_queue_.increment_dropped_count();
+    ESP_LOGE(TAG, "Failed to enqueue send packet (send queue full)");
+    this->status_momentary_warning("send-queue-full");
+    this->send_packet_pool_.release(packet);
+    return ESPNOW_ERR_NO_MEM;
+  }
   return ESPNOW_OK;
 }
 
