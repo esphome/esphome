@@ -2473,9 +2473,6 @@ def build_base_class(
     out = f"class {base_class_name} : public {parent_class} {{\n"
     out += " public:\n"
 
-    # Add destructor with override
-    public_content.insert(0, f"~{base_class_name}() override = default;")
-
     # Base classes don't implement encode/decode/calculate_size
     # Derived classes handle these with their specific field numbers
     cpp = ""
@@ -2483,6 +2480,8 @@ def build_base_class(
     out += indent("\n".join(public_content)) + "\n"
     out += "\n"
     out += " protected:\n"
+    # Non-virtual protected destructor prevents accidental polymorphic deletion
+    protected_content.insert(0, f"~{base_class_name}() = default;")
     out += indent("\n".join(protected_content))
     if protected_content:
         out += "\n"

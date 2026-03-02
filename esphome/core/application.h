@@ -5,6 +5,7 @@
 #include <limits>
 #include <span>
 #include <string>
+#include <type_traits>
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -510,7 +511,7 @@ class Application {
   void wake_loop_threadsafe();
 #endif
 
-#if defined(USE_WAKE_LOOP_THREADSAFE) && defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_LWIP_FAST_SELECT
   /// Wake the main event loop from an ISR.
   /// Uses vTaskNotifyGiveFromISR() — <1 us, ISR-safe.
   /// Only available on platforms with fast select (ESP32, LibreTiny).
@@ -518,6 +519,12 @@ class Application {
   static void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
     esphome_lwip_wake_main_loop_from_isr(px_higher_priority_task_woken);
   }
+
+#ifdef USE_ESP32
+  /// Wake the main event loop from any context (ISR, thread, or main loop).
+  /// Detects the calling context and uses the appropriate FreeRTOS API.
+  static void IRAM_ATTR wake_loop_any_context() { esphome_lwip_wake_main_loop_any_context(); }
+#endif
 #endif
 
  protected:
@@ -532,7 +539,14 @@ class Application {
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
 #endif
 
-  void register_component_(Component *comp);
+  /// Register a component, detecting loop() override at compile time.
+  /// The template resolves &T::loop vs &Component::loop as a constexpr bool
+  /// and forwards it to register_component_impl_ which stores it in component_state_.
+  template<typename T> void register_component_(T *comp) {
+    this->register_component_impl_(comp, !std::is_same_v<decltype(&T::loop), decltype(&Component::loop)>);
+  }
+
+  void register_component_impl_(Component *comp, bool has_loop);
 
   void calculate_looping_components_();
   void add_looping_components_by_state_(bool match_loop_done);
