@@ -12,7 +12,7 @@ namespace esphome::socket {
 // Shared ready() implementation for fd-based socket implementations (BSD and LWIP sockets).
 // Uses cached lwip_sock pointer for direct rcvevent read — no fd lookup overhead.
 bool socket_ready(struct lwip_sock *cached_sock, bool loop_monitored) {
-  return !loop_monitored || esphome_lwip_socket_has_data(cached_sock);
+  return !loop_monitored || (cached_sock != nullptr && esphome_lwip_socket_has_data(cached_sock));
 }
 #elif defined(USE_SOCKET_SELECT_SUPPORT)
 // Shared ready() implementation for fd-based socket implementations (BSD and LWIP sockets).
