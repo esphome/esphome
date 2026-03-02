@@ -8,12 +8,17 @@
 
 #ifdef USE_SERIAL_PROXY
 
-#include "esphome/components/api/api_pb2.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/uart/uart.h"
 
 #include <string>
+
+// Forward-declare to avoid pulling api_pb2.h (which contains names conflicting
+// with Zephyr logging macros) into translation units via application.h.
+namespace esphome::api::enums {
+enum SerialProxyPortType : uint32_t;
+}  // namespace esphome::api::enums
 
 namespace esphome::serial_proxy {
 
