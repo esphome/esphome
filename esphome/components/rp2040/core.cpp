@@ -12,7 +12,7 @@ namespace esphome {
 
 void HOT yield() { ::yield(); }
 uint64_t millis_64() { return time_us_64() / 1000ULL; }
-uint32_t HOT millis() { return static_cast<uint32_t>(millis_64()); }
+uint32_t HOT millis() { return micros_to_millis(time_us_64()); }
 void HOT delay(uint32_t ms) { ::delay(ms); }
 uint32_t HOT micros() { return ::micros(); }
 void HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }

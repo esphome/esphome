@@ -599,6 +599,39 @@ template<std::integral T> constexpr uint32_t fnv1a_hash_extend(uint32_t hash, T 
 constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
 inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
 
+/// Convert a 64-bit microsecond count to a 32-bit millisecond count without
+/// calling __udivdi3 (software 64-bit divide, ~1200 ns on Xtensa @ 240 MHz).
+///
+/// On 32-bit targets, GCC does not optimize 64-bit constant division into a
+/// multiply-by-reciprocal. Since 1000 = 8 * 125, we first right-shift by 3
+/// (free divide-by-8), then use the Euclidean division identity to decompose
+/// the remaining 64-bit divide-by-125 into a single 32-bit division:
+///
+///   floor(us / 1000) = floor(floor(us / 8) / 125)    [exact for integers]
+///   2^32 = Q * 125 + R  (34359738 * 125 + 46)
+///   (hi * 2^32 + lo) / 125 = hi * Q + (hi * R + lo) / 125
+///
+/// GCC optimizes the remaining 32-bit "/ 125U" into a multiply-by-reciprocal
+/// (mulhu + shift), so no division instruction is emitted.
+///
+/// Safe for us up to ~3.2e18 (~101,700 years of microseconds).
+///
+/// See: https://en.wikipedia.org/wiki/Euclidean_division
+/// See: https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
+inline ESPHOME_ALWAYS_INLINE uint32_t micros_to_millis(uint64_t us) {
+  static constexpr uint32_t D = 125U;
+  static constexpr uint32_t Q = static_cast<uint32_t>((1ULL << 32) / D);  // 34359738
+  static constexpr uint32_t R = static_cast<uint32_t>((1ULL << 32) % D);  // 46
+  // 1000 = 8 * 125; divide-by-8 is a free shift
+  uint64_t x = us >> 3;
+  uint32_t lo = static_cast<uint32_t>(x);
+  uint32_t hi = static_cast<uint32_t>(x >> 32);
+  // Combine remainder term: hi * (2^32 % 125) + lo
+  uint32_t adj = hi * R + lo;
+  // If adj overflowed, the true value is 2^32 + adj; apply the identity again
+  return hi * Q + (adj < lo ? (adj + R) / D + Q : adj / D);
+}
+
 /// Return a random 32-bit unsigned integer.
 uint32_t random_uint32();
 /// Return a random float between 0 and 1.
