@@ -61,17 +61,18 @@ static epd_config_register_t config_reg;
  */
 inline static void fast_gpio_set_hi(gpio_num_t gpio_num) {
   if (gpio_num < 32) {
-    GPIO.out_w1ts = (1 << gpio_num);
+    // Use 1U to avoid signed-integer UB when gpio_num reaches 31.
+    GPIO.out_w1ts = (1U << gpio_num);
   } else {
-    GPIO.out1_w1ts.val = (1 << (gpio_num - 32));
+    GPIO.out1_w1ts.val = (1U << (gpio_num - 32));
   }
 }
 
 inline static void fast_gpio_set_lo(gpio_num_t gpio_num) {
   if (gpio_num < 32) {
-    GPIO.out_w1tc = (1 << gpio_num);
+    GPIO.out_w1tc = (1U << gpio_num);
   } else {
-    GPIO.out1_w1tc.val = (1 << (gpio_num - 32));
+    GPIO.out1_w1tc.val = (1U << (gpio_num - 32));
   }
 }
 

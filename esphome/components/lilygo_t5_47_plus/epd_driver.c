@@ -248,7 +248,7 @@ void IRAM_ATTR calc_epd_input_1bpp(uint8_t *line_data, uint8_t *epd_input, DrawM
   }
 }
 
-inline uint32_t min(uint32_t x, uint32_t y) { return x < y ? x : y; }
+static inline uint32_t min_u32(uint32_t x, uint32_t y) { return x < y ? x : y; }
 
 void epd_draw_hline(int32_t x, int32_t y, int32_t length, uint8_t color, uint8_t *framebuffer) {
   for (int32_t i = 0; i < length; i++) {
@@ -630,7 +630,7 @@ void IRAM_ATTR epd_draw_frame_1bit(Rect_t area, uint8_t *ptr, DrawMode_t mode, i
         // reduce line_bytes to actually used bytes
         line_bytes += area.x / 8;
       }
-      line_bytes = min(line_bytes, EPD_WIDTH / 8 - (uint32_t) (buf_start - line));
+      line_bytes = min_u32(line_bytes, EPD_WIDTH / 8 - (uint32_t) (buf_start - line));
       memcpy(buf_start, ptr, line_bytes);
       ptr += ceil_byte_width;
 
@@ -646,7 +646,7 @@ void IRAM_ATTR epd_draw_frame_1bit(Rect_t area, uint8_t *ptr, DrawMode_t mode, i
       if (area.x % 8 != 0 && area.x < EPD_WIDTH) {
         // shift to right
         shifted = true;
-        bit_shift_buffer_right(buf_start, min(line_bytes + 1, (uint32_t) line + EPD_WIDTH / 8 - (uint32_t) buf_start),
+        bit_shift_buffer_right(buf_start, min_u32(line_bytes + 1, (uint32_t) line + EPD_WIDTH / 8 - (uint32_t) buf_start),
                                area.x % 8);
       }
       lp = line;
@@ -686,8 +686,16 @@ void IRAM_ATTR epd_draw_image(Rect_t area, uint8_t *data, DrawMode_t mode) {
     };
 
     TaskHandle_t t1, t2;
-    xTaskCreatePinnedToCore((void (*)(void *)) provide_out, "provide_out", 8192, &p1, 2, &t1, 0);
-    xTaskCreatePinnedToCore((void (*)(void *)) feed_display, "render", 8192, &p2, 2, &t2, 1);
+    BaseType_t rc1 = xTaskCreatePinnedToCore((void (*)(void *)) provide_out, "provide_out", 8192, &p1, 2, &t1, 0);
+    BaseType_t rc2 = xTaskCreatePinnedToCore((void (*)(void *)) feed_display, "render", 8192, &p2, 2, &t2, 1);
+    if (rc1 != pdPASS || rc2 != pdPASS) {
+      ESP_LOGE("epd_driver", "Failed to create EPD render tasks (out of memory)");
+      if (rc1 == pdPASS)
+        vTaskDelete(t1);
+      if (rc2 == pdPASS)
+        vTaskDelete(t2);
+      break;
+    }
 
     xSemaphoreTake(fetch_sem, portMAX_DELAY);
     xSemaphoreTake(feed_sem, portMAX_DELAY);
@@ -842,7 +850,7 @@ static void IRAM_ATTR provide_out(OutputParams *params) {
         // reduce line_bytes to actually used bytes
         line_bytes += area.x / 2;
       }
-      line_bytes = min(line_bytes, EPD_WIDTH / 2 - (uint32_t) (buf_start - line));
+      line_bytes = min_u32(line_bytes, EPD_WIDTH / 2 - (uint32_t) (buf_start - line));
       memcpy(buf_start, ptr, line_bytes);
       ptr += area.width / 2 + area.width % 2;
 
@@ -854,7 +862,7 @@ static void IRAM_ATTR provide_out(OutputParams *params) {
         shifted = true;
         // shift one nibble to right
         nibble_shift_buffer_right(buf_start,
-                                  min(line_bytes + 1, (uint32_t) line + EPD_WIDTH / 2 - (uint32_t) buf_start));
+                                  min_u32(line_bytes + 1, (uint32_t) line + EPD_WIDTH / 2 - (uint32_t) buf_start));
       }
       lp = (uint32_t *) line;
     }
