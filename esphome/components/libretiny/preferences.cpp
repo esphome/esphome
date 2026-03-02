@@ -8,8 +8,7 @@
 #include <cstring>
 #include <memory>
 
-namespace esphome {
-namespace libretiny {
+namespace esphome::libretiny {
 
 static const char *const TAG = "lt.preferences";
 
@@ -18,16 +17,7 @@ static constexpr size_t KEY_BUFFER_SIZE = 12;
 
 struct NVSData {
   uint32_t key;
-  std::unique_ptr<uint8_t[]> data;
-  size_t len;
-
-  void set_data(const uint8_t *src, size_t size) {
-    if (!this->data || this->len != size) {
-      this->data = std::make_unique<uint8_t[]>(size);
-      this->len = size;
-    }
-    memcpy(this->data.get(), src, size);
-  }
+  SmallInlineBuffer<8> data;  // Most prefs fit in 8 bytes (covers fan, cover, select, etc.)
 };
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -42,14 +32,14 @@ class LibreTinyPreferenceBackend : public ESPPreferenceBackend {
     // try find in pending saves and update that
     for (auto &obj : s_pending_save) {
       if (obj.key == this->key) {
-        obj.set_data(data, len);
+        obj.data.set(data, len);
         return true;
       }
     }
     NVSData save{};
     save.key = this->key;
-    save.set_data(data, len);
-    s_pending_save.emplace_back(std::move(save));
+    save.data.set(data, len);
+    s_pending_save.push_back(std::move(save));
     ESP_LOGVV(TAG, "s_pending_save: key: %" PRIu32 ", len: %zu", this->key, len);
     return true;
   }
@@ -58,11 +48,11 @@ class LibreTinyPreferenceBackend : public ESPPreferenceBackend {
     // try find in pending saves and load from that
     for (auto &obj : s_pending_save) {
       if (obj.key == this->key) {
-        if (obj.len != len) {
+        if (obj.data.size() != len) {
           // size mismatch
           return false;
         }
-        memcpy(data, obj.data.get(), len);
+        memcpy(data, obj.data.data(), len);
         return true;
       }
     }
@@ -123,11 +113,11 @@ class LibreTinyPreferences : public ESPPreferences {
       snprintf(key_str, sizeof(key_str), "%" PRIu32, save.key);
       ESP_LOGVV(TAG, "Checking if FDB data %s has changed", key_str);
       if (this->is_changed_(&this->db, save, key_str)) {
-        ESP_LOGV(TAG, "sync: key: %s, len: %zu", key_str, save.len);
-        fdb_blob_make(&this->blob, save.data.get(), save.len);
+        ESP_LOGV(TAG, "sync: key: %s, len: %zu", key_str, save.data.size());
+        fdb_blob_make(&this->blob, save.data.data(), save.data.size());
         fdb_err_t err = fdb_kv_set_blob(&this->db, key_str, &this->blob);
         if (err != FDB_NO_ERR) {
-          ESP_LOGV(TAG, "fdb_kv_set_blob('%s', len=%zu) failed: %d", key_str, save.len, err);
+          ESP_LOGV(TAG, "fdb_kv_set_blob('%s', len=%zu) failed: %d", key_str, save.data.size(), err);
           failed++;
           last_err = err;
           last_key = save.key;
@@ -135,7 +125,7 @@ class LibreTinyPreferences : public ESPPreferences {
         }
         written++;
       } else {
-        ESP_LOGD(TAG, "FDB data not changed; skipping %" PRIu32 "  len=%zu", save.key, save.len);
+        ESP_LOGD(TAG, "FDB data not changed; skipping %" PRIu32 "  len=%zu", save.key, save.data.size());
         cached++;
       }
     }
@@ -160,7 +150,7 @@ class LibreTinyPreferences : public ESPPreferences {
     }
 
     // Check size first - if different, data has changed
-    if (kv.value_len != to_save.len) {
+    if (kv.value_len != to_save.data.size()) {
       return true;
     }
 
@@ -174,7 +164,7 @@ class LibreTinyPreferences : public ESPPreferences {
     }
 
     // Compare the actual data
-    return memcmp(to_save.data.get(), stored_data.get(), kv.value_len) != 0;
+    return memcmp(to_save.data.data(), stored_data.get(), kv.value_len) != 0;
   }
 
   bool reset() override {
@@ -194,7 +184,9 @@ void setup_preferences() {
   global_preferences = &s_preferences;
 }
 
-}  // namespace libretiny
+}  // namespace esphome::libretiny
+
+namespace esphome {
 
 ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

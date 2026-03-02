@@ -95,7 +95,7 @@ void HMC5883LComponent::update() {
   float mg_per_bit;
   switch (this->range_) {
     case HMC5883L_RANGE_88_UT:
-      mg_per_bit = 0.073f;
+      mg_per_bit = 0.73f;
       break;
     case HMC5883L_RANGE_130_UT:
       mg_per_bit = 0.92f;

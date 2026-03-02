@@ -329,10 +329,11 @@ async def to_code(config):
     level = config[CONF_LEVEL]
     CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
     initial_level = LOG_LEVELS[config.get(CONF_INITIAL_LEVEL, level)]
+    tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
+    cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
     log = cg.new_Pvariable(
         config[CONF_ID],
         baud_rate,
-        config[CONF_TX_BUFFER_SIZE],
     )
     if CORE.is_esp32:
         cg.add(log.create_pthread_key())
@@ -518,7 +519,9 @@ LOGGER_LOG_ACTION_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(CONF_LOGGER_LOG, LambdaAction, LOGGER_LOG_ACTION_SCHEMA)
+@automation.register_action(
+    CONF_LOGGER_LOG, LambdaAction, LOGGER_LOG_ACTION_SCHEMA, synchronous=True
+)
 async def logger_log_action_to_code(config, action_id, template_arg, args):
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
     args_ = [cg.RawExpression(str(x)) for x in config[CONF_ARGS]]
