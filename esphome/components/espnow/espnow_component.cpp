@@ -289,7 +289,7 @@ void ESPNowComponent::enable_() {
 
   err = esp_now_register_send_cb(on_send_report);
   if (err != ESPNOW_OK) {
-    ESP_LOGE(TAG, "esp_now_register_recv_cb failed: %s", LOG_STR_ARG(espnow_error_to_str(err)));
+    ESP_LOGE(TAG, "esp_now_register_send_cb failed: %s", LOG_STR_ARG(espnow_error_to_str(err)));
     this->mark_failed();
     return;
   }
