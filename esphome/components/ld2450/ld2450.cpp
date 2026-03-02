@@ -514,6 +514,9 @@ void LD2450Component::handle_periodic_data_() {
       angle = atan2f(static_cast<float>(-tx), static_cast<float>(ty)) * (180.0f / std::numbers::pi_v<float>);
       SAFE_PUBLISH_SENSOR(this->move_angle_sensors_[index], angle);
     }
+#endif
+#ifdef USE_TEXT_SENSOR
+    // DIRECTION
     if (td == 0) {
       direction = DIRECTION_NA;
     } else if (ts > 0) {
