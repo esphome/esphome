@@ -41,7 +41,7 @@ static inline bool esphome_lwip_socket_has_data(struct lwip_sock *sock) {
   // FreeRTOS mutex (ESP32) or resumes the scheduler (LibreTiny), ensuring the value
   // is visible. Aligned 16-bit reads are single-instruction loads (L16SI/LH/LDRH) on
   // Xtensa/RISC-V/ARM and cannot produce torn values.
-  return *(volatile int16_t *) ((char *) sock + ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET) > 0;
+  return *(volatile int16_t *) ((char *) sock + (int) ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET) > 0;
 }
 
 /// Hook a socket's netconn callback to notify the main loop task on receive events.
