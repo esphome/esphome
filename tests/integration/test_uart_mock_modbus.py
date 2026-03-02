@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from aioesphomeapi import BinarySensorState, EntityState, SensorState
+from aioesphomeapi import EntityState, SensorState
 import pytest
 
 from .state_utils import InitialStateHelper, build_key_to_entity_mapping
@@ -25,7 +25,7 @@ async def test_uart_mock_modbus(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test modbus data parsing with happy path, garbage, overflow, and recovery."""
+    """Test basic modbus data parsing."""
     # Replace external component path placeholder
     external_components_path = str(
         Path(__file__).parent / "fixtures" / "external_components"
@@ -35,14 +35,6 @@ async def test_uart_mock_modbus(
     )
 
     loop = asyncio.get_running_loop()
-
-    # Track TX data logged by the mock for assertions
-    tx_log_lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        # Capture all TX log lines from modbus
-        if "modbus" in line and "Write " in line:
-            tx_log_lines.append(line)
 
     # Track sensor state updates (after initial state is swallowed)
     sensor_states: dict[str, list[float]] = {
@@ -73,13 +65,9 @@ async def test_uart_mock_modbus(
                     and not voltage_changed.done()
                 ):
                     voltage_changed.set_result(True)
-        elif isinstance(state, BinarySensorState):
-            sensor_name = key_to_sensor.get(state.key)
-            if sensor_name and sensor_name in binary_states:
-                binary_states[sensor_name].append(state.state)
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()

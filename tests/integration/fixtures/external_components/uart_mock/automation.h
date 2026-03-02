@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "uart_mock.h"
 
-namespace esphome {
-namespace uart_mock {
+namespace esphome::uart_mock {
 
 // This pattern is similar to UARTWriteAction but calls inject_rx instead of write_array, and is parented to VirtualUART
 // instead of UARTComponent
@@ -49,5 +48,4 @@ class MockUartTXTrigger : public Trigger<std::vector<uint8_t>> {
   }
 };
 
-}  // namespace uart_mock
-}  // namespace esphome
+}  // namespace esphome::uart_mock
