@@ -36,10 +36,9 @@
 #endif  // USE_SOCKET_SELECT_SUPPORT
 #if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 namespace esphome::socket {
-void socket_wake();
+void socket_wake();  // NOLINT(readability-redundant-declaration)
 }  // namespace esphome::socket
 #endif
-
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
