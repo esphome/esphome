@@ -602,6 +602,36 @@ template<std::integral T> constexpr uint32_t fnv1a_hash_extend(uint32_t hash, T 
 constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
 inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
 
+/// Divide a uint64_t by 1000 and return the low 32 bits of the quotient.
+///
+/// On 32-bit targets, GCC does not optimize 64-bit constant division into a
+/// multiply-by-reciprocal and instead calls __udivdi3 (software 64-bit divide,
+/// ~1200 ns on Xtensa @ 240 MHz). This uses the Euclidean division identity to
+/// decompose the 64-bit division into a single 32-bit division:
+///
+///   2^32 = 4294967 * 1000 + 296    (Q * D + R)
+///
+/// Therefore: (hi * 2^32 + lo) / 1000 = hi * Q + (hi * R + lo) / 1000
+///
+/// GCC optimizes the remaining 32-bit "/ 1000U" into a multiply-by-reciprocal
+/// (mulhu + shift), so no division instruction is emitted.
+///
+/// Only the low 32 bits of the quotient are returned (same 49.7-day wrap as millis()).
+///
+/// See: https://en.wikipedia.org/wiki/Euclidean_division
+/// See: https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
+inline ESPHOME_ALWAYS_INLINE uint32_t fast_div1000_32(uint64_t us) {
+  static constexpr uint32_t D = 1000U;     // divisor (microseconds per millisecond)
+  static constexpr uint32_t Q = 4294967U;  // 2^32 / 1000
+  static constexpr uint32_t R = 296U;      // 2^32 % 1000
+  uint32_t lo = static_cast<uint32_t>(us);
+  uint32_t hi = static_cast<uint32_t>(us >> 32);
+  // Combine remainder term: hi * (2^32 % 1000) + lo
+  uint32_t adj = hi * R + lo;
+  // If adj overflowed, the true value is 2^32 + adj; apply the identity again
+  return hi * Q + (adj < lo ? (adj + R) / D + Q : adj / D);
+}
+
 /// Return a random 32-bit unsigned integer.
 uint32_t random_uint32();
 /// Return a random float between 0 and 1.
