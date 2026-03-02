@@ -501,7 +501,7 @@ class Application {
   void wake_loop_threadsafe();
 #endif
 
-#if defined(USE_WAKE_LOOP_THREADSAFE) && defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_LWIP_FAST_SELECT
   /// Wake the main event loop from an ISR.
   /// Uses vTaskNotifyGiveFromISR() — <1 us, ISR-safe.
   /// Only available on platforms with fast select (ESP32, LibreTiny).
@@ -509,6 +509,12 @@ class Application {
   static void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
     esphome_lwip_wake_main_loop_from_isr(px_higher_priority_task_woken);
   }
+
+#ifdef USE_ESP32
+  /// Wake the main event loop from any context (ISR, thread, or main loop).
+  /// Detects the calling context and uses the appropriate FreeRTOS API.
+  static void IRAM_ATTR wake_loop_any_context() { esphome_lwip_wake_main_loop_any_context(); }
+#endif
 #endif
 #endif
 
