@@ -99,11 +99,11 @@ class Rtttl : public Component {
   /// The number of samples for one full cycle of a note's waveform, in Q10 fixed-point format.
   uint32_t samples_per_wave_{0};
   /// The number of samples sent.
-  int samples_sent_{0};
+  uint32_t samples_sent_{0};
   /// The total number of samples to send.
-  int samples_count_{0};
+  uint32_t samples_count_{0};
   /// The number of samples for the gap between notes.
-  uint8_t samples_gap_{0};
+  uint32_t samples_gap_{0};
 #endif  // USE_SPEAKER
 
   /// The callback to call when playback is finished.

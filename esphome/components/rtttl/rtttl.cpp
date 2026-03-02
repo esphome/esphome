@@ -254,14 +254,14 @@ void Rtttl::loop() {
     }
     if (this->output_freq_ != 0) {
       // Make sure there is enough samples to add a full last sinus.
-      uint16_t samples_wish = this->samples_count_;
+      uint32_t samples_wish = this->samples_count_;
       this->samples_per_wave_ = (SAMPLE_RATE << 10) / this->output_freq_;
 
       uint16_t division = ((this->samples_count_ << 10) / this->samples_per_wave_) + 1;
 
       this->samples_count_ = (division * this->samples_per_wave_) >> 10;
-      ESP_LOGVV(TAG, "Calc play time: wish: %d gets: %d (div: %d spw: %d)", samples_wish, this->samples_count_,
-                division, this->samples_per_wave_);
+      ESP_LOGVV(TAG, "Calc play time: wish: %" PRIu32 " gets: %" PRIu32 " (div: %d spw: %" PRIu32 ")", samples_wish,
+                this->samples_count_, division, this->samples_per_wave_);
     }
     // Convert from frequency in Hz to high and low samples in fixed point
   }
