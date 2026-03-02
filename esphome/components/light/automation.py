@@ -51,6 +51,7 @@ from .types import (
             ),
         }
     ),
+    synchronous=True,
 )
 async def light_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -111,13 +112,13 @@ LIGHT_TURN_ON_ACTION_SCHEMA = automation.maybe_simple_id(
 
 
 @automation.register_action(
-    "light.turn_off", LightControlAction, LIGHT_TURN_OFF_ACTION_SCHEMA
+    "light.turn_off", LightControlAction, LIGHT_TURN_OFF_ACTION_SCHEMA, synchronous=True
 )
 @automation.register_action(
-    "light.turn_on", LightControlAction, LIGHT_TURN_ON_ACTION_SCHEMA
+    "light.turn_on", LightControlAction, LIGHT_TURN_ON_ACTION_SCHEMA, synchronous=True
 )
 @automation.register_action(
-    "light.control", LightControlAction, LIGHT_CONTROL_ACTION_SCHEMA
+    "light.control", LightControlAction, LIGHT_CONTROL_ACTION_SCHEMA, synchronous=True
 )
 async def light_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -193,7 +194,10 @@ LIGHT_DIM_RELATIVE_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "light.dim_relative", DimRelativeAction, LIGHT_DIM_RELATIVE_ACTION_SCHEMA
+    "light.dim_relative",
+    DimRelativeAction,
+    LIGHT_DIM_RELATIVE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def light_dim_relative_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

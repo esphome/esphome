@@ -66,6 +66,7 @@ def create_test_config(config_name: str, includes: list[str]) -> dict:
                 ],
                 "build_flags": [
                     "-Og",  # optimize for debug
+                    "-DUSE_TIME_TIMEZONE",  # enable timezone code paths for testing
                 ],
                 "debug_build_flags": [  # only for debug builds
                     "-g3",  # max debug info
@@ -97,8 +98,12 @@ def run_tests(selected_components: list[str]) -> int:
 
     components = sorted(components)
 
-    # Obtain possible dependencies for the requested components:
-    components_with_dependencies = sorted(get_all_dependencies(set(components)))
+    # Obtain possible dependencies for the requested components.
+    # Always include 'time' because USE_TIME_TIMEZONE is defined as a build flag,
+    # which causes core/time.h to include components/time/posix_tz.h.
+    components_with_dependencies = sorted(
+        get_all_dependencies(set(components) | {"time"})
+    )
 
     # Build a list of include folders, one folder per component containing tests.
     # A special replacement main.cpp is located in /tests/components/main.cpp

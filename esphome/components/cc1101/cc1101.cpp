@@ -242,6 +242,9 @@ void CC1101Component::begin_tx() {
   if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
   }
+  // Transition through IDLE to bypass CCA (Clear Channel Assessment) which can
+  // block TX entry when strobing from RX, and to ensure FS_AUTOCAL calibration
+  this->enter_idle_();
   if (!this->enter_tx_()) {
     ESP_LOGW(TAG, "Failed to enter TX state!");
   }
@@ -252,6 +255,8 @@ void CC1101Component::begin_rx() {
   if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
   }
+  // Transition through IDLE to ensure FS_AUTOCAL calibration occurs
+  this->enter_idle_();
   if (!this->enter_rx_()) {
     ESP_LOGW(TAG, "Failed to enter RX state!");
   }
