@@ -29,6 +29,8 @@ class MockUartComponent : public uart::UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
   void flush() override;
+  void set_rx_full_threshold(size_t rx_full_threshold) override;
+  void set_rx_timeout(size_t rx_timeout) override;
 
   // Scenario configuration - called from generated code
   void add_injection(const std::vector<uint8_t> &rx_data, uint32_t delay_ms);

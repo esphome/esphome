@@ -114,6 +114,12 @@ void MockUartComponent::flush() {
   // Nothing to flush in mock
 }
 
+void MockUartComponent::set_rx_full_threshold(size_t rx_full_threshold) {
+  this->rx_full_threshold_ = rx_full_threshold;
+}
+
+void MockUartComponent::set_rx_timeout(size_t rx_timeout) { this->rx_timeout_ = rx_timeout; }
+
 void MockUartComponent::add_injection(const std::vector<uint8_t> &rx_data, uint32_t delay_ms) {
   this->injections_.push_back({rx_data, delay_ms});
 }
