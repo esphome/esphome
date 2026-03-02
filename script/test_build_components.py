@@ -175,7 +175,7 @@ def group_components_by_platform(
     }
 
 
-def format_github_summary(test_results: list[TestResult]) -> str:
+def format_github_summary(test_results: list[TestResult], native_idf=False) -> str:
     """Format test results as GitHub Actions job summary markdown.
 
     Args:
@@ -225,11 +225,12 @@ def format_github_summary(test_results: list[TestResult]) -> str:
         lines.append("```bash\n")
 
         # Generate one command per platform and test type
+        extra_arguments = " --native-idf" if native_idf else ""
         platform_components = group_components_by_platform(failed_results)
         for platform, test_type in sorted(platform_components.keys()):
             components_csv = ",".join(platform_components[(platform, test_type)])
             lines.append(
-                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}\n"
+                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}{extra_arguments}\n"
             )
 
         lines.append("```\n")
@@ -274,13 +275,13 @@ def format_github_summary(test_results: list[TestResult]) -> str:
     return "".join(lines)
 
 
-def write_github_summary(test_results: list[TestResult]) -> None:
+def write_github_summary(test_results: list[TestResult], native_idf=False) -> None:
     """Write GitHub Actions job summary with test results and timing.
 
     Args:
         test_results: List of all test results
     """
-    summary_content = format_github_summary(test_results)
+    summary_content = format_github_summary(test_results, native_idf)
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
         f.write(summary_content)
 
@@ -308,6 +309,7 @@ def run_esphome_test(
     esphome_command: str,
     continue_on_fail: bool,
     use_testing_mode: bool = False,
+    native_idf: bool = False,
 ) -> TestResult:
     """Run esphome test for a single component.
 
@@ -367,8 +369,14 @@ def run_esphome_test(
         ]
     )
 
-    # Add command and config file
-    cmd.extend([esphome_command, str(output_file)])
+    # Add command
+    cmd.append(esphome_command)
+
+    if native_idf and esphome_command == "compile":
+        cmd.append("--native-idf")
+
+    # Add config file
+    cmd.append(str(output_file))
 
     # Build command string for display/logging
     cmd_str = " ".join(cmd)
@@ -432,6 +440,7 @@ def run_grouped_test(
     tests_dir: Path,
     esphome_command: str,
     continue_on_fail: bool,
+    native_idf: bool = False,
 ) -> TestResult:
     """Run esphome test for a group of components with shared bus configs.
 
@@ -511,8 +520,12 @@ def run_grouped_test(
         "target_platform",
         platform,
         esphome_command,
-        str(output_file),
     ]
+
+    if native_idf and esphome_command == "compile":
+        cmd.append("--native-idf")
+
+    cmd.append(str(output_file))
 
     # Build command string for display/logging
     cmd_str = " ".join(cmd)
@@ -576,6 +589,7 @@ def run_grouped_component_tests(
     esphome_command: str,
     continue_on_fail: bool,
     additional_isolated: set[str] | None = None,
+    native_idf: bool = False,
 ) -> tuple[set[tuple[str, str]], list[TestResult]]:
     """Run grouped component tests.
 
@@ -872,6 +886,7 @@ def run_grouped_component_tests(
                 tests_dir=tests_dir,
                 esphome_command=esphome_command,
                 continue_on_fail=continue_on_fail,
+                native_idf=native_idf,
             )
 
             # Mark all components as tested
@@ -895,6 +910,7 @@ def run_individual_component_test(
     continue_on_fail: bool,
     tested_components: set[tuple[str, str]],
     test_results: list[TestResult],
+    native_idf: bool = False,
 ) -> None:
     """Run an individual component test if not already tested in a group.
 
@@ -923,6 +939,7 @@ def run_individual_component_test(
         build_dir=build_dir,
         esphome_command=esphome_command,
         continue_on_fail=continue_on_fail,
+        native_idf=native_idf,
     )
     test_results.append(test_result)
 
@@ -935,6 +952,7 @@ def test_components(
     enable_grouping: bool = True,
     isolated_components: set[str] | None = None,
     base_only: bool = False,
+    native_idf: bool = False,
 ) -> int:
     """Test components with optional intelligent grouping.
 
@@ -1011,6 +1029,7 @@ def test_components(
             esphome_command=esphome_command,
             continue_on_fail=continue_on_fail,
             additional_isolated=isolated_components,
+            native_idf=native_idf,
         )
         test_results.extend(grouped_results)
 
@@ -1039,6 +1058,7 @@ def test_components(
                             continue_on_fail=continue_on_fail,
                             tested_components=tested_components,
                             test_results=test_results,
+                            native_idf=native_idf,
                         )
             else:
                 # Platform-specific test
@@ -1071,6 +1091,7 @@ def test_components(
                         continue_on_fail=continue_on_fail,
                         tested_components=tested_components,
                         test_results=test_results,
+                        native_idf=native_idf,
                     )
 
     # Separate results into passed and failed
@@ -1091,17 +1112,18 @@ def test_components(
         print("\n" + "=" * 80)
         print("Commands to reproduce failures (copy-paste to reproduce locally):")
         print("=" * 80)
+        extra_arguments = " --native-idf" if native_idf else ""
         platform_components = group_components_by_platform(failed_results)
         for platform, test_type in sorted(platform_components.keys()):
             components_csv = ",".join(platform_components[(platform, test_type)])
             print(
-                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}"
+                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}{extra_arguments}"
             )
         print()
 
     # Write GitHub Actions job summary if in CI
     if os.environ.get("GITHUB_STEP_SUMMARY"):
-        write_github_summary(test_results)
+        write_github_summary(test_results, native_idf=native_idf)
 
     if failed_results:
         return 1
@@ -1154,6 +1176,11 @@ def main() -> int:
         action="store_true",
         help="Only test base test files (test.*.yaml), not variant files (test-*.yaml)",
     )
+    parser.add_argument(
+        "--native-idf",
+        help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
+        action="store_true",
+    )
 
     args = parser.parse_args()
 
@@ -1173,6 +1200,7 @@ def main() -> int:
         enable_grouping=not args.no_grouping,
         isolated_components=isolated_components,
         base_only=args.base_only,
+        native_idf=args.native_idf,
     )
 
 

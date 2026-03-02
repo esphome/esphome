@@ -707,6 +707,116 @@ jobs:
           # Run compilation with grouping and isolation
           python3 script/test_build_components.py -e compile -c "$components_csv" -f --isolate "$directly_changed_csv"
 
+  test-native-idf:
+    name: Test components batch (${{ matrix.components }}) with native ESP-IDF
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: github.event_name == 'pull_request' #&& fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
+    #strategy:
+    #  fail-fast: false
+    #  max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
+    #  matrix:
+    #    components: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
+    env:
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Cache ESPHome
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.esphome-idf
+          key: ${{ runner.os }}-esphome-${{ needs.common.outputs.cache-key }}
+
+      - name: Run native ESP-IDF compile test
+        run: |
+          . venv/bin/activate
+
+          # Check if /mnt has more free space than / before bind mounting
+          # Extract available space in KB for comparison
+          root_avail=$(df -k / | awk 'NR==2 {print $4}')
+          mnt_avail=$(df -k /mnt 2>/dev/null | awk 'NR==2 {print $4}')
+
+          echo "Available space: / has ${root_avail}KB, /mnt has ${mnt_avail}KB"
+
+          # Only use /mnt if it has more space than /
+          if [ -n "$mnt_avail" ] && [ "$mnt_avail" -gt "$root_avail" ]; then
+            echo "Using /mnt for build files (more space available)"
+            # Bind mount PlatformIO directory to /mnt (tools, packages, build cache all go there)
+            sudo mkdir -p /mnt/esphome-idf
+            sudo chown $USER:$USER /mnt/esphome-idf
+            mkdir -p ~/.esphome-idf
+            sudo mount --bind /mnt/esphome-idf ~/.esphome-idf
+
+            # Bind mount test build directory to /mnt
+            sudo mkdir -p /mnt/test_build_components_build
+            sudo chown $USER:$USER /mnt/test_build_components_build
+            mkdir -p tests/test_build_components/build
+            sudo mount --bind /mnt/test_build_components_build tests/test_build_components/build
+          else
+            echo "Using / for build files (more space available than /mnt or /mnt unavailable)"
+          fi
+
+          # Convert space-separated components to comma-separated for Python script
+          components_csv=$(echo "${{ matrix.components }}" | tr ' ' ',')
+
+          # Only isolate directly changed components when targeting dev branch
+          # For beta/release branches, group everything for faster CI
+          #
+          # WHY ISOLATE DIRECTLY CHANGED COMPONENTS?
+          # - Isolated tests run WITHOUT --testing-mode, enabling full validation
+          # - This catches pin conflicts and other issues in directly changed code
+          # - Grouped tests use --testing-mode to allow config merging (disables some checks)
+          # - Dependencies are safe to group since they weren't modified in this PR
+          if [[ "${{ github.base_ref }}" == beta* ]] || [[ "${{ github.base_ref }}" == release* ]]; then
+            directly_changed_csv=""
+            echo "Testing components: $components_csv"
+            echo "Target branch: ${{ github.base_ref }} - grouping all components"
+          else
+            directly_changed_csv=$(echo '${{ needs.determine-jobs.outputs.directly-changed-components-with-tests }}' | jq -r 'join(",")')
+            echo "Testing components: $components_csv"
+            echo "Target branch: ${{ github.base_ref }} - isolating directly changed components: $directly_changed_csv"
+          fi
+          echo ""
+
+          # Show disk space before validation (after bind mounts setup)
+          echo "Disk space before config validation:"
+          df -h
+          echo ""
+
+          # Run config validation with grouping and isolation
+          #python3 script/test_build_components.py -e config -t esp32-idf -c "$components_csv" -f --isolate "$directly_changed_csv" --native-idf
+          python3 script/test_build_components.py -e config -t esp32-idf -f --native-idf
+
+          echo ""
+          echo "Config validation passed! Starting compilation..."
+          echo ""
+
+          # Show disk space before compilation
+          echo "Disk space before compilation:"
+          df -h
+          echo ""
+
+          # Run compilation with grouping and isolation
+          #python3 script/test_build_components.py -e config -t esp32-idf -c "$components_csv" -f --isolate "$directly_changed_csv" --native-idf
+          python3 script/test_build_components.py -e compile -t esp32-idf -f --native-idf
+
+      - name: Save ESPHome cache
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.esphome-idf
+          key: ${{ runner.os }}-esphome-${{ needs.common.outputs.cache-key }}
+
   pre-commit-ci-lite:
     name: pre-commit.ci lite
     runs-on: ubuntu-latest
@@ -1035,6 +1145,7 @@ jobs:
       - clang-tidy-split
       - determine-jobs
       - test-build-components-split
+      - test-native-idf
       - pre-commit-ci-lite
       - memory-impact-target-branch
       - memory-impact-pr-branch
