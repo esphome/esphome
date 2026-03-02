@@ -8,8 +8,7 @@ namespace esphome::rtttl {
 
 static const char *const TAG = "rtttl";
 
-static constexpr uint8_t SONG_NAME_SOFT_LIMIT = 10;
-static constexpr uint8_t SONG_NAME_HARD_LIMIT = 15;
+static constexpr uint8_t SONG_NAME_LENGTH_LIMIT = 64;
 static constexpr uint8_t SEMITONES_IN_OCTAVE = 12;
 
 static constexpr uint8_t MIN_OCTAVE = 4;
@@ -295,16 +294,10 @@ void Rtttl::play(std::string rtttl) {
     ESP_LOGE(TAG, "Unable to determine name; missing ':'");
     return;
   }
-  // It's somewhat documented to be up to 10 (SONG_NAME_SOFT_LIMIT) characters but let's be a bit flexible here
-  // (SONG_NAME_HARD_LIMIT = 15)
-  if (this->position_ > SONG_NAME_HARD_LIMIT) {
+  if (this->position_ >= SONG_NAME_LENGTH_LIMIT) {
     ESP_LOGE(TAG, "Name is too long: length=%u, limit=%u", static_cast<unsigned>(this->position_),
-             static_cast<unsigned>(SONG_NAME_HARD_LIMIT));
+             static_cast<unsigned>(SONG_NAME_LENGTH_LIMIT));
     return;
-  }
-  if (this->position_ > SONG_NAME_SOFT_LIMIT) {
-    ESP_LOGW(TAG, "Name is longer than %d characters: %.*s", SONG_NAME_SOFT_LIMIT, (int) this->position_,
-             this->rtttl_.c_str());
   }
   ESP_LOGD(TAG, "Playing song %.*s", (int) this->position_, this->rtttl_.c_str());
 
