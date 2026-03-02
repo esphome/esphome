@@ -12,8 +12,7 @@
 #include "esphome/core/event_pool.h"
 #include <atomic>
 
-namespace esphome {
-namespace usb_host {
+namespace esphome::usb_host {
 
 // THREADING MODEL:
 // This component uses a dedicated USB task for event processing to prevent data loss.
@@ -44,16 +43,16 @@ struct TransferRequest;
 class USBClient;
 
 // constants for setup packet type
-static const uint8_t USB_RECIP_DEVICE = 0;
-static const uint8_t USB_RECIP_INTERFACE = 1;
-static const uint8_t USB_RECIP_ENDPOINT = 2;
-static const uint8_t USB_TYPE_STANDARD = 0 << 5;
-static const uint8_t USB_TYPE_CLASS = 1 << 5;
-static const uint8_t USB_TYPE_VENDOR = 2 << 5;
-static const uint8_t USB_DIR_MASK = 1 << 7;
-static const uint8_t USB_DIR_IN = 1 << 7;
-static const uint8_t USB_DIR_OUT = 0;
-static const size_t SETUP_PACKET_SIZE = 8;
+static constexpr uint8_t USB_RECIP_DEVICE = 0;
+static constexpr uint8_t USB_RECIP_INTERFACE = 1;
+static constexpr uint8_t USB_RECIP_ENDPOINT = 2;
+static constexpr uint8_t USB_TYPE_STANDARD = 0 << 5;
+static constexpr uint8_t USB_TYPE_CLASS = 1 << 5;
+static constexpr uint8_t USB_TYPE_VENDOR = 2 << 5;
+static constexpr uint8_t USB_DIR_MASK = 1 << 7;
+static constexpr uint8_t USB_DIR_IN = 1 << 7;
+static constexpr uint8_t USB_DIR_OUT = 0;
+static constexpr size_t SETUP_PACKET_SIZE = 8;
 
 static constexpr size_t MAX_REQUESTS = USB_HOST_MAX_REQUESTS;  // maximum number of outstanding requests possible.
 static_assert(MAX_REQUESTS >= 1 && MAX_REQUESTS <= 32, "MAX_REQUESTS must be between 1 and 32");
@@ -73,12 +72,12 @@ static constexpr UBaseType_t USB_TASK_PRIORITY = 5;  // Higher priority than mai
 
 // used to report a transfer status
 struct TransferStatus {
-  bool success;
-  uint16_t error_code;
   uint8_t *data;
   size_t data_len;
-  uint8_t endpoint;
   void *user_data;
+  uint16_t error_code;
+  uint8_t endpoint;
+  bool success;
 };
 
 using transfer_cb_t = std::function<void(const TransferStatus &)>;
@@ -127,7 +126,7 @@ class USBClient : public Component {
   friend class USBHost;
 
  public:
-  USBClient(uint16_t vid, uint16_t pid) : vid_(vid), pid_(pid), trq_in_use_(0) {}
+  USBClient(uint16_t vid, uint16_t pid) : trq_in_use_(0), vid_(vid), pid_(pid) {}
   void setup() override;
   void loop() override;
   // setup must happen after the host bus has been setup
@@ -148,6 +147,11 @@ class USBClient : public Component {
   EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE> event_pool;
 
  protected:
+  // Process USB events from the queue. Returns true if any work was done.
+  // Subclasses should call this instead of USBClient::loop() to combine
+  // with their own work check for a single disable_loop() decision.
+  bool process_usb_events_();
+  void handle_open_state_();
   TransferRequest *get_trq_();  // Lock-free allocation using atomic bitmask (multi-consumer safe)
   virtual void disconnect();
   virtual void on_connected() {}
@@ -160,20 +164,19 @@ class USBClient : public Component {
   static void usb_task_fn(void *arg);
   [[noreturn]] void usb_task_loop() const;
 
+  // Members ordered to minimize struct padding on 32-bit platforms
+  TransferRequest requests_[MAX_REQUESTS]{};
   TaskHandle_t usb_task_handle_{nullptr};
-
   usb_host_client_handle_t handle_{};
   usb_device_handle_t device_handle_{};
   int device_addr_{-1};
   int state_{USB_CLIENT_INIT};
-  uint16_t vid_{};
-  uint16_t pid_{};
   // Lock-free pool management using atomic bitmask (no dynamic allocation)
   // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
   // Supports multiple concurrent consumers and producers (both threads can allocate/deallocate)
-  // Bitmask type automatically selected: uint16_t for <= 16 slots, uint32_t for 17-32 slots
   std::atomic<trq_bitmask_t> trq_in_use_;
-  TransferRequest requests_[MAX_REQUESTS]{};
+  uint16_t vid_{};
+  uint16_t pid_{};
 };
 class USBHost : public Component {
  public:
@@ -185,7 +188,6 @@ class USBHost : public Component {
   std::vector<USBClient *> clients_{};
 };
 
-}  // namespace usb_host
-}  // namespace esphome
+}  // namespace esphome::usb_host
 
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

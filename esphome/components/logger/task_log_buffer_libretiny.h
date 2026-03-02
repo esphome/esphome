@@ -40,7 +40,7 @@ namespace esphome::logger {
  * - Volatile counter enables fast has_messages() without lock overhead
  * - If message doesn't fit at end, padding is added and message wraps to start
  */
-class TaskLogBufferLibreTiny {
+class TaskLogBuffer {
  public:
   // Structure for a log message header (text data follows immediately after)
   struct LogMessage {
@@ -60,17 +60,17 @@ class TaskLogBufferLibreTiny {
   static constexpr uint8_t PADDING_MARKER_LEVEL = 0xFF;
 
   // Constructor that takes a total buffer size
-  explicit TaskLogBufferLibreTiny(size_t total_buffer_size);
-  ~TaskLogBufferLibreTiny();
+  explicit TaskLogBuffer(size_t total_buffer_size);
+  ~TaskLogBuffer();
 
   // NOT thread-safe - borrow a message from the buffer, only call from main loop
-  bool borrow_message_main_loop(LogMessage **message, const char **text);
+  bool borrow_message_main_loop(LogMessage *&message, uint16_t &text_length);
 
   // NOT thread-safe - release a message buffer, only call from main loop
   void release_message_main_loop();
 
   // Thread-safe - send a message to the buffer from any thread
-  bool send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, TaskHandle_t task_handle,
+  bool send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
                                 const char *format, va_list args);
 
   // Fast check using volatile counter - no lock needed

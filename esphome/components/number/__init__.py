@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
+from esphome.components import mqtt, web_server, zigbee
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
@@ -189,6 +189,7 @@ validate_unit_of_measurement = cv.string_strict
 _NUMBER_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(zigbee.NUMBER_SCHEMA)
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
@@ -214,6 +215,7 @@ _NUMBER_SCHEMA = (
 
 
 _NUMBER_SCHEMA.add_extra(entity_duplicate_validator("number"))
+_NUMBER_SCHEMA.add_extra(zigbee.validate_number)
 
 
 def number_schema(
@@ -238,20 +240,8 @@ def number_schema(
     return _NUMBER_SCHEMA.extend(schema)
 
 
-async def setup_number_core_(
-    var, config, *, min_value: float, max_value: float, step: float
-):
-    await setup_entity(var, config, "number")
-
-    cg.add(var.traits.set_min_value(min_value))
-    cg.add(var.traits.set_max_value(max_value))
-    cg.add(var.traits.set_step(step))
-
-    # Only set if non-default to avoid bloating setup() function
-    # (mode_ is initialized to NUMBER_MODE_AUTO in the header)
-    if config[CONF_MODE] != NumberMode.NUMBER_MODE_AUTO:
-        cg.add(var.traits.set_mode(config[CONF_MODE]))
-
+@coroutine_with_priority(CoroPriority.AUTOMATION)
+async def _build_number_automations(var, config):
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(float, "x")], conf)
@@ -266,6 +256,23 @@ async def setup_number_core_(
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
+
+async def setup_number_core_(
+    var, config, *, min_value: float, max_value: float, step: float
+):
+    await setup_entity(var, config, "number")
+
+    cg.add(var.traits.set_min_value(min_value))
+    cg.add(var.traits.set_max_value(max_value))
+    cg.add(var.traits.set_step(step))
+
+    # Only set if non-default to avoid bloating setup() function
+    # (mode_ is initialized to NUMBER_MODE_AUTO in the header)
+    if config[CONF_MODE] != NumberMode.NUMBER_MODE_AUTO:
+        cg.add(var.traits.set_mode(config[CONF_MODE]))
+
+    CORE.add_job(_build_number_automations, var, config)
+
     if (unit_of_measurement := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
         cg.add(var.traits.set_unit_of_measurement(unit_of_measurement))
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
@@ -276,6 +283,8 @@ async def setup_number_core_(
         await mqtt.register_mqtt_component(mqtt_, config)
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
+
+    await zigbee.setup_number(var, config, min_value, max_value, step)
 
 
 async def register_number(
@@ -343,6 +352,7 @@ OPERATION_BASE_SCHEMA = cv.Schema(
             cv.Required(CONF_VALUE): cv.templatable(cv.float_),
         }
     ),
+    synchronous=True,
 )
 async def number_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -365,6 +375,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "number.decrement",
@@ -379,6 +390,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "number.to_min",
@@ -392,6 +404,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "number.to_max",
@@ -405,6 +418,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "number.operation",
@@ -417,6 +431,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
         }
     ),
+    synchronous=True,
 )
 async def number_to_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

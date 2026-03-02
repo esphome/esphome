@@ -55,6 +55,7 @@ from .const_zephyr import (
     CONF_WIPE_ON_BOOT,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
     CONF_ZIGBEE_SENSOR,
     CONF_ZIGBEE_SWITCH,
     KEY_EP_NUMBER,
@@ -62,12 +63,14 @@ from .const_zephyr import (
     POWER_SOURCE,
     ZB_ZCL_BASIC_ATTRS_EXT_T,
     ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
+    ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT,
     ZB_ZCL_CLUSTER_ID_BASIC,
     ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
     ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
     ZB_ZCL_IDENTIFY_ATTRS_T,
     AnalogAttrs,
+    AnalogAttrsOutput,
     BinaryAttrs,
     ZigbeeComponent,
     zigbee_ns,
@@ -76,6 +79,7 @@ from .const_zephyr import (
 ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
 ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
+ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
 
 # BACnet engineering units mapping (ZCL uses BACnet unit codes)
 # See: https://github.com/zigpy/zha/blob/dev/zha/application/platforms/number/bacnet.py
@@ -139,6 +143,15 @@ zephyr_switch = cv.Schema(
     }
 )
 
+zephyr_number = cv.Schema(
+    {
+        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
+        cv.OnlyWith(CONF_ZIGBEE_NUMBER, ["nrf52", "zigbee"]): cv.declare_id(
+            ZigbeeNumber
+        ),
+    }
+)
+
 
 async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("ZIGBEE", True)
@@ -166,6 +179,13 @@ async def zephyr_to_code(config: ConfigType) -> None:
                 "USE_ZIGBEE_WIPE_ON_BOOT_MAGIC", random.randint(0x000001, 0xFFFFFF)
             )
         cg.add_define("USE_ZIGBEE_WIPE_ON_BOOT")
+
+    # Generate attribute lists before any await that could yield (e.g., build_automation
+    # waiting for variables from other components). If the hub's priority decays while
+    # yielding, deferred entity jobs may add cluster list globals that reference these
+    # attribute lists before they're declared.
+    await _attr_to_code(config)
+
     var = cg.new_Pvariable(config[CONF_ID])
 
     if on_join_config := config.get(CONF_ON_JOIN):
@@ -173,7 +193,6 @@ async def zephyr_to_code(config: ConfigType) -> None:
 
     await cg.register_component(var, config)
 
-    await _attr_to_code(config)
     CORE.add_job(_ctx_to_code, config)
 
 
@@ -344,6 +363,16 @@ async def zephyr_setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
     CORE.add_job(_add_switch, entity, config)
 
 
+async def zephyr_setup_number(
+    entity: cg.MockObj,
+    config: ConfigType,
+    min_value: float,
+    max_value: float,
+    step: float,
+) -> None:
+    CORE.add_job(_add_number, entity, config, min_value, max_value, step)
+
+
 def get_slot_index() -> int:
     """Find the next available endpoint slot."""
     slot = next(
@@ -450,4 +479,32 @@ async def _add_switch(entity: cg.MockObj, config: ConfigType) -> None:
         "ESPHOME_ZB_ZCL_DECLARE_BINARY_OUTPUT_ATTRIB_LIST",
         ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
         "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
+    )
+
+
+async def _add_number(
+    entity: cg.MockObj,
+    config: ConfigType,
+    min_value: float,
+    max_value: float,
+    step: float,
+) -> None:
+    # Get BACnet engineering unit from unit_of_measurement
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT, "")
+    bacnet_unit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
+
+    await _add_zigbee_ep(
+        entity,
+        config,
+        CONF_ZIGBEE_NUMBER,
+        AnalogAttrsOutput,
+        "ESPHOME_ZB_ZCL_DECLARE_ANALOG_OUTPUT_ATTRIB_LIST",
+        ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT,
+        "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
+        extra_field_values={
+            "max_present_value": max_value,
+            "min_present_value": min_value,
+            "resolution": step,
+            "engineering_units": bacnet_unit,
+        },
     )

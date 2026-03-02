@@ -247,6 +247,21 @@ class ControllerRegistry {
 #endif
 
  protected:
+  /** Type-erased dispatch function pointer.
+   *
+   * Each notify method passes a small trampoline that calls the
+   * correct virtual method on Controller. The shared notify() loop
+   * iterates controllers once, calling the trampoline for each.
+   */
+  using DispatchFunc = void (*)(Controller *, void *);
+
+  /** Shared dispatch loop - iterates controllers and calls dispatch for each.
+   *
+   * Marked noinline to ensure only one copy of the loop exists in flash,
+   * rather than being duplicated into each notify_*_update wrapper.
+   */
+  static void __attribute__((noinline)) notify(void *obj, DispatchFunc dispatch);
+
   static StaticVector<Controller *, CONTROLLER_REGISTRY_MAX> controllers;
 };
 

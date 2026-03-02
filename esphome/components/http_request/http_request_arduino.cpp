@@ -9,14 +9,25 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
+// Include BearSSL error constants for TLS failure diagnostics
+#ifdef USE_ESP8266
+#include <bearssl/bearssl_ssl.h>
+#endif
+
 namespace esphome::http_request {
 
 static const char *const TAG = "http_request.arduino";
+#ifdef USE_ESP8266
+static constexpr int RX_BUFFER_SIZE = 512;
+static constexpr int TX_BUFFER_SIZE = 512;
+// ESP8266 Arduino core (WiFiClientSecureBearSSL.cpp) returns -1000 on OOM
+static constexpr int ESP8266_SSL_ERR_OOM = -1000;
+#endif
 
 std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &url, const std::string &method,
                                                            const std::string &body,
-                                                           const std::list<Header> &request_headers,
-                                                           const std::set<std::string> &collect_headers) {
+                                                           const std::vector<Header> &request_headers,
+                                                           const std::vector<std::string> &lower_case_collect_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
@@ -47,7 +58,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
     ESP_LOGV(TAG, "ESP8266 HTTPS connection with WiFiClientSecure");
     stream_ptr = std::make_unique<WiFiClientSecure>();
     WiFiClientSecure *secure_client = static_cast<WiFiClientSecure *>(stream_ptr.get());
-    secure_client->setBufferSizes(512, 512);
+    secure_client->setBufferSizes(RX_BUFFER_SIZE, TX_BUFFER_SIZE);
     secure_client->setInsecure();
   } else {
     stream_ptr = std::make_unique<WiFiClient>();
@@ -96,9 +107,9 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   }
 
   // returned needed headers must be collected before the requests
-  const char *header_keys[collect_headers.size()];
+  const char *header_keys[lower_case_collect_headers.size()];
   int index = 0;
-  for (auto const &header_name : collect_headers) {
+  for (auto const &header_name : lower_case_collect_headers) {
     header_keys[index++] = header_name.c_str();
   }
   container->client_.collectHeaders(header_keys, index);
@@ -107,37 +118,70 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   container->status_code = container->client_.sendRequest(method.c_str(), body.c_str());
   App.feed_wdt();
   if (container->status_code < 0) {
+#if defined(USE_ESP8266) && defined(USE_HTTP_REQUEST_ESP8266_HTTPS)
+    if (secure) {
+      WiFiClientSecure *secure_client = static_cast<WiFiClientSecure *>(stream_ptr.get());
+      int last_error = secure_client->getLastSSLError();
+
+      if (last_error != 0) {
+        const LogString *error_msg;
+        switch (last_error) {
+          case ESP8266_SSL_ERR_OOM:
+            error_msg = LOG_STR("Unable to allocate buffer memory");
+            break;
+          case BR_ERR_TOO_LARGE:
+            error_msg = LOG_STR("Incoming TLS record does not fit in receive buffer (BR_ERR_TOO_LARGE)");
+            break;
+          default:
+            error_msg = LOG_STR("Unknown SSL error");
+            break;
+        }
+        ESP_LOGW(TAG, "SSL failure: %s (Code: %d)", LOG_STR_ARG(error_msg), last_error);
+        if (last_error == ESP8266_SSL_ERR_OOM) {
+          ESP_LOGW(TAG, "Heap free: %u bytes, configured buffer sizes: %u bytes", ESP.getFreeHeap(),
+                   static_cast<unsigned int>(RX_BUFFER_SIZE + TX_BUFFER_SIZE));
+        }
+      } else {
+        ESP_LOGW(TAG, "Connection failure with no error code");
+      }
+    }
+#endif
+
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", url.c_str(),
              HTTPClient::errorToString(container->status_code).c_str());
+
     this->status_momentary_error("failed", 1000);
     container->end();
     return nullptr;
   }
-
   if (!is_success(container->status_code)) {
     ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), container->status_code);
     this->status_momentary_error("failed", 1000);
     // Still return the container, so it can be used to get the status code and error message
   }
 
-  container->response_headers_ = {};
+  container->response_headers_.clear();
   auto header_count = container->client_.headers();
   for (int i = 0; i < header_count; i++) {
     const std::string header_name = str_lower_case(container->client_.headerName(i).c_str());
-    if (collect_headers.count(header_name) > 0) {
+    if (should_collect_header(lower_case_collect_headers, header_name)) {
       std::string header_value = container->client_.header(i).c_str();
       ESP_LOGD(TAG, "Received response header, name: %s, value: %s", header_name.c_str(), header_value.c_str());
-      container->response_headers_[header_name].push_back(header_value);
+      container->response_headers_.push_back({header_name, header_value});
     }
   }
 
   // HTTPClient::getSize() returns -1 for chunked transfer encoding (no Content-Length).
   // When cast to size_t, -1 becomes SIZE_MAX (4294967295 on 32-bit).
-  // The read() method handles this: bytes_read_ can never reach SIZE_MAX, so the
-  // early return check (bytes_read_ >= content_length) will never trigger.
+  // The read() method uses a chunked transfer encoding decoder (read_chunked_) to strip
+  // chunk framing and deliver only decoded content. When the final 0-size chunk is received,
+  // is_chunked_ is cleared and content_length is set to the actual decoded size, so
+  // is_read_complete() returns true and callers exit their read loops correctly.
   int content_length = container->client_.getSize();
   ESP_LOGD(TAG, "Content-Length: %d", content_length);
   container->content_length = (size_t) content_length;
+  // -1 (SIZE_MAX when cast to size_t) means chunked transfer encoding
+  container->set_chunked(content_length == -1);
   container->duration_ms = millis() - start;
 
   return container;
@@ -160,6 +204,10 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
 //   > 0: bytes read
 //   0: no data yet, retry            <-- NOTE: 0 means retry, NOT EOF!
 //   < 0: error/connection closed     <-- connection closed returns -1, not 0
+//
+// For chunked transfer encoding, read_chunked_() decodes chunk framing and delivers
+// only the payload data. When the final 0-size chunk is received, it clears is_chunked_
+// and sets content_length = bytes_read_ so is_read_complete() returns true.
 int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
@@ -170,24 +218,42 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
     return HTTP_ERROR_CONNECTION_CLOSED;
   }
 
+  if (this->is_chunked_) {
+    int result = this->read_chunked_(buf, max_len, stream_ptr);
+    this->duration_ms += (millis() - start);
+    if (result > 0) {
+      return result;
+    }
+    // result <= 0: check for completion or errors
+    if (this->is_read_complete()) {
+      return 0;  // Chunked transfer complete (final 0-size chunk received)
+    }
+    if (result < 0) {
+      return result;  // Stream error during chunk decoding
+    }
+    // read_chunked_ returned 0: no data was available (available() was 0).
+    // This happens when the TCP buffer is empty - either more data is in flight,
+    // or the connection dropped. Arduino's connected() returns false only when
+    // both the remote has closed AND the receive buffer is empty, so any buffered
+    // data is fully drained before we report the drop.
+    if (!stream_ptr->connected()) {
+      return HTTP_ERROR_CONNECTION_CLOSED;
+    }
+    return 0;  // No data yet, caller should retry
+  }
+
+  // Non-chunked path
   int available_data = stream_ptr->available();
-  // For chunked transfer encoding, HTTPClient::getSize() returns -1, which becomes SIZE_MAX when
-  // cast to size_t. SIZE_MAX - bytes_read_ is still huge, so it won't limit the read.
   size_t remaining = (this->content_length > 0) ? (this->content_length - this->bytes_read_) : max_len;
   int bufsize = std::min(max_len, std::min(remaining, (size_t) available_data));
 
   if (bufsize == 0) {
     this->duration_ms += (millis() - start);
-    // Check if we've read all expected content (only valid when content_length is known and not SIZE_MAX)
-    // For chunked encoding (content_length == SIZE_MAX), we can't use this check
-    if (this->content_length > 0 && this->bytes_read_ >= this->content_length) {
+    if (this->is_read_complete()) {
       return 0;  // All content read successfully
     }
-    // No data available - check if connection is still open
-    // For chunked encoding, !connected() after reading means EOF (all chunks received)
-    // For known content_length with bytes_read_ < content_length, it means connection dropped
     if (!stream_ptr->connected()) {
-      return HTTP_ERROR_CONNECTION_CLOSED;  // Connection closed or EOF for chunked
+      return HTTP_ERROR_CONNECTION_CLOSED;
     }
     return 0;  // No data yet, caller should retry
   }
@@ -199,6 +265,143 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   this->duration_ms += (millis() - start);
 
   return read_len;
+}
+
+void HttpContainerArduino::chunk_header_complete_() {
+  if (this->chunk_remaining_ == 0) {
+    this->chunk_state_ = ChunkedState::CHUNK_TRAILER;
+    this->chunk_remaining_ = 1;  // repurpose as at-start-of-line flag
+  } else {
+    this->chunk_state_ = ChunkedState::CHUNK_DATA;
+  }
+}
+
+// Chunked transfer encoding decoder
+//
+// On Arduino, getStreamPtr() returns raw TCP data. For chunked responses, this includes
+// chunk framing (size headers, CRLF delimiters) mixed with payload data. This decoder
+// strips the framing and delivers only decoded content to the caller.
+//
+// Chunk format (RFC 9112 Section 7.1):
+//   <hex-size>[;extension]\r\n
+//   <data bytes>\r\n
+//   ...
+//   0\r\n
+//   [trailer-field\r\n]*
+//   \r\n
+//
+// Non-blocking: only processes bytes already in the TCP receive buffer.
+// State (chunk_state_, chunk_remaining_) is preserved between calls, so partial
+// chunk headers or split \r\n sequences resume correctly on the next call.
+// Framing bytes (hex sizes, \r\n) may be consumed without producing output;
+// the caller sees 0 and retries via the normal read timeout logic.
+//
+// WiFiClient::read() returns -1 on error despite available() > 0 (connection reset
+// between check and read). On any stream error (c < 0 or readBytes <= 0), we return
+// already-decoded data if any; otherwise HTTP_ERROR_CONNECTION_CLOSED. The error
+// will surface again on the next call since the stream stays broken.
+//
+// Returns: > 0 decoded bytes, 0 no data available, < 0 error
+int HttpContainerArduino::read_chunked_(uint8_t *buf, size_t max_len, WiFiClient *stream) {
+  int total_decoded = 0;
+
+  while (total_decoded < (int) max_len && this->chunk_state_ != ChunkedState::COMPLETE) {
+    // Non-blocking: only process what's already buffered
+    if (stream->available() == 0)
+      break;
+
+    // CHUNK_DATA reads multiple bytes; handle before the single-byte switch
+    if (this->chunk_state_ == ChunkedState::CHUNK_DATA) {
+      // Only read what's available, what fits in buf, and what remains in this chunk
+      size_t to_read =
+          std::min({max_len - (size_t) total_decoded, this->chunk_remaining_, (size_t) stream->available()});
+      if (to_read == 0)
+        break;
+      App.feed_wdt();
+      int read_len = stream->readBytes(buf + total_decoded, to_read);
+      if (read_len <= 0)
+        return total_decoded > 0 ? total_decoded : HTTP_ERROR_CONNECTION_CLOSED;
+      total_decoded += read_len;
+      this->chunk_remaining_ -= read_len;
+      this->bytes_read_ += read_len;
+      if (this->chunk_remaining_ == 0)
+        this->chunk_state_ = ChunkedState::CHUNK_DATA_TRAIL;
+      continue;
+    }
+
+    // All other states consume a single byte
+    int c = stream->read();
+    if (c < 0)
+      return total_decoded > 0 ? total_decoded : HTTP_ERROR_CONNECTION_CLOSED;
+
+    switch (this->chunk_state_) {
+      // Parse hex chunk size, one byte at a time: "<hex>[;ext]\r\n"
+      // Note: if no hex digits are parsed (e.g., bare \r\n), chunk_remaining_ stays 0
+      // and is treated as the final chunk. This is intentionally lenient — on embedded
+      // devices, rejecting malformed framing is less useful than terminating cleanly.
+      // Overflow of chunk_remaining_ from extremely long hex strings (>8 digits on
+      // 32-bit) is not checked; >4GB chunks are unrealistic on embedded targets and
+      // would simply cause fewer bytes to be read from that chunk.
+      case ChunkedState::CHUNK_HEADER:
+        if (c == '\n') {
+          // \n terminates the size line; chunk_remaining_ == 0 means last chunk
+          this->chunk_header_complete_();
+        } else {
+          uint8_t hex = parse_hex_char(c);
+          if (hex != INVALID_HEX_CHAR) {
+            this->chunk_remaining_ = (this->chunk_remaining_ << 4) | hex;
+          } else if (c != '\r') {
+            this->chunk_state_ = ChunkedState::CHUNK_HEADER_EXT;  // ';' starts extension, skip to \n
+          }
+        }
+        break;
+
+      // Skip chunk extension bytes until \n (e.g., ";name=value\r\n")
+      case ChunkedState::CHUNK_HEADER_EXT:
+        if (c == '\n') {
+          this->chunk_header_complete_();
+        }
+        break;
+
+      // Consume \r\n trailing each chunk's data
+      case ChunkedState::CHUNK_DATA_TRAIL:
+        if (c == '\n') {
+          this->chunk_state_ = ChunkedState::CHUNK_HEADER;
+          this->chunk_remaining_ = 0;  // reset for next chunk's hex accumulation
+        }
+        // else: \r is consumed silently, next iteration gets \n
+        break;
+
+      // Consume optional trailer headers and terminating empty line after final chunk.
+      // Per RFC 9112 Section 7.1: "0\r\n" is followed by optional "field\r\n" lines
+      // and a final "\r\n". chunk_remaining_ is repurposed as a flag: 1 = at start
+      // of line (may be the empty terminator), 0 = mid-line (reading a trailer field).
+      case ChunkedState::CHUNK_TRAILER:
+        if (c == '\n') {
+          if (this->chunk_remaining_ != 0) {
+            this->chunk_state_ = ChunkedState::COMPLETE;  // Empty line terminates trailers
+          } else {
+            this->chunk_remaining_ = 1;  // End of trailer field, at start of next line
+          }
+        } else if (c != '\r') {
+          this->chunk_remaining_ = 0;  // Non-CRLF char: reading a trailer field
+        }
+        // \r doesn't change the flag — it's part of \r\n line endings
+        break;
+
+      default:
+        break;
+    }
+
+    if (this->chunk_state_ == ChunkedState::COMPLETE) {
+      // Clear chunked flag and set content_length to actual decoded size so
+      // is_read_complete() returns true and callers exit their read loops
+      this->is_chunked_ = false;
+      this->content_length = this->bytes_read_;
+    }
+  }
+
+  return total_decoded;
 }
 
 void HttpContainerArduino::end() {
