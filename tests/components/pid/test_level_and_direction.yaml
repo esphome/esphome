@@ -1,0 +1,32 @@
+# Test PID with level_and_direction_output (level + direction pins)
+esphome:
+  name: test
+  platform: esp32
+  board: esp32dev
+
+output:
+  - platform: ledc
+    pin: 12
+    id: pwm_level
+  - platform: gpio
+    pin: 13
+    id: reverse_pin
+
+sensor:
+  - platform: template
+    id: temp_sensor
+    lambda: "return 20.0f;"
+    update_interval: 1s
+
+climate:
+  - platform: pid
+    id: pid_climate
+    sensor: temp_sensor
+    default_target_temperature: 21
+    level_and_direction_output:
+      level: pwm_level
+      direction: reverse_pin
+    control_parameters:
+      kp: 1.0
+      ki: 0.0
+      kd: 0.0
