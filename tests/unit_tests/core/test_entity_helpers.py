@@ -23,6 +23,7 @@ from esphome.core.entity_helpers import (
     _setup_entity_impl,
     entity_duplicate_validator,
     get_base_entity_object_id,
+    setup_entity,
 )
 from esphome.cpp_generator import MockObj
 from esphome.helpers import sanitize, snake_case
@@ -924,3 +925,51 @@ async def test_setup_entity_with_entity_category(
     assert any(
         'set_entity_category("diagnostic")' in expr for expr in added_expressions
     )
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_direct_call(setup_test_environment: list[str]) -> None:
+    """Test setup_entity in direct call mode (legacy / backward compat)."""
+    added_expressions = setup_test_environment
+
+    var = MockObj("camera1")
+    config = {
+        CONF_NAME: "My Camera",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_ICON: "mdi:camera",
+    }
+
+    # Direct call mode: await setup_entity(var, config, "camera")
+    await setup_entity(var, config, "camera")
+
+    # Should have called set_name
+    object_id = extract_object_id_from_expressions(added_expressions)
+    assert object_id == "my_camera"
+
+    # Icon index should have been stored and finalized
+    assert config.get("_entity_icon_idx", 0) > 0
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_decorator_mode(setup_test_environment: list[str]) -> None:
+    """Test setup_entity in decorator mode."""
+    added_expressions = setup_test_environment
+
+    body_called = False
+
+    @setup_entity("sensor")
+    async def my_setup(var, config):
+        nonlocal body_called
+        body_called = True
+
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Temperature",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await my_setup(var, config)
+
+    assert body_called
+    object_id = extract_object_id_from_expressions(added_expressions)
+    assert object_id == "temperature"
