@@ -1,6 +1,11 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
-from esphome.components.uart import CONF_RX_FULL_THRESHOLD, CONF_RX_TIMEOUT
+from esphome.components.uart import (
+    CONF_RX_FULL_THRESHOLD,
+    CONF_RX_TIMEOUT,
+    validate_raw_data,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -12,7 +17,9 @@ from esphome.const import (
     CONF_PARITY,
     CONF_RX_BUFFER_SIZE,
     CONF_STOP_BITS,
+    CONF_TRIGGER_ID,
 )
+from esphome.core import ID
 
 CODEOWNERS = ["@esphome/tests"]
 MULTI_CONF = True
@@ -21,12 +28,20 @@ uart_mock_ns = cg.esphome_ns.namespace("uart_mock")
 MockUartComponent = uart_mock_ns.class_(
     "MockUartComponent", uart.UARTComponent, cg.Component
 )
+MockUartInjectRXAction = uart_mock_ns.class_(
+    "MockUartInjectRXAction", automation.Action
+)
+MockUartTXTrigger = uart_mock_ns.class_(
+    "MockUartTXTrigger",
+    automation.Trigger.template(cg.std_vector.template(cg.uint8)),
+)
 
 CONF_INJECTIONS = "injections"
 CONF_RESPONSES = "responses"
 CONF_INJECT_RX = "inject_rx"
 CONF_EXPECT_TX = "expect_tx"
 CONF_PERIODIC_RX = "periodic_rx"
+CONF_ON_TX = "on_tx"
 
 UART_PARITY_OPTIONS = {
     "NONE": uart.UARTParityOptions.UART_CONFIG_PARITY_NONE,
@@ -40,6 +55,15 @@ INJECTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_DELAY, default="0ms"): cv.positive_time_period_milliseconds,
     }
 )
+
+CONFIG_INJECT_RX_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(MockUartComponent),
+        cv.Required("data"): cv.templatable(validate_raw_data),
+    },
+    key=CONF_DATA,
+)
+
 
 RESPONSE_SCHEMA = cv.Schema(
     {
@@ -70,8 +94,34 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_INJECTIONS, default=[]): cv.ensure_list(INJECTION_SCHEMA),
         cv.Optional(CONF_RESPONSES, default=[]): cv.ensure_list(RESPONSE_SCHEMA),
         cv.Optional(CONF_PERIODIC_RX, default=[]): cv.ensure_list(PERIODIC_RX_SCHEMA),
+        cv.Optional(CONF_ON_TX): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MockUartTXTrigger),
+            }
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+@automation.register_action(
+    "uart_mock.inject_rx", MockUartInjectRXAction, CONFIG_INJECT_RX_SCHEMA
+)
+async def inject_rx_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_DATA]
+    if isinstance(data, bytes):
+        data = list(data)
+
+    if cg.is_template(data):
+        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
+        cg.add(var.set_data_template(templ))
+    else:
+        # Generate static array in flash to avoid RAM copy
+        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
+        cg.add(var.set_data_static(arr, len(data)))
+    return var
 
 
 async def to_code(config):
@@ -100,3 +150,9 @@ async def to_code(config):
         data = periodic[CONF_DATA]
         interval = periodic[CONF_INTERVAL]
         cg.add(var.add_periodic_rx(data, interval))
+
+    for conf in config.get(CONF_ON_TX, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger, [(cg.std_vector.template(cg.uint8), "data")], conf
+        )
