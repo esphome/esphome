@@ -13,12 +13,8 @@ struct lwip_sock;
 
 // Byte offset of rcvevent (s16_t) within struct lwip_sock.
 // Verified at compile time in lwip_fast_select.c via _Static_assert.
-#define ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET 8
-
-// Forward declare lwip_sock for C++ callers that store cached pointers.
-// The full definition is only available in the .c file (lwip/priv/sockets_priv.h
-// conflicts with C++ compilation units).
-struct lwip_sock;
+// Anonymous enum for a compile-time constant that works in both C and C++.
+enum { ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET = 8 };
 
 #ifdef __cplusplus
 extern "C" {
