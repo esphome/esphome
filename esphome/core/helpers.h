@@ -133,6 +133,78 @@ template<typename T> class ConstVector {
   size_t size_;
 };
 
+/// Small buffer optimization - stores data inline when small, heap-allocates for large data
+/// This avoids heap fragmentation for common small allocations while supporting arbitrary sizes.
+/// Memory management is encapsulated - callers just use set() and data().
+template<size_t InlineSize = 8> class SmallInlineBuffer {
+ public:
+  SmallInlineBuffer() = default;
+  ~SmallInlineBuffer() {
+    if (!this->is_inline_())
+      delete[] this->heap_;
+  }
+
+  // Move constructor
+  SmallInlineBuffer(SmallInlineBuffer &&other) noexcept : len_(other.len_) {
+    if (other.is_inline_()) {
+      memcpy(this->inline_, other.inline_, this->len_);
+    } else {
+      this->heap_ = other.heap_;
+      other.heap_ = nullptr;
+    }
+    other.len_ = 0;
+  }
+
+  // Move assignment
+  SmallInlineBuffer &operator=(SmallInlineBuffer &&other) noexcept {
+    if (this != &other) {
+      if (!this->is_inline_())
+        delete[] this->heap_;
+      this->len_ = other.len_;
+      if (other.is_inline_()) {
+        memcpy(this->inline_, other.inline_, this->len_);
+      } else {
+        this->heap_ = other.heap_;
+        other.heap_ = nullptr;
+      }
+      other.len_ = 0;
+    }
+    return *this;
+  }
+
+  // Disable copy (would need deep copy of heap data)
+  SmallInlineBuffer(const SmallInlineBuffer &) = delete;
+  SmallInlineBuffer &operator=(const SmallInlineBuffer &) = delete;
+
+  /// Set buffer contents, allocating heap if needed
+  void set(const uint8_t *src, size_t size) {
+    // Free existing heap allocation if switching from heap to inline or different heap size
+    if (!this->is_inline_() && (size <= InlineSize || size != this->len_)) {
+      delete[] this->heap_;
+      this->heap_ = nullptr;  // Defensive: prevent use-after-free if logic changes
+    }
+    // Allocate new heap buffer if needed
+    if (size > InlineSize && (this->is_inline_() || size != this->len_)) {
+      this->heap_ = new uint8_t[size];  // NOLINT(cppcoreguidelines-owning-memory)
+    }
+    this->len_ = size;
+    memcpy(this->data(), src, size);
+  }
+
+  uint8_t *data() { return this->is_inline_() ? this->inline_ : this->heap_; }
+  const uint8_t *data() const { return this->is_inline_() ? this->inline_ : this->heap_; }
+  size_t size() const { return this->len_; }
+
+ protected:
+  bool is_inline_() const { return this->len_ <= InlineSize; }
+
+  size_t len_{0};
+  union {
+    uint8_t inline_[InlineSize]{};  // Zero-init ensures clean initial state
+    uint8_t *heap_;
+  };
+};
+
 /// Minimal static vector - saves memory by avoiding std::vector overhead
 template<typename T, size_t N> class StaticVector {
  public:

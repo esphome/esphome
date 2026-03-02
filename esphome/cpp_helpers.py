@@ -79,7 +79,7 @@ async def register_component(var, config):
     if name is not None:
         add(var.set_component_source(LogStringLiteral(name)))
 
-    add(App.register_component(var))
+    add(App.register_component_(var))
     return var
 
 

@@ -63,6 +63,12 @@ enum LogLevel : uint32_t {
   LOG_LEVEL_VERBOSE = 6,
   LOG_LEVEL_VERY_VERBOSE = 7,
 };
+enum DSTRuleType : uint32_t {
+  DST_RULE_TYPE_NONE = 0,
+  DST_RULE_TYPE_MONTH_WEEK_DAY = 1,
+  DST_RULE_TYPE_JULIAN_NO_LEAP = 2,
+  DST_RULE_TYPE_DAY_OF_YEAR = 3,
+};
 #ifdef USE_API_USER_DEFINED_ACTIONS
 enum ServiceArgType : uint32_t {
   SERVICE_ARG_TYPE_BOOL = 0,
@@ -1116,15 +1122,45 @@ class GetTimeRequest final : public ProtoMessage {
 
  protected:
 };
+class DSTRule final : public ProtoDecodableMessage {
+ public:
+  int32_t time_seconds{0};
+  uint32_t day{0};
+  enums::DSTRuleType type{};
+  uint32_t month{0};
+  uint32_t week{0};
+  uint32_t day_of_week{0};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class ParsedTimezone final : public ProtoDecodableMessage {
+ public:
+  int32_t std_offset_seconds{0};
+  int32_t dst_offset_seconds{0};
+  DSTRule dst_start{};
+  DSTRule dst_end{};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
 class GetTimeResponse final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 37;
-  static constexpr uint8_t ESTIMATED_SIZE = 14;
+  static constexpr uint8_t ESTIMATED_SIZE = 31;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "get_time_response"; }
 #endif
   uint32_t epoch_seconds{0};
   StringRef timezone{};
+  ParsedTimezone parsed_timezone{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
