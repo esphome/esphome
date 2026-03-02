@@ -352,6 +352,7 @@ OPERATION_BASE_SCHEMA = cv.Schema(
             cv.Required(CONF_VALUE): cv.templatable(cv.float_),
         }
     ),
+    synchronous=True,
 )
 async def number_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -374,6 +375,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "number.decrement",
@@ -388,6 +390,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "number.to_min",
@@ -401,6 +404,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "number.to_max",
@@ -414,6 +418,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "number.operation",
@@ -426,6 +431,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
         }
     ),
+    synchronous=True,
 )
 async def number_to_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
