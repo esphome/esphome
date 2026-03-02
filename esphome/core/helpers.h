@@ -552,7 +552,7 @@ inline ESPHOME_ALWAYS_INLINE uint32_t fast_div1000_32(uint64_t us) {
   uint32_t lo = static_cast<uint32_t>(us);
   uint32_t hi = static_cast<uint32_t>(us >> 32);
   // Combine remainder term: hi * (2^32 % 1000) + lo
-  // Note: hi * R fits in uint32_t for all practical uptimes (hi < 14.5M, i.e. < 584,942 years)
+  // Note: hi * R fits in uint32_t when hi < UINT32_MAX / R (~14.5M), i.e. us < ~62 quadrillion
   uint32_t adj = hi * R + lo;
   // If adj overflowed, the true value is 2^32 + adj; apply the identity again
   return hi * Q + (adj < lo ? (adj + R) / D + Q : adj / D);
