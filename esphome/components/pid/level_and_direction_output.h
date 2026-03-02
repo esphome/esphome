@@ -10,13 +10,10 @@ namespace pid {
 
 /** Drives a level (0–1) output and a direction/reverse pin. Used by PID Climate
  * when level_and_direction_output is configured with level and direction. */
-class LevelAndDirectionOutput : public Component,
-                                public output::LevelAndDirectionOutput {
+class LevelAndDirectionOutput : public Component, public output::LevelAndDirectionOutput {
  public:
   void set_level_output(output::FloatOutput *level) { this->level_ = level; }
-  void set_direction_output(output::BinaryOutput *direction) {
-    this->direction_ = direction;
-  }
+  void set_direction_output(output::BinaryOutput *direction) { this->direction_ = direction; }
 
   void set_level(float level) override;
   void set_reverse(bool reverse) override;

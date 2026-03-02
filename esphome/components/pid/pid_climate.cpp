@@ -96,8 +96,7 @@ void PIDClimate::write_output_(float value) {
 
   if (this->level_and_direction_output_ != nullptr) {
     this->level_and_direction_output_->set_reverse(value < 0.0f);
-    this->level_and_direction_output_->set_level(
-        std::min(1.0f, value >= 0.0f ? value : -value));
+    this->level_and_direction_output_->set_level(std::min(1.0f, value >= 0.0f ? value : -value));
   } else {
     // first ensure outputs are off (both outputs not active at the same time)
     if (this->supports_cool_() && value >= 0)
