@@ -7,86 +7,40 @@
 #include "headers.h"
 
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
+
+// Include only the active implementation's header.
+// SOCKADDR_STR_LEN is defined in headers.h.
+#ifdef USE_SOCKET_IMPL_BSD_SOCKETS
+#include "bsd_sockets_impl.h"
+#elif defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+#include "lwip_sockets_impl.h"
+#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
+#include "lwip_raw_tcp_impl.h"
+#endif
+
 namespace esphome::socket {
 
-// Maximum length for formatted socket address string (IP address without port)
-// IPv4: "255.255.255.255" = 15 chars + null = 16
-// IPv6: full address = 45 chars + null = 46
-#if USE_NETWORK_IPV6
-static constexpr size_t SOCKADDR_STR_LEN = 46;  // INET6_ADDRSTRLEN
-#else
-static constexpr size_t SOCKADDR_STR_LEN = 16;  // INET_ADDRSTRLEN
+// Type aliases — only one implementation is active per build.
+// Socket is the concrete type for connected sockets.
+// ListenSocket is the concrete type for listening/server sockets.
+// On BSD and LWIP_SOCKETS, both aliases resolve to the same type.
+// On LWIP_TCP, they are different types (no virtual dispatch between them).
+#ifdef USE_SOCKET_IMPL_BSD_SOCKETS
+using Socket = BSDSocketImpl;
+using ListenSocket = BSDSocketImpl;
+#elif defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+using Socket = LwIPSocketImpl;
+using ListenSocket = LwIPSocketImpl;
+#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
+using Socket = LWIPRawImpl;
+using ListenSocket = LWIPRawListenImpl;
 #endif
 
-class Socket {
- public:
-  Socket() = default;
-  virtual ~Socket();
-  Socket(const Socket &) = delete;
-  Socket &operator=(const Socket &) = delete;
-
-  virtual std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) = 0;
-  /// Accept a connection and monitor it in the main loop
-  /// NOTE: This function is NOT thread-safe and must only be called from the main loop
-  virtual std::unique_ptr<Socket> accept_loop_monitored(struct sockaddr *addr, socklen_t *addrlen) {
-    return accept(addr, addrlen);  // Default implementation for backward compatibility
-  }
-  virtual int bind(const struct sockaddr *addr, socklen_t addrlen) = 0;
-  virtual int close() = 0;
-  // not supported yet:
-  // virtual int connect(const std::string &address) = 0;
-#if defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
-  virtual int connect(const struct sockaddr *addr, socklen_t addrlen) = 0;
-#endif
-  virtual int shutdown(int how) = 0;
-
-  virtual int getpeername(struct sockaddr *addr, socklen_t *addrlen) = 0;
-  virtual int getsockname(struct sockaddr *addr, socklen_t *addrlen) = 0;
-
-  /// Format peer address into a fixed-size buffer (no heap allocation)
-  /// Non-virtual wrapper around getpeername() - can be optimized away if unused
-  /// Returns number of characters written (excluding null terminator), or 0 on error
-  size_t getpeername_to(std::span<char, SOCKADDR_STR_LEN> buf);
-  /// Format local address into a fixed-size buffer (no heap allocation)
-  /// Non-virtual wrapper around getsockname() - can be optimized away if unused
-  size_t getsockname_to(std::span<char, SOCKADDR_STR_LEN> buf);
-  virtual int getsockopt(int level, int optname, void *optval, socklen_t *optlen) = 0;
-  virtual int setsockopt(int level, int optname, const void *optval, socklen_t optlen) = 0;
-  virtual int listen(int backlog) = 0;
-  virtual ssize_t read(void *buf, size_t len) = 0;
-  virtual ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) = 0;
-  virtual ssize_t readv(const struct iovec *iov, int iovcnt) = 0;
-  virtual ssize_t write(const void *buf, size_t len) = 0;
-  virtual ssize_t writev(const struct iovec *iov, int iovcnt) = 0;
-  virtual ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) = 0;
-
-  virtual int setblocking(bool blocking) = 0;
-  virtual int loop() { return 0; };
-
-    /// Get the underlying file descriptor (returns -1 if not supported)
-    /// Non-virtual: only one socket implementation is active per build.
 #ifdef USE_SOCKET_SELECT_SUPPORT
-  int get_fd() const { return this->fd_; }
-#else
-  int get_fd() const { return -1; }
+/// Shared ready() helper for fd-based socket implementations.
+/// Checks if the Application's select() loop has marked this fd as ready.
+bool socket_ready_fd(int fd, bool loop_monitored);
 #endif
-
-  /// Check if socket has data ready to read. Must only be called from the main loop thread.
-  /// For select()-based sockets: non-virtual, checks Application's select() results
-  /// For LWIP raw TCP sockets: virtual, checks internal buffer state
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  bool ready() const;
-#else
-  virtual bool ready() const { return true; }
-#endif
-
- protected:
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  int fd_{-1};
-  bool closed_{false};
-  bool loop_monitored_{false};
-#endif
-};
 
 /// Create a socket of the given domain, type and protocol.
 std::unique_ptr<Socket> socket(int domain, int type, int protocol);
@@ -100,7 +54,13 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol);
 /// NOTE: On ESP platforms, FD_SETSIZE is typically 10, limiting the number of monitored sockets.
 /// File descriptors >= FD_SETSIZE will not be monitored and will log an error.
 std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol);
-std::unique_ptr<Socket> socket_ip_loop_monitored(int type, int protocol);
+
+/// Create a listening socket of the given domain, type and protocol.
+std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol);
+/// Create a listening socket and monitor it for data in the main loop.
+std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type, int protocol);
+/// Create a listening socket in the newest available IP domain and monitor it.
+std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol);
 
 /// Set a sockaddr to the specified address and port for the IP version used by socket_ip().
 /// @param addr Destination sockaddr structure

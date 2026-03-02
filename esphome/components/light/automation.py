@@ -10,12 +10,14 @@ from esphome.const import (
     CONF_COLOR_MODE,
     CONF_COLOR_TEMPERATURE,
     CONF_EFFECT,
+    CONF_EFFECTS,
     CONF_FLASH_LENGTH,
     CONF_GREEN,
     CONF_ID,
     CONF_LIMIT_MODE,
     CONF_MAX_BRIGHTNESS,
     CONF_MIN_BRIGHTNESS,
+    CONF_NAME,
     CONF_RANGE_FROM,
     CONF_RANGE_TO,
     CONF_RED,
@@ -24,6 +26,9 @@ from esphome.const import (
     CONF_WARM_WHITE,
     CONF_WHITE,
 )
+from esphome.core import CORE, Lambda
+from esphome.cpp_generator import LambdaExpression
+from esphome.types import ConfigType
 
 from .types import (
     COLOR_MODES,
@@ -111,6 +116,26 @@ LIGHT_TURN_ON_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
+def _resolve_effect_index(config: ConfigType) -> int:
+    """Resolve a static effect name to its 1-based index at codegen time.
+
+    Effect index 0 means "None" (no effect). Effects are 1-indexed matching
+    the C++ convention in LightState.
+    """
+    original_name = config[CONF_EFFECT]
+    effect_name = original_name.lower()
+    if effect_name == "none":
+        return 0
+    light_id = config[CONF_ID]
+    light_path = CORE.config.get_path_for_id(light_id)[:-1]
+    light_config = CORE.config.get_config_for_path(light_path)
+    for i, effect_conf in enumerate(light_config.get(CONF_EFFECTS, [])):
+        key = next(iter(effect_conf))
+        if effect_conf[key][CONF_NAME].lower() == effect_name:
+            return i + 1
+    raise ValueError(f"Effect '{original_name}' not found in light '{light_id}'")
+
+
 @automation.register_action(
     "light.turn_off", LightControlAction, LIGHT_TURN_OFF_ACTION_SCHEMA, synchronous=True
 )
@@ -165,8 +190,29 @@ async def light_control_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(config[CONF_WARM_WHITE], args, float)
         cg.add(var.set_warm_white(template_))
     if CONF_EFFECT in config:
-        template_ = await cg.templatable(config[CONF_EFFECT], args, cg.std_string)
-        cg.add(var.set_effect(template_))
+        if isinstance(config[CONF_EFFECT], Lambda):
+            # Lambda returns a string — wrap in a C++ lambda that resolves
+            # the effect name to its uint32_t index at runtime
+            inner_lambda = await cg.process_lambda(
+                config[CONF_EFFECT], args, return_type=cg.std_string
+            )
+            fwd_args = ", ".join(n for _, n in args)
+            # capture="" is correct: paren is a global variable name
+            # string-interpolated into the body at codegen time, not a
+            # C++ runtime capture.
+            wrapper = LambdaExpression(
+                f"auto __effect_s = ({inner_lambda})({fwd_args});\n"
+                f"return {paren}->get_effect_index("
+                f"__effect_s.c_str(), __effect_s.size());",
+                args,
+                capture="",
+                return_type=cg.uint32,
+            )
+            cg.add(var.set_effect(wrapper))
+        else:
+            # Static string — resolve effect name to index at codegen time
+            effect_index = _resolve_effect_index(config)
+            cg.add(var.set_effect(effect_index))
     return var
 
 

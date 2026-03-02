@@ -29,16 +29,21 @@ class MockUartComponent : public uart::UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
   void flush() override;
+  void set_rx_full_threshold(size_t rx_full_threshold) override;
+  void set_rx_timeout(size_t rx_timeout) override;
 
   // Scenario configuration - called from generated code
   void add_injection(const std::vector<uint8_t> &rx_data, uint32_t delay_ms);
   void add_response(const std::vector<uint8_t> &expect_tx, const std::vector<uint8_t> &inject_rx);
   void add_periodic_rx(const std::vector<uint8_t> &data, uint32_t interval_ms);
 
+  void set_tx_hook(std::function<void(const std::vector<uint8_t> &)> &&cb) { this->tx_hook_ = std::move(cb); }
+  void inject_to_rx_buffer(const std::vector<uint8_t> &data);
+  void inject_to_rx_buffer(const uint8_t *data, size_t len);
+
  protected:
   void check_logger_conflict() override {}
   void try_match_response_();
-  void inject_to_rx_buffer_(const std::vector<uint8_t> &data);
 
   // Timed injections
   struct Injection {
@@ -73,6 +78,9 @@ class MockUartComponent : public uart::UARTComponent, public Component {
   // Observability
   uint32_t tx_count_{0};
   uint32_t rx_count_{0};
+
+  // Direct TX hook for tests that want to bypass the response-matching logic
+  std::function<void(const std::vector<uint8_t> &)> tx_hook_;
 };
 
 }  // namespace esphome::uart_mock

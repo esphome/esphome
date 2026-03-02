@@ -1437,8 +1437,12 @@ bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> 
 ///@{
 
 /// Applies gamma correction of \p gamma to \p value.
+// Remove before 2026.9.0
+ESPDEPRECATED("Use LightState::gamma_correct_lut() instead. Removed in 2026.9.0.", "2026.3.0")
 float gamma_correct(float value, float gamma);
 /// Reverts gamma correction of \p gamma to \p value.
+// Remove before 2026.9.0
+ESPDEPRECATED("Use LightState::gamma_uncorrect_lut() instead. Removed in 2026.9.0.", "2026.3.0")
 float gamma_uncorrect(float value, float gamma);
 
 /// Convert \p red, \p green and \p blue (all 0-1) values to \p hue (0-360), \p saturation (0-1) and \p value (0-1).

@@ -42,5 +42,6 @@ void arch_feed_wdt();
 uint32_t arch_get_cpu_cycle_count();
 uint32_t arch_get_cpu_freq_hz();
 uint8_t progmem_read_byte(const uint8_t *addr);
+uint16_t progmem_read_uint16(const uint16_t *addr);
 
 }  // namespace esphome

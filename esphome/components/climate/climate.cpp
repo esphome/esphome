@@ -173,14 +173,17 @@ ClimateCall &ClimateCall::set_mode(ClimateMode mode) {
   return *this;
 }
 
-ClimateCall &ClimateCall::set_mode(const std::string &mode) {
+ClimateCall &ClimateCall::set_mode(const std::string &mode) { return this->set_mode(mode.c_str(), mode.size()); }
+
+ClimateCall &ClimateCall::set_mode(const char *mode, size_t len) {
+  StringRef mode_ref(mode, len);
   for (const auto &mode_entry : CLIMATE_MODES_BY_STR) {
-    if (str_equals_case_insensitive(mode, mode_entry.str)) {
+    if (str_equals_case_insensitive(mode_ref, mode_entry.str)) {
       this->set_mode(static_cast<ClimateMode>(mode_entry.value));
       return *this;
     }
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized mode %s", this->parent_->get_name().c_str(), mode.c_str());
+  ESP_LOGW(TAG, "'%s' - Unrecognized mode %.*s", this->parent_->get_name().c_str(), (int) len, mode);
   return *this;
 }
 
@@ -266,13 +269,18 @@ ClimateCall &ClimateCall::set_swing_mode(ClimateSwingMode swing_mode) {
 }
 
 ClimateCall &ClimateCall::set_swing_mode(const std::string &swing_mode) {
+  return this->set_swing_mode(swing_mode.c_str(), swing_mode.size());
+}
+
+ClimateCall &ClimateCall::set_swing_mode(const char *swing_mode, size_t len) {
+  StringRef mode_ref(swing_mode, len);
   for (const auto &mode_entry : CLIMATE_SWING_MODES_BY_STR) {
-    if (str_equals_case_insensitive(swing_mode, mode_entry.str)) {
+    if (str_equals_case_insensitive(mode_ref, mode_entry.str)) {
       this->set_swing_mode(static_cast<ClimateSwingMode>(mode_entry.value));
       return *this;
     }
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized swing mode %s", this->parent_->get_name().c_str(), swing_mode.c_str());
+  ESP_LOGW(TAG, "'%s' - Unrecognized swing mode %.*s", this->parent_->get_name().c_str(), (int) len, swing_mode);
   return *this;
 }
 

@@ -59,6 +59,7 @@ void HOT arch_feed_wdt() {
 }
 
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
+uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
 uint32_t arch_get_cpu_cycle_count() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);

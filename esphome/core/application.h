@@ -5,6 +5,7 @@
 #include <limits>
 #include <span>
 #include <string>
+#include <type_traits>
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -108,7 +109,10 @@
 #endif
 
 namespace esphome::socket {
-class Socket;
+#ifdef USE_SOCKET_SELECT_SUPPORT
+/// Shared ready() helper for fd-based socket implementations.
+bool socket_ready_fd(int fd, bool loop_monitored);  // NOLINT(readability-redundant-declaration)
+#endif
 }  // namespace esphome::socket
 
 // Forward declarations for friend access from codegen-generated setup()
@@ -529,7 +533,9 @@ class Application {
 
  protected:
   friend Component;
-  friend class socket::Socket;
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  friend bool socket::socket_ready_fd(int fd, bool loop_monitored);
+#endif
   friend void ::setup();
   friend void ::original_setup();
 
@@ -546,7 +552,14 @@ class Application {
 #endif
 #endif
 
-  void register_component_(Component *comp);
+  /// Register a component, detecting loop() override at compile time.
+  /// The template resolves &T::loop vs &Component::loop as a constexpr bool
+  /// and forwards it to register_component_impl_ which stores it in component_state_.
+  template<typename T> void register_component_(T *comp) {
+    this->register_component_impl_(comp, !std::is_same_v<decltype(&T::loop), decltype(&Component::loop)>);
+  }
+
+  void register_component_impl_(Component *comp, bool has_loop);
 
   void calculate_looping_components_();
   void add_looping_components_by_state_(bool match_loop_done);
