@@ -111,7 +111,7 @@ class MediaSource {
   size_t write_output(const uint8_t *data, size_t length, uint32_t timeout_ms,
                       const audio::AudioStreamInfo &stream_info) {
     if (this->listener_ != nullptr) {
-      return this->listener_->write_audio(const_cast<uint8_t *>(data), length, timeout_ms, stream_info);
+      return this->listener_->write_audio(data, length, timeout_ms, stream_info);
     }
     return 0;
   }
