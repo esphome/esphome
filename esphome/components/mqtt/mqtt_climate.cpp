@@ -20,9 +20,10 @@ static ProgmemStr climate_mode_to_mqtt_str(ClimateMode mode) {
   return ClimateMqttModeStrings::get_progmem_str(static_cast<uint8_t>(mode), ClimateMqttModeStrings::LAST_INDEX);
 }
 
-// Climate action MQTT strings indexed by ClimateAction enum (0,2-6): OFF, (gap), COOLING, HEATING, IDLE, DRYING, FAN
+// Climate action MQTT strings indexed by ClimateAction enum (0,2-7): OFF, (gap), COOLING, HEATING, IDLE, DRYING, FAN,
+// DEFROSTING
 PROGMEM_STRING_TABLE(ClimateMqttActionStrings, "off", "unknown", "cooling", "heating", "idle", "drying", "fan",
-                     "unknown");
+                     "defrosting", "unknown");
 
 static ProgmemStr climate_action_to_mqtt_str(ClimateAction action) {
   return ClimateMqttActionStrings::get_progmem_str(static_cast<uint8_t>(action), ClimateMqttActionStrings::LAST_INDEX);

@@ -112,6 +112,7 @@ def add_extra_script(stage: str, filename: str, path: Path) -> None:
 
 def zephyr_to_code(config):
     cg.add_build_flag("-DUSE_ZEPHYR")
+    cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.set_cpp_standard("gnu++20")
     # build is done by west so bypass board checking in platformio
     cg.add_platformio_option("boards_dir", CORE.relative_build_path("boards"))

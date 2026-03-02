@@ -85,7 +85,9 @@ void store_component_error_message(const Component *component, const char *messa
 static constexpr uint16_t WARN_IF_BLOCKING_INCREMENT_MS =
     10U;  ///< How long the blocking time must be larger to warn again
 
+#ifdef USE_LOOP_PRIORITY
 float Component::get_loop_priority() const { return 0.0f; }
+#endif
 
 float Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -209,7 +211,7 @@ bool Component::cancel_retry(uint32_t id) {
 
 void Component::call_loop_() { this->loop(); }
 void Component::call_setup() { this->setup(); }
-void Component::call_dump_config() {
+void Component::call_dump_config_() {
   this->dump_config();
   if (this->is_failed()) {
     // Look up error message from global vector
@@ -295,10 +297,6 @@ void Component::mark_failed() {
   // Also remove from loop since failed components shouldn't loop
   App.disable_component_loop_(this);
 }
-void Component::set_component_state_(uint8_t state) {
-  this->component_state_ &= ~COMPONENT_STATE_MASK;
-  this->component_state_ |= state;
-}
 void Component::disable_loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
     ESP_LOGVV(TAG, "%s loop disabled", LOG_STR_ARG(this->get_component_log_str()));
@@ -317,7 +315,7 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // This method is thread and ISR-safe because:
   // 1. Only performs simple assignments to volatile variables (atomic on all platforms)
   // 2. No read-modify-write operations that could be interrupted
-  // 3. No memory allocation, object construction, or function calls
+  // 3. No memory allocation or object construction; on ESP32 the only call (wake_loop_any_context) is ISR-safe
   // 4. IRAM_ATTR ensures code is in IRAM, not flash (required for ISR execution)
   // 5. Components are never destroyed, so no use-after-free concerns
   // 6. App is guaranteed to be initialized before any ISR could fire
@@ -325,6 +323,12 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // 8. Race condition with main loop is handled by clearing flag before processing
   this->pending_enable_loop_ = true;
   App.has_pending_enable_loop_requests_ = true;
+#if defined(USE_LWIP_FAST_SELECT) && defined(USE_ESP32)
+  // Wake the main loop if sleeping in ulTaskNotifyTake(). Without this,
+  // the main loop would not wake until the select timeout expires (~16ms).
+  // Uses xPortInIsrContext() to choose the correct FreeRTOS notify API.
+  Application::wake_loop_any_context();
+#endif
 }
 void Component::reset_to_construction_state() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {
@@ -385,31 +389,30 @@ bool Component::is_idle() const { return (this->component_state_ & COMPONENT_STA
 bool Component::can_proceed() { return true; }
 bool Component::status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
 bool Component::status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
+bool Component::set_status_flag_(uint8_t flag) {
+  if ((this->component_state_ & flag) != 0)
+    return false;
+  this->component_state_ |= flag;
+  App.app_state_ |= flag;
+  return true;
+}
 
 void Component::status_set_warning(const char *message) {
-  // Don't spam the log. This risks missing different warning messages though.
-  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+  if (!this->set_status_flag_(STATUS_LED_WARNING))
     return;
-  this->component_state_ |= STATUS_LED_WARNING;
-  App.app_state_ |= STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? message : LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_set_warning(const LogString *message) {
-  // Don't spam the log. This risks missing different warning messages though.
-  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+  if (!this->set_status_flag_(STATUS_LED_WARNING))
     return;
-  this->component_state_ |= STATUS_LED_WARNING;
-  App.app_state_ |= STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_set_error() { this->status_set_error((const LogString *) nullptr); }
 void Component::status_set_error(const char *message) {
-  if ((this->component_state_ & STATUS_LED_ERROR) != 0)
+  if (!this->set_status_flag_(STATUS_LED_ERROR))
     return;
-  this->component_state_ |= STATUS_LED_ERROR;
-  App.app_state_ |= STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? message : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
@@ -417,10 +420,8 @@ void Component::status_set_error(const char *message) {
   }
 }
 void Component::status_set_error(const LogString *message) {
-  if ((this->component_state_ & STATUS_LED_ERROR) != 0)
+  if (!this->set_status_flag_(STATUS_LED_ERROR))
     return;
-  this->component_state_ |= STATUS_LED_ERROR;
-  App.app_state_ |= STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
@@ -494,18 +495,6 @@ void Component::set_setup_priority(float priority) {
   setup_priority_overrides->emplace_back(ComponentPriorityOverride{this, priority});
 }
 #endif
-
-bool Component::has_overridden_loop() const {
-#if defined(USE_HOST) || defined(CLANG_TIDY)
-  return true;
-#else
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpmf-conversions"
-  bool loop_overridden = (void *) (this->*(&Component::loop)) != (void *) (&Component::loop);
-#pragma GCC diagnostic pop
-  return loop_overridden;
-#endif
-}
 
 PollingComponent::PollingComponent(uint32_t update_interval) : update_interval_(update_interval) {}
 
