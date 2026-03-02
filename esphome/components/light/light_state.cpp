@@ -1,4 +1,5 @@
 #include "light_state.h"
+#include "esp_color_correction.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
@@ -204,32 +205,89 @@ void LightState::add_effects(const std::initializer_list<LightEffect *> &effects
 
 void LightState::current_values_as_binary(bool *binary) { this->current_values.as_binary(binary); }
 void LightState::current_values_as_brightness(float *brightness) {
-  this->current_values.as_brightness(brightness, this->gamma_correct_);
+  this->current_values.as_brightness(brightness);
+  *brightness = this->gamma_correct_lut(*brightness);
 }
-void LightState::current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock) {
-  this->current_values.as_rgb(red, green, blue, this->gamma_correct_, false);
+void LightState::current_values_as_rgb(float *red, float *green, float *blue) {
+  this->current_values.as_rgb(red, green, blue);
+  *red = this->gamma_correct_lut(*red);
+  *green = this->gamma_correct_lut(*green);
+  *blue = this->gamma_correct_lut(*blue);
 }
-void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock) {
-  this->current_values.as_rgbw(red, green, blue, white, this->gamma_correct_, false);
+void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white) {
+  this->current_values.as_rgbw(red, green, blue, white);
+  *red = this->gamma_correct_lut(*red);
+  *green = this->gamma_correct_lut(*green);
+  *blue = this->gamma_correct_lut(*blue);
+  *white = this->gamma_correct_lut(*white);
 }
 void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
                                          bool constant_brightness) {
-  this->current_values.as_rgbww(red, green, blue, cold_white, warm_white, this->gamma_correct_, constant_brightness);
+  this->current_values.as_rgbww(red, green, blue, cold_white, warm_white, constant_brightness);
+  *red = this->gamma_correct_lut(*red);
+  *green = this->gamma_correct_lut(*green);
+  *blue = this->gamma_correct_lut(*blue);
+  *cold_white = this->gamma_correct_lut(*cold_white);
+  *warm_white = this->gamma_correct_lut(*warm_white);
 }
 void LightState::current_values_as_rgbct(float *red, float *green, float *blue, float *color_temperature,
                                          float *white_brightness) {
   auto traits = this->get_traits();
   this->current_values.as_rgbct(traits.get_min_mireds(), traits.get_max_mireds(), red, green, blue, color_temperature,
-                                white_brightness, this->gamma_correct_);
+                                white_brightness);
+  *red = this->gamma_correct_lut(*red);
+  *green = this->gamma_correct_lut(*green);
+  *blue = this->gamma_correct_lut(*blue);
+  *white_brightness = this->gamma_correct_lut(*white_brightness);
 }
 void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
-  this->current_values.as_cwww(cold_white, warm_white, this->gamma_correct_, constant_brightness);
+  this->current_values.as_cwww(cold_white, warm_white, constant_brightness);
+  *cold_white = this->gamma_correct_lut(*cold_white);
+  *warm_white = this->gamma_correct_lut(*warm_white);
 }
 void LightState::current_values_as_ct(float *color_temperature, float *white_brightness) {
   auto traits = this->get_traits();
-  this->current_values.as_ct(traits.get_min_mireds(), traits.get_max_mireds(), color_temperature, white_brightness,
-                             this->gamma_correct_);
+  this->current_values.as_ct(traits.get_min_mireds(), traits.get_max_mireds(), color_temperature, white_brightness);
+  *white_brightness = this->gamma_correct_lut(*white_brightness);
 }
+
+#ifdef USE_LIGHT_GAMMA_LUT
+float LightState::gamma_correct_lut(float value) const {
+  if (value <= 0.0f)
+    return 0.0f;
+  if (value >= 1.0f)
+    return 1.0f;
+  if (this->gamma_table_ == nullptr)
+    return value;
+  float scaled = value * 255.0f;
+  auto idx = static_cast<uint8_t>(scaled);
+  if (idx >= 255)
+    return progmem_read_uint16(&this->gamma_table_[255]) / 65535.0f;
+  float frac = scaled - idx;
+  float a = progmem_read_uint16(&this->gamma_table_[idx]);
+  float b = progmem_read_uint16(&this->gamma_table_[idx + 1]);
+  return (a + frac * (b - a)) / 65535.0f;
+}
+float LightState::gamma_uncorrect_lut(float value) const {
+  if (value <= 0.0f)
+    return 0.0f;
+  if (value >= 1.0f)
+    return 1.0f;
+  if (this->gamma_table_ == nullptr)
+    return value;
+  uint16_t target = static_cast<uint16_t>(value * 65535.0f);
+  uint8_t lo = gamma_table_reverse_search(this->gamma_table_, target);
+  if (lo >= 255)
+    return 1.0f;
+  // Interpolate between lo and lo+1
+  uint16_t a = progmem_read_uint16(&this->gamma_table_[lo]);
+  uint16_t b = progmem_read_uint16(&this->gamma_table_[lo + 1]);
+  if (b == a)
+    return lo / 255.0f;
+  float frac = static_cast<float>(target - a) / static_cast<float>(b - a);
+  return (lo + frac) / 255.0f;
+}
+#endif  // USE_LIGHT_GAMMA_LUT
 
 bool LightState::is_transformer_active() { return this->is_transformer_active_; }
 

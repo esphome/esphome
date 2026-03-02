@@ -57,11 +57,13 @@
 #define USE_HOMEASSISTANT_TIME
 #define USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT 8000  // NOLINT
 #define USE_IMAGE
+#define USE_IMPROV_SERIAL
 #define USE_IMPROV_SERIAL_NEXT_URL
 #define USE_INFRARED
 #define USE_IR_RF
 #define USE_JSON
 #define USE_LIGHT
+#define USE_LIGHT_GAMMA_LUT
 #define USE_LOCK
 #define USE_LOGGER
 #define USE_LOGGER_LEVEL_LISTENERS
@@ -177,6 +179,11 @@
 #define USE_PROMETHEUS
 #define USE_WIFI_WPA2_EAP
 #define USE_I2S_LEGACY
+#endif
+
+// Platforms with native 64-bit time sources (no rollover tracking needed)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR) || defined(USE_RP2040)
+#define USE_NATIVE_64BIT_TIME
 #endif
 
 // ESP32-specific feature flags

@@ -2,13 +2,16 @@
 
 #include "uart_component_esp_idf.h"
 #include <cinttypes>
-#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/gpio.h"
 #include "driver/gpio.h"
 #include "soc/gpio_num.h"
+
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+#include "esphome/core/application.h"
+#endif
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -107,12 +110,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   esp_err_t err;
 
   if (uart_is_driver_installed(this->uart_num_)) {
-#ifdef USE_UART_WAKE_LOOP_ON_RX
-    if (this->rx_event_task_handle_ != nullptr) {
-      vTaskDelete(this->rx_event_task_handle_);
-      this->rx_event_task_handle_ = nullptr;
-    }
-#endif
     err = uart_driver_delete(this->uart_num_);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
@@ -120,20 +117,13 @@ void IDFUARTComponent::load_settings(bool dump_config) {
       return;
     }
   }
-#ifdef USE_UART_WAKE_LOOP_ON_RX
-  constexpr int event_queue_size = 20;
-  QueueHandle_t *event_queue_ptr = &this->uart_event_queue_;
-#else
-  constexpr int event_queue_size = 0;
-  QueueHandle_t *event_queue_ptr = nullptr;
-#endif
   err = uart_driver_install(this->uart_num_,        // UART number
                             this->rx_buffer_size_,  // RX ring buffer size
                             0,  // TX ring buffer size. If zero, driver will not use a TX buffer and TX function will
                                 // block task until all data has been sent out
-                            event_queue_size,  // event queue size/depth
-                            event_queue_ptr,   // event queue
-                            0                  // Flags used to allocate the interrupt
+                            0,  // event queue size/depth
+                            nullptr,  // event queue
+                            0         // Flags used to allocate the interrupt
   );
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
@@ -213,8 +203,10 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   }
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
-  // Start the RX event task to enable low-latency data notifications
-  this->start_rx_event_task_();
+  // Register ISR callback to wake the main loop when UART data arrives.
+  // The callback runs in ISR context and uses vTaskNotifyGiveFromISR() to
+  // wake the main loop task directly — no queue or FreeRTOS task needed.
+  uart_set_select_notif_callback(this->uart_num_, IDFUARTComponent::uart_rx_isr_callback);
 #endif  // USE_UART_WAKE_LOOP_ON_RX
 
   if (dump_config) {
@@ -345,71 +337,12 @@ void IDFUARTComponent::flush() {
 void IDFUARTComponent::check_logger_conflict() {}
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
-void IDFUARTComponent::start_rx_event_task_() {
-  // Create FreeRTOS task to monitor UART events
-  BaseType_t result = xTaskCreate(rx_event_task_func,    // Task function
-                                  "uart_rx_evt",         // Task name (max 16 chars)
-                                  2240,                  // Stack size in bytes (~2.2KB); increase if needed for logging
-                                  this,                  // Task parameter (this pointer)
-                                  tskIDLE_PRIORITY + 1,  // Priority (low, just above idle)
-                                  &this->rx_event_task_handle_  // Task handle
-  );
-
-  if (result != pdPASS) {
-    ESP_LOGE(TAG, "Failed to create RX event task");
-    return;
-  }
-
-  ESP_LOGV(TAG, "RX event task started");
-}
-
-// FreeRTOS task that relays UART ISR events to the main loop.
-// This task exists because wake_loop_threadsafe() is not ISR-safe (it uses a
-// UDP loopback socket), so we need a task as an ISR-to-main-loop trampoline.
-// IMPORTANT: This task must NOT call any UART wrapper methods (read_array,
-// write_array, peek_byte, etc.) or touch has_peek_/peek_byte_ — all reading
-// is done by the main loop. This task only reads from the event queue and
-// calls App.wake_loop_threadsafe().
-void IDFUARTComponent::rx_event_task_func(void *param) {
-  auto *self = static_cast<IDFUARTComponent *>(param);
-  uart_event_t event;
-
-  ESP_LOGV(TAG, "RX event task running");
-
-  // Run forever - task lifecycle matches component lifecycle
-  while (true) {
-    // Wait for UART events (blocks efficiently)
-    if (xQueueReceive(self->uart_event_queue_, &event, portMAX_DELAY) == pdTRUE) {
-      switch (event.type) {
-        case UART_DATA:
-          // Data available in UART RX buffer - wake the main loop
-          ESP_LOGVV(TAG, "Data event: %d bytes", event.size);
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-          App.wake_loop_threadsafe();
-#endif
-          break;
-
-        case UART_FIFO_OVF:
-        case UART_BUFFER_FULL:
-          // Don't call uart_flush_input() here — this task does not own the read side.
-          // ESP-IDF examples flush on overflow because the same task handles both events
-          // and reads, so flush and read are serialized. Here, reads happen on the main
-          // loop, so flushing from this task races with read_array() and can destroy data
-          // mid-read. The driver self-heals without an explicit flush: uart_read_bytes()
-          // calls uart_check_buf_full() after each chunk, which moves stashed FIFO bytes
-          // into the ring buffer and re-enables RX interrupts once space is freed.
-          ESP_LOGW(TAG, "FIFO overflow or ring buffer full");
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-          App.wake_loop_threadsafe();
-#endif
-          break;
-
-        default:
-          // Ignore other event types
-          ESP_LOGVV(TAG, "Event type: %d", event.type);
-          break;
-      }
-    }
+// ISR callback invoked by the ESP-IDF UART driver when data arrives.
+// Wakes the main loop directly via vTaskNotifyGiveFromISR() — no queue or task needed.
+void IRAM_ATTR IDFUARTComponent::uart_rx_isr_callback(uart_port_t uart_num, uart_select_notif_t uart_select_notif,
+                                                      BaseType_t *task_woken) {
+  if (uart_select_notif == UART_SELECT_READ_NOTIF) {
+    Application::wake_loop_isrsafe(task_woken);
   }
 }
 #endif  // USE_UART_WAKE_LOOP_ON_RX
