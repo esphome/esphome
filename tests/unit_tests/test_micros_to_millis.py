@@ -83,19 +83,22 @@ def test_32bit_boundary_values(us: int) -> None:
 @pytest.mark.parametrize("hi", HI_VALUES, ids=lambda v: f"hi={v}")
 @pytest.mark.parametrize("lo_offset", LO_VALUES, ids=lambda v: f"lo={v}")
 def test_32bit_hi_lo_combinations(hi: int, lo_offset: int) -> None:
-    us = (hi << 32) | lo_offset
-    assert micros_to_millis(us) == reference_32(us)
+    # Construct x so that after the >>3 shift, the internal hi/lo match the params
+    x = (hi << 32) | lo_offset
+    for mod8 in range(8):
+        us = (x << 3) + mod8
+        assert micros_to_millis(us) == reference_32(us)
 
 
 @pytest.mark.parametrize("hi", [1, 50, 100, 500, 1000, 5000], ids=lambda v: f"hi={v}")
 def test_32bit_carry_boundary(hi: int) -> None:
     """Test around the adj overflow boundary (hi * R + lo > UINT32_MAX)."""
-    base = hi << 35
     hi_r = hi * R
     if hi_r < UINT32_MAX:
         threshold_lo = UINT32_MAX - hi_r
         for lo in [threshold_lo - 1, threshold_lo, threshold_lo + 1]:
-            us = base | (lo << 3)
+            x = (hi << 32) | lo
+            us = x << 3
             assert micros_to_millis(us) == reference_32(us)
 
 
@@ -125,19 +128,22 @@ def test_64bit_boundary_values(us: int) -> None:
 @pytest.mark.parametrize("hi", HI_VALUES, ids=lambda v: f"hi={v}")
 @pytest.mark.parametrize("lo_offset", LO_VALUES, ids=lambda v: f"lo={v}")
 def test_64bit_hi_lo_combinations(hi: int, lo_offset: int) -> None:
-    us = (hi << 32) | lo_offset
-    assert micros_to_millis_64(us) == reference_64(us)
+    # Construct x so that after the >>3 shift, the internal hi/lo match the params
+    x = (hi << 32) | lo_offset
+    for mod8 in range(8):
+        us = (x << 3) + mod8
+        assert micros_to_millis_64(us) == reference_64(us)
 
 
 @pytest.mark.parametrize("hi", [1, 50, 100, 500, 1000, 5000], ids=lambda v: f"hi={v}")
 def test_64bit_carry_boundary(hi: int) -> None:
     """Test around the adj overflow boundary for 64-bit result."""
-    base = hi << 35
     hi_r = hi * R
     if hi_r < UINT32_MAX:
         threshold_lo = UINT32_MAX - hi_r
         for lo in [threshold_lo - 1, threshold_lo, threshold_lo + 1]:
-            us = base | (lo << 3)
+            x = (hi << 32) | lo
+            us = x << 3
             assert micros_to_millis_64(us) == reference_64(us)
 
 
