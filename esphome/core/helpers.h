@@ -623,18 +623,18 @@ inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str
 /// See: https://en.wikipedia.org/wiki/Euclidean_division
 /// See: https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
 template<typename ReturnT = uint32_t> inline constexpr ESPHOME_ALWAYS_INLINE ReturnT micros_to_millis(uint64_t us) {
-  constexpr uint32_t D = 125U;
-  constexpr uint32_t Q = static_cast<uint32_t>((1ULL << 32) / D);  // 34359738
-  constexpr uint32_t R = static_cast<uint32_t>((1ULL << 32) % D);  // 46
+  constexpr uint32_t d = 125U;
+  constexpr uint32_t q = static_cast<uint32_t>((1ULL << 32) / d);  // 34359738
+  constexpr uint32_t r = static_cast<uint32_t>((1ULL << 32) % d);  // 46
   // 1000 = 8 * 125; divide-by-8 is a free shift
   uint64_t x = us >> 3;
   uint32_t lo = static_cast<uint32_t>(x);
   uint32_t hi = static_cast<uint32_t>(x >> 32);
   // Combine remainder term: hi * (2^32 % 125) + lo
-  uint32_t adj = hi * R + lo;
+  uint32_t adj = hi * r + lo;
   // If adj overflowed, the true value is 2^32 + adj; apply the identity again
-  // static_cast<ReturnT>(hi) widens to 64-bit when ReturnT=uint64_t, preserving upper bits of hi*Q
-  return static_cast<ReturnT>(hi) * Q + (adj < lo ? (adj + R) / D + Q : adj / D);
+  // static_cast<ReturnT>(hi) widens to 64-bit when ReturnT=uint64_t, preserving upper bits of hi*q
+  return static_cast<ReturnT>(hi) * q + (adj < lo ? (adj + r) / d + q : adj / d);
 }
 
 /// Return a random 32-bit unsigned integer.
