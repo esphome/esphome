@@ -48,11 +48,11 @@ class MediaSourceListener {
   // Callbacks from smart sources requesting the orchestrator to change volume, mute, or start a new URI.
   // Simple sources never invoke these.
   /// @brief Request the orchestrator to change volume
-  virtual void request_volume(float volume) = 0;
+  virtual void request_volume(float volume) {}
   /// @brief Request the orchestrator to change mute state
-  virtual void request_mute(bool is_muted) = 0;
+  virtual void request_mute(bool is_muted) {}
   /// @brief Request the orchestrator to play a new URI
-  virtual void request_play_uri(const std::string &uri) = 0;
+  virtual void request_play_uri(const std::string &uri) {}
 };
 
 /// @brief Abstract base class for media sources
