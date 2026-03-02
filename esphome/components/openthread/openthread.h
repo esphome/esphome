@@ -38,12 +38,18 @@ class OpenThreadComponent : public Component {
 #if CONFIG_OPENTHREAD_MTD
   void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
 #endif
+#ifdef USE_OPENTHREAD_OUTPUT_POWER
+  void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
+#endif
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   std::function<void()> factory_reset_external_callback_;
 #if CONFIG_OPENTHREAD_MTD
   uint32_t poll_period_{0};
+#endif
+#ifdef USE_OPENTHREAD_OUTPUT_POWER
+  int8_t output_power_{0};
 #endif
   bool teardown_started_{false};
   bool teardown_complete_{false};
