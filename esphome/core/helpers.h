@@ -546,9 +546,9 @@ inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str
 /// See: https://en.wikipedia.org/wiki/Euclidean_division
 /// See: https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
 inline ESPHOME_ALWAYS_INLINE uint32_t fast_div1000_32(uint64_t us) {
-  static constexpr uint32_t D = 1000U;     // divisor (microseconds per millisecond)
-  static constexpr uint32_t Q = 4294967U;  // 2^32 / 1000
-  static constexpr uint32_t R = 296U;      // 2^32 % 1000
+  static constexpr uint32_t D = 1000U;
+  static constexpr uint32_t Q = static_cast<uint32_t>((1ULL << 32) / D);  // 4294967
+  static constexpr uint32_t R = static_cast<uint32_t>((1ULL << 32) % D);  // 296
   uint32_t lo = static_cast<uint32_t>(us);
   uint32_t hi = static_cast<uint32_t>(us >> 32);
   // Combine remainder term: hi * (2^32 % 1000) + lo
