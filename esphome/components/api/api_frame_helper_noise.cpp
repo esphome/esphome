@@ -3,6 +3,7 @@
 #ifdef USE_API_NOISE
 #include "api_connection.h"  // For ClientInfo struct
 #include "esphome/core/application.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -18,7 +19,7 @@ namespace esphome::api {
 
 static const char *const TAG = "api.noise";
 #ifdef USE_ESP8266
-static const char PROLOGUE_INIT[] PROGMEM = "NoiseAPIInit";
+static constexpr char PROLOGUE_INIT[] PROGMEM = "NoiseAPIInit";
 #else
 static const char *const PROLOGUE_INIT = "NoiseAPIInit";
 #endif
@@ -28,7 +29,12 @@ static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
 static constexpr size_t API_MAX_LOG_BYTES = 168;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-#define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, this->client_peername_, ##__VA_ARGS__)
+#define HELPER_LOG(msg, ...) \
+  do { \
+    char peername_buf[socket::SOCKADDR_STR_LEN]; \
+    this->get_peername_to(peername_buf); \
+    ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, peername_buf, ##__VA_ARGS__); \
+  } while (0)
 #else
 #define HELPER_LOG(msg, ...) ((void) 0)
 #endif
@@ -132,10 +138,12 @@ APIError APINoiseFrameHelper::handle_noise_error_(int err, const LogString *func
 
 /// Run through handshake messages (if in that phase)
 APIError APINoiseFrameHelper::loop() {
-  // During handshake phase, process as many actions as possible until we can't progress
-  // socket_->ready() stays true until next main loop, but state_action() will return
-  // WOULD_BLOCK when no more data is available to read
-  while (state_ != State::DATA && this->socket_->ready()) {
+  // Cache ready() outside the loop. On ESP8266 LWIP raw TCP, ready() returns false once
+  // the rx buffer is consumed. Re-checking each iteration would block handshake writes
+  // that must follow reads, deadlocking the handshake. state_action() will return
+  // WOULD_BLOCK when no more data is available to read.
+  bool socket_ready = this->socket_->ready();
+  while (state_ != State::DATA && socket_ready) {
     APIError err = state_action_();
     if (err == APIError::WOULD_BLOCK) {
       break;
@@ -186,16 +194,21 @@ APIError APINoiseFrameHelper::try_read_frame_() {
   uint16_t msg_size = (((uint16_t) rx_header_buf_[1]) << 8) | rx_header_buf_[2];
 
   // Check against size limits to prevent OOM: MAX_HANDSHAKE_SIZE for handshake, MAX_MESSAGE_SIZE for data
-  uint16_t limit = (state_ == State::DATA) ? MAX_MESSAGE_SIZE : MAX_HANDSHAKE_SIZE;
+  bool is_data = (state_ == State::DATA);
+  uint16_t limit = is_data ? MAX_MESSAGE_SIZE : MAX_HANDSHAKE_SIZE;
   if (msg_size > limit) {
     state_ = State::FAILED;
     HELPER_LOG("Bad packet: message size %u exceeds maximum %u", msg_size, limit);
-    return (state_ == State::DATA) ? APIError::BAD_DATA_PACKET : APIError::BAD_HANDSHAKE_PACKET_LEN;
+    return is_data ? APIError::BAD_DATA_PACKET : APIError::BAD_HANDSHAKE_PACKET_LEN;
   }
 
-  // Reserve space for body
-  if (this->rx_buf_.size() != msg_size) {
-    this->rx_buf_.resize(msg_size);
+  // Reserve space for body (+ null terminator in DATA state so protobuf
+  // StringRef fields can be safely null-terminated in-place after decode.
+  // During handshake, rx_buf_.size() is used in prologue construction, so
+  // the buffer must be exactly msg_size to avoid prologue mismatch.)
+  uint16_t alloc_size = msg_size + (is_data ? RX_BUF_NULL_TERMINATOR : 0);
+  if (this->rx_buf_.size() != alloc_size) {
+    this->rx_buf_.resize(alloc_size);
   }
 
   if (rx_buf_len_ < msg_size) {
@@ -256,28 +269,30 @@ APIError APINoiseFrameHelper::state_action_() {
   }
   if (state_ == State::SERVER_HELLO) {
     // send server hello
-    constexpr size_t mac_len = 13;  // 12 hex chars + null terminator
     const std::string &name = App.get_name();
-    char mac[mac_len];
+    char mac[MAC_ADDRESS_BUFFER_SIZE];
     get_mac_address_into_buffer(mac);
 
     // Calculate positions and sizes
     size_t name_len = name.size() + 1;  // including null terminator
     size_t name_offset = 1;
     size_t mac_offset = name_offset + name_len;
-    size_t total_size = 1 + name_len + mac_len;
+    size_t total_size = 1 + name_len + MAC_ADDRESS_BUFFER_SIZE;
 
-    auto msg = std::make_unique<uint8_t[]>(total_size);
+    // 1 (proto) + name (max ESPHOME_DEVICE_NAME_MAX_LEN) + 1 (name null)
+    // + mac (MAC_ADDRESS_BUFFER_SIZE - 1) + 1 (mac null)
+    constexpr size_t max_msg_size = 1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + MAC_ADDRESS_BUFFER_SIZE;
+    uint8_t msg[max_msg_size];
 
     // chosen proto
     msg[0] = 0x01;
 
     // node name, terminated by null byte
-    std::memcpy(msg.get() + name_offset, name.c_str(), name_len);
+    std::memcpy(msg + name_offset, name.c_str(), name_len);
     // node mac, terminated by null byte
-    std::memcpy(msg.get() + mac_offset, mac, mac_len);
+    std::memcpy(msg + mac_offset, mac, MAC_ADDRESS_BUFFER_SIZE);
 
-    aerr = write_frame_(msg.get(), total_size);
+    aerr = write_frame_(msg, total_size);
     if (aerr != APIError::OK)
       return aerr;
 
@@ -353,35 +368,32 @@ APIError APINoiseFrameHelper::state_action_() {
   return APIError::OK;
 }
 void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reason) {
+  // Max reject message: "Bad handshake packet len" (24) + 1 (failure byte) = 25 bytes
+  uint8_t data[32];
+  data[0] = 0x01;  // failure
+
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   // On ESP8266 with flash strings, we need to use PROGMEM-aware functions
   size_t reason_len = strlen_P(reinterpret_cast<PGM_P>(reason));
-  size_t data_size = reason_len + 1;
-  auto data = std::make_unique<uint8_t[]>(data_size);
-  data[0] = 0x01;  // failure
-
-  // Copy error message from PROGMEM
   if (reason_len > 0) {
-    memcpy_P(data.get() + 1, reinterpret_cast<PGM_P>(reason), reason_len);
+    memcpy_P(data + 1, reinterpret_cast<PGM_P>(reason), reason_len);
   }
 #else
   // Normal memory access
   const char *reason_str = LOG_STR_ARG(reason);
   size_t reason_len = strlen(reason_str);
-  size_t data_size = reason_len + 1;
-  auto data = std::make_unique<uint8_t[]>(data_size);
-  data[0] = 0x01;  // failure
-
-  // Copy error message in bulk
   if (reason_len > 0) {
-    std::memcpy(data.get() + 1, reason_str, reason_len);
+    // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - binary protocol, not a C string
+    std::memcpy(data + 1, reason_str, reason_len);
   }
 #endif
+
+  size_t data_size = reason_len + 1;
 
   // temporarily remove failed state
   auto orig_state = state_;
   state_ = State::EXPLICIT_REJECT;
-  write_frame_(data.get(), data_size);
+  write_frame_(data, data_size);
   state_ = orig_state;
 }
 APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
@@ -400,7 +412,18 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);
-  noise_buffer_set_inout(mbuf, this->rx_buf_.data(), this->rx_buf_.size(), this->rx_buf_.size());
+  // read_packet() must only be called in DATA state; the extra
+  // RX_BUF_NULL_TERMINATOR byte is only allocated in DATA state
+  // (see try_read_frame_), so calling this during handshake would
+  // underflow the size calculation below.
+#ifdef ESPHOME_DEBUG_API
+  assert(this->state_ == State::DATA);
+#endif
+  // rx_buf_ has RX_BUF_NULL_TERMINATOR extra byte for null termination
+  // (only added in DATA state — see try_read_frame_), so subtract it
+  // to get the actual encrypted data size for decryption.
+  size_t encrypted_size = this->rx_buf_.size() - RX_BUF_NULL_TERMINATOR;
+  noise_buffer_set_inout(mbuf, this->rx_buf_.data(), encrypted_size, encrypted_size);
   int err = noise_cipherstate_decrypt(this->recv_cipher_, &mbuf);
   APIError decrypt_err =
       handle_noise_error_(err, LOG_STR("noise_cipherstate_decrypt"), APIError::CIPHERSTATE_DECRYPT_FAILED);
@@ -467,7 +490,7 @@ APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, s
     // buf_start[1], buf_start[2] to be set after encryption
 
     // Write message header (to be encrypted)
-    const uint8_t msg_offset = 3;
+    constexpr uint8_t msg_offset = 3;
     buf_start[msg_offset] = static_cast<uint8_t>(msg.message_type >> 8);      // type high byte
     buf_start[msg_offset + 1] = static_cast<uint8_t>(msg.message_type);       // type low byte
     buf_start[msg_offset + 2] = static_cast<uint8_t>(msg.payload_size >> 8);  // data_len high byte
@@ -567,7 +590,9 @@ APIError APINoiseFrameHelper::init_handshake_() {
 }
 
 APIError APINoiseFrameHelper::check_handshake_finished_() {
+#ifdef ESPHOME_DEBUG_API
   assert(state_ == State::HANDSHAKE);
+#endif
 
   int action = noise_handshakestate_get_action(handshake_);
   if (action == NOISE_ACTION_READ_MESSAGE || action == NOISE_ACTION_WRITE_MESSAGE)

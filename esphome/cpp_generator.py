@@ -247,6 +247,23 @@ class LogStringLiteral(Literal):
         return f"LOG_STR({cpp_string_escape(self.string)})"
 
 
+class FlashStringLiteral(Literal):
+    """A string literal wrapped in ESPHOME_F() for PROGMEM storage on ESP8266.
+
+    On ESP8266, ESPHOME_F(s) expands to F(s) which stores the string in flash (PROGMEM).
+    On other platforms, ESPHOME_F(s) expands to plain s (no-op).
+    """
+
+    __slots__ = ("string",)
+
+    def __init__(self, string: str) -> None:
+        super().__init__()
+        self.string = string
+
+    def __str__(self) -> str:
+        return f"ESPHOME_F({cpp_string_escape(self.string)})"
+
+
 class IntLiteral(Literal):
     __slots__ = ("i",)
 
@@ -424,7 +441,7 @@ class ProgmemAssignmentExpression(AssignmentExpression):
         super().__init__(type_, "", name, rhs)
 
     def __str__(self):
-        return f"static const {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
 
 
 class StaticConstAssignmentExpression(AssignmentExpression):
@@ -460,6 +477,16 @@ def statement(expression: Expression | Statement) -> Statement:
     if isinstance(expression, Statement):
         return expression
     return ExpressionStatement(expression)
+
+
+def literal(name: str) -> "MockObj":
+    """Create a literal name that will appear in the generated code
+    not surrounded by quotes.
+
+    :param name: The name of the literal.
+    :return: The literal as a MockObj.
+    """
+    return MockObj(name, "")
 
 
 def variable(
@@ -665,7 +692,7 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
 
 
 async def process_lambda(
-    value: Lambda,
+    value: Lambda | Expression,
     parameters: TemplateArgsType,
     capture: str = "",
     return_type: SafeExpType = None,
@@ -689,6 +716,14 @@ async def process_lambda(
 
     if value is None:
         return None
+    # Inadvertently passing a malformed parameters value will lead to the build process mysteriously hanging at the
+    # "Generating C++ source..." stage, so check here to save the developer's hair.
+    assert isinstance(parameters, list) and all(
+        isinstance(p, tuple) and len(p) == 2 for p in parameters
+    )
+    if isinstance(value, Expression):
+        value = Lambda(value)
+
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
         full_id, var = await get_variable_with_full_id(id)
@@ -743,6 +778,15 @@ async def templatable(
     if is_template(value):
         return await process_lambda(value, args, return_type=output_type)
     if to_exp is None:
+        # Automatically wrap static strings in ESPHOME_F() for PROGMEM storage on ESP8266.
+        # On other platforms ESPHOME_F() is a no-op returning const char*.
+        # Lazy import to avoid circular dependency (cpp_generator <-> cpp_types).
+        # Identity check (is) avoids brittle string comparison.
+        if isinstance(value, str) and output_type is not None:
+            from esphome.cpp_types import std_string
+
+            if output_type is std_string:
+                return FlashStringLiteral(value)
         return value
     if isinstance(to_exp, dict):
         return to_exp[value]

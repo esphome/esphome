@@ -39,6 +39,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 spi_ns = cg.esphome_ns.namespace("spi")
@@ -448,9 +449,13 @@ def spi_device_schema(
     )
 
 
-async def register_spi_device(var, config):
+async def register_spi_device(
+    var: cg.Pvariable, config: ConfigType, write_only: bool = False
+) -> None:
     parent = await cg.get_variable(config[CONF_SPI_ID])
     cg.add(var.set_spi_parent(parent))
+    if write_only:
+        cg.add(var.set_write_only(True))
     if cs_pin := config.get(CONF_CS_PIN):
         pin = await cg.gpio_pin_expression(cs_pin)
         cg.add(var.set_cs_pin(pin))

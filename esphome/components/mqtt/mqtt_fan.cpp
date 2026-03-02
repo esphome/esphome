@@ -1,5 +1,6 @@
 #include "mqtt_fan.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -11,6 +12,14 @@ namespace esphome::mqtt {
 static const char *const TAG = "mqtt.fan";
 
 using namespace esphome::fan;
+
+static ProgmemStr fan_direction_to_mqtt_str(FanDirection direction) {
+  return direction == FanDirection::FORWARD ? ESPHOME_F("forward") : ESPHOME_F("reverse");
+}
+
+static ProgmemStr fan_oscillation_to_mqtt_str(bool oscillating) {
+  return oscillating ? ESPHOME_F("oscillate_on") : ESPHOME_F("oscillate_off");
+}
 
 MQTTFanComponent::MQTTFanComponent(Fan *state) : state_(state) {}
 
@@ -158,25 +167,26 @@ void MQTTFanComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig
   }
 }
 bool MQTTFanComponent::publish_state() {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   const char *state_s = this->state_->state ? "ON" : "OFF";
   ESP_LOGD(TAG, "'%s' Sending state %s.", this->state_->get_name().c_str(), state_s);
-  this->publish(this->get_state_topic_(), state_s);
+  this->publish(this->get_state_topic_to_(topic_buf), state_s);
   bool failed = false;
   if (this->state_->get_traits().supports_direction()) {
-    bool success = this->publish(this->get_direction_state_topic(),
-                                 this->state_->direction == fan::FanDirection::FORWARD ? "forward" : "reverse");
+    bool success = this->publish(this->get_direction_state_topic_to(topic_buf),
+                                 fan_direction_to_mqtt_str(this->state_->direction));
     failed = failed || !success;
   }
   if (this->state_->get_traits().supports_oscillation()) {
-    bool success = this->publish(this->get_oscillation_state_topic(),
-                                 this->state_->oscillating ? "oscillate_on" : "oscillate_off");
+    bool success = this->publish(this->get_oscillation_state_topic_to(topic_buf),
+                                 fan_oscillation_to_mqtt_str(this->state_->oscillating));
     failed = failed || !success;
   }
   auto traits = this->state_->get_traits();
   if (traits.supports_speed()) {
     char buf[12];
-    int len = snprintf(buf, sizeof(buf), "%d", this->state_->speed);
-    bool success = this->publish(this->get_speed_level_state_topic(), buf, len);
+    size_t len = buf_append_printf(buf, sizeof(buf), 0, "%d", this->state_->speed);
+    bool success = this->publish(this->get_speed_level_state_topic_to(topic_buf), buf, len);
     failed = failed || !success;
   }
   return !failed;

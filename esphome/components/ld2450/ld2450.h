@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #ifdef USE_SENSOR
@@ -37,9 +38,11 @@ using namespace ld24xx;
 
 // Constants
 static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presense status 5 sec.
-static constexpr uint8_t MAX_LINE_LENGTH = 41;          // Max characters for serial buffer
-static constexpr uint8_t MAX_TARGETS = 3;               // Max 3 Targets in LD2450
-static constexpr uint8_t MAX_ZONES = 3;                 // Max 3 Zones in LD2450
+// Zone query response is 40 bytes; +1 for null terminator, +4 so that a frame footer always
+// lands inside the buffer during footer-based resynchronization after losing sync.
+static constexpr uint8_t MAX_LINE_LENGTH = 45;
+static constexpr uint8_t MAX_TARGETS = 3;  // Max 3 Targets in LD2450
+static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
 
 enum Direction : uint8_t {
   DIRECTION_APPROACHING = 0,
@@ -141,6 +144,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
                       int32_t zone2_x1, int32_t zone2_y1, int32_t zone2_x2, int32_t zone2_y2, int32_t zone3_x1,
                       int32_t zone3_y1, int32_t zone3_x2, int32_t zone3_y2);
 
+  /// Add a callback that will be called after each successfully processed periodic data frame.
+  void add_on_data_callback(std::function<void()> &&callback);
+
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
   void set_config_mode_(bool enable);
@@ -157,7 +163,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void save_to_flash_(float value);
   float restore_from_flash_();
   bool get_timeout_status_(uint32_t check_millis);
-  uint8_t count_targets_in_zone_(const Zone &zone, bool is_moving);
+  void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;
@@ -188,8 +194,18 @@ class LD2450Component : public Component, public uart::UARTDevice {
   std::array<SensorWithDedup<uint8_t> *, MAX_ZONES> zone_moving_target_count_sensors_{};
 #endif
 #ifdef USE_TEXT_SENSOR
-  std::array<text_sensor::TextSensor *, 3> direction_text_sensors_{};
+  std::array<text_sensor::TextSensor *, MAX_TARGETS> direction_text_sensors_{};
+  std::array<Deduplicator<uint8_t>, MAX_TARGETS> direction_dedup_{};
 #endif
+
+  LazyCallbackManager<void()> data_callback_;
+};
+
+class LD2450DataTrigger : public Trigger<> {
+ public:
+  explicit LD2450DataTrigger(LD2450Component *parent) {
+    parent->add_on_data_callback([this]() { this->trigger(); });
+  }
 };
 
 }  // namespace esphome::ld2450

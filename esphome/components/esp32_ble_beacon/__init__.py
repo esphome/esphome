@@ -53,8 +53,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MEASURED_POWER, default=-59): cv.int_range(
                 min=-128, max=0
             ),
-            cv.Optional(CONF_TX_POWER, default="3dBm"): cv.All(
-                cv.decibel, cv.enum(esp32_ble.TX_POWER_LEVELS, int=True)
+            cv.OnlyWithout(CONF_TX_POWER, "esp32_hosted", default="3dBm"): cv.All(
+                cv.conflicts_with_component("esp32_hosted"),
+                cv.decibel,
+                cv.enum(esp32_ble.TX_POWER_LEVELS, int=True),
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -82,7 +84,10 @@ async def to_code(config):
     cg.add(var.set_min_interval(config[CONF_MIN_INTERVAL]))
     cg.add(var.set_max_interval(config[CONF_MAX_INTERVAL]))
     cg.add(var.set_measured_power(config[CONF_MEASURED_POWER]))
-    cg.add(var.set_tx_power(config[CONF_TX_POWER]))
+
+    # TX power control only available on native Bluetooth (not ESP-Hosted)
+    if CONF_TX_POWER in config:
+        cg.add(var.set_tx_power(config[CONF_TX_POWER]))
 
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
 

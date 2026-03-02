@@ -16,6 +16,7 @@
 #include <type_traits>
 #include <vector>
 #include <concepts>
+#include <strings.h>
 
 #include "esphome/core/optional.h"
 
@@ -132,6 +133,78 @@ template<typename T> class ConstVector {
   size_t size_;
 };
 
+/// Small buffer optimization - stores data inline when small, heap-allocates for large data
+/// This avoids heap fragmentation for common small allocations while supporting arbitrary sizes.
+/// Memory management is encapsulated - callers just use set() and data().
+template<size_t InlineSize = 8> class SmallInlineBuffer {
+ public:
+  SmallInlineBuffer() = default;
+  ~SmallInlineBuffer() {
+    if (!this->is_inline_())
+      delete[] this->heap_;
+  }
+
+  // Move constructor
+  SmallInlineBuffer(SmallInlineBuffer &&other) noexcept : len_(other.len_) {
+    if (other.is_inline_()) {
+      memcpy(this->inline_, other.inline_, this->len_);
+    } else {
+      this->heap_ = other.heap_;
+      other.heap_ = nullptr;
+    }
+    other.len_ = 0;
+  }
+
+  // Move assignment
+  SmallInlineBuffer &operator=(SmallInlineBuffer &&other) noexcept {
+    if (this != &other) {
+      if (!this->is_inline_())
+        delete[] this->heap_;
+      this->len_ = other.len_;
+      if (other.is_inline_()) {
+        memcpy(this->inline_, other.inline_, this->len_);
+      } else {
+        this->heap_ = other.heap_;
+        other.heap_ = nullptr;
+      }
+      other.len_ = 0;
+    }
+    return *this;
+  }
+
+  // Disable copy (would need deep copy of heap data)
+  SmallInlineBuffer(const SmallInlineBuffer &) = delete;
+  SmallInlineBuffer &operator=(const SmallInlineBuffer &) = delete;
+
+  /// Set buffer contents, allocating heap if needed
+  void set(const uint8_t *src, size_t size) {
+    // Free existing heap allocation if switching from heap to inline or different heap size
+    if (!this->is_inline_() && (size <= InlineSize || size != this->len_)) {
+      delete[] this->heap_;
+      this->heap_ = nullptr;  // Defensive: prevent use-after-free if logic changes
+    }
+    // Allocate new heap buffer if needed
+    if (size > InlineSize && (this->is_inline_() || size != this->len_)) {
+      this->heap_ = new uint8_t[size];  // NOLINT(cppcoreguidelines-owning-memory)
+    }
+    this->len_ = size;
+    memcpy(this->data(), src, size);
+  }
+
+  uint8_t *data() { return this->is_inline_() ? this->inline_ : this->heap_; }
+  const uint8_t *data() const { return this->is_inline_() ? this->inline_ : this->heap_; }
+  size_t size() const { return this->len_; }
+
+ protected:
+  bool is_inline_() const { return this->len_ <= InlineSize; }
+
+  size_t len_{0};
+  union {
+    uint8_t inline_[InlineSize]{};  // Zero-init ensures clean initial state
+    uint8_t *heap_;
+  };
+};
+
 /// Minimal static vector - saves memory by avoiding std::vector overhead
 template<typename T, size_t N> class StaticVector {
  public:
@@ -146,10 +219,40 @@ template<typename T, size_t N> class StaticVector {
   size_t count_{0};
 
  public:
+  // Default constructor
+  StaticVector() = default;
+
+  // Iterator range constructor
+  template<typename InputIt> StaticVector(InputIt first, InputIt last) {
+    while (first != last && count_ < N) {
+      data_[count_++] = *first++;
+    }
+  }
+
+  // Initializer list constructor
+  StaticVector(std::initializer_list<T> init) {
+    for (const auto &val : init) {
+      if (count_ >= N)
+        break;
+      data_[count_++] = val;
+    }
+  }
+
   // Minimal vector-compatible interface - only what we actually use
   void push_back(const T &value) {
     if (count_ < N) {
       data_[count_++] = value;
+    }
+  }
+
+  // Clear all elements
+  void clear() { count_ = 0; }
+
+  // Assign from iterator range
+  template<typename InputIt> void assign(InputIt first, InputIt last) {
+    count_ = 0;
+    while (first != last && count_ < N) {
+      data_[count_++] = *first++;
     }
   }
 
@@ -184,6 +287,10 @@ template<typename T, size_t N> class StaticVector {
   reverse_iterator rend() { return reverse_iterator(begin()); }
   const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
   const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
+
+  // Conversion to std::span for compatibility with span-based APIs
+  operator std::span<T>() { return std::span<T>(data_.data(), count_); }
+  operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
 };
 
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
@@ -348,6 +455,8 @@ template<typename T> class FixedVector {
 
   size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
+  size_t capacity() const { return capacity_; }
+  bool full() const { return size_ == capacity_; }
 
   /// Access element without bounds checking (matches std::vector behavior)
   /// Caller must ensure index is valid (i < size())
@@ -369,13 +478,15 @@ template<typename T> class FixedVector {
 /// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
 /// This is useful when most operations need a small buffer but occasionally need larger ones.
 /// The stack buffer avoids heap allocation in the common case, while heap fallback handles edge cases.
-template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
+/// @tparam STACK_SIZE Number of elements in the stack buffer
+/// @tparam T Element type (default: uint8_t)
+template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallback {
  public:
   explicit SmallBufferWithHeapFallback(size_t size) {
     if (size <= STACK_SIZE) {
       this->buffer_ = this->stack_buffer_;
     } else {
-      this->heap_buffer_ = new uint8_t[size];
+      this->heap_buffer_ = new T[size];
       this->buffer_ = this->heap_buffer_;
     }
   }
@@ -387,18 +498,33 @@ template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
   SmallBufferWithHeapFallback(SmallBufferWithHeapFallback &&) = delete;
   SmallBufferWithHeapFallback &operator=(SmallBufferWithHeapFallback &&) = delete;
 
-  uint8_t *get() { return this->buffer_; }
+  T *get() { return this->buffer_; }
 
  private:
-  uint8_t stack_buffer_[STACK_SIZE];
-  uint8_t *heap_buffer_{nullptr};
-  uint8_t *buffer_;
+  T stack_buffer_[STACK_SIZE];
+  T *heap_buffer_{nullptr};
+  T *buffer_;
 };
 
 ///@}
 
 /// @name Mathematics
 ///@{
+
+/// Compute 10^exp using iterative multiplication/division.
+/// Avoids pulling in powf/__ieee754_powf (~2.3KB flash) for small integer exponents.
+/// Matches powf(10, exp) for the int8_t exponent range used by sensor accuracy_decimals.
+inline float pow10_int(int8_t exp) {
+  float result = 1.0f;
+  if (exp >= 0) {
+    for (int8_t i = 0; i < exp; i++)
+      result *= 10.0f;
+  } else {
+    for (int8_t i = exp; i < 0; i++)
+      result /= 10.0f;
+  }
+  return result;
+}
 
 /// Remap \p value from the range (\p min, \p max) to (\p min_out, \p max_out).
 template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
@@ -568,6 +694,10 @@ template<typename T> constexpr T convert_little_endian(T val) {
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 /// Compare StringRefs for equality in case-insensitive manner.
 bool str_equals_case_insensitive(StringRef a, StringRef b);
+/// Compare C strings for equality in case-insensitive manner (no heap allocation).
+inline bool str_equals_case_insensitive(const char *a, const char *b) { return strcasecmp(a, b) == 0; }
+inline bool str_equals_case_insensitive(const std::string &a, const char *b) { return strcasecmp(a.c_str(), b) == 0; }
+inline bool str_equals_case_insensitive(const char *a, const std::string &b) { return strcasecmp(a, b.c_str()) == 0; }
 
 /// Check whether a string starts with a value.
 bool str_startswith(const std::string &str, const std::string &start);
@@ -645,9 +775,11 @@ inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
 }
 
 /// snprintf-like function returning std::string of maximum length \p len (excluding null terminator).
+/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
 std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t len, ...);
 
 /// sprintf-like function returning std::string.
+/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
 #ifdef USE_ESP8266
@@ -829,6 +961,9 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
 }
 
 /// Parse a hex character to its nibble value (0-15), returns 255 on invalid input
+/// Returned by parse_hex_char() for non-hex characters.
+static constexpr uint8_t INVALID_HEX_CHAR = 255;
+
 constexpr uint8_t parse_hex_char(char c) {
   if (c >= '0' && c <= '9')
     return c - '0';
@@ -836,7 +971,7 @@ constexpr uint8_t parse_hex_char(char c) {
     return c - 'A' + 10;
   if (c >= 'a' && c <= 'f')
     return c - 'a' + 10;
-  return 255;
+  return INVALID_HEX_CHAR;
 }
 
 /// Convert a nibble (0-15) to hex char with specified base ('a' for lowercase, 'A' for uppercase)
@@ -1035,6 +1170,9 @@ template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &dat
  * Each byte is displayed as a two-digit uppercase hex value, separated by the specified separator.
  * Optionally includes the total byte count in parentheses at the end.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data Pointer to the byte array to format.
  * @param length Number of bytes in the array.
  * @param separator Character to use between hex bytes (default: '.').
@@ -1060,6 +1198,9 @@ std::string format_hex_pretty(const uint8_t *data, size_t length, char separator
  *
  * Similar to the byte array version, but formats 16-bit words as 4-digit hex values.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data Pointer to the 16-bit word array to format.
  * @param length Number of 16-bit words in the array.
  * @param separator Character to use between hex words (default: '.').
@@ -1082,6 +1223,9 @@ std::string format_hex_pretty(const uint16_t *data, size_t length, char separato
  *
  * Convenience overload for std::vector<uint8_t>. Formats each byte as a two-digit
  * uppercase hex value with customizable separator.
+ *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
  *
  * @param data Vector of bytes to format.
  * @param separator Character to use between hex bytes (default: '.').
@@ -1106,6 +1250,9 @@ std::string format_hex_pretty(const std::vector<uint8_t> &data, char separator =
  * Convenience overload for std::vector<uint16_t>. Each 16-bit word is formatted
  * as a 4-digit uppercase hex value in big-endian order.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data Vector of 16-bit words to format.
  * @param separator Character to use between hex words (default: '.').
  * @param show_length Whether to append the word count in parentheses (default: true).
@@ -1128,6 +1275,9 @@ std::string format_hex_pretty(const std::vector<uint16_t> &data, char separator 
  * Treats each character in the string as a byte and formats it in hex.
  * Useful for debugging binary data stored in std::string containers.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data String whose bytes should be formatted as hex.
  * @param separator Character to use between hex bytes (default: '.').
  * @param show_length Whether to append the byte count in parentheses (default: true).
@@ -1149,6 +1299,9 @@ std::string format_hex_pretty(const std::string &data, char separator = '.', boo
  *
  * Converts the integer to big-endian byte order and formats each byte as hex.
  * The most significant byte appears first in the output string.
+ *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
  *
  * @tparam T Unsigned integer type (uint8_t, uint16_t, uint32_t, uint64_t, etc.).
  * @param val The unsigned integer value to format.
@@ -1284,8 +1437,12 @@ bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> 
 ///@{
 
 /// Applies gamma correction of \p gamma to \p value.
+// Remove before 2026.9.0
+ESPDEPRECATED("Use LightState::gamma_correct_lut() instead. Removed in 2026.9.0.", "2026.3.0")
 float gamma_correct(float value, float gamma);
 /// Reverts gamma correction of \p gamma to \p value.
+// Remove before 2026.9.0
+ESPDEPRECATED("Use LightState::gamma_uncorrect_lut() instead. Removed in 2026.9.0.", "2026.3.0")
 float gamma_uncorrect(float value, float gamma);
 
 /// Convert \p red, \p green and \p blue (all 0-1) values to \p hue (0-360), \p saturation (0-1) and \p value (0-1).
@@ -1343,16 +1500,30 @@ template<typename... X> class LazyCallbackManager;
  *
  * Memory overhead comparison (32-bit systems):
  * - CallbackManager: 12 bytes (empty std::vector)
- * - LazyCallbackManager: 4 bytes (nullptr unique_ptr)
+ * - LazyCallbackManager: 4 bytes (nullptr pointer)
+ *
+ * Uses plain pointer instead of unique_ptr to avoid template instantiation overhead.
+ * The class is explicitly non-copyable/non-movable for Rule of Five compliance.
  *
  * @tparam Ts The arguments for the callbacks, wrapped in void().
  */
 template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
  public:
+  LazyCallbackManager() = default;
+  /// Destructor - clean up allocated CallbackManager if any.
+  /// In practice this never runs (entities live for device lifetime) but included for correctness.
+  ~LazyCallbackManager() { delete this->callbacks_; }
+
+  // Non-copyable and non-movable (entities are never copied or moved)
+  LazyCallbackManager(const LazyCallbackManager &) = delete;
+  LazyCallbackManager &operator=(const LazyCallbackManager &) = delete;
+  LazyCallbackManager(LazyCallbackManager &&) = delete;
+  LazyCallbackManager &operator=(LazyCallbackManager &&) = delete;
+
   /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
   void add(std::function<void(Ts...)> &&callback) {
     if (!this->callbacks_) {
-      this->callbacks_ = make_unique<CallbackManager<void(Ts...)>>();
+      this->callbacks_ = new CallbackManager<void(Ts...)>();
     }
     this->callbacks_->add(std::move(callback));
   }
@@ -1374,7 +1545,7 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   void operator()(Ts... args) { this->call(args...); }
 
  protected:
-  std::unique_ptr<CallbackManager<void(Ts...)>> callbacks_;
+  CallbackManager<void(Ts...)> *callbacks_{nullptr};
 };
 
 /// Helper class to deduplicate items in a series of values.
@@ -1593,13 +1764,10 @@ template<class T> class RAMAllocator {
     ALLOW_FAILURE = 1 << 2,   // Does nothing. Kept for compatibility.
   };
 
-  RAMAllocator() = default;
-  RAMAllocator(uint8_t flags) {
-    // default is both external and internal
-    flags &= ALLOC_INTERNAL | ALLOC_EXTERNAL;
-    if (flags != 0)
-      this->flags_ = flags;
-  }
+  constexpr RAMAllocator() = default;
+  constexpr RAMAllocator(uint8_t flags)
+      : flags_((flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL)) != 0 ? (flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL))
+                                                                : (ALLOC_INTERNAL | ALLOC_EXTERNAL)) {}
   template<class U> constexpr RAMAllocator(const RAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) { return this->allocate(n, sizeof(T)); }
