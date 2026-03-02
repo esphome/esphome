@@ -204,7 +204,7 @@ SWITCH_CONTROL_ACTION_SCHEMA = automation.maybe_simple_id(
 
 
 @automation.register_action(
-    "switch.control", ControlAction, SWITCH_CONTROL_ACTION_SCHEMA
+    "switch.control", ControlAction, SWITCH_CONTROL_ACTION_SCHEMA, synchronous=True
 )
 async def switch_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -214,9 +214,15 @@ async def switch_control_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action("switch.toggle", ToggleAction, SWITCH_ACTION_SCHEMA)
-@automation.register_action("switch.turn_off", TurnOffAction, SWITCH_ACTION_SCHEMA)
-@automation.register_action("switch.turn_on", TurnOnAction, SWITCH_ACTION_SCHEMA)
+@automation.register_action(
+    "switch.toggle", ToggleAction, SWITCH_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "switch.turn_off", TurnOffAction, SWITCH_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "switch.turn_on", TurnOnAction, SWITCH_ACTION_SCHEMA, synchronous=True
+)
 async def switch_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

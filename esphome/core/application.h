@@ -5,6 +5,7 @@
 #include <limits>
 #include <span>
 #include <string>
+#include <type_traits>
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -105,7 +106,10 @@
 #endif
 
 namespace esphome::socket {
-class Socket;
+#ifdef USE_SOCKET_SELECT_SUPPORT
+/// Shared ready() helper for fd-based socket implementations.
+bool socket_ready_fd(int fd, bool loop_monitored);  // NOLINT(readability-redundant-declaration)
+#endif
 }  // namespace esphome::socket
 
 // Forward declarations for friend access from codegen-generated setup()
@@ -500,11 +504,29 @@ class Application {
   /// On other platforms: uses UDP loopback socket
   void wake_loop_threadsafe();
 #endif
+
+#ifdef USE_LWIP_FAST_SELECT
+  /// Wake the main event loop from an ISR.
+  /// Uses vTaskNotifyGiveFromISR() — <1 us, ISR-safe.
+  /// Only available on platforms with fast select (ESP32, LibreTiny).
+  /// @param px_higher_priority_task_woken Set to pdTRUE if a context switch is needed.
+  static void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
+    esphome_lwip_wake_main_loop_from_isr(px_higher_priority_task_woken);
+  }
+
+#ifdef USE_ESP32
+  /// Wake the main event loop from any context (ISR, thread, or main loop).
+  /// Detects the calling context and uses the appropriate FreeRTOS API.
+  static void IRAM_ATTR wake_loop_any_context() { esphome_lwip_wake_main_loop_any_context(); }
+#endif
+#endif
 #endif
 
  protected:
   friend Component;
-  friend class socket::Socket;
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  friend bool socket::socket_ready_fd(int fd, bool loop_monitored);
+#endif
   friend void ::setup();
   friend void ::original_setup();
 
@@ -521,7 +543,14 @@ class Application {
 #endif
 #endif
 
-  void register_component_(Component *comp);
+  /// Register a component, detecting loop() override at compile time.
+  /// The template resolves &T::loop vs &Component::loop as a constexpr bool
+  /// and forwards it to register_component_impl_ which stores it in component_state_.
+  template<typename T> void register_component_(T *comp) {
+    this->register_component_impl_(comp, !std::is_same_v<decltype(&T::loop), decltype(&Component::loop)>);
+  }
+
+  void register_component_impl_(Component *comp, bool has_loop);
 
   void calculate_looping_components_();
   void add_looping_components_by_state_(bool match_loop_done);
