@@ -62,14 +62,15 @@ template<class T, uint8_t SIZE> class EventPool {
 
 template<class T, uint8_t SIZE> class EventQueue {
  public:
-  void push(T *item) {
+  bool push(T *item) {
     uint8_t next = (this->tail_ + 1) % SIZE;
     if (next == this->head_) {
       this->increment_dropped_count();
-      return;
+      return false;
     }
     this->items_[this->tail_] = item;
     this->tail_ = next;
+    return true;
   }
 
   T *pop() {
