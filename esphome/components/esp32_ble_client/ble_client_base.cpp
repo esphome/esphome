@@ -377,6 +377,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // DISCONNECT_EVT. If CLOSE_EVT already transitioned us to IDLE, don't go
       // backwards to DISCONNECTING — the connection is already fully cleaned up.
       if (this->state() == espbt::ClientState::IDLE) {
+        this->log_event_("DISCONNECT_EVT after CLOSE_EVT, already IDLE");
         break;
       }
       // For passive disconnects (remote device disconnected or link lost),
