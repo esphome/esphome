@@ -553,11 +553,8 @@ inline ESPHOME_ALWAYS_INLINE uint32_t fast_div1000_32(uint64_t us) {
   uint32_t hi = static_cast<uint32_t>(us >> 32);
   // Combine remainder term: hi * (2^32 % 1000) + lo
   uint32_t adj = hi * R + lo;
-  if (adj < lo) {
-    // Overflow: the true value is 2^32 + adj, so apply the identity again
-    return hi * Q + (adj + R) / D + Q;
-  }
-  return hi * Q + adj / D;
+  // If adj overflowed, the true value is 2^32 + adj; apply the identity again
+  return hi * Q + (adj < lo ? (adj + R) / D + Q : adj / D);
 }
 
 /// Return a random 32-bit unsigned integer.
