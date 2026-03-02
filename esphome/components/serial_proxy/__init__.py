@@ -89,6 +89,3 @@ async def to_code(config):
     if CONF_DTR_PIN in config:
         dtr_pin = await cg.gpio_pin_expression(config[CONF_DTR_PIN])
         cg.add(var.set_dtr_pin(dtr_pin))
-
-    # Request UART to wake the main loop when data arrives for low-latency processing
-    uart.request_wake_loop_on_rx()
