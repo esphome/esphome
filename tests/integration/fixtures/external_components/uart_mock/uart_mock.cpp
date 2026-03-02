@@ -35,7 +35,7 @@ void MockUartComponent::loop() {
     uint32_t target_time = this->scenario_start_ms_ + this->cumulative_delay_ms_ + injection.delay_ms;
     if (now >= target_time) {
       ESP_LOGD(TAG, "Injecting %zu RX bytes (injection %u)", injection.rx_data.size(), this->injection_index_);
-      this->inject_to_rx_buffer_(injection.rx_data);
+      this->inject_to_rx_buffer(injection.rx_data);
       this->cumulative_delay_ms_ += injection.delay_ms;
       this->injection_index_++;
     }
@@ -44,7 +44,7 @@ void MockUartComponent::loop() {
   // Process periodic RX
   for (auto &periodic : this->periodic_rx_) {
     if (now - periodic.last_inject_ms >= periodic.interval_ms) {
-      this->inject_to_rx_buffer_(periodic.data);
+      this->inject_to_rx_buffer(periodic.data);
       periodic.last_inject_ms = now;
     }
   }
@@ -79,6 +79,12 @@ void MockUartComponent::write_array(const uint8_t *data, size_t len) {
 #endif
 
   this->try_match_response_();
+
+  // This directly calls a tx_hook (lambda) as an alternative to the simpler match_response mechanism.
+  if (this->tx_hook_) {
+    std::vector<uint8_t> buf(data, data + len);
+    this->tx_hook_(buf);
+  }
 }
 
 bool MockUartComponent::peek_byte(uint8_t *data) {
@@ -114,6 +120,12 @@ void MockUartComponent::flush() {
   // Nothing to flush in mock
 }
 
+void MockUartComponent::set_rx_full_threshold(size_t rx_full_threshold) {
+  this->rx_full_threshold_ = rx_full_threshold;
+}
+
+void MockUartComponent::set_rx_timeout(size_t rx_timeout) { this->rx_timeout_ = rx_timeout; }
+
 void MockUartComponent::add_injection(const std::vector<uint8_t> &rx_data, uint32_t delay_ms) {
   this->injections_.push_back({rx_data, delay_ms});
 }
@@ -135,14 +147,19 @@ void MockUartComponent::try_match_response_() {
     size_t offset = this->tx_buffer_.size() - response.expect_tx.size();
     if (std::equal(response.expect_tx.begin(), response.expect_tx.end(), this->tx_buffer_.begin() + offset)) {
       ESP_LOGD(TAG, "TX match found, injecting %zu RX bytes", response.inject_rx.size());
-      this->inject_to_rx_buffer_(response.inject_rx);
+      this->inject_to_rx_buffer(response.inject_rx);
       this->tx_buffer_.clear();
       return;
     }
   }
 }
 
-void MockUartComponent::inject_to_rx_buffer_(const std::vector<uint8_t> &data) {
+void MockUartComponent::inject_to_rx_buffer(const uint8_t *data, size_t len) {
+  std::vector<uint8_t> vec(data, data + len);
+  this->inject_to_rx_buffer(vec);
+}
+
+void MockUartComponent::inject_to_rx_buffer(const std::vector<uint8_t> &data) {
   // Log injected RX data so tests can see what's being fed to the component
   if (!data.empty() && data.size() <= 64) {
     char hex_buf[format_hex_pretty_size(64)];
