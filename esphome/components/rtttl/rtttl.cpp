@@ -24,9 +24,7 @@ static constexpr uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  3
                                      2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
 static constexpr uint8_t NOTES_COUNT = static_cast<uint8_t>(sizeof(NOTES) / sizeof(NOTES[0]));
 
-#if defined(USE_OUTPUT) || defined(USE_SPEAKER)
 static constexpr uint8_t REPEATING_NOTE_GAP_MS = 10;
-#endif  // USE_OUTPUT || USE_SPEAKER
 
 #ifdef USE_SPEAKER
 static constexpr uint16_t SAMPLE_BUFFER_SIZE = 2048;
