@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_WATCHDOG
 
 CODEOWNERS = ["@LinoSchmidt"]
 
@@ -9,7 +9,6 @@ DEPENDENCIES = ["i2c"]
 
 MULTI_CONF = True
 
-CONF_WATCHDOG = "watchdog"
 CONF_FAN_1 = "fan_1"
 CONF_FAN_2 = "fan_2"
 CONF_FAN_3 = "fan_3"
