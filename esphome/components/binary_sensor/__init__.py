@@ -550,22 +550,8 @@ def binary_sensor_schema(
     return _BINARY_SENSOR_SCHEMA.extend(schema)
 
 
-async def setup_binary_sensor_core_(var, config):
-    await setup_entity(var, config, "binary_sensor")
-
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
-    trigger = config.get(CONF_TRIGGER_ON_INITIAL_STATE, False) or config.get(
-        CONF_PUBLISH_INITIAL_STATE, False
-    )
-    cg.add(var.set_trigger_on_initial_state(trigger))
-    if inverted := config.get(CONF_INVERTED):
-        cg.add(var.set_inverted(inverted))
-    if filters_config := config.get(CONF_FILTERS):
-        cg.add_define("USE_BINARY_SENSOR_FILTER")
-        filters = await cg.build_registry_list(FILTER_REGISTRY, filters_config)
-        cg.add(var.add_filters(filters))
-
+@coroutine_with_priority(CoroPriority.AUTOMATION)
+async def _build_binary_sensor_automations(var, config):
     for conf in config.get(CONF_ON_PRESS, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
@@ -616,6 +602,25 @@ async def setup_binary_sensor_core_(var, config):
             ],
             conf,
         )
+
+
+async def setup_binary_sensor_core_(var, config):
+    await setup_entity(var, config, "binary_sensor")
+
+    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
+        cg.add(var.set_device_class(device_class))
+    trigger = config.get(CONF_TRIGGER_ON_INITIAL_STATE, False) or config.get(
+        CONF_PUBLISH_INITIAL_STATE, False
+    )
+    cg.add(var.set_trigger_on_initial_state(trigger))
+    if inverted := config.get(CONF_INVERTED):
+        cg.add(var.set_inverted(inverted))
+    if filters_config := config.get(CONF_FILTERS):
+        cg.add_define("USE_BINARY_SENSOR_FILTER")
+        filters = await cg.build_registry_list(FILTER_REGISTRY, filters_config)
+        cg.add(var.add_filters(filters))
+
+    CORE.add_job(_build_binary_sensor_automations, var, config)
 
     if mqtt_id := config.get(CONF_MQTT_ID):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
