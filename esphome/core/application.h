@@ -129,8 +129,9 @@ void original_setup();  // NOLINT(readability-redundant-declaration) - used by c
 
 namespace esphome {
 
-/// SFINAE helper: resolves to true when &T::loop compiles and differs from &Component::loop.
-/// Falls back to true when &T::loop is ambiguous (e.g. multiple inheritance with separate loop() methods).
+/// SFINAE helper: detects whether T overrides Component::loop().
+/// When &T::loop is ambiguous (multiple inheritance with separate loop() methods),
+/// the ambiguity itself proves an override exists, so the true_type default is correct.
 template<typename T, typename = void> struct HasLoopOverride : std::true_type {};
 template<typename T>
 struct HasLoopOverride<T, std::void_t<decltype(&T::loop)>>
