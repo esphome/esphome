@@ -452,7 +452,6 @@ class DumpBuffer {
 
 class ProtoMessage {
  public:
-  virtual ~ProtoMessage() = default;
   // Default implementation for messages with no fields
   virtual void encode(ProtoWriteBuffer &buffer) const {}
   // Default implementation for messages with no fields
@@ -463,6 +462,11 @@ class ProtoMessage {
   virtual const char *dump_to(DumpBuffer &out) const = 0;
   virtual const char *message_name() const { return "unknown"; }
 #endif
+
+ protected:
+  // Non-virtual: messages are never deleted polymorphically.
+  // Protected prevents accidental `delete base_ptr` (compile error).
+  ~ProtoMessage() = default;
 };
 
 // Base class for messages that support decoding
@@ -482,6 +486,7 @@ class ProtoDecodableMessage : public ProtoMessage {
   static uint32_t count_repeated_field(const uint8_t *buffer, size_t length, uint32_t target_field_id);
 
  protected:
+  ~ProtoDecodableMessage() = default;
   virtual bool decode_varint(uint32_t field_id, ProtoVarInt value) { return false; }
   virtual bool decode_length(uint32_t field_id, ProtoLengthDelimited value) { return false; }
   virtual bool decode_32bit(uint32_t field_id, Proto32Bit value) { return false; }

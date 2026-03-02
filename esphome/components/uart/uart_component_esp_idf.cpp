@@ -157,6 +157,9 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted()) {
     invert |= UART_SIGNAL_RXD_INV;
   }
+  if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->is_inverted()) {
+    invert |= UART_SIGNAL_RTS_INV;
+  }
 
   err = uart_set_line_inverse(this->uart_num_, invert);
   if (err != ESP_OK) {
