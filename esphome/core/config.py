@@ -517,9 +517,10 @@ async def _add_looping_components() -> None:
         return
 
     # Build constexpr sum for the exact count, deduplicating by type
+    # Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance
     type_counts = Counter(entries)
     terms = [
-        f"({count} * !std::is_same_v<decltype(&{cpp_type}::loop), decltype(&Component::loop)>)"
+        f"({count} * HasLoopOverride<{cpp_type}>::value)"
         for cpp_type, count in type_counts.items()
     ]
     constexpr_expr = " + \\\n  ".join(terms)

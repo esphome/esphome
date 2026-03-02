@@ -57,7 +57,7 @@ class LwIPSocketImpl {
   }
   ssize_t readv(const struct iovec *iov, int iovcnt) { return lwip_readv(this->fd_, iov, iovcnt); }
   ssize_t write(const void *buf, size_t len) { return lwip_write(this->fd_, buf, len); }
-  ssize_t send(void *buf, size_t len, int flags) { return lwip_send(this->fd_, buf, len, flags); }
+  ssize_t send(const void *buf, size_t len, int flags) { return lwip_send(this->fd_, buf, len, flags); }
   ssize_t writev(const struct iovec *iov, int iovcnt) { return lwip_writev(this->fd_, iov, iovcnt); }
   ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) {
     return lwip_sendto(this->fd_, buf, len, flags, to, tolen);

@@ -68,7 +68,7 @@ int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
   }
   if (name == nullptr) {
     errno = EINVAL;
-    return 0;
+    return -1;
   }
   ip_addr_t ip;
   in_port_t port;
@@ -319,6 +319,13 @@ int LWIPRawCommon::ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *n
 // ---- LWIPRawImpl methods ----
 
 LWIPRawImpl::~LWIPRawImpl() {
+  // Free any received pbufs that LWIP transferred ownership of via recv_fn.
+  // tcp_abort() in the base destructor won't free these since LWIP considers
+  // ownership transferred once the recv callback accepts them.
+  if (this->rx_buf_ != nullptr) {
+    pbuf_free(this->rx_buf_);
+    this->rx_buf_ = nullptr;
+  }
   // Base class destructor handles pcb_ cleanup via tcp_abort
 }
 
@@ -545,7 +552,14 @@ ssize_t LWIPRawImpl::writev(const struct iovec *iov, int iovcnt) {
 // ---- LWIPRawListenImpl methods ----
 
 LWIPRawListenImpl::~LWIPRawListenImpl() {
-  // Base class destructor handles pcb_ cleanup via tcp_abort
+  // Listen PCBs must use tcp_close(), not tcp_abort().
+  // tcp_abandon() asserts pcb->state != LISTEN and would access
+  // fields that don't exist in the smaller tcp_pcb_listen struct.
+  // Close here and null pcb_ so the base destructor skips tcp_abort.
+  if (this->pcb_ != nullptr) {
+    tcp_close(this->pcb_);
+    this->pcb_ = nullptr;
+  }
 }
 
 void LWIPRawListenImpl::init() {
@@ -609,6 +623,9 @@ int LWIPRawListenImpl::listen(int backlog) {
   LWIP_LOG("tcp_arg(%p)", this->pcb_);
   tcp_arg(this->pcb_, this);
   tcp_accept(this->pcb_, LWIPRawListenImpl::s_accept_fn);
+  // Note: tcp_err() is NOT re-registered here. tcp_listen_with_backlog() converts the
+  // full tcp_pcb to a smaller tcp_pcb_listen struct that lacks the errf field.
+  // Calling tcp_err() on a listen PCB writes past the struct boundary (undefined behavior).
   return 0;
 }
 
