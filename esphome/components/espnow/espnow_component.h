@@ -21,6 +21,7 @@
 #include <array>
 #include <map>
 #include <memory>
+#include <new>
 #include <string>
 #include <vector>
 
@@ -35,7 +36,7 @@ template<class T, uint8_t SIZE> class EventPool {
         this->used_[i] = true;
         T *obj = &this->storage_[i];
         // Reset the object to a default-constructed state to match heap semantics.
-        *obj = T();
+        this->reset_object_(obj);
         return obj;
       }
     }
@@ -56,6 +57,11 @@ template<class T, uint8_t SIZE> class EventPool {
   }
 
  protected:
+  static void reset_object_(T *obj) {
+    obj->~T();
+    new (obj) T();
+  }
+
   T storage_[SIZE];
   bool used_[SIZE]{false};
 };
