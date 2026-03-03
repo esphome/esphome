@@ -209,12 +209,11 @@ bool MQTTComponent::send_discovery_() {
 
         if (this->is_disabled_by_default_())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
-        // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-        const auto icon_ref = this->get_icon_ref_();
-        if (!icon_ref.empty()) {
-          root[MQTT_ICON] = icon_ref;
+        char icon_buf[MAX_ICON_LENGTH];
+        const char *icon = this->get_icon_to_(icon_buf);
+        if (icon[0] != '\0') {
+          root[MQTT_ICON] = icon;
         }
-        // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
         const auto entity_category = this->get_entity()->get_entity_category();
         if (entity_category != ENTITY_CATEGORY_NONE) {
@@ -413,7 +412,6 @@ const StringRef &MQTTComponent::friendly_name_() const { return this->get_entity
 StringRef MQTTComponent::get_default_object_id_to_(std::span<char, OBJECT_ID_MAX_LEN> buf) const {
   return this->get_entity()->get_object_id_to(buf);
 }
-StringRef MQTTComponent::get_icon_ref_() const { return this->get_entity()->get_icon_ref(); }
 bool MQTTComponent::is_disabled_by_default_() const { return this->get_entity()->is_disabled_by_default(); }
 bool MQTTComponent::compute_is_internal_() {
   if (this->custom_state_topic_.has_value()) {
