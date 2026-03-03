@@ -188,14 +188,11 @@ def register_unit_of_measurement(value: str) -> int:
     return _register_string(value, _get_pool().units, _MAX_UNITS, "unit_of_measurement")
 
 
-_MAX_ICON_LENGTH = 63  # Max icon string length (64-byte buffer with null terminator)
-
-
 def register_icon(value: str) -> int:
     """Register an icon string and return its 1-based index."""
-    if value and len(value) > _MAX_ICON_LENGTH:
+    if value and len(value) > cv.ICON_MAX_LENGTH:
         raise ValueError(
-            f"Icon string too long ({len(value)} chars, max {_MAX_ICON_LENGTH}): '{value}'"
+            f"Icon string too long ({len(value)} chars, max {cv.ICON_MAX_LENGTH}): '{value}'"
         )
     return _register_string(value, _get_pool().icons, _MAX_ICONS, "icon")
 

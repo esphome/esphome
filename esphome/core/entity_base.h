@@ -136,13 +136,13 @@ class EntityBase {
 #ifdef USE_ESP8266
   // On ESP8266, rodata is RAM. Icons are in PROGMEM and cannot be accessed
   // directly as const char*. Use get_icon_to() with a stack buffer instead.
-  template<typename T = void> StringRef get_icon_ref() const {
-    static_assert(!sizeof(T),
+  template<typename T = int> StringRef get_icon_ref() const {
+    static_assert(sizeof(T) == 0,
                   "get_icon_ref() unavailable on ESP8266 (rodata is RAM). Use get_icon_to() with a stack buffer.");
     return StringRef("");
   }
-  template<typename T = void> std::string get_icon() const {
-    static_assert(!sizeof(T),
+  template<typename T = int> std::string get_icon() const {
+    static_assert(sizeof(T) == 0,
                   "get_icon() unavailable on ESP8266 (rodata is RAM). Use get_icon_to() with a stack buffer.");
     return "";
   }

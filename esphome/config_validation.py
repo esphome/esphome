@@ -398,6 +398,11 @@ def string_strict(value):
     )
 
 
+# Max icon string length (63 chars + null = 64-byte PROGMEM buffer)
+# Keep in sync with MAX_ICON_LENGTH in esphome/core/entity_base.h
+ICON_MAX_LENGTH = 63
+
+
 def icon(value):
     """Validate that a given config value is a valid icon."""
     value = string_strict(value)
@@ -407,9 +412,9 @@ def icon(value):
         raise Invalid(
             'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
         )
-    if len(value) > 63:
+    if len(value) > ICON_MAX_LENGTH:
         raise Invalid(
-            f"Icon string is too long ({len(value)} chars, max 63). "
+            f"Icon string is too long ({len(value)} chars, max {ICON_MAX_LENGTH}). "
             "Icons are stored in PROGMEM with a 64-byte buffer limit."
         )
     return value
