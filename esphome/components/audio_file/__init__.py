@@ -1,0 +1,228 @@
+from dataclasses import dataclass, field
+import hashlib
+import logging
+from pathlib import Path
+
+from esphome import external_files
+import esphome.codegen as cg
+from esphome.components import audio
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_FILE,
+    CONF_ID,
+    CONF_PATH,
+    CONF_RAW_DATA_ID,
+    CONF_TYPE,
+    CONF_URL,
+)
+from esphome.core import CORE, HexInt
+from esphome.external_files import download_content
+
+_LOGGER = logging.getLogger(__name__)
+
+CODEOWNERS = ["@kahrendt"]
+DEPENDENCIES = ["audio"]
+
+DOMAIN = "audio_file"
+
+TYPE_LOCAL = "local"
+TYPE_WEB = "web"
+
+
+@dataclass
+class AudioFileData:
+    file_ids: dict = field(default_factory=dict)  # {str_id: config_id}
+
+
+def _get_data() -> AudioFileData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = AudioFileData()
+    return CORE.data[DOMAIN]
+
+
+def get_audio_file_ids() -> dict:
+    """Get all registered audio file IDs for cross-component access."""
+    return _get_data().file_ids
+
+
+def _compute_local_file_path(value: dict) -> Path:
+    url = value[CONF_URL]
+    h = hashlib.new("sha256")
+    h.update(url.encode())
+    key = h.hexdigest()[:8]
+    base_dir = external_files.compute_local_file_dir(DOMAIN)
+    _LOGGER.debug("_compute_local_file_path: base_dir=%s", base_dir / key)
+    return base_dir / key
+
+
+def _download_web_file(value):
+    url = value[CONF_URL]
+    path = _compute_local_file_path(value)
+
+    download_content(url, path)
+    _LOGGER.debug("download_web_file: path=%s", path)
+    return value
+
+
+def _file_schema(value):
+    if isinstance(value, str):
+        return _validate_file_shorthand(value)
+    return TYPED_FILE_SCHEMA(value)
+
+
+def _validate_file_shorthand(value):
+    value = cv.string_strict(value)
+    if value.startswith("http://") or value.startswith("https://"):
+        return _file_schema(
+            {
+                CONF_TYPE: TYPE_WEB,
+                CONF_URL: value,
+            }
+        )
+    return _file_schema(
+        {
+            CONF_TYPE: TYPE_LOCAL,
+            CONF_PATH: value,
+        }
+    )
+
+
+def read_audio_file_and_type(file_config):
+    """Read an audio file and determine its type. Used by this component and media_source platform."""
+    conf_file = file_config[CONF_FILE]
+    file_source = conf_file[CONF_TYPE]
+    if file_source == TYPE_LOCAL:
+        path = CORE.relative_config_path(conf_file[CONF_PATH])
+    elif file_source == TYPE_WEB:
+        path = _compute_local_file_path(conf_file)
+    else:
+        raise cv.Invalid("Unsupported file source")
+
+    with open(path, "rb") as f:
+        data = f.read()
+
+    import puremagic
+
+    try:
+        file_type: str = puremagic.from_string(data)
+        file_type = file_type.removeprefix(".")
+    except puremagic.PureError as e:
+        raise cv.Invalid(
+            f"Unable to determine audio file type of '{path}'. "
+            f"Try re-encoding the file into a supported format. Details: {e}"
+        )
+
+    media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
+    if file_type == "wav":
+        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["WAV"]
+    elif file_type in ("mp3", "mpeg", "mpga"):
+        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["MP3"]
+    elif file_type == "flac":
+        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["FLAC"]
+    elif (
+        file_type == "ogg"
+        and len(data) >= 36
+        and data.startswith(b"OggS")
+        and data[28:36] == b"OpusHead"
+    ):
+        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["OPUS"]
+
+    return data, media_file_type
+
+
+LOCAL_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_PATH): cv.file_,
+    }
+)
+
+WEB_SCHEMA = cv.All(
+    {
+        cv.Required(CONF_URL): cv.url,
+    },
+    _download_web_file,
+)
+
+
+TYPED_FILE_SCHEMA = cv.typed_schema(
+    {
+        TYPE_LOCAL: LOCAL_SCHEMA,
+        TYPE_WEB: WEB_SCHEMA,
+    },
+)
+
+
+MEDIA_FILE_TYPE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.declare_id(audio.AudioFile),
+        cv.Required(CONF_FILE): _file_schema,
+        cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+    }
+)
+
+
+def _validate_supported_local_file(config):
+    for file_config in config:
+        _, media_file_type = read_audio_file_and_type(file_config)
+        if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
+            raise cv.Invalid("Unsupported local media file")
+
+        for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
+            if str(media_file_type) == str(fmt_enum):
+                if fmt_name == "FLAC":
+                    audio.request_flac_support()
+                elif fmt_name == "MP3":
+                    audio.request_mp3_support()
+                elif fmt_name == "OPUS":
+                    audio.request_opus_support()
+                break
+
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
+    _validate_supported_local_file,
+)
+
+
+async def to_code(config):
+    audio_file_ns = cg.esphome_ns.namespace("audio_file")
+
+    for file_config in config:
+        data, media_file_type = read_audio_file_and_type(file_config)
+
+        rhs = [HexInt(x) for x in data]
+        prog_arr = cg.progmem_array(file_config[CONF_RAW_DATA_ID], rhs)
+
+        media_files_struct = cg.StructInitializer(
+            audio.AudioFile,
+            (
+                "data",
+                prog_arr,
+            ),
+            (
+                "length",
+                len(rhs),
+            ),
+            (
+                "file_type",
+                media_file_type,
+            ),
+        )
+
+        cg.new_Pvariable(
+            file_config[CONF_ID],
+            media_files_struct,
+        )
+
+        # Store file ID for cross-component access
+        file_id = str(file_config[CONF_ID])
+        _get_data().file_ids[file_id] = file_config[CONF_ID]
+
+    # Register all files in the shared C++ registry
+    cg.add_define("AUDIO_FILE_MAX_FILES", len(config))
+    for file_config in config:
+        file_id = str(file_config[CONF_ID])
+        file_var = await cg.get_variable(file_config[CONF_ID])
+        cg.add(audio_file_ns.add_named_audio_file(file_var, file_id))
