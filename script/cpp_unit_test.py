@@ -146,7 +146,7 @@ def run_tests(selected_components: list[str]) -> int:
     # Always include 'time' because USE_TIME_TIMEZONE is defined as a build flag,
     # which causes core/time.h to include components/time/posix_tz.h.
     components_with_dependencies = sorted(
-        get_all_dependencies(set(components) | {"time"})
+        get_all_dependencies(set(components) | {"time"}, cpp_testing=True)
     )
 
     config = create_test_config(config_name, includes)
