@@ -4,13 +4,20 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
     add_idf_sdkconfig_option,
+    get_esp32_variant,
     include_builtin_idf_component,
     only_on_variant,
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID, CONF_USE_ADDRESS
+from esphome.const import (
+    CONF_CHANNEL,
+    CONF_ENABLE_IPV6,
+    CONF_ID,
+    CONF_OUTPUT_POWER,
+    CONF_USE_ADDRESS,
+)
 from esphome.core import CORE, TimePeriodMilliseconds
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -43,6 +50,20 @@ CONF_DEVICE_TYPES = [
     "FTD",
     "MTD",
 ]
+
+
+def _validate_txpower(value):
+    if CORE.is_esp32:
+        variant = get_esp32_variant()
+
+        # HW limits: Datasheet section "802.15.4 RF Transmitter (TX) Characteristics"
+        # Further regulatory/soft limit may apply, e.g. by region
+        if variant in (VARIANT_ESP32C6, VARIANT_ESP32C5):
+            return cv.int_range(min=-15, max=20)(value)
+        if variant == VARIANT_ESP32H2:
+            return cv.int_range(min=-24, max=20)(value)
+
+    return value  # Unsupported, fail later with clear error
 
 
 def set_sdkconfig_options(config):
@@ -155,6 +176,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TLV): cv.string_strict,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_OUTPUT_POWER): cv.All(
+                cv.decibel,
+                _validate_txpower,
+            ),
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
@@ -196,5 +221,8 @@ async def to_code(config):
     mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
     cg.add(srp.set_mdns(mdns_component))
     await cg.register_component(srp, config)
+
+    if (output_power := config.get(CONF_OUTPUT_POWER)) is not None:
+        cg.add(ot.set_output_power(output_power))
 
     set_sdkconfig_options(config)
