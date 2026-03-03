@@ -187,7 +187,7 @@ void HeatpumpIRClimate::transmit_state() {
     swing_h_cmd = HDIR_SWING;
   }
 
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       fan_speed_cmd = FAN_2;
       break;

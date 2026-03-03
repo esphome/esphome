@@ -55,7 +55,7 @@ void ZHLT01Climate::transmit_state() {
       ir_message[7] |= AC1_FAN_SILENT;
       break;
     default:
-      switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
+      switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
         case climate::CLIMATE_FAN_LOW:
           ir_message[7] |= AC1_FAN1;
           break;
