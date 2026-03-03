@@ -3,8 +3,6 @@ import hashlib
 import logging
 from pathlib import Path
 
-import puremagic
-
 from esphome import external_files
 import esphome.codegen as cg
 from esphome.components import audio
@@ -29,6 +27,8 @@ CODEOWNERS = ["@kahrendt"]
 AUTO_LOAD = ["audio"]
 
 DOMAIN = "audio_file"
+
+audio_file_ns = cg.esphome_ns.namespace("audio_file")
 
 TYPE_LOCAL = "local"
 TYPE_WEB = "web"
@@ -106,6 +106,8 @@ def read_audio_file_and_type(file_config: ConfigType) -> tuple[bytes, MockObj]:
 
     with open(path, "rb") as f:
         data = f.read()
+
+    import puremagic
 
     try:
         file_type: str = puremagic.from_string(data)
@@ -212,7 +214,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: list[ConfigType]) -> None:
-    audio_file_ns = cg.esphome_ns.namespace("audio_file")
     cache = _get_data().file_cache
 
     for file_config in config:
