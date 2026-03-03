@@ -104,28 +104,31 @@ void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
 void on_send_report(uint8_t *mac_addr, uint8_t status)
 #endif
 {
+  ESPNowComponent *esp_now = global_esp_now;
+  if (esp_now == nullptr) {
+    return;
+  }
+
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  if (global_esp_now != nullptr) {
-    char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
 #if defined(USE_ESP32) && defined(ESP_IDF_VERSION_VAL)
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
-    format_mac_addr_upper(info->des_addr, peer_buf);
+  format_mac_addr_upper(info->des_addr, peer_buf);
 #else
-    format_mac_addr_upper(mac_addr, peer_buf);
+  format_mac_addr_upper(mac_addr, peer_buf);
 #endif
 #else
-    format_mac_addr_upper(mac_addr, peer_buf);
+  format_mac_addr_upper(mac_addr, peer_buf);
 #endif
-    ESP_LOGVV(TAG, "Send callback peer=%s status=%d (%s) ch=%u", peer_buf, status,
-              LOG_STR_ARG(espnow_send_status_to_str(status)), global_esp_now->wifi_channel_);
-  }
+  ESP_LOGVV(TAG, "Send callback peer=%s status=%d (%s) ch=%u", peer_buf, status,
+            LOG_STR_ARG(espnow_send_status_to_str(status)), esp_now->wifi_channel_);
 #endif
 
   // Allocate an event from the pool
-  ESPNowPacket *packet = global_esp_now->receive_packet_pool_.allocate();
+  ESPNowPacket *packet = esp_now->receive_packet_pool_.allocate();
   if (packet == nullptr) {
     // No events available - queue is full or we're out of memory
-    global_esp_now->receive_packet_queue_.increment_dropped_count();
+    esp_now->receive_packet_queue_.increment_dropped_count();
     return;
   }
 
@@ -143,7 +146,7 @@ void on_send_report(uint8_t *mac_addr, uint8_t status)
 #endif
 
   // Push the packet to the queue
-  global_esp_now->receive_packet_queue_.push(packet);
+  esp_now->receive_packet_queue_.push(packet);
   // Push always because we're the only producer and the pool ensures we never exceed queue size
 
   // Wake main loop immediately to process ESP-NOW send event instead of waiting for select() timeout
@@ -157,11 +160,16 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
 #else
 void on_data_received(uint8_t *mac_addr, uint8_t *data, uint8_t size) {
 #endif
+  ESPNowComponent *esp_now = global_esp_now;
+  if (esp_now == nullptr) {
+    return;
+  }
+
   // Allocate an event from the pool
-  ESPNowPacket *packet = global_esp_now->receive_packet_pool_.allocate();
+  ESPNowPacket *packet = esp_now->receive_packet_pool_.allocate();
   if (packet == nullptr) {
     // No events available - queue is full or we're out of memory
-    global_esp_now->receive_packet_queue_.increment_dropped_count();
+    esp_now->receive_packet_queue_.increment_dropped_count();
     return;
   }
 
@@ -169,11 +177,11 @@ void on_data_received(uint8_t *mac_addr, uint8_t *data, uint8_t size) {
 #if defined(USE_ESP32)
   packet->load_received_data(info, data, size);
 #else
-  packet->load_received_data(mac_addr, data, size, global_esp_now->own_address_);
+  packet->load_received_data(mac_addr, data, size, esp_now->own_address_);
 #endif
 
   // Push the packet to the queue
-  global_esp_now->receive_packet_queue_.push(packet);
+  esp_now->receive_packet_queue_.push(packet);
   // Push always because we're the only producer and the pool ensures we never exceed queue size
 
   // Wake main loop immediately to process ESP-NOW receive event instead of waiting for select() timeout
