@@ -120,7 +120,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint16_t conn_id_{UNSET_CONN_ID};
   uint16_t mtu_{23};
 
-  // Group 6: 1-byte types and small enums
+  // Group 7: 1-byte types and small enums
   esp_ble_addr_type_t remote_addr_type_{BLE_ADDR_TYPE_PUBLIC};
   espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
   uint8_t connection_index_;
