@@ -75,19 +75,21 @@ std::string EntityBase::get_unit_of_measurement() const {
 
 // Entity icon — buffer-based API for PROGMEM safety on ESP8266
 const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LENGTH> buffer) const {
-#ifndef USE_ENTITY_ICON
-  // No icons configured — skip lookup entirely
-  return "";
+#ifdef USE_ENTITY_ICON
+  const uint8_t idx = this->icon_idx_;
 #else
-  const char *icon = entity_icon_lookup(this->icon_idx_);
+  const uint8_t idx = 0;
+#endif
 #ifdef USE_ESP8266
+  if (idx == 0)
+    return "";
+  const char *icon = entity_icon_lookup(idx);
   ESPHOME_strncpy_P(buffer.data(), icon, buffer.size() - 1);
   buffer[buffer.size() - 1] = '\0';
   return buffer.data();
 #else
-  return icon;
+  return entity_icon_lookup(idx);
 #endif
-#endif  // USE_ENTITY_ICON
 }
 
 #ifndef USE_ESP8266
