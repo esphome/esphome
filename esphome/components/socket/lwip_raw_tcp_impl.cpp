@@ -36,7 +36,7 @@ void socket_delay(uint32_t ms) {
   esp_delay(ms, []() { return !s_socket_woke; });
 }
 
-void socket_wake() {
+void IRAM_ATTR socket_wake() {
   s_socket_woke = true;
   esp_schedule();
 }
