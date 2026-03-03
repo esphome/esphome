@@ -136,9 +136,7 @@ enum ESPNowState : uint8_t {
 struct ESPNowPeer {
   uint8_t address[ESP_NOW_ETH_ALEN];  // MAC address of the peer
 
-  bool operator==(const ESPNowPeer &other) const {
-    return memcmp(this->address, other.address, ESP_NOW_ETH_ALEN) == 0;
-  }
+  bool operator==(const ESPNowPeer &other) const { return memcmp(this->address, other.address, ESP_NOW_ETH_ALEN) == 0; }
   bool operator==(const uint8_t *other) const { return memcmp(this->address, other, ESP_NOW_ETH_ALEN) == 0; }
 };
 
