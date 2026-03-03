@@ -61,7 +61,7 @@ class Modbus : public uart::UARTDevice, public Component {
   uint16_t send_wait_time_{250};
   uint16_t turnaround_delay_ms_{100};
   uint8_t waiting_for_response_{0};
-  bool disable_crc_;
+  bool disable_crc_{false};
 
   GPIOPin *flow_control_pin_{nullptr};
 
