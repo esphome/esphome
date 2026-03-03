@@ -1,0 +1,61 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: template
+    id: advertised_temperature
+    name: "Advertised Temperature"
+    lambda: "return 22.5;"
+    update_interval: 60s
+  - platform: bthome
+    remote_id: bthome_remote_plain
+    bthome_type: BATTERY_PCT
+    name: "Remote Battery"
+  - platform: bthome
+    remote_id: bthome_remote_plain
+    bthome_type: TEMPERATURE_C_E2
+    name: "Remote Temperature"
+  - platform: bthome
+    remote_id: bthome_remote_encrypted
+    bthome_type: HUMIDITY_PCT_E2
+    name: "Remote Humidity Encrypted"
+
+binary_sensor:
+  - platform: template
+    id: advertised_motion
+    name: "Advertised Motion"
+  - platform: bthome
+    remote_id: bthome_remote_plain
+    bthome_type: MOTION_DETECTED
+    name: "Remote Motion"
+  - platform: bthome
+    remote_id: bthome_remote_plain
+    bthome_type: DOOR_OPEN
+    name: "Remote Door"
+
+text_sensor:
+  - platform: template
+    id: advertised_text
+    name: "Advertised Text"
+  - platform: bthome
+    remote_id: bthome_remote_plain
+    bthome_type: TEXT
+    name: "Remote Text"
+
+bthome:
+  remote_devices:
+    - id: bthome_remote_plain
+      mac_address: 11:22:33:44:55:66
+    - id: bthome_remote_encrypted
+      mac_address: AA:BB:CC:DD:EE:FF
+      bindkey: 11223344556677889900AABBCCDDEEFF
+  sensors:
+    - bthome_type: TEMPERATURE_C_E2
+      id: advertised_temperature
+  binary_sensors:
+    - bthome_type: MOTION_DETECTED
+      id: advertised_motion
+      advertise_immediately: true
+  text_sensors:
+    - bthome_type: TEXT
+      id: advertised_text
+      max_length: 10
