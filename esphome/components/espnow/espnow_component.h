@@ -108,7 +108,8 @@ template<class T, uint8_t SIZE> using PacketQueue = EventQueue<T, SIZE>;
 template<class T, uint8_t SIZE> using PacketQueue = LockFreeQueue<T, SIZE>;
 #endif
 
-// Maximum size of the ESPNow event queue - must be power of 2 for lock-free queue
+// Maximum size of the ESPNow event queue.
+// Note: When PacketQueue aliases LockFreeQueue (e.g. on ESP32), the size must be a power of 2.
 static constexpr size_t MAX_ESP_NOW_SEND_QUEUE_SIZE = 16;
 static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 16;
 
