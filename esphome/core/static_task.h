@@ -29,11 +29,9 @@ class StaticTask {
               bool use_psram);
 
   /// @brief Delete the task but keep the stack buffer allocated for reuse by a subsequent create() call.
-  /// @note Must be called from outside the task.
   void destroy();
 
   /// @brief Delete the task (if running) and free the stack buffer.
-  /// @note Must be called from outside the task.
   void deallocate();
 
  protected:

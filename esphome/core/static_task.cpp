@@ -42,8 +42,9 @@ bool StaticTask::create(TaskFunction_t fn, const char *name, uint32_t stack_size
 
 void StaticTask::destroy() {
   if (this->handle_ != nullptr) {
-    vTaskDelete(this->handle_);
+    TaskHandle_t handle = this->handle_;
     this->handle_ = nullptr;
+    vTaskDelete(handle);
   }
 }
 
