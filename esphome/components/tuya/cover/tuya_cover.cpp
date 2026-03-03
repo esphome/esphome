@@ -72,7 +72,8 @@ void TuyaCover::control(const cover::CoverCall &call) {
       this->parent_->force_set_integer_datapoint_value(*this->position_id_, position_int);
     }
   }
-  if (auto pos_opt = call.get_position(); pos_opt.has_value()) {
+  auto pos_opt = call.get_position();
+  if (pos_opt.has_value()) {
     auto pos = *pos_opt;
     if (this->control_id_.has_value() && (pos == COVER_OPEN || pos == COVER_CLOSED)) {
       if (pos == COVER_OPEN) {

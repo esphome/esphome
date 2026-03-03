@@ -41,10 +41,12 @@ void PIDClimate::setup() {
   }
 }
 void PIDClimate::control(const climate::ClimateCall &call) {
-  if (auto val = call.get_mode(); val.has_value())
-    this->mode = *val;
-  if (auto val = call.get_target_temperature(); val.has_value())
-    this->target_temperature = *val;
+  auto call_mode = call.get_mode();
+  if (call_mode.has_value())
+    this->mode = *call_mode;
+  auto call_target = call.get_target_temperature();
+  if (call_target.has_value())
+    this->target_temperature = *call_target;
 
   // If switching to off mode, set output immediately
   if (this->mode == climate::CLIMATE_MODE_OFF)

@@ -1193,7 +1193,8 @@ switch_::Switch *Sprinkler::valve_switch(const size_t valve_number) {
 
 switch_::Switch *Sprinkler::valve_pump_switch(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
-    if (auto idx = this->valve_[valve_number].pump_switch_index; idx.has_value()) {
+    auto idx = this->valve_[valve_number].pump_switch_index;
+    if (idx.has_value()) {
       return this->pump_[*idx];
     }
   }

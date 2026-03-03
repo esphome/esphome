@@ -171,7 +171,10 @@ void HE60rCover::control(const CoverCall &call) {
     } else {
       this->toggles_needed_++;
     }
-  } else if (auto pos_opt = call.get_position(); pos_opt.has_value()) {
+  } else {
+    auto pos_opt = call.get_position();
+    if (!pos_opt.has_value())
+      return;
     // go to position action
     auto pos = *pos_opt;
     // are we at the target?

@@ -269,7 +269,10 @@ void FeedbackCover::control(const CoverCall &call) {
         this->start_direction_(COVER_OPERATION_CLOSING);
       }
     }
-  } else if (auto pos_opt = call.get_position(); pos_opt.has_value()) {
+  } else {
+    auto pos_opt = call.get_position();
+    if (!pos_opt.has_value())
+      return;
     // go to position action
     auto pos = *pos_opt;
     if (pos == this->position) {

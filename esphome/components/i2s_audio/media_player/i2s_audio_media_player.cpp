@@ -11,10 +11,12 @@ static const char *const TAG = "audio";
 
 void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   media_player::MediaPlayerState play_state = media_player::MEDIA_PLAYER_STATE_PLAYING;
-  if (auto announcement = call.get_announcement(); announcement.has_value()) {
+  auto announcement = call.get_announcement();
+  if (announcement.has_value()) {
     play_state = *announcement ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING : media_player::MEDIA_PLAYER_STATE_PLAYING;
   }
-  if (auto media_url = call.get_media_url(); media_url.has_value()) {
+  auto media_url = call.get_media_url();
+  if (media_url.has_value()) {
     this->current_url_ = media_url;
     if (this->i2s_state_ != I2S_STATE_STOPPED && this->audio_ != nullptr) {
       if (this->audio_->isRunning()) {
@@ -31,12 +33,14 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     this->is_announcement_ = true;
   }
 
-  if (auto vol = call.get_volume(); vol.has_value()) {
+  auto vol = call.get_volume();
+  if (vol.has_value()) {
     this->volume = *vol;
     this->set_volume_(volume);
     this->unmute_();
   }
-  if (auto cmd = call.get_command(); cmd.has_value()) {
+  auto cmd = call.get_command();
+  if (cmd.has_value()) {
     switch (*cmd) {
       case media_player::MEDIA_PLAYER_COMMAND_MUTE:
         this->mute_();

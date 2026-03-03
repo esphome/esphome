@@ -79,7 +79,8 @@ void TimeBasedCover::control(const CoverCall &call) {
       }
     }
   }
-  if (auto pos_val = call.get_position(); pos_val.has_value()) {
+  auto pos_val = call.get_position();
+  if (pos_val.has_value()) {
     auto pos = *pos_val;
     if (pos == this->position) {
       // already at target

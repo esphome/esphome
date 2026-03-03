@@ -180,7 +180,7 @@ void MitsubishiClimate::transmit_state() {
   // For 5Level: Low = 1, Middle = 2, Medium = 3, High = 4
   // For 4Level + Quiet: Low = 1, Middle = 2, Medium = 3, High = 4, Quiet = 5
 
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       remote_state[9] = 1;
       break;
@@ -209,7 +209,7 @@ void MitsubishiClimate::transmit_state() {
       break;
   }
 
-  ESP_LOGD(TAG, "fan: %02x state: %02x", static_cast<uint8_t>(this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)),
+  ESP_LOGD(TAG, "fan: %02x state: %02x", static_cast<uint8_t>(this->fan_mode.value_or(climate::CLIMATE_FAN_ON)),
            remote_state[9]);
 
   // Vertical Vane
