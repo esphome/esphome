@@ -108,6 +108,9 @@ void Rtttl::loop() {
       }
     } else if (this->state_ == State::INIT) {
       if (this->speaker_->is_stopped()) {
+        audio::AudioStreamInfo audio_stream_info = audio::AudioStreamInfo(16, 1, SAMPLE_RATE);
+        this->speaker_->set_audio_stream_info(audio_stream_info);
+        this->speaker_->set_volume(this->gain_);
         this->speaker_->start();
         this->set_state_(State::STARTING);
       }
@@ -129,7 +132,7 @@ void Rtttl::loop() {
         if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
           rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
 
-          int8_t val = (127 * this->gain_) * sin(deg2rad(rem));
+          int8_t val = 127 * sin(deg2rad(rem));
 
           sample[sample_index].left = val;
           sample[sample_index].right = val;
