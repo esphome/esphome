@@ -23,6 +23,7 @@ from esphome.core.entity_helpers import (
     _setup_entity_impl,
     entity_duplicate_validator,
     get_base_entity_object_id,
+    register_icon,
     setup_entity,
 )
 from esphome.cpp_generator import MockObj
@@ -907,6 +908,22 @@ def test_register_string_overflow() -> None:
         _register_string(f"val_{i}", category, 3, "test")
     with pytest.raises(ValueError, match="Too many unique test values"):
         _register_string("overflow", category, 3, "test")
+
+
+def test_register_icon_max_length() -> None:
+    """Test register_icon rejects icons exceeding 63 characters."""
+    # 63 chars should succeed
+    max_icon = "mdi:" + "a" * 59  # 63 total
+    idx = register_icon(max_icon)
+    assert idx > 0
+
+    # 64 chars should fail
+    too_long = "mdi:" + "a" * 60  # 64 total
+    with pytest.raises(ValueError, match="Icon string too long"):
+        register_icon(too_long)
+
+    # Empty string returns 0
+    assert register_icon("") == 0
 
 
 @pytest.mark.asyncio
