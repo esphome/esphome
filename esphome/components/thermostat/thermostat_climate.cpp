@@ -211,12 +211,13 @@ void ThermostatClimate::validate_target_humidity() {
 void ThermostatClimate::control(const climate::ClimateCall &call) {
   bool target_temperature_high_changed = false;
 
-  if (auto val = call.get_preset(); val.has_value()) {
+  auto preset = call.get_preset();
+  if (preset.has_value()) {
     // setup_complete_ blocks modifying/resetting the temps immediately after boot
     if (this->setup_complete_) {
-      this->change_preset_(*val);
+      this->change_preset_(*preset);
     } else {
-      this->preset = val;
+      this->preset = preset;
     }
   }
   if (call.has_custom_preset()) {
@@ -229,34 +230,41 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
     }
   }
 
-  if (auto val = call.get_mode(); val.has_value()) {
-    this->mode = *val;
+  auto mode = call.get_mode();
+  if (mode.has_value()) {
+    this->mode = *mode;
   }
-  if (auto val = call.get_fan_mode(); val.has_value()) {
-    this->fan_mode = val;
+  auto fan_mode = call.get_fan_mode();
+  if (fan_mode.has_value()) {
+    this->fan_mode = fan_mode;
   }
-  if (auto val = call.get_swing_mode(); val.has_value()) {
-    this->swing_mode = *val;
+  auto swing_mode = call.get_swing_mode();
+  if (swing_mode.has_value()) {
+    this->swing_mode = *swing_mode;
   }
   if (this->supports_two_points_) {
-    if (auto val = call.get_target_temperature_low(); val.has_value()) {
-      this->target_temperature_low = *val;
+    auto target_temp_low = call.get_target_temperature_low();
+    if (target_temp_low.has_value()) {
+      this->target_temperature_low = *target_temp_low;
     }
-    if (auto val = call.get_target_temperature_high(); val.has_value()) {
-      target_temperature_high_changed = this->target_temperature_high != *val;
-      this->target_temperature_high = *val;
+    auto target_temp_high = call.get_target_temperature_high();
+    if (target_temp_high.has_value()) {
+      target_temperature_high_changed = this->target_temperature_high != *target_temp_high;
+      this->target_temperature_high = *target_temp_high;
     }
     // ensure the two set points are valid and adjust one of them if necessary
     this->validate_target_temperatures(target_temperature_high_changed ||
                                        (this->prev_mode_ == climate::CLIMATE_MODE_COOL));
   } else {
-    if (auto val = call.get_target_temperature(); val.has_value()) {
-      this->target_temperature = *val;
+    auto target_temp = call.get_target_temperature();
+    if (target_temp.has_value()) {
+      this->target_temperature = *target_temp;
       this->validate_target_temperature();
     }
   }
-  if (auto val = call.get_target_humidity(); val.has_value()) {
-    this->target_humidity = *val;
+  auto target_humidity = call.get_target_humidity();
+  if (target_humidity.has_value()) {
+    this->target_humidity = *target_humidity;
     this->validate_target_humidity();
   }
   // make any changes happen

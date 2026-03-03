@@ -90,7 +90,8 @@ void Infrared::control(const InfraredCall &call) {
   auto *transmit_data = transmit_call.get_data();
 
   // Set carrier frequency
-  if (auto freq = call.get_carrier_frequency(); freq.has_value()) {
+  auto freq = call.get_carrier_frequency();
+  if (freq.has_value()) {
     transmit_data->set_carrier_frequency(*freq);
   }
 

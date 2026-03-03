@@ -24,8 +24,9 @@ void Anova::loop() {
 }
 
 void Anova::control(const ClimateCall &call) {
-  if (auto val = call.get_mode(); val.has_value()) {
-    ClimateMode mode = *val;
+  auto mode_val = call.get_mode();
+  if (mode_val.has_value()) {
+    ClimateMode mode = *mode_val;
     AnovaPacket *pkt;
     switch (mode) {
       case climate::CLIMATE_MODE_OFF:
@@ -45,8 +46,9 @@ void Anova::control(const ClimateCall &call) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
     }
   }
-  if (auto val = call.get_target_temperature(); val.has_value()) {
-    auto *pkt = this->codec_->get_set_target_temp_request(*val);
+  auto target_temp = call.get_target_temperature();
+  if (target_temp.has_value()) {
+    auto *pkt = this->codec_->get_set_target_temp_request(*target_temp);
     auto status =
         esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
                                  pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);

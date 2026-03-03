@@ -45,14 +45,18 @@ fan::FanTraits CopyFan::get_traits() {
 
 void CopyFan::control(const fan::FanCall &call) {
   auto call2 = source_->make_call();
-  if (auto val = call.get_state(); val.has_value())
-    call2.set_state(*val);
-  if (auto val = call.get_oscillating(); val.has_value())
-    call2.set_oscillating(*val);
-  if (auto val = call.get_speed(); val.has_value())
-    call2.set_speed(*val);
-  if (auto val = call.get_direction(); val.has_value())
-    call2.set_direction(*val);
+  auto state = call.get_state();
+  if (state.has_value())
+    call2.set_state(*state);
+  auto oscillating = call.get_oscillating();
+  if (oscillating.has_value())
+    call2.set_oscillating(*oscillating);
+  auto speed = call.get_speed();
+  if (speed.has_value())
+    call2.set_speed(*speed);
+  auto direction = call.get_direction();
+  if (direction.has_value())
+    call2.set_direction(*direction);
   if (call.has_preset_mode())
     call2.set_preset_mode(call.get_preset_mode());
   call2.perform();

@@ -7,7 +7,8 @@ namespace tuya {
 static const char *const TAG = "tuya.climate";
 
 void TuyaClimate::setup() {
-  if (auto switch_id = this->switch_id_; switch_id.has_value()) {
+  auto switch_id = this->switch_id_;
+  if (switch_id.has_value()) {
     this->parent_->register_listener(*switch_id, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported switch is: %s", ONOFF(datapoint.value_bool));
       this->mode = climate::CLIMATE_MODE_OFF;
@@ -32,7 +33,8 @@ void TuyaClimate::setup() {
     this->cooling_state_pin_->setup();
     this->cooling_state_ = this->cooling_state_pin_->digital_read();
   }
-  if (auto active_state_id = this->active_state_id_; active_state_id.has_value()) {
+  auto active_state_id = this->active_state_id_;
+  if (active_state_id.has_value()) {
     this->parent_->register_listener(*active_state_id, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported active state is: %u", datapoint.value_enum);
       this->active_state_ = datapoint.value_enum;
@@ -40,7 +42,8 @@ void TuyaClimate::setup() {
       this->publish_state();
     });
   }
-  if (auto target_temp_id = this->target_temperature_id_; target_temp_id.has_value()) {
+  auto target_temp_id = this->target_temperature_id_;
+  if (target_temp_id.has_value()) {
     this->parent_->register_listener(*target_temp_id, [this](const TuyaDatapoint &datapoint) {
       this->manual_temperature_ = datapoint.value_int * this->target_temperature_multiplier_;
       if (this->reports_fahrenheit_) {
@@ -53,7 +56,8 @@ void TuyaClimate::setup() {
       this->publish_state();
     });
   }
-  if (auto current_temp_id = this->current_temperature_id_; current_temp_id.has_value()) {
+  auto current_temp_id = this->current_temperature_id_;
+  if (current_temp_id.has_value()) {
     this->parent_->register_listener(*current_temp_id, [this](const TuyaDatapoint &datapoint) {
       this->current_temperature = datapoint.value_int * this->current_temperature_multiplier_;
       if (this->reports_fahrenheit_) {
@@ -65,7 +69,8 @@ void TuyaClimate::setup() {
       this->publish_state();
     });
   }
-  if (auto eco_id = this->eco_id_; eco_id.has_value()) {
+  auto eco_id = this->eco_id_;
+  if (eco_id.has_value()) {
     this->parent_->register_listener(*eco_id, [this](const TuyaDatapoint &datapoint) {
       // Whether data type is BOOL or ENUM, it will still be a 1 or a 0, so the functions below are valid in both cases
       this->eco_ = datapoint.value_bool;
@@ -76,7 +81,8 @@ void TuyaClimate::setup() {
       this->publish_state();
     });
   }
-  if (auto sleep_id = this->sleep_id_; sleep_id.has_value()) {
+  auto sleep_id = this->sleep_id_;
+  if (sleep_id.has_value()) {
     this->parent_->register_listener(*sleep_id, [this](const TuyaDatapoint &datapoint) {
       this->sleep_ = datapoint.value_bool;
       ESP_LOGV(TAG, "MCU reported sleep is: %s", ONOFF(this->sleep_));
@@ -85,7 +91,8 @@ void TuyaClimate::setup() {
       this->publish_state();
     });
   }
-  if (auto swing_vert_id = this->swing_vertical_id_; swing_vert_id.has_value()) {
+  auto swing_vert_id = this->swing_vertical_id_;
+  if (swing_vert_id.has_value()) {
     this->parent_->register_listener(*swing_vert_id, [this](const TuyaDatapoint &datapoint) {
       this->swing_vertical_ = datapoint.value_bool;
       ESP_LOGV(TAG, "MCU reported vertical swing is: %s", ONOFF(datapoint.value_bool));
@@ -94,7 +101,8 @@ void TuyaClimate::setup() {
     });
   }
 
-  if (auto swing_horiz_id = this->swing_horizontal_id_; swing_horiz_id.has_value()) {
+  auto swing_horiz_id = this->swing_horizontal_id_;
+  if (swing_horiz_id.has_value()) {
     this->parent_->register_listener(*swing_horiz_id, [this](const TuyaDatapoint &datapoint) {
       this->swing_horizontal_ = datapoint.value_bool;
       ESP_LOGV(TAG, "MCU reported horizontal swing is: %s", ONOFF(datapoint.value_bool));
@@ -103,7 +111,8 @@ void TuyaClimate::setup() {
     });
   }
 
-  if (auto fan_speed_id = this->fan_speed_id_; fan_speed_id.has_value()) {
+  auto fan_speed_id = this->fan_speed_id_;
+  if (fan_speed_id.has_value()) {
     this->parent_->register_listener(*fan_speed_id, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported Fan Speed Mode is: %u", datapoint.value_enum);
       this->fan_state_ = datapoint.value_enum;

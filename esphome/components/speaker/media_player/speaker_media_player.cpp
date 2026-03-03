@@ -495,17 +495,20 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
 
   MediaCallCommand media_command;
 
-  if (auto ann = call.get_announcement(); this->single_pipeline_() || (ann.has_value() && *ann)) {
+  auto ann = call.get_announcement();
+  if (this->single_pipeline_() || (ann.has_value() && *ann)) {
     media_command.announce = true;
   } else {
     media_command.announce = false;
   }
 
-  if (auto media_url = call.get_media_url(); media_url.has_value()) {
+  auto media_url = call.get_media_url();
+  if (media_url.has_value()) {
     media_command.url =
         new std::string(*media_url);  // Must be manually deleted after receiving media_command from a queue
 
-    if (auto cmd = call.get_command(); cmd.has_value()) {
+    auto cmd = call.get_command();
+    if (cmd.has_value()) {
       if (*cmd == media_player::MEDIA_PLAYER_COMMAND_ENQUEUE) {
         media_command.enqueue = true;
       }
@@ -515,14 +518,16 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     return;
   }
 
-  if (auto vol = call.get_volume(); vol.has_value()) {
+  auto vol = call.get_volume();
+  if (vol.has_value()) {
     media_command.volume = vol;
     // Wait 0 ticks for queue to be free, volume sets aren't that important!
     xQueueSend(this->media_control_command_queue_, &media_command, 0);
     return;
   }
 
-  if (auto cmd = call.get_command(); cmd.has_value()) {
+  auto cmd = call.get_command();
+  if (cmd.has_value()) {
     media_command.command = cmd;
     TickType_t ticks_to_wait = portMAX_DELAY;
     if ((*cmd == media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP) ||

@@ -42,7 +42,8 @@ climate::ClimateTraits UponorSmatrixClimate::traits() {
 }
 
 void UponorSmatrixClimate::control(const climate::ClimateCall &call) {
-  if (auto val = call.get_target_temperature(); val.has_value()) {
+  auto val = call.get_target_temperature();
+  if (val.has_value()) {
     uint16_t temp = celsius_to_raw(*val);
     if (this->preset == climate::CLIMATE_PRESET_ECO) {
       // During ECO mode, the thermostat automatically substracts the setback value from the setpoint,

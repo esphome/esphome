@@ -77,7 +77,8 @@ void TemplateValve::control(const ValveCall &call) {
     this->prev_command_trigger_ = &this->toggle_trigger_;
     this->publish_state();
   }
-  if (auto pos_val = call.get_position(); pos_val.has_value()) {
+  auto pos_val = call.get_position();
+  if (pos_val.has_value()) {
     auto pos = *pos_val;
     this->stop_prev_trigger_();
 
