@@ -15,6 +15,21 @@ using ::testing::Return;
 namespace esphome::bthome::server::testing {
 
 // ---------------------------------------------------------------------------
+// Frame byte offsets — derived from BLE/BTHome named constants, never hardcoded
+//
+// Raw advertisement layout:
+//   [BLE_FLAGS_SIZE bytes]        BLE Flags AD  [02 01 06]
+//   [BLE_SVC_HEADER_SIZE bytes]   Service Data AD  [LL 16 D2 FC]
+//   [sizeof(BTHomeHeader) bytes]  BTHome header
+//   [payload bytes]               BTHome sensor payload
+// ---------------------------------------------------------------------------
+static constexpr size_t FRAME_SVC_LEN_OFFSET = BLE_FLAGS_SIZE;
+static constexpr size_t FRAME_BTHOME_HDR_OFFSET = BLE_FLAGS_SIZE + BLE_SVC_HEADER_SIZE;
+static constexpr size_t FRAME_PAYLOAD_OFFSET = FRAME_BTHOME_HDR_OFFSET + sizeof(BTHomeHeader);
+// Service-data AD length field value = everything after the length byte through end of BTHome header
+static constexpr size_t FRAME_SVC_DATA_BASE_LEN = BLE_SVC_HEADER_SIZE - 1 + sizeof(BTHomeHeader);
+
+// ---------------------------------------------------------------------------
 // MockBLEAdapter — gmock implementation of IBLEAdapter
 // ---------------------------------------------------------------------------
 
@@ -111,21 +126,21 @@ struct ParsedFrame {
 
 ParsedFrame parse_adv_frame(const std::vector<uint8_t> &frame) {
   ParsedFrame result;
-  // Minimum: 3 flags + 1 len + 1 AD type + 2 UUID + 1 BTHome header = 8
-  if (frame.size() < 8)
+  if (frame.size() < FRAME_PAYLOAD_OFFSET)
     return result;
-  // BLE Flags AD: [02 01 06]
-  if (frame[0] != 0x02 || frame[1] != BLE_AD_TYPE_FLAGS || frame[2] != BLE_AD_FLAGS_VALUE)
+  // BLE Flags AD: [len AD_TYPE_FLAGS AD_FLAGS_VALUE]
+  if (frame[0] != uint8_t(BLE_FLAGS_SIZE - 1) || frame[1] != BLE_AD_TYPE_FLAGS || frame[2] != BLE_AD_FLAGS_VALUE)
     return result;
-  // Service Data 16-bit UUID: [len 16 D2 FC]
-  if (frame[4] != BLE_AD_TYPE_SVC_DATA_16 || frame[5] != BTHOME_SVC_UUID_LOW || frame[6] != BTHOME_SVC_UUID_HIGH)
+  // Service Data 16-bit UUID: [len BLE_AD_TYPE_SVC_DATA_16 UUID_LOW UUID_HIGH]
+  if (frame[FRAME_SVC_LEN_OFFSET + 1] != BLE_AD_TYPE_SVC_DATA_16 ||
+      frame[FRAME_SVC_LEN_OFFSET + 2] != BTHOME_SVC_UUID_LOW || frame[FRAME_SVC_LEN_OFFSET + 3] != BTHOME_SVC_UUID_HIGH)
     return result;
 
   BTHomeHeader header{};
-  memcpy(&header, &frame[7], 1);
+  memcpy(&header, &frame[FRAME_BTHOME_HDR_OFFSET], sizeof(header));
   result.bthome_version = header.version;
   result.encrypted = header.encrypted;
-  result.payload.assign(frame.begin() + 8, frame.end());
+  result.payload.assign(frame.begin() + FRAME_PAYLOAD_OFFSET, frame.end());
   result.valid = true;
   return result;
 }
@@ -140,6 +155,12 @@ ParsedFrame parse_adv_frame(const std::vector<uint8_t> &frame) {
 class BTHomeServerTest : public ::testing::Test {
  protected:
   static constexpr uint8_t MAC_BYTES[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+  static constexpr size_t BATTERY_ENCODED_SIZE =
+      sizeof(BTHomeHeader) + get_bthome_value_length(BTHomeObjectType::BATTERY_PCT);
+  static constexpr size_t TEMPERATURE_ENCODED_SIZE =
+      sizeof(BTHomeHeader) + get_bthome_value_length(BTHomeObjectType::TEMPERATURE_C_E2);
+  static constexpr size_t HUMIDITY_ENCODED_SIZE =
+      sizeof(BTHomeHeader) + get_bthome_value_length(BTHomeObjectType::HUMIDITY_PCT_E2);
 
   NiceMock<MockBLEAdapter> adapter_;
   TestableBTHomeServer<3> server_{&adapter_};
@@ -317,8 +338,7 @@ TEST_F(BTHomeServerTest, OnAdvertiseSameTypeGroupWrittenTogether) {
   auto frame = parse_adv_frame(captured);
   ASSERT_TRUE(frame.valid);
 
-  // All 3 BATTERY_PCT sensors: 3 * 2 = 6 bytes of payload
-  EXPECT_EQ(frame.payload.size(), 6u);
+  EXPECT_EQ(frame.payload.size(), 3 * BATTERY_ENCODED_SIZE);
 }
 
 // An invalid sensor inside a same-type group causes the entire group to be skipped,
@@ -368,10 +388,15 @@ TEST_F(BTHomeServerTest, OnAdvertiseSameTypeGroupSkippedIfMemberInvalid) {
 
 class BTHomeServerPackingTest : public ::testing::Test {
  protected:
+  static constexpr size_t BATTERY_ENCODED_SIZE =
+      sizeof(BTHomeHeader) + get_bthome_value_length(BTHomeObjectType::BATTERY_PCT);
+  static constexpr size_t TEMPERATURE_ENCODED_SIZE =
+      sizeof(BTHomeHeader) + get_bthome_value_length(BTHomeObjectType::TEMPERATURE_C_E2);
+
   NiceMock<MockBLEAdapter> adapter_;
   TestableBTHomeServer<12> server_{&adapter_};
 
-  // 10 x BATTERY_PCT (2 bytes) + 2 x TEMPERATURE_C_E2 (3 bytes)
+  // 10 x BATTERY_PCT + 2 x TEMPERATURE_C_E2
   MockLocalSensor bat0_{BTHomeObjectType::BATTERY_PCT, 10.0f};
   MockLocalSensor bat1_{BTHomeObjectType::BATTERY_PCT, 20.0f};
   MockLocalSensor bat2_{BTHomeObjectType::BATTERY_PCT, 30.0f};
@@ -412,13 +437,11 @@ class BTHomeServerPackingTest : public ::testing::Test {
 };
 
 TEST_F(BTHomeServerPackingTest, Frame1ContainsOnlyBatteryGroup) {
-  // BATTERY group = 10*2 = 20 bytes fits; TEMPERATURE group (6) > 3 remaining → skip
   server_.on_advertise(true);
 
   auto frame = parse_adv_frame(last_frame_);
   ASSERT_TRUE(frame.valid);
-  // 10 BATTERY_PCT sensors × 2 bytes = 20 bytes payload
-  EXPECT_EQ(frame.payload.size(), 20u);
+  EXPECT_EQ(frame.payload.size(), 10 * BATTERY_ENCODED_SIZE);
 }
 
 TEST_F(BTHomeServerPackingTest, Frame1SetsNextIndexToFirstSkippedGroup) {
@@ -435,8 +458,7 @@ TEST_F(BTHomeServerPackingTest, Frame2ContainsOnlyTemperatureGroup) {
 
   auto frame = parse_adv_frame(last_frame_);
   ASSERT_TRUE(frame.valid);
-  // 2 TEMPERATURE_C_E2 sensors × 3 bytes = 6 bytes payload
-  EXPECT_EQ(frame.payload.size(), 6u);
+  EXPECT_EQ(frame.payload.size(), 2 * TEMPERATURE_ENCODED_SIZE);
 }
 
 TEST_F(BTHomeServerPackingTest, Frame2SetsNextIndexBackToZero) {
@@ -454,7 +476,7 @@ TEST_F(BTHomeServerPackingTest, CyclesBackToFrame1Content) {
 
   auto frame = parse_adv_frame(last_frame_);
   ASSERT_TRUE(frame.valid);
-  EXPECT_EQ(frame.payload.size(), 20u);  // same as frame 1
+  EXPECT_EQ(frame.payload.size(), 10 * BATTERY_ENCODED_SIZE);  // same as frame 1
 }
 
 // ===========================================================================
@@ -465,8 +487,8 @@ TEST_F(BTHomeServerTest, FrameHasCorrectBLEFlags) {
   do_setup();
   server_.on_advertise(true);
 
-  ASSERT_GE(last_frame_.size(), 3u);
-  EXPECT_EQ(last_frame_[0], 0x02u);  // length byte
+  ASSERT_GE(last_frame_.size(), BLE_FLAGS_SIZE);
+  EXPECT_EQ(last_frame_[0], uint8_t(BLE_FLAGS_SIZE - 1));  // length byte
   EXPECT_EQ(last_frame_[1], BLE_AD_TYPE_FLAGS);
   EXPECT_EQ(last_frame_[2], BLE_AD_FLAGS_VALUE);
 }
@@ -475,19 +497,19 @@ TEST_F(BTHomeServerTest, FrameHasCorrectServiceDataHeader) {
   do_setup();
   server_.on_advertise(true);
 
-  ASSERT_GE(last_frame_.size(), 7u);
-  EXPECT_EQ(last_frame_[4], BLE_AD_TYPE_SVC_DATA_16);
-  EXPECT_EQ(last_frame_[5], BTHOME_SVC_UUID_LOW);
-  EXPECT_EQ(last_frame_[6], BTHOME_SVC_UUID_HIGH);
+  ASSERT_GE(last_frame_.size(), FRAME_BTHOME_HDR_OFFSET);
+  EXPECT_EQ(last_frame_[FRAME_SVC_LEN_OFFSET + 1], BLE_AD_TYPE_SVC_DATA_16);
+  EXPECT_EQ(last_frame_[FRAME_SVC_LEN_OFFSET + 2], BTHOME_SVC_UUID_LOW);
+  EXPECT_EQ(last_frame_[FRAME_SVC_LEN_OFFSET + 3], BTHOME_SVC_UUID_HIGH);
 }
 
 TEST_F(BTHomeServerTest, FrameHasBTHomeVersion2) {
   do_setup();
   server_.on_advertise(true);
 
-  ASSERT_GE(last_frame_.size(), 8u);
+  ASSERT_GE(last_frame_.size(), FRAME_PAYLOAD_OFFSET);
   BTHomeHeader hdr{};
-  memcpy(&hdr, &last_frame_[7], 1);
+  memcpy(&hdr, &last_frame_[FRAME_BTHOME_HDR_OFFSET], sizeof(hdr));
   EXPECT_EQ(hdr.version, BTHOME_VERSION_2);
   EXPECT_EQ(hdr.encrypted, 0u);
 }
@@ -496,21 +518,21 @@ TEST_F(BTHomeServerTest, FrameLengthByteMatchesPayload) {
   do_setup();
   server_.on_advertise(true);
 
-  ASSERT_GE(last_frame_.size(), 8u);
-  // Byte 3 = service data AD length = 1(AD_type) + 2(UUID) + 1(hdr) + payload
-  uint8_t svc_data_len = last_frame_[3];
-  size_t expected_payload = last_frame_.size() - 8;
-  EXPECT_EQ(svc_data_len, 4u + expected_payload);
+  ASSERT_GE(last_frame_.size(), FRAME_PAYLOAD_OFFSET);
+  // Service-data AD length = AD_type(1) + UUID(2) + BTHome_hdr(1) + payload
+  uint8_t svc_data_len = last_frame_[FRAME_SVC_LEN_OFFSET];
+  size_t expected_payload = last_frame_.size() - FRAME_PAYLOAD_OFFSET;
+  EXPECT_EQ(svc_data_len, FRAME_SVC_DATA_BASE_LEN + expected_payload);
 }
 
 TEST_F(BTHomeServerTest, FramePayloadMatchesSensorEncodings) {
   do_setup();
   server_.on_advertise(true);
 
-  // Payload = sensor0(2) + sensor1(3) + sensor2(3) = 8 bytes
   auto frame = parse_adv_frame(last_frame_);
   ASSERT_TRUE(frame.valid);
-  EXPECT_EQ(frame.payload.size(), 8u);
+  EXPECT_EQ(frame.payload.size(),
+            sensor0_.get_encoded_size() + sensor1_.get_encoded_size() + sensor2_.get_encoded_size());
 
   // First byte of payload is the object type ID of sensor0 (BATTERY_PCT)
   EXPECT_EQ(frame.payload[0], static_cast<uint8_t>(BTHomeObjectType::BATTERY_PCT));
@@ -564,8 +586,7 @@ TEST_F(BTHomeServerTest, ImmediateAdvertiseIncludesAllSensorsOfSameType) {
 
   auto frame = parse_adv_frame(captured);
   ASSERT_TRUE(frame.valid);
-  // Both BATTERY_PCT sensors: 2 + 2 = 4 bytes
-  EXPECT_EQ(frame.payload.size(), 4u);
+  EXPECT_EQ(frame.payload.size(), 2 * BATTERY_ENCODED_SIZE);
 }
 
 TEST_F(BTHomeServerTest, ImmediateAdvertiseNoFrameIfWriteFails) {
@@ -646,6 +667,13 @@ class BTHomeServerEncryptionTest : public ::testing::Test {
   static constexpr uint8_t MAC_BYTES[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
   static constexpr EncryptionKey TEST_KEY = {0x23, 0x1d, 0x39, 0xc1, 0xd7, 0xcc, 0x1a, 0xb1,
                                              0xae, 0xe2, 0x24, 0xcd, 0x09, 0x6d, 0xb9, 0x32};
+  // Plaintext payload: BATTERY_PCT(75) + TEMPERATURE_C_E2(22.5) + HUMIDITY_PCT_E2(60.0)
+  static constexpr size_t EXPECTED_PLAINTEXT_SIZE =
+      (sizeof(BTHomeHeader) + get_bthome_value_length(BTHomeObjectType::BATTERY_PCT)) +
+      (sizeof(BTHomeHeader) + get_bthome_value_length(BTHomeObjectType::TEMPERATURE_C_E2)) +
+      (sizeof(BTHomeHeader) + get_bthome_value_length(BTHomeObjectType::HUMIDITY_PCT_E2));
+  static constexpr size_t EXPECTED_FRAME_SIZE =
+      FRAME_PAYLOAD_OFFSET + EXPECTED_PLAINTEXT_SIZE + BTHOME_COUNTER_SIZE + BTHOME_MIC_SIZE;
 
   NiceMock<MockBLEAdapter> adapter_;
   TestableBTHomeServer<3> server_{&adapter_};
@@ -675,9 +703,9 @@ class BTHomeServerEncryptionTest : public ::testing::Test {
 TEST_F(BTHomeServerEncryptionTest, EncryptedFrameHasEncryptedHeaderBit) {
   server_.on_advertise(true);
 
-  ASSERT_GE(last_frame_.size(), 8u);
+  ASSERT_GE(last_frame_.size(), FRAME_PAYLOAD_OFFSET);
   BTHomeHeader hdr{};
-  memcpy(&hdr, &last_frame_[7], 1);
+  memcpy(&hdr, &last_frame_[FRAME_BTHOME_HDR_OFFSET], sizeof(hdr));
   EXPECT_EQ(hdr.version, BTHOME_VERSION_2);
   EXPECT_EQ(hdr.encrypted, 1u);
 }
@@ -686,18 +714,27 @@ TEST_F(BTHomeServerEncryptionTest, EncryptedFrameHasEncryptedHeaderBit) {
 TEST_F(BTHomeServerEncryptionTest, EncryptedPayloadDecryptsToSensorData) {
   server_.on_advertise(true);
 
-  // 3 flags + 4 svc-hdr + 1 BTHome-hdr + 16 encrypted blob = 24 bytes total
-  ASSERT_EQ(last_frame_.size(), 24u);
+  ASSERT_EQ(last_frame_.size(), EXPECTED_FRAME_SIZE);
 
   BTHomeHeader hdr{.encrypted = 1, .trigger_based = 0, .version = BTHOME_VERSION_2};
   size_t plaintext_size = 0;
-  const uint8_t *plaintext = bthome_decrypt(last_frame_.data() + 8, last_frame_.size() - 8, MacAddressPtr(MAC_BYTES),
-                                            hdr, TEST_KEY, plaintext_size);
+  const uint8_t *plaintext =
+      bthome_decrypt(last_frame_.data() + FRAME_PAYLOAD_OFFSET, last_frame_.size() - FRAME_PAYLOAD_OFFSET,
+                     MacAddressPtr(MAC_BYTES), hdr, TEST_KEY, plaintext_size);
 
   ASSERT_NE(plaintext, nullptr) << "Decryption failed";
 
-  // Expected: BATTERY_PCT(75) + TEMPERATURE_C_E2(22.5) + HUMIDITY_PCT_E2(60.0)
-  const std::vector<uint8_t> expected = {0x01, 0x4B, 0x02, 0xCA, 0x08, 0x03, 0x70, 0x17};
+  // Expected plaintext: BATTERY_PCT(75) + TEMPERATURE_C_E2(22.5) + HUMIDITY_PCT_E2(60.0)
+  const std::vector<uint8_t> expected = {
+      static_cast<uint8_t>(BTHomeObjectType::BATTERY_PCT),
+      0x4B,
+      static_cast<uint8_t>(BTHomeObjectType::TEMPERATURE_C_E2),
+      0xCA,
+      0x08,
+      static_cast<uint8_t>(BTHomeObjectType::HUMIDITY_PCT_E2),
+      0x70,
+      0x17,
+  };
   ASSERT_EQ(plaintext_size, expected.size());
   EXPECT_EQ(std::vector<uint8_t>(plaintext, plaintext + plaintext_size), expected);
 }
@@ -705,15 +742,15 @@ TEST_F(BTHomeServerEncryptionTest, EncryptedPayloadDecryptsToSensorData) {
 // The counter embedded in the encrypted blob must increment on each advertisement.
 TEST_F(BTHomeServerEncryptionTest, CounterIncrementsEachAdvertisement) {
   server_.on_advertise(true);
-  ASSERT_EQ(last_frame_.size(), 24u);
+  ASSERT_EQ(last_frame_.size(), EXPECTED_FRAME_SIZE);
   uint32_t counter0;
-  memcpy(&counter0, last_frame_.data() + 16, sizeof(counter0));
+  memcpy(&counter0, last_frame_.data() + FRAME_PAYLOAD_OFFSET + EXPECTED_PLAINTEXT_SIZE, sizeof(counter0));
 
   last_frame_.clear();
   server_.on_advertise(true);
-  ASSERT_EQ(last_frame_.size(), 24u);
+  ASSERT_EQ(last_frame_.size(), EXPECTED_FRAME_SIZE);
   uint32_t counter1;
-  memcpy(&counter1, last_frame_.data() + 16, sizeof(counter1));
+  memcpy(&counter1, last_frame_.data() + FRAME_PAYLOAD_OFFSET + EXPECTED_PLAINTEXT_SIZE, sizeof(counter1));
 
   EXPECT_EQ(counter1, counter0 + 1u);
 }
