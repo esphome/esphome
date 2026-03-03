@@ -33,7 +33,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
-            const { fetchCodeowners, getEffectiveOwners } = require('./.github/scripts/codeowners.js');
+            const { loadCodeowners, getEffectiveOwners } = require('./.github/scripts/codeowners.js');
 
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -60,11 +60,8 @@ jobs:
                 return;
               }
 
-              // Fetch and parse CODEOWNERS file from base branch
-              const codeownersPatterns = await fetchCodeowners(
-                github, owner, repo,
-                context.payload.pull_request.base.sha
-              );
+              // Parse CODEOWNERS from the checked-out base branch
+              const codeownersPatterns = loadCodeowners();
 
               console.log(`Parsed ${codeownersPatterns.length} codeowner patterns`);
 
@@ -85,17 +82,7 @@ jobs:
               const effective = getEffectiveOwners(changedFiles, codeownersPatterns);
               const matchedOwners = effective.users;
               const matchedTeams = effective.teams;
-
-              // Count matched files for the comment
-              let matchedFileCount = 0;
-              for (const file of changedFiles) {
-                for (const { regex } of codeownersPatterns) {
-                  if (regex.test(file)) {
-                    matchedFileCount++;
-                    break;
-                  }
-                }
-              }
+              const matchedFileCount = effective.matchedFileCount;
 
               if (matchedOwners.size === 0 && matchedTeams.size === 0) {
                 console.log('No codeowners found for any changed files');

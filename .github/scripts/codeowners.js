@@ -13,8 +13,9 @@
 function globToRegex(pattern) {
   let regexStr = pattern
     .replace(/([.+^=!:${}()|[\]\\])/g, '\\$1')
-    .replace(/\*\*/g, '.*')
-    .replace(/\*/g, '[^/]*')
+    .replace(/\*\*/g, '\x00GLOBSTAR\x00')  // protect ** from next replace
+    .replace(/\*/g, '[^/]*')               // single star
+    .replace(/\x00GLOBSTAR\x00/g, '.*')    // restore globstar
     .replace(/\?/g, '.');
   return new RegExp('^' + regexStr + '$');
 }
@@ -91,11 +92,12 @@ function classifyOwners(rawOwners) {
  *
  * @param {string[]} files              - list of file paths
  * @param {Array}    codeownersPatterns  - from parseCodeowners / fetchCodeowners
- * @returns {{ users: Set<string>, teams: Set<string> }}
+ * @returns {{ users: Set<string>, teams: Set<string>, matchedFileCount: number }}
  */
 function getEffectiveOwners(files, codeownersPatterns) {
   const users = new Set();
   const teams = new Set();
+  let matchedFileCount = 0;
 
   for (const file of files) {
     // Last matching pattern wins for each file
@@ -106,19 +108,36 @@ function getEffectiveOwners(files, codeownersPatterns) {
       }
     }
     if (effectiveOwners) {
+      matchedFileCount++;
       const classified = classifyOwners(effectiveOwners);
       for (const u of classified.users) users.add(u);
       for (const t of classified.teams) teams.add(t);
     }
   }
 
-  return { users, teams };
+  return { users, teams, matchedFileCount };
+}
+
+/**
+ * Read and parse the CODEOWNERS file from disk.
+ *
+ * Use this when the repo is already checked out (avoids an API call).
+ *
+ * @param {string} [repoRoot='.'] - path to the repo root
+ * @returns {Array<{pattern: string, regex: RegExp, owners: string[]}>}
+ */
+function loadCodeowners(repoRoot = '.') {
+  const fs = require('fs');
+  const path = require('path');
+  const content = fs.readFileSync(path.join(repoRoot, 'CODEOWNERS'), 'utf8');
+  return parseCodeowners(content);
 }
 
 module.exports = {
   globToRegex,
   parseCodeowners,
   fetchCodeowners,
+  loadCodeowners,
   classifyOwners,
   getEffectiveOwners
 };
