@@ -166,7 +166,11 @@ def _validate_supported_local_file(config):
     for file_config in config:
         _, media_file_type = read_audio_file_and_type(file_config)
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
-            raise cv.Invalid("Unsupported local media file")
+            file_info = file_config.get(CONF_FILE, {})
+            source = file_info.get(CONF_PATH) or file_info.get(CONF_URL) or "unknown source"
+            raise cv.Invalid(
+                f"Unsupported media file from {source!r} (detected type: {media_file_type})"
+            )
 
         for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
             if str(media_file_type) == str(fmt_enum):
@@ -182,6 +186,7 @@ def _validate_supported_local_file(config):
 
 
 CONFIG_SCHEMA = cv.All(
+    cv.only_on_esp32,
     cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
     _validate_supported_local_file,
 )
