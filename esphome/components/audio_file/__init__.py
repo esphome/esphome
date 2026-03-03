@@ -15,7 +15,8 @@ from esphome.const import (
     CONF_TYPE,
     CONF_URL,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import CORE, ID, HexInt
+from esphome.cpp_generator import MockObj
 from esphome.external_files import download_content
 from esphome.types import ConfigType
 
@@ -33,10 +34,8 @@ TYPE_WEB = "web"
 
 @dataclass
 class AudioFileData:
-    file_ids: dict = field(default_factory=dict)  # {str_id: config_id}
-    file_cache: dict = field(
-        default_factory=dict
-    )  # {config_id: (data, media_file_type)}
+    file_ids: dict[str, ID] = field(default_factory=dict)
+    file_cache: dict[str, tuple[bytes, MockObj]] = field(default_factory=dict)
 
 
 def _get_data() -> AudioFileData:
@@ -45,12 +44,12 @@ def _get_data() -> AudioFileData:
     return CORE.data[DOMAIN]
 
 
-def get_audio_file_ids() -> dict:
+def get_audio_file_ids() -> dict[str, ID]:
     """Get all registered audio file IDs for cross-component access."""
     return _get_data().file_ids
 
 
-def _compute_local_file_path(value: dict) -> Path:
+def _compute_local_file_path(value: ConfigType) -> Path:
     url = value[CONF_URL]
     h = hashlib.new("sha256")
     h.update(url.encode())
@@ -60,7 +59,7 @@ def _compute_local_file_path(value: dict) -> Path:
     return base_dir / key
 
 
-def _download_web_file(value):
+def _download_web_file(value: ConfigType) -> ConfigType:
     url = value[CONF_URL]
     path = _compute_local_file_path(value)
 
@@ -69,13 +68,13 @@ def _download_web_file(value):
     return value
 
 
-def _file_schema(value):
+def _file_schema(value: ConfigType | str) -> ConfigType:
     if isinstance(value, str):
         return _validate_file_shorthand(value)
     return TYPED_FILE_SCHEMA(value)
 
 
-def _validate_file_shorthand(value):
+def _validate_file_shorthand(value: str) -> ConfigType:
     value = cv.string_strict(value)
     if value.startswith("http://") or value.startswith("https://"):
         return _file_schema(
@@ -92,7 +91,7 @@ def _validate_file_shorthand(value):
     )
 
 
-def read_audio_file_and_type(file_config):
+def read_audio_file_and_type(file_config: ConfigType) -> tuple[bytes, MockObj]:
     """Read an audio file and determine its type. Used by this component and media_source platform."""
     conf_file = file_config[CONF_FILE]
     file_source = conf_file[CONF_TYPE]
@@ -212,7 +211,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: list[ConfigType]) -> None:
     audio_file_ns = cg.esphome_ns.namespace("audio_file")
     cache = _get_data().file_cache
 
