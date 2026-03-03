@@ -194,15 +194,13 @@ def _validate_supported_local_file(config: list[ConfigType]) -> list[ConfigType]
         # Cache the file data so to_code() doesn't need to re-read it
         _get_data().file_cache[str(file_config[CONF_ID])] = (data, media_file_type)
 
-        for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
-            if str(media_file_type) == str(fmt_enum):
-                if fmt_name == "FLAC":
-                    audio.request_flac_support()
-                elif fmt_name == "MP3":
-                    audio.request_mp3_support()
-                elif fmt_name == "OPUS":
-                    audio.request_opus_support()
-                break
+        media_file_type_str = str(media_file_type)
+        if media_file_type_str == str(audio.AUDIO_FILE_TYPE_ENUM["FLAC"]):
+            audio.request_flac_support()
+        elif media_file_type_str == str(audio.AUDIO_FILE_TYPE_ENUM["MP3"]):
+            audio.request_mp3_support()
+        elif media_file_type_str == str(audio.AUDIO_FILE_TYPE_ENUM["OPUS"]):
+            audio.request_opus_support()
 
     return config
 
