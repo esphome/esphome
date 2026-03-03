@@ -27,8 +27,8 @@ inline bool espnow_is_peer_exist(const uint8_t *mac_addr) { return esp_now_is_pe
 #elif defined(USE_ESP8266)
 
 extern "C" {
-#include <espnow.h>
 #include <user_interface.h>
+#include <espnow.h>
 }
 
 #ifndef ESP_NOW_ETH_ALEN

@@ -4,6 +4,10 @@
 
 #include "espnow_err.h"
 
+#if defined(USE_ESP8266)
+#include "espnow_platform.h"
+#endif
+
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -252,7 +256,7 @@ void ESPNowComponent::enable() {
 void ESPNowComponent::enable_() {
   if (!this->is_wifi_enabled()) {
 #if defined(USE_ESP32)
-    esp_event_loop_create_default();
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 
@@ -263,9 +267,7 @@ void ESPNowComponent::enable_() {
     ESP_ERROR_CHECK(esp_wifi_start());
     ESP_ERROR_CHECK(esp_wifi_disconnect());
 #else
-    wifi_set_opmode_current(STATION_MODE);
-    wifi_set_sleep_type(NONE_SLEEP_T);
-    wifi_station_disconnect();
+    espnow_esp8266::init_wifi_station();
 #endif
 
     this->apply_wifi_channel();
@@ -280,7 +282,7 @@ void ESPNowComponent::enable_() {
   }
 
 #if defined(USE_ESP8266)
-  err = esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
+  err = espnow_esp8266::set_self_role();
   if (err != ESPNOW_OK) {
     ESP_LOGE(TAG, "esp_now_set_self_role failed: %d", err);
     this->mark_failed();
@@ -305,7 +307,7 @@ void ESPNowComponent::enable_() {
 #if defined(USE_ESP32)
   esp_wifi_get_mac(WIFI_IF_STA, this->own_address_);
 #else
-  wifi_get_macaddr(STATION_IF, this->own_address_);
+  espnow_esp8266::read_mac(this->own_address_);
 #endif
 
 #ifdef USE_DEEP_SLEEP
@@ -357,9 +359,7 @@ void ESPNowComponent::apply_wifi_channel() {
   esp_wifi_set_channel(this->wifi_channel_, WIFI_SECOND_CHAN_NONE);
   esp_wifi_set_promiscuous(false);
 #else
-  wifi_promiscuous_enable(true);
-  wifi_set_channel(this->wifi_channel_);
-  wifi_promiscuous_enable(false);
+  espnow_esp8266::apply_wifi_channel(this->wifi_channel_);
 #endif
 }
 
@@ -467,7 +467,7 @@ uint8_t ESPNowComponent::get_wifi_channel() {
   wifi_second_chan_t dummy;
   esp_wifi_get_channel(&this->wifi_channel_, &dummy);
 #else
-  this->wifi_channel_ = wifi_get_channel();
+  this->wifi_channel_ = espnow_esp8266::get_wifi_channel();
 #endif
   return this->wifi_channel_;
 }
@@ -567,7 +567,7 @@ espnow_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
     memcpy(peer_info.peer_addr, peer, ESP_NOW_ETH_ALEN);
     espnow_err_t err = esp_now_add_peer(&peer_info);
 #else
-    espnow_err_t err = esp_now_add_peer(const_cast<uint8_t *>(peer), ESP_NOW_ROLE_COMBO, 0, nullptr, 0);
+    espnow_err_t err = espnow_esp8266::add_peer(peer);
 #endif
 
     if (err != ESPNOW_OK) {
@@ -605,7 +605,11 @@ espnow_err_t ESPNowComponent::del_peer(const uint8_t *peer) {
     return ESPNOW_ERR_NOT_INIT;
   }
   if (espnow_is_peer_exist(peer)) {
-    espnow_err_t err = esp_now_del_peer(const_cast<uint8_t *>(peer));
+#if defined(USE_ESP32)
+    espnow_err_t err = esp_now_del_peer(peer);
+#else
+    espnow_err_t err = espnow_esp8266::del_peer(peer);
+#endif
     if (err != ESPNOW_OK) {
       char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(peer, peer_buf);
