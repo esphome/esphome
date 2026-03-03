@@ -10,7 +10,7 @@ namespace esphome {
 namespace bthome {
 namespace server {
 
-class BTHomeLocalBase {
+class BTHomeLocalObject {
  public:
   void set_object_type(BTHomeObjectType type) { this->object_type_ = type; }
   BTHomeObjectType get_object_type() const { return this->object_type_; }
@@ -35,7 +35,7 @@ namespace esphome {
 namespace bthome {
 namespace server {
 
-class BTHomeLocalSensor : public BTHomeLocalBase {
+class BTHomeLocalSensor : public BTHomeLocalObject {
  public:
   void set_source(sensor::Sensor *source) { this->source_ = source; }
   size_t get_encoded_size() const override;
@@ -58,7 +58,7 @@ namespace esphome {
 namespace bthome {
 namespace server {
 
-class BTHomeLocalBinarySensor : public BTHomeLocalBase {
+class BTHomeLocalBinarySensor : public BTHomeLocalObject {
  public:
   void set_source(binary_sensor::BinarySensor *source) { this->source_ = source; }
   size_t get_encoded_size() const override;
@@ -81,7 +81,7 @@ namespace esphome {
 namespace bthome {
 namespace server {
 
-class BTHomeLocalTextSensor : public BTHomeLocalBase {
+class BTHomeLocalTextSensor : public BTHomeLocalObject {
  public:
   void set_source(text_sensor::TextSensor *source) { this->source_ = source; }
   void set_max_length(size_t max_length) { this->max_length_ = max_length; }

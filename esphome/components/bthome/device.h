@@ -1,5 +1,5 @@
 #pragma once
-#include "handler.h"
+#include "remote_object.h"
 #include "helpers.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/defines.h"
@@ -26,11 +26,11 @@ class DeviceBase {
     this->encryption_key = k;
   }
 #endif
-  virtual void set_handler(size_t index, BTHomeObjectHandler *handler) = 0;
+  virtual void set_handler(size_t index, BTHomeRemoteObject *handler) = 0;
   bool parse_data(MacAddressPtr source_address, const uint8_t *data, size_t data_size);
 
  protected:
-  virtual std::span<BTHomeObjectHandler *> get_handlers() = 0;
+  virtual std::span<BTHomeRemoteObject *> get_handlers() = 0;
 
   MacAddress address_;
   optional<uint8_t> last_packet_id_{};
@@ -41,13 +41,13 @@ class DeviceBase {
 
 template<size_t NUM_SENSORS> class Device : public DeviceBase {
  public:
-  void set_handler(size_t index, BTHomeObjectHandler *handler) override { handlers_[index] = handler; }
+  void set_handler(size_t index, BTHomeRemoteObject *handler) override { handlers_[index] = handler; }
 
  protected:
-  std::span<BTHomeObjectHandler *> get_handlers() override { return handlers_; }
+  std::span<BTHomeRemoteObject *> get_handlers() override { return handlers_; }
 
  private:
-  std::array<BTHomeObjectHandler *, NUM_SENSORS> handlers_{};
+  std::array<BTHomeRemoteObject *, NUM_SENSORS> handlers_{};
 };
 
 }  // namespace bthome

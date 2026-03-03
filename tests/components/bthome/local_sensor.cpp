@@ -3,7 +3,7 @@
 
 #include "esphome/components/bthome/encoder.h"
 #include "esphome/components/bthome/helpers.h"
-#include "esphome/components/bthome/local_sensor.h"
+#include "esphome/components/bthome/local_object.h"
 
 namespace esphome::bthome::server::testing {
 

@@ -41,10 +41,10 @@ class MockBLEAdapter : public ::esphome::bthome::IBLEAdvertiser {
 };
 
 // ---------------------------------------------------------------------------
-// MockLocalSensor — controllable BTHomeLocalBase
+// MockLocalSensor — controllable BTHomeLocalObject
 // ---------------------------------------------------------------------------
 
-class MockLocalSensor : public BTHomeLocalBase {
+class MockLocalSensor : public BTHomeLocalObject {
  public:
   explicit MockLocalSensor(BTHomeObjectType type, float value = 50.0f) {
     this->set_object_type(type);
@@ -761,7 +761,7 @@ TEST_F(BTHomeServerEncryptionTest, CounterIncrementsEachAdvertisement) {
 // Encoding: object_type(1B) + content_length(1B) + content(≤max_length B)
 // ===========================================================================
 
-class MockLocalTextSensor : public BTHomeLocalBase {
+class MockLocalTextSensor : public BTHomeLocalObject {
  public:
   explicit MockLocalTextSensor(BTHomeObjectType type, size_t max_length = 5) {
     this->set_object_type(type);

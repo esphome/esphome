@@ -4,7 +4,7 @@
 namespace esphome {
 namespace bthome {
 
-class BTHomeObjectHandler {
+class BTHomeRemoteObject {
  public:
   void set_object_type(BTHomeObjectType object_type) { this->object_type_ = object_type; }
   virtual bool process_object(const BTHomeObject &object) = 0;

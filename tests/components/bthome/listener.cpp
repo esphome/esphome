@@ -6,7 +6,7 @@
 namespace esphome::bthome::testing {
 
 // Handler that records how many times it was called for a specific object type
-class MockHandler : public BTHomeObjectHandler {
+class MockHandler : public BTHomeRemoteObject {
  public:
   explicit MockHandler(BTHomeObjectType expected_type) : expected_type_(expected_type) {}
 

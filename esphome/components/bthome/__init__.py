@@ -37,19 +37,19 @@ bthome_ns = cg.esphome_ns.namespace("bthome")
 DeviceListener = bthome_ns.class_("DeviceListener")
 DeviceBase = bthome_ns.class_("DeviceBase")
 Device = bthome_ns.class_("Device", DeviceBase)
-BTHomeObjectHandler = bthome_ns.class_("BTHomeObjectHandler")
+BTHomeRemoteObject = bthome_ns.class_("BTHomeRemoteObject")
 BTHomeSensor = bthome_ns.class_(
-    "BTHomeSensor", BTHomeObjectHandler, sensor.Sensor, cg.Component
+    "BTHomeSensor", BTHomeRemoteObject, sensor.Sensor, cg.Component
 )
 BTHomeBinarySensor = bthome_ns.class_(
     "BTHomeBinarySensor",
-    BTHomeObjectHandler,
+    BTHomeRemoteObject,
     binary_sensor.BinarySensor,
     cg.Component,
 )
 BTHomeTextSensor = bthome_ns.class_(
     "BTHomeTextSensor",
-    BTHomeObjectHandler,
+    BTHomeRemoteObject,
     text_sensor.TextSensor,
     cg.Component,
 )

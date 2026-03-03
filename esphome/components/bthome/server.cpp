@@ -55,7 +55,7 @@ void BTHomeServerBase::on_advertise(bool active) {
 
   for (size_t i = 0; i < sensors.size();) {
     size_t idx = (start + i) % sensors.size();
-    BTHomeLocalBase *sensor = sensors[idx];
+    BTHomeLocalObject *sensor = sensors[idx];
     BTHomeObjectType current_type = sensor->get_object_type();
 
     // Find the complete group of consecutive sensors with the same type

@@ -6,7 +6,7 @@
 
 #include "decoder.h"
 #include "encoder.h"
-#include "local_sensor.h"
+#include "local_object.h"
 #include "helpers.h"
 #include "ble.h"
 #include "esphome/core/component.h"
@@ -39,8 +39,8 @@ class BTHomeServerBase : public Component, public IBLEAdvHandler {
 #endif
 
   // Virtual methods for derived class to manage sensors
-  virtual void set_local_sensor(size_t index, BTHomeLocalBase *sensor) = 0;
-  virtual std::span<BTHomeLocalBase *> get_local_sensors() = 0;
+  virtual void set_local_sensor(size_t index, BTHomeLocalObject *sensor) = 0;
+  virtual std::span<BTHomeLocalObject *> get_local_sensors() = 0;
 
   void on_advertise(bool active) override;
 
@@ -66,14 +66,14 @@ template<size_t N> class BTHomeServer : public BTHomeServerBase {
  public:
   explicit BTHomeServer(IBLEAdvertiser *ble_adapter = nullptr) : BTHomeServerBase(ble_adapter) {}
 
-  void set_local_sensor(size_t index, BTHomeLocalBase *sensor) override { this->local_sensors_[index] = sensor; }
+  void set_local_sensor(size_t index, BTHomeLocalObject *sensor) override { this->local_sensors_[index] = sensor; }
 
-  std::span<BTHomeLocalBase *> get_local_sensors() override {
-    return std::span<BTHomeLocalBase *>(this->local_sensors_.data(), N);
+  std::span<BTHomeLocalObject *> get_local_sensors() override {
+    return std::span<BTHomeLocalObject *>(this->local_sensors_.data(), N);
   }
 
  private:
-  std::array<BTHomeLocalBase *, N> local_sensors_{};
+  std::array<BTHomeLocalObject *, N> local_sensors_{};
 };
 
 }  // namespace server

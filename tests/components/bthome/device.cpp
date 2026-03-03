@@ -5,14 +5,14 @@
 namespace esphome::bthome::testing {
 
 // Mock handler that tracks processed objects
-class MockBTHomeObjectHandler : public BTHomeObjectHandler {
+class MockBTHomeRemoteObject : public BTHomeRemoteObject {
  public:
   struct ProcessedObject {
     BTHomeObjectType type;
     float value;
   };
 
-  MockBTHomeObjectHandler(BTHomeObjectType expected_type) : expected_type_(expected_type) {}
+  MockBTHomeRemoteObject(BTHomeObjectType expected_type) : expected_type_(expected_type) {}
 
   bool process_object(const BTHomeObject &object) override {
     if (object.type != this->expected_type_)
@@ -37,8 +37,8 @@ class BTHomeDeviceTest : public ::testing::Test {
  protected:
   // Create a device with 2 handlers
   Device<2> device;
-  MockBTHomeObjectHandler handler1{BTHomeObjectType::BATTERY_PCT};
-  MockBTHomeObjectHandler handler2{BTHomeObjectType::TEMPERATURE_C_E2};
+  MockBTHomeRemoteObject handler1{BTHomeObjectType::BATTERY_PCT};
+  MockBTHomeRemoteObject handler2{BTHomeObjectType::TEMPERATURE_C_E2};
 
   // Test MAC address: 01:02:03:04:05:06
   MacAddress test_mac_{0x010203040506ULL};
@@ -175,9 +175,9 @@ TEST_F(BTHomeDeviceTest, ParseDataRepeatedObjectType) {
   // Test with repeated object types - each handler gets its own reading
   // Create a device with 3 handlers: TEMP, TEMP, BATTERY
   Device<3> device3;
-  MockBTHomeObjectHandler temp_handler1{BTHomeObjectType::TEMPERATURE_C_E2};
-  MockBTHomeObjectHandler temp_handler2{BTHomeObjectType::TEMPERATURE_C_E2};
-  MockBTHomeObjectHandler batt_handler{BTHomeObjectType::BATTERY_PCT};
+  MockBTHomeRemoteObject temp_handler1{BTHomeObjectType::TEMPERATURE_C_E2};
+  MockBTHomeRemoteObject temp_handler2{BTHomeObjectType::TEMPERATURE_C_E2};
+  MockBTHomeRemoteObject batt_handler{BTHomeObjectType::BATTERY_PCT};
 
   device3.set_address(MacAddress(test_mac_));
   device3.set_handler(0, &temp_handler1);
