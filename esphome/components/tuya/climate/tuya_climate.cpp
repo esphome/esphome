@@ -148,27 +148,34 @@ void TuyaClimate::loop() {
 }
 
 void TuyaClimate::control(const climate::ClimateCall &call) {
-  if (auto mode = call.get_mode(); mode.has_value()) {
+  auto mode = call.get_mode();
+  if (mode.has_value()) {
     const bool switch_state = *mode != climate::CLIMATE_MODE_OFF;
     ESP_LOGV(TAG, "Setting switch: %s", ONOFF(switch_state));
-    if (auto id = this->switch_id_; id.has_value()) {
-      this->parent_->set_boolean_datapoint_value(*id, switch_state);
+    auto switch_dp_id = this->switch_id_;
+    if (switch_dp_id.has_value()) {
+      this->parent_->set_boolean_datapoint_value(*switch_dp_id, switch_state);
     }
     const climate::ClimateMode new_mode = *mode;
 
-    if (auto id = this->active_state_id_; id.has_value()) {
+    auto active_state_dp_id = this->active_state_id_;
+    if (active_state_dp_id.has_value()) {
       if (new_mode == climate::CLIMATE_MODE_HEAT && this->supports_heat_) {
-        if (auto val = this->active_state_heating_value_; val.has_value())
-          this->parent_->set_enum_datapoint_value(*id, *val);
+        auto heating_val = this->active_state_heating_value_;
+        if (heating_val.has_value())
+          this->parent_->set_enum_datapoint_value(*active_state_dp_id, *heating_val);
       } else if (new_mode == climate::CLIMATE_MODE_COOL && this->supports_cool_) {
-        if (auto val = this->active_state_cooling_value_; val.has_value())
-          this->parent_->set_enum_datapoint_value(*id, *val);
+        auto cooling_val = this->active_state_cooling_value_;
+        if (cooling_val.has_value())
+          this->parent_->set_enum_datapoint_value(*active_state_dp_id, *cooling_val);
       } else if (new_mode == climate::CLIMATE_MODE_DRY) {
-        if (auto val = this->active_state_drying_value_; val.has_value())
-          this->parent_->set_enum_datapoint_value(*id, *val);
+        auto drying_val = this->active_state_drying_value_;
+        if (drying_val.has_value())
+          this->parent_->set_enum_datapoint_value(*active_state_dp_id, *drying_val);
       } else if (new_mode == climate::CLIMATE_MODE_FAN_ONLY) {
-        if (auto val = this->active_state_fanonly_value_; val.has_value())
-          this->parent_->set_enum_datapoint_value(*id, *val);
+        auto fanonly_val = this->active_state_fanonly_value_;
+        if (fanonly_val.has_value())
+          this->parent_->set_enum_datapoint_value(*active_state_dp_id, *fanonly_val);
       }
     } else {
       ESP_LOGW(TAG, "Active state (mode) datapoint not configured");
@@ -178,33 +185,38 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
   control_swing_mode_(call);
   control_fan_mode_(call);
 
-  if (auto target_temp = call.get_target_temperature(); target_temp.has_value()) {
+  auto target_temp = call.get_target_temperature();
+  if (target_temp.has_value()) {
     float target_temperature = *target_temp;
     if (this->reports_fahrenheit_)
       target_temperature = (target_temperature * 9 / 5) + 32;
 
     ESP_LOGV(TAG, "Setting target temperature: %.1f", target_temperature);
-    if (auto id = this->target_temperature_id_; id.has_value()) {
-      this->parent_->set_integer_datapoint_value(*id,
+    auto target_temp_dp_id = this->target_temperature_id_;
+    if (target_temp_dp_id.has_value()) {
+      this->parent_->set_integer_datapoint_value(*target_temp_dp_id,
                                                  (int) (target_temperature / this->target_temperature_multiplier_));
     }
   }
 
-  if (auto preset_val = call.get_preset(); preset_val.has_value()) {
+  auto preset_val = call.get_preset();
+  if (preset_val.has_value()) {
     const climate::ClimatePreset preset = *preset_val;
-    if (auto id = this->eco_id_; id.has_value()) {
+    auto eco_dp_id = this->eco_id_;
+    if (eco_dp_id.has_value()) {
       const bool eco = preset == climate::CLIMATE_PRESET_ECO;
       ESP_LOGV(TAG, "Setting eco: %s", ONOFF(eco));
       if (this->eco_type_ == TuyaDatapointType::ENUM) {
-        this->parent_->set_enum_datapoint_value(*id, eco);
+        this->parent_->set_enum_datapoint_value(*eco_dp_id, eco);
       } else {
-        this->parent_->set_boolean_datapoint_value(*id, eco);
+        this->parent_->set_boolean_datapoint_value(*eco_dp_id, eco);
       }
     }
-    if (auto id = this->sleep_id_; id.has_value()) {
+    auto sleep_dp_id = this->sleep_id_;
+    if (sleep_dp_id.has_value()) {
       const bool sleep = preset == climate::CLIMATE_PRESET_SLEEP;
       ESP_LOGV(TAG, "Setting sleep: %s", ONOFF(sleep));
-      this->parent_->set_boolean_datapoint_value(*id, sleep);
+      this->parent_->set_boolean_datapoint_value(*sleep_dp_id, sleep);
     }
   }
 }
@@ -213,7 +225,8 @@ void TuyaClimate::control_swing_mode_(const climate::ClimateCall &call) {
   bool vertical_swing_changed = false;
   bool horizontal_swing_changed = false;
 
-  if (auto swing_mode_val = call.get_swing_mode(); swing_mode_val.has_value()) {
+  auto swing_mode_val = call.get_swing_mode();
+  if (swing_mode_val.has_value()) {
     const auto swing_mode = *swing_mode_val;
 
     switch (swing_mode) {
@@ -258,14 +271,16 @@ void TuyaClimate::control_swing_mode_(const climate::ClimateCall &call) {
     }
   }
 
-  if (auto id = this->swing_vertical_id_; vertical_swing_changed && id.has_value()) {
+  auto vert_dp_id = this->swing_vertical_id_;
+  if (vertical_swing_changed && vert_dp_id.has_value()) {
     ESP_LOGV(TAG, "Setting vertical swing: %s", ONOFF(swing_vertical_));
-    this->parent_->set_boolean_datapoint_value(*id, swing_vertical_);
+    this->parent_->set_boolean_datapoint_value(*vert_dp_id, swing_vertical_);
   }
 
-  if (auto id = this->swing_horizontal_id_; horizontal_swing_changed && id.has_value()) {
+  auto horiz_dp_id = this->swing_horizontal_id_;
+  if (horizontal_swing_changed && horiz_dp_id.has_value()) {
     ESP_LOGV(TAG, "Setting horizontal swing: %s", ONOFF(swing_horizontal_));
-    this->parent_->set_boolean_datapoint_value(*id, swing_horizontal_);
+    this->parent_->set_boolean_datapoint_value(*horiz_dp_id, swing_horizontal_);
   }
 
   // Publish the state after updating the swing mode
