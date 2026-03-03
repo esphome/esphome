@@ -1,10 +1,15 @@
 #pragma once
-#include "../local_sensor.h"
+#include "../handler.h"
+#include "esphome/core/component.h"
 #include "esphome/components/text_sensor/text_sensor.h"
-#include <algorithm>
 
 namespace esphome {
 namespace bthome {
-namespace server {}  // namespace server
+
+class BTHomeTextSensor : public BTHomeObjectHandler, public esphome::text_sensor::TextSensor, public Component {
+ public:
+  bool process_object(const BTHomeObject &object) override;
+};
+
 }  // namespace bthome
 }  // namespace esphome

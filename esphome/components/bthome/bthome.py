@@ -3,6 +3,7 @@ from enum import Enum, auto
 
 from esphome import const
 import esphome.codegen as cg
+import esphome.config_validation as cv
 
 bthome_ns = cg.esphome_ns.namespace("bthome")
 bthome_object_types = bthome_ns.enum("BTHomeObjectType", True)
@@ -603,3 +604,17 @@ for index, ot in enumerate(OBJECT_TYPES_BY_ID):
         f"Object ID mismatch at index {index}: {ot.name} has object_id={ot.object_id}"
     )
     BTHOME_OBJECT_TYPES[ot.name] = ot
+
+
+def bthome_object_type_validator(kind: BTHomeObjectTypeKind):
+    """Return a validator for BTHome object types of the specified kind."""
+
+    def validator(key):
+        value = BTHOME_OBJECT_TYPES.get(key.upper())
+        if value is None:
+            raise cv.Invalid(f"Unknown BTHome object type: {key}")
+        if value.kind != kind:
+            raise cv.Invalid(f"Object type {key} is not a {kind.name}")
+        return key.upper()
+
+    return validator

@@ -9,7 +9,12 @@ from esphome.const import (
 )
 
 from .. import BTHomeSensor, Device, add_handler
-from ..bthome import BTHOME_OBJECT_TYPES, BTHomeObjectTypeKind, bthome_object_types
+from ..bthome import (
+    BTHOME_OBJECT_TYPES,
+    BTHomeObjectTypeKind,
+    bthome_object_type_validator,
+    bthome_object_types,
+)
 
 CODEOWNERS = ["@jpeletier"]
 
@@ -18,16 +23,10 @@ DEPENDENCIES = ["bthome", "sensor"]
 CONF_REMOTE_ID = "remote_id"
 CONF_OBJECT_TYPE = "object_type"
 
-BTHOME_SENSOR_OBJECT_TYPES = {
-    k: v
-    for k, v in BTHOME_OBJECT_TYPES.items()
-    if v.kind == BTHomeObjectTypeKind.SENSOR
-}
-
 
 def _apply_object_type_defaults(config):
     """Fill in sensor schema defaults based on the chosen object_type, if not already set."""
-    obj = BTHOME_SENSOR_OBJECT_TYPES[config[CONF_OBJECT_TYPE]]
+    obj = BTHOME_OBJECT_TYPES[config[CONF_OBJECT_TYPE]]
     config = dict(config)
     if CONF_UNIT_OF_MEASUREMENT not in config:
         config[CONF_UNIT_OF_MEASUREMENT] = obj.unit
@@ -44,8 +43,8 @@ CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(class_=BTHomeSensor).extend(
         {
             cv.Required(CONF_REMOTE_ID): cv.use_id(Device),
-            cv.Required(CONF_OBJECT_TYPE): cv.one_of(
-                *BTHOME_SENSOR_OBJECT_TYPES, upper=True
+            cv.Required(CONF_OBJECT_TYPE): bthome_object_type_validator(
+                BTHomeObjectTypeKind.SENSOR
             ),
         }
     ),
@@ -60,6 +59,6 @@ async def to_code(config):
     await add_handler(
         var,
         config[CONF_REMOTE_ID],
-        BTHOME_SENSOR_OBJECT_TYPES[object_type_key].object_id,
+        BTHOME_OBJECT_TYPES[object_type_key].object_id,
     )
     await cg.register_component(var, config)

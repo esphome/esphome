@@ -18,6 +18,7 @@ from .bthome import (
     BTHOME_SERVER_MAX_PAYLOAD,
     OBJECT_TYPES_BY_ID,
     BTHomeObjectTypeKind,
+    bthome_object_type_validator,
 )
 
 CODEOWNERS = ["@jpeletier"]
@@ -44,6 +45,12 @@ BTHomeBinarySensor = bthome_ns.class_(
     "BTHomeBinarySensor",
     BTHomeObjectHandler,
     binary_sensor.BinarySensor,
+    cg.Component,
+)
+BTHomeTextSensor = bthome_ns.class_(
+    "BTHomeTextSensor",
+    BTHomeObjectHandler,
+    text_sensor.TextSensor,
     cg.Component,
 )
 BTHomeESP32BLEAdvertiser = bthome_ns.class_("ESP32BLEAdvertiser")
@@ -105,20 +112,6 @@ CONF_ADVERTISE_IMMEDIATELY = "advertise_immediately"
 CONF_MAX_LENGTH = "max_length"
 
 
-def _bthome_object_type_by_kind(kind: BTHomeObjectTypeKind):
-    """Return a validator for BTHome object types of the specified kind."""
-
-    def validator(key):
-        value = BTHOME_OBJECT_TYPES.get(key.upper())
-        if value is None:
-            raise cv.Invalid(f"Unknown BTHome object type: {key}")
-        if value.kind != kind:
-            raise cv.Invalid(f"Object type {key} is not a {kind.name}")
-        return key
-
-    return validator
-
-
 def _get_value_length(object_id: int) -> int:
     """Return the encoded byte length for a BTHome object type."""
     if object_id < 0 or object_id >= len(OBJECT_TYPES_BY_ID):
@@ -129,7 +122,7 @@ def _get_value_length(object_id: int) -> int:
 
 _SERVER_SENSOR_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_OBJECT_TYPE): _bthome_object_type_by_kind(
+        cv.Required(CONF_OBJECT_TYPE): bthome_object_type_validator(
             BTHomeObjectTypeKind.SENSOR
         ),
         cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
@@ -139,7 +132,7 @@ _SERVER_SENSOR_SCHEMA = cv.Schema(
 
 _SERVER_BINARY_SENSOR_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_OBJECT_TYPE): _bthome_object_type_by_kind(
+        cv.Required(CONF_OBJECT_TYPE): bthome_object_type_validator(
             BTHomeObjectTypeKind.BINARY_SENSOR
         ),
         cv.Required(CONF_ID): cv.use_id(binary_sensor.BinarySensor),
@@ -149,7 +142,7 @@ _SERVER_BINARY_SENSOR_SCHEMA = cv.Schema(
 
 _SERVER_TEXT_SENSOR_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_OBJECT_TYPE): _bthome_object_type_by_kind(
+        cv.Required(CONF_OBJECT_TYPE): bthome_object_type_validator(
             BTHomeObjectTypeKind.TEXT_SENSOR
         ),
         cv.Required(CONF_ID): cv.use_id(text_sensor.TextSensor),
