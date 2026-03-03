@@ -9,11 +9,10 @@
 #include "espnow_compat.h"
 #include "espnow_packet.h"
 
-#if defined(USE_ESP32)
+#if defined(USE_ESP8266)
+#else
 #include "esphome/core/event_pool.h"
-#endif
 
-#if defined(USE_ESP32)
 #include <esp_idf_version.h>
 #include <esp_mac.h>
 #endif
@@ -232,16 +231,16 @@ class ESPNowComponent : public Component {
   }
 
  protected:
-#if defined(USE_ESP32)
+#if defined(USE_ESP8266)
+  friend void on_data_received(uint8_t *mac_addr, uint8_t *data, uint8_t size);
+  friend void on_send_report(uint8_t *mac_addr, uint8_t status);
+#else
   friend void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size);
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
   friend void on_send_report(const esp_now_send_info_t *info, esp_now_send_status_t status);
 #else
   friend void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status);
 #endif
-#elif defined(USE_ESP8266)
-  friend void on_data_received(uint8_t *mac_addr, uint8_t *data, uint8_t size);
-  friend void on_send_report(uint8_t *mac_addr, uint8_t status);
 #endif
 
   void enable_();

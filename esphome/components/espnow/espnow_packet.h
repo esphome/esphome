@@ -11,7 +11,8 @@
 #include <memory>
 #include <vector>
 
-#if defined(USE_ESP32)
+#if defined(USE_ESP8266)
+#else
 #include <esp_idf_version.h>
 #endif
 
@@ -43,17 +44,20 @@ class ESPNowPacket {
   };
 
   // Constructor for received data
-#if defined(USE_ESP32)
-  ESPNowPacket(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
-    this->init_received_data_(info, data, size);
-  };
-#else
+#if defined(USE_ESP8266)
   ESPNowPacket(const uint8_t *src_addr, const uint8_t *data, uint8_t size, const uint8_t *des_addr = nullptr) {
     this->init_received_data_(src_addr, data, size, des_addr);
   };
+#else
+  ESPNowPacket(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
+    this->init_received_data_(info, data, size);
+  };
 #endif
 
-#if defined(USE_ESP32) && defined(ESP_IDF_VERSION_VAL)
+#if defined(USE_ESP8266)
+  // Constructor for sent data
+  ESPNowPacket(const uint8_t *mac_addr, espnow_send_status_t status) { this->init_sent_data_(mac_addr, status); }
+#elif defined(ESP_IDF_VERSION_VAL)
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
   // Constructor for sent data
   ESPNowPacket(const esp_now_send_info_t *info, esp_now_send_status_t status) {
@@ -63,9 +67,6 @@ class ESPNowPacket {
   // Constructor for sent data
   ESPNowPacket(const uint8_t *mac_addr, espnow_send_status_t status) { this->init_sent_data_(mac_addr, status); }
 #endif
-#elif defined(USE_ESP32)
-  // Constructor for sent data
-  ESPNowPacket(const uint8_t *mac_addr, espnow_send_status_t status) { this->init_sent_data_(mac_addr, status); }
 #else
   // Constructor for sent data
   ESPNowPacket(const uint8_t *mac_addr, espnow_send_status_t status) { this->init_sent_data_(mac_addr, status); }
@@ -77,23 +78,23 @@ class ESPNowPacket {
   void release() {}
 
   void load_received_data(
-#if defined(USE_ESP32)
-      const esp_now_recv_info_t *info,
-#else
+#if defined(USE_ESP8266)
       const uint8_t *src_addr,
+#else
+  const esp_now_recv_info_t *info,
 #endif
       const uint8_t *data,
-#if defined(USE_ESP32)
-      int size
-#else
+#if defined(USE_ESP8266)
       uint8_t size, const uint8_t *des_addr = nullptr
+#else
+  int size
 #endif
   ) {
     this->type_ = RECEIVED;
-#if defined(USE_ESP32)
-    this->init_received_data_(info, data, size);
-#else
+#if defined(USE_ESP8266)
     this->init_received_data_(src_addr, data, size, des_addr);
+#else
+    this->init_received_data_(info, data, size);
 #endif
   }
 
@@ -128,19 +129,7 @@ class ESPNowPacket {
   const ESPNowRecvInfo &get_receive_info() const { return this->packet_.receive.info; }
 
  private:
-#if defined(USE_ESP32)
-  void init_received_data_(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
-    memcpy(this->packet_.receive.info.src_addr, info->src_addr, ESP_NOW_ETH_ALEN);
-    memcpy(this->packet_.receive.info.des_addr, info->des_addr, ESP_NOW_ETH_ALEN);
-    memcpy(this->packet_.receive.data, data, size);
-    this->packet_.receive.size = size;
-
-    this->packet_.receive.rx_ctrl.rssi = info->rx_ctrl->rssi;
-    this->packet_.receive.rx_ctrl.timestamp = info->rx_ctrl->timestamp;
-
-    this->packet_.receive.info.rx_ctrl = &this->packet_.receive.rx_ctrl;
-  }
-#else
+#if defined(USE_ESP8266)
   void init_received_data_(const uint8_t *src_addr, const uint8_t *data, uint8_t size, const uint8_t *des_addr) {
     memcpy(this->packet_.receive.info.src_addr, src_addr, ESP_NOW_ETH_ALEN);
     if (des_addr != nullptr) {
@@ -153,6 +142,18 @@ class ESPNowPacket {
 
     this->packet_.receive.rx_ctrl.rssi = 0;
     this->packet_.receive.rx_ctrl.timestamp = 0;
+    this->packet_.receive.info.rx_ctrl = &this->packet_.receive.rx_ctrl;
+  }
+#else
+  void init_received_data_(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
+    memcpy(this->packet_.receive.info.src_addr, info->src_addr, ESP_NOW_ETH_ALEN);
+    memcpy(this->packet_.receive.info.des_addr, info->des_addr, ESP_NOW_ETH_ALEN);
+    memcpy(this->packet_.receive.data, data, size);
+    this->packet_.receive.size = size;
+
+    this->packet_.receive.rx_ctrl.rssi = info->rx_ctrl->rssi;
+    this->packet_.receive.rx_ctrl.timestamp = info->rx_ctrl->timestamp;
+
     this->packet_.receive.info.rx_ctrl = &this->packet_.receive.rx_ctrl;
   }
 #endif
