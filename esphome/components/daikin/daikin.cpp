@@ -138,8 +138,8 @@ uint8_t DaikinClimate::temperature_() const {
     case climate::CLIMATE_MODE_DRY:
       return 0xc0;
     default:
-      uint8_t temperature = (uint8_t) roundf(clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX));
-      return temperature << 1;
+      // Temperature is encoded as degrees * 2, supporting 0.5°C increments
+      return (uint8_t) roundf(clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX) * 2.0f);
   }
 }
 
