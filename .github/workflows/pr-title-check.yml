@@ -26,14 +26,19 @@ jobs:
             } = require('./.github/scripts/detect-tags.js');
 
             const title = context.payload.pull_request.title;
+            const author = context.payload.pull_request.user.login;
+
+            // Skip bot PRs (e.g. dependabot) - they have their own title format
+            if (author === 'dependabot[bot]') {
+              return;
+            }
 
             // Block titles starting with "word:" or "word(scope):" patterns
             const commitStylePattern = /^\w+(\(.*?\))?[!]?\s*:/;
             if (commitStylePattern.test(title)) {
               core.setFailed(
                 `PR title should not start with a "prefix:" style format.\n` +
-                `Please use the format: [component] Brief description\n` +
-                `Example: [pn532] Add health checking and auto-reset`
+                `Please use the format: [component] Brief description\n`
               );
               return;
             }
