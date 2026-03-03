@@ -167,7 +167,9 @@ def _validate_supported_local_file(config):
         _, media_file_type = read_audio_file_and_type(file_config)
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
             file_info = file_config.get(CONF_FILE, {})
-            source = file_info.get(CONF_PATH) or file_info.get(CONF_URL) or "unknown source"
+            source = (
+                file_info.get(CONF_PATH) or file_info.get(CONF_URL) or "unknown source"
+            )
             raise cv.Invalid(
                 f"Unsupported media file from {source!r} (detected type: {media_file_type})"
             )
