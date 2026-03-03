@@ -712,6 +712,7 @@ async def process_lambda(
         GlobalsComponent,
         RestoringGlobalsComponent,
         RestoringGlobalStringComponent,
+        RTCGlobalsComponent,
     )
 
     if value is None:
@@ -724,18 +725,23 @@ async def process_lambda(
     if isinstance(value, Expression):
         value = Lambda(value)
 
+    def _is_globals_component(full_id: ID | None) -> bool:
+        if full_id is None or not isinstance(full_id.type, MockObjClass):
+            return False
+        return any(
+            full_id.type.inherits_from(component)
+            for component in (
+                GlobalsComponent,
+                RestoringGlobalsComponent,
+                RestoringGlobalStringComponent,
+                RTCGlobalsComponent,
+            )
+        )
+
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
         full_id, var = await get_variable_with_full_id(id)
-        if (
-            full_id is not None
-            and isinstance(full_id.type, MockObjClass)
-            and (
-                full_id.type.inherits_from(GlobalsComponent)
-                or full_id.type.inherits_from(RestoringGlobalsComponent)
-                or full_id.type.inherits_from(RestoringGlobalStringComponent)
-            )
-        ):
+        if _is_globals_component(full_id):
             parts[i * 3 + 1] = var.value()
             continue
 
