@@ -88,13 +88,17 @@ fan::FanTraits TuyaFan::get_traits() {
 }
 
 void TuyaFan::control(const fan::FanCall &call) {
-  if (auto switch_id = this->switch_id_; switch_id.has_value()) {
-    if (auto state = call.get_state(); state.has_value()) {
+  auto switch_id = this->switch_id_;
+  if (switch_id.has_value()) {
+    auto state = call.get_state();
+    if (state.has_value()) {
       this->parent_->set_boolean_datapoint_value(*switch_id, *state);
     }
   }
-  if (auto osc_id = this->oscillation_id_; osc_id.has_value()) {
-    if (auto oscillating = call.get_oscillating(); oscillating.has_value()) {
+  auto osc_id = this->oscillation_id_;
+  if (osc_id.has_value()) {
+    auto oscillating = call.get_oscillating();
+    if (oscillating.has_value()) {
       if (this->oscillation_type_ == TuyaDatapointType::ENUM) {
         this->parent_->set_enum_datapoint_value(*osc_id, *oscillating);
       } else if (this->oscillation_type_ == TuyaDatapointType::BOOLEAN) {
@@ -102,14 +106,18 @@ void TuyaFan::control(const fan::FanCall &call) {
       }
     }
   }
-  if (auto dir_id = this->direction_id_; dir_id.has_value()) {
-    if (auto direction = call.get_direction(); direction.has_value()) {
+  auto dir_id = this->direction_id_;
+  if (dir_id.has_value()) {
+    auto direction = call.get_direction();
+    if (direction.has_value()) {
       bool enable = *direction == fan::FanDirection::REVERSE;
       this->parent_->set_enum_datapoint_value(*dir_id, enable);
     }
   }
-  if (auto spd_id = this->speed_id_; spd_id.has_value()) {
-    if (auto speed = call.get_speed(); speed.has_value()) {
+  auto spd_id = this->speed_id_;
+  if (spd_id.has_value()) {
+    auto speed = call.get_speed();
+    if (speed.has_value()) {
       if (this->speed_type_ == TuyaDatapointType::ENUM) {
         this->parent_->set_enum_datapoint_value(*spd_id, *speed - 1);
       } else if (this->speed_type_ == TuyaDatapointType::INTEGER) {
