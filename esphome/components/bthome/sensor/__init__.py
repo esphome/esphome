@@ -9,7 +9,7 @@ from esphome.const import (
 )
 
 from .. import BTHomeSensor, Device, add_handler
-from ..bthome import BTHOME_OBJECT_TYPES, OTKind, bthome_object_types
+from ..bthome import BTHOME_OBJECT_TYPES, BTHomeObjectTypeKind, bthome_object_types
 
 CODEOWNERS = ["@jpeletier"]
 
@@ -19,7 +19,9 @@ CONF_REMOTE_ID = "remote_id"
 CONF_OBJECT_TYPE = "object_type"
 
 BTHOME_SENSOR_OBJECT_TYPES = {
-    k: v for k, v in BTHOME_OBJECT_TYPES.items() if v.kind == OTKind.SENSOR
+    k: v
+    for k, v in BTHOME_OBJECT_TYPES.items()
+    if v.kind == BTHomeObjectTypeKind.SENSOR
 }
 
 

@@ -6,7 +6,7 @@ from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS
 from esphome.core import CORE
 from esphome.cpp_generator import TemplateArguments, statement
 
-from .bthome import BTHOME_OBJECT_TYPES, OBJECT_TYPES_BY_ID, OTKind
+from .bthome import BTHOME_OBJECT_TYPES, OBJECT_TYPES_BY_ID, BTHomeObjectTypeKind
 
 CODEOWNERS = ["@jpeletier"]
 DEPENDENCIES = ["esp32", "esp32_ble_tracker"]
@@ -84,13 +84,19 @@ CONF_BINARY_SENSORS = "binary_sensors"
 CONF_OBJECT_TYPE = "object_type"
 CONF_ADVERTISE_IMMEDIATELY = "advertise_immediately"
 
-# Object type subsets for server config validation
-BTHOME_SENSOR_TYPES = {
-    k for k, v in BTHOME_OBJECT_TYPES.items() if v.kind == OTKind.SENSOR
-}
-BTHOME_BINARY_TYPES = {
-    k for k, v in BTHOME_OBJECT_TYPES.items() if v.kind == OTKind.BINARY_SENSOR
-}
+
+def _bthome_object_type_by_kind(kind: BTHomeObjectTypeKind):
+    """Return a validator for BTHome object types of the specified kind."""
+
+    def validator(key):
+        value = BTHOME_OBJECT_TYPES.get(key.upper())
+        if value is None:
+            raise cv.Invalid(f"Unknown BTHome object type: {key}")
+        if value.kind != kind:
+            raise cv.Invalid(f"Object type {key} is not a {kind.name}")
+        return key
+
+    return validator
 
 
 def _get_value_length(object_id: int) -> int:
@@ -103,7 +109,9 @@ def _get_value_length(object_id: int) -> int:
 
 _SERVER_SENSOR_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_OBJECT_TYPE): cv.one_of(*BTHOME_SENSOR_TYPES, upper=True),
+        cv.Required(CONF_OBJECT_TYPE): _bthome_object_type_by_kind(
+            BTHomeObjectTypeKind.SENSOR
+        ),
         cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
         cv.Optional(CONF_ADVERTISE_IMMEDIATELY, default=False): cv.boolean,
     }
@@ -111,7 +119,9 @@ _SERVER_SENSOR_SCHEMA = cv.Schema(
 
 _SERVER_BINARY_SENSOR_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_OBJECT_TYPE): cv.one_of(*BTHOME_BINARY_TYPES, upper=True),
+        cv.Required(CONF_OBJECT_TYPE): _bthome_object_type_by_kind(
+            BTHomeObjectTypeKind.BINARY_SENSOR
+        ),
         cv.Required(CONF_ID): cv.use_id(binary_sensor.BinarySensor),
         cv.Optional(CONF_ADVERTISE_IMMEDIATELY, default=False): cv.boolean,
     }
