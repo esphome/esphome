@@ -81,13 +81,13 @@ class ESPNowPacket {
 #if defined(USE_ESP8266)
       const uint8_t *src_addr,
 #else
-  const esp_now_recv_info_t *info,
+      const esp_now_recv_info_t *info,
 #endif
       const uint8_t *data,
 #if defined(USE_ESP8266)
       uint8_t size, const uint8_t *des_addr = nullptr
 #else
-  int size
+      int size
 #endif
   ) {
     this->type_ = RECEIVED;

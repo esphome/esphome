@@ -257,16 +257,16 @@ void ESPNowComponent::enable_() {
 #if defined(USE_ESP8266)
     espnow_esp8266::init_wifi_station();
 #else
-  ESP_ERROR_CHECK(esp_event_loop_create_default());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 
-  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-  ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-  ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
-  ESP_ERROR_CHECK(esp_wifi_start());
-  ESP_ERROR_CHECK(esp_wifi_disconnect());
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+    ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
+    ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_disconnect());
 #endif
 
     this->apply_wifi_channel();
@@ -563,11 +563,11 @@ espnow_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
 #if defined(USE_ESP8266)
     espnow_err_t err = espnow_esp8266::add_peer(peer);
 #else
-  esp_now_peer_info_t peer_info = {};
-  memset(&peer_info, 0, sizeof(esp_now_peer_info_t));
-  peer_info.ifidx = WIFI_IF_STA;
-  memcpy(peer_info.peer_addr, peer, ESP_NOW_ETH_ALEN);
-  espnow_err_t err = esp_now_add_peer(&peer_info);
+    esp_now_peer_info_t peer_info = {};
+    memset(&peer_info, 0, sizeof(esp_now_peer_info_t));
+    peer_info.ifidx = WIFI_IF_STA;
+    memcpy(peer_info.peer_addr, peer, ESP_NOW_ETH_ALEN);
+    espnow_err_t err = esp_now_add_peer(&peer_info);
 #endif
 
     if (err != ESPNOW_OK) {
@@ -608,7 +608,7 @@ espnow_err_t ESPNowComponent::del_peer(const uint8_t *peer) {
 #if defined(USE_ESP8266)
     espnow_err_t err = espnow_esp8266::del_peer(peer);
 #else
-  espnow_err_t err = esp_now_del_peer(peer);
+    espnow_err_t err = esp_now_del_peer(peer);
 #endif
     if (err != ESPNOW_OK) {
       char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
