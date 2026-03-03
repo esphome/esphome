@@ -135,11 +135,11 @@ void OpenThreadComponent::ot_main() {
            TRUEFALSE(link_mode_config.mRxOnWhenIdle));
 #endif
 
-#ifdef USE_OPENTHREAD_OUTPUT_POWER
-  if (const auto err = otPlatRadioSetTransmitPower(instance, this->output_power_); err != OT_ERROR_NONE) {
-    ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
+  if (this->output_power_.has_value()) {
+    if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
+      ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
+    }
   }
-#endif
 
   // Run the main loop
 #if CONFIG_OPENTHREAD_CLI

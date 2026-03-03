@@ -223,7 +223,6 @@ async def to_code(config):
     await cg.register_component(srp, config)
 
     if (output_power := config.get(CONF_OUTPUT_POWER)) is not None:
-        cg.add_define("USE_OPENTHREAD_OUTPUT_POWER")
         cg.add(ot.set_output_power(output_power))
 
     set_sdkconfig_options(config)
