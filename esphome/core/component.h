@@ -142,7 +142,7 @@ class Component {
    */
   virtual void on_powerdown() {}
 
-  uint8_t get_component_state() const;
+  uint8_t get_component_state() const { return this->component_state_; }
 
   /** Reset this component back to the construction state to allow setup to run again.
    *
@@ -154,7 +154,7 @@ class Component {
    *
    * @return True if in loop state, false otherwise.
    */
-  bool is_in_loop_state() const;
+  bool is_in_loop_state() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP; }
 
   /** Check if this component is idle.
    * Being idle means being in LOOP_DONE state.
@@ -162,7 +162,7 @@ class Component {
    *
    * @return True if the component is idle
    */
-  bool is_idle() const;
+  bool is_idle() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE; }
 
   /** Mark this component as failed. Any future timeouts/intervals/setup/loop will no longer be called.
    *
@@ -230,15 +230,15 @@ class Component {
    */
   void enable_loop_soon_any_context();
 
-  bool is_failed() const;
+  bool is_failed() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 
   bool is_ready() const;
 
   virtual bool can_proceed();
 
-  bool status_has_warning() const;
+  bool status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
 
-  bool status_has_error() const;
+  bool status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
 
   void status_set_warning(const char *message = nullptr);
   void status_set_warning(const LogString *message);
