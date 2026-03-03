@@ -80,6 +80,11 @@ async def register_component(var, config):
         add(var.set_component_source(LogStringLiteral(name)))
 
     add(App.register_component_(var))
+
+    # Collect C++ type for compile-time looping component count
+    comp_entries = CORE.data.setdefault("looping_component_entries", [])
+    comp_entries.append(str(var.base.type))
+
     return var
 
 
