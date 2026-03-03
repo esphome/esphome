@@ -69,6 +69,10 @@ openthread:
 > [!NOTE]
 > esphome.ota does not work when poll_period > 0, instead use http_request.ota, timeout and watchdog_timeout need to be tested to find the correct values.  Values greater than 100sec may be required.
 
+- **output_power** (*Optional*, integer): The amount of TX power for the Thread 802.15.4 radio in dBm.
+  Range depends on the chip variant: ESP32-C5/C6 from ``-15dBm`` to ``20dBm``, ESP32-H2 from ``-24dBm`` to ``20dBm``.
+  Defaults to the platform default (typically ``0dBm``). Ensure the configured value complies with local regulatory limits.
+
 ## Dataset TLV Configuration
 
 It is also possible to supply the entire dataset TLVs from the Thread information in Home Assistant and the individual values will be automatically extracted from it.
