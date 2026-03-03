@@ -43,6 +43,8 @@ void EntityBase::configure_entity(const char *name, uint32_t object_id_hash, uin
       this->calc_object_id_();
     }
   }
+  // Unpack entity string table indices.
+  // Packed: [23..16] icon | [15..8] UoM | [7..0] device_class (each 8 bits)
 #ifdef USE_ENTITY_DEVICE_CLASS
   this->device_class_idx_ = entity_strings_packed & 0xFF;
 #endif
