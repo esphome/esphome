@@ -21,14 +21,14 @@ void SpeedFan::setup() {
 void SpeedFan::dump_config() { LOG_FAN("", "Speed Fan", this); }
 
 void SpeedFan::control(const fan::FanCall &call) {
-  if (call.get_state().has_value())
-    this->state = *call.get_state();
-  if (call.get_speed().has_value())
-    this->speed = *call.get_speed();
-  if (call.get_oscillating().has_value())
-    this->oscillating = *call.get_oscillating();
-  if (call.get_direction().has_value())
-    this->direction = *call.get_direction();
+  if (auto val = call.get_state(); val.has_value())
+    this->state = *val;
+  if (auto val = call.get_speed(); val.has_value())
+    this->speed = *val;
+  if (auto val = call.get_oscillating(); val.has_value())
+    this->oscillating = *val;
+  if (auto val = call.get_direction(); val.has_value())
+    this->direction = *val;
   this->apply_preset_mode_(call);
 
   this->write_state_();

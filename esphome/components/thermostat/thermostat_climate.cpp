@@ -84,7 +84,7 @@ void ThermostatClimate::refresh() {
   this->switch_to_mode_(this->mode, false);
   this->switch_to_action_(this->compute_action_(), false);
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
-  this->switch_to_fan_mode_(this->fan_mode.value(), false);
+  this->switch_to_fan_mode_(this->fan_mode.value_or(climate::CLIMATE_FAN_ON), false);
   this->switch_to_swing_mode_(this->swing_mode, false);
   this->switch_to_humidity_control_action_(this->compute_humidity_control_action_());
   this->check_humidity_change_trigger_();
@@ -211,12 +211,12 @@ void ThermostatClimate::validate_target_humidity() {
 void ThermostatClimate::control(const climate::ClimateCall &call) {
   bool target_temperature_high_changed = false;
 
-  if (call.get_preset().has_value()) {
+  if (auto val = call.get_preset(); val.has_value()) {
     // setup_complete_ blocks modifying/resetting the temps immediately after boot
     if (this->setup_complete_) {
-      this->change_preset_(call.get_preset().value());
+      this->change_preset_(*val);
     } else {
-      this->preset = call.get_preset().value();
+      this->preset = val;
     }
   }
   if (call.has_custom_preset()) {
@@ -229,34 +229,34 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
     }
   }
 
-  if (call.get_mode().has_value()) {
-    this->mode = call.get_mode().value();
+  if (auto val = call.get_mode(); val.has_value()) {
+    this->mode = *val;
   }
-  if (call.get_fan_mode().has_value()) {
-    this->fan_mode = call.get_fan_mode().value();
+  if (auto val = call.get_fan_mode(); val.has_value()) {
+    this->fan_mode = val;
   }
-  if (call.get_swing_mode().has_value()) {
-    this->swing_mode = call.get_swing_mode().value();
+  if (auto val = call.get_swing_mode(); val.has_value()) {
+    this->swing_mode = *val;
   }
   if (this->supports_two_points_) {
-    if (call.get_target_temperature_low().has_value()) {
-      this->target_temperature_low = call.get_target_temperature_low().value();
+    if (auto val = call.get_target_temperature_low(); val.has_value()) {
+      this->target_temperature_low = *val;
     }
-    if (call.get_target_temperature_high().has_value()) {
-      target_temperature_high_changed = this->target_temperature_high != call.get_target_temperature_high().value();
-      this->target_temperature_high = call.get_target_temperature_high().value();
+    if (auto val = call.get_target_temperature_high(); val.has_value()) {
+      target_temperature_high_changed = this->target_temperature_high != *val;
+      this->target_temperature_high = *val;
     }
     // ensure the two set points are valid and adjust one of them if necessary
     this->validate_target_temperatures(target_temperature_high_changed ||
                                        (this->prev_mode_ == climate::CLIMATE_MODE_COOL));
   } else {
-    if (call.get_target_temperature().has_value()) {
-      this->target_temperature = call.get_target_temperature().value();
+    if (auto val = call.get_target_temperature(); val.has_value()) {
+      this->target_temperature = *val;
       this->validate_target_temperature();
     }
   }
-  if (call.get_target_humidity().has_value()) {
-    this->target_humidity = call.get_target_humidity().value();
+  if (auto val = call.get_target_humidity(); val.has_value()) {
+    this->target_humidity = *val;
     this->validate_target_humidity();
   }
   // make any changes happen
@@ -1264,9 +1264,9 @@ bool ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTem
     something_changed = true;
   }
 
-  if (config.fan_mode_.has_value() && (this->fan_mode != config.fan_mode_.value())) {
+  if (config.fan_mode_.has_value() && (this->fan_mode != config.fan_mode_)) {
     ESP_LOGV(TAG, "Setting fan mode to %s", LOG_STR_ARG(climate::climate_fan_mode_to_string(*config.fan_mode_)));
-    this->fan_mode = *config.fan_mode_;
+    this->fan_mode = config.fan_mode_;
     something_changed = true;
   }
 

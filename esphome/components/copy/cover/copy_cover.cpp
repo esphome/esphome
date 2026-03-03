@@ -38,12 +38,12 @@ cover::CoverTraits CopyCover::get_traits() {
 void CopyCover::control(const cover::CoverCall &call) {
   auto call2 = source_->make_call();
   call2.set_stop(call.get_stop());
-  if (call.get_tilt().has_value())
-    call2.set_tilt(*call.get_tilt());
-  if (call.get_position().has_value())
-    call2.set_position(*call.get_position());
-  if (call.get_tilt().has_value())
-    call2.set_tilt(*call.get_tilt());
+  if (auto val = call.get_tilt(); val.has_value())
+    call2.set_tilt(*val);
+  if (auto val = call.get_position(); val.has_value())
+    call2.set_position(*val);
+  if (auto val = call.get_tilt(); val.has_value())
+    call2.set_tilt(*val);
   call2.perform();
 }
 

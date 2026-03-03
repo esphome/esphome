@@ -96,8 +96,8 @@ void BedJetClimate::control(const ClimateCall &call) {
     return;
   }
 
-  if (call.get_mode().has_value()) {
-    ClimateMode mode = *call.get_mode();
+  if (auto val = call.get_mode(); val.has_value()) {
+    ClimateMode mode = *val;
     bool button_result;
     switch (mode) {
       case CLIMATE_MODE_OFF:
@@ -125,8 +125,8 @@ void BedJetClimate::control(const ClimateCall &call) {
     }
   }
 
-  if (call.get_target_temperature().has_value()) {
-    auto target_temp = *call.get_target_temperature();
+  if (auto val = call.get_target_temperature(); val.has_value()) {
+    auto target_temp = *val;
     auto result = this->parent_->set_target_temp(target_temp);
 
     if (result) {
@@ -134,8 +134,8 @@ void BedJetClimate::control(const ClimateCall &call) {
     }
   }
 
-  if (call.get_preset().has_value()) {
-    ClimatePreset preset = *call.get_preset();
+  if (auto val = call.get_preset(); val.has_value()) {
+    ClimatePreset preset = *val;
     bool result;
 
     if (preset == CLIMATE_PRESET_BOOST) {
@@ -187,10 +187,10 @@ void BedJetClimate::control(const ClimateCall &call) {
     }
   }
 
-  if (call.get_fan_mode().has_value()) {
+  if (auto val = call.get_fan_mode(); val.has_value()) {
     // Climate fan mode only supports low/med/high, but the BedJet supports 5-100% increments.
     // We can still support a ClimateCall that requests low/med/high, and just translate it to a step increment here.
-    auto fan_mode = *call.get_fan_mode();
+    auto fan_mode = *val;
     bool result;
     if (fan_mode == CLIMATE_FAN_LOW) {
       result = this->parent_->set_fan_speed(20);

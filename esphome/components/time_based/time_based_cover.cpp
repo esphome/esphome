@@ -79,8 +79,8 @@ void TimeBasedCover::control(const CoverCall &call) {
       }
     }
   }
-  if (call.get_position().has_value()) {
-    auto pos = *call.get_position();
+  if (auto pos_val = call.get_position(); pos_val.has_value()) {
+    auto pos = *pos_val;
     if (pos == this->position) {
       // already at target
       if (this->manual_control_ && (pos == COVER_OPEN || pos == COVER_CLOSED)) {

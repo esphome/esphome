@@ -45,17 +45,17 @@ void BangBangClimate::setup() {
 }
 
 void BangBangClimate::control(const climate::ClimateCall &call) {
-  if (call.get_mode().has_value()) {
-    this->mode = *call.get_mode();
+  if (auto val = call.get_mode(); val.has_value()) {
+    this->mode = *val;
   }
-  if (call.get_target_temperature_low().has_value()) {
-    this->target_temperature_low = *call.get_target_temperature_low();
+  if (auto val = call.get_target_temperature_low(); val.has_value()) {
+    this->target_temperature_low = *val;
   }
-  if (call.get_target_temperature_high().has_value()) {
-    this->target_temperature_high = *call.get_target_temperature_high();
+  if (auto val = call.get_target_temperature_high(); val.has_value()) {
+    this->target_temperature_high = *val;
   }
-  if (call.get_preset().has_value()) {
-    this->change_away_(*call.get_preset() == climate::CLIMATE_PRESET_AWAY);
+  if (auto val = call.get_preset(); val.has_value()) {
+    this->change_away_(*val == climate::CLIMATE_PRESET_AWAY);
   }
 
   this->compute_state_();
