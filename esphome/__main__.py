@@ -1367,7 +1367,7 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses. Use 'OTA' for resolving from MQTT, DNS or mDNS and avoiding the interactive prompt.",
     )
     parser_upload.add_argument(
         "--upload_speed",
@@ -1390,7 +1390,7 @@ def parse_args(argv):
     parser_logs.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses. Use 'OTA' for resolving from MQTT, DNS or mDNS and avoiding the interactive prompt.",
     )
     parser_logs.add_argument(
         "--reset",
@@ -1420,7 +1420,7 @@ def parse_args(argv):
     parser_run.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses. Use 'OTA' for resolving from MQTT, DNS or mDNS and avoiding the interactive prompt.",
     )
     parser_run.add_argument(
         "--upload_speed",
