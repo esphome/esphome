@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 
-from .. import BTHomeTextSensor, Device, add_handler
+from .. import BTHomeTextSensor, RemoteDevice, add_handler
 from ..bthome import (
     BTHOME_OBJECT_TYPES,
     BTHomeObjectTypeKind,
@@ -19,7 +19,7 @@ CONF_OBJECT_TYPE = "object_type"
 
 CONFIG_SCHEMA = text_sensor.text_sensor_schema(class_=BTHomeTextSensor).extend(
     {
-        cv.Required(CONF_REMOTE_ID): cv.use_id(Device),
+        cv.Required(CONF_REMOTE_ID): cv.use_id(RemoteDevice),
         cv.Required(CONF_OBJECT_TYPE): bthome_object_type_validator(
             BTHomeObjectTypeKind.TEXT_SENSOR
         ),

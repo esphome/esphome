@@ -1,6 +1,6 @@
 #pragma once
 #include "ble.h"
-#include "device.h"
+#include "remote_device.h"
 
 #include <array>
 
@@ -9,10 +9,10 @@ namespace bthome {
 
 template<size_t NUM_DEVICES> class DeviceListener : public IBTHomeListener {
  public:
-  void set_device(size_t index, DeviceBase *device) { this->devices_[index] = device; }
+  void set_device(size_t index, RemoteDeviceBase *device) { this->devices_[index] = device; }
 
   bool on_bthome_data(MacAddressPtr source, const uint8_t *data, size_t size) override {
-    for (DeviceBase *d : this->devices_) {
+    for (RemoteDeviceBase *d : this->devices_) {
       if (d == nullptr)
         continue;
       if (d->parse_data(source, data, size))
@@ -22,7 +22,7 @@ template<size_t NUM_DEVICES> class DeviceListener : public IBTHomeListener {
   }
 
  protected:
-  std::array<DeviceBase *, NUM_DEVICES> devices_{};
+  std::array<RemoteDeviceBase *, NUM_DEVICES> devices_{};
 };
 
 }  // namespace bthome

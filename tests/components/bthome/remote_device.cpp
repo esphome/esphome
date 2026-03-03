@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "esphome/components/bthome/device.h"
+#include "esphome/components/bthome/remote_device.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::bthome::testing {
@@ -36,7 +36,7 @@ class MockBTHomeRemoteObject : public BTHomeRemoteObject {
 class BTHomeDeviceTest : public ::testing::Test {
  protected:
   // Create a device with 2 handlers
-  Device<2> device;
+  RemoteDevice<2> device;
   MockBTHomeRemoteObject handler1{BTHomeObjectType::BATTERY_PCT};
   MockBTHomeRemoteObject handler2{BTHomeObjectType::TEMPERATURE_C_E2};
 
@@ -174,7 +174,7 @@ TEST_F(BTHomeDeviceTest, ParseDataOnlyUnmatchedObjectsAfterMatch) {
 TEST_F(BTHomeDeviceTest, ParseDataRepeatedObjectType) {
   // Test with repeated object types - each handler gets its own reading
   // Create a device with 3 handlers: TEMP, TEMP, BATTERY
-  Device<3> device3;
+  RemoteDevice<3> device3;
   MockBTHomeRemoteObject temp_handler1{BTHomeObjectType::TEMPERATURE_C_E2};
   MockBTHomeRemoteObject temp_handler2{BTHomeObjectType::TEMPERATURE_C_E2};
   MockBTHomeRemoteObject batt_handler{BTHomeObjectType::BATTERY_PCT};

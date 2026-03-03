@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include "esphome/components/bthome/device.h"
-#include "esphome/components/bthome/listener.h"
+#include "esphome/components/bthome/remote_device.h"
+#include "esphome/components/bthome/remote_listener.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::bthome::testing {
@@ -33,8 +33,8 @@ static const MacAddress kMacB{0xAABBCCDDEEFFULL};
 class DeviceListenerTest : public ::testing::Test {
  protected:
   DeviceListener<2> listener_;
-  Device<1> device_a_;
-  Device<1> device_b_;
+  RemoteDevice<1> device_a_;
+  RemoteDevice<1> device_b_;
   MockHandler handler_a_{BTHomeObjectType::BATTERY_PCT};
   MockHandler handler_b_{BTHomeObjectType::BATTERY_PCT};
 

@@ -1,4 +1,4 @@
-#include "device.h"
+#include "remote_device.h"
 #include "decoder.h"
 #include "encryption.h"
 #include "esphome/core/log.h"
@@ -10,7 +10,7 @@ namespace bthome {
 
 static const char *TAG = "bthome";
 
-bool DeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, size_t data_size) {
+bool RemoteDeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, size_t data_size) {
   if (this->address_ != source_address) {
     return false;
   }

@@ -5,7 +5,7 @@
 #include "esphome/core/defines.h"
 
 #if defined(USE_BTHOME_DECRYPTION) || defined(USE_BTHOME_ENCRYPTION)
-#include "device.h"
+#include "remote_device.h"
 #include "bthome.h"
 
 namespace esphome {

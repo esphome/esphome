@@ -3,7 +3,7 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICE_CLASS
 
-from .. import BTHomeBinarySensor, Device, add_handler
+from .. import BTHomeBinarySensor, RemoteDevice, add_handler
 from ..bthome import (
     BTHOME_OBJECT_TYPES,
     BTHomeObjectTypeKind,
@@ -31,7 +31,7 @@ def _apply_object_type_defaults(config):
 CONFIG_SCHEMA = cv.All(
     binary_sensor.binary_sensor_schema(class_=BTHomeBinarySensor).extend(
         {
-            cv.Required(CONF_REMOTE_ID): cv.use_id(Device),
+            cv.Required(CONF_REMOTE_ID): cv.use_id(RemoteDevice),
             cv.Required(CONF_OBJECT_TYPE): bthome_object_type_validator(
                 BTHomeObjectTypeKind.BINARY_SENSOR
             ),

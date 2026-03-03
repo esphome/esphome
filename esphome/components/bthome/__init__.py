@@ -35,8 +35,8 @@ BLE_DEVICE_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA
 
 bthome_ns = cg.esphome_ns.namespace("bthome")
 DeviceListener = bthome_ns.class_("DeviceListener")
-DeviceBase = bthome_ns.class_("DeviceBase")
-Device = bthome_ns.class_("Device", DeviceBase)
+RemoteDeviceBase = bthome_ns.class_("RemoteDeviceBase")
+RemoteDevice = bthome_ns.class_("RemoteDevice", RemoteDeviceBase)
 BTHomeRemoteObject = bthome_ns.class_("BTHomeRemoteObject")
 BTHomeSensor = bthome_ns.class_(
     "BTHomeSensor", BTHomeRemoteObject, sensor.Sensor, cg.Component
@@ -96,7 +96,7 @@ class DeferredExpression(cg.Expression):
 
 _REMOTE_DEVICE_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(Device),
+        cv.GenerateID(): cv.declare_id(RemoteDevice),
         cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
         cv.Optional(CONF_BINDKEY): cv.bind_key,
     }
@@ -266,7 +266,7 @@ def _get_handler_index(
 async def add_handler(
     handler_var: cg.MockObj, device_id: core.ID, object_id: int
 ) -> None:
-    """Register handler_var with the Device identified by device_id.
+    """Register handler_var with the RemoteDevice identified by device_id.
 
     Appends (object_id, handler_var) to the per-device handler list and keeps
     the list sorted by object_id ascending — the same order that BTHome
@@ -303,7 +303,7 @@ async def _client_to_code(config):
     for i, device_config in enumerate(config[CONF_REMOTE_DEVICES]):
         device_id = device_config[CONF_ID]
         device_var = cg.Pvariable(
-            core.ID(str(device_id), False, DeviceBase),
+            core.ID(str(device_id), False, RemoteDeviceBase),
             DeferredExpression(
                 lambda device_id: device_id.type.template(
                     TemplateArguments(_get_handler_count(device_id))

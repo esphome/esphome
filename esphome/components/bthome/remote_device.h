@@ -16,7 +16,7 @@
 namespace esphome {
 namespace bthome {
 
-class DeviceBase {
+class RemoteDeviceBase {
  public:
   void set_address(const MacAddress &address) { this->address_ = address; }
 #ifdef USE_BTHOME_DECRYPTION
@@ -39,7 +39,7 @@ class DeviceBase {
 #endif
 };
 
-template<size_t NUM_SENSORS> class Device : public DeviceBase {
+template<size_t NUM_SENSORS> class RemoteDevice : public RemoteDeviceBase {
  public:
   void set_handler(size_t index, BTHomeRemoteObject *handler) override { handlers_[index] = handler; }
 

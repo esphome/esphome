@@ -8,7 +8,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
 )
 
-from .. import BTHomeSensor, Device, add_handler
+from .. import BTHomeSensor, RemoteDevice, add_handler
 from ..bthome import (
     BTHOME_OBJECT_TYPES,
     BTHomeObjectTypeKind,
@@ -42,7 +42,7 @@ def _apply_object_type_defaults(config):
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(class_=BTHomeSensor).extend(
         {
-            cv.Required(CONF_REMOTE_ID): cv.use_id(Device),
+            cv.Required(CONF_REMOTE_ID): cv.use_id(RemoteDevice),
             cv.Required(CONF_OBJECT_TYPE): bthome_object_type_validator(
                 BTHomeObjectTypeKind.SENSOR
             ),
