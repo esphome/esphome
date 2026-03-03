@@ -1,7 +1,6 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
-#include "helpers.h"
 
 namespace esphome {
 namespace bthome {
@@ -14,6 +13,9 @@ static constexpr uint8_t BLE_AD_TYPE_FLAGS = 0x01;        // AD type: Flags
 static constexpr uint8_t BLE_AD_FLAGS_VALUE = 0x06;       // General Discoverable + BR/EDR Not Supported
 static constexpr uint8_t BLE_AD_TYPE_SVC_DATA_16 = 0x16;  // AD type: Service Data – 16-bit UUID
 
+static constexpr size_t BLE_ADV_HEADER_SIZE = 4;
+
+class MacAddressPtr;
 // Handler interface for advertisement state changes (e.g. to trigger a new advertisement)
 class IBLEAdvHandler {
  public:

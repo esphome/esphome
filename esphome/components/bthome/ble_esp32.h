@@ -1,6 +1,7 @@
 #pragma once
 #include "esphome/core/defines.h"
 #include "ble.h"
+#include "helpers.h"
 
 #ifdef USE_ESP32
 #include "esphome/components/esp32_ble/ble.h"

@@ -10,16 +10,6 @@ namespace bthome {
 
 static const char *TAG = "bthome";
 
-static constexpr size_t BTHOME_MIC_SIZE = 4;
-static constexpr size_t BTHOME_COUNTER_SIZE = 4;
-static constexpr size_t BLE_FLAGS_SIZE = 3;
-static constexpr size_t BLE_ADV_HEADER_SIZE = 4;
-static constexpr uint16_t BTHOME_UUID16 = 0xFCD2;
-static constexpr size_t BLE_ADV_MAX_SIZE = 31;
-static constexpr size_t BTHOME_MAX_ENCRYPTED_PAYLOAD = BLE_ADV_MAX_SIZE - BLE_FLAGS_SIZE - BLE_ADV_HEADER_SIZE -
-                                                       sizeof(esphome::bthome::BTHomeHeader) - BTHOME_COUNTER_SIZE -
-                                                       BTHOME_MIC_SIZE;
-
 static uint8_t bthome_encryption_buf[BTHOME_MAX_ENCRYPTED_PAYLOAD + BTHOME_COUNTER_SIZE + BTHOME_MIC_SIZE];
 
 struct __attribute__((packed)) BTHomeNonce {

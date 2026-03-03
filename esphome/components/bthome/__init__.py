@@ -6,7 +6,13 @@ from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS
 from esphome.core import CORE
 from esphome.cpp_generator import TemplateArguments, statement
 
-from .bthome import BTHOME_OBJECT_TYPES, OBJECT_TYPES_BY_ID, BTHomeObjectTypeKind
+from .bthome import (
+    BTHOME_OBJECT_TYPES,
+    BTHOME_SERVER_MAX_ENCRYPTED_PAYLOAD,
+    BTHOME_SERVER_MAX_PAYLOAD,
+    OBJECT_TYPES_BY_ID,
+    BTHomeObjectTypeKind,
+)
 
 CODEOWNERS = ["@jpeletier"]
 DEPENDENCIES = ["esp32", "esp32_ble_tracker"]
@@ -133,7 +139,11 @@ def _validate_server_config(config):
     if CONF_SENSORS not in config and CONF_BINARY_SENSORS not in config:
         return config
 
-    max_payload = 15 if CONF_BINDKEY in config else 23
+    max_payload = (
+        BTHOME_SERVER_MAX_ENCRYPTED_PAYLOAD
+        if CONF_BINDKEY in config
+        else BTHOME_SERVER_MAX_PAYLOAD
+    )
 
     # Collect all entries with their object IDs
     entries_by_type = {}
@@ -320,17 +330,11 @@ async def _server_to_code(config):
     esp32_ble.register_gap_event_handler(ble_var, esp32_ble_adapter)
 
     # Encryption
-    has_encryption = False
     if CONF_BINDKEY in config:
         bindkey_str = config[CONF_BINDKEY]
         bindkey_bytes = [int(bindkey_str[j : j + 2], 16) for j in range(0, 32, 2)]
         cg.add(server_var.set_encryption_key(bindkey_bytes))
         cg.add_define("USE_BTHOME_ENCRYPTION")
-        cg.add_define("BTHOME_SERVER_MAX_PAYLOAD", 15)
-        has_encryption = True
-
-    if not has_encryption:
-        cg.add_define("BTHOME_SERVER_MAX_PAYLOAD", 23)
 
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
 

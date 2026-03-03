@@ -8,6 +8,12 @@ bthome_ns = cg.esphome_ns.namespace("bthome")
 bthome_object_types = bthome_ns.enum("BTHomeObjectType", True)
 
 
+BTHOME_SERVER_MAX_PAYLOAD = 23  # BLE_ADV_MAX_SIZE - BLE_FLAGS_SIZE - BLE_ADV_HEADER_SIZE - sizeof(esphome::bthome::BTHomeHeader)
+BTHOME_SERVER_MAX_ENCRYPTED_PAYLOAD = (
+    15  # BTHOME_SERVER_MAX_PAYLOAD - 4 (MIC) - 4 (Counter)
+)
+
+
 class BTHomeObjectTypeKind(Enum):
     SENSOR = auto()
     BINARY_SENSOR = auto()

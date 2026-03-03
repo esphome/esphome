@@ -4,9 +4,12 @@
 
 #include "esphome/core/defines.h"
 #include "decoder.h"
+#include "helpers.h"
 
-#ifndef BTHOME_SERVER_MAX_PAYLOAD
-#define BTHOME_SERVER_MAX_PAYLOAD 23
+#ifdef BTHOME_ENCRYPTION
+#define BTHOME_SERVER_MAX_PAYLOAD (BTHOME_MAX_ENCRYPTED_PAYLOAD)
+#else
+#define BTHOME_SERVER_MAX_PAYLOAD (BTHOME_MAX_PAYLOAD)
 #endif
 
 namespace esphome {
