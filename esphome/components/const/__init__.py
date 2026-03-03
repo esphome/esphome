@@ -23,3 +23,6 @@ ICON_SOLAR_PANEL = "mdi:solar-panel"
 ICON_SOLAR_POWER = "mdi:solar-power"
 
 UNIT_AMPERE_HOUR = "Ah"
+CONF_DATA_BITS = "data_bits"
+CONF_PARITY = "parity"
+CONF_STOP_BITS = "stop_bits"
