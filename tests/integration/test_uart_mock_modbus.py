@@ -85,9 +85,6 @@ async def test_uart_mock_modbus(
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="There is a bug in UART which will timeout for long responses."
-)
 async def test_uart_mock_modbus_timing(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
