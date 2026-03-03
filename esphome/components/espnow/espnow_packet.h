@@ -29,7 +29,7 @@ struct WifiPacketRxControl {
 struct ESPNowRecvInfo {
   uint8_t src_addr[ESP_NOW_ETH_ALEN]; /**< Source address of ESPNOW packet */
   uint8_t des_addr[ESP_NOW_ETH_ALEN]; /**< Destination address of ESPNOW packet */
-  WifiPacketRxControl *rx_ctrl;      /**< Rx control info of ESPNOW packet */
+  WifiPacketRxControl *rx_ctrl;       /**< Rx control info of ESPNOW packet */
 };
 
 using send_callback_t = std::function<void(espnow_err_t)>;
@@ -109,10 +109,10 @@ class ESPNowPacket {
   union {
     // NOLINTNEXTLINE(readability-identifier-naming)
     struct received_data {
-      ESPNowRecvInfo info;                // Information about the received packet
+      ESPNowRecvInfo info;                 // Information about the received packet
       uint8_t data[ESP_NOW_MAX_DATA_LEN];  // Data received in the packet
-      uint8_t size;                       // Size of the received data
-      WifiPacketRxControl rx_ctrl;        // Status of the received packet
+      uint8_t size;                        // Size of the received data
+      WifiPacketRxControl rx_ctrl;         // Status of the received packet
     } receive;
 
     // NOLINTNEXTLINE(readability-identifier-naming)
@@ -195,7 +195,7 @@ class ESPNowSendPacket {
   uint8_t address_[ESP_NOW_ETH_ALEN]{0};   // MAC address of the peer to send the packet to
   uint8_t data_[ESP_NOW_MAX_DATA_LEN]{0};  // Data to send
   uint8_t size_{0};                        // Size of the data to send, must be <= ESP_NOW_MAX_DATA_LEN
-  send_callback_t callback_{nullptr};     // Callback to call when the send operation is complete
+  send_callback_t callback_{nullptr};      // Callback to call when the send operation is complete
 
  private:
   void init_data_(const uint8_t *peer_address, const uint8_t *payload, size_t size) {
