@@ -164,6 +164,7 @@ OPERATION_BASE_SCHEMA = cv.Schema(
             cv.Required(CONF_VALUE): cv.templatable(cv.string_strict),
         }
     ),
+    synchronous=True,
 )
 async def text_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
