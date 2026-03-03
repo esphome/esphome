@@ -22,7 +22,12 @@ from .bthome import (
 
 CODEOWNERS = ["@jpeletier"]
 DEPENDENCIES = ["esp32", "esp32_ble_tracker"]
-AUTO_LOAD = ["esp32_ble"]
+
+
+def AUTO_LOAD():
+    if CORE.cpp_testing:
+        return ["esp32_ble", "text_sensor", "binary_sensor", "sensor"]
+    return ["esp32_ble"]
 
 
 BLE_DEVICE_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA
@@ -427,6 +432,16 @@ async def to_code_testing(config):
     # During testing, enable encryption code unconditionally
     cg.add_define("USE_BTHOME_ENCRYPTION")
     cg.add_define("USE_BTHOME_DECRYPTION")
+
+    # During testing, enable all sensor types unconditionally.
+    # The entity count defines are normally generated from CORE.platform_counts by
+    # _add_platform_defines(). Sensor and binary_sensor counts are set via their
+    # platform components (sensor.bthome / binary_sensor.bthome). Text sensor has
+    # no bthome platform component, so we set its count explicitly here.
+    cg.add_define("USE_SENSOR")
+    cg.add_define("USE_BINARY_SENSOR")
+    cg.add_define("USE_TEXT_SENSOR")
+    cg.add_define("ESPHOME_ENTITY_TEXT_SENSOR_COUNT", 1)
 
     # Pull mbedtls for testing in host environment
     cg.add_library("baracodadailyhealthtech/mbedtls", "3.6.1-1", None)
