@@ -3,6 +3,7 @@
 
 namespace esphome {
 namespace bthome {
+namespace client {
 
 class BTHomeRemoteObject {
  public:
@@ -13,5 +14,6 @@ class BTHomeRemoteObject {
   BTHomeObjectType object_type_{};
 };
 
+}  // namespace client
 }  // namespace bthome
 }  // namespace esphome

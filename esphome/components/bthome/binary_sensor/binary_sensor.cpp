@@ -2,6 +2,7 @@
 
 namespace esphome {
 namespace bthome {
+namespace client {
 
 bool BTHomeBinarySensor::process_object(const BTHomeObject &object) {
   if (object.type != this->object_type_)
@@ -10,5 +11,6 @@ bool BTHomeBinarySensor::process_object(const BTHomeObject &object) {
   return true;
 }
 
+}  // namespace client
 }  // namespace bthome
 }  // namespace esphome

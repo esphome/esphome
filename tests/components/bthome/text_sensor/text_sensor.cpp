@@ -3,10 +3,11 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::bthome::testing {
+using namespace esphome::bthome::client;
 
 class BTHomeTextSensorTest : public ::testing::Test {
  protected:
-  esphome::bthome::BTHomeTextSensor text_sensor_;
+  BTHomeTextSensor text_sensor_;
 };
 
 TEST_F(BTHomeTextSensorTest, ProcessObjectWithMatchingTypeText) {

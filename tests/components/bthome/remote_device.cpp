@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::bthome::testing {
+using namespace esphome::bthome::client;
 
 // Mock handler that tracks processed objects
 class MockBTHomeRemoteObject : public BTHomeRemoteObject {

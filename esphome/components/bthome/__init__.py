@@ -34,20 +34,21 @@ def AUTO_LOAD():
 BLE_DEVICE_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA
 
 bthome_ns = cg.esphome_ns.namespace("bthome")
-DeviceListener = bthome_ns.class_("DeviceListener")
-RemoteDeviceBase = bthome_ns.class_("RemoteDeviceBase")
-RemoteDevice = bthome_ns.class_("RemoteDevice", RemoteDeviceBase)
+client_ns = bthome_ns.namespace("client")
+DeviceListener = client_ns.class_("DeviceListener")
+RemoteDeviceBase = client_ns.class_("RemoteDeviceBase")
+RemoteDevice = client_ns.class_("RemoteDevice", RemoteDeviceBase)
 BTHomeRemoteObject = bthome_ns.class_("BTHomeRemoteObject")
-BTHomeSensor = bthome_ns.class_(
+BTHomeSensor = client_ns.class_(
     "BTHomeSensor", BTHomeRemoteObject, sensor.Sensor, cg.Component
 )
-BTHomeBinarySensor = bthome_ns.class_(
+BTHomeBinarySensor = client_ns.class_(
     "BTHomeBinarySensor",
     BTHomeRemoteObject,
     binary_sensor.BinarySensor,
     cg.Component,
 )
-BTHomeTextSensor = bthome_ns.class_(
+BTHomeTextSensor = client_ns.class_(
     "BTHomeTextSensor",
     BTHomeRemoteObject,
     text_sensor.TextSensor,

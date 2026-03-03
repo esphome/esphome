@@ -6,6 +6,7 @@
 
 namespace esphome {
 namespace bthome {
+namespace client {
 
 class BTHomeBinarySensor : public BTHomeRemoteObject, public esphome::binary_sensor::BinarySensor, public Component {
  public:
@@ -14,5 +15,6 @@ class BTHomeBinarySensor : public BTHomeRemoteObject, public esphome::binary_sen
 
 namespace server {}  // namespace server
 
+}  // namespace client
 }  // namespace bthome
 }  // namespace esphome

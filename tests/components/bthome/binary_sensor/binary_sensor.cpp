@@ -3,10 +3,11 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::bthome::testing {
+using namespace esphome::bthome::client;
 
 class BTHomeBinarySensorTest : public ::testing::Test {
  protected:
-  esphome::bthome::BTHomeBinarySensor binary_sensor_;
+  BTHomeBinarySensor binary_sensor_;
 };
 
 TEST_F(BTHomeBinarySensorTest, ProcessObjectWithMatchingTypeTrue) {

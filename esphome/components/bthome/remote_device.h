@@ -15,6 +15,7 @@
 
 namespace esphome {
 namespace bthome {
+namespace client {
 
 class RemoteDeviceBase {
  public:
@@ -49,6 +50,6 @@ template<size_t NUM_SENSORS> class RemoteDevice : public RemoteDeviceBase {
  private:
   std::array<BTHomeRemoteObject *, NUM_SENSORS> handlers_{};
 };
-
+}  // namespace client
 }  // namespace bthome
 }  // namespace esphome

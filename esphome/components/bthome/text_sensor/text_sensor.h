@@ -5,11 +5,13 @@
 
 namespace esphome {
 namespace bthome {
+namespace client {
 
 class BTHomeTextSensor : public BTHomeRemoteObject, public esphome::text_sensor::TextSensor, public Component {
  public:
   bool process_object(const BTHomeObject &object) override;
 };
 
+}  // namespace client
 }  // namespace bthome
 }  // namespace esphome

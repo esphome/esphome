@@ -7,6 +7,7 @@
 
 namespace esphome {
 namespace bthome {
+namespace client {
 
 static const char *TAG = "bthome";
 
@@ -78,5 +79,6 @@ bool RemoteDeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *d
   return true;
 }
 
+}  // namespace client
 }  // namespace bthome
 }  // namespace esphome

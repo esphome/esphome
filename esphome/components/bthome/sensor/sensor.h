@@ -6,12 +6,14 @@
 
 namespace esphome {
 namespace bthome {
+namespace client {
 
 class BTHomeSensor : public BTHomeRemoteObject, public esphome::sensor::Sensor, public Component {
  public:
   bool process_object(const BTHomeObject &object) override;
 };
 
-}  // namespace bthome
+}  // namespace client
 
+}  // namespace bthome
 }  // namespace esphome

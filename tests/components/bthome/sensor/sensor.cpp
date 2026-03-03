@@ -4,10 +4,11 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::bthome::testing {
+using namespace esphome::bthome::client;
 
 class BTHomeSensorTest : public ::testing::Test {
  protected:
-  esphome::bthome::BTHomeSensor sensor_;
+  BTHomeSensor sensor_;
 };
 
 TEST_F(BTHomeSensorTest, ProcessObjectWithMatchingType) {

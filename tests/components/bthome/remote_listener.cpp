@@ -4,7 +4,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::bthome::testing {
-
+using namespace esphome::bthome::client;
 // Handler that records how many times it was called for a specific object type
 class MockHandler : public BTHomeRemoteObject {
  public:
