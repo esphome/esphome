@@ -5,6 +5,7 @@
 #include <limits>
 #include <span>
 #include <string>
+#include <type_traits>
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -24,12 +25,20 @@
 #endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_LWIP_FAST_SELECT
+#include "esphome/core/lwip_fast_select.h"
+#else
 #include <sys/select.h>
 #ifdef USE_WAKE_LOOP_THREADSAFE
 #include <lwip/sockets.h>
 #endif
+#endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
-
+#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+namespace esphome::socket {
+void socket_wake();  // NOLINT(readability-redundant-declaration)
+}  // namespace esphome::socket
+#endif
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -101,10 +110,25 @@
 #endif
 
 namespace esphome::socket {
-class Socket;
+#ifdef USE_SOCKET_SELECT_SUPPORT
+/// Shared ready() helper for fd-based socket implementations.
+bool socket_ready_fd(int fd, bool loop_monitored);  // NOLINT(readability-redundant-declaration)
+#endif
 }  // namespace esphome::socket
 
+// Forward declarations for friend access from codegen-generated setup()
+void setup();           // NOLINT(readability-redundant-declaration) - may be declared in Arduino.h
+void original_setup();  // NOLINT(readability-redundant-declaration) - used by cpp unit tests
+
 namespace esphome {
+
+/// SFINAE helper: detects whether T overrides Component::loop().
+/// When &T::loop is ambiguous (multiple inheritance with separate loop() methods),
+/// the ambiguity itself proves an override exists, so the true_type default is correct.
+template<typename T, typename = void> struct HasLoopOverride : std::true_type {};
+template<typename T>
+struct HasLoopOverride<T, std::void_t<decltype(&T::loop)>>
+    : std::bool_constant<!std::is_same_v<decltype(&T::loop), decltype(&Component::loop)>> {};
 
 // Teardown timeout constant (in milliseconds)
 // For reboots, it's more important to shut down quickly than disconnect cleanly
@@ -242,13 +266,6 @@ class Application {
 #endif
 
   /// Reserve space for components to avoid memory fragmentation
-
-  /// Register the component in this Application instance.
-  template<class C> C *register_component(C *c) {
-    static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
-    this->register_component_((Component *) c);
-    return c;
-  }
 
   /// Set up all the registered components. Call this at the end of your setup() function.
   void setup();
@@ -491,32 +508,66 @@ class Application {
   /// @return true if registration was successful, false if fd exceeds limits
   bool register_socket_fd(int fd);
   void unregister_socket_fd(int fd);
-  /// Check if there's data available on a socket without blocking
-  /// This function is thread-safe for reading, but should be called after select() has run
-  /// The read_fds_ is only modified by select() in the main loop
-  bool is_socket_ready(int fd) const { return fd >= 0 && this->is_socket_ready_(fd); }
 
 #ifdef USE_WAKE_LOOP_THREADSAFE
-  /// Wake the main event loop from a FreeRTOS task
-  /// Thread-safe, can be called from task context to immediately wake select()
-  /// IMPORTANT: NOT safe to call from ISR context (socket operations not ISR-safe)
+  /// Wake the main event loop from another FreeRTOS task.
+  /// Thread-safe, but must only be called from task context (NOT ISR-safe).
+  /// On ESP32: uses xTaskNotifyGive (<1 us)
+  /// On other platforms: uses UDP loopback socket
   void wake_loop_threadsafe();
 #endif
+
+#ifdef USE_LWIP_FAST_SELECT
+  /// Wake the main event loop from an ISR.
+  /// Uses vTaskNotifyGiveFromISR() — <1 us, ISR-safe.
+  /// Only available on platforms with fast select (ESP32, LibreTiny).
+  /// @param px_higher_priority_task_woken Set to pdTRUE if a context switch is needed.
+  static void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
+    esphome_lwip_wake_main_loop_from_isr(px_higher_priority_task_woken);
+  }
+
+#ifdef USE_ESP32
+  /// Wake the main event loop from any context (ISR, thread, or main loop).
+  /// Detects the calling context and uses the appropriate FreeRTOS API.
+  static void IRAM_ATTR wake_loop_any_context() { esphome_lwip_wake_main_loop_any_context(); }
+#endif
+#endif
+#endif
+
+#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  /// Wake the main event loop from any context (ISR, thread, or main loop).
+  /// On ESP8266: sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
+  static void IRAM_ATTR wake_loop_any_context() { socket::socket_wake(); }
 #endif
 
  protected:
   friend Component;
-  friend class socket::Socket;
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  friend bool socket::socket_ready_fd(int fd, bool loop_monitored);
+#endif
+  friend void ::setup();
+  friend void ::original_setup();
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
   /// Fast path for Socket::ready() via friendship - skips negative fd check.
-  /// Safe because: fd was validated in register_socket_fd() at registration time,
-  /// and Socket::ready() only calls this when loop_monitored_ is true (registration succeeded).
-  /// FD_ISSET may include its own upper bounds check depending on platform.
+  /// Main loop only — with USE_LWIP_FAST_SELECT, reads rcvevent via
+  /// lwip_socket_dbg_get_socket(), which has no refcount; safe only because
+  /// the main loop owns socket lifetime (creates, reads, and closes sockets
+  /// on the same thread).
+#ifdef USE_LWIP_FAST_SELECT
+  bool is_socket_ready_(int fd) const { return esphome_lwip_socket_has_data(fd); }
+#else
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
 #endif
+#endif
 
-  void register_component_(Component *comp);
+  /// Register a component, detecting loop() override at compile time.
+  /// Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance.
+  template<typename T> void register_component_(T *comp) {
+    this->register_component_impl_(comp, HasLoopOverride<T>::value);
+  }
+
+  void register_component_impl_(Component *comp, bool has_loop);
 
   void calculate_looping_components_();
   void add_looping_components_by_state_(bool match_loop_done);
@@ -541,7 +592,7 @@ class Application {
   /// Perform a delay while also monitoring socket file descriptors for readiness
   void yield_with_select_(uint32_t delay_ms);
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
   void setup_wake_loop_threadsafe_();       // Create wake notification socket
   inline void drain_wake_notifications_();  // Read pending wake notifications in main loop (hot path - inlined)
 #endif
@@ -571,7 +622,7 @@ class Application {
   FixedVector<Component *> looping_components_{};
 #ifdef USE_SOCKET_SELECT_SUPPORT
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
-#ifdef USE_WAKE_LOOP_THREADSAFE
+#if defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
   int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
 #endif
 #endif
@@ -584,7 +635,7 @@ class Application {
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   int max_fd_{-1};  // Highest file descriptor number for select()
 #endif
 
@@ -600,14 +651,14 @@ class Application {
   bool in_loop_{false};
   volatile bool has_pending_enable_loop_requests_{false};
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  // Variable-sized members
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+  // Variable-sized members (not needed with fast select — is_socket_ready_ reads rcvevent directly)
+  fd_set read_fds_{};       // Working fd_set: populated by select()
   fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes
-  fd_set read_fds_{};       // Working fd_set for select(), copied from base_read_fds_
 #endif
 
   // StaticVectors (largest members - contain actual array data inline)
@@ -694,7 +745,7 @@ class Application {
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
 // Inline implementations for hot-path functions
 // drain_wake_notifications_() is called on every loop iteration
 
@@ -704,8 +755,8 @@ static constexpr size_t WAKE_NOTIFY_DRAIN_BUFFER_SIZE = 16;
 
 inline void Application::drain_wake_notifications_() {
   // Called from main loop to drain any pending wake notifications
-  // Must check is_socket_ready() to avoid blocking on empty socket
-  if (this->wake_socket_fd_ >= 0 && this->is_socket_ready(this->wake_socket_fd_)) {
+  // Must check is_socket_ready_() to avoid blocking on empty socket
+  if (this->wake_socket_fd_ >= 0 && this->is_socket_ready_(this->wake_socket_fd_)) {
     char buffer[WAKE_NOTIFY_DRAIN_BUFFER_SIZE];
     // Drain all pending notifications with non-blocking reads
     // Multiple wake events may have triggered multiple writes, so drain until EWOULDBLOCK
@@ -716,6 +767,6 @@ inline void Application::drain_wake_notifications_() {
     }
   }
 }
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
 
 }  // namespace esphome

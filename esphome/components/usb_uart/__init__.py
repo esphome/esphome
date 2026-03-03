@@ -1,11 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import socket
-from esphome.components.uart import (
-    CONF_DATA_BITS,
-    CONF_PARITY,
-    CONF_STOP_BITS,
-    UARTComponent,
-)
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.uart import UARTComponent
 from esphome.components.usb_host import register_usb_client, usb_device_schema
 import esphome.config_validation as cv
 from esphome.const import (

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import logging
 import os
 from pathlib import Path
@@ -504,6 +505,41 @@ async def _add_controller_registry_define() -> None:
         cg.add_define("CONTROLLER_REGISTRY_MAX", controller_count)
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_looping_components() -> None:
+    # Emit a constexpr that computes the looping component count at C++ compile time
+    # and pre-init the FixedVector with the exact capacity. Uses std::is_same_v to
+    # detect loop() overrides. The constexpr goes in main.cpp's global section where
+    # all component types are in scope. calculate_looping_components_() then skips
+    # the counting pass and only does the two population passes.
+    entries = CORE.data.get("looping_component_entries", [])
+    if not entries:
+        return
+
+    # Build constexpr sum for the exact count, deduplicating by type
+    # Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance
+    type_counts = Counter(entries)
+    terms = [
+        f"({count} * HasLoopOverride<{cpp_type}>::value)"
+        for cpp_type, count in type_counts.items()
+    ]
+    constexpr_expr = " + \\\n  ".join(terms)
+    cg.add_global(
+        cg.RawStatement(
+            f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
+            f"  {constexpr_expr};"
+        )
+    )
+
+    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
+    # can skip the counting pass
+    cg.add(
+        cg.RawExpression(
+            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+        )
+    )
+
+
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.global_ns.namespace("esphome").using)
@@ -512,6 +548,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.RawExpression("using std::min"))
     cg.add_global(cg.RawExpression("using std::max"))
 
+    # Construct App via placement new — see application.cpp for storage details
+    cg.add_global(cg.RawStatement("#include <new>"))
+    cg.add(cg.RawExpression("new (&App) Application()"))
     cg.add(
         cg.App.pre_setup(
             config[CONF_NAME],
@@ -524,6 +563,7 @@ async def to_code(config: ConfigType) -> None:
 
     CORE.add_job(_add_platform_defines)
     CORE.add_job(_add_controller_registry_define)
+    CORE.add_job(_add_looping_components)
 
     CORE.add_job(_add_automations, config)
 
@@ -646,6 +686,12 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "ring_buffer.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
+        },
+        "time_64.cpp": {
+            PlatformFramework.ESP8266_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
         },
         # Note: lock_free_queue.h and event_pool.h are header files and don't need to be filtered
         # as they are only included when needed by the preprocessor

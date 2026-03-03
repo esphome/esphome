@@ -12,7 +12,7 @@
 namespace esphome {
 
 /// ESPHomeOTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
-class ESPHomeOTAComponent : public ota::OTAComponent {
+class ESPHomeOTAComponent final : public ota::OTAComponent {
  public:
   enum class OTAState : uint8_t {
     IDLE,
@@ -84,7 +84,7 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   std::unique_ptr<uint8_t[]> auth_buf_;
 #endif  // USE_OTA_PASSWORD
 
-  socket::Socket *server_{nullptr};
+  socket::ListenSocket *server_{nullptr};
   std::unique_ptr<socket::Socket> client_;
   std::unique_ptr<ota::OTABackend> backend_;
 

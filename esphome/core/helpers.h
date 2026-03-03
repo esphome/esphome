@@ -133,6 +133,78 @@ template<typename T> class ConstVector {
   size_t size_;
 };
 
+/// Small buffer optimization - stores data inline when small, heap-allocates for large data
+/// This avoids heap fragmentation for common small allocations while supporting arbitrary sizes.
+/// Memory management is encapsulated - callers just use set() and data().
+template<size_t InlineSize = 8> class SmallInlineBuffer {
+ public:
+  SmallInlineBuffer() = default;
+  ~SmallInlineBuffer() {
+    if (!this->is_inline_())
+      delete[] this->heap_;
+  }
+
+  // Move constructor
+  SmallInlineBuffer(SmallInlineBuffer &&other) noexcept : len_(other.len_) {
+    if (other.is_inline_()) {
+      memcpy(this->inline_, other.inline_, this->len_);
+    } else {
+      this->heap_ = other.heap_;
+      other.heap_ = nullptr;
+    }
+    other.len_ = 0;
+  }
+
+  // Move assignment
+  SmallInlineBuffer &operator=(SmallInlineBuffer &&other) noexcept {
+    if (this != &other) {
+      if (!this->is_inline_())
+        delete[] this->heap_;
+      this->len_ = other.len_;
+      if (other.is_inline_()) {
+        memcpy(this->inline_, other.inline_, this->len_);
+      } else {
+        this->heap_ = other.heap_;
+        other.heap_ = nullptr;
+      }
+      other.len_ = 0;
+    }
+    return *this;
+  }
+
+  // Disable copy (would need deep copy of heap data)
+  SmallInlineBuffer(const SmallInlineBuffer &) = delete;
+  SmallInlineBuffer &operator=(const SmallInlineBuffer &) = delete;
+
+  /// Set buffer contents, allocating heap if needed
+  void set(const uint8_t *src, size_t size) {
+    // Free existing heap allocation if switching from heap to inline or different heap size
+    if (!this->is_inline_() && (size <= InlineSize || size != this->len_)) {
+      delete[] this->heap_;
+      this->heap_ = nullptr;  // Defensive: prevent use-after-free if logic changes
+    }
+    // Allocate new heap buffer if needed
+    if (size > InlineSize && (this->is_inline_() || size != this->len_)) {
+      this->heap_ = new uint8_t[size];  // NOLINT(cppcoreguidelines-owning-memory)
+    }
+    this->len_ = size;
+    memcpy(this->data(), src, size);
+  }
+
+  uint8_t *data() { return this->is_inline_() ? this->inline_ : this->heap_; }
+  const uint8_t *data() const { return this->is_inline_() ? this->inline_ : this->heap_; }
+  size_t size() const { return this->len_; }
+
+ protected:
+  bool is_inline_() const { return this->len_ <= InlineSize; }
+
+  size_t len_{0};
+  union {
+    uint8_t inline_[InlineSize]{};  // Zero-init ensures clean initial state
+    uint8_t *heap_;
+  };
+};
+
 /// Minimal static vector - saves memory by avoiding std::vector overhead
 template<typename T, size_t N> class StaticVector {
  public:
@@ -526,6 +598,44 @@ template<std::integral T> constexpr uint32_t fnv1a_hash_extend(uint32_t hash, T 
 /// Calculate a FNV-1a hash of \p str.
 constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
 inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
+
+/// Convert a 64-bit microsecond count to milliseconds without calling
+/// __udivdi3 (software 64-bit divide, ~1200 ns on Xtensa @ 240 MHz).
+///
+/// Returns uint32_t by default (for millis()), or uint64_t when requested
+/// (for millis_64()). The only difference is whether hi * Q is truncated
+/// to 32 bits or widened to 64.
+///
+/// On 32-bit targets, GCC does not optimize 64-bit constant division into a
+/// multiply-by-reciprocal. Since 1000 = 8 * 125, we first right-shift by 3
+/// (free divide-by-8), then use the Euclidean division identity to decompose
+/// the remaining 64-bit divide-by-125 into a single 32-bit division:
+///
+///   floor(us / 1000) = floor(floor(us / 8) / 125)    [exact for integers]
+///   2^32 = Q * 125 + R  (34359738 * 125 + 46)
+///   (hi * 2^32 + lo) / 125 = hi * Q + (hi * R + lo) / 125
+///
+/// GCC optimizes the remaining 32-bit "/ 125U" into a multiply-by-reciprocal
+/// (mulhu + shift), so no division instruction is emitted.
+///
+/// Safe for us up to ~3.2e18 (~101,700 years of microseconds).
+///
+/// See: https://en.wikipedia.org/wiki/Euclidean_division
+/// See: https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
+template<typename ReturnT = uint32_t> inline constexpr ESPHOME_ALWAYS_INLINE ReturnT micros_to_millis(uint64_t us) {
+  constexpr uint32_t d = 125U;
+  constexpr uint32_t q = static_cast<uint32_t>((1ULL << 32) / d);  // 34359738
+  constexpr uint32_t r = static_cast<uint32_t>((1ULL << 32) % d);  // 46
+  // 1000 = 8 * 125; divide-by-8 is a free shift
+  uint64_t x = us >> 3;
+  uint32_t lo = static_cast<uint32_t>(x);
+  uint32_t hi = static_cast<uint32_t>(x >> 32);
+  // Combine remainder term: hi * (2^32 % 125) + lo
+  uint32_t adj = hi * r + lo;
+  // If adj overflowed, the true value is 2^32 + adj; apply the identity again
+  // static_cast<ReturnT>(hi) widens to 64-bit when ReturnT=uint64_t, preserving upper bits of hi*q
+  return static_cast<ReturnT>(hi) * q + (adj < lo ? (adj + r) / d + q : adj / d);
+}
 
 /// Return a random 32-bit unsigned integer.
 uint32_t random_uint32();
@@ -1365,8 +1475,12 @@ bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> 
 ///@{
 
 /// Applies gamma correction of \p gamma to \p value.
+// Remove before 2026.9.0
+ESPDEPRECATED("Use LightState::gamma_correct_lut() instead. Removed in 2026.9.0.", "2026.3.0")
 float gamma_correct(float value, float gamma);
 /// Reverts gamma correction of \p gamma to \p value.
+// Remove before 2026.9.0
+ESPDEPRECATED("Use LightState::gamma_uncorrect_lut() instead. Removed in 2026.9.0.", "2026.3.0")
 float gamma_uncorrect(float value, float gamma);
 
 /// Convert \p red, \p green and \p blue (all 0-1) values to \p hue (0-360), \p saturation (0-1) and \p value (0-1).
@@ -1618,7 +1732,7 @@ class HighFrequencyLoopRequester {
   void stop();
 
   /// Check whether the loop is running continuously.
-  static bool is_high_frequency();
+  static bool is_high_frequency() { return num_requests > 0; }
 
  protected:
   bool started_{false};
