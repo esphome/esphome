@@ -110,6 +110,12 @@ void OpenThreadComponent::ot_main() {
 
   this->set_link_mode(esp_openthread_get_instance(), false, true);
 
+  if (this->output_power_.has_value()) {
+    if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
+      ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
+    }
+  }
+
   // Run the main loop
 #if CONFIG_OPENTHREAD_CLI
   esp_openthread_cli_create_task();

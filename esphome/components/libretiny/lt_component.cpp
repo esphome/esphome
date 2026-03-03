@@ -4,8 +4,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace libretiny {
+namespace esphome::libretiny {
 
 static const char *const TAG = "lt.component";
 
@@ -15,6 +14,9 @@ void LTComponent::dump_config() {
                 "  Version: %s\n"
                 "  Loglevel: %u",
                 LT_BANNER_STR + 10, LT_LOGLEVEL);
+#if defined(__OPTIMIZE_SIZE__) && __OPTIMIZE_LEVEL__ > 0 && __OPTIMIZE_LEVEL__ <= 3
+  ESP_LOGCONFIG(TAG, "  Optimization: -Os, SDK: -O" STRINGIFY_MACRO(__OPTIMIZE_LEVEL__));
+#endif
 
 #ifdef USE_TEXT_SENSOR
   if (this->version_ != nullptr) {
@@ -25,7 +27,6 @@ void LTComponent::dump_config() {
 
 float LTComponent::get_setup_priority() const { return setup_priority::LATE; }
 
-}  // namespace libretiny
-}  // namespace esphome
+}  // namespace esphome::libretiny
 
 #endif  // USE_LIBRETINY

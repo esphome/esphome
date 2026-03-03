@@ -959,7 +959,7 @@ def main():
             continue
         run_checks(LINT_CONTENT_CHECKS, fname, fname, content)
 
-    run_checks(LINT_POST_CHECKS, "POST")
+    run_checks(LINT_POST_CHECKS, Path("POST"))
 
     for f, errs in sorted(errors.items()):
         bold = functools.partial(styled, colorama.Style.BRIGHT)

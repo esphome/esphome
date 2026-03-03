@@ -40,6 +40,7 @@ class OpenThreadComponent : public Component {
   esp_err_t keep_radio_on_during_idle(bool keep_radio_on);
 #endif
   void set_link_mode(otInstance *instance, bool keep_radio_on, bool set_poll_period);
+  void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
@@ -47,6 +48,7 @@ class OpenThreadComponent : public Component {
 #if CONFIG_OPENTHREAD_MTD
   uint32_t poll_period_{0};
 #endif
+  std::optional<int8_t> output_power_{};
   bool teardown_started_{false};
   bool teardown_complete_{false};
   otLinkModeConfig link_mode_config_{0};

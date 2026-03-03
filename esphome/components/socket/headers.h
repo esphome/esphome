@@ -183,3 +183,20 @@ using socklen_t = uint32_t;
 #endif
 
 #endif  // USE_SOCKET_IMPL_BSD_SOCKETS
+
+#if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
+
+namespace esphome::socket {
+
+// Maximum length for formatted socket address string (IP address without port)
+// IPv4: "255.255.255.255" = 15 chars + null = 16
+// IPv6: full address = 45 chars + null = 46
+#if USE_NETWORK_IPV6
+static constexpr size_t SOCKADDR_STR_LEN = 46;  // INET6_ADDRSTRLEN
+#else
+static constexpr size_t SOCKADDR_STR_LEN = 16;  // INET_ADDRSTRLEN
+#endif
+
+}  // namespace esphome::socket
+
+#endif
