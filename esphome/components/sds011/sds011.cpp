@@ -108,8 +108,6 @@ void SDS011Component::loop() {
   }
 }
 
-float SDS011Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void SDS011Component::set_rx_mode_only(bool rx_mode_only) { this->rx_mode_only_ = rx_mode_only; }
 
 void SDS011Component::sds011_write_command_(const uint8_t *command_data) {

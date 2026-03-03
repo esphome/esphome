@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_lc709203f
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: lc709203f
+    i2c_id: i2c_bus
     size: 2000
     voltage: 3.7
     battery_voltage:

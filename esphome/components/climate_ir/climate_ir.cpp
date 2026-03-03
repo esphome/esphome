@@ -8,7 +8,12 @@ static const char *const TAG = "climate_ir";
 
 climate::ClimateTraits ClimateIR::traits() {
   auto traits = climate::ClimateTraits();
-  traits.set_supports_current_temperature(this->sensor_ != nullptr);
+  if (this->sensor_ != nullptr) {
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  }
+  if (this->humidity_sensor_ != nullptr) {
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
+  }
   traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL});
   if (this->supports_cool_)
     traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
@@ -19,7 +24,6 @@ climate::ClimateTraits ClimateIR::traits() {
   if (this->supports_fan_only_)
     traits.add_supported_mode(climate::CLIMATE_MODE_FAN_ONLY);
 
-  traits.set_supports_two_point_target_temperature(false);
   traits.set_visual_min_temperature(this->minimum_temperature_);
   traits.set_visual_max_temperature(this->maximum_temperature_);
   traits.set_visual_temperature_step(this->temperature_step_);
@@ -37,9 +41,16 @@ void ClimateIR::setup() {
       this->publish_state();
     });
     this->current_temperature = this->sensor_->state;
-  } else {
-    this->current_temperature = NAN;
   }
+  if (this->humidity_sensor_ != nullptr) {
+    this->humidity_sensor_->add_on_state_callback([this](float state) {
+      this->current_humidity = state;
+      // current humidity changed, publish state
+      this->publish_state();
+    });
+    this->current_humidity = this->humidity_sensor_->state;
+  }
+
   // restore set points
   auto restore = this->restore_state_();
   if (restore.has_value()) {

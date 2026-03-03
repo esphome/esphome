@@ -14,18 +14,16 @@ ld2410_ns = cg.esphome_ns.namespace("ld2410")
 LD2410Component = ld2410_ns.class_("LD2410Component", cg.Component, uart.UARTDevice)
 
 CONF_LD2410_ID = "ld2410_id"
-
 CONF_MAX_MOVE_DISTANCE = "max_move_distance"
 CONF_MAX_STILL_DISTANCE = "max_still_distance"
-CONF_STILL_THRESHOLDS = [f"g{x}_still_threshold" for x in range(9)]
 CONF_MOVE_THRESHOLDS = [f"g{x}_move_threshold" for x in range(9)]
+CONF_STILL_THRESHOLDS = [f"g{x}_still_threshold" for x in range(9)]
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LD2410Component),
-        cv.Optional(CONF_THROTTLE, default="1000ms"): cv.All(
-            cv.positive_time_period_milliseconds,
-            cv.Range(min=cv.TimePeriod(milliseconds=1)),
+        cv.Optional(CONF_THROTTLE): cv.invalid(
+            f"{CONF_THROTTLE} has been removed; use per-sensor filters, instead"
         ),
         cv.Optional(CONF_MAX_MOVE_DISTANCE): cv.invalid(
             f"The '{CONF_MAX_MOVE_DISTANCE}' option has been moved to the '{CONF_MAX_MOVE_DISTANCE}'"
@@ -75,7 +73,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    cg.add(var.set_throttle(config[CONF_THROTTLE]))
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(

@@ -1,1 +1,4 @@
+packages:
+  ble: !include ../../test_build_components/common/ble/esp32-c3-idf.yaml
+
 <<: !include common.yaml

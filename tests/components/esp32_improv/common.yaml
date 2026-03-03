@@ -16,3 +16,4 @@ esp32_improv:
   authorizer: io0_button
   authorized_duration: 1min
   status_indicator: built_in_led
+  next_url: "https://example.com/setup?device={{device_name}}&ip={{ip_address}}&version={{esphome_version}}"

@@ -1,6 +1,6 @@
 #include "audio_pipeline.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -13,7 +13,12 @@ namespace speaker {
 static const uint32_t INITIAL_BUFFER_MS = 1000;  // Start playback after buffering this duration of the file
 
 static const uint32_t READ_TASK_STACK_SIZE = 5 * 1024;
+// Opus decoding uses more stack than other codecs
+#ifdef USE_AUDIO_OPUS_SUPPORT
+static const uint32_t DECODE_TASK_STACK_SIZE = 5 * 1024;
+#else
 static const uint32_t DECODE_TASK_STACK_SIZE = 3 * 1024;
+#endif
 
 static const uint32_t INFO_ERROR_QUEUE_COUNT = 5;
 
@@ -259,13 +264,10 @@ esp_err_t AudioPipeline::allocate_communications_() {
 esp_err_t AudioPipeline::start_tasks_() {
   if (this->read_task_handle_ == nullptr) {
     if (this->read_task_stack_buffer_ == nullptr) {
-      if (this->task_stack_in_psram_) {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-        this->read_task_stack_buffer_ = stack_allocator.allocate(READ_TASK_STACK_SIZE);
-      } else {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-        this->read_task_stack_buffer_ = stack_allocator.allocate(READ_TASK_STACK_SIZE);
-      }
+      // Reader task uses the AudioReader class which uses esp_http_client. This crashes on IDF 5.4 if the task stack is
+      // in PSRAM. As a workaround, always allocate the read task in internal memory.
+      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
+      this->read_task_stack_buffer_ = stack_allocator.allocate(READ_TASK_STACK_SIZE);
     }
 
     if (this->read_task_stack_buffer_ == nullptr) {
@@ -554,6 +556,11 @@ void AudioPipeline::decode_task(void *params) {
 #ifdef USE_AUDIO_FLAC_SUPPORT
             case audio::AudioFileType::FLAC:
               initial_bytes_to_buffer /= 2;  // Estimate the FLAC compression factor is 2
+              break;
+#endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+            case audio::AudioFileType::OPUS:
+              initial_bytes_to_buffer /= 8;  // Estimate the Opus compression factor is 8
               break;
 #endif
             default:

@@ -2,15 +2,14 @@
 
 #include <cinttypes>
 #include <utility>
-#include <vector>
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace binary_sensor {
+namespace esphome::binary_sensor {
 
 struct MultiClickTriggerEvent {
   bool state;
@@ -92,8 +91,8 @@ class DoubleClickTrigger : public Trigger<> {
 
 class MultiClickTrigger : public Trigger<>, public Component {
  public:
-  explicit MultiClickTrigger(BinarySensor *parent, std::vector<MultiClickTriggerEvent> timing)
-      : parent_(parent), timing_(std::move(timing)) {}
+  explicit MultiClickTrigger(BinarySensor *parent, std::initializer_list<MultiClickTriggerEvent> timing)
+      : parent_(parent), timing_(timing) {}
 
   void setup() override {
     this->last_state_ = this->parent_->get_state_default(false);
@@ -115,7 +114,7 @@ class MultiClickTrigger : public Trigger<>, public Component {
   void trigger_();
 
   BinarySensor *parent_;
-  std::vector<MultiClickTriggerEvent> timing_;
+  FixedVector<MultiClickTriggerEvent> timing_;
   uint32_t invalid_cooldown_{1000};
   optional<size_t> at_index_{};
   bool last_state_{false};
@@ -141,7 +140,7 @@ class StateChangeTrigger : public Trigger<optional<bool>, optional<bool> > {
 template<typename... Ts> class BinarySensorCondition : public Condition<Ts...> {
  public:
   BinarySensorCondition(BinarySensor *parent, bool state) : parent_(parent), state_(state) {}
-  bool check(Ts... x) override { return this->parent_->state == this->state_; }
+  bool check(const Ts &...x) override { return this->parent_->state == this->state_; }
 
  protected:
   BinarySensor *parent_;
@@ -153,7 +152,7 @@ template<typename... Ts> class BinarySensorPublishAction : public Action<Ts...> 
   explicit BinarySensorPublishAction(BinarySensor *sensor) : sensor_(sensor) {}
   TEMPLATABLE_VALUE(bool, state)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto val = this->state_.value(x...);
     this->sensor_->publish_state(val);
   }
@@ -166,11 +165,10 @@ template<typename... Ts> class BinarySensorInvalidateAction : public Action<Ts..
  public:
   explicit BinarySensorInvalidateAction(BinarySensor *sensor) : sensor_(sensor) {}
 
-  void play(Ts... x) override { this->sensor_->invalidate_state(); }
+  void play(const Ts &...x) override { this->sensor_->invalidate_state(); }
 
  protected:
   BinarySensor *sensor_;
 };
 
-}  // namespace binary_sensor
-}  // namespace esphome
+}  // namespace esphome::binary_sensor

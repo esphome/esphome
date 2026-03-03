@@ -21,7 +21,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_YEAR,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
@@ -134,9 +134,8 @@ def datetime_schema(class_: MockObjClass) -> cv.Schema:
     return _DATETIME_SCHEMA.extend(schema)
 
 
+@setup_entity("datetime")
 async def setup_datetime_core_(var, config):
-    await setup_entity(var, config, "datetime")
-
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
@@ -172,7 +171,7 @@ async def new_datetime(config, *args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(datetime_ns.using)
 

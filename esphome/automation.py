@@ -15,7 +15,15 @@ from esphome.const import (
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
 )
+from esphome.core import ID, Lambda
+from esphome.cpp_generator import (
+    LambdaExpression,
+    MockObj,
+    MockObjClass,
+    TemplateArgsType,
+)
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigType
 from esphome.util import Registry
 
 
@@ -49,11 +57,26 @@ def maybe_conf(conf, *validators):
     return validate
 
 
-def register_action(name, action_type, schema):
-    return ACTION_REGISTRY.register(name, action_type, schema)
+def register_action(
+    name: str,
+    action_type: MockObjClass,
+    schema: cv.Schema,
+    *,
+    synchronous: bool = False,
+):
+    """Register an action type.
+
+    Actions default to ``synchronous=False`` (safe default), meaning string
+    arguments use owning std::string to prevent dangling references.
+
+    Set ``synchronous=True`` only for actions that complete synchronously
+    and never store trigger arguments for later execution.  This allows
+    the code generator to use non-owning StringRef for zero-copy access.
+    """
+    return ACTION_REGISTRY.register(name, action_type, schema, synchronous=synchronous)
 
 
-def register_condition(name, condition_type, schema):
+def register_condition(name: str, condition_type: MockObjClass, schema: cv.Schema):
     return CONDITION_REGISTRY.register(name, condition_type, schema)
 
 
@@ -84,6 +107,7 @@ def validate_potentially_or_condition(value):
 
 DelayAction = cg.esphome_ns.class_("DelayAction", Action, cg.Component)
 LambdaAction = cg.esphome_ns.class_("LambdaAction", Action)
+StatelessLambdaAction = cg.esphome_ns.class_("StatelessLambdaAction", Action)
 IfAction = cg.esphome_ns.class_("IfAction", Action)
 WhileAction = cg.esphome_ns.class_("WhileAction", Action)
 RepeatAction = cg.esphome_ns.class_("RepeatAction", Action)
@@ -94,7 +118,38 @@ ResumeComponentAction = cg.esphome_ns.class_("ResumeComponentAction", Action)
 Automation = cg.esphome_ns.class_("Automation")
 
 LambdaCondition = cg.esphome_ns.class_("LambdaCondition", Condition)
+StatelessLambdaCondition = cg.esphome_ns.class_("StatelessLambdaCondition", Condition)
 ForCondition = cg.esphome_ns.class_("ForCondition", Condition, cg.Component)
+
+
+def new_lambda_pvariable(
+    id_obj: ID,
+    lambda_expr: LambdaExpression,
+    stateless_class: MockObjClass,
+    template_arg: cg.TemplateArguments | None = None,
+) -> MockObj:
+    """Create Pvariable for lambda, using stateless class if applicable.
+
+    Combines ID selection and Pvariable creation in one call. For stateless
+    lambdas (empty capture), uses function pointer instead of std::function.
+
+    Args:
+        id_obj: The ID object (action_id, condition_id, or filter_id)
+        lambda_expr: The lambda expression object
+        stateless_class: The stateless class to use for stateless lambdas
+        template_arg: Optional template arguments (for actions/conditions)
+
+    Returns:
+        The created Pvariable
+    """
+    # For stateless lambdas, use function pointer instead of std::function
+    if lambda_expr.capture == "":
+        id_obj = id_obj.copy()
+        id_obj.type = stateless_class
+
+    if template_arg is not None:
+        return cg.new_Pvariable(id_obj, template_arg, lambda_expr)
+    return cg.new_Pvariable(id_obj, lambda_expr)
 
 
 def validate_automation(extra_schema=None, extra_validators=None, single=False):
@@ -142,7 +197,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
             value = cv.Schema([extra_validators])(value)
         if single:
             if len(value) != 1:
-                raise cv.Invalid("Cannot have more than 1 automation for templates")
+                raise cv.Invalid("This trigger allows only a single automation")
             return value[0]
         return value
 
@@ -164,45 +219,82 @@ XorCondition = cg.esphome_ns.class_("XorCondition", Condition)
 
 
 @register_condition("and", AndCondition, validate_condition_list)
-async def and_condition_to_code(config, condition_id, template_arg, args):
+async def and_condition_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
     return cg.new_Pvariable(condition_id, template_arg, conditions)
 
 
 @register_condition("or", OrCondition, validate_condition_list)
-async def or_condition_to_code(config, condition_id, template_arg, args):
+async def or_condition_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
     return cg.new_Pvariable(condition_id, template_arg, conditions)
 
 
 @register_condition("all", AndCondition, validate_condition_list)
-async def all_condition_to_code(config, condition_id, template_arg, args):
+async def all_condition_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
     return cg.new_Pvariable(condition_id, template_arg, conditions)
 
 
 @register_condition("any", OrCondition, validate_condition_list)
-async def any_condition_to_code(config, condition_id, template_arg, args):
+async def any_condition_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
     return cg.new_Pvariable(condition_id, template_arg, conditions)
 
 
 @register_condition("not", NotCondition, validate_potentially_and_condition)
-async def not_condition_to_code(config, condition_id, template_arg, args):
+async def not_condition_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     condition = await build_condition(config, template_arg, args)
     return cg.new_Pvariable(condition_id, template_arg, condition)
 
 
 @register_condition("xor", XorCondition, validate_condition_list)
-async def xor_condition_to_code(config, condition_id, template_arg, args):
+async def xor_condition_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
     return cg.new_Pvariable(condition_id, template_arg, conditions)
 
 
 @register_condition("lambda", LambdaCondition, cv.returning_lambda)
-async def lambda_condition_to_code(config, condition_id, template_arg, args):
+async def lambda_condition_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     lambda_ = await cg.process_lambda(config, args, return_type=bool)
-    return cg.new_Pvariable(condition_id, template_arg, lambda_)
+    return new_lambda_pvariable(
+        condition_id, lambda_, StatelessLambdaCondition, template_arg
+    )
 
 
 @register_condition(
@@ -217,7 +309,12 @@ async def lambda_condition_to_code(config, condition_id, template_arg, args):
         }
     ).extend(cv.COMPONENT_SCHEMA),
 )
-async def for_condition_to_code(config, condition_id, template_arg, args):
+async def for_condition_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     condition = await build_condition(
         config[CONF_CONDITION], cg.TemplateArguments(), []
     )
@@ -228,10 +325,41 @@ async def for_condition_to_code(config, condition_id, template_arg, args):
     return var
 
 
-@register_action(
-    "delay", DelayAction, cv.templatable(cv.positive_time_period_milliseconds)
+@register_condition(
+    "component.is_idle",
+    LambdaCondition,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(cg.Component),
+        }
+    ),
 )
-async def delay_action_to_code(config, action_id, template_arg, args):
+async def component_is_idle_condition_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    comp = await cg.get_variable(config[CONF_ID])
+    lambda_ = await cg.process_lambda(
+        Lambda(f"return {comp}->is_idle();"), args, return_type=bool
+    )
+    return new_lambda_pvariable(
+        condition_id, lambda_, StatelessLambdaCondition, template_arg
+    )
+
+
+@register_action(
+    "delay",
+    DelayAction,
+    cv.templatable(cv.positive_time_period_milliseconds),
+)
+async def delay_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_component(var, {})
     template_ = await cg.templatable(config, args, cg.uint32)
@@ -255,11 +383,17 @@ async def delay_action_to_code(config, action_id, template_arg, args):
         cv.has_at_least_one_key(CONF_THEN, CONF_ELSE),
         cv.has_at_least_one_key(CONF_CONDITION, CONF_ANY, CONF_ALL),
     ),
+    synchronous=True,
 )
-async def if_action_to_code(config, action_id, template_arg, args):
+async def if_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     cond_conf = next(el for el in config if el in (CONF_ANY, CONF_ALL, CONF_CONDITION))
-    conditions = await build_condition(config[cond_conf], template_arg, args)
-    var = cg.new_Pvariable(action_id, template_arg, conditions)
+    condition = await build_condition(config[cond_conf], template_arg, args)
+    var = cg.new_Pvariable(action_id, template_arg, condition)
     if CONF_THEN in config:
         actions = await build_action_list(config[CONF_THEN], template_arg, args)
         cg.add(var.add_then(actions))
@@ -278,10 +412,16 @@ async def if_action_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_THEN): validate_action_list,
         }
     ),
+    synchronous=True,
 )
-async def while_action_to_code(config, action_id, template_arg, args):
-    conditions = await build_condition(config[CONF_CONDITION], template_arg, args)
-    var = cg.new_Pvariable(action_id, template_arg, conditions)
+async def while_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    condition = await build_condition(config[CONF_CONDITION], template_arg, args)
+    var = cg.new_Pvariable(action_id, template_arg, condition)
     actions = await build_action_list(config[CONF_THEN], template_arg, args)
     cg.add(var.add_then(actions))
     return var
@@ -296,8 +436,14 @@ async def while_action_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_THEN): validate_action_list,
         }
     ),
+    synchronous=True,
 )
-async def repeat_action_to_code(config, action_id, template_arg, args):
+async def repeat_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     count_template = await cg.templatable(config[CONF_COUNT], args, cg.uint32)
     cg.add(var.set_count(count_template))
@@ -320,9 +466,14 @@ _validate_wait_until = cv.maybe_simple_value(
 
 
 @register_action("wait_until", WaitUntilAction, _validate_wait_until)
-async def wait_until_action_to_code(config, action_id, template_arg, args):
-    conditions = await build_condition(config[CONF_CONDITION], template_arg, args)
-    var = cg.new_Pvariable(action_id, template_arg, conditions)
+async def wait_until_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    condition = await build_condition(config[CONF_CONDITION], template_arg, args)
+    var = cg.new_Pvariable(action_id, template_arg, condition)
     if CONF_TIMEOUT in config:
         template_ = await cg.templatable(config[CONF_TIMEOUT], args, cg.uint32)
         cg.add(var.set_timeout_value(template_))
@@ -330,10 +481,20 @@ async def wait_until_action_to_code(config, action_id, template_arg, args):
     return var
 
 
-@register_action("lambda", LambdaAction, cv.lambda_)
-async def lambda_action_to_code(config, action_id, template_arg, args):
+# Lambda executes user C++ inline and returns — synchronous by execution model.
+# User code could theoretically store the StringRef for deferred use, but StringRef
+# is a view type and storing views beyond their scope is always unsafe regardless
+# of this optimization.  Marking non-synchronous would disable StringRef for nearly
+# all user services since most use lambda.
+@register_action("lambda", LambdaAction, cv.lambda_, synchronous=True)
+async def lambda_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     lambda_ = await cg.process_lambda(config, args, return_type=cg.void)
-    return cg.new_Pvariable(action_id, template_arg, lambda_)
+    return new_lambda_pvariable(action_id, lambda_, StatelessLambdaAction, template_arg)
 
 
 @register_action(
@@ -344,8 +505,14 @@ async def lambda_action_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
         }
     ),
+    synchronous=True,
 )
-async def component_update_action_to_code(config, action_id, template_arg, args):
+async def component_update_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     comp = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, comp)
 
@@ -358,8 +525,14 @@ async def component_update_action_to_code(config, action_id, template_arg, args)
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
         }
     ),
+    synchronous=True,
 )
-async def component_suspend_action_to_code(config, action_id, template_arg, args):
+async def component_suspend_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     comp = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, comp)
 
@@ -375,8 +548,14 @@ async def component_suspend_action_to_code(config, action_id, template_arg, args
             ),
         }
     ),
+    synchronous=True,
 )
-async def component_resume_action_to_code(config, action_id, template_arg, args):
+async def component_resume_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     comp = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, comp)
     if CONF_UPDATE_INTERVAL in config:
@@ -385,7 +564,9 @@ async def component_resume_action_to_code(config, action_id, template_arg, args)
     return var
 
 
-async def build_action(full_config, template_arg, args):
+async def build_action(
+    full_config: ConfigType, template_arg: cg.TemplateArguments, args: TemplateArgsType
+) -> MockObj:
     registry_entry, config = cg.extract_registry_entry_config(
         ACTION_REGISTRY, full_config
     )
@@ -394,15 +575,19 @@ async def build_action(full_config, template_arg, args):
     return await builder(config, action_id, template_arg, args)
 
 
-async def build_action_list(config, templ, arg_type):
-    actions = []
+async def build_action_list(
+    config: list[ConfigType], templ: cg.TemplateArguments, arg_type: TemplateArgsType
+) -> list[MockObj]:
+    actions: list[MockObj] = []
     for conf in config:
         action = await build_action(conf, templ, arg_type)
         actions.append(action)
     return actions
 
 
-async def build_condition(full_config, template_arg, args):
+async def build_condition(
+    full_config: ConfigType, template_arg: cg.TemplateArguments, args: TemplateArgsType
+) -> MockObj:
     registry_entry, config = cg.extract_registry_entry_config(
         CONDITION_REGISTRY, full_config
     )
@@ -411,15 +596,40 @@ async def build_condition(full_config, template_arg, args):
     return await builder(config, action_id, template_arg, args)
 
 
-async def build_condition_list(config, templ, args):
-    conditions = []
+async def build_condition_list(
+    config: ConfigType, templ: cg.TemplateArguments, args: TemplateArgsType
+) -> list[MockObj]:
+    conditions: list[MockObj] = []
     for conf in config:
         condition = await build_condition(conf, templ, args)
         conditions.append(condition)
     return conditions
 
 
-async def build_automation(trigger, args, config):
+def has_non_synchronous_actions(actions: ConfigType) -> bool:
+    """Check if a validated action list contains any non-synchronous actions.
+
+    Non-synchronous actions (delay, wait_until, script.wait, etc.) store
+    trigger args for later execution, making non-owning types like StringRef
+    unsafe.  Actions that haven't been audited default to non-synchronous.
+    """
+    if isinstance(actions, list):
+        return any(has_non_synchronous_actions(item) for item in actions)
+    if isinstance(actions, dict):
+        for key in actions:
+            if key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous:
+                return True
+        return any(
+            has_non_synchronous_actions(v)
+            for v in actions.values()
+            if isinstance(v, (list, dict))
+        )
+    return False
+
+
+async def build_automation(
+    trigger: MockObj, args: TemplateArgsType, config: ConfigType
+) -> MockObj:
     arg_types = [arg[0] for arg in args]
     templ = cg.TemplateArguments(*arg_types)
     obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ, trigger)

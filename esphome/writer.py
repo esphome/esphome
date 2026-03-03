@@ -1,8 +1,10 @@
 import importlib
+import json
 import logging
 import os
 from pathlib import Path
 import re
+import time
 
 from esphome import loader
 from esphome.config import iter_component_configs, iter_components
@@ -15,8 +17,13 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
     copy_file_if_changed,
+    cpp_string_escape,
+    get_str_env,
+    is_ha_addon,
     read_file,
+    rmtree,
     walk_files,
+    write_file,
     write_file_if_changed,
 )
 from esphome.storage_json import StorageJSON, storage_path
@@ -80,27 +87,27 @@ def replace_file_content(text, pattern, repl):
     return content_new, count
 
 
-def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
+def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
     if old is None:
         return True
 
     if old.src_version != new.src_version:
         return True
-    return old.build_path != new.build_path
+    if old.build_path != new.build_path:
+        return True
+    # Check if any components have been removed
+    return bool(old.loaded_integrations - new.loaded_integrations)
 
 
 def storage_should_update_cmake_cache(old: StorageJSON, new: StorageJSON) -> bool:
-    if (
+    # ESP32 uses CMake for both Arduino and ESP-IDF frameworks
+    return (
         old.loaded_integrations != new.loaded_integrations
         or old.loaded_platforms != new.loaded_platforms
-    ) and new.core_platform == PLATFORM_ESP32:
-        from esphome.components.esp32 import FRAMEWORK_ESP_IDF
-
-        return new.framework == FRAMEWORK_ESP_IDF
-    return False
+    ) and new.core_platform == PLATFORM_ESP32
 
 
-def update_storage_json():
+def update_storage_json() -> None:
     path = storage_path()
     old = StorageJSON.load(path)
     new = StorageJSON.from_esphome_core(CORE, old)
@@ -108,8 +115,15 @@ def update_storage_json():
         return
 
     if storage_should_clean(old, new):
-        _LOGGER.info("Core config, version changed, cleaning build files...")
-        clean_build()
+        if old is not None and old.loaded_integrations - new.loaded_integrations:
+            removed = old.loaded_integrations - new.loaded_integrations
+            _LOGGER.info(
+                "Components removed (%s), cleaning build files...",
+                ", ".join(sorted(removed)),
+            )
+        else:
+            _LOGGER.info("Core config or version changed, cleaning build files...")
+        clean_build(clear_pio_cache=False)
     elif storage_should_update_cmake_cache(old, new):
         _LOGGER.info("Integrations changed, cleaning cmake cache...")
         clean_cmake_cache()
@@ -157,6 +171,7 @@ VERSION_H_FORMAT = """\
 """
 DEFINES_H_TARGET = "esphome/core/defines.h"
 VERSION_H_TARGET = "esphome/core/version.h"
+BUILD_INFO_DATA_H_TARGET = "esphome/core/build_info_data.h"
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -190,10 +205,16 @@ def copy_src_tree():
     include_s = "\n".join(include_l)
 
     source_files_copy = source_files_map.copy()
-    ignore_targets = [Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET)]
+    ignore_targets = [
+        Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET, BUILD_INFO_DATA_H_TARGET)
+    ]
     for t in ignore_targets:
-        source_files_copy.pop(t)
+        source_files_copy.pop(t, None)
 
+    # Files to exclude from sources_changed tracking (generated files)
+    generated_files = {Path("esphome/core/build_info_data.h")}
+
+    sources_changed = False
     for fname in walk_files(CORE.relative_src_path("esphome")):
         p = Path(fname)
         if p.suffix not in SOURCE_FILE_EXTENSIONS:
@@ -207,28 +228,82 @@ def copy_src_tree():
         if target not in source_files_copy:
             # Source file removed, delete target
             p.unlink()
+            if target not in generated_files:
+                sources_changed = True
         else:
             src_file = source_files_copy.pop(target)
             with src_file.path() as src_path:
-                copy_file_if_changed(src_path, p)
+                if copy_file_if_changed(src_path, p) and target not in generated_files:
+                    sources_changed = True
 
     # Now copy new files
     for target, src_file in source_files_copy.items():
         dst_path = CORE.relative_src_path(*target.parts)
         with src_file.path() as src_path:
-            copy_file_if_changed(src_path, dst_path)
+            if (
+                copy_file_if_changed(src_path, dst_path)
+                and target not in generated_files
+            ):
+                sources_changed = True
 
     # Finally copy defines
-    write_file_if_changed(
+    if write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "defines.h"), generate_defines_h()
-    )
+    ):
+        sources_changed = True
     write_file_if_changed(CORE.relative_build_path("README.txt"), ESPHOME_README_TXT)
-    write_file_if_changed(
+    if write_file_if_changed(
         CORE.relative_src_path("esphome.h"), ESPHOME_H_FORMAT.format(include_s)
-    )
-    write_file_if_changed(
+    ):
+        sources_changed = True
+    if write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
+    ):
+        sources_changed = True
+
+    # Generate new build_info files if needed
+    build_info_data_h_path = CORE.relative_src_path(
+        "esphome", "core", "build_info_data.h"
     )
+    build_info_json_path = CORE.relative_build_path("build_info.json")
+    config_hash, build_time, build_time_str, comment = get_build_info()
+
+    # Defensively force a rebuild if the build_info files don't exist, or if
+    # there was a config change which didn't actually cause a source change
+    if not build_info_data_h_path.exists():
+        sources_changed = True
+    else:
+        try:
+            existing = json.loads(build_info_json_path.read_text(encoding="utf-8"))
+            if (
+                existing.get("config_hash") != config_hash
+                or existing.get("esphome_version") != __version__
+            ):
+                sources_changed = True
+        except (json.JSONDecodeError, KeyError, OSError):
+            sources_changed = True
+
+    # Write build_info header and JSON metadata
+    if sources_changed:
+        write_file(
+            build_info_data_h_path,
+            generate_build_info_data_h(
+                config_hash, build_time, build_time_str, comment
+            ),
+        )
+        write_file(
+            build_info_json_path,
+            json.dumps(
+                {
+                    "config_hash": config_hash,
+                    "build_time": build_time,
+                    "build_time_str": build_time_str,
+                    "esphome_version": __version__,
+                },
+                indent=2,
+            )
+            + "\n",
+        )
 
     platform = "esphome.components." + CORE.target_platform
     try:
@@ -254,9 +329,46 @@ def generate_version_h():
     )
 
 
+def get_build_info() -> tuple[int, int, str, str]:
+    """Calculate build_info values from current config.
+
+    Returns:
+        Tuple of (config_hash, build_time, build_time_str, comment)
+    """
+    config_hash = CORE.config_hash
+    build_time = int(time.time())
+    build_time_str = time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime(build_time))
+    comment = CORE.comment or ""
+    return config_hash, build_time, build_time_str, comment
+
+
+def generate_build_info_data_h(
+    config_hash: int, build_time: int, build_time_str: str, comment: str
+) -> str:
+    """Generate build_info_data.h header with config hash, build time, and comment."""
+    # cpp_string_escape returns '"escaped"', slice off the quotes since template has them
+    escaped_comment = cpp_string_escape(comment)[1:-1]
+    # +1 for null terminator
+    comment_size = len(comment) + 1
+    return f"""#pragma once
+// Auto-generated build_info data
+#define ESPHOME_CONFIG_HASH 0x{config_hash:08x}U  // NOLINT
+#define ESPHOME_BUILD_TIME {build_time}  // NOLINT
+#define ESPHOME_COMMENT_SIZE {comment_size}  // NOLINT
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+static const char ESPHOME_BUILD_TIME_STR[] PROGMEM = "{build_time_str}";
+static const char ESPHOME_COMMENT_STR[] PROGMEM = "{escaped_comment}";
+#else
+static const char ESPHOME_BUILD_TIME_STR[] = "{build_time_str}";
+static const char ESPHOME_COMMENT_STR[] = "{escaped_comment}";
+#endif
+"""
+
+
 def write_cpp(code_s):
     path = CORE.relative_src_path("main.cpp")
-    if os.path.isfile(path):
+    if path.is_file():
         text = read_file(path)
         code_format = find_begin_end(
             text, CPP_AUTO_GENERATE_BEGIN, CPP_AUTO_GENERATE_END
@@ -282,24 +394,87 @@ def write_cpp(code_s):
 
 def clean_cmake_cache():
     pioenvs = CORE.relative_pioenvs_path()
-    if os.path.isdir(pioenvs):
-        pioenvs_cmake_path = CORE.relative_pioenvs_path(CORE.name, "CMakeCache.txt")
-        if os.path.isfile(pioenvs_cmake_path):
+    if pioenvs.is_dir():
+        pioenvs_cmake_path = pioenvs / CORE.name / "CMakeCache.txt"
+        if pioenvs_cmake_path.is_file():
             _LOGGER.info("Deleting %s", pioenvs_cmake_path)
-            os.remove(pioenvs_cmake_path)
+            pioenvs_cmake_path.unlink()
 
 
-def clean_build():
-    import shutil
+def clean_build(clear_pio_cache: bool = True):
+    # Allow skipping cache cleaning for integration tests
+    if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
+        _LOGGER.warning("Skipping build cleaning (ESPHOME_SKIP_CLEAN_BUILD set)")
+        return
 
     pioenvs = CORE.relative_pioenvs_path()
-    if os.path.isdir(pioenvs):
+    if pioenvs.is_dir():
         _LOGGER.info("Deleting %s", pioenvs)
-        shutil.rmtree(pioenvs)
+        rmtree(pioenvs)
     piolibdeps = CORE.relative_piolibdeps_path()
-    if os.path.isdir(piolibdeps):
+    if piolibdeps.is_dir():
         _LOGGER.info("Deleting %s", piolibdeps)
-        shutil.rmtree(piolibdeps)
+        rmtree(piolibdeps)
+    dependencies_lock = CORE.relative_build_path("dependencies.lock")
+    if dependencies_lock.is_file():
+        _LOGGER.info("Deleting %s", dependencies_lock)
+        dependencies_lock.unlink()
+
+    if not clear_pio_cache:
+        return
+
+    # Clean PlatformIO cache to resolve CMake compiler detection issues
+    # This helps when toolchain paths change or get corrupted
+    try:
+        from platformio.project.config import ProjectConfig
+    except ImportError:
+        # PlatformIO is not available, skip cache cleaning
+        pass
+    else:
+        config = ProjectConfig.get_instance()
+        cache_dir = Path(config.get("platformio", "cache_dir"))
+        if cache_dir.is_dir():
+            _LOGGER.info("Deleting PlatformIO cache %s", cache_dir)
+            rmtree(cache_dir)
+
+
+def clean_all(configuration: list[str]):
+    data_dirs = []
+    for config in configuration:
+        item = Path(config)
+        if item.is_file() and item.suffix in (".yaml", ".yml"):
+            data_dirs.append(item.parent / ".esphome")
+        else:
+            data_dirs.append(item / ".esphome")
+    if is_ha_addon():
+        data_dirs.append(Path("/data"))
+    if "ESPHOME_DATA_DIR" in os.environ:
+        data_dirs.append(Path(get_str_env("ESPHOME_DATA_DIR", None)))
+
+    # Clean build dir
+    for dir in data_dirs:
+        if dir.is_dir():
+            _LOGGER.info("Cleaning %s", dir)
+            # Don't remove storage or .json files which are needed by the dashboard
+            for item in dir.iterdir():
+                if item.is_file() and not item.name.endswith(".json"):
+                    item.unlink()
+                elif item.is_dir() and item.name != "storage":
+                    rmtree(item)
+
+    # Clean PlatformIO project files
+    try:
+        from platformio.project.config import ProjectConfig
+    except ImportError:
+        # PlatformIO is not available, skip cleaning
+        pass
+    else:
+        config = ProjectConfig.get_instance()
+        for pio_dir in ["cache_dir", "packages_dir", "platforms_dir", "core_dir"]:
+            path = Path(config.get("platformio", pio_dir))
+            if path.is_dir():
+                _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
+                rmtree(path)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
@@ -312,6 +487,5 @@ GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
 
 def write_gitignore():
     path = CORE.relative_config_path(".gitignore")
-    if not os.path.isfile(path):
-        with open(file=path, mode="w", encoding="utf-8") as f:
-            f.write(GITIGNORE_CONTENT)
+    if not path.is_file():
+        path.write_text(GITIGNORE_CONTENT, encoding="utf-8")

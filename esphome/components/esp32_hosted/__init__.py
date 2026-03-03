@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from esphome import pins
 from esphome.components import esp32
@@ -11,6 +12,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import add_define
 
 CODEOWNERS = ["@swoboda1337"]
 
@@ -21,6 +23,7 @@ CONF_D1_PIN = "d1_pin"
 CONF_D2_PIN = "d2_pin"
 CONF_D3_PIN = "d3_pin"
 CONF_SLOT = "slot"
+CONF_SDIO_FREQUENCY = "sdio_frequency"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -35,12 +38,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_D3_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_SLOT, default=1): cv.int_range(min=0, max=1),
+            cv.Optional(CONF_SDIO_FREQUENCY, default="40MHz"): cv.All(
+                cv.frequency, cv.Range(min=400e3, max=50e6)
+            ),
         }
     ),
 )
 
 
 async def to_code(config):
+    add_define("USE_ESP32_HOSTED")
     if config[CONF_ACTIVE_HIGH]:
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_HOSTED_SDIO_RESET_ACTIVE_HIGH",
@@ -88,14 +95,23 @@ async def to_code(config):
         config[CONF_D3_PIN],
     )
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_CUSTOM_SDIO_PINS", True)
+    esp32.add_idf_sdkconfig_option(
+        "CONFIG_ESP_HOSTED_SDIO_CLOCK_FREQ_KHZ",
+        int(config[CONF_SDIO_FREQUENCY] // 1000),
+    )
 
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     os.environ["ESP_IDF_VERSION"] = f"{framework_ver.major}.{framework_ver.minor}"
-    esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="0.10.2")
-    esp32.add_idf_component(name="espressif/eppp_link", ref="0.2.0")
-    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.0.11")
+    if framework_ver >= cv.Version(5, 5, 0):
+        esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.3.2")
+        esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.4")
+        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.11.5")
+    else:
+        esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="0.13.0")
+        esp32.add_idf_component(name="espressif/eppp_link", ref="0.2.0")
+        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.0.11")
     esp32.add_extra_script(
         "post",
         "esp32_hosted.py",
-        os.path.join(os.path.dirname(__file__), "esp32_hosted.py.script"),
+        Path(__file__).parent / "esp32_hosted.py.script",
     )

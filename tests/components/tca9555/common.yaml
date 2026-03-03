@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_tca9555
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 tca9555:
   - id: tca9555_hub
+    i2c_id: i2c_bus
     address: 0x21
 
 binary_sensor:

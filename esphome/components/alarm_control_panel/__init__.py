@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
@@ -172,12 +172,6 @@ def alarm_control_panel_schema(
     return _ALARM_CONTROL_PANEL_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-ALARM_CONTROL_PANEL_SCHEMA = alarm_control_panel_schema(AlarmControlPanel)
-ALARM_CONTROL_PANEL_SCHEMA.add_extra(
-    cv.deprecated_schema_constant("alarm_control_panel")
-)
-
 ALARM_CONTROL_PANEL_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(AlarmControlPanel),
@@ -192,8 +186,8 @@ ALARM_CONTROL_PANEL_CONDITION_SCHEMA = maybe_simple_id(
 )
 
 
+@setup_entity("alarm_control_panel")
 async def setup_alarm_control_panel_core_(var, config):
-    await setup_entity(var, config, "alarm_control_panel")
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
@@ -345,6 +339,6 @@ async def alarm_control_panel_is_armed_to_code(
     return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(alarm_control_panel_ns.using)

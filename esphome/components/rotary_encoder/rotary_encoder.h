@@ -82,8 +82,6 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
   void dump_config() override;
   void loop() override;
 
-  float get_setup_priority() const override;
-
   void add_on_clockwise_callback(std::function<void()> callback) {
     this->on_clockwise_callback_.add(std::move(callback));
   }
@@ -114,7 +112,7 @@ template<typename... Ts> class RotaryEncoderSetValueAction : public Action<Ts...
   RotaryEncoderSetValueAction(RotaryEncoderSensor *encoder) : encoder_(encoder) {}
   TEMPLATABLE_VALUE(int, value)
 
-  void play(Ts... x) override { this->encoder_->set_value(this->value_.value(x...)); }
+  void play(const Ts &...x) override { this->encoder_->set_value(this->value_.value(x...)); }
 
  protected:
   RotaryEncoderSensor *encoder_;

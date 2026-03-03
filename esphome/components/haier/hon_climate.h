@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <queue>
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -29,10 +30,10 @@ enum class CleaningState : uint8_t {
 enum class HonControlMethod { MONITOR_ONLY = 0, SET_GROUP_PARAMETERS, SET_SINGLE_PARAMETER };
 
 struct HonSettings {
-  hon_protocol::VerticalSwingMode last_vertiacal_swing;
-  hon_protocol::HorizontalSwingMode last_horizontal_swing;
-  bool beeper_state;
-  bool quiet_mode_state;
+  hon_protocol::VerticalSwingMode last_vertiacal_swing{hon_protocol::VerticalSwingMode::CENTER};
+  hon_protocol::HorizontalSwingMode last_horizontal_swing{hon_protocol::HorizontalSwingMode::CENTER};
+  bool beeper_state{true};
+  bool quiet_mode_state{false};
 };
 
 class HonClimate : public HaierClimateBase {
@@ -178,7 +179,7 @@ class HonClimate : public HaierClimateBase {
   int extra_control_packet_bytes_{0};
   int extra_sensors_packet_bytes_{4};
   int status_message_header_size_{0};
-  int real_control_packet_size_{sizeof(hon_protocol::HaierPacketControl)};
+  size_t real_control_packet_size_{sizeof(hon_protocol::HaierPacketControl)};
   int real_sensors_packet_size_{sizeof(hon_protocol::HaierPacketSensors) + 4};
   HonControlMethod control_method_;
   std::queue<haier_protocol::HaierMessage> control_messages_queue_;
@@ -189,7 +190,7 @@ class HonClimate : public HaierClimateBase {
   int big_data_sensors_{0};
   esphome::optional<hon_protocol::VerticalSwingMode> current_vertical_swing_{};
   esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
-  HonSettings settings_;
+  HonSettings settings_{};
   ESPPreferenceObject hon_rtc_;
   SwitchState quiet_mode_state_{SwitchState::OFF};
 };

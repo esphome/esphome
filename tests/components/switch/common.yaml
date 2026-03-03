@@ -9,3 +9,23 @@ switch:
     name: "Template Switch"
     id: the_switch
     optimistic: true
+    on_state:
+      - if:
+          condition:
+            - lambda: return x;
+          then:
+            - logger.log: "Switch turned ON"
+          else:
+            - logger.log: "Switch turned OFF"
+    on_turn_on:
+      - logger.log: "Switch is now ON"
+    on_turn_off:
+      - logger.log: "Switch is now OFF"
+
+esphome:
+  on_boot:
+    - switch.turn_on: the_switch
+    - switch.turn_off: the_switch
+    - switch.control:
+        id: the_switch
+        state: !lambda return (1 > 2);

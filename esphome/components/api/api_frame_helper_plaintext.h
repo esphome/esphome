@@ -5,10 +5,9 @@
 
 namespace esphome::api {
 
-class APIPlaintextFrameHelper : public APIFrameHelper {
+class APIPlaintextFrameHelper final : public APIFrameHelper {
  public:
-  APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket, const ClientInfo *client_info)
-      : APIFrameHelper(std::move(socket), client_info) {
+  explicit APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket) : APIFrameHelper(std::move(socket)) {
     // Plaintext header structure (worst case):
     // Pos 0: indicator (0x00)
     // Pos 1-3: payload size varint (up to 3 bytes)
@@ -21,13 +20,10 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
-  APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
-  uint8_t frame_header_padding() override { return frame_header_padding_; }
-  // Get the frame footer size required by this protocol
-  uint8_t frame_footer_size() override { return frame_footer_size_; }
+  APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) override;
 
  protected:
-  APIError try_read_frame_(std::vector<uint8_t> *frame);
+  APIError try_read_frame_();
 
   // Group 2-byte aligned types
   uint16_t rx_header_parsed_type_ = 0;

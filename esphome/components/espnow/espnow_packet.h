@@ -49,7 +49,7 @@ class ESPNowPacket {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
   // Constructor for sent data
   ESPNowPacket(const esp_now_send_info_t *info, esp_now_send_status_t status) {
-    this->init_sent_data(info->src_addr, status);
+    this->init_sent_data_(info->src_addr, status);
   }
 #else
   // Constructor for sent data

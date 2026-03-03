@@ -56,5 +56,3 @@ ST7796.extend(
     backlight_pin=48,
     invert_colors=True,
 )
-
-models = {}

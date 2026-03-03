@@ -2,13 +2,14 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
-from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32 import get_esp32_variant, include_builtin_idf_component
 from esphome.components.nrf52.const import AIN_TO_GPIO, EXTRA_ADC
 from esphome.components.zephyr import (
     zephyr_add_overlay,
     zephyr_add_prj_conf,
     zephyr_add_user,
 )
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ATTENUATION,
@@ -20,6 +21,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
+    PlatformFramework,
 )
 from esphome.core import CORE
 
@@ -116,6 +118,9 @@ async def to_code(config):
     cg.add(var.set_sampling_mode(config[CONF_SAMPLING_MODE]))
 
     if CORE.is_esp32:
+        # Re-enable ESP-IDF's ADC driver (excluded by default to save compile time)
+        include_builtin_idf_component("esp_adc")
+
         if attenuation := config.get(CONF_ATTENUATION):
             if attenuation == "auto":
                 cg.add(var.set_autorange(cg.global_ns.true))
@@ -158,19 +163,37 @@ async def to_code(config):
         zephyr_add_user("io-channels", f"<&adc {channel_id}>")
         zephyr_add_overlay(
             f"""
-&adc {{
-    #address-cells = <1>;
-    #size-cells = <0>;
+                &adc {{
+                    #address-cells = <1>;
+                    #size-cells = <0>;
 
-    channel@{channel_id} {{
-        reg = <{channel_id}>;
-        zephyr,gain = "{gain}";
-        zephyr,reference = "ADC_REF_INTERNAL";
-        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-        zephyr,input-positive = <NRF_SAADC_{pin_number}>;
-        zephyr,resolution = <14>;
-        zephyr,oversampling = <8>;
-    }};
-}};
-"""
+                    channel@{channel_id} {{
+                        reg = <{channel_id}>;
+                        zephyr,gain = "{gain}";
+                        zephyr,reference = "ADC_REF_INTERNAL";
+                        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+                        zephyr,input-positive = <NRF_SAADC_{pin_number}>;
+                        zephyr,resolution = <14>;
+                        zephyr,oversampling = <8>;
+                    }};
+                }};
+            """
         )
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "adc_sensor_esp32.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+        "adc_sensor_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "adc_sensor_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "adc_sensor_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "adc_sensor_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
+    }
+)

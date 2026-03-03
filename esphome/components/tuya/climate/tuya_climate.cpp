@@ -67,7 +67,9 @@ void TuyaClimate::setup() {
   }
   if (this->eco_id_.has_value()) {
     this->parent_->register_listener(*this->eco_id_, [this](const TuyaDatapoint &datapoint) {
+      // Whether data type is BOOL or ENUM, it will still be a 1 or a 0, so the functions below are valid in both cases
       this->eco_ = datapoint.value_bool;
+      this->eco_type_ = datapoint.type;
       ESP_LOGV(TAG, "MCU reported eco is: %s", ONOFF(this->eco_));
       this->compute_preset_();
       this->compute_target_temperature_();
@@ -176,7 +178,11 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
     if (this->eco_id_.has_value()) {
       const bool eco = preset == climate::CLIMATE_PRESET_ECO;
       ESP_LOGV(TAG, "Setting eco: %s", ONOFF(eco));
-      this->parent_->set_boolean_datapoint_value(*this->eco_id_, eco);
+      if (this->eco_type_ == TuyaDatapointType::ENUM) {
+        this->parent_->set_enum_datapoint_value(*this->eco_id_, eco);
+      } else {
+        this->parent_->set_boolean_datapoint_value(*this->eco_id_, eco);
+      }
     }
     if (this->sleep_id_.has_value()) {
       const bool sleep = preset == climate::CLIMATE_PRESET_SLEEP;
@@ -283,8 +289,11 @@ void TuyaClimate::control_fan_mode_(const climate::ClimateCall &call) {
 
 climate::ClimateTraits TuyaClimate::traits() {
   auto traits = climate::ClimateTraits();
-  traits.set_supports_action(true);
-  traits.set_supports_current_temperature(this->current_temperature_id_.has_value());
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
+  if (this->current_temperature_id_.has_value()) {
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  }
+
   if (supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
   if (supports_cool_)
@@ -303,18 +312,12 @@ climate::ClimateTraits TuyaClimate::traits() {
     traits.add_supported_preset(climate::CLIMATE_PRESET_NONE);
   }
   if (this->swing_vertical_id_.has_value() && this->swing_horizontal_id_.has_value()) {
-    std::set<climate::ClimateSwingMode> supported_swing_modes = {
-        climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
-        climate::CLIMATE_SWING_HORIZONTAL};
-    traits.set_supported_swing_modes(std::move(supported_swing_modes));
+    traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
+                                      climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL});
   } else if (this->swing_vertical_id_.has_value()) {
-    std::set<climate::ClimateSwingMode> supported_swing_modes = {climate::CLIMATE_SWING_OFF,
-                                                                 climate::CLIMATE_SWING_VERTICAL};
-    traits.set_supported_swing_modes(std::move(supported_swing_modes));
+    traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL});
   } else if (this->swing_horizontal_id_.has_value()) {
-    std::set<climate::ClimateSwingMode> supported_swing_modes = {climate::CLIMATE_SWING_OFF,
-                                                                 climate::CLIMATE_SWING_HORIZONTAL};
-    traits.set_supported_swing_modes(std::move(supported_swing_modes));
+    traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL});
   }
 
   if (fan_speed_id_) {

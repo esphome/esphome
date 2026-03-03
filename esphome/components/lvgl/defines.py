@@ -5,24 +5,42 @@ Constants already defined in esphome.const are not duplicated here and must be i
 """
 
 import logging
+from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
-from esphome.core import ID, Lambda
+from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import LambdaExpression, MockObj
 from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import Expression, SafeExpType
 
 from .helpers import requires_component
 
 LOGGER = logging.getLogger(__name__)
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
 
-lv_defines = {}  # Dict of #defines to provide as build flags
+DOMAIN = "lvgl"
+KEY_LV_DEFINES = "lv_defines"
+KEY_UPDATED_WIDGETS = "updated_widgets"
+
+
+def get_data(key, default=None):
+    """
+    Get a data structure from the global data store by key
+    :param key: A key for the data
+    :param default: The default data - the default is an empty dict
+    :return:
+    """
+    return CORE.data.setdefault(DOMAIN, {}).setdefault(
+        key, default if default is not None else {}
+    )
 
 
 def add_define(macro, value="1"):
-    if macro in lv_defines and lv_defines[macro] != value:
+    lv_defines = get_data(KEY_LV_DEFINES)
+    value = str(value)
+    if lv_defines.setdefault(macro, value) != value:
         LOGGER.error(
             "Redefinition of %s - was %s now %s", macro, lv_defines[macro], value
         )
@@ -42,7 +60,13 @@ def static_cast(type, value):
 def call_lambda(lamb: LambdaExpression):
     expr = lamb.content.strip()
     if expr.startswith("return") and expr.endswith(";"):
-        return expr[6:][:-1].strip()
+        return expr[6:-1].strip()
+    # If lambda has parameters, call it with those parameter names
+    # Parameter names come from hardcoded component code (like "x", "it", "event")
+    # not from user input, so they're safe to use directly
+    if lamb.parameters and lamb.parameters.parameters:
+        param_names = ", ".join(str(param.id) for param in lamb.parameters.parameters)
+        return f"{lamb}({param_names})"
     return f"{lamb}()"
 
 
@@ -65,10 +89,16 @@ class LValidator:
             return cv.returning_lambda(value)
         return self.validator(value)
 
-    async def process(self, value, args=()):
+    async def process(
+        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+    ) -> Expression:
         if value is None:
             return None
         if isinstance(value, Lambda):
+            # Local import to avoid circular import
+            from .lvcode import get_lambda_context_args
+
+            args = args or get_lambda_context_args()
             return cg.RawExpression(
                 call_lambda(
                     await cg.process_lambda(value, args, return_type=self.rtype)
@@ -261,6 +291,8 @@ KEYBOARD_MODES = LvConstant(
 )
 ROLLER_MODES = LvConstant("LV_ROLLER_MODE_", "NORMAL", "INFINITE")
 TILE_DIRECTIONS = DIRECTIONS.extend("HOR", "VER", "ALL")
+SCROLL_DIRECTIONS = TILE_DIRECTIONS.extend("NONE")
+SNAP_DIRECTIONS = LvConstant("LV_SCROLL_SNAP_", "NONE", "START", "END", "CENTER")
 CHILD_ALIGNMENTS = LvConstant(
     "LV_ALIGN_",
     "TOP_LEFT",
@@ -376,6 +408,8 @@ LV_FLEX_ALIGNMENTS = LvConstant(
     "SPACE_BETWEEN",
 )
 
+LV_FLEX_CROSS_ALIGNMENTS = LV_FLEX_ALIGNMENTS.extend("STRETCH")
+
 LV_MENU_MODES = LvConstant(
     "LV_MENU_HEADER_",
     "TOP_FIXED",
@@ -418,6 +452,7 @@ CONF_BUTTONS = "buttons"
 CONF_BYTE_ORDER = "byte_order"
 CONF_CHANGE_RATE = "change_rate"
 CONF_CLOSE_BUTTON = "close_button"
+CONF_CONTAINER = "container"
 CONF_CONTROL = "control"
 CONF_DEFAULT_FONT = "default_font"
 CONF_DEFAULT_GROUP = "default_group"
@@ -451,12 +486,12 @@ CONF_GRID_ROWS = "grid_rows"
 CONF_HEADER_MODE = "header_mode"
 CONF_HOME = "home"
 CONF_INITIAL_FOCUS = "initial_focus"
+CONF_SELECTED_DIGIT = "selected_digit"
 CONF_KEY_CODE = "key_code"
 CONF_KEYPADS = "keypads"
 CONF_LAYOUT = "layout"
 CONF_LEFT_BUTTON = "left_button"
 CONF_LINE_WIDTH = "line_width"
-CONF_LOG_LEVEL = "log_level"
 CONF_LONG_PRESS_TIME = "long_press_time"
 CONF_LONG_PRESS_REPEAT_TIME = "long_press_repeat_time"
 CONF_LVGL_ID = "lvgl_id"
@@ -465,6 +500,8 @@ CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_ONE_CHECKED = "one_checked"
 CONF_ONE_LINE = "one_line"
+CONF_ON_DRAW_START = "on_draw_start"
+CONF_ON_DRAW_END = "on_draw_end"
 CONF_ON_PAUSE = "on_pause"
 CONF_ON_RESUME = "on_resume"
 CONF_ON_SELECT = "on_select"
@@ -486,9 +523,11 @@ CONF_RESUME_ON_INPUT = "resume_on_input"
 CONF_RIGHT_BUTTON = "right_button"
 CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
-CONF_ROWS = "rows"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
+CONF_SCROLL_DIR = "scroll_dir"
+CONF_SCROLL_SNAP_X = "scroll_snap_x"
+CONF_SCROLL_SNAP_Y = "scroll_snap_y"
 CONF_SELECTED_INDEX = "selected_index"
 CONF_SELECTED_TEXT = "selected_text"
 CONF_SHOW_SNOW = "show_snow"
@@ -515,6 +554,7 @@ CONF_TOUCHSCREENS = "touchscreens"
 CONF_TRANSPARENCY_KEY = "transparency_key"
 CONF_THEME = "theme"
 CONF_UPDATE_ON_RELEASE = "update_on_release"
+CONF_UPDATE_WHEN_DISPLAY_IDLE = "update_when_display_idle"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"
 CONF_WIDGET = "widget"
 CONF_WIDGETS = "widgets"

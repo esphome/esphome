@@ -1,8 +1,4 @@
-substitutions:
-  client_tx_pin: GPIO2
-  client_rx_pin: GPIO3
-  server_tx_pin: GPIO4
-  server_rx_pin: GPIO5
-  flow_control_pin: GPIO6
+packages:
+  modbus: !include ../../test_build_components/common/modbus/rp2040-ard.yaml
 
 <<: !include common.yaml

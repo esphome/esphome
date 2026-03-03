@@ -50,7 +50,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(FactoryResetComponent),
             cv.Optional(CONF_MAX_DELAY, default="10s"): cv.All(
                 cv.positive_time_period_seconds,
-                cv.Range(min=cv.TimePeriod(milliseconds=1000)),
+                cv.Range(
+                    min=cv.TimePeriod(seconds=1), max=cv.TimePeriod(seconds=65535)
+                ),
             ),
             cv.Optional(CONF_RESETS_REQUIRED): cv.positive_not_null_int,
             cv.Optional(CONF_ON_INCREMENT): validate_automation(
@@ -82,7 +84,7 @@ async def to_code(config):
         var = cg.new_Pvariable(
             config[CONF_ID],
             reset_count,
-            config[CONF_MAX_DELAY].total_milliseconds,
+            config[CONF_MAX_DELAY].total_seconds,
         )
         await cg.register_component(var, config)
         for conf in config.get(CONF_ON_INCREMENT, []):

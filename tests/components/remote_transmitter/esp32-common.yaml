@@ -2,6 +2,7 @@ remote_transmitter:
   - id: xmitr
     pin: ${pin}
     carrier_duty_percent: 50%
+    non_blocking: true
     clock_resolution: ${clock_resolution}
     rmt_symbols: ${rmt_symbols}
 

@@ -50,6 +50,14 @@ mapping:
       red: red_id
       blue: blue_id
       green: green_id
+  - id: string_map_2
+    from: string
+    to: string
+    entries:
+      one: "one"
+      two: "two"
+      three: "three"
+      seventy-seven: "seventy-seven"
 
 color:
   - id: red_id
@@ -65,7 +73,14 @@ color:
     green: 0.0
     blue: 1.0
 
+font:
+  - file: "$component_dir/helvetica.ttf"
+    id: font_id
+    size: 20
+
 display:
   lambda: |-
-      it.image(0, 0, id(weather_map)[0]);
-      it.image(0, 100, id(weather_map)[1]);
+      std::string value = id(int_map)[2];
+      it.print(0, 0, id(font_id), TextAlign::TOP_LEFT, value.c_str());
+      it.image(0, 0, id(weather_map)["clear-night"]);
+      it.image(0, 100, id(weather_map)["sunny"]);

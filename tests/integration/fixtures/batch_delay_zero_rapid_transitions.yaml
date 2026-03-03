@@ -34,10 +34,9 @@ binary_sensor:
           ESP_LOGD("test", "Button ON at %u", now);
         }
         return true;
-      } else {
-        // Only log state change
-        if (id(ir_remote_button).state) {
-          ESP_LOGD("test", "Button OFF at %u", now);
-        }
-        return false;
       }
+      // Only log state change
+      if (id(ir_remote_button).state) {
+        ESP_LOGD("test", "Button OFF at %u", now);
+      }
+      return false;

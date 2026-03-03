@@ -1,6 +1,4 @@
-i2c:
-  - id: i2c_lps22
-    scl: 5
-    sda: 4
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
 
 <<: !include common.yaml

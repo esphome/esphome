@@ -75,8 +75,8 @@ class SetLatencyCommand : public Command {
 class SensorCfgStartCommand : public Command {
  public:
   SensorCfgStartCommand(bool startup_mode) : startup_mode_(startup_mode) {
-    char tmp_cmd[20] = {0};
-    sprintf(tmp_cmd, "sensorCfgStart %d", startup_mode);
+    char tmp_cmd[20];  // "sensorCfgStart " (15) + "0/1" (1) + null = 17
+    buf_append_printf(tmp_cmd, sizeof(tmp_cmd), 0, "sensorCfgStart %d", startup_mode);
     cmd_ = std::string(tmp_cmd);
   }
   uint8_t on_message(std::string &message) override;
@@ -142,8 +142,8 @@ class SensitivityCommand : public Command {
   SensitivityCommand(uint8_t sensitivity) : sensitivity_(sensitivity) {
     if (sensitivity > 9)
       sensitivity_ = sensitivity = 9;
-    char tmp_cmd[20] = {0};
-    sprintf(tmp_cmd, "setSensitivity %d", sensitivity);
+    char tmp_cmd[20];  // "setSensitivity " (15) + "0-9" (1) + null = 17
+    buf_append_printf(tmp_cmd, sizeof(tmp_cmd), 0, "setSensitivity %d", sensitivity);
     cmd_ = std::string(tmp_cmd);
   };
   uint8_t on_message(std::string &message) override;

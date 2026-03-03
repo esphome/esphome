@@ -6,8 +6,7 @@
 
 #include <AsyncMqttClient.h>
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTBackendLibreTiny final : public MQTTBackend {
  public:
@@ -22,11 +21,6 @@ class MQTTBackendLibreTiny final : public MQTTBackend {
   }
   void set_server(network::IPAddress ip, uint16_t port) final { mqtt_client_.setServer(IPAddress(ip), port); }
   void set_server(const char *host, uint16_t port) final { mqtt_client_.setServer(host, port); }
-#if ASYNC_TCP_SSL_ENABLED
-  void set_secure(bool secure) { mqtt_client.setSecure(secure); }
-  void add_server_fingerprint(const uint8_t *fingerprint) { mqtt_client.addServerFingerprint(fingerprint); }
-#endif
-
   void set_on_connect(std::function<on_connect_callback_t> &&callback) final {
     this->mqtt_client_.onConnect(std::move(callback));
   }
@@ -67,8 +61,7 @@ class MQTTBackendLibreTiny final : public MQTTBackend {
   AsyncMqttClient mqtt_client_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // defined(USE_LIBRETINY)
 #endif

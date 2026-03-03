@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
+#include "esphome/components/modbus/modbus_definitions.h"
+
 #include <vector>
 
 namespace esphome {
@@ -65,12 +67,12 @@ class ModbusDevice {
     this->parent_->send(this->address_, function, start_address, number_of_entities, payload_len, payload);
   }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload); }
-  void send_error(uint8_t function_code, uint8_t exception_code) {
+  void send_error(uint8_t function_code, ModbusExceptionCode exception_code) {
     std::vector<uint8_t> error_response;
     error_response.reserve(3);
     error_response.push_back(this->address_);
-    error_response.push_back(function_code | 0x80);
-    error_response.push_back(exception_code);
+    error_response.push_back(function_code | FUNCTION_CODE_EXCEPTION_MASK);
+    error_response.push_back(static_cast<uint8_t>(exception_code));
     this->send_raw(error_response);
   }
   // If more than one device is connected block sending a new command before a response is received

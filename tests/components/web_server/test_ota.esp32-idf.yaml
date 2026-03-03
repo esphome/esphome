@@ -12,8 +12,10 @@ packages:
 # Enable OTA for multipart upload testing
 ota:
   - platform: esphome
+    id: web_server_esphome_ota
     password: "test_ota_password"
   - platform: web_server
+    id: web_server_web_server_ota
 
 # Web server configuration
 web_server:

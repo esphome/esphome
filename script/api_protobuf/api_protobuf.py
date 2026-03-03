@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import IntEnum
-import os
 from pathlib import Path
 import re
 from subprocess import call
@@ -12,6 +11,7 @@ from typing import Any
 
 import aioesphomeapi.api_options_pb2 as pb
 import google.protobuf.descriptor_pb2 as descriptor
+from google.protobuf.descriptor_pb2 import FieldDescriptorProto
 
 
 class WireType(IntEnum):
@@ -149,7 +149,7 @@ class TypeInfo(ABC):
     @property
     def repeated(self) -> bool:
         """Check if the field is repeated."""
-        return self._field.label == 3
+        return self._field.label == FieldDescriptorProto.LABEL_REPEATED
 
     @property
     def wire_type(self) -> WireType:
@@ -280,7 +280,7 @@ class TypeInfo(ABC):
         """
         field_id_size = self.calculate_field_id_size()
         method = f"{base_method}_force" if force else base_method
-        value = value_expr if value_expr else name
+        value = value_expr or name
         return f"size.{method}({field_id_size}, {value});"
 
     @abstractmethod
@@ -338,7 +338,15 @@ def create_field_type_info(
     needs_encode: bool = True,
 ) -> TypeInfo:
     """Create the appropriate TypeInfo instance for a field, handling repeated fields and custom options."""
-    if field.label == 3:  # repeated
+    if field.label == FieldDescriptorProto.LABEL_REPEATED:
+        # Check if this is a packed_buffer field (zero-copy packed repeated)
+        if get_field_opt(field, pb.packed_buffer, False):
+            return PackedBufferTypeInfo(field)
+        # Check if this repeated field has fixed_array_with_length_define option
+        if (
+            fixed_size := get_field_opt(field, pb.fixed_array_with_length_define)
+        ) is not None:
+            return FixedArrayWithLengthRepeatedType(field, fixed_size)
         # Check if this repeated field has fixed_array_size option
         if (fixed_size := get_field_opt(field, pb.fixed_array_size)) is not None:
             return FixedArrayRepeatedType(field, fixed_size)
@@ -349,20 +357,28 @@ def create_field_type_info(
             return FixedArrayRepeatedType(field, size_define)
         return RepeatedTypeInfo(field)
 
-    # Check for fixed_array_size option on bytes fields
-    if (
-        field.type == 12
-        and (fixed_size := get_field_opt(field, pb.fixed_array_size)) is not None
-    ):
-        return FixedArrayBytesType(field, fixed_size)
-
     # Special handling for bytes fields
     if field.type == 12:
+        fixed_size = get_field_opt(field, pb.fixed_array_size, None)
+
+        if fixed_size is not None:
+            # Traditional fixed array approach with copy (takes priority)
+            return FixedArrayBytesType(field, fixed_size)
+
+        # For messages that decode (SOURCE_CLIENT or SOURCE_BOTH), use pointer
+        # for zero-copy access to the receive buffer
+        if needs_decode:
+            return PointerToBytesBufferType(field, None)
+
+        # For SOURCE_SERVER (encode only), explicit annotation is still needed
+        if get_field_opt(field, pb.pointer_to_buffer, False):
+            return PointerToBytesBufferType(field, None)
+
         return BytesType(field, needs_decode, needs_encode)
 
-    # Special handling for string fields
+    # Special handling for string fields - use StringRef for zero-copy
     if field.type == 9:
-        return StringType(field, needs_decode, needs_encode)
+        return PointerToStringBufferType(field, None)
 
     validate_field_type(field.type, field.name)
     return TYPE_INFO[field.type](field)
@@ -436,7 +452,7 @@ class Int64Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%lld", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRId64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -456,7 +472,7 @@ class UInt64Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%llu", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRIu64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -496,7 +512,7 @@ class Fixed64Type(TypeInfo):
     wire_type = WireType.FIXED64  # Uses wire type 1
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%llu", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRIu64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -567,15 +583,12 @@ class StringType(TypeInfo):
     def public_content(self) -> list[str]:
         content: list[str] = []
 
-        # Check if no_zero_copy option is set
-        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
-
-        # Add std::string storage if message needs decoding OR if no_zero_copy is set
-        if self._needs_decode or no_zero_copy:
+        # Add std::string storage if message needs decoding
+        if self._needs_decode:
             content.append(f"std::string {self.field_name}{{}};")
 
-        # Only add StringRef if encoding is needed AND no_zero_copy is not set
-        if self._needs_encode and not no_zero_copy:
+        # Add StringRef if encoding is needed
+        if self._needs_encode:
             content.extend(
                 [
                     # Add StringRef field if message needs encoding
@@ -590,26 +603,13 @@ class StringType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        # Check if no_zero_copy option is set
-        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
-
-        if no_zero_copy:
-            # Use the std::string directly
-            return f"buffer.encode_string({self.number}, this->{self.field_name});"
         # Use the StringRef
         return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
 
     def dump(self, name):
-        # Check if no_zero_copy option is set
-        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
-
         # If name is 'it', this is a repeated field element - always use string
         if name == "it":
             return "append_quoted_string(out, StringRef(it));"
-
-        # If no_zero_copy is set, always use std::string
-        if no_zero_copy:
-            return f'out.append("\'").append(this->{self.field_name}).append("\'");'
 
         # For SOURCE_CLIENT only, always use std::string
         if not self._needs_encode:
@@ -630,13 +630,6 @@ class StringType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        # Check if no_zero_copy option is set
-        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
-
-        # If no_zero_copy is set, always use std::string
-        if no_zero_copy:
-            return f'dump_field(out, "{self.name}", this->{self.field_name});'
-
         # For SOURCE_CLIENT only, use std::string
         if not self._needs_encode:
             return f'dump_field(out, "{self.name}", this->{self.field_name});'
@@ -652,17 +645,8 @@ class StringType(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        # Check if no_zero_copy option is set
-        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
-
-        # For SOURCE_CLIENT only messages or no_zero_copy, use the string field directly
-        if not self._needs_encode or no_zero_copy:
-            # For no_zero_copy, we need to use .size() on the string
-            if no_zero_copy and name != "it":
-                field_id_size = self.calculate_field_id_size()
-                return (
-                    f"size.add_length({field_id_size}, this->{self.field_name}.size());"
-                )
+        # For SOURCE_CLIENT only messages, use the string field directly
+        if not self._needs_encode:
             return self._get_simple_size_calculation(name, force, "add_length")
 
         # Check if this is being called from a repeated field context
@@ -704,6 +688,14 @@ class MessageType(TypeInfo):
     @property
     def encode_func(self) -> str:
         return "encode_message"
+
+    @property
+    def encode_content(self) -> str:
+        # Singular message fields pass force=false (skip empty messages)
+        # The default for encode_nested_message is force=true (for repeated fields)
+        return (
+            f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, false);"
+        )
 
     @property
     def decode_length(self) -> str:
@@ -802,16 +794,237 @@ class BytesType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        o = f'out.append("  {self.name}: ");\n'
-        o += self.dump(f"this->{self.field_name}") + "\n"
-        o += 'out.append("\\n");'
-        return o
+        # For SOURCE_CLIENT only, always use std::string
+        if not self._needs_encode:
+            return (
+                f'dump_bytes_field(out, "{self.name}", '
+                f"reinterpret_cast<const uint8_t*>(this->{self.field_name}.data()), "
+                f"this->{self.field_name}.size());"
+            )
+
+        # For SOURCE_SERVER, always use pointer/length
+        if not self._needs_decode:
+            return (
+                f'dump_bytes_field(out, "{self.name}", '
+                f"this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
+            )
+
+        # For SOURCE_BOTH, check if pointer is set (sending) or use string (received)
+        return (
+            f"if (this->{self.field_name}_ptr_ != nullptr) {{\n"
+            f'  dump_bytes_field(out, "{self.name}", '
+            f"this->{self.field_name}_ptr_, this->{self.field_name}_len_);\n"
+            f"}} else {{\n"
+            f'  dump_bytes_field(out, "{self.name}", '
+            f"reinterpret_cast<const uint8_t*>(this->{self.field_name}.data()), "
+            f"this->{self.field_name}.size());\n"
+            f"}}"
+        )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}_len_);"
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical bytes
+
+
+class PointerToBufferTypeBase(TypeInfo):
+    """Base class for pointer_to_buffer types (bytes and strings) for zero-copy decoding."""
+
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return False
+
+    def __init__(
+        self, field: descriptor.FieldDescriptorProto, size: int | None = None
+    ) -> None:
+        super().__init__(field)
+        self.array_size = 0
+
+    @property
+    def decode_length(self) -> str | None:
+        # This is handled in decode_length_content
+        return None
+
+    @property
+    def wire_type(self) -> WireType:
+        """Get the wire type for this field."""
+        return WireType.LENGTH_DELIMITED  # Uses wire type 2
+
+    def get_estimated_size(self) -> int:
+        # field ID + length varint + typical data (assume small for pointer fields)
+        return self.calculate_field_id_size() + 2 + 16
+
+
+class PointerToBytesBufferType(PointerToBufferTypeBase):
+    """Type for bytes fields that use pointer_to_buffer option for zero-copy."""
+
+    cpp_type = "const uint8_t*"
+    default_value = "nullptr"
+    reference_type = "const uint8_t*"
+    const_reference_type = "const uint8_t*"
+
+    @property
+    def public_content(self) -> list[str]:
+        # Use uint16_t for length - max packet size is well below 65535
+        return [
+            f"const uint8_t* {self.field_name}{{nullptr}};",
+            f"uint16_t {self.field_name}_len{{0}};",
+        ]
+
+    @property
+    def encode_content(self) -> str:
+        return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
+
+    @property
+    def decode_length_content(self) -> str | None:
+        return f"""case {self.number}: {{
+      this->{self.field_name} = value.data();
+      this->{self.field_name}_len = value.size();
+      break;
+    }}"""
+
+    def dump(self, name: str) -> str:
+        return (
+            f"format_hex_pretty(this->{self.field_name}, this->{self.field_name}_len)"
+        )
+
+    @property
+    def dump_content(self) -> str:
+        return (
+            f'dump_bytes_field(out, "{self.name}", '
+            f"this->{self.field_name}, this->{self.field_name}_len);"
+        )
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}_len);"
+
+
+class PointerToStringBufferType(PointerToBufferTypeBase):
+    """Type for string fields that use pointer_to_buffer option for zero-copy.
+
+    Uses StringRef instead of separate pointer and length fields.
+    """
+
+    cpp_type = "StringRef"
+    default_value = ""
+    reference_type = "StringRef &"
+    const_reference_type = "const StringRef &"
+
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return True
+
+    @property
+    def public_content(self) -> list[str]:
+        return [f"StringRef {self.field_name}{{}};"]
+
+    @property
+    def encode_content(self) -> str:
+        return f"buffer.encode_string({self.number}, this->{self.field_name});"
+
+    @property
+    def decode_length_content(self) -> str | None:
+        return f"""case {self.number}: {{
+      this->{self.field_name} = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      break;
+    }}"""
+
+    def dump(self, name: str) -> str:
+        # Not used since we use dump_field, but required by abstract base class
+        return f'out.append("\'").append({name}.c_str(), {name}.size()).append("\'");'
+
+    @property
+    def dump_content(self) -> str:
+        return f'dump_field(out, "{self.name}", this->{self.field_name});'
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
+
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
+
+
+class PackedBufferTypeInfo(TypeInfo):
+    """Type for packed repeated fields that expose raw buffer instead of decoding.
+
+    When a repeated field is marked with [(packed_buffer) = true], this type
+    generates code that stores a pointer to the raw protobuf buffer along with
+    its length and the count of values. This enables zero-copy passthrough when
+    the consumer can decode the packed varints on-demand.
+    """
+
+    def __init__(self, field: descriptor.FieldDescriptorProto) -> None:
+        # packed_buffer is decode-only (SOURCE_CLIENT messages)
+        super().__init__(field, needs_decode=True, needs_encode=False)
+
+    @property
+    def cpp_type(self) -> str:
+        # Not used - we have multiple fields
+        return "const uint8_t*"
+
+    @property
+    def wire_type(self) -> WireType:
+        """Packed fields use LENGTH_DELIMITED wire type."""
+        return WireType.LENGTH_DELIMITED
+
+    @property
+    def public_content(self) -> list[str]:
+        """Generate three fields: data pointer, length, and count."""
+        return [
+            f"const uint8_t *{self.field_name}_data_{{nullptr}};",
+            f"uint16_t {self.field_name}_length_{{0}};",
+            f"uint16_t {self.field_name}_count_{{0}};",
+        ]
+
+    @property
+    def decode_length_content(self) -> str:
+        """Store pointer to buffer and calculate count of packed varints."""
+        return f"""case {self.number}: {{
+      this->{self.field_name}_data_ = value.data();
+      this->{self.field_name}_length_ = value.size();
+      this->{self.field_name}_count_ = count_packed_varints(value.data(), value.size());
+      break;
+    }}"""
+
+    @property
+    def encode_content(self) -> str:
+        """No encoding - this is decode-only for SOURCE_CLIENT messages."""
+        return None
+
+    @property
+    def dump_content(self) -> str:
+        """Dump shows buffer info but not decoded values."""
+        return (
+            f'out.append("  {self.name}: ");\n'
+            + 'out.append("packed buffer [");\n'
+            + f"append_uint(out, this->{self.field_name}_count_);\n"
+            + 'out.append(" values, ");\n'
+            + f"append_uint(out, this->{self.field_name}_length_);\n"
+            + 'out.append(" bytes]\\n");'
+        )
+
+    def dump(self, name: str) -> str:
+        """Dump method for packed buffer - not typically used but required by abstract base."""
+        return 'out.append("packed buffer");'
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        """No size calculation needed - decode-only."""
+        return ""
+
+    def get_estimated_size(self) -> int:
+        """Estimate size for packed buffer field.
+
+        Typical IR/RF timing array has ~50-200 values, each encoded as 1-3 bytes.
+        Estimate 100 values * 2 bytes = 200 bytes typical.
+        """
+        return (
+            self.calculate_field_id_size() + 2 + 200
+        )  # field ID + length varint + data
+
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return False
 
 
 class FixedArrayBytesType(TypeInfo):
@@ -843,10 +1056,17 @@ class FixedArrayBytesType(TypeInfo):
 
     @property
     def public_content(self) -> list[str]:
+        len_type = (
+            "uint8_t"
+            if self.array_size <= 255
+            else "uint16_t"
+            if self.array_size <= 65535
+            else "size_t"
+        )
         # Add both the array and length fields
         return [
             f"uint8_t {self.field_name}[{self.array_size}]{{}};",
-            f"uint8_t {self.field_name}_len{{0}};",
+            f"{len_type} {self.field_name}_len{{0}};",
         ]
 
     @property
@@ -871,10 +1091,10 @@ class FixedArrayBytesType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        o = f'out.append("  {self.name}: ");\n'
-        o += f"out.append(format_hex_pretty(this->{self.field_name}, this->{self.field_name}_len));\n"
-        o += 'out.append("\\n");'
-        return o
+        return (
+            f'dump_bytes_field(out, "{self.name}", '
+            f"this->{self.field_name}, this->{self.field_name}_len);"
+        )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         # Use the actual length stored in the _len field
@@ -988,7 +1208,7 @@ class SFixed64Type(TypeInfo):
     wire_type = WireType.FIXED64  # Uses wire type 1
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%lld", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRId64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -1032,7 +1252,7 @@ class SInt64Type(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        o = f'snprintf(buffer, sizeof(buffer), "%lld", {name});\n'
+        o = f'snprintf(buffer, sizeof(buffer), "%" PRId64, {name});\n'
         o += "out.append(buffer);"
         return o
 
@@ -1044,7 +1264,11 @@ class SInt64Type(TypeInfo):
 
 
 def _generate_array_dump_content(
-    ti, field_name: str, name: str, is_bool: bool = False
+    ti,
+    field_name: str,
+    name: str,
+    is_bool: bool = False,
+    is_const_char_ptr: bool = False,
 ) -> str:
     """Generate dump content for array types (repeated or fixed array).
 
@@ -1052,9 +1276,14 @@ def _generate_array_dump_content(
     """
     o = f"for (const auto {'' if is_bool else '&'}it : {field_name}) {{\n"
     # Check if underlying type can use dump_field
-    if type(ti).can_use_dump_field():
+    if is_const_char_ptr:
+        # Special case for const char* - use it directly
+        o += f'  dump_field(out, "{name}", it, 4);\n'
+    elif ti.can_use_dump_field():
         # For types that have dump_field overloads, use them with extra indent
-        o += f'  dump_field(out, "{name}", {ti.dump_field_value("it")}, 4);\n'
+        # std::vector<bool> iterators return proxy objects, need explicit cast
+        value_expr = "static_cast<bool>(it)" if is_bool else ti.dump_field_value("it")
+        o += f'  dump_field(out, "{name}", {value_expr}, 4);\n'
     else:
         # For complex types (messages, bytes), use the old pattern
         o += f'  out.append("  {name}: ");\n'
@@ -1084,6 +1313,15 @@ class FixedArrayRepeatedType(TypeInfo):
         validate_field_type(field.type, field.name)
         self._ti: TypeInfo = TYPE_INFO[field.type](field)
 
+    def _encode_element(self, element: str) -> str:
+        """Helper to generate encode statement for a single element."""
+        if isinstance(self._ti, EnumType):
+            return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+        # MessageType.encode_message doesn't have a force parameter
+        if isinstance(self._ti, MessageType):
+            return f"buffer.{self._ti.encode_func}({self.number}, {element});"
+        return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
+
     @property
     def cpp_type(self) -> str:
         return f"std::array<{self._ti.cpp_type}, {self.array_size}>"
@@ -1111,19 +1349,13 @@ class FixedArrayRepeatedType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        # Helper to generate encode statement for a single element
-        def encode_element(element: str) -> str:
-            if isinstance(self._ti, EnumType):
-                return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
-            return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
-
         # If skip_zero is enabled, wrap encoding in a zero check
         if self.skip_zero:
             if self.is_define:
                 # When using a define, we need to use a loop-based approach
                 o = f"for (const auto &it : this->{self.field_name}) {{\n"
                 o += "  if (it != 0) {\n"
-                o += f"    {encode_element('it')}\n"
+                o += f"    {self._encode_element('it')}\n"
                 o += "  }\n"
                 o += "}"
                 return o
@@ -1132,7 +1364,7 @@ class FixedArrayRepeatedType(TypeInfo):
                 [f"this->{self.field_name}[{i}] != 0" for i in range(self.array_size)]
             )
             encode_lines = [
-                f"  {encode_element(f'this->{self.field_name}[{i}]')}"
+                f"  {self._encode_element(f'this->{self.field_name}[{i}]')}"
                 for i in range(self.array_size)
             ]
             return f"if ({non_zero_checks}) {{\n" + "\n".join(encode_lines) + "\n}"
@@ -1140,23 +1372,23 @@ class FixedArrayRepeatedType(TypeInfo):
         # When using a define, always use loop-based approach
         if self.is_define:
             o = f"for (const auto &it : this->{self.field_name}) {{\n"
-            o += f"  {encode_element('it')}\n"
+            o += f"  {self._encode_element('it')}\n"
             o += "}"
             return o
 
         # Unroll small arrays for efficiency
         if self.array_size == 1:
-            return encode_element(f"this->{self.field_name}[0]")
+            return self._encode_element(f"this->{self.field_name}[0]")
         if self.array_size == 2:
             return (
-                encode_element(f"this->{self.field_name}[0]")
+                self._encode_element(f"this->{self.field_name}[0]")
                 + "\n  "
-                + encode_element(f"this->{self.field_name}[1]")
+                + self._encode_element(f"this->{self.field_name}[1]")
             )
 
         # Use loops for larger arrays
         o = f"for (const auto &it : this->{self.field_name}) {{\n"
-        o += f"  {encode_element('it')}\n"
+        o += f"  {self._encode_element('it')}\n"
         o += "}"
         return o
 
@@ -1230,12 +1462,80 @@ class FixedArrayRepeatedType(TypeInfo):
         return underlying_size * self.array_size
 
 
+class FixedArrayWithLengthRepeatedType(FixedArrayRepeatedType):
+    """Special type for fixed-size repeated fields with variable length tracking.
+
+    Similar to FixedArrayRepeatedType but generates an additional length field
+    to track how many elements are actually in use. Only encodes/sends elements
+    up to the current length.
+
+    Fixed arrays with length are only supported for encoding (SOURCE_SERVER) since
+    we cannot control how many items we receive when decoding.
+    """
+
+    @property
+    def public_content(self) -> list[str]:
+        # Return both the array and the length field
+        return [
+            f"{self.cpp_type} {self.field_name}{{}};",
+            f"uint16_t {self.field_name}_len{{0}};",
+        ]
+
+    @property
+    def encode_content(self) -> str:
+        # Always use a loop up to the current length
+        o = f"for (uint16_t i = 0; i < this->{self.field_name}_len; i++) {{\n"
+        o += f"  {self._encode_element(f'this->{self.field_name}[i]')}\n"
+        o += "}"
+        return o
+
+    @property
+    def dump_content(self) -> str:
+        # Dump only the active elements
+        o = f"for (uint16_t i = 0; i < this->{self.field_name}_len; i++) {{\n"
+        # Check if underlying type can use dump_field
+        if self._ti.can_use_dump_field():
+            o += f'  dump_field(out, "{self.name}", {self._ti.dump_field_value(f"this->{self.field_name}[i]")}, 4);\n'
+        else:
+            o += f'  out.append("  {self.name}: ");\n'
+            o += indent(self._ti.dump(f"this->{self.field_name}[i]")) + "\n"
+            o += '  out.append("\\n");\n'
+        o += "}"
+        return o
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        # Calculate size only for active elements
+        o = f"for (uint16_t i = 0; i < {name}_len; i++) {{\n"
+        o += f"  {self._ti.get_size_calculation(f'{name}[i]', True)}\n"
+        o += "}"
+        return o
+
+    def get_estimated_size(self) -> int:
+        # For fixed arrays with length, estimate based on typical usage
+        # Assume on average half the array is used
+        underlying_size = self._ti.get_estimated_size()
+        if self.is_define:
+            # When using a define, estimate 8 elements as typical
+            return underlying_size * 8
+        return underlying_size * (
+            self.array_size // 2 if self.array_size > 2 else self.array_size
+        )
+
+
 class RepeatedTypeInfo(TypeInfo):
     def __init__(self, field: descriptor.FieldDescriptorProto) -> None:
         super().__init__(field)
         # Check if this is a pointer field by looking for container_pointer option
         self._container_type = get_field_opt(field, pb.container_pointer, "")
-        self._use_pointer = bool(self._container_type)
+        # Check for non-template container pointer
+        self._container_no_template = get_field_opt(
+            field, pb.container_pointer_no_template, ""
+        )
+        self._use_pointer = bool(self._container_type) or bool(
+            self._container_no_template
+        )
+        # Check if this should use FixedVector instead of std::vector
+        self._use_fixed_vector = get_field_opt(field, pb.fixed_vector, False)
 
         # For repeated fields, we need to get the base type info
         # but we can't call create_field_type_info as it would cause recursion
@@ -1252,13 +1552,21 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def cpp_type(self) -> str:
+        if self._container_no_template:
+            # Non-template container: use type as-is without appending template parameters
+            return f"const {self._container_no_template}*"
         if self._use_pointer and self._container_type:
             # For pointer fields, use the specified container type
-            # If the container type already includes the element type (e.g., std::set<climate::ClimateMode>)
-            # use it as-is, otherwise append the element type
+            # Two cases:
+            # 1. "std::set<climate::ClimateMode>" - Full type with template params, use as-is
+            # 2. "std::set" - No <>, append the element type
             if "<" in self._container_type and ">" in self._container_type:
+                # Has template parameters specified, use as-is
                 return f"const {self._container_type}*"
+            # No <> at all, append element type
             return f"const {self._container_type}<{self._ti.cpp_type}>*"
+        if self._use_fixed_vector:
+            return f"FixedVector<{self._ti.cpp_type}>"
         return f"std::vector<{self._ti.cpp_type}>"
 
     @property
@@ -1333,31 +1641,47 @@ class RepeatedTypeInfo(TypeInfo):
         # std::vector is specialized for bool, reference does not work
         return isinstance(self._ti, BoolType)
 
+    def _encode_element_call(self, element: str) -> str:
+        """Helper to generate encode call for a single element."""
+        if isinstance(self._ti, EnumType):
+            return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+        # MessageType.encode_message doesn't have a force parameter
+        if isinstance(self._ti, MessageType):
+            return f"buffer.{self._ti.encode_func}({self.number}, {element});"
+        return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
+
     @property
     def encode_content(self) -> str:
         if self._use_pointer:
             # For pointer fields, just dereference (pointer should never be null in our use case)
-            o = f"for (const auto &it : *this->{self.field_name}) {{\n"
-            if isinstance(self._ti, EnumType):
-                o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
+            # Special handling for const char* elements (when container_no_template contains "const char")
+            if "const char" in self._container_no_template:
+                o = f"for (const char *it : *this->{self.field_name}) {{\n"
+                o += f"  buffer.{self._ti.encode_func}({self.number}, it, strlen(it), true);\n"
             else:
-                o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+                o = f"for (const auto &it : *this->{self.field_name}) {{\n"
+                o += f"  {self._encode_element_call('it')}\n"
             o += "}"
             return o
         o = f"for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
-        if isinstance(self._ti, EnumType):
-            o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
-        else:
-            o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+        o += f"  {self._encode_element_call('it')}\n"
         o += "}"
         return o
 
     @property
     def dump_content(self) -> str:
+        # Check if this is const char* elements
+        is_const_char_ptr = (
+            self._use_pointer and "const char" in self._container_no_template
+        )
         if self._use_pointer:
             # For pointer fields, dereference and use the existing helper
             return _generate_array_dump_content(
-                self._ti, f"*this->{self.field_name}", self.name, is_bool=False
+                self._ti,
+                f"*this->{self.field_name}",
+                self.name,
+                is_bool=False,
+                is_const_char_ptr=is_const_char_ptr,
             )
         return _generate_array_dump_content(
             self._ti, f"this->{self.field_name}", self.name, is_bool=self._ti_is_bool
@@ -1392,9 +1716,15 @@ class RepeatedTypeInfo(TypeInfo):
             o += f"  size.add_precalculated_size({size_expr} * {bytes_per_element});\n"
         else:
             # Other types need the actual value
-            auto_ref = "" if self._ti_is_bool else "&"
-            o += f"  for (const auto {auto_ref}it : {container_ref}) {{\n"
-            o += f"    {self._ti.get_size_calculation('it', True)}\n"
+            # Special handling for const char* elements
+            if self._use_pointer and "const char" in self._container_no_template:
+                field_id_size = self.calculate_field_id_size()
+                o += f"  for (const char *it : {container_ref}) {{\n"
+                o += f"    size.add_length_force({field_id_size}, strlen(it));\n"
+            else:
+                auto_ref = "" if self._ti_is_bool else "&"
+                o += f"  for (const auto {auto_ref}it : {container_ref}) {{\n"
+                o += f"    {self._ti.get_size_calculation('it', True)}\n"
             o += "  }\n"
 
         o += "}"
@@ -1583,6 +1913,37 @@ def build_type_usage_map(
     )
 
 
+def get_varint64_ifdef(
+    file_desc: descriptor.FileDescriptorProto,
+    message_ifdef_map: dict[str, str | None],
+) -> tuple[bool, str | None]:
+    """Check if 64-bit varint fields exist and get their common ifdef guard.
+
+    Returns:
+        (has_varint64, ifdef_guard) - has_varint64 is True if any fields exist,
+        ifdef_guard is the common guard or None if unconditional.
+    """
+    varint64_types = {
+        FieldDescriptorProto.TYPE_INT64,
+        FieldDescriptorProto.TYPE_UINT64,
+        FieldDescriptorProto.TYPE_SINT64,
+    }
+    ifdefs: set[str | None] = {
+        message_ifdef_map.get(msg.name)
+        for msg in file_desc.message_type
+        if not msg.options.deprecated
+        for field in msg.field
+        if not field.options.deprecated and field.type in varint64_types
+    }
+    if not ifdefs:
+        return False, None
+    if None in ifdefs:
+        # At least one 64-bit varint field is unconditional, so the guard must be unconditional.
+        return True, None
+    ifdefs.discard(None)
+    return True, ifdefs.pop() if len(ifdefs) == 1 else None
+
+
 def build_enum_type(desc, enum_ifdef_map) -> tuple[str, str, str]:
     """Builds the enum type.
 
@@ -1676,13 +2037,16 @@ def build_message_type(
 
         # Add estimated size constant
         estimated_size = calculate_message_estimated_size(desc)
-        # Validate that estimated_size fits in uint8_t
-        if estimated_size > 255:
-            raise ValueError(
-                f"Estimated size {estimated_size} for {desc.name} exceeds uint8_t maximum (255)"
-            )
+        # Use a type appropriate for estimated_size
+        estimated_size_type = (
+            "uint8_t"
+            if estimated_size <= 255
+            else "uint16_t"
+            if estimated_size <= 65535
+            else "size_t"
+        )
         public_content.append(
-            f"static constexpr uint8_t ESTIMATED_SIZE = {estimated_size};"
+            f"static constexpr {estimated_size_type} ESTIMATED_SIZE = {estimated_size};"
         )
 
         # Add message_name method inline in header
@@ -1693,6 +2057,9 @@ def build_message_type(
         )
         public_content.append("#endif")
 
+    # Collect fixed_vector fields for custom decode generation
+    fixed_vector_fields = []
+
     for field in desc.field:
         # Skip deprecated fields completely
         if field.options.deprecated:
@@ -1701,7 +2068,7 @@ def build_message_type(
         # Validate that fixed_array_size is only used in encode-only messages
         if (
             needs_decode
-            and field.label == 3
+            and field.label == FieldDescriptorProto.LABEL_REPEATED
             and get_field_opt(field, pb.fixed_array_size) is not None
         ):
             raise ValueError(
@@ -1710,6 +2077,27 @@ def build_message_type(
                 f"Fixed arrays are only supported for SOURCE_SERVER (encode-only) messages "
                 f"since we cannot trust or control the number of items received from clients."
             )
+
+        # Validate that fixed_array_with_length_define is only used in encode-only messages
+        if (
+            needs_decode
+            and field.label == FieldDescriptorProto.LABEL_REPEATED
+            and get_field_opt(field, pb.fixed_array_with_length_define) is not None
+        ):
+            raise ValueError(
+                f"Message '{desc.name}' uses fixed_array_with_length_define on field '{field.name}' "
+                f"but has source={SOURCE_NAMES[source]}. "
+                f"Fixed arrays with length are only supported for SOURCE_SERVER (encode-only) messages "
+                f"since we cannot trust or control the number of items received from clients."
+            )
+
+        # Collect fixed_vector repeated fields for custom decode generation
+        if (
+            needs_decode
+            and field.label == FieldDescriptorProto.LABEL_REPEATED
+            and get_field_opt(field, pb.fixed_vector, False)
+        ):
+            fixed_vector_fields.append((field.name, field.number))
 
         ti = create_field_type_info(field, needs_decode, needs_encode)
 
@@ -1819,9 +2207,25 @@ def build_message_type(
         prot = "bool decode_64bit(uint32_t field_id, Proto64Bit value) override;"
         protected_content.insert(0, prot)
 
+    # Generate custom decode() override for messages with FixedVector fields
+    if fixed_vector_fields:
+        # Generate the decode() implementation in cpp
+        o = f"void {desc.name}::decode(const uint8_t *buffer, size_t length) {{\n"
+        # Count and init each FixedVector field
+        for field_name, field_number in fixed_vector_fields:
+            o += f"  uint32_t count_{field_name} = ProtoDecodableMessage::count_repeated_field(buffer, length, {field_number});\n"
+            o += f"  this->{field_name}.init(count_{field_name});\n"
+        # Call parent decode to populate the fields
+        o += "  ProtoDecodableMessage::decode(buffer, length);\n"
+        o += "}\n"
+        cpp += o
+        # Generate the decode() declaration in header (public method)
+        prot = "void decode(const uint8_t *buffer, size_t length) override;"
+        public_content.append(prot)
+
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
-        o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{"
+        o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{"
         if len(encode) == 1 and len(encode[0]) + len(o) + 3 < 120:
             o += f" {encode[0]} }}\n"
         else:
@@ -1829,7 +2233,7 @@ def build_message_type(
             o += indent("\n".join(encode)) + "\n"
             o += "}\n"
         cpp += o
-        prot = "void encode(ProtoWriteBuffer buffer) const override;"
+        prot = "void encode(ProtoWriteBuffer &buffer) const override;"
         public_content.append(prot)
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
@@ -1851,30 +2255,26 @@ def build_message_type(
 
     # dump_to method declaration in header
     prot = "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    prot += "void dump_to(std::string &out) const override;\n"
+    prot += "const char *dump_to(DumpBuffer &out) const override;\n"
     prot += "#endif\n"
     public_content.append(prot)
 
     # dump_to implementation will go in dump_cpp
-    dump_impl = f"void {desc.name}::dump_to(std::string &out) const {{"
+    dump_impl = f"const char *{desc.name}::dump_to(DumpBuffer &out) const {{"
     if dump:
-        if len(dump) == 1 and len(dump[0]) + len(dump_impl) + 3 < 120:
-            dump_impl += f" {dump[0]} "
-        else:
-            dump_impl += "\n"
-            dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
-            dump_impl += indent("\n".join(dump)) + "\n"
+        # Always use MessageDumpHelper for consistent output formatting
+        dump_impl += "\n"
+        dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
+        dump_impl += indent("\n".join(dump)) + "\n"
+        dump_impl += "  return out.c_str();\n"
     else:
-        o2 = f'out.append("{desc.name} {{}}");'
-        if len(dump_impl) + len(o2) + 3 < 120:
-            dump_impl += f" {o2} "
-        else:
-            dump_impl += "\n"
-            dump_impl += f"  {o2}\n"
+        dump_impl += "\n"
+        dump_impl += f'  out.append("{desc.name} {{}}");\n'
+        dump_impl += "  return out.c_str();\n"
     dump_impl += "}\n"
 
     if base_class:
-        out = f"class {desc.name} : public {base_class} {{\n"
+        out = f"class {desc.name} final : public {base_class} {{\n"
     else:
         # Check if message has any non-deprecated fields
         has_fields = any(not field.options.deprecated for field in desc.field)
@@ -1883,7 +2283,7 @@ def build_message_type(
             base_class = "ProtoDecodableMessage"
         else:
             base_class = "ProtoMessage"
-        out = f"class {desc.name} : public {base_class} {{\n"
+        out = f"class {desc.name} final : public {base_class} {{\n"
     out += " public:\n"
     out += indent("\n".join(public_content)) + "\n"
     out += "\n"
@@ -1909,9 +2309,18 @@ SOURCE_NAMES = {
     SOURCE_CLIENT: "SOURCE_CLIENT",
 }
 
-RECEIVE_CASES: dict[int, tuple[str, str | None]] = {}
+RECEIVE_CASES: dict[int, tuple[str, str | None, str]] = {}
 
 ifdefs: dict[str, str] = {}
+
+# Track messages with no fields (empty messages) for parameter elision
+EMPTY_MESSAGES: set[str] = set()
+
+# Track empty SOURCE_CLIENT messages that don't need class generation
+# These messages have no fields and are only received (never sent), so the
+# class definition (vtable, dump_to, message_name, ESTIMATED_SIZE) is dead code
+# that the compiler compiles but the linker strips away.
+SKIP_CLASS_GENERATION: set[str] = set()
 
 
 def get_opt(
@@ -2064,9 +2473,6 @@ def build_base_class(
     out = f"class {base_class_name} : public {parent_class} {{\n"
     out += " public:\n"
 
-    # Add destructor with override
-    public_content.insert(0, f"~{base_class_name}() override = default;")
-
     # Base classes don't implement encode/decode/calculate_size
     # Derived classes handle these with their specific field numbers
     cpp = ""
@@ -2074,6 +2480,8 @@ def build_base_class(
     out += indent("\n".join(public_content)) + "\n"
     out += "\n"
     out += " protected:\n"
+    # Non-virtual protected destructor prevents accidental polymorphic deletion
+    protected_content.insert(0, f"~{base_class_name}() = default;")
     out += indent("\n".join(protected_content))
     if protected_content:
         out += "\n"
@@ -2143,27 +2551,31 @@ def build_service_message_type(
         # Only add ifdef when we're actually generating content
         if ifdef is not None:
             hout += f"#ifdef {ifdef}\n"
-        # Generate receive
+        # Generate receive handler and switch case
         func = f"on_{snake}"
-        hout += f"virtual void {func}(const {mt.name} &value){{}};\n"
-        case = ""
-        case += f"{mt.name} msg;\n"
-        # Check if this message has any fields (excluding deprecated ones)
         has_fields = any(not field.options.deprecated for field in mt.field)
-        if has_fields:
-            # Normal case: decode the message
+        is_empty = not has_fields
+        if is_empty:
+            EMPTY_MESSAGES.add(mt.name)
+        hout += f"virtual void {func}({'' if is_empty else f'const {mt.name} &value'}){{}};\n"
+        case = ""
+        if not is_empty:
+            case += f"{mt.name} msg;\n"
             case += "msg.decode(msg_data, msg_size);\n"
-        else:
-            # Empty message optimization: skip decode since there are no fields
-            case += "// Empty message: no decode needed\n"
         if log:
             case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-            case += f'ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
+            if is_empty:
+                case += f'this->log_receive_message_(LOG_STR("{func}"));\n'
+            else:
+                case += f'this->log_receive_message_(LOG_STR("{func}"), msg);\n'
             case += "#endif\n"
-        case += f"this->{func}(msg);\n"
+        case += f"this->{func}({'msg' if not is_empty else ''});\n"
         case += "break;"
-        # Store the message name and ifdef with the case for later use
-        RECEIVE_CASES[id_] = (case, ifdef, mt.name)
+        if mt.name in SKIP_CLASS_GENERATION:
+            case_label = f"{id_} /* {mt.name} is empty */"
+        else:
+            case_label = f"{mt.name}::MESSAGE_TYPE"
+        RECEIVE_CASES[id_] = (case, ifdef, case_label)
 
         # Only close ifdef if we opened it
         if ifdef is not None:
@@ -2185,11 +2597,38 @@ def main() -> None:
 
     file = d.file[0]
 
+    # Build dynamic ifdef mappings early so we can emit USE_API_VARINT64 before includes
+    enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
+        build_type_usage_map(file)
+    )
+
+    # Find the ifdef guard for 64-bit varint fields (int64/uint64/sint64).
+    # Generated into api_pb2_defines.h so proto.h can include it, ensuring
+    # consistent ProtoVarInt layout across all translation units.
+    has_varint64, varint64_guard = get_varint64_ifdef(file, message_ifdef_map)
+
+    # Generate api_pb2_defines.h — included by proto.h to ensure all translation
+    # units see USE_API_VARINT64 consistently (avoids ODR violations in ProtoVarInt).
+    defines_content = FILE_HEADER
+    defines_content += "#pragma once\n\n"
+    defines_content += '#include "esphome/core/defines.h"\n'
+    if has_varint64:
+        lines = [
+            "#ifndef USE_API_VARINT64",
+            "#define USE_API_VARINT64",
+            "#endif",
+        ]
+        defines_content += "\n".join(wrap_with_ifdef(lines, varint64_guard))
+        defines_content += "\n"
+    defines_content += "\nnamespace esphome::api {}  // namespace esphome::api\n"
+
+    with open(root / "api_pb2_defines.h", "w", encoding="utf-8") as f:
+        f.write(defines_content)
+
     content = FILE_HEADER
     content += """\
 #pragma once
 
-#include "esphome/core/defines.h"
 #include "esphome/core/string_ref.h"
 
 #include "proto.h"
@@ -2225,7 +2664,7 @@ namespace esphome::api {
 namespace esphome::api {
 
 // Helper function to append a quoted string, handling empty StringRef
-static inline void append_quoted_string(std::string &out, const StringRef &ref) {
+static inline void append_quoted_string(DumpBuffer &out, const StringRef &ref) {
   out.append("'");
   if (!ref.empty()) {
     out.append(ref.c_str());
@@ -2234,90 +2673,91 @@ static inline void append_quoted_string(std::string &out, const StringRef &ref) 
 }
 
 // Common helpers for dump_field functions
-static inline void append_field_prefix(std::string &out, const char *field_name, int indent) {
+static inline void append_field_prefix(DumpBuffer &out, const char *field_name, int indent) {
   out.append(indent, ' ').append(field_name).append(": ");
 }
 
-static inline void append_with_newline(std::string &out, const char *str) {
-  out.append(str);
-  out.append("\\n");
+static inline void append_uint(DumpBuffer &out, uint32_t value) {
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu32, value));
 }
 
 // RAII helper for message dump formatting
 class MessageDumpHelper {
  public:
-  MessageDumpHelper(std::string &out, const char *message_name) : out_(out) {
+  MessageDumpHelper(DumpBuffer &out, const char *message_name) : out_(out) {
     out_.append(message_name);
     out_.append(" {\\n");
   }
   ~MessageDumpHelper() { out_.append(" }"); }
 
  private:
-  std::string &out_;
+  DumpBuffer &out_;
 };
 
 // Helper functions to reduce code duplication in dump methods
-static void dump_field(std::string &out, const char *field_name, int32_t value, int indent = 2) {
-  char buffer[64];
+static void dump_field(DumpBuffer &out, const char *field_name, int32_t value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%" PRId32, value);
-  append_with_newline(out, buffer);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRId32 "\\n", value));
 }
 
-static void dump_field(std::string &out, const char *field_name, uint32_t value, int indent = 2) {
-  char buffer[64];
+static void dump_field(DumpBuffer &out, const char *field_name, uint32_t value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%" PRIu32, value);
-  append_with_newline(out, buffer);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu32 "\\n", value));
 }
 
-static void dump_field(std::string &out, const char *field_name, float value, int indent = 2) {
-  char buffer[64];
+static void dump_field(DumpBuffer &out, const char *field_name, float value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%g", value);
-  append_with_newline(out, buffer);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%g\\n", value));
 }
 
-static void dump_field(std::string &out, const char *field_name, uint64_t value, int indent = 2) {
-  char buffer[64];
+static void dump_field(DumpBuffer &out, const char *field_name, uint64_t value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%llu", value);
-  append_with_newline(out, buffer);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu64 "\\n", value));
 }
 
-static void dump_field(std::string &out, const char *field_name, bool value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, bool value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append(YESNO(value));
   out.append("\\n");
 }
 
-static void dump_field(std::string &out, const char *field_name, const std::string &value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, const std::string &value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
-  out.append("'").append(value).append("'");
+  out.append("'").append(value.c_str()).append("'");
   out.append("\\n");
 }
 
-static void dump_field(std::string &out, const char *field_name, StringRef value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, StringRef value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   append_quoted_string(out, value);
   out.append("\\n");
 }
 
+static void dump_field(DumpBuffer &out, const char *field_name, const char *value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append(value).append("'");
+  out.append("\\n");
+}
+
 template<typename T>
-static void dump_field(std::string &out, const char *field_name, T value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, T value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append(proto_enum_to_string<T>(value));
   out.append("\\n");
 }
 
+// Helper for bytes fields - uses stack buffer to avoid heap allocation
+// Buffer sized for 160 bytes of data (480 chars with separators) to fit typical log buffer
+static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len, int indent = 2) {
+  char hex_buf[format_hex_pretty_size(160)];
+  append_field_prefix(out, field_name, indent);
+  format_hex_pretty_to(hex_buf, data, len);
+  out.append(hex_buf).append("\\n");
+}
+
 """
 
     content += "namespace enums {\n\n"
-
-    # Build dynamic ifdef mappings for both enums and messages
-    enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
-        build_type_usage_map(file)
-    )
 
     # Simple grouping of enums by ifdef
     current_ifdef = None
@@ -2353,6 +2793,19 @@ static void dump_field(std::string &out, const char *field_name, T value, int in
 
     mt = file.message_type
 
+    # Identify empty SOURCE_CLIENT messages that don't need class generation
+    for m in mt:
+        if m.options.deprecated:
+            continue
+        if not m.options.HasExtension(pb.id):
+            continue
+        source = message_source_map.get(m.name)
+        if source != SOURCE_CLIENT:
+            continue
+        has_fields = any(not field.options.deprecated for field in m.field)
+        if not has_fields:
+            SKIP_CLASS_GENERATION.add(m.name)
+
     # Collect messages by base class
     base_class_groups = collect_messages_by_base_class(mt)
 
@@ -2383,6 +2836,10 @@ static void dump_field(std::string &out, const char *field_name, T value, int in
 
         # Skip messages that aren't used (unless they have an ID/service message)
         if m.name not in used_messages and not m.options.HasExtension(pb.id):
+            continue
+
+        # Skip class generation for empty SOURCE_CLIENT messages
+        if m.name in SKIP_CLASS_GENERATION:
             continue
 
         s, c, dc = build_message_type(m, base_class_fields, message_source_map)
@@ -2465,25 +2922,39 @@ static const char *const TAG = "api.service";
     hpp += f"class {class_name} : public ProtoService {{\n"
     hpp += " public:\n"
 
-    # Add logging helper method declaration
+    # Add logging helper method declarations
     hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     hpp += " protected:\n"
-    hpp += "  void log_send_message_(const char *name, const std::string &dump);\n"
+    hpp += "  void log_send_message_(const char *name, const char *dump);\n"
+    hpp += (
+        "  void log_receive_message_(const LogString *name, const ProtoMessage &msg);\n"
+    )
+    hpp += "  void log_receive_message_(const LogString *name);\n"
     hpp += " public:\n"
     hpp += "#endif\n\n"
 
     # Add non-template send_message method
     hpp += "  bool send_message(const ProtoMessage &msg, uint8_t message_type) {\n"
     hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    hpp += "    this->log_send_message_(msg.message_name(), msg.dump());\n"
+    hpp += "    DumpBuffer dump_buf;\n"
+    hpp += "    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));\n"
     hpp += "#endif\n"
-    hpp += "    return this->send_message_(msg, message_type);\n"
+    hpp += "    return this->send_message_impl(msg, message_type);\n"
     hpp += "  }\n\n"
 
-    # Add logging helper method implementation to cpp
+    # Add logging helper method implementations to cpp
     cpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    cpp += f"void {class_name}::log_send_message_(const char *name, const std::string &dump) {{\n"
-    cpp += '  ESP_LOGVV(TAG, "send_message %s: %s", name, dump.c_str());\n'
+    cpp += (
+        f"void {class_name}::log_send_message_(const char *name, const char *dump) {{\n"
+    )
+    cpp += '  ESP_LOGVV(TAG, "send_message %s: %s", name, dump);\n'
+    cpp += "}\n"
+    cpp += f"void {class_name}::log_receive_message_(const LogString *name, const ProtoMessage &msg) {{\n"
+    cpp += "  DumpBuffer dump_buf;\n"
+    cpp += '  ESP_LOGVV(TAG, "%s: %s", LOG_STR_ARG(name), msg.dump_to(dump_buf));\n'
+    cpp += "}\n"
+    cpp += f"void {class_name}::log_receive_message_(const LogString *name) {{\n"
+    cpp += '  ESP_LOGVV(TAG, "%s: {}", LOG_STR_ARG(name));\n'
     cpp += "}\n"
     cpp += "#endif\n\n"
 
@@ -2497,15 +2968,96 @@ static const char *const TAG = "api.service";
 
     cases = list(RECEIVE_CASES.items())
     cases.sort()
+
+    serv = file.service[0]
+
+    # Build a mapping of message input types to their authentication requirements
+    message_auth_map: dict[str, bool] = {}
+    message_conn_map: dict[str, bool] = {}
+
+    for m in serv.method:
+        inp = m.input_type[1:]
+        needs_conn = get_opt(m, pb.needs_setup_connection, True)
+        needs_auth = get_opt(m, pb.needs_authentication, True)
+
+        # Store authentication requirements for message types
+        message_auth_map[inp] = needs_auth
+        message_conn_map[inp] = needs_conn
+
+    # Categorize messages by their authentication requirements
+    no_conn_ids: set[int] = set()
+    conn_only_ids: set[int] = set()
+
+    # Build a reverse lookup from message id to message name for auth lookups
+    id_to_msg_name: dict[int, str] = {}
+    for mt in file.message_type:
+        id_ = get_opt(mt, pb.id)
+        if id_ is not None and not mt.options.deprecated:
+            id_to_msg_name[id_] = mt.name
+
+    for id_, (_, _, case_label) in cases:
+        msg_name = id_to_msg_name.get(id_, "")
+        if msg_name in message_auth_map:
+            needs_auth = message_auth_map[msg_name]
+            needs_conn = message_conn_map[msg_name]
+
+            if not needs_conn:
+                no_conn_ids.add(id_)
+            elif not needs_auth:
+                conn_only_ids.add(id_)
+
+    # Helper to generate case statements with ifdefs
+    def generate_cases(ids: set[int], comment: str) -> str:
+        result = ""
+        for id_ in sorted(ids):
+            _, ifdef, case_label = RECEIVE_CASES[id_]
+            if ifdef:
+                result += f"#ifdef {ifdef}\n"
+            result += f"    case {case_label}:  {comment}\n"
+            if ifdef:
+                result += "#endif\n"
+        return result
+
+    # Generate read_message with auth check before dispatch
     hpp += " protected:\n"
-    hpp += "  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;\n"
-    out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {{\n"
+    hpp += "  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;\n"
+
+    out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {{\n"
+
+    # Auth check block before dispatch switch
+    out += "  // Check authentication/connection requirements\n"
+    if no_conn_ids or conn_only_ids:
+        out += "  switch (msg_type) {\n"
+
+        if no_conn_ids:
+            out += generate_cases(no_conn_ids, "// No setup required")
+            out += "      break;\n"
+
+        if conn_only_ids:
+            out += generate_cases(conn_only_ids, "// Connection setup only")
+            out += "      if (!this->check_connection_setup_()) {\n"
+            out += "        return;\n"
+            out += "      }\n"
+            out += "      break;\n"
+
+        out += "    default:\n"
+        out += "      if (!this->check_authenticated_()) {\n"
+        out += "        return;\n"
+        out += "      }\n"
+        out += "      break;\n"
+        out += "  }\n"
+    else:
+        out += "  if (!this->check_authenticated_()) {\n"
+        out += "    return;\n"
+        out += "  }\n"
+
+    # Dispatch switch
     out += "  switch (msg_type) {\n"
-    for i, (case, ifdef, message_name) in cases:
+    for i, (case, ifdef, case_label) in cases:
         if ifdef is not None:
             out += f"#ifdef {ifdef}\n"
 
-        c = f"    case {message_name}::MESSAGE_TYPE: {{\n"
+        c = f"    case {case_label}: {{\n"
         c += indent(case, "      ") + "\n"
         c += "    }"
         out += c + "\n"
@@ -2516,81 +3068,6 @@ static const char *const TAG = "api.service";
     out += "  }\n"
     out += "}\n"
     cpp += out
-    hpp += "};\n"
-
-    serv = file.service[0]
-    class_name = "APIServerConnection"
-    hpp += "\n"
-    hpp += f"class {class_name} : public {class_name}Base {{\n"
-    hpp += " public:\n"
-    hpp_protected = ""
-    cpp += "\n"
-
-    m = serv.method[0]
-    for m in serv.method:
-        func = m.name
-        inp = m.input_type[1:]
-        ret = m.output_type[1:]
-        is_void = ret == "void"
-        snake = camel_to_snake(inp)
-        on_func = f"on_{snake}"
-        needs_conn = get_opt(m, pb.needs_setup_connection, True)
-        needs_auth = get_opt(m, pb.needs_authentication, True)
-
-        ifdef = message_ifdef_map.get(inp, ifdefs.get(inp))
-
-        if ifdef is not None:
-            hpp += f"#ifdef {ifdef}\n"
-            hpp_protected += f"#ifdef {ifdef}\n"
-            cpp += f"#ifdef {ifdef}\n"
-
-        hpp_protected += f"  void {on_func}(const {inp} &msg) override;\n"
-
-        # For non-void methods, generate a send_ method instead of return-by-value
-        if is_void:
-            hpp += f"  virtual void {func}(const {inp} &msg) = 0;\n"
-        else:
-            hpp += f"  virtual bool send_{func}_response(const {inp} &msg) = 0;\n"
-
-        cpp += f"void {class_name}::{on_func}(const {inp} &msg) {{\n"
-
-        # Start with authentication/connection check if needed
-        if needs_auth or needs_conn:
-            # Determine which check to use
-            if needs_auth:
-                check_func = "this->check_authenticated_()"
-            else:
-                check_func = "this->check_connection_setup_()"
-
-            if is_void:
-                # For void methods, just wrap with auth check
-                body = f"if ({check_func}) {{\n"
-                body += f"  this->{func}(msg);\n"
-                body += "}\n"
-            else:
-                # For non-void methods, combine auth check and send response check
-                body = f"if ({check_func} && !this->send_{func}_response(msg)) {{\n"
-                body += "  this->on_fatal_error();\n"
-                body += "}\n"
-        else:
-            # No auth check needed, just call the handler
-            body = ""
-            if is_void:
-                body += f"this->{func}(msg);\n"
-            else:
-                body += f"if (!this->send_{func}_response(msg)) {{\n"
-                body += "  this->on_fatal_error();\n"
-                body += "}\n"
-
-        cpp += indent(body) + "\n" + "}\n"
-
-        if ifdef is not None:
-            hpp += "#endif\n"
-            hpp_protected += "#endif\n"
-            cpp += "#endif\n"
-
-    hpp += " protected:\n"
-    hpp += hpp_protected
     hpp += "};\n"
 
     hpp += """\
@@ -2614,8 +3091,8 @@ static const char *const TAG = "api.service";
         import clang_format
 
         def exec_clang_format(path: Path) -> None:
-            clang_format_path = os.path.join(
-                os.path.dirname(clang_format.__file__), "data", "bin", "clang-format"
+            clang_format_path = (
+                Path(clang_format.__file__).parent / "data" / "bin" / "clang-format"
             )
             call([clang_format_path, "-i", path])
 

@@ -53,10 +53,14 @@ void SenseAirComponent::update() {
 
   this->status_clear_warning();
   const uint8_t length = response[2];
-  const uint16_t status = (uint16_t(response[3]) << 8) | response[4];
-  const int16_t ppm = int16_t((response[length + 1] << 8) | response[length + 2]);
+  const uint16_t status = encode_uint16(response[3], response[4]);
+  const uint16_t ppm = encode_uint16(response[length + 1], response[length + 2]);
 
-  ESP_LOGD(TAG, "SenseAir Received CO₂=%dppm Status=0x%02X", ppm, status);
+  ESP_LOGD(TAG, "SenseAir Received CO₂=%uppm Status=0x%02X", ppm, status);
+  if (ppm == 0 && (status & SenseAirStatus::OUT_OF_RANGE_ERROR) != 0) {
+    ESP_LOGD(TAG, "Discarding 0 ppm reading with out-of-range status.");
+    return;
+  }
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(ppm);
 }

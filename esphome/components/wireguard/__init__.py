@@ -30,6 +30,7 @@ _WG_KEY_REGEX = re.compile(r"^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$")
 
 wireguard_ns = cg.esphome_ns.namespace("wireguard")
 Wireguard = wireguard_ns.class_("Wireguard", cg.Component, cg.PollingComponent)
+AllowedIP = wireguard_ns.struct("AllowedIP")
 WireguardPeerOnlineCondition = wireguard_ns.class_(
     "WireguardPeerOnlineCondition", automation.Condition
 )
@@ -108,8 +109,18 @@ async def to_code(config):
         )
     )
 
-    for ip in allowed_ips:
-        cg.add(var.add_allowed_ip(str(ip.network_address), str(ip.netmask)))
+    cg.add(
+        var.set_allowed_ips(
+            [
+                cg.StructInitializer(
+                    AllowedIP,
+                    ("ip", str(ip.network_address)),
+                    ("netmask", str(ip.netmask)),
+                )
+                for ip in allowed_ips
+            ]
+        )
+    )
 
     cg.add(var.set_srctime(await cg.get_variable(config[CONF_TIME_ID])))
 
@@ -118,7 +129,7 @@ async def to_code(config):
 
     # Workaround for crash on IDF 5+
     # See https://github.com/trombik/esp_wireguard/issues/33#issuecomment-1568503651
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
 
     # This flag is added here because the esp_wireguard library statically

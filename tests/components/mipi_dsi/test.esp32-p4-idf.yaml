@@ -1,3 +1,6 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-p4-idf.yaml
+
 esp_ldo:
   - id: ldo_id
     channel: 3
@@ -13,9 +16,3 @@ display:
     #id: backlight_id
 
 psram:
-
-i2c:
-  sda: GPIO7
-  scl: GPIO8
-  scan: true
-  frequency: 400kHz

@@ -1,0 +1,4 @@
+platform: template
+name: "Sensor 3 in subdir"
+lambda: |-
+  return 200.0;

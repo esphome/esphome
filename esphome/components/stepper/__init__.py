@@ -10,7 +10,7 @@ from esphome.const import (
     CONF_SPEED,
     CONF_TARGET,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -178,6 +178,6 @@ async def stepper_set_deceleration_to_code(config, action_id, template_arg, args
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(stepper_ns.using)

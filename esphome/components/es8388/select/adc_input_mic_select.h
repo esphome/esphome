@@ -8,7 +8,7 @@ namespace es8388 {
 
 class ADCInputMicSelect : public select::Select, public Parented<ES8388> {
  protected:
-  void control(const std::string &value) override;
+  void control(size_t index) override;
 };
 
 }  // namespace es8388

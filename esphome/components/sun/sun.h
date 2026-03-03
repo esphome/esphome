@@ -115,7 +115,7 @@ template<typename... Ts> class SunCondition : public Condition<Ts...>, public Pa
   TEMPLATABLE_VALUE(double, elevation);
   void set_above(bool above) { above_ = above; }
 
-  bool check(Ts... x) override {
+  bool check(const Ts &...x) override {
     double elevation = this->elevation_.value(x...);
     double current = this->parent_->elevation();
     if (this->above_) {

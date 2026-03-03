@@ -131,9 +131,9 @@ void NAU7802Sensor::dump_config() {
   }
   // Note these may differ from the values on the device if calbration has been run
   ESP_LOGCONFIG(TAG,
-                "  Offset Calibration: %s\n"
+                "  Offset Calibration: %" PRId32 "\n"
                 "  Gain Calibration: %f",
-                to_string(this->offset_calibration_).c_str(), this->gain_calibration_);
+                this->offset_calibration_, this->gain_calibration_);
 
   std::string voltage = "unknown";
   switch (this->ldo_) {
@@ -218,7 +218,7 @@ void NAU7802Sensor::dump_config() {
 
 void NAU7802Sensor::write_value_(uint8_t start_reg, size_t size, int32_t value) {
   uint8_t data[4];
-  for (int i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++) {
     data[i] = 0xFF & (value >> (size - 1 - i) * 8);
   }
   this->write_register(start_reg, data, size);
@@ -228,7 +228,7 @@ int32_t NAU7802Sensor::read_value_(uint8_t start_reg, size_t size) {
   uint8_t data[4];
   this->read_register(start_reg, data, size);
   int32_t result = 0;
-  for (int i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++) {
     result |= data[i] << (size - 1 - i) * 8;
   }
   // extend sign bit
@@ -278,7 +278,7 @@ void NAU7802Sensor::loop() {
       this->set_calibration_failure_(true);
       this->state_ = CalibrationState::INACTIVE;
       ESP_LOGE(TAG, "Failed to calibrate sensor");
-      this->status_set_error("Calibration Failed");
+      this->status_set_error(LOG_STR("Calibration Failed"));
       return;
     }
 
@@ -289,14 +289,12 @@ void NAU7802Sensor::loop() {
       this->status_clear_error();
 
     int32_t ocal = this->read_value_(OCAL1_B2_REG, 3);
-    ESP_LOGI(TAG, "New Offset: %s", to_string(ocal).c_str());
+    ESP_LOGI(TAG, "New Offset: %" PRId32, ocal);
     uint32_t gcal = this->read_value_(GCAL1_B3_REG, 4);
     float gcal_f = ((float) gcal / (float) (1 << GCAL1_FRACTIONAL));
     ESP_LOGI(TAG, "New Gain: %f", gcal_f);
   }
 }
-
-float NAU7802Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
 void NAU7802Sensor::update() {
   if (!this->is_data_ready_()) {

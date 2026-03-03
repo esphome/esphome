@@ -37,8 +37,8 @@ I2SAudioMicrophone = i2s_audio_ns.class_(
     "I2SAudioMicrophone", I2SAudioIn, microphone.Microphone, cg.Component
 )
 
-INTERNAL_ADC_VARIANTS = [esp32.const.VARIANT_ESP32]
-PDM_VARIANTS = [esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S3]
+INTERNAL_ADC_VARIANTS = [esp32.VARIANT_ESP32]
+PDM_VARIANTS = [esp32.VARIANT_ESP32, esp32.VARIANT_ESP32S3]
 
 
 def _validate_esp32_variant(config):
@@ -122,7 +122,7 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(config):
     if not use_legacy() and config[CONF_ADC_TYPE] == "internal":
-        raise cv.Invalid("Internal ADC is only compatible with legacy i2s driver.")
+        raise cv.Invalid("Internal ADC is only compatible with legacy i2s driver")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

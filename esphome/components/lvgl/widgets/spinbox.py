@@ -1,8 +1,9 @@
 from esphome import automation
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_RANGE_FROM, CONF_RANGE_TO, CONF_STEP, CONF_VALUE
+from esphome.cpp_generator import MockObj
 
-from ..automation import action_to_code, update_to_code
+from ..automation import action_to_code
 from ..defines import (
     CONF_CURSOR,
     CONF_DECIMAL_PLACES,
@@ -11,6 +12,7 @@ from ..defines import (
     CONF_ROLLOVER,
     CONF_SCROLLBAR,
     CONF_SELECTED,
+    CONF_SELECTED_DIGIT,
     CONF_TEXTAREA_PLACEHOLDER,
 )
 from ..lv_validation import lv_bool, lv_float
@@ -38,18 +40,24 @@ def validate_spinbox(config):
     min_val = -1 - max_val
     range_from = int(config[CONF_RANGE_FROM])
     range_to = int(config[CONF_RANGE_TO])
-    step = int(config[CONF_STEP])
+    step = config[CONF_SELECTED_DIGIT]
+    digits = config[CONF_DIGITS]
     if (
         range_from > max_val
         or range_from < min_val
         or range_to > max_val
         or range_to < min_val
     ):
-        raise cv.Invalid("Range outside allowed limits")
-    if step <= 0 or step >= (range_to - range_from) / 2:
-        raise cv.Invalid("Invalid step value")
-    if config[CONF_DIGITS] <= config[CONF_DECIMAL_PLACES]:
-        raise cv.Invalid("Number of digits must exceed number of decimal places")
+        raise cv.Invalid("Range outside allowed limits", path=[CONF_RANGE_FROM])
+    if digits <= config[CONF_DECIMAL_PLACES]:
+        raise cv.Invalid(
+            "Number of digits must exceed number of decimal places", path=[CONF_DIGITS]
+        )
+    if step >= digits:
+        raise cv.Invalid(
+            "Initial selected digit must be less than number of digits",
+            path=[CONF_SELECTED_DIGIT],
+        )
     return config
 
 
@@ -59,7 +67,10 @@ SPINBOX_SCHEMA = cv.Schema(
         cv.Optional(CONF_RANGE_FROM, default=0): cv.float_,
         cv.Optional(CONF_RANGE_TO, default=100): cv.float_,
         cv.Optional(CONF_DIGITS, default=4): cv.int_range(1, 10),
-        cv.Optional(CONF_STEP, default=1.0): cv.positive_float,
+        cv.Optional(CONF_STEP): cv.invalid(
+            f"{CONF_STEP} has been replaced by {CONF_SELECTED_DIGIT}"
+        ),
+        cv.Optional(CONF_SELECTED_DIGIT, default=0): cv.positive_int,
         cv.Optional(CONF_DECIMAL_PLACES, default=0): cv.int_range(0, 6),
         cv.Optional(CONF_ROLLOVER, default=False): lv_bool,
     }
@@ -93,19 +104,20 @@ class SpinboxType(WidgetType):
             scale = 10 ** config[CONF_DECIMAL_PLACES]
             range_from = int(config[CONF_RANGE_FROM]) * scale
             range_to = int(config[CONF_RANGE_TO]) * scale
-            step = int(config[CONF_STEP]) * scale
+            step = config[CONF_SELECTED_DIGIT]
             w.scale = scale
-            w.step = step
             w.range_to = range_to
             w.range_from = range_from
             lv.spinbox_set_range(w.obj, range_from, range_to)
-            await w.set_property(CONF_STEP, step)
+            await w.set_property("step", 10**step)
             await w.set_property(CONF_ROLLOVER, config)
             lv.spinbox_set_digit_format(
                 w.obj, digits, digits - config[CONF_DECIMAL_PLACES]
             )
         if (value := config.get(CONF_VALUE)) is not None:
-            lv.spinbox_set_value(w.obj, await lv_float.process(value))
+            lv.spinbox_set_value(
+                w.obj, MockObj(await lv_float.process(value)) * w.get_scale()
+            )
 
     def get_scale(self, config):
         return 10 ** config[CONF_DECIMAL_PLACES]
@@ -120,7 +132,7 @@ class SpinboxType(WidgetType):
         return config[CONF_RANGE_FROM]
 
     def get_step(self, config: dict):
-        return config[CONF_STEP]
+        return 10 ** config[CONF_SELECTED_DIGIT]
 
 
 spinbox_spec = SpinboxType()
@@ -162,17 +174,3 @@ async def spinbox_decrement(config, action_id, template_arg, args):
         lv.spinbox_decrement(w.obj)
 
     return await action_to_code(widgets, do_increment, action_id, template_arg, args)
-
-
-@automation.register_action(
-    "lvgl.spinbox.update",
-    ObjUpdateAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(lv_spinbox_t),
-            cv.Required(CONF_VALUE): lv_float,
-        }
-    ),
-)
-async def spinbox_update_to_code(config, action_id, template_arg, args):
-    return await update_to_code(config, action_id, template_arg, args)

@@ -5,7 +5,6 @@
 #ifdef USE_RUNTIME_STATS
 
 #include <map>
-#include <vector>
 #include <cstdint>
 #include <cstring>
 #include "esphome/core/helpers.h"
@@ -77,17 +76,6 @@ class ComponentRuntimeStats {
   uint32_t total_max_time_ms_;
 };
 
-// For sorting components by run time
-struct ComponentStatPair {
-  const char *name;
-  const ComponentRuntimeStats *stats;
-
-  bool operator>(const ComponentStatPair &other) const {
-    // Sort by period time as that's what we're displaying in the logs
-    return stats->get_period_time_ms() > other.stats->get_period_time_ms();
-  }
-};
-
 class RuntimeStatsCollector {
  public:
   RuntimeStatsCollector();
@@ -109,15 +97,9 @@ class RuntimeStatsCollector {
     }
   }
 
-  // Use const char* keys for efficiency
-  // Custom comparator for const char* keys in map
-  // Without this, std::map would compare pointer addresses instead of string contents,
-  // causing identical component names at different addresses to be treated as different keys
-  struct CStrCompare {
-    bool operator()(const char *a, const char *b) const { return std::strcmp(a, b) < 0; }
-  };
-  std::map<const char *, ComponentRuntimeStats, CStrCompare> component_stats_;
-  std::map<Component *, const char *> component_names_cache_;
+  // Map from component to its stats
+  // We use Component* as the key since each component is unique
+  std::map<Component *, ComponentRuntimeStats> component_stats_;
   uint32_t log_interval_;
   uint32_t next_log_time_;
 };

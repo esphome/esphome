@@ -1,4 +1,5 @@
 #include "sim800l.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstring>
 
@@ -50,8 +51,8 @@ void Sim800LComponent::update() {
   } else if (state_ == STATE_RECEIVED_SMS) {
     // Serial Buffer should have flushed.
     // Send cmd to delete received sms
-    char delete_cmd[20];
-    sprintf(delete_cmd, "AT+CMGD=%d", this->parse_index_);
+    char delete_cmd[20];  // "AT+CMGD=" (8) + uint8_t (max 3) + null = 12 <= 20
+    buf_append_printf(delete_cmd, sizeof(delete_cmd), 0, "AT+CMGD=%d", this->parse_index_);
     this->send_cmd_(delete_cmd);
     this->state_ = STATE_CHECK_SMS;
     this->expect_ack_ = true;
@@ -288,11 +289,15 @@ void Sim800LComponent::parse_cmd_(std::string message) {
           if (item == 3) {  // stat
             uint8_t current_call_state = parse_number<uint8_t>(message.substr(start, end - start)).value_or(6);
             if (current_call_state != this->call_state_) {
-              ESP_LOGD(TAG, "Call state is now: %d", current_call_state);
-              if (current_call_state == 0)
-                this->call_connected_callback_.call();
+              if (current_call_state == 4) {
+                ESP_LOGV(TAG, "Premature call state '4'. Ignoring, waiting for RING");
+              } else {
+                this->call_state_ = current_call_state;
+                ESP_LOGD(TAG, "Call state is now: %d", current_call_state);
+                if (current_call_state == 0)
+                  this->call_connected_callback_.call();
+              }
             }
-            this->call_state_ = current_call_state;
             break;
           }
           // item 4 = ""
@@ -319,8 +324,10 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         kick ESPHome callback now
       */
       if (ok || message.compare(0, 6, "+CMGL:") == 0) {
-        ESP_LOGD(TAG, "Received SMS from: %s", this->sender_.c_str());
-        ESP_LOGD(TAG, "%s", this->message_.c_str());
+        ESP_LOGD(TAG,
+                 "Received SMS from: %s\n"
+                 "  %s",
+                 this->sender_.c_str(), this->message_.c_str());
         this->sms_received_callback_.call(this->message_, this->sender_);
         this->state_ = STATE_RECEIVED_SMS;
       } else {

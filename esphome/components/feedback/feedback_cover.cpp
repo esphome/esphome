@@ -335,18 +335,18 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
 
   switch (dir) {
     case COVER_OPERATION_IDLE:
-      trig = this->stop_trigger_;
+      trig = &this->stop_trigger_;
       break;
     case COVER_OPERATION_OPENING:
       this->last_operation_ = dir;
-      trig = this->open_trigger_;
+      trig = &this->open_trigger_;
 #ifdef USE_BINARY_SENSOR
       obstacle = this->open_obstacle_;
 #endif
       break;
     case COVER_OPERATION_CLOSING:
       this->last_operation_ = dir;
-      trig = this->close_trigger_;
+      trig = &this->close_trigger_;
 #ifdef USE_BINARY_SENSOR
       obstacle = this->close_obstacle_;
 #endif

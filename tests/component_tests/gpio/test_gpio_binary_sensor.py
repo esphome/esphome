@@ -18,7 +18,8 @@ def test_gpio_binary_sensor_basic_setup(
 
     assert "new gpio::GPIOBinarySensor();" in main_cpp
     assert "App.register_binary_sensor" in main_cpp
-    assert "bs_gpio->set_use_interrupt(true);" in main_cpp
+    # set_use_interrupt(true) should NOT be generated (uses C++ default)
+    assert "bs_gpio->set_use_interrupt(true);" not in main_cpp
     assert "bs_gpio->set_interrupt_type(gpio::INTERRUPT_ANY_EDGE);" in main_cpp
 
 
@@ -51,8 +52,8 @@ def test_gpio_binary_sensor_esp8266_other_pins_use_interrupt(
         "tests/component_tests/gpio/test_gpio_binary_sensor_esp8266.yaml"
     )
 
-    # GPIO5 should still use interrupts
-    assert "bs_gpio5->set_use_interrupt(true);" in main_cpp
+    # GPIO5 should still use interrupts (default, so no setter call)
+    assert "bs_gpio5->set_use_interrupt(true);" not in main_cpp
     assert "bs_gpio5->set_interrupt_type(gpio::INTERRUPT_ANY_EDGE);" in main_cpp
 
 

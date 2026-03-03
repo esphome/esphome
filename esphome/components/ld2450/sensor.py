@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ANGLE,
     CONF_DISTANCE,
+    CONF_ID,
     CONF_RESOLUTION,
     CONF_SPEED,
     CONF_X,
@@ -40,18 +41,46 @@ UNIT_MILLIMETER_PER_SECOND = "mm/s"
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
         cv.Optional(CONF_TARGET_COUNT): sensor.sensor_schema(
-            icon=ICON_ACCOUNT_GROUP,
             accuracy_decimals=0,
+            filters=[
+                {
+                    "timeout": {
+                        "timeout": cv.TimePeriod(milliseconds=1000),
+                        "value": "last",
+                    }
+                },
+                {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+            ],
+            icon=ICON_ACCOUNT_GROUP,
         ),
         cv.Optional(CONF_STILL_TARGET_COUNT): sensor.sensor_schema(
-            icon=ICON_HUMAN_GREETING_PROXIMITY,
             accuracy_decimals=0,
+            filters=[
+                {
+                    "timeout": {
+                        "timeout": cv.TimePeriod(milliseconds=1000),
+                        "value": "last",
+                    }
+                },
+                {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+            ],
+            icon=ICON_HUMAN_GREETING_PROXIMITY,
         ),
         cv.Optional(CONF_MOVING_TARGET_COUNT): sensor.sensor_schema(
-            icon=ICON_ACCOUNT_SWITCH,
             accuracy_decimals=0,
+            filters=[
+                {
+                    "timeout": {
+                        "timeout": cv.TimePeriod(milliseconds=1000),
+                        "value": "last",
+                    }
+                },
+                {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+            ],
+            icon=ICON_ACCOUNT_SWITCH,
         ),
     }
 )
@@ -62,32 +91,87 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
             {
                 cv.Optional(CONF_X): sensor.sensor_schema(
                     device_class=DEVICE_CLASS_DISTANCE,
-                    unit_of_measurement=UNIT_MILLIMETER,
+                    filters=[
+                        {
+                            "timeout": {
+                                "timeout": cv.TimePeriod(milliseconds=1000),
+                                "value": "last",
+                            }
+                        },
+                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+                    ],
                     icon=ICON_ALPHA_X_BOX_OUTLINE,
+                    unit_of_measurement=UNIT_MILLIMETER,
                 ),
                 cv.Optional(CONF_Y): sensor.sensor_schema(
                     device_class=DEVICE_CLASS_DISTANCE,
-                    unit_of_measurement=UNIT_MILLIMETER,
+                    filters=[
+                        {
+                            "timeout": {
+                                "timeout": cv.TimePeriod(milliseconds=1000),
+                                "value": "last",
+                            }
+                        },
+                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+                    ],
                     icon=ICON_ALPHA_Y_BOX_OUTLINE,
+                    unit_of_measurement=UNIT_MILLIMETER,
                 ),
                 cv.Optional(CONF_SPEED): sensor.sensor_schema(
                     device_class=DEVICE_CLASS_SPEED,
-                    unit_of_measurement=UNIT_MILLIMETER_PER_SECOND,
+                    filters=[
+                        {
+                            "timeout": {
+                                "timeout": cv.TimePeriod(milliseconds=1000),
+                                "value": "last",
+                            }
+                        },
+                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+                    ],
                     icon=ICON_SPEEDOMETER_SLOW,
+                    unit_of_measurement=UNIT_MILLIMETER_PER_SECOND,
                 ),
                 cv.Optional(CONF_ANGLE): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_DEGREES,
+                    filters=[
+                        {
+                            "timeout": {
+                                "timeout": cv.TimePeriod(milliseconds=1000),
+                                "value": "last",
+                            }
+                        },
+                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+                    ],
                     icon=ICON_FORMAT_TEXT_ROTATION_ANGLE_UP,
+                    unit_of_measurement=UNIT_DEGREES,
+                    accuracy_decimals=1,
                 ),
                 cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
                     device_class=DEVICE_CLASS_DISTANCE,
-                    unit_of_measurement=UNIT_MILLIMETER,
+                    filters=[
+                        {
+                            "timeout": {
+                                "timeout": cv.TimePeriod(milliseconds=1000),
+                                "value": "last",
+                            }
+                        },
+                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+                    ],
                     icon=ICON_MAP_MARKER_DISTANCE,
+                    unit_of_measurement=UNIT_MILLIMETER,
                 ),
                 cv.Optional(CONF_RESOLUTION): sensor.sensor_schema(
                     device_class=DEVICE_CLASS_DISTANCE,
-                    unit_of_measurement=UNIT_MILLIMETER,
+                    filters=[
+                        {
+                            "timeout": {
+                                "timeout": cv.TimePeriod(milliseconds=1000),
+                                "value": "last",
+                            }
+                        },
+                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+                    ],
                     icon=ICON_RELATION_ZERO_OR_ONE_TO_ZERO_OR_ONE,
+                    unit_of_measurement=UNIT_MILLIMETER,
                 ),
             }
         )
@@ -97,16 +181,43 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
         cv.Optional(f"zone_{n + 1}"): cv.Schema(
             {
                 cv.Optional(CONF_TARGET_COUNT): sensor.sensor_schema(
-                    icon=ICON_MAP_MARKER_ACCOUNT,
                     accuracy_decimals=0,
+                    filters=[
+                        {
+                            "timeout": {
+                                "timeout": cv.TimePeriod(milliseconds=1000),
+                                "value": "last",
+                            }
+                        },
+                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+                    ],
+                    icon=ICON_MAP_MARKER_ACCOUNT,
                 ),
                 cv.Optional(CONF_STILL_TARGET_COUNT): sensor.sensor_schema(
-                    icon=ICON_MAP_MARKER_ACCOUNT,
                     accuracy_decimals=0,
+                    filters=[
+                        {
+                            "timeout": {
+                                "timeout": cv.TimePeriod(milliseconds=1000),
+                                "value": "last",
+                            }
+                        },
+                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+                    ],
+                    icon=ICON_MAP_MARKER_ACCOUNT,
                 ),
                 cv.Optional(CONF_MOVING_TARGET_COUNT): sensor.sensor_schema(
-                    icon=ICON_MAP_MARKER_ACCOUNT,
                     accuracy_decimals=0,
+                    filters=[
+                        {
+                            "timeout": {
+                                "timeout": cv.TimePeriod(milliseconds=1000),
+                                "value": "last",
+                            }
+                        },
+                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+                    ],
+                    icon=ICON_MAP_MARKER_ACCOUNT,
                 ),
             }
         )

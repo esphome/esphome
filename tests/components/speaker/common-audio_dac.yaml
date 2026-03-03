@@ -14,11 +14,6 @@ esphome:
             - speaker.finish:
       - speaker.stop:
 
-i2c:
-  - id: i2c_audio_dac
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 i2s_audio:
   i2s_lrclk_pin: ${i2s_bclk_pin}
   i2s_bclk_pin: ${i2s_lrclk_pin}
@@ -26,6 +21,7 @@ i2s_audio:
 
 audio_dac:
   - platform: aic3204
+    i2c_id: i2c_bus
     id: internal_dac
 
 speaker:

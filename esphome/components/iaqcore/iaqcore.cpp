@@ -35,7 +35,7 @@ void IAQCore::setup() {
 void IAQCore::update() {
   uint8_t buffer[sizeof(SensorData)];
 
-  if (this->read_register(0xB5, buffer, sizeof(buffer), false) != i2c::ERROR_OK) {
+  if (this->read_register(0xB5, buffer, sizeof(buffer)) != i2c::ERROR_OK) {
     ESP_LOGD(TAG, "Read failed");
     this->status_set_warning();
     this->publish_nans_();

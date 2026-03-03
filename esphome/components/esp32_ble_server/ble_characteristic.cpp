@@ -35,13 +35,18 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
 
 void BLECharacteristic::set_value(ByteBuffer buffer) { this->set_value(buffer.get_data()); }
 
-void BLECharacteristic::set_value(const std::vector<uint8_t> &buffer) {
+void BLECharacteristic::set_value(std::vector<uint8_t> &&buffer) {
   xSemaphoreTake(this->set_value_lock_, 0L);
-  this->value_ = buffer;
+  this->value_ = std::move(buffer);
   xSemaphoreGive(this->set_value_lock_);
 }
+
+void BLECharacteristic::set_value(std::initializer_list<uint8_t> data) {
+  this->set_value(std::vector<uint8_t>(data));  // Delegate to move overload
+}
+
 void BLECharacteristic::set_value(const std::string &buffer) {
-  this->set_value(std::vector<uint8_t>(buffer.begin(), buffer.end()));
+  this->set_value(std::vector<uint8_t>(buffer.begin(), buffer.end()));  // Delegate to move overload
 }
 
 void BLECharacteristic::notify() {
@@ -49,13 +54,17 @@ void BLECharacteristic::notify() {
       this->service_->get_server()->get_connected_client_count() == 0)
     return;
 
-  for (auto &client : this->service_->get_server()->get_clients()) {
+  const uint16_t *clients = this->service_->get_server()->get_clients();
+  uint8_t client_count = this->service_->get_server()->get_client_count();
+
+  for (uint8_t i = 0; i < client_count; i++) {
+    uint16_t client = clients[i];
     size_t length = this->value_.size();
-    // If the client is not in the list of clients to notify, skip it
-    if (this->clients_to_notify_.count(client) == 0)
+    // Find the client in the list of clients to notify
+    auto *entry = this->find_client_in_notify_list_(client);
+    if (entry == nullptr)
       continue;
-    // If the client is in the list of clients to notify, check if it requires an ack (i.e. INDICATE)
-    bool require_ack = this->clients_to_notify_[client];
+    bool require_ack = entry->indicate;
     // TODO: Remove this block when INDICATE acknowledgment is supported
     if (require_ack) {
       ESP_LOGW(TAG, "INDICATE acknowledgment is not yet supported (i.e. it works as a NOTIFY)");
@@ -73,16 +82,17 @@ void BLECharacteristic::notify() {
 void BLECharacteristic::add_descriptor(BLEDescriptor *descriptor) {
   // If the descriptor is the CCCD descriptor, listen to its write event to know if the client wants to be notified
   if (descriptor->get_uuid() == ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_CLIENT_CONFIG)) {
-    descriptor->on(BLEDescriptorEvt::VectorEvt::ON_WRITE, [this](const std::vector<uint8_t> &value, uint16_t conn_id) {
+    descriptor->on_write([this](std::span<const uint8_t> value, uint16_t conn_id) {
       if (value.size() != 2)
         return;
       uint16_t cccd = encode_uint16(value[1], value[0]);
       bool notify = (cccd & 1) != 0;
       bool indicate = (cccd & 2) != 0;
+      // Remove existing entry if present
+      this->remove_client_from_notify_list_(conn_id);
+      // Add new entry if needed
       if (notify || indicate) {
-        this->clients_to_notify_[conn_id] = indicate;
-      } else {
-        this->clients_to_notify_.erase(conn_id);
+        this->clients_to_notify_.push_back({conn_id, indicate});
       }
     });
   }
@@ -99,7 +109,11 @@ void BLECharacteristic::do_create(BLEService *service) {
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_RSP_BY_APP;
 
-  ESP_LOGV(TAG, "Creating characteristic - %s", this->uuid_.to_string().c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char uuid_buf[esp32_ble::UUID_STR_LEN];
+  this->uuid_.to_str(uuid_buf);
+  ESP_LOGV(TAG, "Creating characteristic - %s", uuid_buf);
+#endif
 
   esp_bt_uuid_t uuid = this->uuid_.get_uuid();
   esp_err_t err = esp_ble_gatts_add_char(service->get_handle(), &uuid, static_cast<esp_gatt_perm_t>(this->permissions_),
@@ -120,69 +134,49 @@ bool BLECharacteristic::is_created() {
   if (this->state_ != CREATING_DEPENDENTS)
     return false;
 
-  bool created = true;
   for (auto *descriptor : this->descriptors_) {
-    created &= descriptor->is_created();
+    if (!descriptor->is_created())
+      return false;
   }
-  if (created)
-    this->state_ = CREATED;
-  return this->state_ == CREATED;
+  // All descriptors are created if we reach here
+  this->state_ = CREATED;
+  return true;
 }
 
 bool BLECharacteristic::is_failed() {
   if (this->state_ == FAILED)
     return true;
 
-  bool failed = false;
   for (auto *descriptor : this->descriptors_) {
-    failed |= descriptor->is_failed();
+    if (descriptor->is_failed()) {
+      this->state_ = FAILED;
+      return true;
+    }
   }
-  if (failed)
-    this->state_ = FAILED;
-  return this->state_ == FAILED;
+  return false;
+}
+
+void BLECharacteristic::set_property_bit_(esp_gatt_char_prop_t bit, bool value) {
+  if (value) {
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | bit);
+  } else {
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~bit);
+  }
 }
 
 void BLECharacteristic::set_broadcast_property(bool value) {
-  if (value) {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_BROADCAST);
-  } else {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_BROADCAST);
-  }
+  this->set_property_bit_(ESP_GATT_CHAR_PROP_BIT_BROADCAST, value);
 }
 void BLECharacteristic::set_indicate_property(bool value) {
-  if (value) {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_INDICATE);
-  } else {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_INDICATE);
-  }
+  this->set_property_bit_(ESP_GATT_CHAR_PROP_BIT_INDICATE, value);
 }
 void BLECharacteristic::set_notify_property(bool value) {
-  if (value) {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_NOTIFY);
-  } else {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_NOTIFY);
-  }
+  this->set_property_bit_(ESP_GATT_CHAR_PROP_BIT_NOTIFY, value);
 }
-void BLECharacteristic::set_read_property(bool value) {
-  if (value) {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_READ);
-  } else {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_READ);
-  }
-}
-void BLECharacteristic::set_write_property(bool value) {
-  if (value) {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_WRITE);
-  } else {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_WRITE);
-  }
-}
+void BLECharacteristic::set_read_property(bool value) { this->set_property_bit_(ESP_GATT_CHAR_PROP_BIT_READ, value); }
+void BLECharacteristic::set_write_property(bool value) { this->set_property_bit_(ESP_GATT_CHAR_PROP_BIT_WRITE, value); }
 void BLECharacteristic::set_write_no_response_property(bool value) {
-  if (value) {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_WRITE_NR);
-  } else {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_WRITE_NR);
-  }
+  this->set_property_bit_(ESP_GATT_CHAR_PROP_BIT_WRITE_NR, value);
 }
 
 void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
@@ -207,8 +201,9 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       if (!param->read.need_rsp)
         break;  // For some reason you can request a read but not want a response
 
-      this->EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t>::emit_(BLECharacteristicEvt::EmptyEvt::ON_READ,
-                                                                          param->read.conn_id);
+      if (this->on_read_callback_) {
+        (*this->on_read_callback_)(param->read.conn_id);
+      }
 
       uint16_t max_offset = 22;
 
@@ -251,9 +246,27 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       if (this->handle_ != param->write.handle)
         break;
 
+      esp_gatt_status_t status = ESP_GATT_OK;
+
       if (param->write.is_prep) {
-        this->value_.insert(this->value_.end(), param->write.value, param->write.value + param->write.len);
-        this->write_event_ = true;
+        const size_t offset = param->write.offset;
+        const size_t write_len = param->write.len;
+        const size_t new_size = offset + write_len;
+        // Clean the buffer on the first prepared write event
+        if (offset == 0) {
+          this->value_.clear();
+        }
+
+        if (offset != this->value_.size()) {
+          status = ESP_GATT_INVALID_OFFSET;
+        } else if (new_size > ESP_GATT_MAX_ATTR_LEN) {
+          status = ESP_GATT_INVALID_ATTR_LEN;
+        } else {
+          if (this->value_.size() < new_size) {
+            this->value_.resize(new_size);
+          }
+          memcpy(this->value_.data() + offset, param->write.value, write_len);
+        }
       } else {
         this->set_value(ByteBuffer::wrap(param->write.value, param->write.len));
       }
@@ -268,7 +281,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
         memcpy(response.attr_value.value, param->write.value, param->write.len);
 
         esp_err_t err =
-            esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, &response);
+            esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, status, &response);
 
         if (err != ESP_OK) {
           ESP_LOGE(TAG, "esp_ble_gatts_send_response failed: %d", err);
@@ -276,20 +289,22 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       }
 
       if (!param->write.is_prep) {
-        this->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>::emit_(
-            BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_, param->write.conn_id);
+        if (this->on_write_callback_) {
+          (*this->on_write_callback_)(this->value_, param->write.conn_id);
+        }
       }
 
       break;
     }
 
     case ESP_GATTS_EXEC_WRITE_EVT: {
-      if (!this->write_event_)
+      // BLE stack will guarantee that ESP_GATTS_EXEC_WRITE_EVT is only received after prepared writes
+      if (this->value_.empty())
         break;
-      this->write_event_ = false;
       if (param->exec_write.exec_write_flag == ESP_GATT_PREP_WRITE_EXEC) {
-        this->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>::emit_(
-            BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_, param->exec_write.conn_id);
+        if (this->on_write_callback_) {
+          (*this->on_write_callback_)(this->value_, param->exec_write.conn_id);
+        }
       }
       esp_err_t err =
           esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, nullptr);
@@ -305,6 +320,28 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
   for (auto *descriptor : this->descriptors_) {
     descriptor->gatts_event_handler(event, gatts_if, param);
   }
+}
+
+void BLECharacteristic::remove_client_from_notify_list_(uint16_t conn_id) {
+  // Since we typically have very few clients (often just 1), we can optimize
+  // for the common case by swapping with the last element and popping
+  for (size_t i = 0; i < this->clients_to_notify_.size(); i++) {
+    if (this->clients_to_notify_[i].conn_id == conn_id) {
+      // Swap with last element and pop (safe even when i is the last element)
+      this->clients_to_notify_[i] = this->clients_to_notify_.back();
+      this->clients_to_notify_.pop_back();
+      return;
+    }
+  }
+}
+
+BLECharacteristic::ClientNotificationEntry *BLECharacteristic::find_client_in_notify_list_(uint16_t conn_id) {
+  for (auto &entry : this->clients_to_notify_) {
+    if (entry.conn_id == conn_id) {
+      return &entry;
+    }
+  }
+  return nullptr;
 }
 
 }  // namespace esp32_ble_server

@@ -3,8 +3,7 @@
 #include "esphome/core/automation.h"
 #include "climate.h"
 
-namespace esphome {
-namespace climate {
+namespace esphome::climate {
 
 template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
@@ -22,7 +21,7 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, custom_preset)
   TEMPLATABLE_VALUE(ClimateSwingMode, swing_mode)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->climate_->make_call();
     call.set_mode(this->mode_.optional_value(x...));
     call.set_target_temperature(this->target_temperature_.optional_value(x...));
@@ -58,5 +57,4 @@ class StateTrigger : public Trigger<Climate &> {
   }
 };
 
-}  // namespace climate
-}  // namespace esphome
+}  // namespace esphome::climate

@@ -1,0 +1,40 @@
+esphome:
+  name: uart-mock-modbus-test
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_dev
+    baud_rate: 9600
+    rx_full_threshold: 120
+    rx_timeout: 2
+    debug:
+    responses:
+      - expect_tx: [0x01, 0x03, 0x00, 0x03, 0x00, 0x01, 0x74, 0x0A] # Read holding register 1 on device 1
+        inject_rx: [0x01, 0x03, 0x02, 0x01, 0x03, 0xF9, 0xD5] # Return value 0x0103 (hex) = 259 (dec)
+
+modbus:
+  uart_id: virtual_uart_dev
+
+modbus_controller:
+  address: 1
+
+sensor:
+  - platform: modbus_controller
+    name: "basic_register"
+    address: 0x03
+    register_type: holding

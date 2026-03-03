@@ -6,11 +6,11 @@ namespace remote_base {
 
 static const char *const TAG = "remote.nec";
 
-static const uint32_t HEADER_HIGH_US = 9000;
-static const uint32_t HEADER_LOW_US = 4500;
-static const uint32_t BIT_HIGH_US = 560;
-static const uint32_t BIT_ONE_LOW_US = 1690;
-static const uint32_t BIT_ZERO_LOW_US = 560;
+static constexpr uint32_t HEADER_HIGH_US = 9000;
+static constexpr uint32_t HEADER_LOW_US = 4500;
+static constexpr uint32_t BIT_HIGH_US = 560;
+static constexpr uint32_t BIT_ONE_LOW_US = 1690;
+static constexpr uint32_t BIT_ZERO_LOW_US = 560;
 
 void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
   ESP_LOGD(TAG, "Sending NEC: address=0x%04X, command=0x%04X command_repeats=%d", data.address, data.command,
