@@ -403,13 +403,13 @@ void ESPNowComponent::loop() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
           char src_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
           char dst_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-          char hex_buf[format_hex_pretty_size(ESPNOW_MAX_DATA_LEN)];
+          char hex_buf[format_hex_pretty_size(ESP_NOW_MAX_DATA_LEN)];
           format_mac_addr_upper(info.src_addr, src_buf);
           format_mac_addr_upper(info.des_addr, dst_buf);
           ESP_LOGVV(TAG, "<<< [%s -> %s] %s", src_buf, dst_buf,
                     format_hex_pretty_to(hex_buf, packet->packet_.receive.data, packet->packet_.receive.size));
 #endif
-          if (memcmp(info.des_addr, ESPNOW_BROADCAST_ADDR, ESPNOW_ETH_ALEN) == 0) {
+          if (memcmp(info.des_addr, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0) {
             for (auto *handler : this->broadcasted_handlers_) {
               if (handler->on_broadcasted(info, packet->packet_.receive.data, packet->packet_.receive.size))
                 break;  // If a handler returns true, stop processing further handlers
@@ -480,12 +480,12 @@ espnow_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *p
     return ESPNOW_ERR_FAILED;
   } else if (peer_address == nullptr) {
     return ESPNOW_ERR_PEER_NOT_SET;
-  } else if (memcmp(peer_address, this->own_address_, ESPNOW_ETH_ALEN) == 0) {
+  } else if (memcmp(peer_address, this->own_address_, ESP_NOW_ETH_ALEN) == 0) {
     return ESPNOW_ERR_OWN_ADDRESS;
-  } else if (size > ESPNOW_MAX_DATA_LEN) {
+  } else if (size > ESP_NOW_MAX_DATA_LEN) {
     return ESPNOW_ERR_DATA_SIZE;
   } else if (!espnow_is_peer_exist(peer_address)) {
-    if (memcmp(peer_address, ESPNOW_BROADCAST_ADDR, ESPNOW_ETH_ALEN) == 0 || this->auto_add_peer_) {
+    if (memcmp(peer_address, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0 || this->auto_add_peer_) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(peer_address, peer_buf);
@@ -554,7 +554,7 @@ espnow_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
     return ESPNOW_ERR_NOT_INIT;
   }
 
-  if (memcmp(peer, this->own_address_, ESPNOW_ETH_ALEN) == 0) {
+  if (memcmp(peer, this->own_address_, ESP_NOW_ETH_ALEN) == 0) {
     this->status_momentary_warning("peer-add-failed");
     return ESPNOW_ERR_INVALID_MAC;
   }
@@ -564,7 +564,7 @@ espnow_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
     esp_now_peer_info_t peer_info = {};
     memset(&peer_info, 0, sizeof(esp_now_peer_info_t));
     peer_info.ifidx = WIFI_IF_STA;
-    memcpy(peer_info.peer_addr, peer, ESPNOW_ETH_ALEN);
+    memcpy(peer_info.peer_addr, peer, ESP_NOW_ETH_ALEN);
     espnow_err_t err = esp_now_add_peer(&peer_info);
 #else
     espnow_err_t err = esp_now_add_peer(const_cast<uint8_t *>(peer), ESP_NOW_ROLE_COMBO, 0, nullptr, 0);
@@ -593,7 +593,7 @@ espnow_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
   }
   if (!found) {
     ESPNowPeer new_peer;
-    memcpy(new_peer.address, peer, ESPNOW_ETH_ALEN);
+    memcpy(new_peer.address, peer, ESP_NOW_ETH_ALEN);
     this->peers_.push_back(new_peer);
   }
 

@@ -43,8 +43,8 @@ void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {
     return;
   }
 
-  if (buf.size() > ESPNOW_MAX_DATA_LEN) {
-    ESP_LOGE(TAG, "Packet too large: %zu bytes (max %zu)", buf.size(), ESPNOW_MAX_DATA_LEN);
+  if (buf.size() > ESP_NOW_MAX_DATA_LEN) {
+    ESP_LOGE(TAG, "Packet too large: %zu bytes (max %zu)", buf.size(), ESP_NOW_MAX_DATA_LEN);
     return;
   }
 

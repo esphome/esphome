@@ -113,7 +113,7 @@ template<class T, uint8_t SIZE> using PacketQueue = LockFreeQueue<T, SIZE>;
 static constexpr size_t MAX_ESP_NOW_SEND_QUEUE_SIZE = 16;
 static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 16;
 
-using peer_address_t = std::array<uint8_t, ESPNOW_ETH_ALEN>;
+using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
 
 enum class ESPNowTriggers : uint8_t {
   TRIGGER_NONE = 0,
@@ -134,10 +134,12 @@ enum ESPNowState : uint8_t {
 };
 
 struct ESPNowPeer {
-  uint8_t address[ESPNOW_ETH_ALEN];  // MAC address of the peer
+  uint8_t address[ESP_NOW_ETH_ALEN];  // MAC address of the peer
 
-  bool operator==(const ESPNowPeer &other) const { return memcmp(this->address, other.address, ESPNOW_ETH_ALEN) == 0; }
-  bool operator==(const uint8_t *other) const { return memcmp(this->address, other, ESPNOW_ETH_ALEN) == 0; }
+  bool operator==(const ESPNowPeer &other) const {
+    return memcmp(this->address, other.address, ESP_NOW_ETH_ALEN) == 0;
+  }
+  bool operator==(const uint8_t *other) const { return memcmp(this->address, other, ESP_NOW_ETH_ALEN) == 0; }
 };
 
 /// Handler interface for receiving ESPNow packets from unknown peers
@@ -187,7 +189,7 @@ class ESPNowComponent : public Component {
   // Add a peer to the internal list of peers
   void add_peer(peer_address_t address) {
     ESPNowPeer peer;
-    memcpy(peer.address, address.data(), ESPNOW_ETH_ALEN);
+    memcpy(peer.address, address.data(), ESP_NOW_ETH_ALEN);
     this->peers_.push_back(peer);
   }
   // Add a peer with the esp_now api and add to the internal list if doesnt exist already
@@ -253,7 +255,7 @@ class ESPNowComponent : public Component {
 
   std::vector<ESPNowPeer> peers_{};
 
-  uint8_t own_address_[ESPNOW_ETH_ALEN]{0};
+  uint8_t own_address_[ESP_NOW_ETH_ALEN]{0};
   PacketQueue<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_queue_{};
   EventPool<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_pool_{};
 
