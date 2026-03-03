@@ -46,10 +46,6 @@ enum EventGroupBits : uint32_t {
 
 void AudioFileMediaSource::dump_config() {
   ESP_LOGCONFIG(TAG, "Audio File Media Source:");
-  ESP_LOGCONFIG(TAG, "  Registered audio files:");
-  for (const auto &named_file : get_named_audio_files()) {
-    ESP_LOGCONFIG(TAG, "    - ID: '%s'", named_file.file_id);
-  }
   ESP_LOGCONFIG(TAG, "  Task Stack in PSRAM: %s", this->task_stack_in_psram_ ? "Yes" : "No");
 }
 
