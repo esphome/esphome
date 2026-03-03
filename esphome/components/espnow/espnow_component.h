@@ -36,7 +36,7 @@ template<class T, uint8_t SIZE> class EventPool {
         this->used_[i] = true;
         T *obj = &this->storage_[i];
         // Reset the object to a default-constructed state to match heap semantics.
-        this->reset_object_(obj);
+        this->reset_object(obj);
         return obj;
       }
     }
@@ -57,7 +57,7 @@ template<class T, uint8_t SIZE> class EventPool {
   }
 
  protected:
-  static void reset_object_(T *obj) {
+  static void reset_object(T *obj) {
     obj->~T();
     new (obj) T();
   }
