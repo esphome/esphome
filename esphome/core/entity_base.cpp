@@ -49,7 +49,9 @@ void EntityBase::set_name(const char *name, uint32_t object_id_hash) {
 // Weak default lookup functions — overridden by generated code in main.cpp
 __attribute__((weak)) const char *entity_device_class_lookup(uint8_t) { return ""; }
 __attribute__((weak)) const char *entity_uom_lookup(uint8_t) { return ""; }
-__attribute__((weak)) const char *entity_icon_lookup(uint8_t) { return ""; }
+// Icon empty string must be PROGMEM — on ESP8266 callers use strncpy_P to read it
+static const char ENTITY_ICON_EMPTY[] PROGMEM = "";
+__attribute__((weak)) const char *entity_icon_lookup(uint8_t) { return ENTITY_ICON_EMPTY; }
 
 // Entity device class (from index)
 StringRef EntityBase::get_device_class_ref() const {
@@ -74,12 +76,12 @@ std::string EntityBase::get_unit_of_measurement() const {
 }
 
 // Entity icon — buffer-based API for PROGMEM safety on ESP8266
-const char *EntityBase::get_icon_to(std::span<char, MAX_ICON_LENGTH> buffer) const {
-#ifdef USE_ENTITY_ICON
-  const char *icon = entity_icon_lookup(this->icon_idx_);
+const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LENGTH> buffer) const {
+#ifndef USE_ENTITY_ICON
+  // No icons configured — skip lookup entirely
+  return "";
 #else
-  const char *icon = entity_icon_lookup(0);
-#endif
+  const char *icon = entity_icon_lookup(this->icon_idx_);
 #ifdef USE_ESP8266
   ESPHOME_strncpy_P(buffer.data(), icon, buffer.size() - 1);
   buffer[buffer.size() - 1] = '\0';
@@ -87,6 +89,7 @@ const char *EntityBase::get_icon_to(std::span<char, MAX_ICON_LENGTH> buffer) con
 #else
   return icon;
 #endif
+#endif  // USE_ENTITY_ICON
 }
 
 #ifndef USE_ESP8266

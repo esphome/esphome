@@ -109,9 +109,12 @@ def _generate_category_code(
                 f"static const char {var_name}[] PROGMEM = {cpp_string_escape(s)};"
             )
         entries = ", ".join(var_names)
+        # Empty string must also be PROGMEM — on ESP8266, callers use strncpy_P
+        empty_var = f"{table_var}_EMPTY"
+        lines.append(f'static const char {empty_var}[] PROGMEM = "";')
         lines.append(f"static const char *const {table_var}[] PROGMEM = {{{entries}}};")
         lines.append(f"const char *{lookup_fn}(uint8_t index) {{")
-        lines.append(f'  if (index == 0 || index > {count}) return "";')
+        lines.append(f"  if (index == 0 || index > {count}) return {empty_var};")
         lines.append(f"  return progmem_read_ptr(&{table_var}[index - 1]);")
         lines.append("}")
         return "\n".join(lines) + "\n"
