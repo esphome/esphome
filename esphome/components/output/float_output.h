@@ -54,9 +54,10 @@ class FloatOutput : public BinaryOutput {
 
   /** Set the level of this float output, this is called from the front-end.
    *
-   * @param state The new state.
+   * @param state The new state. Standard range is [0, 1]; subclasses (e.g. bidirectional)
+   * may override to accept a signed range such as [-1, 1].
    */
-  void set_level(float state);
+  virtual void set_level(float state);
 
   /** Set the frequency of the output for PWM outputs.
    *
