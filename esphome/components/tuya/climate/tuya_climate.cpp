@@ -288,7 +288,8 @@ void TuyaClimate::control_swing_mode_(const climate::ClimateCall &call) {
 }
 
 void TuyaClimate::control_fan_mode_(const climate::ClimateCall &call) {
-  if (auto fan_mode_val = call.get_fan_mode(); fan_mode_val.has_value()) {
+  auto fan_mode_val = call.get_fan_mode();
+  if (fan_mode_val.has_value()) {
     climate::ClimateFanMode fan_mode = *fan_mode_val;
 
     uint8_t tuya_fan_speed;
@@ -313,8 +314,9 @@ void TuyaClimate::control_fan_mode_(const climate::ClimateCall &call) {
         break;
     }
 
-    if (auto id = this->fan_speed_id_; id.has_value()) {
-      this->parent_->set_enum_datapoint_value(*id, tuya_fan_speed);
+    auto fan_speed_dp_id = this->fan_speed_id_;
+    if (fan_speed_dp_id.has_value()) {
+      this->parent_->set_enum_datapoint_value(*fan_speed_dp_id, tuya_fan_speed);
     }
   }
 }
@@ -369,31 +371,39 @@ climate::ClimateTraits TuyaClimate::traits() {
 
 void TuyaClimate::dump_config() {
   LOG_CLIMATE("", "Tuya Climate", this);
-  if (auto id = this->switch_id_; id.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *id);
+  auto switch_dp_id = this->switch_id_;
+  if (switch_dp_id.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *switch_dp_id);
   }
-  if (auto id = this->active_state_id_; id.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Active state has datapoint ID %u", *id);
+  auto active_state_dp_id = this->active_state_id_;
+  if (active_state_dp_id.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Active state has datapoint ID %u", *active_state_dp_id);
   }
-  if (auto id = this->target_temperature_id_; id.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Target Temperature has datapoint ID %u", *id);
+  auto target_temp_dp_id = this->target_temperature_id_;
+  if (target_temp_dp_id.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Target Temperature has datapoint ID %u", *target_temp_dp_id);
   }
-  if (auto id = this->current_temperature_id_; id.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Current Temperature has datapoint ID %u", *id);
+  auto current_temp_dp_id = this->current_temperature_id_;
+  if (current_temp_dp_id.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Current Temperature has datapoint ID %u", *current_temp_dp_id);
   }
   LOG_PIN("  Heating State Pin: ", this->heating_state_pin_);
   LOG_PIN("  Cooling State Pin: ", this->cooling_state_pin_);
-  if (auto id = this->eco_id_; id.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Eco has datapoint ID %u", *id);
+  auto eco_dp_id = this->eco_id_;
+  if (eco_dp_id.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Eco has datapoint ID %u", *eco_dp_id);
   }
-  if (auto id = this->sleep_id_; id.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Sleep has datapoint ID %u", *id);
+  auto sleep_dp_id = this->sleep_id_;
+  if (sleep_dp_id.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Sleep has datapoint ID %u", *sleep_dp_id);
   }
-  if (auto id = this->swing_vertical_id_; id.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Swing Vertical has datapoint ID %u", *id);
+  auto swing_vert_dp_id = this->swing_vertical_id_;
+  if (swing_vert_dp_id.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Swing Vertical has datapoint ID %u", *swing_vert_dp_id);
   }
-  if (auto id = this->swing_horizontal_id_; id.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Swing Horizontal has datapoint ID %u", *id);
+  auto swing_horiz_dp_id = this->swing_horizontal_id_;
+  if (swing_horiz_dp_id.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Swing Horizontal has datapoint ID %u", *swing_horiz_dp_id);
   }
 }
 
