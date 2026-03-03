@@ -16,4 +16,3 @@ espnow_err_t add_peer(const uint8_t *peer);
 espnow_err_t del_peer(const uint8_t *peer);
 
 }  // namespace esphome::espnow::espnow_esp8266
-
