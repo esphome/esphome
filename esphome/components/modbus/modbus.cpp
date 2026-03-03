@@ -42,7 +42,7 @@ void Modbus::loop() {
   // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
   // So in this component we don't use any cached timestamp values to avoid these annoying bugs
   if (millis() - this->last_modbus_byte_ > timeout) {
-    this->clear_rx_buffer_("timeout after partial response", true);
+    this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
   }
 
   // If we're past the send_wait_time timeout and response buffer doesn't have the start of the expected response
@@ -91,7 +91,7 @@ void Modbus::receive_and_parse_modbus_bytes_() {
 
     // If the bytes in the rx buffer do not parse, clear out the buffer
     if (!this->parse_modbus_byte_(byte)) {
-      this->clear_rx_buffer_("parse failed", true);
+      this->clear_rx_buffer_(LOG_STR("parse failed"), true);
     }
     this->last_modbus_byte_ = millis();
   }
@@ -250,7 +250,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     ESP_LOGW(TAG, "Got frame from unknown address %d, %dms after last send", address, millis() - this->last_send_);
   }
 
-  this->clear_rx_buffer_("parse succeeded");
+  this->clear_rx_buffer_(LOG_STR("parse succeeded"));
 
   if (this->waiting_for_response_ == address)
     this->waiting_for_response_ = 0;
@@ -372,14 +372,14 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   }
 }
 
-void Modbus::clear_rx_buffer_(const std::string &reason, bool warn) {
+void Modbus::clear_rx_buffer_(const LogString *reason, bool warn) {
   size_t at = this->rx_buffer_.size();
   if (at > 0) {
     if (warn) {
-      ESP_LOGW(TAG, "Clearing buffer of %d bytes - %s %dms after last send", at, reason.c_str(),
+      ESP_LOGW(TAG, "Clearing buffer of %d bytes - %s %dms after last send", at, LOG_STR_ARG(reason),
                millis() - this->last_send_);
     } else {
-      ESP_LOGV(TAG, "Clearing buffer of %d bytes - %s %dms after last send", at, reason.c_str(),
+      ESP_LOGV(TAG, "Clearing buffer of %d bytes - %s %dms after last send", at, LOG_STR_ARG(reason),
                millis() - this->last_send_);
     }
     this->rx_buffer_.clear();

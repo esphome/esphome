@@ -50,7 +50,7 @@ class Modbus : public uart::UARTDevice, public Component {
  protected:
   bool parse_modbus_byte_(uint8_t byte);
   void receive_and_parse_modbus_bytes_();
-  void clear_rx_buffer_(const std::string &reason, bool warn = false);
+  void clear_rx_buffer_(const LogString *reason, bool warn = false);
   void send_next_frame_();
 
   uint32_t last_modbus_byte_{0};
