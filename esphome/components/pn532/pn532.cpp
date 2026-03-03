@@ -214,8 +214,6 @@ void PN532::update() {
     return;
   }
 
-  this->status_clear_warning();
-  this->consecutive_failures_ = 0;
   this->requested_read_ = true;
 }
 
@@ -232,9 +230,38 @@ void PN532::loop() {
 
   if (ready == READY) {
     success = this->read_response(PN532_COMMAND_INLISTPASSIVETARGET, read);
+  }
+
+  if (success) {
+    this->status_clear_warning();
+    this->consecutive_failures_ = 0;
+    if (this->backoff_ms_ != 0) {
+      this->backoff_ms_ = 0;
+      this->set_update_interval(this->user_update_interval_);
+    }
   } else {
     this->send_ack_();
-    ESP_LOGV(TAG, "InListPassiveTarget failed/timeout (ready=%d)", ready);
+    ESP_LOGW(TAG, "InListPassiveTarget failed/timeout (ready=%d)", ready);
+    this->status_set_warning();
+
+    for (auto &ptag : this->persistent_tags_) {
+      ptag.missing_count++;
+    }
+    this->process_removed_tags_({});
+
+    uint32_t new_backoff =
+        (this->backoff_ms_ == 0) ? this->user_update_interval_ * 2 : std::min(this->backoff_ms_ * 2, (uint32_t) 60000);
+    if (new_backoff != this->backoff_ms_) {
+      this->backoff_ms_ = new_backoff;
+      this->set_update_interval(this->backoff_ms_);
+    }
+
+    if (++this->consecutive_failures_ >= this->max_failed_checks_) {
+      if (this->auto_reset_) {
+        this->sam_configured_ = false;
+        this->reinit_attempts_ = 0;
+      }
+    }
   }
 
   this->requested_read_ = false;
