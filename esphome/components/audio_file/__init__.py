@@ -17,6 +17,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, HexInt
 from esphome.external_files import download_content
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,6 +34,9 @@ TYPE_WEB = "web"
 @dataclass
 class AudioFileData:
     file_ids: dict = field(default_factory=dict)  # {str_id: config_id}
+    file_cache: dict = field(
+        default_factory=dict
+    )  # {config_id: (data, media_file_type)}
 
 
 def _get_data() -> AudioFileData:
@@ -162,9 +166,22 @@ MEDIA_FILE_TYPE_SCHEMA = cv.Schema(
 )
 
 
-def _validate_supported_local_file(config):
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+
+
+def _validate_supported_local_file(config: list[ConfigType]) -> list[ConfigType]:
     for file_config in config:
-        _, media_file_type = read_audio_file_and_type(file_config)
+        data, media_file_type = read_audio_file_and_type(file_config)
+
+        if len(data) > MAX_FILE_SIZE:
+            file_info = file_config.get(CONF_FILE, {})
+            source = (
+                file_info.get(CONF_PATH) or file_info.get(CONF_URL) or "unknown source"
+            )
+            raise cv.Invalid(
+                f"Audio file {source!r} is too large ({len(data)} bytes, max {MAX_FILE_SIZE} bytes)"
+            )
+
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
             file_info = file_config.get(CONF_FILE, {})
             source = (
@@ -173,6 +190,9 @@ def _validate_supported_local_file(config):
             raise cv.Invalid(
                 f"Unsupported media file from {source!r} (detected type: {media_file_type})"
             )
+
+        # Cache the file data so to_code() doesn't need to re-read it
+        _get_data().file_cache[str(file_config[CONF_ID])] = (data, media_file_type)
 
         for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
             if str(media_file_type) == str(fmt_enum):
@@ -196,9 +216,11 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     audio_file_ns = cg.esphome_ns.namespace("audio_file")
+    cache = _get_data().file_cache
 
     for file_config in config:
-        data, media_file_type = read_audio_file_and_type(file_config)
+        file_id = str(file_config[CONF_ID])
+        data, media_file_type = cache[file_id]
 
         rhs = [HexInt(x) for x in data]
         prog_arr = cg.progmem_array(file_config[CONF_RAW_DATA_ID], rhs)
@@ -225,7 +247,6 @@ async def to_code(config):
         )
 
         # Store file ID for cross-component access
-        file_id = str(file_config[CONF_ID])
         _get_data().file_ids[file_id] = file_config[CONF_ID]
 
     # Register all files in the shared C++ registry
