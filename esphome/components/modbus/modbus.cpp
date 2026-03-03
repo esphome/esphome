@@ -17,7 +17,7 @@ void Modbus::setup() {
   }
 
   this->frame_delay_ms_ =
-      std::max(2,  // 1750us minimium per spec - rounded up to 2ms.
+      std::max(2,  // 1750us minimum per spec - rounded up to 2ms.
                    // 3.5 characters * 11 bits per character * 1000ms/sec / (bits/sec) (Standard modbus frame delay)
                (uint16_t) (3.5 * 11 * 1000 / this->parent_->get_baud_rate()) + 1);
 
@@ -34,8 +34,8 @@ void Modbus::loop() {
   // when the buffer is filling the back half of the response
   const uint16_t timeout = std::max(
       (uint16_t) this->frame_delay_ms_,
-      (uint16_t) (this->rx_buffer_.size() > this->parent_->get_rx_full_threshold() - 1 ? this->long_rx_buffer_delay_ms_
-                                                                                       : 0));
+      (uint16_t) (this->rx_buffer_.size() >= this->parent_->get_rx_full_threshold() ? this->long_rx_buffer_delay_ms_
+                                                                                    : 0));
   // We use millis() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
   // It's critical in all timestamp comparisons that the left timestamp comes before the right one in time
   // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
@@ -347,7 +347,7 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
     }
   }
 
-  send_raw(data);
+  this->send_raw(data);
 }
 
 // Helper function for lambdas

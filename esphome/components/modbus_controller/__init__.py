@@ -57,8 +57,8 @@ SensorItem = modbus_controller_ns.struct("SensorItem")
 ServerCourtesyResponse = modbus_controller_ns.struct("ServerCourtesyResponse")
 ServerRegister = modbus_controller_ns.struct("ServerRegister")
 
-ModbusFunctionCode_ns = modbus_ns.namespace("FunctionCode")
-ModbusFunctionCode = ModbusFunctionCode_ns.enum("FunctionCode")
+ModbusFunctionCode_ns = modbus_ns.namespace("ModbusFunctionCode")
+ModbusFunctionCode = ModbusFunctionCode_ns.enum("ModbusFunctionCode")
 MODBUS_FUNCTION_CODE = {
     "read_coils": ModbusFunctionCode.READ_COILS,
     "read_discrete_inputs": ModbusFunctionCode.READ_DISCRETE_INPUTS,

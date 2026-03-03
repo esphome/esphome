@@ -11,7 +11,7 @@
 namespace esphome {
 namespace modbus {
 
-static const uint16_t MODBUS_TX_BUFFER_SIZE = 100;
+static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 100;
 
 enum ModbusRole {
   CLIENT,
@@ -41,9 +41,9 @@ class Modbus : public uart::UARTDevice, public Component {
   void send_raw(const std::vector<uint8_t> &payload);
   void set_role(ModbusRole role) { this->role = role; }
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
-  void set_send_wait_time(uint16_t time_in_ms) { send_wait_time_ = time_in_ms; }
-  void set_turnaround_time(uint16_t time_in_ms) { turnaround_delay_ms_ = time_in_ms; }
-  void set_disable_crc(bool disable_crc) { disable_crc_ = disable_crc; }
+  void set_send_wait_time(uint16_t time_in_ms) { this->send_wait_time_ = time_in_ms; }
+  void set_turnaround_time(uint16_t time_in_ms) { this->turnaround_delay_ms_ = time_in_ms; }
+  void set_disable_crc(bool disable_crc) { this->disable_crc_ = disable_crc; }
 
   ModbusRole role;
 
