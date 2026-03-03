@@ -403,11 +403,16 @@ def icon(value):
     value = string_strict(value)
     if not value:
         return value
-    if re.match("^[\\w\\-]+:[\\w\\-]+$", value):
-        return value
-    raise Invalid(
-        'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
-    )
+    if not re.match("^[\\w\\-]+:[\\w\\-]+$", value):
+        raise Invalid(
+            'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
+        )
+    if len(value) > 63:
+        raise Invalid(
+            f"Icon string is too long ({len(value)} chars, max 63). "
+            "Icons are stored in PROGMEM with a 64-byte buffer limit."
+        )
+    return value
 
 
 def sub_device_id(value: str | None) -> core.ID | None:
