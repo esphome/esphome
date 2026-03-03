@@ -306,46 +306,46 @@ void Rtttl::play(std::string rtttl) {
   // Get default duration
   this->position_ = this->rtttl_.find("d=", name_end_position);
   if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing 'd='");
-    return;
-  }
-  this->position_ += 2;
-  num = this->get_integer_();
-  if (num == 1 || num == 2 || num == 4 || num == 8 || num == 16 || num == 32) {
-    this->default_note_denominator_ = num;
+    ESP_LOGI(TAG, "Missing 'd='; use default duration %d", this->default_note_denominator_);
   } else {
-    ESP_LOGE(TAG, "Invalid default duration: %d", num);
-    return;
+    this->position_ += 2;
+    num = this->get_integer_();
+    if (num == 1 || num == 2 || num == 4 || num == 8 || num == 16 || num == 32) {
+      this->default_note_denominator_ = num;
+    } else {
+      ESP_LOGE(TAG, "Invalid default duration: %d", num);
+      return;
+    }
   }
 
   // Get default octave
   this->position_ = this->rtttl_.find("o=", name_end_position);
   if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing 'o=");
-    return;
-  }
-  this->position_ += 2;
-  num = this->get_integer_();
-  if (num >= MIN_OCTAVE && num <= MAX_OCTAVE) {
-    this->default_octave_ = num;
+    ESP_LOGI(TAG, "Missing 'o='; use default octave %d", this->default_octave_);
   } else {
-    ESP_LOGE(TAG, "Invalid default octave: %d", num);
-    return;
+    this->position_ += 2;
+    num = this->get_integer_();
+    if (num >= MIN_OCTAVE && num <= MAX_OCTAVE) {
+      this->default_octave_ = num;
+    } else {
+      ESP_LOGE(TAG, "Invalid default octave: %d", num);
+      return;
+    }
   }
 
   // Get BPM
   this->position_ = this->rtttl_.find("b=", name_end_position);
   if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing b=");
-    return;
-  }
-  this->position_ += 2;
-  num = this->get_integer_();
-  if (num >= 4) {  // Below 4 is not realistic and would cause a integer overflow
-    bpm = num;
+    ESP_LOGI(TAG, "Missing 'b='; use default BPM %d", bpm);
   } else {
-    ESP_LOGE(TAG, "Invalid BPM: %d", num);
-    return;
+    this->position_ += 2;
+    num = this->get_integer_();
+    if (num >= 4) {  // Below 4 is not realistic and would cause a integer overflow
+      bpm = num;
+    } else {
+      ESP_LOGE(TAG, "Invalid BPM: %d", num);
+      return;
+    }
   }
 
   this->position_ = this->rtttl_.find(':', this->position_);
