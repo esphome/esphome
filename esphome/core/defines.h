@@ -61,6 +61,7 @@
 #define USE_IR_RF
 #define USE_JSON
 #define USE_LIGHT
+#define USE_LIGHT_GAMMA_LUT
 #define USE_LOCK
 #define USE_LOGGER
 #define USE_LOGGER_LEVEL_LISTENERS
@@ -105,6 +106,7 @@
 #define MDNS_DYNAMIC_TXT_COUNT 2
 #define SNTP_SERVER_COUNT 3
 #define USE_MEDIA_PLAYER
+#define USE_MEDIA_SOURCE
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_NUMBER
 #define USE_OUTPUT
@@ -176,6 +178,11 @@
 #define USE_PROMETHEUS
 #define USE_WIFI_WPA2_EAP
 #define USE_I2S_LEGACY
+#endif
+
+// Platforms with native 64-bit time sources (no rollover tracking needed)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR) || defined(USE_RP2040)
+#define USE_NATIVE_64BIT_TIME
 #endif
 
 // ESP32-specific feature flags

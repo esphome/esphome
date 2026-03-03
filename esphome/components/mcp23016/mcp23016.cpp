@@ -8,90 +8,71 @@ namespace mcp23016 {
 static const char *const TAG = "mcp23016";
 
 void MCP23016::setup() {
-  uint8_t iocon;
-  if (!this->read_reg_(MCP23016_IOCON0, &iocon)) {
+  uint16_t iocon;
+  // MCP23016 registers operate as paired 16-bit registers. Addressing the
+  // odd register (e.g. IOCON1) reads/writes that register first, then wraps
+  // to the even register (IOCON0) in the same pair. Starting from the odd
+  // address gives the correct byte order for 1 << pin mapping:
+  // high byte = port 1 (pins 8-15), low byte = port 0 (pins 0-7).
+  if (!this->read_reg_(MCP23016_IOCON1, &iocon)) {
     this->mark_failed();
     return;
   }
 
   // Read current output register state
-  this->read_reg_(MCP23016_OLAT0, &this->olat_0_);
-  this->read_reg_(MCP23016_OLAT1, &this->olat_1_);
+  this->read_reg_(MCP23016_OLAT1, &this->olat_);
 
   // all pins input
-  this->write_reg_(MCP23016_IODIR0, 0xFF);
-  this->write_reg_(MCP23016_IODIR1, 0xFF);
+  this->write_reg_(MCP23016_IODIR1, 0xFFFF);
 }
 
 void MCP23016::loop() {
   // Invalidate cache at the start of each loop
   this->reset_pin_cache_();
 }
-bool MCP23016::digital_read_hw(uint8_t pin) {
-  uint8_t reg_addr = pin < 8 ? MCP23016_GP0 : MCP23016_GP1;
-  uint8_t value = 0;
-  if (!this->read_reg_(reg_addr, &value)) {
-    return false;
-  }
-
-  // Update the appropriate part of input_mask_
-  if (pin < 8) {
-    this->input_mask_ = (this->input_mask_ & 0xFF00) | value;
-  } else {
-    this->input_mask_ = (this->input_mask_ & 0x00FF) | (uint16_t(value) << 8);
-  }
-  return true;
-}
+bool MCP23016::digital_read_hw(uint8_t pin) { return this->read_reg_(MCP23016_GP1, &this->input_mask_); }
 
 bool MCP23016::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
-void MCP23016::digital_write_hw(uint8_t pin, bool value) {
-  uint8_t reg_addr = pin < 8 ? MCP23016_OLAT0 : MCP23016_OLAT1;
-  this->update_reg_(pin, value, reg_addr);
-}
+void MCP23016::digital_write_hw(uint8_t pin, bool value) { this->update_reg_(pin, value, MCP23016_OLAT1); }
 void MCP23016::pin_mode(uint8_t pin, gpio::Flags flags) {
-  uint8_t iodir = pin < 8 ? MCP23016_IODIR0 : MCP23016_IODIR1;
   if (flags == gpio::FLAG_INPUT) {
-    this->update_reg_(pin, true, iodir);
+    this->update_reg_(pin, true, MCP23016_IODIR1);
   } else if (flags == gpio::FLAG_OUTPUT) {
-    this->update_reg_(pin, false, iodir);
+    this->update_reg_(pin, false, MCP23016_IODIR1);
   }
 }
-float MCP23016::get_setup_priority() const { return setup_priority::HARDWARE; }
-bool MCP23016::read_reg_(uint8_t reg, uint8_t *value) {
+float MCP23016::get_setup_priority() const { return setup_priority::IO; }
+bool MCP23016::read_reg_(uint8_t reg, uint16_t *value) {
   if (this->is_failed())
     return false;
 
-  return this->read_byte(reg, value);
+  return this->read_byte_16(reg, value);
 }
-bool MCP23016::write_reg_(uint8_t reg, uint8_t value) {
+bool MCP23016::write_reg_(uint8_t reg, uint16_t value) {
   if (this->is_failed())
     return false;
 
-  return this->write_byte(reg, value);
+  return this->write_byte_16(reg, value);
 }
 void MCP23016::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
-  uint8_t bit = pin % 8;
-  uint8_t reg_value = 0;
-  if (reg_addr == MCP23016_OLAT0) {
-    reg_value = this->olat_0_;
-  } else if (reg_addr == MCP23016_OLAT1) {
-    reg_value = this->olat_1_;
+  uint16_t reg_value = 0;
+
+  if (reg_addr == MCP23016_OLAT1) {
+    reg_value = this->olat_;
   } else {
     this->read_reg_(reg_addr, &reg_value);
   }
 
   if (pin_value) {
-    reg_value |= 1 << bit;
+    reg_value |= 1 << pin;
   } else {
-    reg_value &= ~(1 << bit);
+    reg_value &= ~(1 << pin);
   }
 
   this->write_reg_(reg_addr, reg_value);
 
-  if (reg_addr == MCP23016_OLAT0) {
-    this->olat_0_ = reg_value;
-  } else if (reg_addr == MCP23016_OLAT1) {
-    this->olat_1_ = reg_value;
+  if (reg_addr == MCP23016_OLAT1) {
+    this->olat_ = reg_value;
   }
 }
 

@@ -105,10 +105,9 @@
 //     critical sections). Multiple concurrent xTaskNotifyGive calls are safe —
 //     the notification count simply increments.
 
-// USE_ESP32 and USE_LIBRETINY are compiler -D flags, so they are always visible in this .c file.
-// Feature macros like USE_LWIP_FAST_SELECT may come from generated headers that are not included here,
-// so this implementation is enabled based on platform flags instead of USE_LWIP_FAST_SELECT.
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+// USE_LWIP_FAST_SELECT is set via -D build flag (not cg.add_define) so it is
+// visible in both .c and .cpp translation units.
+#ifdef USE_LWIP_FAST_SELECT
 
 // LwIP headers must come first — they define netconn_callback, struct lwip_sock, etc.
 #include <lwip/api.h>
@@ -239,4 +238,19 @@ void IRAM_ATTR esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task
   }
 }
 
-#endif  // defined(USE_ESP32) || defined(USE_LIBRETINY)
+// Wake the main loop from any context (ISR, thread, or main loop).
+// ESP32-only: uses xPortInIsrContext() to detect ISR context.
+// LibreTiny is excluded because it lacks IRAM_ATTR support needed for ISR-safe paths.
+#ifdef USE_ESP32
+void IRAM_ATTR esphome_lwip_wake_main_loop_any_context(void) {
+  if (xPortInIsrContext()) {
+    int px_higher_priority_task_woken = 0;
+    esphome_lwip_wake_main_loop_from_isr(&px_higher_priority_task_woken);
+    portYIELD_FROM_ISR(px_higher_priority_task_woken);
+  } else {
+    esphome_lwip_wake_main_loop();
+  }
+}
+#endif
+
+#endif  // USE_LWIP_FAST_SELECT
