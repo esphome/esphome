@@ -794,7 +794,6 @@ void HighFrequencyLoopRequester::stop() {
   num_requests--;
   this->started_ = false;
 }
-bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; }
 
 std::string get_mac_address() {
   uint8_t mac[6];

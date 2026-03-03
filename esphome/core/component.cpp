@@ -323,10 +323,11 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // 8. Race condition with main loop is handled by clearing flag before processing
   this->pending_enable_loop_ = true;
   App.has_pending_enable_loop_requests_ = true;
-#if defined(USE_LWIP_FAST_SELECT) && defined(USE_ESP32)
-  // Wake the main loop if sleeping in ulTaskNotifyTake(). Without this,
-  // the main loop would not wake until the select timeout expires (~16ms).
-  // Uses xPortInIsrContext() to choose the correct FreeRTOS notify API.
+#if (defined(USE_LWIP_FAST_SELECT) && defined(USE_ESP32)) || (defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP))
+  // Wake the main loop from sleep. Without this, the main loop would not
+  // wake until the select/delay timeout expires (~16ms).
+  // ESP32: uses xPortInIsrContext() to choose the correct FreeRTOS notify API.
+  // ESP8266: sets socket wake flag and calls esp_schedule() to exit esp_delay() early.
   Application::wake_loop_any_context();
 #endif
 }
