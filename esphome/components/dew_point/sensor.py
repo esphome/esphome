@@ -18,7 +18,6 @@ DewPointComponent = dew_point_ns.class_(
     "DewPointComponent", cg.Component, sensor.Sensor
 )
 
-CONF_SENSORS = "sensors"
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         DewPointComponent,
