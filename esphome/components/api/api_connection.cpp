@@ -773,9 +773,9 @@ uint16_t APIConnection::try_send_number_state(EntityBase *entity, APIConnection 
 uint16_t APIConnection::try_send_number_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *number = static_cast<number::Number *>(entity);
   ListEntitiesNumberResponse msg;
-  msg.unit_of_measurement = number->traits.get_unit_of_measurement_ref();
+  msg.unit_of_measurement = number->get_unit_of_measurement_ref();
   msg.mode = static_cast<enums::NumberMode>(number->traits.get_mode());
-  msg.device_class = number->traits.get_device_class_ref();
+  msg.device_class = number->get_device_class_ref();
   msg.min_value = number->traits.get_min_value();
   msg.max_value = number->traits.get_max_value();
   msg.step = number->traits.get_step();
@@ -889,7 +889,7 @@ uint16_t APIConnection::try_send_text_info(EntityBase *entity, APIConnection *co
 }
 void APIConnection::on_text_command_request(const TextCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(text::Text, text, text)
-  call.set_value(msg.state);
+  call.set_value(msg.state.c_str(), msg.state.size());
   call.perform();
 }
 #endif
@@ -1123,7 +1123,30 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #ifdef USE_TIME_TIMEZONE
     if (!value.timezone.empty()) {
-      homeassistant::global_homeassistant_time->set_timezone(value.timezone.c_str(), value.timezone.size());
+      // Check if the sender provided pre-parsed timezone data.
+      // If std_offset is non-zero or DST rules are present, the parsed data was populated.
+      // For UTC (all zeros), string parsing produces the same result, so the fallback is equivalent.
+      const auto &pt = value.parsed_timezone;
+      if (pt.std_offset_seconds != 0 || pt.dst_start.type != enums::DST_RULE_TYPE_NONE) {
+        time::ParsedTimezone tz{};
+        tz.std_offset_seconds = pt.std_offset_seconds;
+        tz.dst_offset_seconds = pt.dst_offset_seconds;
+        tz.dst_start.time_seconds = pt.dst_start.time_seconds;
+        tz.dst_start.day = static_cast<uint16_t>(pt.dst_start.day);
+        tz.dst_start.type = static_cast<time::DSTRuleType>(pt.dst_start.type);
+        tz.dst_start.month = static_cast<uint8_t>(pt.dst_start.month);
+        tz.dst_start.week = static_cast<uint8_t>(pt.dst_start.week);
+        tz.dst_start.day_of_week = static_cast<uint8_t>(pt.dst_start.day_of_week);
+        tz.dst_end.time_seconds = pt.dst_end.time_seconds;
+        tz.dst_end.day = static_cast<uint16_t>(pt.dst_end.day);
+        tz.dst_end.type = static_cast<time::DSTRuleType>(pt.dst_end.type);
+        tz.dst_end.month = static_cast<uint8_t>(pt.dst_end.month);
+        tz.dst_end.week = static_cast<uint8_t>(pt.dst_end.week);
+        tz.dst_end.day_of_week = static_cast<uint8_t>(pt.dst_end.day_of_week);
+        time::set_global_tz(tz);
+      } else {
+        homeassistant::global_homeassistant_time->set_timezone(value.timezone.c_str(), value.timezone.size());
+      }
     }
 #endif
   }
@@ -1337,7 +1360,7 @@ void APIConnection::on_alarm_control_panel_command_request(const AlarmControlPan
       call.pending();
       break;
   }
-  call.set_code(msg.code);
+  call.set_code(msg.code.c_str(), msg.code.size());
   call.perform();
 }
 #endif

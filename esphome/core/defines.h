@@ -44,7 +44,9 @@
 #define USE_DEEP_SLEEP
 #define USE_DEVICES
 #define USE_DISPLAY
+#define USE_ENTITY_DEVICE_CLASS
 #define USE_ENTITY_ICON
+#define USE_ENTITY_UNIT_OF_MEASUREMENT
 #define USE_ESP32_CAMERA_JPEG_CONVERSION
 #define USE_ESP32_HOSTED
 #define USE_ESP32_IMPROV_STATE_CALLBACK
@@ -61,6 +63,7 @@
 #define USE_IR_RF
 #define USE_JSON
 #define USE_LIGHT
+#define USE_LIGHT_GAMMA_LUT
 #define USE_LOCK
 #define USE_LOGGER
 #define USE_LOGGER_LEVEL_LISTENERS
@@ -105,6 +108,7 @@
 #define MDNS_DYNAMIC_TXT_COUNT 2
 #define SNTP_SERVER_COUNT 3
 #define USE_MEDIA_PLAYER
+#define USE_MEDIA_SOURCE
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_NUMBER
 #define USE_OUTPUT
@@ -178,6 +182,11 @@
 #define USE_I2S_LEGACY
 #endif
 
+// Platforms with native 64-bit time sources (no rollover tracking needed)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR) || defined(USE_RP2040)
+#define USE_NATIVE_64BIT_TIME
+#endif
+
 // ESP32-specific feature flags
 #ifdef USE_ESP32
 #define USE_MQTT_IDF_ENQUEUE
@@ -226,6 +235,7 @@
 #define USE_LWIP_FAST_SELECT
 #define USE_WAKE_LOOP_THREADSAFE
 #define USE_SPEAKER
+#define USE_SPEAKER_MEDIA_PLAYER_ON_OFF
 #define USE_SPI
 #define USE_VOICE_ASSISTANT
 #define USE_WEBSERVER
