@@ -35,7 +35,7 @@ void BTHomeServerBase::dump_config() {
   ESP_LOGCONFIG("bthome.server", "BTHome Server:");
   ESP_LOGCONFIG("bthome.server", "  Local sensors: %zu", sensors.size());
   ESP_LOGCONFIG("bthome.server", "  MAC address: %s", this->local_mac_.c_str());
-#ifdef USE_BTHOME_DECRYPTION
+#ifdef USE_BTHOME_ENCRYPTION
   if (this->encryption_key_.has_value()) {
     ESP_LOGCONFIG("bthome.server", "  Encryption: enabled");
   }
@@ -123,7 +123,7 @@ void BTHomeServerBase::send_frame_() {
   header.version = BTHOME_VERSION_2;
   const uint8_t *payload = this->encoder_.get_buffer();
   size_t payload_size = this->encoder_.get_size();
-#ifdef USE_BTHOME_DECRYPTION
+#ifdef USE_BTHOME_ENCRYPTION
   header.encrypted = this->encryption_key_.has_value() ? 1 : 0;
   size_t encrypted_size = 0;
   const uint8_t *encrypted = nullptr;

@@ -325,7 +325,7 @@ async def _server_to_code(config):
         bindkey_str = config[CONF_BINDKEY]
         bindkey_bytes = [int(bindkey_str[j : j + 2], 16) for j in range(0, 32, 2)]
         cg.add(server_var.set_encryption_key(bindkey_bytes))
-        cg.add_define("USE_BTHOME_DECRYPTION")
+        cg.add_define("USE_BTHOME_ENCRYPTION")
         cg.add_define("BTHOME_SERVER_MAX_PAYLOAD", 15)
         has_encryption = True
 
@@ -368,6 +368,7 @@ async def to_code(config):
 # This function is executed instead of to_code() during c++ testing
 async def to_code_testing(config):
     # During testing, enable encryption code unconditionally
+    cg.add_define("USE_BTHOME_ENCRYPTION")
     cg.add_define("USE_BTHOME_DECRYPTION")
 
     # Pull mbedtls for testing in host environment

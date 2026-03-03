@@ -16,8 +16,6 @@
 namespace esphome {
 namespace bthome {
 
-static_assert(sizeof(BTHomeHeader) == 1, "BTHomeHeader must be 1 byte");
-
 class DeviceBase {
  public:
   void set_address(const MacAddress &address) { this->address_ = address; }

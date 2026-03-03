@@ -13,7 +13,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_BTHOME_DECRYPTION
+#ifdef USE_BTHOME_ENCRYPTION
 #include "encryption.h"
 #endif
 
@@ -30,7 +30,7 @@ class BTHomeServerBase : public Component, public IBLEAdvHandler {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
 
-#ifdef USE_BTHOME_DECRYPTION
+#ifdef USE_BTHOME_ENCRYPTION
   void set_encryption_key(std::initializer_list<uint8_t> key) {
     EncryptionKey k{};
     std::copy(key.begin(), key.end(), k.begin());
@@ -55,7 +55,7 @@ class BTHomeServerBase : public Component, public IBLEAdvHandler {
   MacAddress local_mac_;
   uint8_t adv_buffer_[BLE_ADV_MAX_SIZE]{};
 
-#ifdef USE_BTHOME_DECRYPTION
+#ifdef USE_BTHOME_ENCRYPTION
   optional<EncryptionKey> encryption_key_;
   uint32_t encryption_counter_{0};
 #endif

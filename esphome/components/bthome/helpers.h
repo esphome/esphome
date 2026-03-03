@@ -21,6 +21,7 @@ struct BTHomeHeader {
   uint8_t : 2;                // bits 3-4: reserved
   uint8_t version : 3;        // bits 5-7: BTHome version (currently 1 or 2)
 };
+static_assert(sizeof(BTHomeHeader) == 1, "BTHomeHeader must be 1 byte");
 
 enum class BTHomeObjectType : uint8_t {
   ACCELERATION_MSS_E3 = 0x51,
