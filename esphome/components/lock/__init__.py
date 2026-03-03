@@ -91,9 +91,8 @@ def lock_schema(
     return _LOCK_SCHEMA.extend(schema)
 
 
+@setup_entity("lock")
 async def _setup_lock_core(var, config):
-    await setup_entity(var, config, "lock")
-
     for conf in config.get(CONF_ON_LOCK, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)

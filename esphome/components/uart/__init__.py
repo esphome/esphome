@@ -4,6 +4,7 @@ import re
 
 from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -11,7 +12,6 @@ from esphome.const import (
     CONF_BAUD_RATE,
     CONF_BYTES,
     CONF_DATA,
-    CONF_DATA_BITS,
     CONF_DEBUG,
     CONF_DELIMITER,
     CONF_DIRECTION,
@@ -21,12 +21,10 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_NUMBER,
-    CONF_PARITY,
     CONF_PORT,
     CONF_RX_BUFFER_SIZE,
     CONF_RX_PIN,
     CONF_SEQUENCE,
-    CONF_STOP_BITS,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
     CONF_TX_PIN,

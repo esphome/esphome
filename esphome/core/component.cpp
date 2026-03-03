@@ -233,7 +233,6 @@ void Component::call_dump_config_() {
   }
 }
 
-uint8_t Component::get_component_state() const { return this->component_state_; }
 void Component::call() {
   uint8_t state = this->component_state_ & COMPONENT_STATE_MASK;
   switch (state) {
@@ -323,10 +322,11 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // 8. Race condition with main loop is handled by clearing flag before processing
   this->pending_enable_loop_ = true;
   App.has_pending_enable_loop_requests_ = true;
-#if defined(USE_LWIP_FAST_SELECT) && defined(USE_ESP32)
-  // Wake the main loop if sleeping in ulTaskNotifyTake(). Without this,
-  // the main loop would not wake until the select timeout expires (~16ms).
-  // Uses xPortInIsrContext() to choose the correct FreeRTOS notify API.
+#if (defined(USE_LWIP_FAST_SELECT) && defined(USE_ESP32)) || (defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP))
+  // Wake the main loop from sleep. Without this, the main loop would not
+  // wake until the select/delay timeout expires (~16ms).
+  // ESP32: uses xPortInIsrContext() to choose the correct FreeRTOS notify API.
+  // ESP8266: sets socket wake flag and calls esp_schedule() to exit esp_delay() early.
   Application::wake_loop_any_context();
 #endif
 }
@@ -337,9 +337,6 @@ void Component::reset_to_construction_state() {
     // Clear error status when resetting
     this->status_clear_error();
   }
-}
-bool Component::is_in_loop_state() const {
-  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP;
 }
 void Component::defer(std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, static_cast<const char *>(nullptr), 0, std::move(f));
@@ -379,16 +376,12 @@ void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std:
   App.scheduler.set_retry(this, "", initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
 #pragma GCC diagnostic pop
 }
-bool Component::is_failed() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 bool Component::is_ready() const {
   return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP ||
          (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE ||
          (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
 }
-bool Component::is_idle() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE; }
 bool Component::can_proceed() { return true; }
-bool Component::status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
-bool Component::status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
 bool Component::set_status_flag_(uint8_t flag) {
   if ((this->component_state_ & flag) != 0)
     return false;

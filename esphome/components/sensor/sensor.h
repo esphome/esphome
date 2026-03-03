@@ -44,7 +44,7 @@ const LogString *state_class_to_string(StateClass state_class);
  *
  * A sensor has unit of measurement and can use publish_state to send out a new value with the specified accuracy.
  */
-class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBase_UnitOfMeasurement {
+class Sensor : public EntityBase {
  public:
   explicit Sensor();
 

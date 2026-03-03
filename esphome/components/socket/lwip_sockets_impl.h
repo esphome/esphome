@@ -9,6 +9,10 @@
 #include "esphome/core/helpers.h"
 #include "headers.h"
 
+#ifdef USE_LWIP_FAST_SELECT
+struct lwip_sock;
+#endif
+
 namespace esphome::socket {
 
 class LwIPSocketImpl {
@@ -71,6 +75,9 @@ class LwIPSocketImpl {
 
  protected:
   int fd_{-1};
+#ifdef USE_LWIP_FAST_SELECT
+  struct lwip_sock *cached_sock_{nullptr};  // Cached for direct rcvevent read in ready()
+#endif
   bool closed_{false};
   bool loop_monitored_{false};
 };
