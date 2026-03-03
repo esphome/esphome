@@ -2,7 +2,7 @@
 #include <cmath>
 
 #include "esphome/components/bthome/encoder.h"
-#include "esphome/components/bthome/helpers.h"
+#include "esphome/components/bthome/bthome.h"
 #include "esphome/components/bthome/local_object.h"
 
 namespace esphome::bthome::server::testing {

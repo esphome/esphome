@@ -4,7 +4,7 @@
 
 #include "decoder.h"
 #include "encoder.h"
-#include "helpers.h"
+#include "bthome.h"
 
 namespace esphome {
 namespace bthome {

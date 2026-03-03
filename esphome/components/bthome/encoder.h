@@ -4,7 +4,7 @@
 
 #include "esphome/core/defines.h"
 #include "decoder.h"
-#include "helpers.h"
+#include "bthome.h"
 
 #ifdef BTHOME_ENCRYPTION
 #define BTHOME_SERVER_MAX_PAYLOAD (BTHOME_MAX_ENCRYPTED_PAYLOAD)

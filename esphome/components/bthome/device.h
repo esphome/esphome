@@ -1,6 +1,6 @@
 #pragma once
 #include "remote_object.h"
-#include "helpers.h"
+#include "bthome.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/defines.h"
 

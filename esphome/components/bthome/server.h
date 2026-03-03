@@ -7,7 +7,7 @@
 #include "decoder.h"
 #include "encoder.h"
 #include "local_object.h"
-#include "helpers.h"
+#include "bthome.h"
 #include "ble.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"

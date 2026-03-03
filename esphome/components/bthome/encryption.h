@@ -6,7 +6,7 @@
 
 #if defined(USE_BTHOME_DECRYPTION) || defined(USE_BTHOME_ENCRYPTION)
 #include "device.h"
-#include "helpers.h"
+#include "bthome.h"
 
 namespace esphome {
 namespace bthome {

@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <string_view>
-#include "helpers.h"
+#include "bthome.h"
 
 namespace esphome {
 namespace bthome {
