@@ -85,37 +85,45 @@ void SerialProxy::configure(uint32_t baudrate, bool flow_control, uint8_t parity
     return;
   }
 
-  // Apply UART parameters
+  // Validate all parameters before applying any (values come from a remote client)
+  if (baudrate == 0) {
+    ESP_LOGW(TAG, "Invalid baud rate: 0");
+    return;
+  }
+  if (stop_bits < 1 || stop_bits > 2) {
+    ESP_LOGW(TAG, "Invalid stop bits: %u (must be 1 or 2)", stop_bits);
+    return;
+  }
+  if (data_size < 5 || data_size > 8) {
+    ESP_LOGW(TAG, "Invalid data bits: %u (must be 5-8)", data_size);
+    return;
+  }
+  if (parity > 2) {
+    ESP_LOGW(TAG, "Invalid parity: %u (must be 0-2)", parity);
+    return;
+  }
+
+  // Apply validated parameters
   uart_comp->set_baud_rate(baudrate);
   uart_comp->set_stop_bits(stop_bits);
   uart_comp->set_data_bits(data_size);
 
-  // Map parity enum to UARTParityOptions
-  switch (parity) {
-    case 0:
-      uart_comp->set_parity(uart::UART_CONFIG_PARITY_NONE);
-      break;
-    case 1:
-      uart_comp->set_parity(uart::UART_CONFIG_PARITY_EVEN);
-      break;
-    case 2:
-      uart_comp->set_parity(uart::UART_CONFIG_PARITY_ODD);
-      break;
-    default:
-      ESP_LOGW(TAG, "Unknown parity value: %u, using NONE", parity);
-      uart_comp->set_parity(uart::UART_CONFIG_PARITY_NONE);
-      break;
-  }
+  // Map parity value to UARTParityOptions
+  static const uart::UARTParityOptions parity_map[] = {
+      uart::UART_CONFIG_PARITY_NONE,
+      uart::UART_CONFIG_PARITY_EVEN,
+      uart::UART_CONFIG_PARITY_ODD,
+  };
+  uart_comp->set_parity(parity_map[parity]);
 
-    // Apply the new settings
-    // load_settings() is available on ESP8266 and ESP32 platforms
+  // load_settings() is available on ESP8266 and ESP32 platforms
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   uart_comp->load_settings(true);
 #endif
 
-  // Note: Hardware flow control configuration is stored but not yet applied
-  // to the UART hardware - this requires additional platform support
-  (void) flow_control;
+  if (flow_control) {
+    ESP_LOGW(TAG, "Hardware flow control requested but is not yet supported");
+  }
 }
 
 void SerialProxy::write(const uint8_t *data, size_t len) {
