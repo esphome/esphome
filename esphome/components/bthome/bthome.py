@@ -14,6 +14,8 @@ BTHOME_SERVER_MAX_ENCRYPTED_PAYLOAD = (
     15  # BTHOME_SERVER_MAX_PAYLOAD - 4 (MIC) - 4 (Counter)
 )
 
+CONF_BTHOME_TYPE = "bthome_type"
+
 
 class BTHomeObjectTypeKind(Enum):
     SENSOR = auto()
@@ -605,11 +607,51 @@ for index, ot in enumerate(OBJECT_TYPES_BY_ID):
     )
     BTHOME_OBJECT_TYPES[ot.name] = ot
 
+# Maps short, easy-to-remember names to the canonical object type name with the
+# smallest object_id in each family.  Only sensor types are aliased; binary
+# sensor names are already self-descriptive (BATTERY_LOW, POWER_ON, …) and have
+# no multi-variant siblings that would benefit from disambiguation.
+BTHOME_OBJECT_ALIASES: dict[str, str] = {
+    "ACCELERATION": "ACCELERATION_MSS_E3",  # 0x51 (alt: MSS_I32_E6)
+    "BATTERY": "BATTERY_PCT",  # 0x01
+    "CO2": "CO2_PPM",  # 0x12
+    "CONDUCTIVITY": "CONDUCTIVITY_USCM",  # 0x56
+    "CURRENT": "CURRENT_A_E3",  # 0x43 (alt: A_I16_E3)
+    "DEWPOINT": "DEWPOINT_C_E2",  # 0x08
+    "DIRECTION": "DIRECTION_DEG_E2",  # 0x5E
+    "DISTANCE": "DISTANCE_MM",  # 0x40 (alt: M_E1)
+    "DURATION": "DURATION_S_E3",  # 0x42
+    "ENERGY": "ENERGY_KWH_E3",  # 0x0A (alt: KWH_U32_E3)
+    "GYROSCOPE": "GYROSCOPE_DEGS_E3",  # 0x52
+    "HUMIDITY": "HUMIDITY_PCT_E2",  # 0x03 (alt: PCT_U8)
+    "ILLUMINANCE": "ILLUMINANCE_LX_E2",  # 0x05
+    "MASS_KG": "MASS_KG_E2",  # 0x06
+    "MASS_LB": "MASS_LB_E2",  # 0x07
+    "MOISTURE": "MOISTURE_PCT_E2",  # 0x14 (alt: PCT_U8)
+    "PM10": "PM10_UGM3",  # 0x0E
+    "PM25": "PM25_UGM3",  # 0x0D
+    "POWER": "POWER_W_E2",  # 0x0B (alt: W_I32_E2)
+    "PRECIPITATION": "PRECIPITATION_MM_E1",  # 0x5F
+    "PRESSURE": "PRESSURE_HPA_E2",  # 0x04
+    "ROTATION": "ROTATION_DEG_E1",  # 0x3F
+    "ROTATIONAL_SPEED": "ROTATIONAL_SPEED_RPM",  # 0x61
+    "SPEED": "SPEED_MS_E2",  # 0x44 (alt: MS_I32_E6)
+    "TEMPERATURE": "TEMPERATURE_C_E2",  # 0x02 (alt: C_E1, C_I8, C_I8_0_35)
+    "TVOC": "TVOC_UGM3",  # 0x13
+    "UV_INDEX": "UV_INDEX_E1",  # 0x46
+    "VOLTAGE": "VOLTAGE_V_E3",  # 0x0C (alt: V_E1)
+    "VOLUME": "VOLUME_L_E1",  # 0x47 (alt: ML, L_U32_E3)
+    "VOLUME_FLOW": "VOLUME_FLOW_M3HR_E3",  # 0x49
+    "VOLUME_STORAGE": "VOLUME_STORAGE_L_E3",  # 0x55
+    "WATER": "WATER_L_E3",  # 0x4F
+}
+
 
 def bthome_object_type_validator(kind: BTHomeObjectTypeKind):
     """Return a validator for BTHome object types of the specified kind."""
 
-    def validator(key):
+    def validator(key_or_alias: str) -> str:
+        key = BTHOME_OBJECT_ALIASES.get(key_or_alias.upper(), key_or_alias)
         value = BTHOME_OBJECT_TYPES.get(key.upper())
         if value is None:
             raise cv.Invalid(f"Unknown BTHome object type: {key}")

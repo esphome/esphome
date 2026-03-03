@@ -11,6 +11,7 @@ from esphome.const import (
 from .. import BTHomeSensor, RemoteDevice, add_handler
 from ..bthome import (
     BTHOME_OBJECT_TYPES,
+    CONF_BTHOME_TYPE,
     BTHomeObjectTypeKind,
     bthome_object_type_validator,
     bthome_object_types,
@@ -21,12 +22,11 @@ CODEOWNERS = ["@jpeletier"]
 DEPENDENCIES = ["bthome", "sensor"]
 
 CONF_REMOTE_ID = "remote_id"
-CONF_OBJECT_TYPE = "object_type"
 
 
 def _apply_object_type_defaults(config):
     """Fill in sensor schema defaults based on the chosen object_type, if not already set."""
-    obj = BTHOME_OBJECT_TYPES[config[CONF_OBJECT_TYPE]]
+    obj = BTHOME_OBJECT_TYPES[config[CONF_BTHOME_TYPE]]
     config = dict(config)
     if CONF_UNIT_OF_MEASUREMENT not in config:
         config[CONF_UNIT_OF_MEASUREMENT] = obj.unit
@@ -43,7 +43,7 @@ CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(class_=BTHomeSensor).extend(
         {
             cv.Required(CONF_REMOTE_ID): cv.use_id(RemoteDevice),
-            cv.Required(CONF_OBJECT_TYPE): bthome_object_type_validator(
+            cv.Required(CONF_BTHOME_TYPE): bthome_object_type_validator(
                 BTHomeObjectTypeKind.SENSOR
             ),
         }
@@ -54,7 +54,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     var = await sensor.new_sensor(config)
-    object_type_key = config[CONF_OBJECT_TYPE]
+    object_type_key = config[CONF_BTHOME_TYPE]
     cg.add(var.set_object_type(bthome_object_types.__getattr__(object_type_key)))
     await add_handler(
         var,

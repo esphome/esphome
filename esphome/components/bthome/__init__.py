@@ -16,6 +16,7 @@ from .bthome import (
     BTHOME_OBJECT_TYPES,
     BTHOME_SERVER_MAX_ENCRYPTED_PAYLOAD,
     BTHOME_SERVER_MAX_PAYLOAD,
+    CONF_BTHOME_TYPE,
     OBJECT_TYPES_BY_ID,
     BTHomeObjectTypeKind,
     bthome_object_type_validator,
@@ -108,7 +109,6 @@ CONF_REMOTE_DEVICES = "remote_devices"
 CONF_SENSORS = "sensors"
 CONF_BINARY_SENSORS = "binary_sensors"
 CONF_TEXT_SENSORS = "text_sensors"
-CONF_OBJECT_TYPE = "object_type"
 CONF_ADVERTISE_IMMEDIATELY = "advertise_immediately"
 CONF_MAX_LENGTH = "max_length"
 
@@ -123,7 +123,7 @@ def _get_value_length(object_id: int) -> int:
 
 _SERVER_SENSOR_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_OBJECT_TYPE): bthome_object_type_validator(
+        cv.Required(CONF_BTHOME_TYPE): bthome_object_type_validator(
             BTHomeObjectTypeKind.SENSOR
         ),
         cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
@@ -133,7 +133,7 @@ _SERVER_SENSOR_SCHEMA = cv.Schema(
 
 _SERVER_BINARY_SENSOR_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_OBJECT_TYPE): bthome_object_type_validator(
+        cv.Required(CONF_BTHOME_TYPE): bthome_object_type_validator(
             BTHomeObjectTypeKind.BINARY_SENSOR
         ),
         cv.Required(CONF_ID): cv.use_id(binary_sensor.BinarySensor),
@@ -143,7 +143,7 @@ _SERVER_BINARY_SENSOR_SCHEMA = cv.Schema(
 
 _SERVER_TEXT_SENSOR_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_OBJECT_TYPE): bthome_object_type_validator(
+        cv.Required(CONF_BTHOME_TYPE): bthome_object_type_validator(
             BTHomeObjectTypeKind.TEXT_SENSOR
         ),
         cv.Required(CONF_ID): cv.use_id(text_sensor.TextSensor),
@@ -174,13 +174,13 @@ def _validate_server_config(config):
     # Collect all entries with their object IDs
     entries_by_type = {}
     for entry in config.get(CONF_SENSORS, []):
-        ot = BTHOME_OBJECT_TYPES[entry[CONF_OBJECT_TYPE]]
+        ot = BTHOME_OBJECT_TYPES[entry[CONF_BTHOME_TYPE]]
         entries_by_type.setdefault(ot.object_id, []).append(entry)
     for entry in config.get(CONF_BINARY_SENSORS, []):
-        ot = BTHOME_OBJECT_TYPES[entry[CONF_OBJECT_TYPE]]
+        ot = BTHOME_OBJECT_TYPES[entry[CONF_BTHOME_TYPE]]
         entries_by_type.setdefault(ot.object_id, []).append(entry)
     for entry in config.get(CONF_TEXT_SENSORS, []):
-        ot = BTHOME_OBJECT_TYPES[entry[CONF_OBJECT_TYPE]]
+        ot = BTHOME_OBJECT_TYPES[entry[CONF_BTHOME_TYPE]]
         entries_by_type.setdefault(ot.object_id, []).append(entry)
 
     for object_id, entries in entries_by_type.items():
@@ -341,13 +341,13 @@ async def _server_to_code(config):
     # Merge and sort all sensor entries by object_id (stable sort)
     all_entries = []
     for entry in config.get(CONF_SENSORS, []):
-        ot = BTHOME_OBJECT_TYPES[entry[CONF_OBJECT_TYPE]]
+        ot = BTHOME_OBJECT_TYPES[entry[CONF_BTHOME_TYPE]]
         all_entries.append((ot.object_id, "sensor", entry))
     for entry in config.get(CONF_BINARY_SENSORS, []):
-        ot = BTHOME_OBJECT_TYPES[entry[CONF_OBJECT_TYPE]]
+        ot = BTHOME_OBJECT_TYPES[entry[CONF_BTHOME_TYPE]]
         all_entries.append((ot.object_id, "binary_sensor", entry))
     for entry in config.get(CONF_TEXT_SENSORS, []):
-        ot = BTHOME_OBJECT_TYPES[entry[CONF_OBJECT_TYPE]]
+        ot = BTHOME_OBJECT_TYPES[entry[CONF_BTHOME_TYPE]]
         all_entries.append((ot.object_id, "text_sensor", entry))
 
     # Stable sort by object_id ascending
@@ -382,7 +382,7 @@ async def _server_to_code(config):
 
     # Create local sensor wrappers
     for i, (object_id, kind, entry) in enumerate(all_entries):
-        ot_key = entry[CONF_OBJECT_TYPE]
+        ot_key = entry[CONF_BTHOME_TYPE]
 
         if kind == "sensor":
             local_id = core.ID(f"bthome_local_{i}", False, BTHomeLocalSensor)
