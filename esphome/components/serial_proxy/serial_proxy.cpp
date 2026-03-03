@@ -109,12 +109,12 @@ void SerialProxy::configure(uint32_t baudrate, bool flow_control, uint8_t parity
   uart_comp->set_data_bits(data_size);
 
   // Map parity value to UARTParityOptions
-  static const uart::UARTParityOptions parity_map[] = {
+  static const uart::UARTParityOptions PARITY_MAP[] = {
       uart::UART_CONFIG_PARITY_NONE,
       uart::UART_CONFIG_PARITY_EVEN,
       uart::UART_CONFIG_PARITY_ODD,
   };
-  uart_comp->set_parity(parity_map[parity]);
+  uart_comp->set_parity(PARITY_MAP[parity]);
 
   // load_settings() is available on ESP8266 and ESP32 platforms
 #if defined(USE_ESP8266) || defined(USE_ESP32)
