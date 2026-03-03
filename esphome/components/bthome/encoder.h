@@ -21,6 +21,7 @@ class BTHomeEncoder {
   void reset();
   bool write_float(BTHomeObjectType type, float value);
   bool write_bool(BTHomeObjectType type, bool value);
+  bool write_text(BTHomeObjectType type, const char *data, size_t length, size_t max_length);
   const uint8_t *get_buffer() const { return this->buffer_; }
   size_t get_size() const { return this->offset_; }
   size_t get_remaining() const { return BTHOME_SERVER_MAX_PAYLOAD - this->offset_; }

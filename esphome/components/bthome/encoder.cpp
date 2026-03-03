@@ -101,6 +101,18 @@ bool BTHomeEncoder::write_bool(BTHomeObjectType type, bool value) {
   return this->write_raw_(type, &data, 1);
 }
 
+bool BTHomeEncoder::write_text(BTHomeObjectType type, const char *data, size_t length, size_t max_length) {
+  size_t actual_len = std::min(length, max_length);
+  size_t needed = 2 + actual_len;  // type(1) + length_byte(1) + content
+  if (this->offset_ + needed > BTHOME_SERVER_MAX_PAYLOAD)
+    return false;
+  this->buffer_[this->offset_++] = static_cast<uint8_t>(type);
+  this->buffer_[this->offset_++] = static_cast<uint8_t>(actual_len);
+  memcpy(&this->buffer_[this->offset_], data, actual_len);
+  this->offset_ += actual_len;
+  return true;
+}
+
 }  // namespace server
 }  // namespace bthome
 }  // namespace esphome

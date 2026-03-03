@@ -115,10 +115,10 @@ ParsedFrame parse_adv_frame(const std::vector<uint8_t> &frame) {
   if (frame.size() < 8)
     return result;
   // BLE Flags AD: [02 01 06]
-  if (frame[0] != 0x02 || frame[1] != 0x01 || frame[2] != 0x06)
+  if (frame[0] != 0x02 || frame[1] != BLE_AD_TYPE_FLAGS || frame[2] != BLE_AD_FLAGS_VALUE)
     return result;
   // Service Data 16-bit UUID: [len 16 D2 FC]
-  if (frame[4] != 0x16 || frame[5] != 0xD2 || frame[6] != 0xFC)
+  if (frame[4] != BLE_AD_TYPE_SVC_DATA_16 || frame[5] != BTHOME_SVC_UUID_LOW || frame[6] != BTHOME_SVC_UUID_HIGH)
     return result;
 
   BTHomeHeader header{};
@@ -466,9 +466,9 @@ TEST_F(BTHomeServerTest, FrameHasCorrectBLEFlags) {
   server_.on_advertise(true);
 
   ASSERT_GE(last_frame_.size(), 3u);
-  EXPECT_EQ(last_frame_[0], 0x02u);
-  EXPECT_EQ(last_frame_[1], 0x01u);
-  EXPECT_EQ(last_frame_[2], 0x06u);
+  EXPECT_EQ(last_frame_[0], 0x02u);  // length byte
+  EXPECT_EQ(last_frame_[1], BLE_AD_TYPE_FLAGS);
+  EXPECT_EQ(last_frame_[2], BLE_AD_FLAGS_VALUE);
 }
 
 TEST_F(BTHomeServerTest, FrameHasCorrectServiceDataHeader) {
@@ -476,9 +476,9 @@ TEST_F(BTHomeServerTest, FrameHasCorrectServiceDataHeader) {
   server_.on_advertise(true);
 
   ASSERT_GE(last_frame_.size(), 7u);
-  EXPECT_EQ(last_frame_[4], 0x16u);  // AD Type: Service Data 16-bit UUID
-  EXPECT_EQ(last_frame_[5], 0xD2u);  // BTHome UUID low
-  EXPECT_EQ(last_frame_[6], 0xFCu);  // BTHome UUID high
+  EXPECT_EQ(last_frame_[4], BLE_AD_TYPE_SVC_DATA_16);
+  EXPECT_EQ(last_frame_[5], BTHOME_SVC_UUID_LOW);
+  EXPECT_EQ(last_frame_[6], BTHOME_SVC_UUID_HIGH);
 }
 
 TEST_F(BTHomeServerTest, FrameHasBTHomeVersion2) {
@@ -488,7 +488,7 @@ TEST_F(BTHomeServerTest, FrameHasBTHomeVersion2) {
   ASSERT_GE(last_frame_.size(), 8u);
   BTHomeHeader hdr{};
   memcpy(&hdr, &last_frame_[7], 1);
-  EXPECT_EQ(hdr.version, 2u);
+  EXPECT_EQ(hdr.version, BTHOME_VERSION_2);
   EXPECT_EQ(hdr.encrypted, 0u);
 }
 
@@ -689,7 +689,7 @@ TEST_F(BTHomeServerEncryptionTest, EncryptedPayloadDecryptsToSensorData) {
   // 3 flags + 4 svc-hdr + 1 BTHome-hdr + 16 encrypted blob = 24 bytes total
   ASSERT_EQ(last_frame_.size(), 24u);
 
-  BTHomeHeader hdr{.encrypted = 1, .trigger_based = 0, .version = 2};
+  BTHomeHeader hdr{.encrypted = 1, .trigger_based = 0, .version = BTHOME_VERSION_2};
   size_t plaintext_size = 0;
   const uint8_t *plaintext = bthome_decrypt(last_frame_.data() + 8, last_frame_.size() - 8, MacAddressPtr(MAC_BYTES),
                                             hdr, TEST_KEY, plaintext_size);
@@ -716,6 +716,298 @@ TEST_F(BTHomeServerEncryptionTest, CounterIncrementsEachAdvertisement) {
   memcpy(&counter1, last_frame_.data() + 16, sizeof(counter1));
 
   EXPECT_EQ(counter1, counter0 + 1u);
+}
+
+// ===========================================================================
+// Text sensor tests
+//
+// Encoding: object_type(1B) + content_length(1B) + content(≤max_length B)
+// ===========================================================================
+
+class MockLocalTextSensor : public BTHomeLocalBase {
+ public:
+  explicit MockLocalTextSensor(BTHomeObjectType type, size_t max_length = 5) {
+    this->set_object_type(type);
+    this->max_length_ = max_length;
+  }
+
+  void set_value(const std::string &v) {
+    value_ = v;
+    has_state_ = true;
+  }
+
+  void invalidate() { has_state_ = false; }
+
+  size_t get_encoded_size() const override {
+    if (!has_state_)
+      return 0;
+    return 1 + 1 + std::min(value_.size(), max_length_);  // type + len_byte + content
+  }
+
+  bool write(BTHomeEncoder &encoder) const override {
+    return encoder.write_text(this->object_type_, value_.c_str(), value_.size(), max_length_);
+  }
+
+  void register_immediate_callback(std::function<void()> &&cb) override { callback_ = std::move(cb); }
+
+ private:
+  std::string value_;
+  bool has_state_{false};
+  size_t max_length_{5};
+  std::function<void()> callback_;
+};
+
+class BTHomeServerTextSensorTest : public ::testing::Test {
+ protected:
+  static constexpr uint8_t MAC_BYTES[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+
+  NiceMock<MockBLEAdapter> adapter_;
+  TestableBTHomeServer<1> server_{&adapter_};
+  MockLocalTextSensor sensor_{BTHomeObjectType::TEXT, 5};
+
+  std::vector<uint8_t> last_frame_;
+
+  void SetUp() override {
+    server_.set_local_sensor(0, &sensor_);
+    ON_CALL(adapter_, get_local_mac()).WillByDefault(Return(MacAddressPtr(MAC_BYTES)));
+    ON_CALL(adapter_, config_adv_data_raw(_, _)).WillByDefault(Invoke([this](const uint8_t *data, size_t len) {
+      last_frame_.assign(data, data + len);
+    }));
+    server_.setup();
+  }
+};
+
+// String shorter than max_length: payload = type(1) + len_byte(1) + actual_len
+TEST_F(BTHomeServerTextSensorTest, ShortStringPayloadSize) {
+  sensor_.set_value("hi");  // 2 chars < max_length 5
+  server_.on_advertise(true);
+
+  auto frame = parse_adv_frame(last_frame_);
+  ASSERT_TRUE(frame.valid);
+  EXPECT_EQ(frame.payload.size(), 1u + 1u + 2u);  // type + len_byte + "hi"
+}
+
+// String longer than max_length is truncated to max_length
+TEST_F(BTHomeServerTextSensorTest, LongStringTruncatedToMaxLength) {
+  sensor_.set_value("toolong");  // 7 chars > max_length 5
+  server_.on_advertise(true);
+
+  auto frame = parse_adv_frame(last_frame_);
+  ASSERT_TRUE(frame.valid);
+  EXPECT_EQ(frame.payload.size(), 1u + 1u + 5u);  // type + len_byte + 5 content bytes
+}
+
+// No frame emitted when text sensor has no state yet
+TEST_F(BTHomeServerTextSensorTest, NoFrameWhenNoState) {
+  // sensor_ starts with has_state=false (never set)
+  EXPECT_CALL(adapter_, config_adv_data_raw(_, _)).Times(0);
+  server_.on_advertise(true);
+}
+
+// Frame payload bytes: type byte = BTHomeObjectType::TEXT, length byte = actual content size, content matches
+TEST_F(BTHomeServerTextSensorTest, PayloadBytes) {
+  sensor_.set_value("hello");  // exactly max_length 5
+  server_.on_advertise(true);
+
+  auto frame = parse_adv_frame(last_frame_);
+  ASSERT_TRUE(frame.valid);
+  ASSERT_EQ(frame.payload.size(), 7u);  // 1 + 1 + 5
+
+  EXPECT_EQ(frame.payload[0], static_cast<uint8_t>(BTHomeObjectType::TEXT));
+  EXPECT_EQ(frame.payload[1], 5u);  // length byte
+  EXPECT_EQ(frame.payload[2], uint8_t('h'));
+  EXPECT_EQ(frame.payload[3], uint8_t('e'));
+  EXPECT_EQ(frame.payload[4], uint8_t('l'));
+  EXPECT_EQ(frame.payload[5], uint8_t('l'));
+  EXPECT_EQ(frame.payload[6], uint8_t('o'));
+}
+
+// Truncated content matches the first max_length characters of the source string
+TEST_F(BTHomeServerTextSensorTest, TruncatedPayloadContentBytes) {
+  sensor_.set_value("abcdefgh");  // 8 chars, truncated to 5
+  server_.on_advertise(true);
+
+  auto frame = parse_adv_frame(last_frame_);
+  ASSERT_TRUE(frame.valid);
+  ASSERT_EQ(frame.payload.size(), 7u);  // 1 + 1 + 5
+
+  EXPECT_EQ(frame.payload[1], 5u);  // length byte = 5 (truncated)
+  EXPECT_EQ(frame.payload[2], uint8_t('a'));
+  EXPECT_EQ(frame.payload[3], uint8_t('b'));
+  EXPECT_EQ(frame.payload[4], uint8_t('c'));
+  EXPECT_EQ(frame.payload[5], uint8_t('d'));
+  EXPECT_EQ(frame.payload[6], uint8_t('e'));
+}
+
+// RAW type uses the same encoding as TEXT — only the type byte differs
+TEST(BTHomeServerRawSensor, RawTypeByteAndEncodingMatchTextFormat) {
+  static constexpr uint8_t MAC_BYTES[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+
+  NiceMock<MockBLEAdapter> adapter;
+  TestableBTHomeServer<1> server{&adapter};
+  MockLocalTextSensor sensor{BTHomeObjectType::RAW, 5};
+
+  std::vector<uint8_t> last_frame;
+  ON_CALL(adapter, get_local_mac()).WillByDefault(Return(MacAddressPtr(MAC_BYTES)));
+  ON_CALL(adapter, config_adv_data_raw(_, _)).WillByDefault(Invoke([&last_frame](const uint8_t *data, size_t len) {
+    last_frame.assign(data, data + len);
+  }));
+  server.set_local_sensor(0, &sensor);
+  server.setup();
+
+  sensor.set_value("hello");
+  server.on_advertise(true);
+
+  auto frame = parse_adv_frame(last_frame);
+  ASSERT_TRUE(frame.valid);
+  ASSERT_EQ(frame.payload.size(), 7u);  // 1 + 1 + 5
+  EXPECT_EQ(frame.payload[0], static_cast<uint8_t>(BTHomeObjectType::RAW));
+  EXPECT_EQ(frame.payload[1], 5u);  // length byte
+  EXPECT_EQ(frame.payload[2], uint8_t('h'));
+  EXPECT_EQ(frame.payload[3], uint8_t('e'));
+  EXPECT_EQ(frame.payload[4], uint8_t('l'));
+  EXPECT_EQ(frame.payload[5], uint8_t('l'));
+  EXPECT_EQ(frame.payload[6], uint8_t('o'));
+}
+
+// ===========================================================================
+// Text sensor packing tests
+//
+// Tests that text sensors with runtime-variable encoded sizes pack correctly
+// with each other and alongside fixed-width sensors.
+// ===========================================================================
+
+// Two TEXT sensors (max_length=12). When both carry short values they share
+// a frame; when both carry full-length values the combined 28 bytes exceed
+// the 23-byte payload budget and no frame is emitted.
+
+class BTHomeServerTwoTextSensorsTest : public ::testing::Test {
+ protected:
+  static constexpr uint8_t MAC_BYTES[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+
+  NiceMock<MockBLEAdapter> adapter_;
+  TestableBTHomeServer<2> server_{&adapter_};
+
+  // Both sensors carry the same BTHome type → they form one group
+  MockLocalTextSensor sensor0_{BTHomeObjectType::TEXT, 12};
+  MockLocalTextSensor sensor1_{BTHomeObjectType::TEXT, 12};
+
+  std::vector<uint8_t> last_frame_;
+
+  void SetUp() override {
+    server_.set_local_sensor(0, &sensor0_);
+    server_.set_local_sensor(1, &sensor1_);
+    ON_CALL(adapter_, get_local_mac()).WillByDefault(Return(MacAddressPtr(MAC_BYTES)));
+    ON_CALL(adapter_, config_adv_data_raw(_, _)).WillByDefault(Invoke([this](const uint8_t *data, size_t len) {
+      last_frame_.assign(data, data + len);
+    }));
+    server_.setup();
+  }
+};
+
+// Short values: sensor0(4B) + sensor1(4B) = 8 bytes ≤ 23 → single frame
+TEST_F(BTHomeServerTwoTextSensorsTest, TwoTextSensorsFitInSameFrame) {
+  sensor0_.set_value("hi");  // 1+1+2 = 4 bytes
+  sensor1_.set_value("yo");  // 1+1+2 = 4 bytes
+  server_.on_advertise(true);
+
+  auto frame = parse_adv_frame(last_frame_);
+  ASSERT_TRUE(frame.valid);
+  EXPECT_EQ(frame.payload.size(), 8u);
+}
+
+// Full-length values: sensor0(14B) + sensor1(14B) = 28 bytes > 23 → group breaks, no frame
+TEST_F(BTHomeServerTwoTextSensorsTest, TwoTextSensorsGroupTooLargeNoFrame) {
+  sensor0_.set_value("abcdefghijkl");  // 12 chars == max_length → 1+1+12 = 14 bytes
+  sensor1_.set_value("mnopqrstuvwx");  // 12 chars == max_length → 1+1+12 = 14 bytes
+  EXPECT_CALL(adapter_, config_adv_data_raw(_, _)).Times(0);
+  server_.on_advertise(true);
+}
+
+// ===========================================================================
+// Battery (fixed 2 bytes) + TEXT sensor (runtime size) mixed-packing tests.
+// BATTERY_PCT (0x01) sorts before TEXT (0x53), so battery occupies index 0.
+// ===========================================================================
+
+class BTHomeServerTextWithBatteryTest : public ::testing::Test {
+ protected:
+  static constexpr uint8_t MAC_BYTES[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+
+  NiceMock<MockBLEAdapter> adapter_;
+  TestableBTHomeServer<2> server_{&adapter_};
+
+  MockLocalSensor battery_{BTHomeObjectType::BATTERY_PCT, 75.0f};
+  MockLocalTextSensor text_{BTHomeObjectType::TEXT, 20};
+
+  std::vector<uint8_t> last_frame_;
+
+  void SetUp() override {
+    server_.set_local_sensor(0, &battery_);  // 0x01 sorts first
+    server_.set_local_sensor(1, &text_);     // 0x53 sorts second
+    ON_CALL(adapter_, get_local_mac()).WillByDefault(Return(MacAddressPtr(MAC_BYTES)));
+    ON_CALL(adapter_, config_adv_data_raw(_, _)).WillByDefault(Invoke([this](const uint8_t *data, size_t len) {
+      last_frame_.assign(data, data + len);
+    }));
+    server_.setup();
+  }
+};
+
+// Short text: battery(2B) + text "hi"(4B) = 6 bytes ≤ 23 → both in one frame
+TEST_F(BTHomeServerTextWithBatteryTest, ShortTextFitsWithBattery) {
+  text_.set_value("hi");  // 1+1+2 = 4 bytes
+  server_.on_advertise(true);
+
+  auto frame = parse_adv_frame(last_frame_);
+  ASSERT_TRUE(frame.valid);
+  EXPECT_EQ(frame.payload.size(), 6u);
+  EXPECT_EQ(frame.payload[0], static_cast<uint8_t>(BTHomeObjectType::BATTERY_PCT));
+  EXPECT_EQ(frame.payload[2], static_cast<uint8_t>(BTHomeObjectType::TEXT));
+}
+
+// Full-length text (max_length=20): after battery(2B) only 21 bytes remain but
+// text needs 22 bytes → group breaks; Frame 1 = battery only, Frame 2 = text only.
+TEST_F(BTHomeServerTextWithBatteryTest, LongTextCausesFrameSplit) {
+  text_.set_value(std::string(20, 'A'));  // max_length chars → 1+1+20 = 22 bytes
+  server_.on_advertise(true);
+
+  // Frame 1: battery only
+  auto frame1 = parse_adv_frame(last_frame_);
+  ASSERT_TRUE(frame1.valid);
+  EXPECT_EQ(frame1.payload.size(), 2u);
+  EXPECT_EQ(frame1.payload[0], static_cast<uint8_t>(BTHomeObjectType::BATTERY_PCT));
+  EXPECT_EQ(server_.get_next_sensor_index(), 1u);  // resumes at text sensor
+
+  // Frame 2: text only (starts where we left off)
+  last_frame_.clear();
+  server_.on_advertise(true);
+  auto frame2 = parse_adv_frame(last_frame_);
+  ASSERT_TRUE(frame2.valid);
+  EXPECT_EQ(frame2.payload.size(), 22u);  // 1+1+20
+  EXPECT_EQ(frame2.payload[0], static_cast<uint8_t>(BTHomeObjectType::TEXT));
+  EXPECT_EQ(frame2.payload[1], 20u);  // length byte
+}
+
+// Same server instance: short string packs with battery; switching to a long
+// string at runtime causes the text to be deferred to the next frame.
+TEST_F(BTHomeServerTextWithBatteryTest, RuntimeTextSizeAffectsPacking) {
+  // Short value: battery(2B) + text(4B) = 6 bytes → single frame, wraps to 0
+  text_.set_value("hi");
+  server_.on_advertise(true);
+
+  auto frame1 = parse_adv_frame(last_frame_);
+  ASSERT_TRUE(frame1.valid);
+  EXPECT_EQ(frame1.payload.size(), 6u);
+  EXPECT_EQ(server_.get_next_sensor_index(), 0u);
+
+  // Long value: battery(2B) written, text(22B) > 21 remaining → split
+  text_.set_value(std::string(20, 'B'));
+  last_frame_.clear();
+  server_.on_advertise(true);
+
+  auto frame2 = parse_adv_frame(last_frame_);
+  ASSERT_TRUE(frame2.valid);
+  EXPECT_EQ(frame2.payload.size(), 2u);            // battery only
+  EXPECT_EQ(server_.get_next_sensor_index(), 1u);  // text deferred to next frame
 }
 
 }  // namespace esphome::bthome::server::testing

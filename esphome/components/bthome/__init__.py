@@ -1,6 +1,12 @@
 from esphome import core
 import esphome.codegen as cg
-from esphome.components import binary_sensor, esp32_ble, esp32_ble_tracker, sensor
+from esphome.components import (
+    binary_sensor,
+    esp32_ble,
+    esp32_ble_tracker,
+    sensor,
+    text_sensor,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS
 from esphome.core import CORE
@@ -48,6 +54,7 @@ BTHomeServerBase = server_ns.class_(
 BTHomeServer = server_ns.class_("BTHomeServer", BTHomeServerBase)
 BTHomeLocalSensor = server_ns.class_("BTHomeLocalSensor")
 BTHomeLocalBinarySensor = server_ns.class_("BTHomeLocalBinarySensor")
+BTHomeLocalTextSensor = server_ns.class_("BTHomeLocalTextSensor")
 
 
 class DeferredStatement(cg.Statement):
@@ -87,8 +94,10 @@ _REMOTE_DEVICE_SCHEMA = cv.Schema(
 CONF_REMOTE_DEVICES = "remote_devices"
 CONF_SENSORS = "sensors"
 CONF_BINARY_SENSORS = "binary_sensors"
+CONF_TEXT_SENSORS = "text_sensors"
 CONF_OBJECT_TYPE = "object_type"
 CONF_ADVERTISE_IMMEDIATELY = "advertise_immediately"
+CONF_MAX_LENGTH = "max_length"
 
 
 def _bthome_object_type_by_kind(kind: BTHomeObjectTypeKind):
@@ -133,10 +142,28 @@ _SERVER_BINARY_SENSOR_SCHEMA = cv.Schema(
     }
 )
 
+_SERVER_TEXT_SENSOR_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_OBJECT_TYPE): _bthome_object_type_by_kind(
+            BTHomeObjectTypeKind.TEXT_SENSOR
+        ),
+        cv.Required(CONF_ID): cv.use_id(text_sensor.TextSensor),
+        cv.Optional(CONF_MAX_LENGTH, default=5): cv.int_range(
+            min=1, max=BTHOME_SERVER_MAX_PAYLOAD - 2
+        ),
+        cv.Optional(CONF_ADVERTISE_IMMEDIATELY, default=False): cv.boolean,
+    }
+)
+
 
 def _validate_server_config(config):
     """Validate server-side sensor configuration constraints."""
-    if CONF_SENSORS not in config and CONF_BINARY_SENSORS not in config:
+    has_server = (
+        CONF_SENSORS in config
+        or CONF_BINARY_SENSORS in config
+        or CONF_TEXT_SENSORS in config
+    )
+    if not has_server:
         return config
 
     max_payload = (
@@ -153,11 +180,19 @@ def _validate_server_config(config):
     for entry in config.get(CONF_BINARY_SENSORS, []):
         ot = BTHOME_OBJECT_TYPES[entry[CONF_OBJECT_TYPE]]
         entries_by_type.setdefault(ot.object_id, []).append(entry)
+    for entry in config.get(CONF_TEXT_SENSORS, []):
+        ot = BTHOME_OBJECT_TYPES[entry[CONF_OBJECT_TYPE]]
+        entries_by_type.setdefault(ot.object_id, []).append(entry)
 
     for object_id, entries in entries_by_type.items():
+        ot = OBJECT_TYPES_BY_ID[object_id]
         # Validate same-type sensors fit in one frame
-        value_length = _get_value_length(object_id)
-        total_size = len(entries) * (1 + value_length)
+        if ot.kind == BTHomeObjectTypeKind.TEXT_SENSOR:
+            # Variable-length: type(1) + length_byte(1) + content(max_length)
+            total_size = sum(2 + e[CONF_MAX_LENGTH] for e in entries)
+        else:
+            value_length = _get_value_length(object_id)
+            total_size = len(entries) * (1 + value_length)
         if total_size > max_payload:
             raise cv.Invalid(
                 f"Sensors of type 0x{object_id:02X} require {total_size} bytes "
@@ -178,11 +213,15 @@ def _validate_server_config(config):
 def _validate_has_content(config):
     """Ensure at least remote_devices or server sensors are configured."""
     has_client = CONF_REMOTE_DEVICES in config
-    has_server = CONF_SENSORS in config or CONF_BINARY_SENSORS in config
+    has_server = (
+        CONF_SENSORS in config
+        or CONF_BINARY_SENSORS in config
+        or CONF_TEXT_SENSORS in config
+    )
     if not has_client and not has_server:
         raise cv.Invalid(
-            "At least one of 'remote_devices', 'sensors', or 'binary_sensors' "
-            "must be configured"
+            "At least one of 'remote_devices', 'sensors', 'binary_sensors', "
+            "or 'text_sensors' must be configured"
         )
     return config
 
@@ -196,6 +235,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BINDKEY): cv.bind_key,
             cv.Optional(CONF_SENSORS): [_SERVER_SENSOR_SCHEMA],
             cv.Optional(CONF_BINARY_SENSORS): [_SERVER_BINARY_SENSOR_SCHEMA],
+            cv.Optional(CONF_TEXT_SENSORS): [_SERVER_TEXT_SENSOR_SCHEMA],
         }
     ).extend(BLE_DEVICE_SCHEMA),
     _validate_has_content,
@@ -307,6 +347,9 @@ async def _server_to_code(config):
     for entry in config.get(CONF_BINARY_SENSORS, []):
         ot = BTHOME_OBJECT_TYPES[entry[CONF_OBJECT_TYPE]]
         all_entries.append((ot.object_id, "binary_sensor", entry))
+    for entry in config.get(CONF_TEXT_SENSORS, []):
+        ot = BTHOME_OBJECT_TYPES[entry[CONF_OBJECT_TYPE]]
+        all_entries.append((ot.object_id, "text_sensor", entry))
 
     # Stable sort by object_id ascending
     all_entries.sort(key=lambda e: e[0])
@@ -347,6 +390,12 @@ async def _server_to_code(config):
             local_var = cg.new_Pvariable(local_id)
             source = await cg.get_variable(entry[CONF_ID])
             cg.add(local_var.set_source(source))
+        elif kind == "text_sensor":
+            local_id = core.ID(f"bthome_local_{i}", False, BTHomeLocalTextSensor)
+            local_var = cg.new_Pvariable(local_id)
+            source = await cg.get_variable(entry[CONF_ID])
+            cg.add(local_var.set_source(source))
+            cg.add(local_var.set_max_length(entry[CONF_MAX_LENGTH]))
         else:
             local_id = core.ID(f"bthome_local_{i}", False, BTHomeLocalBinarySensor)
             local_var = cg.new_Pvariable(local_id)
@@ -365,7 +414,11 @@ async def to_code(config):
     if CONF_REMOTE_DEVICES in config:
         await _client_to_code(config)
 
-    if CONF_SENSORS in config or CONF_BINARY_SENSORS in config:
+    if (
+        CONF_SENSORS in config
+        or CONF_BINARY_SENSORS in config
+        or CONF_TEXT_SENSORS in config
+    ):
         await _server_to_code(config)
 
 
