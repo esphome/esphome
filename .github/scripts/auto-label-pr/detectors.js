@@ -7,7 +7,7 @@ const {
   hasDashboardChanges,
   hasGitHubActionsChanges,
 } = require('../detect-tags');
-const { fetchCodeowners, getEffectiveOwners } = require('../codeowners');
+const { loadCodeowners, getEffectiveOwners } = require('../codeowners');
 
 // Strategy: Merge branch detection
 async function detectMergeBranch(context) {
@@ -149,10 +149,9 @@ async function detectGitHubActionsChanges(changedFiles) {
 // Strategy: Code owner detection
 async function detectCodeOwner(github, context, changedFiles) {
   const labels = new Set();
-  const { owner, repo } = context.repo;
 
   try {
-    const codeownersPatterns = await fetchCodeowners(github, owner, repo);
+    const codeownersPatterns = loadCodeowners();
     const prAuthor = context.payload.pull_request.user.login;
 
     // Check if PR author is a codeowner of any changed file
