@@ -311,13 +311,17 @@ FAN_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("fan.toggle", ToggleAction, FAN_ACTION_SCHEMA)
+@automation.register_action(
+    "fan.toggle", ToggleAction, FAN_ACTION_SCHEMA, synchronous=True
+)
 async def fan_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("fan.turn_off", TurnOffAction, FAN_ACTION_SCHEMA)
+@automation.register_action(
+    "fan.turn_off", TurnOffAction, FAN_ACTION_SCHEMA, synchronous=True
+)
 async def fan_turn_off_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
@@ -336,6 +340,7 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
             ),
         }
     ),
+    synchronous=True,
 )
 async def fan_turn_on_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
