@@ -67,8 +67,9 @@ packet_transport:
           key: "0123456789abcdef0123456789abcdef"
 
 sensor:
-  - platform: internal_temperature
+  - platform: template
     id: temp_sensor
+    lambda: return 25.0;
 
   - platform: packet_transport
     provider: test-provider
