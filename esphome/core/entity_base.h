@@ -45,12 +45,8 @@ enum EntityCategory : uint8_t {
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
-  // Get/set the name of this Entity
+  // Get the name of this Entity
   const StringRef &get_name() const;
-  void set_name(const char *name);
-  /// Set name with pre-computed object_id hash (avoids runtime hash calculation)
-  /// Use hash=0 for dynamic names that need runtime calculation
-  void set_name(const char *name, uint32_t object_id_hash);
 
   /// Combined entity setup from codegen: set name, object_id hash, and entity string indices.
   void configure_entity(const char *name, uint32_t object_id_hash, uint32_t entity_strings_packed);
@@ -96,20 +92,6 @@ class EntityBase {
   EntityCategory get_entity_category() const { return static_cast<EntityCategory>(this->flags_.entity_category); }
   void set_entity_category(EntityCategory entity_category) {
     this->flags_.entity_category = static_cast<uint8_t>(entity_category);
-  }
-
-  // Set entity string table indices — one call per entity from codegen.
-  // Packed: [23..16] icon | [15..8] UoM | [7..0] device_class (each 8 bits)
-  void set_entity_strings([[maybe_unused]] uint32_t packed) {
-#ifdef USE_ENTITY_DEVICE_CLASS
-    this->device_class_idx_ = packed & 0xFF;
-#endif
-#ifdef USE_ENTITY_UNIT_OF_MEASUREMENT
-    this->uom_idx_ = (packed >> 8) & 0xFF;
-#endif
-#ifdef USE_ENTITY_ICON
-    this->icon_idx_ = (packed >> 16) & 0xFF;
-#endif
   }
 
   // Get device class as StringRef (from packed index)
