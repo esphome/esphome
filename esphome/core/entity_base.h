@@ -36,6 +36,11 @@ static constexpr size_t OBJECT_ID_MAX_LEN = 128;
 // Maximum state length that Home Assistant will accept without raising ValueError
 static constexpr size_t MAX_STATE_LEN = 255;
 
+// Maximum device class string buffer size (47 chars + null terminator)
+// Longest standard device class: "volatile_organic_compounds_parts" (32 chars)
+// Device classes are stored in PROGMEM; on ESP8266 they must be copied to a stack buffer.
+static constexpr size_t MAX_DEVICE_CLASS_LENGTH = 48;
+
 // Maximum icon string buffer size (63 chars + null terminator)
 // Icons are stored in PROGMEM; on ESP8266 they must be copied to a stack buffer.
 static constexpr size_t MAX_ICON_LENGTH = 64;
@@ -113,13 +118,31 @@ class EntityBase {
 #endif
   }
 
-  // Get device class as StringRef (from packed index)
+  // Get this entity's device class into a stack buffer.
+  // On ESP32: returns pointer to PROGMEM string directly (buffer unused).
+  // On ESP8266: copies from PROGMEM to buffer, returns buffer pointer.
+  const char *get_device_class_to(std::span<char, MAX_DEVICE_CLASS_LENGTH> buffer) const;
+
+#ifdef USE_ESP8266
+  // On ESP8266, rodata is RAM. Device classes are in PROGMEM and cannot be accessed
+  // directly as const char*. Use get_device_class_to() with a stack buffer instead.
+  template<typename T = int> StringRef get_device_class_ref() const {
+    static_assert(sizeof(T) == 0, "get_device_class_ref() unavailable on ESP8266 (rodata is RAM). "
+                                  "Use get_device_class_to() with a stack buffer.");
+    return StringRef("");
+  }
+  template<typename T = int> std::string get_device_class() const {
+    static_assert(sizeof(T) == 0, "get_device_class() unavailable on ESP8266 (rodata is RAM). "
+                                  "Use get_device_class_to() with a stack buffer.");
+    return "";
+  }
+#else
+  // Deprecated: use get_device_class_to() instead. Device classes are in PROGMEM.
+  ESPDEPRECATED("Use get_device_class_to() instead. Will be removed in ESPHome 2026.9.0", "2026.3.0")
   StringRef get_device_class_ref() const;
-  /// Get the device class as std::string (deprecated, prefer get_device_class_ref())
-  ESPDEPRECATED("Use get_device_class_ref() instead for better performance (avoids string copy). Will be removed in "
-                "ESPHome 2026.9.0",
-                "2026.3.0")
+  ESPDEPRECATED("Use get_device_class_to() instead. Will be removed in ESPHome 2026.9.0", "2026.3.0")
   std::string get_device_class() const;
+#endif
   // Get unit of measurement as StringRef (from packed index)
   StringRef get_unit_of_measurement_ref() const;
   /// Get the unit of measurement as std::string (deprecated, prefer get_unit_of_measurement_ref())

@@ -359,6 +359,15 @@ class APIConnection final : public APIServerConnectionBase {
     return encode_message_to_buffer(msg, message_type, conn, remaining_size);
   }
 
+  // Wrapper for entity types that have a device_class field
+  static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                                                StringRef &device_class_field, uint8_t message_type,
+                                                                APIConnection *conn, uint32_t remaining_size) {
+    char dc_buf[MAX_DEVICE_CLASS_LENGTH];
+    device_class_field = StringRef(entity->get_device_class_to(dc_buf));
+    return fill_and_encode_entity_info(entity, msg, message_type, conn, remaining_size);
+  }
+
 #ifdef USE_VOICE_ASSISTANT
   // Helper to check voice assistant validity and connection ownership
   inline bool check_voice_assistant_api_connection_() const;
