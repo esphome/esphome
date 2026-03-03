@@ -665,12 +665,6 @@ class Application {
   static void IRAM_ATTR wake_loop_any_context() { socket::socket_wake(); }
 #endif
 
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-  /// Wake the main event loop from any context (ISR, thread, or main loop).
-  /// On ESP8266: sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
-  static void IRAM_ATTR wake_loop_any_context() { socket::socket_wake(); }
-#endif
-
  protected:
   friend Component;
 #if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
