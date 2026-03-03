@@ -178,6 +178,10 @@ def _register_string(
 
 def register_device_class(value: str) -> int:
     """Register a device_class string and return its 1-based index."""
+    if value and len(value) > cv.DEVICE_CLASS_MAX_LENGTH:
+        raise ValueError(
+            f"Device class string too long ({len(value)} chars, max {cv.DEVICE_CLASS_MAX_LENGTH}): '{value}'"
+        )
     return _register_string(
         value, _get_pool().device_classes, _MAX_DEVICE_CLASSES, "device_class"
     )
