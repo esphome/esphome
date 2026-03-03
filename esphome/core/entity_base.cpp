@@ -101,7 +101,13 @@ StringRef EntityBase::get_icon_ref() const {
   return StringRef(entity_icon_lookup(0));
 #endif
 }
-std::string EntityBase::get_icon() const { return std::string(this->get_icon_ref().c_str()); }
+std::string EntityBase::get_icon() const {
+#ifdef USE_ENTITY_ICON
+  return std::string(entity_icon_lookup(this->icon_idx_));
+#else
+  return std::string(entity_icon_lookup(0));
+#endif
+}
 #endif  // !USE_ESP8266
 
 // Entity Object ID - computed on-demand from name
