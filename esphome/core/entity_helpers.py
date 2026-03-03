@@ -131,7 +131,7 @@ def _generate_category_code(
 
 
 _CATEGORY_CONFIGS = (
-    ("ENTITY_DC_TABLE", "entity_device_class_lookup", "device_classes", False),
+    ("ENTITY_DC_TABLE", "entity_device_class_lookup", "device_classes", True),
     ("ENTITY_UOM_TABLE", "entity_uom_lookup", "units", False),
     ("ENTITY_ICON_TABLE", "entity_icon_lookup", "icons", True),
 )
