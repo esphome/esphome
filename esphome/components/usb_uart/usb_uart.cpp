@@ -20,6 +20,7 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
   // look for an interface with an interrupt endpoint (notify), and one with two bulk endpoints (data in/out)
   CdcEps eps{};
   eps.bulk_interface_number = 0xFF;
+  eps.interrupt_interface_number = 0xFF;
   for (;;) {
     const auto *intf_desc = usb_parse_interface_descriptor(config_desc, intf_idx++, 0, &conf_offset);
     if (!intf_desc) {
@@ -130,7 +131,7 @@ size_t RingBuffer::pop(uint8_t *data, size_t len) {
 }
 void USBUartChannel::write_array(const uint8_t *data, size_t len) {
   if (!this->initialised_.load()) {
-    ESP_LOGV(TAG, "Channel not initialised - write ignored");
+    ESP_LOGD(TAG, "Channel not initialised - write ignored");
     return;
   }
 #ifdef USE_UART_DEBUGGER
@@ -415,14 +416,15 @@ void USBUartTypeCdcAcm::on_connected() {
     // Claim the communication (interrupt) interface so CDC class requests are accepted
     // by the device. Some CDC ACM implementations (e.g. EFR32 NCP) require this before
     // they enable data flow on the bulk endpoints.
-    if (channel->cdc_dev_.interrupt_interface_number != channel->cdc_dev_.bulk_interface_number) {
+    if (channel->cdc_dev_.interrupt_interface_number != 0xFF &&
+        channel->cdc_dev_.interrupt_interface_number != channel->cdc_dev_.bulk_interface_number) {
       auto err_comm = usb_host_interface_claim(this->handle_, this->device_handle_,
                                                channel->cdc_dev_.interrupt_interface_number, 0);
       if (err_comm != ESP_OK) {
         ESP_LOGW(TAG, "Could not claim comm interface %d: %s", channel->cdc_dev_.interrupt_interface_number,
                  esp_err_to_name(err_comm));
+        channel->cdc_dev_.interrupt_interface_number = 0xFF;  // Mark as unavailable, but continue anyway
       } else {
-        channel->cdc_dev_.comm_interface_claimed = true;
         ESP_LOGD(TAG, "Claimed comm interface %d", channel->cdc_dev_.interrupt_interface_number);
       }
     }
@@ -436,6 +438,7 @@ void USBUartTypeCdcAcm::on_connected() {
       return;
     }
   }
+  this->status_clear_error();
   this->enable_channels();
 }
 
@@ -453,9 +456,10 @@ void USBUartTypeCdcAcm::on_disconnected() {
       usb_host_endpoint_halt(this->device_handle_, channel->cdc_dev_.notify_ep->bEndpointAddress);
       usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.notify_ep->bEndpointAddress);
     }
-    if (channel->cdc_dev_.comm_interface_claimed) {
+    if (channel->cdc_dev_.interrupt_interface_number != 0xFF &&
+        channel->cdc_dev_.interrupt_interface_number != channel->cdc_dev_.bulk_interface_number) {
       usb_host_interface_release(this->handle_, this->device_handle_, channel->cdc_dev_.interrupt_interface_number);
-      channel->cdc_dev_.comm_interface_claimed = false;
+      channel->cdc_dev_.interrupt_interface_number = 0xFF;
     }
     usb_host_interface_release(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number);
     // Reset the input and output started flags to their initial state to avoid the possibility of spurious restarts
