@@ -1732,7 +1732,7 @@ class HighFrequencyLoopRequester {
   void stop();
 
   /// Check whether the loop is running continuously.
-  static bool is_high_frequency();
+  static bool is_high_frequency() { return num_requests > 0; }
 
  protected:
   bool started_{false};
