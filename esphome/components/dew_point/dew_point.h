@@ -6,11 +6,8 @@
 
 namespace esphome::dew_point {
 
-class DewPointComponent :
-  public Component
-  ,public sensor::Sensor
-{
-public:
+class DewPointComponent : public Component, public sensor::Sensor {
+ public:
   void set_temperature_sensor(sensor::Sensor *temperature_sensor);
   void set_humidity_sensor(sensor::Sensor *humidity_sensor);
 
@@ -19,7 +16,7 @@ public:
 
   float get_setup_priority() const override;
 
-protected:
+ protected:
   void update_dew_point_();
 
   sensor::Sensor *temperature_sensor_{nullptr};

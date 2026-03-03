@@ -9,31 +9,29 @@ void DewPointComponent::set_temperature_sensor(sensor::Sensor *temperature_senso
   temperature_sensor_ = temperature_sensor;
 }
 
-void DewPointComponent::set_humidity_sensor(sensor::Sensor *humidity_sensor) {
-  humidity_sensor_ = humidity_sensor;
-}
+void DewPointComponent::set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
 
 void DewPointComponent::setup() {
   // Register callbacks for sensor updates
   if (this->temperature_sensor_ != nullptr) {
     this->temperature_sensor_->add_on_state_callback([this](float state) {
-    this->temperature_value_ = state;
-    this->update_dew_point_();
+      this->temperature_value_ = state;
+      this->update_dew_point_();
     });
     // Get initial value
     if (this->temperature_sensor_->has_state()) {
-    this->temperature_value_ = this->temperature_sensor_->state;
+      this->temperature_value_ = this->temperature_sensor_->state;
     }
   }
 
   if (this->humidity_sensor_ != nullptr) {
     this->humidity_sensor_->add_on_state_callback([this](float state) {
-    this->humidity_value_ = state;
-    this->update_dew_point_();
+      this->humidity_value_ = state;
+      this->update_dew_point_();
     });
     // Get initial value
     if (this->humidity_sensor_->has_state()) {
-    this->humidity_value_ = this->humidity_sensor_->state;
+      this->humidity_value_ = this->humidity_sensor_->state;
     }
   }
 
@@ -43,16 +41,14 @@ void DewPointComponent::setup() {
 
 void DewPointComponent::dump_config() {
   LOG_SENSOR("", "Dew Point", this);
-  ESP_LOGCONFIG(TAG
-    ,"Sources\n"
-    "  Temperature: '%s'\n"
-    "  Humidity: '%s'"
-    ,this->temperature_sensor_->get_name().c_str(), this->humidity_sensor_->get_name().c_str());
+  ESP_LOGCONFIG(TAG,
+                "Sources\n"
+                "  Temperature: '%s'\n"
+                "  Humidity: '%s'",
+                this->temperature_sensor_->get_name().c_str(), this->humidity_sensor_->get_name().c_str());
 }
 
-float DewPointComponent::get_setup_priority() const {
-  return setup_priority::DATA;
-}
+float DewPointComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void DewPointComponent::update_dew_point_() {
   // Check if we have valid values for both sensors
@@ -75,22 +71,16 @@ void DewPointComponent::update_dew_point_() {
   // Td = (b * alpha) / (a - alpha)
   // where alpha = ln(RH/100) + (a * T) / (b + T)
 
-  const float alpha{
-    std::log(this->humidity_value_ / 100.0f) +
-    (a * this->temperature_value_) / (b + this->temperature_value_)
-  };
+  const float alpha{std::log(this->humidity_value_ / 100.0f) +
+                    (a * this->temperature_value_) / (b + this->temperature_value_)};
 
   const float dew_point{(b * alpha) / (a - alpha)};
 
   // Publish the calculated dew point
   this->publish_state(dew_point);
 
-  ESP_LOGD(TAG
-    ,"'%s' >> %.1f°C (T: %.1f°C, RH: %.1f%%)"
-    ,this->get_name().c_str()
-    ,dew_point
-    ,this->temperature_value_
-    ,this->humidity_value_);
+  ESP_LOGD(TAG, "'%s' >> %.1f°C (T: %.1f°C, RH: %.1f%%)", this->get_name().c_str(), dew_point, this->temperature_value_,
+           this->humidity_value_);
 }
 
 }  // namespace esphome::dew_point
