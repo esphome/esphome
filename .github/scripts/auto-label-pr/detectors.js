@@ -7,7 +7,7 @@ const {
   hasDashboardChanges,
   hasGitHubActionsChanges,
 } = require('../detect-tags');
-const { fetchCodeowners, getEffectiveOwners } = require('../codeowners');
+const { fetchCodeowners } = require('../codeowners');
 
 // Strategy: Merge branch detection
 async function detectMergeBranch(context) {

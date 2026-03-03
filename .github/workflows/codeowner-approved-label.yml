@@ -105,7 +105,7 @@ jobs:
               const latestReviewByUser = new Map();
               for (const review of reviews) {
                 // Skip bot reviews and comment-only reviews
-                if (!review.user || review.state === 'COMMENTED') continue;
+                if (!review.user || review.user.type === 'Bot' || review.state === 'COMMENTED') continue;
                 latestReviewByUser.set(review.user.login, review);
               }
 
@@ -156,6 +156,6 @@ jobs:
               }
 
             } catch (error) {
-              console.log('Failed to process codeowner approval label:', error.message);
               console.error(error);
+              core.setFailed(`Failed to process codeowner approval label: ${error.message}`);
             }
