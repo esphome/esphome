@@ -54,7 +54,7 @@ class DaikinClimate : public climate_ir::ClimateIR {
  public:
   DaikinClimate()
       : climate_ir::ClimateIR(
-            DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX, 1.0f, true, true,
+            DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX, 0.5f, true, true,
             {climate::CLIMATE_FAN_QUIET, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
              climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
             {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL,
