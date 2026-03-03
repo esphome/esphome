@@ -45,12 +45,15 @@ jobs:
             const BOT_COMMENT_MARKER = '<!-- codeowner-review-request-bot -->';
 
             try {
-              // Get the list of changed files in this PR
-              const { data: files } = await github.rest.pulls.listFiles({
-                owner,
-                repo,
-                pull_number: pr_number
-              });
+              // Get the list of changed files in this PR (with pagination)
+              const files = await github.paginate(
+                github.rest.pulls.listFiles,
+                {
+                  owner,
+                  repo,
+                  pull_number: pr_number
+                }
+              );
 
               const changedFiles = files.map(file => file.filename);
               console.log(`Found ${changedFiles.length} changed files`);
@@ -116,11 +119,14 @@ jobs:
               }
 
               // Check for completed reviews to avoid re-requesting users who have already reviewed
-              const { data: reviews } = await github.rest.pulls.listReviews({
-                owner,
-                repo,
-                pull_number: pr_number
-              });
+              const reviews = await github.paginate(
+                github.rest.pulls.listReviews,
+                {
+                  owner,
+                  repo,
+                  pull_number: pr_number
+                }
+              );
 
               const reviewedUsers = new Set();
               reviews.forEach(review => {

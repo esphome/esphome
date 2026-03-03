@@ -7,7 +7,7 @@ const {
   hasDashboardChanges,
   hasGitHubActionsChanges,
 } = require('../detect-tags');
-const { fetchCodeowners } = require('../codeowners');
+const { fetchCodeowners, getEffectiveOwners } = require('../codeowners');
 
 // Strategy: Merge branch detection
 async function detectMergeBranch(context) {
@@ -155,18 +155,10 @@ async function detectCodeOwner(github, context, changedFiles) {
     const codeownersPatterns = await fetchCodeowners(github, owner, repo);
     const prAuthor = context.payload.pull_request.user.login;
 
-    // Check if PR author is a codeowner of any changed file (last-match-wins)
-    for (const file of changedFiles) {
-      let effectiveOwners = null;
-      for (const { regex, owners } of codeownersPatterns) {
-        if (regex.test(file)) {
-          effectiveOwners = owners;
-        }
-      }
-      if (effectiveOwners && effectiveOwners.some(o => o === `@${prAuthor}`)) {
-        labels.add('by-code-owner');
-        return labels;
-      }
+    // Check if PR author is a codeowner of any changed file
+    const effective = getEffectiveOwners(changedFiles, codeownersPatterns);
+    if (effective.users.has(prAuthor)) {
+      labels.add('by-code-owner');
     }
   } catch (error) {
     console.log('Failed to read or parse CODEOWNERS file:', error.message);
