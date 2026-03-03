@@ -398,13 +398,10 @@ def string_strict(value):
     )
 
 
-# Max icon string length (63 chars + null = 64-byte PROGMEM buffer)
-# Keep in sync with MAX_ICON_LENGTH in esphome/core/entity_base.h
-ICON_MAX_LENGTH = 63
-
-
 def icon(value):
     """Validate that a given config value is a valid icon."""
+    from esphome.core.config import ICON_MAX_LENGTH
+
     value = string_strict(value)
     if not value:
         return value

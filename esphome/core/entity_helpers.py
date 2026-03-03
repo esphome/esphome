@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core.config import ICON_MAX_LENGTH
 from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
 import esphome.final_validate as fv
 from esphome.helpers import cpp_string_escape, fnv1_hash_object_id, sanitize, snake_case
@@ -190,9 +191,9 @@ def register_unit_of_measurement(value: str) -> int:
 
 def register_icon(value: str) -> int:
     """Register an icon string and return its 1-based index."""
-    if value and len(value) > cv.ICON_MAX_LENGTH:
+    if value and len(value) > ICON_MAX_LENGTH:
         raise ValueError(
-            f"Icon string too long ({len(value)} chars, max {cv.ICON_MAX_LENGTH}): '{value}'"
+            f"Icon string too long ({len(value)} chars, max {ICON_MAX_LENGTH}): '{value}'"
         )
     return _register_string(value, _get_pool().icons, _MAX_ICONS, "icon")
 
