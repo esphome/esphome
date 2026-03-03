@@ -8,7 +8,7 @@
 
 namespace esphome::socket {
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
 // Shared ready() implementation for fd-based socket implementations (BSD and LWIP sockets).
 // Checks if the Application's select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || App.is_socket_ready_(fd); }
@@ -89,6 +89,9 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol) {
 #endif /* USE_NETWORK_IPV6 */
 }
 
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+// LWIP_TCP has separate Socket/ListenSocket types — needs out-of-line factory.
+// BSD and LWIP_SOCKETS define this inline in socket.h.
 std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
 #if USE_NETWORK_IPV6
   return socket_listen_loop_monitored(AF_INET6, type, protocol);
@@ -96,6 +99,7 @@ std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
   return socket_listen_loop_monitored(AF_INET, type, protocol);
 #endif /* USE_NETWORK_IPV6 */
 }
+#endif
 
 socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_address, uint16_t port) {
 #if USE_NETWORK_IPV6

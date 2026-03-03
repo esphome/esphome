@@ -92,9 +92,8 @@ def select_schema(
     return _SELECT_SCHEMA.extend(schema)
 
 
+@setup_entity("select")
 async def setup_select_core_(var, config, *, options: list[str]):
-    await setup_entity(var, config, "select")
-
     cg.add(var.traits.set_options(options))
 
     for conf in config.get(CONF_ON_VALUE, []):

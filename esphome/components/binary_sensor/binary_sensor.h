@@ -30,7 +30,7 @@ void log_binary_sensor(const char *tag, const char *prefix, const char *type, Bi
  * The sub classes should notify the front-end of new states via the publish_state() method which
  * handles inverted inputs for you.
  */
-class BinarySensor : public StatefulEntityBase<bool>, public EntityBase_DeviceClass {
+class BinarySensor : public StatefulEntityBase<bool> {
  public:
   explicit BinarySensor(){};
 

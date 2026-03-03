@@ -1139,7 +1139,7 @@ json::SerializationBuffer<> WebServer::number_json_(number::Number *obj, float v
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  const auto uom_ref = obj->traits.get_unit_of_measurement_ref();
+  const auto uom_ref = obj->get_unit_of_measurement_ref();
   const int8_t accuracy = step_to_accuracy_decimals(obj->traits.get_step());
 
   // Need two buffers: one for value, one for state with UOM

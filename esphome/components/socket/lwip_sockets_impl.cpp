@@ -11,11 +11,15 @@ namespace esphome::socket {
 
 LwIPSocketImpl::LwIPSocketImpl(int fd, bool monitor_loop) {
   this->fd_ = fd;
-  // Register new socket with the application for select() if monitoring requested
-  if (monitor_loop && this->fd_ >= 0) {
-    // Only set loop_monitored_ to true if registration succeeds
-    this->loop_monitored_ = App.register_socket_fd(this->fd_);
-  }
+  if (!monitor_loop || this->fd_ < 0)
+    return;
+#ifdef USE_LWIP_FAST_SELECT
+  // Cache lwip_sock pointer and register for monitoring (hooks callback internally)
+  this->cached_sock_ = esphome_lwip_get_sock(this->fd_);
+  this->loop_monitored_ = App.register_socket(this->cached_sock_);
+#else
+  this->loop_monitored_ = App.register_socket_fd(this->fd_);
+#endif
 }
 
 LwIPSocketImpl::~LwIPSocketImpl() {
@@ -26,10 +30,17 @@ LwIPSocketImpl::~LwIPSocketImpl() {
 
 int LwIPSocketImpl::close() {
   if (!this->closed_) {
-    // Unregister from select() before closing if monitored
+    // Unregister before closing to avoid dangling pointer in monitored set
+#ifdef USE_LWIP_FAST_SELECT
+    if (this->loop_monitored_) {
+      App.unregister_socket(this->cached_sock_);
+      this->cached_sock_ = nullptr;
+    }
+#else
     if (this->loop_monitored_) {
       App.unregister_socket_fd(this->fd_);
     }
+#endif
     int ret = lwip_close(this->fd_);
     this->closed_ = true;
     return ret;
@@ -47,8 +58,6 @@ int LwIPSocketImpl::setblocking(bool blocking) {
   lwip_fcntl(this->fd_, F_SETFL, fl);
   return 0;
 }
-
-bool LwIPSocketImpl::ready() const { return socket_ready_fd(this->fd_, this->loop_monitored_); }
 
 size_t LwIPSocketImpl::getpeername_to(std::span<char, SOCKADDR_STR_LEN> buf) {
   struct sockaddr_storage storage;
@@ -83,14 +92,6 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
 }
 
 std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol) {
-  return create_socket(domain, type, protocol, true);
-}
-
-std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol) {
-  return create_socket(domain, type, protocol, false);
-}
-
-std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type, int protocol) {
   return create_socket(domain, type, protocol, true);
 }
 
