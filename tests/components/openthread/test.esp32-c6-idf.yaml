@@ -13,3 +13,4 @@ openthread:
   force_dataset: true
   use_address: open-thread-test.local
   poll_period: 20sec
+  output_power: 1dBm

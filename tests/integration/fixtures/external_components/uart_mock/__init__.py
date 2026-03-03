@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.uart import (
     CONF_RX_FULL_THRESHOLD,
     CONF_RX_TIMEOUT,
@@ -12,14 +13,11 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_DATA,
-    CONF_DATA_BITS,
     CONF_DEBUG,
     CONF_DELAY,
     CONF_ID,
     CONF_INTERVAL,
-    CONF_PARITY,
     CONF_RX_BUFFER_SIZE,
-    CONF_STOP_BITS,
     CONF_TRIGGER_ID,
 )
 from esphome.core import ID

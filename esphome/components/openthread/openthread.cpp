@@ -43,6 +43,9 @@ void OpenThreadComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Device is configured as Minimal End Device (MED)");
   }
 #endif
+  if (this->output_power_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Output power: %" PRId8 "dBm", *this->output_power_);
+  }
 }
 
 bool OpenThreadComponent::is_connected() {
