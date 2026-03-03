@@ -38,6 +38,7 @@ void arch_init() {
   // This is safe because ESPHome yields voluntarily via yield_with_select_() and
   // the Arduino mainTask yield() after each loop() iteration.
   static constexpr UBaseType_t MAIN_TASK_PRIORITY = 6;
+  static_assert(MAIN_TASK_PRIORITY < configMAX_PRIORITIES, "MAIN_TASK_PRIORITY must be less than configMAX_PRIORITIES");
   vTaskPrioritySet(nullptr, MAIN_TASK_PRIORITY);
 #endif
 #if LT_GPIO_RECOVER
