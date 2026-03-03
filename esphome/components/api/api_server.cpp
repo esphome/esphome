@@ -382,17 +382,6 @@ void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_
 }
 #endif
 
-#ifdef USE_SERIAL_PROXY
-void APIServer::send_serial_proxy_data(uint32_t instance, const uint8_t *data, size_t len) {
-  SerialProxyDataReceived msg{};
-  msg.instance = instance;
-  msg.set_data(data, len);
-
-  for (auto &c : this->clients_)
-    c->send_serial_proxy_data(msg);
-}
-#endif
-
 #ifdef USE_ALARM_CONTROL_PANEL
 API_DISPATCH_UPDATE(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 #endif

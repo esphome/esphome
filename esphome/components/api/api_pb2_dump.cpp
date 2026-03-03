@@ -781,6 +781,10 @@ template<> const char *proto_enum_to_string<enums::SerialProxyRequestType>(enums
   switch (value) {
     case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH:
       return "SERIAL_PROXY_REQUEST_TYPE_FLUSH";
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE:
+      return "SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE";
+    case enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
+      return "SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE";
     default:
       return "UNKNOWN";
   }

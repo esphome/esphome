@@ -3,8 +3,10 @@
 #ifdef USE_SERIAL_PROXY
 
 #include "esphome/core/log.h"
+#include "esphome/core/util.h"
 
 #ifdef USE_API
+#include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_server.h"
 #endif
 
@@ -25,7 +27,18 @@ void SerialProxy::setup() {
 }
 
 void SerialProxy::loop() {
-  // Read available data from UART and forward to API clients
+#ifdef USE_API
+  // Detect subscriber disconnect
+  if (this->api_connection_ != nullptr && (this->api_connection_->is_marked_for_removal() ||
+                                           !this->api_connection_->is_connection_setup() || !api_is_connected())) {
+    ESP_LOGW(TAG, "Subscriber disconnected");
+    this->api_connection_ = nullptr;
+  }
+
+  if (this->api_connection_ == nullptr)
+    return;
+
+  // Read available data from UART and forward to subscribed client
   size_t available = this->available();
   if (available == 0)
     return;
@@ -37,10 +50,10 @@ void SerialProxy::loop() {
   if (!this->read_array(buffer, to_read))
     return;
 
-#ifdef USE_API
-  if (api::global_api_server != nullptr) {
-    api::global_api_server->send_serial_proxy_data(this->instance_index_, buffer, to_read);
-  }
+  api::SerialProxyDataReceived msg{};
+  msg.instance = this->instance_index_;
+  msg.set_data(buffer, to_read);
+  this->api_connection_->send_serial_proxy_data(msg);
 #endif
 }
 
@@ -131,6 +144,32 @@ void SerialProxy::flush_port() {
   ESP_LOGV(TAG, "Flushing serial proxy [%u]", this->instance_index_);
   this->flush();
 }
+
+#ifdef USE_API
+void SerialProxy::serial_proxy_request(api::APIConnection *api_connection, api::enums::SerialProxyRequestType type) {
+  switch (type) {
+    case api::enums::SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE:
+      if (this->api_connection_ != nullptr) {
+        ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
+        return;
+      }
+      this->api_connection_ = api_connection;
+      ESP_LOGV(TAG, "API connection subscribed to serial proxy [%u]", this->instance_index_);
+      break;
+    case api::enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
+      if (this->api_connection_ != api_connection) {
+        ESP_LOGV(TAG, "API connection is not subscribed to serial proxy [%u]", this->instance_index_);
+        return;
+      }
+      this->api_connection_ = nullptr;
+      ESP_LOGV(TAG, "API connection unsubscribed from serial proxy [%u]", this->instance_index_);
+      break;
+    default:
+      ESP_LOGW(TAG, "Unknown serial proxy request type: %u", static_cast<uint32_t>(type));
+      break;
+  }
+}
+#endif
 
 }  // namespace esphome::serial_proxy
 

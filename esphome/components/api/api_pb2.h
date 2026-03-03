@@ -330,6 +330,8 @@ enum SerialProxyParity : uint32_t {
 };
 enum SerialProxyRequestType : uint32_t {
   SERIAL_PROXY_REQUEST_TYPE_FLUSH = 0,
+  SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE = 1,
+  SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 2,
 };
 #endif
 

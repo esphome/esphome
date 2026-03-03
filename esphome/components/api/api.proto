@@ -2614,7 +2614,9 @@ message SerialProxyGetModemPinsResponse {
 }
 
 enum SerialProxyRequestType {
-  SERIAL_PROXY_REQUEST_TYPE_FLUSH = 0;  // Flush the serial port (block until all TX data is sent)
+  SERIAL_PROXY_REQUEST_TYPE_FLUSH = 0;       // Flush the serial port (block until all TX data is sent)
+  SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE = 1;   // Subscribe to receive data from this serial proxy instance
+  SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 2; // Unsubscribe from this serial proxy instance
 }
 
 // Generic request message for simple serial proxy operations

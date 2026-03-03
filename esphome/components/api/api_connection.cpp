@@ -1510,6 +1510,10 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
     return;
   }
   switch (msg.type) {
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE:
+    case enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
+      proxies[msg.instance]->serial_proxy_request(this, msg.type);
+      break;
     case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH:
       proxies[msg.instance]->flush_port();
       break;

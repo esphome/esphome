@@ -14,9 +14,13 @@
 
 // Forward-declare to avoid pulling api_pb2.h (which contains names conflicting
 // with Zephyr logging macros) into translation units via application.h.
-namespace esphome::api::enums {
+namespace esphome::api {
+class APIConnection;
+namespace enums {
 enum SerialProxyPortType : uint32_t;
-}  // namespace esphome::api::enums
+enum SerialProxyRequestType : uint32_t;
+}  // namespace enums
+}  // namespace esphome::api
 
 namespace esphome::serial_proxy {
 
@@ -56,6 +60,9 @@ class SerialProxy : public uart::UARTDevice, public Component {
   /// @param data_size Number of data bits (5-8)
   void configure(uint32_t baudrate, bool flow_control, uint8_t parity, uint8_t stop_bits, uint8_t data_size);
 
+  /// Handle a subscribe/unsubscribe request from an API client
+  void serial_proxy_request(api::APIConnection *api_connection, api::enums::SerialProxyRequestType type);
+
   /// Write data to the serial device
   /// @param data Pointer to data buffer
   /// @param len Number of bytes to write
@@ -83,6 +90,9 @@ class SerialProxy : public uart::UARTDevice, public Component {
  protected:
   /// Instance index for identifying this proxy in API messages
   uint32_t instance_index_{0};
+
+  /// Subscribed API client (only one allowed at a time)
+  api::APIConnection *api_connection_{nullptr};
 
   /// Human-readable port name (points to a string literal in flash)
   const char *name_{nullptr};

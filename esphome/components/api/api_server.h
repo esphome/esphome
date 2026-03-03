@@ -185,10 +185,6 @@ class APIServer : public Component,
   void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
 #endif
 
-#ifdef USE_SERIAL_PROXY
-  void send_serial_proxy_data(uint32_t instance, const uint8_t *data, size_t len);
-#endif
-
   bool is_connected(bool state_subscription_only = false) const;
 
 #ifdef USE_API_HOMEASSISTANT_STATES
