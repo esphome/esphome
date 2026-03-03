@@ -7,7 +7,8 @@ namespace tuya {
 static const char *const TAG = "tuya.fan";
 
 void TuyaFan::setup() {
-  if (auto speed_id = this->speed_id_; speed_id.has_value()) {
+  auto speed_id = this->speed_id_;
+  if (speed_id.has_value()) {
     this->parent_->register_listener(*speed_id, [this](const TuyaDatapoint &datapoint) {
       if (datapoint.type == TuyaDatapointType::ENUM) {
         ESP_LOGV(TAG, "MCU reported speed of: %d", datapoint.value_enum);
@@ -25,14 +26,16 @@ void TuyaFan::setup() {
       this->speed_type_ = datapoint.type;
     });
   }
-  if (auto switch_id = this->switch_id_; switch_id.has_value()) {
+  auto switch_id = this->switch_id_;
+  if (switch_id.has_value()) {
     this->parent_->register_listener(*switch_id, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported switch is: %s", ONOFF(datapoint.value_bool));
       this->state = datapoint.value_bool;
       this->publish_state();
     });
   }
-  if (auto oscillation_id = this->oscillation_id_; oscillation_id.has_value()) {
+  auto oscillation_id = this->oscillation_id_;
+  if (oscillation_id.has_value()) {
     this->parent_->register_listener(*oscillation_id, [this](const TuyaDatapoint &datapoint) {
       // Whether data type is BOOL or ENUM, it will still be a 1 or a 0, so the functions below are valid in both
       // scenarios
@@ -43,7 +46,8 @@ void TuyaFan::setup() {
       this->oscillation_type_ = datapoint.type;
     });
   }
-  if (auto direction_id = this->direction_id_; direction_id.has_value()) {
+  auto direction_id = this->direction_id_;
+  if (direction_id.has_value()) {
     this->parent_->register_listener(*direction_id, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGD(TAG, "MCU reported reverse direction is: %s", ONOFF(datapoint.value_bool));
       this->direction = datapoint.value_bool ? fan::FanDirection::REVERSE : fan::FanDirection::FORWARD;
@@ -60,17 +64,21 @@ void TuyaFan::setup() {
 
 void TuyaFan::dump_config() {
   LOG_FAN("", "Tuya Fan", this);
-  if (auto id = this->speed_id_; id.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Speed has datapoint ID %u", *id);
+  auto speed_dp_id = this->speed_id_;
+  if (speed_dp_id.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Speed has datapoint ID %u", *speed_dp_id);
   }
-  if (auto id = this->switch_id_; id.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *id);
+  auto switch_dp_id = this->switch_id_;
+  if (switch_dp_id.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *switch_dp_id);
   }
-  if (auto id = this->oscillation_id_; id.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Oscillation has datapoint ID %u", *id);
+  auto oscillation_dp_id = this->oscillation_id_;
+  if (oscillation_dp_id.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Oscillation has datapoint ID %u", *oscillation_dp_id);
   }
-  if (auto id = this->direction_id_; id.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Direction has datapoint ID %u", *id);
+  auto direction_dp_id = this->direction_id_;
+  if (direction_dp_id.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Direction has datapoint ID %u", *direction_dp_id);
   }
 }
 
