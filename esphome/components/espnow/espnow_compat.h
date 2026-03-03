@@ -13,15 +13,15 @@ extern "C" {
 }
 
 #ifndef ESP_NOW_ETH_ALEN
-#define ESP_NOW_ETH_ALEN 6
+static constexpr uint8_t ESP_NOW_ETH_ALEN = 6;
 #endif
 
 #ifndef ESP_NOW_MAX_DATA_LEN
-#define ESP_NOW_MAX_DATA_LEN 250
+static constexpr uint8_t ESP_NOW_MAX_DATA_LEN = 250;
 #endif
 
 #ifndef ESP_NOW_SEND_SUCCESS
-#define ESP_NOW_SEND_SUCCESS 0
+static constexpr uint8_t ESP_NOW_SEND_SUCCESS = 0;
 #endif
 
 namespace esphome::espnow {
