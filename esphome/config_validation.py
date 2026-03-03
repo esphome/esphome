@@ -398,11 +398,6 @@ def string_strict(value):
     )
 
 
-# Max device class string length (47 chars + null = 48-byte PROGMEM buffer)
-# Keep in sync with MAX_DEVICE_CLASS_LENGTH in esphome/core/entity_base.h
-DEVICE_CLASS_MAX_LENGTH = 47
-
-
 def icon(value):
     """Validate that a given config value is a valid icon."""
     from esphome.core.config import ICON_MAX_LENGTH
