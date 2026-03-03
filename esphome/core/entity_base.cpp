@@ -49,9 +49,7 @@ void EntityBase::set_name(const char *name, uint32_t object_id_hash) {
 // Weak default lookup functions — overridden by generated code in main.cpp
 __attribute__((weak)) const char *entity_device_class_lookup(uint8_t) { return ""; }
 __attribute__((weak)) const char *entity_uom_lookup(uint8_t) { return ""; }
-// Icon empty string must be PROGMEM — on ESP8266 callers use strncpy_P to read it
-static const char ENTITY_ICON_EMPTY[] PROGMEM = "";
-__attribute__((weak)) const char *entity_icon_lookup(uint8_t) { return ENTITY_ICON_EMPTY; }
+__attribute__((weak)) const char *entity_icon_lookup(uint8_t) { return ""; }
 
 // Entity device class (from index)
 StringRef EntityBase::get_device_class_ref() const {
