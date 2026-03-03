@@ -24,6 +24,10 @@ void SerialProxy::setup() {
     this->dtr_pin_->setup();
     this->dtr_pin_->digital_write(this->dtr_state_);
   }
+#ifdef USE_API
+  // instance_index_ is fixed at registration time; pre-set it so loop() only needs to update data
+  this->outgoing_msg_.instance = this->instance_index_;
+#endif
 }
 
 void SerialProxy::loop() {
@@ -50,10 +54,8 @@ void SerialProxy::loop() {
   if (!this->read_array(buffer, to_read))
     return;
 
-  api::SerialProxyDataReceived msg{};
-  msg.instance = this->instance_index_;
-  msg.set_data(buffer, to_read);
-  this->api_connection_->send_serial_proxy_data(msg);
+  this->outgoing_msg_.set_data(buffer, to_read);
+  this->api_connection_->send_serial_proxy_data(this->outgoing_msg_);
 #endif
 }
 

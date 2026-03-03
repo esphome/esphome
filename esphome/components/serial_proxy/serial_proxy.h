@@ -12,8 +12,15 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/uart/uart.h"
 
-// Forward-declare to avoid pulling api_pb2.h (which contains names conflicting
-// with Zephyr logging macros) into translation units via application.h.
+// Include api_pb2.h only when the API is enabled. The full include is needed
+// to hold SerialProxyDataReceived by value as a pre-allocated member.
+// Guarding prevents pulling conflicting Zephyr logging macro names into
+// translation units that include this header without USE_API defined.
+#ifdef USE_API
+#include "esphome/components/api/api_pb2.h"
+#endif
+
+// Forward-declare types needed outside the USE_API guard.
 namespace esphome::api {
 class APIConnection;
 namespace enums {
@@ -93,6 +100,11 @@ class SerialProxy : public uart::UARTDevice, public Component {
 
   /// Subscribed API client (only one allowed at a time)
   api::APIConnection *api_connection_{nullptr};
+
+#ifdef USE_API
+  /// Pre-allocated outgoing message; instance field is set once in setup()
+  api::SerialProxyDataReceived outgoing_msg_;
+#endif
 
   /// Human-readable port name (points to a string literal in flash)
   const char *name_{nullptr};
