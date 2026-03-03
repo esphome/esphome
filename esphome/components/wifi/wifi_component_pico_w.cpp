@@ -116,12 +116,7 @@ const char *get_disconnect_reason_str(uint8_t reason) {
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
-  // Use cyw43_wifi_link_status instead of cyw43_tcpip_link_status because the Arduino
-  // framework's __wrap_cyw43_cb_tcpip_init is a no-op — the SDK's internal netif
-  // (cyw43_state.netif[]) is never initialized. cyw43_tcpip_link_status checks that netif's
-  // flags and would only fall through to cyw43_wifi_link_status when the flags aren't set.
-  // Using cyw43_wifi_link_status directly gives us the actual WiFi radio join state.
-  int status = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
+  int status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
   switch (status) {
     case CYW43_LINK_JOIN:
     case CYW43_LINK_NOIP:
