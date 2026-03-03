@@ -3,6 +3,8 @@ import hashlib
 import logging
 from pathlib import Path
 
+import puremagic
+
 from esphome import external_files
 import esphome.codegen as cg
 from esphome.components import audio
@@ -106,8 +108,6 @@ def read_audio_file_and_type(file_config: ConfigType) -> tuple[bytes, MockObj]:
 
     with open(path, "rb") as f:
         data = f.read()
-
-    import puremagic
 
     try:
         file_type: str = puremagic.from_string(data)
