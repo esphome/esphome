@@ -52,6 +52,9 @@ class EntityBase {
   /// Use hash=0 for dynamic names that need runtime calculation
   void set_name(const char *name, uint32_t object_id_hash);
 
+  /// Combined entity setup from codegen: set name, object_id hash, and entity string indices.
+  void configure_entity(const char *name, uint32_t object_id_hash, uint32_t entity_strings_packed);
+
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
 

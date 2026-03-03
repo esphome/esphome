@@ -45,6 +45,11 @@ void EntityBase::set_name(const char *name, uint32_t object_id_hash) {
   }
 }
 
+void EntityBase::configure_entity(const char *name, uint32_t object_id_hash, uint32_t entity_strings_packed) {
+  this->set_name(name, object_id_hash);
+  this->set_entity_strings(entity_strings_packed);
+}
+
 // Weak default lookup functions — overridden by generated code in main.cpp
 __attribute__((weak)) const char *entity_device_class_lookup(uint8_t) { return ""; }
 __attribute__((weak)) const char *entity_uom_lookup(uint8_t) { return ""; }
