@@ -23,6 +23,7 @@ from esphome.core.entity_helpers import (
     _setup_entity_impl,
     entity_duplicate_validator,
     get_base_entity_object_id,
+    register_device_class,
     register_icon,
     setup_entity,
 )
@@ -924,6 +925,22 @@ def test_register_icon_max_length() -> None:
 
     # Empty string returns 0
     assert register_icon("") == 0
+
+
+def test_register_device_class_max_length() -> None:
+    """Test register_device_class rejects device classes exceeding 47 characters."""
+    # 47 chars should succeed
+    max_dc = "a" * 47
+    idx = register_device_class(max_dc)
+    assert idx > 0
+
+    # 48 chars should fail
+    too_long = "a" * 48
+    with pytest.raises(ValueError, match="Device class string too long"):
+        register_device_class(too_long)
+
+    # Empty string returns 0
+    assert register_device_class("") == 0
 
 
 @pytest.mark.asyncio
