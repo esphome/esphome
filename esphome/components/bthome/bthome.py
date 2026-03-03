@@ -14,8 +14,6 @@ BTHOME_SERVER_MAX_ENCRYPTED_PAYLOAD = (
     15  # BTHOME_SERVER_MAX_PAYLOAD - 4 (MIC) - 4 (Counter)
 )
 
-CONF_BTHOME_TYPE = "bthome_type"
-
 
 class BTHomeObjectTypeKind(Enum):
     SENSOR = auto()

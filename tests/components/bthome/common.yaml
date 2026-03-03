@@ -8,15 +8,15 @@ sensor:
     update_interval: 60s
   - platform: bthome
     remote_id: bthome_remote_plain
-    bthome_type: BATTERY_PCT
+    type: BATTERY_PCT
     name: "Remote Battery"
   - platform: bthome
     remote_id: bthome_remote_plain
-    bthome_type: TEMPERATURE_C_E2
+    type: TEMPERATURE_C_E2
     name: "Remote Temperature"
   - platform: bthome
     remote_id: bthome_remote_encrypted
-    bthome_type: HUMIDITY_PCT_E2
+    type: HUMIDITY_PCT_E2
     name: "Remote Humidity Encrypted"
 
 binary_sensor:
@@ -25,11 +25,11 @@ binary_sensor:
     name: "Advertised Motion"
   - platform: bthome
     remote_id: bthome_remote_plain
-    bthome_type: MOTION_DETECTED
+    type: MOTION_DETECTED
     name: "Remote Motion"
   - platform: bthome
     remote_id: bthome_remote_plain
-    bthome_type: DOOR_OPEN
+    type: DOOR_OPEN
     name: "Remote Door"
 
 text_sensor:
@@ -38,7 +38,7 @@ text_sensor:
     name: "Advertised Text"
   - platform: bthome
     remote_id: bthome_remote_plain
-    bthome_type: TEXT
+    type: TEXT
     name: "Remote Text"
 
 bthome:
@@ -49,13 +49,13 @@ bthome:
       mac_address: AA:BB:CC:DD:EE:FF
       bindkey: 11223344556677889900AABBCCDDEEFF
   sensors:
-    - bthome_type: TEMPERATURE_C_E2
+    - type: TEMPERATURE_C_E2
       id: advertised_temperature
   binary_sensors:
-    - bthome_type: MOTION_DETECTED
+    - type: MOTION_DETECTED
       id: advertised_motion
       advertise_immediately: true
   text_sensors:
-    - bthome_type: TEXT
+    - type: TEXT
       id: advertised_text
       max_length: 10
