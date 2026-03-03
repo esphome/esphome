@@ -14,7 +14,8 @@ struct NamedAudioFile {
   const char *file_id;
 };
 
-inline StaticVector<NamedAudioFile, AUDIO_FILE_MAX_FILES> named_audio_files;  // NOLINT
+inline StaticVector<NamedAudioFile, AUDIO_FILE_MAX_FILES>
+    named_audio_files;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 inline void add_named_audio_file(audio::AudioFile *file, const char *file_id) {
   named_audio_files.push_back({file, file_id});
