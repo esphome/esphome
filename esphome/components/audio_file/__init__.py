@@ -21,7 +21,8 @@ from esphome.external_files import download_content
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@kahrendt"]
-DEPENDENCIES = ["audio"]
+
+AUTO_LOAD = ["audio"]
 
 DOMAIN = "audio_file"
 
