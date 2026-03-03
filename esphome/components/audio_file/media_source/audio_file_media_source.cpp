@@ -249,7 +249,7 @@ void AudioFileMediaSource::delete_decode_task_() {
 void AudioFileMediaSource::decode_task(void *params) {
   AudioFileMediaSource *this_source = static_cast<AudioFileMediaSource *>(params);
 
-  {  // Ensures C++ objects fall out of scope before task is deleted
+  do {  // do-while(false) ensures RAII objects are destroyed on all exit paths via break
 
     xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_STARTING);
 
@@ -259,8 +259,8 @@ void AudioFileMediaSource::decode_task(void *params) {
     esp_err_t err = decoder->start(this_source->current_file_->file_type);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to start decoder: %s", esp_err_to_name(err));
-      xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_ERROR | EventGroupBits::TASK_STOPPED);
-      vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
+      xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_ERROR | EventGroupBits::TASK_STOPPING);
+      break;
     }
 
     // Add the file as a const data source
@@ -332,8 +332,12 @@ void AudioFileMediaSource::decode_task(void *params) {
         }
       }
     }
+
     xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_STOPPING);
-  }
+  } while (false);
+
+  // All RAII objects from the do-while block (decoder, audio_sink, etc.) are now destroyed.
+
   xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_STOPPED);
   vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
 }
