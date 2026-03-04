@@ -343,19 +343,19 @@ void APIConnection::on_disconnect_response() {
   this->flags_.remove = true;
 }
 
-uint16_t APIConnection::fill_and_encode_entity_state_(EntityBase *entity, StateResponseProtoMessage &msg,
-                                                      CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
-                                                      APIConnection *conn, uint32_t remaining_size) {
+uint16_t APIConnection::fill_and_encode_entity_state(EntityBase *entity, StateResponseProtoMessage &msg,
+                                                     CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
+                                                     APIConnection *conn, uint32_t remaining_size) {
   msg.key = entity->get_object_id_hash();
 #ifdef USE_DEVICES
   msg.device_id = entity->get_device_id();
 #endif
-  return encode_to_buffer_(size_fn(&msg), encode_fn, &msg, conn, remaining_size);
+  return encode_to_buffer(size_fn(&msg), encode_fn, &msg, conn, remaining_size);
 }
 
-uint16_t APIConnection::fill_and_encode_entity_info_(EntityBase *entity, InfoResponseProtoMessage &msg,
-                                                     CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
-                                                     APIConnection *conn, uint32_t remaining_size) {
+uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                                    CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
+                                                    APIConnection *conn, uint32_t remaining_size) {
   // Set common fields that are shared by all entity types
   msg.key = entity->get_object_id_hash();
 
@@ -363,7 +363,7 @@ uint16_t APIConnection::fill_and_encode_entity_info_(EntityBase *entity, InfoRes
   // For older clients, we must send object_id for backward compatibility
   // See: https://github.com/esphome/backlog/issues/76
   // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
-  // Buffer must remain in scope until encode_to_buffer_ is called
+  // Buffer must remain in scope until encode_to_buffer is called
   char object_id_buf[OBJECT_ID_MAX_LEN];
   if (!conn->client_supports_api_version(1, 14)) {
     msg.object_id = entity->get_object_id_to(object_id_buf);
@@ -383,15 +383,17 @@ uint16_t APIConnection::fill_and_encode_entity_info_(EntityBase *entity, InfoRes
 #ifdef USE_DEVICES
   msg.device_id = entity->get_device_id();
 #endif
-  return encode_to_buffer_(size_fn(&msg), encode_fn, &msg, conn, remaining_size);
+  return encode_to_buffer(size_fn(&msg), encode_fn, &msg, conn, remaining_size);
 }
 
-uint16_t APIConnection::fill_and_encode_entity_info_with_device_class_(
-    EntityBase *entity, InfoResponseProtoMessage &msg, StringRef &device_class_field, CalculateSizeFn size_fn,
-    MessageEncodeFn encode_fn, APIConnection *conn, uint32_t remaining_size) {
+uint16_t APIConnection::fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                                                      StringRef &device_class_field,
+                                                                      CalculateSizeFn size_fn,
+                                                                      MessageEncodeFn encode_fn, APIConnection *conn,
+                                                                      uint32_t remaining_size) {
   char dc_buf[MAX_DEVICE_CLASS_LENGTH];
   device_class_field = StringRef(entity->get_device_class_to(dc_buf));
-  return fill_and_encode_entity_info_(entity, msg, size_fn, encode_fn, conn, remaining_size);
+  return fill_and_encode_entity_info(entity, msg, size_fn, encode_fn, conn, remaining_size);
 }
 
 #ifdef USE_BINARY_SENSOR
@@ -1876,8 +1878,8 @@ bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, M
 }
 // Encodes a message to the buffer and returns the total number of bytes used,
 // including header and footer overhead. Returns 0 if the message doesn't fit.
-uint16_t APIConnection::encode_to_buffer_(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
-                                          APIConnection *conn, uint32_t remaining_size) {
+uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
+                                         APIConnection *conn, uint32_t remaining_size) {
   // Cache frame sizes to avoid repeated virtual calls
   const uint8_t header_padding = conn->helper_->frame_header_padding();
   const uint8_t footer_size = conn->helper_->frame_footer_size();

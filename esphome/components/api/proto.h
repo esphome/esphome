@@ -367,8 +367,8 @@ class ProtoWriteBuffer {
   /// Templated so concrete message type is preserved for direct encode/calculate_size calls.
   template<typename T> void encode_message(uint32_t field_id, const T &value, bool force = true);
   // Non-template core for encode_message — all buffer work happens here
-  void encode_message_(uint32_t field_id, uint32_t msg_length_bytes, const void *value,
-                       void (*encode_fn)(const void *, ProtoWriteBuffer &), bool force);
+  void encode_message(uint32_t field_id, uint32_t msg_length_bytes, const void *value,
+                      void (*encode_fn)(const void *, ProtoWriteBuffer &), bool force);
   std::vector<uint8_t> *get_buffer() const { return buffer_; }
 
  protected:
@@ -936,14 +936,14 @@ inline void ProtoWriteBuffer::encode_packed_sint32(uint32_t field_id, const std:
 // Implementation of encode_message - must be after ProtoMessage is defined
 template<typename T> inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const T &value, bool force) {
   uint32_t msg_length_bytes = value.calculate_size();
-  this->encode_message_(
+  this->encode_message(
       field_id, msg_length_bytes, &value,
       [](const void *msg, ProtoWriteBuffer &buf) { static_cast<const T *>(msg)->encode(buf); }, force);
 }
 
 // Non-template core for encode_message
-inline void ProtoWriteBuffer::encode_message_(uint32_t field_id, uint32_t msg_length_bytes, const void *value,
-                                              void (*encode_fn)(const void *, ProtoWriteBuffer &), bool force) {
+inline void ProtoWriteBuffer::encode_message(uint32_t field_id, uint32_t msg_length_bytes, const void *value,
+                                             void (*encode_fn)(const void *, ProtoWriteBuffer &), bool force) {
   if (msg_length_bytes == 0 && !force)
     return;
   this->encode_field_raw(field_id, 2);

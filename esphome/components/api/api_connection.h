@@ -269,9 +269,9 @@ class APIConnection final : public APIServerConnectionBase {
     this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));
 #endif
     if constexpr (T::ESTIMATED_SIZE == 0) {
-      return this->send_message_(0, T::MESSAGE_TYPE, &encode_msg_noop_, &msg);
+      return this->send_message_(0, T::MESSAGE_TYPE, &encode_msg_noop, &msg);
     } else {
-      return this->send_message_(msg.calculate_size(), T::MESSAGE_TYPE, &encode_msg_<T>, &msg);
+      return this->send_message_(msg.calculate_size(), T::MESSAGE_TYPE, &encode_msg<T>, &msg);
     }
   }
 
@@ -339,14 +339,14 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   // Shared no-op encode thunk for empty messages (ESTIMATED_SIZE == 0)
-  static void encode_msg_noop_(const void *, ProtoWriteBuffer &) {}
+  static void encode_msg_noop(const void *, ProtoWriteBuffer &) {}
 
   // Non-template buffer management for send_message
   bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
 
   // Non-template buffer management for batch encoding
-  static uint16_t encode_to_buffer_(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
-                                    APIConnection *conn, uint32_t remaining_size);
+  static uint16_t encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
+                                   APIConnection *conn, uint32_t remaining_size);
 
   // Thin template wrapper — computes size, delegates buffer work to non-template helper
   template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
@@ -358,49 +358,49 @@ class APIConnection final : public APIServerConnectionBase {
     }
 #endif
     if constexpr (T::ESTIMATED_SIZE == 0) {
-      return encode_to_buffer_(0, &encode_msg_noop_, &msg, conn, remaining_size);
+      return encode_to_buffer(0, &encode_msg_noop, &msg, conn, remaining_size);
     } else {
-      return encode_to_buffer_(msg.calculate_size(), &encode_msg_<T>, &msg, conn, remaining_size);
+      return encode_to_buffer(msg.calculate_size(), &encode_msg<T>, &msg, conn, remaining_size);
     }
   }
 
   // Non-template core — fills state fields and encodes
-  static uint16_t fill_and_encode_entity_state_(EntityBase *entity, StateResponseProtoMessage &msg,
-                                                CalculateSizeFn size_fn, MessageEncodeFn encode_fn, APIConnection *conn,
-                                                uint32_t remaining_size);
-
-  // Thin template wrapper
-  template<typename T>
-  static uint16_t fill_and_encode_entity_state(EntityBase *entity, T &msg, APIConnection *conn,
-                                               uint32_t remaining_size) {
-    return fill_and_encode_entity_state_(entity, msg, &calc_size_<T>, &encode_msg_<T>, conn, remaining_size);
-  }
-
-  // Non-template core — fills info fields, allocates buffers, and encodes
-  static uint16_t fill_and_encode_entity_info_(EntityBase *entity, InfoResponseProtoMessage &msg,
+  static uint16_t fill_and_encode_entity_state(EntityBase *entity, StateResponseProtoMessage &msg,
                                                CalculateSizeFn size_fn, MessageEncodeFn encode_fn, APIConnection *conn,
                                                uint32_t remaining_size);
 
   // Thin template wrapper
   template<typename T>
-  static uint16_t fill_and_encode_entity_info(EntityBase *entity, T &msg, APIConnection *conn,
-                                              uint32_t remaining_size) {
-    return fill_and_encode_entity_info_(entity, msg, &calc_size_<T>, &encode_msg_<T>, conn, remaining_size);
+  static uint16_t fill_and_encode_entity_state(EntityBase *entity, T &msg, APIConnection *conn,
+                                               uint32_t remaining_size) {
+    return fill_and_encode_entity_state(entity, msg, &calc_size<T>, &encode_msg<T>, conn, remaining_size);
   }
 
-  // Non-template core — fills device_class, then delegates to fill_and_encode_entity_info_
-  static uint16_t fill_and_encode_entity_info_with_device_class_(EntityBase *entity, InfoResponseProtoMessage &msg,
-                                                                 StringRef &device_class_field, CalculateSizeFn size_fn,
-                                                                 MessageEncodeFn encode_fn, APIConnection *conn,
-                                                                 uint32_t remaining_size);
+  // Non-template core — fills info fields, allocates buffers, and encodes
+  static uint16_t fill_and_encode_entity_info(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                              CalculateSizeFn size_fn, MessageEncodeFn encode_fn, APIConnection *conn,
+                                              uint32_t remaining_size);
+
+  // Thin template wrapper
+  template<typename T>
+  static uint16_t fill_and_encode_entity_info(EntityBase *entity, T &msg, APIConnection *conn,
+                                              uint32_t remaining_size) {
+    return fill_and_encode_entity_info(entity, msg, &calc_size<T>, &encode_msg<T>, conn, remaining_size);
+  }
+
+  // Non-template core — fills device_class, then delegates to fill_and_encode_entity_info
+  static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                                                StringRef &device_class_field, CalculateSizeFn size_fn,
+                                                                MessageEncodeFn encode_fn, APIConnection *conn,
+                                                                uint32_t remaining_size);
 
   // Thin template wrapper
   template<typename T>
   static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, T &msg,
                                                                 StringRef &device_class_field, APIConnection *conn,
                                                                 uint32_t remaining_size) {
-    return fill_and_encode_entity_info_with_device_class_(entity, msg, device_class_field, &calc_size_<T>,
-                                                          &encode_msg_<T>, conn, remaining_size);
+    return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &calc_size<T>, &encode_msg<T>,
+                                                         conn, remaining_size);
   }
 
 #ifdef USE_VOICE_ASSISTANT
