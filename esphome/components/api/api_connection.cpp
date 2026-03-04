@@ -344,17 +344,19 @@ void APIConnection::on_disconnect_response() {
 }
 
 uint16_t APIConnection::fill_and_encode_entity_state_(EntityBase *entity, StateResponseProtoMessage &msg,
-                                                      uint32_t calculated_size, MessageEncodeFn encode_fn,
+                                                      CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
                                                       APIConnection *conn, uint32_t remaining_size) {
   msg.key = entity->get_object_id_hash();
 #ifdef USE_DEVICES
   msg.device_id = entity->get_device_id();
 #endif
-  return encode_to_buffer_(calculated_size, encode_fn, &msg, conn, remaining_size);
+  ProtoSize proto_size;
+  size_fn(&msg, proto_size);
+  return encode_to_buffer_(proto_size.get_size(), encode_fn, &msg, conn, remaining_size);
 }
 
 uint16_t APIConnection::fill_and_encode_entity_info_(EntityBase *entity, InfoResponseProtoMessage &msg,
-                                                     uint32_t calculated_size, MessageEncodeFn encode_fn,
+                                                     CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
                                                      APIConnection *conn, uint32_t remaining_size) {
   msg.key = entity->get_object_id_hash();
 
@@ -380,15 +382,17 @@ uint16_t APIConnection::fill_and_encode_entity_info_(EntityBase *entity, InfoRes
 #ifdef USE_DEVICES
   msg.device_id = entity->get_device_id();
 #endif
-  return encode_to_buffer_(calculated_size, encode_fn, &msg, conn, remaining_size);
+  ProtoSize proto_size;
+  size_fn(&msg, proto_size);
+  return encode_to_buffer_(proto_size.get_size(), encode_fn, &msg, conn, remaining_size);
 }
 
 uint16_t APIConnection::fill_and_encode_entity_info_with_device_class_(
-    EntityBase *entity, InfoResponseProtoMessage &msg, StringRef &device_class_field, uint32_t calculated_size,
+    EntityBase *entity, InfoResponseProtoMessage &msg, StringRef &device_class_field, CalculateSizeFn size_fn,
     MessageEncodeFn encode_fn, APIConnection *conn, uint32_t remaining_size) {
   char dc_buf[MAX_DEVICE_CLASS_LENGTH];
   device_class_field = StringRef(entity->get_device_class_to(dc_buf));
-  return fill_and_encode_entity_info_(entity, msg, calculated_size, encode_fn, conn, remaining_size);
+  return fill_and_encode_entity_info_(entity, msg, size_fn, encode_fn, conn, remaining_size);
 }
 
 #ifdef USE_BINARY_SENSOR
