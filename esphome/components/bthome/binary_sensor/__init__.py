@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_DEVICE_CLASS, CONF_TYPE
+from esphome.const import CONF_DEVICE_CLASS, CONF_DEVICE_ID, CONF_TYPE
 
 from .. import BTHomeBinarySensor, RemoteDevice, add_handler
 from ..bthome import (
@@ -14,8 +14,6 @@ from ..bthome import (
 CODEOWNERS = ["@jpeletier"]
 
 DEPENDENCIES = ["bthome", "binary_sensor"]
-
-CONF_REMOTE_ID = "remote_id"
 
 
 def _apply_object_type_defaults(config):
@@ -30,7 +28,7 @@ def _apply_object_type_defaults(config):
 CONFIG_SCHEMA = cv.All(
     binary_sensor.binary_sensor_schema(class_=BTHomeBinarySensor).extend(
         {
-            cv.Required(CONF_REMOTE_ID): cv.use_id(RemoteDevice),
+            cv.Required(CONF_DEVICE_ID): cv.use_id(RemoteDevice),
             cv.Required(CONF_TYPE): bthome_object_type_validator(
                 BTHomeObjectTypeKind.BINARY_SENSOR
             ),
@@ -46,7 +44,7 @@ async def to_code(config):
     cg.add(var.set_object_type(bthome_object_types.__getattr__(object_type_key)))
     await add_handler(
         var,
-        config[CONF_REMOTE_ID],
+        config[CONF_DEVICE_ID],
         BTHOME_OBJECT_TYPES[object_type_key].object_id,
     )
     await cg.register_component(var, config)
