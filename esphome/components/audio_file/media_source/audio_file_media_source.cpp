@@ -138,7 +138,8 @@ void AudioFileMediaSource::loop() {
 
 // Called from the orchestrator's main loop, so no synchronization needed with loop()
 bool AudioFileMediaSource::play_uri(const std::string &uri) {
-  if (!this->is_ready() || this->is_failed() || this->status_has_error() || !this->has_listener()) {
+  if (!this->is_ready() || this->is_failed() || this->status_has_error() || !this->has_listener() ||
+      xEventGroupGetBits(this->event_group_) & REQUEST_START) {
     return false;
   }
 
