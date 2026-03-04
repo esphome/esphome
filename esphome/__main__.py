@@ -44,7 +44,9 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     ENV_NOGITIGNORE,
+    KEY_CORE,
     KEY_NATIVE_IDF,
+    KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -56,6 +58,7 @@ from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
 from esphome.util import (
+    get_rp2040_mass_storage_volumes,
     get_serial_ports,
     list_yaml_files,
     run_external_command,
@@ -67,6 +70,15 @@ _LOGGER = logging.getLogger(__name__)
 
 # Maximum buffer size for serial log reading to prevent unbounded memory growth
 SERIAL_BUFFER_MAX_SIZE = 65536
+
+_RP2040_BOOTSEL_INSTRUCTIONS = (
+    "To enter BOOTSEL mode:\n"
+    "  1. Unplug the device\n"
+    "  2. Hold the BOOT/BOOTSEL button\n"
+    "  3. Plug in the USB cable while holding the button\n"
+    "  4. Release the button - the device should appear as a USB drive (RPI-RP2)\n"
+    "Then run the upload command again."
+)
 
 # Special non-component keys that appear in configs
 _NON_COMPONENT_KEYS = frozenset(
@@ -163,6 +175,7 @@ class PortType(StrEnum):
     NETWORK = "NETWORK"
     MQTT = "MQTT"
     MQTTIP = "MQTTIP"
+    MASS_STORAGE = "MASS_STORAGE"
 
 
 # Magic MQTT port types that require special handling
@@ -241,6 +254,15 @@ def choose_upload_log_host(
         (f"{port.path} ({port.description})", port.path) for port in get_serial_ports()
     ]
 
+    # Add RP2040 mass storage volumes when uploading
+    if (
+        purpose == Purpose.UPLOADING
+        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+    ):
+        for vol in get_rp2040_mass_storage_volumes():
+            # Use MS: prefix so get_port_type() identifies as MASS_STORAGE
+            options.append((f"{vol.path} ({vol.description})", f"MS:{vol.path}"))
+
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():
             mqtt_config = CORE.config[CONF_MQTT]
@@ -257,6 +279,21 @@ def choose_upload_log_host(
             options.append((f"Over The Air ({CORE.address})", CORE.address))
         if has_mqtt_ip_lookup():
             options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+
+    # Show helpful BOOTSEL instructions for RP2040 when no USB device is found
+    if (
+        purpose == Purpose.UPLOADING
+        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+        and not any(
+            get_port_type(opt[1]) in (PortType.SERIAL, PortType.MASS_STORAGE)
+            for opt in options
+        )
+    ):
+        if not options:
+            raise EsphomeError(
+                f"No RP2040 device found. {_RP2040_BOOTSEL_INSTRUCTIONS}"
+            )
+        _LOGGER.info("Tip: %s", _RP2040_BOOTSEL_INSTRUCTIONS)
 
     if check_default is not None and check_default in [opt[1] for opt in options]:
         return [check_default]
@@ -404,10 +441,13 @@ def get_port_type(port: str) -> PortType:
 
     Returns:
         PortType.SERIAL for serial ports (/dev/ttyUSB0, COM1, etc.)
+        PortType.MASS_STORAGE for RP2040 BOOTSEL mass storage volumes
         PortType.MQTT for MQTT logging
         PortType.MQTTIP for MQTT IP lookup
         PortType.NETWORK for IP addresses, hostnames, or mDNS names
     """
+    if port.startswith("MS:"):
+        return PortType.MASS_STORAGE
     if port.startswith("/") or port.startswith("COM"):
         return PortType.SERIAL
     if port == "MQTT":
@@ -695,13 +735,101 @@ def upload_using_esptool(
     return run_esptool(115200)
 
 
-def upload_using_platformio(config: ConfigType, port: str):
+def upload_using_platformio(config: ConfigType, port: str) -> int:
     from esphome import platformio_api
 
     upload_args = ["-t", "upload", "-t", "nobuild"]
     if port is not None:
         upload_args += ["--upload-port", port]
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+
+
+def upload_using_uf2_copy(config: ConfigType, mount_path: str) -> int:
+    """Upload firmware to RP2040 by copying UF2 file to mass storage volume.
+
+    When an RP2040 is in BOOTSEL mode, it appears as a USB mass storage device.
+    Firmware can be uploaded by simply copying the .uf2 file to the volume.
+    """
+    from esphome import platformio_api
+    from esphome.helpers import ProgressBar
+
+    idedata = platformio_api.get_idedata(config)
+    build_dir = Path(idedata.firmware_elf_path).parent
+    uf2_file = build_dir / "firmware.uf2"
+
+    if not uf2_file.exists():
+        _LOGGER.error(
+            "UF2 firmware file not found at %s. Make sure the project has been compiled first.",
+            uf2_file,
+        )
+        return 1
+
+    dest_dir = Path(mount_path)
+    if not dest_dir.is_dir():
+        _LOGGER.error(
+            "Mass storage volume %s is no longer available. "
+            "Is the RP2040 still in BOOTSEL mode?",
+            mount_path,
+        )
+        return 1
+
+    dest_file = dest_dir / uf2_file.name
+    file_size = uf2_file.stat().st_size
+    _LOGGER.info("Uploading UF2 firmware to %s (%s bytes)", mount_path, file_size)
+
+    progress = ProgressBar()
+    try:
+        chunk_size = 65536
+        bytes_written = 0
+        with open(uf2_file, "rb") as src, open(dest_file, "wb") as dst:
+            while True:
+                chunk = src.read(chunk_size)
+                if not chunk:
+                    break
+                dst.write(chunk)
+                dst.flush()
+                os.fsync(dst.fileno())
+                bytes_written += len(chunk)
+                progress.update(bytes_written / file_size)
+        progress.done()
+    except OSError as err:
+        progress.done()
+        _LOGGER.error("Failed to copy UF2 file to %s: %s", mount_path, err)
+        return 1
+
+    _LOGGER.info(
+        "Successfully copied firmware to %s. "
+        "The device will automatically reset and run the new firmware.",
+        mount_path,
+    )
+    return 0
+
+
+def _wait_for_serial_port(port: str | None = None, timeout: float = 30.0) -> None:
+    """Wait for a serial port to appear, e.g. after a device reboot.
+
+    USB-CDC devices disappear briefly after flashing while the device
+    reboots and re-enumerates on the USB bus.
+
+    If port is given, wait for that specific path. Otherwise wait for
+    any serial port to appear.
+    """
+    if port is not None and os.access(port, os.F_OK):
+        return
+    if port is not None:
+        _LOGGER.info("Waiting for %s to come online...", port)
+    else:
+        _LOGGER.info("Waiting for device to reboot...")
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
+        time.sleep(0.05)
+        if port is not None:
+            if os.access(port, os.F_OK):
+                time.sleep(0.05)
+                return
+        elif get_serial_ports():
+            time.sleep(0.05)
+            return
 
 
 def check_permissions(port: str):
@@ -733,7 +861,17 @@ def upload_program(
     except AttributeError:
         pass
 
-    if get_port_type(host) == PortType.SERIAL:
+    port_type = get_port_type(host)
+
+    if port_type == PortType.MASS_STORAGE:
+        # Strip the MS: prefix to get the actual mount path
+        mount_path = host[3:]
+        exit_code = upload_using_uf2_copy(config, mount_path)
+        # Return None for device - mass storage can't be used for logging,
+        # so command_run will show the interactive chooser for log source
+        return exit_code, None
+
+    if port_type == PortType.SERIAL:
         check_permissions(host)
 
         exit_code = 1
@@ -787,6 +925,7 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     port_type = get_port_type(port)
 
     if port_type == PortType.SERIAL:
+        _wait_for_serial_port(port)
         check_permissions(port)
         return run_miniterm(config, port, args)
 
@@ -934,6 +1073,18 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     if args.no_logs:
         return 0
+
+    # After mass storage upload, wait for the serial port to reappear
+    # so it shows up in the log chooser
+    if (
+        successful_device is None
+        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+    ):
+        _wait_for_serial_port()
+        # If exactly one serial port appeared, use it directly
+        serial_ports = get_serial_ports()
+        if len(serial_ports) == 1:
+            successful_device = serial_ports[0].path
 
     # For logs, prefer the device we successfully uploaded to
     devices = choose_upload_log_host(

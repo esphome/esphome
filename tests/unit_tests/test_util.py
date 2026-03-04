@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -402,3 +403,51 @@ def test_shlex_quote_edge_cases() -> None:
     assert util.shlex_quote("\t") == "'\t'"
     assert util.shlex_quote("\n") == "'\n'"
     assert util.shlex_quote("   ") == "'   '"
+
+
+def test_get_rp2040_mass_storage_volumes_macos(tmp_path: Path) -> None:
+    """Test RP2040 mass storage detection on macOS."""
+    volumes_dir = tmp_path / "Volumes"
+    volumes_dir.mkdir()
+    rpi_vol = volumes_dir / "RPI-RP2"
+    rpi_vol.mkdir()
+
+    with (
+        patch("esphome.util.sys") as mock_sys,
+        patch("esphome.util.Path") as mock_path_cls,
+    ):
+        mock_sys.platform = "darwin"
+        # Make Path("/Volumes") return our tmp_path version
+        mock_path_cls.side_effect = lambda p: (
+            volumes_dir if p == "/Volumes" else Path(p)
+        )
+
+        result = util.get_rp2040_mass_storage_volumes()
+
+    assert len(result) == 1
+    assert result[0].description == "RP2040 BOOTSEL"
+
+
+def test_get_rp2040_mass_storage_volumes_none_found(tmp_path: Path) -> None:
+    """Test RP2040 mass storage detection when no volumes found."""
+    # Point at an empty directory so no RPI-RP2* matches
+    empty_dir = tmp_path / "Volumes"
+    empty_dir.mkdir()
+
+    with (
+        patch("esphome.util.sys.platform", "darwin"),
+        patch(
+            "esphome.util.Path",
+            side_effect=lambda p: empty_dir if p == "/Volumes" else Path(p),
+        ),
+    ):
+        result = util.get_rp2040_mass_storage_volumes()
+
+    assert result == []
+
+
+def test_mass_storage_volume_attributes() -> None:
+    """Test MassStorageVolume class attributes."""
+    vol = util.MassStorageVolume(Path("/Volumes/RPI-RP2"), "RP2040 BOOTSEL")
+    assert vol.path == Path("/Volumes/RPI-RP2")
+    assert vol.description == "RP2040 BOOTSEL"
