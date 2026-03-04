@@ -70,7 +70,9 @@ async def to_code(config):
 
     if CONF_CURRENT_TEMPERATURE in config:
         template_ = await cg.process_lambda(
-            config[CONF_CURRENT_TEMPERATURE], [], return_type=cg.optional.template(float)
+            config[CONF_CURRENT_TEMPERATURE],
+            [],
+            return_type=cg.optional.template(float),
         )
         cg.add(var.set_current_temperature_lambda(template_))
 
