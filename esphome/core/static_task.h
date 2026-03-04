@@ -15,7 +15,10 @@ namespace esphome {
 class StaticTask {
  public:
   /// @brief Check if the task has been created and not yet destroyed.
-  bool is_running() const { return this->handle_ != nullptr; }
+  bool is_created() const { return this->handle_ != nullptr; }
+
+  /// @brief Get the FreeRTOS task handle.
+  TaskHandle_t get_handle() const { return this->handle_; }
 
   /// @brief Allocate stack and create task.
   /// @param fn         Task function
