@@ -67,15 +67,18 @@ void Canbus::add_trigger(CanbusTrigger *trigger) {
 
 void Canbus::loop() {
   struct CanFrame can_message;
-  // read all messages until queue is empty
-  int message_counter = 0;
-  while (this->read_message(&can_message) == canbus::ERROR_OK) {
-    message_counter++;
+  uint32_t message_counter = 0;
+  for (; message_counter < this->max_frames_per_loop_; message_counter++) {
+    if (this->read_message(&can_message) != canbus::ERROR_OK) {
+      break;
+    }
+
     if (can_message.use_extended_id) {
-      ESP_LOGD(TAG, "received can message (#%d) extended can_id=0x%" PRIx32 " size=%d", message_counter,
+      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") extended can_id=0x%" PRIx32 " size=%d", message_counter + 1,
                can_message.can_id, can_message.can_data_length_code);
     } else {
-      ESP_LOGD(TAG, "received can message (#%d) std can_id=0x%" PRIx32 " size=%d", message_counter, can_message.can_id,
+      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") std can_id=0x%" PRIx32 " size=%d", message_counter + 1,
+               can_message.can_id,
                can_message.can_data_length_code);
     }
 
@@ -99,6 +102,10 @@ void Canbus::loop() {
         trigger->trigger(data, can_message.can_id, can_message.remote_transmission_request);
       }
     }
+  }
+
+  if (message_counter == this->max_frames_per_loop_) {
+    ESP_LOGW(TAG, "Reached max_frames_per_loop=%" PRIu32 ", deferring remaining CAN frames", this->max_frames_per_loop_);
   }
 }
 

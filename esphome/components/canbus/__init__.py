@@ -16,6 +16,7 @@ CONF_REMOTE_TRANSMISSION_REQUEST = "remote_transmission_request"
 CONF_CANBUS_ID = "canbus_id"
 CONF_BIT_RATE = "bit_rate"
 CONF_ON_FRAME = "on_frame"
+CONF_MAX_FRAMES_PER_LOOP = "max_frames_per_loop"
 
 
 def validate_id(config):
@@ -85,6 +86,7 @@ CANBUS_SCHEMA = cv.Schema(
         cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
         cv.Optional(CONF_BIT_RATE, default="125KBPS"): cv.enum(CAN_SPEEDS, upper=True),
         cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
+        cv.Optional(CONF_MAX_FRAMES_PER_LOOP, default=50): cv.positive_int,
         cv.Optional(CONF_ON_FRAME): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
@@ -108,6 +110,7 @@ async def setup_canbus_core_(var, config):
     cg.add(var.set_can_id([config[CONF_CAN_ID]]))
     cg.add(var.set_use_extended_id([config[CONF_USE_EXTENDED_ID]]))
     cg.add(var.set_bitrate(CAN_SPEEDS[config[CONF_BIT_RATE]]))
+    cg.add(var.set_max_frames_per_loop(config[CONF_MAX_FRAMES_PER_LOOP]))
 
     for conf in config.get(CONF_ON_FRAME, []):
         can_id = conf[CONF_CAN_ID]
