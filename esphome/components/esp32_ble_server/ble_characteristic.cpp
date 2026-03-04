@@ -210,10 +210,10 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       esp_gatt_rsp_t response;
       if (param->read.is_long) {
         if (this->value_read_offset_ >= this->value_.size()) {
+          response.attr_value.len = 0;
+          response.attr_value.offset = this->value_read_offset_;
           this->value_read_offset_ = 0;
-          break;
-        }
-        if (this->value_.size() - this->value_read_offset_ < max_offset) {
+        } else if (this->value_.size() - this->value_read_offset_ < max_offset) {
           //  Last message in the chain
           response.attr_value.len = this->value_.size() - this->value_read_offset_;
           response.attr_value.offset = this->value_read_offset_;
