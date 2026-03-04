@@ -1868,6 +1868,13 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
 }
 bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn,
                                   const void *msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  {
+    auto *proto_msg = static_cast<const ProtoMessage *>(msg);
+    DumpBuffer dump_buf;
+    this->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
+  }
+#endif
   auto &shared_buf = this->parent_->get_shared_buffer_ref();
   this->prepare_first_message_buffer(shared_buf, payload_size);
   size_t write_start = shared_buf.size();
@@ -1880,6 +1887,14 @@ bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, M
 // including header and footer overhead. Returns 0 if the message doesn't fit.
 uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
                                          APIConnection *conn, uint32_t remaining_size) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  if (conn->flags_.log_only_mode) {
+    auto *proto_msg = static_cast<const ProtoMessage *>(msg);
+    DumpBuffer dump_buf;
+    conn->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
+    return 1;
+  }
+#endif
   // Cache frame sizes to avoid repeated virtual calls
   const uint8_t header_padding = conn->helper_->frame_header_padding();
   const uint8_t footer_size = conn->helper_->frame_footer_size();

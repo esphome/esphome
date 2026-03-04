@@ -264,10 +264,6 @@ class APIConnection final : public APIServerConnectionBase {
   using CalculateSizeFn = uint32_t (*)(const void *);
 
   template<typename T> bool send_message(const T &msg) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-    DumpBuffer dump_buf;
-    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));
-#endif
     if constexpr (T::ESTIMATED_SIZE == 0) {
       return this->send_message_(0, T::MESSAGE_TYPE, &encode_msg_noop, &msg);
     } else {
@@ -350,13 +346,6 @@ class APIConnection final : public APIServerConnectionBase {
 
   // Thin template wrapper — computes size, delegates buffer work to non-template helper
   template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-    if (conn->flags_.log_only_mode) {
-      DumpBuffer dump_buf;
-      conn->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));
-      return 1;
-    }
-#endif
     if constexpr (T::ESTIMATED_SIZE == 0) {
       return encode_to_buffer(0, &encode_msg_noop, &msg, conn, remaining_size);
     } else {
