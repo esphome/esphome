@@ -16,7 +16,7 @@ class LVLight : public light::LightOutput {
   }
   void write_state(light::LightState *state) override {
     float red, green, blue;
-    state->current_values_as_rgb(&red, &green, &blue, false);
+    state->current_values_as_rgb(&red, &green, &blue);
     auto color = lv_color_make(red * 255, green * 255, blue * 255);
     if (this->obj_ != nullptr) {
       this->set_value_(color);
