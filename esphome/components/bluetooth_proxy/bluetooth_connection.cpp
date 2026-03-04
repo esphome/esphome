@@ -333,7 +333,7 @@ void BluetoothConnection::send_service_for_discovery_() {
   }
 
   // Send the message with dynamically batched services
-  api_conn->send_message(resp, api::BluetoothGATTGetServicesResponse::MESSAGE_TYPE);
+  api_conn->send_message(resp);
 }
 
 void BluetoothConnection::log_connection_error_(const char *operation, esp_gatt_status_t status) {
@@ -419,7 +419,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       resp.address = this->address_;
       resp.handle = param->read.handle;
       resp.set_data(param->read.value, param->read.value_len);
-      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTReadResponse::MESSAGE_TYPE);
+      this->proxy_->get_api_connection()->send_message(resp);
       break;
     }
     case ESP_GATTC_WRITE_CHAR_EVT:
@@ -432,7 +432,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       api::BluetoothGATTWriteResponse resp;
       resp.address = this->address_;
       resp.handle = param->write.handle;
-      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTWriteResponse::MESSAGE_TYPE);
+      this->proxy_->get_api_connection()->send_message(resp);
       break;
     }
     case ESP_GATTC_UNREG_FOR_NOTIFY_EVT: {
@@ -445,7 +445,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       api::BluetoothGATTNotifyResponse resp;
       resp.address = this->address_;
       resp.handle = param->unreg_for_notify.handle;
-      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTNotifyResponse::MESSAGE_TYPE);
+      this->proxy_->get_api_connection()->send_message(resp);
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
@@ -458,7 +458,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       api::BluetoothGATTNotifyResponse resp;
       resp.address = this->address_;
       resp.handle = param->reg_for_notify.handle;
-      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTNotifyResponse::MESSAGE_TYPE);
+      this->proxy_->get_api_connection()->send_message(resp);
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
@@ -468,7 +468,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       resp.address = this->address_;
       resp.handle = param->notify.handle;
       resp.set_data(param->notify.value, param->notify.value_len);
-      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTNotifyDataResponse::MESSAGE_TYPE);
+      this->proxy_->get_api_connection()->send_message(resp);
       break;
     }
     default:

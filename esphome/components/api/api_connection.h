@@ -123,7 +123,7 @@ class APIConnection final : public APIServerConnectionBase {
   void send_homeassistant_action(const HomeassistantActionRequest &call) {
     if (!this->flags_.service_call_subscription)
       return;
-    this->send_message(call, HomeassistantActionRequest::MESSAGE_TYPE);
+    this->send_message(call);
   }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   void on_homeassistant_action_response(const HomeassistantActionResponse &msg) override;
@@ -147,7 +147,7 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_HOMEASSISTANT_TIME
   void send_time_request() {
     GetTimeRequest req;
-    this->send_message(req, GetTimeRequest::MESSAGE_TYPE);
+    this->send_message(req);
   }
 #endif
 
@@ -257,7 +257,17 @@ class APIConnection final : public APIServerConnectionBase {
 
   void on_fatal_error() override;
   void on_no_setup_connection() override;
-  bool send_message_impl(const ProtoMessage &msg, uint8_t message_type) override;
+
+  // Function pointer type for type-erased message encoding
+  using MessageEncodeFn = void (*)(const void *, ProtoWriteBuffer &);
+
+  template<typename T> bool send_message(const T &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+    DumpBuffer dump_buf;
+    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));
+#endif
+    return this->send_message_(calculated_size_of(msg), T::MESSAGE_TYPE, &encode_msg_<T>, &msg);
+  }
 
   void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t header_padding, size_t total_size) {
     shared_buf.clear();
@@ -312,28 +322,74 @@ class APIConnection final : public APIServerConnectionBase {
   void process_state_subscriptions_();
 #endif
 
-  // Non-template helper to encode any ProtoMessage
-  static uint16_t encode_message_to_buffer(ProtoMessage &msg, uint8_t message_type, APIConnection *conn,
-                                           uint32_t remaining_size);
+  // Encode thunk — converts void* back to concrete type for direct encode() call
+  template<typename T> static void encode_msg_(const void *msg, ProtoWriteBuffer &buffer) {
+    static_cast<const T *>(msg)->encode(buffer);
+  }
+
+  // Non-template buffer management for send_message
+  bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
+
+  // Non-template buffer management for batch encoding
+  static uint16_t encode_to_buffer_(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
+                                    APIConnection *conn, uint32_t remaining_size);
+
+  // Thin template wrapper — computes size, delegates buffer work to non-template helper
+  template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+    if (conn->flags_.log_only_mode) {
+      DumpBuffer dump_buf;
+      conn->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));
+      return 1;
+    }
+#endif
+    return encode_to_buffer_(calculated_size_of(msg), &encode_msg_<T>, &msg, conn, remaining_size);
+  }
 
   // Helper to fill entity state base and encode message
-  static uint16_t fill_and_encode_entity_state(EntityBase *entity, StateResponseProtoMessage &msg, uint8_t message_type,
-                                               APIConnection *conn, uint32_t remaining_size) {
+  template<typename T>
+  static uint16_t fill_and_encode_entity_state(EntityBase *entity, T &msg, APIConnection *conn,
+                                               uint32_t remaining_size) {
     msg.key = entity->get_object_id_hash();
 #ifdef USE_DEVICES
     msg.device_id = entity->get_device_id();
 #endif
-    return encode_message_to_buffer(msg, message_type, conn, remaining_size);
+    return encode_message_to_buffer(msg, conn, remaining_size);
   }
 
-  // Helper to fill entity info base and encode message
-  static uint16_t fill_and_encode_entity_info(EntityBase *entity, InfoResponseProtoMessage &msg, uint8_t message_type,
-                                              APIConnection *conn, uint32_t remaining_size);
+  // Non-template helper to fill common entity info fields.
+  // Caller provides buffers that must remain alive until encoding completes.
+  static void fill_entity_info_(EntityBase *entity, InfoResponseProtoMessage &msg, APIConnection *conn,
+                                std::span<char, OBJECT_ID_MAX_LEN> object_id_buf
+#ifdef USE_ENTITY_ICON
+                                ,
+                                std::span<char, MAX_ICON_LENGTH> icon_buf
+#endif
+  );
+
+  // Template to fill entity info and encode
+  template<typename T>
+  static uint16_t fill_and_encode_entity_info(EntityBase *entity, T &msg, APIConnection *conn,
+                                              uint32_t remaining_size) {
+    char object_id_buf[OBJECT_ID_MAX_LEN];
+#ifdef USE_ENTITY_ICON
+    char icon_buf[MAX_ICON_LENGTH];
+    fill_entity_info_(entity, msg, conn, object_id_buf, icon_buf);
+#else
+    fill_entity_info_(entity, msg, conn, object_id_buf);
+#endif
+    return encode_message_to_buffer(msg, conn, remaining_size);
+  }
 
   // Wrapper for entity types that have a device_class field
-  static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
-                                                                StringRef &device_class_field, uint8_t message_type,
-                                                                APIConnection *conn, uint32_t remaining_size);
+  template<typename T>
+  static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, T &msg,
+                                                                StringRef &device_class_field, APIConnection *conn,
+                                                                uint32_t remaining_size) {
+    char dc_buf[MAX_DEVICE_CLASS_LENGTH];
+    device_class_field = StringRef(entity->get_device_class_to(dc_buf));
+    return fill_and_encode_entity_info(entity, msg, conn, remaining_size);
+  }
 
 #ifdef USE_VOICE_ASSISTANT
   // Helper to check voice assistant validity and connection ownership

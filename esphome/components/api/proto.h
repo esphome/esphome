@@ -364,7 +364,8 @@ class ProtoWriteBuffer {
   /// Encode a packed repeated sint32 field (zero-copy from vector)
   void encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values);
   /// Encode a nested message field (force=true for repeated, false for singular)
-  void encode_message(uint32_t field_id, const ProtoMessage &value, bool force = true);
+  /// Templated so concrete message type is preserved for direct encode/calculate_size calls.
+  template<typename T> void encode_message(uint32_t field_id, const T &value, bool force = true);
   std::vector<uint8_t> *get_buffer() const { return buffer_; }
 
  protected:
@@ -452,20 +453,19 @@ class DumpBuffer {
 
 class ProtoMessage {
  public:
-  // Default implementation for messages with no fields
-  virtual void encode(ProtoWriteBuffer &buffer) const {}
-  // Default implementation for messages with no fields
-  virtual void calculate_size(ProtoSize &size) const {}
-  // Convenience: calculate and return size directly (defined after ProtoSize)
-  uint32_t calculated_size() const;
+  // Non-virtual defaults for messages with no fields.
+  // Concrete message classes hide these with their own implementations.
+  // All call sites use templates to preserve the concrete type, so virtual
+  // dispatch is not needed. This eliminates per-message vtable entries for
+  // encode/calculate_size, saving ~1.3 KB of flash across all message types.
+  void encode(ProtoWriteBuffer &buffer) const {}
+  void calculate_size(ProtoSize &size) const {}
 #ifdef HAS_PROTO_MESSAGE_DUMP
   virtual const char *dump_to(DumpBuffer &out) const = 0;
   virtual const char *message_name() const { return "unknown"; }
 #endif
 
- protected:
   // Non-virtual: messages are never deleted polymorphically.
-  // Protected prevents accidental `delete base_ptr` (compile error).
   ~ProtoMessage() = default;
 };
 
@@ -842,7 +842,7 @@ class ProtoSize {
    *
    * @param message The nested message object
    */
-  inline void add_message_object(uint32_t field_id_size, const ProtoMessage &message) {
+  template<typename T> inline void add_message_object(uint32_t field_id_size, const T &message) {
     // Calculate nested message size by creating a temporary ProtoSize
     ProtoSize nested_calc;
     message.calculate_size(nested_calc);
@@ -857,7 +857,7 @@ class ProtoSize {
    *
    * @param message The nested message object
    */
-  inline void add_message_object_force(uint32_t field_id_size, const ProtoMessage &message) {
+  template<typename T> inline void add_message_object_force(uint32_t field_id_size, const T &message) {
     // Calculate nested message size by creating a temporary ProtoSize
     ProtoSize nested_calc;
     message.calculate_size(nested_calc);
@@ -924,9 +924,11 @@ class ProtoSize {
 
 // Implementation of methods that depend on ProtoSize being fully defined
 
-inline uint32_t ProtoMessage::calculated_size() const {
+// Free template to calculate encoded size of any message type.
+// Replaces the former virtual ProtoMessage::calculated_size() member.
+template<typename T> inline uint32_t calculated_size_of(const T &msg) {
   ProtoSize size;
-  this->calculate_size(size);
+  msg.calculate_size(size);
   return size.get_size();
 }
 
@@ -950,7 +952,7 @@ inline void ProtoWriteBuffer::encode_packed_sint32(uint32_t field_id, const std:
 }
 
 // Implementation of encode_message - must be after ProtoMessage is defined
-inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessage &value, bool force) {
+template<typename T> inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const T &value, bool force) {
   // Calculate the message size first
   ProtoSize msg_size;
   value.calculate_size(msg_size);
@@ -993,14 +995,6 @@ class ProtoService {
   virtual void on_no_setup_connection() = 0;
   virtual bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) = 0;
   virtual void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) = 0;
-  /**
-   * Send a protobuf message by calculating its size, allocating a buffer, encoding, and sending.
-   * This is the implementation method - callers should use send_message() which adds logging.
-   * @param msg The protobuf message to send.
-   * @param message_type The message type identifier.
-   * @return True if the message was sent successfully, false otherwise.
-   */
-  virtual bool send_message_impl(const ProtoMessage &msg, uint8_t message_type) = 0;
 
   // Authentication helper methods
   inline bool check_connection_setup_() {

@@ -2233,7 +2233,7 @@ def build_message_type(
             o += indent("\n".join(encode)) + "\n"
             o += "}\n"
         cpp += o
-        prot = "void encode(ProtoWriteBuffer &buffer) const override;"
+        prot = "void encode(ProtoWriteBuffer &buffer) const;"
         public_content.append(prot)
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
@@ -2249,7 +2249,7 @@ def build_message_type(
             o += indent("\n".join(size_calc)) + "\n"
             o += "}\n"
         cpp += o
-        prot = "void calculate_size(ProtoSize &size) const override;"
+        prot = "void calculate_size(ProtoSize &size) const;"
         public_content.append(prot)
     # If no fields to calculate size for or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
@@ -2933,14 +2933,8 @@ static const char *const TAG = "api.service";
     hpp += " public:\n"
     hpp += "#endif\n\n"
 
-    # Add non-template send_message method
-    hpp += "  bool send_message(const ProtoMessage &msg, uint8_t message_type) {\n"
-    hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    hpp += "    DumpBuffer dump_buf;\n"
-    hpp += "    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));\n"
-    hpp += "#endif\n"
-    hpp += "    return this->send_message_impl(msg, message_type);\n"
-    hpp += "  }\n\n"
+    # send_message is now a template on APIConnection directly
+    # No non-template send_message method needed here
 
     # Add logging helper method implementations to cpp
     cpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
