@@ -1869,7 +1869,12 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
 bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn,
                                   const void *msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  {
+  // Skip dump for log messages (recursive logging risk) and camera frames (high-frequency noise)
+  if (message_type != SubscribeLogsResponse::MESSAGE_TYPE
+#ifdef USE_CAMERA
+      && message_type != CameraImageResponse::MESSAGE_TYPE
+#endif
+  ) {
     auto *proto_msg = static_cast<const ProtoMessage *>(msg);
     DumpBuffer dump_buf;
     this->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
