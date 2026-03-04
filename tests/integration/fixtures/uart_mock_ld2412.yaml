@@ -89,13 +89,12 @@ uart_mock:
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         ]
 
-    # Phase 5 (t=1600ms): Valid frame after overflow - recovery test
+    # Phase 5 (t=700ms): Valid frame after overflow - recovery test
     # Buffer was reset by overflow. This valid frame should parse correctly.
     # Moving target: 50cm, energy 100
     # Still target: 75cm, energy 80
     # detection_distance = 50 (moving target distance, since MOVE_BITMASK set)
-    # Delay ensures we're past the 1000ms throttle window from Phase 1.
-    - delay: 1000ms
+    - delay: 100ms
       inject_rx:
         [
           0xF4, 0xF3, 0xF2, 0xF1,
@@ -121,21 +120,52 @@ sensor:
     ld2412_id: ld2412_dev
     moving_distance:
       name: "Moving Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
     still_distance:
       name: "Still Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
     moving_energy:
       name: "Moving Energy"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
     still_energy:
       name: "Still Energy"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
     detection_distance:
       name: "Detection Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
 
 binary_sensor:
   - platform: ld2412
     ld2412_id: ld2412_dev
     has_target:
       name: "Has Target"
+      filters:
+        - settle: 50ms
     has_moving_target:
       name: "Has Moving Target"
+      filters:
+        - settle: 50ms
     has_still_target:
       name: "Has Still Target"
+      filters:
+        - settle: 50ms

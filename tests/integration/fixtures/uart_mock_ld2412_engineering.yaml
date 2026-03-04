@@ -58,9 +58,9 @@ uart_mock:
           0xF8, 0xF7, 0xF6, 0xF5,
         ]
 
-    # Phase 2 (t=2100ms): Second engineering mode frame with different values
+    # Phase 2 (t=200ms): Second engineering mode frame with different values
     # Moving at 73cm, still at 30cm
-    - delay: 2000ms
+    - delay: 100ms
       inject_rx:
         [
           0xF4, 0xF3, 0xF2, 0xF1,
@@ -79,10 +79,10 @@ uart_mock:
           0xF8, 0xF7, 0xF6, 0xF5,
         ]
 
-    # Phase 3 (t=4100ms): Frame with still target at 291cm (multi-byte distance)
+    # Phase 3 (t=300ms): Frame with still target at 291cm (multi-byte distance)
     # This tests encode_uint16 with high byte > 0
     # Target state: 0x02 (still only) -> detection_distance = still distance = 291
-    - delay: 2000ms
+    - delay: 100ms
       inject_rx:
         [
           0xF4, 0xF3, 0xF2, 0xF1,
@@ -110,38 +110,104 @@ sensor:
     ld2412_id: ld2412_dev
     moving_distance:
       name: "Moving Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
     still_distance:
       name: "Still Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
     moving_energy:
       name: "Moving Energy"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
     still_energy:
       name: "Still Energy"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
     detection_distance:
       name: "Detection Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
     light:
       name: "Light"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
     gate_0:
       move_energy:
         name: "Gate 0 Move Energy"
+        filters:
+          - timeout:
+              timeout: 50ms
+              value: last
+          - throttle_with_priority: 50ms
       still_energy:
         name: "Gate 0 Still Energy"
+        filters:
+          - timeout:
+              timeout: 50ms
+              value: last
+          - throttle_with_priority: 50ms
     gate_1:
       move_energy:
         name: "Gate 1 Move Energy"
+        filters:
+          - timeout:
+              timeout: 50ms
+              value: last
+          - throttle_with_priority: 50ms
       still_energy:
         name: "Gate 1 Still Energy"
+        filters:
+          - timeout:
+              timeout: 50ms
+              value: last
+          - throttle_with_priority: 50ms
     gate_2:
       move_energy:
         name: "Gate 2 Move Energy"
+        filters:
+          - timeout:
+              timeout: 50ms
+              value: last
+          - throttle_with_priority: 50ms
       still_energy:
         name: "Gate 2 Still Energy"
+        filters:
+          - timeout:
+              timeout: 50ms
+              value: last
+          - throttle_with_priority: 50ms
 
 binary_sensor:
   - platform: ld2412
     ld2412_id: ld2412_dev
     has_target:
       name: "Has Target"
+      filters:
+        - settle: 50ms
     has_moving_target:
       name: "Has Moving Target"
+      filters:
+        - settle: 50ms
     has_still_target:
       name: "Has Still Target"
+      filters:
+        - settle: 50ms

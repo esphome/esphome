@@ -166,7 +166,7 @@ async def test_uart_mock_ld2412(
         # Wait for the recovery frame (Phase 5) to be parsed
         # This proves the component survived garbage + truncated + overflow
         try:
-            await asyncio.wait_for(recovery_received, timeout=5.0)
+            await asyncio.wait_for(recovery_received, timeout=3.0)
         except TimeoutError:
             pytest.fail(
                 f"Timeout waiting for recovery frame. Received sensor states:\n"
@@ -379,7 +379,7 @@ async def test_uart_mock_ld2412_engineering(
 
         # Wait for Phase 3 frame: still_distance = 291cm (multi-byte)
         try:
-            await asyncio.wait_for(phase3_still_received, timeout=5.0)
+            await asyncio.wait_for(phase3_still_received, timeout=3.0)
         except TimeoutError:
             pytest.fail(
                 f"Timeout waiting for Phase 3 still_distance. Received:\n"
@@ -395,7 +395,7 @@ async def test_uart_mock_ld2412_engineering(
         # target_state=0x02 so LD2412 uses still_distance for detection_distance.
         # The throttle_with_priority filter may delay this value.
         try:
-            await asyncio.wait_for(phase3_detect_received, timeout=5.0)
+            await asyncio.wait_for(phase3_detect_received, timeout=3.0)
         except TimeoutError:
             pytest.fail(
                 f"Timeout waiting for detection_distance=291 (still-only target). "
