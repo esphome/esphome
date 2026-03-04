@@ -279,7 +279,7 @@ class TypeInfo(ABC):
             value_expr: Optional value expression (defaults to name)
         """
         field_id_size = self.calculate_field_id_size()
-        method = f"{base_method}_force" if force else base_method
+        method = f"calc_{base_method}_force" if force else f"calc_{base_method}"
         value = value_expr or name
         return f"size += ProtoSize::{method}({field_id_size}, {value});"
 
@@ -410,7 +410,7 @@ class DoubleType(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
-        return f"size += ProtoSize::fixed64({field_id_size}, {name});"
+        return f"size += ProtoSize::calc_fixed64({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 8
@@ -434,7 +434,7 @@ class FloatType(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
-        return f"size += ProtoSize::float_({field_id_size}, {name});"
+        return f"size += ProtoSize::calc_float({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 4
@@ -518,7 +518,7 @@ class Fixed64Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
-        return f"size += ProtoSize::fixed64({field_id_size}, {name});"
+        return f"size += ProtoSize::calc_fixed64({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 8
@@ -542,7 +542,7 @@ class Fixed32Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
-        return f"size += ProtoSize::fixed32({field_id_size}, {name});"
+        return f"size += ProtoSize::calc_fixed32({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 4
@@ -654,11 +654,11 @@ class StringType(TypeInfo):
         if name == "it":
             # For repeated fields, we need to use length_force which includes field ID
             field_id_size = self.calculate_field_id_size()
-            return f"size += ProtoSize::length_force({field_id_size}, it.size());"
+            return f"size += ProtoSize::calc_length_force({field_id_size}, it.size());"
 
         # For messages that need encoding, use the StringRef size
         field_id_size = self.calculate_field_id_size()
-        return f"size += ProtoSize::length({field_id_size}, this->{self.field_name}_ref_.size());"
+        return f"size += ProtoSize::calc_length({field_id_size}, this->{self.field_name}_ref_.size());"
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
@@ -722,7 +722,7 @@ class MessageType(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
-        method = "message_force" if force else "message"
+        method = "calc_message_force" if force else "calc_message"
         return f"size += ProtoSize::{method}({field_id_size}, {name}.calculate_size());"
 
     def get_estimated_size(self) -> int:
@@ -824,7 +824,7 @@ class BytesType(TypeInfo):
         )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size += ProtoSize::length({self.calculate_field_id_size()}, this->{self.field_name}_len_);"
+        return f"size += ProtoSize::calc_length({self.calculate_field_id_size()}, this->{self.field_name}_len_);"
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical bytes
@@ -899,7 +899,7 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
         )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size += ProtoSize::length({self.calculate_field_id_size()}, this->{self.field_name}_len);"
+        return f"size += ProtoSize::calc_length({self.calculate_field_id_size()}, this->{self.field_name}_len);"
 
 
 class PointerToStringBufferType(PointerToBufferTypeBase):
@@ -941,7 +941,7 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         return f'dump_field(out, "{self.name}", this->{self.field_name});'
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size += ProtoSize::length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
+        return f"size += ProtoSize::calc_length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
@@ -1105,9 +1105,9 @@ class FixedArrayBytesType(TypeInfo):
 
         if force:
             # For repeated fields, always calculate size (no zero check)
-            return f"size += ProtoSize::length_force({field_id_size}, {length_field});"
+            return f"size += ProtoSize::calc_length_force({field_id_size}, {length_field});"
         # For non-repeated fields, length already checks for zero
-        return f"size += ProtoSize::length({field_id_size}, {length_field});"
+        return f"size += ProtoSize::calc_length({field_id_size}, {length_field});"
 
     def get_estimated_size(self) -> int:
         # Estimate based on typical BLE advertisement size
@@ -1192,7 +1192,7 @@ class SFixed32Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
-        return f"size += ProtoSize::sfixed32({field_id_size}, {name});"
+        return f"size += ProtoSize::calc_sfixed32({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 4
@@ -1216,7 +1216,7 @@ class SFixed64Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
-        return f"size += ProtoSize::sfixed64({field_id_size}, {name});"
+        return f"size += ProtoSize::calc_sfixed64({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 8
@@ -1703,7 +1703,7 @@ class RepeatedTypeInfo(TypeInfo):
             empty_check = f"{name}->empty()" if self._use_pointer else f"{name}.empty()"
             o = f"if (!{empty_check}) {{\n"
             o += f"  for (const auto &it : {container_ref}) {{\n"
-            o += f"    size += ProtoSize::message_force({field_id_size}, it.calculate_size());\n"
+            o += f"    size += ProtoSize::calc_message_force({field_id_size}, it.calculate_size());\n"
             o += "  }\n"
             o += "}"
             return o
@@ -1728,7 +1728,7 @@ class RepeatedTypeInfo(TypeInfo):
             if self._use_pointer and "const char" in self._container_no_template:
                 field_id_size = self.calculate_field_id_size()
                 o += f"  for (const char *it : {container_ref}) {{\n"
-                o += f"    size += ProtoSize::length_force({field_id_size}, strlen(it));\n"
+                o += f"    size += ProtoSize::calc_length_force({field_id_size}, strlen(it));\n"
             else:
                 auto_ref = "" if self._ti_is_bool else "&"
                 o += f"  for (const auto {auto_ref}it : {container_ref}) {{\n"

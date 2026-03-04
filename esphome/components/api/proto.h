@@ -596,59 +596,69 @@ class ProtoSize {
 
   // Static methods that RETURN size contribution (no ProtoSize object needed).
   // Used by generated calculate_size() methods to accumulate into a plain uint32_t register.
-  static constexpr uint32_t int32(uint32_t field_id_size, int32_t value) {
+  static constexpr uint32_t calc_int32(uint32_t field_id_size, int32_t value) {
     return value ? field_id_size + (value < 0 ? 10 : varint(static_cast<uint32_t>(value))) : 0;
   }
-  static constexpr uint32_t int32_force(uint32_t field_id_size, int32_t value) {
+  static constexpr uint32_t calc_int32_force(uint32_t field_id_size, int32_t value) {
     return field_id_size + (value < 0 ? 10 : varint(static_cast<uint32_t>(value)));
   }
-  static constexpr uint32_t uint32(uint32_t field_id_size, uint32_t value) {
+  static constexpr uint32_t calc_uint32(uint32_t field_id_size, uint32_t value) {
     return value ? field_id_size + varint(value) : 0;
   }
-  static constexpr uint32_t uint32_force(uint32_t field_id_size, uint32_t value) {
+  static constexpr uint32_t calc_uint32_force(uint32_t field_id_size, uint32_t value) {
     return field_id_size + varint(value);
   }
-  static constexpr uint32_t bool_(uint32_t field_id_size, bool value) { return value ? field_id_size + 1 : 0; }
-  static constexpr uint32_t bool_force(uint32_t field_id_size) { return field_id_size + 1; }
-  static constexpr uint32_t float_(uint32_t field_id_size, float value) {
+  static constexpr uint32_t calc_bool(uint32_t field_id_size, bool value) { return value ? field_id_size + 1 : 0; }
+  static constexpr uint32_t calc_bool_force(uint32_t field_id_size) { return field_id_size + 1; }
+  static constexpr uint32_t calc_float(uint32_t field_id_size, float value) {
     return value != 0.0f ? field_id_size + 4 : 0;
   }
-  static constexpr uint32_t fixed32(uint32_t field_id_size, uint32_t value) { return value ? field_id_size + 4 : 0; }
-  static constexpr uint32_t sfixed32(uint32_t field_id_size, int32_t value) { return value ? field_id_size + 4 : 0; }
-  static constexpr uint32_t sint32(uint32_t field_id_size, int32_t value) {
+  static constexpr uint32_t calc_fixed32(uint32_t field_id_size, uint32_t value) {
+    return value ? field_id_size + 4 : 0;
+  }
+  static constexpr uint32_t calc_sfixed32(uint32_t field_id_size, int32_t value) {
+    return value ? field_id_size + 4 : 0;
+  }
+  static constexpr uint32_t calc_sint32(uint32_t field_id_size, int32_t value) {
     return value ? field_id_size + varint(encode_zigzag32(value)) : 0;
   }
-  static constexpr uint32_t sint32_force(uint32_t field_id_size, int32_t value) {
+  static constexpr uint32_t calc_sint32_force(uint32_t field_id_size, int32_t value) {
     return field_id_size + varint(encode_zigzag32(value));
   }
-  static constexpr uint32_t int64(uint32_t field_id_size, int64_t value) {
+  static constexpr uint32_t calc_int64(uint32_t field_id_size, int64_t value) {
     return value ? field_id_size + varint(value) : 0;
   }
-  static constexpr uint32_t int64_force(uint32_t field_id_size, int64_t value) { return field_id_size + varint(value); }
-  static constexpr uint32_t uint64(uint32_t field_id_size, uint64_t value) {
-    return value ? field_id_size + varint(value) : 0;
-  }
-  static constexpr uint32_t uint64_force(uint32_t field_id_size, uint64_t value) {
+  static constexpr uint32_t calc_int64_force(uint32_t field_id_size, int64_t value) {
     return field_id_size + varint(value);
   }
-  static constexpr uint32_t length(uint32_t field_id_size, size_t len) {
+  static constexpr uint32_t calc_uint64(uint32_t field_id_size, uint64_t value) {
+    return value ? field_id_size + varint(value) : 0;
+  }
+  static constexpr uint32_t calc_uint64_force(uint32_t field_id_size, uint64_t value) {
+    return field_id_size + varint(value);
+  }
+  static constexpr uint32_t calc_length(uint32_t field_id_size, size_t len) {
     return len ? field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len) : 0;
   }
-  static constexpr uint32_t length_force(uint32_t field_id_size, size_t len) {
+  static constexpr uint32_t calc_length_force(uint32_t field_id_size, size_t len) {
     return field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len);
   }
-  static constexpr uint32_t sint64(uint32_t field_id_size, int64_t value) {
+  static constexpr uint32_t calc_sint64(uint32_t field_id_size, int64_t value) {
     return value ? field_id_size + varint(encode_zigzag64(value)) : 0;
   }
-  static constexpr uint32_t sint64_force(uint32_t field_id_size, int64_t value) {
+  static constexpr uint32_t calc_sint64_force(uint32_t field_id_size, int64_t value) {
     return field_id_size + varint(encode_zigzag64(value));
   }
-  static constexpr uint32_t fixed64(uint32_t field_id_size, uint64_t value) { return value ? field_id_size + 8 : 0; }
-  static constexpr uint32_t sfixed64(uint32_t field_id_size, int64_t value) { return value ? field_id_size + 8 : 0; }
-  static constexpr uint32_t message(uint32_t field_id_size, uint32_t nested_size) {
+  static constexpr uint32_t calc_fixed64(uint32_t field_id_size, uint64_t value) {
+    return value ? field_id_size + 8 : 0;
+  }
+  static constexpr uint32_t calc_sfixed64(uint32_t field_id_size, int64_t value) {
+    return value ? field_id_size + 8 : 0;
+  }
+  static constexpr uint32_t calc_message(uint32_t field_id_size, uint32_t nested_size) {
     return nested_size ? field_id_size + varint(nested_size) + nested_size : 0;
   }
-  static constexpr uint32_t message_force(uint32_t field_id_size, uint32_t nested_size) {
+  static constexpr uint32_t calc_message_force(uint32_t field_id_size, uint32_t nested_size) {
     return field_id_size + varint(nested_size) + nested_size;
   }
 };
