@@ -30,14 +30,14 @@ void TemplateClimate::loop() {
   bool changed = false;
 
   if (auto val = this->current_temperature_f_()) {
-    if (*val != this->current_temperature) {
+    if (!std::isnan(*val) && *val != this->current_temperature) {
       this->current_temperature = *val;
       changed = true;
     }
   }
 
   if (auto val = this->target_temperature_f_()) {
-    if (*val != this->target_temperature) {
+    if (!std::isnan(*val) && *val != this->target_temperature) {
       this->target_temperature = *val;
       changed = true;
     }
