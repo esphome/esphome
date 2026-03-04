@@ -47,7 +47,7 @@ bthome:
       mac_address: 11:22:33:44:55:66
     - id: bthome_remote_encrypted
       mac_address: AA:BB:CC:DD:EE:FF
-      bindkey: 11223344556677889900AABBCCDDEEFF
+      key: 11223344556677889900AABBCCDDEEFF
   sensors:
     - type: TEMPERATURE_C_E2
       id: advertised_temperature

@@ -8,7 +8,7 @@ from esphome.components import (
     text_sensor,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS, CONF_TYPE
+from esphome.const import CONF_ID, CONF_KEY, CONF_MAC_ADDRESS, CONF_TYPE
 from esphome.core import CORE
 from esphome.cpp_generator import TemplateArguments, statement
 
@@ -99,7 +99,7 @@ _REMOTE_DEVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(RemoteDevice),
         cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-        cv.Optional(CONF_BINDKEY): cv.bind_key,
+        cv.Optional(CONF_KEY): cv.bind_key,
     }
 )
 
@@ -166,7 +166,7 @@ def _validate_server_config(config):
 
     max_payload = (
         BTHOME_SERVER_MAX_ENCRYPTED_PAYLOAD
-        if CONF_BINDKEY in config
+        if CONF_KEY in config
         else BTHOME_SERVER_MAX_PAYLOAD
     )
 
@@ -230,7 +230,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(esp32_ble.CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
             cv.GenerateID(): cv.declare_id(BTHomeServerBase),
             cv.Optional(CONF_REMOTE_DEVICES): [_REMOTE_DEVICE_SCHEMA],
-            cv.Optional(CONF_BINDKEY): cv.bind_key,
+            cv.Optional(CONF_KEY): cv.bind_key,
             cv.Optional(CONF_SENSORS): [_SERVER_SENSOR_SCHEMA],
             cv.Optional(CONF_BINARY_SENSORS): [_SERVER_BINARY_SENSOR_SCHEMA],
             cv.Optional(CONF_TEXT_SENSORS): [_SERVER_TEXT_SENSOR_SCHEMA],
@@ -315,8 +315,8 @@ async def _client_to_code(config):
         cg.add(listener.set_device(i, device_var))
         cg.add(device_var.set_address(device_config[CONF_MAC_ADDRESS].as_hex))
 
-        if CONF_BINDKEY in device_config:
-            bindkey_str = device_config[CONF_BINDKEY]
+        if CONF_KEY in device_config:
+            bindkey_str = device_config[CONF_KEY]
             bindkey_bytes = [int(bindkey_str[j : j + 2], 16) for j in range(0, 32, 2)]
             cg.add(device_var.set_encryption_key(bindkey_bytes))
             has_encryption = True
@@ -371,8 +371,8 @@ async def _server_to_code(config):
     esp32_ble.register_gap_event_handler(ble_var, esp32_ble_adapter)
 
     # Encryption
-    if CONF_BINDKEY in config:
-        bindkey_str = config[CONF_BINDKEY]
+    if CONF_KEY in config:
+        bindkey_str = config[CONF_KEY]
         bindkey_bytes = [int(bindkey_str[j : j + 2], 16) for j in range(0, 32, 2)]
         cg.add(server_var.set_encryption_key(bindkey_bytes))
         cg.add_define("USE_BTHOME_ENCRYPTION")
