@@ -366,6 +366,9 @@ class ProtoWriteBuffer {
   /// Encode a nested message field (force=true for repeated, false for singular)
   /// Templated so concrete message type is preserved for direct encode/calculate_size calls.
   template<typename T> void encode_message(uint32_t field_id, const T &value, bool force = true);
+  // Non-template core for encode_message — all buffer work happens here
+  void encode_message_(uint32_t field_id, uint32_t msg_length_bytes, const void *value,
+                       void (*encode_fn)(const void *, ProtoWriteBuffer &), bool force);
   std::vector<uint8_t> *get_buffer() const { return buffer_; }
 
  protected:
@@ -843,28 +846,11 @@ class ProtoSize {
    * @param message The nested message object
    */
   template<typename T> inline void add_message_object(uint32_t field_id_size, const T &message) {
-    // Calculate nested message size by creating a temporary ProtoSize
-    ProtoSize nested_calc;
-    message.calculate_size(nested_calc);
-    uint32_t nested_size = nested_calc.get_size();
-
-    // Use the base implementation with the calculated nested_size
-    add_message_field(field_id_size, nested_size);
+    add_message_field(field_id_size, calculated_size_of(message));
   }
 
-  /**
-   * @brief Calculates and adds the size of a nested message field to the total message size (force version)
-   *
-   * @param message The nested message object
-   */
   template<typename T> inline void add_message_object_force(uint32_t field_id_size, const T &message) {
-    // Calculate nested message size by creating a temporary ProtoSize
-    ProtoSize nested_calc;
-    message.calculate_size(nested_calc);
-    uint32_t nested_size = nested_calc.get_size();
-
-    // Use the base implementation with the calculated nested_size
-    add_message_field_force(field_id_size, nested_size);
+    add_message_field_force(field_id_size, calculated_size_of(message));
   }
 
   /**
@@ -953,29 +939,26 @@ inline void ProtoWriteBuffer::encode_packed_sint32(uint32_t field_id, const std:
 
 // Implementation of encode_message - must be after ProtoMessage is defined
 template<typename T> inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const T &value, bool force) {
-  // Calculate the message size first
-  ProtoSize msg_size;
-  value.calculate_size(msg_size);
-  uint32_t msg_length_bytes = msg_size.get_size();
+  uint32_t msg_length_bytes = calculated_size_of(value);
+  this->encode_message_(
+      field_id, msg_length_bytes, &value,
+      [](const void *msg, ProtoWriteBuffer &buf) { static_cast<const T *>(msg)->encode(buf); }, force);
+}
 
-  // Skip empty singular messages (matches add_message_field which skips when nested_size == 0)
-  // Repeated messages (force=true) are always encoded since an empty item is meaningful
+// Non-template core for encode_message
+inline void ProtoWriteBuffer::encode_message_(uint32_t field_id, uint32_t msg_length_bytes, const void *value,
+                                              void (*encode_fn)(const void *, ProtoWriteBuffer &), bool force) {
   if (msg_length_bytes == 0 && !force)
     return;
-
-  this->encode_field_raw(field_id, 2);  // type 2: Length-delimited message
-
-  // Write the length varint directly through pos_
+  this->encode_field_raw(field_id, 2);
   this->encode_varint_raw(msg_length_bytes);
-
-  // Encode nested message - pos_ advances directly through the reference
 #ifdef ESPHOME_DEBUG_API
   uint8_t *start = this->pos_;
-  value.encode(*this);
+  encode_fn(value, *this);
   if (static_cast<uint32_t>(this->pos_ - start) != msg_length_bytes)
     this->debug_check_encode_size_(field_id, msg_length_bytes, this->pos_ - start);
 #else
-  value.encode(*this);
+  encode_fn(value, *this);
 #endif
 }
 
