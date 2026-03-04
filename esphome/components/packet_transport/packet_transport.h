@@ -24,6 +24,7 @@
 namespace esphome {
 namespace packet_transport {
 
+// std::less provides allocation-free comparison with const char *
 template<typename T> using string_map_t = std::map<std::string, T, std::less<>>;
 
 struct Provider {
@@ -148,7 +149,6 @@ class PacketTransport : public PollingComponent {
   string_map_t<string_map_t<binary_sensor::BinarySensor *>> remote_binary_sensors_{};
 #endif
 
-  // std::less provides allocation-free comparison with const char *
   string_map_t<Provider> providers_{};
   std::vector<uint8_t> ping_header_{};
   std::vector<uint8_t> header_{};
