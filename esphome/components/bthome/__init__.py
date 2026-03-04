@@ -10,7 +10,7 @@ from esphome.components import (
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_KEY, CONF_MAC_ADDRESS, CONF_TYPE
 from esphome.core import CORE
-from esphome.cpp_generator import TemplateArguments, statement
+from esphome.cpp_generator import TemplateArguments
 
 from .bthome import (
     BTHOME_OBJECT_TYPES,
@@ -68,21 +68,6 @@ BTHomeServer = server_ns.class_("BTHomeServer", BTHomeServerBase)
 BTHomeLocalSensor = server_ns.class_("BTHomeLocalSensor")
 BTHomeLocalBinarySensor = server_ns.class_("BTHomeLocalBinarySensor")
 BTHomeLocalTextSensor = server_ns.class_("BTHomeLocalTextSensor")
-
-
-class DeferredStatement(cg.Statement):
-    def __init__(self, func):
-        self.func = func
-
-    def __str__(self):
-        statements = []
-        self.func(statements)
-        code = []
-        for exp in statements:
-            text = str(statement(exp))
-            text = text.rstrip()
-            code.append(text)
-        return "\n".join(code)
 
 
 class DeferredExpression(cg.Expression):
