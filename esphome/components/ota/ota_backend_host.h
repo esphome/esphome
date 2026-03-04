@@ -17,5 +17,7 @@ class HostOTABackend final : public OTABackend {
   bool supports_compression() override { return false; }
 };
 
+std::unique_ptr<HostOTABackend> make_ota_backend();
+
 }  // namespace esphome::ota
 #endif
