@@ -266,7 +266,11 @@ class APIConnection final : public APIServerConnectionBase {
     DumpBuffer dump_buf;
     this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));
 #endif
-    return this->send_message_(calculated_size_of(msg), T::MESSAGE_TYPE, &encode_msg_<T>, &msg);
+    if constexpr (T::ESTIMATED_SIZE == 0) {
+      return this->send_message_(0, T::MESSAGE_TYPE, &encode_msg_noop_, &msg);
+    } else {
+      return this->send_message_(calculated_size_of(msg), T::MESSAGE_TYPE, &encode_msg_<T>, &msg);
+    }
   }
 
   void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t header_padding, size_t total_size) {
@@ -327,6 +331,9 @@ class APIConnection final : public APIServerConnectionBase {
     static_cast<const T *>(msg)->encode(buffer);
   }
 
+  // Shared no-op encode thunk for empty messages (ESTIMATED_SIZE == 0)
+  static void encode_msg_noop_(const void *, ProtoWriteBuffer &) {}
+
   // Non-template buffer management for send_message
   bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
 
@@ -343,7 +350,11 @@ class APIConnection final : public APIServerConnectionBase {
       return 1;
     }
 #endif
-    return encode_to_buffer_(calculated_size_of(msg), &encode_msg_<T>, &msg, conn, remaining_size);
+    if constexpr (T::ESTIMATED_SIZE == 0) {
+      return encode_to_buffer_(0, &encode_msg_noop_, &msg, conn, remaining_size);
+    } else {
+      return encode_to_buffer_(calculated_size_of(msg), &encode_msg_<T>, &msg, conn, remaining_size);
+    }
   }
 
   // Non-template core — fills state fields and encodes
