@@ -356,12 +356,14 @@ uint16_t APIConnection::fill_and_encode_entity_state_(EntityBase *entity, StateR
 uint16_t APIConnection::fill_and_encode_entity_info_(EntityBase *entity, InfoResponseProtoMessage &msg,
                                                      CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
                                                      APIConnection *conn, uint32_t remaining_size) {
+  // Set common fields that are shared by all entity types
   msg.key = entity->get_object_id_hash();
 
   // API 1.14+ clients compute object_id client-side from the entity name
   // For older clients, we must send object_id for backward compatibility
   // See: https://github.com/esphome/backlog/issues/76
   // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
+  // Buffer must remain in scope until encode_to_buffer_ is called
   char object_id_buf[OBJECT_ID_MAX_LEN];
   if (!conn->client_supports_api_version(1, 14)) {
     msg.object_id = entity->get_object_id_to(object_id_buf);
@@ -371,6 +373,7 @@ uint16_t APIConnection::fill_and_encode_entity_info_(EntityBase *entity, InfoRes
     msg.name = entity->get_name();
   }
 
+  // Set common EntityBase properties
 #ifdef USE_ENTITY_ICON
   char icon_buf[MAX_ICON_LENGTH];
   msg.icon = StringRef(entity->get_icon_to(icon_buf));
@@ -1871,25 +1874,41 @@ bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, M
   encode_fn(msg, buffer);
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
+// Encodes a message to the buffer and returns the total number of bytes used,
+// including header and footer overhead. Returns 0 if the message doesn't fit.
 uint16_t APIConnection::encode_to_buffer_(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
                                           APIConnection *conn, uint32_t remaining_size) {
+  // Cache frame sizes to avoid repeated virtual calls
   const uint8_t header_padding = conn->helper_->frame_header_padding();
   const uint8_t footer_size = conn->helper_->frame_footer_size();
+
+  // Calculate total size with padding for buffer allocation
   size_t total_calculated_size = calculated_size + header_padding + footer_size;
+
+  // Check if it fits
   if (total_calculated_size > remaining_size)
-    return 0;
+    return 0;  // Doesn't fit
+
   std::vector<uint8_t> &shared_buf = conn->parent_->get_shared_buffer_ref();
+
   if (conn->flags_.batch_first_message) {
+    // First message - buffer already prepared by caller, just clear flag
     conn->flags_.batch_first_message = false;
   } else {
+    // Batch message second or later
+    // Add padding for previous message footer + this message header
     size_t current_size = shared_buf.size();
     shared_buf.reserve(current_size + total_calculated_size);
     shared_buf.resize(current_size + footer_size + header_padding);
   }
+
+  // Pre-resize buffer to include payload, then encode through raw pointer
   size_t write_start = shared_buf.size();
   shared_buf.resize(write_start + calculated_size);
   ProtoWriteBuffer buffer{&shared_buf, write_start};
   encode_fn(msg, buffer);
+
+  // Return total size (header + payload + footer)
   return static_cast<uint16_t>(header_padding + calculated_size + footer_size);
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
