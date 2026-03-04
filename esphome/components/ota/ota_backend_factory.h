@@ -1,0 +1,17 @@
+#pragma once
+
+#include "ota_backend.h"
+
+#ifdef USE_ESP8266
+#include "ota_backend_esp8266.h"
+#elif defined(USE_ESP32)
+#include "ota_backend_esp_idf.h"
+#elif defined(USE_RP2040)
+#include "ota_backend_arduino_rp2040.h"
+#elif defined(USE_LIBRETINY)
+#include "ota_backend_arduino_libretiny.h"
+#elif defined(USE_HOST)
+#include "ota_backend_host.h"
+#endif
+
+namespace esphome::ota {}  // namespace esphome::ota
