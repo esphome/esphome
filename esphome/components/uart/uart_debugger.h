@@ -8,8 +8,7 @@
 #include "uart.h"
 #include "uart_component.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 /// The UARTDebugger class adds debugging support to a UART bus.
 ///
@@ -96,6 +95,5 @@ class UARTDebug {
   static void log_binary(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator);
 };
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart
 #endif

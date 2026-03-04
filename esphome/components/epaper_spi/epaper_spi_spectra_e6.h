@@ -4,7 +4,7 @@
 
 namespace esphome::epaper_spi {
 
-class EPaperSpectraE6 : public EPaperBase {
+class EPaperSpectraE6 final : public EPaperBase {
  public:
   EPaperSpectraE6(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                   size_t init_sequence_length)
@@ -16,11 +16,11 @@ class EPaperSpectraE6 : public EPaperBase {
   void clear() override;
 
  protected:
-  void refresh_screen() override;
+  void refresh_screen(bool partial) override;
   void power_on() override;
   void power_off() override;
   void deep_sleep() override;
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  void draw_pixel_at(int x, int y, Color color) override;
 
   bool transfer_data() override;
 };

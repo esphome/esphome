@@ -86,7 +86,7 @@ async def test_wait_until_mid_loop_timing(
         assert test_service is not None, "test_mid_loop_timeout service not found"
 
         # Execute the test
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
 
         # Wait for test to complete (100ms delay + 200ms timeout + margins = ~500ms)
         await asyncio.wait_for(test_complete, timeout=5.0)

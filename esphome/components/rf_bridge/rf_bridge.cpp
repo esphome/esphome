@@ -1,6 +1,7 @@
 #include "rf_bridge.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include <cinttypes>
 #include <cstring>
 
@@ -72,9 +73,9 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
 
       data.length = raw[2];
       data.protocol = raw[3];
-      char next_byte[3];
+      char next_byte[3];  // 2 hex chars + null
       for (uint8_t i = 0; i < data.length - 1; i++) {
-        sprintf(next_byte, "%02X", raw[4 + i]);
+        buf_append_printf(next_byte, sizeof(next_byte), 0, "%02X", raw[4 + i]);
         data.code += next_byte;
       }
 
@@ -90,10 +91,10 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
 
       uint8_t buckets = raw[2] << 1;
       std::string str;
-      char next_byte[3];
+      char next_byte[3];  // 2 hex chars + null
 
       for (uint32_t i = 0; i <= at; i++) {
-        sprintf(next_byte, "%02X", raw[i]);
+        buf_append_printf(next_byte, sizeof(next_byte), 0, "%02X", raw[i]);
         str += next_byte;
         if ((i > 3) && buckets) {
           buckets--;
@@ -135,14 +136,21 @@ void RFBridgeComponent::loop() {
     this->last_bridge_byte_ = now;
   }
 
-  while (this->available()) {
-    uint8_t byte;
-    this->read_byte(&byte);
-    if (this->parse_bridge_byte_(byte)) {
-      ESP_LOGVV(TAG, "Parsed: 0x%02X", byte);
-      this->last_bridge_byte_ = now;
-    } else {
-      this->rx_buffer_.clear();
+  size_t avail = this->available();
+  while (avail > 0) {
+    uint8_t buf[64];
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+    for (size_t i = 0; i < to_read; i++) {
+      if (this->parse_bridge_byte_(buf[i])) {
+        ESP_LOGVV(TAG, "Parsed: 0x%02X", buf[i]);
+        this->last_bridge_byte_ = now;
+      } else {
+        this->rx_buffer_.clear();
+      }
     }
   }
 }

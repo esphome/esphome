@@ -1,10 +1,14 @@
 #include "mitsubishi.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace mitsubishi {
 
 static const char *const TAG = "mitsubishi.climate";
+
+// IR frame size for Mitsubishi climate
+static constexpr size_t MITSUBISHI_FRAME_SIZE = 18;
 
 const uint8_t MITSUBISHI_OFF = 0x00;
 
@@ -176,7 +180,7 @@ void MitsubishiClimate::transmit_state() {
   // For 5Level: Low = 1, Middle = 2, Medium = 3, High = 4
   // For 4Level + Quiet: Low = 1, Middle = 2, Medium = 3, High = 4, Quiet = 5
 
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       remote_state[9] = 1;
       break;
@@ -205,7 +209,8 @@ void MitsubishiClimate::transmit_state() {
       break;
   }
 
-  ESP_LOGD(TAG, "fan: %02x state: %02x", this->fan_mode.value(), remote_state[9]);
+  ESP_LOGD(TAG, "fan: %02x state: %02x", static_cast<uint8_t>(this->fan_mode.value_or(climate::CLIMATE_FAN_ON)),
+           remote_state[9]);
 
   // Vertical Vane
   switch (this->swing_mode) {
@@ -223,7 +228,7 @@ void MitsubishiClimate::transmit_state() {
   ESP_LOGD(TAG, "default_vertical_direction_: %02X", this->default_vertical_direction_);
 
   // Special modes
-  switch (this->preset.value()) {
+  switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
     case climate::CLIMATE_PRESET_ECO:
       remote_state[6] = MITSUBISHI_MODE_COOL | MITSUBISHI_OTHERWISE;
       remote_state[8] = (remote_state[8] & ~7) | MITSUBISHI_MODE_A_COOL;
@@ -388,7 +393,10 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
   }
 
-  ESP_LOGV(TAG, "Receiving: %s", format_hex_pretty(state_frame, 18).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(MITSUBISHI_FRAME_SIZE)];
+#endif
+  ESP_LOGV(TAG, "Receiving: %s", format_hex_pretty_to(hex_buf, state_frame, MITSUBISHI_FRAME_SIZE));
 
   this->publish_state();
   return true;

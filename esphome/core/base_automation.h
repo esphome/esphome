@@ -9,8 +9,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
+#include <list>
 #include <vector>
-#include <forward_list>
 
 namespace esphome {
 
@@ -178,7 +178,6 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
   TEMPLATABLE_VALUE(uint32_t, delay)
 
   void play_complex(const Ts &...x) override {
-    auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
     this->num_running_++;
 
     // If num_running_ > 1, we have multiple instances running in parallel
@@ -187,16 +186,31 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
     // WARNING: This can accumulate delays if scripts are triggered faster than they complete!
     // Users should set max_runs on parallel scripts to limit concurrent executions.
     // Issue #10264: This is a workaround for parallel script delays interfering with each other.
-    App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT,
-                                    /* is_static_string= */ true, "delay", this->delay_.value(x...), std::move(f),
-                                    /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
+
+    // Optimization: For no-argument delays (most common case), use direct lambda
+    // instead of std::bind to avoid bind overhead (~16 bytes heap + faster execution)
+    if constexpr (sizeof...(Ts) == 0) {
+      App.scheduler.set_timer_common_(
+          this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL, nullptr,
+          static_cast<uint32_t>(InternalSchedulerID::DELAY_ACTION), this->delay_.value(),
+          [this]() { this->play_next_(); },
+          /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
+    } else {
+      // For delays with arguments, use std::bind to preserve argument values
+      // Arguments must be copied because original references may be invalid after delay
+      auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
+      App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL,
+                                      nullptr, static_cast<uint32_t>(InternalSchedulerID::DELAY_ACTION),
+                                      this->delay_.value(x...), std::move(f),
+                                      /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
+    }
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void play(const Ts &...x) override { /* ignore - see play_complex */
   }
 
-  void stop() override { this->cancel_timeout("delay"); }
+  void stop() override { this->cancel_timeout(InternalSchedulerID::DELAY_ACTION); }
 };
 
 template<typename... Ts> class LambdaAction : public Action<Ts...> {
@@ -412,7 +426,12 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
   void setup() override {
     // Start with loop disabled - only enable when there's work to do
-    this->disable_loop();
+    // IMPORTANT: Only disable if num_running_ is 0, otherwise play_complex() was already
+    // called before our setup() (e.g., from on_boot trigger at same priority level)
+    // and we must not undo its enable_loop() call
+    if (this->num_running_ == 0) {
+      this->disable_loop();
+    }
   }
 
   void play_complex(const Ts &...x) override {
@@ -428,9 +447,10 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     // Store for later processing
     auto now = millis();
     auto timeout = this->timeout_value_.optional_value(x...);
-    this->var_queue_.emplace_front(now, timeout, std::make_tuple(x...));
+    this->var_queue_.emplace_back(now, timeout, std::make_tuple(x...));
 
-    // Do immediate check with fresh timestamp
+    // Do immediate check with fresh timestamp - don't call loop() synchronously!
+    // Let the event loop call it to avoid reentrancy issues
     if (this->process_queue_(now)) {
       // Only enable loop if we still have pending items
       this->enable_loop();
@@ -482,7 +502,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
   }
 
   Condition<Ts...> *condition_;
-  std::forward_list<std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>> var_queue_{};
+  std::list<std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>> var_queue_{};
 };
 
 template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {

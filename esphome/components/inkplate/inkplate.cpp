@@ -293,6 +293,13 @@ void Inkplate::fill(Color color) {
   ESP_LOGV(TAG, "Fill called");
   uint32_t start_time = millis();
 
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    ESP_LOGV(TAG, "Fill finished (%ums)", millis() - start_time);
+    return;
+  }
+
   if (this->greyscale_) {
     uint8_t fill = ((color.red * 2126 / 10000) + (color.green * 7152 / 10000) + (color.blue * 722 / 10000)) >> 5;
     memset(this->buffer_, (fill << 4) | fill, this->get_buffer_length_());

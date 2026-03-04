@@ -29,8 +29,6 @@ void NPI19Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
 
-float NPI19Component::get_setup_priority() const { return setup_priority::DATA; }
-
 i2c::ErrorCode NPI19Component::read_(uint16_t &raw_temperature, uint16_t &raw_pressure) {
   // initiate data read from device
   i2c::ErrorCode w_err = write(&READ_COMMAND, sizeof(READ_COMMAND));

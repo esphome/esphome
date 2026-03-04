@@ -8,7 +8,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/macros.h"
 
-#if defined(USE_ESP_IDF) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
 #include <lwip/ip_addr.h>
 #endif
 
@@ -37,8 +37,18 @@ using ip4_addr_t = in_addr;
 #include <esp_netif.h>
 #endif
 
-namespace esphome {
-namespace network {
+namespace esphome::network {
+
+/// Buffer size for IP address string (IPv6 max: 39 chars + null)
+static constexpr size_t IP_ADDRESS_BUFFER_SIZE = 40;
+
+/// Lowercase hex digits in IP address string (A-F -> a-f for IPv6 per RFC 5952)
+inline void lowercase_ip_str(char *buf) {
+  for (char *p = buf; *p; ++p) {
+    if (*p >= 'A' && *p <= 'F')
+      *p += 32;
+  }
+}
 
 struct IPAddress {
  public:
@@ -49,7 +59,20 @@ struct IPAddress {
   }
   IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
-  std::string str() const { return str_lower_case(inet_ntoa(ip_addr_)); }
+  // Remove before 2026.8.0
+  ESPDEPRECATED(
+      "str() is deprecated: use 'char buf[IP_ADDRESS_BUFFER_SIZE]; ip.str_to(buf);' instead. Removed in 2026.8.0",
+      "2026.2.0")
+  std::string str() const {
+    char buf[IP_ADDRESS_BUFFER_SIZE];
+    this->str_to(buf);
+    return buf;
+  }
+  /// Write IP address to buffer. Buffer must be at least IP_ADDRESS_BUFFER_SIZE bytes.
+  char *str_to(char *buf) const {
+    inet_ntop(AF_INET, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE);
+    return buf;  // IPv4 only, no hex letters to lowercase
+  }
 #else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
@@ -81,7 +104,12 @@ struct IPAddress {
     ip_addr_.type = IPADDR_TYPE_V6;
   }
 #endif /* LWIP_IPV6 */
-  IPAddress(esp_ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t)); }
+  IPAddress(esp_ip4_addr_t *other_ip) {
+    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t));
+#if LWIP_IPV6
+    ip_addr_.type = IPADDR_TYPE_V4;
+#endif
+  }
   IPAddress(esp_ip_addr_t *other_ip) {
 #if LWIP_IPV6
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_));
@@ -118,11 +146,26 @@ struct IPAddress {
   operator arduino_ns::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); }
 #endif
 
-  bool is_set() { return !ip_addr_isany(&ip_addr_); }  // NOLINT(readability-simplify-boolean-expr)
-  bool is_ip4() { return IP_IS_V4(&ip_addr_); }
-  bool is_ip6() { return IP_IS_V6(&ip_addr_); }
-  bool is_multicast() { return ip_addr_ismulticast(&ip_addr_); }
-  std::string str() const { return str_lower_case(ipaddr_ntoa(&ip_addr_)); }
+  bool is_set() const { return !ip_addr_isany(&ip_addr_); }  // NOLINT(readability-simplify-boolean-expr)
+  bool is_ip4() const { return IP_IS_V4(&ip_addr_); }
+  bool is_ip6() const { return IP_IS_V6(&ip_addr_); }
+  bool is_multicast() const { return ip_addr_ismulticast(&ip_addr_); }
+  // Remove before 2026.8.0
+  ESPDEPRECATED(
+      "str() is deprecated: use 'char buf[IP_ADDRESS_BUFFER_SIZE]; ip.str_to(buf);' instead. Removed in 2026.8.0",
+      "2026.2.0")
+  std::string str() const {
+    char buf[IP_ADDRESS_BUFFER_SIZE];
+    this->str_to(buf);
+    return buf;
+  }
+  /// Write IP address to buffer. Buffer must be at least IP_ADDRESS_BUFFER_SIZE bytes.
+  /// Output is lowercased per RFC 5952 (IPv6 hex digits a-f).
+  char *str_to(char *buf) const {
+    ipaddr_ntoa_r(&ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE);
+    lowercase_ip_str(buf);
+    return buf;
+  }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   IPAddress &operator+=(uint8_t increase) {
@@ -143,6 +186,5 @@ struct IPAddress {
 
 using IPAddresses = std::array<IPAddress, 5>;
 
-}  // namespace network
-}  // namespace esphome
+}  // namespace esphome::network
 #endif

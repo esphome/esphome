@@ -1,0 +1,93 @@
+esphome:
+  name: api-action-responses-test
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+  actions:
+    # ==========================================================================
+    # supports_response: none (default - no api.respond action)
+    # No call_id or return_response - just user variables
+    # ==========================================================================
+    - action: action_no_response
+      variables:
+        message: string
+      then:
+        - logger.log:
+            format: "ACTION_NO_RESPONSE called with: %s"
+            args: [message.c_str()]
+
+    # ==========================================================================
+    # supports_response: status (auto-detected - api.respond without data)
+    # Has call_id only - reports success/error without data payload
+    # ==========================================================================
+    - action: action_status_response
+      variables:
+        should_succeed: bool
+      then:
+        - if:
+            condition:
+              lambda: 'return should_succeed;'
+            then:
+              - api.respond:
+                  success: true
+              - logger.log:
+                  format: "ACTION_STATUS_RESPONSE success (call_id=%d)"
+                  args: [call_id]
+            else:
+              - api.respond:
+                  success: false
+                  error_message: "Intentional failure for testing"
+              - logger.log:
+                  format: "ACTION_STATUS_RESPONSE error (call_id=%d)"
+                  args: [call_id]
+
+    # ==========================================================================
+    # supports_response: optional (auto-detected - api.respond with data)
+    # Has call_id and return_response - client decides if it wants response
+    # ==========================================================================
+    - action: action_optional_response
+      variables:
+        value: int
+      then:
+        - logger.log:
+            format: "ACTION_OPTIONAL_RESPONSE (call_id=%d, return_response=%d, value=%d)"
+            args: [call_id, return_response, value]
+        - api.respond:
+            data: !lambda |-
+              root["input"] = value;
+              root["doubled"] = value * 2;
+
+    # ==========================================================================
+    # supports_response: only (explicit - always expects data response)
+    # Has call_id only - response is always expected with data
+    # ==========================================================================
+    - action: action_only_response
+      supports_response: only
+      variables:
+        name: string
+      then:
+        - logger.log:
+            format: "ACTION_ONLY_RESPONSE (call_id=%d, name=%s)"
+            args: [call_id, name.c_str()]
+        - api.respond:
+            data: !lambda |-
+              root["greeting"] = "Hello, " + name + "!";
+              root["length"] = name.length();
+
+    # Test action with nested JSON response
+    - action: action_nested_json
+      supports_response: only
+      then:
+        - logger.log:
+            format: "ACTION_NESTED_JSON (call_id=%d)"
+            args: [call_id]
+        - api.respond:
+            data: !lambda |-
+              root["config"]["wifi"]["connected"] = true;
+              root["config"]["api"]["port"] = 6053;
+              root["items"][0] = "first";
+              root["items"][1] = "second";

@@ -1,8 +1,9 @@
 from esphome import automation
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_RANGE_FROM, CONF_RANGE_TO, CONF_STEP, CONF_VALUE
+from esphome.cpp_generator import MockObj
 
-from ..automation import action_to_code, update_to_code
+from ..automation import action_to_code
 from ..defines import (
     CONF_CURSOR,
     CONF_DECIMAL_PLACES,
@@ -114,7 +115,9 @@ class SpinboxType(WidgetType):
                 w.obj, digits, digits - config[CONF_DECIMAL_PLACES]
             )
         if (value := config.get(CONF_VALUE)) is not None:
-            lv.spinbox_set_value(w.obj, await lv_float.process(value))
+            lv.spinbox_set_value(
+                w.obj, MockObj(await lv_float.process(value)) * w.get_scale()
+            )
 
     def get_scale(self, config):
         return 10 ** config[CONF_DECIMAL_PLACES]
@@ -171,17 +174,3 @@ async def spinbox_decrement(config, action_id, template_arg, args):
         lv.spinbox_decrement(w.obj)
 
     return await action_to_code(widgets, do_increment, action_id, template_arg, args)
-
-
-@automation.register_action(
-    "lvgl.spinbox.update",
-    ObjUpdateAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(lv_spinbox_t),
-            cv.Required(CONF_VALUE): lv_float,
-        }
-    ),
-)
-async def spinbox_update_to_code(config, action_id, template_arg, args):
-    return await update_to_code(config, action_id, template_arg, args)

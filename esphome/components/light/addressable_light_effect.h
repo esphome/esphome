@@ -7,8 +7,7 @@
 #include "esphome/components/light/light_state.h"
 #include "esphome/components/light/addressable_light.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 inline static int16_t sin16_c(uint16_t theta) {
   static const uint16_t BASE[] = {0, 6393, 12539, 18204, 23170, 27245, 30273, 32137};
@@ -371,5 +370,4 @@ class AddressableFlickerEffect : public AddressableLightEffect {
   uint8_t intensity_{13};
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

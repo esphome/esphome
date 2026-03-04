@@ -104,12 +104,17 @@ void LTR390Component::read_uvs_() {
   }
 }
 
-void LTR390Component::read_mode_(int mode_index) {
-  // Set mode
-  LTR390MODE mode = std::get<0>(this->mode_funcs_[mode_index]);
-
+void LTR390Component::standby_() {
   std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
-  ctrl[LTR390_CTRL_MODE] = mode;
+  ctrl[LTR390_CTRL_EN] = false;
+  this->reg(LTR390_MAIN_CTRL) = ctrl.to_ulong();
+  this->reading_ = false;
+}
+
+void LTR390Component::read_mode_(LTR390MODE mode) {
+  // Set mode
+  std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
+  ctrl[LTR390_CTRL_MODE] = (mode == LTR390_MODE_UVS);
   ctrl[LTR390_CTRL_EN] = true;
   this->reg(LTR390_MAIN_CTRL) = ctrl.to_ulong();
 
@@ -129,21 +134,18 @@ void LTR390Component::read_mode_(int mode_index) {
   }
 
   // After the sensor integration time do the following
-  this->set_timeout(int_time + LTR390_WAKEUP_TIME + LTR390_SETTLE_TIME, [this, mode_index]() {
-    // Read from the sensor
-    std::get<1>(this->mode_funcs_[mode_index])();
-
-    // If there are more modes to read then begin the next
-    // otherwise stop
-    if (mode_index + 1 < (int) this->mode_funcs_.size()) {
-      this->read_mode_(mode_index + 1);
+  this->set_timeout(int_time + LTR390_WAKEUP_TIME + LTR390_SETTLE_TIME, [this, mode]() {
+    // Read from the sensor and continue to next mode or standby
+    if (mode == LTR390_MODE_ALS) {
+      this->read_als_();
+      if (this->enabled_modes_ & ENABLED_MODE_UVS) {
+        this->read_mode_(LTR390_MODE_UVS);
+        return;
+      }
     } else {
-      // put sensor in standby
-      std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
-      ctrl[LTR390_CTRL_EN] = false;
-      this->reg(LTR390_MAIN_CTRL) = ctrl.to_ulong();
-      this->reading_ = false;
+      this->read_uvs_();
     }
+    this->standby_();
   });
 }
 
@@ -172,14 +174,12 @@ void LTR390Component::setup() {
   // Set sensor read state
   this->reading_ = false;
 
-  // If we need the light sensor then add to the list
+  // Determine which modes are enabled based on configured sensors
   if (this->light_sensor_ != nullptr || this->als_sensor_ != nullptr) {
-    this->mode_funcs_.emplace_back(LTR390_MODE_ALS, std::bind(&LTR390Component::read_als_, this));
+    this->enabled_modes_ |= ENABLED_MODE_ALS;
   }
-
-  // If we need the UV sensor then add to the list
   if (this->uvi_sensor_ != nullptr || this->uv_sensor_ != nullptr) {
-    this->mode_funcs_.emplace_back(LTR390_MODE_UVS, std::bind(&LTR390Component::read_uvs_, this));
+    this->enabled_modes_ |= ENABLED_MODE_UVS;
   }
 }
 
@@ -195,10 +195,11 @@ void LTR390Component::dump_config() {
 }
 
 void LTR390Component::update() {
-  if (!this->reading_ && !mode_funcs_.empty()) {
-    this->reading_ = true;
-    this->read_mode_(0);
-  }
+  if (this->reading_ || this->enabled_modes_ == 0)
+    return;
+
+  this->reading_ = true;
+  this->read_mode_((this->enabled_modes_ & ENABLED_MODE_ALS) ? LTR390_MODE_ALS : LTR390_MODE_UVS);
 }
 
 }  // namespace ltr390

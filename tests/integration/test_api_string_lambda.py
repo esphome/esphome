@@ -75,10 +75,12 @@ async def test_api_string_lambda(
         assert char_ptr_service is not None, "test_char_ptr_lambda service not found"
 
         # Execute all four services to test different lambda return types
-        client.execute_service(string_service, {"input_string": "STRING_FROM_LAMBDA"})
-        client.execute_service(int_service, {"input_number": 42})
-        client.execute_service(float_service, {"input_float": 3.14})
-        client.execute_service(
+        await client.execute_service(
+            string_service, {"input_string": "STRING_FROM_LAMBDA"}
+        )
+        await client.execute_service(int_service, {"input_number": 42})
+        await client.execute_service(float_service, {"input_float": 3.14})
+        await client.execute_service(
             char_ptr_service, {"input_number": 123, "input_string": "test_string"}
         )
 

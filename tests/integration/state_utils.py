@@ -4,10 +4,73 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import TypeVar
 
 from aioesphomeapi import ButtonInfo, EntityInfo, EntityState
 
 _LOGGER = logging.getLogger(__name__)
+
+T = TypeVar("T", bound=EntityInfo)
+
+
+def find_entity(
+    entities: list[EntityInfo],
+    object_id_substring: str,
+    entity_type: type[T] | None = None,
+) -> T | EntityInfo | None:
+    """Find an entity by object_id substring and optionally by type.
+
+    Args:
+        entities: List of entity info objects from the API
+        object_id_substring: Substring to search for in object_id (case-insensitive)
+        entity_type: Optional entity type to filter by (e.g., BinarySensorInfo)
+
+    Returns:
+        The first matching entity, or None if not found
+
+    Example:
+        binary_sensor = find_entity(entities, "test_binary_sensor", BinarySensorInfo)
+        button = find_entity(entities, "set_true")  # Any entity type
+    """
+    substring_lower = object_id_substring.lower()
+    for entity in entities:
+        if substring_lower in entity.object_id.lower() and (
+            entity_type is None or isinstance(entity, entity_type)
+        ):
+            return entity
+    return None
+
+
+def require_entity(
+    entities: list[EntityInfo],
+    object_id_substring: str,
+    entity_type: type[T] | None = None,
+    description: str | None = None,
+) -> T | EntityInfo:
+    """Find an entity or raise AssertionError if not found.
+
+    Args:
+        entities: List of entity info objects from the API
+        object_id_substring: Substring to search for in object_id (case-insensitive)
+        entity_type: Optional entity type to filter by (e.g., BinarySensorInfo)
+        description: Human-readable description for error message
+
+    Returns:
+        The first matching entity
+
+    Raises:
+        AssertionError: If no matching entity is found
+
+    Example:
+        binary_sensor = require_entity(entities, "test_sensor", BinarySensorInfo)
+        button = require_entity(entities, "set_true", description="Set True button")
+    """
+    entity = find_entity(entities, object_id_substring, entity_type)
+    if entity is None:
+        desc = description or f"entity with '{object_id_substring}' in object_id"
+        type_info = f" of type {entity_type.__name__}" if entity_type else ""
+        raise AssertionError(f"{desc}{type_info} not found in entities")
+    return entity
 
 
 def build_key_to_entity_mapping(

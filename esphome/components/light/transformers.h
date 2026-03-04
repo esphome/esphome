@@ -6,8 +6,7 @@
 #include "light_state.h"
 #include "light_transformer.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 class LightTransitionTransformer : public LightTransformer {
  public:
@@ -79,7 +78,7 @@ class LightFlashTransformer : public LightTransformer {
   optional<LightColorValues> apply() override {
     optional<LightColorValues> result = {};
 
-    if (this->transformer_ == nullptr && millis() > this->start_time_ + this->length_ - this->transition_length_) {
+    if (this->transformer_ == nullptr && millis() - this->start_time_ > this->length_ - this->transition_length_) {
       // second transition back to start value
       this->transformer_ = this->state_.get_output()->create_default_transition();
       this->transformer_->setup(this->state_.current_values, this->get_start_values(), this->transition_length_);
@@ -118,5 +117,4 @@ class LightFlashTransformer : public LightTransformer {
   bool begun_lightstate_restore_;
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

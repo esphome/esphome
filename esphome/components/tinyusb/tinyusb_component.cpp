@@ -41,4 +41,4 @@ void TinyUSB::dump_config() {
 }
 
 }  // namespace esphome::tinyusb
-#endif
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

@@ -40,7 +40,7 @@ INTERNAL_DAC_OPTIONS = {
 
 EXTERNAL_DAC_OPTIONS = [CONF_MONO, CONF_STEREO]
 
-NO_INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32S2]
+NO_INTERNAL_DAC_VARIANTS = [esp32.VARIANT_ESP32S2]
 
 I2C_COMM_FMT_OPTIONS = ["lsb", "msb"]
 
@@ -114,6 +114,7 @@ async def to_code(config):
         cg.add(var.set_external_dac_channels(2 if config[CONF_MODE] == "stereo" else 1))
         cg.add(var.set_i2s_comm_fmt_lsb(config[CONF_I2S_COMM_FMT] == "lsb"))
 
+    cg.add_library("WiFi", None)
     cg.add_library("NetworkClientSecure", None)
     cg.add_library("HTTPClient", None)
     cg.add_library("esphome/ESP32-audioI2S", "2.3.0")

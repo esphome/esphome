@@ -1,18 +1,17 @@
 #include "uart_component.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart";
 
 bool UARTComponent::check_read_timeout_(size_t len) {
-  if (this->available() >= int(len))
+  if (this->available() >= len)
     return true;
 
   uint32_t start_time = millis();
-  while (this->available() < int(len)) {
+  while (this->available() < len) {
     if (millis() - start_time > 100) {
-      ESP_LOGE(TAG, "Reading from UART timed out at byte %u!", this->available());
+      ESP_LOGE(TAG, "Reading from UART timed out at byte %zu!", this->available());
       return false;
     }
     yield();
@@ -28,5 +27,4 @@ void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {
   this->set_rx_full_threshold(val);
 }
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart

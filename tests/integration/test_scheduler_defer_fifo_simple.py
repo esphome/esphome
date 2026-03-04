@@ -84,7 +84,7 @@ async def test_scheduler_defer_fifo_simple(
         client.subscribe_states(on_state)
 
         # Test 1: Test set_timeout(0)
-        client.execute_service(test_set_timeout_service, {})
+        await client.execute_service(test_set_timeout_service, {})
 
         # Wait for first test completion
         try:
@@ -102,7 +102,7 @@ async def test_scheduler_defer_fifo_simple(
         test_result_future = loop.create_future()
 
         # Test 2: Test defer()
-        client.execute_service(test_defer_service, {})
+        await client.execute_service(test_defer_service, {})
 
         # Wait for second test completion
         try:

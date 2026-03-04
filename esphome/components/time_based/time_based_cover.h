@@ -12,11 +12,10 @@ class TimeBasedCover : public cover::Cover, public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
-  Trigger<> *get_open_trigger() const { return this->open_trigger_; }
-  Trigger<> *get_close_trigger() const { return this->close_trigger_; }
-  Trigger<> *get_stop_trigger() const { return this->stop_trigger_; }
+  Trigger<> *get_open_trigger() { return &this->open_trigger_; }
+  Trigger<> *get_close_trigger() { return &this->close_trigger_; }
+  Trigger<> *get_stop_trigger() { return &this->stop_trigger_; }
   void set_open_duration(uint32_t open_duration) { this->open_duration_ = open_duration; }
   void set_close_duration(uint32_t close_duration) { this->close_duration_ = close_duration; }
   cover::CoverTraits get_traits() override;
@@ -34,11 +33,11 @@ class TimeBasedCover : public cover::Cover, public Component {
 
   void recompute_position_();
 
-  Trigger<> *open_trigger_{new Trigger<>()};
+  Trigger<> open_trigger_;
   uint32_t open_duration_;
-  Trigger<> *close_trigger_{new Trigger<>()};
+  Trigger<> close_trigger_;
   uint32_t close_duration_;
-  Trigger<> *stop_trigger_{new Trigger<>()};
+  Trigger<> stop_trigger_;
 
   Trigger<> *prev_command_trigger_{nullptr};
   uint32_t last_recompute_time_{0};

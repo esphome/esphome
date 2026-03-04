@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include "ota_backend.h"
 
 #include "esphome/components/md5/md5.h"
@@ -10,7 +10,7 @@
 namespace esphome {
 namespace ota {
 
-class IDFOTABackend : public OTABackend {
+class IDFOTABackend final : public OTABackend {
  public:
   OTAResponseTypes begin(size_t image_size) override;
   void set_update_md5(const char *md5) override;
@@ -29,4 +29,4 @@ class IDFOTABackend : public OTABackend {
 
 }  // namespace ota
 }  // namespace esphome
-#endif
+#endif  // USE_ESP32

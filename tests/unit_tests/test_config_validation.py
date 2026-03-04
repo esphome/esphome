@@ -6,7 +6,7 @@ import pytest
 import voluptuous as vol
 
 from esphome import config_validation
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
@@ -221,7 +221,7 @@ def hex_int__valid(value):
     ],
 )
 def test_split_default(framework, platform, variant, full, idf, arduino, simple):
-    from esphome.components.esp32.const import KEY_ESP32
+    from esphome.components.esp32 import KEY_ESP32
     from esphome.const import (
         KEY_CORE,
         KEY_TARGET_FRAMEWORK,
@@ -251,15 +251,6 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
         "host": "24",
     }
 
-    idf_mappings = {
-        "esp32_idf": "4",
-        "esp32_s2_idf": "7",
-        "esp32_s3_idf": "10",
-        "esp32_c3_idf": "13",
-        "esp32_c6_idf": "16",
-        "esp32_h2_idf": "19",
-    }
-
     arduino_mappings = {
         "esp32_arduino": "3",
         "esp32_s2_arduino": "6",
@@ -267,6 +258,15 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
         "esp32_c3_arduino": "12",
         "esp32_c6_arduino": "15",
         "esp32_h2_arduino": "18",
+    }
+
+    idf_mappings = {
+        "esp32_idf": "4",
+        "esp32_s2_idf": "7",
+        "esp32_s3_idf": "10",
+        "esp32_c3_idf": "13",
+        "esp32_c6_idf": "16",
+        "esp32_h2_idf": "19",
     }
 
     schema = config_validation.Schema(
@@ -293,8 +293,8 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
 @pytest.mark.parametrize(
     "framework, platform, message",
     [
-        ("esp-idf", PLATFORM_ESP32, "ESP32 using esp-idf framework"),
         ("arduino", PLATFORM_ESP32, "ESP32 using arduino framework"),
+        ("esp-idf", PLATFORM_ESP32, "ESP32 using esp-idf framework"),
         ("arduino", PLATFORM_ESP8266, "ESP8266 using arduino framework"),
         ("arduino", PLATFORM_RP2040, "RP2040 using arduino framework"),
         ("arduino", PLATFORM_BK72XX, "BK72XX using arduino framework"),
@@ -502,3 +502,77 @@ def test_only_with_user_value_overrides_default() -> None:
 
     result = schema({"mqtt_id": "custom_id"})
     assert result.get("mqtt_id") == "custom_id"
+
+
+@pytest.mark.parametrize("value", ("hello", "Hello World", "test_name", "温度"))
+def test_string_no_slash__valid(value: str) -> None:
+    actual = config_validation.string_no_slash(value)
+    assert actual == value
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ("has/slash", "has⁄slash"),
+        ("a/b/c", "a⁄b⁄c"),
+        ("/leading", "⁄leading"),
+        ("trailing/", "trailing⁄"),
+    ),
+)
+def test_string_no_slash__slash_replaced_with_warning(
+    value: str, expected: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that '/' is auto-replaced with fraction slash and warning is logged."""
+    actual = config_validation.string_no_slash(value)
+    assert actual == expected
+    assert "reserved as a URL path separator" in caplog.text
+    assert "will become an error in ESPHome 2026.7.0" in caplog.text
+
+
+def test_string_no_slash__long_string_allowed() -> None:
+    # string_no_slash doesn't enforce length - use cv.Length() separately
+    long_value = "x" * 200
+    assert config_validation.string_no_slash(long_value) == long_value
+
+
+def test_string_no_slash__empty() -> None:
+    assert config_validation.string_no_slash("") == ""
+
+
+@pytest.mark.parametrize("value", ("Temperature", "Living Room Light", "温度传感器"))
+def test_validate_entity_name__valid(value: str) -> None:
+    actual = config_validation._validate_entity_name(value)
+    assert actual == value
+
+
+def test_validate_entity_name__slash_replaced_with_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that '/' in entity names is auto-replaced with fraction slash."""
+    actual = config_validation._validate_entity_name("has/slash")
+    assert actual == "has⁄slash"
+    assert "reserved as a URL path separator" in caplog.text
+
+
+def test_validate_entity_name__max_length() -> None:
+    # 120 chars should pass
+    assert config_validation._validate_entity_name("x" * 120) == "x" * 120
+
+    # 121 chars should fail
+    with pytest.raises(Invalid, match="too long.*121 chars.*Maximum.*120"):
+        config_validation._validate_entity_name("x" * 121)
+
+
+def test_validate_entity_name__none_without_friendly_name() -> None:
+    # When name is "None" and friendly_name is not set, it should fail
+    CORE.friendly_name = None
+    with pytest.raises(Invalid, match="friendly_name is not set"):
+        config_validation._validate_entity_name("None")
+
+
+def test_validate_entity_name__none_with_friendly_name() -> None:
+    # When name is "None" but friendly_name is set, it should return None
+    CORE.friendly_name = "My Device"
+    result = config_validation._validate_entity_name("None")
+    assert result is None
+    CORE.friendly_name = None  # Reset

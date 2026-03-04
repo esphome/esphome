@@ -338,21 +338,46 @@ def check_replaceme(value):
         )
 
 
-def _build_list_index(lst):
+def _get_item_id(item: Any) -> str | Extend | Remove | None:
+    """Attempts to get a list item's ID"""
+    if not isinstance(item, dict):
+        return None  # not a dict, can't have ID
+    # 1.- Check regular case:
+    # - id: my_id
+    item_id = item.get(CONF_ID)
+    if item_id is None and len(item) == 1:
+        # 2.- Check single-key dict case:
+        # - obj:
+        #     id: my_id
+        item = next(iter(item.values()))
+        if isinstance(item, dict):
+            item_id = item.get(CONF_ID)
+    if isinstance(item_id, Extend):
+        # Remove instances of Extend so they don't overwrite the original item when merging:
+        del item[CONF_ID]
+    elif not isinstance(item_id, (str, Remove)):
+        return None
+    return item_id
+
+
+def _build_list_index(
+    lst: list[Any],
+) -> tuple[
+    OrderedDict[str | Extend | Remove, Any], list[tuple[int, str, Any]], set[str]
+]:
     index = OrderedDict()
     extensions, removals = [], set()
-    for item in lst:
+    for pos, item in enumerate(lst):
         if item is None:
             removals.add(None)
             continue
-        item_id = None
-        if isinstance(item, dict) and (item_id := item.get(CONF_ID)):
-            if isinstance(item_id, Extend):
-                extensions.append(item)
-                continue
-            if isinstance(item_id, Remove):
-                removals.add(item_id.value)
-                continue
+        item_id = _get_item_id(item)
+        if isinstance(item_id, Extend):
+            extensions.append((pos, item_id.value, item))
+            continue
+        if isinstance(item_id, Remove):
+            removals.add(item_id.value)
+            continue
         if not item_id or item_id in index:
             # no id or duplicate -> pass through with identity-based key
             item_id = id(item)
@@ -360,7 +385,7 @@ def _build_list_index(lst):
     return index, extensions, removals
 
 
-def resolve_extend_remove(value, is_key=None):
+def resolve_extend_remove(value: Any, is_key: bool = False) -> None:
     if isinstance(value, ESPLiteralValue):
         return  # do not check inside literal blocks
     if isinstance(value, list):
@@ -368,26 +393,16 @@ def resolve_extend_remove(value, is_key=None):
         if extensions or removals:
             # Rebuild the original list after
             # processing all extensions and removals
-            for item in extensions:
-                item_id = item[CONF_ID].value
+            for pos, item_id, item in extensions:
                 if item_id in removals:
                     continue
                 old = index.get(item_id)
                 if old is None:
                     # Failed to find source for extension
-                    # Find index of item to show error at correct position
-                    i = next(
-                        (
-                            i
-                            for i, d in enumerate(value)
-                            if d.get(CONF_ID) == item[CONF_ID]
-                        )
-                    )
-                    with cv.prepend_path(i):
+                    with cv.prepend_path(pos):
                         raise cv.Invalid(
                             f"Source for extension of ID '{item_id}' was not found."
                         )
-                item[CONF_ID] = item_id
                 index[item_id] = merge_config(old, item)
             for item_id in removals:
                 index.pop(item_id, None)
@@ -995,16 +1010,22 @@ def validate_config(
             result.add_error(err)
             return result
 
+    # 1.1. Merge packages
+    if CONF_PACKAGES in config:
+        from esphome.components.packages import merge_packages
+
+        config = merge_packages(config)
+
     CORE.raw_config = config
 
-    # 1.1. Resolve !extend and !remove and check for REPLACEME
+    # 1.2. Resolve !extend and !remove and check for REPLACEME
     # After this step, there will not be any Extend or Remove values in the config anymore
     try:
         resolve_extend_remove(config)
     except vol.Invalid as err:
         result.add_error(err)
 
-    # 1.2. Load external_components
+    # 1.3. Load external_components
     if CONF_EXTERNAL_COMPONENTS in config:
         from esphome.components.external_components import do_external_components_pass
 

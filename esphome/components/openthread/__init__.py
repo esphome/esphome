@@ -1,14 +1,23 @@
 import esphome.codegen as cg
 from esphome.components.esp32 import (
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
     add_idf_sdkconfig_option,
+    get_esp32_variant,
+    include_builtin_idf_component,
     only_on_variant,
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID, CONF_USE_ADDRESS
+from esphome.const import (
+    CONF_CHANNEL,
+    CONF_ENABLE_IPV6,
+    CONF_ID,
+    CONF_OUTPUT_POWER,
+    CONF_USE_ADDRESS,
+)
 from esphome.core import CORE, TimePeriodMilliseconds
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -43,6 +52,20 @@ CONF_DEVICE_TYPES = [
 ]
 
 
+def _validate_txpower(value):
+    if CORE.is_esp32:
+        variant = get_esp32_variant()
+
+        # HW limits: Datasheet section "802.15.4 RF Transmitter (TX) Characteristics"
+        # Further regulatory/soft limit may apply, e.g. by region
+        if variant in (VARIANT_ESP32C6, VARIANT_ESP32C5):
+            return cv.int_range(min=-15, max=20)(value)
+        if variant == VARIANT_ESP32H2:
+            return cv.int_range(min=-24, max=20)(value)
+
+    return value  # Unsupported, fail later with clear error
+
+
 def set_sdkconfig_options(config):
     # and expose options for using SPI/UART RCPs
     add_idf_sdkconfig_option("CONFIG_IEEE802154_ENABLED", True)
@@ -50,6 +73,11 @@ def set_sdkconfig_options(config):
 
     # There is a conflict if the logger's uart also uses the default UART, which is seen as a watchdog failure on "ot_cli"
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_CLI", False)
+    # Console is the transport layer for CLI; disable it too since CLI is disabled
+    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_CONSOLE_ENABLE", False)
+
+    # Diag unused, if needed for lab/cert/etc tests then enable separately
+    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DIAG", False)
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
 
@@ -90,7 +118,7 @@ def set_sdkconfig_options(config):
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 
-    # TODO: Add suport for synchronized sleepy end devices (SSED)
+    # TODO: Add support for synchronized sleepy end devices (SSED)
     add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
 
 
@@ -101,7 +129,7 @@ OpenThreadSrpComponent = openthread_ns.class_("OpenThreadSrpComponent", cg.Compo
 _CONNECTION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PAN_ID): cv.hex_int,
-        cv.Optional(CONF_CHANNEL): cv.int_,
+        cv.Optional(CONF_CHANNEL): cv.int_range(min=11, max=26),
         cv.Optional(CONF_NETWORK_KEY): cv.hex_int,
         cv.Optional(CONF_EXT_PAN_ID): cv.hex_int,
         cv.Optional(CONF_NETWORK_NAME): cv.string_strict,
@@ -148,11 +176,14 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TLV): cv.string_strict,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_OUTPUT_POWER): cv.All(
+                cv.decibel,
+                _validate_txpower,
+            ),
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
-    cv.only_with_esp_idf,
-    only_on_variant(supported=[VARIANT_ESP32C6, VARIANT_ESP32H2]),
+    only_on_variant(supported=[VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32H2]),
     _validate,
     _require_vfs_select,
 )
@@ -172,6 +203,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
+    # Re-enable openthread IDF component (excluded by default)
+    include_builtin_idf_component("openthread")
+
     cg.add_define("USE_OPENTHREAD")
 
     # OpenThread SRP needs access to mDNS services after setup
@@ -187,5 +221,8 @@ async def to_code(config):
     mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
     cg.add(srp.set_mdns(mdns_component))
     await cg.register_component(srp, config)
+
+    if (output_power := config.get(CONF_OUTPUT_POWER)) is not None:
+        cg.add(ot.set_output_power(output_power))
 
     set_sdkconfig_options(config)
