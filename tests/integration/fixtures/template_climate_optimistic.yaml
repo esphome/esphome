@@ -1,0 +1,51 @@
+esphome:
+  name: tmpl-clim-opt
+host:
+api:
+logger:
+
+climate:
+  - platform: template
+    id: test_climate
+    name: Test Template Climate
+    optimistic: true
+    supported_modes:
+      - "OFF"
+      - HEAT
+      - COOL
+      - FAN_ONLY
+    supported_fan_modes:
+      - AUTO
+      - LOW
+      - HIGH
+    supported_swing_modes:
+      - "OFF"
+      - VERTICAL
+    supported_presets:
+      - NONE
+      - ECO
+      - AWAY
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+    set_mode_action:
+      - logger.log:
+          format: "Mode: %d"
+          args: ["(int) x"]
+    set_target_temperature_action:
+      - logger.log:
+          format: "Target temp: %.1f"
+          args: ["x"]
+    set_fan_mode_action:
+      - logger.log:
+          format: "Fan mode: %d"
+          args: ["(int) x"]
+    set_swing_mode_action:
+      - logger.log:
+          format: "Swing mode: %d"
+          args: ["(int) x"]
+    set_preset_action:
+      - logger.log:
+          format: "Preset: %d"
+          args: ["(int) x"]
