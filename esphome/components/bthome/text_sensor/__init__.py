@@ -28,7 +28,7 @@ CONFIG_SCHEMA = text_sensor.text_sensor_schema(class_=BTHomeTextSensor).extend(
 async def to_code(config):
     var = await text_sensor.new_text_sensor(config)
     object_type_key = config[CONF_TYPE]
-    cg.add(var.set_object_type(bthome_object_types.__getattr__(object_type_key)))
+    cg.add(var.set_object_type(getattr(bthome_object_types, object_type_key)))
     await add_handler(
         var,
         config[CONF_DEVICE_ID],

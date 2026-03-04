@@ -370,7 +370,7 @@ async def _server_to_code(config):
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
 
     # Create local sensor wrappers
-    for i, (object_id, kind, entry) in enumerate(all_entries):
+    for i, (_, kind, entry) in enumerate(all_entries):
         ot_key = entry[CONF_TYPE]
 
         if kind == "sensor":
@@ -390,7 +390,7 @@ async def _server_to_code(config):
             source = await cg.get_variable(entry[CONF_ID])
             cg.add(local_var.set_source(source))
 
-        cg.add(local_var.set_object_type(bthome_object_types.__getattr__(ot_key)))
+        cg.add(local_var.set_object_type(getattr(bthome_object_types, ot_key)))
 
         if entry.get(CONF_ADVERTISE_IMMEDIATELY, False):
             cg.add(local_var.set_advertise_immediately(True))
