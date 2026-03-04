@@ -346,49 +346,43 @@ class APIConnection final : public APIServerConnectionBase {
     return encode_to_buffer_(calculated_size_of(msg), &encode_msg_<T>, &msg, conn, remaining_size);
   }
 
-  // Helper to fill entity state base and encode message
+  // Non-template core — fills state fields and encodes
+  static uint16_t fill_and_encode_entity_state_(EntityBase *entity, StateResponseProtoMessage &msg,
+                                                uint32_t calculated_size, MessageEncodeFn encode_fn,
+                                                APIConnection *conn, uint32_t remaining_size);
+
+  // Thin template wrapper
   template<typename T>
   static uint16_t fill_and_encode_entity_state(EntityBase *entity, T &msg, APIConnection *conn,
                                                uint32_t remaining_size) {
-    msg.key = entity->get_object_id_hash();
-#ifdef USE_DEVICES
-    msg.device_id = entity->get_device_id();
-#endif
-    return encode_message_to_buffer(msg, conn, remaining_size);
+    return fill_and_encode_entity_state_(entity, msg, calculated_size_of(msg), &encode_msg_<T>, conn, remaining_size);
   }
 
-  // Non-template helper to fill common entity info fields.
-  // Caller provides buffers that must remain alive until encoding completes.
-  static void fill_entity_info_(EntityBase *entity, InfoResponseProtoMessage &msg, APIConnection *conn,
-                                std::span<char, OBJECT_ID_MAX_LEN> object_id_buf
-#ifdef USE_ENTITY_ICON
-                                ,
-                                std::span<char, MAX_ICON_LENGTH> icon_buf
-#endif
-  );
+  // Non-template core — fills info fields, allocates buffers, and encodes
+  static uint16_t fill_and_encode_entity_info_(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                               uint32_t calculated_size, MessageEncodeFn encode_fn, APIConnection *conn,
+                                               uint32_t remaining_size);
 
-  // Template to fill entity info and encode
+  // Thin template wrapper
   template<typename T>
   static uint16_t fill_and_encode_entity_info(EntityBase *entity, T &msg, APIConnection *conn,
                                               uint32_t remaining_size) {
-    char object_id_buf[OBJECT_ID_MAX_LEN];
-#ifdef USE_ENTITY_ICON
-    char icon_buf[MAX_ICON_LENGTH];
-    fill_entity_info_(entity, msg, conn, object_id_buf, icon_buf);
-#else
-    fill_entity_info_(entity, msg, conn, object_id_buf);
-#endif
-    return encode_message_to_buffer(msg, conn, remaining_size);
+    return fill_and_encode_entity_info_(entity, msg, calculated_size_of(msg), &encode_msg_<T>, conn, remaining_size);
   }
 
-  // Wrapper for entity types that have a device_class field
+  // Non-template core — fills device_class, then delegates to fill_and_encode_entity_info_
+  static uint16_t fill_and_encode_entity_info_with_device_class_(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                                                 StringRef &device_class_field,
+                                                                 uint32_t calculated_size, MessageEncodeFn encode_fn,
+                                                                 APIConnection *conn, uint32_t remaining_size);
+
+  // Thin template wrapper
   template<typename T>
   static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, T &msg,
                                                                 StringRef &device_class_field, APIConnection *conn,
                                                                 uint32_t remaining_size) {
-    char dc_buf[MAX_DEVICE_CLASS_LENGTH];
-    device_class_field = StringRef(entity->get_device_class_to(dc_buf));
-    return fill_and_encode_entity_info(entity, msg, conn, remaining_size);
+    return fill_and_encode_entity_info_with_device_class_(entity, msg, device_class_field, calculated_size_of(msg),
+                                                          &encode_msg_<T>, conn, remaining_size);
   }
 
 #ifdef USE_VOICE_ASSISTANT

@@ -343,21 +343,26 @@ void APIConnection::on_disconnect_response() {
   this->flags_.remove = true;
 }
 
-// Non-template helper to fill common entity info fields.
-// Caller provides buffers that must remain alive until encoding completes.
-void APIConnection::fill_entity_info_(EntityBase *entity, InfoResponseProtoMessage &msg, APIConnection *conn,
-                                      std::span<char, OBJECT_ID_MAX_LEN> object_id_buf
-#ifdef USE_ENTITY_ICON
-                                      ,
-                                      std::span<char, MAX_ICON_LENGTH> icon_buf
+uint16_t APIConnection::fill_and_encode_entity_state_(EntityBase *entity, StateResponseProtoMessage &msg,
+                                                      uint32_t calculated_size, MessageEncodeFn encode_fn,
+                                                      APIConnection *conn, uint32_t remaining_size) {
+  msg.key = entity->get_object_id_hash();
+#ifdef USE_DEVICES
+  msg.device_id = entity->get_device_id();
 #endif
-) {
+  return encode_to_buffer_(calculated_size, encode_fn, &msg, conn, remaining_size);
+}
+
+uint16_t APIConnection::fill_and_encode_entity_info_(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                                     uint32_t calculated_size, MessageEncodeFn encode_fn,
+                                                     APIConnection *conn, uint32_t remaining_size) {
   msg.key = entity->get_object_id_hash();
 
   // API 1.14+ clients compute object_id client-side from the entity name
   // For older clients, we must send object_id for backward compatibility
   // See: https://github.com/esphome/backlog/issues/76
   // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
+  char object_id_buf[OBJECT_ID_MAX_LEN];
   if (!conn->client_supports_api_version(1, 14)) {
     msg.object_id = entity->get_object_id_to(object_id_buf);
   }
@@ -367,6 +372,7 @@ void APIConnection::fill_entity_info_(EntityBase *entity, InfoResponseProtoMessa
   }
 
 #ifdef USE_ENTITY_ICON
+  char icon_buf[MAX_ICON_LENGTH];
   msg.icon = StringRef(entity->get_icon_to(icon_buf));
 #endif
   msg.disabled_by_default = entity->is_disabled_by_default();
@@ -374,6 +380,15 @@ void APIConnection::fill_entity_info_(EntityBase *entity, InfoResponseProtoMessa
 #ifdef USE_DEVICES
   msg.device_id = entity->get_device_id();
 #endif
+  return encode_to_buffer_(calculated_size, encode_fn, &msg, conn, remaining_size);
+}
+
+uint16_t APIConnection::fill_and_encode_entity_info_with_device_class_(
+    EntityBase *entity, InfoResponseProtoMessage &msg, StringRef &device_class_field, uint32_t calculated_size,
+    MessageEncodeFn encode_fn, APIConnection *conn, uint32_t remaining_size) {
+  char dc_buf[MAX_DEVICE_CLASS_LENGTH];
+  device_class_field = StringRef(entity->get_device_class_to(dc_buf));
+  return fill_and_encode_entity_info_(entity, msg, calculated_size, encode_fn, conn, remaining_size);
 }
 
 #ifdef USE_BINARY_SENSOR
