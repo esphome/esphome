@@ -2,60 +2,68 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
+#include "esphome/core/template_lambda.h"
 #include "esphome/components/climate/climate.h"
-#include "esphome/components/number/number.h"
-#include "esphome/components/select/select.h"
-#include "esphome/components/sensor/sensor.h"
-#include "esphome/components/text_sensor/text_sensor.h"
 
 namespace esphome {
 namespace template_ {
 
-using namespace climate;
-using namespace number;
-using namespace select;
-using namespace sensor;
-using namespace text_sensor;
-
-class TemplateClimate : public Climate, public Component {
+class TemplateClimate final : public climate::Climate, public Component {
  public:
-  ClimateTraits traits_;
+  TemplateClimate();
 
   void setup() override;
+  void loop() override;
+  void dump_config() override;
 
-  ClimateTraits traits() override { return this->traits_; }
+  climate::ClimateTraits traits() override { return this->traits_; }
 
-  void set_current_temperature(Sensor *sensor) {
-    this->current_temperature_ = sensor;
-    this->traits_.add_feature_flags(CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  template<typename F> void set_current_temperature_lambda(F &&f) {
+    this->current_temperature_f_.set(std::forward<F>(f));
+  }
+  template<typename F> void set_target_temperature_lambda(F &&f) {
+    this->target_temperature_f_.set(std::forward<F>(f));
   }
 
-  void set_target_temperature(Number *num) { this->target_temperature_ = num; }
-
-  void set_mode(Select *s) { this->mode_ = s; }
-
-  void set_fan_mode(Select *s) { this->fan_mode_ = s; }
-
-  void set_swing_mode(Select *s) { this->swing_mode_ = s; }
-
-  void set_preset(Select *s) { this->preset_ = s; }
-
-  void set_action(TextSensor *s) {
-    this->action_ = s;
-    this->traits_.add_feature_flags(CLIMATE_SUPPORTS_ACTION);
+  void set_supported_modes(const std::vector<climate::ClimateMode> &modes) {
+    for (auto mode : modes)
+      this->traits_.add_supported_mode(mode);
   }
+  void set_supported_fan_modes(const std::vector<climate::ClimateFanMode> &modes) {
+    for (auto mode : modes)
+      this->traits_.add_supported_fan_mode(mode);
+  }
+  void set_supported_swing_modes(const std::vector<climate::ClimateSwingMode> &modes) {
+    for (auto mode : modes)
+      this->traits_.add_supported_swing_mode(mode);
+  }
+  void set_supported_presets(const std::vector<climate::ClimatePreset> &presets) {
+    for (auto preset : presets)
+      this->traits_.add_supported_preset(preset);
+  }
+
+  Trigger<climate::ClimateMode> *get_set_mode_trigger() const { return this->set_mode_trigger_; }
+  Trigger<float> *get_set_target_temperature_trigger() const { return this->set_target_temperature_trigger_; }
+  Trigger<climate::ClimateFanMode> *get_set_fan_mode_trigger() const { return this->set_fan_mode_trigger_; }
+  Trigger<climate::ClimateSwingMode> *get_set_swing_mode_trigger() const { return this->set_swing_mode_trigger_; }
+  Trigger<climate::ClimatePreset> *get_set_preset_trigger() const { return this->set_preset_trigger_; }
+
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
  protected:
-  void control(const ClimateCall &call) override;
+  void control(const climate::ClimateCall &call) override;
 
-  Sensor *current_temperature_{nullptr};
-  Number *target_temperature_{nullptr};
-  Select *mode_{nullptr};
-  Select *fan_mode_{nullptr};
-  Select *swing_mode_{nullptr};
-  Select *preset_{nullptr};
-  TextSensor *action_{nullptr};
+  climate::ClimateTraits traits_;
+  bool optimistic_{true};
+
+  TemplateLambda<float> current_temperature_f_;
+  TemplateLambda<float> target_temperature_f_;
+
+  Trigger<climate::ClimateMode> *set_mode_trigger_;
+  Trigger<float> *set_target_temperature_trigger_;
+  Trigger<climate::ClimateFanMode> *set_fan_mode_trigger_;
+  Trigger<climate::ClimateSwingMode> *set_swing_mode_trigger_;
+  Trigger<climate::ClimatePreset> *set_preset_trigger_;
 };
 
 }  // namespace template_

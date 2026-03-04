@@ -44,7 +44,7 @@ sensor:
   - platform: template
     id: climate_current_temperature
     lambda: |-
-      return 42;
+      return 42.0f;
 
 esphome:
   on_boot:
@@ -142,13 +142,6 @@ number:
     max_value: 100
     step: 1
 
-  - platform: template
-    id: climate_target_temperature
-    optimistic: true
-    min_value: 10
-    max_value: 30
-    step: 0.1
-
 select:
   - platform: template
     name: "Template select"
@@ -158,34 +151,6 @@ select:
       - two
       - three
     initial_option: two
-
-  - platform: template
-    id: climate_mode
-    optimistic: true
-    options:
-      - "OFF"
-      - "HEAT"
-
-  - platform: template
-    id: climate_fan_mode
-    optimistic: true
-    options:
-      - "ON"
-      - "AUTO"
-
-  - platform: template
-    id: climate_swing_mode
-    optimistic: true
-    options:
-      - "OFF"
-      - "HORIZONTAL"
-
-  - platform: template
-    id: climate_preset
-    optimistic: true
-    options:
-      - "NONE"
-      - "ECO"
 
 lock:
   - platform: template
@@ -240,10 +205,6 @@ text:
         - logger.log:
             format: Template Text set to %s
             args: ["x.c_str()"]
-
-text_sensor:
-  - platform: template
-    id: climate_action
 
 alarm_control_panel:
   - platform: template
@@ -301,13 +262,40 @@ datetime:
 climate:
   - platform: template
     name: Nice Climate Template Component
-    target_temperature_id: climate_target_temperature
-    current_temperature_id: climate_current_temperature
-    mode_id: climate_mode
-    fan_mode_id: climate_fan_mode
-    swing_mode_id: climate_swing_mode
-    preset_id: climate_preset
-    action_id: climate_action
+    lambda: |-
+      return id(climate_current_temperature).state;
+    supported_modes:
+      - "OFF"
+      - HEAT
+      - COOL
+      - AUTO
+    supported_fan_modes:
+      - AUTO
+      - LOW
+      - HIGH
+    supported_swing_modes:
+      - "OFF"
+      - VERTICAL
+    supported_presets:
+      - NONE
+      - ECO
+    set_mode_action:
+      - logger.log:
+          format: "Climate mode set"
+    set_target_temperature_action:
+      - logger.log:
+          format: "Climate target temperature: %.1f"
+          args: ["x"]
+    set_fan_mode_action:
+      - logger.log:
+          format: "Climate fan mode set"
+    set_swing_mode_action:
+      - logger.log:
+          format: "Climate swing mode set"
+    set_preset_action:
+      - logger.log:
+          format: "Climate preset set"
+    optimistic: true
     visual:
       temperature_step: 0.1C
 
