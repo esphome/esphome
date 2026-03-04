@@ -563,7 +563,7 @@ class BoolType(TypeInfo):
         return f"out.append(YESNO({name}));"
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_simple_size_calculation(name, force, "bool_")
+        return self._get_simple_size_calculation(name, force, "bool")
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 1  # field ID + 1 byte
