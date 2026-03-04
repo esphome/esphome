@@ -21,10 +21,10 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from aioesphomeapi import BinarySensorState, ButtonInfo, EntityState, SensorState
+from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping, find_entity
+from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -58,61 +58,38 @@ async def test_uart_mock_ld2410(
         if "uart_mock" in line and "TX " in line:
             tx_log_lines.append(line)
 
-    # Track sensor state updates (after initial state is swallowed)
-    sensor_states: dict[str, list[float]] = {
-        "moving_distance": [],
-        "still_distance": [],
-        "moving_energy": [],
-        "still_energy": [],
-        "detection_distance": [],
-    }
-    binary_states: dict[str, list[bool]] = {
-        "has_target": [],
-        "has_moving_target": [],
-        "has_still_target": [],
-    }
+    collector = SensorStateCollector(
+        sensor_names=[
+            "moving_distance",
+            "still_distance",
+            "moving_energy",
+            "still_energy",
+            "detection_distance",
+        ],
+        binary_sensor_names=[
+            "has_target",
+            "has_moving_target",
+            "has_still_target",
+        ],
+    )
 
-    # Signal when we see Phase 1 frame values (moving_distance = 100)
-    phase1_received = loop.create_future()
     # Signal when we see recovery frame values
-    recovery_received = loop.create_future()
-
-    def on_state(state: EntityState) -> None:
-        if isinstance(state, SensorState) and not state.missing_state:
-            sensor_name = key_to_sensor.get(state.key)
-            if sensor_name and sensor_name in sensor_states:
-                sensor_states[sensor_name].append(state.state)
-                if (
-                    sensor_name == "moving_distance"
-                    and state.state == pytest.approx(100.0)
-                    and not phase1_received.done()
-                ):
-                    phase1_received.set_result(True)
-                # Check if this is the recovery frame (moving_distance = 50)
-                if (
-                    sensor_name == "moving_distance"
-                    and state.state == pytest.approx(50.0)
-                    and not recovery_received.done()
-                ):
-                    recovery_received.set_result(True)
-        elif isinstance(state, BinarySensorState):
-            sensor_name = key_to_sensor.get(state.key)
-            if sensor_name and sensor_name in binary_states:
-                binary_states[sensor_name].append(state.state)
+    recovery_received = collector.add_waiter(
+        lambda: pytest.approx(50.0) in collector.sensor_states["moving_distance"]
+    )
 
     async with (
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-
-        # Build key mappings for all sensor types
-        all_names = list(sensor_states.keys()) + list(binary_states.keys())
-        key_to_sensor = build_key_to_entity_mapping(entities, all_names)
+        collector.build_key_mapping(entities)
 
         # Set up initial state helper
         initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+        client.subscribe_states(
+            initial_state_helper.on_state_wrapper(collector.on_state)
+        )
 
         try:
             await initial_state_helper.wait_for_initial_states()
@@ -124,31 +101,22 @@ async def test_uart_mock_ld2410(
         assert start_btn is not None, "Start Scenario button not found"
         client.button_command(start_btn.key)
 
-        # Wait for Phase 1 frame to be received
+        # Wait for Phase 1 - all sensors and binary sensors have at least one value
         try:
-            await asyncio.wait_for(phase1_received, timeout=3.0)
+            await collector.wait_for_all(timeout=3.0)
         except TimeoutError:
             pytest.fail(
                 f"Timeout waiting for Phase 1 frame. Received:\n"
-                f"  moving_distance: {sensor_states['moving_distance']}"
+                f"  sensor_states: {collector.sensor_states}\n"
+                f"  binary_states: {collector.binary_states}"
             )
 
         # Phase 1 values: moving=100, still=120, energy=50/25, detect=300
-        assert sensor_states["moving_distance"][0] == pytest.approx(100.0), (
-            f"Phase 1 moving distance should be 100, got {sensor_states['moving_distance'][0]}"
-        )
-        assert sensor_states["still_distance"][0] == pytest.approx(120.0), (
-            f"Phase 1 still distance should be 120, got {sensor_states['still_distance'][0]}"
-        )
-        assert sensor_states["moving_energy"][0] == pytest.approx(50.0), (
-            f"Phase 1 moving energy should be 50, got {sensor_states['moving_energy'][0]}"
-        )
-        assert sensor_states["still_energy"][0] == pytest.approx(25.0), (
-            f"Phase 1 still energy should be 25, got {sensor_states['still_energy'][0]}"
-        )
-        assert sensor_states["detection_distance"][0] == pytest.approx(300.0), (
-            f"Phase 1 detection distance should be 300, got {sensor_states['detection_distance'][0]}"
-        )
+        assert collector.sensor_states["moving_distance"][0] == pytest.approx(100.0)
+        assert collector.sensor_states["still_distance"][0] == pytest.approx(120.0)
+        assert collector.sensor_states["moving_energy"][0] == pytest.approx(50.0)
+        assert collector.sensor_states["still_energy"][0] == pytest.approx(25.0)
+        assert collector.sensor_states["detection_distance"][0] == pytest.approx(300.0)
 
         # Wait for the recovery frame (Phase 5) to be parsed
         # This proves the component survived garbage + truncated + overflow
@@ -156,12 +124,8 @@ async def test_uart_mock_ld2410(
             await asyncio.wait_for(recovery_received, timeout=15.0)
         except TimeoutError:
             pytest.fail(
-                f"Timeout waiting for recovery frame. Received sensor states:\n"
-                f"  moving_distance: {sensor_states['moving_distance']}\n"
-                f"  still_distance: {sensor_states['still_distance']}\n"
-                f"  moving_energy: {sensor_states['moving_energy']}\n"
-                f"  still_energy: {sensor_states['still_energy']}\n"
-                f"  detection_distance: {sensor_states['detection_distance']}"
+                f"Timeout waiting for recovery frame. Received:\n"
+                f"  sensor_states: {collector.sensor_states}"
             )
 
         # Verify overflow warning was logged
@@ -174,63 +138,36 @@ async def test_uart_mock_ld2410(
         # A5 (MAC), AB (distance res), AE (light), 61 (params), FE (config off)
         assert len(tx_log_lines) > 0, "Expected TX log lines from uart_mock"
         tx_data = " ".join(tx_log_lines)
-        # Verify command frame header appears (FD:FC:FB:FA)
         assert "FD:FC:FB:FA" in tx_data, (
             "Expected LD2410 command frame header FD:FC:FB:FA in TX log"
         )
-        # Verify command frame footer appears (04:03:02:01)
         assert "04:03:02:01" in tx_data, (
             "Expected LD2410 command frame footer 04:03:02:01 in TX log"
-        )
-
-        # Recovery frame values (Phase 5, after overflow)
-        assert len(sensor_states["moving_distance"]) >= 1, (
-            f"Expected recovery moving_distance, got: {sensor_states['moving_distance']}"
-        )
-        # Find the recovery value (moving_distance = 50)
-        recovery_values = [
-            v for v in sensor_states["moving_distance"] if v == pytest.approx(50.0)
-        ]
-        assert len(recovery_values) >= 1, (
-            f"Expected moving_distance=50 in recovery, got: {sensor_states['moving_distance']}"
         )
 
         # Recovery frame: moving=50, still=75, energy=100/80, detect=127
         recovery_idx = next(
             i
-            for i, v in enumerate(sensor_states["moving_distance"])
+            for i, v in enumerate(collector.sensor_states["moving_distance"])
             if v == pytest.approx(50.0)
         )
-        assert sensor_states["still_distance"][recovery_idx] == pytest.approx(75.0), (
-            f"Recovery still distance should be 75, got {sensor_states['still_distance'][recovery_idx]}"
+        assert collector.sensor_states["still_distance"][recovery_idx] == pytest.approx(
+            75.0
         )
-        assert sensor_states["moving_energy"][recovery_idx] == pytest.approx(100.0), (
-            f"Recovery moving energy should be 100, got {sensor_states['moving_energy'][recovery_idx]}"
+        assert collector.sensor_states["moving_energy"][recovery_idx] == pytest.approx(
+            100.0
         )
-        assert sensor_states["still_energy"][recovery_idx] == pytest.approx(80.0), (
-            f"Recovery still energy should be 80, got {sensor_states['still_energy'][recovery_idx]}"
+        assert collector.sensor_states["still_energy"][recovery_idx] == pytest.approx(
+            80.0
         )
-        assert sensor_states["detection_distance"][recovery_idx] == pytest.approx(
-            127.0
-        ), (
-            f"Recovery detection distance should be 127, got {sensor_states['detection_distance'][recovery_idx]}"
-        )
+        assert collector.sensor_states["detection_distance"][
+            recovery_idx
+        ] == pytest.approx(127.0)
 
         # Verify binary sensors detected targets (from Phase 1 frame)
-        assert len(binary_states["has_target"]) >= 1, "Expected has_target state"
-        assert binary_states["has_target"][0] is True, "Has target should be True"
-        assert len(binary_states["has_moving_target"]) >= 1, (
-            "Expected has_moving_target state"
-        )
-        assert binary_states["has_moving_target"][0] is True, (
-            "Has moving target should be True"
-        )
-        assert len(binary_states["has_still_target"]) >= 1, (
-            "Expected has_still_target state"
-        )
-        assert binary_states["has_still_target"][0] is True, (
-            "Has still target should be True"
-        )
+        assert collector.binary_states["has_target"][0] is True
+        assert collector.binary_states["has_moving_target"][0] is True
+        assert collector.binary_states["has_still_target"][0] is True
 
 
 @pytest.mark.asyncio
@@ -247,68 +184,45 @@ async def test_uart_mock_ld2410_engineering(
         "EXTERNAL_COMPONENT_PATH", external_components_path
     )
 
-    loop = asyncio.get_running_loop()
+    collector = SensorStateCollector(
+        sensor_names=[
+            "moving_distance",
+            "still_distance",
+            "moving_energy",
+            "still_energy",
+            "detection_distance",
+            "light",
+            "gate_0_move_energy",
+            "gate_1_move_energy",
+            "gate_2_move_energy",
+            "gate_0_still_energy",
+            "gate_1_still_energy",
+            "gate_2_still_energy",
+        ],
+        binary_sensor_names=[
+            "has_target",
+            "has_moving_target",
+            "has_still_target",
+            "out_pin_presence",
+        ],
+    )
 
-    # Track sensor state updates (after initial state is swallowed)
-    sensor_states: dict[str, list[float]] = {
-        "moving_distance": [],
-        "still_distance": [],
-        "moving_energy": [],
-        "still_energy": [],
-        "detection_distance": [],
-        "light": [],
-        "gate_0_move_energy": [],
-        "gate_1_move_energy": [],
-        "gate_2_move_energy": [],
-        "gate_0_still_energy": [],
-        "gate_1_still_energy": [],
-        "gate_2_still_energy": [],
-    }
-    binary_states: dict[str, list[bool]] = {
-        "has_target": [],
-        "has_moving_target": [],
-        "has_still_target": [],
-        "out_pin_presence": [],
-    }
-
-    # Signal when we see Phase 1 frame values (moving_distance = 30)
-    phase1_received = loop.create_future()
-    # Signal when we see Phase 3 frame (still_distance = 291)
-    phase3_received = loop.create_future()
-
-    def on_state(state: EntityState) -> None:
-        if isinstance(state, SensorState) and not state.missing_state:
-            sensor_name = key_to_sensor.get(state.key)
-            if sensor_name and sensor_name in sensor_states:
-                sensor_states[sensor_name].append(state.state)
-                if (
-                    sensor_name == "moving_distance"
-                    and state.state == pytest.approx(30.0)
-                    and not phase1_received.done()
-                ):
-                    phase1_received.set_result(True)
-                if (
-                    sensor_name == "still_distance"
-                    and state.state == pytest.approx(291.0)
-                    and not phase3_received.done()
-                ):
-                    phase3_received.set_result(True)
-        elif isinstance(state, BinarySensorState):
-            sensor_name = key_to_sensor.get(state.key)
-            if sensor_name and sensor_name in binary_states:
-                binary_states[sensor_name].append(state.state)
+    # Signal when we see Phase 3 frame values
+    phase3_received = collector.add_waiter(
+        lambda: pytest.approx(291.0) in collector.sensor_states["still_distance"]
+    )
 
     async with (
         run_compiled(yaml_config),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-
-        all_names = list(sensor_states.keys()) + list(binary_states.keys())
-        key_to_sensor = build_key_to_entity_mapping(entities, all_names)
+        collector.build_key_mapping(entities)
 
         initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+        client.subscribe_states(
+            initial_state_helper.on_state_wrapper(collector.on_state)
+        )
 
         try:
             await initial_state_helper.wait_for_initial_states()
@@ -320,58 +234,32 @@ async def test_uart_mock_ld2410_engineering(
         assert start_btn is not None, "Start Scenario button not found"
         client.button_command(start_btn.key)
 
-        # Wait for Phase 1 frame to be received
+        # Wait for Phase 1 - all sensors and binary sensors have at least one value
         try:
-            await asyncio.wait_for(phase1_received, timeout=3.0)
+            await collector.wait_for_all(timeout=3.0)
         except TimeoutError:
             pytest.fail(
                 f"Timeout waiting for Phase 1 frame. Received:\n"
-                f"  moving_distance: {sensor_states['moving_distance']}"
+                f"  sensor_states: {collector.sensor_states}\n"
+                f"  binary_states: {collector.binary_states}"
             )
 
         # Phase 1 values (engineering mode frame):
         # moving=30, energy=100, still=30, energy=100, detect=0
-        assert sensor_states["moving_distance"][0] == pytest.approx(30.0), (
-            f"Phase 1 moving distance should be 30, got {sensor_states['moving_distance'][0]}"
-        )
-        assert sensor_states["still_distance"][0] == pytest.approx(30.0), (
-            f"Phase 1 still distance should be 30, got {sensor_states['still_distance'][0]}"
-        )
-
-        # Gate 0 moving energy = 0x64 = 100
-        assert sensor_states["gate_0_move_energy"][0] == pytest.approx(100.0), (
-            f"Gate 0 move energy should be 100, got {sensor_states['gate_0_move_energy'][0]}"
-        )
-        # Gate 1 moving energy = 0x41 = 65
-        assert sensor_states["gate_1_move_energy"][0] == pytest.approx(65.0), (
-            f"Gate 1 move energy should be 65, got {sensor_states['gate_1_move_energy'][0]}"
-        )
-        # Light sensor = 0x57 = 87
-        assert sensor_states["light"][0] == pytest.approx(87.0), (
-            f"Light sensor should be 87, got {sensor_states['light'][0]}"
-        )
-        # Out pin presence = 0x01 = True
-        assert len(binary_states["out_pin_presence"]) >= 1, (
-            "Expected out_pin_presence state"
-        )
-        assert binary_states["out_pin_presence"][0] is True, (
-            "Out pin presence should be True"
-        )
+        assert collector.sensor_states["moving_distance"][0] == pytest.approx(30.0)
+        assert collector.sensor_states["still_distance"][0] == pytest.approx(30.0)
+        assert collector.sensor_states["gate_0_move_energy"][0] == pytest.approx(100.0)
+        assert collector.sensor_states["gate_1_move_energy"][0] == pytest.approx(65.0)
+        assert collector.sensor_states["light"][0] == pytest.approx(87.0)
+        assert collector.binary_states["out_pin_presence"][0] is True
 
         # Wait for Phase 3 frame (still_distance = 291cm, multi-byte)
         try:
             await asyncio.wait_for(phase3_received, timeout=15.0)
         except TimeoutError:
             pytest.fail(
-                f"Timeout waiting for Phase 3 frame. Received sensor states:\n"
-                f"  still_distance: {sensor_states['still_distance']}\n"
-                f"  moving_distance: {sensor_states['moving_distance']}"
+                f"Timeout waiting for Phase 3 frame. Received:\n"
+                f"  still_distance: {collector.sensor_states['still_distance']}"
             )
 
-        # Phase 3: still distance = 0x0123 = 291cm (multi-byte distance test)
-        phase3_still = [
-            v for v in sensor_states["still_distance"] if v == pytest.approx(291.0)
-        ]
-        assert len(phase3_still) >= 1, (
-            f"Expected still_distance=291, got: {sensor_states['still_distance']}"
-        )
+        assert pytest.approx(291.0) in collector.sensor_states["still_distance"]
