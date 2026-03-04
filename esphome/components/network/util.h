@@ -2,6 +2,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK
 #include <string>
+#include "esphome/core/helpers.h"
 #include "ip_address.h"
 
 #ifdef USE_ETHERNET
@@ -23,7 +24,7 @@ namespace esphome::network {
 // an AP that uses a previous interface for NAT).
 
 /// Return whether the node is connected to the network (through wifi, eth, ...)
-inline bool is_connected() {
+ESPHOME_ALWAYS_INLINE inline bool is_connected() {
 #ifdef USE_ETHERNET
   if (ethernet::global_eth_component != nullptr && ethernet::global_eth_component->is_connected())
     return true;
