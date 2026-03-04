@@ -331,7 +331,7 @@ void PacketTransport::update() {
     return;
   }
   auto now = millis() / 1000;
-  if (this->last_key_time_ + this->ping_pong_recyle_time_ < now) {
+  if (now - this->last_key_time_ > this->ping_pong_recyle_time_) {
     this->resend_ping_key_ = this->ping_pong_enable_;
     ESP_LOGV(TAG, "Ping request, age %" PRIu32, now - this->last_key_time_);
     this->last_key_time_ = now;
