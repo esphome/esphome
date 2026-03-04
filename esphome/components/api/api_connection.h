@@ -329,12 +329,12 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
 
   // Encode thunk — converts void* back to concrete type for direct encode() call
-  template<typename T> static void encode_msg_(const void *msg, ProtoWriteBuffer &buffer) {
+  template<typename T> static void encode_msg(const void *msg, ProtoWriteBuffer &buffer) {
     static_cast<const T *>(msg)->encode(buffer);
   }
 
   // Size thunk — converts void* back to concrete type for direct calculate_size() call
-  template<typename T> static uint32_t calc_size_(const void *msg) {
+  template<typename T> static uint32_t calc_size(const void *msg) {
     return static_cast<const T *>(msg)->calculate_size();
   }
 
