@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
     CONF_SUPPORTED_SWING_MODES,
+    CONF_TARGET_TEMPERATURE,
 )
 
 from .. import template_ns
@@ -19,7 +20,6 @@ CONF_SET_MODE_ACTION = "set_mode_action"
 CONF_SET_PRESET_ACTION = "set_preset_action"
 CONF_SET_SWING_MODE_ACTION = "set_swing_mode_action"
 CONF_SET_TARGET_TEMPERATURE_ACTION = "set_target_temperature_action"
-CONF_TARGET_TEMPERATURE_LAMBDA = "target_temperature"
 
 TemplateClimate = template_ns.class_("TemplateClimate", climate.Climate, cg.Component)
 
@@ -28,7 +28,7 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-            cv.Optional(CONF_TARGET_TEMPERATURE_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_TARGET_TEMPERATURE): cv.returning_lambda,
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
                 climate.validate_climate_mode
             ),
@@ -74,9 +74,9 @@ async def to_code(config):
         )
         cg.add(var.set_current_temperature_lambda(template_))
 
-    if CONF_TARGET_TEMPERATURE_LAMBDA in config:
+    if CONF_TARGET_TEMPERATURE in config:
         template_ = await cg.process_lambda(
-            config[CONF_TARGET_TEMPERATURE_LAMBDA],
+            config[CONF_TARGET_TEMPERATURE],
             [],
             return_type=cg.optional.template(float),
         )

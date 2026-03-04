@@ -63,7 +63,7 @@ void TemplateClimate::control(const climate::ClimateCall &call) {
 
   if (auto fan_mode = call.get_fan_mode()) {
     if (this->optimistic_) {
-      this->fan_mode = *fan_mode;
+      this->fan_mode = fan_mode;
     }
     this->set_fan_mode_trigger_->trigger(*fan_mode);
   }
@@ -77,7 +77,7 @@ void TemplateClimate::control(const climate::ClimateCall &call) {
 
   if (auto preset = call.get_preset()) {
     if (this->optimistic_) {
-      this->preset = *preset;
+      this->preset = preset;
     }
     this->set_preset_trigger_->trigger(*preset);
   }
