@@ -529,9 +529,12 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
   uint32_t curr_time = millis();
   uint32_t blocking_time = curr_time - this->started_;
 #ifdef USE_RUNTIME_STATS
-  // Record component runtime stats
+  // Use micros() for accurate sub-millisecond timing. millis() has insufficient
+  // resolution — most components complete in microseconds but millis() only has
+  // 1ms granularity, so results were essentially random noise.
   if (global_runtime_stats != nullptr) {
-    global_runtime_stats->record_component_time(this->component_, blocking_time, curr_time);
+    uint32_t duration_us = micros() - this->started_us_;
+    global_runtime_stats->record_component_time(this->component_, duration_us, curr_time);
   }
 #endif
   if (blocking_time > WARN_IF_BLOCKING_OVER_MS) {
