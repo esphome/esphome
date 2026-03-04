@@ -55,6 +55,7 @@ void StaticTask::deallocate() {
                                                          : RAMAllocator<StackType_t>::ALLOC_INTERNAL);
     allocator.deallocate(this->stack_buffer_, this->stack_size_);
     this->stack_buffer_ = nullptr;
+    this->stack_size_ = 0;
   }
 }
 
