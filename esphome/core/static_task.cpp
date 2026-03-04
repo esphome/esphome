@@ -9,7 +9,7 @@ namespace esphome {
 bool StaticTask::create(TaskFunction_t fn, const char *name, uint32_t stack_size, void *param, UBaseType_t priority,
                         bool use_psram) {
   if (this->handle_ != nullptr) {
-    // Task is already running; must call destroy() first
+    // Task is already created; must call destroy() first
     return false;
   }
 
