@@ -13,3 +13,5 @@
 #elif defined(USE_HOST)
 #include "ota_backend_host.h"
 #endif
+
+namespace esphome::ota {}  // namespace esphome::ota
