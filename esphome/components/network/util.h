@@ -20,7 +20,7 @@
 namespace esphome::network {
 
 // The order of the components is important: WiFi should come after any possible main interfaces (it may be used as
-// an AP that use a previous interface for NAT).
+// an AP that uses a previous interface for NAT).
 
 /// Return whether the node is connected to the network (through wifi, eth, ...)
 inline bool is_connected() {
