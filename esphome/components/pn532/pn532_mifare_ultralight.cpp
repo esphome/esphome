@@ -134,7 +134,7 @@ bool PN532::write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *
   } else {
     encoded.insert(encoded.begin() + 1, 0xFF);
     encoded.insert(encoded.begin() + 2, (message_length >> 8) & 0xFF);
-    encoded.insert(encoded.begin() + 2, message_length & 0xFF);
+    encoded.insert(encoded.begin() + 3, message_length & 0xFF);
   }
   encoded.push_back(0xFE);
 
