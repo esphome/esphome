@@ -21,8 +21,13 @@ void TemplateClimate::setup() {
   if (this->current_temperature_f_.has_value()) {
     this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   }
-  if (!this->current_temperature_f_.has_value() && !this->target_temperature_f_.has_value()) {
-    this->disable_loop();
+  if (!this->current_temperature_f_.has_value() && 
+    !this->target_temperature_f_.has_value() &&
+    !this->mode_f_.has_value() && 
+    !this->fan_mode_f_.has_value() && 
+    !this->swing_mode_f_.has_value() &&
+    !this->preset_f_.has_value()) {
+      this->disable_loop();
   }
 }
 
@@ -39,6 +44,34 @@ void TemplateClimate::loop() {
   if (auto val = this->target_temperature_f_()) {
     if (!std::isnan(*val) && *val != this->target_temperature) {
       this->target_temperature = *val;
+      changed = true;
+    }
+  }
+
+  if (auto val = this->mode_f_()) {
+    if (*val != this->mode) {
+      this->mode = *val;
+      changed = true;
+    }
+  }
+
+  if (auto val = this->fan_mode_f_()) {
+    if (this->fan_mode != *val) {
+      this->fan_mode = *val;
+      changed = true;
+    }
+  }
+
+  if (auto val = this->swing_mode_f_()) {
+    if (*val != this->swing_mode) {
+      this->swing_mode = *val;
+      changed = true;
+    }
+  }
+
+  if (auto val = this->preset_f_()) {
+    if (this->preset != *val) {
+      this->preset = *val;
       changed = true;
     }
   }

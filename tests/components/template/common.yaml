@@ -299,6 +299,49 @@ climate:
     visual:
       temperature_step: 0.1C
 
+  # Non-optimistic climate: external device owns the state, ESPHome reads it back via lambdas
+  - platform: template
+    name: "External Heatpump"
+    optimistic: false
+    current_temperature: !lambda "return id(climate_current_temperature).state;"
+    target_temperature: !lambda "return 21.0f;"
+    mode: !lambda "return climate::CLIMATE_MODE_HEAT;"
+    fan_mode: !lambda "return climate::CLIMATE_FAN_AUTO;"
+    swing_mode: !lambda "return climate::CLIMATE_SWING_OFF;"
+    preset: !lambda "return climate::CLIMATE_PRESET_ECO;"
+    supported_modes:
+      - "OFF"
+      - HEAT
+      - COOL
+    supported_fan_modes:
+      - AUTO
+      - LOW
+      - HIGH
+    supported_swing_modes:
+      - "OFF"
+      - VERTICAL
+    supported_presets:
+      - NONE
+      - ECO
+    set_mode_action:
+      - logger.log:
+          format: "Heatpump mode set"
+    set_target_temperature_action:
+      - logger.log:
+          format: "Heatpump target temperature: %.1f"
+          args: ["x"]
+    set_fan_mode_action:
+      - logger.log:
+          format: "Heatpump fan mode set"
+    set_swing_mode_action:
+      - logger.log:
+          format: "Heatpump swing mode set"
+    set_preset_action:
+      - logger.log:
+          format: "Heatpump preset set"
+    visual:
+      temperature_step: 0.5C
+
 time:
   - platform: sntp  # Required for datetime
     id: sntp_time

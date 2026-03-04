@@ -3,12 +3,16 @@ import esphome.codegen as cg
 from esphome.components import climate
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_FAN_MODE,
     CONF_ID,
+    CONF_MODE,
     CONF_OPTIMISTIC,
+    CONF_PRESET,
     CONF_SUPPORTED_FAN_MODES,
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
     CONF_SUPPORTED_SWING_MODES,
+    CONF_SWING_MODE,
     CONF_TARGET_TEMPERATURE,
 )
 
@@ -30,6 +34,10 @@ CONFIG_SCHEMA = (
         {
             cv.Optional(CONF_CURRENT_TEMPERATURE): cv.returning_lambda,
             cv.Optional(CONF_TARGET_TEMPERATURE): cv.returning_lambda,
+            cv.Optional(CONF_MODE): cv.returning_lambda,
+            cv.Optional(CONF_FAN_MODE): cv.returning_lambda,
+            cv.Optional(CONF_SWING_MODE): cv.returning_lambda,
+            cv.Optional(CONF_PRESET): cv.returning_lambda,
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
                 climate.validate_climate_mode
             ),
@@ -84,6 +92,38 @@ async def to_code(config):
             return_type=cg.optional.template(float),
         )
         cg.add(var.set_target_temperature_lambda(template_))
+
+    if CONF_MODE in config:
+        template_ = await cg.process_lambda(
+            config[CONF_MODE],
+            [],
+            return_type=cg.optional.template(climate.ClimateMode),
+        )
+        cg.add(var.set_mode_lambda(template_))
+
+    if CONF_FAN_MODE in config:
+        template_ = await cg.process_lambda(
+            config[CONF_FAN_MODE],
+            [],
+            return_type=cg.optional.template(climate.ClimateFanMode),
+        )
+        cg.add(var.set_fan_mode_lambda(template_))
+
+    if CONF_SWING_MODE in config:
+        template_ = await cg.process_lambda(
+            config[CONF_SWING_MODE],
+            [],
+            return_type=cg.optional.template(climate.ClimateSwingMode),
+        )
+        cg.add(var.set_swing_mode_lambda(template_))
+
+    if CONF_PRESET in config:
+        template_ = await cg.process_lambda(
+            config[CONF_PRESET],
+            [],
+            return_type=cg.optional.template(climate.ClimatePreset),
+        )
+        cg.add(var.set_preset_lambda(template_))
 
     if CONF_SUPPORTED_MODES in config:
         cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
