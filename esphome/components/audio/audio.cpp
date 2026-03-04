@@ -47,6 +47,10 @@ const char *audio_file_type_to_string(AudioFileType file_type) {
     case AudioFileType::MP3:
       return "MP3";
 #endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+    case AudioFileType::OPUS:
+      return "OPUS";
+#endif
     case AudioFileType::WAV:
       return "WAV";
     default:

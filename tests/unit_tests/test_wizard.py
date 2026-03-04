@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pytest import MonkeyPatch
@@ -632,3 +632,14 @@ def test_wizard_accepts_rpipico_board(tmp_path: Path, monkeypatch: MonkeyPatch):
     # rpipico doesn't support WiFi, so no api_encryption_key or ota_password
     assert "api_encryption_key" not in call_kwargs
     assert "ota_password" not in call_kwargs
+
+
+def test_fallback_psk_uses_secrets_choice(
+    default_config: dict[str, Any],
+) -> None:
+    """Test that fallback PSK is generated using secrets.choice."""
+    with patch("esphome.wizard.secrets.choice", return_value="X") as mock_choice:
+        config = wz.wizard_file(**default_config)
+
+    assert 'password: "XXXXXXXXXXXX"' in config
+    assert mock_choice.call_count == 12

@@ -270,22 +270,23 @@ LightColorValues LightCall::validate_() {
   if (this->has_state())
     v.set_state(this->state_);
 
-#define VALIDATE_AND_APPLY(field, setter, name_str, ...) \
+    // clamp_and_log_if_invalid already clamps in-place, so assign directly
+    // to avoid redundant clamp code from the setter being inlined.
+#define VALIDATE_AND_APPLY(field, name_str, ...) \
   if (this->has_##field()) { \
     clamp_and_log_if_invalid(name, this->field##_, LOG_STR(name_str), ##__VA_ARGS__); \
-    v.setter(this->field##_); \
+    v.field##_ = this->field##_; \
   }
 
-  VALIDATE_AND_APPLY(brightness, set_brightness, "Brightness")
-  VALIDATE_AND_APPLY(color_brightness, set_color_brightness, "Color brightness")
-  VALIDATE_AND_APPLY(red, set_red, "Red")
-  VALIDATE_AND_APPLY(green, set_green, "Green")
-  VALIDATE_AND_APPLY(blue, set_blue, "Blue")
-  VALIDATE_AND_APPLY(white, set_white, "White")
-  VALIDATE_AND_APPLY(cold_white, set_cold_white, "Cold white")
-  VALIDATE_AND_APPLY(warm_white, set_warm_white, "Warm white")
-  VALIDATE_AND_APPLY(color_temperature, set_color_temperature, "Color temperature", traits.get_min_mireds(),
-                     traits.get_max_mireds())
+  VALIDATE_AND_APPLY(brightness, "Brightness")
+  VALIDATE_AND_APPLY(color_brightness, "Color brightness")
+  VALIDATE_AND_APPLY(red, "Red")
+  VALIDATE_AND_APPLY(green, "Green")
+  VALIDATE_AND_APPLY(blue, "Blue")
+  VALIDATE_AND_APPLY(white, "White")
+  VALIDATE_AND_APPLY(cold_white, "Cold white")
+  VALIDATE_AND_APPLY(warm_white, "Warm white")
+  VALIDATE_AND_APPLY(color_temperature, "Color temperature", traits.get_min_mireds(), traits.get_max_mireds())
 
 #undef VALIDATE_AND_APPLY
 
@@ -388,9 +389,8 @@ void LightCall::transform_parameters_() {
       const float ww_fraction = (color_temp - min_mireds) / range;
       const float cw_fraction = 1.0f - ww_fraction;
       const float max_cw_ww = std::max(ww_fraction, cw_fraction);
-      const float gamma = this->parent_->get_gamma_correct();
-      this->cold_white_ = gamma_uncorrect(cw_fraction / max_cw_ww, gamma);
-      this->warm_white_ = gamma_uncorrect(ww_fraction / max_cw_ww, gamma);
+      this->cold_white_ = this->parent_->gamma_uncorrect_lut(cw_fraction / max_cw_ww);
+      this->warm_white_ = this->parent_->gamma_uncorrect_lut(ww_fraction / max_cw_ww);
       this->set_flag_(FLAG_HAS_COLD_WHITE);
       this->set_flag_(FLAG_HAS_WARM_WHITE);
     }

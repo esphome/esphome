@@ -369,7 +369,7 @@ def get_logger_tags():
         "api.service",
     ]
     for file in CORE_COMPONENTS_PATH.rglob("*.cpp"):
-        data = file.read_text()
+        data = file.read_text(encoding="utf-8")
         match = pattern.search(data)
         if match:
             tags.append(match.group(1))

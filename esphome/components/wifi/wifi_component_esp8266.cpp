@@ -216,23 +216,16 @@ bool WiFiComponent::wifi_apply_hostname_() {
     ESP_LOGV(TAG, "Set hostname failed");
   }
 
-  // inform dhcp server of hostname change using dhcp_renew()
+  // Update hostname on all lwIP interfaces so DHCP packets include it.
+  // lwIP includes the hostname in DHCP DISCOVER/REQUEST automatically
+  // via LWIP_NETIF_HOSTNAME — no dhcp_renew() needed. The hostname is
+  // fixed at compile time and never changes at runtime.
   for (netif *intf = netif_list; intf; intf = intf->next) {
-    // unconditionally update all known interfaces
 #if LWIP_VERSION_MAJOR == 1
     intf->hostname = (char *) wifi_station_get_hostname();
 #else
     intf->hostname = wifi_station_get_hostname();
 #endif
-    if (netif_dhcp_data(intf) != nullptr) {
-      // renew already started DHCP leases
-      err_t lwipret = dhcp_renew(intf);
-      if (lwipret != ERR_OK) {
-        ESP_LOGW(TAG, "wifi_apply_hostname_(%s): lwIP error %d on interface %c%c (index %d)", intf->hostname,
-                 (int) lwipret, intf->name[0], intf->name[1], intf->num);
-        ret = false;
-      }
-    }
   }
 
   return ret;
@@ -247,16 +240,16 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   struct station_config conf {};
   memset(&conf, 0, sizeof(conf));
-  if (ap.get_ssid().size() > sizeof(conf.ssid)) {
+  if (ap.ssid_.size() > sizeof(conf.ssid)) {
     ESP_LOGE(TAG, "SSID too long");
     return false;
   }
-  if (ap.get_password().size() > sizeof(conf.password)) {
+  if (ap.password_.size() > sizeof(conf.password)) {
     ESP_LOGE(TAG, "Password too long");
     return false;
   }
-  memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
-  memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
+  memcpy(reinterpret_cast<char *>(conf.ssid), ap.ssid_.c_str(), ap.ssid_.size());
+  memcpy(reinterpret_cast<char *>(conf.password), ap.password_.c_str(), ap.password_.size());
 
   if (ap.has_bssid()) {
     conf.bssid_set = 1;
@@ -266,7 +259,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
-  if (ap.get_password().empty()) {
+  if (ap.password_.empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
     // Set threshold based on configured minimum auth mode
@@ -305,9 +298,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   // setup enterprise authentication if required
 #ifdef USE_WIFI_WPA2_EAP
-  if (ap.get_eap().has_value()) {
+  auto eap_opt = ap.get_eap();
+  if (eap_opt.has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
-    EAPAuth eap = ap.get_eap().value();
+    EAPAuth eap = *eap_opt;
     ret = wifi_station_set_enterprise_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
     if (ret) {
       ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed: %d", ret);
@@ -477,10 +471,6 @@ const LogString *get_disconnect_reason_str(uint8_t reason) {
   return LOG_STR("Unspecified");
 }
 
-// TODO: This callback runs in ESP8266 system context with limited stack (~2KB).
-// All listener notifications should be deferred to wifi_loop_() via pending_ flags
-// to avoid stack overflow. Currently only connect_state is deferred; disconnect,
-// IP, and scan listeners still run in this context and should be migrated.
 void WiFiComponent::wifi_event_callback(System_Event_t *event) {
   switch (event->event) {
     case EVENT_STAMODE_CONNECTED: {
@@ -633,7 +623,7 @@ void WiFiComponent::wifi_pre_setup_() {
   this->wifi_mode_(false, false);
 }
 
-WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
+WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   station_status_t status = wifi_station_get_connect_status();
   if (status == STATION_GOT_IP)
     return WiFiSTAConnectStatus::CONNECTED;
@@ -738,8 +728,8 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     const char *ssid_cstr = reinterpret_cast<const char *>(it->ssid);
     if (needs_full || this->matches_configured_network_(ssid_cstr, it->bssid)) {
       this->scan_result_.emplace_back(
-          bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
-          std::string(ssid_cstr, it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN, it->is_hidden != 0);
+          bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]}, ssid_cstr,
+          it->ssid_len, it->channel, it->rssi, it->authmode != AUTH_OPEN, it->is_hidden != 0);
     } else {
       this->log_discarded_scan_result_(ssid_cstr, it->bssid, it->rssi, it->channel);
     }
@@ -832,27 +822,27 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
 
   struct softap_config conf {};
-  if (ap.get_ssid().size() > sizeof(conf.ssid)) {
+  if (ap.ssid_.size() > sizeof(conf.ssid)) {
     ESP_LOGE(TAG, "AP SSID too long");
     return false;
   }
-  memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
-  conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
+  memcpy(reinterpret_cast<char *>(conf.ssid), ap.ssid_.c_str(), ap.ssid_.size());
+  conf.ssid_len = static_cast<uint8>(ap.ssid_.size());
   conf.channel = ap.has_channel() ? ap.get_channel() : 1;
   conf.ssid_hidden = ap.get_hidden();
   conf.max_connection = 5;
   conf.beacon_interval = 100;
 
-  if (ap.get_password().empty()) {
+  if (ap.password_.empty()) {
     conf.authmode = AUTH_OPEN;
     *conf.password = 0;
   } else {
     conf.authmode = AUTH_WPA2_PSK;
-    if (ap.get_password().size() > sizeof(conf.password)) {
+    if (ap.password_.size() > sizeof(conf.password)) {
       ESP_LOGE(TAG, "AP password too long");
       return false;
     }
-    memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
+    memcpy(reinterpret_cast<char *>(conf.password), ap.password_.c_str(), ap.password_.size());
   }
 
   ETS_UART_INTR_DISABLE();

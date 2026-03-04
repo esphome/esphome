@@ -22,11 +22,11 @@ static const uint8_t BME680_REGISTER_CHIPID = 0xD0;
 
 static const uint8_t BME680_REGISTER_FIELD0 = 0x1D;
 
-const float BME680_GAS_LOOKUP_TABLE_1[16] PROGMEM = {0.0, 0.0, 0.0,  0.0,  0.0, -1.0, 0.0, -0.8,
-                                                     0.0, 0.0, -0.2, -0.5, 0.0, -1.0, 0.0, 0.0};
+constexpr float BME680_GAS_LOOKUP_TABLE_1[16] PROGMEM = {0.0, 0.0, 0.0,  0.0,  0.0, -1.0, 0.0, -0.8,
+                                                         0.0, 0.0, -0.2, -0.5, 0.0, -1.0, 0.0, 0.0};
 
-const float BME680_GAS_LOOKUP_TABLE_2[16] PROGMEM = {0.0,  0.0, 0.0, 0.0, 0.1, 0.7, 0.0, -0.8,
-                                                     -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+constexpr float BME680_GAS_LOOKUP_TABLE_2[16] PROGMEM = {0.0,  0.0, 0.0, 0.0, 0.1, 0.7, 0.0, -0.8,
+                                                         -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
 [[maybe_unused]] static const char *oversampling_to_str(BME680Oversampling oversampling) {
   switch (oversampling) {

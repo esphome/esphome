@@ -173,8 +173,6 @@ static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0x
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
-static inline int two_byte_to_int(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
-
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
@@ -275,8 +273,19 @@ void LD2410Component::restart_and_read_all_info() {
 }
 
 void LD2410Component::loop() {
-  while (this->available()) {
-    this->readline_(this->read());
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[MAX_LINE_LENGTH];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+
+    for (size_t i = 0; i < to_read; i++) {
+      this->readline_(buf[i]);
+    }
   }
 }
 
@@ -350,17 +359,14 @@ void LD2410Component::handle_periodic_data_() {
     Detect distance: 16~17th bytes
   */
 #ifdef USE_SENSOR
-  SAFE_PUBLISH_SENSOR(
-      this->moving_target_distance_sensor_,
-      ld2410::two_byte_to_int(this->buffer_data_[MOVING_TARGET_LOW], this->buffer_data_[MOVING_TARGET_HIGH]))
+  SAFE_PUBLISH_SENSOR(this->moving_target_distance_sensor_,
+                      encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]))
   SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY])
-  SAFE_PUBLISH_SENSOR(
-      this->still_target_distance_sensor_,
-      ld2410::two_byte_to_int(this->buffer_data_[STILL_TARGET_LOW], this->buffer_data_[STILL_TARGET_HIGH]));
+  SAFE_PUBLISH_SENSOR(this->still_target_distance_sensor_,
+                      encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]));
   SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY]);
-  SAFE_PUBLISH_SENSOR(
-      this->detection_distance_sensor_,
-      ld2410::two_byte_to_int(this->buffer_data_[DETECT_DISTANCE_LOW], this->buffer_data_[DETECT_DISTANCE_HIGH]));
+  SAFE_PUBLISH_SENSOR(this->detection_distance_sensor_,
+                      encode_uint16(this->buffer_data_[DETECT_DISTANCE_HIGH], this->buffer_data_[DETECT_DISTANCE_LOW]));
 
   if (engineering_mode) {
     /*
@@ -478,11 +484,8 @@ bool LD2410Component::handle_ack_data_() {
       this->out_pin_level_ = this->buffer_data_[12];
       const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
       const auto *out_pin_level_str = find_str(OUT_PIN_LEVELS_BY_UINT, this->out_pin_level_);
-      ESP_LOGV(TAG,
-               "Light function: %s\n"
-               "Light threshold: %u\n"
-               "Out pin level: %s",
-               light_function_str, this->light_threshold_, out_pin_level_str);
+      ESP_LOGV(TAG, "Light function: %s, threshold: %u, out pin level: %s", light_function_str, this->light_threshold_,
+               out_pin_level_str);
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr) {
         this->light_function_select_->publish_state(light_function_str);
@@ -570,8 +573,8 @@ bool LD2410Component::handle_ack_data_() {
       /*
         None Duration: 33~34th bytes
       */
-      updates.push_back(set_number_value(this->timeout_number_,
-                                         ld2410::two_byte_to_int(this->buffer_data_[32], this->buffer_data_[33])));
+      updates.push_back(
+          set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[33], this->buffer_data_[32])));
       for (auto &update : updates) {
         update();
       }
@@ -597,8 +600,9 @@ void LD2410Component::readline_(int readch) {
     // We should never get here, but just in case...
     ESP_LOGW(TAG, "Max command length exceeded; ignoring");
     this->buffer_pos_ = 0;
+    return;
   }
-  if (this->buffer_pos_ < 4) {
+  if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
     return;  // Not enough data to process yet
   }
   if (ld2410::validate_header_footer(DATA_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {

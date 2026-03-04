@@ -69,10 +69,9 @@ def water_heater_schema(
     return _WATER_HEATER_SCHEMA.extend(schema)
 
 
+@setup_entity("water_heater")
 async def setup_water_heater_core_(var: cg.Pvariable, config: ConfigType) -> None:
     """Set up the core water heater properties in C++."""
-    await setup_entity(var, config, "water_heater")
-
     visual = config[CONF_VISUAL]
     if (min_temp := visual.get(CONF_MIN_TEMPERATURE)) is not None:
         cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
