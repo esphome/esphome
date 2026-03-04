@@ -11,19 +11,20 @@ namespace bthome {
 
 using EncryptionKey = std::array<uint8_t, 16>;
 
+static constexpr uint8_t BTHOME_VERSION_2 = 0x02;
+
 struct BTHomeHeader {
-  uint8_t encrypted : 1;      // bit 0: encrypted data
-  uint8_t : 1;                // bit 1: reserved
-  uint8_t trigger_based : 1;  // bit 2: irregular advertisement interval
-  uint8_t : 2;                // bits 3-4: reserved
-  uint8_t version : 3;        // bits 5-7: BTHome version (currently 1 or 2)
+  uint8_t encrypted : 1 = 0;               // bit 0: encrypted data
+  uint8_t reserved1 : 1 = 0;               // bit 1: reserved
+  uint8_t trigger_based : 1 = 0;           // bit 2: irregular advertisement interval
+  uint8_t reserved2 : 2 = 0;               // bits 3-4: reserved
+  uint8_t version : 3 = BTHOME_VERSION_2;  // bits 5-7: BTHome version (currently 1 or 2)
 };
 
 static_assert(sizeof(BTHomeHeader) == 1, "BTHomeHeader must be 1 byte");
 static constexpr uint8_t BTHOME_SVC_UUID_LOW = 0xD2;   // BTHome service UUID low byte  (0xFCD2)
 static constexpr uint8_t BTHOME_SVC_UUID_HIGH = 0xFC;  // BTHome service UUID high byte
 static constexpr uint16_t BTHOME_UUID16 = (BTHOME_SVC_UUID_HIGH << 8) | BTHOME_SVC_UUID_LOW;
-static constexpr uint8_t BTHOME_VERSION_2 = 0x02;
 static constexpr size_t BTHOME_MIC_SIZE = 4;
 static constexpr size_t BTHOME_COUNTER_SIZE = 4;
 static constexpr size_t BTHOME_MAX_PAYLOAD =

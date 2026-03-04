@@ -121,8 +121,6 @@ void BTHomeServerBase::on_advertise(bool active) {
 void BTHomeServerBase::send_frame_() {
   // Build BTHome header byte
   BTHomeHeader header;
-  memset(&header, 0, sizeof(header));
-  header.version = BTHOME_VERSION_2;
   const uint8_t *payload = this->encoder_.get_buffer();
   size_t payload_size = this->encoder_.get_size();
 #ifdef USE_BTHOME_ENCRYPTION

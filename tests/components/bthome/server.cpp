@@ -713,13 +713,9 @@ TEST_F(BTHomeServerEncryptionTest, EncryptedFrameHasEncryptedHeaderBit) {
 // The encrypted blob in the frame must decrypt back to the original sensor payload.
 TEST_F(BTHomeServerEncryptionTest, EncryptedPayloadDecryptsToSensorData) {
   server_.on_advertise(true);
-
   ASSERT_EQ(last_frame_.size(), EXPECTED_FRAME_SIZE);
 
-  BTHomeHeader hdr{};
-  hdr.encrypted = 1;
-  hdr.trigger_based = 0;
-  hdr.version = BTHOME_VERSION_2;
+  BTHomeHeader hdr{.encrypted = 1};
   size_t plaintext_size = 0;
   const uint8_t *plaintext =
       bthome_decrypt(last_frame_.data() + FRAME_PAYLOAD_OFFSET, last_frame_.size() - FRAME_PAYLOAD_OFFSET,
