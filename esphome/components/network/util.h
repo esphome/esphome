@@ -45,7 +45,7 @@ inline bool is_connected() {
 #endif
 
 #ifdef USE_HOST
-  return true;  // Assume its connected
+  return true;  // Assume it's connected
 #endif
   return false;
 }
