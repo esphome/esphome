@@ -910,10 +910,6 @@ class ProtoSize {
 
 // Implementation of methods that depend on ProtoSize being fully defined
 
-// Free template to calculate encoded size of any message type.
-// Replaces the former virtual ProtoMessage::calculated_size() member.
-template<typename T> inline uint32_t calculated_size_of(const T &msg) { return msg.calculate_size(); }
-
 // Implementation of encode_packed_sint32 - must be after ProtoSize is defined
 inline void ProtoWriteBuffer::encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values) {
   if (values.empty())
