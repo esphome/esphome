@@ -262,7 +262,7 @@ datetime:
 climate:
   - platform: template
     name: Nice Climate Template Component
-    lambda: |-
+    current_temperature: |-
       return id(climate_current_temperature).state;
     supported_modes:
       - "OFF"
