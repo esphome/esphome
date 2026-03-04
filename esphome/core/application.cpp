@@ -660,7 +660,8 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   // until consumed by ulTaskNotifyTake, so notifications received while the task is
   // running are not lost. The only unhandled case is intentionally undrained sockets
   // (e.g., API's MAX_MESSAGES_PER_LOOP throttle), where the delay_ms latency before
-  // re-checking is the desired behavior — waking immediately would defeat the throttle.
+  // re-checking is the desired behavior — waking immediately would defeat the throttle
+  // which exists to let other tasks and components run.
   ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay_ms));
 
 #elif defined(USE_SOCKET_SELECT_SUPPORT)
