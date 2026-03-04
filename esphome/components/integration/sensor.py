@@ -113,8 +113,9 @@ async def to_code(config):
     ),
 )
 async def sensor_integration_reset_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
@@ -128,8 +129,8 @@ async def sensor_integration_reset_to_code(config, action_id, template_arg, args
     ),
 )
 async def sensor_integration_set_value_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_VALUE], args, float)
     cg.add(var.set_value(template_))
     return var
