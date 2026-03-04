@@ -462,7 +462,7 @@ class ProtoMessage {
   // dispatch is not needed. This eliminates per-message vtable entries for
   // encode/calculate_size, saving ~1.3 KB of flash across all message types.
   void encode(ProtoWriteBuffer &buffer) const {}
-  void calculate_size(ProtoSize &size) const {}
+  uint32_t calculate_size() const { return 0; }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   virtual const char *dump_to(DumpBuffer &out) const = 0;
   virtual const char *message_name() const { return "unknown"; }
@@ -846,11 +846,11 @@ class ProtoSize {
    * @param message The nested message object
    */
   template<typename T> inline void add_message_object(uint32_t field_id_size, const T &message) {
-    add_message_field(field_id_size, calculated_size_of(message));
+    add_message_field(field_id_size, message.calculate_size());
   }
 
   template<typename T> inline void add_message_object_force(uint32_t field_id_size, const T &message) {
-    add_message_field_force(field_id_size, calculated_size_of(message));
+    add_message_field_force(field_id_size, message.calculate_size());
   }
 
   /**
@@ -912,11 +912,7 @@ class ProtoSize {
 
 // Free template to calculate encoded size of any message type.
 // Replaces the former virtual ProtoMessage::calculated_size() member.
-template<typename T> inline uint32_t calculated_size_of(const T &msg) {
-  ProtoSize size;
-  msg.calculate_size(size);
-  return size.get_size();
-}
+template<typename T> inline uint32_t calculated_size_of(const T &msg) { return msg.calculate_size(); }
 
 // Implementation of encode_packed_sint32 - must be after ProtoSize is defined
 inline void ProtoWriteBuffer::encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values) {
@@ -939,7 +935,7 @@ inline void ProtoWriteBuffer::encode_packed_sint32(uint32_t field_id, const std:
 
 // Implementation of encode_message - must be after ProtoMessage is defined
 template<typename T> inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const T &value, bool force) {
-  uint32_t msg_length_bytes = calculated_size_of(value);
+  uint32_t msg_length_bytes = value.calculate_size();
   this->encode_message_(
       field_id, msg_length_bytes, &value,
       [](const void *msg, ProtoWriteBuffer &buf) { static_cast<const T *>(msg)->encode(buf); }, force);

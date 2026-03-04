@@ -261,7 +261,7 @@ class APIConnection final : public APIServerConnectionBase {
   // Function pointer type for type-erased message encoding
   using MessageEncodeFn = void (*)(const void *, ProtoWriteBuffer &);
   // Function pointer type for type-erased size calculation
-  using CalculateSizeFn = void (*)(const void *, ProtoSize &);
+  using CalculateSizeFn = uint32_t (*)(const void *);
 
   template<typename T> bool send_message(const T &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -271,7 +271,7 @@ class APIConnection final : public APIServerConnectionBase {
     if constexpr (T::ESTIMATED_SIZE == 0) {
       return this->send_message_(0, T::MESSAGE_TYPE, &encode_msg_noop_, &msg);
     } else {
-      return this->send_message_(calculated_size_of(msg), T::MESSAGE_TYPE, &encode_msg_<T>, &msg);
+      return this->send_message_(msg.calculate_size(), T::MESSAGE_TYPE, &encode_msg_<T>, &msg);
     }
   }
 
@@ -334,8 +334,8 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   // Size thunk — converts void* back to concrete type for direct calculate_size() call
-  template<typename T> static void calc_size_(const void *msg, ProtoSize &size) {
-    static_cast<const T *>(msg)->calculate_size(size);
+  template<typename T> static uint32_t calc_size_(const void *msg) {
+    return static_cast<const T *>(msg)->calculate_size();
   }
 
   // Shared no-op encode thunk for empty messages (ESTIMATED_SIZE == 0)
@@ -360,7 +360,7 @@ class APIConnection final : public APIServerConnectionBase {
     if constexpr (T::ESTIMATED_SIZE == 0) {
       return encode_to_buffer_(0, &encode_msg_noop_, &msg, conn, remaining_size);
     } else {
-      return encode_to_buffer_(calculated_size_of(msg), &encode_msg_<T>, &msg, conn, remaining_size);
+      return encode_to_buffer_(msg.calculate_size(), &encode_msg_<T>, &msg, conn, remaining_size);
     }
   }
 

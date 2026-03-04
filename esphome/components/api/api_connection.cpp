@@ -350,9 +350,7 @@ uint16_t APIConnection::fill_and_encode_entity_state_(EntityBase *entity, StateR
 #ifdef USE_DEVICES
   msg.device_id = entity->get_device_id();
 #endif
-  ProtoSize proto_size;
-  size_fn(&msg, proto_size);
-  return encode_to_buffer_(proto_size.get_size(), encode_fn, &msg, conn, remaining_size);
+  return encode_to_buffer_(size_fn(&msg), encode_fn, &msg, conn, remaining_size);
 }
 
 uint16_t APIConnection::fill_and_encode_entity_info_(EntityBase *entity, InfoResponseProtoMessage &msg,
@@ -382,9 +380,7 @@ uint16_t APIConnection::fill_and_encode_entity_info_(EntityBase *entity, InfoRes
 #ifdef USE_DEVICES
   msg.device_id = entity->get_device_id();
 #endif
-  ProtoSize proto_size;
-  size_fn(&msg, proto_size);
-  return encode_to_buffer_(proto_size.get_size(), encode_fn, &msg, conn, remaining_size);
+  return encode_to_buffer_(size_fn(&msg), encode_fn, &msg, conn, remaining_size);
 }
 
 uint16_t APIConnection::fill_and_encode_entity_info_with_device_class_(

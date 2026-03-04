@@ -2239,17 +2239,13 @@ def build_message_type(
 
     # Add calculate_size method only if this message needs encoding and has fields
     if needs_encode and size_calc:
-        o = f"void {desc.name}::calculate_size(ProtoSize &size) const {{"
-        # For a single field, just inline it for simplicity
-        if len(size_calc) == 1 and len(size_calc[0]) + len(o) + 3 < 120:
-            o += f" {size_calc[0]} }}\n"
-        else:
-            # For multiple fields
-            o += "\n"
-            o += indent("\n".join(size_calc)) + "\n"
-            o += "}\n"
+        o = f"uint32_t {desc.name}::calculate_size() const {{\n"
+        o += "  ProtoSize size;\n"
+        o += indent("\n".join(size_calc)) + "\n"
+        o += "  return size.get_size();\n"
+        o += "}\n"
         cpp += o
-        prot = "void calculate_size(ProtoSize &size) const;"
+        prot = "uint32_t calculate_size() const;"
         public_content.append(prot)
     # If no fields to calculate size for or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
