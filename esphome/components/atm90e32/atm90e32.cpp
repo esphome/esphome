@@ -11,13 +11,13 @@ namespace atm90e32 {
 static const char *const TAG = "atm90e32";
 
 namespace {
-uint32_t pref_hash_(const char *prefix, const char *name_space) {
+uint32_t pref_hash(const char *prefix, const char *name_space) {
   auto hash = fnv1_hash(prefix);
   return fnv1_hash_extend(hash, name_space);
 }
 
 template<typename T>
-int migrate_legacy_pref_if_needed_(ESPPreferenceObject &current_pref, ESPPreferenceObject &legacy_pref, T *scratch) {
+int migrate_legacy_pref_if_needed(ESPPreferenceObject &current_pref, ESPPreferenceObject &legacy_pref, T *scratch) {
   T current{};
   if (current_pref.load(&current)) {
     return 0;
@@ -195,14 +195,14 @@ void ATM90E32Component::setup() {
 
   if (this->enable_offset_calibration_) {
     // Initialize flash storage for offset calibrations
-    uint32_t o_hash = pref_hash_("_offset_calibration_", cs);
+    uint32_t o_hash = pref_hash("_offset_calibration_", cs);
     this->offset_pref_ = global_preferences->make_preference<OffsetCalibration[3]>(o_hash, true);
     bool migrated_offset = false;
     if (has_distinct_legacy_namespace) {
-      uint32_t legacy_o_hash = pref_hash_("_offset_calibration_", legacy_cs);
+      uint32_t legacy_o_hash = pref_hash("_offset_calibration_", legacy_cs);
       auto legacy_offset_pref = global_preferences->make_preference<OffsetCalibration[3]>(legacy_o_hash, true);
       OffsetCalibration offset_data[3]{};
-      int migration_status = migrate_legacy_pref_if_needed_(this->offset_pref_, legacy_offset_pref, &offset_data);
+      int migration_status = migrate_legacy_pref_if_needed(this->offset_pref_, legacy_offset_pref, &offset_data);
       migrated_offset = migration_status > 0;
       if (migration_status > 0) {
         ESP_LOGI(TAG, "[CALIBRATION][%s] Migrated offset calibrations from legacy storage.", cs);
@@ -212,16 +212,16 @@ void ATM90E32Component::setup() {
     }
 
     // Initialize flash storage for power offset calibrations
-    uint32_t po_hash = pref_hash_("_power_offset_calibration_", cs);
+    uint32_t po_hash = pref_hash("_power_offset_calibration_", cs);
     this->power_offset_pref_ = global_preferences->make_preference<PowerOffsetCalibration[3]>(po_hash, true);
     bool migrated_power_offset = false;
     if (has_distinct_legacy_namespace) {
-      uint32_t legacy_po_hash = pref_hash_("_power_offset_calibration_", legacy_cs);
+      uint32_t legacy_po_hash = pref_hash("_power_offset_calibration_", legacy_cs);
       auto legacy_power_offset_pref =
           global_preferences->make_preference<PowerOffsetCalibration[3]>(legacy_po_hash, true);
       PowerOffsetCalibration power_offset_data[3]{};
       int migration_status =
-          migrate_legacy_pref_if_needed_(this->power_offset_pref_, legacy_power_offset_pref, &power_offset_data);
+          migrate_legacy_pref_if_needed(this->power_offset_pref_, legacy_power_offset_pref, &power_offset_data);
       migrated_power_offset = migration_status > 0;
       if (migration_status > 0) {
         ESP_LOGI(TAG, "[CALIBRATION][%s] Migrated power offset calibrations from legacy storage.", cs);
@@ -253,15 +253,15 @@ void ATM90E32Component::setup() {
 
   if (this->enable_gain_calibration_) {
     // Initialize flash storage for gain calibration
-    uint32_t g_hash = pref_hash_("_gain_calibration_", cs);
+    uint32_t g_hash = pref_hash("_gain_calibration_", cs);
     this->gain_calibration_pref_ = global_preferences->make_preference<GainCalibration[3]>(g_hash, true);
     bool migrated_gain = false;
     if (has_distinct_legacy_namespace) {
-      uint32_t legacy_g_hash = pref_hash_("_gain_calibration_", legacy_cs);
+      uint32_t legacy_g_hash = pref_hash("_gain_calibration_", legacy_cs);
       auto legacy_gain_calibration_pref = global_preferences->make_preference<GainCalibration[3]>(legacy_g_hash, true);
       GainCalibration gain_data[3]{};
       int migration_status =
-          migrate_legacy_pref_if_needed_(this->gain_calibration_pref_, legacy_gain_calibration_pref, &gain_data);
+          migrate_legacy_pref_if_needed(this->gain_calibration_pref_, legacy_gain_calibration_pref, &gain_data);
       migrated_gain = migration_status > 0;
       if (migration_status > 0) {
         ESP_LOGI(TAG, "[CALIBRATION][%s] Migrated gain calibrations from legacy storage.", cs);
