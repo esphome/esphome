@@ -167,7 +167,7 @@ class AddressableScanEffect : public AddressableLightEffect {
   void set_move_interval(uint32_t move_interval) { this->move_interval_ = move_interval; }
   void set_scan_width(uint32_t scan_width) { this->scan_width_ = scan_width; }
   void apply(AddressableLight &it, const Color &current_color) override {
-    if (this->scan_width_ >= it.size())
+    if (this->scan_width_ >= static_cast<uint32_t>(it.size()))
       return;
 
     const uint32_t now = millis();
