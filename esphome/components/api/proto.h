@@ -468,7 +468,8 @@ class ProtoMessage {
   virtual const char *message_name() const { return "unknown"; }
 #endif
 
-  // Non-virtual: messages are never deleted polymorphically.
+ protected:
+  // Non-virtual destructor is protected to prevent polymorphic deletion.
   ~ProtoMessage() = default;
 };
 
