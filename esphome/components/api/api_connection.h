@@ -267,7 +267,7 @@ class APIConnection final : public APIServerConnectionBase {
     if constexpr (T::ESTIMATED_SIZE == 0) {
       return this->send_message_(0, T::MESSAGE_TYPE, &encode_msg_noop, &msg);
     } else {
-      return this->send_message_(msg.calculate_size(), T::MESSAGE_TYPE, &encode_msg<T>, &msg);
+      return this->send_message_(msg.calculate_size(), T::MESSAGE_TYPE, &proto_encode_msg<T>, &msg);
     }
   }
 
@@ -324,11 +324,6 @@ class APIConnection final : public APIServerConnectionBase {
   void process_state_subscriptions_();
 #endif
 
-  // Encode thunk — converts void* back to concrete type for direct encode() call
-  template<typename T> static void encode_msg(const void *msg, ProtoWriteBuffer &buffer) {
-    static_cast<const T *>(msg)->encode(buffer);
-  }
-
   // Size thunk — converts void* back to concrete type for direct calculate_size() call
   template<typename T> static uint32_t calc_size(const void *msg) {
     return static_cast<const T *>(msg)->calculate_size();
@@ -349,7 +344,7 @@ class APIConnection final : public APIServerConnectionBase {
     if constexpr (T::ESTIMATED_SIZE == 0) {
       return encode_to_buffer(0, &encode_msg_noop, &msg, conn, remaining_size);
     } else {
-      return encode_to_buffer(msg.calculate_size(), &encode_msg<T>, &msg, conn, remaining_size);
+      return encode_to_buffer(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
     }
   }
 
@@ -362,7 +357,7 @@ class APIConnection final : public APIServerConnectionBase {
   template<typename T>
   static uint16_t fill_and_encode_entity_state(EntityBase *entity, T &msg, APIConnection *conn,
                                                uint32_t remaining_size) {
-    return fill_and_encode_entity_state(entity, msg, &calc_size<T>, &encode_msg<T>, conn, remaining_size);
+    return fill_and_encode_entity_state(entity, msg, &calc_size<T>, &proto_encode_msg<T>, conn, remaining_size);
   }
 
   // Non-template core — fills info fields, allocates buffers, and encodes
@@ -374,7 +369,7 @@ class APIConnection final : public APIServerConnectionBase {
   template<typename T>
   static uint16_t fill_and_encode_entity_info(EntityBase *entity, T &msg, APIConnection *conn,
                                               uint32_t remaining_size) {
-    return fill_and_encode_entity_info(entity, msg, &calc_size<T>, &encode_msg<T>, conn, remaining_size);
+    return fill_and_encode_entity_info(entity, msg, &calc_size<T>, &proto_encode_msg<T>, conn, remaining_size);
   }
 
   // Non-template core — fills device_class, then delegates to fill_and_encode_entity_info
@@ -388,8 +383,8 @@ class APIConnection final : public APIServerConnectionBase {
   static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, T &msg,
                                                                 StringRef &device_class_field, APIConnection *conn,
                                                                 uint32_t remaining_size) {
-    return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &calc_size<T>, &encode_msg<T>,
-                                                         conn, remaining_size);
+    return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &calc_size<T>,
+                                                         &proto_encode_msg<T>, conn, remaining_size);
   }
 
 #ifdef USE_VOICE_ASSISTANT

@@ -933,12 +933,15 @@ inline void ProtoWriteBuffer::encode_packed_sint32(uint32_t field_id, const std:
   }
 }
 
+// Encode thunk — converts void* back to concrete type for direct encode() call
+template<typename T> void proto_encode_msg(const void *msg, ProtoWriteBuffer &buf) {
+  static_cast<const T *>(msg)->encode(buf);
+}
+
 // Implementation of encode_message - must be after ProtoMessage is defined
 template<typename T> inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const T &value, bool force) {
   uint32_t msg_length_bytes = value.calculate_size();
-  this->encode_message(
-      field_id, msg_length_bytes, &value,
-      [](const void *msg, ProtoWriteBuffer &buf) { static_cast<const T *>(msg)->encode(buf); }, force);
+  this->encode_message(field_id, msg_length_bytes, &value, &proto_encode_msg<T>, force);
 }
 
 // Non-template core for encode_message
