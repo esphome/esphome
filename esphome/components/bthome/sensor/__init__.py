@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_DEVICE_CLASS,
-    CONF_DEVICE_ID,
+    CONF_SOURCE_ID,
     CONF_STATE_CLASS,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
@@ -41,7 +41,7 @@ def _apply_object_type_defaults(config):
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(class_=BTHomeSensor).extend(
         {
-            cv.Required(CONF_DEVICE_ID): cv.use_id(RemoteDevice),
+            cv.Required(CONF_SOURCE_ID): cv.use_id(RemoteDevice),
             cv.Required(CONF_TYPE): bthome_object_type_validator(
                 BTHomeObjectTypeKind.SENSOR
             ),
@@ -57,7 +57,7 @@ async def to_code(config):
     cg.add(var.set_object_type(getattr(bthome_object_types, object_type_key)))
     await add_handler(
         var,
-        config[CONF_DEVICE_ID],
+        config[CONF_SOURCE_ID],
         BTHOME_OBJECT_TYPES[object_type_key].object_id,
     )
     await cg.register_component(var, config)
