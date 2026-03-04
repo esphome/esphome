@@ -9,6 +9,10 @@
 #include "esphome/core/helpers.h"
 #include "headers.h"
 
+#ifdef USE_LWIP_FAST_SELECT
+struct lwip_sock;
+#endif
+
 namespace esphome::socket {
 
 class LwIPSocketImpl {
@@ -57,7 +61,7 @@ class LwIPSocketImpl {
   }
   ssize_t readv(const struct iovec *iov, int iovcnt) { return lwip_readv(this->fd_, iov, iovcnt); }
   ssize_t write(const void *buf, size_t len) { return lwip_write(this->fd_, buf, len); }
-  ssize_t send(void *buf, size_t len, int flags) { return lwip_send(this->fd_, buf, len, flags); }
+  ssize_t send(const void *buf, size_t len, int flags) { return lwip_send(this->fd_, buf, len, flags); }
   ssize_t writev(const struct iovec *iov, int iovcnt) { return lwip_writev(this->fd_, iov, iovcnt); }
   ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) {
     return lwip_sendto(this->fd_, buf, len, flags, to, tolen);
@@ -71,6 +75,9 @@ class LwIPSocketImpl {
 
  protected:
   int fd_{-1};
+#ifdef USE_LWIP_FAST_SELECT
+  struct lwip_sock *cached_sock_{nullptr};  // Cached for direct rcvevent read in ready()
+#endif
   bool closed_{false};
   bool loop_monitored_{false};
 };

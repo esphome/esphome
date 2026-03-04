@@ -13,6 +13,10 @@
 #include <lwip/sockets.h>
 #endif
 
+#ifdef USE_LWIP_FAST_SELECT
+struct lwip_sock;
+#endif
+
 namespace esphome::socket {
 
 class BSDSocketImpl {
@@ -83,7 +87,7 @@ class BSDSocketImpl {
     return ::write(this->fd_, buf, len);
 #endif
   }
-  ssize_t send(void *buf, size_t len, int flags) { return ::send(this->fd_, buf, len, flags); }
+  ssize_t send(const void *buf, size_t len, int flags) { return ::send(this->fd_, buf, len, flags); }
   ssize_t writev(const struct iovec *iov, int iovcnt) {
 #if defined(USE_ESP32)
     return ::lwip_writev(this->fd_, iov, iovcnt);
@@ -105,6 +109,9 @@ class BSDSocketImpl {
 
  protected:
   int fd_{-1};
+#ifdef USE_LWIP_FAST_SELECT
+  struct lwip_sock *cached_sock_{nullptr};  // Cached for direct rcvevent read in ready()
+#endif
   bool closed_{false};
   bool loop_monitored_{false};
 };
