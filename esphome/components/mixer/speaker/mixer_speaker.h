@@ -8,8 +8,8 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/static_task.h"
 
-#include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 
 #include <atomic>
@@ -207,9 +207,7 @@ class MixerSpeaker : public Component {
   bool queue_mode_;
   bool task_stack_in_psram_{false};
 
-  TaskHandle_t task_handle_{nullptr};
-  StaticTask_t task_stack_;
-  StackType_t *task_stack_buffer_{nullptr};
+  StaticTask task_;
 
   optional<audio::AudioStreamInfo> audio_stream_info_;
 

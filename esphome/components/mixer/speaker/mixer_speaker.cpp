@@ -438,7 +438,7 @@ void MixerSpeaker::loop() {
   // Handle pending start request
   if (event_group_bits & MIXER_TASK_COMMAND_START) {
     // Only start the task if it's fully stopped and cleaned up
-    if (!this->status_has_error() && (this->task_handle_ == nullptr) && (this->task_stack_buffer_ == nullptr)) {
+    if (!this->status_has_error() && !this->task_.is_created()) {
       esp_err_t err = this->start_task_();
       switch (err) {
         case ESP_OK:
@@ -484,7 +484,7 @@ void MixerSpeaker::loop() {
     }
   }
 
-  if (this->task_handle_ != nullptr) {
+  if (this->task_.is_created()) {
     // If the mixer task is running, check if all source speakers are stopped
 
     bool all_stopped = true;
@@ -497,7 +497,7 @@ void MixerSpeaker::loop() {
       // Send stop command signal to the mixer task since no source speakers are active
       xEventGroupSetBits(this->event_group_, MIXER_TASK_COMMAND_STOP);
     }
-  } else if (this->task_stack_buffer_ == nullptr) {
+  } else {
     // Task is fully stopped and cleaned up, check if we can disable loop
     event_group_bits = xEventGroupGetBits(this->event_group_);
     if (event_group_bits == 0) {
@@ -539,56 +539,16 @@ esp_err_t MixerSpeaker::start(audio::AudioStreamInfo &stream_info) {
 }
 
 esp_err_t MixerSpeaker::start_task_() {
-  if (this->task_stack_buffer_ == nullptr) {
-    if (this->task_stack_in_psram_) {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-      this->task_stack_buffer_ = stack_allocator.allocate(TASK_STACK_SIZE);
-    } else {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-      this->task_stack_buffer_ = stack_allocator.allocate(TASK_STACK_SIZE);
-    }
-  }
-
-  if (this->task_stack_buffer_ == nullptr) {
+  if (!this->task_.create(audio_mixer_task, "mixer", TASK_STACK_SIZE, (void *) this, MIXER_TASK_PRIORITY,
+                          this->task_stack_in_psram_)) {
     return ESP_ERR_NO_MEM;
-  }
-
-  if (this->task_handle_ == nullptr) {
-    this->task_handle_ = xTaskCreateStatic(audio_mixer_task, "mixer", TASK_STACK_SIZE, (void *) this,
-                                           MIXER_TASK_PRIORITY, this->task_stack_buffer_, &this->task_stack_);
-  }
-
-  if (this->task_handle_ == nullptr) {
-    return ESP_ERR_INVALID_STATE;
   }
 
   return ESP_OK;
 }
 
 esp_err_t MixerSpeaker::delete_task_() {
-  if (this->task_handle_ != nullptr) {
-    // Delete the task
-    vTaskDelete(this->task_handle_);
-    this->task_handle_ = nullptr;
-  }
-
-  if ((this->task_handle_ == nullptr) && (this->task_stack_buffer_ != nullptr)) {
-    // Deallocate the task stack buffer
-    if (this->task_stack_in_psram_) {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-      stack_allocator.deallocate(this->task_stack_buffer_, TASK_STACK_SIZE);
-    } else {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-      stack_allocator.deallocate(this->task_stack_buffer_, TASK_STACK_SIZE);
-    }
-
-    this->task_stack_buffer_ = nullptr;
-  }
-
-  if ((this->task_handle_ != nullptr) || (this->task_stack_buffer_ != nullptr)) {
-    return ESP_ERR_INVALID_STATE;
-  }
-
+  this->task_.deallocate();
   return ESP_OK;
 }
 
