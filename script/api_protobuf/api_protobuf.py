@@ -280,6 +280,9 @@ class TypeInfo(ABC):
         """
         field_id_size = self.calculate_field_id_size()
         method = f"calc_{base_method}_force" if force else f"calc_{base_method}"
+        # calc_bool_force only takes field_id_size (no value needed - bool is always 1 byte)
+        if base_method == "bool" and force:
+            return f"size += ProtoSize::{method}({field_id_size});"
         value = value_expr or name
         return f"size += ProtoSize::{method}({field_id_size}, {value});"
 
