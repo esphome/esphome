@@ -59,7 +59,7 @@ float BTHomeObject::as_float() const { return scaling_factor() * (is_signed() ? 
 
 bool BTHomeObject::as_bool() const { return as_uint() != 0; }
 
-std::string_view BTHomeObject::as_string() const { return std::string_view((const char *) data, length); }
+StringRef BTHomeObject::as_string() const { return StringRef((const char *) this->data, this->length); }
 
 BTHomePayloadDecoder::Iterator::Iterator(const uint8_t *ptr, size_t remaining) : ptr_(ptr), remaining_(remaining) {
   this->parse_next_();

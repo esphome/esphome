@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <cstddef>
-#include <string_view>
+#include "esphome/core/string_ref.h"
 #include "bthome.h"
 
 namespace esphome {
@@ -17,7 +17,7 @@ struct BTHomeObject {
   int32_t as_int() const;
   float as_float() const;
   bool as_bool() const;
-  std::string_view as_string() const;
+  StringRef as_string() const;
 };
 
 class BTHomePayloadDecoder {

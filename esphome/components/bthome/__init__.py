@@ -8,7 +8,16 @@ from esphome.components import (
     text_sensor,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_KEY, CONF_MAC_ADDRESS, CONF_TYPE
+from esphome.const import (
+    CONF_BINARY_SENSORS,
+    CONF_ID,
+    CONF_KEY,
+    CONF_MAC_ADDRESS,
+    CONF_MAX_LENGTH,
+    CONF_SENSORS,
+    CONF_TEXT_SENSORS,
+    CONF_TYPE,
+)
 from esphome.core import CORE
 from esphome.cpp_generator import TemplateArguments
 
@@ -90,11 +99,7 @@ _REMOTE_DEVICE_SCHEMA = cv.Schema(
 
 # Server-side config keys
 CONF_REMOTE_DEVICES = "remote_devices"
-CONF_SENSORS = "sensors"
-CONF_BINARY_SENSORS = "binary_sensors"
-CONF_TEXT_SENSORS = "text_sensors"
 CONF_ADVERTISE_IMMEDIATELY = "advertise_immediately"
-CONF_MAX_LENGTH = "max_length"
 
 
 def _get_value_length(object_id: int) -> int:

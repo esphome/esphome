@@ -170,8 +170,9 @@ void BTHomeServerBase::send_frame_() {
   memcpy(&this->adv_buffer_[pos], payload, payload_size);
   pos += payload_size;
 
-  ESP_LOGD("bthome.server", "Advertising frame with payload size %zu (total %zu): content: %s", payload_size, total,
-           format_hex(payload, payload_size).c_str());
+  char hex_buf[format_hex_size(BTHOME_MAX_PAYLOAD)];
+  ESP_LOGV("bthome.server", "Advertising frame with payload size %zu (total %zu): content: %s", payload_size, total,
+           format_hex_to(hex_buf, payload, payload_size));
 
   this->ble_adapter_->config_adv_data_raw(this->adv_buffer_, pos);
 }
