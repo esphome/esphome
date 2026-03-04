@@ -120,7 +120,7 @@ const char *get_disconnect_reason_str(uint8_t reason) {
   return "UNKNOWN";
 }
 
-WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
+WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   // Use cyw43_wifi_link_status instead of cyw43_tcpip_link_status because the Arduino
   // framework's __wrap_cyw43_cb_tcpip_init is a no-op — the SDK's internal netif
   // (cyw43_state.netif[]) is never initialized. cyw43_tcpip_link_status checks that netif's
