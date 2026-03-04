@@ -497,32 +497,7 @@ class ProtoDecodableMessage : public ProtoMessage {
 };
 
 class ProtoSize {
- private:
-  uint32_t total_size_ = 0;
-
  public:
-  /**
-   * @brief ProtoSize class for Protocol Buffer serialization size calculation
-   *
-   * This class provides methods to calculate the exact byte counts needed
-   * for encoding various Protocol Buffer field types. The class now uses an
-   * object-based approach to reduce parameter passing overhead while keeping
-   * varint calculation methods static for external use.
-   *
-   * Implements Protocol Buffer encoding size calculation according to:
-   * https://protobuf.dev/programming-guides/encoding/
-   *
-   * Key features:
-   * - Object-based approach reduces flash usage by eliminating parameter passing
-   * - Early-return optimization for zero/default values
-   * - Static varint methods for external callers
-   * - Specialized handling for different field types according to protobuf spec
-   */
-
-  ProtoSize() = default;
-
-  uint32_t get_size() const { return total_size_; }
-
   /**
    * @brief Calculates the size in bytes needed to encode a uint32_t value as a varint
    *
@@ -619,292 +594,62 @@ class ProtoSize {
     return varint(tag);
   }
 
-  /**
-   * @brief Common parameters for all add_*_field methods
-   *
-   * All add_*_field methods follow these common patterns:
-   *   * @param field_id_size Pre-calculated size of the field ID in bytes
-   * @param value The value to calculate size for (type varies)
-   * @param force Whether to calculate size even if the value is default/zero/empty
-   *
-   * Each method follows this implementation pattern:
-   * 1. Skip calculation if value is default (0, false, empty) and not forced
-   * 2. Calculate the size based on the field's encoding rules
-   * 3. Add the field_id_size + calculated value size to total_size
-   */
-
-  /**
-   * @brief Calculates and adds the size of an int32 field to the total message size
-   */
-  inline void add_int32(uint32_t field_id_size, int32_t value) {
-    if (value != 0) {
-      add_int32_force(field_id_size, value);
-    }
+  // Static methods that RETURN size contribution (no ProtoSize object needed).
+  // Used by generated calculate_size() methods to accumulate into a plain uint32_t register.
+  static constexpr uint32_t int32(uint32_t field_id_size, int32_t value) {
+    return value ? field_id_size + (value < 0 ? 10 : varint(static_cast<uint32_t>(value))) : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of an int32 field to the total message size (force version)
-   */
-  inline void add_int32_force(uint32_t field_id_size, int32_t value) {
-    // Always calculate size when forced
-    // Negative values are encoded as 10-byte varints in protobuf
-    total_size_ += field_id_size + (value < 0 ? 10 : varint(static_cast<uint32_t>(value)));
+  static constexpr uint32_t int32_force(uint32_t field_id_size, int32_t value) {
+    return field_id_size + (value < 0 ? 10 : varint(static_cast<uint32_t>(value)));
   }
-
-  /**
-   * @brief Calculates and adds the size of a uint32 field to the total message size
-   */
-  inline void add_uint32(uint32_t field_id_size, uint32_t value) {
-    if (value != 0) {
-      add_uint32_force(field_id_size, value);
-    }
+  static constexpr uint32_t uint32(uint32_t field_id_size, uint32_t value) {
+    return value ? field_id_size + varint(value) : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of a uint32 field to the total message size (force version)
-   */
-  inline void add_uint32_force(uint32_t field_id_size, uint32_t value) {
-    // Always calculate size when force is true
-    total_size_ += field_id_size + varint(value);
+  static constexpr uint32_t uint32_force(uint32_t field_id_size, uint32_t value) {
+    return field_id_size + varint(value);
   }
-
-  /**
-   * @brief Calculates and adds the size of a boolean field to the total message size
-   */
-  inline void add_bool(uint32_t field_id_size, bool value) {
-    if (value) {
-      // Boolean fields always use 1 byte when true
-      total_size_ += field_id_size + 1;
-    }
+  static constexpr uint32_t bool_(uint32_t field_id_size, bool value) { return value ? field_id_size + 1 : 0; }
+  static constexpr uint32_t bool_force(uint32_t field_id_size) { return field_id_size + 1; }
+  static constexpr uint32_t float_(uint32_t field_id_size, float value) {
+    return value != 0.0f ? field_id_size + 4 : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of a boolean field to the total message size (force version)
-   */
-  inline void add_bool_force(uint32_t field_id_size, bool value) {
-    // Always calculate size when force is true
-    // Boolean fields always use 1 byte
-    total_size_ += field_id_size + 1;
+  static constexpr uint32_t fixed32(uint32_t field_id_size, uint32_t value) { return value ? field_id_size + 4 : 0; }
+  static constexpr uint32_t sfixed32(uint32_t field_id_size, int32_t value) { return value ? field_id_size + 4 : 0; }
+  static constexpr uint32_t sint32(uint32_t field_id_size, int32_t value) {
+    return value ? field_id_size + varint(encode_zigzag32(value)) : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of a float field to the total message size
-   */
-  inline void add_float(uint32_t field_id_size, float value) {
-    if (value != 0.0f) {
-      total_size_ += field_id_size + 4;
-    }
+  static constexpr uint32_t sint32_force(uint32_t field_id_size, int32_t value) {
+    return field_id_size + varint(encode_zigzag32(value));
   }
-
-  // NOTE: add_double_field removed - wire type 1 (64-bit: double) not supported
-  // to reduce overhead on embedded systems
-
-  /**
-   * @brief Calculates and adds the size of a fixed32 field to the total message size
-   */
-  inline void add_fixed32(uint32_t field_id_size, uint32_t value) {
-    if (value != 0) {
-      total_size_ += field_id_size + 4;
-    }
+  static constexpr uint32_t int64(uint32_t field_id_size, int64_t value) {
+    return value ? field_id_size + varint(value) : 0;
   }
-
-  // NOTE: add_fixed64_field removed - wire type 1 (64-bit: fixed64) not supported
-  // to reduce overhead on embedded systems
-
-  /**
-   * @brief Calculates and adds the size of a sfixed32 field to the total message size
-   */
-  inline void add_sfixed32(uint32_t field_id_size, int32_t value) {
-    if (value != 0) {
-      total_size_ += field_id_size + 4;
-    }
+  static constexpr uint32_t int64_force(uint32_t field_id_size, int64_t value) { return field_id_size + varint(value); }
+  static constexpr uint32_t uint64(uint32_t field_id_size, uint64_t value) {
+    return value ? field_id_size + varint(value) : 0;
   }
-
-  // NOTE: add_sfixed64_field removed - wire type 1 (64-bit: sfixed64) not supported
-  // to reduce overhead on embedded systems
-
-  /**
-   * @brief Calculates and adds the size of a sint32 field to the total message size
-   *
-   * Sint32 fields use ZigZag encoding, which is more efficient for negative values.
-   */
-  inline void add_sint32(uint32_t field_id_size, int32_t value) {
-    if (value != 0) {
-      add_sint32_force(field_id_size, value);
-    }
+  static constexpr uint32_t uint64_force(uint32_t field_id_size, uint64_t value) {
+    return field_id_size + varint(value);
   }
-
-  /**
-   * @brief Calculates and adds the size of a sint32 field to the total message size (force version)
-   *
-   * Sint32 fields use ZigZag encoding, which is more efficient for negative values.
-   */
-  inline void add_sint32_force(uint32_t field_id_size, int32_t value) {
-    // Always calculate size when force is true
-    // ZigZag encoding for sint32
-    total_size_ += field_id_size + varint(encode_zigzag32(value));
+  static constexpr uint32_t length(uint32_t field_id_size, size_t len) {
+    return len ? field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len) : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of an int64 field to the total message size
-   */
-  inline void add_int64(uint32_t field_id_size, int64_t value) {
-    if (value != 0) {
-      add_int64_force(field_id_size, value);
-    }
+  static constexpr uint32_t length_force(uint32_t field_id_size, size_t len) {
+    return field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len);
   }
-
-  /**
-   * @brief Calculates and adds the size of an int64 field to the total message size (force version)
-   */
-  inline void add_int64_force(uint32_t field_id_size, int64_t value) {
-    // Always calculate size when force is true
-    total_size_ += field_id_size + varint(value);
+  static constexpr uint32_t sint64(uint32_t field_id_size, int64_t value) {
+    return value ? field_id_size + varint(encode_zigzag64(value)) : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of a uint64 field to the total message size
-   */
-  inline void add_uint64(uint32_t field_id_size, uint64_t value) {
-    if (value != 0) {
-      add_uint64_force(field_id_size, value);
-    }
+  static constexpr uint32_t sint64_force(uint32_t field_id_size, int64_t value) {
+    return field_id_size + varint(encode_zigzag64(value));
   }
-
-  /**
-   * @brief Calculates and adds the size of a uint64 field to the total message size (force version)
-   */
-  inline void add_uint64_force(uint32_t field_id_size, uint64_t value) {
-    // Always calculate size when force is true
-    total_size_ += field_id_size + varint(value);
+  static constexpr uint32_t fixed64(uint32_t field_id_size, uint64_t value) { return value ? field_id_size + 8 : 0; }
+  static constexpr uint32_t sfixed64(uint32_t field_id_size, int64_t value) { return value ? field_id_size + 8 : 0; }
+  static constexpr uint32_t message(uint32_t field_id_size, uint32_t nested_size) {
+    return nested_size ? field_id_size + varint(nested_size) + nested_size : 0;
   }
-
-  // NOTE: sint64 support functions (add_sint64_field, add_sint64_field_force) removed
-  // sint64 type is not supported by ESPHome API to reduce overhead on embedded systems
-
-  /**
-   * @brief Calculates and adds the size of a length-delimited field (string/bytes) to the total message size
-   */
-  inline void add_length(uint32_t field_id_size, size_t len) {
-    if (len != 0) {
-      add_length_force(field_id_size, len);
-    }
-  }
-
-  /**
-   * @brief Calculates and adds the size of a length-delimited field (string/bytes) to the total message size (repeated
-   * field version)
-   */
-  inline void add_length_force(uint32_t field_id_size, size_t len) {
-    // Always calculate size when force is true
-    // Field ID + length varint + data bytes
-    total_size_ += field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len);
-  }
-
-  /**
-   * @brief Adds a pre-calculated size directly to the total
-   *
-   * This is used when we can calculate the total size by multiplying the number
-   * of elements by the bytes per element (for repeated fixed-size types like float, fixed32, etc.)
-   *
-   * @param size The pre-calculated total size to add
-   */
-  inline void add_precalculated_size(uint32_t size) { total_size_ += size; }
-
-  /**
-   * @brief Calculates and adds the size of a nested message field to the total message size
-   *
-   * This helper function directly updates the total_size reference if the nested size
-   * is greater than zero.
-   *
-   * @param nested_size The pre-calculated size of the nested message
-   */
-  inline void add_message_field(uint32_t field_id_size, uint32_t nested_size) {
-    if (nested_size != 0) {
-      add_message_field_force(field_id_size, nested_size);
-    }
-  }
-
-  /**
-   * @brief Calculates and adds the size of a nested message field to the total message size (force version)
-   *
-   * @param nested_size The pre-calculated size of the nested message
-   */
-  inline void add_message_field_force(uint32_t field_id_size, uint32_t nested_size) {
-    // Always calculate size when force is true
-    // Field ID + length varint + nested message content
-    total_size_ += field_id_size + varint(nested_size) + nested_size;
-  }
-
-  /**
-   * @brief Calculates and adds the size of a nested message field to the total message size
-   *
-   * This version takes a ProtoMessage object, calculates its size internally,
-   * and updates the total_size reference. This eliminates the need for a temporary variable
-   * at the call site.
-   *
-   * @param message The nested message object
-   */
-  template<typename T> inline void add_message_object(uint32_t field_id_size, const T &message) {
-    add_message_field(field_id_size, message.calculate_size());
-  }
-
-  template<typename T> inline void add_message_object_force(uint32_t field_id_size, const T &message) {
-    add_message_field_force(field_id_size, message.calculate_size());
-  }
-
-  /**
-   * @brief Calculates and adds the sizes of all messages in a repeated field to the total message size
-   *
-   * This helper processes a vector of message objects, calculating the size for each message
-   * and adding it to the total size.
-   *
-   * @tparam MessageType The type of the nested messages in the vector
-   * @param messages Vector of message objects
-   */
-  template<typename MessageType>
-  inline void add_repeated_message(uint32_t field_id_size, const std::vector<MessageType> &messages) {
-    // Skip if the vector is empty
-    if (!messages.empty()) {
-      // Use the force version for all messages in the repeated field
-      for (const auto &message : messages) {
-        add_message_object_force(field_id_size, message);
-      }
-    }
-  }
-
-  /**
-   * @brief Calculates and adds the sizes of all messages in a repeated field to the total message size (FixedVector
-   * version)
-   *
-   * @tparam MessageType The type of the nested messages in the FixedVector
-   * @param messages FixedVector of message objects
-   */
-  template<typename MessageType>
-  inline void add_repeated_message(uint32_t field_id_size, const FixedVector<MessageType> &messages) {
-    // Skip if the fixed vector is empty
-    if (!messages.empty()) {
-      // Use the force version for all messages in the repeated field
-      for (const auto &message : messages) {
-        add_message_object_force(field_id_size, message);
-      }
-    }
-  }
-
-  /**
-   * @brief Calculate size of a packed repeated sint32 field
-   */
-  inline void add_packed_sint32(uint32_t field_id_size, const std::vector<int32_t> &values) {
-    if (values.empty())
-      return;
-
-    size_t packed_size = 0;
-    for (int value : values) {
-      packed_size += varint(encode_zigzag32(value));
-    }
-
-    // field_id + length varint + packed data
-    total_size_ += field_id_size + varint(static_cast<uint32_t>(packed_size)) + static_cast<uint32_t>(packed_size);
+  static constexpr uint32_t message_force(uint32_t field_id_size, uint32_t nested_size) {
+    return field_id_size + varint(nested_size) + nested_size;
   }
 };
 
