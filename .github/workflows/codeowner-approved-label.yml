@@ -12,6 +12,7 @@ on:
     types: [submitted, dismissed]
 
 permissions:
+  issues: write
   pull-requests: write
   contents: read
 
