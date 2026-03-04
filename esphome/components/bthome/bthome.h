@@ -64,7 +64,7 @@ enum class BTHomeObjectType : uint8_t {
   MOISTURE_PCT_U8 = 0x2F,
   PACKET_ID = 0x00,
   PM10_UGM3 = 0x0E,
-  PM25_UGM3 = 0x0D,
+  PM2_5_UGM3 = 0x0D,
   POWER_W_E2 = 0x0B,
   POWER_W_I32_E2 = 0x5C,
   PRECIPITATION_MM_E1 = 0x5F,
@@ -178,7 +178,7 @@ constexpr size_t get_bthome_value_length(BTHomeObjectType obj_type) {
     case BTHomeObjectType::MASS_LB_E2:
     case BTHomeObjectType::DEWPOINT_C_E2:
     case BTHomeObjectType::VOLTAGE_V_E3:
-    case BTHomeObjectType::PM25_UGM3:
+    case BTHomeObjectType::PM2_5_UGM3:
     case BTHomeObjectType::PM10_UGM3:
     case BTHomeObjectType::CO2_PPM:
     case BTHomeObjectType::TVOC_UGM3:

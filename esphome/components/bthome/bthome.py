@@ -121,7 +121,7 @@ OBJECT_TYPES_BY_ID: list[BTHomeObjectType | None] = [
     BTHomeObjectType(
         object_id=0x0D,
         size=2,
-        name="PM25_UGM3",
+        name="PM2_5_UGM3",
         unit=const.UNIT_MICROGRAMS_PER_CUBIC_METER,
         device_class=const.DEVICE_CLASS_PM25,
     ),
@@ -605,43 +605,40 @@ for index, ot in enumerate(OBJECT_TYPES_BY_ID):
     )
     BTHOME_OBJECT_TYPES[ot.name] = ot
 
-# Maps short, easy-to-remember names to the canonical object type name with the
-# smallest object_id in each family.  Only sensor types are aliased; binary
-# sensor names are already self-descriptive (BATTERY_LOW, POWER_ON, …) and have
-# no multi-variant siblings that would benefit from disambiguation.
+# Maps short, easy-to-remember names to the canonical object type name.
 BTHOME_OBJECT_ALIASES: dict[str, str] = {
-    "ACCELERATION": "ACCELERATION_MSS_E3",  # 0x51 (alt: MSS_I32_E6)
-    "BATTERY": "BATTERY_PCT",  # 0x01
-    "CO2": "CO2_PPM",  # 0x12
-    "CONDUCTIVITY": "CONDUCTIVITY_USCM",  # 0x56
-    "CURRENT": "CURRENT_A_E3",  # 0x43 (alt: A_I16_E3)
-    "DEWPOINT": "DEWPOINT_C_E2",  # 0x08
-    "DIRECTION": "DIRECTION_DEG_E2",  # 0x5E
-    "DISTANCE": "DISTANCE_MM",  # 0x40 (alt: M_E1)
-    "DURATION": "DURATION_S_E3",  # 0x42
-    "ENERGY": "ENERGY_KWH_E3",  # 0x0A (alt: KWH_U32_E3)
-    "GYROSCOPE": "GYROSCOPE_DEGS_E3",  # 0x52
-    "HUMIDITY": "HUMIDITY_PCT_E2",  # 0x03 (alt: PCT_U8)
-    "ILLUMINANCE": "ILLUMINANCE_LX_E2",  # 0x05
-    "MASS_KG": "MASS_KG_E2",  # 0x06
-    "MASS_LB": "MASS_LB_E2",  # 0x07
-    "MOISTURE": "MOISTURE_PCT_E2",  # 0x14 (alt: PCT_U8)
-    "PM10": "PM10_UGM3",  # 0x0E
-    "PM25": "PM25_UGM3",  # 0x0D
-    "POWER": "POWER_W_E2",  # 0x0B (alt: W_I32_E2)
-    "PRECIPITATION": "PRECIPITATION_MM_E1",  # 0x5F
-    "PRESSURE": "PRESSURE_HPA_E2",  # 0x04
-    "ROTATION": "ROTATION_DEG_E1",  # 0x3F
-    "ROTATIONAL_SPEED": "ROTATIONAL_SPEED_RPM",  # 0x61
-    "SPEED": "SPEED_MS_E2",  # 0x44 (alt: MS_I32_E6)
-    "TEMPERATURE": "TEMPERATURE_C_E2",  # 0x02 (alt: C_E1, C_I8, C_I8_0_35)
-    "TVOC": "TVOC_UGM3",  # 0x13
-    "UV_INDEX": "UV_INDEX_E1",  # 0x46
-    "VOLTAGE": "VOLTAGE_V_E3",  # 0x0C (alt: V_E1)
-    "VOLUME": "VOLUME_L_E1",  # 0x47 (alt: ML, L_U32_E3)
-    "VOLUME_FLOW": "VOLUME_FLOW_M3HR_E3",  # 0x49
-    "VOLUME_STORAGE": "VOLUME_STORAGE_L_E3",  # 0x55
-    "WATER": "WATER_L_E3",  # 0x4F
+    "ACCELERATION": "ACCELERATION_MSS_E3",
+    "BATTERY": "BATTERY_PCT",
+    "CO2": "CO2_PPM",
+    "CONDUCTIVITY": "CONDUCTIVITY_USCM",
+    "CURRENT": "CURRENT_A_E3",
+    "DEWPOINT": "DEWPOINT_C_E2",
+    "DIRECTION": "DIRECTION_DEG_E2",
+    "DISTANCE": "DISTANCE_MM",
+    "DURATION": "DURATION_S_E3",
+    "ENERGY": "ENERGY_KWH_E3",
+    "GYROSCOPE": "GYROSCOPE_DEGS_E3",
+    "HUMIDITY": "HUMIDITY_PCT_E2",
+    "ILLUMINANCE": "ILLUMINANCE_LX_E2",
+    "MASS_KG": "MASS_KG_E2",
+    "MASS_LB": "MASS_LB_E2",
+    "MOISTURE": "MOISTURE_PCT_E2",
+    "PM10": "PM10_UGM3",
+    "PM2_5": "PM2_5_UGM3",
+    "POWER": "POWER_W_E2",
+    "PRECIPITATION": "PRECIPITATION_MM_E1",
+    "PRESSURE": "PRESSURE_HPA_E2",
+    "ROTATION": "ROTATION_DEG_E1",
+    "ROTATIONAL_SPEED": "ROTATIONAL_SPEED_RPM",
+    "SPEED": "SPEED_MS_E2",
+    "TEMPERATURE": "TEMPERATURE_C_E2",
+    "TVOC": "TVOC_UGM3",
+    "UV_INDEX": "UV_INDEX_E1",
+    "VOLTAGE": "VOLTAGE_V_E3",
+    "VOLUME": "VOLUME_L_E1",
+    "VOLUME_FLOW": "VOLUME_FLOW_M3HR_E3",
+    "VOLUME_STORAGE": "VOLUME_STORAGE_L_E3",
+    "WATER": "WATER_L_E3",
 }
 
 
