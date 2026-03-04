@@ -59,7 +59,7 @@ uart_mock:
         ]
 
     # Phase 2 (t=2100ms): Second engineering mode frame with different values
-    # Moving at 73cm, still at 30cm, detection at 33cm
+    # Moving at 73cm, still at 30cm
     - delay: 2000ms
       inject_rx:
         [

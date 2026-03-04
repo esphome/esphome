@@ -106,6 +106,9 @@ async def test_uart_mock_ld2412(
 
         # Build key mappings for all sensor types
         all_names = list(sensor_states.keys()) + list(binary_states.keys())
+        # Sort by descending length to avoid substring collisions
+        # (e.g., "still_energy" matching "gate_0_still_energy")
+        all_names.sort(key=len, reverse=True)
         key_to_sensor = build_key_to_entity_mapping(entities, all_names)
 
         # Set up initial state helper
@@ -163,7 +166,7 @@ async def test_uart_mock_ld2412(
         # Wait for the recovery frame (Phase 5) to be parsed
         # This proves the component survived garbage + truncated + overflow
         try:
-            await asyncio.wait_for(recovery_received, timeout=30.0)
+            await asyncio.wait_for(recovery_received, timeout=5.0)
         except TimeoutError:
             pytest.fail(
                 f"Timeout waiting for recovery frame. Received sensor states:\n"
@@ -282,8 +285,9 @@ async def test_uart_mock_ld2412_engineering(
         "has_still_target": [],
     }
 
-    # Signal when we see Phase 3 frame (still_distance = 291)
-    phase3_received = loop.create_future()
+    # Signal when we see Phase 3 frame values
+    phase3_still_received = loop.create_future()
+    phase3_detect_received = loop.create_future()
 
     def on_state(state: EntityState) -> None:
         if isinstance(state, SensorState) and not state.missing_state:
@@ -293,9 +297,15 @@ async def test_uart_mock_ld2412_engineering(
                 if (
                     sensor_name == "still_distance"
                     and state.state == pytest.approx(291.0)
-                    and not phase3_received.done()
+                    and not phase3_still_received.done()
                 ):
-                    phase3_received.set_result(True)
+                    phase3_still_received.set_result(True)
+                if (
+                    sensor_name == "detection_distance"
+                    and state.state == pytest.approx(291.0)
+                    and not phase3_detect_received.done()
+                ):
+                    phase3_detect_received.set_result(True)
         elif isinstance(state, BinarySensorState):
             sensor_name = key_to_sensor.get(state.key)
             if sensor_name and sensor_name in binary_states:
@@ -308,6 +318,9 @@ async def test_uart_mock_ld2412_engineering(
         entities, _ = await client.list_entities_services()
 
         all_names = list(sensor_states.keys()) + list(binary_states.keys())
+        # Sort by descending length to avoid substring collisions
+        # (e.g., "still_energy" matching "gate_0_still_energy")
+        all_names.sort(key=len, reverse=True)
         key_to_sensor = build_key_to_entity_mapping(entities, all_names)
 
         initial_state_helper = InitialStateHelper(entities)
@@ -364,20 +377,31 @@ async def test_uart_mock_ld2412_engineering(
             f"Light sensor should be 87, got {initial_light.state}"
         )
 
-        # Wait for Phase 3 frame (still_distance = 291cm, multi-byte)
+        # Wait for Phase 3 frame: still_distance = 291cm (multi-byte)
         try:
-            await asyncio.wait_for(phase3_received, timeout=30.0)
+            await asyncio.wait_for(phase3_still_received, timeout=5.0)
         except TimeoutError:
             pytest.fail(
-                f"Timeout waiting for Phase 3 frame. Received sensor states:\n"
+                f"Timeout waiting for Phase 3 still_distance. Received:\n"
                 f"  still_distance: {sensor_states['still_distance']}\n"
                 f"  moving_distance: {sensor_states['moving_distance']}"
             )
 
-        # Phase 3: still distance = 0x0123 = 291cm (multi-byte distance test)
-        phase3_still = [
-            v for v in sensor_states["still_distance"] if v == pytest.approx(291.0)
-        ]
-        assert len(phase3_still) >= 1, (
+        assert pytest.approx(291.0) in sensor_states["still_distance"], (
             f"Expected still_distance=291, got: {sensor_states['still_distance']}"
+        )
+
+        # Wait for Phase 3: detection_distance = 291 (still-only target)
+        # target_state=0x02 so LD2412 uses still_distance for detection_distance.
+        # The throttle_with_priority filter may delay this value.
+        try:
+            await asyncio.wait_for(phase3_detect_received, timeout=5.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for detection_distance=291 (still-only target). "
+                f"Received: {sensor_states['detection_distance']}"
+            )
+
+        assert pytest.approx(291.0) in sensor_states["detection_distance"], (
+            f"Expected detection_distance=291, got: {sensor_states['detection_distance']}"
         )

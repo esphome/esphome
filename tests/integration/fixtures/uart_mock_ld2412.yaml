@@ -60,25 +60,25 @@ uart_mock:
           0xF8, 0xF7, 0xF6, 0xF5,
         ]
 
-    # Phase 2 (t=2100ms): Garbage bytes
+    # Phase 2 (t=300ms): Garbage bytes
     # LD2412's parser rejects bytes that don't match the frame header at
     # position 0 (must start with F4 or FD), so buffer stays empty.
-    - delay: 2000ms
+    - delay: 200ms
       inject_rx: [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22]
 
-    # Phase 3 (t=3100ms): Truncated frame (header + partial data, no footer)
+    # Phase 3 (t=400ms): Truncated frame (header + partial data, no footer)
     # Starts with valid data frame header so parser accepts it.
     # After this, buffer_pos_ = 8.
-    - delay: 1000ms
+    - delay: 100ms
       inject_rx: [0xF4, 0xF3, 0xF2, 0xF1, 0x0D, 0x00, 0x02, 0xAA]
 
-    # Phase 4 (t=4100ms): Overflow - inject 60 bytes of 0xFF (MAX_LINE_LENGTH=54)
+    # Phase 4 (t=600ms): Overflow - inject 60 bytes of 0xFF (MAX_LINE_LENGTH=54)
     # Buffer has 8 bytes from phase 3 (garbage in phase 2 was rejected).
     # Overflow math: buffer_pos_ starts at 8, overflow triggers when
     # buffer_pos_ reaches 53 (MAX_LINE_LENGTH - 1). Need 45 more bytes to
     # fill positions 8-52, then byte 46 triggers overflow. After overflow,
     # buffer_pos_ = 0 and remaining 0xFF bytes are rejected (don't match header).
-    - delay: 1000ms
+    - delay: 200ms
       inject_rx:
         [
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -89,11 +89,12 @@ uart_mock:
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         ]
 
-    # Phase 5 (t=5100ms): Valid frame after overflow - recovery test
+    # Phase 5 (t=1600ms): Valid frame after overflow - recovery test
     # Buffer was reset by overflow. This valid frame should parse correctly.
     # Moving target: 50cm, energy 100
     # Still target: 75cm, energy 80
     # detection_distance = 50 (moving target distance, since MOVE_BITMASK set)
+    # Delay ensures we're past the 1000ms throttle window from Phase 1.
     - delay: 1000ms
       inject_rx:
         [
