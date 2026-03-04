@@ -109,17 +109,19 @@ def prepare(
         if config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE) and config[CONF_MQTT].get(
             CONF_CLIENT_CERTIFICATE_KEY
         ):
-            with (
-                tempfile.NamedTemporaryFile(mode="w+", delete=False) as cert_file,
-                tempfile.NamedTemporaryFile(mode="w+", delete=False) as key_file,
-            ):
+            cert_file = tempfile.NamedTemporaryFile(mode="w+", delete=False)
+            key_file = tempfile.NamedTemporaryFile(mode="w+", delete=False)
+            try:
                 cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
                 cert_file.flush()
                 key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
                 key_file.flush()
                 context.load_cert_chain(cert_file.name, key_file.name)
-            os.unlink(cert_file.name)
-            os.unlink(key_file.name)
+            finally:
+                cert_file.close()
+                key_file.close()
+                os.unlink(cert_file.name)
+                os.unlink(key_file.name)
         client.tls_set_context(context)
 
     try:
