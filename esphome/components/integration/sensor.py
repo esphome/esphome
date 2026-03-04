@@ -112,21 +112,20 @@ async def to_code(config):
         }
     ),
 )
+async def sensor_integration_reset_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
 @automation.register_action(
     "sensor.integration.set_value",
     SetValueAction,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_ID): cv.use_id(IntegrationSensor),
             cv.Required(CONF_VALUE): cv.templatable(cv.float_),
         }
     ),
 )
-async def sensor_integration_reset_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
 async def sensor_integration_set_value_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
