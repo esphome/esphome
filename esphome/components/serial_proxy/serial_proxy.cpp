@@ -126,7 +126,7 @@ void SerialProxy::configure(uint32_t baudrate, bool flow_control, uint8_t parity
   }
 }
 
-void SerialProxy::write(const uint8_t *data, size_t len) {
+void SerialProxy::write_from_client(const uint8_t *data, size_t len) {
   if (data == nullptr || len == 0)
     return;
   this->write_array(data, len);

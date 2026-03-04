@@ -1475,7 +1475,7 @@ void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest 
     ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
     return;
   }
-  proxies[msg.instance]->write(msg.data, msg.data_len);
+  proxies[msg.instance]->write_from_client(msg.data, msg.data_len);
 }
 
 void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) {

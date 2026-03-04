@@ -70,10 +70,10 @@ class SerialProxy : public uart::UARTDevice, public Component {
   /// Handle a subscribe/unsubscribe request from an API client
   void serial_proxy_request(api::APIConnection *api_connection, api::enums::SerialProxyRequestType type);
 
-  /// Write data to the serial device
+  /// Write data received from an API client to the serial device
   /// @param data Pointer to data buffer
   /// @param len Number of bytes to write
-  void write(const uint8_t *data, size_t len);
+  void write_from_client(const uint8_t *data, size_t len);
 
   /// Set modem pin states (RTS and DTR)
   /// @param rts Desired RTS pin state
