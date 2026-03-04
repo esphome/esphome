@@ -142,7 +142,7 @@ _SERVER_BINARY_SENSOR_SCHEMA = cv.Schema(
 
 _SERVER_TEXT_SENSOR_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_TYPE): bthome_object_type_validator(
+        cv.Optional(CONF_TYPE, default="TEXT"): bthome_object_type_validator(
             BTHomeObjectTypeKind.TEXT_SENSOR
         ),
         cv.Required(CONF_ID): cv.use_id(text_sensor.TextSensor),
