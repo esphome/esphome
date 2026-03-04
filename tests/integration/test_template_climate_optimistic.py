@@ -31,7 +31,10 @@ async def test_template_climate_optimistic(
         state_future: asyncio.Future[aioesphomeapi.ClimateState] = loop.create_future()
 
         def on_state(state: EntityState) -> None:
-            if isinstance(state, aioesphomeapi.ClimateState) and not state_future.done():
+            if (
+                isinstance(state, aioesphomeapi.ClimateState)
+                and not state_future.done()
+            ):
                 state_future.set_result(state)
 
         async def wait_for_climate_state(
