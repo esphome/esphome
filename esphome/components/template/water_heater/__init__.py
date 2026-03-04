@@ -18,7 +18,6 @@ from esphome.types import ConfigType
 
 from .. import template_ns
 
-CONF_CURRENT_TEMPERATURE = "current_temperature"
 CONF_IS_ON = "is_on"
 
 TemplateWaterHeater = template_ns.class_(

@@ -57,7 +57,7 @@ void TemplateClimate::loop() {
 
   if (auto val = this->fan_mode_f_()) {
     if (this->fan_mode != *val) {
-      this->fan_mode = *val;
+      this->fan_mode = val;
       changed = true;
     }
   }
@@ -71,7 +71,7 @@ void TemplateClimate::loop() {
 
   if (auto val = this->preset_f_()) {
     if (this->preset != *val) {
-      this->preset = *val;
+      this->preset = val;
       changed = true;
     }
   }
