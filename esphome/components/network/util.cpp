@@ -4,6 +4,9 @@
 
 namespace esphome::network {
 
+// The order of the components is important: WiFi should come after any possible main interfaces (it may be used as
+// an AP that uses a previous interface for NAT).
+
 bool is_disabled() {
 #ifdef USE_MODEM
   if (modem::global_modem_component != nullptr)
