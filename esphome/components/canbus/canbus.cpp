@@ -78,8 +78,7 @@ void Canbus::loop() {
                can_message.can_id, can_message.can_data_length_code);
     } else {
       ESP_LOGD(TAG, "received can message (#%" PRIu32 ") std can_id=0x%" PRIx32 " size=%d", message_counter + 1,
-               can_message.can_id,
-               can_message.can_data_length_code);
+               can_message.can_id, can_message.can_data_length_code);
     }
 
     std::vector<uint8_t> data;
@@ -105,7 +104,8 @@ void Canbus::loop() {
   }
 
   if (message_counter == this->max_frames_per_loop_) {
-    ESP_LOGW(TAG, "Reached max_frames_per_loop=%" PRIu32 ", deferring remaining CAN frames", this->max_frames_per_loop_);
+    ESP_LOGW(TAG, "Reached max_frames_per_loop=%" PRIu32 ", deferring remaining CAN frames",
+             this->max_frames_per_loop_);
   }
 }
 
