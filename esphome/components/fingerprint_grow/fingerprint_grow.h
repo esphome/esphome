@@ -169,7 +169,7 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   bool set_password_();
   bool get_parameters_();
   void get_fingerprint_count_();
-  uint8_t transfer_(std::vector<uint8_t> *p_data_buffer);
+  uint8_t transfer_(std::vector<uint8_t> &data_buffer);
   uint8_t send_command_();
   void sensor_wakeup_();
   void sensor_sleep_();
