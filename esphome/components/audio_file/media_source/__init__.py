@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import media_source, psram
 import esphome.config_validation as cv
-from esphome.const import CONF_TASK_STACK_IN_PSRAM
+from esphome.const import CONF_ID, CONF_TASK_STACK_IN_PSRAM
 
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["audio_file", "media_source", "audio"]
@@ -28,7 +28,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[cv.CONF_ID])
+    var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await media_source.register_media_source(var, config)
 
