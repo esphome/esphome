@@ -73,7 +73,7 @@ def _consume_udp_sockets(config: ConfigType) -> ConfigType:
 
     # UDP uses up to 2 sockets: 1 broadcast + 1 listen
     # Whether each is used depends on code generation, so register worst case
-    socket.consume_sockets(2, "udp")(config)
+    socket.consume_sockets(2, "udp", socket.SocketType.UDP)(config)
     return config
 
 

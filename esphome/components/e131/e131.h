@@ -46,6 +46,15 @@ class E131Component : public esphome::Component {
   void set_method(E131ListenMethod listen_method) { this->listen_method_ = listen_method; }
 
  protected:
+  inline ssize_t read_(uint8_t *buf, size_t len) {
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+    return this->socket_->read(buf, len);
+#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
+    if (!this->udp_.parsePacket())
+      return -1;
+    return this->udp_.read(buf, len);
+#endif
+  }
   bool packet_(const uint8_t *data, size_t len, int &universe, E131Packet &packet);
   bool process_(int universe, const E131Packet &packet);
   bool join_igmp_groups_();

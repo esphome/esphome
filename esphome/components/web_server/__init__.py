@@ -144,11 +144,11 @@ def _consume_web_server_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for web_server component."""
     from esphome.components import socket
 
-    # Web server needs 1 listening socket + typically 5 concurrent client connections
+    # Web server needs typically 5 concurrent client connections
     # (browser opens connections for page resources, SSE event stream, and POST
     # requests for entity control which may linger before closing)
-    sockets_needed = 6
-    socket.consume_sockets(sockets_needed, "web_server")(config)
+    # The listening socket is registered by web_server_base (shared with captive_portal)
+    socket.consume_sockets(5, "web_server")(config)
     return config
 
 
@@ -280,10 +280,8 @@ def add_resource_as_progmem(
         content_encoded = gzip.compress(content_encoded)
     content_encoded_size = len(content_encoded)
     bytes_as_int = ", ".join(str(x) for x in content_encoded)
-    uint8_t = f"const uint8_t ESPHOME_WEBSERVER_{resource_name}[{content_encoded_size}] PROGMEM = {{{bytes_as_int}}}"
-    size_t = (
-        f"const size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {content_encoded_size}"
-    )
+    uint8_t = f"constexpr uint8_t ESPHOME_WEBSERVER_{resource_name}[{content_encoded_size}] PROGMEM = {{{bytes_as_int}}}"
+    size_t = f"constexpr size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {content_encoded_size}"
     cg.add_global(cg.RawExpression(uint8_t))
     cg.add_global(cg.RawExpression(size_t))
 

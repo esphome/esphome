@@ -292,6 +292,10 @@ bool WiFiComponent::wifi_apply_power_save_() {
   return success;
 }
 
+#ifdef SOC_WIFI_SUPPORT_5G
+bool WiFiComponent::wifi_apply_band_mode_() { return esp_wifi_set_band_mode(this->band_mode_) == ESP_OK; }
+#endif
+
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
@@ -399,9 +403,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   // setup enterprise authentication if required
 #ifdef USE_WIFI_WPA2_EAP
-  if (ap.get_eap().has_value()) {
+  auto eap_opt = ap.get_eap();
+  if (eap_opt.has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
-    EAPAuth eap = ap.get_eap().value();
+    EAPAuth eap = *eap_opt;
 #if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
     err = esp_eap_client_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
 #else
@@ -726,6 +731,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_started = true;
     // re-apply power save mode
     wifi_apply_power_save_();
+#ifdef SOC_WIFI_SUPPORT_5G
+    wifi_apply_band_mode_();
+#endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_STOP) {
     ESP_LOGV(TAG, "STA stop");
@@ -914,7 +922,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   }
 }
 
-WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
+WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   if (s_sta_connected && this->got_ipv4_address_) {
 #if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
     if (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT) {
