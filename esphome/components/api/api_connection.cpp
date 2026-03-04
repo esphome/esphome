@@ -1484,7 +1484,7 @@ void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetM
     ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
     return;
   }
-  proxies[msg.instance]->set_modem_pins(msg.rts, msg.dtr);
+  proxies[msg.instance]->set_modem_pins(msg.line_states);
 }
 
 void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) {
@@ -1493,13 +1493,9 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
     ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
     return;
   }
-  bool rts, dtr;
-  proxies[msg.instance]->get_modem_pins(rts, dtr);
-
   SerialProxyGetModemPinsResponse resp{};
   resp.instance = msg.instance;
-  resp.rts = rts;
-  resp.dtr = dtr;
+  resp.line_states = proxies[msg.instance]->get_modem_pins();
   this->send_message(resp, SerialProxyGetModemPinsResponse::MESSAGE_TYPE);
 }
 

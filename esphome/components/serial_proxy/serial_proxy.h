@@ -31,6 +31,13 @@ enum SerialProxyRequestType : uint32_t;
 
 namespace esphome::serial_proxy {
 
+/// Bit flags for the line_states field exchanged with API clients.
+/// Bit positions are stable API — new signals must use the next available bit.
+enum SerialProxyLineStateFlag : uint32_t {
+  SERIAL_PROXY_LINE_STATE_FLAG_RTS = 1 << 0,  ///< RTS (Request To Send)
+  SERIAL_PROXY_LINE_STATE_FLAG_DTR = 1 << 1,  ///< DTR (Data Terminal Ready)
+};
+
 /// Maximum bytes to read from UART in a single loop iteration
 inline constexpr size_t SERIAL_PROXY_MAX_READ_SIZE = 256;
 
@@ -75,15 +82,11 @@ class SerialProxy : public uart::UARTDevice, public Component {
   /// @param len Number of bytes to write
   void write_from_client(const uint8_t *data, size_t len);
 
-  /// Set modem pin states (RTS and DTR)
-  /// @param rts Desired RTS pin state
-  /// @param dtr Desired DTR pin state
-  void set_modem_pins(bool rts, bool dtr);
+  /// Set modem pin states from a bitmask of SerialProxyLineStateFlag values
+  void set_modem_pins(uint32_t line_states);
 
-  /// Get current modem pin states
-  /// @param[out] rts Current RTS pin state
-  /// @param[out] dtr Current DTR pin state
-  void get_modem_pins(bool &rts, bool &dtr) const;
+  /// Get current modem pin states as a bitmask of SerialProxyLineStateFlag values
+  uint32_t get_modem_pins() const;
 
   /// Flush the serial port (block until all TX data is sent)
   void flush_port();

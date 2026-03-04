@@ -2589,8 +2589,7 @@ const char *SerialProxyWriteRequest::dump_to(DumpBuffer &out) const {
 const char *SerialProxySetModemPinsRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SerialProxySetModemPinsRequest");
   dump_field(out, "instance", this->instance);
-  dump_field(out, "rts", this->rts);
-  dump_field(out, "dtr", this->dtr);
+  dump_field(out, "line_states", this->line_states);
   return out.c_str();
 }
 const char *SerialProxyGetModemPinsRequest::dump_to(DumpBuffer &out) const {
@@ -2601,8 +2600,7 @@ const char *SerialProxyGetModemPinsRequest::dump_to(DumpBuffer &out) const {
 const char *SerialProxyGetModemPinsResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SerialProxyGetModemPinsResponse");
   dump_field(out, "instance", this->instance);
-  dump_field(out, "rts", this->rts);
-  dump_field(out, "dtr", this->dtr);
+  dump_field(out, "line_states", this->line_states);
   return out.c_str();
 }
 const char *SerialProxyRequest::dump_to(DumpBuffer &out) const {

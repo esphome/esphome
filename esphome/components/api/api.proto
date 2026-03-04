@@ -2589,8 +2589,7 @@ message SerialProxySetModemPinsRequest {
   option (ifdef) = "USE_SERIAL_PROXY";
 
   uint32 instance = 1;          // Instance index (0-based)
-  bool rts = 2;                 // Desired RTS pin state
-  bool dtr = 3;                 // Desired DTR pin state
+  uint32 line_states = 2;       // Bitmask of SerialProxyLineStateFlags
 }
 
 // Request current modem control pin states
@@ -2609,8 +2608,7 @@ message SerialProxyGetModemPinsResponse {
   option (ifdef) = "USE_SERIAL_PROXY";
 
   uint32 instance = 1;          // Instance index (0-based)
-  bool rts = 2;                 // Current RTS pin state
-  bool dtr = 3;                 // Current DTR pin state
+  uint32 line_states = 2;       // Bitmask of SerialProxyLineStateFlags
 }
 
 enum SerialProxyRequestType {

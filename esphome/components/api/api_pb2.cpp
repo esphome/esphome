@@ -3576,10 +3576,7 @@ bool SerialProxySetModemPinsRequest::decode_varint(uint32_t field_id, ProtoVarIn
       this->instance = value.as_uint32();
       break;
     case 2:
-      this->rts = value.as_bool();
-      break;
-    case 3:
-      this->dtr = value.as_bool();
+      this->line_states = value.as_uint32();
       break;
     default:
       return false;
@@ -3598,13 +3595,11 @@ bool SerialProxyGetModemPinsRequest::decode_varint(uint32_t field_id, ProtoVarIn
 }
 void SerialProxyGetModemPinsResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(1, this->instance);
-  buffer.encode_bool(2, this->rts);
-  buffer.encode_bool(3, this->dtr);
+  buffer.encode_uint32(2, this->line_states);
 }
 void SerialProxyGetModemPinsResponse::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, this->instance);
-  size.add_bool(1, this->rts);
-  size.add_bool(1, this->dtr);
+  size.add_uint32(1, this->line_states);
 }
 bool SerialProxyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {

@@ -132,7 +132,9 @@ void SerialProxy::write_from_client(const uint8_t *data, size_t len) {
   this->write_array(data, len);
 }
 
-void SerialProxy::set_modem_pins(bool rts, bool dtr) {
+void SerialProxy::set_modem_pins(uint32_t line_states) {
+  const bool rts = (line_states & SERIAL_PROXY_LINE_STATE_FLAG_RTS) != 0;
+  const bool dtr = (line_states & SERIAL_PROXY_LINE_STATE_FLAG_DTR) != 0;
   ESP_LOGV(TAG, "Setting modem pins [%u]: RTS=%s, DTR=%s", this->instance_index_, ONOFF(rts), ONOFF(dtr));
 
   if (this->rts_pin_ != nullptr) {
@@ -145,9 +147,9 @@ void SerialProxy::set_modem_pins(bool rts, bool dtr) {
   }
 }
 
-void SerialProxy::get_modem_pins(bool &rts, bool &dtr) const {
-  rts = this->rts_state_;
-  dtr = this->dtr_state_;
+uint32_t SerialProxy::get_modem_pins() const {
+  return (this->rts_state_ ? SERIAL_PROXY_LINE_STATE_FLAG_RTS : 0u) |
+         (this->dtr_state_ ? SERIAL_PROXY_LINE_STATE_FLAG_DTR : 0u);
 }
 
 void SerialProxy::flush_port() {

@@ -3164,8 +3164,7 @@ class SerialProxySetModemPinsRequest final : public ProtoDecodableMessage {
   const char *message_name() const override { return "serial_proxy_set_modem_pins_request"; }
 #endif
   uint32_t instance{0};
-  bool rts{false};
-  bool dtr{false};
+  uint32_t line_states{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
@@ -3196,8 +3195,7 @@ class SerialProxyGetModemPinsResponse final : public ProtoMessage {
   const char *message_name() const override { return "serial_proxy_get_modem_pins_response"; }
 #endif
   uint32_t instance{0};
-  bool rts{false};
-  bool dtr{false};
+  uint32_t line_states{0};
   void encode(ProtoWriteBuffer &buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
