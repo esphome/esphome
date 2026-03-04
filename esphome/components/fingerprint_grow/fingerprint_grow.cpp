@@ -207,6 +207,7 @@ uint8_t FingerprintGrowComponent::save_fingerprint_() {
       break;
     case ENROLL_MISMATCH:
       ESP_LOGE(TAG, "Scans do not match");
+      break;
     default:
       return this->data_[0];
   }
@@ -464,7 +465,7 @@ uint8_t FingerprintGrowComponent::transfer_(std::vector<uint8_t> *p_data_buffer)
     idx++;
   }
   ESP_LOGE(TAG, "No response received from reader");
-  (*p_data_buffer)[0] = TIMEOUT;
+  p_data_buffer->push_back(TIMEOUT);
   this->last_transfer_ms_ = millis();
   return TIMEOUT;
 }
