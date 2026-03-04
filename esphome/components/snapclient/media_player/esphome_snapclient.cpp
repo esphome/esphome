@@ -36,12 +36,13 @@ static void player_state_changed() {
 }
 
 void SnapClientComponent::setup() {
+  ESP_LOGV(TAG, "setup() executing");
   if (!this->lock_()) {
     this->mark_failed();
     return;
   }
   global_snapclient = this;
-  ESP_LOGD(TAG, "init player");
+  ESP_LOGD(TAG, "Init player");
   i2s_std_gpio_config_t i2s_pin_config0 = this->parent_->get_pin_config();
   i2s_pin_config0.dout = (gpio_num_t) this->dout_pin_;
 
@@ -68,10 +69,32 @@ void SnapClientComponent::setup() {
 #endif
   this->network_initialized_ = false;
   this->state = media_player::MEDIA_PLAYER_STATE_OFF;
+  ESP_LOGV(TAG, "Waiting for network before starting");
+}
+
+void SnapClientComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "Snapclient Media Player:");
+  ESP_LOGCONFIG(TAG, "  I2S Port: %u", this->parent_->get_port());
+  ESP_LOGCONFIG(TAG, "  I2S Data Output Pin: %u", this->dout_pin_);  // uint8_t
+  if (this->mute_pin_) {                                             // GPIOPin
+    LOG_PIN("  Mute Pin: ", this->mute_pin_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Mute Pin: None");
+  }
+#ifdef USE_AUDIO_DAC
+  ESP_LOGCONFIG(TAG, "  Audio DAC: %s", this->audio_dac_ != nullptr ? "configured" : "None");
+#else
+  ESP_LOGCONFIG(TAG, "  Audio DAC: None");
+#endif
+  ESP_LOGCONFIG(TAG, "  Client Name: %s", CONFIG_SNAPCLIENT_NAME);
+  ESP_LOGCONFIG(TAG, "  Discovery Mode: %s", this->snapserver_use_mdns_ ? "mDNS" : "Static Host");
+  ESP_LOGCONFIG(TAG, "  Snapserver Hostname: %s", this->snapserver_hostname_.c_str());
+  ESP_LOGCONFIG(TAG, "  Snapserver Port: %u", this->snapserver_port_);
 }
 
 void SnapClientComponent::loop() {
   if (!this->network_initialized_ && network::is_connected()) {
+    ESP_LOGV(TAG, "Network connected, starting snapclient");
     start_snapcast();
     this->network_initialized_ = true;
     this->state = this->get_state_from_player_state_(this->player_state);
