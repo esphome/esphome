@@ -120,9 +120,9 @@ void BTHomeServerBase::on_advertise(bool active) {
 
 void BTHomeServerBase::send_frame_() {
   // Build BTHome header byte
-  BTHomeHeader header;
   const uint8_t *payload = this->encoder_.get_buffer();
   size_t payload_size = this->encoder_.get_size();
+  BTHomeHeader header = BTHomeHeader::create();
 #ifdef USE_BTHOME_ENCRYPTION
   header.encrypted = this->encryption_key_.has_value() ? 1 : 0;
   size_t encrypted_size = 0;

@@ -14,11 +14,19 @@ using EncryptionKey = std::array<uint8_t, 16>;
 static constexpr uint8_t BTHOME_VERSION_2 = 0x02;
 
 struct BTHomeHeader {
-  uint8_t encrypted : 1 = 0;               // bit 0: encrypted data
-  uint8_t reserved1 : 1 = 0;               // bit 1: reserved
-  uint8_t trigger_based : 1 = 0;           // bit 2: irregular advertisement interval
-  uint8_t reserved2 : 2 = 0;               // bits 3-4: reserved
-  uint8_t version : 3 = BTHOME_VERSION_2;  // bits 5-7: BTHome version (currently 1 or 2)
+  uint8_t encrypted : 1;      // bit 0: encrypted data
+  uint8_t reserved1 : 1;      // bit 1: reserved
+  uint8_t trigger_based : 1;  // bit 2: irregular advertisement interval
+  uint8_t reserved2 : 2;      // bits 3-4: reserved
+  uint8_t version : 3;        // bits 5-7: BTHome version (currently 1 or 2)
+
+  static BTHomeHeader create(bool encrypted = false) {
+    return {.encrypted = uint8_t(encrypted),
+            .reserved1 = 0,
+            .trigger_based = 0,
+            .reserved2 = 0,
+            .version = BTHOME_VERSION_2};
+  }
 };
 
 static_assert(sizeof(BTHomeHeader) == 1, "BTHomeHeader must be 1 byte");
