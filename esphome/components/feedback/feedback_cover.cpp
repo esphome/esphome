@@ -438,8 +438,7 @@ void FeedbackCover::recompute_position_() {
 
   // check if we have an acceleration_wait_time, and remove from position computation
   if (now - this->start_dir_time_ > this->acceleration_wait_time_) {
-    uint32_t accel_end_time = this->start_dir_time_ + this->acceleration_wait_time_;
-    uint32_t effective_start;
+    uint32_t effective_start, accel_end_time = this->start_dir_time_ + this->acceleration_wait_time_;
     if (static_cast<int32_t>(accel_end_time - this->last_recompute_time_) >= 0) {
       effective_start = accel_end_time;
     } else {
