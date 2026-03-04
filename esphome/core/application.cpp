@@ -668,21 +668,17 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     return;
   }
 
-  // Check if any socket already has pending data before sleeping.
-  // If a socket still has unread data (rcvevent > 0) but the task notification was already
-  // consumed, ulTaskNotifyTake would block until timeout — adding up to delay_ms latency.
-  // This scan preserves select() semantics: return immediately when any fd is ready.
-  for (struct lwip_sock *sock : this->monitored_sockets_) {
-    if (esphome_lwip_socket_has_data(sock)) {
-      yield();
-      return;
-    }
-  }
-
   // Sleep with instant wake via FreeRTOS task notification.
   // Woken by: callback wrapper (socket data arrives), wake_loop_threadsafe() (other tasks), or timeout.
   // Without USE_WAKE_LOOP_THREADSAFE, only hooked socket callbacks wake the task —
   // background tasks won't call wake, so this degrades to a pure timeout (same as old select path).
+  //
+  // No pre-sleep socket scan needed: xTaskNotifyGive from the lwip callback persists
+  // until consumed by ulTaskNotifyTake, so notifications received while the task is
+  // running are not lost. The only unhandled case is intentionally undrained sockets
+  // (e.g., API's MAX_MESSAGES_PER_LOOP throttle), where the delay_ms latency before
+  // re-checking is the desired behavior — waking immediately would defeat the throttle
+  // which exists to let other tasks and components run.
   ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay_ms));
 
 #elif defined(USE_SOCKET_SELECT_SUPPORT)
