@@ -18,6 +18,9 @@ void TemplateClimate::setup() {
   if (restore.has_value()) {
     restore->apply(this);
   }
+  if (this->current_temperature_f_.has_value()) {
+    this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  }
   if (!this->current_temperature_f_.has_value() && !this->target_temperature_f_.has_value()) {
     this->disable_loop();
   }
