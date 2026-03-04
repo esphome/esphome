@@ -8,6 +8,7 @@
 #include "esphome/components/audio_file/audio_file.h"
 #include "esphome/components/media_source/media_source.h"
 #include "esphome/core/component.h"
+#include "esphome/core/static_task.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
@@ -34,19 +35,12 @@ class AudioFileMediaSource : public Component, public media_source::MediaSource 
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
  protected:
-  /// @brief Allocates stack buffer and creates the decode task. Returns true on success.
-  bool create_decode_task_();
-  /// @brief Deletes the decode task and deallocates the stack buffer.
-  void delete_decode_task_();
-
   static void decode_task(void *params);
 
   audio::AudioFile *current_file_{nullptr};
   AudioFileDecodingState decoding_state_{AudioFileDecodingState::IDLE};
   EventGroupHandle_t event_group_{nullptr};
-  TaskHandle_t decode_task_handle_{nullptr};
-  StaticTask_t decode_task_stack_;
-  StackType_t *decode_task_stack_buffer_{nullptr};
+  StaticTask decode_task_;
 
   bool task_stack_in_psram_{false};
 };

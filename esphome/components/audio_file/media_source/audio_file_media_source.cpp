@@ -8,7 +8,7 @@
 
 namespace esphome::audio_file {
 
-namespace {
+namespace {  // anonymous namespace for internal linkage
 struct AudioSinkAdapter : public audio::AudioSinkCallback {
   media_source::MediaSource *source;
   audio::AudioStreamInfo stream_info;
@@ -36,11 +36,11 @@ enum EventGroupBits : uint32_t {
   // Decode task lifecycle signals (one-shot, cleared by loop)
   TASK_STARTING = (1 << 7),
   TASK_RUNNING = (1 << 8),
-  TASK_STOPPING = (1 << 10),
-  TASK_STOPPED = (1 << 11),
-  TASK_ERROR = (1 << 12),
+  TASK_STOPPING = (1 << 9),
+  TASK_STOPPED = (1 << 10),
+  TASK_ERROR = (1 << 11),
   // Decode task state (level-triggered, set/cleared by decode task)
-  TASK_PAUSED = (1 << 9),
+  TASK_PAUSED = (1 << 12),
   ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
 };
 
@@ -70,13 +70,14 @@ void AudioFileMediaSource::loop() {
 
   switch (this->decoding_state_) {
     case AudioFileDecodingState::START_TASK: {
-      if (this->decode_task_handle_ == nullptr) {
+      if (!this->decode_task_.is_created()) {
         xEventGroupClearBits(this->event_group_, ALL_BITS);
-        if (!this->create_decode_task_()) {
-          this->delete_decode_task_();
+        if (!this->decode_task_.create(decode_task, "AudioFileDec", DECODE_TASK_STACK_SIZE, this, 1,
+                                       this->task_stack_in_psram_)) {
+          ESP_LOGE(TAG, "Failed to create task");
+          this->status_momentary_error("task_create", 1000);
           this->set_state_(media_source::MediaSourceState::ERROR);
           this->decoding_state_ = AudioFileDecodingState::IDLE;
-          this->status_momentary_error("task_create", 1000);
           return;
         }
       }
@@ -95,14 +96,10 @@ void AudioFileMediaSource::loop() {
         this->set_state_(media_source::MediaSourceState::PLAYING);
       }
 
-      if (event_bits & TASK_PAUSED) {
-        if (this->get_state() != media_source::MediaSourceState::PAUSED) {
-          this->set_state_(media_source::MediaSourceState::PAUSED);
-        }
-      } else {
-        if (this->get_state() == media_source::MediaSourceState::PAUSED) {
-          this->set_state_(media_source::MediaSourceState::PLAYING);
-        }
+      if ((event_bits & TASK_PAUSED) && this->get_state() != media_source::MediaSourceState::PAUSED) {
+        this->set_state_(media_source::MediaSourceState::PAUSED);
+      } else if (!(event_bits & TASK_PAUSED) && this->get_state() == media_source::MediaSourceState::PAUSED) {
+        this->set_state_(media_source::MediaSourceState::PLAYING);
       }
 
       if (event_bits & TASK_STOPPING) {
@@ -119,7 +116,7 @@ void AudioFileMediaSource::loop() {
         ESP_LOGD(TAG, "Stopped");
         xEventGroupClearBits(this->event_group_, ALL_BITS);
 
-        this->delete_decode_task_();
+        this->decode_task_.deallocate();
         this->set_state_(media_source::MediaSourceState::IDLE);
         this->decoding_state_ = AudioFileDecodingState::IDLE;
       }
@@ -141,7 +138,7 @@ void AudioFileMediaSource::loop() {
 
 // Called from the orchestrator's main loop, so no synchronization needed with loop()
 bool AudioFileMediaSource::play_uri(const std::string &uri) {
-  if (!this->is_ready() || this->is_failed() || this->status_has_error()) {
+  if (!this->is_ready() || this->is_failed() || this->status_has_error() || !this->has_listener()) {
     return false;
   }
 
@@ -169,76 +166,28 @@ bool AudioFileMediaSource::play_uri(const std::string &uri) {
     }
   }
 
-  ESP_LOGE(TAG, "File not found: '%s'", file_id);
+  ESP_LOGE(TAG, "Unknown file: '%s'", file_id);
   return false;
 }
 
 // Called from the orchestrator's main loop, so no synchronization needed with loop()
 void AudioFileMediaSource::handle_command(media_source::MediaSourceCommand command) {
-  if (this->event_group_ == nullptr) {
+  if (this->decoding_state_ != AudioFileDecodingState::DECODING) {
     return;
   }
 
   switch (command) {
     case media_source::MediaSourceCommand::STOP:
-      if (this->decoding_state_ == AudioFileDecodingState::DECODING) {
-        xEventGroupSetBits(this->event_group_, EventGroupBits::COMMAND_STOP);
-      }
+      xEventGroupSetBits(this->event_group_, EventGroupBits::COMMAND_STOP);
       break;
     case media_source::MediaSourceCommand::PAUSE:
-      if (this->decoding_state_ == AudioFileDecodingState::DECODING) {
-        xEventGroupSetBits(this->event_group_, EventGroupBits::COMMAND_PAUSE);
-      }
+      xEventGroupSetBits(this->event_group_, EventGroupBits::COMMAND_PAUSE);
       break;
     case media_source::MediaSourceCommand::PLAY:
-      if (this->decoding_state_ == AudioFileDecodingState::DECODING) {
-        xEventGroupClearBits(this->event_group_, EventGroupBits::COMMAND_PAUSE);
-      }
+      xEventGroupClearBits(this->event_group_, EventGroupBits::COMMAND_PAUSE);
       break;
     default:
       break;
-  }
-}
-
-bool AudioFileMediaSource::create_decode_task_() {
-  if (this->decode_task_stack_buffer_ == nullptr) {
-    if (this->task_stack_in_psram_) {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-      this->decode_task_stack_buffer_ = stack_allocator.allocate(DECODE_TASK_STACK_SIZE);
-    } else {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-      this->decode_task_stack_buffer_ = stack_allocator.allocate(DECODE_TASK_STACK_SIZE);
-    }
-  }
-  if (this->decode_task_stack_buffer_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate stack");
-    return false;
-  }
-
-  this->decode_task_handle_ = xTaskCreateStatic(decode_task, "AudioFileDec", DECODE_TASK_STACK_SIZE, this, 1,
-                                                this->decode_task_stack_buffer_, &this->decode_task_stack_);
-  if (this->decode_task_handle_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create task");
-    return false;
-  }
-
-  return true;
-}
-
-void AudioFileMediaSource::delete_decode_task_() {
-  if (this->decode_task_handle_ != nullptr) {
-    vTaskDelete(this->decode_task_handle_);
-    this->decode_task_handle_ = nullptr;
-  }
-  if (this->decode_task_stack_buffer_ != nullptr) {
-    if (this->task_stack_in_psram_) {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-      stack_allocator.deallocate(this->decode_task_stack_buffer_, DECODE_TASK_STACK_SIZE);
-    } else {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-      stack_allocator.deallocate(this->decode_task_stack_buffer_, DECODE_TASK_STACK_SIZE);
-    }
-    this->decode_task_stack_buffer_ = nullptr;
   }
 }
 
@@ -304,24 +253,18 @@ void AudioFileMediaSource::decode_task(void *params) {
           xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_ERROR);
           break;
         } else if (stream_info.get_channels() > 2) {
-          ESP_LOGE(TAG, "Incompatible number of channels. Only 1 or 2 channel audio is supported.");
+          ESP_LOGE(TAG, "Incompatible number of channels. Only 1 or 2 channels are supported.");
           xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_ERROR);
           break;
         } else {
           ESP_LOGD(TAG, "Bits per sample: %d, Channels: %d, Sample rate: %d", stream_info.get_bits_per_sample(),
                    stream_info.get_channels(), stream_info.get_sample_rate());
 
-          if (this_source->has_listener()) {
-            audio_sink.source = this_source;
-            audio_sink.stream_info = stream_info;
-            esp_err_t err = decoder->add_sink(&audio_sink);
-            if (err != ESP_OK) {
-              ESP_LOGE(TAG, "Failed to add sink to decoder: %s", esp_err_to_name(err));
-              xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_ERROR);
-              break;
-            }
-          } else {
-            ESP_LOGE(TAG, "Listener not set");
+          audio_sink.source = this_source;
+          audio_sink.stream_info = stream_info;
+          esp_err_t err = decoder->add_sink(&audio_sink);
+          if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to add sink: %s", esp_err_to_name(err));
             xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_ERROR);
             break;
           }
