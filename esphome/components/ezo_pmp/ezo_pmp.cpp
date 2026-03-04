@@ -404,7 +404,8 @@ void EzoPMP::send_next_command_() {
       break;
 
     case EZO_PMP_COMMAND_EXEC_ARBITRARY_COMMAND_ADDRESS:  // Run an arbitrary command
-      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "%s", this->arbitrary_command_);
+      command_buffer_length =
+          snprintf((char *) command_buffer, sizeof(command_buffer), "%s", this->arbitrary_command_.c_str());
       ESP_LOGI(TAG, "Sending arbitrary command: %s", (char *) command_buffer);
       break;
 
@@ -541,7 +542,7 @@ void EzoPMP::change_i2c_address(int address) {
 }
 
 void EzoPMP::exec_arbitrary_command(const std::basic_string<char> &command) {
-  this->arbitrary_command_ = command.c_str();
+  this->arbitrary_command_ = command;
   this->queue_command_(EZO_PMP_COMMAND_EXEC_ARBITRARY_COMMAND_ADDRESS, 0, 0, true);
 }
 
