@@ -165,22 +165,23 @@ void EzoPMP::read_command_result_() {
       continue;
     }
 
-    switch (current_parameter) {
-      case 1:
-        first_parameter_buffer[position_in_parameter_buffer] = current_char;
-        first_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
-        break;
-      case 2:
-        second_parameter_buffer[position_in_parameter_buffer] = current_char;
-        second_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
-        break;
-      case 3:
-        third_parameter_buffer[position_in_parameter_buffer] = current_char;
-        third_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
-        break;
+    if (position_in_parameter_buffer < sizeof(first_parameter_buffer) - 1) {
+      switch (current_parameter) {
+        case 1:
+          first_parameter_buffer[position_in_parameter_buffer] = current_char;
+          first_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
+          break;
+        case 2:
+          second_parameter_buffer[position_in_parameter_buffer] = current_char;
+          second_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
+          break;
+        case 3:
+          third_parameter_buffer[position_in_parameter_buffer] = current_char;
+          third_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
+          break;
+      }
+      position_in_parameter_buffer++;
     }
-
-    position_in_parameter_buffer++;
   }
 
   auto parsed_first_parameter = parse_number<float>(first_parameter_buffer);
