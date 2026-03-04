@@ -147,7 +147,7 @@ void ResamplerSpeaker::loop() {
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::STATE_STOPPING);
   }
   if (event_group_bits & ResamplingEventGroupBits::STATE_STOPPED) {
-    this->delete_task_();
+    this->task_.deallocate();
     ESP_LOGD(TAG, "Stopped");
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::ALL_BITS);
   }
@@ -209,9 +209,6 @@ void ResamplerSpeaker::loop() {
 
 void ResamplerSpeaker::set_start_error_(esp_err_t err) {
   switch (err) {
-    case ESP_ERR_INVALID_STATE:
-      this->status_set_error(LOG_STR("Task failed to start"));
-      break;
     case ESP_ERR_NO_MEM:
       this->status_set_error(LOG_STR("Not enough memory"));
       break;
@@ -267,16 +264,10 @@ esp_err_t ResamplerSpeaker::start_() {
 
   if (this->requires_resampling_()) {
     // Start the resampler task to handle converting sample rates
-    return this->start_task_();
-  }
-
-  return ESP_OK;
-}
-
-esp_err_t ResamplerSpeaker::start_task_() {
-  if (!this->task_.create(resample_task, "resampler", TASK_STACK_SIZE, (void *) this, RESAMPLER_TASK_PRIORITY,
-                          this->task_stack_in_psram_)) {
-    return ESP_ERR_NO_MEM;
+    if (!this->task_.create(resample_task, "resampler", TASK_STACK_SIZE, (void *) this, RESAMPLER_TASK_PRIORITY,
+                            this->task_stack_in_psram_)) {
+      return ESP_ERR_NO_MEM;
+    }
   }
 
   return ESP_OK;
@@ -292,8 +283,6 @@ void ResamplerSpeaker::enter_stopping_state_() {
   }
   this->output_speaker_->stop();
 }
-
-void ResamplerSpeaker::delete_task_() { this->task_.deallocate(); }
 
 void ResamplerSpeaker::finish() { this->send_command_(ResamplingEventGroupBits::COMMAND_FINISH); }
 

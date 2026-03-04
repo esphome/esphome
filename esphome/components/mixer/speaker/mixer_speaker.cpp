@@ -439,23 +439,13 @@ void MixerSpeaker::loop() {
   if (event_group_bits & MIXER_TASK_COMMAND_START) {
     // Only start the task if it's fully stopped and cleaned up
     if (!this->status_has_error() && !this->task_.is_created()) {
-      esp_err_t err = this->start_task_();
-      switch (err) {
-        case ESP_OK:
-          xEventGroupClearBits(this->event_group_, MIXER_TASK_COMMAND_START);
-          break;
-        case ESP_ERR_NO_MEM:
-          ESP_LOGE(TAG, "Failed to start; retrying in 1 second");
-          this->status_momentary_error("memory-failure", 1000);
-          return;
-        case ESP_ERR_INVALID_STATE:
-          ESP_LOGE(TAG, "Failed to start; retrying in 1 second");
-          this->status_momentary_error("task-failure", 1000);
-          return;
-        default:
-          ESP_LOGE(TAG, "Failed to start; retrying in 1 second");
-          this->status_momentary_error("failure", 1000);
-          return;
+      if (this->task_.create(audio_mixer_task, "mixer", TASK_STACK_SIZE, (void *) this, MIXER_TASK_PRIORITY,
+                             this->task_stack_in_psram_)) {
+        xEventGroupClearBits(this->event_group_, MIXER_TASK_COMMAND_START);
+      } else {
+        ESP_LOGE(TAG, "Failed to start; retrying in 1 second");
+        this->status_momentary_error("failure", 1000);
+        return;
       }
     }
   }
@@ -478,10 +468,9 @@ void MixerSpeaker::loop() {
     xEventGroupClearBits(this->event_group_, MIXER_TASK_STATE_STOPPING);
   }
   if (event_group_bits & MIXER_TASK_STATE_STOPPED) {
-    if (this->delete_task_() == ESP_OK) {
-      ESP_LOGD(TAG, "Stopped");
-      xEventGroupClearBits(this->event_group_, MIXER_TASK_ALL_BITS);
-    }
+    this->task_.deallocate();
+    ESP_LOGD(TAG, "Stopped");
+    xEventGroupClearBits(this->event_group_, MIXER_TASK_ALL_BITS);
   }
 
   if (this->task_.is_created()) {
@@ -535,20 +524,6 @@ esp_err_t MixerSpeaker::start(audio::AudioStreamInfo &stream_info) {
 #endif
   }
 
-  return ESP_OK;
-}
-
-esp_err_t MixerSpeaker::start_task_() {
-  if (!this->task_.create(audio_mixer_task, "mixer", TASK_STACK_SIZE, (void *) this, MIXER_TASK_PRIORITY,
-                          this->task_stack_in_psram_)) {
-    return ESP_ERR_NO_MEM;
-  }
-
-  return ESP_OK;
-}
-
-esp_err_t MixerSpeaker::delete_task_() {
-  this->task_.deallocate();
   return ESP_OK;
 }
 

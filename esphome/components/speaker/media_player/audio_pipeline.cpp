@@ -203,7 +203,8 @@ AudioPipelineState AudioPipeline::process_state() {
     if (!this->is_playing_) {
       // The tasks have been stopped for two ``process_state`` calls in a row, so delete the tasks
       if (this->read_task_.is_created() || this->decode_task_.is_created()) {
-        this->delete_tasks_();
+        this->read_task_.deallocate();
+        this->decode_task_.deallocate();
         if (this->hard_stop_) {
           // Stop command was sent, so immediately end the playback
           this->speaker_->stop();
@@ -279,11 +280,6 @@ esp_err_t AudioPipeline::start_tasks_() {
   }
 
   return ESP_OK;
-}
-
-void AudioPipeline::delete_tasks_() {
-  this->read_task_.deallocate();
-  this->decode_task_.deallocate();
 }
 
 void AudioPipeline::read_task(void *params) {

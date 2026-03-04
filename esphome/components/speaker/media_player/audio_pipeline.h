@@ -104,9 +104,6 @@ class AudioPipeline {
   /// @return ESP_OK if successful or an appropriate error if not
   esp_err_t start_tasks_();
 
-  /// @brief Resets the task related pointers and deallocates their stacks.
-  void delete_tasks_();
-
   std::string base_name_;
   UBaseType_t priority_;
 
