@@ -12,7 +12,10 @@ static const char *const TAG = "image_decoder.bmp";
 
 int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
   size_t index = 0;
-  if (this->current_index_ == 0 && index == 0 && size > 14) {
+  if (this->current_index_ == 0) {
+    if (size <= 14) {
+      return 0;  // Need more data for file header
+    }
     /**
      * BMP file format:
      * 0-1: Signature (BM)
@@ -39,7 +42,10 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     this->current_index_ = 14;
     index = 14;
   }
-  if (this->current_index_ == 14 && index == 14 && size > this->data_offset_) {
+  if (this->current_index_ == 14) {
+    if (size <= this->data_offset_) {
+      return 0;  // Need more data for DIB header and color table
+    }
     /**
      * BMP DIB header:
      * 14-17: DIB header size
@@ -131,8 +137,16 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     }
     case 8: {
       while (index < size) {
-        uint8_t color_index = buffer[index];
+        size_t x = this->paint_index_ % static_cast<size_t>(this->width_);
+        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / static_cast<size_t>(this->width_));
+        size_t last_col = static_cast<size_t>(this->width_) - 1;
+        size_t needed = 1 + ((x == last_col) ? this->padding_bytes_ : 0);
+        if (index + needed > size) {
+          this->decoded_bytes_ += index;
+          return index;
+        }
 
+        uint8_t color_index = buffer[index];
         if (color_index >= this->color_table_entries_) {
           ESP_LOGE(TAG, "Invalid color index: %d", color_index);
           return DECODE_ERROR_UNSUPPORTED_FORMAT;
@@ -142,15 +156,10 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         uint8_t b = rgb & 0xff;
         uint8_t g = (rgb >> 8) & 0xff;
         uint8_t r = (rgb >> 16) & 0xff;
-
-        size_t x = this->paint_index_ % static_cast<size_t>(this->width_);
-        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / static_cast<size_t>(this->width_));
-        Color c = Color(r, g, b);
-        this->draw(x, y, 1, 1, c);
+        this->draw(x, y, 1, 1, Color(r, g, b));
         this->paint_index_++;
         this->current_index_++;
         index++;
-        size_t last_col = static_cast<size_t>(this->width_) - 1;
         if (x == last_col && this->padding_bytes_ > 0) {
           index += this->padding_bytes_;
           this->current_index_ += this->padding_bytes_;
@@ -160,21 +169,21 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     }
     case 24: {
       while (index < size) {
-        if (index + 2 >= size) {
+        size_t x = this->paint_index_ % static_cast<size_t>(this->width_);
+        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / static_cast<size_t>(this->width_));
+        size_t last_col = static_cast<size_t>(this->width_) - 1;
+        size_t needed = 3 + ((x == last_col) ? this->padding_bytes_ : 0);
+        if (index + needed > size) {
           this->decoded_bytes_ += index;
           return index;
         }
         uint8_t b = buffer[index];
         uint8_t g = buffer[index + 1];
         uint8_t r = buffer[index + 2];
-        size_t x = this->paint_index_ % static_cast<size_t>(this->width_);
-        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / static_cast<size_t>(this->width_));
-        Color c = Color(r, g, b);
-        this->draw(x, y, 1, 1, c);
+        this->draw(x, y, 1, 1, Color(r, g, b));
         this->paint_index_++;
         this->current_index_ += 3;
         index += 3;
-        size_t last_col = static_cast<size_t>(this->width_) - 1;
         if (x == last_col && this->padding_bytes_ > 0) {
           index += this->padding_bytes_;
           this->current_index_ += this->padding_bytes_;
