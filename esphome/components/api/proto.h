@@ -936,8 +936,7 @@ template<typename T> void proto_encode_msg(const void *msg, ProtoWriteBuffer &bu
 
 // Implementation of encode_message - must be after ProtoMessage is defined
 template<typename T> inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const T &value, bool force) {
-  uint32_t msg_length_bytes = value.calculate_size();
-  this->encode_message(field_id, msg_length_bytes, &value, &proto_encode_msg<T>, force);
+  this->encode_message(field_id, value.calculate_size(), &value, &proto_encode_msg<T>, force);
 }
 
 // Non-template core for encode_message
