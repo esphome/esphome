@@ -387,6 +387,7 @@ void PacketTransport::add_key_(const char *name, uint32_t key) {
   } else {
     it->second = key;  // key string already exists in map, no allocation
   }
+  this->updated_ = true;
   ESP_LOGV(TAG, "Ping key from %s now %X", name, (unsigned) key);
 }
 

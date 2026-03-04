@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <cstring>
+#include <cstdio>
 #include <vector>
 #include <gtest/gtest.h>
 #include "esphome/components/packet_transport/packet_transport.h"
