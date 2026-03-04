@@ -552,7 +552,32 @@ void Application::after_loop_tasks_() {
   this->in_loop_ = false;
 }
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_LWIP_FAST_SELECT
+bool Application::register_socket(struct lwip_sock *sock) {
+  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
+  if (sock == nullptr)
+    return false;
+  esphome_lwip_hook_socket(sock);
+  this->monitored_sockets_.push_back(sock);
+  return true;
+}
+
+void Application::unregister_socket(struct lwip_sock *sock) {
+  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
+  for (size_t i = 0; i < this->monitored_sockets_.size(); i++) {
+    if (this->monitored_sockets_[i] != sock)
+      continue;
+
+    // Swap with last element and pop - O(1) removal since order doesn't matter.
+    // No need to unhook the netconn callback — all LwIP sockets share the same
+    // static event_callback, and the socket will be closed by the caller.
+    if (i < this->monitored_sockets_.size() - 1)
+      this->monitored_sockets_[i] = this->monitored_sockets_.back();
+    this->monitored_sockets_.pop_back();
+    return;
+  }
+}
+#elif defined(USE_SOCKET_SELECT_SUPPORT)
 bool Application::register_socket_fd(int fd) {
   // WARNING: This function is NOT thread-safe and must only be called from the main loop
   // It modifies socket_fds_ and related variables without locking
@@ -571,15 +596,10 @@ bool Application::register_socket_fd(int fd) {
 #endif
 
   this->socket_fds_.push_back(fd);
-#ifdef USE_LWIP_FAST_SELECT
-  // Hook the socket's netconn callback for instant wake on receive events
-  esphome_lwip_hook_socket(fd);
-#else
   this->socket_fds_changed_ = true;
   if (fd > this->max_fd_) {
     this->max_fd_ = fd;
   }
-#endif
 
   return true;
 }
@@ -595,13 +615,9 @@ void Application::unregister_socket_fd(int fd) {
       continue;
 
     // Swap with last element and pop - O(1) removal since order doesn't matter.
-    // No need to unhook the netconn callback on fast select platforms — all LwIP
-    // sockets share the same static event_callback, and the socket will be closed
-    // by the caller.
     if (i < this->socket_fds_.size() - 1)
       this->socket_fds_[i] = this->socket_fds_.back();
     this->socket_fds_.pop_back();
-#ifndef USE_LWIP_FAST_SELECT
     this->socket_fds_changed_ = true;
     // Only recalculate max_fd if we removed the current max
     if (fd == this->max_fd_) {
@@ -611,7 +627,6 @@ void Application::unregister_socket_fd(int fd) {
           this->max_fd_ = sock_fd;
       }
     }
-#endif
     return;
   }
 }
@@ -621,7 +636,7 @@ void Application::unregister_socket_fd(int fd) {
 void Application::yield_with_select_(uint32_t delay_ms) {
   // Delay while monitoring sockets. When delay_ms is 0, always yield() to ensure other tasks run.
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
-  // Fast path (ESP32/LibreTiny): reads rcvevent directly via lwip_socket_dbg_get_socket().
+  // Fast path (ESP32/LibreTiny): reads rcvevent directly from cached lwip_sock pointers.
   // Safe because this runs on the main loop which owns socket lifetime (create, read, close).
   if (delay_ms == 0) [[unlikely]] {
     yield();
@@ -632,8 +647,8 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   // If a socket still has unread data (rcvevent > 0) but the task notification was already
   // consumed, ulTaskNotifyTake would block until timeout — adding up to delay_ms latency.
   // This scan preserves select() semantics: return immediately when any fd is ready.
-  for (int fd : this->socket_fds_) {
-    if (esphome_lwip_socket_has_data(fd)) {
+  for (struct lwip_sock *sock : this->monitored_sockets_) {
+    if (esphome_lwip_socket_has_data(sock)) {
       yield();
       return;
     }

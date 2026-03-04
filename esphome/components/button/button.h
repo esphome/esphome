@@ -22,7 +22,7 @@ void log_button(const char *tag, const char *prefix, const char *type, Button *o
  *
  * A button is just a momentary switch that does not have a state, only a trigger.
  */
-class Button : public EntityBase, public EntityBase_DeviceClass {
+class Button : public EntityBase {
  public:
   /** Press this button. This is called by the front-end.
    *
