@@ -1,3 +1,4 @@
+#include <array>
 #include <cinttypes>
 #include <memory>
 
@@ -144,8 +145,8 @@ uint8_t PN7150::write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, const std::sha
   uint8_t current_page = nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE;
 
   while (index < buffer_length) {
-    std::vector<uint8_t> data(encoded.begin() + index, encoded.begin() + index + nfc::MIFARE_ULTRALIGHT_PAGE_SIZE);
-    if (this->write_mifare_ultralight_page_(current_page, data) != nfc::STATUS_OK) {
+    if (this->write_mifare_ultralight_page_(current_page, encoded.data() + index, nfc::MIFARE_ULTRALIGHT_PAGE_SIZE) !=
+        nfc::STATUS_OK) {
       return nfc::STATUS_FAILED;
     }
     index += nfc::MIFARE_ULTRALIGHT_PAGE_SIZE;
@@ -158,19 +159,19 @@ uint8_t PN7150::clean_mifare_ultralight_() {
   uint32_t capacity = this->read_mifare_ultralight_capacity_();
   uint8_t pages = (capacity / nfc::MIFARE_ULTRALIGHT_PAGE_SIZE) + nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE;
 
-  std::vector<uint8_t> blank_data = {0x00, 0x00, 0x00, 0x00};
+  static constexpr std::array<uint8_t, nfc::MIFARE_ULTRALIGHT_PAGE_SIZE> BLANK_DATA = {0x00, 0x00, 0x00, 0x00};
 
   for (int i = nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE; i < pages; i++) {
-    if (this->write_mifare_ultralight_page_(i, blank_data) != nfc::STATUS_OK) {
+    if (this->write_mifare_ultralight_page_(i, BLANK_DATA.data(), BLANK_DATA.size()) != nfc::STATUS_OK) {
       return nfc::STATUS_FAILED;
     }
   }
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7150::write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &write_data) {
+uint8_t PN7150::write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len) {
   std::vector<uint8_t> payload = {nfc::MIFARE_CMD_WRITE_ULTRALIGHT, page_num};
-  payload.insert(payload.end(), write_data.begin(), write_data.end());
+  payload.insert(payload.end(), write_data, write_data + len);
 
   nfc::NciMessage rx;
   nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, payload);

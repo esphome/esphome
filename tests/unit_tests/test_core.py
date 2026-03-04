@@ -780,3 +780,78 @@ class TestEsphomeCore:
         target.config = {const.CONF_ESPHOME: {"name": "test"}, "logger": {}}
 
         assert target.has_networking is False
+
+    def test_add_library__esp32_arduino_enables_disabled_library(self, target):
+        """Test add_library auto-enables Arduino libraries on ESP32 Arduino builds."""
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: "esp32",
+            const.KEY_TARGET_FRAMEWORK: "arduino",
+        }
+
+        library = core.Library("WiFi", None)
+
+        with patch("esphome.components.esp32._enable_arduino_library") as mock_enable:
+            target.add_library(library)
+            mock_enable.assert_called_once_with("WiFi")
+
+        assert "WiFi" in target.platformio_libraries
+
+    def test_add_library__esp32_arduino_ignores_non_arduino_library(self, target):
+        """Test add_library doesn't enable libraries not in ARDUINO_DISABLED_LIBRARIES."""
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: "esp32",
+            const.KEY_TARGET_FRAMEWORK: "arduino",
+        }
+
+        library = core.Library("SomeOtherLib", "1.0.0")
+
+        with patch("esphome.components.esp32._enable_arduino_library") as mock_enable:
+            target.add_library(library)
+            mock_enable.assert_not_called()
+
+        assert "SomeOtherLib" in target.platformio_libraries
+
+    def test_add_library__esp32_idf_does_not_enable_arduino_library(self, target):
+        """Test add_library doesn't auto-enable Arduino libraries on ESP32 IDF builds."""
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: "esp32",
+            const.KEY_TARGET_FRAMEWORK: "esp-idf",
+        }
+
+        library = core.Library("WiFi", None)
+
+        with patch("esphome.components.esp32._enable_arduino_library") as mock_enable:
+            target.add_library(library)
+            mock_enable.assert_not_called()
+
+        assert "WiFi" in target.platformio_libraries
+
+    def test_add_library__esp8266_does_not_enable_arduino_library(self, target):
+        """Test add_library doesn't auto-enable Arduino libraries on ESP8266."""
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: "esp8266",
+            const.KEY_TARGET_FRAMEWORK: "arduino",
+        }
+
+        library = core.Library("WiFi", None)
+
+        with patch("esphome.components.esp32._enable_arduino_library") as mock_enable:
+            target.add_library(library)
+            mock_enable.assert_not_called()
+
+        assert "WiFi" in target.platformio_libraries
+
+    def test_add_library__extracts_short_name_from_path(self, target):
+        """Test add_library extracts short name from library paths like owner/lib."""
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: "esp32",
+            const.KEY_TARGET_FRAMEWORK: "arduino",
+        }
+
+        library = core.Library("arduino/Wire", None)
+
+        with patch("esphome.components.esp32._enable_arduino_library") as mock_enable:
+            target.add_library(library)
+            mock_enable.assert_called_once_with("Wire")
+
+        assert "Wire" in target.platformio_libraries

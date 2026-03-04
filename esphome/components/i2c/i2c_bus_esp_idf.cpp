@@ -10,8 +10,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 static const char *const TAG = "i2c.idf";
 
@@ -312,6 +311,5 @@ void IDFI2CBus::recover_() {
   recovery_result_ = RECOVERY_COMPLETED;
 }
 
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c
 #endif  // USE_ESP32

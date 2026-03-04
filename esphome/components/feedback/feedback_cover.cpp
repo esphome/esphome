@@ -269,9 +269,12 @@ void FeedbackCover::control(const CoverCall &call) {
         this->start_direction_(COVER_OPERATION_CLOSING);
       }
     }
-  } else if (call.get_position().has_value()) {
+  } else {
+    auto pos_opt = call.get_position();
+    if (!pos_opt.has_value())
+      return;
     // go to position action
-    auto pos = *call.get_position();
+    auto pos = *pos_opt;
     if (pos == this->position) {
       // already at target,
 
@@ -335,18 +338,18 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
 
   switch (dir) {
     case COVER_OPERATION_IDLE:
-      trig = this->stop_trigger_;
+      trig = &this->stop_trigger_;
       break;
     case COVER_OPERATION_OPENING:
       this->last_operation_ = dir;
-      trig = this->open_trigger_;
+      trig = &this->open_trigger_;
 #ifdef USE_BINARY_SENSOR
       obstacle = this->open_obstacle_;
 #endif
       break;
     case COVER_OPERATION_CLOSING:
       this->last_operation_ = dir;
-      trig = this->close_trigger_;
+      trig = &this->close_trigger_;
 #ifdef USE_BINARY_SENSOR
       obstacle = this->close_obstacle_;
 #endif

@@ -63,8 +63,6 @@ void SHTCXComponent::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-float SHTCXComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 void SHTCXComponent::update() {
   if (this->status_has_warning()) {
     ESP_LOGW(TAG, "Retrying communication");

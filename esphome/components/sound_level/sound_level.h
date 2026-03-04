@@ -6,6 +6,7 @@
 #include "esphome/components/microphone/microphone_source.h"
 #include "esphome/components/sensor/sensor.h"
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/ring_buffer.h"
 

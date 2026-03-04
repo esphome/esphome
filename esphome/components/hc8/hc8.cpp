@@ -86,8 +86,6 @@ void HC8Component::calibrate(uint16_t baseline) {
   this->flush();
 }
 
-float HC8Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void HC8Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "HC8:\n"

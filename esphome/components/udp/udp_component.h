@@ -10,7 +10,9 @@
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
 #include <WiFiUdp.h>
 #endif
+#include <array>
 #include <initializer_list>
+#include <span>
 #include <vector>
 
 namespace esphome::udp {
@@ -26,7 +28,7 @@ class UDPComponent : public Component {
   void set_broadcast_port(uint16_t port) { this->broadcast_port_ = port; }
   void set_should_broadcast() { this->should_broadcast_ = true; }
   void set_should_listen() { this->should_listen_ = true; }
-  void add_listener(std::function<void(std::vector<uint8_t> &)> &&listener) {
+  void add_listener(std::function<void(std::span<const uint8_t>)> &&listener) {
     this->packet_listeners_.add(std::move(listener));
   }
   void setup() override;
@@ -41,7 +43,7 @@ class UDPComponent : public Component {
   uint16_t broadcast_port_{};
   bool should_broadcast_{};
   bool should_listen_{};
-  CallbackManager<void(std::vector<uint8_t> &)> packet_listeners_{};
+  CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;

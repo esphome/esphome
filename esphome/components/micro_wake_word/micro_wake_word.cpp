@@ -325,7 +325,7 @@ void MicroWakeWord::loop() {
           ESP_LOGD(TAG, "Detected '%s' with sliding average probability is %.2f and max probability is %.2f",
                    detection_event.wake_word->c_str(), (detection_event.average_probability / uint8_to_float_divisor),
                    (detection_event.max_probability / uint8_to_float_divisor));
-          this->wake_word_detected_trigger_->trigger(*detection_event.wake_word);
+          this->wake_word_detected_trigger_.trigger(*detection_event.wake_word);
           if (this->stop_after_detection_) {
             this->stop();
           }

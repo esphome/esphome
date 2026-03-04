@@ -78,8 +78,13 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
 #endif
 
-  auto ret = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().c_str());
-  if (ret != WL_CONNECTED)
+  // Use beginNoBlock to avoid WiFi.begin()'s additional 2x timeout wait loop on top of
+  // CYW43::begin()'s internal blocking join. CYW43::begin() blocks for up to 10 seconds
+  // (default timeout) to complete the join - this is required because the LwipIntfDev netif
+  // setup depends on begin() succeeding. beginNoBlock() skips the outer wait loop, saving
+  // up to 20 additional seconds of blocking per attempt.
+  auto ret = WiFi.beginNoBlock(ap.ssid_.c_str(), ap.password_.c_str());
+  if (ret == WL_IDLE_STATUS)
     return false;
 
   return true;
@@ -115,14 +120,20 @@ const char *get_disconnect_reason_str(uint8_t reason) {
   return "UNKNOWN";
 }
 
-WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
-  int status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
+WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
+  // Use cyw43_wifi_link_status instead of cyw43_tcpip_link_status because the Arduino
+  // framework's __wrap_cyw43_cb_tcpip_init is a no-op — the SDK's internal netif
+  // (cyw43_state.netif[]) is never initialized. cyw43_tcpip_link_status checks that netif's
+  // flags and would only fall through to cyw43_wifi_link_status when the flags aren't set.
+  // Using cyw43_wifi_link_status directly gives us the actual WiFi radio join state.
+  int status = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
   switch (status) {
     case CYW43_LINK_JOIN:
-    case CYW43_LINK_NOIP:
+      // WiFi joined, check if we have an IP address via the Arduino framework's WiFi class
+      if (WiFi.status() == WL_CONNECTED) {
+        return WiFiSTAConnectStatus::CONNECTED;
+      }
       return WiFiSTAConnectStatus::CONNECTING;
-    case CYW43_LINK_UP:
-      return WiFiSTAConnectStatus::CONNECTED;
     case CYW43_LINK_FAIL:
     case CYW43_LINK_BADAUTH:
       return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
@@ -139,19 +150,24 @@ int WiFiComponent::s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *r
 
 void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
   s_scan_result_count++;
-  const char *ssid_cstr = reinterpret_cast<const char *>(result->ssid);
+
+  // CYW43 scan results have ssid as a 32-byte buffer that is NOT null-terminated.
+  // Use ssid_len to create a properly terminated copy for string operations.
+  uint8_t len = std::min(result->ssid_len, static_cast<uint8_t>(sizeof(result->ssid)));
+  char ssid_buf[33];  // 32 max + null terminator
+  memcpy(ssid_buf, result->ssid, len);
+  ssid_buf[len] = '\0';
 
   // Skip networks that don't match any configured network (unless full results needed)
-  if (!this->needs_full_scan_results_() && !this->matches_configured_network_(ssid_cstr, result->bssid)) {
-    this->log_discarded_scan_result_(ssid_cstr, result->bssid, result->rssi, result->channel);
+  if (!this->needs_full_scan_results_() && !this->matches_configured_network_(ssid_buf, result->bssid)) {
+    this->log_discarded_scan_result_(ssid_buf, result->bssid, result->rssi, result->channel);
     return;
   }
 
   bssid_t bssid;
   std::copy(result->bssid, result->bssid + 6, bssid.begin());
-  std::string ssid(ssid_cstr);
-  WiFiScanResult res(bssid, std::move(ssid), result->channel, result->rssi, result->auth_mode != CYW43_AUTH_OPEN,
-                     ssid_cstr[0] == '\0');
+  WiFiScanResult res(bssid, ssid_buf, len, result->channel, result->rssi, result->auth_mode != CYW43_AUTH_OPEN,
+                     len == 0);
   if (std::find(this->scan_result_.begin(), this->scan_result_.end(), res) == this->scan_result_.end()) {
     this->scan_result_.push_back(res);
   }
@@ -168,7 +184,6 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
     ESP_LOGV(TAG, "cyw43_wifi_scan failed");
   }
   return err == 0;
-  return true;
 }
 
 #ifdef USE_WIFI_AP
@@ -204,7 +219,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   }
 #endif
 
-  WiFi.beginAP(ap.get_ssid().c_str(), ap.get_password().c_str(), ap.has_channel() ? ap.get_channel() : 1);
+  WiFi.beginAP(ap.ssid_.c_str(), ap.password_.c_str(), ap.has_channel() ? ap.get_channel() : 1);
 
   return true;
 }
@@ -213,8 +228,10 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *
 #endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() {
-  int err = cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
-  return err == 0;
+  // Use Arduino WiFi.disconnect() instead of raw cyw43_wifi_leave() to properly
+  // clean up the lwIP netif, DHCP client, and internal Arduino state.
+  WiFi.disconnect();
+  return true;
 }
 
 bssid_t WiFiComponent::wifi_bssid() {
@@ -252,6 +269,10 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   return network::IPAddress(dns_ip);
 }
 
+// Pico W uses polling for connection state detection.
+// Connect state listener notifications are deferred until after the state machine
+// transitions (in check_connecting_finished) so that conditions like wifi.connected
+// return correct values in automations.
 void WiFiComponent::wifi_loop_() {
   // Handle scan completion
   if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
@@ -260,17 +281,16 @@ void WiFiComponent::wifi_loop_() {
     ESP_LOGV(TAG, "Scan complete: %zu found, %zu stored%s", s_scan_result_count, this->scan_result_.size(),
              needs_full ? "" : " (filtered)");
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
-    for (auto *listener : this->scan_results_listeners_) {
-      listener->on_wifi_scan_results(this->scan_result_);
-    }
+    this->notify_scan_results_listeners_();
 #endif
   }
 
   // Poll for connection state changes
   // The arduino-pico WiFi library doesn't have event callbacks like ESP8266/ESP32,
-  // so we need to poll the link status to detect state changes
-  auto status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
-  bool is_connected = (status == CYW43_LINK_UP);
+  // so we need to poll the link status to detect state changes.
+  // Use WiFi.connected() which checks both the WiFi link and IP address via the
+  // Arduino framework's own netif (not the SDK's uninitialized one).
+  bool is_connected = WiFi.connected();
 
   // Detect connection state change
   if (is_connected && !s_sta_was_connected) {
@@ -278,19 +298,15 @@ void WiFiComponent::wifi_loop_() {
     s_sta_was_connected = true;
     ESP_LOGV(TAG, "Connected");
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    String ssid = WiFi.SSID();
-    bssid_t bssid = this->wifi_bssid();
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(ssid.c_str(), ssid.length()), bssid);
-    }
+    // Defer listener notification until state machine reaches STA_CONNECTED
+    // This ensures wifi.connected condition returns true in listener automations
+    this->pending_.connect_state = true;
 #endif
     // For static IP configurations, notify IP listeners immediately as the IP is already configured
 #if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
     if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
       s_sta_had_ip = true;
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
+      this->notify_ip_state_listeners_();
     }
 #endif
   } else if (!is_connected && s_sta_was_connected) {
@@ -299,10 +315,7 @@ void WiFiComponent::wifi_loop_() {
     s_sta_had_ip = false;
     ESP_LOGV(TAG, "Disconnected");
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    static constexpr uint8_t EMPTY_BSSID[6] = {};
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
-    }
+    this->notify_disconnect_state_listeners_();
 #endif
   }
 
@@ -320,9 +333,7 @@ void WiFiComponent::wifi_loop_() {
       s_sta_had_ip = true;
       ESP_LOGV(TAG, "Got IP address");
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-      for (auto *listener : this->ip_state_listeners_) {
-        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-      }
+      this->notify_ip_state_listeners_();
 #endif
     }
   }

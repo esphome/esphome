@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/automation.h"
 #include "esphome/components/network/ip_address.h"
 
 #ifdef USE_ESP32
@@ -14,8 +15,7 @@
 #include "esp_mac.h"
 #include "esp_idf_version.h"
 
-namespace esphome {
-namespace ethernet {
+namespace esphome::ethernet {
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
 /** Listener interface for Ethernet IP state changes.
@@ -109,6 +109,8 @@ class EthernetComponent : public Component {
   const char *get_use_address() const;
   void set_use_address(const char *use_address);
   void get_eth_mac_address_raw(uint8_t *mac);
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use get_eth_mac_address_pretty_into_buffer() instead. Removed in 2026.9.0", "2026.3.0")
   std::string get_eth_mac_address_pretty();
   const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
   eth_duplex_t get_duplex_mode();
@@ -119,6 +121,12 @@ class EthernetComponent : public Component {
   void add_ip_state_listener(EthernetIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
 #endif
 
+#ifdef USE_ETHERNET_CONNECT_TRIGGER
+  Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
+#endif
+#ifdef USE_ETHERNET_DISCONNECT_TRIGGER
+  Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
+#endif
  protected:
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
@@ -190,6 +198,12 @@ class EthernetComponent : public Component {
   StaticVector<EthernetIPStateListener *, ESPHOME_ETHERNET_IP_STATE_LISTENERS> ip_state_listeners_;
 #endif
 
+#ifdef USE_ETHERNET_CONNECT_TRIGGER
+  Trigger<> connect_trigger_;
+#endif
+#ifdef USE_ETHERNET_DISCONNECT_TRIGGER
+  Trigger<> disconnect_trigger_;
+#endif
  private:
   // Stores a pointer to a string literal (static storage duration).
   // ONLY set from Python-generated code with string literals - never dynamic strings.
@@ -203,7 +217,6 @@ extern EthernetComponent *global_eth_component;
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 #endif
 
-}  // namespace ethernet
-}  // namespace esphome
+}  // namespace esphome::ethernet
 
 #endif  // USE_ESP32

@@ -38,8 +38,6 @@ void Tx20Component::loop() {
   }
 }
 
-float Tx20Component::get_setup_priority() const { return setup_priority::DATA; }
-
 std::string Tx20Component::get_wind_cardinal_direction() const { return this->wind_cardinal_direction_; }
 
 void Tx20Component::decode_and_publish_() {

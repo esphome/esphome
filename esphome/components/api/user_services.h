@@ -230,7 +230,7 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
   void set_is_optional_mode(bool is_optional) { this->is_optional_mode_ = is_optional; }
 
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  void set_data(std::function<void(Ts..., JsonObject)> func) {
+  void set_data(std::function<void(Ts..., JsonObject)> &&func) {
     this->json_builder_ = std::move(func);
     this->has_data_ = true;
   }
@@ -264,9 +264,9 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
       // Build and send JSON response
       json::JsonBuilder builder;
       this->json_builder_(x..., builder.root());
-      std::string json_str = builder.serialize();
+      auto json_buf = builder.serialize();
       this->parent_->send_action_response(call_id, success, StringRef(error_message),
-                                          reinterpret_cast<const uint8_t *>(json_str.data()), json_str.size());
+                                          reinterpret_cast<const uint8_t *>(json_buf.data()), json_buf.size());
       return;
     }
 #endif

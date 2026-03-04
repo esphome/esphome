@@ -1,0 +1,52 @@
+display:
+  - platform: mipi_rgb
+    spi_id: spi_bus
+    model: ZX2D10GE01R-V4848
+    update_interval: 1s
+    color_order: BGR
+    draw_rounding: 2
+    pixel_mode: 18bit
+    invert_colors: false
+    use_axis_flips: true
+    pclk_frequency: 15000000.0
+    pclk_inverted: true
+    byte_order: big_endian
+    hsync_pulse_width: 10
+    hsync_back_porch: 10
+    hsync_front_porch: 10
+    vsync_pulse_width: 2
+    vsync_back_porch: 12
+    vsync_front_porch: 14
+    data_pins:
+      red:
+        - number: 10
+        - number: 16
+        - number: 9
+        - number: 15
+        - number: 46
+      green:
+        - number: 8
+        - number: 13
+        - number: 18
+        - number: 12
+        - number: 11
+        - number: 17
+      blue:
+        - number: 47
+        - number: 1
+        - number: 0
+        - number: 42
+        - number: 14
+    de_pin:
+      number: 39
+    pclk_pin:
+      number: 45
+    hsync_pin:
+      number: 38
+    vsync_pin:
+      number: 48
+    data_rate: 1000000.0
+    spi_mode: MODE0
+    cs_pin:
+      number: 21
+    show_test_card: true

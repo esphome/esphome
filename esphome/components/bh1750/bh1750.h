@@ -21,7 +21,6 @@ class BH1750Sensor : public sensor::Sensor, public PollingComponent, public i2c:
   void dump_config() override;
   void update() override;
   void loop() override;
-  float get_setup_priority() const override;
 
  protected:
   // State machine states
