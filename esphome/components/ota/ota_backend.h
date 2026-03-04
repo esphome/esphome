@@ -130,7 +130,5 @@ OTAGlobalCallback *get_global_ota_callback();
 // - notify_state_deferred_() when in separate task (e.g., web_server OTA)
 // This ensures proper listener execution in all contexts.
 #endif
-std::unique_ptr<ota::OTABackend> make_ota_backend();
-
 }  // namespace ota
 }  // namespace esphome

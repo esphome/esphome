@@ -54,5 +54,7 @@ class ESP8266OTABackend final : public OTABackend {
   bool md5_set_{false};
 };
 
+std::unique_ptr<ESP8266OTABackend> make_ota_backend();
+
 }  // namespace esphome::ota
 #endif  // USE_ESP8266

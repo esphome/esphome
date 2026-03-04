@@ -22,6 +22,8 @@ class ArduinoRP2040OTABackend final : public OTABackend {
   bool md5_set_{false};
 };
 
+std::unique_ptr<ArduinoRP2040OTABackend> make_ota_backend();
+
 }  // namespace ota
 }  // namespace esphome
 

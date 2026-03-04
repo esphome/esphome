@@ -20,6 +20,8 @@ class ArduinoLibreTinyOTABackend final : public OTABackend {
   bool md5_set_{false};
 };
 
+std::unique_ptr<ArduinoLibreTinyOTABackend> make_ota_backend();
+
 }  // namespace ota
 }  // namespace esphome
 

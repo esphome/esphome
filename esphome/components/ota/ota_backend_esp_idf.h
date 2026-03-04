@@ -27,6 +27,8 @@ class IDFOTABackend final : public OTABackend {
   bool md5_set_{false};
 };
 
+std::unique_ptr<IDFOTABackend> make_ota_backend();
+
 }  // namespace ota
 }  // namespace esphome
 #endif  // USE_ESP32
