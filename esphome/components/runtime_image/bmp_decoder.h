@@ -3,6 +3,8 @@
 #include "esphome/core/defines.h"
 #ifdef USE_RUNTIME_IMAGE_BMP
 
+#include <memory>
+
 #include "image_decoder.h"
 #include "runtime_image.h"
 
@@ -13,8 +15,6 @@ namespace esphome::runtime_image {
  */
 class BmpDecoder : public ImageDecoder {
  public:
-  ~BmpDecoder() override { delete[] color_table_; }
-
   /**
    * @brief Construct a new BMP Decoder object.
    *
@@ -38,7 +38,7 @@ class BmpDecoder : public ImageDecoder {
   uint32_t compression_method_{0};
   uint32_t image_data_size_{0};
   uint32_t color_table_entries_{0};
-  uint32_t *color_table_{nullptr};
+  std::unique_ptr<uint32_t[]> color_table_;
   size_t width_bytes_{0};
   size_t data_offset_{0};
   uint8_t padding_bytes_{0};
