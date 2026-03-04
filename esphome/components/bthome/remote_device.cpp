@@ -9,7 +9,7 @@ namespace esphome {
 namespace bthome {
 namespace client {
 
-static const char *TAG = "bthome";
+static const char *const TAG = "bthome";
 
 bool RemoteDeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, size_t data_size) {
   if (this->address_ != source_address) {
@@ -65,10 +65,10 @@ bool RemoteDeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *d
     this->last_packet_id_ = packet_id;
   }
 
-  int index = 0;
+  size_t index = 0;
   auto handlers = this->get_handlers();
   for (const BTHomeObject &obj : decoder) {
-    for (int i = index; i < handlers.size(); i++) {
+    for (size_t i = index; i < handlers.size(); i++) {
       if (handlers[i]->process_object(obj)) {
         index = i + 1;
         break;

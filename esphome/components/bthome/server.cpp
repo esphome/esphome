@@ -1,5 +1,6 @@
 #include "server.h"
 #include "ble_esp32.h"
+#include <cstring>
 
 namespace esphome {
 namespace bthome {
@@ -22,10 +23,10 @@ void BTHomeServerBase::setup() {
 
   // Register immediate callbacks for sensors that need it
   auto sensors = this->get_local_sensors();
-  for (size_t i = 0; i < sensors.size(); i++) {
-    if (sensors[i]->get_advertise_immediately()) {
-      BTHomeObjectType type = sensors[i]->get_object_type();
-      sensors[i]->register_immediate_callback([this, type]() { this->advertise_immediate_(type); });
+  for (auto &sensor : sensors) {
+    if (sensor->get_advertise_immediately()) {
+      BTHomeObjectType type = sensor->get_object_type();
+      sensor->register_immediate_callback([this, type]() { this->advertise_immediate_(type); });
     }
   }
 }
@@ -119,7 +120,8 @@ void BTHomeServerBase::on_advertise(bool active) {
 
 void BTHomeServerBase::send_frame_() {
   // Build BTHome header byte
-  BTHomeHeader header{};
+  BTHomeHeader header;
+  memset(&header, 0, sizeof(header));
   header.version = BTHOME_VERSION_2;
   const uint8_t *payload = this->encoder_.get_buffer();
   size_t payload_size = this->encoder_.get_size();
@@ -182,9 +184,9 @@ void BTHomeServerBase::advertise_immediate_(BTHomeObjectType type) {
   this->encoder_.reset();
 
   // Find and encode all sensors matching this object type
-  for (size_t i = 0; i < sensors.size(); i++) {
-    if (sensors[i]->get_object_type() == type) {
-      if (!sensors[i]->write(this->encoder_)) {
+  for (auto &sensor : sensors) {
+    if (sensor->get_object_type() == type) {
+      if (!sensor->write(this->encoder_)) {
         ESP_LOGW("bthome.server", "Immediate advertisement: sensors of same type don't fit in frame");
         return;
       }

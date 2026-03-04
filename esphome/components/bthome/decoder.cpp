@@ -19,8 +19,6 @@ static uint32_t read_uint32_le(const uint8_t *data) {
 
 static int16_t read_sint16_le(const uint8_t *data) { return (int16_t) read_uint16_le(data); }
 
-static int32_t read_sint32_le(const uint8_t *data) { return (int32_t) read_uint32_le(data); }
-
 float BTHomeObject::scaling_factor() const { return bthome_scaling_factor(this->type); }
 
 bool BTHomeObject::is_signed() const { return bthome_is_signed(this->type); }
@@ -80,7 +78,6 @@ void BTHomePayloadDecoder::Iterator::parse_next_() {
     return;
   }
 
-  const uint8_t *start = ptr_;
   BTHomeObjectType obj_type = static_cast<BTHomeObjectType>(*ptr_++);
   remaining_--;
 

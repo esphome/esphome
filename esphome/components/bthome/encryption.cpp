@@ -8,8 +8,9 @@
 namespace esphome {
 namespace bthome {
 
-static const char *TAG = "bthome";
+static const char *const TAG = "bthome";
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static uint8_t bthome_encryption_buf[BTHOME_MAX_ENCRYPTED_PAYLOAD + BTHOME_COUNTER_SIZE + BTHOME_MIC_SIZE];
 
 struct __attribute__((packed)) BTHomeNonce {

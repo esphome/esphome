@@ -15,7 +15,7 @@ namespace bthome {
 // Returns pointer to encrypted packet on success, nullptr on failure
 // encrypted_size is set to the total size (ciphertext + counter + mic), header is NOT included
 const uint8_t *bthome_encrypt(const uint8_t *plaintext, size_t plaintext_size, MacAddressPtr source_address,
-                              uint32_t counter, BTHomeHeader header, const EncryptionKey &key, size_t &ciphertext_size);
+                              uint32_t counter, BTHomeHeader header, const EncryptionKey &key, size_t &encrypted_size);
 
 // Decrypt BTHome encrypted advertisement data
 // Returns pointer to decrypted payload on success, nullptr on failure
