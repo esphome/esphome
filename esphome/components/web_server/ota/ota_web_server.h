@@ -9,7 +9,7 @@
 
 namespace esphome::web_server {
 
-class WebServerOTAComponent : public ota::OTAComponent {
+class WebServerOTAComponent final : public ota::OTAComponent {
  public:
   void setup() override;
   void dump_config() override;

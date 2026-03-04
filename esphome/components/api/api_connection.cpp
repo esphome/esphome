@@ -242,24 +242,11 @@ void APIConnection::loop() {
     return;
   }
 
-  if (this->flags_.sent_ping) {
-    // Disconnect if not responded within 2.5*keepalive
-    if (now - this->last_traffic_ > KEEPALIVE_DISCONNECT_TIMEOUT) {
-      on_fatal_error();
-      this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("is unresponsive; disconnecting"));
-    }
-  } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && !this->flags_.remove) {
-    // Only send ping if we're not disconnecting
-    ESP_LOGVV(TAG, "Sending keepalive PING");
-    PingRequest req;
-    this->flags_.sent_ping = this->send_message(req, PingRequest::MESSAGE_TYPE);
-    if (!this->flags_.sent_ping) {
-      // If we can't send the ping request directly (tx_buffer full),
-      // schedule it at the front of the batch so it will be sent with priority
-      ESP_LOGW(TAG, "Buffer full, ping queued");
-      this->schedule_message_front_(nullptr, PingRequest::MESSAGE_TYPE, PingRequest::ESTIMATED_SIZE);
-      this->flags_.sent_ping = true;  // Mark as sent to avoid scheduling multiple pings
-    }
+  // Keepalive: only call into the cold path when enough time has elapsed.
+  // When sent_ping is true, last_traffic_ hasn't been updated so this
+  // condition is already satisfied — covers both send-ping and disconnect cases.
+  if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS) {
+    this->check_keepalive_(now);
   }
 
 #ifdef USE_API_HOMEASSISTANT_STATES
@@ -273,6 +260,29 @@ void APIConnection::loop() {
   // (missing a frame is fine, missing a state update is not)
   this->try_send_camera_image_();
 #endif
+}
+
+void APIConnection::check_keepalive_(uint32_t now) {
+  // Caller guarantees: now - last_traffic_ > KEEPALIVE_TIMEOUT_MS
+  if (this->flags_.sent_ping) {
+    // Disconnect if not responded within 2.5*keepalive
+    if (now - this->last_traffic_ > KEEPALIVE_DISCONNECT_TIMEOUT) {
+      on_fatal_error();
+      this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("is unresponsive; disconnecting"));
+    }
+  } else if (!this->flags_.remove) {
+    // Only send ping if we're not disconnecting
+    ESP_LOGVV(TAG, "Sending keepalive PING");
+    PingRequest req;
+    this->flags_.sent_ping = this->send_message(req, PingRequest::MESSAGE_TYPE);
+    if (!this->flags_.sent_ping) {
+      // If we can't send the ping request directly (tx_buffer full),
+      // schedule it at the front of the batch so it will be sent with priority
+      ESP_LOGW(TAG, "Buffer full, ping queued");
+      this->schedule_message_front_(nullptr, PingRequest::MESSAGE_TYPE, PingRequest::ESTIMATED_SIZE);
+      this->flags_.sent_ping = true;  // Mark as sent to avoid scheduling multiple pings
+    }
+  }
 }
 
 void APIConnection::process_active_iterator_() {
@@ -347,9 +357,7 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
 #endif
 
   // Calculate size
-  ProtoSize size_calc;
-  msg.calculate_size(size_calc);
-  uint32_t calculated_size = size_calc.get_size();
+  uint32_t calculated_size = msg.calculated_size();
 
   // Cache frame sizes to avoid repeated virtual calls
   const uint8_t header_padding = conn->helper_->frame_header_padding();
@@ -377,19 +385,14 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
     shared_buf.resize(current_size + footer_size + header_padding);
   }
 
-  // Encode directly into buffer
-  size_t size_before_encode = shared_buf.size();
-  msg.encode({&shared_buf});
+  // Pre-resize buffer to include payload, then encode through raw pointer
+  size_t write_start = shared_buf.size();
+  shared_buf.resize(write_start + calculated_size);
+  ProtoWriteBuffer buffer{&shared_buf, write_start};
+  msg.encode(buffer);
 
-  // Calculate actual encoded size (not including header that was already added)
-  size_t actual_payload_size = shared_buf.size() - size_before_encode;
-
-  // Return actual total size (header + actual payload + footer)
-  size_t actual_total_size = header_padding + actual_payload_size + footer_size;
-
-  // Verify that calculate_size() returned the correct value
-  assert(calculated_size == actual_payload_size);
-  return static_cast<uint16_t>(actual_total_size);
+  // Return total size (header + payload + footer)
+  return static_cast<uint16_t>(header_padding + calculated_size + footer_size);
 }
 
 #ifdef USE_BINARY_SENSOR
@@ -770,9 +773,9 @@ uint16_t APIConnection::try_send_number_state(EntityBase *entity, APIConnection 
 uint16_t APIConnection::try_send_number_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *number = static_cast<number::Number *>(entity);
   ListEntitiesNumberResponse msg;
-  msg.unit_of_measurement = number->traits.get_unit_of_measurement_ref();
+  msg.unit_of_measurement = number->get_unit_of_measurement_ref();
   msg.mode = static_cast<enums::NumberMode>(number->traits.get_mode());
-  msg.device_class = number->traits.get_device_class_ref();
+  msg.device_class = number->get_device_class_ref();
   msg.min_value = number->traits.get_min_value();
   msg.max_value = number->traits.get_max_value();
   msg.step = number->traits.get_step();
@@ -886,7 +889,7 @@ uint16_t APIConnection::try_send_text_info(EntityBase *entity, APIConnection *co
 }
 void APIConnection::on_text_command_request(const TextCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(text::Text, text, text)
-  call.set_value(msg.state);
+  call.set_value(msg.state.c_str(), msg.state.size());
   call.perform();
 }
 #endif
@@ -1120,7 +1123,30 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #ifdef USE_TIME_TIMEZONE
     if (!value.timezone.empty()) {
-      homeassistant::global_homeassistant_time->set_timezone(value.timezone.c_str(), value.timezone.size());
+      // Check if the sender provided pre-parsed timezone data.
+      // If std_offset is non-zero or DST rules are present, the parsed data was populated.
+      // For UTC (all zeros), string parsing produces the same result, so the fallback is equivalent.
+      const auto &pt = value.parsed_timezone;
+      if (pt.std_offset_seconds != 0 || pt.dst_start.type != enums::DST_RULE_TYPE_NONE) {
+        time::ParsedTimezone tz{};
+        tz.std_offset_seconds = pt.std_offset_seconds;
+        tz.dst_offset_seconds = pt.dst_offset_seconds;
+        tz.dst_start.time_seconds = pt.dst_start.time_seconds;
+        tz.dst_start.day = static_cast<uint16_t>(pt.dst_start.day);
+        tz.dst_start.type = static_cast<time::DSTRuleType>(pt.dst_start.type);
+        tz.dst_start.month = static_cast<uint8_t>(pt.dst_start.month);
+        tz.dst_start.week = static_cast<uint8_t>(pt.dst_start.week);
+        tz.dst_start.day_of_week = static_cast<uint8_t>(pt.dst_start.day_of_week);
+        tz.dst_end.time_seconds = pt.dst_end.time_seconds;
+        tz.dst_end.day = static_cast<uint16_t>(pt.dst_end.day);
+        tz.dst_end.type = static_cast<time::DSTRuleType>(pt.dst_end.type);
+        tz.dst_end.month = static_cast<uint8_t>(pt.dst_end.month);
+        tz.dst_end.week = static_cast<uint8_t>(pt.dst_end.week);
+        tz.dst_end.day_of_week = static_cast<uint8_t>(pt.dst_end.day_of_week);
+        time::set_global_tz(tz);
+      } else {
+        homeassistant::global_homeassistant_time->set_timezone(value.timezone.c_str(), value.timezone.size());
+      }
     }
 #endif
   }
@@ -1334,7 +1360,7 @@ void APIConnection::on_alarm_control_panel_command_request(const AlarmControlPan
       call.pending();
       break;
   }
-  call.set_code(msg.code);
+  call.set_code(msg.code.c_str(), msg.code.size());
   call.perform();
 }
 #endif
@@ -1353,9 +1379,8 @@ uint16_t APIConnection::try_send_water_heater_state(EntityBase *entity, APIConne
   resp.target_temperature_low = wh->get_target_temperature_low();
   resp.target_temperature_high = wh->get_target_temperature_high();
   resp.state = wh->get_state();
-  resp.key = wh->get_object_id_hash();
 
-  return encode_message_to_buffer(resp, WaterHeaterStateResponse::MESSAGE_TYPE, conn, remaining_size);
+  return fill_and_encode_entity_state(wh, resp, WaterHeaterStateResponse::MESSAGE_TYPE, conn, remaining_size);
 }
 uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *wh = static_cast<water_heater::WaterHeater *>(entity);
@@ -1534,6 +1559,12 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu16 ".%" PRIu16, this->helper_->get_client_name(),
            this->helper_->get_peername_to(peername), this->client_api_version_major_, this->client_api_version_minor_);
 
+  // TODO: Remove before 2026.8.0 (one version after get_object_id backward compat removal)
+  if (!this->client_supports_api_version(1, 14)) {
+    ESP_LOGW(TAG, "'%s' using outdated API %" PRIu16 ".%" PRIu16 ", update to 1.14+", this->helper_->get_client_name(),
+             this->client_api_version_major_, this->client_api_version_minor_);
+  }
+
   HelloResponse resp;
   resp.api_version_major = 1;
   resp.api_version_minor = 14;
@@ -1703,37 +1734,42 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
     return;
   }
 
+  // Null-terminate state in-place for safe c_str() usage (e.g., parse_number in callbacks).
+  // Safe: decode is complete, byte after string data was already consumed during parse,
+  // and frame helpers reserve RX_BUF_NULL_TERMINATOR extra byte in rx_buf_.
+  // const_cast is safe: msg references mutable rx_buf_ data; the const& handler
+  // signature is a generated protobuf pattern, not a true immutability contract.
+  if (!msg.state.empty()) {
+    const_cast<char *>(msg.state.c_str())[msg.state.size()] = '\0';
+  }
+
   for (auto &it : this->parent_->get_state_subs()) {
-    // Compare entity_id: check length matches and content matches
-    size_t entity_id_len = strlen(it.entity_id);
-    if (entity_id_len != msg.entity_id.size() ||
-        memcmp(it.entity_id, msg.entity_id.c_str(), msg.entity_id.size()) != 0) {
+    if (msg.entity_id != it.entity_id) {
       continue;
     }
 
-    // Compare attribute: either both have matching attribute, or both have none
-    size_t sub_attr_len = it.attribute != nullptr ? strlen(it.attribute) : 0;
-    if (sub_attr_len != msg.attribute.size() ||
-        (sub_attr_len > 0 && memcmp(it.attribute, msg.attribute.c_str(), sub_attr_len) != 0)) {
+    // If subscriber has attribute filter (non-null), message attribute must match it;
+    // if subscriber has no filter (nullptr), message must have no attribute.
+    if (it.attribute != nullptr ? msg.attribute != it.attribute : !msg.attribute.empty()) {
       continue;
     }
 
-    // Create null-terminated state for callback (parse_number needs null-termination)
-    // HA state max length is 255 characters, but attributes can be much longer
-    // Use stack buffer for common case (states), heap fallback for large attributes
-    size_t state_len = msg.state.size();
-    SmallBufferWithHeapFallback<MAX_STATE_LEN + 1> state_buf_alloc(state_len + 1);
-    char *state_buf = reinterpret_cast<char *>(state_buf_alloc.get());
-    if (state_len > 0) {
-      memcpy(state_buf, msg.state.c_str(), state_len);
-    }
-    state_buf[state_len] = '\0';
-    it.callback(StringRef(state_buf, state_len));
+    it.callback(msg.state);
   }
 }
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
 void APIConnection::on_execute_service_request(const ExecuteServiceRequest &msg) {
+  // Null-terminate string args in-place for safe c_str() usage in YAML service triggers.
+  // Safe: full ExecuteServiceRequest decode is complete, all bytes in rx_buf_ consumed,
+  // and frame helpers reserve RX_BUF_NULL_TERMINATOR extra byte for the last field.
+  // const_cast is safe: msg references mutable rx_buf_ data; the const& handler
+  // signature is a generated protobuf pattern, not a true immutability contract.
+  for (auto &arg : const_cast<ExecuteServiceRequest &>(msg).args) {
+    if (!arg.string_.empty()) {
+      const_cast<char *>(arg.string_.c_str())[arg.string_.size()] = '\0';
+    }
+  }
   bool found = false;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
   // Register the call and get a unique server-generated action_call_id
@@ -1848,12 +1884,14 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   return false;
 }
 bool APIConnection::send_message_impl(const ProtoMessage &msg, uint8_t message_type) {
-  ProtoSize size;
-  msg.calculate_size(size);
+  uint32_t payload_size = msg.calculated_size();
   std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
-  this->prepare_first_message_buffer(shared_buf, size.get_size());
-  msg.encode({&shared_buf});
-  return this->send_buffer({&shared_buf}, message_type);
+  this->prepare_first_message_buffer(shared_buf, payload_size);
+  size_t write_start = shared_buf.size();
+  shared_buf.resize(write_start + payload_size);
+  ProtoWriteBuffer buffer{&shared_buf, write_start};
+  msg.encode(buffer);
+  return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   const bool is_log_message = (message_type == SubscribeLogsResponse::MESSAGE_TYPE);

@@ -748,8 +748,7 @@ esphome::optional<bool> Pipsolar::get_bit_(std::string bits, uint8_t bit_pos) {
 }
 
 void Pipsolar::dump_config() {
-  ESP_LOGCONFIG(TAG, "Pipsolar:\n"
-                     "enabled polling commands:");
+  ESP_LOGCONFIG(TAG, "Pipsolar enabled polling commands:");
   for (auto &enabled_polling_command : this->enabled_polling_commands_) {
     if (enabled_polling_command.length != 0) {
       ESP_LOGCONFIG(TAG, "%s", enabled_polling_command.command);

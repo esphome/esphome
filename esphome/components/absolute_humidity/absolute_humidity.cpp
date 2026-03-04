@@ -92,10 +92,7 @@ void AbsoluteHumidityComponent::loop() {
   // Calculate absolute humidity
   const float absolute_humidity = vapor_density(es, hr, temperature_k);
 
-  ESP_LOGD(TAG,
-           "Saturation vapor pressure %f kPa\n"
-           "Publishing absolute humidity %f g/m³",
-           es, absolute_humidity);
+  ESP_LOGD(TAG, "Saturation vapor pressure %f kPa, absolute humidity %f g/m³", es, absolute_humidity);
 
   // Publish absolute humidity
   this->status_clear_warning();
