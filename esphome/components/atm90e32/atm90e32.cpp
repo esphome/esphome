@@ -9,6 +9,26 @@ namespace esphome {
 namespace atm90e32 {
 
 static const char *const TAG = "atm90e32";
+
+namespace {
+uint32_t pref_hash_(const char *prefix, const char *name_space) {
+  auto hash = fnv1_hash(prefix);
+  return fnv1_hash_extend(hash, name_space);
+}
+
+template<typename T>
+int migrate_legacy_pref_if_needed_(ESPPreferenceObject &current_pref, ESPPreferenceObject &legacy_pref, T *scratch) {
+  T current{};
+  if (current_pref.load(&current)) {
+    return 0;
+  }
+  if (!legacy_pref.load(scratch)) {
+    return 0;
+  }
+  return current_pref.save(scratch) ? 1 : -1;
+}
+}  // namespace
+
 void ATM90E32Component::loop() {
   if (this->get_publish_interval_flag_()) {
     this->set_publish_interval_flag_(false);
@@ -175,26 +195,46 @@ void ATM90E32Component::setup() {
 
   if (this->enable_offset_calibration_) {
     // Initialize flash storage for offset calibrations
-    uint32_t o_hash = fnv1_hash("_offset_calibration_");
-    o_hash = fnv1_hash_extend(o_hash, cs);
+    uint32_t o_hash = pref_hash_("_offset_calibration_", cs);
     this->offset_pref_ = global_preferences->make_preference<OffsetCalibration[3]>(o_hash, true);
+    bool migrated_offset = false;
     if (has_distinct_legacy_namespace) {
-      uint32_t legacy_o_hash = fnv1_hash("_offset_calibration_");
-      legacy_o_hash = fnv1_hash_extend(legacy_o_hash, legacy_cs);
-      this->legacy_offset_pref_ = global_preferences->make_preference<OffsetCalibration[3]>(legacy_o_hash, true);
+      uint32_t legacy_o_hash = pref_hash_("_offset_calibration_", legacy_cs);
+      auto legacy_offset_pref = global_preferences->make_preference<OffsetCalibration[3]>(legacy_o_hash, true);
+      OffsetCalibration offset_data[3]{};
+      int migration_status = migrate_legacy_pref_if_needed_(this->offset_pref_, legacy_offset_pref, &offset_data);
+      migrated_offset = migration_status > 0;
+      if (migration_status > 0) {
+        ESP_LOGI(TAG, "[CALIBRATION][%s] Migrated offset calibrations from legacy storage.", cs);
+      } else if (migration_status < 0) {
+        ESP_LOGW(TAG, "[CALIBRATION][%s] Failed to migrate offset calibrations from legacy storage.", cs);
+      }
     }
-    this->restore_offset_calibrations_();
 
     // Initialize flash storage for power offset calibrations
-    uint32_t po_hash = fnv1_hash("_power_offset_calibration_");
-    po_hash = fnv1_hash_extend(po_hash, cs);
+    uint32_t po_hash = pref_hash_("_power_offset_calibration_", cs);
     this->power_offset_pref_ = global_preferences->make_preference<PowerOffsetCalibration[3]>(po_hash, true);
+    bool migrated_power_offset = false;
     if (has_distinct_legacy_namespace) {
-      uint32_t legacy_po_hash = fnv1_hash("_power_offset_calibration_");
-      legacy_po_hash = fnv1_hash_extend(legacy_po_hash, legacy_cs);
-      this->legacy_power_offset_pref_ =
+      uint32_t legacy_po_hash = pref_hash_("_power_offset_calibration_", legacy_cs);
+      auto legacy_power_offset_pref =
           global_preferences->make_preference<PowerOffsetCalibration[3]>(legacy_po_hash, true);
+      PowerOffsetCalibration power_offset_data[3]{};
+      int migration_status =
+          migrate_legacy_pref_if_needed_(this->power_offset_pref_, legacy_power_offset_pref, &power_offset_data);
+      migrated_power_offset = migration_status > 0;
+      if (migration_status > 0) {
+        ESP_LOGI(TAG, "[CALIBRATION][%s] Migrated power offset calibrations from legacy storage.", cs);
+      } else if (migration_status < 0) {
+        ESP_LOGW(TAG, "[CALIBRATION][%s] Failed to migrate power offset calibrations from legacy storage.", cs);
+      }
     }
+
+    if (migrated_offset || migrated_power_offset) {
+      global_preferences->sync();
+    }
+
+    this->restore_offset_calibrations_();
     this->restore_power_offset_calibrations_();
   } else {
     ESP_LOGI(TAG, "[CALIBRATION][%s] Power & Voltage/Current offset calibration is disabled. Using config file values.",
@@ -213,15 +253,27 @@ void ATM90E32Component::setup() {
 
   if (this->enable_gain_calibration_) {
     // Initialize flash storage for gain calibration
-    uint32_t g_hash = fnv1_hash("_gain_calibration_");
-    g_hash = fnv1_hash_extend(g_hash, cs);
+    uint32_t g_hash = pref_hash_("_gain_calibration_", cs);
     this->gain_calibration_pref_ = global_preferences->make_preference<GainCalibration[3]>(g_hash, true);
+    bool migrated_gain = false;
     if (has_distinct_legacy_namespace) {
-      uint32_t legacy_g_hash = fnv1_hash("_gain_calibration_");
-      legacy_g_hash = fnv1_hash_extend(legacy_g_hash, legacy_cs);
-      this->legacy_gain_calibration_pref_ =
-          global_preferences->make_preference<GainCalibration[3]>(legacy_g_hash, true);
+      uint32_t legacy_g_hash = pref_hash_("_gain_calibration_", legacy_cs);
+      auto legacy_gain_calibration_pref = global_preferences->make_preference<GainCalibration[3]>(legacy_g_hash, true);
+      GainCalibration gain_data[3]{};
+      int migration_status =
+          migrate_legacy_pref_if_needed_(this->gain_calibration_pref_, legacy_gain_calibration_pref, &gain_data);
+      migrated_gain = migration_status > 0;
+      if (migration_status > 0) {
+        ESP_LOGI(TAG, "[CALIBRATION][%s] Migrated gain calibrations from legacy storage.", cs);
+      } else if (migration_status < 0) {
+        ESP_LOGW(TAG, "[CALIBRATION][%s] Failed to migrate gain calibrations from legacy storage.", cs);
+      }
     }
+
+    if (migrated_gain) {
+      global_preferences->sync();
+    }
+
     this->restore_gain_calibrations_();
 
     if (!this->using_saved_calibrations_) {
@@ -866,15 +918,6 @@ void ATM90E32Component::restore_gain_calibrations_() {
   }
 
   bool have_data = this->gain_calibration_pref_.load(&this->gain_phase_);
-  if (!have_data && this->legacy_gain_calibration_pref_.load(&this->gain_phase_)) {
-    have_data = true;
-    if (this->gain_calibration_pref_.save(&this->gain_phase_)) {
-      global_preferences->sync();
-      ESP_LOGI(TAG, "[CALIBRATION][%s] Migrated gain calibrations from legacy storage.", cs);
-    } else {
-      ESP_LOGW(TAG, "[CALIBRATION][%s] Failed to migrate gain calibrations from legacy storage.", cs);
-    }
-  }
 
   if (have_data) {
     bool all_zero = true;
@@ -929,15 +972,6 @@ void ATM90E32Component::restore_offset_calibrations_() {
     this->config_offset_phase_[i] = this->offset_phase_[i];
 
   bool have_data = this->offset_pref_.load(&this->offset_phase_);
-  if (!have_data && this->legacy_offset_pref_.load(&this->offset_phase_)) {
-    have_data = true;
-    if (this->offset_pref_.save(&this->offset_phase_)) {
-      global_preferences->sync();
-      ESP_LOGI(TAG, "[CALIBRATION][%s] Migrated offset calibrations from legacy storage.", cs);
-    } else {
-      ESP_LOGW(TAG, "[CALIBRATION][%s] Failed to migrate offset calibrations from legacy storage.", cs);
-    }
-  }
 
   bool all_zero = true;
   if (have_data) {
@@ -982,15 +1016,6 @@ void ATM90E32Component::restore_power_offset_calibrations_() {
     this->config_power_offset_phase_[i] = this->power_offset_phase_[i];
 
   bool have_data = this->power_offset_pref_.load(&this->power_offset_phase_);
-  if (!have_data && this->legacy_power_offset_pref_.load(&this->power_offset_phase_)) {
-    have_data = true;
-    if (this->power_offset_pref_.save(&this->power_offset_phase_)) {
-      global_preferences->sync();
-      ESP_LOGI(TAG, "[CALIBRATION][%s] Migrated power offset calibrations from legacy storage.", cs);
-    } else {
-      ESP_LOGW(TAG, "[CALIBRATION][%s] Failed to migrate power offset calibrations from legacy storage.", cs);
-    }
-  }
 
   bool all_zero = true;
   if (have_data) {

@@ -250,11 +250,8 @@ class ATM90E32Component : public PollingComponent,
   bool has_config_current_gain_[3]{false, false, false};
 
   ESPPreferenceObject offset_pref_;
-  ESPPreferenceObject legacy_offset_pref_;
   ESPPreferenceObject power_offset_pref_;
-  ESPPreferenceObject legacy_power_offset_pref_;
   ESPPreferenceObject gain_calibration_pref_;
-  ESPPreferenceObject legacy_gain_calibration_pref_;
 
   sensor::Sensor *freq_sensor_{nullptr};
 #ifdef USE_TEXT_SENSOR
