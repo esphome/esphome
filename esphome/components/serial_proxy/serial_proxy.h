@@ -32,7 +32,7 @@ enum SerialProxyRequestType : uint32_t;
 namespace esphome::serial_proxy {
 
 /// Maximum bytes to read from UART in a single loop iteration
-static constexpr size_t SERIAL_PROXY_MAX_READ_SIZE = 256;
+inline constexpr size_t SERIAL_PROXY_MAX_READ_SIZE = 256;
 
 class SerialProxy : public uart::UARTDevice, public Component {
  public:
