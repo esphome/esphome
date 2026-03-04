@@ -109,12 +109,12 @@ INSTANTIATE_TEST_SUITE_P(BTHomeSpec, BTHomeDecoderTest, ::testing::ValuesIn(TEST
 struct BinarySensorTestCase {
   const char *name;
   const char *hex;  // uppercase hex payload: type byte + data byte
-  bool expected;
   size_t len;
+  bool expected;
   uint8_t payload[MAX_PAYLOAD_SIZE];
 
   BinarySensorTestCase(const char *name, const char *hex, bool expected)
-      : name(name), hex(hex), expected(expected), len(strlen(hex) / 2), payload{} {
+      : name(name), hex(hex), len(strlen(hex) / 2), expected(expected), payload{} {
     parse_hex(hex, payload, len);
   }
 };

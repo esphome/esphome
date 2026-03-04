@@ -7,12 +7,12 @@
 #include "esphome/components/bthome/server.h"
 #include "esphome/components/bthome/ble.h"
 
-using ::testing::_;
 using ::testing::Invoke;
 using ::testing::NiceMock;
 using ::testing::Return;
 
 namespace esphome::bthome::server::testing {
+using ::testing::_;
 
 // ---------------------------------------------------------------------------
 // Frame byte offsets — derived from BLE/BTHome named constants, never hardcoded
@@ -182,7 +182,7 @@ class BTHomeServerTest : public ::testing::Test {
     }));
   }
 
-  void do_setup() { server_.setup(); }
+  void do_setup_() { server_.setup(); }
 };
 
 // ===========================================================================
@@ -191,24 +191,24 @@ class BTHomeServerTest : public ::testing::Test {
 
 TEST_F(BTHomeServerTest, SetupCallsAdapterSetupWithSelf) {
   EXPECT_CALL(adapter_, setup(static_cast<IBLEAdvHandler *>(&server_)));
-  do_setup();
+  do_setup_();
 }
 
 TEST_F(BTHomeServerTest, SetupStoresMacAddressFromAdapter) {
   static constexpr uint8_t CUSTOM_MAC[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
   EXPECT_CALL(adapter_, get_local_mac()).WillOnce(Return(MacAddressPtr(CUSTOM_MAC)));
-  do_setup();
+  do_setup_();
   EXPECT_STREQ(server_.get_local_mac_ref().c_str(), "AA:BB:CC:DD:EE:FF");
 }
 
 TEST_F(BTHomeServerTest, SetupHandlesNullMac) {
   EXPECT_CALL(adapter_, get_local_mac()).WillOnce(Return(MacAddressPtr(nullptr)));
-  EXPECT_NO_FATAL_FAILURE(do_setup());
+  EXPECT_NO_FATAL_FAILURE(do_setup_());
 }
 
 TEST_F(BTHomeServerTest, SetupRegistersImmediateCallbackForFlaggedSensor) {
   sensor1_.set_advertise_immediately(true);
-  do_setup();
+  do_setup_();
   EXPECT_FALSE(sensor0_.callback_registered());
   EXPECT_TRUE(sensor1_.callback_registered());
   EXPECT_FALSE(sensor2_.callback_registered());
@@ -216,7 +216,7 @@ TEST_F(BTHomeServerTest, SetupRegistersImmediateCallbackForFlaggedSensor) {
 
 TEST_F(BTHomeServerTest, SetupDoesNotRegisterCallbackWhenAdvertiseImmediatelyFalse) {
   // All sensors have advertise_immediately = false by default
-  do_setup();
+  do_setup_();
   EXPECT_FALSE(sensor0_.callback_registered());
   EXPECT_FALSE(sensor1_.callback_registered());
   EXPECT_FALSE(sensor2_.callback_registered());
@@ -233,7 +233,7 @@ TEST_F(BTHomeServerTest, GetSetupPriorityReturnsAfterBluetooth) {
 }
 
 TEST_F(BTHomeServerTest, DumpConfigDoesNotCrash) {
-  do_setup();
+  do_setup_();
   EXPECT_NO_FATAL_FAILURE(server_.dump_config());
 }
 
@@ -242,13 +242,13 @@ TEST_F(BTHomeServerTest, DumpConfigDoesNotCrash) {
 // ===========================================================================
 
 TEST_F(BTHomeServerTest, OnAdvertiseNoOpWhenInactive) {
-  do_setup();
+  do_setup_();
   EXPECT_CALL(adapter_, config_adv_data_raw(_, _)).Times(0);
   server_.on_advertise(false);
 }
 
 TEST_F(BTHomeServerTest, OnAdvertiseSendsFrameWhenActive) {
-  do_setup();
+  do_setup_();
   EXPECT_CALL(adapter_, config_adv_data_raw(_, _)).Times(1);
   server_.on_advertise(true);
 }
@@ -257,7 +257,7 @@ TEST_F(BTHomeServerTest, OnAdvertiseSkipsInvalidGroupAndSendsValidOnes) {
   // sensor0 (BATTERY_PCT) is invalid; sensor1 and sensor2 are valid.
   // The algorithm must skip sensor0's group and continue to encode sensor1 + sensor2.
   sensor0_.invalidate();
-  do_setup();
+  do_setup_();
 
   std::vector<uint8_t> captured;
   EXPECT_CALL(adapter_, config_adv_data_raw(_, _)).WillOnce(Invoke([&captured](const uint8_t *data, size_t len) {
@@ -275,7 +275,7 @@ TEST_F(BTHomeServerTest, OnAdvertiseNoFrameWhenAllSensorsInvalid) {
   sensor0_.invalidate();
   sensor1_.invalidate();
   sensor2_.invalidate();
-  do_setup();
+  do_setup_();
   EXPECT_CALL(adapter_, config_adv_data_raw(_, _)).Times(0);
   server_.on_advertise(true);
 }
@@ -284,7 +284,7 @@ TEST_F(BTHomeServerTest, OnAdvertisePartialFrameWhenLaterSensorInvalid) {
   // sensor0 and sensor1 are valid; sensor2 is invalid
   // Expected: frame contains sensor0 and sensor1 but not sensor2
   sensor2_.invalidate();
-  do_setup();
+  do_setup_();
 
   std::vector<uint8_t> captured;
   EXPECT_CALL(adapter_, config_adv_data_raw(_, _)).WillOnce(Invoke([&captured](const uint8_t *data, size_t len) {
@@ -304,7 +304,7 @@ TEST_F(BTHomeServerTest, OnAdvertisePartialFrameWhenLaterSensorInvalid) {
 }
 
 TEST_F(BTHomeServerTest, OnAdvertiseAllSensorsResetsNextIndex) {
-  do_setup();
+  do_setup_();
   server_.on_advertise(true);
   // All 3 sensors fit in one frame (2+3+3=8 bytes << 23), so index wraps to 0
   EXPECT_EQ(server_.get_next_sensor_index(), 0u);
@@ -484,7 +484,7 @@ TEST_F(BTHomeServerPackingTest, CyclesBackToFrame1Content) {
 // ===========================================================================
 
 TEST_F(BTHomeServerTest, FrameHasCorrectBLEFlags) {
-  do_setup();
+  do_setup_();
   server_.on_advertise(true);
 
   ASSERT_GE(last_frame_.size(), BLE_FLAGS_SIZE);
@@ -494,7 +494,7 @@ TEST_F(BTHomeServerTest, FrameHasCorrectBLEFlags) {
 }
 
 TEST_F(BTHomeServerTest, FrameHasCorrectServiceDataHeader) {
-  do_setup();
+  do_setup_();
   server_.on_advertise(true);
 
   ASSERT_GE(last_frame_.size(), FRAME_BTHOME_HDR_OFFSET);
@@ -504,7 +504,7 @@ TEST_F(BTHomeServerTest, FrameHasCorrectServiceDataHeader) {
 }
 
 TEST_F(BTHomeServerTest, FrameHasBTHomeVersion2) {
-  do_setup();
+  do_setup_();
   server_.on_advertise(true);
 
   ASSERT_GE(last_frame_.size(), FRAME_PAYLOAD_OFFSET);
@@ -515,7 +515,7 @@ TEST_F(BTHomeServerTest, FrameHasBTHomeVersion2) {
 }
 
 TEST_F(BTHomeServerTest, FrameLengthByteMatchesPayload) {
-  do_setup();
+  do_setup_();
   server_.on_advertise(true);
 
   ASSERT_GE(last_frame_.size(), FRAME_PAYLOAD_OFFSET);
@@ -526,7 +526,7 @@ TEST_F(BTHomeServerTest, FrameLengthByteMatchesPayload) {
 }
 
 TEST_F(BTHomeServerTest, FramePayloadMatchesSensorEncodings) {
-  do_setup();
+  do_setup_();
   server_.on_advertise(true);
 
   auto frame = parse_adv_frame(last_frame_);
@@ -544,7 +544,7 @@ TEST_F(BTHomeServerTest, FramePayloadMatchesSensorEncodings) {
 
 TEST_F(BTHomeServerTest, ImmediateAdvertiseTriggeredByCallback) {
   sensor0_.set_advertise_immediately(true);
-  do_setup();
+  do_setup_();
 
   // Triggering sensor0's callback must produce a frame
   EXPECT_CALL(adapter_, config_adv_data_raw(_, _)).Times(1);
@@ -554,7 +554,7 @@ TEST_F(BTHomeServerTest, ImmediateAdvertiseTriggeredByCallback) {
 TEST_F(BTHomeServerTest, ImmediateAdvertiseEncodesOnlyMatchingType) {
   // sensor0 is BATTERY_PCT; trigger immediate for that type
   sensor0_.set_advertise_immediately(true);
-  do_setup();
+  do_setup_();
 
   std::vector<uint8_t> captured;
   EXPECT_CALL(adapter_, config_adv_data_raw(_, _)).WillOnce(Invoke([&captured](const uint8_t *data, size_t len) {
@@ -716,7 +716,10 @@ TEST_F(BTHomeServerEncryptionTest, EncryptedPayloadDecryptsToSensorData) {
 
   ASSERT_EQ(last_frame_.size(), EXPECTED_FRAME_SIZE);
 
-  BTHomeHeader hdr{.encrypted = 1, .trigger_based = 0, .version = BTHOME_VERSION_2};
+  BTHomeHeader hdr{};
+  hdr.encrypted = 1;
+  hdr.trigger_based = 0;
+  hdr.version = BTHOME_VERSION_2;
   size_t plaintext_size = 0;
   const uint8_t *plaintext =
       bthome_decrypt(last_frame_.data() + FRAME_PAYLOAD_OFFSET, last_frame_.size() - FRAME_PAYLOAD_OFFSET,
