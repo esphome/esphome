@@ -3,7 +3,6 @@ import esphome.codegen as cg
 from esphome.components import climate
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_CURRENT_TEMPERATURE,
     CONF_ID,
     CONF_OPTIMISTIC,
     CONF_SUPPORTED_FAN_MODES,
@@ -12,6 +11,8 @@ from esphome.const import (
     CONF_SUPPORTED_SWING_MODES,
     CONF_TARGET_TEMPERATURE,
 )
+
+CONF_CURRENT_TEMPERATURE = "current_temperature"
 
 from .. import template_ns
 
