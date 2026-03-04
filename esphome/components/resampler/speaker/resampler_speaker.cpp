@@ -190,7 +190,7 @@ void ResamplerSpeaker::loop() {
         this->output_speaker_->stop();
       }
 
-      if (this->output_speaker_->is_stopped() && (this->task_handle_ == nullptr)) {
+      if (this->output_speaker_->is_stopped() && !this->task_.is_created()) {
         // Only transition to stopped state once the output speaker and resampler task are fully stopped
         this->waiting_for_output_ = false;
         this->state_ = speaker::STATE_STOPPED;
@@ -274,27 +274,9 @@ esp_err_t ResamplerSpeaker::start_() {
 }
 
 esp_err_t ResamplerSpeaker::start_task_() {
-  if (this->task_stack_buffer_ == nullptr) {
-    if (this->task_stack_in_psram_) {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-      this->task_stack_buffer_ = stack_allocator.allocate(TASK_STACK_SIZE);
-    } else {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-      this->task_stack_buffer_ = stack_allocator.allocate(TASK_STACK_SIZE);
-    }
-  }
-
-  if (this->task_stack_buffer_ == nullptr) {
+  if (!this->task_.create(resample_task, "resampler", TASK_STACK_SIZE, (void *) this, RESAMPLER_TASK_PRIORITY,
+                          this->task_stack_in_psram_)) {
     return ESP_ERR_NO_MEM;
-  }
-
-  if (this->task_handle_ == nullptr) {
-    this->task_handle_ = xTaskCreateStatic(resample_task, "resampler", TASK_STACK_SIZE, (void *) this,
-                                           RESAMPLER_TASK_PRIORITY, this->task_stack_buffer_, &this->task_stack_);
-  }
-
-  if (this->task_handle_ == nullptr) {
-    return ESP_ERR_INVALID_STATE;
   }
 
   return ESP_OK;
@@ -305,32 +287,13 @@ void ResamplerSpeaker::stop() { this->send_command_(ResamplingEventGroupBits::CO
 void ResamplerSpeaker::enter_stopping_state_() {
   this->state_ = speaker::STATE_STOPPING;
   this->state_start_ms_ = App.get_loop_component_start_time();
-  if (this->task_handle_ != nullptr) {
+  if (this->task_.is_created()) {
     xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::TASK_COMMAND_STOP);
   }
   this->output_speaker_->stop();
 }
 
-void ResamplerSpeaker::delete_task_() {
-  if (this->task_handle_ != nullptr) {
-    // Delete the suspended task
-    vTaskDelete(this->task_handle_);
-    this->task_handle_ = nullptr;
-  }
-
-  if (this->task_stack_buffer_ != nullptr) {
-    // Deallocate the task stack buffer
-    if (this->task_stack_in_psram_) {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-      stack_allocator.deallocate(this->task_stack_buffer_, TASK_STACK_SIZE);
-    } else {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-      stack_allocator.deallocate(this->task_stack_buffer_, TASK_STACK_SIZE);
-    }
-
-    this->task_stack_buffer_ = nullptr;
-  }
-}
+void ResamplerSpeaker::delete_task_() { this->task_.deallocate(); }
 
 void ResamplerSpeaker::finish() { this->send_command_(ResamplingEventGroupBits::COMMAND_FINISH); }
 

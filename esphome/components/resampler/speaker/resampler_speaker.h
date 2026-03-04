@@ -7,8 +7,8 @@
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/component.h"
+#include "esphome/core/static_task.h"
 
-#include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 
 namespace esphome {
@@ -92,9 +92,7 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
   bool task_stack_in_psram_{false};
   bool waiting_for_output_{false};
 
-  TaskHandle_t task_handle_{nullptr};
-  StaticTask_t task_stack_;
-  StackType_t *task_stack_buffer_{nullptr};
+  StaticTask task_;
 
   audio::AudioStreamInfo target_stream_info_;
 
