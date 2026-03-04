@@ -1,0 +1,213 @@
+esphome:
+  name: uart-mock-ld2412-eng-test
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2412's DEPENDENCIES = ["uart"]
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  injections:
+    # Phase 1 (t=100ms): Valid LD2412 engineering mode data frame
+    #
+    # Engineering mode frame layout (52 bytes):
+    #   [0-3]   F4 F3 F2 F1 = data frame header
+    #   [4-5]   2A 00       = length 42
+    #   [6]     01          = data type (engineering mode)
+    #   [7]     AA          = data header marker
+    #   [8]     03          = target states (moving+still)
+    #   [9-10]  1E 00       = moving distance 30 (0x001E)
+    #   [11]    64          = moving energy 100
+    #   [12-13] 1E 00       = still distance 30 (0x001E)
+    #   [14]    64          = still energy 100
+    #   [15-16] 00 00       = detection distance bytes (ignored)
+    #   [17-30] gate moving energies (14 gates)
+    #   [31-44] gate still energies (14 gates)
+    #   [45]    57          = light sensor value 87
+    #   [46]    55          = data footer marker
+    #   [47]    00          = check
+    #   [48-51] F8 F7 F6 F5 = data frame footer
+    - delay: 100ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x2A, 0x00,
+          0x01, 0xAA,
+          0x03,
+          0x1E, 0x00,
+          0x64,
+          0x1E, 0x00,
+          0x64,
+          0x00, 0x00,
+          0x64, 0x41, 0x06, 0x0E, 0x2B, 0x16, 0x03, 0x03, 0x07, 0x05, 0x09, 0x08, 0x07, 0x06,
+          0x00, 0x00, 0x64, 0x64, 0x64, 0x64, 0x64, 0x64, 0x64, 0x50, 0x40, 0x30, 0x20, 0x10,
+          0x57,
+          0x55, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+    # Phase 2 (t=200ms): Second engineering mode frame with different values
+    # Moving at 73cm, still at 30cm
+    - delay: 100ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x2A, 0x00,
+          0x01, 0xAA,
+          0x03,
+          0x49, 0x00,
+          0x64,
+          0x1E, 0x00,
+          0x64,
+          0x21, 0x00,
+          0x11, 0x64, 0x05, 0x29, 0x39, 0x10, 0x03, 0x11, 0x0E, 0x08, 0x06, 0x04, 0x03, 0x02,
+          0x00, 0x00, 0x64, 0x64, 0x64, 0x64, 0x64, 0x64, 0x64, 0x50, 0x40, 0x30, 0x20, 0x10,
+          0x57,
+          0x55, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+    # Phase 3 (t=300ms): Frame with still target at 291cm (multi-byte distance)
+    # This tests encode_uint16 with high byte > 0
+    # Target state: 0x02 (still only) -> detection_distance = still distance = 291
+    - delay: 100ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x2A, 0x00,
+          0x01, 0xAA,
+          0x02,
+          0x2F, 0x00,
+          0x36,
+          0x23, 0x01,
+          0x64,
+          0x21, 0x00,
+          0x2F, 0x36, 0x09, 0x0D, 0x15, 0x0B, 0x06, 0x06, 0x08, 0x09, 0x08, 0x07, 0x06, 0x05,
+          0x00, 0x00, 0x64, 0x64, 0x64, 0x64, 0x64, 0x5A, 0x3D, 0x30, 0x20, 0x10, 0x08, 0x04,
+          0x57,
+          0x55, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+ld2412:
+  id: ld2412_dev
+  uart_id: mock_uart
+
+sensor:
+  - platform: ld2412
+    ld2412_id: ld2412_dev
+    moving_distance:
+      name: "Moving Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
+    still_distance:
+      name: "Still Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
+    moving_energy:
+      name: "Moving Energy"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
+    still_energy:
+      name: "Still Energy"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
+    detection_distance:
+      name: "Detection Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
+    light:
+      name: "Light"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
+    gate_0:
+      move_energy:
+        name: "Gate 0 Move Energy"
+        filters:
+          - timeout:
+              timeout: 50ms
+              value: last
+          - throttle_with_priority: 50ms
+      still_energy:
+        name: "Gate 0 Still Energy"
+        filters:
+          - timeout:
+              timeout: 50ms
+              value: last
+          - throttle_with_priority: 50ms
+    gate_1:
+      move_energy:
+        name: "Gate 1 Move Energy"
+        filters:
+          - timeout:
+              timeout: 50ms
+              value: last
+          - throttle_with_priority: 50ms
+      still_energy:
+        name: "Gate 1 Still Energy"
+        filters:
+          - timeout:
+              timeout: 50ms
+              value: last
+          - throttle_with_priority: 50ms
+    gate_2:
+      move_energy:
+        name: "Gate 2 Move Energy"
+        filters:
+          - timeout:
+              timeout: 50ms
+              value: last
+          - throttle_with_priority: 50ms
+      still_energy:
+        name: "Gate 2 Still Energy"
+        filters:
+          - timeout:
+              timeout: 50ms
+              value: last
+          - throttle_with_priority: 50ms
+
+binary_sensor:
+  - platform: ld2412
+    ld2412_id: ld2412_dev
+    has_target:
+      name: "Has Target"
+      filters:
+        - settle: 50ms
+    has_moving_target:
+      name: "Has Moving Target"
+      filters:
+        - settle: 50ms
+    has_still_target:
+      name: "Has Still Target"
+      filters:
+        - settle: 50ms
