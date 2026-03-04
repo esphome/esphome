@@ -24,7 +24,7 @@ class RemoteDeviceBase {
   void set_encryption_key(std::initializer_list<uint8_t> key) {
     EncryptionKey k{};
     std::copy(key.begin(), key.end(), k.begin());
-    this->encryption_key = k;
+    this->encryption_key_ = k;
   }
 #endif
   virtual void set_handler(size_t index, BTHomeRemoteObject *handler) = 0;
@@ -36,7 +36,7 @@ class RemoteDeviceBase {
   MacAddress address_;
   optional<uint8_t> last_packet_id_{};
 #ifdef USE_BTHOME_DECRYPTION
-  optional<EncryptionKey> encryption_key;
+  optional<EncryptionKey> encryption_key_;
 #endif
 };
 

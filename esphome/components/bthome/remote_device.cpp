@@ -22,19 +22,19 @@ bool RemoteDeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *d
 
 #ifdef USE_BTHOME_DECRYPTION
   if (header.encrypted) {
-    if (!this->encryption_key.has_value()) {
+    if (!this->encryption_key_.has_value()) {
       ESP_LOGE(TAG, "Encrypted BTHome frame received but no bindkey configured for %s", source_address.c_str());
       return true;
     }
 
     payload =
-        bthome_decrypt(data + 1, data_size - 1, source_address, header, this->encryption_key.value(), payload_size);
+        bthome_decrypt(data + 1, data_size - 1, source_address, header, this->encryption_key_.value(), payload_size);
     if (payload == nullptr) {
       ESP_LOGVV(TAG, "Failed to decrypt BTHome frame from %s", source_address.c_str());
       return true;
     }
   } else {
-    if (this->encryption_key.has_value()) {
+    if (this->encryption_key_.has_value()) {
       ESP_LOGE(TAG, "Unencrypted BTHome frame received with bindkey configured for %s", source_address.c_str());
       return true;
     }
