@@ -460,7 +460,7 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
   uint8_t index = 6;  // Start at presence byte position
   uint16_t range;
   const uint8_t elements = sizeof(this->gate_energy_) / sizeof(this->gate_energy_[0]);
-  if (len < index + 1 + sizeof(range) + elements * sizeof(this->gate_energy_[0])) {
+  if (len < static_cast<int>(index + 1 + sizeof(range) + elements * sizeof(this->gate_energy_[0]))) {
     ESP_LOGW(TAG, "Energy frame too short: %d bytes", len);
     return;
   }
