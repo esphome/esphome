@@ -207,7 +207,6 @@ uint8_t FingerprintGrowComponent::save_fingerprint_() {
       break;
     case ENROLL_MISMATCH:
       ESP_LOGE(TAG, "Scans do not match");
-      break;
     default:
       return this->data_[0];
   }
