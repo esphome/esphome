@@ -518,14 +518,12 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
     if (inbuf[pos] >= '0' && inbuf[pos] <= '9') {
       if (index < bufsize - 1) {
         outbuf[index++] = inbuf[pos];
-        pos++;
       }
+    }
+    if (pos < len - 1) {
+      pos++;
     } else {
-      if (pos < len - 1) {
-        pos++;
-      } else {
-        break;
-      }
+      break;
     }
   }
   outbuf[index] = '\0';
