@@ -173,7 +173,7 @@ void Application::loop() {
     {
       this->set_current_component(component);
       WarnIfComponentBlockingGuard guard{component, last_op_end_time};
-      component->call();
+      component->loop();
       // Use the finish method to get the current time as the end time
       last_op_end_time = guard.finish();
     }
