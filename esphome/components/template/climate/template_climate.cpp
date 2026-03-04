@@ -21,13 +21,10 @@ void TemplateClimate::setup() {
   if (this->current_temperature_f_.has_value()) {
     this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   }
-  if (!this->current_temperature_f_.has_value() && 
-    !this->target_temperature_f_.has_value() &&
-    !this->mode_f_.has_value() && 
-    !this->fan_mode_f_.has_value() && 
-    !this->swing_mode_f_.has_value() &&
-    !this->preset_f_.has_value()) {
-      this->disable_loop();
+  if (!this->current_temperature_f_.has_value() && !this->target_temperature_f_.has_value() &&
+      !this->mode_f_.has_value() && !this->fan_mode_f_.has_value() && !this->swing_mode_f_.has_value() &&
+      !this->preset_f_.has_value()) {
+    this->disable_loop();
   }
 }
 
