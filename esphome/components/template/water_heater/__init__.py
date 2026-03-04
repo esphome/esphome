@@ -4,6 +4,7 @@ from esphome.components import water_heater
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AWAY,
+    CONF_CURRENT_TEMPERATURE,
     CONF_ID,
     CONF_MODE,
     CONF_OPTIMISTIC,

@@ -113,7 +113,6 @@ CLIMATE_SWING_MODES = {
 
 validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
-CONF_CURRENT_TEMPERATURE = "current_temperature"
 CONF_MIN_HUMIDITY = "min_humidity"
 CONF_MAX_HUMIDITY = "max_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
