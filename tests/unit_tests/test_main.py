@@ -879,8 +879,9 @@ def test_choose_upload_log_host_no_defaults_with_rp2040_mass_storage(
             purpose=Purpose.UPLOADING,
         )
         assert result == ["/dev/ttyUSB0"]  # mock_choose_prompt default
+        vol_path = str(Path("/Volumes/RPI-RP2"))
         mock_choose_prompt.assert_called_once_with(
-            [("/Volumes/RPI-RP2 (RP2040 BOOTSEL)", "MS:/Volumes/RPI-RP2")],
+            [(f"{vol_path} (RP2040 BOOTSEL)", f"MS:{vol_path}")],
             purpose=Purpose.UPLOADING,
         )
 
@@ -983,10 +984,11 @@ def test_choose_upload_log_host_rp2040_serial_and_mass_storage(
             check_default=None,
             purpose=Purpose.UPLOADING,
         )
+        vol_path = str(Path("/Volumes/RPI-RP2"))
         mock_choose_prompt.assert_called_once_with(
             [
                 ("/dev/ttyACM0 (RP2040 Serial)", "/dev/ttyACM0"),
-                ("/Volumes/RPI-RP2 (RP2040 BOOTSEL)", "MS:/Volumes/RPI-RP2"),
+                (f"{vol_path} (RP2040 BOOTSEL)", f"MS:{vol_path}"),
             ],
             purpose=Purpose.UPLOADING,
         )
