@@ -8,6 +8,7 @@
 
 #include <openthread/srp_client.h>
 #include <openthread/srp_client_buffers.h>
+#include <openthread/instance.h>
 #include <openthread/thread.h>
 
 #include <optional>
@@ -23,7 +24,6 @@ class OpenThreadComponent : public Component {
   ~OpenThreadComponent();
   void dump_config() override;
   void setup() override;
-  void loop() override;
   bool teardown() override;
   float get_setup_priority() const override { return setup_priority::WIFI; }
 
@@ -43,8 +43,7 @@ class OpenThreadComponent : public Component {
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
-  bool is_connected_() const;
-  void update_connected_state_();
+  static void on_state_changed_(otChangedFlags flags, void *context);
   std::function<void()> factory_reset_external_callback_;
 #if CONFIG_OPENTHREAD_MTD
   uint32_t poll_period_{0};
