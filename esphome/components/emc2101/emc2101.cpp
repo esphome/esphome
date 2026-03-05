@@ -71,15 +71,16 @@ void Emc2101Component::setup() {
   if (this->dac_mode_) {
     config |= EMC2101_DAC_BIT;
   }
+  if (this->inverted_) {
+    reg(EMC2101_REGISTER_FAN_CONFIG) |= EMC2101_POLARITY_BIT;
+  }
+
   if (this->dac_mode_) {  // DAC mode configurations
     // set DAC conversion rate
     reg(EMC2101_REGISTER_DAC_CONV_RATE) = this->dac_conversion_rate_;
   } else {  // PWM mode configurations
     // set PWM divider
     reg(EMC2101_REGISTER_FAN_CONFIG) |= EMC2101_CLK_OVR_BIT;
-    if (this->inverted_) {
-      reg(EMC2101_REGISTER_FAN_CONFIG) |= EMC2101_POLARITY_BIT;
-    }
     reg(EMC2101_REGISTER_PWM_DIV) = this->pwm_divider_;
 
     // set PWM resolution
