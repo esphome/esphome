@@ -263,7 +263,6 @@ void BMI160Component::update() {
 
   this->status_clear_warning();
 }
-float BMI160Component::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace bmi160
 }  // namespace esphome

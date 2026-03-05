@@ -1,9 +1,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
 #include "esp_openthread.h"
-#endif
 
 #include <freertos/portmacro.h>
 
@@ -35,32 +33,28 @@ void OpenThreadComponent::dump_config() {
 #elif CONFIG_OPENTHREAD_MTD
   ESP_LOGCONFIG(TAG, "  Device Type: MTD");
   // TBD: Synchronized Sleepy End Device
-  if (this->poll_period > 0) {
+  if (this->poll_period_ > 0) {
     ESP_LOGCONFIG(TAG, "  Device is configured as Sleepy End Device (SED)");
-    uint32_t duration = this->poll_period / 1000;
+    uint32_t duration = this->poll_period_ / 1000;
     ESP_LOGCONFIG(TAG, "  Poll Period: %" PRIu32 "s", duration);
   } else {
     ESP_LOGCONFIG(TAG, "  Device is configured as Minimal End Device (MED)");
   }
 #endif
+  if (this->output_power_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Output power: %" PRId8 "dBm", *this->output_power_);
+  }
 }
 
-bool OpenThreadComponent::is_connected() {
-  auto lock = InstanceLock::try_acquire(100);
-  if (!lock) {
-    ESP_LOGW(TAG, "Failed to acquire OpenThread lock in is_connected");
-    return false;
+void OpenThreadComponent::on_state_changed_(otChangedFlags flags, void *context) {
+  if (flags & OT_CHANGED_THREAD_ROLE) {
+    auto *self = static_cast<OpenThreadComponent *>(context);
+    // This runs on the OpenThread task thread with the OT lock held,
+    // so we can safely call otThreadGetDeviceRole directly.
+    otInstance *instance = esp_openthread_get_instance();
+    otDeviceRole role = otThreadGetDeviceRole(instance);
+    self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
   }
-
-  otInstance *instance = lock->get_instance();
-  if (instance == nullptr) {
-    return false;
-  }
-
-  otDeviceRole role = otThreadGetDeviceRole(instance);
-
-  // TODO: If we're a leader, check that there is at least 1 known peer
-  return role >= OT_DEVICE_ROLE_CHILD;
 }
 
 // Gets the off-mesh routable address

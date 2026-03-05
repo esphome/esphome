@@ -30,8 +30,6 @@ void KamstrupKMPComponent::dump_config() {
   this->check_uart_settings(1200, 2, uart::UART_CONFIG_PARITY_NONE, 8);
 }
 
-float KamstrupKMPComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 void KamstrupKMPComponent::update() {
   if (this->heat_energy_sensor_ != nullptr) {
     this->command_queue_.push(CMD_HEAT_ENERGY);
@@ -224,11 +222,11 @@ void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_
   }
 
   // Calculate exponent
-  float exponent = msg[6] & 0x3F;
+  int8_t exp_val = msg[6] & 0x3F;
   if (msg[6] & 0x40) {
-    exponent = -exponent;
+    exp_val = -exp_val;
   }
-  exponent = powf(10, exponent);
+  float exponent = pow10_int(exp_val);
   if (msg[6] & 0x80) {
     exponent = -exponent;
   }

@@ -12,7 +12,6 @@ class INA3221Component : public PollingComponent, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override;
 
   void set_bus_voltage_sensor(int channel, sensor::Sensor *obj) { this->channels_[channel].bus_voltage_sensor_ = obj; }
   void set_shunt_voltage_sensor(int channel, sensor::Sensor *obj) {

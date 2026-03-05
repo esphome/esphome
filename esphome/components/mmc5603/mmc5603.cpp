@@ -91,8 +91,6 @@ void MMC5603Component::dump_config() {
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
 }
 
-float MMC5603Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void MMC5603Component::update() {
   uint8_t ctrl0 = (this->auto_set_reset_) ? 0x21 : 0x01;
   if (!this->write_byte(MMC56X3_CTRL0_REG, ctrl0)) {

@@ -17,8 +17,7 @@
 #include "esphome/components/modem/modem_component.h"
 #endif
 
-namespace esphome {
-namespace network {
+namespace esphome::network {
 
 // The order of the components is important: WiFi should come after any possible main interfaces (it may be used as
 // an AP that use a previous interface for NAT).
@@ -109,6 +108,5 @@ const char *get_use_address() {
 #endif
 }
 
-}  // namespace network
-}  // namespace esphome
+}  // namespace esphome::network
 #endif

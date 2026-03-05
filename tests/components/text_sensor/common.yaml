@@ -64,3 +64,16 @@ text_sensor:
           - suffix -> SUFFIX
       - map:
           - PREFIX text SUFFIX -> mapped
+
+  - platform: template
+    name: "Test Lambda Filter"
+    id: test_lambda_filter
+    filters:
+      - lambda: |-
+          return {"[" + x + "]"};
+      - to_upper
+      - lambda: |-
+          if (x.length() > 10) {
+            return {x.substr(0, 10) + "..."};
+          }
+          return {x};

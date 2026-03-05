@@ -42,7 +42,6 @@ class RD03DComponent : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
 #ifdef USE_SENSOR
   void set_target_count_sensor(sensor::Sensor *sensor) { this->target_count_sensor_ = sensor; }

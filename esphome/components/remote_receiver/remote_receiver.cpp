@@ -3,7 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#if defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2040) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
 
 namespace esphome::remote_receiver {
 

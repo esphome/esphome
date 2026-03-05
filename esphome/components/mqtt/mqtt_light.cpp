@@ -34,7 +34,8 @@ void MQTTJSONLightComponent::on_light_remote_values_update() {
 MQTTJSONLightComponent::MQTTJSONLightComponent(LightState *state) : state_(state) {}
 
 bool MQTTJSONLightComponent::publish_state_() {
-  return this->publish_json(this->get_state_topic_(), [this](JsonObject root) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish_json(this->get_state_topic_to_(topic_buf), [this](JsonObject root) {
     // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     LightJSONSchema::dump_json(*this->state_, root);
   });
@@ -46,7 +47,6 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
   root[ESPHOME_F("schema")] = ESPHOME_F("json");
   auto traits = this->state_->get_traits();
 
-  root[MQTT_COLOR_MODE] = true;
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   JsonArray color_modes = root[ESPHOME_F("supported_color_modes")].to<JsonArray>();
   if (traits.supports_color_mode(ColorMode::ON_OFF))
@@ -67,10 +67,6 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
   if (traits.supports_color_mode(ColorMode::RGB_COLD_WARM_WHITE))
     color_modes.add(ESPHOME_F("rgbww"));
 
-  // legacy API
-  if (traits.supports_color_capability(ColorCapability::BRIGHTNESS))
-    root[ESPHOME_F("brightness")] = true;
-
   if (traits.supports_color_mode(ColorMode::COLOR_TEMPERATURE) ||
       traits.supports_color_mode(ColorMode::COLD_WARM_WHITE)) {
     root[MQTT_MIN_MIREDS] = traits.get_min_mireds();
@@ -90,7 +86,7 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
 bool MQTTJSONLightComponent::send_initial_state() { return this->publish_state_(); }
 void MQTTJSONLightComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Light '%s':", this->state_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true)
+  LOG_MQTT_COMPONENT(true, true);
 }
 
 }  // namespace esphome::mqtt

@@ -5,7 +5,13 @@ from __future__ import annotations
 import asyncio
 
 import aioesphomeapi
-from aioesphomeapi import WaterHeaterInfo, WaterHeaterMode, WaterHeaterState
+from aioesphomeapi import (
+    WaterHeaterFeature,
+    WaterHeaterInfo,
+    WaterHeaterMode,
+    WaterHeaterState,
+    WaterHeaterStateFlag,
+)
 import pytest
 
 from .state_utils import InitialStateHelper
@@ -22,18 +28,25 @@ async def test_water_heater_template(
     loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
         states: dict[int, aioesphomeapi.EntityState] = {}
-        gas_mode_future: asyncio.Future[WaterHeaterState] = loop.create_future()
-        eco_mode_future: asyncio.Future[WaterHeaterState] = loop.create_future()
+        state_future: asyncio.Future[WaterHeaterState] | None = None
 
         def on_state(state: aioesphomeapi.EntityState) -> None:
             states[state.key] = state
-            if isinstance(state, WaterHeaterState):
-                # Wait for GAS mode
-                if state.mode == WaterHeaterMode.GAS and not gas_mode_future.done():
-                    gas_mode_future.set_result(state)
-                # Wait for ECO mode (we start at OFF, so test transitioning to ECO)
-                elif state.mode == WaterHeaterMode.ECO and not eco_mode_future.done():
-                    eco_mode_future.set_result(state)
+            if (
+                isinstance(state, WaterHeaterState)
+                and state_future is not None
+                and not state_future.done()
+            ):
+                state_future.set_result(state)
+
+        async def wait_for_state(timeout: float = 5.0) -> WaterHeaterState:
+            """Wait for next water heater state change."""
+            nonlocal state_future
+            state_future = loop.create_future()
+            try:
+                return await asyncio.wait_for(state_future, timeout)
+            finally:
+                state_future = None
 
         # Get entities and set up state synchronization
         entities, services = await client.list_entities_services()
@@ -85,25 +98,56 @@ async def test_water_heater_template(
         assert initial_state.current_temperature == 45.0, (
             f"Expected current temp 45.0, got {initial_state.current_temperature}"
         )
+        assert initial_state.target_temperature == 60.0, (
+            f"Expected target temp 60.0, got {initial_state.target_temperature}"
+        )
+
+        # Verify supported features: away mode and on/off (fixture has away + is_on lambdas)
+        assert (
+            test_water_heater.supported_features & WaterHeaterFeature.SUPPORTS_AWAY_MODE
+        ) != 0, "Expected SUPPORTS_AWAY_MODE in supported_features"
+        assert (
+            test_water_heater.supported_features & WaterHeaterFeature.SUPPORTS_ON_OFF
+        ) != 0, "Expected SUPPORTS_ON_OFF in supported_features"
+
+        # Verify initial state: on (is_on lambda returns true), not away (away lambda returns false)
+        assert (initial_state.state & WaterHeaterStateFlag.ON) != 0, (
+            "Expected initial state to include ON flag"
+        )
+        assert (initial_state.state & WaterHeaterStateFlag.AWAY) == 0, (
+            "Expected initial state to not include AWAY flag"
+        )
+
+        # Test turning on away mode
+        client.water_heater_command(test_water_heater.key, away=True)
+        away_on_state = await wait_for_state()
+        assert (away_on_state.state & WaterHeaterStateFlag.AWAY) != 0
+        # ON flag should still be set (is_on lambda returns true)
+        assert (away_on_state.state & WaterHeaterStateFlag.ON) != 0
+
+        # Test turning off away mode
+        client.water_heater_command(test_water_heater.key, away=False)
+        away_off_state = await wait_for_state()
+        assert (away_off_state.state & WaterHeaterStateFlag.AWAY) == 0
+        assert (away_off_state.state & WaterHeaterStateFlag.ON) != 0
+
+        # Test turning off (on=False)
+        client.water_heater_command(test_water_heater.key, on=False)
+        off_state = await wait_for_state()
+        assert (off_state.state & WaterHeaterStateFlag.ON) == 0
+        assert (off_state.state & WaterHeaterStateFlag.AWAY) == 0
+
+        # Test turning back on (on=True)
+        client.water_heater_command(test_water_heater.key, on=True)
+        on_state = await wait_for_state()
+        assert (on_state.state & WaterHeaterStateFlag.ON) != 0
 
         # Test changing to GAS mode
         client.water_heater_command(test_water_heater.key, mode=WaterHeaterMode.GAS)
-
-        try:
-            gas_state = await asyncio.wait_for(gas_mode_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("GAS mode change not received within 5 seconds")
-
-        assert isinstance(gas_state, WaterHeaterState)
+        gas_state = await wait_for_state()
         assert gas_state.mode == WaterHeaterMode.GAS
 
         # Test changing to ECO mode (from GAS)
         client.water_heater_command(test_water_heater.key, mode=WaterHeaterMode.ECO)
-
-        try:
-            eco_state = await asyncio.wait_for(eco_mode_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("ECO mode change not received within 5 seconds")
-
-        assert isinstance(eco_state, WaterHeaterState)
+        eco_state = await wait_for_state()
         assert eco_state.mode == WaterHeaterMode.ECO

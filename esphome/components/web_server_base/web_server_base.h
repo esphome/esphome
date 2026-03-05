@@ -1,11 +1,9 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK
-#include <memory>
 #include <utility>
 #include <vector>
 
-#include "esphome/core/component.h"
 #include "esphome/core/progmem.h"
 
 #if USE_ESP32
@@ -21,8 +19,7 @@ using PlatformString = std::string;
 using PlatformString = String;
 #endif
 
-namespace esphome {
-namespace web_server_base {
+namespace esphome::web_server_base {
 
 class WebServerBase;
 extern WebServerBase *global_web_server_base;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -91,14 +88,14 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
 
 }  // namespace internal
 
-class WebServerBase : public Component {
+class WebServerBase {
  public:
   void init() {
     if (this->initialized_) {
       this->initialized_++;
       return;
     }
-    this->server_ = std::make_unique<AsyncWebServer>(this->port_);
+    this->server_ = new AsyncWebServer(this->port_);
     // All content is controlled and created by user - so allowing all origins is fine here.
     // NOTE: Currently 1 header. If more are added, update in __init__.py:
     //   cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)
@@ -113,11 +110,11 @@ class WebServerBase : public Component {
   void deinit() {
     this->initialized_--;
     if (this->initialized_ == 0) {
+      delete this->server_;
       this->server_ = nullptr;
     }
   }
-  AsyncWebServer *get_server() const { return this->server_.get(); }
-  float get_setup_priority() const override;
+  AsyncWebServer *get_server() const { return this->server_; }
 
 #ifdef USE_WEBSERVER_AUTH
   void set_auth_username(std::string auth_username) { credentials_.username = std::move(auth_username); }
@@ -132,13 +129,12 @@ class WebServerBase : public Component {
  protected:
   int initialized_{0};
   uint16_t port_{80};
-  std::unique_ptr<AsyncWebServer> server_{nullptr};
+  AsyncWebServer *server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
 #ifdef USE_WEBSERVER_AUTH
   internal::Credentials credentials_;
 #endif
 };
 
-}  // namespace web_server_base
-}  // namespace esphome
+}  // namespace esphome::web_server_base
 #endif

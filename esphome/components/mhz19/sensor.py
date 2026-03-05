@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_CO2,
     CONF_ID,
     CONF_TEMPERATURE,
+    CONF_WARMUP_TIME,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
     ICON_MOLECULE_CO2,
@@ -18,7 +19,6 @@ from esphome.const import (
 DEPENDENCIES = ["uart"]
 
 CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
-CONF_WARMUP_TIME = "warmup_time"
 CONF_DETECTION_RANGE = "detection_range"
 
 mhz19_ns = cg.esphome_ns.namespace("mhz19")

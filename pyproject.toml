@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==80.9.0", "wheel>=0.43,<0.46"]
+requires = ["setuptools==82.0.0", "wheel>=0.43,<0.47"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -20,8 +20,8 @@ classifiers = [
     "Topic :: Home Automation",
 ]
 
-# Python 3.14 is currently not supported by IDF <= 5.5.1, see https://github.com/esphome/esphome/issues/11502
-requires-python = ">=3.11.0,<3.14"
+# Python 3.14 is not supported on Windows, see https://github.com/zephyrproject-rtos/windows-curses/issues/76
+requires-python = ">=3.11.0,<3.15"
 
 dynamic = ["dependencies", "optional-dependencies", "version"]
 

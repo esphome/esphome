@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Callable
+import heapq
+from operator import itemgetter
 import sys
 from typing import TYPE_CHECKING
 
@@ -12,6 +14,7 @@ from . import (
     _COMPONENT_CORE,
     _COMPONENT_PREFIX_ESPHOME,
     _COMPONENT_PREFIX_EXTERNAL,
+    _COMPONENT_PREFIX_LIB,
     RAM_SECTIONS,
     MemoryAnalyzer,
 )
@@ -29,6 +32,10 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
     )
     # Lower threshold for RAM symbols (RAM is more constrained)
     RAM_SYMBOL_SIZE_THRESHOLD: int = 24
+    # Number of top symbols to show in the largest symbols report
+    TOP_SYMBOLS_LIMIT: int = 30
+    # Width for symbol name display in top symbols report
+    COL_TOP_SYMBOL_NAME: int = 55
 
     # Column width constants
     COL_COMPONENT: int = 29
@@ -147,6 +154,83 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             section_label = f" [{section[1:]}]"  # .data -> [data], .bss -> [bss]
         return f"{demangled} ({size:,} B){section_label}"
 
+    def _add_top_symbols(self, lines: list[str]) -> None:
+        """Add a section showing the top largest symbols in the binary."""
+        # Collect all symbols from all components: (symbol, demangled, size, section, component)
+        all_symbols = [
+            (symbol, demangled, size, section, component)
+            for component, symbols in self._component_symbols.items()
+            for symbol, demangled, size, section in symbols
+        ]
+
+        # Get top N symbols by size using heapq for efficiency
+        top_symbols = heapq.nlargest(
+            self.TOP_SYMBOLS_LIMIT, all_symbols, key=itemgetter(2)
+        )
+
+        lines.append("")
+        lines.append(f"Top {self.TOP_SYMBOLS_LIMIT} Largest Symbols:")
+        # Calculate truncation limit from column width (leaving room for "...")
+        truncate_limit = self.COL_TOP_SYMBOL_NAME - 3
+        for i, (_, demangled, size, section, component) in enumerate(top_symbols):
+            # Format section label
+            section_label = f"[{section[1:]}]" if section else ""
+            # Truncate demangled name if too long
+            demangled_display = (
+                f"{demangled[:truncate_limit]}..."
+                if len(demangled) > self.COL_TOP_SYMBOL_NAME
+                else demangled
+            )
+            lines.append(
+                f"{i + 1:>2}. {size:>7,} B {section_label:<8} {demangled_display:<{self.COL_TOP_SYMBOL_NAME}} {component}"
+            )
+
+    def _add_cswtch_analysis(self, lines: list[str]) -> None:
+        """Add CSWTCH (GCC switch table lookup) analysis section."""
+        self._add_section_header(lines, "CSWTCH Analysis (GCC Switch Table Lookups)")
+
+        total_size = sum(size for _, size, _, _ in self._cswtch_symbols)
+        lines.append(
+            f"Total: {len(self._cswtch_symbols)} switch table(s), {total_size:,} B"
+        )
+        lines.append("")
+
+        # Group by component
+        by_component: dict[str, list[tuple[str, int, str]]] = defaultdict(list)
+        for sym_name, size, source_file, component in self._cswtch_symbols:
+            by_component[component].append((sym_name, size, source_file))
+
+        # Sort components by total size descending
+        sorted_components = sorted(
+            by_component.items(),
+            key=lambda x: sum(s[1] for s in x[1]),
+            reverse=True,
+        )
+
+        for component, symbols in sorted_components:
+            comp_total = sum(s[1] for s in symbols)
+            lines.append(f"{component} ({comp_total:,} B, {len(symbols)} tables):")
+
+            # Group by source file within component
+            by_file: dict[str, list[tuple[str, int]]] = defaultdict(list)
+            for sym_name, size, source_file in symbols:
+                by_file[source_file].append((sym_name, size))
+
+            for source_file, file_symbols in sorted(
+                by_file.items(),
+                key=lambda x: sum(s[1] for s in x[1]),
+                reverse=True,
+            ):
+                file_total = sum(s[1] for s in file_symbols)
+                lines.append(
+                    f"  {source_file} ({file_total:,} B, {len(file_symbols)} tables)"
+                )
+                for sym_name, size in sorted(
+                    file_symbols, key=lambda x: x[1], reverse=True
+                ):
+                    lines.append(f"    {size:>6,} B  {sym_name}")
+            lines.append("")
+
     def generate_report(self, detailed: bool = False) -> str:
         """Generate a formatted memory report."""
         components = sorted(
@@ -248,6 +332,9 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             "RAM",
         )
 
+        # Top largest symbols in the binary
+        self._add_top_symbols(lines)
+
         # Add ESPHome core detailed analysis if there are core symbols
         if self._esphome_core_symbols:
             self._add_section_header(lines, f"{_COMPONENT_CORE} Detailed Analysis")
@@ -321,6 +408,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             for name, mem in components
             if name.startswith(_COMPONENT_PREFIX_EXTERNAL)
         ]
+        library_components = [
+            (name, mem)
+            for name, mem in components
+            if name.startswith(_COMPONENT_PREFIX_LIB)
+        ]
 
         top_esphome_components = sorted(
             esphome_components, key=lambda x: x[1].flash_total, reverse=True
@@ -329,6 +421,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         # Include all external components (they're usually important)
         top_external_components = sorted(
             external_components, key=lambda x: x[1].flash_total, reverse=True
+        )
+
+        # Include all library components
+        top_library_components = sorted(
+            library_components, key=lambda x: x[1].flash_total, reverse=True
         )
 
         # Check if API component exists and ensure it's included
@@ -349,10 +446,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             if name in system_components_to_include
         ]
 
-        # Combine all components to analyze: top ESPHome + all external + API if not already included + system components
+        # Combine all components to analyze: top ESPHome + all external + libraries + API if not already included + system components
         components_to_analyze = (
             list(top_esphome_components)
             + list(top_external_components)
+            + list(top_library_components)
             + system_components
         )
         if api_component and api_component not in components_to_analyze:
@@ -430,6 +528,10 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 if len(large_ram_syms) > 10:
                     lines.append(f"    ... and {len(large_ram_syms) - 10} more")
             lines.append("")
+
+        # CSWTCH (GCC switch table) analysis
+        if self._cswtch_symbols:
+            self._add_cswtch_analysis(lines)
 
         lines.append(
             "Note: This analysis covers symbols in the ELF file. Some runtime allocations may not be included."

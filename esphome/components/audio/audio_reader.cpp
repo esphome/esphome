@@ -198,6 +198,11 @@ esp_err_t AudioReader::start(const std::string &uri, AudioFileType &file_type) {
       file_type = AudioFileType::FLAC;
     }
 #endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+    else if (str_endswith_ignore_case(url, ".opus")) {
+      file_type = AudioFileType::OPUS;
+    }
+#endif
     else {
       file_type = AudioFileType::NONE;
       this->cleanup_connection_();
@@ -240,6 +245,14 @@ AudioFileType AudioReader::get_audio_type(const char *content_type) {
 #ifdef USE_AUDIO_FLAC_SUPPORT
   if (strcasecmp(content_type, "audio/flac") == 0 || strcasecmp(content_type, "audio/x-flac") == 0) {
     return AudioFileType::FLAC;
+  }
+#endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+  // Match "audio/ogg" with a codecs parameter containing "opus"
+  // Valid forms: audio/ogg;codecs=opus, audio/ogg; codecs="opus", etc.
+  // Plain "audio/ogg" without a codecs parameter is not matched, as those are almost always Ogg Vorbis streams
+  if (strncasecmp(content_type, "audio/ogg", 9) == 0 && strcasestr(content_type + 9, "opus") != nullptr) {
+    return AudioFileType::OPUS;
   }
 #endif
   return AudioFileType::NONE;

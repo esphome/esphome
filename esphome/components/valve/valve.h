@@ -20,9 +20,7 @@ const extern float VALVE_CLOSED;
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
-    if (!(obj)->get_device_class_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class_ref().c_str()); \
-    } \
+    LOG_ENTITY_DEVICE_CLASS(TAG, prefix, *(obj)); \
   }
 
 class Valve;
@@ -103,7 +101,7 @@ const LogString *valve_operation_to_str(ValveOperation op);
  * to control all values of the valve. Also implement get_traits() to return what operations
  * the valve supports.
  */
-class Valve : public EntityBase, public EntityBase_DeviceClass {
+class Valve : public EntityBase {
  public:
   explicit Valve();
 
