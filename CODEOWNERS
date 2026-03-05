@@ -235,6 +235,7 @@ esphome/components/host/* @clydebarrow @esphome/core
 esphome/components/host/time/* @clydebarrow
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/hte501/* @Stock-M
+esphome/components/http_request/media_source/* @kahrendt
 esphome/components/http_request/ota/* @oarcher
 esphome/components/http_request/update/* @jesserockz
 esphome/components/htu31d/* @betterengineering
