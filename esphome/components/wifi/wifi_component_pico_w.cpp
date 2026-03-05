@@ -213,13 +213,8 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 #ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   // AP IP is configured by WiFi.beginAP() internally using defaults (192.168.4.1).
-  // Do NOT use WiFi.config() here — that configures the STA interface's IP, which
-  // poisons the STA localIP() and causes wifi_sta_connect_status_() to falsely
-  // report CONNECTED when the AP is active.
-  // Manual AP IP is not currently supported on RP2040.
-  if (manual_ip.has_value()) {
-    ESP_LOGW(TAG, "Manual AP IP configuration is not supported on RP2040");
-  }
+  // Manual AP IP has never worked on RP2040 — WiFi.config() configures the STA
+  // interface, not the AP. This is now rejected at config validation time.
   return true;
 }
 
