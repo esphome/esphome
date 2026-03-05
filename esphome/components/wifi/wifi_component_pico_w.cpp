@@ -24,10 +24,9 @@ static const char *const TAG = "wifi_pico_w";
 // when the fallback AP is active.
 static bool wifi_sta_connected() {
   int link = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
-  bool ip_set = WiFi.localIP().isSet();
-  if (link == CYW43_LINK_JOIN && ip_set) {
+  IPAddress local = WiFi.localIP();
+  if (link == CYW43_LINK_JOIN && local.isSet()) {
     // Verify the IP is a real STA IP, not the AP's IP leaking through
-    IPAddress local = WiFi.localIP();
     IPAddress ap_ip = WiFi.softAPIP();
     if (local == ap_ip) {
       ESP_LOGV(TAG, "wifi_sta_connected: localIP %s matches AP IP, ignoring", local.toString().c_str());
