@@ -27,8 +27,11 @@ struct ModbusDeviceCommand {
   std::unique_ptr<uint8_t[]> data;
   uint16_t size;  // Modbus RTU max is 256 bytes
 
-  ModbusDeviceCommand(const uint8_t *src, uint16_t len) : data(std::make_unique<uint8_t[]>(len)), size(len) {
+  ModbusDeviceCommand(const uint8_t *src, uint16_t len) : data(std::make_unique<uint8_t[]>(len + 2)), size(len + 2) {
     std::memcpy(this->data.get(), src, len);
+    auto crc = crc16(data.get(), len);
+    data[len + 0] = crc >> 0;
+    data[len + 1] = crc >> 8;
   }
 };
 
@@ -64,6 +67,7 @@ class Modbus : public uart::UARTDevice, public Component {
   void receive_and_parse_modbus_bytes_();
   void clear_rx_buffer_(const LogString *reason, bool warn = false);
   void send_next_frame_();
+  void queue_raw_(const uint8_t *data, uint16_t len);
 
   uint32_t last_modbus_byte_{0};
   uint32_t last_send_{0};

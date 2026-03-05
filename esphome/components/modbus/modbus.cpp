@@ -333,32 +333,34 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
     return;
   }
 
-  std::vector<uint8_t> data;
-  data.push_back(address);
-  data.push_back(function_code);
+  uint8_t data[MAX_FRAME_SIZE];
+  size_t pos = 0;
+
+  data[pos++] = address;
+  data[pos++] = function_code;
   if (this->role == ModbusRole::CLIENT) {
-    data.push_back(start_address >> 8);
-    data.push_back(start_address >> 0);
+    data[pos++] = start_address >> 8;
+    data[pos++] = start_address >> 0;
     if (function_code != ModbusFunctionCode::WRITE_SINGLE_COIL &&
         function_code != ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
-      data.push_back(number_of_entities >> 8);
-      data.push_back(number_of_entities >> 0);
+      data[pos++] = number_of_entities >> 8;
+      data[pos++] = number_of_entities >> 0;
     }
   }
 
   if (payload != nullptr) {
     if (this->role == ModbusRole::SERVER || function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
         function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {  // Write multiple
-      data.push_back(payload_len);                                        // Byte count is required for write
+      data[pos++] = payload_len;                                          // Byte count is required for write
     } else {
       payload_len = 2;  // Write single register or coil
     }
     for (int i = 0; i < payload_len; i++) {
-      data.push_back(payload[i]);
+      data[pos++] = payload[i];
     }
   }
 
-  this->send_raw(data);
+  this->queue_raw_(data, pos);
 }
 
 // Helper function for lambdas
@@ -369,25 +371,26 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   }
   // Use stack buffer - Modbus frames are small and bounded
   uint8_t data[MAX_FRAME_SIZE];
+
+  std::memcpy(data, payload.data(), payload.size());
+
+  this->queue_raw_(data, payload.size());
+}
+
+void Modbus::queue_raw_(const uint8_t *data, uint16_t len) {
   // Frame size: payload + CRC(2)
-  size_t frame_size = payload.size() + 2;
-  if (frame_size > MAX_FRAME_SIZE) {
+  if (len + 2 > MAX_FRAME_SIZE) {
     ESP_LOGE(TAG, "Attempted to send frame larger than max frame size of %d bytes", MAX_FRAME_SIZE);
     return;
   }
 
-  std::memcpy(data, payload.data(), payload.size());
-  auto crc = crc16(data, payload.size());
-  data[payload.size() + 0] = crc >> 0;
-  data[payload.size() + 1] = crc >> 8;
-
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
-    this->tx_buffer_.emplace_back(data, frame_size);
+    this->tx_buffer_.emplace_back(data, len);
   } else {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-    ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty_to(hex_buf, data, frame_size));
+    ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty_to(hex_buf, data, len));
   }
 }
 
