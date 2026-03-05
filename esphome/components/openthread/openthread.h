@@ -86,13 +86,19 @@ class InstanceLock {
   static InstanceLock acquire();
   ~InstanceLock();
 
+  InstanceLock(const InstanceLock &) = delete;
+  InstanceLock &operator=(const InstanceLock &) = delete;
+  InstanceLock(InstanceLock &&other) noexcept : acquired_(other.acquired_) { other.acquired_ = false; }
+  InstanceLock &operator=(InstanceLock &&) = delete;
+
   // Returns the global openthread instance guarded by this lock
   otInstance *get_instance();
 
  private:
-  // Use a private constructor in order to force thehandling
+  // Use a private constructor in order to force the handling
   // of acquisition failure
   InstanceLock() {}
+  bool acquired_{true};
 };
 
 }  // namespace esphome::openthread

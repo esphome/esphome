@@ -194,8 +194,11 @@ void OpenThreadSrpComponent::setup() {
       // OpenThread SRP client expects the data to persist, so we strdup it
       const char *value_str = MDNS_STR_ARG(txt.value);
       txt_entries[i].mKey = MDNS_STR_ARG(txt.key);
-      txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(strdup(value_str));
-      txt_entries[i].mValueLength = strlen(value_str);
+      size_t value_len = strlen(value_str);
+      char *value_copy = reinterpret_cast<char *>(this->pool_alloc_(value_len + 1));
+      memcpy(value_copy, value_str, value_len + 1);
+      txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(value_copy);
+      txt_entries[i].mValueLength = value_len;
     }
     entry->mService.mTxtEntries = txt_entries;
     entry->mService.mNumTxtEntries = service.txt_records.size();

@@ -197,7 +197,7 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   esp_netif_t *netif = esp_netif_get_default_netif();
   count = esp_netif_get_all_ip6(netif, if_ip6s);
   assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
-  for (int i = 0; i < count; i++) {
+  for (int i = 0; i < count && i + 1 < static_cast<int>(addresses.size()); i++) {
     addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
   }
   return addresses;
@@ -219,7 +219,11 @@ InstanceLock InstanceLock::acquire() {
 
 otInstance *InstanceLock::get_instance() { return esp_openthread_get_instance(); }
 
-InstanceLock::~InstanceLock() { esp_openthread_lock_release(); }
+InstanceLock::~InstanceLock() {
+  if (this->acquired_) {
+    esp_openthread_lock_release();
+  }
+}
 
 }  // namespace esphome::openthread
 #endif
