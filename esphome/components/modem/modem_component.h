@@ -6,7 +6,7 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/preferences.h"
-#include "esphome/components/network/util.h"
+#include "esphome/components/network/ip_address.h"
 #ifdef USE_MODEM_NMEA
 #include "esphome/components/uart/uart.h"
 #include "modem_nmea_uart_component.h"
