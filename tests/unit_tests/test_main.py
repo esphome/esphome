@@ -40,6 +40,7 @@ from esphome.__main__ import (
     show_logs,
     upload_program,
     upload_using_esptool,
+    upload_using_uf2_copy,
 )
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
@@ -171,6 +172,13 @@ def mock_upload_using_esptool() -> Generator[Mock]:
 def mock_upload_using_platformio() -> Generator[Mock]:
     """Mock upload_using_platformio for testing."""
     with patch("esphome.__main__.upload_using_platformio") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_upload_using_uf2_copy() -> Generator[Mock]:
+    """Mock upload_using_uf2_copy for testing."""
+    with patch("esphome.__main__.upload_using_uf2_copy") as mock:
         yield mock
 
 
@@ -851,6 +859,141 @@ def test_choose_upload_log_host_no_address_with_ota_config() -> None:
         )
 
 
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_no_defaults_with_rp2040_mass_storage(
+    mock_choose_prompt: Mock,
+) -> None:
+    """Test interactive mode shows RP2040 mass storage volumes."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    mock_volumes = [
+        MagicMock(path=Path("/Volumes/RPI-RP2"), description="RP2040 BOOTSEL"),
+    ]
+    with patch(
+        "esphome.__main__.get_rp2040_mass_storage_volumes",
+        return_value=mock_volumes,
+    ):
+        result = choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        assert result == ["/dev/ttyUSB0"]  # mock_choose_prompt default
+        vol_path = str(Path("/Volumes/RPI-RP2"))
+        mock_choose_prompt.assert_called_once_with(
+            [(f"{vol_path} (RP2040 BOOTSEL)", f"MS:{vol_path}")],
+            purpose=Purpose.UPLOADING,
+        )
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_no_device_shows_bootsel_help() -> None:
+    """Test BOOTSEL instructions shown when no RP2040 device found."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    with (
+        patch(
+            "esphome.__main__.get_rp2040_mass_storage_volumes",
+            return_value=[],
+        ),
+        pytest.raises(EsphomeError, match="BOOTSEL"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_bootsel_tip_with_ota(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test BOOTSEL tip shown when only OTA options exist for RP2040."""
+    setup_core(
+        platform=PLATFORM_RP2040,
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+    )
+
+    with (
+        patch(
+            "esphome.__main__.get_rp2040_mass_storage_volumes",
+            return_value=[],
+        ),
+        patch(
+            "esphome.__main__.choose_prompt",
+            return_value="192.168.1.100",
+        ),
+        caplog.at_level(logging.INFO, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        assert "BOOTSEL" in caplog.text
+
+
+def test_choose_upload_log_host_no_mass_storage_for_non_rp2040(
+    mock_no_serial_ports: Mock,
+) -> None:
+    """Test that mass storage detection is not run for non-RP2040 platforms."""
+    setup_core(
+        platform=PLATFORM_ESP32,
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+    )
+
+    with (
+        patch(
+            "esphome.__main__.get_rp2040_mass_storage_volumes",
+        ) as mock_get_volumes,
+        patch(
+            "esphome.__main__.choose_prompt",
+            return_value="192.168.1.100",
+        ),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        mock_get_volumes.assert_not_called()
+
+
+def test_choose_upload_log_host_rp2040_serial_and_mass_storage(
+    mock_choose_prompt: Mock,
+) -> None:
+    """Test both serial ports and mass storage volumes shown for RP2040."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    mock_ports = [MockSerialPort("/dev/ttyACM0", "RP2040 Serial")]
+    mock_volumes = [
+        MagicMock(path=Path("/Volumes/RPI-RP2"), description="RP2040 BOOTSEL"),
+    ]
+    with (
+        patch("esphome.__main__.get_serial_ports", return_value=mock_ports),
+        patch(
+            "esphome.__main__.get_rp2040_mass_storage_volumes",
+            return_value=mock_volumes,
+        ),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        vol_path = str(Path("/Volumes/RPI-RP2"))
+        mock_choose_prompt.assert_called_once_with(
+            [
+                ("/dev/ttyACM0 (RP2040 Serial)", "/dev/ttyACM0"),
+                (f"{vol_path} (RP2040 BOOTSEL)", f"MS:{vol_path}"),
+            ],
+            purpose=Purpose.UPLOADING,
+        )
+
+
 @dataclass
 class MockArgs:
     """Mock args for testing."""
@@ -1080,6 +1223,112 @@ def test_upload_program_serial_upload_failed(
     assert host is None
     mock_check_permissions.assert_called_once_with("/dev/ttyUSB0")
     mock_upload_using_esptool.assert_called_once()
+
+
+def test_upload_program_mass_storage(
+    mock_upload_using_uf2_copy: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test upload_program with mass storage for RP2040."""
+    setup_core(platform=PLATFORM_RP2040)
+    mock_get_port_type.return_value = "MASS_STORAGE"
+    mock_upload_using_uf2_copy.return_value = 0
+
+    config = {}
+    args = MockArgs()
+    devices = ["MS:/Volumes/RPI-RP2"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    # Mass storage device can't be used for logging, so host should be None
+    assert host is None
+    mock_upload_using_uf2_copy.assert_called_once_with(config, "/Volumes/RPI-RP2")
+
+
+def test_upload_program_mass_storage_failed(
+    mock_upload_using_uf2_copy: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test upload_program when mass storage upload fails."""
+    setup_core(platform=PLATFORM_RP2040)
+    mock_get_port_type.return_value = "MASS_STORAGE"
+    mock_upload_using_uf2_copy.return_value = 1
+
+    config = {}
+    args = MockArgs()
+    devices = ["MS:/Volumes/RPI-RP2"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 1
+    assert host is None
+    mock_upload_using_uf2_copy.assert_called_once_with(config, "/Volumes/RPI-RP2")
+
+
+def test_upload_using_uf2_copy_success(tmp_path: Path) -> None:
+    """Test upload_using_uf2_copy copies UF2 file with progress."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    # Create a mock UF2 file
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    uf2_file = build_dir / "firmware.uf2"
+    uf2_file.write_bytes(b"\x00" * 1024)
+
+    # Create a mock mount point
+    mount_dir = tmp_path / "RPI-RP2"
+    mount_dir.mkdir()
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(build_dir / "firmware.elf")
+
+    config = {}
+    with patch("esphome.platformio_api.get_idedata", return_value=mock_idedata):
+        exit_code = upload_using_uf2_copy(config, str(mount_dir))
+
+    assert exit_code == 0
+    assert (mount_dir / "firmware.uf2").exists()
+    assert (mount_dir / "firmware.uf2").read_bytes() == b"\x00" * 1024
+
+
+def test_upload_using_uf2_copy_no_uf2_file(tmp_path: Path) -> None:
+    """Test upload_using_uf2_copy when UF2 file is missing."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+
+    mount_dir = tmp_path / "RPI-RP2"
+    mount_dir.mkdir()
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(build_dir / "firmware.elf")
+
+    config = {}
+    with patch("esphome.platformio_api.get_idedata", return_value=mock_idedata):
+        exit_code = upload_using_uf2_copy(config, str(mount_dir))
+
+    assert exit_code == 1
+
+
+def test_upload_using_uf2_copy_mount_gone(tmp_path: Path) -> None:
+    """Test upload_using_uf2_copy when mount point disappeared."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    uf2_file = build_dir / "firmware.uf2"
+    uf2_file.write_bytes(b"\x00" * 512)
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(build_dir / "firmware.elf")
+
+    config = {}
+    with patch("esphome.platformio_api.get_idedata", return_value=mock_idedata):
+        exit_code = upload_using_uf2_copy(config, str(tmp_path / "nonexistent"))
+
+    assert exit_code == 1
 
 
 def test_upload_program_ota_success(
@@ -1605,6 +1854,10 @@ def test_get_port_type() -> None:
     assert get_port_type("192.168.1.100") == "NETWORK"
     assert get_port_type("esphome-device.local") == "NETWORK"
     assert get_port_type("10.0.0.1") == "NETWORK"
+
+    assert get_port_type("MS:/Volumes/RPI-RP2") == "MASS_STORAGE"
+    assert get_port_type("MS:/media/user/RPI-RP2") == "MASS_STORAGE"
+    assert get_port_type("MS:D:\\") == "MASS_STORAGE"
 
 
 def test_has_mqtt_ip_lookup() -> None:

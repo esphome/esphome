@@ -150,7 +150,7 @@ class PacketTransport : public PollingComponent {
   std::vector<uint8_t> ping_header_{};
   std::vector<uint8_t> header_{};
   std::vector<uint8_t> data_{};
-  std::map<const char *, uint32_t> ping_keys_{};
+  std::map<std::string, uint32_t> ping_keys_{};
   const char *platform_name_{""};
   void add_key_(const char *name, uint32_t key);
   void send_ping_pong_request_();
