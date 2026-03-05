@@ -197,7 +197,7 @@ void BLENUS::dump_config() {
                 "  log: %s\n"
                 "  connected: %s\n"
                 "  MTU: %u",
-                YESNO(this->expose_log_), YESNO(this->connected_), mtu);
+                YESNO(this->expose_log_), YESNO(this->connected_.load()), mtu);
 }
 
 void BLENUS::loop() {
