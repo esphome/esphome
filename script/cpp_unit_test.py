@@ -140,7 +140,8 @@ def run_tests(selected_components: list[str]) -> int:
 
     components = sorted(components)
 
-    # Build a list of include folders relative to COMPONENTS_TESTS_DIR.
+    # Build a list of include folders relative to COMPONENTS_TESTS_DIR. These folders will
+    # be added along with their subfolders.
     # "main.cpp" is a special entry that points to /tests/components/main.cpp,
     # which provides a custom test runner entry-point replacing the default one.
     # Each remaining entry is a component folder whose *.cpp files are compiled.
