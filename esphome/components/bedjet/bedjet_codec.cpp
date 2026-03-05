@@ -1,4 +1,5 @@
 #include "bedjet_codec.h"
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -96,7 +97,7 @@ bool BedjetCodec::decode_notify(const uint8_t *data, uint16_t length) {
     // Clear old buffer
     memset(&this->buf_, 0, sizeof(BedjetStatusPacket));
     // Copy new data into buffer
-    memcpy(&this->buf_, data, length);
+    memcpy(&this->buf_, data, std::min(static_cast<size_t>(length), sizeof(BedjetStatusPacket)));
     this->last_buffer_size_ = length;
 
     // TODO: validate the packet checksum?
