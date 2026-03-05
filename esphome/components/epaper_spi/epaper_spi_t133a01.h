@@ -40,7 +40,6 @@ class EPaperT133A01 : public EPaperBase {
   void cs1_command_(uint8_t value);
   void cs1_cmd_data_(uint8_t command, const uint8_t *data, size_t length);
   void send_init_sequence_dual_(const uint8_t *sequence, size_t length);
-  void wait_for_idle_with_timeout_(uint32_t timeout_ms, const char *label) const;
 
   GPIOPin *cs1_pin_{};
   spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ>

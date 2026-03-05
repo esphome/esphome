@@ -3,7 +3,6 @@
 #include <algorithm>
 #include "colorconv.h"
 
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
@@ -28,10 +27,6 @@ static constexpr uint8_t SLEEP_V[] = {0xA5};
 static constexpr uint8_t POF_V[] = {0x00};
 static constexpr uint8_t DRF_V[] = {0x01};
 static constexpr uint8_t CCSET_V_CUR[] = {0x01};
-
-static constexpr uint32_t PON_BUSY_TIMEOUT_MS = 10 * 1000;
-static constexpr uint32_t POF_BUSY_TIMEOUT_MS = 10 * 1000;
-static constexpr uint32_t DRF_BUSY_TIMEOUT_MS = 180 * 1000;
 
 // Default palette indices used by the manufacturer library in 6-color mode
 static constexpr uint8_t TFT_WHITE = 0x0;
@@ -188,33 +183,6 @@ void EPaperT133A01::send_init_sequence_dual_(const uint8_t *sequence, size_t len
   }
 }
 
-void EPaperT133A01::wait_for_idle_with_timeout_(uint32_t timeout_ms, const char *label) const {
-  if (this->busy_pin_ == nullptr)
-    return;
-
-  const uint32_t start = millis();
-  uint32_t last_log = start;
-
-  while (!this->is_idle_()) {
-    const uint32_t now = millis();
-    const uint32_t elapsed = now - start;
-    if (elapsed >= timeout_ms) {
-      ESP_LOGW(TAG, "BUSY timeout waiting for %s (%u ms), continuing", label, (unsigned) elapsed);
-      return;
-    }
-    App.feed_wdt(now);
-    if (now - last_log >= 1000) {
-      last_log = now;
-      ESP_LOGV(TAG, "BUSY waiting (%s): %u ms (pin=%d)", label, (unsigned) elapsed,
-               this->busy_pin_ != nullptr ? (int) this->busy_pin_->digital_read() : -1);
-    }
-    delay(10);
-  }
-
-  ESP_LOGV(TAG, "BUSY cleared (%s) after %u ms (pin=%d)", label, (unsigned) (millis() - start),
-           this->busy_pin_ != nullptr ? (int) this->busy_pin_->digital_read() : -1);
-}
-
 void EPaperT133A01::power_on() {
   ESP_LOGV(TAG, "Power on");
   if (this->busy_pin_ != nullptr) {
@@ -223,7 +191,6 @@ void EPaperT133A01::power_on() {
 
   this->cs1_pin_->digital_write(false);
   this->command(R04_PON);
-  this->wait_for_idle_with_timeout_(PON_BUSY_TIMEOUT_MS, "PON");
   this->cs1_pin_->digital_write(true);
 }
 
@@ -236,7 +203,6 @@ void EPaperT133A01::refresh_screen(bool partial) {
 
   this->cs1_pin_->digital_write(false);
   this->cmd_data(R12_DRF, DRF_V, sizeof(DRF_V));
-  this->wait_for_idle_with_timeout_(DRF_BUSY_TIMEOUT_MS, "DRF");
   this->cs1_pin_->digital_write(true);
 }
 
@@ -248,7 +214,6 @@ void EPaperT133A01::power_off() {
 
   this->cs1_pin_->digital_write(false);
   this->cmd_data(R02_POF, POF_V, sizeof(POF_V));
-  this->wait_for_idle_with_timeout_(POF_BUSY_TIMEOUT_MS, "POF");
   this->cs1_pin_->digital_write(true);
 }
 
