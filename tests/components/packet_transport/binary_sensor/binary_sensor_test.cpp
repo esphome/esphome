@@ -2,7 +2,7 @@
 
 namespace esphome::packet_transport::testing {
 
-TEST(PacketTransportTest, AddBinarySensor) {
+TEST(PacketTransportBinarySensorTest, AddBinarySensor) {
   TestablePacketTransport transport;
   binary_sensor::BinarySensor bs;
   transport.add_binary_sensor("motion", &bs);
@@ -11,7 +11,7 @@ TEST(PacketTransportTest, AddBinarySensor) {
   EXPECT_EQ(transport.binary_sensors_[0].sensor, &bs);
 }
 
-TEST(PacketTransportTest, AddRemoteBinarySensor) {
+TEST(PacketTransportBinarySensorTest, AddRemoteBinarySensor) {
   TestablePacketTransport transport;
   binary_sensor::BinarySensor bs;
   transport.add_remote_binary_sensor("host1", "remote_motion", &bs);
@@ -19,7 +19,7 @@ TEST(PacketTransportTest, AddRemoteBinarySensor) {
   EXPECT_EQ(transport.remote_binary_sensors_["host1"]["remote_motion"], &bs);
 }
 
-TEST(PacketTransportTest, UnencryptedBinarySensorRoundTrip) {
+TEST(PacketTransportBinarySensorTest, UnencryptedBinarySensorRoundTrip) {
   TestablePacketTransport encoder;
   encoder.init_for_test("sender");
   binary_sensor::BinarySensor local_bs;
@@ -39,7 +39,7 @@ TEST(PacketTransportTest, UnencryptedBinarySensorRoundTrip) {
   EXPECT_TRUE(remote_bs.state);
 }
 
-TEST(PacketTransportTest, MultipleSensorsRoundTrip) {
+TEST(PacketTransportBinarySensorTest, MultipleSensorsRoundTrip) {
   TestablePacketTransport encoder;
   encoder.init_for_test("sender");
 

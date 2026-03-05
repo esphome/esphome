@@ -2,7 +2,7 @@
 
 namespace esphome::packet_transport::testing {
 
-TEST(PacketTransportTest, AddSensor) {
+TEST(PacketTransportSensorTest, AddSensor) {
   TestablePacketTransport transport;
   sensor::Sensor s;
   transport.add_sensor("temp", &s);
@@ -12,7 +12,7 @@ TEST(PacketTransportTest, AddSensor) {
   EXPECT_TRUE(transport.sensors_[0].updated);
 }
 
-TEST(PacketTransportTest, AddRemoteSensor) {
+TEST(PacketTransportSensorTest, AddRemoteSensor) {
   TestablePacketTransport transport;
   sensor::Sensor s;
   transport.add_remote_sensor("host1", "remote_temp", &s);
@@ -20,7 +20,7 @@ TEST(PacketTransportTest, AddRemoteSensor) {
   EXPECT_EQ(transport.remote_sensors_["host1"]["remote_temp"], &s);
 }
 
-TEST(PacketTransportTest, UnencryptedSensorRoundTrip) {
+TEST(PacketTransportSensorTest, UnencryptedSensorRoundTrip) {
   // Encoder
   TestablePacketTransport encoder;
   encoder.init_for_test("sender");
@@ -43,7 +43,7 @@ TEST(PacketTransportTest, UnencryptedSensorRoundTrip) {
   EXPECT_FLOAT_EQ(remote_sensor.state, 42.5f);
 }
 
-TEST(PacketTransportTest, EncryptedSensorRoundTrip) {
+TEST(PacketTransportSensorTest, EncryptedSensorRoundTrip) {
   std::vector<uint8_t> key(32);
   for (int i = 0; i < 32; i++)
     key[i] = i;
@@ -70,7 +70,7 @@ TEST(PacketTransportTest, EncryptedSensorRoundTrip) {
   EXPECT_FLOAT_EQ(remote_sensor.state, 99.9f);
 }
 
-TEST(PacketTransportTest, SendDataOnlyUpdated) {
+TEST(PacketTransportSensorTest, SendDataOnlyUpdated) {
   TestablePacketTransport encoder;
   encoder.init_for_test("sender");
 
@@ -102,7 +102,7 @@ TEST(PacketTransportTest, SendDataOnlyUpdated) {
   EXPECT_FLOAT_EQ(rs2.state, 2.0f);     // updated, sent
 }
 
-TEST(PacketTransportTest, PingKeyIncludedInTransmittedPacket) {
+TEST(PacketTransportSensorTest, PingKeyIncludedInTransmittedPacket) {
   std::vector<uint8_t> key(32, 0xBB);
 
   // Responder: encrypted, owns a sensor
@@ -139,7 +139,7 @@ TEST(PacketTransportTest, PingKeyIncludedInTransmittedPacket) {
   EXPECT_FLOAT_EQ(remote_sensor.state, 77.7f);
 }
 
-TEST(PacketTransportTest, MissingPingKeyBlocksSensorData) {
+TEST(PacketTransportSensorTest, MissingPingKeyBlocksSensorData) {
   std::vector<uint8_t> key(32, 0xBB);
 
   // Responder sends data WITHOUT receiving any MAGIC_PING first — no ping keys
