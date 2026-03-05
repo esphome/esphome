@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -441,6 +441,94 @@ def test_get_rp2040_mass_storage_volumes_none_found(tmp_path: Path) -> None:
             side_effect=lambda p: empty_dir if p == "/Volumes" else Path(p),
         ),
     ):
+        result = util.get_rp2040_mass_storage_volumes()
+
+    assert result == []
+
+
+def test_get_rp2040_mass_storage_volumes_linux(tmp_path: Path) -> None:
+    """Test RP2040 mass storage detection on Linux."""
+    # Create /media/<user>/RPI-RP2 structure
+    media_dir = tmp_path / "media"
+    media_dir.mkdir()
+    user_dir = media_dir / "testuser"
+    user_dir.mkdir()
+    rp2_dir = user_dir / "RPI-RP2"
+    rp2_dir.mkdir()
+
+    # Create /run/media and /mnt as empty dirs
+    run_media_dir = tmp_path / "run_media"
+    run_media_dir.mkdir()
+    mnt_dir = tmp_path / "mnt"
+    mnt_dir.mkdir()
+
+    def mock_path_side_effect(p: str) -> Path:
+        if p == "/media":
+            return media_dir
+        if p == "/run/media":
+            return run_media_dir
+        if p == "/mnt":
+            return mnt_dir
+        return Path(p)
+
+    with (
+        patch("esphome.util.sys.platform", "linux"),
+        patch("esphome.util.Path", side_effect=mock_path_side_effect),
+    ):
+        result = util.get_rp2040_mass_storage_volumes()
+
+    assert len(result) == 1
+    assert result[0].description == "RP2040 BOOTSEL"
+
+
+def test_get_rp2040_mass_storage_volumes_linux_oserror(tmp_path: Path) -> None:
+    """Test RP2040 mass storage detection on Linux handles OSError."""
+    media_dir = tmp_path / "media"
+    media_dir.mkdir()
+
+    def mock_path_side_effect(p: str) -> Path:
+        if p == "/media":
+            return media_dir
+        if p in ("/run/media", "/mnt"):
+            # Return a path that will raise OSError when globbed
+            return tmp_path / "nonexistent"
+        return Path(p)
+
+    with (
+        patch("esphome.util.sys.platform", "linux"),
+        patch("esphome.util.Path", side_effect=mock_path_side_effect),
+    ):
+        result = util.get_rp2040_mass_storage_volumes()
+
+    assert result == []
+
+
+def test_get_rp2040_mass_storage_volumes_windows() -> None:
+    """Test RP2040 mass storage detection on Windows."""
+    mock_ctypes = MagicMock()
+    mock_volume_name = MagicMock()
+    mock_volume_name.value = "RPI-RP2"
+    mock_ctypes.create_unicode_buffer.return_value = mock_volume_name
+
+    def path_side_effect(p: str) -> MagicMock:
+        inst = MagicMock()
+        inst.exists.return_value = p == "D:\\"
+        return inst
+
+    with (
+        patch("esphome.util.sys.platform", "win32"),
+        patch.dict("sys.modules", {"ctypes": mock_ctypes}),
+        patch("esphome.util.Path", side_effect=path_side_effect),
+    ):
+        result = util.get_rp2040_mass_storage_volumes()
+
+    assert len(result) >= 1
+    assert result[0].description == "RP2040 BOOTSEL"
+
+
+def test_get_rp2040_mass_storage_volumes_unsupported_platform() -> None:
+    """Test RP2040 mass storage detection on unsupported platform returns empty."""
+    with patch("esphome.util.sys.platform", "freebsd"):
         result = util.get_rp2040_mass_storage_volumes()
 
     assert result == []
