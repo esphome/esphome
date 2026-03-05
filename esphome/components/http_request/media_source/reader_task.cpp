@@ -17,7 +17,7 @@ namespace esphome::http_request {
 /// @return A valid HttpContainer on success, or nullptr on failure
 static std::shared_ptr<HttpContainer> open_connection(HttpRequestComponent *client, const std::string &uri,
                                                       EventGroupHandle_t event_group) {
-  static const std::vector<std::string> collect_headers = {"content-type"};
+  static const std::vector<std::string> COLLECT_HEADERS = {"content-type"};
   std::vector<Header> headers = {};
 
   std::shared_ptr<HttpContainer> container;
@@ -26,7 +26,7 @@ static std::shared_ptr<HttpContainer> open_connection(HttpRequestComponent *clie
       return nullptr;
     }
 
-    container = client->get(uri, headers, collect_headers);
+    container = client->get(uri, headers, COLLECT_HEADERS);
 
     if (container != nullptr && is_success(container->status_code)) {
       return container;
