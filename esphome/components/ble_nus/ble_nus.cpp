@@ -160,6 +160,9 @@ void BLENUS::rx_callback(bt_conn *conn, const uint8_t *const data, uint16_t len)
 #endif
 }
 void BLENUS::setup() {
+#ifdef ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE
+  this->rx_buffer_size_ = ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE;
+#endif
   bt_nus_cb callbacks = {
       .received = rx_callback,
       .sent = tx_callback,
