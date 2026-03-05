@@ -64,7 +64,7 @@ def load_boards(arduino_pico_path: Path) -> tuple[dict, dict]:
 
     for json_file in sorted(json_dir.glob("*.json")):
         board_name = json_file.stem
-        with open(json_file) as f:
+        with open(json_file, encoding="utf-8") as f:
             data = json.load(f)
 
         build = data.get("build", {})
