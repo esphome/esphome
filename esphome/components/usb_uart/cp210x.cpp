@@ -5,8 +5,7 @@
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
-namespace esphome {
-namespace usb_uart {
+namespace esphome::usb_uart {
 
 using namespace bytebuffer;
 /**
@@ -119,8 +118,8 @@ void USBUartTypeCP210X::enable_channels() {
     this->control_transfer(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_BAUDRATE, 0, channel->index_, callback,
                            baud.get_data());
   }
-  USBUartTypeCdcAcm::enable_channels();
+  this->start_channels();
 }
-}  // namespace usb_uart
-}  // namespace esphome
+}  // namespace esphome::usb_uart
+
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

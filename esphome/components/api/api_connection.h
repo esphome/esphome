@@ -3,6 +3,12 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 #include "api_frame_helper.h"
+#ifdef USE_API_NOISE
+#include "api_frame_helper_noise.h"
+#endif
+#ifdef USE_API_PLAINTEXT
+#include "api_frame_helper_plaintext.h"
+#endif
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "api_server.h"
@@ -370,6 +376,10 @@ class APIConnection final : public APIServerConnectionBase {
     return this->client_supports_api_version(1, 14) ? MAX_INITIAL_PER_BATCH : MAX_INITIAL_PER_BATCH_LEGACY;
   }
 
+  // Send keepalive ping or disconnect unresponsive client.
+  // Cold path — extracted from loop() to reduce instruction cache pressure.
+  void __attribute__((noinline)) check_keepalive_(uint32_t now);
+
   // Process active iterator (list_entities/initial_state) during connection setup.
   // Extracted from loop() — only runs during initial handshake, NONE in steady state.
   void __attribute__((noinline)) process_active_iterator_();
@@ -485,7 +495,13 @@ class APIConnection final : public APIServerConnectionBase {
   // === Optimal member ordering for 32-bit systems ===
 
   // Group 1: Pointers (4 bytes each on 32-bit)
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
   std::unique_ptr<APIFrameHelper> helper_;
+#elif defined(USE_API_NOISE)
+  std::unique_ptr<APINoiseFrameHelper> helper_;
+#elif defined(USE_API_PLAINTEXT)
+  std::unique_ptr<APIPlaintextFrameHelper> helper_;
+#endif
   APIServer *parent_;
 
   // Group 2: Iterator union (saves ~16 bytes vs separate iterators)
