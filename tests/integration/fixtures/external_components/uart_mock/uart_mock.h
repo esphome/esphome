@@ -37,6 +37,8 @@ class MockUartComponent : public uart::UARTComponent, public Component {
   void add_response(const std::vector<uint8_t> &expect_tx, const std::vector<uint8_t> &inject_rx);
   void add_periodic_rx(const std::vector<uint8_t> &data, uint32_t interval_ms);
 
+  void start_scenario();
+  void set_auto_start(bool auto_start) { this->auto_start_ = auto_start; }
   void set_tx_hook(std::function<void(const std::vector<uint8_t> &)> &&cb) { this->tx_hook_ = std::move(cb); }
   void inject_to_rx_buffer(const std::vector<uint8_t> &data);
   void inject_to_rx_buffer(const uint8_t *data, size_t len);
@@ -55,6 +57,8 @@ class MockUartComponent : public uart::UARTComponent, public Component {
   uint32_t scenario_start_ms_{0};
   uint32_t cumulative_delay_ms_{0};
   bool loop_started_{false};
+  bool auto_start_{true};
+  bool scenario_active_{false};
 
   // TX-triggered responses
   struct Response {
