@@ -6,7 +6,11 @@ namespace esphome {
 namespace st7789v {
 
 static const char *const TAG = "st7789v";
-static const size_t TEMP_BUFFER_SIZE = 128;
+#ifdef USE_ESP32
+static constexpr size_t TEMP_BUFFER_SIZE = 1024;
+#else
+static constexpr size_t TEMP_BUFFER_SIZE = 512;
+#endif
 
 void ST7789V::setup() {
 #ifdef USE_POWER_SUPPLY
@@ -248,7 +252,7 @@ void ST7789V::write_addr_(uint16_t addr1, uint16_t addr2) {
 }
 
 void ST7789V::write_color_(uint16_t color, uint16_t size) {
-  uint8_t byte[1024];
+  uint8_t byte[TEMP_BUFFER_SIZE];
   uint16_t remaining = size;
   this->dc_pin_->digital_write(true);
   while (remaining > 0) {
