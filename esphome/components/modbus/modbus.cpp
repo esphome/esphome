@@ -49,8 +49,8 @@ void Modbus::loop() {
   if (this->waiting_for_response_ != 0 &&
       millis() - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_ &&
       (this->rx_buffer_.empty() || this->rx_buffer_[0] != this->waiting_for_response_)) {
-    ESP_LOGW(TAG, "Stop waiting for response from %d %dms after last send", this->waiting_for_response_,
-             millis() - this->last_send_);
+    ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send",
+             this->waiting_for_response_, millis() - this->last_send_);
     this->waiting_for_response_ = 0;
   }
 
@@ -82,9 +82,11 @@ void Modbus::receive_and_parse_modbus_bytes_() {
     uint8_t byte;
     this->read_byte(&byte);
     if (this->rx_buffer_.empty()) {
-      ESP_LOGV(TAG, "Received first byte %d (0X%x) %dms after last send", byte, byte, millis() - this->last_send_);
+      ESP_LOGV(TAG, "Received first byte %" PRIu8 " (0X%x) %" PRIu32 "ms after last send", byte, byte,
+               millis() - this->last_send_);
     } else {
-      ESP_LOGVV(TAG, "Received byte %d (0X%x) %dms after last send", byte, byte, millis() - this->last_send_);
+      ESP_LOGVV(TAG, "Received byte %" PRIu8 " (0X%x) %" PRIu32 "ms after last send", byte, byte,
+                millis() - this->last_send_);
     }
 
     // If the bytes in the rx buffer do not parse, clear out the buffer
@@ -188,14 +190,14 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
     if (computed_crc != remote_crc) {
       if (this->disable_crc_) {
-        ESP_LOGD(TAG, "CRC check failed %dms after last send; ignoring", millis() - this->last_send_);
+        ESP_LOGD(TAG, "CRC check failed %" PRIu32 "ms after last send; ignoring", millis() - this->last_send_);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
         char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
         ESP_LOGVV(TAG, "  (%02X != %02X)  %s", computed_crc, remote_crc,
                   format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), this->rx_buffer_.size()));
       } else {
-        ESP_LOGW(TAG, "CRC check failed %dms after last send", millis() - this->last_send_);
+        ESP_LOGW(TAG, "CRC check failed %" PRIu32 "ms after last send", millis() - this->last_send_);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
         char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
@@ -223,21 +225,23 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
         // Is it an error response?
         if ((function_code & FUNCTION_CODE_EXCEPTION_MASK) == FUNCTION_CODE_EXCEPTION_MASK) {
           uint8_t exception = raw[2];
-          ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
-                   exception, address, millis() - this->last_send_);
+          ESP_LOGW(TAG,
+                   "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32
+                   "ms after last send",
+                   function_code, exception, address, millis() - this->last_send_);
           if (this->waiting_for_response_ == address) {
             device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
           } else {
             // Ignore modbus exception not related to a pending command
-            ESP_LOGD(TAG, "Ignoring error - not expecting a response from %d", address);
+            ESP_LOGD(TAG, "Ignoring error - not expecting a response from %" PRIu8 "", address);
           }
         } else {  // Not an error response
           if (this->waiting_for_response_ == address) {
             device->on_modbus_data(data);
           } else {
             // Ignore modbus response not related to a pending command
-            ESP_LOGW(TAG, "Ignoring response - not expecting a response from %d, %dms after last send", address,
-                     millis() - this->last_send_);
+            ESP_LOGW(TAG, "Ignoring response - not expecting a response from %" PRIu8 ", %" PRIu32 "ms after last send",
+                     address, millis() - this->last_send_);
           }
         }
       }
@@ -245,7 +249,8 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   }
 
   if (!found && this->role == ModbusRole::CLIENT) {
-    ESP_LOGW(TAG, "Got frame from unknown address %d, %dms after last send", address, millis() - this->last_send_);
+    ESP_LOGW(TAG, "Got frame from unknown address %" PRIu8 ", %" PRIu32 "ms after last send", address,
+             millis() - this->last_send_);
   }
 
   this->clear_rx_buffer_(LOG_STR("parse succeeded"));
@@ -283,12 +288,12 @@ void Modbus::send_next_frame_() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-  ESP_LOGV(TAG, "Write: %s %dms after last send", format_hex_pretty_to(hex_buf, frame.data.get(), frame.size),
+  ESP_LOGV(TAG, "Write: %s %" PRIu32 "ms after last send", format_hex_pretty_to(hex_buf, frame.data.get(), frame.size),
            millis() - this->last_send_);
   this->last_send_ = millis();
   this->tx_buffer_.pop_front();
   if (!this->tx_buffer_.empty()) {
-    ESP_LOGV(TAG, "Write queue contains %d items.", this->tx_buffer_.size());
+    ESP_LOGV(TAG, "Write queue contains %" PRIu32 " items.", this->tx_buffer_.size());
   }
 }
 
@@ -382,10 +387,10 @@ void Modbus::clear_rx_buffer_(const LogString *reason, bool warn) {
   size_t at = this->rx_buffer_.size();
   if (at > 0) {
     if (warn) {
-      ESP_LOGW(TAG, "Clearing buffer of %d bytes - %s %dms after last send", at, LOG_STR_ARG(reason),
+      ESP_LOGW(TAG, "Clearing buffer of %" PRIu32 " bytes - %s %" PRIu32 "ms after last send", at, LOG_STR_ARG(reason),
                millis() - this->last_send_);
     } else {
-      ESP_LOGV(TAG, "Clearing buffer of %d bytes - %s %dms after last send", at, LOG_STR_ARG(reason),
+      ESP_LOGV(TAG, "Clearing buffer of %" PRIu32 " bytes - %s %" PRIu32 "ms after last send", at, LOG_STR_ARG(reason),
                millis() - this->last_send_);
     }
     this->rx_buffer_.clear();
