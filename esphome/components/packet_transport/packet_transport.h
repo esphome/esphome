@@ -24,6 +24,9 @@
 namespace esphome {
 namespace packet_transport {
 
+// std::less provides allocation-free comparison with const char *
+template<typename T> using string_map_t = std::map<std::string, T, std::less<>>;
+
 struct Provider {
   std::vector<uint8_t> encryption_key;
   const char *name;
@@ -79,15 +82,15 @@ class PacketTransport : public PollingComponent {
 #endif
 
   void add_provider(const char *hostname) {
-    if (this->providers_.count(hostname) == 0) {
+    if (!this->providers_.contains(hostname)) {
       Provider provider{};
       provider.name = hostname;
       this->providers_[hostname] = provider;
 #ifdef USE_SENSOR
-      this->remote_sensors_[hostname] = std::map<std::string, sensor::Sensor *>();
+      this->remote_sensors_[hostname] = string_map_t<sensor::Sensor *>();
 #endif
 #ifdef USE_BINARY_SENSOR
-      this->remote_binary_sensors_[hostname] = std::map<std::string, binary_sensor::BinarySensor *>();
+      this->remote_binary_sensors_[hostname] = string_map_t<binary_sensor::BinarySensor *>();
 #endif
     }
   }
@@ -139,23 +142,23 @@ class PacketTransport : public PollingComponent {
 
 #ifdef USE_SENSOR
   std::vector<Sensor> sensors_{};
-  std::map<std::string, std::map<std::string, sensor::Sensor *>> remote_sensors_{};
+  string_map_t<string_map_t<sensor::Sensor *>> remote_sensors_{};
 #endif
 #ifdef USE_BINARY_SENSOR
   std::vector<BinarySensor> binary_sensors_{};
-  std::map<std::string, std::map<std::string, binary_sensor::BinarySensor *>> remote_binary_sensors_{};
+  string_map_t<string_map_t<binary_sensor::BinarySensor *>> remote_binary_sensors_{};
 #endif
 
-  std::map<std::string, Provider> providers_{};
+  string_map_t<Provider> providers_{};
   std::vector<uint8_t> ping_header_{};
   std::vector<uint8_t> header_{};
   std::vector<uint8_t> data_{};
-  std::map<const char *, uint32_t> ping_keys_{};
+  string_map_t<uint32_t> ping_keys_{};
   const char *platform_name_{""};
   void add_key_(const char *name, uint32_t key);
   void send_ping_pong_request_();
 
-  inline bool is_encrypted_() { return !this->encryption_key_.empty(); }
+  bool is_encrypted_() const { return !this->encryption_key_.empty(); }
 };
 
 }  // namespace packet_transport

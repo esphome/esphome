@@ -22,6 +22,7 @@ uart_mock:
     baud_rate: 9600
     rx_full_threshold: 120
     rx_timeout: 2
+    auto_start: false
     debug:
     on_tx:
       - then:
@@ -52,3 +53,10 @@ sensor:
     phase_a:
       voltage:
         name: sdm_voltage
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: 'id(virtual_uart_dev).start_scenario();'
