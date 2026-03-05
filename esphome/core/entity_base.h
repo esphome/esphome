@@ -248,7 +248,7 @@ void log_entity_unit_of_measurement(const char *tag, const char *prefix, const E
 template<typename T> class StatefulEntityBase : public EntityBase {
  public:
   virtual bool has_state() const { return this->state_.has_value(); }
-  virtual const T &get_state() const { return this->state_.value(); }
+  virtual const T &get_state() const { return this->state_.value(); }  // NOLINT(bugprone-unchecked-optional-access)
   virtual T get_state_default(T default_value) const { return this->state_.value_or(default_value); }
   void invalidate_state() { this->set_new_state({}); }
 

@@ -51,7 +51,7 @@ _RESTORING_SCHEMA = cv.Schema(
 
 def _globals_schema(config: ConfigType) -> ConfigType:
     """Select schema based on restore_value setting."""
-    if config.get(CONF_RESTORE_VALUE, False):
+    if cv.boolean(config.get(CONF_RESTORE_VALUE, False)):
         return _RESTORING_SCHEMA(config)
     return _NON_RESTORING_SCHEMA(config)
 

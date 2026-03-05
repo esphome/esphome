@@ -8,8 +8,8 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/static_task.h"
 
-#include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 
 #include <atomic>
@@ -143,8 +143,6 @@ class MixerSpeaker : public Component {
   /// @param stream_info The calling source speaker's audio stream information
   /// @return ESP_ERR_NOT_SUPPORTED if the incoming stream is incompatible due to unsupported bits per sample
   ///         ESP_ERR_INVALID_ARG if the incoming stream is incompatible to be mixed with the other input audio stream
-  ///         ESP_ERR_NO_MEM if there isn't enough memory for the task's stack
-  ///         ESP_ERR_INVALID_STATE if the task fails to start
   ///         ESP_OK if the incoming stream is compatible and the mixer task starts
   esp_err_t start(audio::AudioStreamInfo &stream_info);
 
@@ -188,16 +186,6 @@ class MixerSpeaker : public Component {
 
   static void audio_mixer_task(void *params);
 
-  /// @brief Starts the mixer task after allocating memory for the task stack.
-  /// @return ESP_ERR_NO_MEM if there isn't enough memory for the task's stack
-  ///         ESP_ERR_INVALID_STATE if the task didn't start
-  ///         ESP_OK if successful
-  esp_err_t start_task_();
-
-  /// @brief If the task is stopped, it sets the task handle to the nullptr and deallocates its stack
-  /// @return ESP_OK if the task was stopped, ESP_ERR_INVALID_STATE otherwise.
-  esp_err_t delete_task_();
-
   EventGroupHandle_t event_group_{nullptr};
 
   FixedVector<SourceSpeaker *> source_speakers_;
@@ -207,9 +195,7 @@ class MixerSpeaker : public Component {
   bool queue_mode_;
   bool task_stack_in_psram_{false};
 
-  TaskHandle_t task_handle_{nullptr};
-  StaticTask_t task_stack_;
-  StackType_t *task_stack_buffer_{nullptr};
+  StaticTask task_;
 
   optional<audio::AudioStreamInfo> audio_stream_info_;
 

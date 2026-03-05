@@ -7,8 +7,8 @@
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/component.h"
+#include "esphome/core/static_task.h"
 
-#include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 
 namespace esphome {
@@ -57,15 +57,9 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
  protected:
   /// @brief Starts the output speaker after setting the resampled stream info. If resampling is required, it starts the
   /// task.
-  /// @return ESP_OK if resampling is required
-  ///         return value of start_task_() if resampling is required
-  esp_err_t start_();
-
-  /// @brief Starts the resampler task after allocating the task stack
   /// @return ESP_OK if successful,
-  ///         ESP_ERR_NO_MEM if the task stack couldn't be allocated
-  ///         ESP_ERR_INVALID_STATE if the task wasn't created
-  esp_err_t start_task_();
+  ///         ESP_ERR_NO_MEM if the resampler task couldn't be created
+  esp_err_t start_();
 
   /// @brief Transitions to STATE_STOPPING, records the stopping timestamp, sends the task stop command if the task is
   /// running, and stops the output speaker.
@@ -73,9 +67,6 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
 
   /// @brief Sets the appropriate status error based on the start failure reason.
   void set_start_error_(esp_err_t err);
-
-  /// @brief Deletes the resampler task if suspended, deallocates the task stack, and resets the related pointers.
-  void delete_task_();
 
   /// @brief Sends a command via event group bits, enables the loop, and optionally wakes the main loop.
   void send_command_(uint32_t command_bit, bool wake_loop = false);
@@ -92,9 +83,7 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
   bool task_stack_in_psram_{false};
   bool waiting_for_output_{false};
 
-  TaskHandle_t task_handle_{nullptr};
-  StaticTask_t task_stack_;
-  StackType_t *task_stack_buffer_{nullptr};
+  StaticTask task_;
 
   audio::AudioStreamInfo target_stream_info_;
 
