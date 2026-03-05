@@ -12,10 +12,10 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from aioesphomeapi import EntityState, SensorState
+from aioesphomeapi import ButtonInfo, EntityState, SensorState
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping
+from .state_utils import InitialStateHelper, build_key_to_entity_mapping, find_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -73,6 +73,11 @@ async def test_uart_mock_modbus(
             await initial_state_helper.wait_for_initial_states()
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
+
+        # Start the UART mock scenario now that we're subscribed
+        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
+        assert start_btn is not None, "Start Scenario button not found"
+        client.button_command(start_btn.key)
 
         # Wait for basic register to be updated with successful parse
         try:
@@ -142,6 +147,11 @@ async def test_uart_mock_modbus_timing(
             await initial_state_helper.wait_for_initial_states()
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
+
+        # Start the UART mock scenario now that we're subscribed
+        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
+        assert start_btn is not None, "Start Scenario button not found"
+        client.button_command(start_btn.key)
 
         # Wait for voltage to be updated with successful parse
         try:

@@ -385,7 +385,7 @@ haier_protocol::HaierMessage Smartair2Climate::get_control_message() {
 }
 
 haier_protocol::HandlerError Smartair2Climate::process_status_message_(const uint8_t *packet_buffer, uint8_t size) {
-  if (size < sizeof(smartair2_protocol::HaierStatus))
+  if (size != sizeof(smartair2_protocol::HaierStatus))
     return haier_protocol::HandlerError::WRONG_MESSAGE_STRUCTURE;
   smartair2_protocol::HaierStatus packet;
   memcpy(&packet, packet_buffer, size);

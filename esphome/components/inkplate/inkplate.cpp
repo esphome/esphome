@@ -63,16 +63,26 @@ void Inkplate::initialize_() {
   if (buffer_size == 0)
     return;
 
-  if (this->partial_buffer_ != nullptr)
+  if (this->partial_buffer_ != nullptr) {
     allocator.deallocate(this->partial_buffer_, buffer_size);
-  if (this->partial_buffer_2_ != nullptr)
+    this->partial_buffer_ = nullptr;
+  }
+  if (this->partial_buffer_2_ != nullptr) {
     allocator.deallocate(this->partial_buffer_2_, buffer_size * 2);
-  if (this->buffer_ != nullptr)
+    this->partial_buffer_2_ = nullptr;
+  }
+  if (this->buffer_ != nullptr) {
     allocator.deallocate(this->buffer_, buffer_size);
-  if (this->glut_ != nullptr)
+    this->buffer_ = nullptr;
+  }
+  if (this->glut_ != nullptr) {
     allocator32.deallocate(this->glut_, 256 * 9);
-  if (this->glut2_ != nullptr)
+    this->glut_ = nullptr;
+  }
+  if (this->glut2_ != nullptr) {
     allocator32.deallocate(this->glut2_, 256 * 9);
+    this->glut2_ = nullptr;
+  }
 
   this->buffer_ = allocator.allocate(buffer_size);
   if (this->buffer_ == nullptr) {
