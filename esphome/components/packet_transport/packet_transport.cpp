@@ -331,9 +331,10 @@ void PacketTransport::update() {
     return;
   }
   uint32_t now = millis();
-  if (now - this->last_key_time_ > this->ping_pong_recyle_time_ * 1000u) {
+  uint32_t ping_request_age = now - this->last_key_time_;
+  if (ping_request_age > this->ping_pong_recyle_time_ * 1000u) {
     this->resend_ping_key_ = this->ping_pong_enable_;
-    ESP_LOGV(TAG, "Ping request, age %" PRIu32, now - this->last_key_time_);
+    ESP_LOGV(TAG, "Ping request, age %" PRIu32, ping_request_age);
     this->last_key_time_ = now;
   }
   for (const auto &provider : this->providers_) {
