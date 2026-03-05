@@ -109,7 +109,7 @@ def get_platform_components(components: list[str]) -> list[str]:
             domain = domain_dir.name
             domain_module = get_component(domain)
             if domain_module is None or not domain_module.is_platform_component:
-                raise Exception(
+                raise ValueError(
                     f"Component tests for '{component}' reference non-existing or invalid domain '{domain}'"
                     f" in its directory structure. See ({COMPONENTS_TESTS_DIR / component / domain})."
                 )
