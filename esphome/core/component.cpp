@@ -534,7 +534,7 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
   // 1ms granularity, so results were essentially random noise.
   if (global_runtime_stats != nullptr) {
     uint32_t duration_us = micros() - this->started_us_;
-    global_runtime_stats->record_component_time(this->component_, duration_us, curr_time);
+    global_runtime_stats->record_component_time(this->component_, duration_us);
   }
 #endif
   if (blocking_time > WARN_IF_BLOCKING_OVER_MS) {
