@@ -9,6 +9,8 @@ import logging
 import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import time
 from typing import Protocol
@@ -735,8 +737,6 @@ def upload_using_esptool(
 
 
 def upload_using_platformio(config: ConfigType, port: str) -> int:
-    import shutil
-
     from esphome import platformio_api
 
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
@@ -774,8 +774,6 @@ def upload_using_picotool(config: ConfigType) -> int:
     the mass storage copy approach that causes "disk not ejected properly"
     warnings on macOS.
     """
-    import subprocess
-
     from esphome import platformio_api
 
     idedata = platformio_api.get_idedata(config)
