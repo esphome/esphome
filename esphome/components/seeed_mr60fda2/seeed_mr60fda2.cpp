@@ -224,24 +224,19 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
       break;
     case LOCATE_DATA_FRAME:
       this->current_frame_len_++;
-      if (this->current_frame_len_ - LEN_TO_DATA_FRAME >= DATA_BUF_MAX_SIZE) {
-        ESP_LOGD(TAG, "PRACTICE_DATA_FRAME_LEN ERROR: %d", this->current_frame_len_ - LEN_TO_HEAD_CKSUM);
-        this->current_frame_locate_ = LOCATE_FRAME_HEADER;
-        break;
-      }
       this->current_frame_buf_[this->current_frame_len_ - 1] = buffer;
       this->current_data_buf_[this->current_frame_len_ - LEN_TO_DATA_FRAME] = buffer;
       if (this->current_frame_len_ - LEN_TO_HEAD_CKSUM == this->current_data_frame_len_) {
         this->current_frame_locate_++;
       }
+      if (this->current_frame_len_ > FRAME_BUF_MAX_SIZE) {
+        ESP_LOGD(TAG, "PRACTICE_DATA_FRAME_LEN ERROR: %d", this->current_frame_len_ - LEN_TO_HEAD_CKSUM);
+        this->current_frame_locate_ = LOCATE_FRAME_HEADER;
+      }
       break;
     case LOCATE_DATA_CKSUM_FRAME:
       if (validate_checksum(this->current_data_buf_, this->current_data_frame_len_, buffer)) {
         this->current_frame_len_++;
-        if (this->current_frame_len_ > FRAME_BUF_MAX_SIZE) {
-          this->current_frame_locate_ = LOCATE_FRAME_HEADER;
-          break;
-        }
         this->current_frame_buf_[this->current_frame_len_ - 1] = buffer;
         this->current_frame_locate_++;
         this->process_frame_();
