@@ -35,6 +35,12 @@ CONF_TAG_TTL = "tag_ttl"
 CONF_VEN_PIN = "ven_pin"
 CONF_WKUP_REQ_PIN = "wkup_req_pin"
 
+# Health check options (JohnMcLear enhancements)
+CONF_HEALTH_CHECK_ENABLED = "health_check_enabled"
+CONF_HEALTH_CHECK_INTERVAL = "health_check_interval"
+CONF_MAX_FAILED_CHECKS = "max_failed_checks"
+CONF_AUTO_RESET_ON_FAILURE = "auto_reset_on_failure"
+
 pn7160_ns = cg.esphome_ns.namespace("pn7160")
 PN7160 = pn7160_ns.class_("PN7160", nfc.Nfcc, cg.Component)
 
@@ -51,7 +57,6 @@ SetReadModeAction = pn7160_ns.class_("SetReadModeAction", automation.Action)
 SetWriteMessageAction = pn7160_ns.class_("SetWriteMessageAction", automation.Action)
 SetWriteModeAction = pn7160_ns.class_("SetWriteModeAction", automation.Action)
 
-
 PN7160OnEmulatedTagScanTrigger = pn7160_ns.class_(
     "PN7160OnEmulatedTagScanTrigger", automation.Trigger.template()
 )
@@ -64,9 +69,7 @@ PN7160IsWritingCondition = pn7160_ns.class_(
     "PN7160IsWritingCondition", automation.Condition
 )
 
-
 IsWritingCondition = nfc.nfc_ns.class_("IsWritingCondition", automation.Condition)
-
 
 SIMPLE_ACTION_SCHEMA = maybe_simple_id(
     {
@@ -84,7 +87,6 @@ SET_MESSAGE_ACTION_SCHEMA = cv.Schema(
 
 PN7160_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(PN7160),
         cv.Optional(CONF_ON_EMULATED_TAG_SCAN): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -115,6 +117,11 @@ PN7160_SCHEMA = cv.Schema(
         cv.Optional(CONF_WKUP_REQ_PIN): pins.gpio_output_pin_schema,
         cv.Optional(CONF_EMULATION_MESSAGE): cv.string,
         cv.Optional(CONF_TAG_TTL): cv.positive_time_period_milliseconds,
+        # Health check options
+        cv.Optional(CONF_HEALTH_CHECK_ENABLED, default=True): cv.boolean,
+        cv.Optional(CONF_HEALTH_CHECK_INTERVAL, default="60s"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MAX_FAILED_CHECKS, default=3): cv.int_range(min=1, max=10),
+        cv.Optional(CONF_AUTO_RESET_ON_FAILURE, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -189,6 +196,12 @@ async def setup_pn7160(var, config):
     if CONF_TAG_TTL in config:
         cg.add(var.set_tag_ttl(config[CONF_TAG_TTL]))
 
+    # Health check settings
+    cg.add(var.set_health_check_enabled(config[CONF_HEALTH_CHECK_ENABLED]))
+    cg.add(var.set_health_check_interval(config[CONF_HEALTH_CHECK_INTERVAL]))
+    cg.add(var.set_max_failed_checks(config[CONF_MAX_FAILED_CHECKS]))
+    cg.add(var.set_auto_reset_on_failure(config[CONF_AUTO_RESET_ON_FAILURE]))
+
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_ontag_trigger(trigger))
@@ -225,3 +238,4 @@ async def pn7160_is_writing_to_code(config, condition_id, template_arg, args):
     var = cg.new_Pvariable(condition_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
+

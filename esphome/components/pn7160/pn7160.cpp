@@ -38,6 +38,17 @@ void PN7160::dump_config() {
 }
 
 void PN7160::loop() {
+  // Fast recovery for stuck EP states -- should never last more than 2 seconds
+  if ((this->nci_state_ == NCIState::EP_DEACTIVATING ||
+       this->nci_state_ == NCIState::EP_SELECTING) &&
+      (millis() - this->last_nci_state_change_ > 2000)) {
+    ESP_LOGW(TAG, "Stuck in EP state %u for %ums -- forcing NFCC reset",
+             (uint8_t) this->nci_state_,
+             millis() - this->last_nci_state_change_);
+    this->nci_fsm_set_state_(NCIState::NFCC_RESET);
+    return;
+  }
+  this->perform_health_check_();
   this->nci_fsm_transition_();
   this->purge_old_tags_();
 }
@@ -265,7 +276,10 @@ uint8_t PN7160::reset_core_(const bool reset_config, const bool power) {
     return nfc::STATUS_FAILED;
   }
 
-  ESP_LOGD(TAG, "Configuration %s, NCI version: %s, Manufacturer ID: 0x%02X",
+  ESP_LOGD(TAG,
+           "Configuration %s\n"
+           "NCI version: %s\n"
+           "Manufacturer ID: 0x%02X",
            rx.get_message()[4] ? "reset" : "retained", rx.get_message()[5] == 0x20 ? "2.0" : "1.0",
            rx.get_message()[6]);
   rx.get_message().erase(rx.get_message().begin(), rx.get_message().begin() + 8);
@@ -298,12 +312,11 @@ uint8_t PN7160::init_core_() {
 
   char feat_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
   ESP_LOGD(TAG,
-           "PN7160 chip info:\n"
-           "  Hardware version: %u\n"
-           "  ROM code version: %u\n"
-           "  FLASH major version: %u\n"
-           "  FLASH minor version: %u\n"
-           "  Features: %s",
+           "Hardware version: %u\n"
+           "ROM code version: %u\n"
+           "FLASH major version: %u\n"
+           "FLASH minor version: %u\n"
+           "Features: %s",
            hw_version, rom_code_version, flash_major_version, flash_minor_version,
            nfc::format_bytes_to(feat_buf, features));
 
@@ -589,9 +602,9 @@ optional<size_t> PN7160::find_tag_uid_(const nfc::NfcTagUid &uid) {
 }
 
 void PN7160::purge_old_tags_() {
-  for (size_t i = this->discovered_endpoint_.size(); i > 0; i--) {
-    if (millis() - this->discovered_endpoint_[i - 1].last_seen > this->tag_ttl_) {
-      this->erase_tag_(i - 1);
+  for (size_t i = 0; i < this->discovered_endpoint_.size(); i++) {
+    if (millis() - this->discovered_endpoint_[i].last_seen > this->tag_ttl_) {
+      this->erase_tag_(i);
     }
   }
 }
@@ -942,8 +955,12 @@ void PN7160::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
     this->read_mode();
   }
 
-  this->stop_discovery_();
-  this->nci_fsm_set_state_(NCIState::EP_DEACTIVATING);
+  if (this->stop_discovery_() != nfc::STATUS_OK) {
+    ESP_LOGW(TAG, "Failed to deactivate -- forcing NFCC reset");
+    this->nci_fsm_set_state_(NCIState::NFCC_RESET);
+  } else {
+    this->nci_fsm_set_state_(NCIState::EP_DEACTIVATING);
+  }
 }
 
 void PN7160::process_rf_discover_oid_(nfc::NciMessage &rx) {
@@ -1119,57 +1136,52 @@ void PN7160::card_emu_t4t_get_response_(std::vector<uint8_t> &response, std::vec
 
 uint8_t PN7160::transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint16_t timeout,
                             const bool expect_notification) {
-  uint8_t retries = NFCC_MAX_COMM_FAILS;
   char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
 
-  while (retries) {
-    // first, send the message we need to send
-    if (this->write_nfcc(tx) != nfc::STATUS_OK) {
-      ESP_LOGE(TAG, "Error sending message");
-      return nfc::STATUS_FAILED;
-    }
-    ESP_LOGVV(TAG, "Wrote: %s", nfc::format_bytes_to(buf, tx.get_message()));
-    // next, the NFCC should send back a response
-    if (this->read_nfcc(rx, timeout) != nfc::STATUS_OK) {
-      ESP_LOGW(TAG, "Error receiving message");
-      if (!retries--) {
-        ESP_LOGE(TAG, "  ...giving up");
-        return nfc::STATUS_FAILED;
-      }
-    } else {
+  // Send command ONCE only -- resending on read timeout confuses the NCI state machine
+  if (this->write_nfcc(tx) != nfc::STATUS_OK) {
+    ESP_LOGE(TAG, "Error sending message");
+    return nfc::STATUS_FAILED;
+  }
+  ESP_LOGVV(TAG, "Wrote: %s", nfc::format_bytes_to(buf, tx.get_message()));
+
+  // Retry reads only -- chip has already received the command
+  uint8_t retries = NFCC_MAX_COMM_FAILS;
+  while (true) {
+    if (this->read_nfcc(rx, timeout) == nfc::STATUS_OK) {
       break;
     }
+    if (!retries--) {
+      ESP_LOGE(TAG, "Error receiving message -- giving up");
+      return nfc::STATUS_FAILED;
+    }
+    ESP_LOGW(TAG, "Error receiving message -- retrying read");
   }
+
   ESP_LOGVV(TAG, "Read: %s", nfc::format_bytes_to(buf, rx.get_message()));
-  // validate the response based on the message type that was sent (command vs. data)
+
   if (!tx.message_type_is(nfc::NCI_PKT_MT_DATA)) {
-    // for commands, the GID and OID should match and the status should be OK
-    if ((rx.get_gid() != tx.get_gid()) || (rx.get_oid()) != tx.get_oid()) {
+    if ((rx.get_gid() != tx.get_gid()) || (rx.get_oid() != tx.get_oid())) {
       ESP_LOGE(TAG, "Incorrect response to command: %s", nfc::format_bytes_to(buf, rx.get_message()));
       return nfc::STATUS_FAILED;
     }
-
     if (!rx.simple_status_response_is(nfc::STATUS_OK)) {
       ESP_LOGE(TAG, "Error in response to command: %s", nfc::format_bytes_to(buf, rx.get_message()));
     }
     return rx.get_simple_status_response();
   } else {
-    // when requesting data from the endpoint, the first response is from the NFCC; we must validate this, first
     if ((!rx.message_type_is(nfc::NCI_PKT_MT_CTRL_NOTIFICATION)) || (!rx.gid_is(nfc::NCI_CORE_GID)) ||
         (!rx.oid_is(nfc::NCI_CORE_CONN_CREDITS_OID)) || (!rx.message_length_is(3))) {
       ESP_LOGE(TAG, "Incorrect response to data message: %s", nfc::format_bytes_to(buf, rx.get_message()));
       return nfc::STATUS_FAILED;
     }
-
     if (expect_notification) {
-      // if the NFCC said "OK", there will be additional data to read; this comes back in a notification message
       if (this->read_nfcc(rx, timeout) != nfc::STATUS_OK) {
         ESP_LOGE(TAG, "Error receiving data from endpoint");
         return nfc::STATUS_FAILED;
       }
       ESP_LOGVV(TAG, "Read: %s", nfc::format_bytes_to(buf, rx.get_message()));
     }
-
     return nfc::STATUS_OK;
   }
 }
@@ -1184,6 +1196,63 @@ uint8_t PN7160::wait_for_irq_(uint16_t timeout, bool pin_state) {
   }
   ESP_LOGW(TAG, "Timed out waiting for IRQ state");
   return nfc::STATUS_FAILED;
+}
+
+void PN7160::reset_via_ven_() {
+  ESP_LOGW(TAG, "Performing hardware reset via VEN pin");
+  this->ven_pin_->digital_write(false);
+  delay(NFCC_DEFAULT_TIMEOUT);
+  this->ven_pin_->digital_write(true);
+  delay(NFCC_INIT_TIMEOUT);
+  this->nci_fsm_set_state_(NCIState::NFCC_RESET);
+}
+
+void PN7160::perform_health_check_() {
+  if (!this->health_check_enabled_)
+    return;
+
+  uint32_t now = millis();
+  if (now - this->last_health_check_ < this->health_check_interval_)
+    return;
+  this->last_health_check_ = now;
+
+  // Detect stuck init states -- classic symptom of I2C bus scan corruption
+  // States that should never last more than a few seconds
+  bool in_stuck_state = (this->nci_state_ == NCIState::NFCC_RESET ||
+                         this->nci_state_ == NCIState::NFCC_INIT ||
+                         this->nci_state_ == NCIState::NFCC_CONFIG ||
+                         this->nci_state_ == NCIState::NFCC_SET_DISCOVER_MAP ||
+                         this->nci_state_ == NCIState::NFCC_SET_LISTEN_MODE_ROUTING ||
+                         this->nci_state_ == NCIState::EP_DEACTIVATING ||
+                         this->nci_state_ == NCIState::EP_SELECTING);
+
+  // EP_DEACTIVATING/EP_SELECTING should complete in < 500ms normally
+  uint32_t state_age = now - this->last_nci_state_change_;
+  bool stuck_too_long = (this->nci_state_ == NCIState::EP_DEACTIVATING ||
+                         this->nci_state_ == NCIState::EP_SELECTING)
+                            ? state_age > 2000
+                            : state_age > this->health_check_interval_;
+
+  if (in_stuck_state && stuck_too_long) {
+    this->health_fail_count_++;
+    ESP_LOGW(TAG, "Health check: NFCC stuck in init state %u for %ums (%u/%u)",
+             (uint8_t) this->nci_state_,
+             now - this->last_nci_state_change_,
+             this->health_fail_count_,
+             this->max_failed_checks_);
+    if (this->health_fail_count_ >= this->max_failed_checks_) {
+      this->health_fail_count_ = 0;
+      if (this->auto_reset_on_failure_) {
+        ESP_LOGW(TAG, "Health check: triggering hardware VEN reset to recover");
+        this->reset_via_ven_();
+      }
+    }
+    return;
+  }
+
+  // Healthy operational state -- reset fail counter
+  this->health_fail_count_ = 0;
+  ESP_LOGV(TAG, "Health check: NFCC OK (state: %u)", (uint8_t) this->nci_state_);
 }
 
 }  // namespace pn7160
