@@ -736,7 +736,20 @@ def upload_using_esptool(
 
 
 def upload_using_platformio(config: ConfigType, port: str) -> int:
+    import shutil
+
     from esphome import platformio_api
+
+    # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
+    # the upload target, but 'nobuild' skips the build phase that creates it.
+    # Create it here so the upload doesn't fail.
+    if CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040:
+        idedata = platformio_api.get_idedata(config)
+        build_dir = Path(idedata.firmware_elf_path).parent
+        firmware_bin = build_dir / "firmware.bin"
+        signed_bin = build_dir / "firmware.bin.signed"
+        if firmware_bin.is_file() and not signed_bin.is_file():
+            shutil.copy2(firmware_bin, signed_bin)
 
     upload_args = ["-t", "upload", "-t", "nobuild"]
     if port is not None:

@@ -18,21 +18,6 @@ def rp2040_copy_ota_bin(source, target, env):
     shutil.copyfile(firmware_name, new_file_name)
 
 
-def rp2040_copy_signed_bin(source, target, env):
-    """Create firmware.bin.signed so that 'nobuild' upload target can find it.
-
-    The platform-raspberrypi build recipe creates firmware.bin.signed as a build
-    target, but the 'nobuild' upload flag skips the build phase. Without this
-    file, the upload fails with 'firmware.bin.signed not found'.
-    ESPHome does not use signing for RP2040, so this is just a copy.
-    """
-    firmware_name = env.subst("$BUILD_DIR/${PROGNAME}.bin")
-    signed_name = env.subst("$BUILD_DIR/${PROGNAME}.bin.signed")
-
-    shutil.copyfile(firmware_name, signed_name)
-
-
 # pylint: disable=E0602
 env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", rp2040_copy_factory_uf2)  # noqa
 env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", rp2040_copy_ota_bin)  # noqa
-env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", rp2040_copy_signed_bin)  # noqa
