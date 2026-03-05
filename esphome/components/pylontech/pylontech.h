@@ -3,14 +3,21 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
+// --- PYLONTECH CONSTANTS ---
+#define PYLONTECH_MAX_CELLS 15
+#define PYLONTECH_STATE_STR_LEN 16
+#define PYLONTECH_TOKEN_MAX_LEN 128
+#define PYLONTECH_MAX_RX_BUFFER 512
+#define PYLONTECH_CMD_DELAY_MS 20
+
 namespace esphome {
 namespace pylontech {
 
 class PylontechListener {
  public:
   virtual void dump_config() {}
-
-  // Legacy structure for global battery data (pwr command)
+  
+  // Structure for global battery data (pwr command)
   struct LineContents {
     int bat_num;
     int volt;
@@ -20,16 +27,16 @@ class PylontechListener {
     int thigh;
     int vlow;
     int vhigh;
-    char base_st[16];
-    char volt_st[16];
-    char curr_st[16];
-    char temp_st[16];
+    char base_st[PYLONTECH_STATE_STR_LEN];
+    char volt_st[PYLONTECH_STATE_STR_LEN];
+    char curr_st[PYLONTECH_STATE_STR_LEN];
+    char temp_st[PYLONTECH_STATE_STR_LEN];
     int coulomb;
     int mostempr;
   };
   virtual void on_line_read(LineContents *line) {}
 
-  // New structure for individual cell data (bat command)
+  // Structure for individual cell data (bat command)
   struct CellContents {
     int battery_id;
     int cell_id;
@@ -46,13 +53,16 @@ class PylontechListener {
 class PylontechComponent : public uart::UARTDevice, public PollingComponent {
  public:
   PylontechComponent();
+  
+  /// Setup the pylontech component, clear buffers etc.
   void setup() override;
+  /// Read data from the serial port and process it.
   void loop() override;
+  
   void update() override;
   void dump_config() override;
   void register_listener(PylontechListener *listener) { this->listeners_.push_back(listener); }
 
-  // Set the highest battery index configured by the user
   void set_max_battery(int num) {
     if (num > this->max_batteries_) {
       this->max_batteries_ = num;
@@ -62,6 +72,8 @@ class PylontechComponent : public uart::UARTDevice, public PollingComponent {
  protected:
   void process_pwr_line_(std::string &buffer);
   void process_bat_line_(std::string &line);
+  // Shared helper function to extract text tokens
+  bool get_token_(const char *&cursor, char *token_buf, size_t max_len);
 
   std::vector<PylontechListener *> listeners_{};
 
@@ -75,10 +87,10 @@ class PylontechComponent : public uart::UARTDevice, public PollingComponent {
     PYLON_REQUEST_BAT,
     PYLON_READ_BAT
   };
-
+  
   PylonState pylon_state_{PYLON_IDLE};
   int current_bat_num_{1};
-  int max_batteries_{1};
+  int max_batteries_{1}; 
   std::string rx_buffer_;
 
   char buffer_index_write_{0};
