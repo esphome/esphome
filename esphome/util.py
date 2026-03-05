@@ -355,66 +355,40 @@ def get_serial_ports() -> list[SerialPort]:
     return result
 
 
-class MassStorageVolume:
-    """Represents a mass storage volume for RP2040 BOOTSEL upload."""
+def get_picotool_path(cc_path: str) -> Path | None:
+    """Derive the picotool binary path from the PlatformIO toolchain cc_path.
 
-    def __init__(self, path: Path, description: str) -> None:
-        self.path = path
-        self.description = description
-
-
-def get_rp2040_mass_storage_volumes() -> list[MassStorageVolume]:
-    """Detect mounted RP2040 BOOTSEL mass storage volumes.
-
-    When an RP2040 is in BOOTSEL mode, it appears as a USB mass storage
-    device named 'RPI-RP2'. This function finds those mount points.
+    The cc_path from IDEData points to the toolchain package, e.g.:
+    ~/.platformio/packages/toolchain-rp2040-earlephilhower/bin/arm-none-eabi-gcc
+    Picotool is in a sibling package:
+    ~/.platformio/packages/tool-picotool-rp2040-earlephilhower/picotool
     """
-    result: list[MassStorageVolume] = []
+    cc = Path(cc_path)
+    # Go from .../packages/toolchain-.../bin/gcc up to .../packages/
+    packages_dir = cc.parent.parent.parent
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    picotool = packages_dir / "tool-picotool-rp2040-earlephilhower" / binary_name
+    if picotool.is_file():
+        return picotool
+    return None
 
-    if sys.platform == "darwin":
-        # macOS: /Volumes/RPI-RP2
-        result.extend(
-            MassStorageVolume(path, "RP2040 BOOTSEL")
-            for path in Path("/Volumes").glob("RPI-RP2*")
-            if path.is_dir()
+
+def detect_rp2040_bootsel(picotool_path: str | Path) -> int:
+    """Detect RP2040/RP2350 devices in BOOTSEL mode using picotool.
+
+    Returns the number of devices found (by counting 'type:' lines in output),
+    matching PlatformIO's detection approach.
+    """
+    try:
+        result = subprocess.run(
+            [str(picotool_path), "info", "-d"],
+            capture_output=True,
+            timeout=10,
+            check=False,
         )
-
-    elif sys.platform.startswith("linux"):
-        # Linux: /media/<user>/RPI-RP2, /run/media/<user>/RPI-RP2, /mnt/RPI-RP2
-        search_patterns = [
-            Path("/media").glob("*/RPI-RP2*"),
-            Path("/run/media").glob("*/RPI-RP2*"),
-            Path("/mnt").glob("RPI-RP2*"),
-        ]
-        for pattern in search_patterns:
-            try:
-                result.extend(
-                    MassStorageVolume(path, "RP2040 BOOTSEL")
-                    for path in pattern
-                    if path.is_dir()
-                )
-            except OSError:
-                continue
-
-    elif sys.platform == "win32":
-        # Windows: Check drive letters for RPI-RP2 volume label
-        import ctypes
-
-        for letter in "DEFGHIJKLMNOPQRSTUVWXYZ":
-            drive = f"{letter}:\\"
-            if not Path(drive).exists():
-                continue
-            try:
-                volume_name = ctypes.create_unicode_buffer(1024)
-                ctypes.windll.kernel32.GetVolumeInformationW(
-                    drive, volume_name, 1024, None, None, None, None, 0
-                )
-                if volume_name.value.startswith("RPI-RP2"):
-                    result.append(MassStorageVolume(Path(drive), "RP2040 BOOTSEL"))
-            except OSError:
-                continue
-
-    return result
+        return result.stdout.count(b"type:")
+    except (OSError, subprocess.TimeoutExpired):
+        return 0
 
 
 def get_esp32_arduino_flash_error_help() -> str | None:
