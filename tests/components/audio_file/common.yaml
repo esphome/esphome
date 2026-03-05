@@ -1,0 +1,5 @@
+audio_file:
+  - id: test_audio
+    file:
+      type: local
+      path: $component_dir/test.wav
