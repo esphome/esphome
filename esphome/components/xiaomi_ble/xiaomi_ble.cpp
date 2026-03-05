@@ -121,6 +121,11 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
   // Byte 2: length
   // Byte 3..3+len-1: data point value
 
+  if (result.raw_offset >= message.size()) {
+    ESP_LOGVV(TAG, "parse_xiaomi_message(): raw_offset (%d) exceeds message size (%d)!", result.raw_offset,
+              message.size());
+    return false;
+  }
   const uint8_t *payload = message.data() + result.raw_offset;
   uint8_t payload_length = message.size() - result.raw_offset;
   uint8_t payload_offset = 0;
