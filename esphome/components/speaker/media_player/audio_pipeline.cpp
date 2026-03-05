@@ -87,20 +87,20 @@ void AudioPipeline::set_pause_state(bool pause_state) {
 }
 
 void AudioPipeline::suspend_tasks() {
-  if (this->read_task_handle_ != nullptr) {
-    vTaskSuspend(this->read_task_handle_);
+  if (this->read_task_.is_created()) {
+    vTaskSuspend(this->read_task_.get_handle());
   }
-  if (this->decode_task_handle_ != nullptr) {
-    vTaskSuspend(this->decode_task_handle_);
+  if (this->decode_task_.is_created()) {
+    vTaskSuspend(this->decode_task_.get_handle());
   }
 }
 
 void AudioPipeline::resume_tasks() {
-  if (this->read_task_handle_ != nullptr) {
-    vTaskResume(this->read_task_handle_);
+  if (this->read_task_.is_created()) {
+    vTaskResume(this->read_task_.get_handle());
   }
-  if (this->decode_task_handle_ != nullptr) {
-    vTaskResume(this->decode_task_handle_);
+  if (this->decode_task_.is_created()) {
+    vTaskResume(this->decode_task_.get_handle());
   }
 }
 
@@ -159,7 +159,7 @@ AudioPipelineState AudioPipeline::process_state() {
     // Init command pending
     if (!(event_bits & EventGroupBits::PIPELINE_COMMAND_STOP)) {
       // Only start if there is no pending stop command
-      if ((this->read_task_handle_ == nullptr) || (this->decode_task_handle_ == nullptr)) {
+      if (!this->read_task_.is_created() || !this->decode_task_.is_created()) {
         // At least one task isn't running
         this->start_tasks_();
       }
@@ -202,8 +202,9 @@ AudioPipelineState AudioPipeline::process_state() {
 
     if (!this->is_playing_) {
       // The tasks have been stopped for two ``process_state`` calls in a row, so delete the tasks
-      if ((this->read_task_handle_ != nullptr) || (this->decode_task_handle_ != nullptr)) {
-        this->delete_tasks_();
+      if (this->read_task_.is_created() || this->decode_task_.is_created()) {
+        this->read_task_.deallocate();
+        this->decode_task_.deallocate();
         if (this->hard_stop_) {
           // Stop command was sent, so immediately end the playback
           this->speaker_->stop();
@@ -234,7 +235,7 @@ AudioPipelineState AudioPipeline::process_state() {
     }
   }
 
-  if ((this->read_task_handle_ == nullptr) && (this->decode_task_handle_ == nullptr)) {
+  if (!this->read_task_.is_created() && !this->decode_task_.is_created()) {
     // No tasks are running, so the pipeline is stopped.
     xEventGroupClearBits(this->event_group_, EventGroupBits::PIPELINE_COMMAND_STOP);
     return AudioPipelineState::STOPPED;
@@ -262,92 +263,23 @@ esp_err_t AudioPipeline::allocate_communications_() {
 }
 
 esp_err_t AudioPipeline::start_tasks_() {
-  if (this->read_task_handle_ == nullptr) {
-    if (this->read_task_stack_buffer_ == nullptr) {
-      // Reader task uses the AudioReader class which uses esp_http_client. This crashes on IDF 5.4 if the task stack is
-      // in PSRAM. As a workaround, always allocate the read task in internal memory.
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-      this->read_task_stack_buffer_ = stack_allocator.allocate(READ_TASK_STACK_SIZE);
-    }
-
-    if (this->read_task_stack_buffer_ == nullptr) {
+  if (!this->read_task_.is_created()) {
+    // Reader task uses the AudioReader class which uses esp_http_client. This crashes on IDF 5.4 if the task stack is
+    // in PSRAM. As a workaround, always allocate the read task in internal memory.
+    if (!this->read_task_.create(read_task, (this->base_name_ + "_read").c_str(), READ_TASK_STACK_SIZE, (void *) this,
+                                 this->priority_, false)) {
       return ESP_ERR_NO_MEM;
-    }
-
-    if (this->read_task_handle_ == nullptr) {
-      this->read_task_handle_ =
-          xTaskCreateStatic(read_task, (this->base_name_ + "_read").c_str(), READ_TASK_STACK_SIZE, (void *) this,
-                            this->priority_, this->read_task_stack_buffer_, &this->read_task_stack_);
-    }
-
-    if (this->read_task_handle_ == nullptr) {
-      return ESP_ERR_INVALID_STATE;
     }
   }
 
-  if (this->decode_task_handle_ == nullptr) {
-    if (this->decode_task_stack_buffer_ == nullptr) {
-      if (this->task_stack_in_psram_) {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-        this->decode_task_stack_buffer_ = stack_allocator.allocate(DECODE_TASK_STACK_SIZE);
-      } else {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-        this->decode_task_stack_buffer_ = stack_allocator.allocate(DECODE_TASK_STACK_SIZE);
-      }
-    }
-
-    if (this->decode_task_stack_buffer_ == nullptr) {
+  if (!this->decode_task_.is_created()) {
+    if (!this->decode_task_.create(decode_task, (this->base_name_ + "_decode").c_str(), DECODE_TASK_STACK_SIZE,
+                                   (void *) this, this->priority_, this->task_stack_in_psram_)) {
       return ESP_ERR_NO_MEM;
-    }
-
-    if (this->decode_task_handle_ == nullptr) {
-      this->decode_task_handle_ =
-          xTaskCreateStatic(decode_task, (this->base_name_ + "_decode").c_str(), DECODE_TASK_STACK_SIZE, (void *) this,
-                            this->priority_, this->decode_task_stack_buffer_, &this->decode_task_stack_);
-    }
-
-    if (this->decode_task_handle_ == nullptr) {
-      return ESP_ERR_INVALID_STATE;
     }
   }
 
   return ESP_OK;
-}
-
-void AudioPipeline::delete_tasks_() {
-  if (this->read_task_handle_ != nullptr) {
-    vTaskDelete(this->read_task_handle_);
-
-    if (this->read_task_stack_buffer_ != nullptr) {
-      if (this->task_stack_in_psram_) {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-        stack_allocator.deallocate(this->read_task_stack_buffer_, READ_TASK_STACK_SIZE);
-      } else {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-        stack_allocator.deallocate(this->read_task_stack_buffer_, READ_TASK_STACK_SIZE);
-      }
-
-      this->read_task_stack_buffer_ = nullptr;
-      this->read_task_handle_ = nullptr;
-    }
-  }
-
-  if (this->decode_task_handle_ != nullptr) {
-    vTaskDelete(this->decode_task_handle_);
-
-    if (this->decode_task_stack_buffer_ != nullptr) {
-      if (this->task_stack_in_psram_) {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-        stack_allocator.deallocate(this->decode_task_stack_buffer_, DECODE_TASK_STACK_SIZE);
-      } else {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-        stack_allocator.deallocate(this->decode_task_stack_buffer_, DECODE_TASK_STACK_SIZE);
-      }
-
-      this->decode_task_stack_buffer_ = nullptr;
-      this->decode_task_handle_ = nullptr;
-    }
-  }
 }
 
 void AudioPipeline::read_task(void *params) {

@@ -6,6 +6,10 @@
 #include "esphome/core/optional.h"
 #include "headers.h"
 
+#ifdef USE_LWIP_FAST_SELECT
+#include "esphome/core/lwip_fast_select.h"
+#endif
+
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 
 // Include only the active implementation's header.
@@ -36,10 +40,27 @@ using Socket = LWIPRawImpl;
 using ListenSocket = LWIPRawListenImpl;
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_LWIP_FAST_SELECT
+/// Shared ready() helper using cached lwip_sock pointer for direct rcvevent read.
+inline bool socket_ready(struct lwip_sock *cached_sock, bool loop_monitored) {
+  return !loop_monitored || (cached_sock != nullptr && esphome_lwip_socket_has_data(cached_sock));
+}
+#elif defined(USE_SOCKET_SELECT_SUPPORT)
 /// Shared ready() helper for fd-based socket implementations.
 /// Checks if the Application's select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored);
+#endif
+
+// Inline ready() — defined here because it depends on socket_ready/socket_ready_fd
+// declared above, while the impl headers are included before those declarations.
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+inline bool Socket::ready() const {
+#ifdef USE_LWIP_FAST_SELECT
+  return socket_ready(this->cached_sock_, this->loop_monitored_);
+#else
+  return socket_ready_fd(this->fd_, this->loop_monitored_);
+#endif
+}
 #endif
 
 /// Create a socket of the given domain, type and protocol.
@@ -56,11 +77,29 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol);
 std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol);
 
 /// Create a listening socket of the given domain, type and protocol.
-std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol);
 /// Create a listening socket and monitor it for data in the main loop.
-std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type, int protocol);
 /// Create a listening socket in the newest available IP domain and monitor it.
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+// LWIP_TCP has separate Socket/ListenSocket types — needs distinct factory functions.
+std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol);
+std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type, int protocol);
 std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol);
+#else
+// BSD and LWIP_SOCKETS: Socket == ListenSocket, so listen variants just delegate.
+inline std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol) {
+  return socket(domain, type, protocol);
+}
+inline std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type, int protocol) {
+  return socket_loop_monitored(domain, type, protocol);
+}
+inline std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
+#if USE_NETWORK_IPV6
+  return socket_loop_monitored(AF_INET6, type, protocol);
+#else
+  return socket_loop_monitored(AF_INET, type, protocol);
+#endif
+}
+#endif
 
 /// Set a sockaddr to the specified address and port for the IP version used by socket_ip().
 /// @param addr Destination sockaddr structure
