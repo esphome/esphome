@@ -134,8 +134,11 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   int status = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
   switch (status) {
     case CYW43_LINK_JOIN:
-      // WiFi joined, check if we have an IP address via the Arduino framework's WiFi class
-      if (WiFi.status() == WL_CONNECTED) {
+      // Check if STA has an IP address directly via WiFi.localIP() which returns
+      // the STA-specific IP (_wifi.localIP()). Do NOT use WiFi.status() here — in
+      // AP-only mode it unconditionally returns WL_CONNECTED regardless of STA state,
+      // causing false CONNECTED reports when the fallback AP is active.
+      if (WiFi.localIP().isSet()) {
         return WiFiSTAConnectStatus::CONNECTED;
       }
       return WiFiSTAConnectStatus::CONNECTING;
@@ -285,9 +288,9 @@ void WiFiComponent::wifi_loop_() {
   // Poll for connection state changes
   // The arduino-pico WiFi library doesn't have event callbacks like ESP8266/ESP32,
   // so we need to poll the link status to detect state changes.
-  // Use WiFi.connected() which checks both the WiFi link and IP address via the
-  // Arduino framework's own netif (not the SDK's uninitialized one).
-  bool is_connected = WiFi.connected();
+  // Check STA link status + IP directly instead of WiFi.connected() which returns
+  // true in AP-only mode regardless of STA state.
+  bool is_connected = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_JOIN && WiFi.localIP().isSet();
 
   // Detect connection state change
   if (is_connected && !s_sta_was_connected) {
