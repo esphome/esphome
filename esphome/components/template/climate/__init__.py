@@ -65,6 +65,17 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_SET_PRESET_ACTION): automation.validate_automation(
                 single=True
             ),
+            # optimistic: whether HA reflects a command immediately as a visual preview.
+            # state_control: who is the authoritative source of state.
+            #   push — ESPHome/HA owns the state; commands update it immediately.
+            #   pull — the device owns the state; lambdas are the source of truth.
+            #
+            # Behaviour matrix:
+            #   state_control  optimistic  Result
+            #   push           true        HA sees change instantly; ESPHome owns state permanently.
+            #   push           false       Same as above (push always updates state in control()).
+            #   pull           true        HA shows preview immediately; device corrects via lambdas.
+            #   pull           false       HA rejects command visually until device confirms via lambdas.
             cv.Optional(CONF_OPTIMISTIC, default=True): cv.boolean,
             cv.Optional(CONF_STATE_CONTROL, default="push"): cv.one_of(
                 "push", "pull", lower=True
