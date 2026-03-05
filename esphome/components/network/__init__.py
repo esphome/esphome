@@ -7,6 +7,9 @@ from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+import esphome.final_validate as fv
+
+from .const import CONF_DISABLE_IPV4
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
@@ -130,8 +133,22 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
         cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(cv.boolean, cv.only_on_esp32),
+        cv.Optional(CONF_DISABLE_IPV4, default=False): cv.boolean,
     }
 )
+
+
+def _final_validate(config):
+    full_config = fv.full_config.get()
+    if (
+        (disable_ipv4 := config.get(CONF_DISABLE_IPV4, None)) is not None
+        and disable_ipv4
+        and (full_config.get("openthread", None)) is None
+    ):
+        raise cv.Invalid("OpenThread is required to disable IPV4")
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.NETWORK)
@@ -224,3 +241,10 @@ async def to_code(config):
                 cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
             if CORE.is_bk72xx:
                 cg.add_build_flag("-DCONFIG_IPV6")
+
+    if (
+        (disable_ipv4 := config.get(CONF_DISABLE_IPV4, None)) is not None
+        and disable_ipv4
+        and CORE.is_esp32
+    ):
+        add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", False)
