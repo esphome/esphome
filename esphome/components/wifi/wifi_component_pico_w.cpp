@@ -286,7 +286,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
     if (ip == ap_ip) {
       continue;
     }
-    addresses[index++] = addr.ipFromNetifNum();
+    addresses[index++] = ip;
   }
   return addresses;
 }
