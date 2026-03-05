@@ -220,11 +220,7 @@ InstanceLock InstanceLock::acquire() {
 
 otInstance *InstanceLock::get_instance() { return esp_openthread_get_instance(); }
 
-InstanceLock::~InstanceLock() {
-  if (this->acquired_) {
-    esp_openthread_lock_release();
-  }
-}
+InstanceLock::~InstanceLock() { esp_openthread_lock_release(); }
 
 }  // namespace esphome::openthread
 #endif
