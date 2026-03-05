@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_OTA
-#include "esphome/components/ota/ota_backend.h"
+#include "esphome/components/ota/ota_backend_factory.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -86,7 +86,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
 
   socket::ListenSocket *server_{nullptr};
   std::unique_ptr<socket::Socket> client_;
-  std::unique_ptr<ota::OTABackend> backend_;
+  ota::OTABackendPtr backend_;
 
   uint32_t client_connect_time_{0};
   uint16_t port_;

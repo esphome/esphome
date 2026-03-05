@@ -48,7 +48,7 @@ namespace esphome::ota {
 
 static const char *const TAG = "ota.esp8266";
 
-std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::ESP8266OTABackend>(); }
+std::unique_ptr<ESP8266OTABackend> make_ota_backend() { return make_unique<ESP8266OTABackend>(); }
 
 OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
   // Handle UPDATE_SIZE_UNKNOWN (0) by calculating available space

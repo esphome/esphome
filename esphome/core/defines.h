@@ -137,6 +137,7 @@
 
 // Feature flags which do not work for zephyr
 #ifndef USE_ZEPHYR
+#define AUDIO_FILE_MAX_FILES 4
 #define USE_AUDIO_DAC
 #define USE_AUDIO_FLAC_SUPPORT
 #define USE_AUDIO_MP3_SUPPORT
