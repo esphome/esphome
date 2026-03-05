@@ -2,8 +2,8 @@
 #ifdef USE_ZEPHYR
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
-#ifdef USE_LOGGER
 #include "esphome/components/uart/uart_component.h"
+#ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
 #include <shell/shell_bt_nus.h>

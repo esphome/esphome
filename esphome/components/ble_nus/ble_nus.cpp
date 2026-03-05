@@ -61,7 +61,7 @@ bool BLENUS::read_array(uint8_t *data, size_t len) {
   if (len == 0) {
     return true;
   }
-  if ((this->available() + (this->has_peek_ ? 1 : 0)) < len) {
+  if (this->available() < len) {
     return false;
   }
 
@@ -75,7 +75,10 @@ bool BLENUS::read_array(uint8_t *data, size_t len) {
     }
   }
 
-  ring_buf_get(&global_ble_rx_ring_buf, data, len);
+  if (ring_buf_get(&global_ble_rx_ring_buf, data, len) != len) {
+    ESP_LOGE(TAG, "UART BLE unexpected size");
+    return false;
+  }
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
@@ -98,7 +101,13 @@ size_t BLENUS::available() {
 }
 
 void BLENUS::flush() {
+  constexpr uint32_t 5sec_timeout = 5000;
+  uint32_t start = millis();
   while (atomic_get(&this->tx_status_) != TX_DISABLED && !ring_buf_is_empty(&global_ble_tx_ring_buf)) {
+    if (millis() - start > 5sec_timeout) {
+      ESP_LOGW(TAG, "Flush timeout");
+      return;
+    }
     delay(1);
   }
 }
