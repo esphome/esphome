@@ -12,10 +12,10 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from aioesphomeapi import ButtonInfo, EntityState, SensorState
+from aioesphomeapi import EntityState, SensorState
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping, find_entity
+from .state_utils import InitialStateHelper, build_key_to_entity_mapping
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -99,13 +99,8 @@ async def test_uart_mock_modbus(
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
 
-        # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
-        client.button_command(start_btn.key)
-
         try:
-            await asyncio.wait_for(delayed_response_changed, timeout=5.0)
+            await asyncio.wait_for(delayed_response_changed, timeout=2.0)
         except TimeoutError:
             pytest.fail(
                 f"Timeout waiting for delayed_response change. Received sensor states:\n"
@@ -113,7 +108,7 @@ async def test_uart_mock_modbus(
             )
 
         try:
-            await asyncio.wait_for(late_response_changed, timeout=5.0)
+            await asyncio.wait_for(late_response_changed, timeout=2.0)
             pytest.fail(
                 f"late_response change should not have been triggered, but was. Received sensor states:\n"
                 f"  late_response: {sensor_states['late_response']}\n"
@@ -122,7 +117,7 @@ async def test_uart_mock_modbus(
             pass  # Expected timeout since we never inject a response for late_response
 
         try:
-            await asyncio.wait_for(no_response_changed, timeout=5.0)
+            await asyncio.wait_for(no_response_changed, timeout=2.0)
             pytest.fail(
                 f"no_response change should not have been triggered, but was. Received sensor states:\n"
                 f"  no_response: {sensor_states['no_response']}\n"
@@ -132,7 +127,7 @@ async def test_uart_mock_modbus(
 
         # Wait for basic register to be updated with successful parse
         try:
-            await asyncio.wait_for(basic_register_changed, timeout=5.0)
+            await asyncio.wait_for(basic_register_changed, timeout=2.0)
         except TimeoutError:
             pytest.fail(
                 f"Timeout waiting for Basic Register change. Received sensor states:\n"
@@ -140,7 +135,7 @@ async def test_uart_mock_modbus(
             )
 
         try:
-            await asyncio.wait_for(exception_response_changed, timeout=5.0)
+            await asyncio.wait_for(exception_response_changed, timeout=2.0)
             pytest.fail(
                 f"exception_response change should not have been triggered, but was. Received sensor states:\n"
                 f"  exception_response: {sensor_states['exception_response']}\n"
@@ -205,14 +200,9 @@ async def test_uart_mock_modbus_timing(
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
 
-        # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
-        client.button_command(start_btn.key)
-
         # Wait for voltage to be updated with successful parse
         try:
-            await asyncio.wait_for(voltage_changed, timeout=15.0)
+            await asyncio.wait_for(voltage_changed, timeout=2.0)
         except TimeoutError:
             pytest.fail(
                 f"Timeout waiting for SDM voltage change. Received sensor states:\n"
