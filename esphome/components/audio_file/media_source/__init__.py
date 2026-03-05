@@ -4,7 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TASK_STACK_IN_PSRAM
 
 CODEOWNERS = ["@kahrendt"]
-DEPENDENCIES = ["audio_file", "media_source", "audio"]
+AUTO_LOAD = ["audio"]
+DEPENDENCIES = ["audio_file"]
 
 audio_file_ns = cg.esphome_ns.namespace("audio_file")
 AudioFileMediaSource = audio_file_ns.class_(
