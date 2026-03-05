@@ -61,6 +61,10 @@ optional<ParseResult> PVVXMiThermometer::parse_header_(const esp32_ble_tracker::
   }
 
   auto raw = service_data.data;
+  if (raw.size() < 14) {
+    ESP_LOGVV(TAG, "parse_header_(): service data too short (%zu).", raw.size());
+    return {};
+  }
 
   static uint8_t last_frame_count = 0;
   if (last_frame_count == raw[13]) {
