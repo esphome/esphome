@@ -58,6 +58,7 @@ from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
 from esphome.util import (
+    PICOTOOL_PACKAGE,
     detect_rp2040_bootsel,
     get_picotool_path,
     get_serial_ports,
@@ -792,7 +793,8 @@ def upload_using_picotool(config: ConfigType) -> int:
     if picotool is None:
         _LOGGER.error(
             "picotool not found. Ensure the RP2040 PlatformIO platform "
-            "is installed (tool-picotool-rp2040-earlephilhower)."
+            "is installed (%s).",
+            PICOTOOL_PACKAGE,
         )
         return 1
 
@@ -820,11 +822,13 @@ def upload_using_picotool(config: ConfigType) -> int:
             for line in stderr.splitlines():
                 safe_print(line)
         if "LIBUSB_ERROR_ACCESS" in stderr or "Permission denied" in stderr:
-            _LOGGER.error(
-                "Permission denied accessing USB device. "
-                "On Linux, you may need to add udev rules for RP2040 devices. "
-                "See: https://github.com/raspberrypi/picotool#linux-permissions"
-            )
+            msg = "Permission denied accessing USB device."
+            if sys.platform.startswith("linux"):
+                msg += (
+                    " You may need to add udev rules for RP2040 devices."
+                    " See: https://github.com/raspberrypi/picotool#linux-permissions"
+                )
+            _LOGGER.error(msg)
         else:
             _LOGGER.error("picotool upload failed (exit code %d).", result.returncode)
         return 1

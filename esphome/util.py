@@ -355,6 +355,9 @@ def get_serial_ports() -> list[SerialPort]:
     return result
 
 
+PICOTOOL_PACKAGE = "tool-picotool-rp2040-earlephilhower"
+
+
 def get_picotool_path(cc_path: str) -> Path | None:
     """Derive the picotool binary path from the PlatformIO toolchain cc_path.
 
@@ -367,7 +370,7 @@ def get_picotool_path(cc_path: str) -> Path | None:
     # Go from .../packages/toolchain-.../bin/gcc up to .../packages/
     packages_dir = cc.parent.parent.parent
     binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
-    picotool = packages_dir / "tool-picotool-rp2040-earlephilhower" / binary_name
+    picotool = packages_dir / PICOTOOL_PACKAGE / binary_name
     if picotool.is_file():
         return picotool
     return None
