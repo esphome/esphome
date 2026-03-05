@@ -18,6 +18,26 @@ namespace esphome::wifi {
 
 static const char *const TAG = "wifi_pico_w";
 
+// Check if STA is fully connected (WiFi joined + has IP address).
+// Do NOT use WiFi.status() or WiFi.connected() for this — in AP-only mode they
+// unconditionally return true regardless of STA state, causing false positives
+// when the fallback AP is active.
+static bool wifi_sta_connected() {
+  int link = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
+  bool ip_set = WiFi.localIP().isSet();
+  if (link == CYW43_LINK_JOIN && ip_set) {
+    // Verify the IP is a real STA IP, not the AP's IP leaking through
+    IPAddress local = WiFi.localIP();
+    IPAddress ap_ip = WiFi.softAPIP();
+    if (local == ap_ip) {
+      ESP_LOGV(TAG, "wifi_sta_connected: localIP %s matches AP IP, ignoring", local.toString().c_str());
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
 // Track previous state for detecting changes
 static bool s_sta_was_connected = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_had_ip = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -27,6 +47,10 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   if (sta.has_value()) {
     if (sta.value()) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true, CYW43_COUNTRY_WORLDWIDE);
+    } else {
+      // Leave the STA network so the radio is free for scanning.
+      // Use cyw43_wifi_leave directly to avoid corrupting Arduino framework state.
+      cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
     }
   }
 
@@ -129,8 +153,8 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   int status = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
   switch (status) {
     case CYW43_LINK_JOIN:
-      // WiFi joined, check if we have an IP address via the Arduino framework's WiFi class
-      if (WiFi.status() == WL_CONNECTED) {
+      // WiFi joined, check if STA has an IP address via wifi_sta_connected()
+      if (wifi_sta_connected()) {
         return WiFiSTAConnectStatus::CONNECTED;
       }
       return WiFiSTAConnectStatus::CONNECTING;
@@ -188,19 +212,11 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 
 #ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
-  esphome::network::IPAddress ip_address, gateway, subnet, dns;
-  if (manual_ip.has_value()) {
-    ip_address = manual_ip->static_ip;
-    gateway = manual_ip->gateway;
-    subnet = manual_ip->subnet;
-    dns = manual_ip->static_ip;
-  } else {
-    ip_address = network::IPAddress(192, 168, 4, 1);
-    gateway = network::IPAddress(192, 168, 4, 1);
-    subnet = network::IPAddress(255, 255, 255, 0);
-    dns = network::IPAddress(192, 168, 4, 1);
-  }
-  WiFi.config(ip_address, dns, gateway, subnet);
+  // AP IP is configured by WiFi.beginAP() internally using defaults (192.168.4.1).
+  // Do NOT use WiFi.config() here — that configures the STA interface's IP, which
+  // poisons the STA localIP() and causes wifi_sta_connect_status_() to falsely
+  // report CONNECTED when the AP is active.
+  // Manual AP IP is not currently supported on RP2040.
   return true;
 }
 
@@ -219,18 +235,25 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   }
 #endif
 
-  WiFi.beginAP(ap.ssid_.c_str(), ap.password_.c_str(), ap.has_channel() ? ap.get_channel() : 1);
+  // Pass nullptr for empty password — CYW43 uses the password pointer (not length)
+  // to choose between OPEN and WPA2 auth mode.
+  const char *ap_password = ap.password_.empty() ? nullptr : ap.password_.c_str();
+  WiFi.beginAP(ap.ssid_.c_str(), ap_password, ap.has_channel() ? ap.get_channel() : 1);
 
   return true;
 }
 
-network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *) WiFi.localIP()}; }
+network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *) WiFi.softAPIP()}; }
 #endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() {
-  // Use Arduino WiFi.disconnect() instead of raw cyw43_wifi_leave() to properly
-  // clean up the lwIP netif, DHCP client, and internal Arduino state.
-  WiFi.disconnect();
+  // Use cyw43_wifi_leave() directly instead of WiFi.disconnect().
+  // WiFi.disconnect() sets _wifiHWInitted=false and _mode=WIFI_OFF in the Arduino
+  // framework, which causes WiFi.beginAP() to enter AP-only mode (IP 192.168.42.1)
+  // instead of AP_STA mode (IP 192.168.4.1). In AP-only mode, _beginInternal()
+  // redirects all subsequent STA connect attempts to beginAP() via the ESP8266
+  // compat hack, creating an infinite connect/disconnect loop.
+  cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
   return true;
 }
 
@@ -251,7 +274,7 @@ const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer
   buffer[len] = '\0';
   return buffer.data();
 }
-int8_t WiFiComponent::wifi_rssi() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
+int8_t WiFiComponent::wifi_rssi() { return this->is_connected() ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
 int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
@@ -288,9 +311,7 @@ void WiFiComponent::wifi_loop_() {
   // Poll for connection state changes
   // The arduino-pico WiFi library doesn't have event callbacks like ESP8266/ESP32,
   // so we need to poll the link status to detect state changes.
-  // Use WiFi.connected() which checks both the WiFi link and IP address via the
-  // Arduino framework's own netif (not the SDK's uninitialized one).
-  bool is_connected = WiFi.connected();
+  bool is_connected = wifi_sta_connected();
 
   // Detect connection state change
   if (is_connected && !s_sta_was_connected) {
