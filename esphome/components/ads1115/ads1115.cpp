@@ -174,7 +174,7 @@ float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1
 
   if (resolution == ADS1015_12_BITS) {
     // ADS1015 returns 12-bit value left-justified in 16 bits; shift right and sign-extend
-    raw_conversion = static_cast<uint16_t>(static_cast<int16_t>(raw_conversion) >> 4);
+    raw_conversion = static_cast<uint16_t>(static_cast<int16_t>(raw_conversion) >> (16 - ADS1015_12_BITS));
   }
 
   auto signed_conversion = static_cast<int16_t>(raw_conversion);
