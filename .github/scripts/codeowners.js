@@ -2,7 +2,7 @@
 //
 // Used by:
 //   - codeowner-review-request.yml
-//   - codeowner-approved-label.yml
+//   - codeowner-approved-label.yml + codeowner-approved-label-update.yml
 //   - auto-label-pr/detectors.js (detectCodeOwner)
 
 /**
@@ -133,11 +133,95 @@ function loadCodeowners(repoRoot = '.') {
   return parseCodeowners(content);
 }
 
+/** Possible label actions returned by determineLabelAction. */
+const LabelAction = Object.freeze({
+  ADD: 'add',
+  REMOVE: 'remove',
+  NONE: 'none',
+});
+
+/**
+ * Determine what label action is needed for a PR based on codeowner approvals.
+ *
+ * Checks changed files against CODEOWNERS patterns, reviews, and current labels
+ * to decide if the label should be added, removed, or left unchanged.
+ *
+ * @param {object} github              - octokit instance from actions/github-script
+ * @param {string} owner               - repo owner
+ * @param {string} repo                - repo name
+ * @param {number} pr_number           - pull request number
+ * @param {Array}  codeownersPatterns   - from loadCodeowners / fetchCodeowners
+ * @param {string} labelName           - label to manage
+ * @returns {Promise<LabelAction>}
+ */
+async function determineLabelAction(github, owner, repo, pr_number, codeownersPatterns, labelName) {
+  // Get the list of changed files in this PR
+  const prFiles = await github.paginate(
+    github.rest.pulls.listFiles,
+    { owner, repo, pull_number: pr_number }
+  );
+
+  const changedFiles = prFiles.map(file => file.filename);
+  console.log(`Found ${changedFiles.length} changed files`);
+
+  if (changedFiles.length === 0) {
+    console.log('No changed files found');
+    return LabelAction.NONE;
+  }
+
+  // Get effective owners using last-match-wins semantics
+  const effective = getEffectiveOwners(changedFiles, codeownersPatterns);
+  const componentCodeowners = effective.users;
+
+  console.log(`Component-specific codeowners: ${Array.from(componentCodeowners).join(', ') || '(none)'}`);
+
+  // Get current labels
+  const { data: currentLabels } = await github.rest.issues.listLabelsOnIssue({
+    owner, repo, issue_number: pr_number
+  });
+  const hasLabel = currentLabels.some(label => label.name === labelName);
+
+  if (componentCodeowners.size === 0) {
+    console.log('No component-specific codeowners found');
+    return hasLabel ? LabelAction.REMOVE : LabelAction.NONE;
+  }
+
+  // Get all reviews and find latest per user
+  const reviews = await github.paginate(
+    github.rest.pulls.listReviews,
+    { owner, repo, pull_number: pr_number }
+  );
+
+  const latestReviewByUser = new Map();
+  for (const review of reviews) {
+    if (!review.user || review.user.type === 'Bot' || review.state === 'COMMENTED') continue;
+    latestReviewByUser.set(review.user.login, review);
+  }
+
+  // Check if any component-specific codeowner has an active approval
+  let hasCodeownerApproval = false;
+  for (const [login, review] of latestReviewByUser) {
+    if (review.state === 'APPROVED' && componentCodeowners.has(login)) {
+      console.log(`Codeowner '${login}' has approved`);
+      hasCodeownerApproval = true;
+      break;
+    }
+  }
+
+  if (hasCodeownerApproval && !hasLabel) return LabelAction.ADD;
+  if (!hasCodeownerApproval && hasLabel) return LabelAction.REMOVE;
+
+  console.log(`Label already ${hasLabel ? 'present' : 'absent'}, no change needed`);
+  return LabelAction.NONE;
+}
+
 module.exports = {
   globToRegex,
   parseCodeowners,
   fetchCodeowners,
   loadCodeowners,
   classifyOwners,
-  getEffectiveOwners
+  getEffectiveOwners,
+  LabelAction,
+  determineLabelAction
 };
