@@ -1,9 +1,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
 #include "esp_openthread.h"
-#endif
 
 #include <freertos/portmacro.h>
 
@@ -48,22 +46,15 @@ void OpenThreadComponent::dump_config() {
   }
 }
 
-bool OpenThreadComponent::is_connected() {
-  auto lock = InstanceLock::try_acquire(100);
-  if (!lock) {
-    ESP_LOGW(TAG, "Failed to acquire OpenThread lock in is_connected");
-    return false;
+void OpenThreadComponent::on_state_changed_(otChangedFlags flags, void *context) {
+  if (flags & OT_CHANGED_THREAD_ROLE) {
+    auto *self = static_cast<OpenThreadComponent *>(context);
+    // This runs on the OpenThread task thread with the OT lock held,
+    // so we can safely call otThreadGetDeviceRole directly.
+    otInstance *instance = esp_openthread_get_instance();
+    otDeviceRole role = otThreadGetDeviceRole(instance);
+    self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
   }
-
-  otInstance *instance = lock->get_instance();
-  if (instance == nullptr) {
-    return false;
-  }
-
-  otDeviceRole role = otThreadGetDeviceRole(instance);
-
-  // TODO: If we're a leader, check that there is at least 1 known peer
-  return role >= OT_DEVICE_ROLE_CHILD;
 }
 
 // Gets the off-mesh routable address
