@@ -30,6 +30,7 @@ SAMPLE_RATE_OPTIONS = {
     "32": SampleRate.SAMPLE_RATE_32,
     "64": SampleRate.SAMPLE_RATE_64,
     "128": SampleRate.SAMPLE_RATE_128,
+    "25p16": SampleRate.SAMPLE_RATE_25P16,
     "25p8": SampleRate.SAMPLE_RATE_25P8,
     "25p4": SampleRate.SAMPLE_RATE_25P4,
     "25p2": SampleRate.SAMPLE_RATE_25P2,
@@ -54,51 +55,81 @@ OVERSAMPLING_OPTIONS = {
 SPA06Component = spa06_ns.class_("SPA06Component", cg.PollingComponent)
 
 
+def spa_oversample_time(oversample):
+    # Pressure oversampling conversion times are listed on datasheet Pg. 26
+    # Datasheet does not have a table for temperature oversampling;
+    # assumpution is that it is the same as pressure
+    OVERSAMPLING_CONVERSION_TIMES = {
+        "NONE": 3.6,
+        "2X": 5.2,
+        "4X": 8.4,
+        "8X": 14.8,
+        "16X": 27.6,
+        "32X": 53.2,
+        "64X": 104.4,
+        "128X": 206.8,
+    }
+    return OVERSAMPLING_CONVERSION_TIMES[oversample]
+
+
+def spa_sample_rate(rate):
+    SAMPLE_RATE_OPTIONS_HZ = {
+        "1": 1.0,
+        "2": 2.0,
+        "4": 4.0,
+        "8": 8.0,
+        "16": 16.0,
+        "32": 32.0,
+        "64": 64.0,
+        "128": 128.0,
+        "25p16": 25.0 / 16.0,
+        "25p8": 25.0 / 8.0,
+        "25p4": 25.0 / 4.0,
+        "25p2": 25.0 / 2.0,
+        "25": 25.0,
+        "50": 50.0,
+        "100": 100.0,
+        "200": 200.0,
+    }
+    return SAMPLE_RATE_OPTIONS_HZ[rate]
+
+
 def compute_measurement_conversion_time(config):
     # - adds up sensor conversion time based on temperature and pressure oversampling rates given in datasheet
     # - returns a rounded up time in ms
 
-    # Page 26 of datasheet
-    PRESSURE_OVERSAMPLING_CONVERSION_TIMES = {
-        "NONE": 3.6,
-        "2X": 5.2,
-        "4X": 8.4,
-        "8X": 14.8,
-        "16X": 27.6,
-        "32X": 53.2,
-        "64X": 104.4,
-        "128X": 206.8,
-    }
-
-    # Datasheet does not have a table for temperature oversampling, but we
-    # assume it is the same as for pressure
-    TEMPERATURE_OVERSAMPLING_CONVERSION_TIMES = {
-        "NONE": 3.6,
-        "2X": 5.2,
-        "4X": 8.4,
-        "8X": 14.8,
-        "16X": 27.6,
-        "32X": 53.2,
-        "64X": 104.4,
-        "128X": 206.8,
-    }
-
-    pressure_conversion_time = (
-        0.0  # No conversion time necessary without a pressure sensor
-    )
+    # No conversion time necessary without a pressure sensor
+    pressure_conversion_time = 0.0
     if pressure_config := config.get(CONF_PRESSURE):
-        pressure_conversion_time = PRESSURE_OVERSAMPLING_CONVERSION_TIMES[
+        pressure_conversion_time = spa_oversample_time(
             pressure_config.get(CONF_OVERSAMPLING)
-        ]
-
-    temperature_conversion_time = 1.0
+        )
+    # Temperature required in all cases, default to minimum sample time
+    temperature_conversion_time = 3.6
     if temperature_config := config.get(CONF_TEMPERATURE):
-        temperature_conversion_time = TEMPERATURE_OVERSAMPLING_CONVERSION_TIMES[
+        temperature_conversion_time = spa_oversample_time(
             temperature_config.get(CONF_OVERSAMPLING)
-        ]
+        )
 
     # TODO: Read datasheet to find conversion time error
     return math.ceil(1.05 * (pressure_conversion_time + temperature_conversion_time))
+
+
+def measurement_timing_check(schema):
+    temp_oss = (
+        spa_oversample_time(schema.get(CONF_TEMPERATURE).get(CONF_OVERSAMPLING))
+        / 1000.0
+    )
+    temp_hz = spa_sample_rate(schema.get(CONF_TEMPERATURE).get(CONF_SAMPLE_RATE))
+    pres_oss = (
+        spa_oversample_time(schema.get(CONF_PRESSURE).get(CONF_OVERSAMPLING)) / 1000.0
+    )
+    pres_hz = spa_sample_rate(schema.get(CONF_PRESSURE).get(CONF_SAMPLE_RATE))
+    if temp_oss * temp_hz + pres_oss * pres_hz >= 1:
+        raise cv.Invalid(
+            "Combined sample_rate and oversampling for temperature and pressure is too high"
+        )
+    return schema
 
 
 CONFIG_SCHEMA_BASE = cv.Schema(
@@ -134,7 +165,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
                 ),
             }
         ),
-    }
+    },
 ).extend(cv.polling_component_schema("60s"))
 
 
