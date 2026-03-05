@@ -90,7 +90,7 @@ size_t BLENUS::available() {
 #ifdef ESPHOME_BLE_RX_RING_BUFFER_SIZE
   uint32_t size = ring_buf_size_get(&global_ble_rx_ring_buf);
   ESP_LOGVV(TAG, "UART BLE available %u", size);
-  return size;
+  return size + (this->has_peek_ ? 1 : 0);
 #else
   return 0;
 #endif
