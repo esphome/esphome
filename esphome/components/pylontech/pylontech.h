@@ -3,15 +3,15 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
-// --- PYLONTECH CONSTANTS ---
-#define PYLONTECH_MAX_CELLS 15
-#define PYLONTECH_STATE_STR_LEN 16
-#define PYLONTECH_TOKEN_MAX_LEN 128
-#define PYLONTECH_MAX_RX_BUFFER 512
-#define PYLONTECH_CMD_DELAY_MS 20
-
 namespace esphome {
 namespace pylontech {
+
+// --- PYLONTECH CONSTANTS ---
+static constexpr uint8_t PYLONTECH_MAX_CELLS = 15;
+static constexpr uint8_t PYLONTECH_STATE_STR_LEN = 16;
+static constexpr uint8_t PYLONTECH_TOKEN_MAX_LEN = 128;
+static constexpr uint16_t PYLONTECH_MAX_RX_BUFFER = 512;
+static constexpr uint8_t PYLONTECH_CMD_DELAY_MS = 20;
 
 class PylontechListener {
  public:
