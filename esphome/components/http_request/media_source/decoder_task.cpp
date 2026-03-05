@@ -86,7 +86,7 @@ void decode_task(void *params) {
         break;
       }
 
-      bool paused = event_bits & EventGroupBits::COMMAND_PAUSE;
+      bool paused = (event_bits & EventGroupBits::COMMAND_PAUSE) != 0;
       decoder->set_pause_output_state(paused);
       if (paused) {
         xEventGroupSetBits(this_source->event_group_, EventGroupBits::DECODER_PAUSED);
