@@ -246,11 +246,11 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *
 
 bool WiFiComponent::wifi_disconnect_() {
   // Use cyw43_wifi_leave() directly instead of WiFi.disconnect().
-  // WiFi.disconnect() sets _wifiHWInitted=false and _mode=WIFI_OFF in the Arduino
-  // framework, which causes WiFi.beginAP() to enter AP-only mode (IP 192.168.42.1)
-  // instead of AP_STA mode (IP 192.168.4.1). In AP-only mode, _beginInternal()
-  // redirects all subsequent STA connect attempts to beginAP() via the ESP8266
-  // compat hack, creating an infinite connect/disconnect loop.
+  // WiFi.disconnect() sets _wifiHWInitted=false in the Arduino framework. beginAP()
+  // uses _wifiHWInitted to determine AP+STA vs AP-only mode — with it false,
+  // beginAP() enters AP-only mode (IP 192.168.42.1) instead of AP_STA mode
+  // (IP 192.168.4.1). In AP-only mode, _beginInternal() redirects all subsequent
+  // STA connect attempts to beginAP(), creating an infinite loop.
   cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
   return true;
 }
