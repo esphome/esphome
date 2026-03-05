@@ -62,7 +62,14 @@ void decode_task(void *params) {
       break;
     }
 
-    decoder->add_source(this_source->raw_file_ring_buffer_);
+    err = decoder->add_source(this_source->raw_file_ring_buffer_);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to add decoder source: %s", esp_err_to_name(err));
+      xEventGroupSetBits(this_source->event_group_, EventGroupBits::DECODER_RINGBUF_ACQUIRED);
+      xEventGroupSetBits(this_source->event_group_, EventGroupBits::DECODER_ERROR | EventGroupBits::COMMAND_STOP |
+                                                        EventGroupBits::DECODER_STOPPING);
+      break;
+    }
 
     // Signal reader task that we've acquired the ring buffer shared_ptr
     xEventGroupSetBits(this_source->event_group_, EventGroupBits::DECODER_RINGBUF_ACQUIRED);
