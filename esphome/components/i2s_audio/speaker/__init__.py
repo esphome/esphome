@@ -105,8 +105,7 @@ def _validate_esp32_variant(config):
         if variant not in INTERNAL_DAC_VARIANTS:
             raise cv.Invalid(f"{variant} does not have an internal DAC")
     elif (
-        config[CONF_DAC_TYPE] == "external"
-        and variant == esp32.VARIANT_ESP32
+        variant == esp32.VARIANT_ESP32
         and config.get(CONF_BITS_PER_SAMPLE) == 8
         and config.get(CONF_CHANNEL) in (CONF_MONO, CONF_LEFT, CONF_RIGHT)
     ):
