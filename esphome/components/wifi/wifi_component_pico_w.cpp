@@ -18,6 +18,14 @@ namespace esphome::wifi {
 
 static const char *const TAG = "wifi_pico_w";
 
+// Check if STA is fully connected (WiFi joined + has IP address).
+// Do NOT use WiFi.status() or WiFi.connected() for this — in AP-only mode they
+// unconditionally return true regardless of STA state, causing false positives
+// when the fallback AP is active.
+static bool wifi_sta_connected() {
+  return cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_JOIN && WiFi.localIP().isSet();
+}
+
 // Track previous state for detecting changes
 static bool s_sta_was_connected = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_had_ip = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -134,11 +142,8 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   int status = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
   switch (status) {
     case CYW43_LINK_JOIN:
-      // Check if STA has an IP address directly via WiFi.localIP() which returns
-      // the STA-specific IP (_wifi.localIP()). Do NOT use WiFi.status() here — in
-      // AP-only mode it unconditionally returns WL_CONNECTED regardless of STA state,
-      // causing false CONNECTED reports when the fallback AP is active.
-      if (WiFi.localIP().isSet()) {
+      // WiFi joined, check if STA has an IP address via wifi_sta_connected()
+      if (wifi_sta_connected()) {
         return WiFiSTAConnectStatus::CONNECTED;
       }
       return WiFiSTAConnectStatus::CONNECTING;
@@ -251,7 +256,7 @@ const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer
   buffer[len] = '\0';
   return buffer.data();
 }
-int8_t WiFiComponent::wifi_rssi() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
+int8_t WiFiComponent::wifi_rssi() { return this->is_connected() ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
 int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
@@ -288,9 +293,7 @@ void WiFiComponent::wifi_loop_() {
   // Poll for connection state changes
   // The arduino-pico WiFi library doesn't have event callbacks like ESP8266/ESP32,
   // so we need to poll the link status to detect state changes.
-  // Check STA link status + IP directly instead of WiFi.connected() which returns
-  // true in AP-only mode regardless of STA state.
-  bool is_connected = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_JOIN && WiFi.localIP().isSet();
+  bool is_connected = wifi_sta_connected();
 
   // Detect connection state change
   if (is_connected && !s_sta_was_connected) {
