@@ -35,11 +35,6 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   if (sta.has_value()) {
     if (sta.value()) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true, CYW43_COUNTRY_WORLDWIDE);
-    } else {
-      // Disconnect STA to clear stale link state (e.g. CYW43_LINK_JOIN from a
-      // timed-out connection). Without this, restart_adapter() leaves the STA
-      // interface joined and wifi_sta_connect_status_() can falsely report CONNECTED.
-      WiFi.disconnect();
     }
   }
 
