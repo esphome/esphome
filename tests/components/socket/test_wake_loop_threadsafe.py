@@ -1,9 +1,14 @@
+import pytest
+
 from esphome.components import socket
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_PLATFORM,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_LN882X,
+    PLATFORM_RTL87XX,
 )
 from esphome.core import CORE
 
@@ -90,9 +95,15 @@ def test_require_wake_loop_threadsafe__no_networking_does_not_consume_socket() -
     assert udp_consumers == initial_udp
 
 
-def test_require_wake_loop_threadsafe__esp32_no_udp_socket() -> None:
-    """Test that ESP32 uses task notifications instead of UDP socket."""
-    _setup_platform(PLATFORM_ESP32)
+@pytest.mark.parametrize(
+    "platform",
+    [PLATFORM_ESP32, PLATFORM_BK72XX, PLATFORM_RTL87XX, PLATFORM_LN882X],
+)
+def test_require_wake_loop_threadsafe__fast_select_no_udp_socket(
+    platform: str,
+) -> None:
+    """Test that fast select platforms use task notifications instead of UDP socket."""
+    _setup_platform(platform)
     CORE.config = {"wifi": True}
     socket.require_wake_loop_threadsafe()
 
@@ -100,13 +111,13 @@ def test_require_wake_loop_threadsafe__esp32_no_udp_socket() -> None:
     assert CORE.data[socket.KEY_WAKE_LOOP_THREADSAFE_REQUIRED] is True
     assert any(d.name == "USE_WAKE_LOOP_THREADSAFE" for d in CORE.defines)
 
-    # Verify no UDP socket was consumed (ESP32 uses FreeRTOS task notifications)
+    # Verify no UDP socket was consumed (fast select platforms use FreeRTOS task notifications)
     udp_consumers = CORE.data.get(socket.KEY_SOCKET_CONSUMERS_UDP, {})
     assert "socket.wake_loop_threadsafe" not in udp_consumers
 
 
-def test_require_wake_loop_threadsafe__non_esp32_consumes_udp_socket() -> None:
-    """Test that non-ESP32 platforms consume a UDP socket for wake notifications."""
+def test_require_wake_loop_threadsafe__non_fast_select_consumes_udp_socket() -> None:
+    """Test that platforms without fast select consume a UDP socket for wake notifications."""
     _setup_platform(PLATFORM_ESP8266)
     CORE.config = {"wifi": True}
     socket.require_wake_loop_threadsafe()

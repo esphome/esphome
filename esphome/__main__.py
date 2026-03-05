@@ -23,6 +23,7 @@ import esphome.codegen as cg
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
+    ARGUMENT_HELP_DEVICE,
     CONF_API,
     CONF_BAUD_RATE,
     CONF_BROKER,
@@ -1367,7 +1368,7 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help=ARGUMENT_HELP_DEVICE,
     )
     parser_upload.add_argument(
         "--upload_speed",
@@ -1390,7 +1391,7 @@ def parse_args(argv):
     parser_logs.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help=ARGUMENT_HELP_DEVICE,
     )
     parser_logs.add_argument(
         "--reset",
@@ -1420,7 +1421,7 @@ def parse_args(argv):
     parser_run.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help=ARGUMENT_HELP_DEVICE,
     )
     parser_run.add_argument(
         "--upload_speed",

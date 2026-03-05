@@ -370,6 +370,10 @@ class APIConnection final : public APIServerConnectionBase {
     return this->client_supports_api_version(1, 14) ? MAX_INITIAL_PER_BATCH : MAX_INITIAL_PER_BATCH_LEGACY;
   }
 
+  // Send keepalive ping or disconnect unresponsive client.
+  // Cold path — extracted from loop() to reduce instruction cache pressure.
+  void __attribute__((noinline)) check_keepalive_(uint32_t now);
+
   // Process active iterator (list_entities/initial_state) during connection setup.
   // Extracted from loop() — only runs during initial handshake, NONE in steady state.
   void __attribute__((noinline)) process_active_iterator_();

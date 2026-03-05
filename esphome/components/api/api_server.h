@@ -257,7 +257,7 @@ class APIServer : public Component,
   }
   void socket_failed_(const LogString *msg);
   // Pointers and pointer-like types first (4 bytes each)
-  socket::Socket *socket_{nullptr};
+  socket::ListenSocket *socket_{nullptr};
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   Trigger<std::string, std::string> client_connected_trigger_;
 #endif

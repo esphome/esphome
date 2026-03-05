@@ -954,12 +954,66 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
   return true;
 }
 #endif
+bool DSTRule::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->time_seconds = value.as_sint32();
+      break;
+    case 2:
+      this->day = value.as_uint32();
+      break;
+    case 3:
+      this->type = static_cast<enums::DSTRuleType>(value.as_uint32());
+      break;
+    case 4:
+      this->month = value.as_uint32();
+      break;
+    case 5:
+      this->week = value.as_uint32();
+      break;
+    case 6:
+      this->day_of_week = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool ParsedTimezone::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->std_offset_seconds = value.as_sint32();
+      break;
+    case 2:
+      this->dst_offset_seconds = value.as_sint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool ParsedTimezone::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 3:
+      value.decode_to_message(this->dst_start);
+      break;
+    case 4:
+      value.decode_to_message(this->dst_end);
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
 bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2: {
       this->timezone = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
+    case 3:
+      value.decode_to_message(this->parsed_timezone);
+      break;
     default:
       return false;
   }
