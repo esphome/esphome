@@ -3,6 +3,8 @@
 #ifdef USE_WIFI
 #ifdef USE_RP2040
 
+#include <cassert>
+
 #include "lwip/dns.h"
 #include "lwip/err.h"
 #include "lwip/netif.h"
@@ -285,6 +287,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
     if (ip == ap_ip) {
       continue;
     }
+    assert(index < addresses.size());
     addresses[index++] = ip;
   }
   return addresses;
