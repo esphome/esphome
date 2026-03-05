@@ -165,6 +165,10 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   }
 
   auto raw = service_data.data;
+  if (raw.size() < 5) {
+    ESP_LOGVV(TAG, "parse_xiaomi_header(): service data too short (%d).", raw.size());
+    return {};
+  }
   result.has_data = raw[0] & 0x40;
   result.has_capability = raw[0] & 0x20;
   result.has_encryption = raw[0] & 0x08;
