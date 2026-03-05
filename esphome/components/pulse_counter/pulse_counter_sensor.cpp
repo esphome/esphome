@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 
 #ifdef HAS_PCNT
-#include <esp_clk_tree.h>
+#include <esp_private/esp_clk.h>
 #include <hal/pcnt_ll.h>
 #endif
 
@@ -117,9 +117,7 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   }
 
   if (this->filter_us != 0) {
-    uint32_t apb_freq;
-    esp_clk_tree_src_get_freq_hz(SOC_MOD_CLK_APB, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &apb_freq);
-    uint32_t max_glitch_ns = PCNT_LL_MAX_GLITCH_WIDTH * 1000000u / apb_freq;
+    uint32_t max_glitch_ns = PCNT_LL_MAX_GLITCH_WIDTH * 1000u / ((uint32_t) esp_clk_apb_freq() / 1000000u);
     pcnt_glitch_filter_config_t filter_config = {
         .max_glitch_ns = std::min(this->filter_us * 1000u, max_glitch_ns),
     };

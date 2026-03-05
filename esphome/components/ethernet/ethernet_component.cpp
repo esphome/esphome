@@ -19,8 +19,7 @@
 #include <driver/spi_master.h>
 #endif
 
-namespace esphome {
-namespace ethernet {
+namespace esphome::ethernet {
 
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
 // work around IDF compile issue on P4 https://github.com/espressif/esp-idf/pull/15637
@@ -688,8 +687,6 @@ void EthernetComponent::start_connect_() {
   this->status_set_warning();
 }
 
-bool EthernetComponent::is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
-
 void EthernetComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
@@ -866,10 +863,7 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
   }
 #endif
 
-  ESP_LOGD(TAG,
-           "Writing to PHY Register Address: 0x%02" PRIX32 "\n"
-           "Writing to PHY Register Value: 0x%04" PRIX32,
-           register_data.address, register_data.value);
+  ESP_LOGD(TAG, "Writing PHY reg 0x%02" PRIX32 " = 0x%04" PRIX32, register_data.address, register_data.value);
   err = mac->write_phy_reg(mac, this->phy_addr_, register_data.address, register_data.value);
   ESPHL_ERROR_CHECK(err, "Writing PHY Register failed");
 
@@ -884,7 +878,6 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
 
 #endif
 
-}  // namespace ethernet
-}  // namespace esphome
+}  // namespace esphome::ethernet
 
 #endif  // USE_ESP32

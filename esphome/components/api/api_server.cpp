@@ -28,10 +28,12 @@ static const char *const TAG = "api";
 // APIServer
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-APIServer::APIServer() {
-  global_api_server = this;
-  // Pre-allocate shared write buffer
-  shared_write_buffer_.reserve(64);
+APIServer::APIServer() { global_api_server = this; }
+
+void APIServer::socket_failed_(const LogString *msg) {
+  ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
+  this->destroy_socket_();
+  this->mark_failed();
 }
 
 void APIServer::setup() {
@@ -52,22 +54,20 @@ void APIServer::setup() {
 #endif
 #endif
 
-  this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
+  this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
   if (this->socket_ == nullptr) {
-    ESP_LOGW(TAG, "Could not create socket");
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("creation"));
     return;
   }
   int enable = 1;
   int err = this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to set reuseaddr: errno %d", err);
+    ESP_LOGW(TAG, "Socket reuseaddr: errno %d", errno);
     // we can still continue
   }
   err = this->socket_->setblocking(false);
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to set nonblocking mode: errno %d", err);
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("nonblocking"));
     return;
   }
 
@@ -75,28 +75,28 @@ void APIServer::setup() {
 
   socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
   if (sl == 0) {
-    ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("set sockaddr"));
     return;
   }
 
   err = this->socket_->bind((struct sockaddr *) &server, sl);
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("bind"));
     return;
   }
 
   err = this->socket_->listen(this->listen_backlog_);
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to listen: errno %d", errno);
-    this->mark_failed();
+    this->socket_failed_(LOG_STR("listen"));
     return;
   }
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
-    logger::global_logger->add_log_listener(this);
+    logger::global_logger->add_log_callback(
+        this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
+          static_cast<APIServer *>(self)->on_log(level, tag, message, message_len);
+        });
   }
 #endif
 
@@ -433,8 +433,8 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, StringRef
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 // Helper to add subscription (reduces duplication)
-void APIServer::add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> f,
-                                        bool once) {
+void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
+                                        std::function<void(StringRef)> &&f, bool once) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
       .entity_id = entity_id, .attribute = attribute, .callback = std::move(f), .once = once,
       // entity_id_dynamic_storage and attribute_dynamic_storage remain nullptr (no heap allocation)
@@ -443,7 +443,7 @@ void APIServer::add_state_subscription_(const char *entity_id, const char *attri
 
 // Helper to add subscription with heap-allocated strings (reduces duplication)
 void APIServer::add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                                        std::function<void(StringRef)> f, bool once) {
+                                        std::function<void(StringRef)> &&f, bool once) {
   HomeAssistantStateSubscription sub;
   // Allocate heap storage for the strings
   sub.entity_id_dynamic_storage = std::make_unique<std::string>(std::move(entity_id));
@@ -463,29 +463,29 @@ void APIServer::add_state_subscription_(std::string entity_id, optional<std::str
 
 // New const char* overload (for internal components - zero allocation)
 void APIServer::subscribe_home_assistant_state(const char *entity_id, const char *attribute,
-                                               std::function<void(StringRef)> f) {
+                                               std::function<void(StringRef)> &&f) {
   this->add_state_subscription_(entity_id, attribute, std::move(f), false);
 }
 
 void APIServer::get_home_assistant_state(const char *entity_id, const char *attribute,
-                                         std::function<void(StringRef)> f) {
+                                         std::function<void(StringRef)> &&f) {
   this->add_state_subscription_(entity_id, attribute, std::move(f), true);
 }
 
 // std::string overload with StringRef callback (zero-allocation callback)
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                               std::function<void(StringRef)> f) {
+                                               std::function<void(StringRef)> &&f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), false);
 }
 
 void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                         std::function<void(StringRef)> f) {
+                                         std::function<void(StringRef)> &&f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), true);
 }
 
 // Legacy helper: wraps std::string callback and delegates to StringRef version
 void APIServer::add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                                        std::function<void(const std::string &)> f, bool once) {
+                                        std::function<void(const std::string &)> &&f, bool once) {
   // Wrap callback to convert StringRef -> std::string, then delegate
   this->add_state_subscription_(std::move(entity_id), std::move(attribute),
                                 std::function<void(StringRef)>([f = std::move(f)](StringRef state) { f(state.str()); }),
@@ -494,12 +494,12 @@ void APIServer::add_state_subscription_(std::string entity_id, optional<std::str
 
 // Legacy std::string overload (for custom_api_device.h - converts StringRef to std::string)
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                               std::function<void(const std::string &)> f) {
+                                               std::function<void(const std::string &)> &&f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), false);
 }
 
 void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                         std::function<void(const std::string &)> f) {
+                                         std::function<void(const std::string &)> &&f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), true);
 }
 
@@ -623,10 +623,7 @@ void APIServer::on_shutdown() {
   this->shutting_down_ = true;
 
   // Close the listening socket to prevent new connections
-  if (this->socket_) {
-    this->socket_->close();
-    this->socket_ = nullptr;
-  }
+  this->destroy_socket_();
 
   // Change batch delay to 5ms for quick flushing during shutdown
   this->batch_delay_ = 5;

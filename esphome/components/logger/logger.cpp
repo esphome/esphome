@@ -152,10 +152,7 @@ inline uint8_t Logger::level_for(const char *tag) {
   return this->current_level_;
 }
 
-Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
-  // add 1 to buffer size for null terminator
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
-  this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];
+Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   this->main_task_ = xTaskGetCurrentTaskHandle();
 #elif defined(USE_ZEPHYR)
@@ -170,19 +167,19 @@ void Logger::init_log_buffer(size_t total_buffer_size) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
   this->log_buffer_ = new logger::TaskLogBuffer(total_buffer_size);
 
-// Zephyr needs loop working to check when CDC port is open
-#if !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
-  // Start with loop disabled when using task buffer (unless using USB CDC on ESP32)
+#if !(defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+  // Start with loop disabled when using task buffer
   // The loop will be enabled automatically when messages arrive
+  // Zephyr with USB CDC needs loop active to poll port readiness via cdc_loop_()
   this->disable_loop_when_buffer_empty_();
 #endif
 }
 #endif
 
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
 void Logger::loop() {
   this->process_messages_();
-#if defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC)
+#if defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
   this->cdc_loop_();
 #endif
 }
@@ -196,7 +193,7 @@ void Logger::process_messages_() {
     uint16_t text_length;
     while (this->log_buffer_->borrow_message_main_loop(message, text_length)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
-      LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
+      LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name,
                                                 message->text_data(), text_length, buf);
       // Release the message to allow other tasks to use it as soon as possible
@@ -204,8 +201,7 @@ void Logger::process_messages_() {
       this->write_log_buffer_to_console_(buf);
     }
   }
-// Zephyr needs loop working to check when CDC port is open
-#if !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
+#if !(defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
   else {
     // No messages to process, disable loop if appropriate
     // This reduces overhead when there's no async logging activity
@@ -260,6 +256,9 @@ void Logger::dump_config() {
   for (auto &it : this->log_levels_) {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
   }
+#endif
+#ifdef USE_ZEPHYR
+  dump_crash_();
 #endif
 }
 

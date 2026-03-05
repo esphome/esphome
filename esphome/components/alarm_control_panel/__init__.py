@@ -186,8 +186,8 @@ ALARM_CONTROL_PANEL_CONDITION_SCHEMA = maybe_simple_id(
 )
 
 
+@setup_entity("alarm_control_panel")
 async def setup_alarm_control_panel_core_(var, config):
-    await setup_entity(var, config, "alarm_control_panel")
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)

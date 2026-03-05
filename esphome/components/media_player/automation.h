@@ -32,6 +32,28 @@ template<typename... Ts>
 using TurnOnAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_TURN_ON, Ts...>;
 template<typename... Ts>
 using TurnOffAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_TURN_OFF, Ts...>;
+template<typename... Ts>
+using NextAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_NEXT, Ts...>;
+template<typename... Ts>
+using PreviousAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_PREVIOUS, Ts...>;
+template<typename... Ts>
+using MuteAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_MUTE, Ts...>;
+template<typename... Ts>
+using UnmuteAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_UNMUTE, Ts...>;
+template<typename... Ts>
+using RepeatOffAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_REPEAT_OFF, Ts...>;
+template<typename... Ts>
+using RepeatOneAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_REPEAT_ONE, Ts...>;
+template<typename... Ts>
+using RepeatAllAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_REPEAT_ALL, Ts...>;
+template<typename... Ts>
+using ShuffleAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_SHUFFLE, Ts...>;
+template<typename... Ts>
+using UnshuffleAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_UNSHUFFLE, Ts...>;
+template<typename... Ts>
+using GroupJoinAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_GROUP_JOIN, Ts...>;
+template<typename... Ts>
+using ClearPlaylistAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST, Ts...>;
 
 template<typename... Ts> class PlayMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(std::string, media_url)
@@ -103,6 +125,11 @@ template<typename... Ts> class IsOnCondition : public Condition<Ts...>, public P
 template<typename... Ts> class IsOffCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
   bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_OFF; }
+};
+
+template<typename... Ts> class IsMutedCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+ public:
+  bool check(const Ts &...x) override { return this->parent_->is_muted(); }
 };
 
 }  // namespace media_player
