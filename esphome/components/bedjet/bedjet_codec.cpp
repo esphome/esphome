@@ -91,6 +91,10 @@ void BedjetCodec::decode_extra(const uint8_t *data, uint16_t length) {
  * @return `true` if the packet was decoded and represents a "partial" packet; `false` otherwise.
  */
 bool BedjetCodec::decode_notify(const uint8_t *data, uint16_t length) {
+  if (length < 5) {
+    ESP_LOGW(TAG, "Received short packet: %d bytes", length);
+    return false;
+  }
   ESP_LOGV(TAG, "Received: %d bytes: %d %d %d %d", length, data[1], data[2], data[3], data[4]);
 
   if (data[1] == PACKET_FORMAT_V3_HOME && data[3] == PACKET_TYPE_STATUS) {
