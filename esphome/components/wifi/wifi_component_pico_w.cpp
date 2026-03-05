@@ -54,14 +54,14 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
     }
   }
 
-  bool ap_state = false;
   if (ap.has_value()) {
     if (ap.value()) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
-      ap_state = true;
+    } else {
+      cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, false, CYW43_COUNTRY_WORLDWIDE);
     }
+    this->ap_started_ = ap.value();
   }
-  this->ap_started_ = ap_state;
   return true;
 }
 
