@@ -141,7 +141,7 @@ enum UARTSelection : uint8_t {
  * 2. Works with ESP-IDF's pthread implementation that uses a linked list for TLS variables
  * 3. Avoids the limitations of the fixed FreeRTOS task local storage slots
  */
-class Logger : public Component {
+class Logger final : public Component {
  public:
   explicit Logger(uint32_t baud_rate);
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
@@ -481,7 +481,7 @@ class Logger : public Component {
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *> {
+class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const char *> {
  public:
   explicit LoggerMessageTrigger(Logger *parent, uint8_t level) : level_(level) {
     parent->add_log_callback(this,

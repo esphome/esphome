@@ -562,9 +562,9 @@ optional<size_t> PN7150::find_tag_uid_(const nfc::NfcTagUid &uid) {
 }
 
 void PN7150::purge_old_tags_() {
-  for (size_t i = 0; i < this->discovered_endpoint_.size(); i++) {
-    if (millis() - this->discovered_endpoint_[i].last_seen > this->tag_ttl_) {
-      this->erase_tag_(i);
+  for (size_t i = this->discovered_endpoint_.size(); i > 0; i--) {
+    if (millis() - this->discovered_endpoint_[i - 1].last_seen > this->tag_ttl_) {
+      this->erase_tag_(i - 1);
     }
   }
 }

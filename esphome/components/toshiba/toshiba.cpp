@@ -502,7 +502,7 @@ void ToshibaClimate::transmit_generic_() {
   }
 
   uint8_t fan;
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_QUIET:
       fan = TOSHIBA_FAN_SPEED_QUIET;
       break;
@@ -567,7 +567,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
     message[2] = RAC_PT1411HWRU_NO_FAN.code1;
     message[7] = RAC_PT1411HWRU_NO_FAN.code2;
   } else {
-    switch (this->fan_mode.value()) {
+    switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
       case climate::CLIMATE_FAN_LOW:
         message[2] = RAC_PT1411HWRU_FAN_LOW.code1;
         message[7] = RAC_PT1411HWRU_FAN_LOW.code2;
@@ -811,12 +811,12 @@ void ToshibaClimate::transmit_ras_2819t_() {
     uint8_t temp_code = get_ras_2819t_temp_code(temperature);
 
     // Get fan speed encoding for rc_code_1
-    climate::ClimateFanMode effective_fan_mode = this->fan_mode.value();
+    climate::ClimateFanMode effective_fan_mode = this->fan_mode.value_or(climate::CLIMATE_FAN_ON);
 
     // Dry mode only supports AUTO fan speed
     if (this->mode == climate::CLIMATE_MODE_DRY) {
       effective_fan_mode = climate::CLIMATE_FAN_AUTO;
-      if (this->fan_mode.value() != climate::CLIMATE_FAN_AUTO) {
+      if (this->fan_mode.value_or(climate::CLIMATE_FAN_ON) != climate::CLIMATE_FAN_AUTO) {
         ESP_LOGW(TAG, "Dry mode only supports AUTO fan speed, forcing AUTO");
       }
     }

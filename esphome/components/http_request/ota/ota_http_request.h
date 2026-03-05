@@ -22,7 +22,7 @@ enum OtaHttpRequestError : uint8_t {
   OTA_CONNECTION_ERROR = 0x12,
 };
 
-class OtaHttpRequestComponent : public ota::OTAComponent, public Parented<HttpRequestComponent> {
+class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<HttpRequestComponent> {
  public:
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }

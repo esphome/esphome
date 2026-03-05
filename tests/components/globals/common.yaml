@@ -27,3 +27,14 @@ globals:
     type: bool
     restore_value: false
     initial_value: "false"
+  # Test restore_value with string "false" - should be converted to bool false
+  - id: glob_no_restore_string_false
+    type: int
+    restore_value: "false"
+    initial_value: "42"
+  # Test restore_value with string "true" - should be converted to bool true
+  - id: glob_restore_string_true
+    type: int
+    restore_value: "true"
+    initial_value: "99"
+    update_interval: 5s
