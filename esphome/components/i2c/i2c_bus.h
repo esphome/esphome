@@ -6,8 +6,7 @@
 
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 /// @brief Error codes returned by I2CBus and I2CDevice methods
 enum ErrorCode {
@@ -69,5 +68,4 @@ class InternalI2CBus : public I2CBus {
   virtual int get_port() const = 0;
 };
 
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c

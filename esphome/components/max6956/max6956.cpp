@@ -146,11 +146,11 @@ void MAX6956::dump_config() {
 
   if (brightness_mode_ == MAX6956CURRENTMODE::GLOBAL) {
     ESP_LOGCONFIG(TAG,
-                  "current mode: global\n"
-                  "global brightness: %u",
+                  "  Current mode: global\n"
+                  "  Brightness: %u",
                   global_brightness_);
   } else {
-    ESP_LOGCONFIG(TAG, "current mode: segment");
+    ESP_LOGCONFIG(TAG, "  Current mode: segment");
   }
 }
 

@@ -56,15 +56,6 @@ static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
   }
 }
 
-// This function performs an in-place conversion of the provided buffer
-// from uint16_t values to big endianness
-static inline const char *sensirion_convert_to_string_in_place(uint16_t *array, size_t length) {
-  for (size_t i = 0; i < length; i++) {
-    array[i] = convert_big_endian(array[i]);
-  }
-  return reinterpret_cast<const char *>(array);
-}
-
 void SEN5XComponent::setup() {
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
