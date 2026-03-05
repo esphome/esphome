@@ -27,6 +27,11 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   if (sta.has_value()) {
     if (sta.value()) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true, CYW43_COUNTRY_WORLDWIDE);
+    } else {
+      // Disconnect STA to clear stale link state (e.g. CYW43_LINK_JOIN from a
+      // timed-out connection). Without this, restart_adapter() leaves the STA
+      // interface joined and wifi_sta_connect_status_() can falsely report CONNECTED.
+      WiFi.disconnect();
     }
   }
 
@@ -188,19 +193,11 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 
 #ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
-  esphome::network::IPAddress ip_address, gateway, subnet, dns;
-  if (manual_ip.has_value()) {
-    ip_address = manual_ip->static_ip;
-    gateway = manual_ip->gateway;
-    subnet = manual_ip->subnet;
-    dns = manual_ip->static_ip;
-  } else {
-    ip_address = network::IPAddress(192, 168, 4, 1);
-    gateway = network::IPAddress(192, 168, 4, 1);
-    subnet = network::IPAddress(255, 255, 255, 0);
-    dns = network::IPAddress(192, 168, 4, 1);
-  }
-  WiFi.config(ip_address, dns, gateway, subnet);
+  // AP IP is configured by WiFi.beginAP() internally using defaults (192.168.4.1).
+  // Do NOT use WiFi.config() here — that configures the STA interface's IP, which
+  // poisons the STA localIP() and causes wifi_sta_connect_status_() to falsely
+  // report CONNECTED when the AP is active.
+  // Manual AP IP is not currently supported on RP2040.
   return true;
 }
 
@@ -224,7 +221,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   return true;
 }
 
-network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *) WiFi.localIP()}; }
+network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *) WiFi.softAPIP()}; }
 #endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() {
