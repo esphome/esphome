@@ -4,8 +4,7 @@
 #include <string>
 #include "ip_address.h"
 
-namespace esphome {
-namespace network {
+namespace esphome::network {
 
 /// Return whether the node is connected to the network (through wifi, eth, ...)
 bool is_connected();
@@ -15,6 +14,5 @@ bool is_disabled();
 const char *get_use_address();
 IPAddresses get_ip_addresses();
 
-}  // namespace network
-}  // namespace esphome
+}  // namespace esphome::network
 #endif

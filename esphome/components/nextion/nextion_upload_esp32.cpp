@@ -27,11 +27,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
   uint32_t range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
   ESP_LOGD(TAG, "Range start: %" PRIu32, range_start);
   if (range_size <= 0 or range_end <= range_start) {
-    ESP_LOGD(TAG,
-             "Range end: %" PRIu32 "\n"
-             "Range size: %" PRIu32,
-             range_end, range_size);
-    ESP_LOGE(TAG, "Invalid range");
+    ESP_LOGE(TAG, "Invalid range end: %" PRIu32 ", size: %" PRIu32, range_end, range_size);
     return -1;
   }
 
@@ -159,11 +155,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
 }
 
 bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
-  ESP_LOGD(TAG,
-           "TFT upload requested\n"
-           "Exit reparse: %s\n"
-           "URL: %s",
-           YESNO(exit_reparse), this->tft_url_.c_str());
+  ESP_LOGD(TAG, "TFT upload requested, exit reparse: %s, URL: %s", YESNO(exit_reparse), this->tft_url_.c_str());
 
   if (this->connection_state_.is_updating_) {
     ESP_LOGW(TAG, "Upload in progress");
@@ -193,10 +185,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGD(TAG, "Baud rate: %" PRIu32, baud_rate);
 
   // Define the configuration for the HTTP client
-  ESP_LOGV(TAG,
-           "Init HTTP client\n"
-           "Heap: %" PRIu32,
-           esp_get_free_heap_size());
+  ESP_LOGV(TAG, "Init HTTP client, heap: %" PRIu32, esp_get_free_heap_size());
   esp_http_client_config_t config = {
       .url = this->tft_url_.c_str(),
       .cert_pem = nullptr,
@@ -220,10 +209,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   }
 
   // Perform the HTTP request
-  ESP_LOGV(TAG,
-           "Check connection\n"
-           "Heap: %" PRIu32,
-           esp_get_free_heap_size());
+  ESP_LOGV(TAG, "Check connection, heap: %" PRIu32, esp_get_free_heap_size());
   err = esp_http_client_perform(http_client);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "HTTP failed: %s", esp_err_to_name(err));
@@ -232,10 +218,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   }
 
   // Check the HTTP Status Code
-  ESP_LOGV(TAG,
-           "Check status\n"
-           "Heap: %" PRIu32,
-           esp_get_free_heap_size());
+  ESP_LOGV(TAG, "Check status, heap: %" PRIu32, esp_get_free_heap_size());
   int status_code = esp_http_client_get_status_code(http_client);
   if (status_code != 200 && status_code != 206) {
     ESP_LOGE(TAG, "HTTP request failed with status %d", status_code);
@@ -344,8 +327,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
     ESP_LOGV(TAG, "Heap: %" PRIu32 " left: %" PRIu32, esp_get_free_heap_size(), this->content_length_);
   }
 
-  ESP_LOGD(TAG, "TFT upload complete\n"
-                "Close HTTP");
+  ESP_LOGD(TAG, "TFT upload complete, closing HTTP");
   esp_http_client_close(http_client);
   esp_http_client_cleanup(http_client);
   ESP_LOGV(TAG, "Connection closed");

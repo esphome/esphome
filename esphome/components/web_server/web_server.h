@@ -107,7 +107,7 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 using message_generator_t = json::SerializationBuffer<>(WebServer *, void *);
 
 class DeferredUpdateEventSourceList;
-class DeferredUpdateEventSource : public AsyncEventSource {
+class DeferredUpdateEventSource final : public AsyncEventSource {
   friend class DeferredUpdateEventSourceList;
 
   /*
@@ -163,7 +163,7 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
 };
 
-class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource *> {
+class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEventSource *> {
  protected:
   void on_client_connect_(DeferredUpdateEventSource *source);
   void on_client_disconnect_(DeferredUpdateEventSource *source);
@@ -187,7 +187,7 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
  * under the '/light/...', '/sensor/...', ... URLs. A full documentation for this API
  * can be found under https://esphome.io/web-api/.
  */
-class WebServer : public Controller, public Component, public AsyncWebHandler {
+class WebServer final : public Controller, public Component, public AsyncWebHandler {
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
   friend class DeferredUpdateEventSourceList;
 #endif
@@ -533,13 +533,13 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
     }
   }
 
-  // Generic helper to parse and apply a string parameter
+  // Generic helper to parse and apply a string parameter using const char* setter (avoids std::string allocation)
   template<typename T, typename Ret>
-  void parse_string_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
-                           Ret (T::*setter)(const std::string &)) {
+  void parse_cstr_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
+                         Ret (T::*setter)(const char *, size_t)) {
     if (request->hasArg(param_name)) {
       const auto &value = request->arg(param_name);
-      (call.*setter)(std::string(value.c_str(), value.length()));
+      (call.*setter)(value.c_str(), value.length());
     }
   }
 

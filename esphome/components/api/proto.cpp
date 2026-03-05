@@ -7,6 +7,23 @@ namespace esphome::api {
 
 static const char *const TAG = "api.proto";
 
+#ifdef USE_API_VARINT64
+optional<ProtoVarInt> ProtoVarInt::parse_wide(const uint8_t *buffer, uint32_t len, uint32_t *consumed,
+                                              uint32_t result32) {
+  uint64_t result64 = result32;
+  uint32_t limit = std::min(len, uint32_t(10));
+  for (uint32_t i = 4; i < limit; i++) {
+    uint8_t val = buffer[i];
+    result64 |= uint64_t(val & 0x7F) << (i * 7);
+    if ((val & 0x80) == 0) {
+      *consumed = i + 1;
+      return ProtoVarInt(result64);
+    }
+  }
+  return {};
+}
+#endif
+
 uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size_t length, uint32_t target_field_id) {
   uint32_t count = 0;
   const uint8_t *ptr = buffer;
