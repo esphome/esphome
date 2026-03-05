@@ -281,7 +281,7 @@ bool I2SAudioMicrophone::start_driver_() {
   }
 
   /* Before reading data, start the RX channel first */
-  i2s_channel_enable(this->rx_handle_);
+  err = i2s_channel_enable(this->rx_handle_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Enabling failed: %s", esp_err_to_name(err));
     return false;
