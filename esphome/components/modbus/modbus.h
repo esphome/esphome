@@ -79,7 +79,7 @@ class Modbus : public uart::UARTDevice, public Component {
 
   std::vector<uint8_t> rx_buffer_;
   std::vector<ModbusDevice *> devices_;
-  // std::dequeue is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
+  // std::deque is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
   // requests will be queued. Each modbus component may queue multiple requests, and the sequence of scheduling
   // may change at run time.
   std::deque<ModbusDeviceCommand> tx_buffer_;
@@ -107,6 +107,8 @@ class ModbusDevice {
     this->send_raw(error_response);
   }
   // If more than one device is connected block sending a new command before a response is received
+  ESPDEPRECATED("Use ready_for_immediate_send() instead. Removed in 2026.9.0", "2026.3.0")
+  bool waiting_for_response() { return !ready_for_immediate_send(); }
   bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(); }
 
  protected:
