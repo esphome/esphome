@@ -9,10 +9,6 @@
 #include <shell/shell_bt_nus.h>
 #include <atomic>
 
-#ifdef USE_UART_DEBUGGER
-using namespace esphome::uart;  // NOLINT(google-global-names-in-headers)
-#endif
-
 namespace esphome::ble_nus {
 
 class BLENUS : public uart::UARTComponent, public Component {

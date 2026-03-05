@@ -1,6 +1,11 @@
 import esphome.codegen as cg
 from esphome.components.logger import request_log_listener
-from esphome.components.uart import UARTComponent, debug_to_code, maybe_empty_debug
+from esphome.components.uart import (
+    UARTComponent,
+    debug_to_code,
+    maybe_empty_debug,
+    uart_ns,
+)
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
@@ -67,4 +72,5 @@ async def to_code(config: ConfigType) -> None:
             "ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE", config[CONF_RX_BUFFER_SIZE]
         )
     if CONF_DEBUG in config:
+        cg.add_global(uart_ns.using)
         await debug_to_code(config[CONF_DEBUG], var)
