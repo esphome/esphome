@@ -260,10 +260,10 @@ def choose_upload_log_host(
     if (
         purpose == Purpose.UPLOADING
         and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+        and (picotool := _find_picotool()) is not None
+        and detect_rp2040_bootsel(picotool) > 0
     ):
-        picotool = _find_picotool()
-        if picotool is not None and detect_rp2040_bootsel(picotool) > 0:
-            options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
+        options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
 
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():
