@@ -70,15 +70,23 @@ static int64_t alarm_callback(alarm_id_t id, void *user_data) {
 }
 
 void socket_delay(uint32_t ms) {
-  if (ms == 0)
+  if (ms == 0) {
+    yield();
     return;
+  }
   s_socket_woke = false;
   s_delay_expired = false;
   // Set a one-shot timer to wake us after the timeout.
   // add_alarm_in_ms returns >0 on success, 0 if time already passed, <0 on error.
   alarm_id_t alarm = add_alarm_in_ms(ms, alarm_callback, nullptr, true);
-  if (alarm <= 0)
-    return;  // Timer already fired or no alarm slots available
+  if (alarm <= 0) {
+    // Fallback: honor the requested delay even if the alarm could not be scheduled.
+    absolute_time_t deadline = make_timeout_time_ms(ms);
+    while (!s_socket_woke && !time_reached(deadline)) {
+      __wfe();
+    }
+    return;
+  }
   // Sleep until woken by either the timer alarm or socket_wake().
   // __wfe() may return spuriously (stale event register, other interrupts),
   // so we loop checking both flags.
