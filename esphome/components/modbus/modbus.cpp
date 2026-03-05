@@ -355,6 +355,10 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
     } else {
       payload_len = 2;  // Write single register or coil
     }
+    if (payload_len + pos + 2 > MAX_FRAME_SIZE) {  // Check if payload fits (accounting for CRC)
+      ESP_LOGE(TAG, "Payload too large to send: %d bytes", payload_len);
+      return;
+    }
     for (int i = 0; i < payload_len; i++) {
       data[pos++] = payload[i];
     }
@@ -369,6 +373,11 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   if (payload.empty()) {
     return;
   }
+  // Frame size: payload + CRC(2)
+  if (payload.size() + 2 > MAX_FRAME_SIZE) {
+    ESP_LOGE(TAG, "Attempted to send frame larger than max frame size of %d bytes", MAX_FRAME_SIZE);
+    return;
+  }
   // Use stack buffer - Modbus frames are small and bounded
   uint8_t data[MAX_FRAME_SIZE];
 
@@ -377,13 +386,9 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   this->queue_raw_(data, payload.size());
 }
 
+// Assume data and length is valid and append CRC, then queue for sending. Used internally to avoid unnecessary copying
+// of data into vectors
 void Modbus::queue_raw_(const uint8_t *data, uint16_t len) {
-  // Frame size: payload + CRC(2)
-  if (len + 2 > MAX_FRAME_SIZE) {
-    ESP_LOGE(TAG, "Attempted to send frame larger than max frame size of %d bytes", MAX_FRAME_SIZE);
-    return;
-  }
-
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
     this->tx_buffer_.emplace_back(data, len);
   } else {
