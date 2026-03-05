@@ -18,7 +18,9 @@ from esphome.const import (
 
 from .. import CONF_BATTERY, CONF_PYLONTECH_ID, PYLONTECH_COMPONENT_SCHEMA, pylontech_ns
 
+# Define both C++ classes for the Python script
 PylontechSensor = pylontech_ns.class_("PylontechSensor", cg.Component)
+PylontechCellSensor = pylontech_ns.class_("PylontechCellSensor", sensor.Sensor)
 
 CONF_COULOMB = "coulomb"
 CONF_TEMPERATURE_LOW = "temperature_low"
@@ -76,7 +78,7 @@ TYPES: dict[str, cv.Schema] = {
 }
 
 # Add individual cell voltage sensors
-CONF_CELL_VOLTAGES = [f"cell_{i + 1}_voltage" for i in range(15)]
+CONF_CELL_VOLTAGES = [f"cell_{i+1}_voltage" for i in range(15)]
 
 # 1. Base Schema
 CONFIG_SCHEMA = PYLONTECH_COMPONENT_SCHEMA.extend(
@@ -90,15 +92,15 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
     {cv.Optional(marker): schema for marker, schema in TYPES.items()}
 )
 
-# 3. Add cell sensors
+# 3. Add cell sensors (linked to the new memory-optimized class)
 CELL_SCHEMA = {
     cv.Optional(conf): sensor.sensor_schema(
-        unit_of_measurement="V",
+        PylontechCellSensor,
+        unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=3,
-        device_class="voltage",
+        device_class=DEVICE_CLASS_VOLTAGE,
         state_class="measurement",
-    )
-    for conf in CONF_CELL_VOLTAGES
+    ) for conf in CONF_CELL_VOLTAGES
 }
 
 CONFIG_SCHEMA = CONFIG_SCHEMA.extend(CELL_SCHEMA)
@@ -113,12 +115,17 @@ async def to_code(config):
             sens = await sensor.new_sensor(marker_config)
             cg.add(getattr(bat, f"set_{marker}_sensor")(sens))
 
-    # Generate cell sensors
+    # --- THE MAGIC HAPPENS HERE ---
+    # Create the lightweight sensors ONLY for explicitly configured cells
     for i, conf in enumerate(CONF_CELL_VOLTAGES):
         if conf in config:
-            sens = await sensor.new_sensor(config[conf])
-            cg.add(bat.set_cell_voltage_sensor(i, sens))
-
+            cell_config = config[conf]
+            # Pass bat_num and cell_id (1-15) directly to the C++ constructor
+            sens = cg.new_Pvariable(cell_config[CONF_ID], config[CONF_BATTERY], i + 1)
+            await sensor.register_sensor(sens, cell_config)
+            # Register the sensor as a listener to the main component
+            cg.add(paren.register_listener(sens))
+    
     # Notify main component about highest configured battery ID
     cg.add(paren.set_max_battery(config[CONF_BATTERY]))
 
