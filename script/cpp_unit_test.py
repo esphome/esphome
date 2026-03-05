@@ -190,9 +190,8 @@ def run_tests(selected_components: list[str]) -> int:
             config.setdefault(component_name, [])
 
     dependencies = set(components_with_dependencies) - set(components)
-    print(
-        f"Testing components: {', '.join(components)}. Dependencies: {', '.join(dependencies) if dependencies else 'None'}"
-    )
+    deps_str = ", ".join(dependencies) if dependencies else "None"
+    print(f"Testing components: {', '.join(components)}. Dependencies: {deps_str}")
     CORE.config = config
     args = parse_args(["program", "compile", str(CORE.config_path)])
     try:
