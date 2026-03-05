@@ -16,16 +16,20 @@ void MockUartComponent::setup() {
 }
 
 void MockUartComponent::loop() {
-  uint32_t now = App.get_loop_component_start_time();
-
-  // Initialize scenario start time on first loop() call, after all components have
-  // finished setup(). This prevents injection delays from being consumed during setup.
   if (!this->loop_started_) {
     this->loop_started_ = true;
-    this->scenario_start_ms_ = now;
-    this->cumulative_delay_ms_ = 0;
-    ESP_LOGD(TAG, "Scenario started at %u ms", now);
+    if (this->auto_start_) {
+      this->start_scenario();
+    } else {
+      ESP_LOGD(TAG, "Scenario waiting for manual start");
+    }
   }
+
+  if (!this->scenario_active_) {
+    return;
+  }
+
+  uint32_t now = App.get_loop_component_start_time();
 
   // Process at most ONE timed injection per loop iteration.
   // This ensures each injection is in a separate loop cycle, giving the consuming
@@ -48,6 +52,19 @@ void MockUartComponent::loop() {
       periodic.last_inject_ms = now;
     }
   }
+}
+
+void MockUartComponent::start_scenario() {
+  uint32_t now = App.get_loop_component_start_time();
+  this->scenario_active_ = true;
+  this->scenario_start_ms_ = now;
+  this->cumulative_delay_ms_ = 0;
+  this->injection_index_ = 0;
+  this->tx_buffer_.clear();
+  for (auto &periodic : this->periodic_rx_) {
+    periodic.last_inject_ms = now;
+  }
+  ESP_LOGD(TAG, "Scenario started at %u ms", now);
 }
 
 void MockUartComponent::dump_config() {
@@ -78,10 +95,12 @@ void MockUartComponent::write_array(const uint8_t *data, size_t len) {
   }
 #endif
 
-  this->try_match_response_();
+  if (this->scenario_active_) {
+    this->try_match_response_();
+  }
 
   // This directly calls a tx_hook (lambda) as an alternative to the simpler match_response mechanism.
-  if (this->tx_hook_) {
+  if (this->tx_hook_ && this->scenario_active_) {
     std::vector<uint8_t> buf(data, data + len);
     this->tx_hook_(buf);
   }
