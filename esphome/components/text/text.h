@@ -6,8 +6,7 @@
 #include "text_call.h"
 #include "text_traits.h"
 
-namespace esphome {
-namespace text {
+namespace esphome::text {
 
 #define LOG_TEXT(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -47,5 +46,4 @@ class Text : public EntityBase {
   LazyCallbackManager<void(const std::string &)> state_callback_;
 };
 
-}  // namespace text
-}  // namespace esphome
+}  // namespace esphome::text

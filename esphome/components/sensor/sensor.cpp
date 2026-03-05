@@ -68,11 +68,15 @@ void Sensor::publish_state(float state) {
 
   ESP_LOGV(TAG, "'%s': Received new state %f", this->name_.c_str(), state);
 
+#ifdef USE_SENSOR_FILTER
   if (this->filter_list_ == nullptr) {
+#endif
     this->internal_send_state_to_frontend(state);
+#ifdef USE_SENSOR_FILTER
   } else {
     this->filter_list_->input(state);
   }
+#endif
 }
 
 void Sensor::add_on_state_callback(std::function<void(float)> &&callback) { this->callback_.add(std::move(callback)); }
@@ -80,6 +84,7 @@ void Sensor::add_on_raw_state_callback(std::function<void(float)> &&callback) {
   this->raw_callback_.add(std::move(callback));
 }
 
+#ifdef USE_SENSOR_FILTER
 void Sensor::add_filter(Filter *filter) {
   // inefficient, but only happens once on every sensor setup and nobody's going to have massive amounts of
   // filters
@@ -109,6 +114,7 @@ void Sensor::clear_filters() {
   }
   this->filter_list_ = nullptr;
 }
+#endif  // USE_SENSOR_FILTER
 float Sensor::get_state() const { return this->state; }
 float Sensor::get_raw_state() const { return this->raw_state; }
 

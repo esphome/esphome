@@ -53,7 +53,7 @@ void DNSServer::start(const network::IPAddress &ip) {
 #endif
 
   // Create loop-monitored UDP socket
-  this->socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_UDP);
+  this->socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_UDP).release();
   if (this->socket_ == nullptr) {
     ESP_LOGE(TAG, "Socket create failed");
     return;
@@ -70,17 +70,14 @@ void DNSServer::start(const network::IPAddress &ip) {
   int err = this->socket_->bind((struct sockaddr *) &server_addr, addr_len);
   if (err != 0) {
     ESP_LOGE(TAG, "Bind failed: %d", errno);
-    this->socket_ = nullptr;
+    this->destroy_socket_();
     return;
   }
   ESP_LOGV(TAG, "Bound to port %d", DNS_PORT);
 }
 
 void DNSServer::stop() {
-  if (this->socket_ != nullptr) {
-    this->socket_->close();
-    this->socket_ = nullptr;
-  }
+  this->destroy_socket_();
   ESP_LOGV(TAG, "Stopped");
 }
 

@@ -2,6 +2,8 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 #include <driver/gpio.h>
 #include <esp_clk_tree.h>
 
@@ -104,7 +106,7 @@ void RemoteReceiverComponent::setup() {
   this->store_.filter_symbols = this->filter_symbols_;
   this->store_.receive_size = this->receive_symbols_ * sizeof(rmt_symbol_word_t);
   this->store_.buffer_size = std::max((event_size + this->store_.receive_size) * 2, this->buffer_size_);
-  this->store_.buffer = new uint8_t[this->buffer_size_];
+  this->store_.buffer = new uint8_t[this->store_.buffer_size];
   error = rmt_receive(this->channel_, (uint8_t *) this->store_.buffer + event_size, this->store_.receive_size,
                       &this->store_.config);
   if (error != ESP_OK) {
@@ -248,4 +250,5 @@ void RemoteReceiverComponent::decode_rmt_(rmt_symbol_word_t *item, size_t item_c
 
 }  // namespace esphome::remote_receiver
 
-#endif
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32

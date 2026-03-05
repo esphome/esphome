@@ -6,13 +6,15 @@
 #include <vector>
 
 #if defined(USE_ESP32)
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 #include <driver/rmt_tx.h>
-#endif
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32
 
-namespace esphome {
-namespace remote_transmitter {
+namespace esphome::remote_transmitter {
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && SOC_RMT_SUPPORTED
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
 // IDF version 5.5.1 and above is required because of a bug in
 // the RMT encoder: https://github.com/espressif/esp-idf/issues/17244
@@ -33,7 +35,7 @@ struct RemoteTransmitterComponentStore {
 
 class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
                                    public Component
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && SOC_RMT_SUPPORTED
     ,
                                    public remote_base::RemoteRMTChannel
 #endif
@@ -51,7 +53,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 
   void digital_write(bool value);
 
-#if defined(USE_ESP32)
+#if defined(USE_ESP32) && SOC_RMT_SUPPORTED
   void set_with_dma(bool with_dma) { this->with_dma_ = with_dma; }
   void set_eot_level(bool eot_level) { this->eot_level_ = eot_level; }
   void set_non_blocking(bool non_blocking) { this->non_blocking_ = non_blocking; }
@@ -62,7 +64,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 
  protected:
   void send_internal(uint32_t send_times, uint32_t send_wait) override;
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
   void calculate_on_off_time_(uint32_t carrier_frequency, uint32_t *on_time_period, uint32_t *off_time_period);
 
   void mark_(uint32_t on_time, uint32_t off_time, uint32_t usec);
@@ -73,7 +75,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   uint32_t target_time_;
 #endif
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && SOC_RMT_SUPPORTED
   void configure_rmt_();
   void wait_for_rmt_();
 
@@ -100,5 +102,4 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   Trigger<> complete_trigger_;
 };
 
-}  // namespace remote_transmitter
-}  // namespace esphome
+}  // namespace esphome::remote_transmitter

@@ -1,3 +1,6 @@
+#include "esphome/core/defines.h"
+#ifdef USE_BINARY_SENSOR_FILTER
+
 #include "filter.h"
 
 #include "binary_sensor.h"
@@ -142,3 +145,5 @@ optional<bool> SettleFilter::new_value(bool value) {
 float SettleFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 }  // namespace esphome::binary_sensor
+
+#endif  // USE_BINARY_SENSOR_FILTER

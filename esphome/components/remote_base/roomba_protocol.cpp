@@ -6,11 +6,11 @@ namespace remote_base {
 
 static const char *const TAG = "remote.roomba";
 
-static const uint8_t NBITS = 8;
-static const uint32_t BIT_ONE_HIGH_US = 3000;
-static const uint32_t BIT_ONE_LOW_US = 1000;
-static const uint32_t BIT_ZERO_HIGH_US = BIT_ONE_LOW_US;
-static const uint32_t BIT_ZERO_LOW_US = BIT_ONE_HIGH_US;
+static constexpr uint8_t NBITS = 8;
+static constexpr uint32_t BIT_ONE_HIGH_US = 3000;
+static constexpr uint32_t BIT_ONE_LOW_US = 1000;
+static constexpr uint32_t BIT_ZERO_HIGH_US = BIT_ONE_LOW_US;
+static constexpr uint32_t BIT_ZERO_LOW_US = BIT_ONE_HIGH_US;
 
 void RoombaProtocol::encode(RemoteTransmitData *dst, const RoombaData &data) {
   dst->set_carrier_frequency(38000);

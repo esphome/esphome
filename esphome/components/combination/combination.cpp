@@ -126,7 +126,7 @@ void LinearCombinationComponent::setup() {
 }
 
 void LinearCombinationComponent::handle_new_value(float value) {
-  // Multiplies each sensor state by a configured coeffecient and then sums
+  // Multiplies each sensor state by a configured coefficient and then sums
 
   if (!std::isfinite(value))
     return;
