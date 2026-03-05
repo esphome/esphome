@@ -37,7 +37,7 @@
 #include "esphome/components/socket/socket.h"
 #endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 namespace esphome::socket {
 void socket_wake();  // NOLINT(readability-redundant-declaration)
 }  // namespace esphome::socket
@@ -661,8 +661,12 @@ class Application {
 
 #if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
   /// Wake the main event loop from any context (ISR, thread, or main loop).
-  /// On ESP8266: sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
+  /// Sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
   static void IRAM_ATTR wake_loop_any_context() { socket::socket_wake(); }
+#elif defined(USE_RP2040) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  /// Wake the main event loop from any context.
+  /// Sets the socket wake flag and calls __sev() to exit __wfe() early.
+  static void wake_loop_any_context() { socket::socket_wake(); }
 #endif
 
  protected:
