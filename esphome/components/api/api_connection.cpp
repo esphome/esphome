@@ -114,9 +114,10 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
     this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
   }
 #elif defined(USE_API_PLAINTEXT)
-  this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
+  this->helper_ = std::unique_ptr<APIPlaintextFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
 #elif defined(USE_API_NOISE)
-  this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
+  this->helper_ =
+      std::unique_ptr<APINoiseFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
 #else
 #error "No frame helper defined"
 #endif
