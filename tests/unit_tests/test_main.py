@@ -40,6 +40,7 @@ from esphome.__main__ import (
     show_logs,
     upload_program,
     upload_using_esptool,
+    upload_using_platformio,
     upload_using_uf2_copy,
 )
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
@@ -1201,6 +1202,46 @@ def test_upload_program_serial_platformio_platforms(
     assert host == device
     mock_check_permissions.assert_called_once_with(device)
     mock_upload_using_platformio.assert_called_once_with(config, device)
+
+
+def test_upload_using_platformio_creates_signed_bin_for_rp2040(
+    tmp_path: Path,
+) -> None:
+    """Test that upload_using_platformio creates firmware.bin.signed for RP2040."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    firmware_bin = build_dir / "firmware.bin"
+    firmware_bin.write_bytes(b"test firmware content")
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"elf")
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+
+    with (
+        patch("esphome.platformio_api.get_idedata", return_value=mock_idedata),
+        patch("esphome.platformio_api.run_platformio_cli_run", return_value=0),
+    ):
+        result = upload_using_platformio({}, "/dev/ttyACM0")
+
+    assert result == 0
+    signed_bin = build_dir / "firmware.bin.signed"
+    assert signed_bin.is_file()
+    assert signed_bin.read_bytes() == b"test firmware content"
+
+
+def test_upload_using_platformio_skips_signed_bin_for_non_rp2040(
+    tmp_path: Path,
+) -> None:
+    """Test that upload_using_platformio doesn't create signed bin for non-RP2040."""
+    setup_core(platform=PLATFORM_ESP32)
+
+    with patch("esphome.platformio_api.run_platformio_cli_run", return_value=0):
+        result = upload_using_platformio({}, "/dev/ttyUSB0")
+
+    assert result == 0
 
 
 def test_upload_program_serial_upload_failed(
