@@ -1,16 +1,15 @@
 """PN7160 binary sensor platform for ESPHome."""
+
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_UID
 
-from . import pn7160_ns, PN7160, CONF_PN7160_ID
+from . import CONF_PN7160_ID, PN7160, pn7160_ns
 
 DEPENDENCIES = ["pn7160"]
 
-PN7160BinarySensor = pn7160_ns.class_(
-    "PN7160BinarySensor", binary_sensor.BinarySensor
-)
+PN7160BinarySensor = pn7160_ns.class_("PN7160BinarySensor", binary_sensor.BinarySensor)
 
 
 def validate_uid(value):
@@ -21,15 +20,11 @@ def validate_uid(value):
         raise cv.Invalid("UID must not be empty")
     for part in parts:
         if len(part) != 2:
-            raise cv.Invalid(
-                f"UID part '{part}' must be exactly 2 hex digits"
-            )
+            raise cv.Invalid(f"UID part '{part}' must be exactly 2 hex digits")
         try:
             int(part, 16)
         except ValueError as e:
-            raise cv.Invalid(
-                f"UID part '{part}' is not valid hexadecimal"
-            ) from e
+            raise cv.Invalid(f"UID part '{part}' is not valid hexadecimal") from e
     return value
 
 

@@ -119,7 +119,9 @@ PN7160_SCHEMA = cv.Schema(
         cv.Optional(CONF_TAG_TTL): cv.positive_time_period_milliseconds,
         # Health check options
         cv.Optional(CONF_HEALTH_CHECK_ENABLED, default=True): cv.boolean,
-        cv.Optional(CONF_HEALTH_CHECK_INTERVAL, default="60s"): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_HEALTH_CHECK_INTERVAL, default="60s"
+        ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_MAX_FAILED_CHECKS, default=3): cv.int_range(min=1, max=10),
         cv.Optional(CONF_AUTO_RESET_ON_FAILURE, default=True): cv.boolean,
     }
@@ -238,4 +240,3 @@ async def pn7160_is_writing_to_code(config, condition_id, template_arg, args):
     var = cg.new_Pvariable(condition_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
-
