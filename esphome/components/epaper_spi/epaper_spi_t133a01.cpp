@@ -132,7 +132,7 @@ bool EPaperT133A01::reset() {
 bool EPaperT133A01::initialise(bool partial) {
   (void) partial;
 
-  this->transfer_prologue_phase_ = 0;
+  this->transfer_prologue_phase_ = TRANSFER_PROLOGUE_PHASE_SEND_CCSET;
 
   this->send_init_sequence_dual_(this->init_sequence_, this->init_sequence_length_);
   return true;
@@ -302,17 +302,16 @@ bool HOT EPaperT133A01::transfer_data() {
 
   if (!this->transfer_prologue_done_) {
     // Transfer prologue (equivalent to EPD_PUSH_NEW_COLORS preamble) without blocking.
-    // Vendor does: CCSET -> CHECK_BUSY -> delay(10)
-    if (this->transfer_prologue_phase_ == 0) {
+    if (this->transfer_prologue_phase_ == TRANSFER_PROLOGUE_PHASE_SEND_CCSET) {
       // Send CCSET to both controllers before streaming pixels.
       this->cmd_data(RE0_CCSET, CCSET_V_CUR, sizeof(CCSET_V_CUR));
       this->cs1_cmd_data_(RE0_CCSET, CCSET_V_CUR, sizeof(CCSET_V_CUR));
-      this->transfer_prologue_phase_ = 1;
+      this->transfer_prologue_phase_ = TRANSFER_PROLOGUE_PHASE_DELAY_AFTER_CCSET;
       return false;  // EPaperBase will wait for idle before calling again
     }
-    if (this->transfer_prologue_phase_ == 1) {
+    if (this->transfer_prologue_phase_ == TRANSFER_PROLOGUE_PHASE_DELAY_AFTER_CCSET) {
       this->delay_until_ = millis() + 10;
-      this->transfer_prologue_phase_ = 2;
+      this->transfer_prologue_phase_ = TRANSFER_PROLOGUE_PHASE_DONE;
       return false;
     }
 
@@ -321,7 +320,7 @@ bool HOT EPaperT133A01::transfer_data() {
     this->transfer_dtm_sent_ = false;
     this->transfer_streaming_ = false;
     this->transfer_prologue_done_ = true;
-    this->transfer_prologue_phase_ = 0;
+    this->transfer_prologue_phase_ = TRANSFER_PROLOGUE_PHASE_SEND_CCSET;
   }
 
   // Manufacturer implementation (EPD_PUSH_NEW_COLORS) streams the entire first half (CS),

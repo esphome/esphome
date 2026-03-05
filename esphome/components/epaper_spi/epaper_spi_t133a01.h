@@ -21,6 +21,10 @@ class EPaperT133A01 : public EPaperBase {
   void fill(Color color) override;
   void clear() override;
 
+  static constexpr uint8_t TRANSFER_PROLOGUE_PHASE_SEND_CCSET = 0;
+  static constexpr uint8_t TRANSFER_PROLOGUE_PHASE_DELAY_AFTER_CCSET = 1;
+  static constexpr uint8_t TRANSFER_PROLOGUE_PHASE_DONE = 2;
+
  protected:
   bool reset() override;
   bool initialise(bool partial) override;
@@ -50,7 +54,7 @@ class EPaperT133A01 : public EPaperBase {
   bool transfer_streaming_{false};
 
   // Transfer prologue sequencing to avoid blocking waits.
-  uint8_t transfer_prologue_phase_{0};
+  uint8_t transfer_prologue_phase_{TRANSFER_PROLOGUE_PHASE_SEND_CCSET};
 };
 
 }  // namespace esphome::epaper_spi
