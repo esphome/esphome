@@ -28,17 +28,16 @@ void decode_task(void *params) {
     xEventGroupSetBits(this_source->event_group_, EventGroupBits::DECODER_STARTING);
 
     // Wait until the reader notifies us that it's ready or receive a stop command
-    EventBits_t event_bits = xEventGroupWaitBits(
-        this_source->event_group_,
-        EventGroupBits::READER_READY | EventGroupBits::COMMAND_STOP,  // Bit message to read
-        pdFALSE,                                                      // Don't clear the bit on exit
-        pdFALSE,                                                      // Wait for any bit
-        pdMS_TO_TICKS(
-            CONNECTION_TIMEOUT_MS));  // Timeout to avoid indefinitely waiting for the reader task to get ready
+    EventBits_t event_bits =
+        xEventGroupWaitBits(this_source->event_group_,
+                            EventGroupBits::READER_READY | EventGroupBits::COMMAND_STOP,  // Bit message to read
+                            pdFALSE,                                                      // Don't clear the bit on exit
+                            pdFALSE,                                                      // Wait for any bit
+                            portMAX_DELAY);  // Wait indefinitely; reader sets COMMAND_STOP on failure
     xEventGroupClearBits(this_source->event_group_, EventGroupBits::READER_READY);
 
-    // Exit if stop was requested or if READER_READY was never set (timeout)
-    if ((event_bits & EventGroupBits::COMMAND_STOP) || !(event_bits & EventGroupBits::READER_READY)) {
+    // Exit if stop was requested
+    if (event_bits & EventGroupBits::COMMAND_STOP) {
       // Signal reader task so it doesn't wait forever for us to acquire the ring buffer.
       // Set COMMAND_STOP so the read task stops promptly; e.g., on timeout.
       xEventGroupSetBits(this_source->event_group_, EventGroupBits::DECODER_RINGBUF_ACQUIRED |
