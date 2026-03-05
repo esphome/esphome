@@ -60,7 +60,7 @@ bool BLENUS::read_array(uint8_t *data, size_t len) {
   if (len == 0) {
     return true;
   }
-  if ((available() + (this->has_peek_ ? 1 : 0)) < len) {
+  if ((this->available() + (this->has_peek_ ? 1 : 0)) < len) {
     return false;
   }
 
