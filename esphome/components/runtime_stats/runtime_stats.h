@@ -7,6 +7,7 @@
 #include <map>
 #include <cstdint>
 #include <cstring>
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -80,10 +81,13 @@ class RuntimeStatsCollector {
  public:
   RuntimeStatsCollector();
 
-  void set_log_interval(uint32_t log_interval) { this->log_interval_ = log_interval; }
+  void set_log_interval(uint32_t log_interval) {
+    this->log_interval_ = log_interval;
+    this->next_log_time_ = millis() + log_interval;
+  }
   uint32_t get_log_interval() const { return this->log_interval_; }
 
-  void record_component_time(Component *component, uint32_t duration_us, uint32_t current_time);
+  void record_component_time(Component *component, uint32_t duration_us);
 
   // Process any pending stats printing (should be called after component loop)
   void process_pending_stats(uint32_t current_time);
@@ -101,7 +105,7 @@ class RuntimeStatsCollector {
   // We use Component* as the key since each component is unique
   std::map<Component *, ComponentRuntimeStats> component_stats_;
   uint32_t log_interval_;
-  uint32_t next_log_time_;
+  uint32_t next_log_time_{0};
 };
 
 }  // namespace runtime_stats
