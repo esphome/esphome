@@ -31,15 +31,13 @@ def filter_components_without_tests(components: list[str]) -> list[str]:
     """Filter out components that do not have a corresponding test file.
 
     This is done by checking if the component's directory contains at
-    least a .cpp file.
+    least a .cpp or .h file.
     """
     filtered_components: list[str] = []
     for component in components:
         test_dir = COMPONENTS_TESTS_DIR / component
-        if (
-            test_dir.is_dir()
-            and any(test_dir.glob("*.cpp"))
-            or any(test_dir.glob("*.h"))
+        if test_dir.is_dir() and (
+            any(test_dir.glob("*.cpp")) or any(test_dir.glob("*.h"))
         ):
             filtered_components.append(component)
         else:
@@ -87,12 +85,24 @@ def create_test_config(config_name: str, includes: list[str]) -> dict:
 
 
 def get_platform_components(components: list[str]) -> list[str]:
+    """Discover platform sub-components referenced by test directory structure.
+
+    For each component being tested, any sub-directory named after a platform
+    domain (e.g. ``sensor``, ``binary_sensor``) is treated as a request to
+    include that ``<domain>.<component>`` platform in the build.  The sub-
+    directory must name a valid platform domain; anything else raises an error
+    so that typos are caught early.
+
+    Returns:
+        List of ``"domain.component"`` strings, one per discovered sub-directory.
+    """
     platform_components: list[str] = []
     for component in components:
         test_dir = COMPONENTS_TESTS_DIR / component
         if not test_dir.is_dir():
             continue
-        # Iterate all folders in test_dir
+        # Each sub-directory name is expected to be a platform domain
+        # (e.g. tests/components/bthome/sensor/ → sensor.bthome).
         for domain_dir in test_dir.iterdir():
             if not domain_dir.is_dir():
                 continue
@@ -125,8 +135,10 @@ def run_tests(selected_components: list[str]) -> int:
 
     components = sorted(components)
 
-    # Build a list of include folders, one folder per component containing tests.
-    # A special replacement main.cpp is located in /tests/components/main.cpp
+    # Build a list of include folders relative to COMPONENTS_TESTS_DIR.
+    # "main.cpp" is a special entry that points to /tests/components/main.cpp,
+    # which provides a custom test runner entry-point replacing the default one.
+    # Each remaining entry is a component folder whose *.cpp files are compiled.
     includes: list[str] = ["main.cpp"] + components
 
     # Obtain a list of platform components to be tested:
@@ -145,7 +157,7 @@ def run_tests(selected_components: list[str]) -> int:
     # Obtain possible dependencies for the requested components.
     # Always include 'time' because USE_TIME_TIMEZONE is defined as a build flag,
     # which causes core/time.h to include components/time/posix_tz.h.
-    components_with_dependencies = sorted(
+    components_with_dependencies: list[str] = sorted(
         get_all_dependencies(set(components) | {"time"}, cpp_testing=True)
     )
 
@@ -162,7 +174,9 @@ def run_tests(selected_components: list[str]) -> int:
     # are added to the build.
     for component_name in components_with_dependencies:
         if "." in component_name:
-            domain, component = component_name.split(".")
+            # Format is always "domain.component" (exactly one dot),
+            # as produced by get_platform_components().
+            domain, component = component_name.split(".", maxsplit=1)
             domain_list = config.setdefault(domain, [])
             if not domain_list:
                 CORE.register_platform_component(domain, "dummy")
