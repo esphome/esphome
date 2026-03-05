@@ -1,8 +1,9 @@
 #include "ruuvi_ble.h"
 #include "esphome/core/log.h"
-#include <cmath>
 
 #ifdef USE_ESP32
+
+#include <cmath>
 
 namespace esphome {
 namespace ruuvi_ble {
