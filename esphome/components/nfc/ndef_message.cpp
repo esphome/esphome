@@ -9,7 +9,7 @@ static const char *const TAG = "nfc.ndef_message";
 NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "Building NdefMessage with %zu bytes", data.size());
   uint8_t index = 0;
-  while (index <= data.size()) {
+  while (index < data.size()) {
     uint8_t tnf_byte = data[index++];
     bool me = tnf_byte & 0x40;      // Message End bit (is set if this is the last record of the message)
     bool sr = tnf_byte & 0x10;      // Short record bit (is set if payload size is less or equal to 255 bytes)
