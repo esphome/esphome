@@ -29,6 +29,10 @@ static constexpr uint16_t MAX_MESSAGE_SIZE = 8192;  // 8 KiB for ESP8266
 static constexpr uint16_t MAX_MESSAGE_SIZE = 32768;  // 32 KiB for ESP32 and other platforms
 #endif
 
+// Extra byte reserved in rx_buf_ beyond the message size so protobuf
+// StringRef fields can be null-terminated in-place after decode.
+static constexpr uint16_t RX_BUF_NULL_TERMINATOR = 1;
+
 // Maximum number of messages to batch in a single write operation
 // Must be >= MAX_INITIAL_PER_BATCH in api_connection.h (enforced by static_assert there)
 static constexpr size_t MAX_MESSAGES_PER_BATCH = 34;

@@ -405,12 +405,6 @@ void MQTTComponent::process_resend() {
     this->schedule_resend_state();
   }
 }
-void MQTTComponent::call_dump_config() {
-  if (this->is_internal())
-    return;
-
-  this->dump_config();
-}
 void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
