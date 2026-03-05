@@ -34,7 +34,7 @@ bool XL9535Component::digital_read(uint8_t pin) {
       return state;
     }
 
-    state = (port & (1 << (pin - 10))) != 0;
+    state = (port & (1 << (pin - 8))) != 0;
   } else {
     if (this->read_register(XL9535_INPUT_PORT_0_REGISTER, &port, 1) != i2c::ERROR_OK) {
       this->status_set_warning();
@@ -58,8 +58,8 @@ void XL9535Component::digital_write(uint8_t pin, bool value) {
       return;
     }
 
-    register_data = register_data & (~(1 << (pin - 10)));
-    port = register_data | value << (pin - 10);
+    register_data = register_data & (~(1 << (pin - 8)));
+    port = register_data | value << (pin - 8);
 
     if (this->write_register(XL9535_OUTPUT_PORT_1_REGISTER, &port, 1) != i2c::ERROR_OK) {
       this->status_set_warning();
@@ -89,9 +89,9 @@ void XL9535Component::pin_mode(uint8_t pin, gpio::Flags mode) {
     this->read_register(XL9535_CONFIG_PORT_1_REGISTER, &port, 1);
 
     if (mode == gpio::FLAG_INPUT) {
-      port = port | (1 << (pin - 10));
+      port = port | (1 << (pin - 8));
     } else if (mode == gpio::FLAG_OUTPUT) {
-      port = port & (~(1 << (pin - 10)));
+      port = port & (~(1 << (pin - 8)));
     }
 
     this->write_register(XL9535_CONFIG_PORT_1_REGISTER, &port, 1);
