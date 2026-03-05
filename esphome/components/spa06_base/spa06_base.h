@@ -254,7 +254,7 @@ class SPA06Component : public PollingComponent {
       uint32_t data : 24;
     } val;
     uint8_t reg[3];
-  } psr_tmp_read_ = {.reg = 0};  // PSR and TMP read
+  } psr_tmp_read_ = {.reg = {0, 0, 0}};  // PSR and TMP read
 
   union {
     struct {

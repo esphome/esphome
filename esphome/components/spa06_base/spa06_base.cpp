@@ -167,19 +167,12 @@ bool SPA06Component::write_sensor_settings_(Oversampling oversampling, SampleRat
   this->pt_meas_cfg_.bit.rate = rate;
   this->pt_meas_cfg_.bit.prc = oversampling;
   ESP_LOGD(TAG, "Config write: %02x", this->pt_meas_cfg_.reg);
-  if (!spa_write_byte(reg, this->pt_meas_cfg_.reg)) {
-    return false;
-  }
-  return true;
+  return spa_write_byte(reg, this->pt_meas_cfg_.reg);
 }
 
 bool SPA06Component::write_measurement_settings_(MeasCrtl crtl) {
   this->meas_.bit.meas_crtl = crtl;
-  if (!spa_write_byte(SPA06_MEAS_CFG, this->meas_.reg)) {
-    ESP_LOGE(TAG, "Failed to write measurement config");
-    return false;
-  }
-  return true;
+  return spa_write_byte(SPA06_MEAS_CFG, this->meas_.reg)
 }
 
 bool SPA06Component::write_communication_settings_(bool pressure_shift, bool temperature_shift, bool interrupt_hl,
@@ -193,10 +186,7 @@ bool SPA06Component::write_communication_settings_(bool pressure_shift, bool tem
   this->cfg_.bit.int_prs = interrupt_prs;
   this->cfg_.bit.fifo_en = enable_fifo;
   this->cfg_.bit.spi_3wire = spi_3wire;
-  if (!spa_write_byte(SPA06_CFG_REG, this->cfg_.reg)) {
-    return false;
-  }
-  return true;
+  return spa_write_byte(SPA06_CFG_REG, this->cfg_.reg);
 }
 
 bool SPA06Component::read_coefficients_() {
