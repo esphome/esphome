@@ -24,10 +24,9 @@ static const char *const TAG = "wifi_pico_w";
 // when the fallback AP is active.
 static bool wifi_sta_connected() {
   int link = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
-  bool ip_set = WiFi.localIP().isSet();
-  if (link == CYW43_LINK_JOIN && ip_set) {
+  IPAddress local = WiFi.localIP();
+  if (link == CYW43_LINK_JOIN && local.isSet()) {
     // Verify the IP is a real STA IP, not the AP's IP leaking through
-    IPAddress local = WiFi.localIP();
     IPAddress ap_ip = WiFi.softAPIP();
     if (local == ap_ip) {
       ESP_LOGV(TAG, "wifi_sta_connected: localIP %s matches AP IP, ignoring", local.toString().c_str());
@@ -213,13 +212,8 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 #ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   // AP IP is configured by WiFi.beginAP() internally using defaults (192.168.4.1).
-  // Do NOT use WiFi.config() here — that configures the STA interface's IP, which
-  // poisons the STA localIP() and causes wifi_sta_connect_status_() to falsely
-  // report CONNECTED when the AP is active.
-  // Manual AP IP is not currently supported on RP2040.
-  if (manual_ip.has_value()) {
-    ESP_LOGW(TAG, "Manual AP IP configuration is not supported on RP2040");
-  }
+  // Manual AP IP has never worked on RP2040 — WiFi.config() configures the STA
+  // interface, not the AP. This is now rejected at config validation time.
   return true;
 }
 
@@ -251,11 +245,11 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *
 
 bool WiFiComponent::wifi_disconnect_() {
   // Use cyw43_wifi_leave() directly instead of WiFi.disconnect().
-  // WiFi.disconnect() sets _wifiHWInitted=false and _mode=WIFI_OFF in the Arduino
-  // framework, which causes WiFi.beginAP() to enter AP-only mode (IP 192.168.42.1)
-  // instead of AP_STA mode (IP 192.168.4.1). In AP-only mode, _beginInternal()
-  // redirects all subsequent STA connect attempts to beginAP() via the ESP8266
-  // compat hack, creating an infinite connect/disconnect loop.
+  // WiFi.disconnect() sets _wifiHWInitted=false in the Arduino framework. beginAP()
+  // uses _wifiHWInitted to determine AP+STA vs AP-only mode — with it false,
+  // beginAP() enters AP-only mode (IP 192.168.42.1) instead of AP_STA mode
+  // (IP 192.168.4.1). In AP-only mode, _beginInternal() redirects all subsequent
+  // STA connect attempts to beginAP(), creating an infinite loop.
   cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
   return true;
 }
@@ -291,7 +285,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
     if (ip == ap_ip) {
       continue;
     }
-    addresses[index++] = addr.ipFromNetifNum();
+    addresses[index++] = ip;
   }
   return addresses;
 }

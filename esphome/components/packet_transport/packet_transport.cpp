@@ -330,15 +330,16 @@ void PacketTransport::update() {
   if (!this->ping_pong_enable_) {
     return;
   }
-  auto now = millis() / 1000;
-  if (this->last_key_time_ + this->ping_pong_recyle_time_ < now) {
+  uint32_t now = millis();
+  uint32_t ping_request_age = now - this->last_key_time_;
+  if (ping_request_age > this->ping_pong_recyle_time_ * 1000u) {
     this->resend_ping_key_ = this->ping_pong_enable_;
-    ESP_LOGV(TAG, "Ping request, age %" PRIu32, now - this->last_key_time_);
+    ESP_LOGV(TAG, "Ping request, age %" PRIu32, ping_request_age);
     this->last_key_time_ = now;
   }
   for (const auto &provider : this->providers_) {
     uint32_t key_response_age = now - provider.second.last_key_response_time;
-    if (key_response_age > (this->ping_pong_recyle_time_ * 2u)) {
+    if (key_response_age > (this->ping_pong_recyle_time_ * 2000u)) {
 #ifdef USE_STATUS_SENSOR
       if (provider.second.status_sensor != nullptr && provider.second.status_sensor->state) {
         ESP_LOGI(TAG, "Ping status for %s timeout at %" PRIu32 " with age %" PRIu32, provider.first.c_str(), now,
@@ -496,7 +497,7 @@ void PacketTransport::process_(std::span<const uint8_t> data) {
     if (decoder.decode(PING_KEY, key) == DECODE_OK) {
       if (key == this->ping_key_) {
         ping_key_seen = true;
-        provider.last_key_response_time = millis() / 1000;
+        provider.last_key_response_time = millis();
         ESP_LOGV(TAG, "Found good ping key %X at timestamp %" PRIu32, (unsigned) key, provider.last_key_response_time);
       } else {
         ESP_LOGV(TAG, "Unknown ping key %X", (unsigned) key);
