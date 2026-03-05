@@ -37,6 +37,8 @@ class HTTPRequestMediaSource : public Component,
     return uri.starts_with("http://") || uri.starts_with("https://");
   }
 
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+
   void set_buffer_size(size_t buffer_size) { this->buffer_size_ = buffer_size; }
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
