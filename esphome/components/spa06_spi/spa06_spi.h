@@ -1,0 +1,21 @@
+#pragma once
+
+#include "esphome/components/spa06_base/spa06_base.h"
+#include "esphome/components/spi/spi.h"
+
+namespace esphome::spa06_spi {
+
+class SPA06SPIComponent : public esphome::spa06_base::SPA06Component,
+                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_200KHZ> {
+  void setup() override;
+  bool spa_read_byte(uint8_t a_register, uint8_t *data) override;
+  bool spa_write_byte(uint8_t a_register, uint8_t data) override;
+  bool spa_read_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
+  bool spa_write_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
+
+ protected:
+  void protocol_reset_() override;
+};
+
+}  // namespace esphome::spa06_spi
