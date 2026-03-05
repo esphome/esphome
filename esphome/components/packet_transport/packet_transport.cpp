@@ -249,7 +249,7 @@ void PacketTransport::init_data_() {
   } else {
     add(this->data_, DATA_KEY);
   }
-  for (auto pkey : this->ping_keys_) {
+  for (const auto &pkey : this->ping_keys_) {
     add(this->data_, PING_KEY);
     add(this->data_, pkey.second);
   }

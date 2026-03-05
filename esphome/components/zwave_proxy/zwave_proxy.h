@@ -81,10 +81,10 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   api::APIConnection *api_connection_{nullptr};  // Current subscribed client
   uint32_t setup_time_{0};                       // Time when setup() was called
 
-  // 8-bit values (grouped together to minimize padding)
-  uint8_t buffer_index_{0};     // Index for populating the data buffer
-  uint8_t end_frame_after_{0};  // Payload reception ends after this index
-  uint8_t last_response_{0};    // Last response type sent
+  // Small values (grouped by size to minimize padding)
+  uint16_t buffer_index_{0};     // Index for populating the data buffer
+  uint16_t end_frame_after_{0};  // Payload reception ends after this index
+  uint8_t last_response_{0};     // Last response type sent
   ZWaveParsingState parsing_state_{ZWAVE_PARSING_STATE_WAIT_START};
   bool in_bootloader_{false};  // True if the device is detected to be in bootloader mode
   bool home_id_ready_{false};  // True when home ID has been received from Z-Wave module
