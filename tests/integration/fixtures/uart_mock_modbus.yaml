@@ -22,6 +22,7 @@ uart_mock:
     baud_rate: 9600
     rx_full_threshold: 120
     rx_timeout: 2
+    auto_start: false
     debug:
     responses:
       - expect_tx: [0x01, 0x03, 0x00, 0x03, 0x00, 0x01, 0x74, 0x0A] # Read holding register 1 on device 1
@@ -38,3 +39,10 @@ sensor:
     name: "basic_register"
     address: 0x03
     register_type: holding
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: 'id(virtual_uart_dev).start_scenario();'
