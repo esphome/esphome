@@ -80,11 +80,7 @@ void socket_delay(uint32_t ms) {
   // add_alarm_in_ms returns >0 on success, 0 if time already passed, <0 on error.
   alarm_id_t alarm = add_alarm_in_ms(ms, alarm_callback, nullptr, true);
   if (alarm <= 0) {
-    // Fallback: honor the requested delay even if the alarm could not be scheduled.
-    absolute_time_t deadline = make_timeout_time_ms(ms);
-    while (!s_socket_woke && !time_reached(deadline)) {
-      __wfe();
-    }
+    delay(ms);
     return;
   }
   // Sleep until woken by either the timer alarm or socket_wake().
