@@ -79,7 +79,10 @@ static void stream_to_ring_buffer(std::shared_ptr<HttpContainer> &container,
       if (received_len > 0) {
         last_data_time = millis();
         transfer_buffer->increase_buffer_length(received_len);
-      } else if (received_len == 0 && container->is_read_complete()) {
+        continue;
+      }
+
+      if (received_len == 0 && container->is_read_complete()) {
         // Flush remaining buffered data to the ring buffer, retrying until empty
         while (transfer_buffer->available() > 0) {
           if (xEventGroupGetBits(event_group) & EventGroupBits::COMMAND_STOP) {
@@ -89,14 +92,22 @@ static void stream_to_ring_buffer(std::shared_ptr<HttpContainer> &container,
         }
         ESP_LOGD(TAG, "Reader finished");
         return;
-      } else if (millis() - last_data_time >= CONNECTION_TIMEOUT_MS) {
+      }
+
+      // Connection closed prematurely; fail immediately
+      if (received_len == HTTP_ERROR_CONNECTION_CLOSED) {
+        xEventGroupSetBits(event_group, EventGroupBits::READER_ERROR | EventGroupBits::COMMAND_STOP);
+        return;
+      }
+
+      // No data yet or transient transport timeout (e.g., EAGAIN)
+      if (millis() - last_data_time >= CONNECTION_TIMEOUT_MS) {
         ESP_LOGE(TAG, "Reader timed out");
         xEventGroupSetBits(event_group, EventGroupBits::READER_ERROR | EventGroupBits::COMMAND_STOP);
         return;
-      } else {
-        // No data yet or transient error; e.g., EAGAIN, loop continues
-        vTaskDelay(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS));
       }
+
+      vTaskDelay(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS));
     }
   }
 }
