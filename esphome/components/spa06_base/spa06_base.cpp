@@ -321,8 +321,8 @@ bool SPA06Component::read_temperature_and_pressure_(float &temperature, float &p
             "PRS read: %02x %02x %02x\n:"
             "     raw: %d\n"
             "  raw_sc: %f",
-            psr_tmp_read_.reg[0], psr_tmp_read_.reg[1],
-            psr_tmp_read_.reg[2] esphome::convert_big_endian(psr_tmp_read_.val.data << 8), p_raw_sc);
+            psr_tmp_read_.reg[0], psr_tmp_read_.reg[1], psr_tmp_read_.reg[2],
+            esphome::convert_big_endian(psr_tmp_read_.val.data << 8), p_raw_sc);
   // Calculate full pressure values
   pressure = this->convert_pressure_(p_raw_sc, t_raw_sc);
   return true;
@@ -337,8 +337,8 @@ bool SPA06Component::read_temperature_(float &temperature, float &t_raw_sc) {
             "TMP read: %02x %02x %02x\n:"
             "     raw: %d\n"
             "  raw_sc: %f",
-            psr_tmp_read_.reg[0], psr_tmp_read_.reg[1],
-            psr_tmp_read_.reg[2] esphome::convert_big_endian(psr_tmp_read_.val.data << 8), t_raw_sc);
+            psr_tmp_read_.reg[0], psr_tmp_read_.reg[1], psr_tmp_read_.reg[2],
+            esphome::convert_big_endian(psr_tmp_read_.val.data << 8), t_raw_sc);
   temperature = this->convert_temperature_(t_raw_sc);
   return true;
 }
