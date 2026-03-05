@@ -13,12 +13,12 @@ namespace esphome::http_request {
 //
 // Three components coordinate via FreeRTOS event bits and a shared ring buffer:
 //
-//   Main Loop (http_media_source.cpp)
+//   Main Loop (http_request_media_source.cpp)
 //     - Orchestrates lifecycle: creates/destroys tasks, monitors state
 //     - Sets REQUEST_START, COMMAND_STOP, COMMAND_PAUSE
 //     - Reads DECODER_* and READER_* bits to track state
 //
-//   Read Task (http_read_task.cpp)          Decode Task (http_decode_task.cpp)
+//   Read Task (reader_task.cpp)              Decode Task (decoder_task.cpp)
 //     - Fetches audio over HTTP               - Decodes raw audio stream
 //     - Writes raw bytes to ring buffer       - Reads from ring buffer
 //     - Signals READER_READY, READER_FINISHED - Signals DECODER_RUNNING, etc.
@@ -42,7 +42,7 @@ namespace esphome::http_request {
 //   - DECODER_RINGBUF_ACQUIRED synchronizes the handoff
 //   - Ring buffer is freed when both shared_ptrs are released
 
-// FreeRTOS task entry points (defined in http_read_task.cpp and http_decode_task.cpp)
+// FreeRTOS task entry points (defined in reader_task.cpp and decoder_task.cpp)
 void read_task(void *params);
 void decode_task(void *params);
 
