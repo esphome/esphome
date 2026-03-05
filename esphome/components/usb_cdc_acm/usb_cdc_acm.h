@@ -81,7 +81,7 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
-  int available() override;
+  size_t available() override;
   void flush() override;
 
  protected:

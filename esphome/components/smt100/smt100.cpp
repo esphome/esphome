@@ -44,8 +44,6 @@ void SMT100Component::loop() {
   }
 }
 
-float SMT100Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void SMT100Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SMT100:");
 

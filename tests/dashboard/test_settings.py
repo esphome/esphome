@@ -1,4 +1,4 @@
-"""Tests for dashboard settings Path-related functionality."""
+"""Tests for DashboardSettings (path resolution and authentication)."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import pytest
 
 from esphome.core import CORE
 from esphome.dashboard.settings import DashboardSettings
+from esphome.dashboard.util.password import password_hash
 
 
 @pytest.fixture
@@ -221,3 +222,66 @@ def test_config_path_parent_resolves_to_config_dir(tmp_path: Path) -> None:
     # Verify that CORE.config_path itself uses the sentinel file
     assert CORE.config_path.name == "___DASHBOARD_SENTINEL___.yaml"
     assert not CORE.config_path.exists()  # Sentinel file doesn't actually exist
+
+
+@pytest.fixture
+def auth_settings(dashboard_settings: DashboardSettings) -> DashboardSettings:
+    """Create DashboardSettings with auth configured, based on dashboard_settings."""
+    dashboard_settings.username = "admin"
+    dashboard_settings.using_password = True
+    dashboard_settings.password_hash = password_hash("correctpassword")
+    return dashboard_settings
+
+
+def test_check_password_correct_credentials(auth_settings: DashboardSettings) -> None:
+    """Test check_password returns True for correct username and password."""
+    assert auth_settings.check_password("admin", "correctpassword") is True
+
+
+def test_check_password_wrong_password(auth_settings: DashboardSettings) -> None:
+    """Test check_password returns False for wrong password."""
+    assert auth_settings.check_password("admin", "wrongpassword") is False
+
+
+def test_check_password_wrong_username(auth_settings: DashboardSettings) -> None:
+    """Test check_password returns False for wrong username."""
+    assert auth_settings.check_password("notadmin", "correctpassword") is False
+
+
+def test_check_password_both_wrong(auth_settings: DashboardSettings) -> None:
+    """Test check_password returns False when both are wrong."""
+    assert auth_settings.check_password("notadmin", "wrongpassword") is False
+
+
+def test_check_password_no_auth(dashboard_settings: DashboardSettings) -> None:
+    """Test check_password returns True when auth is not configured."""
+    assert dashboard_settings.check_password("anyone", "anything") is True
+
+
+def test_check_password_non_ascii_username(
+    dashboard_settings: DashboardSettings,
+) -> None:
+    """Test check_password handles non-ASCII usernames without TypeError."""
+    dashboard_settings.username = "\u00e9l\u00e8ve"
+    dashboard_settings.using_password = True
+    dashboard_settings.password_hash = password_hash("pass")
+    assert dashboard_settings.check_password("\u00e9l\u00e8ve", "pass") is True
+    assert dashboard_settings.check_password("\u00e9l\u00e8ve", "wrong") is False
+    assert dashboard_settings.check_password("other", "pass") is False
+
+
+def test_check_password_ha_addon_no_password(
+    dashboard_settings: DashboardSettings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_password doesn't crash in HA add-on mode without a password.
+
+    In HA add-on mode, using_ha_addon_auth can be True while using_password
+    is False, leaving password_hash as b"". This must not raise TypeError
+    in hmac.compare_digest.
+    """
+    monkeypatch.delenv("DISABLE_HA_AUTHENTICATION", raising=False)
+    dashboard_settings.on_ha_addon = True
+    dashboard_settings.using_password = False
+    # password_hash stays as default b""
+    assert dashboard_settings.check_password("anyone", "anything") is False

@@ -2,7 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <vector>
+#include <array>
 
 namespace esphome {
 namespace tx20 {
@@ -38,32 +38,30 @@ void Tx20Component::loop() {
   }
 }
 
-float Tx20Component::get_setup_priority() const { return setup_priority::DATA; }
-
 std::string Tx20Component::get_wind_cardinal_direction() const { return this->wind_cardinal_direction_; }
 
 void Tx20Component::decode_and_publish_() {
   ESP_LOGVV(TAG, "Decode Tx20");
 
-  std::string string_buffer;
-  std::string string_buffer_2;
-  std::vector<bool> bit_buffer;
+  std::array<bool, MAX_BUFFER_SIZE> bit_buffer{};
+  size_t bit_pos = 0;
   bool current_bit = true;
+  // Cap at MAX_BUFFER_SIZE - 1 to prevent out-of-bounds access (buffer_index can exceed MAX_BUFFER_SIZE in ISR)
+  const int max_buffer_index =
+      std::min(static_cast<int>(this->store_.buffer_index), static_cast<int>(MAX_BUFFER_SIZE - 1));
 
-  for (int i = 1; i <= this->store_.buffer_index; i++) {
-    string_buffer_2 += to_string(this->store_.buffer[i]) + ", ";
+  for (int i = 1; i <= max_buffer_index; i++) {
     uint8_t repeat = this->store_.buffer[i] / TX20_BIT_TIME;
     // ignore segments at the end that were too short
-    string_buffer.append(repeat, current_bit ? '1' : '0');
-    bit_buffer.insert(bit_buffer.end(), repeat, current_bit);
+    for (uint8_t j = 0; j < repeat && bit_pos < MAX_BUFFER_SIZE; j++) {
+      bit_buffer[bit_pos++] = current_bit;
+    }
     current_bit = !current_bit;
   }
   current_bit = !current_bit;
-  if (string_buffer.length() < MAX_BUFFER_SIZE) {
-    uint8_t remain = MAX_BUFFER_SIZE - string_buffer.length();
-    string_buffer_2 += to_string(remain) + ", ";
-    string_buffer.append(remain, current_bit ? '1' : '0');
-    bit_buffer.insert(bit_buffer.end(), remain, current_bit);
+  size_t bits_before_padding = bit_pos;
+  while (bit_pos < MAX_BUFFER_SIZE) {
+    bit_buffer[bit_pos++] = current_bit;
   }
 
   uint8_t tx20_sa = 0;
@@ -108,8 +106,24 @@ void Tx20Component::decode_and_publish_() {
   // 2. Check received checksum matches calculated checksum
   // 3. Check that Wind Direction matches Wind Direction (Inverted)
   // 4. Check that Wind Speed matches Wind Speed (Inverted)
-  ESP_LOGVV(TAG, "BUFFER %s", string_buffer_2.c_str());
-  ESP_LOGVV(TAG, "Decoded bits %s", string_buffer.c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  // Build debug strings from completed data
+  char debug_buf[320];  // buffer values: max 40 entries * 7 chars each
+  size_t debug_pos = 0;
+  for (int i = 1; i <= max_buffer_index; i++) {
+    debug_pos = buf_append_printf(debug_buf, sizeof(debug_buf), debug_pos, "%u, ", this->store_.buffer[i]);
+  }
+  if (bits_before_padding < MAX_BUFFER_SIZE) {
+    buf_append_printf(debug_buf, sizeof(debug_buf), debug_pos, "%zu, ", MAX_BUFFER_SIZE - bits_before_padding);
+  }
+  char bits_buf[MAX_BUFFER_SIZE + 1];
+  for (size_t i = 0; i < MAX_BUFFER_SIZE; i++) {
+    bits_buf[i] = bit_buffer[i] ? '1' : '0';
+  }
+  bits_buf[MAX_BUFFER_SIZE] = '\0';
+  ESP_LOGVV(TAG, "BUFFER %s", debug_buf);
+  ESP_LOGVV(TAG, "Decoded bits %s", bits_buf);
+#endif
 
   if (tx20_sa == 4) {
     if (chk == tx20_sd) {

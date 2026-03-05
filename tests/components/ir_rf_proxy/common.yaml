@@ -1,42 +1,7 @@
+network:
+
 wifi:
   ssid: MySSID
   password: password1
 
 api:
-
-remote_transmitter:
-  id: ir_transmitter
-  pin: ${tx_pin}
-  carrier_duty_percent: 50%
-
-remote_receiver:
-  id: ir_receiver
-  pin: ${rx_pin}
-
-# Test various hardware types with transmitter/receiver using infrared platform
-infrared:
-  # Infrared transmitter
-  - platform: ir_rf_proxy
-    id: ir_tx
-    name: "IR Transmitter"
-    remote_transmitter_id: ir_transmitter
-
-  # Infrared receiver
-  - platform: ir_rf_proxy
-    id: ir_rx
-    name: "IR Receiver"
-    remote_receiver_id: ir_receiver
-
-  # RF 433MHz transmitter
-  - platform: ir_rf_proxy
-    id: rf_433_tx
-    name: "RF 433 Transmitter"
-    frequency: 433 MHz
-    remote_transmitter_id: ir_transmitter
-
-  # RF 900MHz receiver
-  - platform: ir_rf_proxy
-    id: rf_900_rx
-    name: "RF 900 Receiver"
-    frequency: 900 MHz
-    remote_receiver_id: ir_receiver

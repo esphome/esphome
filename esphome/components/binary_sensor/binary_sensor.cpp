@@ -14,18 +14,19 @@ void log_binary_sensor(const char *tag, const char *prefix, const char *type, Bi
   }
 
   ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-
-  if (!obj->get_device_class_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
-  }
+  LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
 }
 
 void BinarySensor::publish_state(bool new_state) {
+#ifdef USE_BINARY_SENSOR_FILTER
   if (this->filter_list_ == nullptr) {
+#endif
     this->send_state_internal(new_state);
+#ifdef USE_BINARY_SENSOR_FILTER
   } else {
     this->filter_list_->input(new_state);
   }
+#endif
 }
 void BinarySensor::publish_initial_state(bool new_state) {
   this->invalidate_state();
@@ -50,6 +51,7 @@ bool BinarySensor::set_new_state(const optional<bool> &new_state) {
   return false;
 }
 
+#ifdef USE_BINARY_SENSOR_FILTER
 void BinarySensor::add_filter(Filter *filter) {
   filter->parent_ = this;
   if (this->filter_list_ == nullptr) {
@@ -66,6 +68,7 @@ void BinarySensor::add_filters(std::initializer_list<Filter *> filters) {
     this->add_filter(filter);
   }
 }
+#endif  // USE_BINARY_SENSOR_FILTER
 bool BinarySensor::is_status_binary_sensor() const { return false; }
 
 }  // namespace esphome::binary_sensor

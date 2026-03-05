@@ -1,5 +1,6 @@
 #include "mqtt_alarm_control_panel.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -12,27 +13,35 @@ static const char *const TAG = "mqtt.alarm_control_panel";
 
 using namespace esphome::alarm_control_panel;
 
+// Alarm state MQTT strings indexed by AlarmControlPanelState enum (0-9)
+PROGMEM_STRING_TABLE(AlarmMqttStateStrings, "disarmed", "armed_home", "armed_away", "armed_night", "armed_vacation",
+                     "armed_custom_bypass", "pending", "arming", "disarming", "triggered", "unknown");
+
+static ProgmemStr alarm_state_to_mqtt_str(AlarmControlPanelState state) {
+  return AlarmMqttStateStrings::get_progmem_str(static_cast<uint8_t>(state), AlarmMqttStateStrings::LAST_INDEX);
+}
+
 MQTTAlarmControlPanelComponent::MQTTAlarmControlPanelComponent(AlarmControlPanel *alarm_control_panel)
     : alarm_control_panel_(alarm_control_panel) {}
 void MQTTAlarmControlPanelComponent::setup() {
   this->alarm_control_panel_->add_on_state_callback([this]() { this->publish_state(); });
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
     auto call = this->alarm_control_panel_->make_call();
-    if (strcasecmp(payload.c_str(), "ARM_AWAY") == 0) {
+    if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_AWAY")) == 0) {
       call.arm_away();
-    } else if (strcasecmp(payload.c_str(), "ARM_HOME") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_HOME")) == 0) {
       call.arm_home();
-    } else if (strcasecmp(payload.c_str(), "ARM_NIGHT") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_NIGHT")) == 0) {
       call.arm_night();
-    } else if (strcasecmp(payload.c_str(), "ARM_VACATION") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_VACATION")) == 0) {
       call.arm_vacation();
-    } else if (strcasecmp(payload.c_str(), "ARM_CUSTOM_BYPASS") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_CUSTOM_BYPASS")) == 0) {
       call.arm_custom_bypass();
-    } else if (strcasecmp(payload.c_str(), "DISARM") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("DISARM")) == 0) {
       call.disarm();
-    } else if (strcasecmp(payload.c_str(), "PENDING") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("PENDING")) == 0) {
       call.pending();
-    } else if (strcasecmp(payload.c_str(), "TRIGGERED") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("TRIGGERED")) == 0) {
       call.triggered();
     } else {
       ESP_LOGW(TAG, "'%s': Received unknown command payload %s", this->friendly_name_().c_str(), payload.c_str());
@@ -43,7 +52,7 @@ void MQTTAlarmControlPanelComponent::setup() {
 
 void MQTTAlarmControlPanelComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT alarm_control_panel '%s':", this->alarm_control_panel_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true)
+  LOG_MQTT_COMPONENT(true, true);
   ESP_LOGCONFIG(TAG,
                 "  Supported Features: %" PRIu32 "\n"
                 "  Requires Code to Disarm: %s\n"
@@ -84,42 +93,9 @@ const EntityBase *MQTTAlarmControlPanelComponent::get_entity() const { return th
 
 bool MQTTAlarmControlPanelComponent::send_initial_state() { return this->publish_state(); }
 bool MQTTAlarmControlPanelComponent::publish_state() {
-  const char *state_s;
-  switch (this->alarm_control_panel_->get_state()) {
-    case ACP_STATE_DISARMED:
-      state_s = "disarmed";
-      break;
-    case ACP_STATE_ARMED_HOME:
-      state_s = "armed_home";
-      break;
-    case ACP_STATE_ARMED_AWAY:
-      state_s = "armed_away";
-      break;
-    case ACP_STATE_ARMED_NIGHT:
-      state_s = "armed_night";
-      break;
-    case ACP_STATE_ARMED_VACATION:
-      state_s = "armed_vacation";
-      break;
-    case ACP_STATE_ARMED_CUSTOM_BYPASS:
-      state_s = "armed_custom_bypass";
-      break;
-    case ACP_STATE_PENDING:
-      state_s = "pending";
-      break;
-    case ACP_STATE_ARMING:
-      state_s = "arming";
-      break;
-    case ACP_STATE_DISARMING:
-      state_s = "disarming";
-      break;
-    case ACP_STATE_TRIGGERED:
-      state_s = "triggered";
-      break;
-    default:
-      state_s = "unknown";
-  }
-  return this->publish(this->get_state_topic_(), state_s);
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish(this->get_state_topic_to_(topic_buf),
+                       alarm_state_to_mqtt_str(this->alarm_control_panel_->get_state()));
 }
 
 }  // namespace esphome::mqtt

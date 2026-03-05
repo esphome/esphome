@@ -15,8 +15,6 @@ class EMC2101Sensor : public PollingComponent {
   void dump_config() override;
   /** Used by ESPHome framework. */
   void update() override;
-  /** Used by ESPHome framework. */
-  float get_setup_priority() const override;
 
   /** Used by ESPHome framework. */
   void set_internal_temperature_sensor(sensor::Sensor *sensor) { this->internal_temperature_sensor_ = sensor; }

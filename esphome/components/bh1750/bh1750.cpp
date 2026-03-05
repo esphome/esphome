@@ -265,6 +265,4 @@ void BH1750Sensor::fail_and_reset_() {
   this->state_ = IDLE;
 }
 
-float BH1750Sensor::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace esphome::bh1750

@@ -8,6 +8,8 @@
 #include "opentherm.h"
 #include "esphome/core/helpers.h"
 #include <cinttypes>
+// TODO: Migrate from legacy timer API (driver/timer.h) to GPTimer API (driver/gptimer.h)
+// The legacy timer API is deprecated in ESP-IDF 5.x. See opentherm.h for details.
 #ifdef USE_ESP32
 #include "driver/timer.h"
 #include "esp_err.h"

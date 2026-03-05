@@ -11,8 +11,6 @@ void HomeassistantTime::dump_config() {
   RealTimeClock::dump_config();
 }
 
-float HomeassistantTime::get_setup_priority() const { return setup_priority::DATA; }
-
 void HomeassistantTime::setup() { global_homeassistant_time = this; }
 
 void HomeassistantTime::update() { api::global_api_server->request_time(); }

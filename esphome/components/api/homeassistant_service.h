@@ -25,7 +25,9 @@ template<typename... X> class TemplatableStringValue : public TemplatableValue<s
 
  private:
   // Helper to convert value to string - handles the case where value is already a string
-  template<typename T> static std::string value_to_string(T &&val) { return to_string(std::forward<T>(val)); }
+  template<typename T> static std::string value_to_string(T &&val) {
+    return to_string(std::forward<T>(val));  // NOLINT
+  }
 
   // Overloads for string types - needed because std::to_string doesn't support them
   static std::string value_to_string(char *val) {
@@ -34,6 +36,8 @@ template<typename... X> class TemplatableStringValue : public TemplatableValue<s
   static std::string value_to_string(const char *val) { return std::string(val); }  // For lambdas returning .c_str()
   static std::string value_to_string(const std::string &val) { return val; }
   static std::string value_to_string(std::string &&val) { return std::move(val); }
+  static std::string value_to_string(const StringRef &val) { return val.str(); }
+  static std::string value_to_string(StringRef &&val) { return val.str(); }
 
  public:
   TemplatableStringValue() : TemplatableValue<std::string, X...>() {}
@@ -126,6 +130,20 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
     this->add_kv_(this->variables_, key, std::forward<V>(value));
   }
 
+#ifdef USE_ESP8266
+  // On ESP8266, ESPHOME_F() returns __FlashStringHelper* (PROGMEM pointer).
+  // Store as const char* — populate_service_map copies from PROGMEM at play() time.
+  template<typename V> void add_data(const __FlashStringHelper *key, V &&value) {
+    this->add_kv_(this->data_, reinterpret_cast<const char *>(key), std::forward<V>(value));
+  }
+  template<typename V> void add_data_template(const __FlashStringHelper *key, V &&value) {
+    this->add_kv_(this->data_template_, reinterpret_cast<const char *>(key), std::forward<V>(value));
+  }
+  template<typename V> void add_variable(const __FlashStringHelper *key, V &&value) {
+    this->add_kv_(this->variables_, reinterpret_cast<const char *>(key), std::forward<V>(value));
+  }
+#endif
+
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   template<typename T> void set_response_template(T response_template) {
     this->response_template_ = response_template;
@@ -136,12 +154,10 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   void set_wants_response() { this->flags_.wants_response = true; }
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  Trigger<JsonObjectConst, Ts...> *get_success_trigger_with_response() const {
-    return this->success_trigger_with_response_;
-  }
+  Trigger<JsonObjectConst, Ts...> *get_success_trigger_with_response() { return &this->success_trigger_with_response_; }
 #endif
-  Trigger<Ts...> *get_success_trigger() const { return this->success_trigger_; }
-  Trigger<std::string, Ts...> *get_error_trigger() const { return this->error_trigger_; }
+  Trigger<Ts...> *get_success_trigger() { return &this->success_trigger_; }
+  Trigger<std::string, Ts...> *get_error_trigger() { return &this->error_trigger_; }
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 
   void play(const Ts &...x) override {
@@ -187,14 +203,14 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
               if (response.is_success()) {
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
                 if (this->flags_.wants_response) {
-                  this->success_trigger_with_response_->trigger(response.get_json(), args...);
+                  this->success_trigger_with_response_.trigger(response.get_json(), args...);
                 } else
 #endif
                 {
-                  this->success_trigger_->trigger(args...);
+                  this->success_trigger_.trigger(args...);
                 }
               } else {
-                this->error_trigger_->trigger(response.get_error_message(), args...);
+                this->error_trigger_.trigger(response.get_error_message(), args...);
               }
             },
             captured_args);
@@ -219,7 +235,32 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
                                    Ts... x) {
     dest.init(source.size());
 
-    // Count non-static strings to allocate exact storage needed
+#ifdef USE_ESP8266
+    // On ESP8266, all static strings from codegen are FLASH_STRING (PROGMEM),
+    // so is_static_string() is always false — the zero-copy STATIC_STRING fast
+    // path from the non-ESP8266 branch cannot trigger. We copy all keys and
+    // values unconditionally: keys via _P functions (may be in PROGMEM), values
+    // via value() which handles FLASH_STRING internally.
+    value_storage.init(source.size() * 2);
+
+    for (auto &it : source) {
+      auto &kv = dest.emplace_back();
+
+      // Key: copy from possible PROGMEM
+      {
+        size_t key_len = strlen_P(it.key);
+        value_storage.push_back(std::string(key_len, '\0'));
+        memcpy_P(value_storage.back().data(), it.key, key_len);
+        kv.key = StringRef(value_storage.back());
+      }
+
+      // Value: value() handles FLASH_STRING via _P functions internally
+      value_storage.push_back(it.value.value(x...));
+      kv.value = StringRef(value_storage.back());
+    }
+#else
+    // On non-ESP8266, strings are directly readable from flash-mapped memory.
+    // Count non-static strings to allocate exact storage needed.
     size_t lambda_count = 0;
     for (const auto &it : source) {
       if (!it.value.is_static_string()) {
@@ -233,14 +274,15 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
       kv.key = StringRef(it.key);
 
       if (it.value.is_static_string()) {
-        // Static string from YAML - zero allocation
+        // Static string — pointer directly readable, zero allocation
         kv.value = StringRef(it.value.get_static_string());
       } else {
-        // Lambda evaluation - store result, reference it
+        // Lambda — evaluate and store result
         value_storage.push_back(it.value.value(x...));
         kv.value = StringRef(value_storage.back());
       }
     }
+#endif
   }
 
   APIServer *parent_;
@@ -251,10 +293,10 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   TemplatableStringValue<Ts...> response_template_{""};
-  Trigger<JsonObjectConst, Ts...> *success_trigger_with_response_ = new Trigger<JsonObjectConst, Ts...>();
+  Trigger<JsonObjectConst, Ts...> success_trigger_with_response_;
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  Trigger<Ts...> *success_trigger_ = new Trigger<Ts...>();
-  Trigger<std::string, Ts...> *error_trigger_ = new Trigger<std::string, Ts...>();
+  Trigger<Ts...> success_trigger_;
+  Trigger<std::string, Ts...> error_trigger_;
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 
   struct Flags {

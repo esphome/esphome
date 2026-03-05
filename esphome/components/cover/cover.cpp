@@ -1,17 +1,14 @@
 #include "cover.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
+#include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <strings.h>
-
-#include "esphome/core/log.h"
 
 namespace esphome::cover {
 
 static const char *const TAG = "cover";
-
-const float COVER_OPEN = 1.0f;
-const float COVER_CLOSED = 0.0f;
 
 const LogString *cover_command_to_str(float pos) {
   if (pos == COVER_OPEN) {
@@ -22,30 +19,24 @@ const LogString *cover_command_to_str(float pos) {
     return LOG_STR("UNKNOWN");
   }
 }
+// Cover operation strings indexed by CoverOperation enum (0-2): IDLE, OPENING, CLOSING, plus UNKNOWN
+PROGMEM_STRING_TABLE(CoverOperationStrings, "IDLE", "OPENING", "CLOSING", "UNKNOWN");
+
 const LogString *cover_operation_to_str(CoverOperation op) {
-  switch (op) {
-    case COVER_OPERATION_IDLE:
-      return LOG_STR("IDLE");
-    case COVER_OPERATION_OPENING:
-      return LOG_STR("OPENING");
-    case COVER_OPERATION_CLOSING:
-      return LOG_STR("CLOSING");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return CoverOperationStrings::get_log_str(static_cast<uint8_t>(op), CoverOperationStrings::LAST_INDEX);
 }
 
 Cover::Cover() : position{COVER_OPEN} {}
 
 CoverCall::CoverCall(Cover *parent) : parent_(parent) {}
 CoverCall &CoverCall::set_command(const char *command) {
-  if (strcasecmp(command, "OPEN") == 0) {
+  if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("OPEN")) == 0) {
     this->set_command_open();
-  } else if (strcasecmp(command, "CLOSE") == 0) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("CLOSE")) == 0) {
     this->set_command_close();
-  } else if (strcasecmp(command, "STOP") == 0) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("STOP")) == 0) {
     this->set_command_stop();
-  } else if (strcasecmp(command, "TOGGLE") == 0) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TOGGLE")) == 0) {
     this->set_command_toggle();
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
@@ -187,7 +178,7 @@ void Cover::publish_state(bool save) {
   }
 }
 optional<CoverRestoreState> Cover::restore_state_() {
-  this->rtc_ = global_preferences->make_preference<CoverRestoreState>(this->get_preference_hash());
+  this->rtc_ = this->make_entity_preference<CoverRestoreState>();
   CoverRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};

@@ -44,6 +44,8 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   void set_humidity_device(MS8607HumidityDevice *humidity_device) { humidity_device_ = humidity_device; }
 
  protected:
+  /// Attempt to reset both I2C devices, retrying with backoff on failure
+  void try_reset_();
   /**
    Read and store the Pressure & Temperature calibration settings from the PROM.
    Intended to be called during setup(), this will set the `failure_reason_`
@@ -102,6 +104,8 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   enum class SetupStatus;
   /// Current step in the multi-step & possibly delayed setup() process
   SetupStatus setup_status_;
+  uint32_t reset_interval_{5};
+  uint8_t reset_attempts_remaining_{0};
 };
 
 }  // namespace ms8607

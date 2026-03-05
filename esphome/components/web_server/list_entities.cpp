@@ -14,8 +14,6 @@ ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, AsyncEventSource
 ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, DeferredUpdateEventSource *es)
     : web_server_(ws), events_(es) {}
 #endif
-ListEntitiesIterator::~ListEntitiesIterator() {}
-
 #ifdef USE_BINARY_SENSOR
 bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *obj) {
   this->events_->deferrable_send_state(obj, "state_detail_all", WebServer::binary_sensor_all_json_generator);

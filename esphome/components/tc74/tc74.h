@@ -15,8 +15,6 @@ class TC74Component : public PollingComponent, public i2c::I2CDevice, public sen
   /// Update the sensor value (temperature).
   void update() override;
 
-  float get_setup_priority() const override;
-
  protected:
   /// Internal method to read the temperature from the component after it has been scheduled.
   void read_temperature_();

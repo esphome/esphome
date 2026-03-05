@@ -19,16 +19,7 @@ static constexpr size_t KEY_BUFFER_SIZE = 12;
 
 struct NVSData {
   uint32_t key;
-  std::unique_ptr<uint8_t[]> data;
-  size_t len;
-
-  void set_data(const uint8_t *src, size_t size) {
-    if (!this->data || this->len != size) {
-      this->data = std::make_unique<uint8_t[]>(size);
-      this->len = size;
-    }
-    memcpy(this->data.get(), src, size);
-  }
+  SmallInlineBuffer<8> data;  // Most prefs fit in 8 bytes (covers fan, cover, select, etc.)
 };
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -41,14 +32,14 @@ class ESP32PreferenceBackend : public ESPPreferenceBackend {
     // try find in pending saves and update that
     for (auto &obj : s_pending_save) {
       if (obj.key == this->key) {
-        obj.set_data(data, len);
+        obj.data.set(data, len);
         return true;
       }
     }
     NVSData save{};
     save.key = this->key;
-    save.set_data(data, len);
-    s_pending_save.emplace_back(std::move(save));
+    save.data.set(data, len);
+    s_pending_save.push_back(std::move(save));
     ESP_LOGVV(TAG, "s_pending_save: key: %" PRIu32 ", len: %zu", this->key, len);
     return true;
   }
@@ -56,11 +47,11 @@ class ESP32PreferenceBackend : public ESPPreferenceBackend {
     // try find in pending saves and load from that
     for (auto &obj : s_pending_save) {
       if (obj.key == this->key) {
-        if (obj.len != len) {
+        if (obj.data.size() != len) {
           // size mismatch
           return false;
         }
-        memcpy(data, obj.data.get(), len);
+        memcpy(data, obj.data.data(), len);
         return true;
       }
     }
@@ -124,22 +115,19 @@ class ESP32Preferences : public ESPPreferences {
       return true;
 
     ESP_LOGV(TAG, "Saving %zu items...", s_pending_save.size());
-    // goal try write all pending saves even if one fails
     int cached = 0, written = 0, failed = 0;
     esp_err_t last_err = ESP_OK;
     uint32_t last_key = 0;
 
-    // go through vector from back to front (makes erase easier/more efficient)
-    for (ssize_t i = s_pending_save.size() - 1; i >= 0; i--) {
-      const auto &save = s_pending_save[i];
+    for (const auto &save : s_pending_save) {
       char key_str[KEY_BUFFER_SIZE];
       snprintf(key_str, sizeof(key_str), "%" PRIu32, save.key);
       ESP_LOGVV(TAG, "Checking if NVS data %s has changed", key_str);
       if (this->is_changed_(this->nvs_handle, save, key_str)) {
-        esp_err_t err = nvs_set_blob(this->nvs_handle, key_str, save.data.get(), save.len);
-        ESP_LOGV(TAG, "sync: key: %s, len: %zu", key_str, save.len);
+        esp_err_t err = nvs_set_blob(this->nvs_handle, key_str, save.data.data(), save.data.size());
+        ESP_LOGV(TAG, "sync: key: %s, len: %zu", key_str, save.data.size());
         if (err != 0) {
-          ESP_LOGV(TAG, "nvs_set_blob('%s', len=%zu) failed: %s", key_str, save.len, esp_err_to_name(err));
+          ESP_LOGV(TAG, "nvs_set_blob('%s', len=%zu) failed: %s", key_str, save.data.size(), esp_err_to_name(err));
           failed++;
           last_err = err;
           last_key = save.key;
@@ -147,11 +135,12 @@ class ESP32Preferences : public ESPPreferences {
         }
         written++;
       } else {
-        ESP_LOGV(TAG, "NVS data not changed skipping %" PRIu32 "  len=%zu", save.key, save.len);
+        ESP_LOGV(TAG, "NVS data not changed skipping %" PRIu32 "  len=%zu", save.key, save.data.size());
         cached++;
       }
-      s_pending_save.erase(s_pending_save.begin() + i);
     }
+    s_pending_save.clear();
+
     ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
              failed);
     if (failed > 0) {
@@ -178,7 +167,7 @@ class ESP32Preferences : public ESPPreferences {
       return true;
     }
     // Check size first before allocating memory
-    if (actual_len != to_save.len) {
+    if (actual_len != to_save.data.size()) {
       return true;
     }
     // Most preferences are small, use stack buffer with heap fallback for large ones
@@ -188,7 +177,7 @@ class ESP32Preferences : public ESPPreferences {
       ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", key_str, esp_err_to_name(err));
       return true;
     }
-    return memcmp(to_save.data.get(), stored_data.get(), to_save.len) != 0;
+    return memcmp(to_save.data.data(), stored_data.get(), to_save.data.size()) != 0;
   }
 
   bool reset() override {
@@ -203,10 +192,11 @@ class ESP32Preferences : public ESPPreferences {
   }
 };
 
+static ESP32Preferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void setup_preferences() {
-  auto *prefs = new ESP32Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  prefs->open();
-  global_preferences = prefs;
+  s_preferences.open();
+  global_preferences = &s_preferences;
 }
 
 }  // namespace esp32

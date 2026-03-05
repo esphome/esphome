@@ -1,32 +1,15 @@
 #include "alarm_control_panel_state.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::alarm_control_panel {
 
+// Alarm control panel state strings indexed by AlarmControlPanelState enum (0-9)
+PROGMEM_STRING_TABLE(AlarmControlPanelStateStrings, "DISARMED", "ARMED_HOME", "ARMED_AWAY", "ARMED_NIGHT",
+                     "ARMED_VACATION", "ARMED_CUSTOM_BYPASS", "PENDING", "ARMING", "DISARMING", "TRIGGERED", "UNKNOWN");
+
 const LogString *alarm_control_panel_state_to_string(AlarmControlPanelState state) {
-  switch (state) {
-    case ACP_STATE_DISARMED:
-      return LOG_STR("DISARMED");
-    case ACP_STATE_ARMED_HOME:
-      return LOG_STR("ARMED_HOME");
-    case ACP_STATE_ARMED_AWAY:
-      return LOG_STR("ARMED_AWAY");
-    case ACP_STATE_ARMED_NIGHT:
-      return LOG_STR("ARMED_NIGHT");
-    case ACP_STATE_ARMED_VACATION:
-      return LOG_STR("ARMED_VACATION");
-    case ACP_STATE_ARMED_CUSTOM_BYPASS:
-      return LOG_STR("ARMED_CUSTOM_BYPASS");
-    case ACP_STATE_PENDING:
-      return LOG_STR("PENDING");
-    case ACP_STATE_ARMING:
-      return LOG_STR("ARMING");
-    case ACP_STATE_DISARMING:
-      return LOG_STR("DISARMING");
-    case ACP_STATE_TRIGGERED:
-      return LOG_STR("TRIGGERED");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return AlarmControlPanelStateStrings::get_log_str(static_cast<uint8_t>(state),
+                                                    AlarmControlPanelStateStrings::LAST_INDEX);
 }
 
 }  // namespace esphome::alarm_control_panel

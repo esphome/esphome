@@ -1,5 +1,7 @@
 #include "ota_http_request.h"
 
+#include <cctype>
+
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
@@ -82,7 +84,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   uint32_t last_progress = 0;
   uint32_t update_start_time = millis();
   md5::MD5Digest md5_receive;
-  std::unique_ptr<char[]> md5_receive_str(new char[33]);
+  char md5_receive_str[33];
 
   if (this->md5_expected_.empty() && !this->http_get_md5_()) {
     return OTA_MD5_INVALID;
@@ -105,8 +107,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   // we will compute MD5 on the fly for verification -- Arduino OTA seems to ignore it
   md5_receive.init();
-  ESP_LOGV(TAG, "MD5Digest initialized\n"
-                "OTA backend begin");
+  ESP_LOGV(TAG, "MD5Digest initialized, OTA backend begin");
   auto backend = ota::make_ota_backend();
   auto error_code = backend->begin(container->content_length);
   if (error_code != ota::OTA_RESPONSE_OK) {
@@ -115,39 +116,53 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
     return error_code;
   }
 
+  // NOTE: HttpContainer::read() has non-BSD socket semantics - see http_request.h
+  // Use http_read_loop_result() helper instead of checking return values directly
+  uint32_t last_data_time = millis();
+  const uint32_t read_timeout = this->parent_->get_timeout();
+
   while (container->get_bytes_read() < container->content_length) {
-    // read a maximum of chunk_size bytes into buf. (real read size returned)
-    int bufsize = container->read(buf, OtaHttpRequestComponent::HTTP_RECV_BUFFER);
-    ESP_LOGVV(TAG, "bytes_read_ = %u, body_length_ = %u, bufsize = %i", container->get_bytes_read(),
-              container->content_length, bufsize);
+    // read a maximum of chunk_size bytes into buf. (real read size returned, or negative error code)
+    int bufsize_or_error = container->read(buf, OtaHttpRequestComponent::HTTP_RECV_BUFFER);
+    ESP_LOGVV(TAG, "bytes_read_ = %u, body_length_ = %u, bufsize_or_error = %i", container->get_bytes_read(),
+              container->content_length, bufsize_or_error);
 
     // feed watchdog and give other tasks a chance to run
     App.feed_wdt();
     yield();
 
-    // Exit loop if no data available (stream closed or end of data)
-    if (bufsize <= 0) {
-      if (bufsize < 0) {
-        ESP_LOGE(TAG, "Stream closed with error");
-        this->cleanup_(std::move(backend), container);
-        return OTA_CONNECTION_ERROR;
-      }
-      // bufsize == 0: no more data available, exit loop
+    auto result = http_read_loop_result(bufsize_or_error, last_data_time, read_timeout, container->is_read_complete());
+    if (result == HttpReadLoopResult::RETRY)
+      continue;
+    // For non-chunked responses, COMPLETE is unreachable (loop condition checks bytes_read < content_length).
+    // For chunked responses, the decoder sets content_length = bytes_read when the final chunk arrives,
+    // which causes the loop condition to terminate. But COMPLETE can still be returned if the decoder
+    // finishes mid-read, so this is needed for correctness.
+    if (result == HttpReadLoopResult::COMPLETE)
       break;
+    if (result != HttpReadLoopResult::DATA) {
+      if (result == HttpReadLoopResult::TIMEOUT) {
+        ESP_LOGE(TAG, "Timeout reading data");
+      } else {
+        ESP_LOGE(TAG, "Error reading data: %d", bufsize_or_error);
+      }
+      this->cleanup_(std::move(backend), container);
+      return OTA_CONNECTION_ERROR;
     }
 
-    if (bufsize <= OtaHttpRequestComponent::HTTP_RECV_BUFFER) {
+    // At this point bufsize_or_error > 0, so it's a valid size
+    if (bufsize_or_error <= OtaHttpRequestComponent::HTTP_RECV_BUFFER) {
       // add read bytes to MD5
-      md5_receive.add(buf, bufsize);
+      md5_receive.add(buf, bufsize_or_error);
 
       // write bytes to OTA backend
       this->update_started_ = true;
-      error_code = backend->write(buf, bufsize);
+      error_code = backend->write(buf, bufsize_or_error);
       if (error_code != ota::OTA_RESPONSE_OK) {
         // error code explanation available at
         // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_backend.h
         ESP_LOGE(TAG, "Error code (%02X) writing binary data to flash at offset %d and size %d", error_code,
-                 container->get_bytes_read() - bufsize, container->content_length);
+                 container->get_bytes_read() - bufsize_or_error, container->content_length);
         this->cleanup_(std::move(backend), container);
         return error_code;
       }
@@ -168,14 +183,14 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   // verify MD5 is as expected and act accordingly
   md5_receive.calculate();
-  md5_receive.get_hex(md5_receive_str.get());
-  this->md5_computed_ = md5_receive_str.get();
+  md5_receive.get_hex(md5_receive_str);
+  this->md5_computed_ = md5_receive_str;
   if (strncmp(this->md5_computed_.c_str(), this->md5_expected_.c_str(), MD5_SIZE) != 0) {
     ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", this->md5_computed_.c_str());
     this->cleanup_(std::move(backend), container);
     return ota::OTA_RESPONSE_ERROR_MD5_MISMATCH;
   } else {
-    backend->set_update_md5(md5_receive_str.get());
+    backend->set_update_md5(md5_receive_str);
   }
 
   container->end();
@@ -195,6 +210,26 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   ESP_LOGI(TAG, "Update complete");
   return ota::OTA_RESPONSE_OK;
 }
+
+// URL-encode characters that are not unreserved per RFC 3986 section 2.3.
+// This is needed for embedding userinfo (username/password) in URLs safely.
+static std::string url_encode(const std::string &str) {
+  std::string result;
+  result.reserve(str.size());
+  for (char c : str) {
+    if (std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~') {
+      result += c;
+    } else {
+      result += '%';
+      result += format_hex_pretty_char((static_cast<uint8_t>(c) >> 4) & 0x0F);
+      result += format_hex_pretty_char(static_cast<uint8_t>(c) & 0x0F);
+    }
+  }
+  return result;
+}
+
+void OtaHttpRequestComponent::set_password(const std::string &password) { this->password_ = url_encode(password); }
+void OtaHttpRequestComponent::set_username(const std::string &username) { this->username_ = url_encode(username); }
 
 std::string OtaHttpRequestComponent::get_url_with_auth_(const std::string &url) {
   if (this->username_.empty() || this->password_.empty()) {
@@ -244,19 +279,19 @@ bool OtaHttpRequestComponent::http_get_md5_() {
   }
 
   this->md5_expected_.resize(MD5_SIZE);
-  int read_len = 0;
-  while (container->get_bytes_read() < MD5_SIZE) {
-    read_len = container->read((uint8_t *) this->md5_expected_.data(), MD5_SIZE);
-    if (read_len <= 0) {
-      break;
-    }
-    App.feed_wdt();
-    yield();
-  }
+  auto result = http_read_fully(container.get(), (uint8_t *) this->md5_expected_.data(), MD5_SIZE, MD5_SIZE,
+                                this->parent_->get_timeout());
   container->end();
 
-  ESP_LOGV(TAG, "Read len: %u, MD5 expected: %u", read_len, MD5_SIZE);
-  return read_len == MD5_SIZE;
+  if (result.status != HttpReadStatus::OK) {
+    if (result.status == HttpReadStatus::TIMEOUT) {
+      ESP_LOGE(TAG, "Timeout reading MD5");
+    } else {
+      ESP_LOGE(TAG, "Error reading MD5: %d", result.error_code);
+    }
+    return false;
+  }
+  return true;
 }
 
 bool OtaHttpRequestComponent::validate_url_(const std::string &url) {
