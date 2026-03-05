@@ -49,6 +49,15 @@ AUTO_LOAD = ["network"]
 CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
 
+IDF_TO_OT_LOG_LEVEL = {
+    "NONE": "NONE",
+    "ERROR": "CRIT",
+    "WARN": "WARN",
+    "INFO": "NOTE",
+    "DEBUG": "INFO",
+    "VERBOSE": "DEBG",
+}
+
 CONF_DEVICE_TYPES = [
     "FTD",
     "MTD",
@@ -207,22 +216,8 @@ def _final_validate(_):
         and (log_level := fw_config.get(CONF_LOG_LEVEL)) is not None
     ):
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_LOG_LEVEL_DYNAMIC", False)
-        # Line Logs up numerically 1 through 5
-        # 0 NONE -> NONE
-        # 1 ERROR -> CRIT
-        # 2 WARN -> WARN
-        # 3 INFO -> NOTE
-        # 4 DEBUG -> INFO
-        # 5 VERBOSE -> DEBG
-        if log_level == "ERROR":
-            log_level = "CRIT"
-        elif log_level == "INFO":
-            log_level = "NOTE"
-        elif log_level == "DEBUG":
-            log_level = "INFO"
-        elif log_level == "VERBOSE":
-            log_level = "DEBG"
-        add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_LOG_LEVEL_{log_level}", True)
+        ot_log_level = IDF_TO_OT_LOG_LEVEL.get(log_level, log_level)
+        add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_LOG_LEVEL_{ot_log_level}", True)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
