@@ -58,7 +58,9 @@ from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
 from esphome.util import (
-    get_rp2040_mass_storage_volumes,
+    PICOTOOL_PACKAGE,
+    detect_rp2040_bootsel,
+    get_picotool_path,
     get_serial_ports,
     list_yaml_files,
     run_external_command,
@@ -175,7 +177,7 @@ class PortType(StrEnum):
     NETWORK = "NETWORK"
     MQTT = "MQTT"
     MQTTIP = "MQTTIP"
-    MASS_STORAGE = "MASS_STORAGE"
+    BOOTSEL = "BOOTSEL"
 
 
 # Magic MQTT port types that require special handling
@@ -254,14 +256,14 @@ def choose_upload_log_host(
         (f"{port.path} ({port.description})", port.path) for port in get_serial_ports()
     ]
 
-    # Add RP2040 mass storage volumes when uploading
+    # Add RP2040 BOOTSEL device option when uploading
     if (
         purpose == Purpose.UPLOADING
         and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
     ):
-        for vol in get_rp2040_mass_storage_volumes():
-            # Use MS: prefix so get_port_type() identifies as MASS_STORAGE
-            options.append((f"{vol.path} ({vol.description})", f"MS:{vol.path}"))
+        picotool = _find_picotool()
+        if picotool is not None and detect_rp2040_bootsel(picotool) > 0:
+            options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
 
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():
@@ -280,14 +282,11 @@ def choose_upload_log_host(
         if has_mqtt_ip_lookup():
             options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
 
-    # Show helpful BOOTSEL instructions for RP2040 when no USB device is found
+    # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
     if (
         purpose == Purpose.UPLOADING
         and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
-        and not any(
-            get_port_type(opt[1]) in (PortType.SERIAL, PortType.MASS_STORAGE)
-            for opt in options
-        )
+        and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
     ):
         if not options:
             raise EsphomeError(
@@ -441,13 +440,13 @@ def get_port_type(port: str) -> PortType:
 
     Returns:
         PortType.SERIAL for serial ports (/dev/ttyUSB0, COM1, etc.)
-        PortType.MASS_STORAGE for RP2040 BOOTSEL mass storage volumes
+        PortType.BOOTSEL for RP2040 BOOTSEL upload via picotool
         PortType.MQTT for MQTT logging
         PortType.MQTTIP for MQTT IP lookup
         PortType.NETWORK for IP addresses, hostnames, or mDNS names
     """
-    if port.startswith("MS:"):
-        return PortType.MASS_STORAGE
+    if port == "BOOTSEL":
+        return PortType.BOOTSEL
     if port.startswith("/") or port.startswith("COM"):
         return PortType.SERIAL
     if port == "MQTT":
@@ -757,67 +756,83 @@ def upload_using_platformio(config: ConfigType, port: str) -> int:
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
 
-def upload_using_uf2_copy(config: ConfigType, mount_path: str) -> int:
-    """Upload firmware to RP2040 by copying UF2 file to mass storage volume.
-
-    When an RP2040 is in BOOTSEL mode, it appears as a USB mass storage device.
-    Firmware can be uploaded by simply copying the .uf2 file to the volume.
-    """
+def _find_picotool() -> Path | None:
+    """Find the picotool binary from PlatformIO packages."""
     from esphome import platformio_api
-    from esphome.helpers import ProgressBar
+
+    try:
+        idedata = platformio_api.get_idedata(CORE.config)
+    except Exception:  # noqa: BLE001
+        return None
+    return get_picotool_path(idedata.cc_path)
+
+
+def upload_using_picotool(config: ConfigType) -> int:
+    """Upload firmware to RP2040 in BOOTSEL mode using picotool.
+
+    Uses picotool to load the ELF firmware directly via USB, avoiding
+    the mass storage copy approach that causes "disk not ejected properly"
+    warnings on macOS.
+    """
+    import subprocess
+
+    from esphome import platformio_api
 
     idedata = platformio_api.get_idedata(config)
-    build_dir = Path(idedata.firmware_elf_path).parent
-    uf2_file = build_dir / "firmware.uf2"
+    firmware_elf = Path(idedata.firmware_elf_path)
 
-    if not uf2_file.exists():
+    if not firmware_elf.is_file():
         _LOGGER.error(
-            "UF2 firmware file not found at %s. Make sure the project has been compiled first.",
-            uf2_file,
+            "Firmware ELF file not found at %s. "
+            "Make sure the project has been compiled first.",
+            firmware_elf,
         )
         return 1
 
-    dest_dir = Path(mount_path)
-    if not dest_dir.is_dir():
+    picotool = get_picotool_path(idedata.cc_path)
+    if picotool is None:
         _LOGGER.error(
-            "Mass storage volume %s is no longer available. "
-            "Is the RP2040 still in BOOTSEL mode?",
-            mount_path,
+            "picotool not found. Ensure the RP2040 PlatformIO platform "
+            "is installed (%s).",
+            PICOTOOL_PACKAGE,
         )
         return 1
 
-    dest_file = dest_dir / uf2_file.name
-    file_size = uf2_file.stat().st_size
-    if file_size == 0:
-        _LOGGER.error("UF2 firmware file is empty: %s", uf2_file)
-        return 1
-    _LOGGER.info("Uploading UF2 firmware to %s (%s bytes)", mount_path, file_size)
-
-    progress = ProgressBar()
+    _LOGGER.info("Uploading firmware to RP2040 via picotool...")
     try:
-        chunk_size = 65536
-        bytes_written = 0
-        with open(uf2_file, "rb") as src, open(dest_file, "wb") as dst:
-            while True:
-                chunk = src.read(chunk_size)
-                if not chunk:
-                    break
-                dst.write(chunk)
-                dst.flush()
-                os.fsync(dst.fileno())
-                bytes_written += len(chunk)
-                progress.update(bytes_written / file_size)
-        progress.done()
+        # Don't capture stdout — let picotool write directly to the terminal
+        # so progress bars display in real-time with \r updates.
+        # Capture stderr only so we can detect permission errors.
+        result = subprocess.run(
+            [str(picotool), "load", "-v", "-x", str(firmware_elf)],
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        _LOGGER.error("picotool upload timed out after 60 seconds.")
+        return 1
     except OSError as err:
-        progress.done()
-        _LOGGER.error("Failed to copy UF2 file to %s: %s", mount_path, err)
+        _LOGGER.error("Failed to run picotool: %s", err)
         return 1
 
-    _LOGGER.info(
-        "Successfully copied firmware to %s. "
-        "The device will automatically reset and run the new firmware.",
-        mount_path,
-    )
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        if stderr:
+            for line in stderr.splitlines():
+                safe_print(line)
+        if "LIBUSB_ERROR_ACCESS" in stderr or "Permission denied" in stderr:
+            msg = "Permission denied accessing USB device."
+            if sys.platform.startswith("linux"):
+                msg += (
+                    " You may need to add udev rules for RP2040 devices."
+                    " See: https://github.com/raspberrypi/picotool#linux-permissions"
+                )
+            _LOGGER.error(msg)
+        else:
+            _LOGGER.error("picotool upload failed (exit code %d).", result.returncode)
+        return 1
+
     return 0
 
 
@@ -889,11 +904,9 @@ def upload_program(
 
     port_type = get_port_type(host)
 
-    if port_type == PortType.MASS_STORAGE:
-        # Strip the MS: prefix to get the actual mount path
-        mount_path = host[3:]
-        exit_code = upload_using_uf2_copy(config, mount_path)
-        # Return None for device - mass storage can't be used for logging,
+    if port_type == PortType.BOOTSEL:
+        exit_code = upload_using_picotool(config)
+        # Return None for device - BOOTSEL can't be used for logging,
         # so command_run will show the interactive chooser for log source
         return exit_code, None
 
@@ -1103,7 +1116,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     if args.no_logs:
         return 0
 
-    # After mass storage upload, wait for a new serial port to appear
+    # After BOOTSEL upload, wait for a new serial port to appear
     # so it shows up in the log chooser
     if (
         successful_device is None

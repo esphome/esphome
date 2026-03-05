@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -405,137 +406,95 @@ def test_shlex_quote_edge_cases() -> None:
     assert util.shlex_quote("   ") == "'   '"
 
 
-def test_get_rp2040_mass_storage_volumes_macos(tmp_path: Path) -> None:
-    """Test RP2040 mass storage detection on macOS."""
-    volumes_dir = tmp_path / "Volumes"
-    volumes_dir.mkdir()
-    rpi_vol = volumes_dir / "RPI-RP2"
-    rpi_vol.mkdir()
+def test_get_picotool_path_found(tmp_path: Path) -> None:
+    """Test picotool path derivation from cc_path."""
+    # Create the expected directory structure
+    packages_dir = tmp_path / "packages"
+    toolchain_dir = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_dir.mkdir(parents=True)
+    gcc = toolchain_dir / "arm-none-eabi-gcc"
+    gcc.touch()
 
-    with (
-        patch("esphome.util.sys") as mock_sys,
-        patch("esphome.util.Path") as mock_path_cls,
+    picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
+    picotool_dir.mkdir(parents=True)
+    picotool = picotool_dir / "picotool"
+    picotool.touch()
+
+    result = util.get_picotool_path(str(gcc))
+    assert result == picotool
+
+
+def test_get_picotool_path_not_found(tmp_path: Path) -> None:
+    """Test picotool path returns None when not installed."""
+    packages_dir = tmp_path / "packages"
+    toolchain_dir = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_dir.mkdir(parents=True)
+    gcc = toolchain_dir / "arm-none-eabi-gcc"
+    gcc.touch()
+
+    result = util.get_picotool_path(str(gcc))
+    assert result is None
+
+
+def test_get_picotool_path_windows(tmp_path: Path) -> None:
+    """Test picotool path uses .exe on Windows."""
+    packages_dir = tmp_path / "packages"
+    toolchain_dir = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_dir.mkdir(parents=True)
+    gcc = toolchain_dir / "arm-none-eabi-gcc.exe"
+    gcc.touch()
+
+    picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
+    picotool_dir.mkdir(parents=True)
+    picotool = picotool_dir / "picotool.exe"
+    picotool.touch()
+
+    with patch("esphome.util.sys.platform", "win32"):
+        result = util.get_picotool_path(str(gcc))
+    assert result == picotool
+
+
+def test_detect_rp2040_bootsel_found() -> None:
+    """Test BOOTSEL device detection when device is present."""
+    mock_result = MagicMock()
+    mock_result.stdout = b"Device Information\n type: RP2040\n"
+    with patch("esphome.util.subprocess.run", return_value=mock_result):
+        count = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert count == 1
+
+
+def test_detect_rp2040_bootsel_multiple() -> None:
+    """Test BOOTSEL detection with multiple devices."""
+    mock_result = MagicMock()
+    mock_result.stdout = b"type: RP2040\ntype: RP2350\n"
+    with patch("esphome.util.subprocess.run", return_value=mock_result):
+        count = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert count == 2
+
+
+def test_detect_rp2040_bootsel_none() -> None:
+    """Test BOOTSEL detection when no device found."""
+    mock_result = MagicMock()
+    mock_result.stdout = (
+        b"No accessible RP2040/RP2350 devices in BOOTSEL mode were found.\n"
+    )
+    with patch("esphome.util.subprocess.run", return_value=mock_result):
+        count = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert count == 0
+
+
+def test_detect_rp2040_bootsel_oserror() -> None:
+    """Test BOOTSEL detection handles OSError."""
+    with patch("esphome.util.subprocess.run", side_effect=OSError("not found")):
+        count = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert count == 0
+
+
+def test_detect_rp2040_bootsel_timeout() -> None:
+    """Test BOOTSEL detection handles timeout."""
+    with patch(
+        "esphome.util.subprocess.run",
+        side_effect=subprocess.TimeoutExpired("picotool", 10),
     ):
-        mock_sys.platform = "darwin"
-        # Make Path("/Volumes") return our tmp_path version
-        mock_path_cls.side_effect = lambda p: (
-            volumes_dir if p == "/Volumes" else Path(p)
-        )
-
-        result = util.get_rp2040_mass_storage_volumes()
-
-    assert len(result) == 1
-    assert result[0].description == "RP2040 BOOTSEL"
-
-
-def test_get_rp2040_mass_storage_volumes_none_found(tmp_path: Path) -> None:
-    """Test RP2040 mass storage detection when no volumes found."""
-    # Point at an empty directory so no RPI-RP2* matches
-    empty_dir = tmp_path / "Volumes"
-    empty_dir.mkdir()
-
-    with (
-        patch("esphome.util.sys.platform", "darwin"),
-        patch(
-            "esphome.util.Path",
-            side_effect=lambda p: empty_dir if p == "/Volumes" else Path(p),
-        ),
-    ):
-        result = util.get_rp2040_mass_storage_volumes()
-
-    assert result == []
-
-
-def test_get_rp2040_mass_storage_volumes_linux(tmp_path: Path) -> None:
-    """Test RP2040 mass storage detection on Linux."""
-    # Create /media/<user>/RPI-RP2 structure
-    media_dir = tmp_path / "media"
-    media_dir.mkdir()
-    user_dir = media_dir / "testuser"
-    user_dir.mkdir()
-    rp2_dir = user_dir / "RPI-RP2"
-    rp2_dir.mkdir()
-
-    # Create /run/media and /mnt as empty dirs
-    run_media_dir = tmp_path / "run_media"
-    run_media_dir.mkdir()
-    mnt_dir = tmp_path / "mnt"
-    mnt_dir.mkdir()
-
-    def mock_path_side_effect(p: str) -> Path:
-        if p == "/media":
-            return media_dir
-        if p == "/run/media":
-            return run_media_dir
-        if p == "/mnt":
-            return mnt_dir
-        return Path(p)
-
-    with (
-        patch("esphome.util.sys.platform", "linux"),
-        patch("esphome.util.Path", side_effect=mock_path_side_effect),
-    ):
-        result = util.get_rp2040_mass_storage_volumes()
-
-    assert len(result) == 1
-    assert result[0].description == "RP2040 BOOTSEL"
-
-
-def test_get_rp2040_mass_storage_volumes_linux_oserror(tmp_path: Path) -> None:
-    """Test RP2040 mass storage detection on Linux handles OSError."""
-    media_dir = tmp_path / "media"
-    media_dir.mkdir()
-
-    def mock_path_side_effect(p: str) -> Path:
-        if p == "/media":
-            return media_dir
-        if p in ("/run/media", "/mnt"):
-            # Return a path that will raise OSError when globbed
-            return tmp_path / "nonexistent"
-        return Path(p)
-
-    with (
-        patch("esphome.util.sys.platform", "linux"),
-        patch("esphome.util.Path", side_effect=mock_path_side_effect),
-    ):
-        result = util.get_rp2040_mass_storage_volumes()
-
-    assert result == []
-
-
-def test_get_rp2040_mass_storage_volumes_windows() -> None:
-    """Test RP2040 mass storage detection on Windows."""
-    mock_ctypes = MagicMock()
-    mock_volume_name = MagicMock()
-    mock_volume_name.value = "RPI-RP2"
-    mock_ctypes.create_unicode_buffer.return_value = mock_volume_name
-
-    def path_side_effect(p: str) -> MagicMock:
-        inst = MagicMock()
-        inst.exists.return_value = p == "D:\\"
-        return inst
-
-    with (
-        patch("esphome.util.sys.platform", "win32"),
-        patch.dict("sys.modules", {"ctypes": mock_ctypes}),
-        patch("esphome.util.Path", side_effect=path_side_effect),
-    ):
-        result = util.get_rp2040_mass_storage_volumes()
-
-    assert len(result) >= 1
-    assert result[0].description == "RP2040 BOOTSEL"
-
-
-def test_get_rp2040_mass_storage_volumes_unsupported_platform() -> None:
-    """Test RP2040 mass storage detection on unsupported platform returns empty."""
-    with patch("esphome.util.sys.platform", "freebsd"):
-        result = util.get_rp2040_mass_storage_volumes()
-
-    assert result == []
-
-
-def test_mass_storage_volume_attributes() -> None:
-    """Test MassStorageVolume class attributes."""
-    vol = util.MassStorageVolume(Path("/Volumes/RPI-RP2"), "RP2040 BOOTSEL")
-    assert vol.path == Path("/Volumes/RPI-RP2")
-    assert vol.description == "RP2040 BOOTSEL"
+        count = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert count == 0
