@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_AWAY_COMMAND_TOPIC,
     CONF_AWAY_STATE_TOPIC,
     CONF_CURRENT_HUMIDITY_STATE_TOPIC,
-    CONF_CURRENT_TEMPERATURE,
     CONF_CURRENT_TEMPERATURE_STATE_TOPIC,
     CONF_CUSTOM_FAN_MODE,
     CONF_CUSTOM_PRESET,
@@ -113,6 +112,7 @@ CLIMATE_SWING_MODES = {
 
 validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
+CONF_CURRENT_TEMPERATURE = "current_temperature"
 CONF_MIN_HUMIDITY = "min_humidity"
 CONF_MAX_HUMIDITY = "max_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
