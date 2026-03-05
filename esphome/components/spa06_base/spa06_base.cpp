@@ -318,7 +318,7 @@ bool SPA06Component::read_temperature_and_pressure_(float &temperature, float &p
   float p_raw_sc = (float) twoscd32(esphome::convert_big_endian(psr_tmp_read_.val.data << 8), 24) / (float) this->kp_;
 
   ESP_LOGVV(TAG,
-            "PRS read: %02x %02x %02x\n:"
+            "PRS read: %02x %02x %02x\n"
             "     raw: %d\n"
             "  raw_sc: %f",
             psr_tmp_read_.reg[0], psr_tmp_read_.reg[1], psr_tmp_read_.reg[2],
@@ -334,7 +334,7 @@ bool SPA06Component::read_temperature_(float &temperature, float &t_raw_sc) {
   }
   t_raw_sc = (float) esphome::convert_big_endian(psr_tmp_read_.val.data << 8) / (float) this->kt_;
   ESP_LOGVV(TAG,
-            "TMP read: %02x %02x %02x\n:"
+            "TMP read: %02x %02x %02x\n"
             "     raw: %d\n"
             "  raw_sc: %f",
             psr_tmp_read_.reg[0], psr_tmp_read_.reg[1], psr_tmp_read_.reg[2],
