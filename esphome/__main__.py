@@ -9,6 +9,8 @@ import logging
 import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import time
 from typing import Protocol
@@ -260,10 +262,10 @@ def choose_upload_log_host(
     if (
         purpose == Purpose.UPLOADING
         and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+        and (picotool := _find_picotool()) is not None
+        and detect_rp2040_bootsel(picotool) > 0
     ):
-        picotool = _find_picotool()
-        if picotool is not None and detect_rp2040_bootsel(picotool) > 0:
-            options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
+        options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
 
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():
@@ -735,8 +737,6 @@ def upload_using_esptool(
 
 
 def upload_using_platformio(config: ConfigType, port: str) -> int:
-    import shutil
-
     from esphome import platformio_api
 
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
@@ -774,8 +774,6 @@ def upload_using_picotool(config: ConfigType) -> int:
     the mass storage copy approach that causes "disk not ejected properly"
     warnings on macOS.
     """
-    import subprocess
-
     from esphome import platformio_api
 
     idedata = platformio_api.get_idedata(config)
