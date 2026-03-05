@@ -53,12 +53,14 @@ class TemplateClimate final : public climate::Climate, public Component {
   Trigger<climate::ClimatePreset> *get_set_preset_trigger() const { return this->set_preset_trigger_; }
 
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
+  void set_push(bool push) { this->push_ = push; }
 
  protected:
   void control(const climate::ClimateCall &call) override;
 
   climate::ClimateTraits traits_;
   bool optimistic_{true};
+  bool push_{true};
 
   TemplateLambda<float> current_temperature_f_;
   TemplateLambda<float> target_temperature_f_;

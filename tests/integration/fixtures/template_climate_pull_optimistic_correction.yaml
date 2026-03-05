@@ -1,0 +1,36 @@
+esphome:
+  name: tmpl-clim-pull-corr
+host:
+api:
+logger:
+
+# This fixture tests the "device rejects command" scenario in pull+optimistic mode.
+# The mode lambda always returns OFF regardless of what was commanded.
+# The target_temperature lambda always returns 22.0 regardless of what was commanded.
+# This lets the test verify:
+#   1. The optimistic preview is applied immediately (HEAT, 25.0°C)
+#   2. The device corrects the state back on the next loop iteration (OFF, 22.0°C)
+climate:
+  - platform: template
+    id: test_climate
+    name: Test Correction Climate
+    optimistic: true
+    state_control: pull
+    mode: !lambda "return static_cast<climate::ClimateMode>(0);"  # Always OFF
+    target_temperature: !lambda "return 22.0f;"  # Always 22.0°C
+    supported_modes:
+      - "OFF"
+      - HEAT
+      - COOL
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+    set_mode_action:
+      - logger.log:
+          format: "Mode command %d received but device ignores it"
+          args: ["(int) x"]
+    set_target_temperature_action:
+      - logger.log:
+          format: "Target temp command %.1f received but device ignores it"
+          args: ["x"]

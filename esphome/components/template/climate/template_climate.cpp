@@ -77,41 +77,45 @@ void TemplateClimate::loop() {
     this->publish_state();
 }
 
-void TemplateClimate::dump_config() { LOG_CLIMATE("", "Template Climate", this); }
+void TemplateClimate::dump_config() {
+  LOG_CLIMATE("", "Template Climate", this);
+  ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
+  ESP_LOGCONFIG(TAG, "  State Control: %s", this->push_ ? "push" : "pull");
+}
 
 void TemplateClimate::control(const climate::ClimateCall &call) {
+  // In push mode ESPHome owns the state, so apply changes immediately.
+  // In pull mode with optimistic enabled, apply changes as a preview;
+  // the device will correct via state lambdas on the next loop iteration.
+  const bool apply_state = this->push_ || this->optimistic_;
+
   if (auto mode = call.get_mode()) {
-    if (this->optimistic_) {
+    if (apply_state)
       this->mode = *mode;
-    }
     this->set_mode_trigger_->trigger(*mode);
   }
 
   if (auto target_temp = call.get_target_temperature()) {
-    if (this->optimistic_) {
+    if (apply_state)
       this->target_temperature = *target_temp;
-    }
     this->set_target_temperature_trigger_->trigger(*target_temp);
   }
 
   if (auto fan_mode = call.get_fan_mode()) {
-    if (this->optimistic_) {
+    if (apply_state)
       this->fan_mode = fan_mode;
-    }
     this->set_fan_mode_trigger_->trigger(*fan_mode);
   }
 
   if (auto swing_mode = call.get_swing_mode()) {
-    if (this->optimistic_) {
+    if (apply_state)
       this->swing_mode = *swing_mode;
-    }
     this->set_swing_mode_trigger_->trigger(*swing_mode);
   }
 
   if (auto preset = call.get_preset()) {
-    if (this->optimistic_) {
+    if (apply_state)
       this->preset = preset;
-    }
     this->set_preset_trigger_->trigger(*preset);
   }
 

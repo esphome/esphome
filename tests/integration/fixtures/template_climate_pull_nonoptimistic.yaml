@@ -1,5 +1,5 @@
 esphome:
-  name: tmpl-clim-lambdas
+  name: tmpl-clim-pull-nopt
 host:
 api:
 logger:
@@ -28,6 +28,7 @@ climate:
     id: test_climate
     name: Test External Heatpump
     optimistic: false
+    state_control: pull
     current_temperature: !lambda "return 22.5f;"
     target_temperature: !lambda "return id(ext_target_temp);"
     mode: !lambda "return static_cast<climate::ClimateMode>(id(ext_mode));"

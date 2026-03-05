@@ -1,8 +1,8 @@
-"""Integration test for template climate component with state-readback lambdas.
+"""Integration tests for template climate: pull mode with optimistic=false.
 
-Tests the non-optimistic mode where the external device owns its state and
-ESPHome reads it back via lambdas (mode, fan_mode, swing_mode, preset,
-target_temperature, current_temperature).
+In pull mode the device owns its state.  ESPHome reads it back via lambdas and
+does NOT speculatively apply commands; HA only reflects the new state once the
+device confirms it through the lambda on the next loop iteration.
 """
 
 from __future__ import annotations
@@ -25,15 +25,16 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
 @pytest.mark.asyncio
-async def test_template_climate_state_lambdas(
+async def test_template_climate_pull_nonoptimistic(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test template climate with non-optimistic mode and state-readback lambdas.
+    """Pull mode + non-optimistic: HA state is driven entirely by device lambdas.
 
-    The set_*_action writes to globals; the state lambdas read from those globals.
-    This simulates an external device (e.g. a heatpump) that owns its own state.
+    Each set_*_action writes to a global; the corresponding state lambda reads
+    it back.  This simulates an external device (e.g. a heatpump) that is the
+    single source of truth.  HA updates only after the lambda re-evaluates.
     """
     loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
@@ -71,7 +72,7 @@ async def test_template_climate_state_lambdas(
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
 
-        # Verify initial state is read from lambdas (not optimistic defaults)
+        # Initial state must come from the lambdas, not from ESPHome defaults
         initial = initial_state_helper.initial_states.get(test_climate.key)
         assert initial is not None, "No initial climate state received"
         assert isinstance(initial, aioesphomeapi.ClimateState)
@@ -82,31 +83,27 @@ async def test_template_climate_state_lambdas(
         assert initial.swing_mode == ClimateSwingMode.OFF  # ext_swing_mode = 0
         assert initial.preset == ClimatePreset.ECO  # ext_preset = 5
 
-        # Send HEAT mode command. The set_mode_action writes to ext_mode global.
-        # Since optimistic=false, state only updates when the lambda is re-evaluated.
+        # Commands write to globals via set_*_action; the lambdas read them back.
+        # State only updates once the loop re-evaluates the lambda.
         client.climate_command(test_climate.key, mode=ClimateMode.HEAT)
-        heat_state = await wait_for_climate_state()
-        assert heat_state.mode == ClimateMode.HEAT
+        state = await wait_for_climate_state()
+        assert state.mode == ClimateMode.HEAT
 
-        # Send target temperature — set_target_temperature_action writes to ext_target_temp
         client.climate_command(test_climate.key, target_temperature=23.0)
-        temp_state = await wait_for_climate_state()
-        assert temp_state.target_temperature == pytest.approx(23.0, abs=0.1)
+        state = await wait_for_climate_state()
+        assert state.target_temperature == pytest.approx(23.0, abs=0.1)
 
-        # Send fan mode HIGH — set_fan_mode_action writes to ext_fan_mode
         client.climate_command(test_climate.key, fan_mode=ClimateFanMode.HIGH)
-        fan_state = await wait_for_climate_state()
-        assert fan_state.fan_mode == ClimateFanMode.HIGH
+        state = await wait_for_climate_state()
+        assert state.fan_mode == ClimateFanMode.HIGH
 
-        # Send swing mode VERTICAL — set_swing_mode_action writes to ext_swing_mode
         client.climate_command(test_climate.key, swing_mode=ClimateSwingMode.VERTICAL)
-        swing_state = await wait_for_climate_state()
-        assert swing_state.swing_mode == ClimateSwingMode.VERTICAL
+        state = await wait_for_climate_state()
+        assert state.swing_mode == ClimateSwingMode.VERTICAL
 
-        # Send preset AWAY — set_preset_action writes to ext_preset
         client.climate_command(test_climate.key, preset=ClimatePreset.AWAY)
-        preset_state = await wait_for_climate_state()
-        assert preset_state.preset == ClimatePreset.AWAY
+        state = await wait_for_climate_state()
+        assert state.preset == ClimatePreset.AWAY
 
-        # Verify current_temperature is always read from the lambda (22.5f constant)
-        assert preset_state.current_temperature == pytest.approx(22.5, abs=0.1)
+        # current_temperature is always read from the lambda (fixed 22.5°C)
+        assert state.current_temperature == pytest.approx(22.5, abs=0.1)

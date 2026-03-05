@@ -24,6 +24,7 @@ CONF_SET_MODE_ACTION = "set_mode_action"
 CONF_SET_PRESET_ACTION = "set_preset_action"
 CONF_SET_SWING_MODE_ACTION = "set_swing_mode_action"
 CONF_SET_TARGET_TEMPERATURE_ACTION = "set_target_temperature_action"
+CONF_STATE_CONTROL = "state_control"
 
 TemplateClimate = template_ns.class_("TemplateClimate", climate.Climate, cg.Component)
 
@@ -65,6 +66,9 @@ CONFIG_SCHEMA = (
                 single=True
             ),
             cv.Optional(CONF_OPTIMISTIC, default=True): cv.boolean,
+            cv.Optional(CONF_STATE_CONTROL, default="push"): cv.one_of(
+                "push", "pull", lower=True
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -172,3 +176,4 @@ async def to_code(config):
         )
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+    cg.add(var.set_push(config[CONF_STATE_CONTROL] == "push"))
