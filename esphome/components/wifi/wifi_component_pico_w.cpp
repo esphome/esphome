@@ -49,6 +49,10 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   if (sta.has_value()) {
     if (sta.value()) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true, CYW43_COUNTRY_WORLDWIDE);
+    } else {
+      // Leave the STA network so the radio is free for scanning.
+      // Use cyw43_wifi_leave directly to avoid corrupting Arduino framework state.
+      cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
     }
   }
 
@@ -246,7 +250,10 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   }
 #endif
 
-  WiFi.beginAP(ap.ssid_.c_str(), ap.password_.c_str(), ap.has_channel() ? ap.get_channel() : 1);
+  // Pass nullptr for empty password — CYW43 uses the password pointer (not length)
+  // to choose between OPEN and WPA2 auth mode.
+  const char *ap_password = ap.password_.empty() ? nullptr : ap.password_.c_str();
+  WiFi.beginAP(ap.ssid_.c_str(), ap_password, ap.has_channel() ? ap.get_channel() : 1);
   ESP_LOGD(TAG, "wifi_start_ap_: after beginAP, WiFi.status()=%d, mode=%d, softAPIP=%s, localIP=%s", WiFi.status(),
            (int) WiFi.getMode(), WiFi.softAPIP().toString().c_str(), WiFi.localIP().toString().c_str());
 
