@@ -7,7 +7,8 @@ from esphome.types import ConfigType
 from .. import CONF_HTTP_REQUEST_ID, HttpRequestComponent, http_request_ns
 
 CODEOWNERS = ["@kahrendt"]
-DEPENDENCIES = ["http_request", "media_source", "audio"]
+AUTO_LOAD = ["audio"]
+DEPENDENCIES = ["http_request"]
 
 HTTPRequestMediaSource = http_request_ns.class_(
     "HTTPRequestMediaSource", cg.Component, media_source.MediaSource
