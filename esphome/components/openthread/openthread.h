@@ -8,6 +8,7 @@
 
 #include <openthread/srp_client.h>
 #include <openthread/srp_client_buffers.h>
+#include <openthread/instance.h>
 #include <openthread/thread.h>
 
 #include <optional>
@@ -26,7 +27,7 @@ class OpenThreadComponent : public Component {
   bool teardown() override;
   float get_setup_priority() const override { return setup_priority::WIFI; }
 
-  bool is_connected();
+  bool is_connected() const { return this->connected_; }
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
   void ot_main();
@@ -42,6 +43,7 @@ class OpenThreadComponent : public Component {
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
+  static void on_state_changed_(otChangedFlags flags, void *context);
   std::function<void()> factory_reset_external_callback_;
 #if CONFIG_OPENTHREAD_MTD
   uint32_t poll_period_{0};
@@ -49,6 +51,7 @@ class OpenThreadComponent : public Component {
   std::optional<int8_t> output_power_{};
   bool teardown_started_{false};
   bool teardown_complete_{false};
+  bool connected_{false};
 
  private:
   // Stores a pointer to a string literal (static storage duration).

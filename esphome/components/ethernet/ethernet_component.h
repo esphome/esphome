@@ -76,7 +76,7 @@ class EthernetComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override;
   void on_powerdown() override { powerdown(); }
-  bool is_connected();
+  bool is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
 #ifdef USE_ETHERNET_SPI
   void set_clk_pin(uint8_t clk_pin);

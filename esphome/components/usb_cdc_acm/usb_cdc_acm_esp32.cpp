@@ -161,7 +161,7 @@ void USBCDCACMInstance::setup() {
 
   // Create a simple, unique task name per interface
   char task_name[] = "usb_tx_0";
-  task_name[sizeof(task_name) - 1] = format_hex_char(static_cast<char>(this->itf_));
+  task_name[sizeof(task_name) - 2] = format_hex_char(static_cast<char>(this->itf_));
   xTaskCreate(usb_tx_task_fn, task_name, stack_size, this, 4, &this->usb_tx_task_handle_);
 
   if (this->usb_tx_task_handle_ == nullptr) {
