@@ -281,6 +281,10 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
       break;
     }
     case ZWAVE_PARSING_STATE_READ_BL_MENU:
+      if (this->buffer_index_ >= this->buffer_.size()) {
+        this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
+        break;
+      }
       this->buffer_[this->buffer_index_++] = byte;
       if (!byte) {
         this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
