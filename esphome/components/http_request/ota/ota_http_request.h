@@ -39,7 +39,7 @@ class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<
   void flash();
 
  protected:
-  void cleanup_(decltype(ota::make_ota_backend()) backend, const std::shared_ptr<HttpContainer> &container);
+  void cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container);
   uint8_t do_ota_();
   std::string get_url_with_auth_(const std::string &url);
   bool http_get_md5_();

@@ -21,3 +21,7 @@ struct StubOTABackend {};
 std::unique_ptr<StubOTABackend> make_ota_backend();
 }  // namespace esphome::ota
 #endif
+
+namespace esphome::ota {
+using OTABackendPtr = decltype(make_ota_backend());
+}  // namespace esphome::ota
