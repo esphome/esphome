@@ -687,8 +687,6 @@ void EthernetComponent::start_connect_() {
   this->status_set_warning();
 }
 
-bool EthernetComponent::is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
-
 void EthernetComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
