@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_TX_BUFFER_SIZE,
     CONF_TYPE,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["zephyr_ble_server", "uart"]
 CODEOWNERS = ["@tomaszduda23"]
@@ -21,7 +22,7 @@ BLENUS = ble_nus_ns.class_("BLENUS", cg.Component, UARTComponent)
 CONF_UART = "uart"
 
 
-def validate_rx_buffer(config):
+def validate_rx_buffer(config: ConfigType) -> ConfigType:
     config = config.copy()
     if config[CONF_TYPE] == CONF_LOGS:
         if CONF_RX_BUFFER_SIZE in config:
@@ -39,10 +40,10 @@ CONFIG_SCHEMA = cv.All(
                 *[CONF_LOGS, CONF_UART], lower=True
             ),
             cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.All(
-                cv.validate_bytes, cv.int_range(min=160, max=65535)
+                cv.validate_bytes, cv.int_range(min=160, max=8192)
             ),
             cv.Optional(CONF_RX_BUFFER_SIZE): cv.All(
-                cv.validate_bytes, cv.int_range(min=160, max=65535)
+                cv.validate_bytes, cv.int_range(min=160, max=8192)
             ),
             cv.Optional(CONF_DEBUG): maybe_empty_debug,
         }
@@ -52,7 +53,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     zephyr_add_prj_conf("BT_NUS", True)
     expose_log = config[CONF_TYPE] == CONF_LOGS
@@ -60,8 +61,10 @@ async def to_code(config):
     if expose_log:
         request_log_listener()  # Request a log listener slot for BLE NUS log streaming
     await cg.register_component(var, config)
-    cg.add_define("ESPHOME_BLE_TX_RING_BUFFER_SIZE", config[CONF_TX_BUFFER_SIZE])
+    cg.add_define("ESPHOME_BLE_NUS_TX_RING_BUFFER_SIZE", config[CONF_TX_BUFFER_SIZE])
     if CONF_RX_BUFFER_SIZE in config:
-        cg.add_define("ESPHOME_BLE_RX_RING_BUFFER_SIZE", config[CONF_RX_BUFFER_SIZE])
+        cg.add_define(
+            "ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE", config[CONF_RX_BUFFER_SIZE]
+        )
     if CONF_DEBUG in config:
         await debug_to_code(config[CONF_DEBUG], var)

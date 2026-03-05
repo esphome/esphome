@@ -13,9 +13,9 @@ namespace esphome::ble_nus {
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 BLENUS *global_ble_nus;
-RING_BUF_DECLARE(global_ble_tx_ring_buf, ESPHOME_BLE_TX_RING_BUFFER_SIZE);
-#ifdef ESPHOME_BLE_RX_RING_BUFFER_SIZE
-RING_BUF_DECLARE(global_ble_rx_ring_buf, ESPHOME_BLE_RX_RING_BUFFER_SIZE);
+RING_BUF_DECLARE(global_ble_tx_ring_buf, ESPHOME_BLE_NUS_TX_RING_BUFFER_SIZE);
+#ifdef ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE
+RING_BUF_DECLARE(global_ble_rx_ring_buf, ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE);
 #endif
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -28,6 +28,7 @@ void BLENUS::write_array(const uint8_t *data, size_t len) {
   auto sent = ring_buf_put(&global_ble_tx_ring_buf, data, len);
   if (sent < len) {
     ESP_LOGE(TAG, "TX dropping %u bytes", len - sent);
+    return;
   }
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
@@ -37,7 +38,7 @@ void BLENUS::write_array(const uint8_t *data, size_t len) {
 }
 
 bool BLENUS::peek_byte(uint8_t *data) {
-#ifdef ESPHOME_BLE_RX_RING_BUFFER_SIZE
+#ifdef ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE
   if (this->has_peek_) {
     *data = this->peek_buffer_;
     return true;
@@ -56,7 +57,7 @@ bool BLENUS::peek_byte(uint8_t *data) {
 }
 
 bool BLENUS::read_array(uint8_t *data, size_t len) {
-#ifdef ESPHOME_BLE_RX_RING_BUFFER_SIZE
+#ifdef ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE
   if (len == 0) {
     return true;
   }
@@ -87,7 +88,7 @@ bool BLENUS::read_array(uint8_t *data, size_t len) {
 }
 
 size_t BLENUS::available() {
-#ifdef ESPHOME_BLE_RX_RING_BUFFER_SIZE
+#ifdef ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE
   uint32_t size = ring_buf_size_get(&global_ble_rx_ring_buf);
   ESP_LOGVV(TAG, "UART BLE available %u", size);
   return size + (this->has_peek_ ? 1 : 0);
@@ -142,7 +143,7 @@ void BLENUS::send_enabled_callback(bt_nus_send_status status) {
 }
 void BLENUS::rx_callback(bt_conn *conn, const uint8_t *const data, uint16_t len) {
   ESP_LOGV(TAG, "Received %d bytes.", len);
-#ifdef ESPHOME_BLE_RX_RING_BUFFER_SIZE
+#ifdef ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE
   auto recv_len = ring_buf_put(&global_ble_rx_ring_buf, data, len);
   if (recv_len < len) {
     ESP_LOGE(TAG, "RX dropping %u bytes", len - recv_len);

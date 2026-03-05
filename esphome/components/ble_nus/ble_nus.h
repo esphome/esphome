@@ -48,7 +48,7 @@ class BLENUS : public uart::UARTComponent, public Component {
   bool expose_log_ = false;
   atomic_t tx_status_ = ATOMIC_INIT(TX_DISABLED);
   std::atomic<bool> connected_{};
-#ifdef ESPHOME_BLE_RX_RING_BUFFER_SIZE
+#ifdef ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE
   // RX buffer for peek functionality
   uint8_t peek_buffer_{0};
   bool has_peek_{false};
