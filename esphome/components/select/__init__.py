@@ -92,9 +92,8 @@ def select_schema(
     return _SELECT_SCHEMA.extend(schema)
 
 
+@setup_entity("select")
 async def setup_select_core_(var, config, *, options: list[str]):
-    await setup_entity(var, config, "select")
-
     cg.add(var.traits.set_options(options))
 
     for conf in config.get(CONF_ON_VALUE, []):
@@ -145,6 +144,7 @@ OPERATION_BASE_SCHEMA = cv.Schema(
             cv.Required(CONF_OPTION): cv.templatable(cv.string_strict),
         }
     ),
+    synchronous=True,
 )
 async def select_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -162,6 +162,7 @@ async def select_set_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_INDEX): cv.templatable(cv.positive_int),
         }
     ),
+    synchronous=True,
 )
 async def select_set_index_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -217,6 +218,7 @@ async def select_is_to_code(config, condition_id, template_arg, args):
             cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
         }
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "select.next",
@@ -229,6 +231,7 @@ async def select_is_to_code(config, condition_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "select.previous",
@@ -243,6 +246,7 @@ async def select_is_to_code(config, condition_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "select.first",
@@ -254,6 +258,7 @@ async def select_is_to_code(config, condition_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "select.last",
@@ -265,6 +270,7 @@ async def select_is_to_code(config, condition_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 async def select_operation_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

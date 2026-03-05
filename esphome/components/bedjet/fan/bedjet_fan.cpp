@@ -19,7 +19,8 @@ void BedJetFan::control(const fan::FanCall &call) {
   }
   bool did_change = false;
 
-  if (call.get_state().has_value() && this->state != *call.get_state()) {
+  auto state_opt = call.get_state();
+  if (state_opt.has_value() && this->state != *state_opt) {
     // Turning off is easy:
     if (this->state && this->parent_->button_off()) {
       this->state = false;
@@ -36,8 +37,9 @@ void BedJetFan::control(const fan::FanCall &call) {
   }
 
   // ignore speed changes if not on or turning on
-  if (this->state && call.get_speed().has_value()) {
-    auto speed = *call.get_speed();
+  auto speed_opt = call.get_speed();
+  if (this->state && speed_opt.has_value()) {
+    auto speed = *speed_opt;
     if (speed >= 1) {
       this->speed = speed;
       // Fan.speed is 1-20, but Bedjet expects 0-19, so subtract 1

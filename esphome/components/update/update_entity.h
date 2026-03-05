@@ -29,7 +29,7 @@ enum UpdateState : uint8_t {
 
 const LogString *update_state_to_string(UpdateState state);
 
-class UpdateEntity : public EntityBase, public EntityBase_DeviceClass {
+class UpdateEntity : public EntityBase {
  public:
   void publish_state();
 

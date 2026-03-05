@@ -16,10 +16,10 @@ void setup() {
   auto *log = new logger::Logger(115200);  // NOLINT
   log->pre_setup();
   log->set_uart_selection(logger::UART_SELECTION_UART0);
-  App.register_component(log);
+  App.register_component_(log);
 
   auto *wifi = new wifi::WiFiComponent();  // NOLINT
-  App.register_component(wifi);
+  App.register_component_(wifi);
   wifi::WiFiAP ap;
   ap.set_ssid("Test SSID");
   ap.set_password("password1");
