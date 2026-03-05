@@ -101,10 +101,10 @@ size_t BLENUS::available() {
 }
 
 void BLENUS::flush() {
-  constexpr uint32_t 5sec_timeout = 5000;
+  constexpr uint32_t timeout_5sec = 5000;
   uint32_t start = millis();
   while (atomic_get(&this->tx_status_) != TX_DISABLED && !ring_buf_is_empty(&global_ble_tx_ring_buf)) {
-    if (millis() - start > 5sec_timeout) {
+    if (millis() - start > timeout_5sec) {
       ESP_LOGW(TAG, "Flush timeout");
       return;
     }
