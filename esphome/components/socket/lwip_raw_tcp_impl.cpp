@@ -94,6 +94,8 @@ void socket_delay(uint32_t ms) {
     cancel_alarm(alarm);
 }
 
+// No IRAM_ATTR equivalent needed: on RP2040, CYW43 async_context runs LWIP
+// callbacks via pendsv (not hard IRQ), so they execute from flash safely.
 void socket_wake() {
   s_socket_woke = true;
   // Wake the main loop from __wfe() sleep. __sev() is a global event that
