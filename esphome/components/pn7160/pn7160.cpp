@@ -276,8 +276,8 @@ uint8_t PN7160::reset_core_(const bool reset_config, const bool power) {
 
   ESP_LOGD(TAG,
            "Configuration %s\n"
-           "NCI version: %s\n"
-           "Manufacturer ID: 0x%02X",
+           "  NCI version: %s\n"
+           "  Manufacturer ID: 0x%02X",
            rx.get_message()[4] ? "reset" : "retained", rx.get_message()[5] == 0x20 ? "2.0" : "1.0",
            rx.get_message()[6]);
   rx.get_message().erase(rx.get_message().begin(), rx.get_message().begin() + 8);
@@ -311,10 +311,10 @@ uint8_t PN7160::init_core_() {
   char feat_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
   ESP_LOGD(TAG,
            "Hardware version: %u\n"
-           "ROM code version: %u\n"
-           "FLASH major version: %u\n"
-           "FLASH minor version: %u\n"
-           "Features: %s",
+           "  ROM code version: %u\n"
+           "  FLASH major version: %u\n"
+           "  FLASH minor version: %u\n"
+           "  Features: %s",
            hw_version, rom_code_version, flash_major_version, flash_minor_version,
            nfc::format_bytes_to(feat_buf, features));
 
