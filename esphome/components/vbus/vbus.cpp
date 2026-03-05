@@ -107,8 +107,8 @@ void VBus::loop() {
         continue;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       char hex_buf[format_hex_size(VBUS_MAX_LOG_BYTES)];
-#endif
       size_t log_bytes = std::min(this->buffer_.size(), static_cast<size_t>(VBUS_MAX_LOG_BYTES));
+#endif
       ESP_LOGV(TAG, "P2 C%04x %04x->%04x: %s", this->command_, this->source_, this->dest_,
                format_hex_to(hex_buf, this->buffer_.data(), log_bytes));
       for (auto &listener : this->listeners_)

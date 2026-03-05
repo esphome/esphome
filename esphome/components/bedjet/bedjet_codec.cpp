@@ -97,8 +97,9 @@ bool BedjetCodec::decode_notify(const uint8_t *data, uint16_t length) {
     // Clear old buffer
     memset(&this->buf_, 0, sizeof(BedjetStatusPacket));
     // Copy new data into buffer
-    memcpy(&this->buf_, data, std::min(static_cast<size_t>(length), sizeof(BedjetStatusPacket)));
-    this->last_buffer_size_ = length;
+    size_t copy_len = std::min(static_cast<size_t>(length), sizeof(BedjetStatusPacket));
+    memcpy(&this->buf_, data, copy_len);
+    this->last_buffer_size_ = copy_len;
 
     // TODO: validate the packet checksum?
     if (this->buf_.mode < 7 && this->buf_.target_temp_step >= 38 && this->buf_.target_temp_step <= 86 &&

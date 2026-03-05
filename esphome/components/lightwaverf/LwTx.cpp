@@ -109,7 +109,7 @@ bool LwTx::lwtx_free() { return !this->tx_msg_active; }
 **/
 void LwTx::lwtx_send(const std::vector<uint8_t> &msg) {
   if (msg.size() < TX_MSGLEN) {
-    ESP_LOGW("lightwaverf.sensor", "Message too short: %zu < %u", msg.size(), TX_MSGLEN);
+    ESP_LOGW("lightwaverf.sensor", "Message too short: %zu < %u", msg.size(), static_cast<unsigned>(TX_MSGLEN));
     return;
   }
   if (this->tx_translate) {
