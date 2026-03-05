@@ -3,6 +3,8 @@
 #include "esphome/core/helpers.h"
 #include "packet_transport.h"
 
+#include <ranges>
+
 #include "esphome/components/xxtea/xxtea.h"
 
 namespace esphome {
@@ -77,7 +79,7 @@ enum DecodeResult {
   DECODE_EMPTY,
 };
 
-static const size_t MAX_PING_KEYS = 4;
+static constexpr size_t MAX_PING_KEYS = 4;
 
 static inline void add(std::vector<uint8_t> &vec, uint32_t data) {
   vec.push_back(data & 0xFF);
@@ -168,7 +170,7 @@ class PacketDecoder {
     return true;
   }
 
-  bool decrypt(const uint32_t *key) {
+  bool decrypt(const uint32_t *key) const {
     if (this->get_remaining_size() % 4 != 0) {
       return false;
     }
@@ -249,9 +251,9 @@ void PacketTransport::init_data_() {
   } else {
     add(this->data_, DATA_KEY);
   }
-  for (const auto &pkey : this->ping_keys_) {
+  for (auto &value : this->ping_keys_ | std::views::values) {
     add(this->data_, PING_KEY);
-    add(this->data_, pkey.second);
+    add(this->data_, value);
   }
 }
 
@@ -331,7 +333,7 @@ void PacketTransport::update() {
   auto now = millis() / 1000;
   if (this->last_key_time_ + this->ping_pong_recyle_time_ < now) {
     this->resend_ping_key_ = this->ping_pong_enable_;
-    ESP_LOGV(TAG, "Ping request, age %u", now - this->last_key_time_);
+    ESP_LOGV(TAG, "Ping request, age %" PRIu32, now - this->last_key_time_);
     this->last_key_time_ = now;
   }
   for (const auto &provider : this->providers_) {
@@ -339,24 +341,32 @@ void PacketTransport::update() {
     if (key_response_age > (this->ping_pong_recyle_time_ * 2u)) {
 #ifdef USE_STATUS_SENSOR
       if (provider.second.status_sensor != nullptr && provider.second.status_sensor->state) {
-        ESP_LOGI(TAG, "Ping status for %s timeout at %u with age %u", provider.first.c_str(), now, key_response_age);
+        ESP_LOGI(TAG, "Ping status for %s timeout at %" PRIu32 " with age %" PRIu32, provider.first.c_str(), now,
+                 key_response_age);
         provider.second.status_sensor->publish_state(false);
       }
 #endif
 #ifdef USE_SENSOR
-      for (auto &sensor : this->remote_sensors_[provider.first]) {
-        sensor.second->publish_state(NAN);
+      auto it = this->remote_sensors_.find(provider.first);
+      if (it != this->remote_sensors_.end()) {
+        for (auto &val : it->second | std::views::values) {
+          val->publish_state(NAN);
+        }
       }
 #endif
 #ifdef USE_BINARY_SENSOR
-      for (auto &sensor : this->remote_binary_sensors_[provider.first]) {
-        sensor.second->invalidate_state();
+      auto bs_it = this->remote_binary_sensors_.find(provider.first);
+      if (bs_it != this->remote_binary_sensors_.end()) {
+        for (auto &val : bs_it->second | std::views::values) {
+          val->invalidate_state();
+        }
       }
 #endif
     } else {
 #ifdef USE_STATUS_SENSOR
       if (provider.second.status_sensor != nullptr && !provider.second.status_sensor->state) {
-        ESP_LOGI(TAG, "Ping status for %s restored at %u with age %u", provider.first.c_str(), now, key_response_age);
+        ESP_LOGI(TAG, "Ping status for %s restored at %" PRIu32 " with age %" PRIu32, provider.first.c_str(), now,
+                 key_response_age);
         provider.second.status_sensor->publish_state(true);
       }
 #endif
@@ -367,11 +377,16 @@ void PacketTransport::update() {
 void PacketTransport::add_key_(const char *name, uint32_t key) {
   if (!this->is_encrypted_())
     return;
-  if (this->ping_keys_.count(name) == 0 && this->ping_keys_.size() == MAX_PING_KEYS) {
-    ESP_LOGW(TAG, "Ping key from %s discarded", name);
-    return;
+  auto it = this->ping_keys_.find(name);
+  if (it == this->ping_keys_.end()) {
+    if (this->ping_keys_.size() == MAX_PING_KEYS) {
+      ESP_LOGW(TAG, "Ping key from %s discarded", name);
+      return;
+    }
+    this->ping_keys_.emplace(name, key);  // allocates string key once only
+  } else {
+    it->second = key;  // key string already exists in map, no allocation
   }
-  this->ping_keys_[name] = key;
   this->updated_ = true;
   ESP_LOGV(TAG, "Ping key from %s now %X", name, (unsigned) key);
 }
@@ -431,17 +446,19 @@ void PacketTransport::process_(std::span<const uint8_t> data) {
     return;
   }
 
-  if (this->providers_.count(namebuf) == 0) {
+  auto it = this->providers_.find(namebuf);
+  if (it == this->providers_.end()) {
     ESP_LOGVV(TAG, "Unknown hostname %s", namebuf);
     return;
   }
+  auto &provider = it->second;
   ESP_LOGV(TAG, "Found hostname %s", namebuf);
 
 #ifdef USE_SENSOR
-  auto &sensors = this->remote_sensors_[namebuf];
+  auto &sensors = this->remote_sensors_.try_emplace(namebuf).first->second;
 #endif
 #ifdef USE_BINARY_SENSOR
-  auto &binary_sensors = this->remote_binary_sensors_[namebuf];
+  auto &binary_sensors = this->remote_binary_sensors_.try_emplace(namebuf).first->second;
 #endif
 
   if (!decoder.bump_to(4)) {
@@ -453,7 +470,6 @@ void PacketTransport::process_(std::span<const uint8_t> data) {
     return;
   }
 
-  auto &provider = this->providers_[namebuf];
   // if encryption not used with this host, ping check is pointless since it would be easily spoofed.
   if (provider.encryption_key.empty())
     ping_key_seen = true;
@@ -495,16 +511,19 @@ void PacketTransport::process_(std::span<const uint8_t> data) {
     if (decoder.decode(BINARY_SENSOR_KEY, namebuf, sizeof(namebuf), byte) == DECODE_OK) {
       ESP_LOGV(TAG, "Got binary sensor %s %d", namebuf, byte);
 #ifdef USE_BINARY_SENSOR
-      if (binary_sensors.count(namebuf) != 0)
-        binary_sensors[namebuf]->publish_state(byte != 0);
+      auto bs = binary_sensors.find(namebuf);
+      if (bs != binary_sensors.end()) {
+        bs->second->publish_state(byte != 0);
+      }
 #endif
       continue;
     }
     if (decoder.decode(SENSOR_KEY, namebuf, sizeof(namebuf), rdata.u32) == DECODE_OK) {
       ESP_LOGV(TAG, "Got sensor %s %f", namebuf, rdata.f32);
 #ifdef USE_SENSOR
-      if (sensors.count(namebuf) != 0)
-        sensors[namebuf]->publish_state(rdata.f32);
+      auto sensor_it = sensors.find(namebuf);
+      if (sensor_it != sensors.end())
+        sensor_it->second->publish_state(rdata.f32);
 #endif
       continue;
     }
@@ -537,12 +556,18 @@ void PacketTransport::dump_config() {
     ESP_LOGCONFIG(TAG, "  Remote host: %s", host.first.c_str());
     ESP_LOGCONFIG(TAG, "    Encrypted: %s", YESNO(!host.second.encryption_key.empty()));
 #ifdef USE_SENSOR
-    for (const auto &sensor : this->remote_sensors_[host.first.c_str()])
-      ESP_LOGCONFIG(TAG, "    Sensor: %s", sensor.first.c_str());
+    auto rs = this->remote_sensors_.find(host.first.c_str());
+    if (rs != this->remote_sensors_.end()) {
+      for (const auto &key : rs->second | std::views::keys)
+        ESP_LOGCONFIG(TAG, "    Sensor: %s", key.c_str());
+    }
 #endif
 #ifdef USE_BINARY_SENSOR
-    for (const auto &sensor : this->remote_binary_sensors_[host.first.c_str()])
-      ESP_LOGCONFIG(TAG, "    Binary Sensor: %s", sensor.first.c_str());
+    auto rbs = this->remote_binary_sensors_.find(host.first.c_str());
+    if (rbs != this->remote_binary_sensors_.end()) {
+      for (const auto &key : rbs->second | std::views::keys)
+        ESP_LOGCONFIG(TAG, "    Binary Sensor: %s", key.c_str());
+    }
 #endif
   }
 }
