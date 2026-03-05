@@ -43,8 +43,9 @@ from esphome.const import (
     ThreadModel,
     __version__,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import CORE, HexInt, Library
 from esphome.coroutine import CoroPriority, coroutine_with_priority
+from esphome.espidf_component import generate_idf_component
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
@@ -2197,6 +2198,14 @@ def _write_sdkconfig():
         write_file_if_changed(sdk_path, contents)
 
 
+def _platformio_library_to_dependency(library: Library) -> tuple[str, dict[str, str]]:
+    dependency: dict[str, str] = {}
+    name, version, path = generate_idf_component(library)
+    dependency["override_path"] = str(path)
+    dependency["version"] = version
+    return name, dependency
+
+
 def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependencies: dict[str, dict] = {}
@@ -2237,6 +2246,12 @@ def _write_idf_component_yml():
             stub_path = stubs_dir / _idf_component_stub_name(component_name)
             if stub_path.exists():
                 rmtree(stub_path)
+
+    if CORE.data[KEY_NATIVE_IDF]:
+        # Try to convert PlatformIO library to ESP-IDF components
+        for name, library in CORE.platformio_libraries.items():
+            dependency_name, dependency = _platformio_library_to_dependency(library)
+            dependencies[dependency_name] = dependency
 
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
