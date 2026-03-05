@@ -2129,10 +2129,7 @@ bool WiFiComponent::is_connected_() const {
          this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
 }
 void WiFiComponent::update_connected_state_() {
-  bool connected = this->is_connected_();
-  if (connected != this->connected_) {
-    this->connected_ = connected;
-  }
+  this->connected_ = this->is_connected_();
 }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
   this->power_save_ = power_save;
