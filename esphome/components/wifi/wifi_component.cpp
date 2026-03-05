@@ -725,6 +725,7 @@ void WiFiComponent::restart_adapter() {
 void WiFiComponent::loop() {
   this->wifi_loop_();
   const uint32_t now = App.get_loop_component_start_time();
+  this->update_connected_state_();
 
   if (this->has_sta()) {
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
@@ -776,7 +777,7 @@ void WiFiComponent::loop() {
       }
 
       case WIFI_COMPONENT_STATE_STA_CONNECTED: {
-        if (!this->is_connected()) {
+        if (!this->is_connected_()) {
           ESP_LOGW(TAG, "Connection lost; reconnecting");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
@@ -2118,15 +2119,16 @@ bool WiFiComponent::can_proceed() {
   if (!this->has_sta() || this->state_ == WIFI_COMPONENT_STATE_DISABLED || this->ap_setup_) {
     return true;
   }
-  return this->is_connected();
+  return this->is_connected_();
 }
 #endif
 
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
-bool WiFiComponent::is_connected() const {
+bool WiFiComponent::is_connected_() const {
   return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
          this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
 }
+void WiFiComponent::update_connected_state_() { this->connected_ = this->is_connected_(); }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
   this->power_save_ = power_save;
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
