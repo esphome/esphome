@@ -130,6 +130,13 @@ struct AudioFile {
 /// @return const char pointer to the readable file type
 const char *audio_file_type_to_string(AudioFileType file_type);
 
+/// @brief Detect audio file type from a Content-Type header value and/or URL extension.
+/// Tries Content-Type first, then falls back to URL extension. Either parameter may be null.
+/// @param content_type Content-Type header value (may be null or empty)
+/// @param url URL to inspect for file extension (may be null or empty)
+/// @return The detected AudioFileType, or NONE if unknown
+AudioFileType detect_audio_file_type(const char *content_type, const char *url);
+
 /// @brief Scales Q15 fixed point audio samples. Scales in place if audio_samples == output_buffer.
 /// @param audio_samples PCM int16 audio samples
 /// @param output_buffer Buffer to store the scaled samples
