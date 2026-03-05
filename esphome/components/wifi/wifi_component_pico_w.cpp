@@ -274,7 +274,7 @@ const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer
   buffer[len] = '\0';
   return buffer.data();
 }
-int8_t WiFiComponent::wifi_rssi() { return this->is_connected() ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
+int8_t WiFiComponent::wifi_rssi() { return this->is_connected_() ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
 int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
