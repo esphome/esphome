@@ -6,9 +6,25 @@ namespace pylontech {
 
 static const char *const TAG = "pylontech.sensor";
 
+// =========================================================
+// PylontechSensor (Main sensor for the battery)
+// =========================================================
+PylontechSensor::PylontechSensor(int8_t bat_num) { this->bat_num_ = bat_num; }
+
 void PylontechSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Pylontech Sensor:");
-  ESP_LOGCONFIG(TAG, "  Battery %d", this->bat_num_);
+  ESP_LOGCONFIG(TAG,
+                "Pylontech Sensor:\n"
+                "  Battery %d",
+                this->bat_num_);
+  LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
+  LOG_SENSOR("  ", "Current", this->current_sensor_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Temperature low", this->temperature_low_sensor_);
+  LOG_SENSOR("  ", "Temperature high", this->temperature_high_sensor_);
+  LOG_SENSOR("  ", "Voltage low", this->voltage_low_sensor_);
+  LOG_SENSOR("  ", "Voltage high", this->voltage_high_sensor_);
+  LOG_SENSOR("  ", "Coulomb", this->coulomb_sensor_);
+  LOG_SENSOR("  ", "MOS Temperature", this->mos_temperature_sensor_);
 }
 
 void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
@@ -45,15 +61,24 @@ void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
   }
 }
 
-void PylontechSensor::on_cell_data(const PylontechListener::CellContents *c) {
-  if (this->bat_num_ != c->battery_id) {
-    return;
-  }
+// =========================================================
+// PylontechCellSensor (The new, lightweight cell sensor)
+// =========================================================
+PylontechCellSensor::PylontechCellSensor(int8_t bat_num, int8_t cell_id) {
+  this->bat_num_ = bat_num;
+  this->cell_id_ = cell_id;
+}
 
-  if (c->cell_id >= 0 && c->cell_id < 15) {
-    if (this->cell_voltages_[c->cell_id] != nullptr) {
-      this->cell_voltages_[c->cell_id]->publish_state(c->voltage);
-    }
+void PylontechCellSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "Pylontech Cell Sensor:");
+  ESP_LOGCONFIG(TAG, "  Battery %d, Cell %d", this->bat_num_, this->cell_id_);
+  LOG_SENSOR("  ", "Voltage", this);
+}
+
+void PylontechCellSensor::on_cell_data(const PylontechListener::CellContents *c) {
+  // If battery ID and cell ID match -> publish voltage to Home Assistant!
+  if (this->bat_num_ == c->battery_id && this->cell_id_ == c->cell_id) {
+    this->publish_state(c->voltage);
   }
 }
 
