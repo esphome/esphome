@@ -21,6 +21,11 @@ PLATFORMIO_GOOGLE_TEST_LIB = "google/googletest@^1.15.2"
 # Path to /tests/components
 COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
 
+# Placeholder name used when registering a platform domain with ESPHome during
+# test builds.  The actual value is irrelevant; only the first registration
+# matters and the placeholder is never compiled.
+_DUMMY_PLATFORM = "dummy"
+
 
 def hash_components(components: list[str]) -> str:
     key = ",".join(components)
@@ -179,7 +184,7 @@ def run_tests(selected_components: list[str]) -> int:
             domain, component = component_name.split(".", maxsplit=1)
             domain_list = config.setdefault(domain, [])
             if not domain_list:
-                CORE.register_platform_component(domain, "dummy")
+                CORE.register_platform_component(domain, _DUMMY_PLATFORM)
             domain_list.append({CONF_PLATFORM: component})
         else:
             config.setdefault(component_name, [])
