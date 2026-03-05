@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import socket
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.uart import UARTComponent
 from esphome.components.usb_host import register_usb_client, usb_device_schema
 import esphome.config_validation as cv
@@ -7,12 +8,9 @@ from esphome.const import (
     CONF_BAUD_RATE,
     CONF_BUFFER_SIZE,
     CONF_CHANNELS,
-    CONF_DATA_BITS,
     CONF_DEBUG,
     CONF_DUMMY_RECEIVER,
     CONF_ID,
-    CONF_PARITY,
-    CONF_STOP_BITS,
 )
 from esphome.cpp_types import Component
 
