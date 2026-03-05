@@ -20,6 +20,7 @@ uart:
 uart_mock:
   id: mock_uart
   baud_rate: 115200
+  auto_start: false
   responses:
     # Version-specific response: match the complete firmware version command TX.
     # CMD_READ_VERSION (0x0000) TX = FD FC FB FA 02 00 00 00 04 03 02 01
@@ -155,6 +156,12 @@ uart_mock:
           0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
           0xF8, 0xF7, 0xF6, 0xF5,
         ]
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'
 
 ld2420:
   id: ld2420_dev

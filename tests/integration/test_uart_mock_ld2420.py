@@ -22,16 +22,10 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from aioesphomeapi import (
-    BinarySensorInfo,
-    BinarySensorState,
-    EntityState,
-    SensorInfo,
-    SensorState,
-)
+from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping, find_entity
+from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -72,70 +66,52 @@ async def test_uart_mock_ld2420(
         if "uart_mock" in line and "TX " in line:
             tx_log_lines.append(line)
 
-    # Track sensor state updates (after initial state is swallowed)
-    sensor_states: dict[str, list[float]] = {
-        "moving_distance": [],
-    }
-    binary_states: dict[str, list[bool]] = {
-        "has_target": [],
-    }
+    collector = SensorStateCollector(
+        sensor_names=["moving_distance"],
+        binary_sensor_names=["has_target"],
+    )
 
     # Signal when we see recovery frame values
-    recovery_received = loop.create_future()
-
-    def on_state(state: EntityState) -> None:
-        if isinstance(state, SensorState) and not state.missing_state:
-            sensor_name = key_to_sensor.get(state.key)
-            if sensor_name and sensor_name in sensor_states:
-                sensor_states[sensor_name].append(state.state)
-                # Check if this is the recovery frame (moving_distance = 50)
-                if (
-                    sensor_name == "moving_distance"
-                    and state.state == pytest.approx(50.0)
-                    and not recovery_received.done()
-                ):
-                    recovery_received.set_result(True)
-        elif isinstance(state, BinarySensorState):
-            sensor_name = key_to_sensor.get(state.key)
-            if sensor_name and sensor_name in binary_states:
-                binary_states[sensor_name].append(state.state)
+    recovery_received = collector.add_waiter(
+        lambda: pytest.approx(50.0) in collector.sensor_states["moving_distance"]
+    )
 
     async with (
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-
-        # Build key mappings for all sensor types
-        all_names = list(sensor_states.keys()) + list(binary_states.keys())
-        all_names.sort(key=len, reverse=True)
-        key_to_sensor = build_key_to_entity_mapping(entities, all_names)
+        collector.build_key_mapping(entities)
 
         # Set up initial state helper
         initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+        client.subscribe_states(
+            initial_state_helper.on_state_wrapper(collector.on_state)
+        )
 
         try:
             await initial_state_helper.wait_for_initial_states()
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
 
-        # Phase 1 values are in the initial states (swallowed by InitialStateHelper).
-        # Verify them via initial_states dict.
-        moving_dist_entity = find_entity(entities, "moving_distance", SensorInfo)
-        assert moving_dist_entity is not None
-        initial_moving = initial_state_helper.initial_states.get(moving_dist_entity.key)
-        assert initial_moving is not None and isinstance(initial_moving, SensorState)
-        assert initial_moving.state == pytest.approx(100.0), (
-            f"Initial moving distance should be 100, got {initial_moving.state}"
-        )
+        # Start the UART mock scenario now that we're subscribed
+        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
+        assert start_btn is not None, "Start Scenario button not found"
+        client.button_command(start_btn.key)
 
-        # Verify binary sensor detected target
-        has_target_entity = find_entity(entities, "has_target", BinarySensorInfo)
-        assert has_target_entity is not None
-        initial_ht = initial_state_helper.initial_states.get(has_target_entity.key)
-        assert initial_ht is not None and isinstance(initial_ht, BinarySensorState)
-        assert initial_ht.state is True, "Has target should be True"
+        # Wait for Phase 1 - all sensors and binary sensors have at least one value
+        try:
+            await collector.wait_for_all(timeout=3.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for Phase 1 frame. Received:\n"
+                f"  sensor_states: {collector.sensor_states}\n"
+                f"  binary_states: {collector.binary_states}"
+            )
+
+        # Phase 1 values: moving=100, has_target=true
+        assert collector.sensor_states["moving_distance"][0] == pytest.approx(100.0)
+        assert collector.binary_states["has_target"][0] is True
 
         # Wait for the recovery frame (Phase 5) to be parsed
         # This proves the component survived garbage + truncated + overflow
@@ -143,8 +119,8 @@ async def test_uart_mock_ld2420(
             await asyncio.wait_for(recovery_received, timeout=5.0)
         except TimeoutError:
             pytest.fail(
-                f"Timeout waiting for recovery frame. Received sensor states:\n"
-                f"  moving_distance: {sensor_states['moving_distance']}"
+                f"Timeout waiting for recovery frame. Received:\n"
+                f"  sensor_states: {collector.sensor_states}"
             )
 
         # Verify overflow warning was logged
@@ -174,14 +150,13 @@ async def test_uart_mock_ld2420(
         )
 
         # Recovery frame values (Phase 5, after overflow)
-        assert len(sensor_states["moving_distance"]) >= 1, (
-            f"Expected recovery moving_distance, got: {sensor_states['moving_distance']}"
-        )
         recovery_values = [
-            v for v in sensor_states["moving_distance"] if v == pytest.approx(50.0)
+            v
+            for v in collector.sensor_states["moving_distance"]
+            if v == pytest.approx(50.0)
         ]
         assert len(recovery_values) >= 1, (
-            f"Expected moving_distance=50 in recovery, got: {sensor_states['moving_distance']}"
+            f"Expected moving_distance=50 in recovery, got: {collector.sensor_states['moving_distance']}"
         )
 
 
@@ -208,73 +183,54 @@ async def test_uart_mock_ld2420_simple(
         if "Max command length exceeded" in line and not overflow_seen.done():
             overflow_seen.set_result(True)
 
-    # Track sensor state updates
-    sensor_states: dict[str, list[float]] = {
-        "moving_distance": [],
-    }
-    binary_states: dict[str, list[bool]] = {
-        "has_target": [],
-    }
+    collector = SensorStateCollector(
+        sensor_names=["moving_distance"],
+        binary_sensor_names=["has_target"],
+    )
 
     # Signal for recovery frames
-    recovery_received = loop.create_future()
-    post_bug_received = loop.create_future()
-
-    def on_state(state: EntityState) -> None:
-        if isinstance(state, SensorState) and not state.missing_state:
-            sensor_name = key_to_sensor.get(state.key)
-            if sensor_name and sensor_name in sensor_states:
-                sensor_states[sensor_name].append(state.state)
-                if (
-                    sensor_name == "moving_distance"
-                    and state.state == pytest.approx(50.0)
-                    and not recovery_received.done()
-                ):
-                    recovery_received.set_result(True)
-                # Phase 6: distance=25 proves Phase 5 (16-digit bug) didn't hang
-                if (
-                    sensor_name == "moving_distance"
-                    and state.state == pytest.approx(25.0)
-                    and not post_bug_received.done()
-                ):
-                    post_bug_received.set_result(True)
-        elif isinstance(state, BinarySensorState):
-            sensor_name = key_to_sensor.get(state.key)
-            if sensor_name and sensor_name in binary_states:
-                binary_states[sensor_name].append(state.state)
+    recovery_received = collector.add_waiter(
+        lambda: pytest.approx(50.0) in collector.sensor_states["moving_distance"]
+    )
+    post_bug_received = collector.add_waiter(
+        lambda: pytest.approx(25.0) in collector.sensor_states["moving_distance"]
+    )
 
     async with (
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-
-        all_names = list(sensor_states.keys()) + list(binary_states.keys())
-        all_names.sort(key=len, reverse=True)
-        key_to_sensor = build_key_to_entity_mapping(entities, all_names)
+        collector.build_key_mapping(entities)
 
         initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+        client.subscribe_states(
+            initial_state_helper.on_state_wrapper(collector.on_state)
+        )
 
         try:
             await initial_state_helper.wait_for_initial_states()
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
 
-        # Phase 1: simple mode "ON Range 0100\r\n" → distance=100, presence=true
-        moving_dist_entity = find_entity(entities, "moving_distance", SensorInfo)
-        assert moving_dist_entity is not None
-        initial_moving = initial_state_helper.initial_states.get(moving_dist_entity.key)
-        assert initial_moving is not None and isinstance(initial_moving, SensorState)
-        assert initial_moving.state == pytest.approx(100.0), (
-            f"Initial moving distance should be 100, got {initial_moving.state}"
-        )
+        # Start the UART mock scenario now that we're subscribed
+        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
+        assert start_btn is not None, "Start Scenario button not found"
+        client.button_command(start_btn.key)
 
-        has_target_entity = find_entity(entities, "has_target", BinarySensorInfo)
-        assert has_target_entity is not None
-        initial_ht = initial_state_helper.initial_states.get(has_target_entity.key)
-        assert initial_ht is not None and isinstance(initial_ht, BinarySensorState)
-        assert initial_ht.state is True, "Has target should be True"
+        # Wait for Phase 1 - all sensors and binary sensors have at least one value
+        try:
+            await collector.wait_for_all(timeout=3.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for Phase 1 frame. Received:\n"
+                f"  sensor_states: {collector.sensor_states}\n"
+                f"  binary_states: {collector.binary_states}"
+            )
+
+        # Phase 1: simple mode "ON Range 0100\r\n" → distance=100, presence=true
+        assert collector.sensor_states["moving_distance"][0] == pytest.approx(100.0)
+        assert collector.binary_states["has_target"][0] is True
 
         # Wait for Phase 4 recovery (distance=50) after overflow
         try:
@@ -282,7 +238,7 @@ async def test_uart_mock_ld2420_simple(
         except TimeoutError:
             pytest.fail(
                 f"Timeout waiting for recovery frame. Received:\n"
-                f"  moving_distance: {sensor_states['moving_distance']}"
+                f"  moving_distance: {collector.sensor_states['moving_distance']}"
             )
 
         # Verify overflow warning was logged
@@ -302,14 +258,16 @@ async def test_uart_mock_ld2420_simple(
                 f"This likely means Phase 5 (16-digit frame) caused an infinite "
                 f"loop in handle_simple_mode_, indicating PR #14458 bug #1 fix "
                 f"is missing.\n"
-                f"  moving_distance values: {sensor_states['moving_distance']}"
+                f"  moving_distance values: {collector.sensor_states['moving_distance']}"
             )
 
         # Verify post-bug value
         post_bug_values = [
-            v for v in sensor_states["moving_distance"] if v == pytest.approx(25.0)
+            v
+            for v in collector.sensor_states["moving_distance"]
+            if v == pytest.approx(25.0)
         ]
         assert len(post_bug_values) >= 1, (
             f"Expected moving_distance=25 after 16-digit test, "
-            f"got: {sensor_states['moving_distance']}"
+            f"got: {collector.sensor_states['moving_distance']}"
         )

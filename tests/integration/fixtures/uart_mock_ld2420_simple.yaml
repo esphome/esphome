@@ -19,6 +19,7 @@ uart:
 uart_mock:
   id: mock_uart
   baud_rate: 115200
+  auto_start: false
   responses:
     # Catch-all response only (no version-specific response).
     # Without a version response, firmware_ver_ stays at default "v0.0.0".
@@ -109,6 +110,12 @@ uart_mock:
           0x30, 0x30, 0x32, 0x35,
           0x0D, 0x0A,
         ]
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'
 
 ld2420:
   id: ld2420_dev
