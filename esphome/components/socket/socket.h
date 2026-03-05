@@ -124,7 +124,7 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
 /// Delay that can be woken early by socket activity.
 /// On ESP8266, uses esp_delay() with a callback that checks socket activity.
 /// On RP2040, uses __wfe() (Wait For Event) to truly sleep until an interrupt
-/// (CYW43 GPIO, timer alarm) fires, then processes pending async_context work.
+/// (for example, CYW43 GPIO or a timer alarm) fires and wakes the CPU.
 void socket_delay(uint32_t ms);
 
 /// Signal socket/IO activity and wake the main loop early.
