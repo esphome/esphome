@@ -184,10 +184,16 @@ async def to_code_base(config):
     if core.CORE.using_arduino:
         cg.add_library("Wire", None)
         cg.add_library("SPI", None)
+
+    # The BME68x Sensor library package from the PlatformIO registry is missing
+    # the library.json file. We must set lib_compat_mode to "off"; otherwise,
+    # the library will be flagged as incompatible.
+    cg.add_platformio_option("lib_compat_mode", "off")
+
     cg.add_library(
         "BME68x Sensor library",
         "1.3.40408",
-        "https://github.com/boschsensortec/Bosch-BME68x-Library",
+        "https://github.com/boschsensortec/Bosch-BME68x-Library.git#v1.3.40408",
     )
     cg.add_library(
         "BSEC2 Software Library",

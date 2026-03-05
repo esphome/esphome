@@ -463,14 +463,13 @@ class Library:
 
     @property
     def as_lib_dep(self):
+        if self.name is not None and self.version is not None:
+            return f"{self.name}@{self.version}"
         if self.repository is not None:
             if self.name is not None:
                 return f"{self.name}={self.repository}"
             return self.repository
-
-        if self.version is None:
-            return self.name
-        return f"{self.name}@{self.version}"
+        return self.name
 
     @property
     def as_tuple(self):
