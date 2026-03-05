@@ -48,10 +48,10 @@ void OpenThreadComponent::dump_config() {
   }
 }
 
-bool OpenThreadComponent::is_connected() {
+bool OpenThreadComponent::is_connected_() const {
   auto lock = InstanceLock::try_acquire(100);
   if (!lock) {
-    ESP_LOGW(TAG, "Failed to acquire OpenThread lock in is_connected");
+    ESP_LOGW(TAG, "Failed to acquire OpenThread lock in is_connected_");
     return false;
   }
 
@@ -64,6 +64,13 @@ bool OpenThreadComponent::is_connected() {
 
   // TODO: If we're a leader, check that there is at least 1 known peer
   return role >= OT_DEVICE_ROLE_CHILD;
+}
+
+void OpenThreadComponent::update_connected_state_() {
+  bool connected = this->is_connected_();
+  if (connected != this->connected_) {
+    this->connected_ = connected;
+  }
 }
 
 // Gets the off-mesh routable address
@@ -228,6 +235,8 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
 }
 
 void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
+
+void OpenThreadComponent::loop() { this->update_connected_state_(); }
 
 bool OpenThreadComponent::teardown() {
   if (!this->teardown_started_) {
