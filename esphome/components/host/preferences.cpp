@@ -14,7 +14,12 @@ static const char *const TAG = "host.preferences";
 void HostPreferences::setup_() {
   if (this->setup_complete_)
     return;
-  this->filename_.append(getenv("HOME"));
+  const char *home = getenv("HOME");
+  if (home == nullptr) {
+    ESP_LOGE(TAG, "HOME environment variable not set");
+    return;
+  }
+  this->filename_.append(home);
   this->filename_.append("/.esphome");
   this->filename_.append("/prefs");
   fs::create_directories(this->filename_);
@@ -44,6 +49,10 @@ void HostPreferences::setup_() {
 bool HostPreferences::sync() {
   this->setup_();
   FILE *fp = fopen(this->filename_.c_str(), "wb");
+  if (fp == nullptr) {
+    ESP_LOGE(TAG, "Failed to open preferences file for writing");
+    return false;
+  }
   std::map<uint32_t, std::vector<uint8_t>>::iterator it;
 
   for (it = this->data.begin(); it != this->data.end(); ++it) {
