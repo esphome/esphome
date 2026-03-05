@@ -42,4 +42,6 @@ async def setup_improv_core(var: MockObj, config: ConfigType, component: str):
         cg.add(var.set_next_url(_process_next_url(next_url)))
         cg.add_define(f"USE_{component.upper()}_NEXT_URL")
 
-    cg.add_library("improv/Improv", "1.2.4")
+    cg.add_library(
+        "improv/Improv", "1.2.4", "https://github.com/improv-wifi/sdk-cpp.git#v1.2.4"
+    )

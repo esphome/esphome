@@ -66,7 +66,15 @@ async def to_code(config):
     cg.add_build_flag("-DDSMR_WATER_MBUS_ID=" + str(config[CONF_WATER_MBUS_ID]))
 
     # DSMR Parser
-    cg.add_library("esphome/dsmr_parser", "1.1.0")
+    cg.add_library(
+        "esphome/dsmr_parser",
+        "1.1.0",
+        "https://github.com/esphome-libs/dsmr_parser.git#v1.1.0",
+    )
 
     # Crypto
-    cg.add_library("polargoose/Crypto-no-arduino", "0.4.0")
+    cg.add_library(
+        "polargoose/Crypto-no-arduino",
+        "0.4.0",
+        "https://github.com/PolarGoose/arduinolibs-crypto-library-no-arduino.git#3f2efdac0a8e46543ae44a684c3ffb57d362f103",
+    )

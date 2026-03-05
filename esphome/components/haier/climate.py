@@ -544,5 +544,8 @@ async def to_code(config):
         await automation.build_automation(
             trigger, [(cg.const_char_ptr, "data"), (cg.size_t, "data_size")], conf
         )
-    # https://github.com/paveldn/HaierProtocol
-    cg.add_library("pavlodn/HaierProtocol", "0.9.31")
+    cg.add_library(
+        "pavlodn/HaierProtocol",
+        "0.9.31",
+        "https://github.com/paveldn/HaierProtocol.git#7bab6a487cc0c77f7b0d5aba831de7580ca3bcbe",
+    )

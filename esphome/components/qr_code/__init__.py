@@ -33,7 +33,11 @@ CONFIG_SCHEMA = cv.ensure_list(
 
 
 async def to_code(config):
-    cg.add_library("wjtje/qr-code-generator-library", "^1.7.0")
+    cg.add_library(
+        "wjtje/qr-code-generator-library",
+        "1.7.0",
+        "https://github.com/wjtje/QR-Code-generator-esphome.git#5f7449c095cf975bb14a34e1813b191205f78ccb",
+    )
 
     for entry in config:
         var = cg.new_Pvariable(entry[CONF_ID])

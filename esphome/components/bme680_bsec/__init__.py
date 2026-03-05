@@ -94,4 +94,8 @@ async def to_code(config):
     cg.add_library("Wire", None)
 
     cg.add_define("USE_BSEC")
-    cg.add_library("boschsensortec/BSEC Software Library", "1.6.1480")
+    cg.add_library(
+        "boschsensortec/BSEC Software Library",
+        "1.6.1480",
+        "https://github.com/boschsensortec/BSEC-Arduino-library.git#v1.6.1480",
+    )

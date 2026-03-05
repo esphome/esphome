@@ -460,7 +460,11 @@ async def to_code(config):
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
     cg.add_build_flag("-DESP_NN")
 
-    cg.add_library("kahrendt/ESPMicroSpeechFeatures", "1.1.0")
+    cg.add_library(
+        "kahrendt/ESPMicroSpeechFeatures",
+        "1.1.0",
+        "https://github.com/kahrendt/ESPMicroSpeechFeatures.git#v1.1.0",
+    )
 
     if vad_model := config.get(CONF_VAD):
         cg.add_define("USE_MICRO_WAKE_WORD_VAD")

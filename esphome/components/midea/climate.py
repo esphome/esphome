@@ -295,4 +295,6 @@ async def to_code(config):
     # MideaUART library requires WiFi (WiFi auto-enables Network via dependency mapping)
     if CORE.is_esp32:
         cg.add_library("WiFi", None)
-    cg.add_library("dudanov/MideaUART", "1.1.9")
+    cg.add_library(
+        "dudanov/MideaUART", "1.1.9", "https://github.com/dudanov/MideaUART.git#v1.1.9"
+    )
