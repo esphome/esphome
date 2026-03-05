@@ -55,9 +55,7 @@ void Modbus::loop() {
   }
 
   // If there's no response pending and there's commands in the buffer
-  if (!this->tx_blocked() && !this->tx_buffer_.empty()) {
-    this->send_next_frame_();
-  }
+  this->send_next_frame_();
 }
 
 bool Modbus::tx_blocked() {
