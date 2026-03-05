@@ -71,6 +71,7 @@ RESPONSE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_EXPECT_TX): [cv.hex_uint8_t],
         cv.Required(CONF_INJECT_RX): [cv.hex_uint8_t],
+        cv.Optional(CONF_DELAY, default="0ms"): cv.positive_time_period_milliseconds,
     }
 )
 
@@ -151,7 +152,8 @@ async def to_code(config):
     for response in config[CONF_RESPONSES]:
         tx_data = response[CONF_EXPECT_TX]
         rx_data = response[CONF_INJECT_RX]
-        cg.add(var.add_response(tx_data, rx_data))
+        delay_ms = response[CONF_DELAY]
+        cg.add(var.add_response(tx_data, rx_data, delay_ms))
 
     for periodic in config[CONF_PERIODIC_RX]:
         data = periodic[CONF_DATA]
