@@ -249,26 +249,22 @@ void AudioFileMediaSource::decode_task(void *params) {
 
         audio::AudioStreamInfo stream_info = decoder->get_audio_stream_info().value();
 
-        if (stream_info.get_bits_per_sample() != 16) {
-          ESP_LOGE(TAG, "Incompatible bits per sample. Only 16 bits per sample is supported");
-          xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_ERROR);
-          break;
-        } else if (stream_info.get_channels() > 2) {
-          ESP_LOGE(TAG, "Incompatible number of channels. Only 1 or 2 channels are supported.");
-          xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_ERROR);
-          break;
-        } else {
-          ESP_LOGD(TAG, "Bits per sample: %d, Channels: %d, Sample rate: %d", stream_info.get_bits_per_sample(),
-                   stream_info.get_channels(), stream_info.get_sample_rate());
+        ESP_LOGD(TAG, "Bits per sample: %d, Channels: %d, Sample rate: %d", stream_info.get_bits_per_sample(),
+                 stream_info.get_channels(), stream_info.get_sample_rate());
 
-          audio_sink.source = this_source;
-          audio_sink.stream_info = stream_info;
-          esp_err_t err = decoder->add_sink(&audio_sink);
-          if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to add sink: %s", esp_err_to_name(err));
-            xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_ERROR);
-            break;
-          }
+        if (stream_info.get_bits_per_sample() != 16 || stream_info.get_channels() > 2) {
+          ESP_LOGE(TAG, "Incompatible audio stream. Only 16 bits per sample and 1 or 2 channels are supported");
+          xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_ERROR);
+          break;
+        }
+
+        audio_sink.source = this_source;
+        audio_sink.stream_info = stream_info;
+        esp_err_t err = decoder->add_sink(&audio_sink);
+        if (err != ESP_OK) {
+          ESP_LOGE(TAG, "Failed to add sink: %s", esp_err_to_name(err));
+          xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_ERROR);
+          break;
         }
       }
     }
