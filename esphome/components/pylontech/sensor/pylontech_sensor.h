@@ -12,7 +12,7 @@ class PylontechCellSensor : public sensor::Sensor, public PylontechListener {
   PylontechCellSensor(int8_t bat_num, int8_t cell_id);
   void dump_config() override;
   void on_cell_data(const CellContents *c) override;
-  
+
  protected:
   int8_t bat_num_;
   int8_t cell_id_;

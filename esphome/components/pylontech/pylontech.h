@@ -16,7 +16,7 @@ namespace pylontech {
 class PylontechListener {
  public:
   virtual void dump_config() {}
-  
+
   // Structure for global battery data (pwr command)
   struct LineContents {
     int bat_num;
@@ -53,12 +53,12 @@ class PylontechListener {
 class PylontechComponent : public uart::UARTDevice, public PollingComponent {
  public:
   PylontechComponent();
-  
+
   /// Setup the pylontech component, clear buffers etc.
   void setup() override;
   /// Read data from the serial port and process it.
   void loop() override;
-  
+
   void update() override;
   void dump_config() override;
   void register_listener(PylontechListener *listener) { this->listeners_.push_back(listener); }
@@ -87,10 +87,10 @@ class PylontechComponent : public uart::UARTDevice, public PollingComponent {
     PYLON_REQUEST_BAT,
     PYLON_READ_BAT
   };
-  
+
   PylonState pylon_state_{PYLON_IDLE};
   int current_bat_num_{1};
-  int max_batteries_{1}; 
+  int max_batteries_{1};
   std::string rx_buffer_;
 
   char buffer_index_write_{0};
