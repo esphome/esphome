@@ -47,9 +47,6 @@ static std::shared_ptr<HttpContainer> open_connection(HttpRequestComponent *clie
   }
 
   ESP_LOGE(TAG, "Request failed after %u attempts", MAX_CONNECTION_ATTEMPTS);
-  if (container != nullptr) {
-    container->end();
-  }
   xEventGroupSetBits(event_group, EventGroupBits::READER_ERROR | EventGroupBits::COMMAND_STOP);
   return nullptr;
 }
