@@ -12,6 +12,7 @@ from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
 from esphome.core import CORE
 from esphome.platformio_api import get_idedata
+from esphome.yaml_util import load_yaml
 
 # This must coincide with the version in /platformio.ini
 PLATFORMIO_GOOGLE_TEST_LIB = "google/googletest@^1.15.2"
@@ -42,6 +43,38 @@ def filter_components_without_tests(components: list[str]) -> list[str]:
                 file=sys.stderr,
             )
     return filtered_components
+
+
+# Name of optional per-component YAML config merged into the test build
+# before validation so that platform defines (USE_SENSOR, etc.) are generated.
+CPP_TEST_CONFIG_FILE = "cpp_test.yaml"
+
+
+def load_component_test_configs(components: list[str]) -> dict:
+    """Load cpp_test.yaml files from test component directories.
+
+    These configs are merged into the base test config *before* validation
+    so that entity registration runs during code generation, which causes
+    the corresponding USE_* defines to be emitted.
+    """
+    merged: dict = {}
+    for component in components:
+        config_file = COMPONENTS_TESTS_DIR / component / CPP_TEST_CONFIG_FILE
+        if not config_file.exists():
+            continue
+        component_config = load_yaml(config_file)
+        if not component_config:
+            continue
+        for key, value in component_config.items():
+            if (
+                key in merged
+                and isinstance(merged[key], list)
+                and isinstance(value, list)
+            ):
+                merged[key].extend(value)
+            else:
+                merged[key] = value
+    return merged
 
 
 def create_test_config(config_name: str, includes: list[str]) -> dict:
@@ -115,6 +148,11 @@ def run_tests(selected_components: list[str]) -> int:
 
     config = create_test_config(config_name, includes)
 
+    # Merge component-specific test configs (e.g. sensor instances) before
+    # validation so that entity registration and USE_* defines work.
+    extra_config = load_component_test_configs(components)
+    config.update(extra_config)
+
     CORE.config_path = COMPONENTS_TESTS_DIR / "dummy.yaml"
     CORE.dashboard = None
 
@@ -122,8 +160,10 @@ def run_tests(selected_components: list[str]) -> int:
     config = validate_config(config, {})
 
     # Add all components and dependencies to the base configuration after validation, so their files
-    # are added to the build.
-    config.update({key: {} for key in components_with_dependencies})
+    # are added to the build.  Use setdefault to avoid overwriting entries that were
+    # already validated (e.g. sensor instances from cpp_test.yaml).
+    for key in components_with_dependencies:
+        config.setdefault(key, {})
 
     print(f"Testing components: {', '.join(components)}")
     CORE.config = config

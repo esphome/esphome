@@ -286,6 +286,7 @@ This document provides essential context for AI models interacting with this pro
 *   **Documentation Contributions:**
     *   Documentation is hosted in the separate `esphome/esphome-docs` repository.
     *   The contribution workflow is the same as for the codebase.
+    *   When editing a component's documentation page, also update the corresponding component index page to ensure both pages remain in sync.
 
 *   **Best Practices:**
     *   **Component Development:** Keep dependencies minimal, provide clear error messages, and write comprehensive docstrings and tests.

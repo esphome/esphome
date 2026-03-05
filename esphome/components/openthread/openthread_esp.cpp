@@ -175,6 +175,9 @@ void OpenThreadComponent::ot_main() {
   // Pass the existing dataset, or NULL which will use the preprocessor definitions
   ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
 
+  // Register state change callback to update connected_ reactively instead of polling
+  otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed_, this);
+
   esp_openthread_launch_mainloop();
 
   // Clean up
