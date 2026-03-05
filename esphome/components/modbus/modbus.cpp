@@ -78,22 +78,30 @@ bool Modbus::tx_blocked() {
 bool Modbus::tx_buffer_empty() { return this->tx_buffer_.empty(); }
 
 void Modbus::receive_and_parse_modbus_bytes_() {
-  while (this->available()) {
-    uint8_t byte;
-    this->read_byte(&byte);
-    if (this->rx_buffer_.empty()) {
-      ESP_LOGV(TAG, "Received first byte %" PRIu8 " (0X%x) %" PRIu32 "ms after last send", byte, byte,
-               millis() - this->last_send_);
-    } else {
-      ESP_LOGVV(TAG, "Received byte %" PRIu8 " (0X%x) %" PRIu32 "ms after last send", byte, byte,
-                millis() - this->last_send_);
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[64];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
     }
+    avail -= to_read;
+    for (size_t i = 0; i < to_read; i++) {
+      if (this->rx_buffer_.empty()) {
+        ESP_LOGV(TAG, "Received first byte %" PRIu8 " (0X%x) %" PRIu32 "ms after last send", buf[i], buf[i],
+                 millis() - this->last_send_);
+      } else {
+        ESP_LOGVV(TAG, "Received byte %" PRIu8 " (0X%x) %" PRIu32 "ms after last send", buf[i], buf[i],
+                  millis() - this->last_send_);
+      }
 
-    // If the bytes in the rx buffer do not parse, clear out the buffer
-    if (!this->parse_modbus_byte_(byte)) {
-      this->clear_rx_buffer_(LOG_STR("parse failed"), true);
+      // If the bytes in the rx buffer do not parse, clear out the buffer
+      if (!this->parse_modbus_byte_(buf[i])) {
+        this->clear_rx_buffer_(LOG_STR("parse failed"), true);
+      }
+      this->last_modbus_byte_ = millis();
     }
-    this->last_modbus_byte_ = millis();
   }
 }
 
