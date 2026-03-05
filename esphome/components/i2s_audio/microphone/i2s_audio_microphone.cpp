@@ -456,9 +456,8 @@ size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_w
 #if defined(USE_ESP32_VARIANT_ESP32) and not defined(USE_I2S_LEGACY)
   // For ESP32 8/16 bit standard mono mode samples need to be switched.
   if (this->slot_mode_ == I2S_SLOT_MODE_MONO && this->slot_bit_width_ <= 16 && !this->pdm_) {
-    size_t samples_read = bytes_read / sizeof(int16_t);
-    for (int i = 0; i < samples_read; i += 2) {
-      int16_t tmp = buf[i];
+    for (size_t i = 0; i + 1 < bytes_read; i += 2) {
+      uint8_t tmp = buf[i];
       buf[i] = buf[i + 1];
       buf[i + 1] = tmp;
     }
