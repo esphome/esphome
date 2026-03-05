@@ -44,9 +44,13 @@ bool ProntoData::operator==(const ProntoData &rhs) const {
   std::vector<uint16_t> data1 = encode_pronto(data);
   std::vector<uint16_t> data2 = encode_pronto(rhs.data);
 
+  if (data1.size() != data2.size() || data1.empty()) {
+    return false;
+  }
+
   uint32_t total_diff = 0;
   // Don't need to check the last one, it's the large gap at the end.
-  for (std::vector<uint16_t>::size_type i = 0; i < data1.size() - 1; ++i) {
+  for (size_t i = 0; i < data1.size() - 1; ++i) {
     int diff = data2[i] - data1[i];
     diff *= diff;
     if (rhs.delta == -1 && diff > 9)
@@ -104,10 +108,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::vector<uin
 
   uint16_t intros = 2 * data[2];
   uint16_t repeats = 2 * data[3];
-  ESP_LOGD(TAG,
-           "Send Pronto: intros=%d\n"
-           "Send Pronto: repeats=%d",
-           intros, repeats);
+  ESP_LOGD(TAG, "Send Pronto: intros=%d, repeats=%d", intros, repeats);
   if (NUMBERS_IN_PREAMBLE + intros + repeats != data.size()) {  // inconsistent sizes
     ESP_LOGE(TAG, "Inconsistent data, not sending");
     return;

@@ -10,8 +10,7 @@
 #include <cstring>
 #include <atomic>
 #include <span>
-namespace esphome {
-namespace usb_host {
+namespace esphome::usb_host {
 
 #pragma GCC diagnostic ignored "-Wparentheses"
 
@@ -70,14 +69,14 @@ static void usbh_print_intf_desc(const usb_intf_desc_t *intf_desc) {
 static void usbh_print_cfg_desc(const usb_config_desc_t *cfg_desc) {
   ESP_LOGV(TAG,
            "*** Configuration descriptor ***\n"
-           "bLength %d\n"
-           "bDescriptorType %d\n"
-           "wTotalLength %d\n"
-           "bNumInterfaces %d\n"
-           "bConfigurationValue %d\n"
-           "iConfiguration %d\n"
-           "bmAttributes 0x%x\n"
-           "bMaxPower %dmA",
+           "  bLength %d\n"
+           "  bDescriptorType %d\n"
+           "  wTotalLength %d\n"
+           "  bNumInterfaces %d\n"
+           "  bConfigurationValue %d\n"
+           "  iConfiguration %d\n"
+           "  bmAttributes 0x%x\n"
+           "  bMaxPower %dmA",
            cfg_desc->bLength, cfg_desc->bDescriptorType, cfg_desc->wTotalLength, cfg_desc->bNumInterfaces,
            cfg_desc->bConfigurationValue, cfg_desc->iConfiguration, cfg_desc->bmAttributes, cfg_desc->bMaxPower * 2);
 }
@@ -89,20 +88,20 @@ static void usb_client_print_device_descriptor(const usb_device_desc_t *devc_des
 
   ESP_LOGV(TAG,
            "*** Device descriptor ***\n"
-           "bLength %d\n"
-           "bDescriptorType %d\n"
-           "bcdUSB %d.%d0\n"
-           "bDeviceClass 0x%x\n"
-           "bDeviceSubClass 0x%x\n"
-           "bDeviceProtocol 0x%x\n"
-           "bMaxPacketSize0 %d\n"
-           "idVendor 0x%x\n"
-           "idProduct 0x%x\n"
-           "bcdDevice %d.%d0\n"
-           "iManufacturer %d\n"
-           "iProduct %d\n"
-           "iSerialNumber %d\n"
-           "bNumConfigurations %d",
+           "  bLength %d\n"
+           "  bDescriptorType %d\n"
+           "  bcdUSB %d.%d0\n"
+           "  bDeviceClass 0x%x\n"
+           "  bDeviceSubClass 0x%x\n"
+           "  bDeviceProtocol 0x%x\n"
+           "  bMaxPacketSize0 %d\n"
+           "  idVendor 0x%x\n"
+           "  idProduct 0x%x\n"
+           "  bcdDevice %d.%d0\n"
+           "  iManufacturer %d\n"
+           "  iProduct %d\n"
+           "  iSerialNumber %d\n"
+           "  bNumConfigurations %d",
            devc_desc->bLength, devc_desc->bDescriptorType, ((devc_desc->bcdUSB >> 8) & 0xF),
            ((devc_desc->bcdUSB >> 4) & 0xF), devc_desc->bDeviceClass, devc_desc->bDeviceSubClass,
            devc_desc->bDeviceProtocol, devc_desc->bMaxPacketSize0, devc_desc->idVendor, devc_desc->idProduct,
@@ -425,9 +424,9 @@ bool USBClient::control_transfer(uint8_t type, uint8_t request, uint16_t value, 
   if (trq == nullptr)
     return false;
   auto length = data.size();
-  if (length > sizeof(trq->transfer->data_buffer_size) - SETUP_PACKET_SIZE) {
+  if (length > trq->transfer->data_buffer_size - SETUP_PACKET_SIZE) {
     ESP_LOGE(TAG, "Control transfer data size too large: %u > %u", length,
-             sizeof(trq->transfer->data_buffer_size) - sizeof(usb_setup_packet_t));
+             trq->transfer->data_buffer_size - SETUP_PACKET_SIZE);
     this->release_trq(trq);
     return false;
   }
@@ -508,9 +507,13 @@ bool USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
 
 /**
  * Performs an output transfer operation.
- * THREAD CONTEXT: Called from main loop thread only
- * - USB UART output uses defer() to ensure main loop context
- * - Modbus and other components call from loop()
+ * THREAD CONTEXT: Called from both USB task and main loop threads.
+ * - USB task: output transfer callback restarts output directly (no defer)
+ * - Main loop: initial output trigger from write_array() and loop()
+ * Thread safety is ensured by:
+ * - get_trq_() uses atomic CAS (multi-consumer safe)
+ * - claimed trq slot is exclusively owned until submission
+ * - usb_host_transfer_submit() is safe to call from any task context
  *
  * @param ep_address The endpoint address.
  * @param callback The callback function to be called when the transfer is complete.
@@ -523,6 +526,11 @@ bool USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, 
   auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
+    return false;
+  }
+  if (length > trq->transfer->data_buffer_size) {
+    ESP_LOGE(TAG, "transfer_out: data length %u exceeds buffer size %u", length, trq->transfer->data_buffer_size);
+    this->release_trq(trq);
     return false;
   }
   trq->callback = callback;
@@ -568,6 +576,5 @@ void USBClient::release_trq(TransferRequest *trq) {
   this->trq_in_use_.fetch_and(mask, std::memory_order_release);
 }
 
-}  // namespace usb_host
-}  // namespace esphome
+}  // namespace esphome::usb_host
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

@@ -40,6 +40,7 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
 #ifdef USE_ESP32
   TaskHandle_t update_task_handle_{nullptr};
 #endif
+  uint8_t initial_check_remaining_{0};
 };
 
 }  // namespace http_request

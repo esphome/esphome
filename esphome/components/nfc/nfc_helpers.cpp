@@ -39,7 +39,7 @@ std::string get_random_ha_tag_ndef() {
   for (int i = 0; i < 12; i++) {
     uri += ALPHANUM[random_uint32() % (sizeof(ALPHANUM) - 1)];
   }
-  ESP_LOGD("pn7160", "Payload to be written: %s", uri.c_str());
+  ESP_LOGD(TAG, "Payload to be written: %s", uri.c_str());
   return uri;
 }
 
