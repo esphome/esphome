@@ -1,0 +1,6 @@
+<<: !include common.yaml
+
+media_source:
+  - platform: http_request
+    id: http_request_noise_source
+    buffer_size: 50000
