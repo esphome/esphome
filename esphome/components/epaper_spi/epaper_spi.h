@@ -76,7 +76,7 @@ class EPaperBase : public Display,
   static uint8_t color_to_bit(Color color) {
     // It's always a shade of gray. Map to BLACK or WHITE.
     // We split the luminance at a suitable point
-    if ((static_cast<int>(color.r) + color.g + color.b) > 512) {
+    if ((color.r + color.g + color.b) >= 382) {
       return 1;
     }
     return 0;

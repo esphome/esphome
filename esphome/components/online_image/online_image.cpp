@@ -49,7 +49,7 @@ void OnlineImage::update() {
 
   ESP_LOGD(TAG, "Updating image from %s", this->url_.c_str());
 
-  std::list<http_request::Header> headers;
+  std::vector<http_request::Header> headers;
 
   // Add caching headers if we have them
   if (!this->etag_.empty()) {

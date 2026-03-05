@@ -14,7 +14,7 @@ from esphome.components.zephyr import zephyr_add_pm_static, zephyr_data
 from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME
-from esphome.core import CORE
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 from .const import (
@@ -145,6 +145,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ZIGBEE")
     if CORE.using_zephyr:

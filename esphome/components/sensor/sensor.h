@@ -4,12 +4,16 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#ifdef USE_SENSOR_FILTER
 #include "esphome/components/sensor/filter.h"
+#endif
 
 #include <initializer_list>
 #include <memory>
 
 namespace esphome::sensor {
+
+class Sensor;
 
 void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *obj);
 
@@ -40,7 +44,7 @@ const LogString *state_class_to_string(StateClass state_class);
  *
  * A sensor has unit of measurement and can use publish_state to send out a new value with the specified accuracy.
  */
-class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBase_UnitOfMeasurement {
+class Sensor : public EntityBase {
  public:
   explicit Sensor();
 
@@ -48,6 +52,8 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   int8_t get_accuracy_decimals();
   /// Manually set the accuracy in decimals.
   void set_accuracy_decimals(int8_t accuracy_decimals);
+  /// Check if the accuracy in decimals has been manually set.
+  bool has_accuracy_decimals() const { return this->sensor_flags_.has_accuracy_override; }
 
   /// Get the state class, using the manual override if set.
   StateClass get_state_class();
@@ -65,6 +71,7 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   /// Set force update mode.
   void set_force_update(bool force_update) { sensor_flags_.force_update = force_update; }
 
+#ifdef USE_SENSOR_FILTER
   /// Add a filter to the filter chain. Will be appended to the back.
   void add_filter(Filter *filter);
 
@@ -85,6 +92,7 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
 
   /// Clear the entire filter chain.
   void clear_filters();
+#endif
 
   /// Getter-syntax for .state.
   float get_state() const;
@@ -128,7 +136,9 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   LazyCallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
   LazyCallbackManager<void(float)> callback_;      ///< Storage for filtered state callbacks.
 
+#ifdef USE_SENSOR_FILTER
   Filter *filter_list_{nullptr};  ///< Store all active filters.
+#endif
 
   // Group small members together to avoid padding
   int8_t accuracy_decimals_{-1};              ///< Accuracy in decimals (-1 = not set)

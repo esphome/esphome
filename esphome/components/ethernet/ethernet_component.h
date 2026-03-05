@@ -15,8 +15,7 @@
 #include "esp_mac.h"
 #include "esp_idf_version.h"
 
-namespace esphome {
-namespace ethernet {
+namespace esphome::ethernet {
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
 /** Listener interface for Ethernet IP state changes.
@@ -77,7 +76,7 @@ class EthernetComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override;
   void on_powerdown() override { powerdown(); }
-  bool is_connected();
+  bool is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
 #ifdef USE_ETHERNET_SPI
   void set_clk_pin(uint8_t clk_pin);
@@ -218,7 +217,6 @@ extern EthernetComponent *global_eth_component;
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 #endif
 
-}  // namespace ethernet
-}  // namespace esphome
+}  // namespace esphome::ethernet
 
 #endif  // USE_ESP32

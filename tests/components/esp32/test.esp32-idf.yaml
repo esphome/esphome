@@ -10,6 +10,7 @@ esp32:
       use_full_certificate_bundle: false  # Test CMN bundle (default)
       include_builtin_idf_components:
         - freertos  # Test escape hatch (freertos is always included anyway)
+      enable_full_printf: false
       disable_debug_stubs: true
       disable_ocd_aware: true
       disable_usb_serial_jtag_secondary: true
