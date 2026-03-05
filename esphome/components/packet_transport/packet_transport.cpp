@@ -565,7 +565,7 @@ void PacketTransport::dump_config() {
 #ifdef USE_BINARY_SENSOR
     auto rbs = this->remote_binary_sensors_.find(host.first.c_str());
     if (rbs != this->remote_binary_sensors_.end()) {
-      for (const auto &key : rs->second | std::views::keys)
+      for (const auto &key : rbs->second | std::views::keys)
         ESP_LOGCONFIG(TAG, "    Binary Sensor: %s", key.c_str());
     }
 #endif
