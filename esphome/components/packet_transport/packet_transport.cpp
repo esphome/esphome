@@ -556,12 +556,18 @@ void PacketTransport::dump_config() {
     ESP_LOGCONFIG(TAG, "  Remote host: %s", host.first.c_str());
     ESP_LOGCONFIG(TAG, "    Encrypted: %s", YESNO(!host.second.encryption_key.empty()));
 #ifdef USE_SENSOR
-    for (const auto &sensor : this->remote_sensors_[host.first.c_str()])
-      ESP_LOGCONFIG(TAG, "    Sensor: %s", sensor.first.c_str());
+    auto rs = this->remote_sensors_.find(host.first.c_str());
+    if (rs != this->remote_sensors_.end()) {
+      for (const auto &key : rs->second | std::views::keys)
+        ESP_LOGCONFIG(TAG, "    Sensor: %s", key.c_str());
+    }
 #endif
 #ifdef USE_BINARY_SENSOR
-    for (const auto &sensor : this->remote_binary_sensors_[host.first.c_str()])
-      ESP_LOGCONFIG(TAG, "    Binary Sensor: %s", sensor.first.c_str());
+    auto rbs = this->remote_binary_sensors_.find(host.first.c_str());
+    if (rbs != this->remote_binary_sensors_.end()) {
+      for (const auto &key : rs->second | std::views::keys)
+        ESP_LOGCONFIG(TAG, "    Binary Sensor: %s", key.c_str());
+    }
 #endif
   }
 }
