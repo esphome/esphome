@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_SWING_MODE,
     CONF_TARGET_TEMPERATURE,
 )
+
 from .. import template_ns
 
 CONF_CURRENT_TEMPERATURE = "current_temperature"
