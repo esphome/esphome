@@ -179,6 +179,13 @@ async def zephyr_to_code(config: ConfigType) -> None:
                 "USE_ZIGBEE_WIPE_ON_BOOT_MAGIC", random.randint(0x000001, 0xFFFFFF)
             )
         cg.add_define("USE_ZIGBEE_WIPE_ON_BOOT")
+
+    # Generate attribute lists before any await that could yield (e.g., build_automation
+    # waiting for variables from other components). If the hub's priority decays while
+    # yielding, deferred entity jobs may add cluster list globals that reference these
+    # attribute lists before they're declared.
+    await _attr_to_code(config)
+
     var = cg.new_Pvariable(config[CONF_ID])
 
     if on_join_config := config.get(CONF_ON_JOIN):
@@ -186,7 +193,6 @@ async def zephyr_to_code(config: ConfigType) -> None:
 
     await cg.register_component(var, config)
 
-    await _attr_to_code(config)
     CORE.add_job(_ctx_to_code, config)
 
 

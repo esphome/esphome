@@ -1,14 +1,10 @@
-from collections.abc import Callable
 import importlib
 import json
 import logging
 import os
 from pathlib import Path
 import re
-import shutil
-import stat
 import time
-from types import TracebackType
 
 from esphome import loader
 from esphome.config import iter_component_configs, iter_components
@@ -25,6 +21,7 @@ from esphome.helpers import (
     get_str_env,
     is_ha_addon,
     read_file,
+    rmtree,
     walk_files,
     write_file,
     write_file_if_changed,
@@ -402,28 +399,6 @@ def clean_cmake_cache():
         if pioenvs_cmake_path.is_file():
             _LOGGER.info("Deleting %s", pioenvs_cmake_path)
             pioenvs_cmake_path.unlink()
-
-
-def _rmtree_error_handler(
-    func: Callable[[str], object],
-    path: str,
-    exc_info: tuple[type[BaseException], BaseException, TracebackType | None],
-) -> None:
-    """Error handler for shutil.rmtree to handle read-only files on Windows.
-
-    On Windows, git pack files and other files may be marked read-only,
-    causing shutil.rmtree to fail with "Access is denied". This handler
-    removes the read-only flag and retries the deletion.
-    """
-    if os.access(path, os.W_OK):
-        raise exc_info[1].with_traceback(exc_info[2])
-    os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
-    func(path)
-
-
-def rmtree(path: Path | str) -> None:
-    """Remove a directory tree, handling read-only files on Windows."""
-    shutil.rmtree(path, onerror=_rmtree_error_handler)
 
 
 def clean_build(clear_pio_cache: bool = True):

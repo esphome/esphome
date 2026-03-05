@@ -10,12 +10,7 @@
 
 namespace esphome::ble_nus {
 
-class BLENUS : public Component
-#ifdef USE_LOGGER
-    ,
-               public logger::LogListener
-#endif
-{
+class BLENUS : public Component {
   enum TxStatus {
     TX_DISABLED,
     TX_ENABLED,
@@ -29,7 +24,7 @@ class BLENUS : public Component
   size_t write_array(const uint8_t *data, size_t len);
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
 #ifdef USE_LOGGER
-  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len);
 #endif
 
  protected:

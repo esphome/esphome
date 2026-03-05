@@ -10,7 +10,7 @@
 namespace esphome {
 namespace ota {
 
-class IDFOTABackend : public OTABackend {
+class IDFOTABackend final : public OTABackend {
  public:
   OTAResponseTypes begin(size_t image_size) override;
   void set_update_md5(const char *md5) override;

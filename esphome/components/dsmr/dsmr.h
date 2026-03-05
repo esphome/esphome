@@ -64,6 +64,9 @@ class Dsmr : public Component, public uart::UARTDevice {
   void dump_config() override;
 
   void set_decryption_key(const char *decryption_key);
+  // Remove before 2026.8.0
+  ESPDEPRECATED("Pass .c_str() - e.g. set_decryption_key(key.c_str()). Removed in 2026.8.0", "2026.2.0")
+  void set_decryption_key(const std::string &decryption_key) { this->set_decryption_key(decryption_key.c_str()); }
   void set_max_telegram_length(size_t length) { this->max_telegram_len_ = length; }
   void set_request_pin(GPIOPin *request_pin) { this->request_pin_ = request_pin; }
   void set_request_interval(uint32_t interval) { this->request_interval_ = interval; }

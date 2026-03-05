@@ -175,6 +175,10 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
     case ESP_GATTS_CONNECT_EVT: {
       ESP_LOGD(TAG, "BLE Client connected");
       this->add_client_(param->connect.conn_id);
+      // Resume advertising so additional clients can discover and connect
+      if (this->client_count_ < this->max_clients_) {
+        this->parent_->advertising_start();
+      }
       this->dispatch_callbacks_(CallbackType::ON_CONNECT, param->connect.conn_id);
       break;
     }
@@ -241,7 +245,12 @@ void BLEServer::ble_before_disabled_event_handler() {
 
 float BLEServer::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH + 10; }
 
-void BLEServer::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 BLE Server:"); }
+void BLEServer::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "ESP32 BLE Server:\n"
+                "  Max clients: %u",
+                this->max_clients_);
+}
 
 BLEServer *global_ble_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

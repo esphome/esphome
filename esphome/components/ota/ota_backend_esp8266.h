@@ -12,7 +12,7 @@ namespace esphome::ota {
 /// OTA backend for ESP8266 using native SDK functions.
 /// This implementation bypasses the Arduino Updater library to save ~228 bytes of RAM
 /// by not having a global Update object in .bss.
-class ESP8266OTABackend : public OTABackend {
+class ESP8266OTABackend final : public OTABackend {
  public:
   OTAResponseTypes begin(size_t image_size) override;
   void set_update_md5(const char *md5) override;

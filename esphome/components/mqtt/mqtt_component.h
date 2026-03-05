@@ -98,8 +98,6 @@ class MQTTComponent : public Component {
   /// Override setup_ so that we can call send_discovery() when needed.
   void call_setup() override;
 
-  void call_dump_config() override;
-
   /// Send discovery info the Home Assistant, override this.
   virtual void send_discovery(JsonObject root, SendDiscoveryConfig &config) = 0;
 

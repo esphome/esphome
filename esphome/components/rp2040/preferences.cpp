@@ -25,8 +25,8 @@ static uint8_t
     s_flash_storage[RP2040_FLASH_STORAGE_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_flash_dirty = false;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-// Stack buffer size for preferences - covers virtually all real-world preferences without heap allocation
-static constexpr size_t PREF_BUFFER_SIZE = 64;
+// No preference can exceed the total flash storage, so stack buffer covers all cases.
+static constexpr size_t PREF_MAX_BUFFER_SIZE = RP2040_FLASH_STORAGE_SIZE;
 
 extern "C" uint8_t _EEPROM_start;
 
@@ -46,14 +46,14 @@ class RP2040PreferenceBackend : public ESPPreferenceBackend {
 
   bool save(const uint8_t *data, size_t len) override {
     const size_t buffer_size = len + 1;
-    SmallBufferWithHeapFallback<PREF_BUFFER_SIZE> buffer_alloc(buffer_size);
-    uint8_t *buffer = buffer_alloc.get();
-
+    if (buffer_size > PREF_MAX_BUFFER_SIZE)
+      return false;
+    uint8_t buffer[PREF_MAX_BUFFER_SIZE];
     memcpy(buffer, data, len);
-    buffer[len] = calculate_crc(buffer, buffer + len, type);
+    buffer[len] = calculate_crc(buffer, buffer + len, this->type);
 
     for (size_t i = 0; i < buffer_size; i++) {
-      uint32_t j = offset + i;
+      uint32_t j = this->offset + i;
       if (j >= RP2040_FLASH_STORAGE_SIZE)
         return false;
       uint8_t v = buffer[i];
@@ -66,17 +66,18 @@ class RP2040PreferenceBackend : public ESPPreferenceBackend {
   }
   bool load(uint8_t *data, size_t len) override {
     const size_t buffer_size = len + 1;
-    SmallBufferWithHeapFallback<PREF_BUFFER_SIZE> buffer_alloc(buffer_size);
-    uint8_t *buffer = buffer_alloc.get();
+    if (buffer_size > PREF_MAX_BUFFER_SIZE)
+      return false;
+    uint8_t buffer[PREF_MAX_BUFFER_SIZE];
 
     for (size_t i = 0; i < buffer_size; i++) {
-      uint32_t j = offset + i;
+      uint32_t j = this->offset + i;
       if (j >= RP2040_FLASH_STORAGE_SIZE)
         return false;
       buffer[i] = s_flash_storage[j];
     }
 
-    uint8_t crc = calculate_crc(buffer, buffer + len, type);
+    uint8_t crc = calculate_crc(buffer, buffer + len, this->type);
     if (buffer[len] != crc) {
       return false;
     }

@@ -130,11 +130,16 @@ ETHERNET_TYPES = {
 }
 
 # PHY types that need compile-time defines for conditional compilation
+# Each RMII PHY type gets a define so unused PHY drivers are excluded by the linker
 _PHY_TYPE_TO_DEFINE = {
+    "LAN8720": "USE_ETHERNET_LAN8720",
+    "RTL8201": "USE_ETHERNET_RTL8201",
+    "DP83848": "USE_ETHERNET_DP83848",
+    "IP101": "USE_ETHERNET_IP101",
+    "JL1101": "USE_ETHERNET_JL1101",
     "KSZ8081": "USE_ETHERNET_KSZ8081",
     "KSZ8081RNA": "USE_ETHERNET_KSZ8081",
     "LAN8670": "USE_ETHERNET_LAN8670",
-    # Add other PHY types here only if they need conditional compilation
 }
 
 SPI_ETHERNET_TYPES = ["W5500", "DM9051"]
@@ -213,12 +218,19 @@ def _validate(config):
                 )
     elif config[CONF_TYPE] != "OPENETH":
         if CONF_CLK_MODE in config:
+            mode, pin = CLK_MODES_DEPRECATED[config[CONF_CLK_MODE]]
             LOGGER.warning(
-                "[ethernet] The 'clk_mode' option is deprecated and will be removed in ESPHome 2026.1. "
-                "Please update your configuration to use 'clk' instead."
+                "[ethernet] The 'clk_mode' option is deprecated. "
+                "Please replace 'clk_mode: %s' with:\n"
+                "  clk:\n"
+                "    mode: %s\n"
+                "    pin: %s\n"
+                "Removal scheduled for 2026.7.0.",
+                config[CONF_CLK_MODE],
+                mode,
+                pin,
             )
-            mode = CLK_MODES_DEPRECATED[config[CONF_CLK_MODE]]
-            config[CONF_CLK] = CLK_SCHEMA({CONF_MODE: mode[0], CONF_PIN: mode[1]})
+            config[CONF_CLK] = CLK_SCHEMA({CONF_MODE: mode, CONF_PIN: pin})
             del config[CONF_CLK_MODE]
         elif CONF_CLK not in config:
             raise cv.Invalid("'clk' is a required option for [ethernet].")

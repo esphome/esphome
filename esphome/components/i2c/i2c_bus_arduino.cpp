@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 static const char *const TAG = "i2c.arduino";
 
@@ -262,7 +261,6 @@ void ArduinoI2CBus::recover_() {
 
   recovery_result_ = RECOVERY_COMPLETED;
 }
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c
 
 #endif  // defined(USE_ARDUINO) && !defined(USE_ESP32)
