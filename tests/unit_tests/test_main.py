@@ -934,6 +934,31 @@ def test_choose_upload_log_host_rp2040_bootsel_tip_with_ota(
         assert "BOOTSEL" in caplog.text
 
 
+def test_choose_upload_log_host_rp2040_bootsel_tip_with_serial_ports(
+    caplog: pytest.LogCaptureFixture,
+    mock_choose_prompt: Mock,
+) -> None:
+    """Test BOOTSEL tip shown when serial ports exist but no BOOTSEL device."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    mock_ports = [MockSerialPort("/dev/ttyACM0", "RP2040 Serial")]
+    with (
+        patch("esphome.__main__.get_serial_ports", return_value=mock_ports),
+        patch(
+            "esphome.__main__._find_picotool",
+            return_value=Path("/usr/bin/picotool"),
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=0),
+        caplog.at_level(logging.INFO, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        assert "BOOTSEL" in caplog.text
+
+
 def test_choose_upload_log_host_no_bootsel_for_non_rp2040(
     mock_no_serial_ports: Mock,
 ) -> None:

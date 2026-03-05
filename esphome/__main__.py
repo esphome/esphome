@@ -281,14 +281,11 @@ def choose_upload_log_host(
         if has_mqtt_ip_lookup():
             options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
 
-    # Show helpful BOOTSEL instructions for RP2040 when no USB device is found
+    # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
     if (
         purpose == Purpose.UPLOADING
         and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
-        and not any(
-            get_port_type(opt[1]) in (PortType.SERIAL, PortType.BOOTSEL)
-            for opt in options
-        )
+        and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
     ):
         if not options:
             raise EsphomeError(
