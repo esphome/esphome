@@ -775,6 +775,9 @@ def upload_using_uf2_copy(config: ConfigType, mount_path: str) -> int:
 
     dest_file = dest_dir / uf2_file.name
     file_size = uf2_file.stat().st_size
+    if file_size == 0:
+        _LOGGER.error("UF2 firmware file is empty: %s", uf2_file)
+        return 1
     _LOGGER.info("Uploading UF2 firmware to %s (%s bytes)", mount_path, file_size)
 
     progress = ProgressBar()
@@ -805,16 +808,30 @@ def upload_using_uf2_copy(config: ConfigType, mount_path: str) -> int:
     return 0
 
 
-def _wait_for_serial_port(port: str | None = None, timeout: float = 30.0) -> None:
+def _wait_for_serial_port(
+    port: str | None = None,
+    timeout: float = 30.0,
+    known_ports: set[str] | None = None,
+) -> None:
     """Wait for a serial port to appear, e.g. after a device reboot.
 
     USB-CDC devices disappear briefly after flashing while the device
     reboots and re-enumerates on the USB bus.
 
-    If port is given, wait for that specific path. Otherwise wait for
-    any serial port to appear.
+    If port is given, wait for that specific path. If known_ports is
+    given, wait for a new port that wasn't in the set. Otherwise wait
+    for any serial port to appear.
     """
-    if port is not None and os.access(port, os.F_OK):
+
+    def _port_found() -> bool:
+        ports = get_serial_ports()
+        if port is not None:
+            return any(p.path == port for p in ports)
+        if known_ports is not None:
+            return any(p.path not in known_ports for p in ports)
+        return bool(ports)
+
+    if _port_found():
         return
     if port is not None:
         _LOGGER.info("Waiting for %s to come online...", port)
@@ -823,11 +840,7 @@ def _wait_for_serial_port(port: str | None = None, timeout: float = 30.0) -> Non
     start = time.monotonic()
     while time.monotonic() - start < timeout:
         time.sleep(0.05)
-        if port is not None:
-            if os.access(port, os.F_OK):
-                time.sleep(0.05)
-                return
-        elif get_serial_ports():
+        if _port_found():
             time.sleep(0.05)
             return
 
@@ -1064,6 +1077,9 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         purpose=Purpose.UPLOADING,
     )
 
+    # Snapshot current serial ports before upload so we can detect new ones
+    pre_upload_ports = {p.path for p in get_serial_ports()}
+
     exit_code, successful_device = upload_program(config, args, devices)
     if exit_code == 0:
         _LOGGER.info("Successfully uploaded program.")
@@ -1074,17 +1090,18 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     if args.no_logs:
         return 0
 
-    # After mass storage upload, wait for the serial port to reappear
+    # After mass storage upload, wait for a new serial port to appear
     # so it shows up in the log chooser
     if (
         successful_device is None
         and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
     ):
-        _wait_for_serial_port()
-        # If exactly one serial port appeared, use it directly
+        _wait_for_serial_port(known_ports=pre_upload_ports)
+        # If exactly one new serial port appeared, use it directly
         serial_ports = get_serial_ports()
-        if len(serial_ports) == 1:
-            successful_device = serial_ports[0].path
+        new_ports = [p for p in serial_ports if p.path not in pre_upload_ports]
+        if len(new_ports) == 1:
+            successful_device = new_ports[0].path
 
     # For logs, prefer the device we successfully uploaded to
     devices = choose_upload_log_host(
