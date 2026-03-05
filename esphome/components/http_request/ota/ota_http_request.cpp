@@ -65,8 +65,7 @@ void OtaHttpRequestComponent::flash() {
   }
 }
 
-void OtaHttpRequestComponent::cleanup_(decltype(ota::make_ota_backend()) backend,
-                                       const std::shared_ptr<HttpContainer> &container) {
+void OtaHttpRequestComponent::cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container) {
   if (this->update_started_) {
     ESP_LOGV(TAG, "Aborting OTA backend");
     backend->abort();

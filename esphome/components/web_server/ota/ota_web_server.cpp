@@ -71,7 +71,7 @@ class OTARequestHandler : public AsyncWebHandler {
   bool ota_success_{false};
 
  private:
-  decltype(ota::make_ota_backend()) ota_backend_{nullptr};
+  ota::OTABackendPtr ota_backend_{nullptr};
 };
 
 void OTARequestHandler::report_ota_progress_(AsyncWebServerRequest *request) {
