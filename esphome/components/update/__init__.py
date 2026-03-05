@@ -15,7 +15,11 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@jesserockz"]
@@ -87,11 +91,9 @@ def update_schema(
     return _UPDATE_SCHEMA.extend(schema)
 
 
+@setup_entity("update")
 async def setup_update_core_(var, config):
-    await setup_entity(var, config, "update")
-
-    if device_class_config := config.get(CONF_DEVICE_CLASS):
-        cg.add(var.set_device_class(device_class_config))
+    setup_device_class(config)
 
     if on_update_available := config.get(CONF_ON_UPDATE_AVAILABLE):
         await automation.build_automation(

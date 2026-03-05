@@ -706,7 +706,7 @@ float gamma_correct(float value, float gamma) {
   if (gamma <= 0.0f)
     return value;
 
-  return powf(value, gamma);
+  return powf(value, gamma);  // NOLINT - deprecated, removal 2026.9.0
 }
 float gamma_uncorrect(float value, float gamma) {
   if (value <= 0.0f)
@@ -714,7 +714,7 @@ float gamma_uncorrect(float value, float gamma) {
   if (gamma <= 0.0f)
     return value;
 
-  return powf(value, 1 / gamma);
+  return powf(value, 1 / gamma);  // NOLINT - deprecated, removal 2026.9.0
 }
 
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {

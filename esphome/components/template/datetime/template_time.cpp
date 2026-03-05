@@ -48,46 +48,49 @@ void TemplateTime::update() {
 }
 
 void TemplateTime::control(const datetime::TimeCall &call) {
-  bool has_hour = call.get_hour().has_value();
-  bool has_minute = call.get_minute().has_value();
-  bool has_second = call.get_second().has_value();
+  auto opt_hour = call.get_hour();
+  auto opt_minute = call.get_minute();
+  auto opt_second = call.get_second();
+  bool has_hour = opt_hour.has_value();
+  bool has_minute = opt_minute.has_value();
+  bool has_second = opt_second.has_value();
 
   ESPTime value = {};
   if (has_hour)
-    value.hour = *call.get_hour();
+    value.hour = *opt_hour;
 
   if (has_minute)
-    value.minute = *call.get_minute();
+    value.minute = *opt_minute;
 
   if (has_second)
-    value.second = *call.get_second();
+    value.second = *opt_second;
 
   this->set_trigger_.trigger(value);
 
   if (this->optimistic_) {
     if (has_hour)
-      this->hour_ = *call.get_hour();
+      this->hour_ = *opt_hour;
     if (has_minute)
-      this->minute_ = *call.get_minute();
+      this->minute_ = *opt_minute;
     if (has_second)
-      this->second_ = *call.get_second();
+      this->second_ = *opt_second;
     this->publish_state();
   }
 
   if (this->restore_value_) {
     datetime::TimeEntityRestoreState temp = {};
     if (has_hour) {
-      temp.hour = *call.get_hour();
+      temp.hour = *opt_hour;
     } else {
       temp.hour = this->hour_;
     }
     if (has_minute) {
-      temp.minute = *call.get_minute();
+      temp.minute = *opt_minute;
     } else {
       temp.minute = this->minute_;
     }
     if (has_second) {
-      temp.second = *call.get_second();
+      temp.second = *opt_second;
     } else {
       temp.second = this->second_;
     }
