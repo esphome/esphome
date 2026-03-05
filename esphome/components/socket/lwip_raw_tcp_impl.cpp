@@ -11,9 +11,7 @@
 
 #ifdef USE_ESP8266
 #include <coredecls.h>  // For esp_schedule()
-#endif
-
-#ifdef USE_RP2040
+#elif defined(USE_RP2040)
 #include <hardware/sync.h>  // For __sev(), __wfe()
 #include <pico/time.h>      // For add_alarm_in_ms(), cancel_alarm()
 #endif
@@ -61,7 +59,7 @@ static volatile bool s_socket_woke = false;
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static volatile bool s_delay_expired = false;
 
-static int64_t alarm_callback_(alarm_id_t id, void *user_data) {
+static int64_t alarm_callback(alarm_id_t id, void *user_data) {
   (void) id;
   (void) user_data;
   s_delay_expired = true;
@@ -76,8 +74,11 @@ void socket_delay(uint32_t ms) {
     return;
   s_socket_woke = false;
   s_delay_expired = false;
-  // Set a one-shot timer to wake us after the timeout
-  alarm_id_t alarm = add_alarm_in_ms(ms, alarm_callback_, nullptr, true);
+  // Set a one-shot timer to wake us after the timeout.
+  // add_alarm_in_ms returns >0 on success, 0 if time already passed, <0 on error.
+  alarm_id_t alarm = add_alarm_in_ms(ms, alarm_callback, nullptr, true);
+  if (alarm <= 0)
+    return;  // Timer already fired or no alarm slots available
   // Sleep until woken by either the timer alarm or socket_wake().
   // __wfe() may return spuriously (stale event register, other interrupts),
   // so we loop checking both flags.
@@ -85,7 +86,7 @@ void socket_delay(uint32_t ms) {
     __wfe();
   }
   // Cancel timer if we woke early (socket data arrived before timeout)
-  if (alarm > 0 && !s_delay_expired)
+  if (!s_delay_expired)
     cancel_alarm(alarm);
 }
 
