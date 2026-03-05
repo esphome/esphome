@@ -115,21 +115,27 @@ def compute_measurement_conversion_time(config):
     return math.ceil(1.05 * (pressure_conversion_time + temperature_conversion_time))
 
 
-def measurement_timing_check(schema):
-    temp_oss = (
-        spa_oversample_time(schema.get(CONF_TEMPERATURE).get(CONF_OVERSAMPLING))
-        / 1000.0
-    )
-    temp_hz = spa_sample_rate(schema.get(CONF_TEMPERATURE).get(CONF_SAMPLE_RATE))
-    pres_oss = (
-        spa_oversample_time(schema.get(CONF_PRESSURE).get(CONF_OVERSAMPLING)) / 1000.0
-    )
-    pres_hz = spa_sample_rate(schema.get(CONF_PRESSURE).get(CONF_SAMPLE_RATE))
-    if temp_oss * temp_hz + pres_oss * pres_hz >= 1:
+def measurement_timing_check(config):
+
+    temp_time = 0.0
+    if temperature_config := config.get(CONF_TEMPERATURE):
+        temp_oss = (
+            spa_oversample_time(temperature_config.get(CONF_OVERSAMPLING)) / 1000.0
+        )
+        temp_hz = spa_sample_rate(temperature_config.get(CONF_SAMPLE_RATE))
+        temp_time = temp_oss * temp_hz
+
+    pres_time = 0.0
+    if pressure_config := config.get(CONF_PRESSURE):
+        pres_oss = spa_oversample_time(pressure_config.get(CONF_OVERSAMPLING)) / 1000.0
+        pres_hz = spa_sample_rate(pressure_config.get(CONF_SAMPLE_RATE))
+        pres_time = pres_oss * pres_hz
+
+    if temp_time + pres_time >= 1:
         raise cv.Invalid(
             "Combined sample_rate and oversampling for temperature and pressure is too high"
         )
-    return schema
+    return config
 
 
 CONFIG_SCHEMA_BASE = cv.Schema(
