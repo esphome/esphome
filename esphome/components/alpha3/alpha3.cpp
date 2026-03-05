@@ -125,7 +125,7 @@ void Alpha3::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
         this->current_sensor_->publish_state(NAN);
       if (this->speed_sensor_ != nullptr)
         this->speed_sensor_->publish_state(NAN);
-      if (this->speed_sensor_ != nullptr)
+      if (this->voltage_sensor_ != nullptr)
         this->voltage_sensor_->publish_state(NAN);
       break;
     }
