@@ -45,9 +45,7 @@ void IRAM_ATTR socket_wake() {
   s_socket_woke = true;
   esp_schedule();
 }
-#endif
-
-#ifdef USE_RP2040
+#elif defined(USE_RP2040)
 // RP2040 (non-FreeRTOS) socket wake using hardware WFE/SEV instructions.
 //
 // Same pattern as ESP8266's esp_delay()/esp_schedule(): set a one-shot timer,
