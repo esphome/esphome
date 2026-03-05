@@ -71,7 +71,31 @@ class StaticCastExpression(Expression):
         return f"static_cast<{self.type}>({self.exp})"
 
 
-def add_define(macro, value="1"):
+def add_define(macro, value: str | bool | int = True):
+    if CORE.is_esp32:
+        from esphome.components.esp32 import add_idf_sdkconfig_option
+
+        config = f"CONFIG_{macro}"
+
+        # Normalize non-str/int/bool to str early
+        if not isinstance(value, (str, int, bool)):
+            value = str(value)
+
+        # Remove surrounding quotes: not needed with sdkconfig
+        if (
+            isinstance(value, str)
+            and len(value) >= 2
+            and value[0] == value[-1]
+            and value[0] in ("'", '"')
+        ):
+            value = value[1:-1]
+
+        add_idf_sdkconfig_option(config, value)
+
+    # For macro use 1/0 instead of True/False
+    if isinstance(value, bool):
+        value = "1" if value else "0"
+
     lv_defines = get_data(KEY_LV_DEFINES)
     value = str(value)
     if lv_defines.setdefault(macro, value) != value:

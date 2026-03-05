@@ -126,6 +126,11 @@ LV_CONF_H_FORMAT = """\
 """
 
 
+def escape_path(path: Path) -> str:
+    escaped_path = str(path).replace("\\", "\\\\")
+    return f'\\"{escaped_path}\\"'
+
+
 def generate_lv_conf_h():
     # Get all possible LV_ config defines based on the widgets used in the config, and the standard LVGL options
     all_defines = set(
@@ -245,8 +250,27 @@ async def to_code(configs):
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     # cg.add_define("LV_KCONFIG_PRESENT")
+
+    # The sdkconfig default values differ from the header defaults.
+    # When using the ESP-IDF framework—especially with the --native-idf switch,
+    # the resulting configuration may differ unless the following overrides are applied.
+    df.add_define("LV_CONF_MINIMAL", True)
+    df.add_define("LV_LABEL_TEXT_SELECTION", False)
+    df.add_define("LV_TXT_ENC_UTF8", True)
+    df.add_define("LV_COLOR_MIX_ROUND_OFS", 0)
+    df.add_define("LV_THEME_DEFAULT_GROW", False)
+    df.add_define("LV_FONT_UNSCII_8", False)
+    df.add_define("LV_LOG_TRACE_MEM", False)
+    df.add_define("LV_LOG_TRACE_TIMER", False)
+    df.add_define("LV_LOG_TRACE_INDEV", False)
+    df.add_define("LV_LOG_TRACE_DISP_REFR", False)
+    df.add_define("LV_LOG_TRACE_EVENT", False)
+    df.add_define("LV_LOG_TRACE_OBJ_CREATE", False)
+    df.add_define("LV_LOG_TRACE_LAYOUT", False)
+    df.add_define("LV_LOG_TRACE_ANIM", False)
+
     # Always enable - lots of things use it.
-    df.add_define("LV_DRAW_SW_COMPLEX", "1")
+    df.add_define("LV_DRAW_SW_COMPLEX", True)
 
     df.add_define(
         "LV_LOG_LEVEL",
@@ -291,9 +315,15 @@ async def to_code(configs):
             MockObj(await lvalid.lv_font.process(default_font), "->").get_lv_font(),
             static=False,
         )
-        df.add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)
+        default_font = df.DEFAULT_ESPHOME_FONT
     else:
-        df.add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
+        default_font = str(await lvalid.lv_font.process(default_font))
+    if CORE.is_esp32:
+        df.add_define(
+            default_font.removeprefix("&").upper().replace("LV_FONT", "LV_FONT_DEFAULT")
+        )
+    else:
+        df.add_define("LV_FONT_DEFAULT", default_font)
     cg.add(lvgl_static.esphome_lvgl_init())
     default_group = get_default_group(config_0)
 
@@ -406,7 +436,8 @@ async def to_code(configs):
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
     write_file_if_changed(lv_conf_h_file, generate_lv_conf_h())
     cg.add_build_flag("-DLV_CONF_H=1")
-    cg.add_build_flag(f'-DLV_CONF_PATH=\\"{LV_CONF_FILENAME}\\"')
+    # Use full path since ESP-IDF compiles components separately and doesn't share include paths globally like PlatformIO does.
+    cg.add_build_flag(f"-DLV_CONF_PATH={escape_path(lv_conf_h_file)}")
 
     for prop in df.get_remapped_uses():
         df.LOGGER.warning(
