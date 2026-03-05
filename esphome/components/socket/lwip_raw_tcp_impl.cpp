@@ -74,6 +74,13 @@ void socket_delay(uint32_t ms) {
     yield();
     return;
   }
+  // If a wake was already signalled, consume it and return immediately
+  // instead of going to sleep. This avoids losing a wake that arrived
+  // between loop iterations.
+  if (s_socket_woke) {
+    s_socket_woke = false;
+    return;
+  }
   s_socket_woke = false;
   s_delay_expired = false;
   // Set a one-shot timer to wake us after the timeout.
