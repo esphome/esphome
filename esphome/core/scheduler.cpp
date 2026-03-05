@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cstring>
-#include <limits>
 
 namespace esphome {
 
@@ -28,10 +27,13 @@ static constexpr size_t MAX_POOL_SIZE = 5;
 // Set to 5 to match the pool size - when we have as many cancelled items as our
 // pool can hold, it's time to clean up and recycle them.
 static constexpr uint32_t MAX_LOGICALLY_DELETED_ITEMS = 5;
-// Half the 32-bit range - used to detect rollovers vs normal time progression
-static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
 // max delay to start an interval sequence
 static constexpr uint32_t MAX_INTERVAL_DELAY = 5000;
+
+// Prevent inlining of SchedulerItem deletion. On BK7231N (Thumb-1), GCC inlines
+// ~unique_ptr<SchedulerItem> (~30 bytes each) at every destruction site. Defining
+// the deleter in the .cpp file ensures a single copy of the destructor + operator delete.
+void Scheduler::SchedulerItemDeleter::operator()(SchedulerItem *ptr) const noexcept { delete ptr; }
 
 #if defined(ESPHOME_LOG_HAS_VERBOSE) || defined(ESPHOME_DEBUG_SCHEDULER)
 // Helper struct for formatting scheduler item names consistently in logs
@@ -135,7 +137,7 @@ bool Scheduler::is_retry_cancelled_locked_(Component *component, NameType name_t
 // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
 void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type,
                                       const char *static_name, uint32_t hash_or_id, uint32_t delay,
-                                      std::function<void()> func, bool is_retry, bool skip_cancel) {
+                                      std::function<void()> &&func, bool is_retry, bool skip_cancel) {
   if (delay == SCHEDULER_DONT_RUN) {
     // Still need to cancel existing timer if we have a name/id
     if (!skip_cancel) {
@@ -144,9 +146,6 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     }
     return;
   }
-
-  // Get fresh timestamp BEFORE taking lock - millis_64_ may need to acquire lock itself
-  const uint64_t now = this->millis_64_(millis());
 
   // Take lock early to protect scheduler_item_pool_ access
   LockGuard guard{this->lock_};
@@ -174,12 +173,15 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   } else
 #endif /* not ESPHOME_THREAD_SINGLE */
   {
+    // Only non-defer items need a timestamp for scheduling
+    const uint64_t now_64 = millis_64();
+
     // Type-specific setup
     if (type == SchedulerItem::INTERVAL) {
       item->interval = delay;
       // first execution happens immediately after a random smallish offset
       uint32_t offset = this->calculate_interval_offset_(delay);
-      item->set_next_execution(now + offset);
+      item->set_next_execution(now_64 + offset);
 #ifdef ESPHOME_LOG_HAS_VERBOSE
       SchedulerNameLog name_log;
       ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms",
@@ -187,11 +189,11 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 #endif
     } else {
       item->interval = 0;
-      item->set_next_execution(now + delay);
+      item->set_next_execution(now_64 + delay);
     }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    this->debug_log_timer_(item.get(), name_type, static_name, hash_or_id, type, delay, now);
+    this->debug_log_timer_(item.get(), name_type, static_name, hash_or_id, type, delay, now_64);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
     // For retries, check if there's a cancelled timeout first
@@ -216,17 +218,18 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   target->push_back(std::move(item));
 }
 
-void HOT Scheduler::set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func) {
+void HOT Scheduler::set_timeout(Component *component, const char *name, uint32_t timeout,
+                                std::function<void()> &&func) {
   this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::STATIC_STRING, name, 0, timeout,
                           std::move(func));
 }
 
 void HOT Scheduler::set_timeout(Component *component, const std::string &name, uint32_t timeout,
-                                std::function<void()> func) {
+                                std::function<void()> &&func) {
   this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::HASHED_STRING, nullptr, fnv1a_hash(name),
                           timeout, std::move(func));
 }
-void HOT Scheduler::set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> func) {
+void HOT Scheduler::set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> &&func) {
   this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID, nullptr, id, timeout,
                           std::move(func));
 }
@@ -240,17 +243,17 @@ bool HOT Scheduler::cancel_timeout(Component *component, uint32_t id) {
   return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::TIMEOUT);
 }
 void HOT Scheduler::set_interval(Component *component, const std::string &name, uint32_t interval,
-                                 std::function<void()> func) {
+                                 std::function<void()> &&func) {
   this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::HASHED_STRING, nullptr, fnv1a_hash(name),
                           interval, std::move(func));
 }
 
 void HOT Scheduler::set_interval(Component *component, const char *name, uint32_t interval,
-                                 std::function<void()> func) {
+                                 std::function<void()> &&func) {
   this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::STATIC_STRING, name, 0, interval,
                           std::move(func));
 }
-void HOT Scheduler::set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> func) {
+void HOT Scheduler::set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> &&func) {
   this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID, nullptr, id, interval,
                           std::move(func));
 }
@@ -393,8 +396,7 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
     return {};
 
   auto &item = this->items_[0];
-  // Convert the fresh timestamp from caller (usually Application::loop()) to 64-bit
-  const auto now_64 = this->millis_64_(now);  // 'now' from parameter - fresh from caller
+  const auto now_64 = this->millis_64_from_(now);
   const uint64_t next_exec = item->get_next_execution();
   if (next_exec < now_64)
     return 0;
@@ -455,8 +457,8 @@ void HOT Scheduler::call(uint32_t now) {
   this->process_defer_queue_(now);
 #endif /* not ESPHOME_THREAD_SINGLE */
 
-  // Convert the fresh timestamp from main loop to 64-bit for scheduler operations
-  const auto now_64 = this->millis_64_(now);  // 'now' from parameter - fresh from Application::loop()
+  // Extend the caller's 32-bit timestamp to 64-bit for scheduler operations
+  const auto now_64 = this->millis_64_from_(now);
   this->process_to_add();
 
   // Track if any items were added to to_add_ during this call (intervals or from callbacks)
@@ -467,20 +469,13 @@ void HOT Scheduler::call(uint32_t now) {
 
   if (now_64 - last_print > 2000) {
     last_print = now_64;
-    std::vector<std::unique_ptr<SchedulerItem>> old_items;
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    const auto last_dbg = this->last_millis_.load(std::memory_order_relaxed);
-    const auto major_dbg = this->millis_major_.load(std::memory_order_relaxed);
-    ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64 " (%" PRIu16 ", %" PRIu32 ")", this->items_.size(),
-             this->scheduler_item_pool_.size(), now_64, major_dbg, last_dbg);
-#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
-    ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64 " (%" PRIu16 ", %" PRIu32 ")", this->items_.size(),
-             this->scheduler_item_pool_.size(), now_64, this->millis_major_, this->last_millis_);
-#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
+    std::vector<SchedulerItemPtr> old_items;
+    ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64, this->items_.size(), this->scheduler_item_pool_.size(),
+             now_64);
     // Cleanup before debug output
     this->cleanup_();
     while (!this->items_.empty()) {
-      std::unique_ptr<SchedulerItem> item;
+      SchedulerItemPtr item;
       {
         LockGuard guard{this->lock_};
         item = this->pop_raw_locked_();
@@ -641,7 +636,7 @@ size_t HOT Scheduler::cleanup_() {
   }
   return this->items_.size();
 }
-std::unique_ptr<Scheduler::SchedulerItem> HOT Scheduler::pop_raw_locked_() {
+Scheduler::SchedulerItemPtr HOT Scheduler::pop_raw_locked_() {
   std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
 
   // Move the item out before popping - this is the item that was at the front of the heap
@@ -704,168 +699,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   return total_cancelled > 0;
 }
 
-uint64_t Scheduler::millis_64() { return this->millis_64_(millis()); }
-
-uint64_t Scheduler::millis_64_(uint32_t now) {
-  // THREAD SAFETY NOTE:
-  // This function has three implementations, based on the precompiler flags
-  // - ESPHOME_THREAD_SINGLE - Runs on single-threaded platforms (ESP8266, RP2040, etc.)
-  // - ESPHOME_THREAD_MULTI_NO_ATOMICS - Runs on multi-threaded platforms without atomics (LibreTiny BK72xx)
-  // - ESPHOME_THREAD_MULTI_ATOMICS - Runs on multi-threaded platforms with atomics (ESP32, HOST, LibreTiny
-  // RTL87xx/LN882x, etc.)
-  //
-  // Make sure all changes are synchronized if you edit this function.
-  //
-  // IMPORTANT: Always pass fresh millis() values to this function. The implementation
-  // handles out-of-order timestamps between threads, but minimizing time differences
-  // helps maintain accuracy.
-  //
-
-#ifdef ESPHOME_THREAD_SINGLE
-  // This is the single core implementation.
-  //
-  // Single-core platforms have no concurrency, so this is a simple implementation
-  // that just tracks 32-bit rollover (every 49.7 days) without any locking or atomics.
-
-  uint16_t major = this->millis_major_;
-  uint32_t last = this->last_millis_;
-
-  // Check for rollover
-  if (now < last && (last - now) > HALF_MAX_UINT32) {
-    this->millis_major_++;
-    major++;
-    this->last_millis_ = now;
-#ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
-#endif /* ESPHOME_DEBUG_SCHEDULER */
-  } else if (now > last) {
-    // Only update if time moved forward
-    this->last_millis_ = now;
-  }
-
-  // Combine major (high 32 bits) and now (low 32 bits) into 64-bit time
-  return now + (static_cast<uint64_t>(major) << 32);
-
-#elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
-  // This is the multi core no atomics implementation.
-  //
-  // Without atomics, this implementation uses locks more aggressively:
-  // 1. Always locks when near the rollover boundary (within 10 seconds)
-  // 2. Always locks when detecting a large backwards jump
-  // 3. Updates without lock in normal forward progression (accepting minor races)
-  // This is less efficient but necessary without atomic operations.
-  uint16_t major = this->millis_major_;
-  uint32_t last = this->last_millis_;
-
-  // Define a safe window around the rollover point (10 seconds)
-  // This covers any reasonable scheduler delays or thread preemption
-  static constexpr uint32_t ROLLOVER_WINDOW = 10000;  // 10 seconds in milliseconds
-
-  // Check if we're near the rollover boundary (close to std::numeric_limits<uint32_t>::max() or just past 0)
-  bool near_rollover = (last > (std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW)) || (now < ROLLOVER_WINDOW);
-
-  if (near_rollover || (now < last && (last - now) > HALF_MAX_UINT32)) {
-    // Near rollover or detected a rollover - need lock for safety
-    LockGuard guard{this->lock_};
-    // Re-read with lock held
-    last = this->last_millis_;
-
-    if (now < last && (last - now) > HALF_MAX_UINT32) {
-      // True rollover detected (happens every ~49.7 days)
-      this->millis_major_++;
-      major++;
-#ifdef ESPHOME_DEBUG_SCHEDULER
-      ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
-#endif /* ESPHOME_DEBUG_SCHEDULER */
-    }
-    // Update last_millis_ while holding lock
-    this->last_millis_ = now;
-  } else if (now > last) {
-    // Normal case: Not near rollover and time moved forward
-    // Update without lock. While this may cause minor races (microseconds of
-    // backwards time movement), they're acceptable because:
-    // 1. The scheduler operates at millisecond resolution, not microsecond
-    // 2. We've already prevented the critical rollover race condition
-    // 3. Any backwards movement is orders of magnitude smaller than scheduler delays
-    this->last_millis_ = now;
-  }
-  // If now <= last and we're not near rollover, don't update
-  // This minimizes backwards time movement
-
-  // Combine major (high 32 bits) and now (low 32 bits) into 64-bit time
-  return now + (static_cast<uint64_t>(major) << 32);
-
-#elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
-  // This is the multi core with atomics implementation.
-  //
-  // Uses atomic operations with acquire/release semantics to ensure coherent
-  // reads of millis_major_ and last_millis_ across cores. Features:
-  // 1. Epoch-coherency retry loop to handle concurrent updates
-  // 2. Lock only taken for actual rollover detection and update
-  // 3. Lock-free CAS updates for normal forward time progression
-  // 4. Memory ordering ensures cores see consistent time values
-
-  for (;;) {
-    uint16_t major = this->millis_major_.load(std::memory_order_acquire);
-
-    /*
-     * Acquire so that if we later decide **not** to take the lock we still
-     * observe a `millis_major_` value coherent with the loaded `last_millis_`.
-     * The acquire load ensures any later read of `millis_major_` sees its
-     * corresponding increment.
-     */
-    uint32_t last = this->last_millis_.load(std::memory_order_acquire);
-
-    // If we might be near a rollover (large backwards jump), take the lock for the entire operation
-    // This ensures rollover detection and last_millis_ update are atomic together
-    if (now < last && (last - now) > HALF_MAX_UINT32) {
-      // Potential rollover - need lock for atomic rollover detection + update
-      LockGuard guard{this->lock_};
-      // Re-read with lock held; mutex already provides ordering
-      last = this->last_millis_.load(std::memory_order_relaxed);
-
-      if (now < last && (last - now) > HALF_MAX_UINT32) {
-        // True rollover detected (happens every ~49.7 days)
-        this->millis_major_.fetch_add(1, std::memory_order_relaxed);
-        major++;
-#ifdef ESPHOME_DEBUG_SCHEDULER
-        ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
-#endif /* ESPHOME_DEBUG_SCHEDULER */
-      }
-      /*
-       * Update last_millis_ while holding the lock to prevent races
-       * Publish the new low-word *after* bumping `millis_major_` (done above)
-       * so readers never see a mismatched pair.
-       */
-      this->last_millis_.store(now, std::memory_order_release);
-    } else {
-      // Normal case: Try lock-free update, but only allow forward movement within same epoch
-      // This prevents accidentally moving backwards across a rollover boundary
-      while (now > last && (now - last) < HALF_MAX_UINT32) {
-        if (this->last_millis_.compare_exchange_weak(last, now,
-                                                     std::memory_order_release,     // success
-                                                     std::memory_order_relaxed)) {  // failure
-          break;
-        }
-        // CAS failure means no data was published; relaxed is fine
-        // last is automatically updated by compare_exchange_weak if it fails
-      }
-    }
-    uint16_t major_end = this->millis_major_.load(std::memory_order_relaxed);
-    if (major_end == major)
-      return now + (static_cast<uint64_t>(major) << 32);
-  }
-  // Unreachable - the loop always returns when major_end == major
-  __builtin_unreachable();
-
-#else
-#error \
-    "No platform threading model defined. One of ESPHOME_THREAD_SINGLE, ESPHOME_THREAD_MULTI_NO_ATOMICS, or ESPHOME_THREAD_MULTI_ATOMICS must be defined."
-#endif
-}
-
-bool HOT Scheduler::SchedulerItem::cmp(const std::unique_ptr<SchedulerItem> &a,
-                                       const std::unique_ptr<SchedulerItem> &b) {
+bool HOT Scheduler::SchedulerItem::cmp(const SchedulerItemPtr &a, const SchedulerItemPtr &b) {
   // High bits are almost always equal (change only on 32-bit rollover ~49 days)
   // Optimize for common case: check low bits first when high bits are equal
   return (a->next_execution_high_ == b->next_execution_high_) ? (a->next_execution_low_ > b->next_execution_low_)
@@ -876,7 +710,7 @@ bool HOT Scheduler::SchedulerItem::cmp(const std::unique_ptr<SchedulerItem> &a,
 // IMPORTANT: Caller must hold the scheduler lock before calling this function.
 // This protects scheduler_item_pool_ from concurrent access by other threads
 // that may be acquiring items from the pool in set_timer_common_().
-void Scheduler::recycle_item_main_loop_(std::unique_ptr<SchedulerItem> item) {
+void Scheduler::recycle_item_main_loop_(SchedulerItemPtr item) {
   if (!item)
     return;
 
@@ -919,8 +753,8 @@ void Scheduler::debug_log_timer_(const SchedulerItem *item, NameType name_type, 
 
 // Helper to get or create a scheduler item from the pool
 // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-std::unique_ptr<Scheduler::SchedulerItem> Scheduler::get_item_from_pool_locked_() {
-  std::unique_ptr<SchedulerItem> item;
+Scheduler::SchedulerItemPtr Scheduler::get_item_from_pool_locked_() {
+  SchedulerItemPtr item;
   if (!this->scheduler_item_pool_.empty()) {
     item = std::move(this->scheduler_item_pool_.back());
     this->scheduler_item_pool_.pop_back();
@@ -928,7 +762,7 @@ std::unique_ptr<Scheduler::SchedulerItem> Scheduler::get_item_from_pool_locked_(
     ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_.size());
 #endif
   } else {
-    item = make_unique<SchedulerItem>();
+    item = SchedulerItemPtr(new SchedulerItem());
 #ifdef ESPHOME_DEBUG_SCHEDULER
     ESP_LOGD(TAG, "Allocated new item (pool empty)");
 #endif
