@@ -3,6 +3,7 @@
 #ifdef USE_ESP_IDF
 
 #include "modem_component.h"
+#include "modem_nmea_uart_component.h"
 
 #include "esphome/core/automation.h"
 
@@ -76,6 +77,13 @@ class ModemOnDisableTrigger : public Trigger<> {
         this->trigger();
       }
     });
+  }
+};
+
+class ModemNMEAOnUpdateTrigger : public Trigger<> {
+ public:
+  explicit ModemNMEAOnUpdateTrigger(ModemNMEAUARTComponent *parent) {
+    parent->add_on_update_callback([this]() { this->trigger(); });
   }
 };
 

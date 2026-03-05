@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_MODEL,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
+    CONF_ON_UPDATE,
     CONF_PASSWORD,
     CONF_PIN,
     CONF_REBOOT_TIMEOUT,
@@ -147,6 +148,9 @@ ModemOnEnableTrigger = modem_ns.class_(
 ModemOnDisableTrigger = modem_ns.class_(
     "ModemOnDisableTrigger", automation.Trigger.template()
 )
+ModemNMEAOnUpdateTrigger = modem_ns.class_(
+    "ModemNMEAOnUpdateTrigger", automation.Trigger.template()
+)
 
 # Actions
 ModemEnableAction = modem_ns.class_("ModemEnableAction", automation.Action)
@@ -205,12 +209,21 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="10min"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_NMEA): cv.Schema(
-                {
-                    cv.GenerateID(CONF_ID): cv.declare_id(ModemNMEAUARTComponent),
-                    cv.Optional(CONF_GNSS_COMMAND): cv.string,
-                }
-            ).extend(cv.polling_component_schema("20s")),
+            cv.Optional(CONF_NMEA): cv.All(
+                cv.Schema(
+                    {
+                        cv.GenerateID(CONF_ID): cv.declare_id(ModemNMEAUARTComponent),
+                        cv.Optional(CONF_GNSS_COMMAND): cv.string,
+                        cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
+                            {
+                                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                    ModemNMEAOnUpdateTrigger
+                                )
+                            }
+                        ),
+                    }
+                ).extend(cv.polling_component_schema("20s"))
+            ),
             cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -490,6 +503,10 @@ async def to_code(config):
         await cg.register_component(nmea_uart, nmea)
 
         cg.add(var.set_nmea_uart(nmea_uart))
+
+        for conf in nmea.get(CONF_ON_UPDATE, []):
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], nmea_uart)
+            await automation.build_automation(trigger, [], conf)
 
     for conf_key in [
         CONF_ON_NOT_RESPONDING,

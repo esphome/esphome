@@ -353,6 +353,9 @@ void ModemNMEAUARTComponent::update() {
     std::memcpy(this->nmea_buffer_ + gga_len, full_rmc, rmc_len);
     this->nmea_buffer_size_ = total;
     this->read_ptr_ = 0;
+
+    // Trigger the on_update callback
+    this->on_update_callback_.call();
   } else {
     ESP_LOGW(TAG, "NMEA buffer too small (%u needed)", (unsigned) total);
   }

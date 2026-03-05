@@ -10,6 +10,8 @@ class ModemNMEAUARTComponent : public uart::UARTComponent, public PollingCompone
  public:
   void set_gnss_command(const std::string &gnss_command) { this->gnss_command_ = gnss_command; }
 
+  void add_on_update_callback(std::function<void()> &&callback) { this->on_update_callback_.add(std::move(callback)); }
+
   // UART read/write methods
   void write_array(const uint8_t *data, size_t len) override{};
 
@@ -33,6 +35,8 @@ class ModemNMEAUARTComponent : public uart::UARTComponent, public PollingCompone
   size_t read_ptr_{0};
 
   std::string gnss_command_;
+
+  CallbackManager<void()> on_update_callback_;
 };
 
 }  // namespace modem
