@@ -73,11 +73,6 @@ void EPaperT133A01::setup() {
   if (this->is_failed())
     return;
 
-  if (this->enable_pin_ != nullptr) {
-    this->enable_pin_->setup();
-    this->enable_pin_->digital_write(true);
-  }
-
   if (this->cs1_pin_ == nullptr) {
     this->mark_failed(LOG_STR("'cs1_pin' is required for T133A01"));
     return;

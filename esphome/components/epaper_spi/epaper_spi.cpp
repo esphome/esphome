@@ -41,6 +41,11 @@ void EPaperBase::setup_pins_() const {
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
 
+  for (auto *pin : this->enable_pins_) {
+    pin->setup();
+    pin->digital_write(true);
+  }
+
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();  // OUTPUT
     this->reset_pin_->digital_write(true);
@@ -331,7 +336,9 @@ void EPaperBase::dump_config() {
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_PIN("  CS Pin: ", this->cs_);
-  LOG_PIN("  Enable Pin: ", this->enable_pin_);
+  for (auto *pin : this->enable_pins_) {
+    LOG_PIN("  Enable Pin: ", pin);
+  }
   LOG_UPDATE_INTERVAL(this);
 }
 
