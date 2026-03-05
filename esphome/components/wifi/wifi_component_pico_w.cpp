@@ -44,8 +44,6 @@ static bool s_sta_had_ip = false;         // NOLINT(cppcoreguidelines-avoid-non-
 static size_t s_scan_result_count = 0;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
-  ESP_LOGD(TAG, "wifi_mode_(sta=%s, ap=%s)", sta.has_value() ? (sta.value() ? "true" : "false") : "nullopt",
-           ap.has_value() ? (ap.value() ? "true" : "false") : "nullopt");
   if (sta.has_value()) {
     if (sta.value()) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true, CYW43_COUNTRY_WORLDWIDE);
@@ -104,19 +102,12 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
 #endif
 
-  ESP_LOGD(TAG, "wifi_sta_connect_: STA link=%d, WiFi.status()=%d, mode=%d, localIP=%s, softAPIP=%s",
-           cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA), WiFi.status(), (int) WiFi.getMode(),
-           WiFi.localIP().toString().c_str(), WiFi.softAPIP().toString().c_str());
-
   // Use beginNoBlock to avoid WiFi.begin()'s additional 2x timeout wait loop on top of
   // CYW43::begin()'s internal blocking join. CYW43::begin() blocks for up to 10 seconds
   // (default timeout) to complete the join - this is required because the LwipIntfDev netif
   // setup depends on begin() succeeding. beginNoBlock() skips the outer wait loop, saving
   // up to 20 additional seconds of blocking per attempt.
   auto ret = WiFi.beginNoBlock(ap.ssid_.c_str(), ap.password_.c_str());
-  ESP_LOGD(TAG, "wifi_sta_connect_: beginNoBlock returned %d, STA link=%d, mode=%d, localIP=%s", ret,
-           cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA), (int) WiFi.getMode(),
-           WiFi.localIP().toString().c_str());
   if (ret == WL_IDLE_STATUS)
     return false;
 
@@ -160,9 +151,6 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   // flags and would only fall through to cyw43_wifi_link_status when the flags aren't set.
   // Using cyw43_wifi_link_status directly gives us the actual WiFi radio join state.
   int status = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
-  int ap_status = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_AP);
-  ESP_LOGV(TAG, "connect_status: STA link=%d, AP link=%d, localIP=%s, softAPIP=%s, WiFi.status()=%d", status, ap_status,
-           WiFi.localIP().toString().c_str(), WiFi.softAPIP().toString().c_str(), WiFi.status());
   switch (status) {
     case CYW43_LINK_JOIN:
       // WiFi joined, check if STA has an IP address via wifi_sta_connected()
@@ -233,9 +221,6 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
 }
 
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
-  ESP_LOGD(TAG, "wifi_start_ap_: STA link=%d, AP link=%d, WiFi.status()=%d, mode=%d, localIP=%s",
-           cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA), cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_AP),
-           WiFi.status(), (int) WiFi.getMode(), WiFi.localIP().toString().c_str());
   if (!this->wifi_mode_({}, true))
     return false;
 #ifdef USE_WIFI_MANUAL_IP
@@ -254,8 +239,6 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   // to choose between OPEN and WPA2 auth mode.
   const char *ap_password = ap.password_.empty() ? nullptr : ap.password_.c_str();
   WiFi.beginAP(ap.ssid_.c_str(), ap_password, ap.has_channel() ? ap.get_channel() : 1);
-  ESP_LOGD(TAG, "wifi_start_ap_: after beginAP, WiFi.status()=%d, mode=%d, softAPIP=%s, localIP=%s", WiFi.status(),
-           (int) WiFi.getMode(), WiFi.softAPIP().toString().c_str(), WiFi.localIP().toString().c_str());
 
   return true;
 }
@@ -270,9 +253,6 @@ bool WiFiComponent::wifi_disconnect_() {
   // instead of AP_STA mode (IP 192.168.4.1). In AP-only mode, _beginInternal()
   // redirects all subsequent STA connect attempts to beginAP() via the ESP8266
   // compat hack, creating an infinite connect/disconnect loop.
-  ESP_LOGD(TAG, "wifi_disconnect_: STA link=%d, AP link=%d, WiFi.status()=%d, mode=%d",
-           cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA), cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_AP),
-           WiFi.status(), (int) WiFi.getMode());
   cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
   return true;
 }
