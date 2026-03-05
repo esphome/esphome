@@ -1,4 +1,5 @@
-// SPA06
+// SPA06 interface code for ESPHome
+// All datasheet page references refer to Goermicro SPA06-003 datasheet version 2.0
 
 #pragma once
 
@@ -57,6 +58,7 @@ enum SampleRate {
   SAMPLE_RATE_32 = 0x5,
   SAMPLE_RATE_64 = 0x6,
   SAMPLE_RATE_128 = 0x7,
+  SAMPLE_RATE_25P16 = 0x8,
   SAMPLE_RATE_25P8 = 0x9,
   SAMPLE_RATE_25P4 = 0xA,
   SAMPLE_RATE_25P2 = 0xB,
@@ -143,6 +145,8 @@ static const LogString *meas_rate_to_str(SampleRate rate) {
       return LOG_STR("64Hz");
     case SampleRate::SAMPLE_RATE_128:
       return LOG_STR("128Hz");
+    case SampleRate::SAMPLE_RATE_25P16:
+      return LOG_STR("1.5625Hz");
     case SampleRate::SAMPLE_RATE_25P8:
       return LOG_STR("3.125Hz");
     case SampleRate::SAMPLE_RATE_25P4:
