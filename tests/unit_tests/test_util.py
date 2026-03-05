@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -415,9 +416,10 @@ def test_get_picotool_path_found(tmp_path: Path) -> None:
     gcc = toolchain_dir / "arm-none-eabi-gcc"
     gcc.touch()
 
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
     picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
     picotool_dir.mkdir(parents=True)
-    picotool = picotool_dir / "picotool"
+    picotool = picotool_dir / binary_name
     picotool.touch()
 
     result = util.get_picotool_path(str(gcc))
