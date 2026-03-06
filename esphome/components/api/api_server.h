@@ -185,7 +185,8 @@ class APIServer : public Component,
   void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
 #endif
 
-  bool is_connected(bool state_subscription_only = false) const;
+  bool is_connected() const { return !this->clients_.empty(); }
+  bool is_connected_with_state_subscription() const;
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
@@ -323,7 +324,10 @@ template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
   TEMPLATABLE_VALUE(bool, state_subscription_only)
  public:
   bool check(const Ts &...x) override {
-    return global_api_server->is_connected(this->state_subscription_only_.value(x...));
+    if (this->state_subscription_only_.value(x...)) {
+      return global_api_server->is_connected_with_state_subscription();
+    }
+    return global_api_server->is_connected();
   }
 };
 
