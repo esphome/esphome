@@ -569,19 +569,25 @@ async def to_code(config: ConfigType) -> None:
 
         With MAC suffix: emits a static mutable buffer with placeholder suffix.
         Without: passes the string literal directly as const char*.
-        Returns (expression, length).
+        Returns (expression, byte_length).
         """
-        if not value:
-            return cg.RawExpression('""'), 0
         if name_add_mac_suffix:
-            value_with_placeholder = f"{value}{sep}XXXXXX"
+            value_with_placeholder = "" if not value else f"{value}{sep}XXXXXX"
             cg.add_global(
                 cg.RawStatement(
                     f"static char {var_name}[] = {cpp_string_escape(value_with_placeholder)};"
                 )
             )
-            return cg.RawExpression(var_name), len(value_with_placeholder)
-        return cg.RawExpression(cpp_string_escape(value)), len(value)
+            return (
+                cg.RawExpression(var_name),
+                len(value_with_placeholder.encode("utf-8")),
+            )
+        if not value:
+            return cg.RawExpression('""'), 0
+        return (
+            cg.RawExpression(cpp_string_escape(value)),
+            len(value.encode("utf-8")),
+        )
 
     name_expr, name_len = _make_app_name_expr(
         name, _APP_NAME_BUF_VAR, _APP_NAME_MAC_SEP
