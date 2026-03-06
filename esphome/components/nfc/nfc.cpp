@@ -35,7 +35,7 @@ uint8_t guess_tag_type(uint8_t uid_length) {
   }
 }
 
-uint8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data) {
+int8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data) {
   for (uint8_t i = 0; i < MIFARE_CLASSIC_BLOCK_SIZE; i++) {
     if (data[i] == 0x00) {
       // Do nothing, skip
@@ -50,7 +50,7 @@ uint8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data) {
 
 bool decode_mifare_classic_tlv(std::vector<uint8_t> &data, uint32_t &message_length, uint8_t &message_start_index) {
   auto i = get_mifare_classic_ndef_start_index(data);
-  if (i >= 0xFE || i >= data.size() || data[i] != 0x03) {
+  if (i < 0 || static_cast<size_t>(i) >= data.size() || data[i] != 0x03) {
     ESP_LOGE(TAG, "Error, Can't decode message length.");
     return false;
   }
