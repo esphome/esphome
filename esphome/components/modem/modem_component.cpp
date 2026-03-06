@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include "modem_component.h"
 #include "modem_handler.h"
 #include "helpers.h"

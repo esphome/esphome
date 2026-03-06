@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/components/nmea/nmea.h"
 
@@ -19,4 +19,4 @@ class ModemNMEAComponent : public NMEAComponent {
 }  // namespace nmea
 }  // namespace esphome
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

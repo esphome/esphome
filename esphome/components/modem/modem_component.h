@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"

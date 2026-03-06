@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "modem_component.h"
 
@@ -131,4 +131,4 @@ template<typename... Ts> class ModemEnabledCondition : public Condition<Ts...> {
 
 }  // namespace modem
 }  // namespace esphome
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

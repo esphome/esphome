@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "modem_component.h"
 #include "helpers.h"
@@ -263,4 +263,4 @@ std::string get_signal_bars(float rssi, bool color) {
 
 }  // namespace modem
 }  // namespace esphome
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include "modem_nmea.h"
 #include "esphome/components/modem/modem_component.h"
 #include "esphome/components/modem/helpers.h"
@@ -301,4 +301,4 @@ void ModemNMEAComponent::update() {
 
 }  // namespace nmea
 }  // namespace esphome
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32
