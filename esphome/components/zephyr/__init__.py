@@ -133,11 +133,11 @@ def zephyr_to_code(config: ConfigType) -> None:
         Path(__file__).parent / "pre_build.py.script",
     )
 
-    CORE.add_job(_dfu_to_code, config)
+    CORE.add_job(_cdc_acm_to_code, config)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _dfu_to_code(config: ConfigType) -> None:
+async def _cdc_acm_to_code(config: ConfigType) -> None:
     if "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in zephyr_data()[KEY_PRJ_CONF]:
         var = cg.new_Pvariable(config[CONF_CDC_ACM])
         await cg.register_component(var, {})
