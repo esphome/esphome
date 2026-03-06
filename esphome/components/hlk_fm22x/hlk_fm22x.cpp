@@ -133,24 +133,22 @@ void HlkFm22xComponent::recv_command_() {
   checksum ^= byte;
   length |= byte;
 
-  if (length > HLK_FM22X_MAX_RESPONSE_SIZE) {
-    ESP_LOGE(TAG, "Response too large: %u bytes", length);
-    // Discard exactly the remaining payload and checksum for this frame
-    for (uint16_t i = 0; i < length + 1 && this->available() > 0; ++i)
-      this->read();
-    return;
-  }
-
+  // Read up to buffer size; discard excess bytes while still computing checksum
+  // GET_ALL_FACE_IDS can return all enrolled face data (hundreds of bytes)
+  // but handlers only need the first few bytes
+  size_t to_store = std::min(static_cast<size_t>(length), HLK_FM22X_MAX_RESPONSE_SIZE);
   for (uint16_t idx = 0; idx < length; ++idx) {
     byte = this->read();
     checksum ^= byte;
-    this->recv_buf_[idx] = byte;
+    if (idx < to_store) {
+      this->recv_buf_[idx] = byte;
+    }
   }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_pretty_size(HLK_FM22X_MAX_RESPONSE_SIZE)];
   ESP_LOGV(TAG, "Recv type: 0x%.2X, data: %s", response_type,
-           format_hex_pretty_to(hex_buf, this->recv_buf_.data(), length));
+           format_hex_pretty_to(hex_buf, this->recv_buf_.data(), to_store));
 #endif
 
   byte = this->read();
@@ -160,10 +158,10 @@ void HlkFm22xComponent::recv_command_() {
   }
   switch (response_type) {
     case HlkFm22xResponseType::NOTE:
-      this->handle_note_(this->recv_buf_.data(), length);
+      this->handle_note_(this->recv_buf_.data(), to_store);
       break;
     case HlkFm22xResponseType::REPLY:
-      this->handle_reply_(this->recv_buf_.data(), length);
+      this->handle_reply_(this->recv_buf_.data(), to_store);
       break;
     default:
       ESP_LOGW(TAG, "Unexpected response type: 0x%.2X", response_type);
