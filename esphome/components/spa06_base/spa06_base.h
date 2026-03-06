@@ -137,7 +137,7 @@ class SPA06Component : public PollingComponent {
   // Soft reset
   bool soft_reset_();
   // Protocol-specific reset (used for SPI only, implemented as noop for I2C)
-  void protocol_reset_() {}
+  virtual void protocol_reset() {}
   // Read temperature and calculate Celsius and scaled raw temperatures
   bool read_temperature_(float &temperature, float &t_raw_sc);
   // No pressure only read! Pressure calculation depends on scaled temperature value
