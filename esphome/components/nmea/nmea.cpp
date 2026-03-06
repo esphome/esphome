@@ -27,7 +27,7 @@ static inline uint8_t nmea_checksum(const char *s) {
 }
 
 bool NMEAComponent::read_array(uint8_t *data, size_t len) {
-  if (available() < static_cast<int>(len))
+  if (available() < len)
     return false;
   std::memcpy(data, this->nmea_buffer_ + this->read_ptr_, len);
   this->read_ptr_ += len;
