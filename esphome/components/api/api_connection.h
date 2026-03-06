@@ -354,7 +354,8 @@ class APIConnection final : public APIServerConnectionBase {
 
     // Set common EntityBase properties
 #ifdef USE_ENTITY_ICON
-    msg.icon = entity->get_icon_ref();
+    char icon_buf[MAX_ICON_LENGTH];
+    msg.icon = StringRef(entity->get_icon_to(icon_buf));
 #endif
     msg.disabled_by_default = entity->is_disabled_by_default();
     msg.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
