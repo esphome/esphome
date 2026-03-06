@@ -80,14 +80,17 @@ void TemplateClimate::loop() {
 void TemplateClimate::dump_config() {
   LOG_CLIMATE("", "Template Climate", this);
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
-  ESP_LOGCONFIG(TAG, "  State Control: %s", this->push_ ? "push" : "pull");
 }
 
 void TemplateClimate::control(const climate::ClimateCall &call) {
-  // In push mode ESPHome owns the state, so apply changes immediately.
-  // In pull mode with optimistic enabled, apply changes as a preview;
-  // the device will correct via state lambdas on the next loop iteration.
-  const bool apply_state = this->push_ || this->optimistic_;
+  // When no state-readback lambdas are present ESPHome owns the state, so
+  // apply changes immediately. When state lambdas are present the device owns
+  // the state; apply changes as a preview only if optimistic is enabled (the
+  // device will correct via lambdas on the next loop iteration).
+  const bool has_state_lambdas = this->target_temperature_f_.has_value() || this->mode_f_.has_value() ||
+                                 this->fan_mode_f_.has_value() || this->swing_mode_f_.has_value() ||
+                                 this->preset_f_.has_value();
+  const bool apply_state = !has_state_lambdas || this->optimistic_;
 
   if (auto mode = call.get_mode()) {
     if (apply_state)

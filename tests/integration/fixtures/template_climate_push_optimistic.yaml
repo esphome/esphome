@@ -9,7 +9,6 @@ climate:
     id: test_climate
     name: Test Template Climate
     optimistic: true
-    state_control: push
     supported_modes:
       - "OFF"
       - HEAT

@@ -24,7 +24,6 @@ CONF_SET_MODE_ACTION = "set_mode_action"
 CONF_SET_PRESET_ACTION = "set_preset_action"
 CONF_SET_SWING_MODE_ACTION = "set_swing_mode_action"
 CONF_SET_TARGET_TEMPERATURE_ACTION = "set_target_temperature_action"
-CONF_STATE_CONTROL = "state_control"
 
 TemplateClimate = template_ns.class_("TemplateClimate", climate.Climate, cg.Component)
 
@@ -66,20 +65,11 @@ CONFIG_SCHEMA = (
                 single=True
             ),
             # optimistic: whether HA reflects a command immediately as a visual preview.
-            # state_control: who is the authoritative source of state.
-            #   push — ESPHome/HA owns the state; commands update it immediately.
-            #   pull — the device owns the state; lambdas are the source of truth.
-            #
-            # Behaviour matrix:
-            #   state_control  optimistic  Result
-            #   push           true        HA sees change instantly; ESPHome owns state permanently.
-            #   push           false       Same as above (push always updates state in control()).
-            #   pull           true        HA shows preview immediately; device corrects via lambdas.
-            #   pull           false       HA rejects command visually until device confirms via lambdas.
+            #   When no state-readback lambdas are present ESPHome owns state permanently
+            #   (commands always apply). When state lambdas are present the device owns
+            #   state; optimistic=true shows a preview that the device corrects on the
+            #   next loop, optimistic=false waits for the device to confirm.
             cv.Optional(CONF_OPTIMISTIC, default=True): cv.boolean,
-            cv.Optional(CONF_STATE_CONTROL, default="push"): cv.one_of(
-                "push", "pull", lower=True
-            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -187,4 +177,3 @@ async def to_code(config):
         )
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-    cg.add(var.set_push(config[CONF_STATE_CONTROL] == "push"))

@@ -15,7 +15,6 @@ climate:
     id: test_climate
     name: Test Correction Climate
     optimistic: true
-    state_control: pull
     mode: !lambda "return static_cast<climate::ClimateMode>(0);"  # Always OFF
     target_temperature: !lambda "return 22.0f;"  # Always 22.0°C
     supported_modes:
