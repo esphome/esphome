@@ -36,6 +36,10 @@ static constexpr size_t OBJECT_ID_MAX_LEN = 128;
 // Maximum state length that Home Assistant will accept without raising ValueError
 static constexpr size_t MAX_STATE_LEN = 255;
 
+// Maximum icon string buffer size (63 chars + null terminator)
+// Icons are stored in PROGMEM; on ESP8266 they must be copied to a stack buffer.
+static constexpr size_t MAX_ICON_LENGTH = 64;
+
 enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,
   ENTITY_CATEGORY_CONFIG = 1,
@@ -124,12 +128,31 @@ class EntityBase {
                 "2026.3.0")
   std::string get_unit_of_measurement() const;
 
-  // Get/set this entity's icon
-  ESPDEPRECATED(
-      "Use get_icon_ref() instead for better performance (avoids string copy). Will be removed in ESPHome 2026.5.0",
-      "2025.11.0")
-  std::string get_icon() const;
+  // Get this entity's icon into a stack buffer.
+  // On ESP32: returns pointer to PROGMEM string directly (buffer unused).
+  // On ESP8266: copies from PROGMEM to buffer, returns buffer pointer.
+  const char *get_icon_to(std::span<char, MAX_ICON_LENGTH> buffer) const;
+
+#ifdef USE_ESP8266
+  // On ESP8266, rodata is RAM. Icons are in PROGMEM and cannot be accessed
+  // directly as const char*. Use get_icon_to() with a stack buffer instead.
+  template<typename T = int> StringRef get_icon_ref() const {
+    static_assert(sizeof(T) == 0,
+                  "get_icon_ref() unavailable on ESP8266 (rodata is RAM). Use get_icon_to() with a stack buffer.");
+    return StringRef("");
+  }
+  template<typename T = int> std::string get_icon() const {
+    static_assert(sizeof(T) == 0,
+                  "get_icon() unavailable on ESP8266 (rodata is RAM). Use get_icon_to() with a stack buffer.");
+    return "";
+  }
+#else
+  // Deprecated: use get_icon_to() instead. Icons are in PROGMEM.
+  ESPDEPRECATED("Use get_icon_to() instead. Will be removed in ESPHome 2026.9.0", "2026.3.0")
   StringRef get_icon_ref() const;
+  ESPDEPRECATED("Use get_icon_to() instead. Will be removed in ESPHome 2026.9.0", "2026.3.0")
+  std::string get_icon() const;
+#endif
 
 #ifdef USE_DEVICES
   // Get/set this entity's device id
