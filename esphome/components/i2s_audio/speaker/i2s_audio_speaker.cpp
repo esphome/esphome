@@ -728,9 +728,16 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             }
           }
 
-          // First flush any partial block with silence padding (non-blocking to avoid getting stuck)
+          // First flush any partial block with silence padding (non-blocking to avoid getting stuck).
+          // IMPORTANT: Credit any partial block frames to frames_written so the audio_output_callback_
+          // fires for them. Without this, pending_playback_frames_ in the mixer's SourceSpeaker never
+          // reaches 0 when a stream ends on a non-192-frame boundary, permanently blocking teardown.
           if (this_speaker->spdif_encoder_->has_pending_data()) {
-            this_speaker->spdif_encoder_->flush_with_silence(0);  // Non-blocking
+            uint32_t partial_frames = this_speaker->spdif_encoder_->get_pending_frames();
+            esp_err_t flush_err = this_speaker->spdif_encoder_->flush_with_silence(0);  // Non-blocking
+            if (flush_err == ESP_OK && partial_frames > 0) {
+              frames_written += partial_frames;
+            }
           }
 
           // CRITICAL: In SPDIF continuous mode, ALWAYS write silence when no audio data.
