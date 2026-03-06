@@ -6,6 +6,7 @@
 
 #include <user_interface.h>
 
+#include <cassert>
 #include <utility>
 #include <algorithm>
 #ifdef USE_WIFI_WPA2_EAP
@@ -205,6 +206,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   network::IPAddresses addresses;
   uint8_t index = 0;
   for (auto &addr : addrList) {
+    assert(index < addresses.size());
     addresses[index++] = addr.ipFromNetifNum();
   }
   return addresses;
