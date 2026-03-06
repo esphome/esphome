@@ -552,7 +552,9 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 #else
       int64_t write_timestamp;
       while (xQueueReceive(this_speaker->i2s_event_queue_, &write_timestamp, 0)) {
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
         spdif_last_dma_event_time = millis();
+#endif
         // Receives timing events from the I2S on_sent callback. If actual audio data was sent in this event, it passes
         // on the timing info via the audio_output_callback.
         uint32_t frames_sent = frames_to_fill_single_dma_buffer;
@@ -721,10 +723,10 @@ void I2SAudioSpeaker::speaker_task(void *params) {
           // 3. We need continuous output to prevent receiver from losing sync
           if (!stop_gracefully) {
             uint32_t silence_blocks = 0;
-            esp_err_t err = this_speaker->spdif_encoder_->write(reinterpret_cast<const uint8_t *>(SPDIF_SILENCE_BUFFER),
-                                                                sizeof(SPDIF_SILENCE_BUFFER), pdMS_TO_TICKS(1),
-                                                                &silence_blocks);  // Non-blocking!
-            // Don't count silence as frames_written - it's not real audio
+            esp_err_t write_err = this_speaker->spdif_encoder_->write(
+                reinterpret_cast<const uint8_t *>(SPDIF_SILENCE_BUFFER), sizeof(SPDIF_SILENCE_BUFFER), pdMS_TO_TICKS(1),
+                &silence_blocks);  // Non-blocking
+                                   // Don't count silence as frames_written - it's not real audio
 
 #if !defined(USE_I2S_LEGACY)
             // Recovery path for a stalled SPDIF TX channel:
@@ -736,7 +738,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
               spdif_last_block_progress_time = millis();
             }
             const bool long_zero_progress = (millis() - spdif_last_block_progress_time) >= SPDIF_STALL_ZERO_PROGRESS_MS;
-            if (dma_events_stalled && silence_blocks == 0 && (err == ESP_OK || err == ESP_ERR_TIMEOUT)) {
+            if (dma_events_stalled && silence_blocks == 0 && (write_err == ESP_OK || write_err == ESP_ERR_TIMEOUT)) {
               spdif_zero_block_streak++;
             } else {
               spdif_zero_block_streak = 0;
@@ -779,8 +781,8 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             }
 #endif  // !USE_I2S_LEGACY
 
-#if !(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE)
-            (void) err;  // Suppress unused variable warning
+#if defined(USE_I2S_LEGACY)
+            (void) write_err;  // Used only in non-legacy stall detection
 #endif
           }
         } else {
