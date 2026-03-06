@@ -69,7 +69,7 @@ void ModemHandler::modem_create_dte_dce(int baud_rate) {
     return;
   }
 
-  auto urc_handler = [this](const esp_modem::DTE::UrcBufferInfo &buffer_info) {
+  auto urc_handler = [](const esp_modem::DTE::UrcBufferInfo &buffer_info) {
     if (!buffer_info.is_command_active) {
       std::string line(reinterpret_cast<const char *>(buffer_info.new_data_start), buffer_info.new_data_size);
       ESP_LOGI(TAG, "Modem URC: %s", line.c_str());

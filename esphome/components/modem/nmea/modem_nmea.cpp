@@ -112,11 +112,11 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
   std::strncpy(buf, p + 1, sizeof(buf));
   buf[sizeof(buf) - 1] = '\0';
 
-  const int MAXTOK = 32;
-  const char *tok[MAXTOK] = {nullptr};
-  int n = tokenize_csv(buf, tok, MAXTOK);
+  const int maxtok = 32;
+  const char *tok[maxtok] = {nullptr};
+  int n = tokenize_csv(buf, tok, maxtok);
 
-  auto T = [&](int idx) -> const char * { return (idx >= 0 && idx < n) ? tok[idx] : ""; };
+  auto t = [&](int idx) -> const char * { return (idx >= 0 && idx < n) ? tok[idx] : ""; };
 
   ESP_LOGV(TAG, "Parsing CGNSSINFO with %d tokens", n);
 
@@ -127,22 +127,22 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
     // <run>,<fix>,<UTC>,<lat>,<lon>,<msl_alt>,<spd_kmh>,<cog>,<fix_mode>,<rsv1>,<hdop>,<pdop>,<vdop>,...
     static constexpr double KMH_TO_KNOT = 0.539956803;
 
-    (void) to_double(T(3), gi.lat_deg);
-    (void) to_double(T(4), gi.lon_deg);
-    (void) to_double(T(5), gi.alt_m);
+    (void) to_double(t(3), gi.lat_deg);
+    (void) to_double(t(4), gi.lon_deg);
+    (void) to_double(t(5), gi.alt_m);
 
     double spd_kmh = NAN;
-    if (to_double(T(6), spd_kmh))
+    if (to_double(t(6), spd_kmh))
       gi.spd = spd_kmh * KMH_TO_KNOT;
 
-    (void) to_double(T(7), gi.cog_deg);
-    (void) to_double(T(10), gi.hdop);
+    (void) to_double(t(7), gi.cog_deg);
+    (void) to_double(t(10), gi.hdop);
 
     int used = 0;
-    (void) to_int(T(15), used);
+    (void) to_int(t(15), used);
     gi.sat_used = used;
 
-    const char *utc = T(2);
+    const char *utc = t(2);
     if (utc && std::strlen(utc) >= 14) {
       int yyyy = (utc[0] - '0') * 1000 + (utc[1] - '0') * 100 + (utc[2] - '0') * 10 + (utc[3] - '0');
       yy = yyyy;
@@ -154,7 +154,7 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
     }
 
     int fix = 0;
-    (void) to_int(T(1), fix);
+    (void) to_int(t(1), fix);
     gi.fix_valid = (fix == 1) && std::isfinite(gi.lat_deg) && std::isfinite(gi.lon_deg);
 
   } else if (n == 18) {
@@ -165,29 +165,29 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
       return false;
 
     int sat_used = 0;
-    (void) to_int(T(1), sat_used);
+    (void) to_int(t(1), sat_used);
     gi.sat_used = sat_used;
 
-    (void) to_double(T(5), gi.lat_deg);
-    (void) to_double(T(7), gi.lon_deg);
+    (void) to_double(t(5), gi.lat_deg);
+    (void) to_double(t(7), gi.lon_deg);
 
-    char lat_dir = T(6)[0] ? T(6)[0] : 'N';
-    char lon_dir = T(8)[0] ? T(8)[0] : 'E';
+    char lat_dir = t(6)[0] ? t(6)[0] : 'N';
+    char lon_dir = t(8)[0] ? t(8)[0] : 'E';
     if (lat_dir == 'S')
       gi.lat_deg = -std::fabs(gi.lat_deg);
     if (lon_dir == 'W')
       gi.lon_deg = -std::fabs(gi.lon_deg);
 
-    (void) to_double(T(11), gi.alt_m);
-    (void) to_double(T(12), gi.spd);
-    (void) to_double(T(13), gi.cog_deg);
-    (void) to_double(T(14), gi.hdop);
+    (void) to_double(t(11), gi.alt_m);
+    (void) to_double(t(12), gi.spd);
+    (void) to_double(t(13), gi.cog_deg);
+    (void) to_double(t(14), gi.hdop);
 
-    (void) parse_time_hhmmss(T(10), hh, mm, ss);
-    (void) parse_date_ddmmyy(T(9), dd, mo, yy);
+    (void) parse_time_hhmmss(t(10), hh, mm, ss);
+    (void) parse_date_ddmmyy(t(9), dd, mo, yy);
 
     int fix_status = 0;
-    (void) to_int(T(2), fix_status);
+    (void) to_int(t(2), fix_status);
     gi.fix_valid = (fix_status > 0) || (gi.sat_used > 0);
 
   } else if (n == 17) {
@@ -195,35 +195,35 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
     // mode, sat_used, unknown, sat_view, fix_status, lat, N/S, lon, E/W, date, time, alt, spd, cog, hdop, vdop, pdop
 
     int sat_used = 0;
-    (void) to_int(T(1), sat_used);
+    (void) to_int(t(1), sat_used);
     gi.sat_used = sat_used;
 
     double lat_ddmm = NAN, lon_ddmm = NAN;
-    (void) to_double(T(5), lat_ddmm);
-    (void) to_double(T(7), lon_ddmm);
+    (void) to_double(t(5), lat_ddmm);
+    (void) to_double(t(7), lon_ddmm);
 
     int lat_d = static_cast<int>(lat_ddmm / 100.0);
     gi.lat_deg = lat_d + (lat_ddmm - lat_d * 100.0) / 60.0;
     int lon_d = static_cast<int>(lon_ddmm / 100.0);
     gi.lon_deg = lon_d + (lon_ddmm - lon_d * 100.0) / 60.0;
 
-    char lat_dir = (T(6)[0]) ? T(6)[0] : 'N';
-    char lon_dir = (T(8)[0]) ? T(8)[0] : 'E';
+    char lat_dir = (t(6)[0]) ? t(6)[0] : 'N';
+    char lon_dir = (t(8)[0]) ? t(8)[0] : 'E';
     if (lat_dir == 'S')
       gi.lat_deg = -gi.lat_deg;
     if (lon_dir == 'W')
       gi.lon_deg = -gi.lon_deg;
 
-    (void) to_double(T(11), gi.alt_m);
-    (void) to_double(T(12), gi.spd);
-    (void) to_double(T(13), gi.cog_deg);
-    (void) to_double(T(14), gi.hdop);
+    (void) to_double(t(11), gi.alt_m);
+    (void) to_double(t(12), gi.spd);
+    (void) to_double(t(13), gi.cog_deg);
+    (void) to_double(t(14), gi.hdop);
 
-    (void) parse_time_hhmmss(T(10), hh, mm, ss);
-    (void) parse_date_ddmmyy(T(9), dd, mo, yy);
+    (void) parse_time_hhmmss(t(10), hh, mm, ss);
+    (void) parse_date_ddmmyy(t(9), dd, mo, yy);
 
     int fix_status = 0;
-    (void) to_int(T(4), fix_status);
+    (void) to_int(t(4), fix_status);
     gi.fix_valid = (fix_status > 0) || (gi.sat_used > 0);
 
   } else if (n == 16) {
@@ -233,35 +233,35 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
       return false;
 
     int sat_used = 0;
-    (void) to_int(T(1), sat_used);
+    (void) to_int(t(1), sat_used);
     gi.sat_used = sat_used;
 
     double lat_ddmm = NAN, lon_ddmm = NAN;
-    (void) to_double(T(4), lat_ddmm);
-    (void) to_double(T(6), lon_ddmm);
+    (void) to_double(t(4), lat_ddmm);
+    (void) to_double(t(6), lon_ddmm);
 
     int lat_d = static_cast<int>(lat_ddmm / 100.0);
     gi.lat_deg = lat_d + (lat_ddmm - lat_d * 100.0) / 60.0;
     int lon_d = static_cast<int>(lon_ddmm / 100.0);
     gi.lon_deg = lon_d + (lon_ddmm - lon_d * 100.0) / 60.0;
 
-    char lat_dir = T(5)[0] ? T(5)[0] : 'N';
-    char lon_dir = T(7)[0] ? T(7)[0] : 'E';
+    char lat_dir = t(5)[0] ? t(5)[0] : 'N';
+    char lon_dir = t(7)[0] ? t(7)[0] : 'E';
     if (lat_dir == 'S')
       gi.lat_deg = -gi.lat_deg;
     if (lon_dir == 'W')
       gi.lon_deg = -gi.lon_deg;
 
-    (void) to_double(T(10), gi.alt_m);
-    (void) to_double(T(11), gi.spd);
-    (void) to_double(T(12), gi.cog_deg);
-    (void) to_double(T(13), gi.hdop);
+    (void) to_double(t(10), gi.alt_m);
+    (void) to_double(t(11), gi.spd);
+    (void) to_double(t(12), gi.cog_deg);
+    (void) to_double(t(13), gi.hdop);
 
-    (void) parse_time_hhmmss(T(9), hh, mm, ss);
-    (void) parse_date_ddmmyy(T(8), dd, mo, yy);
+    (void) parse_time_hhmmss(t(9), hh, mm, ss);
+    (void) parse_date_ddmmyy(t(8), dd, mo, yy);
 
     int fix_status = 0;
-    (void) to_int(T(3), fix_status);
+    (void) to_int(t(3), fix_status);
     gi.fix_valid = (fix_status > 0) || (gi.sat_used > 0);
 
   } else {

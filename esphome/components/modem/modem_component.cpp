@@ -189,8 +189,8 @@ void ModemComponent::loop() {
     return;
   }
   if (this->has_requested_state_) {
-    if (!(this->requested_state_ == ModemComponentState::DISABLING &&
-          this->component_state_ == ModemComponentState::ENABLING && this->enabling_retry_ > 0)) {
+    if (this->requested_state_ != ModemComponentState::DISABLING ||
+        this->component_state_ != ModemComponentState::ENABLING || this->enabling_retry_ <= 0) {
       this->transition_to_(this->requested_state_);
       this->has_requested_state_ = false;
     }
