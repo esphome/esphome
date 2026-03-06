@@ -267,7 +267,7 @@ bool MQTTComponent::send_discovery_() {
           root[MQTT_UNIQUE_ID] = unique_id_buf;
         }
 
-        const std::string &node_name = App.get_name();
+        const auto &node_name = App.get_name();
         if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR) {
           // node_name (max 31) + "_" (1) + object_id (max 128) + null
           char object_id_full[ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1];
@@ -275,8 +275,8 @@ bool MQTTComponent::send_discovery_() {
           root[MQTT_OBJECT_ID] = object_id_full;
         }
 
-        const std::string &friendly_name_ref = App.get_friendly_name();
-        const std::string &node_friendly_name = friendly_name_ref.empty() ? node_name : friendly_name_ref;
+        const auto &friendly_name_ref = App.get_friendly_name();
+        const auto &node_friendly_name = friendly_name_ref.empty() ? node_name : friendly_name_ref;
         const char *node_area = App.get_area();
 
         JsonObject device_info = root[MQTT_DEVICE].to<JsonObject>();

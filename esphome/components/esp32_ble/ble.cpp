@@ -273,7 +273,7 @@ bool ESP32BLE::ble_setup_() {
       device_name = this->name_;
     }
   } else {
-    const std::string &app_name = App.get_name();
+    const auto &app_name = App.get_name();
     size_t name_len = app_name.length();
     if (name_len > 20) {
       if (App.is_name_add_mac_suffix_enabled()) {

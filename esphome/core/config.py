@@ -50,6 +50,7 @@ from esphome.core import (
 )
 from esphome.helpers import (
     copy_file_if_changed,
+    cpp_string_escape,
     fnv1a_32bit_hash,
     get_str_env,
     walk_files,
@@ -57,6 +58,38 @@ from esphome.helpers import (
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
+
+# C++ variable names and separators for app name buffers (used with MAC suffix)
+_APP_NAME_BUF_VAR = "esphome_app_name_buf"
+_APP_NAME_MAC_SEP = "-"
+_APP_FRIENDLY_NAME_BUF_VAR = "esphome_app_friendly_name_buf"
+_APP_FRIENDLY_NAME_MAC_SEP = " "
+# Placeholder suffix for MAC address (last 6 hex chars)
+_MAC_SUFFIX_PLACEHOLDER = "XXXXXX"
+
+
+def make_app_name_cpp(
+    value: str, var_name: str, sep: str, *, add_mac_suffix: bool
+) -> tuple[str, str | None, int]:
+    """Compute C++ expression and optional global declaration for an app name.
+
+    Returns (cpp_expr, global_decl_or_none, byte_length).
+    - cpp_expr: The C++ expression to pass to pre_setup (var name or string literal).
+    - global_decl: A static char[] declaration string, or None if not needed.
+    - byte_length: The UTF-8 byte length of the string value.
+    """
+    if add_mac_suffix:
+        buf_value = "" if not value else f"{value}{sep}{_MAC_SUFFIX_PLACEHOLDER}"
+        escaped = cpp_string_escape(buf_value)
+        return (
+            var_name,
+            f"static char {var_name}[] = {escaped};",
+            len(buf_value.encode("utf-8")),
+        )
+    if not value:
+        return '""', None, 0
+    return cpp_string_escape(value), None, len(value.encode("utf-8"))
+
 
 StartupTrigger = cg.esphome_ns.class_(
     "StartupTrigger", cg.Component, automation.Trigger.template()
@@ -78,6 +111,8 @@ VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
 
 def validate_hostname(config):
     # Keep in sync with ESPHOME_DEVICE_NAME_MAX_LEN in esphome/core/entity_base.h
+    if not config[CONF_NAME]:
+        raise cv.Invalid("Hostname must not be empty", path=[CONF_NAME])
     max_length = 31
     if config[CONF_NAME_ADD_MAC_SUFFIX]:
         max_length -= 7  # "-AABBCC" is appended when add mac suffix option is used
@@ -555,13 +590,28 @@ async def to_code(config: ConfigType) -> None:
     # Construct App via placement new — see application.cpp for storage details
     cg.add_global(cg.RawStatement("#include <new>"))
     cg.add(cg.RawExpression("new (&App) Application()"))
-    cg.add(
-        cg.App.pre_setup(
-            config[CONF_NAME],
-            config[CONF_FRIENDLY_NAME],
-            config[CONF_NAME_ADD_MAC_SUFFIX],
+    name = config[CONF_NAME]
+    friendly_name = config[CONF_FRIENDLY_NAME]
+    name_add_mac_suffix = config[CONF_NAME_ADD_MAC_SUFFIX]
+
+    def _emit_app_name(
+        value: str, var_name: str, sep: str
+    ) -> tuple[cg.Expression, int]:
+        """Emit codegen for an app name and return (expression, byte_length)."""
+        cpp_expr, global_decl, byte_len = make_app_name_cpp(
+            value, var_name, sep, add_mac_suffix=name_add_mac_suffix
         )
+        if global_decl is not None:
+            cg.add_global(cg.RawStatement(global_decl))
+        return cg.RawExpression(cpp_expr), byte_len
+
+    name_expr, name_len = _emit_app_name(name, _APP_NAME_BUF_VAR, _APP_NAME_MAC_SEP)
+    friendly_expr, friendly_len = _emit_app_name(
+        friendly_name, _APP_FRIENDLY_NAME_BUF_VAR, _APP_FRIENDLY_NAME_MAC_SEP
     )
+    if name_add_mac_suffix:
+        cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")
+    cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
     # Define component count for static allocation
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
 
