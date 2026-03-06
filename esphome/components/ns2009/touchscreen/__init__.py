@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import i2c, touchscreen
 import esphome.config_validation as cv
-from esphome.types import ConfigType
 from esphome.const import CONF_ID, CONF_THRESHOLD
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@tchilov"]
 DEPENDENCIES = ["i2c"]
