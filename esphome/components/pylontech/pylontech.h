@@ -3,11 +3,14 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/components/uart/uart.h"
+#include <vector>
+#include <algorithm>
 
 namespace esphome {
 namespace pylontech {
 
-static const uint8_t NUM_BUFFERS = 20;
+static const uint8_t NUM_BUFFERS = 32;
+static const uint8_t NUM_CELLS = 15;
 static const uint8_t TEXT_SENSOR_MAX_LEN = 14;
 
 class PylontechListener {
@@ -18,7 +21,19 @@ class PylontechListener {
          temp_st[TEXT_SENSOR_MAX_LEN] = {0};
   };
 
+  struct CellLineContents {
+    int bat_num = 0;
+    int cell_num = 0;
+    int volt = 0;
+    int curr = 0;
+    int tempr = 0;
+    int coulomb = 0;
+    int soc = 0;
+    bool balancing = false;
+  };
+
   virtual void on_line_read(LineContents *line);
+  virtual void on_cell_line_read(CellLineContents *line);
   virtual void dump_config();
 };
 
@@ -36,8 +51,21 @@ class PylontechComponent : public PollingComponent, public uart::UARTDevice {
 
   void register_listener(PylontechListener *listener) { this->listeners_.push_back(listener); }
 
+  /// Register a battery number for cell-level data retrieval via the "bat N" command.
+  void request_cell_data(int bat_num) {
+    if (std::find(this->bat_batteries_.begin(), this->bat_batteries_.end(), bat_num) == this->bat_batteries_.end()) {
+      this->bat_batteries_.push_back(bat_num);
+      std::sort(this->bat_batteries_.begin(), this->bat_batteries_.end());
+    }
+  }
+
  protected:
+  enum class State : uint8_t { IDLE, PWR_SENT, BAT_SENT };
+
   void process_line_(std::string &buffer);
+  void parse_pwr_line_(std::string &buffer);
+  void parse_cell_line_(std::string &buffer);
+  void send_bat_command_();
 
   // ring buffer
   std::string buffer_[NUM_BUFFERS];
@@ -46,6 +74,12 @@ class PylontechComponent : public PollingComponent, public uart::UARTDevice {
   bool has_tlow_id_ = false;
 
   std::vector<PylontechListener *> listeners_{};
+
+  // state machine for sequential pwr + bat N commands
+  State state_ = State::IDLE;
+  std::vector<int> bat_batteries_{};
+  int current_bat_index_ = 0;
+  bool send_next_bat_ = false;
 };
 
 }  // namespace pylontech

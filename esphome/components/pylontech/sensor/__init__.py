@@ -27,6 +27,9 @@ CONF_VOLTAGE_LOW = "voltage_low"
 CONF_VOLTAGE_HIGH = "voltage_high"
 CONF_MOS_TEMPERATURE = "mos_temperature"
 
+NUM_CELLS = 15
+
+# Sensors from the "pwr" command
 TYPES: dict[str, cv.Schema] = {
     CONF_VOLTAGE: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
@@ -75,18 +78,52 @@ TYPES: dict[str, cv.Schema] = {
     ),
 }
 
+# Cell-level sensors from the "bat N" command (cell_0_voltage .. cell_14_voltage, etc.)
+CELL_TYPES: dict[str, cv.Schema] = {}
+for _i in range(NUM_CELLS):
+    CELL_TYPES[f"cell_{_i}_voltage"] = sensor.sensor_schema(
+        unit_of_measurement=UNIT_VOLT,
+        accuracy_decimals=3,
+        device_class=DEVICE_CLASS_VOLTAGE,
+    )
+    CELL_TYPES[f"cell_{_i}_temperature"] = sensor.sensor_schema(
+        unit_of_measurement=UNIT_CELSIUS,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+    )
+
+ALL_TYPES = {**TYPES, **CELL_TYPES}
+
 CONFIG_SCHEMA = PYLONTECH_COMPONENT_SCHEMA.extend(
     {cv.GenerateID(): cv.declare_id(PylontechSensor)}
-).extend({cv.Optional(marker): schema for marker, schema in TYPES.items()})
+).extend({cv.Optional(marker): schema for marker, schema in ALL_TYPES.items()})
 
 
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_PYLONTECH_ID])
     bat = cg.new_Pvariable(config[CONF_ID], config[CONF_BATTERY])
 
+    # Register pwr sensors
     for marker in TYPES:
         if marker_config := config.get(marker):
             sens = await sensor.new_sensor(marker_config)
             cg.add(getattr(bat, f"set_{marker}_sensor")(sens))
+
+    # Register cell sensors and request cell data from the parent component
+    has_cells = False
+    for i in range(NUM_CELLS):
+        v_key = f"cell_{i}_voltage"
+        t_key = f"cell_{i}_temperature"
+        if v_config := config.get(v_key):
+            sens = await sensor.new_sensor(v_config)
+            cg.add(bat.set_cell_voltage_sensor(i, sens))
+            has_cells = True
+        if t_config := config.get(t_key):
+            sens = await sensor.new_sensor(t_config)
+            cg.add(bat.set_cell_temperature_sensor(i, sens))
+            has_cells = True
+
+    if has_cells:
+        cg.add(paren.request_cell_data(config[CONF_BATTERY]))
 
     cg.add(paren.register_listener(bat))

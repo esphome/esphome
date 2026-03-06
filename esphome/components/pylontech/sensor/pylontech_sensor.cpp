@@ -23,6 +23,15 @@ void PylontechSensor::dump_config() {
   LOG_SENSOR("  ", "Voltage high", this->voltage_high_sensor_);
   LOG_SENSOR("  ", "Coulomb", this->coulomb_sensor_);
   LOG_SENSOR("  ", "MOS Temperature", this->mos_temperature_sensor_);
+
+  for (int i = 0; i < NUM_CELLS; i++) {
+    if (this->cell_voltage_sensors_[i] != nullptr) {
+      ESP_LOGCONFIG(TAG, "  Cell %d Voltage: YES", i);
+    }
+    if (this->cell_temperature_sensors_[i] != nullptr) {
+      ESP_LOGCONFIG(TAG, "  Cell %d Temperature: YES", i);
+    }
+  }
 }
 
 void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
@@ -55,6 +64,21 @@ void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
   }
   if (this->mos_temperature_sensor_ != nullptr) {
     this->mos_temperature_sensor_->publish_state(((float) line->mostempr) / 1000.0f);
+  }
+}
+
+void PylontechSensor::on_cell_line_read(PylontechListener::CellLineContents *line) {
+  if (this->bat_num_ != line->bat_num) {
+    return;
+  }
+  if (line->cell_num < 0 || line->cell_num >= NUM_CELLS) {
+    return;
+  }
+  if (this->cell_voltage_sensors_[line->cell_num] != nullptr) {
+    this->cell_voltage_sensors_[line->cell_num]->publish_state(((float) line->volt) / 1000.0f);
+  }
+  if (this->cell_temperature_sensors_[line->cell_num] != nullptr) {
+    this->cell_temperature_sensors_[line->cell_num]->publish_state(((float) line->tempr) / 1000.0f);
   }
 }
 
