@@ -295,7 +295,7 @@ void ModemNMEAComponent::update() {
   }
 
   // Use base class method to generate NMEA sentences and trigger callbacks
-  this->populate_nmea_from_gnss_info(gi);
+  this->populate_nmea_from_gnss_info_(gi);
 }
 
 }  // namespace nmea
