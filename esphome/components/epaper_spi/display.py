@@ -130,7 +130,8 @@ def customise_schema(config):
         },
         extra=cv.ALLOW_EXTRA,
     )(config)
-    return model_schema(config)(config)
+    model = MODELS[config[CONF_MODEL]]
+    return cv.All(model_schema(config), model.config_validator)(config)
 
 
 CONFIG_SCHEMA = customise_schema
@@ -140,12 +141,6 @@ def _final_validate(config):
     spi.final_validate_device_schema(
         "epaper_spi", require_miso=False, require_mosi=True
     )(config)
-
-    model = MODELS[config[CONF_MODEL]]
-
-    validator = model.get_config_validator()
-    if validator is not None:
-        config = validator(config)
 
     global_config = full_config.get()
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN

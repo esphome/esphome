@@ -17,24 +17,14 @@ class T133A01(EpaperModel):
     ):
         super().__init__(name, class_name, initsequence=tuple(initsequence), **defaults)
 
-    def get_config_validator(self):
-        def validator(config):
-            width, _ = self.get_dimensions(config)
-            if width % 4 != 0:
-                raise cv.Invalid(
-                    "T133A01 requires the display width to be divisible by 4"
-                )
-            return config
-
-        return validator
+    def config_validator(self, config):
+        width, _ = self.get_dimensions(config)
+        if width % 4 != 0:
+            raise cv.Invalid("T133A01 requires the display width to be divisible by 4")
+        return config
 
     def get_config_schema(self) -> dict:
-        return {
-            cv.Optional(
-                CONF_CS1_PIN,
-                default=self.get_default(CONF_CS1_PIN, cv.UNDEFINED),
-            ): pins.gpio_output_pin_schema,
-        }
+        return {self.option(CONF_CS1_PIN): pins.gpio_output_pin_schema}
 
     async def to_code(self, config: dict, var) -> None:
         if cs1_pin := config.get(CONF_CS1_PIN):

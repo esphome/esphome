@@ -40,7 +40,7 @@ constexpr NATIVE_COLOR color_to_bwyr(Color color, NATIVE_COLOR hw_black, NATIVE_
   if ((max_rgb - min_rgb) < COLORCONV_GRAY_THRESHOLD) {
     // It's a shade of gray. Map to BLACK or WHITE.
     // We split the luminance at the halfway point (382 = (255*3)/2)
-    if ((static_cast<int>(color.r) + color.g + color.b) > 382) {
+    if ((color.r + color.g + color.b) > 382) {
       return hw_white;
     }
     return hw_black;
@@ -82,7 +82,7 @@ constexpr NATIVE_COLOR color_to_bgrwy(Color color, NATIVE_COLOR hw_black, NATIVE
                                       NATIVE_COLOR hw_white, NATIVE_COLOR hw_yellow, NATIVE_COLOR hw_blue) {
   const auto [min_rgb, max_rgb] = std::minmax({color.r, color.g, color.b});
   if ((max_rgb - min_rgb) < COLORCONV_GRAY_THRESHOLD) {
-    if ((static_cast<int>(color.r) + color.g + color.b) > 382) {
+    if ((color.r + color.g + color.b) > 382) {
       return hw_white;
     }
     return hw_black;
