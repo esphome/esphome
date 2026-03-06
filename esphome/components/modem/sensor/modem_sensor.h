@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/defines.h"
 
@@ -37,4 +37,4 @@ class ModemSensor : public PollingComponent {
 
 #endif  // USE_MODEM
 #endif  // USE_SENSOR
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

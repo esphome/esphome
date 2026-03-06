@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/defines.h"
 
@@ -62,4 +62,4 @@ void ModemSensor::update_signal_sensors_() {
 
 #endif  // USE_MODEM
 #endif  // USE_SENSOR
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

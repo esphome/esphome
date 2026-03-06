@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/defines.h"
 
@@ -94,4 +94,4 @@ void GnssSwitch::write_state(bool state) { this->state = state; }
 
 #endif  // USE_MODEM
 #endif  // USE_SWITCH
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

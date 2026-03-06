@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/defines.h"
 
@@ -70,4 +70,4 @@ void ModemTextSensor::update_signal_strength_text_sensor_() {
 
 #endif  // USE_MODEM
 #endif  // USE_TEXT_SENSOR
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32
