@@ -21,13 +21,12 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
-AUTO_LOAD = ["uart"]
 
-# needs https://github.com/esphome/esphome/pull/14174
-# def DEPENDENCIES():
-#     if CORE.using_zephyr:
-#         return []
-#     return ["tinyusb"]
+
+def AUTO_LOAD():
+    if CORE.using_zephyr:
+        return ["uart"]
+    return ["uart", "tinyusb"]
 
 
 CONF_INTERFACES = "interfaces"
