@@ -208,6 +208,20 @@ template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel val
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::DSTRuleType>(enums::DSTRuleType value) {
+  switch (value) {
+    case enums::DST_RULE_TYPE_NONE:
+      return "DST_RULE_TYPE_NONE";
+    case enums::DST_RULE_TYPE_MONTH_WEEK_DAY:
+      return "DST_RULE_TYPE_MONTH_WEEK_DAY";
+    case enums::DST_RULE_TYPE_JULIAN_NO_LEAP:
+      return "DST_RULE_TYPE_JULIAN_NO_LEAP";
+    case enums::DST_RULE_TYPE_DAY_OF_YEAR:
+      return "DST_RULE_TYPE_DAY_OF_YEAR";
+    default:
+      return "UNKNOWN";
+  }
+}
 #ifdef USE_API_USER_DEFINED_ACTIONS
 template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::ServiceArgType value) {
   switch (value) {
@@ -1254,10 +1268,35 @@ const char *GetTimeRequest::dump_to(DumpBuffer &out) const {
   out.append("GetTimeRequest {}");
   return out.c_str();
 }
+const char *DSTRule::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "DSTRule");
+  dump_field(out, "time_seconds", this->time_seconds);
+  dump_field(out, "day", this->day);
+  dump_field(out, "type", static_cast<enums::DSTRuleType>(this->type));
+  dump_field(out, "month", this->month);
+  dump_field(out, "week", this->week);
+  dump_field(out, "day_of_week", this->day_of_week);
+  return out.c_str();
+}
+const char *ParsedTimezone::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "ParsedTimezone");
+  dump_field(out, "std_offset_seconds", this->std_offset_seconds);
+  dump_field(out, "dst_offset_seconds", this->dst_offset_seconds);
+  out.append("  dst_start: ");
+  this->dst_start.dump_to(out);
+  out.append("\n");
+  out.append("  dst_end: ");
+  this->dst_end.dump_to(out);
+  out.append("\n");
+  return out.c_str();
+}
 const char *GetTimeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "GetTimeResponse");
   dump_field(out, "epoch_seconds", this->epoch_seconds);
   dump_field(out, "timezone", this->timezone);
+  out.append("  parsed_timezone: ");
+  this->parsed_timezone.dump_to(out);
+  out.append("\n");
   return out.c_str();
 }
 #ifdef USE_API_USER_DEFINED_ACTIONS

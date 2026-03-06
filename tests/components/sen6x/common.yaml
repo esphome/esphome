@@ -12,19 +12,19 @@ sensor:
       accuracy_decimals: 0
     pm_1_0:
       name: PM <1µm Weight concentration
-      id: pm_1_0
+      id: sen6x_pm_1_0
       accuracy_decimals: 1
     pm_2_5:
       name: PM <2.5µm Weight concentration
-      id: pm_2_5
+      id: sen6x_pm_2_5
       accuracy_decimals: 1
     pm_4_0:
       name: PM <4µm Weight concentration
-      id: pm_4_0
+      id: sen6x_pm_4_0
       accuracy_decimals: 1
     pm_10_0:
       name: PM <10µm Weight concentration
-      id: pm_10_0
+      id: sen6x_pm_10_0
       accuracy_decimals: 1
     nox:
       name: NOx
