@@ -6,7 +6,6 @@
 # Writes sdkconfig.defaults so CONFIG_VFS_SUPPORT_SELECT=y (fixes linker undefined reference
 # to esp_vfs_select_triggered / esp_vfs_select_triggered_isr).
 # Maintainer: Massimiliano
-Import("env")
 try:
     Import("env")
 except NameError:
