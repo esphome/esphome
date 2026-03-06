@@ -4,7 +4,6 @@ from esphome import automation, pins
 import esphome.codegen as cg
 
 # from esphome.components.wifi import wifi_has_sta  # uncomment after PR #4091 is merged
-from esphome.components import uart
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 import esphome.config_validation as cv
 from esphome.const import (
@@ -16,7 +15,6 @@ from esphome.const import (
     CONF_MODEL,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
-    CONF_ON_UPDATE,
     CONF_PASSWORD,
     CONF_PIN,
     CONF_REBOOT_TIMEOUT,
@@ -59,8 +57,6 @@ CONF_ON_ENABLE = "on_enable"
 CONF_ON_DISABLE = "on_disable"
 CONF_ENABLE_CMUX = "enable_cmux"
 CONF_DTE_BUFFER_SIZE = "dte_buffer_size"
-CONF_NMEA = "nmea"
-CONF_GNSS_COMMAND = "gnss_command"
 
 MODEM_MODELS = [
     "BG96",
@@ -113,20 +109,8 @@ MODEM_MODELS_POWER = {
 MODEM_MODELS_POWER["SIM7070"] = MODEM_MODELS_POWER["SIM7080"]
 MODEM_MODELS_POWER["SIM7670"] = MODEM_MODELS_POWER["SIM7600"]
 
-MODEM_MODELS_GNSS_QUERY = {
-    "SIM7600": {"command": "AT+CGNSSINFO"},
-    # WARNING: some 7670 doesn't have gnss firmware support. Firmware version from ATI must end with '_F'
-    "SIM7670": {"command": "AT+CGNSSINFO"},
-    # SIM7080G cannot connect to cellular network and GPS positioning at the same time
-    #    "SIM7080": {"command": "AT+CGNSINF"},
-}
-
-
 modem_ns = cg.esphome_ns.namespace("modem")
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
-ModemNMEAUARTComponent = modem_ns.class_(
-    "ModemNMEAUARTComponent", uart.UARTComponent, cg.PollingComponent
-)
 
 # Triggers
 ModemComponentState = modem_ns.enum("ModemComponentState")
@@ -147,9 +131,6 @@ ModemOnEnableTrigger = modem_ns.class_(
 )
 ModemOnDisableTrigger = modem_ns.class_(
     "ModemOnDisableTrigger", automation.Trigger.template()
-)
-ModemNMEAOnUpdateTrigger = modem_ns.class_(
-    "ModemNMEAOnUpdateTrigger", automation.Trigger.template()
 )
 
 # Actions
@@ -209,21 +190,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="10min"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_NMEA): cv.All(
-                cv.Schema(
-                    {
-                        cv.GenerateID(CONF_ID): cv.declare_id(ModemNMEAUARTComponent),
-                        cv.Optional(CONF_GNSS_COMMAND): cv.string,
-                        cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
-                            {
-                                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                    ModemNMEAOnUpdateTrigger
-                                )
-                            }
-                        ),
-                    }
-                ).extend(cv.polling_component_schema("20s"))
-            ),
             cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -319,21 +285,6 @@ def _final_validate(config):
             CONF_SAFE_MODE,
             CONF_MODEM,
         )
-
-    if CONF_NMEA in config:
-        # fconf = fv.full_config.get()
-        # modem_path = fconf.get_path_for_id(config[CONF_MODEM_ID])[:-1]
-        # modem_config = fconf.get_config_for_path(modem_path)
-        model = config.get(CONF_MODEL, None)
-
-        if model not in MODEM_MODELS_GNSS_QUERY:
-            raise cv.Invalid(
-                f"NMEA not supported for modem '{model}'. Supported models: {', '.join(MODEM_MODELS_GNSS_QUERY)}"
-            )
-
-        gnss = MODEM_MODELS_GNSS_QUERY[model]
-        if CONF_GNSS_COMMAND not in config[CONF_NMEA]:
-            config[CONF_NMEA][CONF_GNSS_COMMAND] = gnss["command"]
 
     return config
 
@@ -492,21 +443,6 @@ async def to_code(config):
 
     if dte_buffer_size := config.get(CONF_DTE_BUFFER_SIZE, None):
         cg.add(var.set_dte_buffer_size(dte_buffer_size))
-
-    if nmea := config.get(CONF_NMEA, None):
-        cg.add_define("USE_MODEM_NMEA")
-        AUTO_LOAD.append("uart")
-        nmea_uart = cg.new_Pvariable(nmea[CONF_ID])
-
-        cg.add(nmea_uart.set_gnss_command(nmea[CONF_GNSS_COMMAND]))
-
-        await cg.register_component(nmea_uart, nmea)
-
-        cg.add(var.set_nmea_uart(nmea_uart))
-
-        for conf in nmea.get(CONF_ON_UPDATE, []):
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], nmea_uart)
-            await automation.build_automation(trigger, [], conf)
 
     for conf_key in [
         CONF_ON_NOT_RESPONDING,

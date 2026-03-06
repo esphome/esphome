@@ -7,10 +7,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/preferences.h"
 #include "esphome/components/network/ip_address.h"
-#ifdef USE_MODEM_NMEA
-#include "esphome/components/uart/uart.h"
-#include "modem_nmea_uart_component.h"
-#endif
 
 #include <unordered_map>
 #include <memory>
@@ -64,9 +60,6 @@ class ModemComponent : public Component {
   void set_rx_buffer_size(uint16_t rx_buffer_size) { this->modem_handler->rx_buffer_size = rx_buffer_size; }
   void set_dte_buffer_size(uint16_t dte_buffer_size) { this->modem_handler->dte_buffer_size = dte_buffer_size; }
   void set_apn(const std::string &apn) { this->modem_handler->apn = apn; }
-#ifdef USE_MODEM_NMEA
-  void set_nmea_uart(ModemNMEAUARTComponent *nmea_uart) { this->nmea_uart_ = nmea_uart; }
-#endif
   void enable_cmux() { this->modem_handler->cmux = true; }
   void enable_debug() { this->modem_handler->enable_debug(); }
   void add_init_at_command(const std::string &cmd) { this->modem_handler->init_at_commands.push_back(cmd); }
@@ -124,9 +117,6 @@ class ModemComponent : public Component {
   // Attributes from YAML config
   uint32_t timeout_;
   CallbackManager<void(ModemComponentState, ModemComponentState)> on_state_callback_;
-#ifdef USE_MODEM_NMEA
-  ModemNMEAUARTComponent *nmea_uart_{nullptr};
-#endif
 
   // Changes will trigger user callback
   ModemComponentState component_state_{ModemComponentState::DISABLED};

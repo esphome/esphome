@@ -1,30 +1,17 @@
-#include "esphome/components/uart/uart.h"
+#ifdef USE_ESP_IDF
+#include "modem_nmea.h"
+#include "esphome/components/modem/modem_component.h"
+#include "esphome/components/modem/helpers.h"
 #include "esphome/core/log.h"
-#include "modem_nmea_uart_component.h"
-#include "modem_component.h"
-#include "helpers.h"
 #include <cmath>
 #include <cstring>
-#ifdef USE_ESP_IDF
+
 namespace esphome {
-namespace modem {
+namespace nmea {
 
-static const char *const TAG = "modem.nmea_uart";
+static const char *const TAG = "modem.nmea";
 
-struct GnssInfo {
-  double lat_deg = NAN;
-  double lon_deg = NAN;
-  double alt_m = NAN;
-  double hdop = NAN;
-  double cog_deg = NAN;
-  double spd = NAN;  // knots (normalized)
-  int sat_used = 0;
-  bool fix_valid = false;
-  int hh = 0, mm = 0, ss = 0;
-  int dd = 1, mo = 1, yy = 0;  // yy: two digits
-};
-
-// some functions are maybe_unused, because #ifdef are used in parse_gnssinfo
+// Helper functions for parsing
 [[maybe_unused]] static inline bool to_double(const char *s, double &v) {
   if (s == nullptr || *s == '\0')
     return false;
@@ -42,17 +29,6 @@ struct GnssInfo {
     return false;
   v = static_cast<int>(t);
   return true;
-}
-
-[[maybe_unused]] static inline void deg_to_ddmm_mmmm(double deg, char *out, size_t n, bool is_lon) {
-  double a = std::fabs(deg);
-  int d = static_cast<int>(a);
-  double m = (a - d) * 60.0;
-  if (is_lon) {
-    std::snprintf(out, n, "%03d%07.4f", d, m);
-  } else {
-    std::snprintf(out, n, "%02d%07.4f", d, m);
-  }
 }
 
 [[maybe_unused]] static bool parse_time_hhmmss(const char *s, int &hh, int &mm, int &ss) {
@@ -101,11 +77,31 @@ struct GnssInfo {
   return count;
 }
 
-static inline uint8_t nmea_checksum(const char *s) {
-  uint8_t cs = 0;
-  for (; *s; ++s)
-    cs ^= static_cast<uint8_t>(*s);
-  return cs;
+// Helper to convert parsed date/time to time_t (UTC)
+// Uses mktime with temporary TZ change since timegm is not available
+static time_t make_utc_time(int year, int month, int day, int hour, int min, int sec) {
+  struct tm timeinfo = {};
+  timeinfo.tm_year = year + (year < 100 ? 100 : -1900);  // Convert YY to years since 1900
+  timeinfo.tm_mon = month - 1;                           // tm_mon is 0-11
+  timeinfo.tm_mday = day;
+  timeinfo.tm_hour = hour;
+  timeinfo.tm_min = min;
+  timeinfo.tm_sec = sec;
+  timeinfo.tm_isdst = 0;  // UTC has no DST
+
+  // Temporarily set TZ to UTC, use mktime, then restore
+  char *old_tz = getenv("TZ");
+  setenv("TZ", "UTC", 1);
+  tzset();
+  time_t result = mktime(&timeinfo);
+  if (old_tz) {
+    setenv("TZ", old_tz, 1);
+  } else {
+    unsetenv("TZ");
+  }
+  tzset();
+
+  return result;
 }
 
 static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
@@ -124,6 +120,8 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
   auto T = [&](int idx) -> const char * { return (idx >= 0 && idx < n) ? tok[idx] : ""; };
 
   ESP_LOGV(TAG, "Parsing CGNSSINFO with %d tokens", n);
+
+  int hh = 0, mm = 0, ss = 0, dd = 1, mo = 1, yy = 0;
 
   if (n >= 21) {
     // +CGNSINF (21 tokens)
@@ -148,12 +146,12 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
     const char *utc = T(2);
     if (utc && std::strlen(utc) >= 14) {
       int yyyy = (utc[0] - '0') * 1000 + (utc[1] - '0') * 100 + (utc[2] - '0') * 10 + (utc[3] - '0');
-      gi.yy = yyyy % 100;
-      gi.mo = (utc[4] - '0') * 10 + (utc[5] - '0');
-      gi.dd = (utc[6] - '0') * 10 + (utc[7] - '0');
-      gi.hh = (utc[8] - '0') * 10 + (utc[9] - '0');
-      gi.mm = (utc[10] - '0') * 10 + (utc[11] - '0');
-      gi.ss = (utc[12] - '0') * 10 + (utc[13] - '0');
+      yy = yyyy;
+      mo = (utc[4] - '0') * 10 + (utc[5] - '0');
+      dd = (utc[6] - '0') * 10 + (utc[7] - '0');
+      hh = (utc[8] - '0') * 10 + (utc[9] - '0');
+      mm = (utc[10] - '0') * 10 + (utc[11] - '0');
+      ss = (utc[12] - '0') * 10 + (utc[13] - '0');
     }
 
     int fix = 0;
@@ -186,8 +184,8 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
     (void) to_double(T(13), gi.cog_deg);
     (void) to_double(T(14), gi.hdop);
 
-    (void) parse_time_hhmmss(T(10), gi.hh, gi.mm, gi.ss);
-    (void) parse_date_ddmmyy(T(9), gi.dd, gi.mo, gi.yy);
+    (void) parse_time_hhmmss(T(10), hh, mm, ss);
+    (void) parse_date_ddmmyy(T(9), dd, mo, yy);
 
     int fix_status = 0;
     (void) to_int(T(2), fix_status);
@@ -222,8 +220,8 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
     (void) to_double(T(13), gi.cog_deg);
     (void) to_double(T(14), gi.hdop);
 
-    (void) parse_time_hhmmss(T(10), gi.hh, gi.mm, gi.ss);
-    (void) parse_date_ddmmyy(T(9), gi.dd, gi.mo, gi.yy);
+    (void) parse_time_hhmmss(T(10), hh, mm, ss);
+    (void) parse_date_ddmmyy(T(9), dd, mo, yy);
 
     int fix_status = 0;
     (void) to_int(T(4), fix_status);
@@ -260,8 +258,8 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
     (void) to_double(T(12), gi.cog_deg);
     (void) to_double(T(13), gi.hdop);
 
-    (void) parse_time_hhmmss(T(9), gi.hh, gi.mm, gi.ss);
-    (void) parse_date_ddmmyy(T(8), gi.dd, gi.mo, gi.yy);
+    (void) parse_time_hhmmss(T(9), hh, mm, ss);
+    (void) parse_date_ddmmyy(T(8), dd, mo, yy);
 
     int fix_status = 0;
     (void) to_int(T(3), fix_status);
@@ -272,23 +270,18 @@ static bool parse_cgnssinfo(const std::string &line, GnssInfo &gi) {
     return false;
   }
 
+  // Convert parsed time to time_t
+  gi.utc_time = make_utc_time(yy, mo, dd, hh, mm, ss);
+
   return std::isfinite(gi.lat_deg) && std::isfinite(gi.lon_deg);
 }
 
-bool ModemNMEAUARTComponent::read_array(uint8_t *data, size_t len) {
-  if (available() < static_cast<int>(len))
-    return false;
-  std::memcpy(data, this->nmea_buffer_ + this->read_ptr_, len);
-  this->read_ptr_ += len;
-  return true;
-}
-
-void ModemNMEAUARTComponent::update() {
-  if (!global_modem_component->modem_handler || !global_modem_component->modem_handler->dce ||
-      global_modem_component->modem_handler->dce->sync() != esp_modem::command_result::OK)
+void ModemNMEAComponent::update() {
+  if (!modem::global_modem_component->modem_handler || !modem::global_modem_component->modem_handler->dce ||
+      modem::global_modem_component->modem_handler->dce->sync() != esp_modem::command_result::OK)
     return;
 
-  AtCommandResult gnss_command = global_modem_component->modem_handler->send_at(this->gnss_command_);
+  modem::AtCommandResult gnss_command = modem::global_modem_component->modem_handler->send_at(this->gnss_command_);
   if (!gnss_command.success) {
     ESP_LOGE(TAG, "Failed to execute GNSS command '%s'", this->gnss_command_.c_str());
     return;
@@ -301,66 +294,11 @@ void ModemNMEAUARTComponent::update() {
     ESP_LOGW(TAG, "Invalid GNSS data");
     return;
   }
-  if (!gi.fix_valid || !std::isfinite(gi.hdop) || gi.sat_used <= 0) {
-    ESP_LOGW(TAG, "GNSS not fixed");
-    return;
-  }
 
-  char lat_ddmm[16], lon_ddmm[16];
-  deg_to_ddmm_mmmm(gi.lat_deg, lat_ddmm, sizeof(lat_ddmm), false);
-  deg_to_ddmm_mmmm(gi.lon_deg, lon_ddmm, sizeof(lon_ddmm), true);
-
-  char lat_dir = gi.lat_deg >= 0 ? 'N' : 'S';
-  char lon_dir = gi.lon_deg >= 0 ? 'E' : 'W';
-
-  char time_str[11];
-  std::snprintf(time_str, sizeof(time_str), "%02d%02d%02d.00", gi.hh, gi.mm, gi.ss);
-
-  char date_str[7];
-  std::snprintf(date_str, sizeof(date_str), "%02d%02d%02d", gi.dd, gi.mo, gi.yy);
-
-  int fix_quality = gi.fix_valid ? 1 : 0;
-
-  char gga[160];
-  char sat_str[3];
-  std::snprintf(sat_str, sizeof(sat_str), "%02d", std::min(gi.sat_used, 99));
-  std::snprintf(gga, sizeof(gga), "GPGGA,%s,%s,%c,%s,%c,%d,%s,%.1f,%.1f,M,,M,,", time_str, lat_ddmm, lat_dir, lon_ddmm,
-                lon_dir, fix_quality, sat_str, std::isfinite(gi.hdop) ? gi.hdop : 0.0,
-                std::isfinite(gi.alt_m) ? gi.alt_m : 0.0);
-  uint8_t cs_gga = nmea_checksum(gga);
-  char full_gga[176];
-  std::snprintf(full_gga, sizeof(full_gga), "$%s*%02X\r\n", gga, cs_gga);
-
-  double spd_out = std::isfinite(gi.spd) ? gi.spd : 0.0;
-  double cog_out = std::isfinite(gi.cog_deg) ? gi.cog_deg : 0.0;
-
-  char rmc[160];
-  std::snprintf(rmc, sizeof(rmc), "GPRMC,%s,A,%s,%c,%s,%c,%.1f,%.1f,%s,,,", time_str, lat_ddmm, lat_dir, lon_ddmm,
-                lon_dir, spd_out, cog_out, date_str);
-  uint8_t cs_rmc = nmea_checksum(rmc);
-  char full_rmc[176];
-  std::snprintf(full_rmc, sizeof(full_rmc), "$%s*%02X\r\n", rmc, cs_rmc);
-
-  ESP_LOGI(TAG, "GPGGA: %s", full_gga);
-  ESP_LOGI(TAG, "GPRMC: %s", full_rmc);
-
-  size_t gga_len = std::strlen(full_gga);
-  size_t rmc_len = std::strlen(full_rmc);
-  size_t total = gga_len + rmc_len;
-
-  if (total <= sizeof(this->nmea_buffer_)) {
-    std::memcpy(this->nmea_buffer_, full_gga, gga_len);
-    std::memcpy(this->nmea_buffer_ + gga_len, full_rmc, rmc_len);
-    this->nmea_buffer_size_ = total;
-    this->read_ptr_ = 0;
-
-    // Trigger the on_update callback
-    this->on_update_callback_.call();
-  } else {
-    ESP_LOGW(TAG, "NMEA buffer too small (%u needed)", (unsigned) total);
-  }
+  // Use base class method to generate NMEA sentences and trigger callbacks
+  this->populate_nmea_from_gnss_info(gi);
 }
 
-}  // namespace modem
+}  // namespace nmea
 }  // namespace esphome
 #endif  // USE_ESP_IDF
