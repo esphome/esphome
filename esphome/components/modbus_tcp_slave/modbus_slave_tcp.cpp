@@ -1,16 +1,17 @@
-// NOLINTBEGIN - Modbus protocol uses master/slave terminology (IEC 61158)
-#include "modbus_slave_tcp.h"
+// NOLINTBEGIN - esp-modbus API uses controller/device (mbc_slave_*) naming  // NOLINT
+#include "modbus_slave_tcp.h"  // NOLINT
 #include "esp_err.h"
 #include "esphome/core/log.h"
 
-namespace modbus_tcp_slave {
+namespace esphome {
+namespace modbus_tcp_slave {  // NOLINT
 
-void ModbusSlaveTCP::dump_config() {
-  ESP_LOGCONFIG(TAG, "Modbus TCP Slave: port %u, slave_id %u, num_objects %u", (unsigned) port_, (unsigned) slave_id_,
+void ModbusSlaveTCP::dump_config() {  // NOLINT
+  ESP_LOGCONFIG(TAG, "Modbus TCP device: port %u, unit_id %u, num_objects %u", (unsigned) port_, (unsigned) unit_id_,
                 (unsigned) num_objects_);
 }
 
-void ModbusSlaveTCP::loop() {
+void ModbusSlaveTCP::loop() {  // NOLINT
   if (modbus_attempted_)
     return;
   if (!esphome::wifi::global_wifi_component || !esphome::wifi::global_wifi_component->is_connected())
@@ -18,15 +19,15 @@ void ModbusSlaveTCP::loop() {
   start_modbus_();
 }
 
-void ModbusSlaveTCP::start_modbus_() {
+void ModbusSlaveTCP::start_modbus_() {  // NOLINT
   modbus_attempted_ = true;  // only try once; avoid retries that leak contexts and hit EADDRINUSE
 
-  ESP_LOGI(TAG, "Starting Modbus TCP Slave, port %u, slave_id %u", (unsigned) port_, (unsigned) slave_id_);
+  ESP_LOGI(TAG, "Starting Modbus TCP device, port %u, unit_id %u", (unsigned) port_, (unsigned) unit_id_);
 
   mb_communication_info_t config = {};
   config.tcp_opts.mode = MB_TCP;
   config.tcp_opts.port = port_;
-  config.tcp_opts.uid = slave_id_;
+  config.tcp_opts.uid = unit_id_;
   config.tcp_opts.response_tout_ms = MB_RESPONSE_TIMEOUT_MS;
   config.tcp_opts.test_tout_us = 0;
   config.tcp_opts.addr_type = MB_IPV4;
@@ -35,9 +36,9 @@ void ModbusSlaveTCP::start_modbus_() {
   config.tcp_opts.dns_name = nullptr;
   config.tcp_opts.start_disconnected = false;
 
-  esp_err_t err = mbc_slave_create_tcp(&config, &slave_handler_);
+  esp_err_t err = mbc_slave_create_tcp(&config, &device_handler_);  // NOLINT
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "mbc_slave_create_tcp failed: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "mbc_slave_create_tcp failed: %s", esp_err_to_name(err));  // NOLINT
     return;
   }
 
@@ -50,39 +51,40 @@ void ModbusSlaveTCP::start_modbus_() {
   reg_area.access = MB_ACCESS_RW;
   reg_area.address = (void *) &holding_reg_params;
   reg_area.size = reg_bytes;
-  mbc_slave_set_descriptor(slave_handler_, reg_area);
+  mbc_slave_set_descriptor(device_handler_, reg_area);  // NOLINT
 
   reg_area.type = MB_PARAM_INPUT;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RO;
   reg_area.address = (void *) &input_reg_params;
   reg_area.size = reg_bytes;
-  mbc_slave_set_descriptor(slave_handler_, reg_area);
+  mbc_slave_set_descriptor(device_handler_, reg_area);  // NOLINT
 
   reg_area.type = MB_PARAM_COIL;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RW;
   reg_area.address = (void *) &coil_reg_params;
   reg_area.size = coil_bytes;
-  mbc_slave_set_descriptor(slave_handler_, reg_area);
+  mbc_slave_set_descriptor(device_handler_, reg_area);  // NOLINT
 
   reg_area.type = MB_PARAM_DISCRETE;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RO;
   reg_area.address = (void *) &discrete_reg_params;
   reg_area.size = coil_bytes;
-  mbc_slave_set_descriptor(slave_handler_, reg_area);
+  mbc_slave_set_descriptor(device_handler_, reg_area);  // NOLINT
 
-  err = mbc_slave_start(slave_handler_);
+  err = mbc_slave_start(device_handler_);  // NOLINT
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "mbc_slave_start failed: %s", esp_err_to_name(err));
-    (void) mbc_slave_delete(slave_handler_);
-    slave_handler_ = nullptr;
+    ESP_LOGE(TAG, "mbc_slave_start failed: %s", esp_err_to_name(err));  // NOLINT
+    (void) mbc_slave_delete(device_handler_);  // NOLINT
+    device_handler_ = nullptr;
     return;
   }
   modbus_started_ = true;
-  ESP_LOGI(TAG, "Modbus TCP Slave listening on port %u, slave_id %u", (unsigned) port_, (unsigned) slave_id_);
+  ESP_LOGI(TAG, "Modbus TCP device listening on port %u, unit_id %u", (unsigned) port_, (unsigned) unit_id_);
 }
 
-}  // namespace modbus_tcp_slave
+}  // namespace modbus_tcp_slave  // NOLINT
+}  // namespace esphome
 // NOLINTEND

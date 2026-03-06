@@ -2,7 +2,7 @@
 # - test_apps: Unity tests (need unity_fixture.h)
 # - examples: sample apps
 # - tools: mb_example_common has its own modbus_params.c; we use this component's modbus_params.h
-# Also patches mb_slave.c, port_tcp_slave.c for shorter logs.
+# Also patches esp-modbus device/responder sources for shorter logs.
 # Writes sdkconfig.defaults so CONFIG_VFS_SUPPORT_SELECT=y (fixes linker undefined reference
 # to esp_vfs_select_triggered / esp_vfs_select_triggered_isr).
 # Maintainer: Massimiliano
@@ -10,11 +10,11 @@ import contextlib
 
 env = None
 # PlatformIO extra scripts run under SCons, where `Import` exists.
-# Linters execute this as plain Python, so `Import` would be undefined (F821).
+# Linters execute this as plain Python, so SCons is not installed (E0401).
 with contextlib.suppress(Exception):
     try:
-        from SCons.Script import Import as SConsImport  # type: ignore[import-untyped]
-    except Exception:
+        from SCons.Script import Import as SConsImport  # type: ignore[import-untyped]  # pylint: disable=import-error
+    except (ImportError, ModuleNotFoundError):
         SConsImport = None
     if SConsImport is not None:
         SConsImport("env")
@@ -24,7 +24,7 @@ if env is not None:
     import os
     import shutil
 
-    # Set True to patch mb_slave.c for "Modbus request" / "Modbus response" INFO logs (fc, addr, count, len).
+    # Set True to patch esp-modbus device handler for "Modbus request" / "Modbus response" INFO logs (fc, addr, count, len).
     ENABLE_MODBUS_REQUEST_RESPONSE_LOGGING = False
 
     # Merge into sdkconfig.defaults: VFS (required by esp-modbus) + force 4MB flash (board default is 2MB; overrides so "Expected 4MB, found 2MB" goes away).
@@ -46,7 +46,7 @@ if env is not None:
     new_content = "\n".join(lines).rstrip()
     if new_content:
         new_content += "\n"
-    new_content += "\n# modbus_slave_tcp: esp-modbus + 4MB flash\n"
+    new_content += "\n# modbus_tcp_slave: esp-modbus + 4MB flash\n"  # NOLINT
     new_content += _VFS_LINE + "\n" + _FLASH_4MB + "\n"
     with open(dst_defaults, "w", encoding="utf-8") as f:
         f.write(new_content)
@@ -120,7 +120,7 @@ if env is not None:
                 "filter_esp_modbus: excluded test_apps/, examples/, tools/ from esp-modbus build"
             )
 
-        # mb_slave.c: apply or revert request/response logging so runtime matches ENABLE_MODBUS_REQUEST_RESPONSE_LOGGING
+        # esp-modbus device handler: apply or revert request/response logging to match ENABLE_MODBUS_REQUEST_RESPONSE_LOGGING
         old_request = """            mbs_obj->func_code = mbs_obj->frame[MB_PDU_FUNC_OFF];
             exception = mbs_check_invoke_handler(inst, mbs_obj->func_code, mbs_obj->frame, &mbs_obj->length);"""
         new_request = """            mbs_obj->func_code = mbs_obj->frame[MB_PDU_FUNC_OFF];
@@ -145,9 +145,10 @@ if env is not None:
                 ESP_LOGI(TAG, "Modbus response: fc=0x%02x len=%u", (unsigned)mbs_obj->frame[0], (unsigned)mbs_obj->length);
                 MB_PRT_BUF(inst->descr.parent_name, ":MB_SEND", (void *)mbs_obj->frame,"""
 
-        mb_slave_c = os.path.join(lib_dir, "modbus", "mb_objects", "mb_slave.c")
-        if os.path.isfile(mb_slave_c):
-            with open(mb_slave_c, encoding="utf-8") as f:
+        # Library file name is fixed by esp-modbus (mb_objects)
+        mb_device_c = os.path.join(lib_dir, "modbus", "mb_objects", "mb_slave.c")  # NOLINT
+        if os.path.isfile(mb_device_c):
+            with open(mb_device_c, encoding="utf-8") as f:
                 content = f.read()
             modified = False
             if ENABLE_MODBUS_REQUEST_RESPONSE_LOGGING:
@@ -158,10 +159,10 @@ if env is not None:
                     content = content.replace(old_response, new_response)
                     modified = True
                 if modified:
-                    with open(mb_slave_c, "w", encoding="utf-8") as f:
+                    with open(mb_device_c, "w", encoding="utf-8") as f:
                         f.write(content)
                     print(
-                        "filter_esp_modbus: patched mb_slave.c for Modbus request/response logging"
+                        "filter_esp_modbus: patched device handler for Modbus request/response logging"
                     )
             else:
                 # Revert: remove our logging so with False we get no request/response logs
@@ -172,34 +173,34 @@ if env is not None:
                     content = content.replace(new_response, old_response)
                     modified = True
                 if modified:
-                    with open(mb_slave_c, "w", encoding="utf-8") as f:
+                    with open(mb_device_c, "w", encoding="utf-8") as f:
                         f.write(content)
                     print(
-                        "filter_esp_modbus: reverted mb_slave.c request/response logging (ENABLE_MODBUS_REQUEST_RESPONSE_LOGGING=False)"
+                        "filter_esp_modbus: reverted device handler request/response logging (ENABLE_MODBUS_REQUEST_RESPONSE_LOGGING=False)"
                     )
 
-        # Shorten long TCP slave error lines so they are not truncated by the logger (comm fail / connection lost)
-        port_tcp_slave_c = os.path.join(
-            lib_dir, "modbus", "mb_ports", "tcp", "port_tcp_slave.c"
+        # Shorten long TCP device error lines so they are not truncated by the logger (comm fail / connection lost)
+        port_tcp_device_c = os.path.join(
+            lib_dir, "modbus", "mb_ports", "tcp", "port_tcp_slave.c"  # NOLINT
         )
-        if os.path.isfile(port_tcp_slave_c):
-            with open(port_tcp_slave_c, encoding="utf-8") as f:
+        if os.path.isfile(port_tcp_device_c):
+            with open(port_tcp_device_c, encoding="utf-8") as f:
                 content = f.read()
             old_comm_fail = """        ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", communication fail, err= %d"),
                  port_obj, pnode->index, pnode->sock_id,
                  pnode->addr_info.ip_addr_str, (int)ret);"""
-            new_comm_fail = """        ESP_LOGE(TAG, "master disconnected sock#%d err=%d",
+            new_comm_fail = """        ESP_LOGE(TAG, "controller disconnected sock#%d err=%d",
                  (int)pnode->sock_id, (int)ret);"""
             old_conn_lost = """        ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", connection lost, err=%d, drop connection."),
                  port_obj, pnode->index, pnode->sock_id,
                  pnode->addr_info.ip_addr_str, (int)ret);"""
-            new_conn_lost = """        ESP_LOGE(TAG, "master disconnected sock#%d err=%d",
+            new_conn_lost = """        ESP_LOGE(TAG, "controller disconnected sock#%d err=%d",
                  (int)pnode->sock_id, (int)ret);"""
-            # Also upgrade already-patched messages to short "master disconnected" (fits log line limit)
-            prev_comm_fail = """        ESP_LOGE(TAG, "master disconnected: node #%d sock(#%d)(%s) err=%d",
+            # Also upgrade already-patched messages to short "controller disconnected" (fits log line limit)
+            prev_comm_fail = """        ESP_LOGE(TAG, "controller disconnected: node #%d sock(#%d)(%s) err=%d",
                  (int)pnode->index, (int)pnode->sock_id,
                  pnode->addr_info.ip_addr_str, (int)ret);"""
-            prev_conn_lost = """        ESP_LOGE(TAG, "master disconnected: node #%d sock(#%d)(%s) err=%d",
+            prev_conn_lost = """        ESP_LOGE(TAG, "controller disconnected: node #%d sock(#%d)(%s) err=%d",
                  (int)pnode->index, (int)pnode->sock_id,
                  pnode->addr_info.ip_addr_str, (int)ret);"""
             modified = False
@@ -216,8 +217,8 @@ if env is not None:
                 content = content.replace(prev_conn_lost, new_conn_lost)
                 modified = True
             if modified:
-                with open(port_tcp_slave_c, "w", encoding="utf-8") as f:
+                with open(port_tcp_device_c, "w", encoding="utf-8") as f:
                     f.write(content)
                 print(
-                    "filter_esp_modbus: patched port_tcp_slave.c for shorter error lines"
+                    "filter_esp_modbus: patched TCP port handler for shorter error lines"
                 )

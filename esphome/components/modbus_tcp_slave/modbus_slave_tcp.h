@@ -1,5 +1,5 @@
 #pragma once
-// NOLINTBEGIN - Modbus protocol uses master/slave terminology (IEC 61158)
+// NOLINTBEGIN - esp-modbus API uses controller/device (esp_modbus_slave.h) naming  // NOLINT
 #ifdef __cplusplus
 #define _Atomic(T) T
 extern "C" {
@@ -7,7 +7,7 @@ extern "C" {
 
 #include "mbcontroller.h"
 #include "modbus_params.h"
-#include "esp_modbus_slave.h"
+#include "esp_modbus_slave.h"  // NOLINT
 #include "esp_modbus_common.h"
 
 #ifdef __cplusplus
@@ -16,18 +16,19 @@ extern "C" {
 
 #include "esphome/components/wifi/wifi_component.h"
 
-namespace modbus_tcp_slave {
+namespace esphome {
+namespace modbus_tcp_slave {  // NOLINT
 
-static const char *const TAG = "modbus_tcp_slave";
+static const char *const TAG = "modbus_tcp_slave";  // NOLINT
 static constexpr uint16_t MODBUS_DEFAULT_PORT = 1502;
-static constexpr uint8_t MODBUS_DEFAULT_SLAVE_ID = 1;
+static constexpr uint8_t MODBUS_DEFAULT_UNIT_ID = 1;
 static constexpr uint16_t MODBUS_DEFAULT_NUM_OBJECTS = 5;
 constexpr uint32_t MB_RESPONSE_TIMEOUT_MS = 200;
 
-class ModbusSlaveTCP : public esphome::Component {
+class ModbusSlaveTCP : public esphome::Component {  // NOLINT
  public:
   void set_port(uint16_t port) { this->port_ = port; }
-  void set_slave_id(uint8_t id) { this->slave_id_ = id; }
+  void set_unit_id(uint8_t id) { this->unit_id_ = id; }
   void set_num_objects(uint16_t n) { this->num_objects_ = n; }
 
   /// Set coil at index (0..num_objects-1). Call from interval/automation/lambda.
@@ -79,12 +80,13 @@ class ModbusSlaveTCP : public esphome::Component {
  private:
   void start_modbus_();
 
-  void *slave_handler_ = nullptr;
+  void *device_handler_ = nullptr;
   uint16_t port_ = MODBUS_DEFAULT_PORT;
-  uint8_t slave_id_ = MODBUS_DEFAULT_SLAVE_ID;
+  uint8_t unit_id_ = MODBUS_DEFAULT_UNIT_ID;
   uint16_t num_objects_ = MODBUS_DEFAULT_NUM_OBJECTS;
   bool modbus_attempted_ = false;
   bool modbus_started_ = false;
 };
-}  // namespace modbus_tcp_slave
+}  // namespace modbus_tcp_slave  // NOLINT
+}  // namespace esphome
 // NOLINTEND

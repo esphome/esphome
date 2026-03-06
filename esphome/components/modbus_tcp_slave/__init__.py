@@ -1,5 +1,6 @@
-"""Modbus TCP slave component (esp-modbus). Protocol uses master/slave terminology."""
+"""Modbus TCP device/responder component (esp-modbus). Protocol: controller/device."""
 
+import logging
 import os
 
 import esphome.codegen as cg
@@ -7,11 +8,13 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PORT
 from esphome.core import CORE
 
+_LOGGER = logging.getLogger(__name__)
+
 CODEOWNERS = ["@pintomax"]
 DEPENDENCIES = ["wifi"]
 
-# Protocol-specific config keys (slave_id is standard Modbus term)
-CONF_SLAVE_ID = "slave_id"
+# Protocol-specific config keys (unit_id is the device/responder identifier)
+CONF_UNIT_ID = "unit_id"
 CONF_NUM_OBJECTS = "num_objects"
 
 # Single source for esp-modbus library name (used for add_library and -I paths).
@@ -23,28 +26,28 @@ ESP_MODBUS_REPO = "https://github.com/espressif/esp-modbus#15373b1"
 # Default Modbus TCP port (single source; passed to C++ via add_define and used in schema).
 DEFAULT_MODBUS_PORT = 1502
 
-# Default Modbus slave ID (single source; passed to C++ via add_define and used in schema).
-DEFAULT_MODBUS_SLAVE_ID = 1
+# Default Modbus unit ID (single source; passed to C++ via add_define and used in schema).
+DEFAULT_MODBUS_UNIT_ID = 1
 
 # Default number of objects (coils, discrete inputs, input/holding registers; single source for C++ and schema).
 DEFAULT_MODBUS_NUM_OBJECTS = 5
 
-# Define the namespace (matches integration name modbus_tcp_slave)
-modbus_tcp_slave_ns = cg.esphome_ns.namespace("modbus_tcp_slave")
-ModbusSlaveTCP = modbus_tcp_slave_ns.class_("ModbusSlaveTCP", cg.Component)
+# Define the namespace (matches integration name modbus_tcp_slave)  # NOLINT
+modbus_tcp_slave_ns = cg.esphome_ns.namespace("modbus_tcp_slave")  # NOLINT
+ModbusSlaveTCP = modbus_tcp_slave_ns.class_("ModbusSlaveTCP", cg.Component)  # NOLINT
 
 # -D flags for esp-modbus (ESP-IDF config).
-# Note: We do not use CONF_SLAVE_ID here. CONFIG_FMB_CONTROLLER_SLAVE_ID is a fixed library
-# build option; the actual slave ID is set at runtime via set_slave_id() from config[CONF_SLAVE_ID].
+# Note: CONFIG_FMB_CONTROLLER_SLAVE_ID is a fixed library build option; the actual unit ID  # NOLINT
+# is set at runtime via set_unit_id() from config[CONF_UNIT_ID].
 _MODBUS_BUILD_DEFINES = [
     "-DMB_PORT_TCP_IPV4=1",
     "-DCONFIG_FMB_COMM_MODE_TCP_EN=1",
     "-DCONFIG_FMB_COMM_MODE_RTU_EN=0",
     "-DCONFIG_FMB_COMM_MODE_ASCII_EN=0",
-    "-DCONFIG_MB_SLAVE_ADDR_TYPE_IPV4=1",
-    "-DCONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT=1",
-    "-DCONFIG_FMB_CONTROLLER_SLAVE_ID=1",
-    "-DCONFIG_FMB_CONTROLLER_SLAVE_ID_MAX_SIZE=32",
+    "-DCONFIG_MB_SLAVE_ADDR_TYPE_IPV4=1",  # NOLINT
+    "-DCONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT=1",  # NOLINT
+    "-DCONFIG_FMB_CONTROLLER_SLAVE_ID=1",  # NOLINT
+    "-DCONFIG_FMB_CONTROLLER_SLAVE_ID_MAX_SIZE=32",  # NOLINT
     "-DCONFIG_MB_MDNS_IP_RESOLVER=1",
     "-DCONFIG_FMB_TCP_CONNECTION_TOUT_SEC=20",
     "-DCONFIG_FMB_FUNC_HANDLERS_MAX=16",
@@ -88,28 +91,40 @@ def _validate_esp32_esp_idf(config):
     """This component only supports ESP32 with ESP-IDF (esp-modbus requirement)."""
     if not CORE.is_esp32:
         raise cv.Invalid(
-            "modbus_tcp_slave only supports ESP32. Use an ESP32 board (not ESP8266 or other)."
+            "modbus_tcp_slave only supports ESP32. Use an ESP32 board (not ESP8266 or other)."  # NOLINT
         )
-    if not CORE.using_esp_idf:
+    if CORE.using_arduino:
         raise cv.Invalid(
-            "modbus_tcp_slave requires ESP-IDF. Set 'esp32: framework: type: esp-idf' in your YAML."
+            "modbus_tcp_slave requires ESP-IDF. Set 'esp32: framework: type: esp-idf' in your YAML."  # NOLINT
         )
+    return config
+
+
+def _migrate_slave_id(config):  # NOLINT
+    """Migrate deprecated slave_id to unit_id."""  # NOLINT
+    if "slave_id" in config:  # NOLINT
+        _LOGGER.warning(
+            "'slave_id' is deprecated, use 'unit_id'. Removed in 2026.6."  # NOLINT
+        )
+        config[CONF_UNIT_ID] = config.pop("slave_id")  # NOLINT
     return config
 
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(ModbusSlaveTCP),
+            cv.GenerateID(): cv.declare_id(ModbusSlaveTCP),  # NOLINT
             cv.Optional(CONF_PORT, default=DEFAULT_MODBUS_PORT): cv.port,
-            cv.Optional(CONF_SLAVE_ID, default=DEFAULT_MODBUS_SLAVE_ID): cv.int_range(
+            cv.Optional(CONF_UNIT_ID, default=DEFAULT_MODBUS_UNIT_ID): cv.int_range(
                 0, 247
             ),
+            cv.Optional("slave_id"): cv.int_range(0, 247),  # deprecated, migrated to unit_id  # NOLINT
             cv.Optional(
                 CONF_NUM_OBJECTS, default=DEFAULT_MODBUS_NUM_OBJECTS
             ): cv.int_range(1, 128),
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    _migrate_slave_id,  # NOLINT
     _validate_esp32_esp_idf,
 )
 
@@ -136,9 +151,9 @@ async def to_code(config):
     cg.add_platformio_option("extra_scripts", [f"pre:{rel_to_build}"])
 
     cg.add(var.set_port(config[CONF_PORT]))
-    cg.add(var.set_slave_id(config[CONF_SLAVE_ID]))
+    cg.add(var.set_unit_id(config[CONF_UNIT_ID]))
     cg.add(var.set_num_objects(config[CONF_NUM_OBJECTS]))
     cg.add_define("MODBUS_NUM_OBJECTS", config[CONF_NUM_OBJECTS])
     cg.add_define("MODBUS_DEFAULT_PORT", DEFAULT_MODBUS_PORT)
-    cg.add_define("MODBUS_DEFAULT_SLAVE_ID", DEFAULT_MODBUS_SLAVE_ID)
+    cg.add_define("MODBUS_DEFAULT_UNIT_ID", DEFAULT_MODBUS_UNIT_ID)
     cg.add_define("MODBUS_DEFAULT_NUM_OBJECTS", DEFAULT_MODBUS_NUM_OBJECTS)

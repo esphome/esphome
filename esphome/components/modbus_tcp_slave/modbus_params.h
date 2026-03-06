@@ -2,6 +2,11 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+namespace esphome {
+namespace modbus_tcp_slave {  // NOLINT
+#endif
+
 /*=====================================================================================
  * Parameter structures for Modbus (coils, discrete inputs, input/holding registers).
  * Sizes are driven by MODBUS_NUM_OBJECTS (set in YAML as num_objects, default 5).
@@ -46,7 +51,6 @@ typedef struct {
   _MODBUS_PARAM(holding_reg_params_t, holding_reg_params)
 
 #ifdef __cplusplus
-extern "C" {
 #define _MODBUS_PARAM(type, name) \
   extern type name; \
   inline type name = {};
@@ -55,8 +59,10 @@ extern "C" {
 #endif
 _MODBUS_PARAMS_LIST
 #undef _MODBUS_PARAM
+
 #ifdef __cplusplus
-}
+}  // namespace modbus_tcp_slave  // NOLINT
+}  // namespace esphome
 #endif
 
 #endif /* _DEVICE_PARAMS */
