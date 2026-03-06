@@ -1504,9 +1504,7 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
   }
 }
 
-void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) {
-  this->send_message(msg);
-}
+void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) { this->send_message(msg); }
 #endif
 
 #ifdef USE_INFRARED
