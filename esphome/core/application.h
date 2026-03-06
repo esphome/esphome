@@ -138,6 +138,7 @@ static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for qu
 
 class Application {
  public:
+  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
   void pre_setup(const std::string &name, const std::string &friendly_name, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
