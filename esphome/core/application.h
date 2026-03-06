@@ -138,7 +138,7 @@ static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for qu
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, bool name_add_mac_suffix) {
+  void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
@@ -148,15 +148,15 @@ class Application {
       constexpr size_t mac_address_suffix_len = 6;
       char mac_addr[mac_address_len];
       get_mac_address_into_buffer(mac_addr);
-      const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
-      this->name_ = make_name_with_suffix(name, '-', mac_suffix_ptr, mac_address_suffix_len);
-      if (!friendly_name.empty()) {
-        this->friendly_name_ = make_name_with_suffix(friendly_name, ' ', mac_suffix_ptr, mac_address_suffix_len);
+      // Overwrite the placeholder suffix in the static buffers with actual MAC
+      memcpy(name + name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len, mac_address_suffix_len);
+      if (friendly_name_len > 0) {
+        memcpy(friendly_name + friendly_name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len,
+               mac_address_suffix_len);
       }
-    } else {
-      this->name_ = name;
-      this->friendly_name_ = friendly_name;
     }
+    this->name_ = StringRef(name, name_len);
+    this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
   }
 
 #ifdef USE_DEVICES
@@ -274,10 +274,10 @@ class Application {
   void loop();
 
   /// Get the name of this Application set by pre_setup().
-  const std::string &get_name() const { return this->name_; }
+  const StringRef &get_name() const { return this->name_; }
 
   /// Get the friendly name of this Application set by pre_setup().
-  const std::string &get_friendly_name() const { return this->friendly_name_; }
+  const StringRef &get_friendly_name() const { return this->friendly_name_; }
 
   /// Get the area of this Application set by pre_setup().
   const char *get_area() const {
@@ -627,9 +627,9 @@ class Application {
 #endif
 #endif
 
-  // std::string members (typically 24-32 bytes each)
-  std::string name_;
-  std::string friendly_name_;
+  // StringRef members (8 bytes each: pointer + size)
+  StringRef name_;
+  StringRef friendly_name_;
 
   // 4-byte members
   uint32_t last_loop_{0};

@@ -50,6 +50,7 @@ from esphome.core import (
 )
 from esphome.helpers import (
     copy_file_if_changed,
+    cpp_string_escape,
     fnv1a_32bit_hash,
     get_str_env,
     walk_files,
@@ -57,6 +58,12 @@ from esphome.helpers import (
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
+
+# C++ variable names and separators for app name buffers (used with MAC suffix)
+_APP_NAME_BUF_VAR = "esphome_app_name_buf"
+_APP_NAME_MAC_SEP = "-"
+_APP_FRIENDLY_NAME_BUF_VAR = "esphome_app_friendly_name_buf"
+_APP_FRIENDLY_NAME_MAC_SEP = " "
 
 StartupTrigger = cg.esphome_ns.class_(
     "StartupTrigger", cg.Component, automation.Trigger.template()
@@ -551,11 +558,43 @@ async def to_code(config: ConfigType) -> None:
     # Construct App via placement new — see application.cpp for storage details
     cg.add_global(cg.RawStatement("#include <new>"))
     cg.add(cg.RawExpression("new (&App) Application()"))
+    name = config[CONF_NAME]
+    friendly_name = config[CONF_FRIENDLY_NAME]
+    name_add_mac_suffix = config[CONF_NAME_ADD_MAC_SUFFIX]
+
+    def _make_app_name_expr(
+        value: str, var_name: str, sep: str
+    ) -> tuple[cg.Expression, int]:
+        """Create a name expression for pre_setup.
+
+        With MAC suffix: emits a static mutable buffer with placeholder suffix.
+        Without: casts the string literal to char*.
+        Returns (expression, length).
+        """
+        if not value:
+            return cg.RawExpression('(char *) ""'), 0
+        if name_add_mac_suffix:
+            value_with_placeholder = f"{value}{sep}XXXXXX"
+            cg.add_global(
+                cg.RawStatement(
+                    f"static char {var_name}[] = {cpp_string_escape(value_with_placeholder)};"
+                )
+            )
+            return cg.RawExpression(var_name), len(value_with_placeholder)
+        return (
+            cg.RawExpression(f"(char *) {cpp_string_escape(value)}"),
+            len(value),
+        )
+
+    name_expr, name_len = _make_app_name_expr(
+        name, _APP_NAME_BUF_VAR, _APP_NAME_MAC_SEP
+    )
+    friendly_expr, friendly_len = _make_app_name_expr(
+        friendly_name, _APP_FRIENDLY_NAME_BUF_VAR, _APP_FRIENDLY_NAME_MAC_SEP
+    )
     cg.add(
         cg.App.pre_setup(
-            config[CONF_NAME],
-            config[CONF_FRIENDLY_NAME],
-            config[CONF_NAME_ADD_MAC_SUFFIX],
+            name_expr, name_len, friendly_expr, friendly_len, name_add_mac_suffix
         )
     )
     # Define component count for static allocation
