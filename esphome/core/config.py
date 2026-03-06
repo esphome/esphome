@@ -568,11 +568,11 @@ async def to_code(config: ConfigType) -> None:
         """Create a name expression for pre_setup.
 
         With MAC suffix: emits a static mutable buffer with placeholder suffix.
-        Without: casts the string literal to char*.
+        Without: passes the string literal directly as const char*.
         Returns (expression, length).
         """
         if not value:
-            return cg.RawExpression('(char *) ""'), 0
+            return cg.RawExpression('""'), 0
         if name_add_mac_suffix:
             value_with_placeholder = f"{value}{sep}XXXXXX"
             cg.add_global(
@@ -581,10 +581,7 @@ async def to_code(config: ConfigType) -> None:
                 )
             )
             return cg.RawExpression(var_name), len(value_with_placeholder)
-        return (
-            cg.RawExpression(f"(char *) {cpp_string_escape(value)}"),
-            len(value),
-        )
+        return cg.RawExpression(cpp_string_escape(value)), len(value)
 
     name_expr, name_len = _make_app_name_expr(
         name, _APP_NAME_BUF_VAR, _APP_NAME_MAC_SEP
@@ -592,11 +589,9 @@ async def to_code(config: ConfigType) -> None:
     friendly_expr, friendly_len = _make_app_name_expr(
         friendly_name, _APP_FRIENDLY_NAME_BUF_VAR, _APP_FRIENDLY_NAME_MAC_SEP
     )
-    cg.add(
-        cg.App.pre_setup(
-            name_expr, name_len, friendly_expr, friendly_len, name_add_mac_suffix
-        )
-    )
+    if name_add_mac_suffix:
+        cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")
+    cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
     # Define component count for static allocation
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
 

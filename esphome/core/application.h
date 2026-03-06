@@ -138,26 +138,35 @@ static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for qu
 
 class Application {
  public:
-  void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len, bool name_add_mac_suffix) {
+#ifdef ESPHOME_NAME_ADD_MAC_SUFFIX
+  /// Pre-setup with MAC suffix: overwrites placeholder in mutable static buffers with actual MAC.
+  void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
-    this->name_add_mac_suffix_ = name_add_mac_suffix;
-    if (name_add_mac_suffix) {
-      // MAC address length: 12 hex chars + null terminator
-      constexpr size_t mac_address_len = 13;
-      // MAC address suffix length (last 6 characters of 12-char MAC address string)
-      constexpr size_t mac_address_suffix_len = 6;
-      char mac_addr[mac_address_len];
-      get_mac_address_into_buffer(mac_addr);
-      // Overwrite the placeholder suffix in the static buffers with actual MAC
-      memcpy(name + name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len, mac_address_suffix_len);
-      if (friendly_name_len > 0) {
-        memcpy(friendly_name + friendly_name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len,
-               mac_address_suffix_len);
-      }
+    this->name_add_mac_suffix_ = true;
+    // MAC address length: 12 hex chars + null terminator
+    constexpr size_t mac_address_len = 13;
+    // MAC address suffix length (last 6 characters of 12-char MAC address string)
+    constexpr size_t mac_address_suffix_len = 6;
+    char mac_addr[mac_address_len];
+    get_mac_address_into_buffer(mac_addr);
+    // Overwrite the placeholder suffix in the mutable static buffers with actual MAC
+    memcpy(name + name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len, mac_address_suffix_len);
+    if (friendly_name_len > 0) {
+      memcpy(friendly_name + friendly_name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len,
+             mac_address_suffix_len);
     }
     this->name_ = StringRef(name, name_len);
     this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
   }
+#else
+  /// Pre-setup without MAC suffix: StringRef points directly at const string literals in flash.
+  void pre_setup(const char *name, size_t name_len, const char *friendly_name, size_t friendly_name_len) {
+    arch_init();
+    this->name_add_mac_suffix_ = false;
+    this->name_ = StringRef(name, name_len);
+    this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
+  }
+#endif
 
 #ifdef USE_DEVICES
   void register_device(Device *device) { this->devices_.push_back(device); }
