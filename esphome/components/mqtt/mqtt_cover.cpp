@@ -90,6 +90,7 @@ void MQTTCoverComponent::dump_config() {
   }
 }
 void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   auto traits = this->cover_->get_traits();
   if (traits.get_is_assumed_state()) {
     root[MQTT_OPTIMISTIC] = true;
@@ -122,6 +123,7 @@ void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
       root[MQTT_TILT_COMMAND_TOPIC] = this->get_tilt_command_topic_to(topic_buf);
     }
   }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
   if (traits.get_supports_tilt() && !traits.get_supports_position()) {
     config.command_topic = false;
   }

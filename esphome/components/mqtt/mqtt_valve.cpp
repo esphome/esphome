@@ -63,6 +63,7 @@ void MQTTValveComponent::dump_config() {
   }
 }
 void MQTTValveComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   auto traits = this->valve_->get_traits();
   if (traits.get_is_assumed_state()) {
     root[MQTT_OPTIMISTIC] = true;
@@ -71,6 +72,7 @@ void MQTTValveComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
     root[MQTT_POSITION_TOPIC] = this->get_position_state_topic();
     root[MQTT_SET_POSITION_TOPIC] = this->get_position_command_topic();
   }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
 MQTT_COMPONENT_TYPE(MQTTValveComponent, "valve")
