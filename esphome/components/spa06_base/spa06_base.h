@@ -263,3 +263,4 @@ class SPA06Component : public PollingComponent {
   } prod_id_ = {.reg = 0};  // ID
 
 };  // class SPA06Component
+}  // namespace esphome::spa06_base
