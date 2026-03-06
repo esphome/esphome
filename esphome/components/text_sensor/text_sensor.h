@@ -10,8 +10,7 @@
 #include <initializer_list>
 #include <memory>
 
-namespace esphome {
-namespace text_sensor {
+namespace esphome::text_sensor {
 
 class TextSensor;
 
@@ -26,7 +25,7 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
  public: \
   void set_##name##_text_sensor(text_sensor::TextSensor *text_sensor) { this->name##_text_sensor_ = text_sensor; }
 
-class TextSensor : public EntityBase, public EntityBase_DeviceClass {
+class TextSensor : public EntityBase {
  public:
   std::string state;
 
@@ -84,5 +83,4 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
 #endif
 };
 
-}  // namespace text_sensor
-}  // namespace esphome
+}  // namespace esphome::text_sensor

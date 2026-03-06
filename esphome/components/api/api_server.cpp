@@ -359,11 +359,11 @@ void APIServer::on_update(update::UpdateEntity *obj) {
 #endif
 
 #ifdef USE_ZWAVE_PROXY
-void APIServer::on_zwave_proxy_request(const esphome::api::ProtoMessage &msg) {
+void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
   // We could add code to manage a second subscription type, but, since this message type is
   //  very infrequent and small, we simply send it to all clients
   for (auto &c : this->clients_)
-    c->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
+    c->send_message(msg);
 }
 #endif
 
@@ -433,8 +433,8 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, StringRef
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 // Helper to add subscription (reduces duplication)
-void APIServer::add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> f,
-                                        bool once) {
+void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
+                                        std::function<void(StringRef)> &&f, bool once) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
       .entity_id = entity_id, .attribute = attribute, .callback = std::move(f), .once = once,
       // entity_id_dynamic_storage and attribute_dynamic_storage remain nullptr (no heap allocation)
@@ -443,7 +443,7 @@ void APIServer::add_state_subscription_(const char *entity_id, const char *attri
 
 // Helper to add subscription with heap-allocated strings (reduces duplication)
 void APIServer::add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                                        std::function<void(StringRef)> f, bool once) {
+                                        std::function<void(StringRef)> &&f, bool once) {
   HomeAssistantStateSubscription sub;
   // Allocate heap storage for the strings
   sub.entity_id_dynamic_storage = std::make_unique<std::string>(std::move(entity_id));
@@ -463,29 +463,29 @@ void APIServer::add_state_subscription_(std::string entity_id, optional<std::str
 
 // New const char* overload (for internal components - zero allocation)
 void APIServer::subscribe_home_assistant_state(const char *entity_id, const char *attribute,
-                                               std::function<void(StringRef)> f) {
+                                               std::function<void(StringRef)> &&f) {
   this->add_state_subscription_(entity_id, attribute, std::move(f), false);
 }
 
 void APIServer::get_home_assistant_state(const char *entity_id, const char *attribute,
-                                         std::function<void(StringRef)> f) {
+                                         std::function<void(StringRef)> &&f) {
   this->add_state_subscription_(entity_id, attribute, std::move(f), true);
 }
 
 // std::string overload with StringRef callback (zero-allocation callback)
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                               std::function<void(StringRef)> f) {
+                                               std::function<void(StringRef)> &&f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), false);
 }
 
 void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                         std::function<void(StringRef)> f) {
+                                         std::function<void(StringRef)> &&f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), true);
 }
 
 // Legacy helper: wraps std::string callback and delegates to StringRef version
 void APIServer::add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                                        std::function<void(const std::string &)> f, bool once) {
+                                        std::function<void(const std::string &)> &&f, bool once) {
   // Wrap callback to convert StringRef -> std::string, then delegate
   this->add_state_subscription_(std::move(entity_id), std::move(attribute),
                                 std::function<void(StringRef)>([f = std::move(f)](StringRef state) { f(state.str()); }),
@@ -494,12 +494,12 @@ void APIServer::add_state_subscription_(std::string entity_id, optional<std::str
 
 // Legacy std::string overload (for custom_api_device.h - converts StringRef to std::string)
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                               std::function<void(const std::string &)> f) {
+                                               std::function<void(const std::string &)> &&f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), false);
 }
 
 void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                         std::function<void(const std::string &)> f) {
+                                         std::function<void(const std::string &)> &&f) {
   this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), true);
 }
 
@@ -531,7 +531,7 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
       this->set_noise_psk(active_psk);
       for (auto &c : this->clients_) {
         DisconnectRequest req;
-        c->send_message(req, DisconnectRequest::MESSAGE_TYPE);
+        c->send_message(req);
       }
     });
   }
@@ -631,7 +631,7 @@ void APIServer::on_shutdown() {
   // Send disconnect requests to all connected clients
   for (auto &c : this->clients_) {
     DisconnectRequest req;
-    if (!c->send_message(req, DisconnectRequest::MESSAGE_TYPE)) {
+    if (!c->send_message(req)) {
       // If we can't send the disconnect request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
       c->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);

@@ -6,8 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace text_sensor {
+namespace esphome::text_sensor {
 
 class TextSensor;
 
@@ -165,7 +164,6 @@ class MapFilter : public Filter {
   FixedVector<Substitution> mappings_;
 };
 
-}  // namespace text_sensor
-}  // namespace esphome
+}  // namespace esphome::text_sensor
 
 #endif  // USE_TEXT_SENSOR_FILTER

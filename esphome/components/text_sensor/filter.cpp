@@ -6,8 +6,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace text_sensor {
+namespace esphome::text_sensor {
 
 static const char *const TAG = "text_sensor.filter";
 
@@ -107,7 +106,6 @@ bool MapFilter::new_value(std::string &value) {
   return true;  // Pass through if no match
 }
 
-}  // namespace text_sensor
-}  // namespace esphome
+}  // namespace esphome::text_sensor
 
 #endif  // USE_TEXT_SENSOR_FILTER

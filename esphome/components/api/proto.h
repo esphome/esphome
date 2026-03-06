@@ -1,5 +1,6 @@
 #pragma once
 
+#include "api_pb2_defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -110,59 +111,78 @@ class ProtoVarInt {
 #endif
     if (len == 0)
       return {};
-
-    // Most common case: single-byte varint (values 0-127)
+    // Fast path: single-byte varints (0-127) are the most common case
+    // (booleans, small enums, field tags). Avoid loop overhead entirely.
     if ((buffer[0] & 0x80) == 0) {
       *consumed = 1;
       return ProtoVarInt(buffer[0]);
     }
-
-    // General case for multi-byte varints
-    // Since we know buffer[0]'s high bit is set, initialize with its value
-    uint64_t result = buffer[0] & 0x7F;
-    uint8_t bitpos = 7;
-
-    // A 64-bit varint is at most 10 bytes (ceil(64/7)). Reject overlong encodings
-    // to avoid undefined behavior from shifting uint64_t by >= 64 bits.
-    uint32_t max_len = std::min(len, uint32_t(10));
-
-    // Start from the second byte since we've already processed the first
-    for (uint32_t i = 1; i < max_len; i++) {
+    // 32-bit phase: process remaining bytes with native 32-bit shifts.
+    // Without USE_API_VARINT64: cover bytes 1-4 (shifts 7, 14, 21, 28) — the uint32_t
+    // shift at byte 4 (shift by 28) may lose bits 32-34, but those are always zero for valid uint32 values.
+    // With USE_API_VARINT64: cover bytes 1-3 (shifts 7, 14, 21) so parse_wide handles
+    // byte 4+ with full 64-bit arithmetic (avoids truncating values > UINT32_MAX).
+    uint32_t result32 = buffer[0] & 0x7F;
+#ifdef USE_API_VARINT64
+    uint32_t limit = std::min(len, uint32_t(4));
+#else
+    uint32_t limit = std::min(len, uint32_t(5));
+#endif
+    for (uint32_t i = 1; i < limit; i++) {
       uint8_t val = buffer[i];
-      result |= uint64_t(val & 0x7F) << uint64_t(bitpos);
-      bitpos += 7;
+      result32 |= uint32_t(val & 0x7F) << (i * 7);
       if ((val & 0x80) == 0) {
         *consumed = i + 1;
-        return ProtoVarInt(result);
+        return ProtoVarInt(result32);
       }
     }
-
-    return {};  // Incomplete or invalid varint
+    // 64-bit phase for remaining bytes (BLE addresses etc.)
+#ifdef USE_API_VARINT64
+    return parse_wide(buffer, len, consumed, result32);
+#else
+    return {};
+#endif
   }
+
+#ifdef USE_API_VARINT64
+ protected:
+  /// Continue parsing varint bytes 4-9 with 64-bit arithmetic.
+  /// Separated to keep 64-bit shift code (__ashldi3 on 32-bit platforms) out of the common path.
+  static optional<ProtoVarInt> parse_wide(const uint8_t *buffer, uint32_t len, uint32_t *consumed, uint32_t result32)
+      __attribute__((noinline));
+
+ public:
+#endif
 
   constexpr uint16_t as_uint16() const { return this->value_; }
   constexpr uint32_t as_uint32() const { return this->value_; }
-  constexpr uint64_t as_uint64() const { return this->value_; }
   constexpr bool as_bool() const { return this->value_; }
   constexpr int32_t as_int32() const {
     // Not ZigZag encoded
-    return static_cast<int32_t>(this->as_int64());
-  }
-  constexpr int64_t as_int64() const {
-    // Not ZigZag encoded
-    return static_cast<int64_t>(this->value_);
+    return static_cast<int32_t>(this->value_);
   }
   constexpr int32_t as_sint32() const {
     // with ZigZag encoding
     return decode_zigzag32(static_cast<uint32_t>(this->value_));
   }
+#ifdef USE_API_VARINT64
+  constexpr uint64_t as_uint64() const { return this->value_; }
+  constexpr int64_t as_int64() const {
+    // Not ZigZag encoded
+    return static_cast<int64_t>(this->value_);
+  }
   constexpr int64_t as_sint64() const {
     // with ZigZag encoding
     return decode_zigzag64(this->value_);
   }
+#endif
 
  protected:
+#ifdef USE_API_VARINT64
   uint64_t value_;
+#else
+  uint32_t value_;
+#endif
 };
 
 // Forward declarations for decode_to_message, encode_message and encode_packed_sint32
@@ -344,7 +364,11 @@ class ProtoWriteBuffer {
   /// Encode a packed repeated sint32 field (zero-copy from vector)
   void encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values);
   /// Encode a nested message field (force=true for repeated, false for singular)
-  void encode_message(uint32_t field_id, const ProtoMessage &value, bool force = true);
+  /// Templated so concrete message type is preserved for direct encode/calculate_size calls.
+  template<typename T> void encode_message(uint32_t field_id, const T &value, bool force = true);
+  // Non-template core for encode_message — all buffer work happens here
+  void encode_message(uint32_t field_id, uint32_t msg_length_bytes, const void *value,
+                      void (*encode_fn)(const void *, ProtoWriteBuffer &), bool force);
   std::vector<uint8_t> *get_buffer() const { return buffer_; }
 
  protected:
@@ -432,17 +456,21 @@ class DumpBuffer {
 
 class ProtoMessage {
  public:
-  virtual ~ProtoMessage() = default;
-  // Default implementation for messages with no fields
-  virtual void encode(ProtoWriteBuffer &buffer) const {}
-  // Default implementation for messages with no fields
-  virtual void calculate_size(ProtoSize &size) const {}
-  // Convenience: calculate and return size directly (defined after ProtoSize)
-  uint32_t calculated_size() const;
+  // Non-virtual defaults for messages with no fields.
+  // Concrete message classes hide these with their own implementations.
+  // All call sites use templates to preserve the concrete type, so virtual
+  // dispatch is not needed. This eliminates per-message vtable entries for
+  // encode/calculate_size, saving ~1.3 KB of flash across all message types.
+  void encode(ProtoWriteBuffer &buffer) const {}
+  uint32_t calculate_size() const { return 0; }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   virtual const char *dump_to(DumpBuffer &out) const = 0;
   virtual const char *message_name() const { return "unknown"; }
 #endif
+
+ protected:
+  // Non-virtual destructor is protected to prevent polymorphic deletion.
+  ~ProtoMessage() = default;
 };
 
 // Base class for messages that support decoding
@@ -462,6 +490,7 @@ class ProtoDecodableMessage : public ProtoMessage {
   static uint32_t count_repeated_field(const uint8_t *buffer, size_t length, uint32_t target_field_id);
 
  protected:
+  ~ProtoDecodableMessage() = default;
   virtual bool decode_varint(uint32_t field_id, ProtoVarInt value) { return false; }
   virtual bool decode_length(uint32_t field_id, ProtoLengthDelimited value) { return false; }
   virtual bool decode_32bit(uint32_t field_id, Proto32Bit value) { return false; }
@@ -469,32 +498,7 @@ class ProtoDecodableMessage : public ProtoMessage {
 };
 
 class ProtoSize {
- private:
-  uint32_t total_size_ = 0;
-
  public:
-  /**
-   * @brief ProtoSize class for Protocol Buffer serialization size calculation
-   *
-   * This class provides methods to calculate the exact byte counts needed
-   * for encoding various Protocol Buffer field types. The class now uses an
-   * object-based approach to reduce parameter passing overhead while keeping
-   * varint calculation methods static for external use.
-   *
-   * Implements Protocol Buffer encoding size calculation according to:
-   * https://protobuf.dev/programming-guides/encoding/
-   *
-   * Key features:
-   * - Object-based approach reduces flash usage by eliminating parameter passing
-   * - Early-return optimization for zero/default values
-   * - Static varint methods for external callers
-   * - Specialized handling for different field types according to protobuf spec
-   */
-
-  ProtoSize() = default;
-
-  uint32_t get_size() const { return total_size_; }
-
   /**
    * @brief Calculates the size in bytes needed to encode a uint32_t value as a varint
    *
@@ -591,319 +595,76 @@ class ProtoSize {
     return varint(tag);
   }
 
-  /**
-   * @brief Common parameters for all add_*_field methods
-   *
-   * All add_*_field methods follow these common patterns:
-   *   * @param field_id_size Pre-calculated size of the field ID in bytes
-   * @param value The value to calculate size for (type varies)
-   * @param force Whether to calculate size even if the value is default/zero/empty
-   *
-   * Each method follows this implementation pattern:
-   * 1. Skip calculation if value is default (0, false, empty) and not forced
-   * 2. Calculate the size based on the field's encoding rules
-   * 3. Add the field_id_size + calculated value size to total_size
-   */
-
-  /**
-   * @brief Calculates and adds the size of an int32 field to the total message size
-   */
-  inline void add_int32(uint32_t field_id_size, int32_t value) {
-    if (value != 0) {
-      add_int32_force(field_id_size, value);
-    }
+  // Static methods that RETURN size contribution (no ProtoSize object needed).
+  // Used by generated calculate_size() methods to accumulate into a plain uint32_t register.
+  static constexpr uint32_t calc_int32(uint32_t field_id_size, int32_t value) {
+    return value ? field_id_size + (value < 0 ? 10 : varint(static_cast<uint32_t>(value))) : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of an int32 field to the total message size (force version)
-   */
-  inline void add_int32_force(uint32_t field_id_size, int32_t value) {
-    // Always calculate size when forced
-    // Negative values are encoded as 10-byte varints in protobuf
-    total_size_ += field_id_size + (value < 0 ? 10 : varint(static_cast<uint32_t>(value)));
+  static constexpr uint32_t calc_int32_force(uint32_t field_id_size, int32_t value) {
+    return field_id_size + (value < 0 ? 10 : varint(static_cast<uint32_t>(value)));
   }
-
-  /**
-   * @brief Calculates and adds the size of a uint32 field to the total message size
-   */
-  inline void add_uint32(uint32_t field_id_size, uint32_t value) {
-    if (value != 0) {
-      add_uint32_force(field_id_size, value);
-    }
+  static constexpr uint32_t calc_uint32(uint32_t field_id_size, uint32_t value) {
+    return value ? field_id_size + varint(value) : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of a uint32 field to the total message size (force version)
-   */
-  inline void add_uint32_force(uint32_t field_id_size, uint32_t value) {
-    // Always calculate size when force is true
-    total_size_ += field_id_size + varint(value);
+  static constexpr uint32_t calc_uint32_force(uint32_t field_id_size, uint32_t value) {
+    return field_id_size + varint(value);
   }
-
-  /**
-   * @brief Calculates and adds the size of a boolean field to the total message size
-   */
-  inline void add_bool(uint32_t field_id_size, bool value) {
-    if (value) {
-      // Boolean fields always use 1 byte when true
-      total_size_ += field_id_size + 1;
-    }
+  static constexpr uint32_t calc_bool(uint32_t field_id_size, bool value) { return value ? field_id_size + 1 : 0; }
+  static constexpr uint32_t calc_bool_force(uint32_t field_id_size) { return field_id_size + 1; }
+  static constexpr uint32_t calc_float(uint32_t field_id_size, float value) {
+    return value != 0.0f ? field_id_size + 4 : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of a boolean field to the total message size (force version)
-   */
-  inline void add_bool_force(uint32_t field_id_size, bool value) {
-    // Always calculate size when force is true
-    // Boolean fields always use 1 byte
-    total_size_ += field_id_size + 1;
+  static constexpr uint32_t calc_fixed32(uint32_t field_id_size, uint32_t value) {
+    return value ? field_id_size + 4 : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of a float field to the total message size
-   */
-  inline void add_float(uint32_t field_id_size, float value) {
-    if (value != 0.0f) {
-      total_size_ += field_id_size + 4;
-    }
+  static constexpr uint32_t calc_sfixed32(uint32_t field_id_size, int32_t value) {
+    return value ? field_id_size + 4 : 0;
   }
-
-  // NOTE: add_double_field removed - wire type 1 (64-bit: double) not supported
-  // to reduce overhead on embedded systems
-
-  /**
-   * @brief Calculates and adds the size of a fixed32 field to the total message size
-   */
-  inline void add_fixed32(uint32_t field_id_size, uint32_t value) {
-    if (value != 0) {
-      total_size_ += field_id_size + 4;
-    }
+  static constexpr uint32_t calc_sint32(uint32_t field_id_size, int32_t value) {
+    return value ? field_id_size + varint(encode_zigzag32(value)) : 0;
   }
-
-  // NOTE: add_fixed64_field removed - wire type 1 (64-bit: fixed64) not supported
-  // to reduce overhead on embedded systems
-
-  /**
-   * @brief Calculates and adds the size of a sfixed32 field to the total message size
-   */
-  inline void add_sfixed32(uint32_t field_id_size, int32_t value) {
-    if (value != 0) {
-      total_size_ += field_id_size + 4;
-    }
+  static constexpr uint32_t calc_sint32_force(uint32_t field_id_size, int32_t value) {
+    return field_id_size + varint(encode_zigzag32(value));
   }
-
-  // NOTE: add_sfixed64_field removed - wire type 1 (64-bit: sfixed64) not supported
-  // to reduce overhead on embedded systems
-
-  /**
-   * @brief Calculates and adds the size of a sint32 field to the total message size
-   *
-   * Sint32 fields use ZigZag encoding, which is more efficient for negative values.
-   */
-  inline void add_sint32(uint32_t field_id_size, int32_t value) {
-    if (value != 0) {
-      add_sint32_force(field_id_size, value);
-    }
+  static constexpr uint32_t calc_int64(uint32_t field_id_size, int64_t value) {
+    return value ? field_id_size + varint(value) : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of a sint32 field to the total message size (force version)
-   *
-   * Sint32 fields use ZigZag encoding, which is more efficient for negative values.
-   */
-  inline void add_sint32_force(uint32_t field_id_size, int32_t value) {
-    // Always calculate size when force is true
-    // ZigZag encoding for sint32
-    total_size_ += field_id_size + varint(encode_zigzag32(value));
+  static constexpr uint32_t calc_int64_force(uint32_t field_id_size, int64_t value) {
+    return field_id_size + varint(value);
   }
-
-  /**
-   * @brief Calculates and adds the size of an int64 field to the total message size
-   */
-  inline void add_int64(uint32_t field_id_size, int64_t value) {
-    if (value != 0) {
-      add_int64_force(field_id_size, value);
-    }
+  static constexpr uint32_t calc_uint64(uint32_t field_id_size, uint64_t value) {
+    return value ? field_id_size + varint(value) : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of an int64 field to the total message size (force version)
-   */
-  inline void add_int64_force(uint32_t field_id_size, int64_t value) {
-    // Always calculate size when force is true
-    total_size_ += field_id_size + varint(value);
+  static constexpr uint32_t calc_uint64_force(uint32_t field_id_size, uint64_t value) {
+    return field_id_size + varint(value);
   }
-
-  /**
-   * @brief Calculates and adds the size of a uint64 field to the total message size
-   */
-  inline void add_uint64(uint32_t field_id_size, uint64_t value) {
-    if (value != 0) {
-      add_uint64_force(field_id_size, value);
-    }
+  static constexpr uint32_t calc_length(uint32_t field_id_size, size_t len) {
+    return len ? field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len) : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of a uint64 field to the total message size (force version)
-   */
-  inline void add_uint64_force(uint32_t field_id_size, uint64_t value) {
-    // Always calculate size when force is true
-    total_size_ += field_id_size + varint(value);
+  static constexpr uint32_t calc_length_force(uint32_t field_id_size, size_t len) {
+    return field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len);
   }
-
-  // NOTE: sint64 support functions (add_sint64_field, add_sint64_field_force) removed
-  // sint64 type is not supported by ESPHome API to reduce overhead on embedded systems
-
-  /**
-   * @brief Calculates and adds the size of a length-delimited field (string/bytes) to the total message size
-   */
-  inline void add_length(uint32_t field_id_size, size_t len) {
-    if (len != 0) {
-      add_length_force(field_id_size, len);
-    }
+  static constexpr uint32_t calc_sint64(uint32_t field_id_size, int64_t value) {
+    return value ? field_id_size + varint(encode_zigzag64(value)) : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of a length-delimited field (string/bytes) to the total message size (repeated
-   * field version)
-   */
-  inline void add_length_force(uint32_t field_id_size, size_t len) {
-    // Always calculate size when force is true
-    // Field ID + length varint + data bytes
-    total_size_ += field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len);
+  static constexpr uint32_t calc_sint64_force(uint32_t field_id_size, int64_t value) {
+    return field_id_size + varint(encode_zigzag64(value));
   }
-
-  /**
-   * @brief Adds a pre-calculated size directly to the total
-   *
-   * This is used when we can calculate the total size by multiplying the number
-   * of elements by the bytes per element (for repeated fixed-size types like float, fixed32, etc.)
-   *
-   * @param size The pre-calculated total size to add
-   */
-  inline void add_precalculated_size(uint32_t size) { total_size_ += size; }
-
-  /**
-   * @brief Calculates and adds the size of a nested message field to the total message size
-   *
-   * This helper function directly updates the total_size reference if the nested size
-   * is greater than zero.
-   *
-   * @param nested_size The pre-calculated size of the nested message
-   */
-  inline void add_message_field(uint32_t field_id_size, uint32_t nested_size) {
-    if (nested_size != 0) {
-      add_message_field_force(field_id_size, nested_size);
-    }
+  static constexpr uint32_t calc_fixed64(uint32_t field_id_size, uint64_t value) {
+    return value ? field_id_size + 8 : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of a nested message field to the total message size (force version)
-   *
-   * @param nested_size The pre-calculated size of the nested message
-   */
-  inline void add_message_field_force(uint32_t field_id_size, uint32_t nested_size) {
-    // Always calculate size when force is true
-    // Field ID + length varint + nested message content
-    total_size_ += field_id_size + varint(nested_size) + nested_size;
+  static constexpr uint32_t calc_sfixed64(uint32_t field_id_size, int64_t value) {
+    return value ? field_id_size + 8 : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of a nested message field to the total message size
-   *
-   * This version takes a ProtoMessage object, calculates its size internally,
-   * and updates the total_size reference. This eliminates the need for a temporary variable
-   * at the call site.
-   *
-   * @param message The nested message object
-   */
-  inline void add_message_object(uint32_t field_id_size, const ProtoMessage &message) {
-    // Calculate nested message size by creating a temporary ProtoSize
-    ProtoSize nested_calc;
-    message.calculate_size(nested_calc);
-    uint32_t nested_size = nested_calc.get_size();
-
-    // Use the base implementation with the calculated nested_size
-    add_message_field(field_id_size, nested_size);
+  static constexpr uint32_t calc_message(uint32_t field_id_size, uint32_t nested_size) {
+    return nested_size ? field_id_size + varint(nested_size) + nested_size : 0;
   }
-
-  /**
-   * @brief Calculates and adds the size of a nested message field to the total message size (force version)
-   *
-   * @param message The nested message object
-   */
-  inline void add_message_object_force(uint32_t field_id_size, const ProtoMessage &message) {
-    // Calculate nested message size by creating a temporary ProtoSize
-    ProtoSize nested_calc;
-    message.calculate_size(nested_calc);
-    uint32_t nested_size = nested_calc.get_size();
-
-    // Use the base implementation with the calculated nested_size
-    add_message_field_force(field_id_size, nested_size);
-  }
-
-  /**
-   * @brief Calculates and adds the sizes of all messages in a repeated field to the total message size
-   *
-   * This helper processes a vector of message objects, calculating the size for each message
-   * and adding it to the total size.
-   *
-   * @tparam MessageType The type of the nested messages in the vector
-   * @param messages Vector of message objects
-   */
-  template<typename MessageType>
-  inline void add_repeated_message(uint32_t field_id_size, const std::vector<MessageType> &messages) {
-    // Skip if the vector is empty
-    if (!messages.empty()) {
-      // Use the force version for all messages in the repeated field
-      for (const auto &message : messages) {
-        add_message_object_force(field_id_size, message);
-      }
-    }
-  }
-
-  /**
-   * @brief Calculates and adds the sizes of all messages in a repeated field to the total message size (FixedVector
-   * version)
-   *
-   * @tparam MessageType The type of the nested messages in the FixedVector
-   * @param messages FixedVector of message objects
-   */
-  template<typename MessageType>
-  inline void add_repeated_message(uint32_t field_id_size, const FixedVector<MessageType> &messages) {
-    // Skip if the fixed vector is empty
-    if (!messages.empty()) {
-      // Use the force version for all messages in the repeated field
-      for (const auto &message : messages) {
-        add_message_object_force(field_id_size, message);
-      }
-    }
-  }
-
-  /**
-   * @brief Calculate size of a packed repeated sint32 field
-   */
-  inline void add_packed_sint32(uint32_t field_id_size, const std::vector<int32_t> &values) {
-    if (values.empty())
-      return;
-
-    size_t packed_size = 0;
-    for (int value : values) {
-      packed_size += varint(encode_zigzag32(value));
-    }
-
-    // field_id + length varint + packed data
-    total_size_ += field_id_size + varint(static_cast<uint32_t>(packed_size)) + static_cast<uint32_t>(packed_size);
+  static constexpr uint32_t calc_message_force(uint32_t field_id_size, uint32_t nested_size) {
+    return field_id_size + varint(nested_size) + nested_size;
   }
 };
 
 // Implementation of methods that depend on ProtoSize being fully defined
-
-inline uint32_t ProtoMessage::calculated_size() const {
-  ProtoSize size;
-  this->calculate_size(size);
-  return size.get_size();
-}
 
 // Implementation of encode_packed_sint32 - must be after ProtoSize is defined
 inline void ProtoWriteBuffer::encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values) {
@@ -924,31 +685,30 @@ inline void ProtoWriteBuffer::encode_packed_sint32(uint32_t field_id, const std:
   }
 }
 
-// Implementation of encode_message - must be after ProtoMessage is defined
-inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessage &value, bool force) {
-  // Calculate the message size first
-  ProtoSize msg_size;
-  value.calculate_size(msg_size);
-  uint32_t msg_length_bytes = msg_size.get_size();
+// Encode thunk — converts void* back to concrete type for direct encode() call
+template<typename T> void proto_encode_msg(const void *msg, ProtoWriteBuffer &buf) {
+  static_cast<const T *>(msg)->encode(buf);
+}
 
-  // Skip empty singular messages (matches add_message_field which skips when nested_size == 0)
-  // Repeated messages (force=true) are always encoded since an empty item is meaningful
+// Implementation of encode_message - must be after ProtoMessage is defined
+template<typename T> inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const T &value, bool force) {
+  this->encode_message(field_id, value.calculate_size(), &value, &proto_encode_msg<T>, force);
+}
+
+// Non-template core for encode_message
+inline void ProtoWriteBuffer::encode_message(uint32_t field_id, uint32_t msg_length_bytes, const void *value,
+                                             void (*encode_fn)(const void *, ProtoWriteBuffer &), bool force) {
   if (msg_length_bytes == 0 && !force)
     return;
-
-  this->encode_field_raw(field_id, 2);  // type 2: Length-delimited message
-
-  // Write the length varint directly through pos_
+  this->encode_field_raw(field_id, 2);
   this->encode_varint_raw(msg_length_bytes);
-
-  // Encode nested message - pos_ advances directly through the reference
 #ifdef ESPHOME_DEBUG_API
   uint8_t *start = this->pos_;
-  value.encode(*this);
+  encode_fn(value, *this);
   if (static_cast<uint32_t>(this->pos_ - start) != msg_length_bytes)
     this->debug_check_encode_size_(field_id, msg_length_bytes, this->pos_ - start);
 #else
-  value.encode(*this);
+  encode_fn(value, *this);
 #endif
 }
 
@@ -968,14 +728,6 @@ class ProtoService {
   virtual void on_no_setup_connection() = 0;
   virtual bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) = 0;
   virtual void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) = 0;
-  /**
-   * Send a protobuf message by calculating its size, allocating a buffer, encoding, and sending.
-   * This is the implementation method - callers should use send_message() which adds logging.
-   * @param msg The protobuf message to send.
-   * @param message_type The message type identifier.
-   * @return True if the message was sent successfully, false otherwise.
-   */
-  virtual bool send_message_impl(const ProtoMessage &msg, uint8_t message_type) = 0;
 
   // Authentication helper methods
   inline bool check_connection_setup_() {

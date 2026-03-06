@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace switch_ {
+namespace esphome::switch_ {
 
 #define SUB_SWITCH(name) \
  protected: \
@@ -16,10 +15,10 @@ namespace switch_ {
   void set_##name##_switch(switch_::Switch *s) { this->name##_switch_ = s; }
 
 // bit0: on/off. bit1: persistent. bit2: inverted. bit3: disabled
-const int RESTORE_MODE_ON_MASK = 0x01;
-const int RESTORE_MODE_PERSISTENT_MASK = 0x02;
-const int RESTORE_MODE_INVERTED_MASK = 0x04;
-const int RESTORE_MODE_DISABLED_MASK = 0x08;
+constexpr int RESTORE_MODE_ON_MASK = 0x01;
+constexpr int RESTORE_MODE_PERSISTENT_MASK = 0x02;
+constexpr int RESTORE_MODE_INVERTED_MASK = 0x04;
+constexpr int RESTORE_MODE_DISABLED_MASK = 0x08;
 
 enum SwitchRestoreMode : uint8_t {
   SWITCH_ALWAYS_OFF = !RESTORE_MODE_ON_MASK,
@@ -36,7 +35,7 @@ enum SwitchRestoreMode : uint8_t {
  * A switch is basically just a combination of a binary sensor (for reporting switch values)
  * and a write_state method that writes a state to the hardware.
  */
-class Switch : public EntityBase, public EntityBase_DeviceClass {
+class Switch : public EntityBase {
  public:
   explicit Switch();
 
@@ -146,5 +145,4 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
 #define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))
 void log_switch(const char *tag, const char *prefix, const char *type, Switch *obj);
 
-}  // namespace switch_
-}  // namespace esphome
+}  // namespace esphome::switch_

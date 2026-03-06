@@ -11,6 +11,9 @@ VALID_SUBSTITUTIONS_CHARACTERS = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 )
 
+# CLI Help Text Constants
+ARGUMENT_HELP_DEVICE = "Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses. Use 'OTA' for resolving from MQTT, DNS or mDNS and avoiding the interactive prompt."
+
 
 class Platform(StrEnum):
     """Platform identifiers for ESPHome."""
@@ -354,6 +357,7 @@ CONF_ELSE = "else"
 CONF_ENABLE_BTM = "enable_btm"
 CONF_ENABLE_IPV6 = "enable_ipv6"
 CONF_ENABLE_ON_BOOT = "enable_on_boot"
+CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_ENABLE_PIN = "enable_pin"
 CONF_ENABLE_PRIVATE_NETWORK_ACCESS = "enable_private_network_access"
 CONF_ENABLE_RRM = "enable_rrm"
@@ -462,6 +466,7 @@ CONF_HEAT_OVERRUN = "heat_overrun"
 CONF_HEATER = "heater"
 CONF_HEIGHT = "height"
 CONF_HIDDEN = "hidden"
+CONF_HIDE_HASH = "hide_hash"
 CONF_HIDE_TIMESTAMP = "hide_timestamp"
 CONF_HIGH = "high"
 CONF_HIGH_VOLTAGE_REFERENCE = "high_voltage_reference"
@@ -1089,6 +1094,7 @@ CONF_WAND_ID = "wand_id"
 CONF_WARM_WHITE = "warm_white"
 CONF_WARM_WHITE_COLOR_TEMPERATURE = "warm_white_color_temperature"
 CONF_WARMUP_TIME = "warmup_time"
+CONF_WATCHDOG = "watchdog"
 CONF_WATCHDOG_THRESHOLD = "watchdog_threshold"
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
 CONF_WATER_HEATER = "water_heater"

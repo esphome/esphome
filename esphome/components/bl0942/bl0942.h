@@ -140,7 +140,7 @@ class BL0942 : public PollingComponent, public uart::UARTDevice {
   uint8_t address_ = 0;
   bool reset_ = false;
   LineFrequency line_freq_ = LINE_FREQUENCY_50HZ;
-  uint32_t rx_start_ = 0;
+  optional<uint32_t> rx_start_{};
   uint32_t prev_cf_cnt_ = 0;
 
   bool validate_checksum_(DataPacket *data);

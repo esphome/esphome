@@ -11,6 +11,7 @@
 from esphome.cpp_generator import (  # noqa: F401
     ArrayInitializer,
     Expression,
+    FlashStringLiteral,
     LineComment,
     LogStringLiteral,
     MockObj,

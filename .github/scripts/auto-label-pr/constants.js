@@ -27,6 +27,7 @@ module.exports = {
     'new-feature',
     'breaking-change',
     'developer-breaking-change',
+    'undocumented-api-change',
     'code-quality',
     'deprecated-component'
   ],

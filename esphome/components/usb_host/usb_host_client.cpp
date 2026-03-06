@@ -10,8 +10,7 @@
 #include <cstring>
 #include <atomic>
 #include <span>
-namespace esphome {
-namespace usb_host {
+namespace esphome::usb_host {
 
 #pragma GCC diagnostic ignored "-Wparentheses"
 
@@ -425,9 +424,9 @@ bool USBClient::control_transfer(uint8_t type, uint8_t request, uint16_t value, 
   if (trq == nullptr)
     return false;
   auto length = data.size();
-  if (length > sizeof(trq->transfer->data_buffer_size) - SETUP_PACKET_SIZE) {
+  if (length > trq->transfer->data_buffer_size - SETUP_PACKET_SIZE) {
     ESP_LOGE(TAG, "Control transfer data size too large: %u > %u", length,
-             sizeof(trq->transfer->data_buffer_size) - sizeof(usb_setup_packet_t));
+             trq->transfer->data_buffer_size - SETUP_PACKET_SIZE);
     this->release_trq(trq);
     return false;
   }
@@ -508,9 +507,13 @@ bool USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
 
 /**
  * Performs an output transfer operation.
- * THREAD CONTEXT: Called from main loop thread only
- * - USB UART output uses defer() to ensure main loop context
- * - Modbus and other components call from loop()
+ * THREAD CONTEXT: Called from both USB task and main loop threads.
+ * - USB task: output transfer callback restarts output directly (no defer)
+ * - Main loop: initial output trigger from write_array() and loop()
+ * Thread safety is ensured by:
+ * - get_trq_() uses atomic CAS (multi-consumer safe)
+ * - claimed trq slot is exclusively owned until submission
+ * - usb_host_transfer_submit() is safe to call from any task context
  *
  * @param ep_address The endpoint address.
  * @param callback The callback function to be called when the transfer is complete.
@@ -523,6 +526,11 @@ bool USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, 
   auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
+    return false;
+  }
+  if (length > trq->transfer->data_buffer_size) {
+    ESP_LOGE(TAG, "transfer_out: data length %u exceeds buffer size %u", length, trq->transfer->data_buffer_size);
+    this->release_trq(trq);
     return false;
   }
   trq->callback = callback;
@@ -568,6 +576,5 @@ void USBClient::release_trq(TransferRequest *trq) {
   this->trq_in_use_.fetch_and(mask, std::memory_order_release);
 }
 
-}  // namespace usb_host
-}  // namespace esphome
+}  // namespace esphome::usb_host
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

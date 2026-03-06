@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <cstring>
 
-namespace esphome {
-namespace text_sensor {
+namespace esphome::text_sensor {
 
 static const char *const TAG = "text_sensor";
 
@@ -125,5 +124,4 @@ void TextSensor::notify_frontend_() {
 #endif
 }
 
-}  // namespace text_sensor
-}  // namespace esphome
+}  // namespace esphome::text_sensor

@@ -37,8 +37,7 @@ using ip4_addr_t = in_addr;
 #include <esp_netif.h>
 #endif
 
-namespace esphome {
-namespace network {
+namespace esphome::network {
 
 /// Buffer size for IP address string (IPv6 max: 39 chars + null)
 static constexpr size_t IP_ADDRESS_BUFFER_SIZE = 40;
@@ -187,6 +186,5 @@ struct IPAddress {
 
 using IPAddresses = std::array<IPAddress, 5>;
 
-}  // namespace network
-}  // namespace esphome
+}  // namespace esphome::network
 #endif
