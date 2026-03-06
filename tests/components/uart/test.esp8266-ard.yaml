@@ -1,8 +1,12 @@
 esphome:
   on_boot:
     then:
-      - uart.write: 'Hello World'
-      - uart.write: [0x00, 0x20, 0x42]
+      - uart.write:
+          id: uart_uart
+          data: 'Hello World'
+      - uart.write:
+          id: uart_uart
+          data: [0x00, 0x20, 0x42]
 
 uart:
   - id: uart_uart

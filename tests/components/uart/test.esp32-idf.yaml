@@ -1,10 +1,16 @@
 esphome:
   on_boot:
     then:
-      - uart.write: 'Hello World'
-      - uart.write: [0x00, 0x20, 0x42]
-      - uart.write: !lambda |-
-          return {0xAA, 0xBB, 0xCC};
+      - uart.write:
+          id: uart_uart
+          data: 'Hello World'
+      - uart.write:
+          id: uart_uart
+          data: [0x00, 0x20, 0x42]
+      - uart.write:
+          id: uart_uart
+          data: !lambda |-
+            return {0xAA, 0xBB, 0xCC};
 
 uart:
   - id: uart_uart
@@ -42,6 +48,7 @@ uart:
 
 packet_transport:
   - platform: uart
+    uart_id: uart_uart
 
 switch:
   # Test uart switch with single state (array)
@@ -93,9 +100,11 @@ button:
   - platform: template
     name: "UART Lambda Test"
     on_press:
-      - uart.write: !lambda |-
-          std::string cmd = "VALUE=" + str_sprintf("%.0f", id(test_number).state) + "\r\n";
-          return std::vector<uint8_t>(cmd.begin(), cmd.end());
+      - uart.write:
+          id: uart_uart
+          data: !lambda |-
+            std::string cmd = "VALUE=" + str_sprintf("%.0f", id(test_number).state) + "\r\n";
+            return std::vector<uint8_t>(cmd.begin(), cmd.end());
 
 event:
   - platform: uart
