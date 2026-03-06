@@ -29,11 +29,6 @@ static constexpr uint8_t REPEATING_NOTE_GAP_MS = 10;
 static constexpr uint16_t SAMPLE_BUFFER_SIZE = 2048;
 static constexpr uint16_t SAMPLE_RATE = 16000;
 
-struct SpeakerSample {
-  int8_t left{0};
-  int8_t right{0};
-};
-
 inline double deg2rad(double degrees) {
   static constexpr double PI_ON_180 = M_PI / 180.0;
   return degrees * PI_ON_180;
@@ -108,6 +103,9 @@ void Rtttl::loop() {
       }
     } else if (this->state_ == State::INIT) {
       if (this->speaker_->is_stopped()) {
+        audio::AudioStreamInfo audio_stream_info = audio::AudioStreamInfo(16, 1, SAMPLE_RATE);
+        this->speaker_->set_audio_stream_info(audio_stream_info);
+        this->speaker_->set_volume(this->gain_);
         this->speaker_->start();
         this->set_state_(State::STARTING);
       }
@@ -120,35 +118,27 @@ void Rtttl::loop() {
       return;
     }
     if (this->samples_sent_ != this->samples_count_) {
-      SpeakerSample sample[SAMPLE_BUFFER_SIZE + 2];
+      int16_t sample[SAMPLE_BUFFER_SIZE];
       uint16_t sample_index = 0;
       double rem = 0.0;
 
-      while (true) {
+      while (sample_index < SAMPLE_BUFFER_SIZE && this->samples_sent_ < this->samples_count_) {
         // Try and send out the remainder of the existing note, one per `loop()`
         if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
           rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
-
-          int8_t val = (127 * this->gain_) * sin(deg2rad(rem));
-
-          sample[sample_index].left = val;
-          sample[sample_index].right = val;
+          sample[sample_index] = INT16_MAX * sin(deg2rad(rem));
         } else {
-          sample[sample_index].left = 0;
-          sample[sample_index].right = 0;
-        }
-
-        if (sample_index >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
-          break;
+          sample[sample_index] = 0;
         }
         this->samples_sent_++;
         sample_index++;
       }
       if (sample_index > 0) {
-        size_t bytes_to_send = sample_index * sizeof(SpeakerSample);
-        size_t send = this->speaker_->play((uint8_t *) (&sample), bytes_to_send);
-        if (send != bytes_to_send) {
-          this->samples_sent_ -= (sample_index - (send / sizeof(SpeakerSample)));
+        size_t bytes = sample_index * sizeof(int16_t);
+        size_t sent_bytes = this->speaker_->play((uint8_t *) (&sample), bytes);
+        size_t samples_sent = sent_bytes / sizeof(int16_t);
+        if (samples_sent != sample_index) {
+          this->samples_sent_ -= (sample_index - samples_sent);
         }
         return;
       }
@@ -408,11 +398,7 @@ void Rtttl::finish_() {
 
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
-    SpeakerSample sample[2];
-    sample[0].left = 0;
-    sample[0].right = 0;
-    sample[1].left = 0;
-    sample[1].right = 0;
+    int16_t sample[2] = {0, 0};
     this->speaker_->play((uint8_t *) (&sample), sizeof(sample));
     this->speaker_->finish();
     this->set_state_(State::STOPPING);

@@ -183,10 +183,10 @@ class UARTComponent {
   virtual void check_logger_conflict() = 0;
   bool check_read_timeout_(size_t len = 1);
 
-  InternalGPIOPin *tx_pin_;
-  InternalGPIOPin *rx_pin_;
-  InternalGPIOPin *flow_control_pin_;
-  size_t rx_buffer_size_;
+  InternalGPIOPin *tx_pin_{};
+  InternalGPIOPin *rx_pin_{};
+  InternalGPIOPin *flow_control_pin_{};
+  size_t rx_buffer_size_{};
   size_t rx_full_threshold_{1};
   size_t rx_timeout_{0};
   uint32_t baud_rate_{0};

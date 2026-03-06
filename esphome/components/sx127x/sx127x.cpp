@@ -260,6 +260,11 @@ SX127xError SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
     return SX127xError::INVALID_PARAMS;
   }
 
+  if (this->dio0_pin_ == nullptr) {
+    ESP_LOGE(TAG, "DIO0 pin not configured, cannot wait for transmit completion");
+    return SX127xError::INVALID_PARAMS;
+  }
+
   SX127xError ret = SX127xError::NONE;
   if (this->modulation_ == MOD_LORA) {
     this->set_mode_standby();
