@@ -11,33 +11,40 @@ def test_logger_pre_setup_before_other_components(generate_main):
     """
     main_cpp = generate_main("tests/component_tests/logger/test_logger.yaml")
 
-    # Find the position of logger pre_setup
-    pre_setup_match = re.search(r"->pre_setup\(\)", main_cpp)
-    assert pre_setup_match is not None, "Logger pre_setup() not found in generated code"
+    # Find the logger's pre_setup() call specifically
+    logger_pre_setup = re.search(r"logger_logger->pre_setup\(\)", main_cpp)
+    if logger_pre_setup is None:
+        # Fall back to finding any logger-related pre_setup
+        logger_pre_setup = re.search(r"logger\w*->pre_setup\(\)", main_cpp)
+    assert logger_pre_setup is not None, (
+        "Logger pre_setup() not found in generated code"
+    )
 
     # Find all "new " allocations (component creation)
     new_allocations = list(re.finditer(r"\bnew [\w:]+", main_cpp))
     assert len(new_allocations) > 0, "No component allocations found"
 
-    # Find the logger allocation
-    logger_new = None
-    for alloc in new_allocations:
-        if "logger" in alloc.group():
-            logger_new = alloc
-            break
+    # Separate logger and non-logger allocations
+    logger_allocs = [a for a in new_allocations if "logger" in a.group().lower()]
+    non_logger_allocs = [
+        a
+        for a in new_allocations
+        if "logger" not in a.group().lower()
+        # Skip placement new for App
+        and "(&App)" not in main_cpp[max(0, a.start() - 5) : a.start()]
+    ]
 
-    assert logger_new is not None, (
+    assert len(logger_allocs) > 0, (
         f"Logger allocation not found in: {[a.group() for a in new_allocations]}"
     )
+    assert len(non_logger_allocs) > 0, (
+        "No non-logger component allocations found — "
+        "add a component to test_logger.yaml so the ordering check is meaningful"
+    )
 
-    # All non-logger allocations must appear after pre_setup()
-    for alloc in new_allocations:
-        if alloc == logger_new:
-            continue
-        # Skip "new (&App)" placement new which is before logger
-        if "(&App)" in main_cpp[max(0, alloc.start() - 5) : alloc.start()]:
-            continue
-        assert alloc.start() > pre_setup_match.start(), (
+    # All non-logger allocations must appear after logger pre_setup()
+    for alloc in non_logger_allocs:
+        assert alloc.start() > logger_pre_setup.start(), (
             f"Component allocation '{alloc.group()}' at position {alloc.start()} "
-            f"appears before logger pre_setup() at position {pre_setup_match.start()}"
+            f"appears before logger pre_setup() at position {logger_pre_setup.start()}"
         )
