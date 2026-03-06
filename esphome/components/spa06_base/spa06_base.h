@@ -81,7 +81,7 @@ enum MeasCrtl {
 };
 
 // Oversampling scale factors. See datasheet page 15.
-static const uint32_t oversampling_to_scale_factor(const Oversampling oversampling) {
+inline uint32_t oversampling_to_scale_factor(const Oversampling oversampling) {
   switch (oversampling) {
     case Oversampling::OVERSAMPLING_NONE:
       return 524288;
@@ -103,68 +103,6 @@ static const uint32_t oversampling_to_scale_factor(const Oversampling oversampli
       return 524288;
   }
 };
-
-static const LogString *oversampling_to_str(const Oversampling oversampling) {
-  switch (oversampling) {
-    case Oversampling::OVERSAMPLING_NONE:
-      return LOG_STR("X1");
-    case Oversampling::OVERSAMPLING_X2:
-      return LOG_STR("X2");
-    case Oversampling::OVERSAMPLING_X4:
-      return LOG_STR("X4");
-    case Oversampling::OVERSAMPLING_X8:
-      return LOG_STR("X8");
-    case Oversampling::OVERSAMPLING_X16:
-      return LOG_STR("X16");
-    case Oversampling::OVERSAMPLING_X32:
-      return LOG_STR("X32");
-    case Oversampling::OVERSAMPLING_X64:
-      return LOG_STR("X64");
-    case Oversampling::OVERSAMPLING_X128:
-      return LOG_STR("X128");
-    default:
-      return LOG_STR("");
-  }
-};
-
-static const LogString *meas_rate_to_str(SampleRate rate) {
-  switch (rate) {
-    case SampleRate::SAMPLE_RATE_1:
-      return LOG_STR("1Hz");
-    case SampleRate::SAMPLE_RATE_2:
-      return LOG_STR("2Hz");
-    case SampleRate::SAMPLE_RATE_4:
-      return LOG_STR("4Hz");
-    case SampleRate::SAMPLE_RATE_8:
-      return LOG_STR("8Hz");
-    case SampleRate::SAMPLE_RATE_16:
-      return LOG_STR("16Hz");
-    case SampleRate::SAMPLE_RATE_32:
-      return LOG_STR("32Hz");
-    case SampleRate::SAMPLE_RATE_64:
-      return LOG_STR("64Hz");
-    case SampleRate::SAMPLE_RATE_128:
-      return LOG_STR("128Hz");
-    case SampleRate::SAMPLE_RATE_25P16:
-      return LOG_STR("1.5625Hz");
-    case SampleRate::SAMPLE_RATE_25P8:
-      return LOG_STR("3.125Hz");
-    case SampleRate::SAMPLE_RATE_25P4:
-      return LOG_STR("6.25Hz");
-    case SampleRate::SAMPLE_RATE_25P2:
-      return LOG_STR("12.5Hz");
-    case SampleRate::SAMPLE_RATE_25:
-      return LOG_STR("25Hz");
-    case SampleRate::SAMPLE_RATE_50:
-      return LOG_STR("50Hz");
-    case SampleRate::SAMPLE_RATE_100:
-      return LOG_STR("100Hz");
-    case SampleRate::SAMPLE_RATE_200:
-      return LOG_STR("200Hz");
-    default:
-      return LOG_STR("");
-  }
-}
 
 class SPA06Component : public PollingComponent {
  public:
@@ -325,5 +263,3 @@ class SPA06Component : public PollingComponent {
   } prod_id_ = {.reg = 0};  // ID
 
 };  // class SPA06Component
-
-}  // namespace esphome::spa06_base
