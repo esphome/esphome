@@ -71,7 +71,7 @@ void NoblexClimate::transmit_state() {
       break;
   }
 
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       remote_state[0] |= (IRNoblexFan::IR_NOBLEX_FAN_LOW << 2);
       break;

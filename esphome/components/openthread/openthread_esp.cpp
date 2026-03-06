@@ -135,6 +135,12 @@ void OpenThreadComponent::ot_main() {
            TRUEFALSE(link_mode_config.mRxOnWhenIdle));
 #endif
 
+  if (this->output_power_.has_value()) {
+    if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
+      ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
+    }
+  }
+
   // Run the main loop
 #if CONFIG_OPENTHREAD_CLI
   esp_openthread_cli_create_task();
@@ -169,6 +175,9 @@ void OpenThreadComponent::ot_main() {
   // Pass the existing dataset, or NULL which will use the preprocessor definitions
   ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
 
+  // Register state change callback to update connected_ reactively instead of polling
+  otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed_, this);
+
   esp_openthread_launch_mainloop();
 
   // Clean up
@@ -188,6 +197,7 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   esp_netif_t *netif = esp_netif_get_default_netif();
   count = esp_netif_get_all_ip6(netif, if_ip6s);
   assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
+  assert(count < addresses.size());
   for (int i = 0; i < count; i++) {
     addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
   }

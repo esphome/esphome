@@ -5,6 +5,7 @@
 #include "esphome/core/progmem.h"
 
 #include <cmath>
+#include <cstring>
 
 namespace esphome::water_heater {
 
@@ -23,23 +24,25 @@ WaterHeaterCall &WaterHeaterCall::set_mode(WaterHeaterMode mode) {
   return *this;
 }
 
-WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode) {
-  if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("OFF")) == 0) {
+WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode) { return this->set_mode(mode, strlen(mode)); }
+
+WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode, size_t len) {
+  if (len == 3 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("OFF"), 3) == 0) {
     this->set_mode(WATER_HEATER_MODE_OFF);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("ECO")) == 0) {
+  } else if (len == 3 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("ECO"), 3) == 0) {
     this->set_mode(WATER_HEATER_MODE_ECO);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("ELECTRIC")) == 0) {
+  } else if (len == 8 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("ELECTRIC"), 8) == 0) {
     this->set_mode(WATER_HEATER_MODE_ELECTRIC);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("PERFORMANCE")) == 0) {
+  } else if (len == 11 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("PERFORMANCE"), 11) == 0) {
     this->set_mode(WATER_HEATER_MODE_PERFORMANCE);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("HIGH_DEMAND")) == 0) {
+  } else if (len == 11 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("HIGH_DEMAND"), 11) == 0) {
     this->set_mode(WATER_HEATER_MODE_HIGH_DEMAND);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("HEAT_PUMP")) == 0) {
+  } else if (len == 9 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("HEAT_PUMP"), 9) == 0) {
     this->set_mode(WATER_HEATER_MODE_HEAT_PUMP);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("GAS")) == 0) {
+  } else if (len == 3 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("GAS"), 3) == 0) {
     this->set_mode(WATER_HEATER_MODE_GAS);
   } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized mode %s", this->parent_->get_name().c_str(), mode);
+    ESP_LOGW(TAG, "'%s' - Unrecognized mode %.*s", this->parent_->get_name().c_str(), (int) len, mode);
   }
   return *this;
 }
