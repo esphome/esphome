@@ -27,6 +27,7 @@ from esphome.storage_json import StorageJSON
 
 from . import gpio  # noqa
 from .const import (
+    COMPONENT_BK72XX,
     CONF_GPIO_RECOVER,
     CONF_LOGLEVEL,
     CONF_SDK_SILENT,
@@ -453,7 +454,14 @@ async def component_to_code(config):
     cg.add_platformio_option("lib_ldf_mode", "off")
     cg.add_platformio_option("lib_compat_mode", "soft")
     # include <Arduino.h> in every file
-    cg.add_platformio_option("build_src_flags", "-include Arduino.h")
+    build_src_flags = "-include Arduino.h"
+    if FAMILY_COMPONENT[config[CONF_FAMILY]] == COMPONENT_BK72XX:
+        # LibreTiny forces -O1 globally for BK72xx because the Beken SDK
+        # has issues with higher optimization levels. However, ESPHome code
+        # works fine with -Os (used on every other platform), so override
+        # it for project source files only. GCC uses the last -O flag.
+        build_src_flags += " -Os"
+    cg.add_platformio_option("build_src_flags", build_src_flags)
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
     # decrease web server stack size (16k words -> 4k words)
