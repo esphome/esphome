@@ -762,7 +762,7 @@ def _find_picotool() -> Path | None:
 
     try:
         idedata = platformio_api.get_idedata(CORE.config)
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         return None
     return get_picotool_path(idedata.cc_path)
 

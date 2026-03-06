@@ -8,6 +8,7 @@ import json
 import logging
 from pathlib import Path
 import re
+import sys
 import time
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
@@ -1339,7 +1340,8 @@ def test_upload_using_picotool_success(tmp_path: Path) -> None:
     toolchain_bin.mkdir(parents=True)
     picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
     picotool_dir.mkdir(parents=True)
-    picotool = picotool_dir / "picotool"
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    picotool = picotool_dir / binary_name
     picotool.touch()
 
     mock_idedata = MagicMock()
@@ -1412,7 +1414,8 @@ def test_upload_using_picotool_permission_error(tmp_path: Path) -> None:
     toolchain_bin.mkdir(parents=True)
     picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
     picotool_dir.mkdir(parents=True)
-    picotool = picotool_dir / "picotool"
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    picotool = picotool_dir / binary_name
     picotool.touch()
 
     mock_idedata = MagicMock()
