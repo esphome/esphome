@@ -60,9 +60,6 @@ void esp_log_printf_(int level, const char *tag, int line, const char *format, .
 void esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...);
 #endif
 void esp_log_vprintf_(int level, const char *tag, int line, const char *format, va_list args);  // NOLINT
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-void esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
-#endif
 #if defined(USE_ESP32)
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
