@@ -1,4 +1,5 @@
 #include "bedjet_codec.h"
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -68,6 +69,10 @@ BedjetPacket *BedjetCodec::get_set_runtime_remaining_request(const uint8_t hour,
 
 /** Decodes the extra bytes that were received after being notified with a partial packet. */
 void BedjetCodec::decode_extra(const uint8_t *data, uint16_t length) {
+  if (length < 5) {
+    ESP_LOGVV(TAG, "Received extra: %d bytes (too short)", length);
+    return;
+  }
   ESP_LOGVV(TAG, "Received extra: %d bytes: %d %d %d %d", length, data[1], data[2], data[3], data[4]);
   uint8_t offset = this->last_buffer_size_;
   if (offset > 0 && length + offset <= sizeof(BedjetStatusPacket)) {
@@ -90,14 +95,19 @@ void BedjetCodec::decode_extra(const uint8_t *data, uint16_t length) {
  * @return `true` if the packet was decoded and represents a "partial" packet; `false` otherwise.
  */
 bool BedjetCodec::decode_notify(const uint8_t *data, uint16_t length) {
+  if (length < 5) {
+    ESP_LOGW(TAG, "Received short packet: %d bytes", length);
+    return false;
+  }
   ESP_LOGV(TAG, "Received: %d bytes: %d %d %d %d", length, data[1], data[2], data[3], data[4]);
 
   if (data[1] == PACKET_FORMAT_V3_HOME && data[3] == PACKET_TYPE_STATUS) {
     // Clear old buffer
     memset(&this->buf_, 0, sizeof(BedjetStatusPacket));
     // Copy new data into buffer
-    memcpy(&this->buf_, data, length);
-    this->last_buffer_size_ = length;
+    size_t copy_len = std::min(static_cast<size_t>(length), sizeof(BedjetStatusPacket));
+    memcpy(&this->buf_, data, copy_len);
+    this->last_buffer_size_ = copy_len;
 
     // TODO: validate the packet checksum?
     if (this->buf_.mode < 7 && this->buf_.target_temp_step >= 38 && this->buf_.target_temp_step <= 86 &&
@@ -113,13 +123,15 @@ bool BedjetCodec::decode_notify(const uint8_t *data, uint16_t length) {
     }
   } else if (data[1] == PACKET_FORMAT_DEBUG || data[3] == PACKET_TYPE_DEBUG) {
     // We don't actually know the packet format for this. Dump packets to log, in case a pattern presents itself.
-    ESP_LOGVV(TAG,
-              "received DEBUG packet: set1=%01fF, set2=%01fF, air=%01fF;  [7]=%d, [8]=%d, [9]=%d, [10]=%d, [11]=%d, "
-              "[12]=%d, [-1]=%d",
-              bedjet_temp_to_f(data[4]), bedjet_temp_to_f(data[5]), bedjet_temp_to_f(data[6]), data[7], data[8],
-              data[9], data[10], data[11], data[12], data[length - 1]);
+    if (length >= 13) {
+      ESP_LOGVV(TAG,
+                "received DEBUG packet: set1=%01fF, set2=%01fF, air=%01fF;  [7]=%d, [8]=%d, [9]=%d, [10]=%d, [11]=%d, "
+                "[12]=%d, [-1]=%d",
+                bedjet_temp_to_f(data[4]), bedjet_temp_to_f(data[5]), bedjet_temp_to_f(data[6]), data[7], data[8],
+                data[9], data[10], data[11], data[12], data[length - 1]);
+    }
 
-    if (this->has_status()) {
+    if (this->has_status() && length >= 7) {
       this->status_packet_->ambient_temp_step = data[6];
     }
   } else {
