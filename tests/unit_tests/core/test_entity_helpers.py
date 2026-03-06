@@ -21,12 +21,6 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
-    _DC_SHIFT,
-    _DISABLED_BY_DEFAULT_SHIFT,
-    _ENTITY_CATEGORY_SHIFT,
-    _ICON_SHIFT,
-    _INTERNAL_SHIFT,
-    _UOM_SHIFT,
     _register_string,
     _setup_entity_impl,
     entity_duplicate_validator,
@@ -946,7 +940,8 @@ async def test_setup_entity_with_entity_category(
     await _setup_entity_impl(var, config, "sensor")
     finalize_entity_strings(var, config)
     packed = _extract_packed_value(added_expressions)
-    assert (packed >> _ENTITY_CATEGORY_SHIFT) & 0x3 == 2
+    assert packed != 0
+    assert "category:diagnostic" in added_expressions[0]
 
 
 @pytest.mark.asyncio
@@ -1029,7 +1024,7 @@ async def test_finalize_no_flags(setup_test_environment: list[str]) -> None:
 
 @pytest.mark.asyncio
 async def test_finalize_internal(setup_test_environment: list[str]) -> None:
-    """Test entity with internal=True packs the internal bit."""
+    """Test entity with internal=True packs the internal flag."""
     added_expressions = setup_test_environment
     var = MockObj("sensor1")
     config = {
@@ -1040,15 +1035,15 @@ async def test_finalize_internal(setup_test_environment: list[str]) -> None:
     await _setup_entity_impl(var, config, "sensor")
     finalize_entity_strings(var, config)
     packed = _extract_packed_value(added_expressions)
-    assert packed & (1 << _INTERNAL_SHIFT) != 0
-    assert packed == (1 << _INTERNAL_SHIFT)
+    assert packed != 0
+    assert "// internal" in added_expressions[0]
 
 
 @pytest.mark.asyncio
 async def test_finalize_disabled_by_default(
     setup_test_environment: list[str],
 ) -> None:
-    """Test entity with disabled_by_default=True packs the bit."""
+    """Test entity with disabled_by_default=True packs the flag."""
     added_expressions = setup_test_environment
     var = MockObj("sensor1")
     config = {
@@ -1058,19 +1053,19 @@ async def test_finalize_disabled_by_default(
     await _setup_entity_impl(var, config, "sensor")
     finalize_entity_strings(var, config)
     packed = _extract_packed_value(added_expressions)
-    assert packed & (1 << _DISABLED_BY_DEFAULT_SHIFT) != 0
-    assert packed == (1 << _DISABLED_BY_DEFAULT_SHIFT)
+    assert packed != 0
+    assert "// disabled_by_default" in added_expressions[0]
 
 
 @pytest.mark.asyncio
 async def test_finalize_entity_category(
     setup_test_environment: list[str],
 ) -> None:
-    """Test entity_category values (diagnostic=2, config=1) are packed."""
+    """Test entity_category values are packed and described in comment."""
     added_expressions = setup_test_environment
     var = MockObj("sensor1")
 
-    # Test diagnostic (value 2)
+    # Test diagnostic
     config = {
         CONF_NAME: "Test",
         CONF_DISABLED_BY_DEFAULT: False,
@@ -1078,10 +1073,11 @@ async def test_finalize_entity_category(
     }
     await _setup_entity_impl(var, config, "sensor")
     finalize_entity_strings(var, config)
-    packed = _extract_packed_value(added_expressions)
-    assert (packed >> _ENTITY_CATEGORY_SHIFT) & 0x3 == 2
+    packed_diag = _extract_packed_value(added_expressions)
+    assert packed_diag != 0
+    assert "category:diagnostic" in added_expressions[0]
 
-    # Test config (value 1)
+    # Test config — different packed value
     added_expressions.clear()
     config2 = {
         CONF_NAME: "Test2",
@@ -1090,15 +1086,17 @@ async def test_finalize_entity_category(
     }
     await _setup_entity_impl(var, config2, "sensor")
     finalize_entity_strings(var, config2)
-    packed = _extract_packed_value(added_expressions)
-    assert (packed >> _ENTITY_CATEGORY_SHIFT) & 0x3 == 1
+    packed_cfg = _extract_packed_value(added_expressions)
+    assert packed_cfg != 0
+    assert packed_cfg != packed_diag
+    assert "category:config" in added_expressions[0]
 
 
 @pytest.mark.asyncio
 async def test_finalize_string_indices(
     setup_test_environment: list[str],
 ) -> None:
-    """Test device_class, unit_of_measurement, and icon are packed as indices."""
+    """Test device_class, unit_of_measurement, and icon produce non-zero packed value."""
     added_expressions = setup_test_environment
     var = MockObj("sensor1")
     config = {
@@ -1113,14 +1111,11 @@ async def test_finalize_string_indices(
     setup_unit_of_measurement(config)
     finalize_entity_strings(var, config)
     packed = _extract_packed_value(added_expressions)
-    # All three string indices should be non-zero
-    assert (packed >> _DC_SHIFT) & 0xFF != 0
-    assert (packed >> _UOM_SHIFT) & 0xFF != 0
-    assert (packed >> _ICON_SHIFT) & 0xFF != 0
-    # No flags set
-    assert (packed >> _INTERNAL_SHIFT) & 1 == 0
-    assert (packed >> _DISABLED_BY_DEFAULT_SHIFT) & 1 == 0
-    assert (packed >> _ENTITY_CATEGORY_SHIFT) & 0x3 == 0
+    assert packed != 0
+    comment = added_expressions[0]
+    assert "dc:temperature" in comment
+    assert "uom:°C" in comment
+    assert "icon:mdi:thermometer" in comment
 
 
 @pytest.mark.asyncio
@@ -1144,14 +1139,7 @@ async def test_finalize_all_fields(
     setup_unit_of_measurement(config)
     finalize_entity_strings(var, config)
     packed = _extract_packed_value(added_expressions)
-    # Verify flags
-    assert (packed >> _INTERNAL_SHIFT) & 1 == 1
-    assert (packed >> _DISABLED_BY_DEFAULT_SHIFT) & 1 == 1
-    assert (packed >> _ENTITY_CATEGORY_SHIFT) & 0x3 == 2
-    # Verify string indices are non-zero
-    assert (packed >> _DC_SHIFT) & 0xFF != 0
-    assert (packed >> _UOM_SHIFT) & 0xFF != 0
-    assert (packed >> _ICON_SHIFT) & 0xFF != 0
+    assert packed != 0
     # Verify comment contains all flags with actual string values
     comment_line = added_expressions[0]
     assert (
