@@ -20,7 +20,7 @@ void ModbusSlaveTCP::loop() {  // NOLINT
 }
 
 void ModbusSlaveTCP::start_modbus_() {  // NOLINT
-  modbus_attempted_ = true;  // only try once; avoid retries that leak contexts and hit EADDRINUSE
+  modbus_attempted_ = true;             // only try once; avoid retries that leak contexts and hit EADDRINUSE
 
   ESP_LOGI(TAG, "Starting Modbus TCP device, port %u, unit_id %u", (unsigned) port_, (unsigned) unit_id_);
 
@@ -77,7 +77,7 @@ void ModbusSlaveTCP::start_modbus_() {  // NOLINT
   err = mbc_slave_start(device_handler_);  // NOLINT
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "mbc_slave_start failed: %s", esp_err_to_name(err));  // NOLINT
-    (void) mbc_slave_delete(device_handler_);  // NOLINT
+    (void) mbc_slave_delete(device_handler_);                           // NOLINT
     device_handler_ = nullptr;
     return;
   }
@@ -85,6 +85,6 @@ void ModbusSlaveTCP::start_modbus_() {  // NOLINT
   ESP_LOGI(TAG, "Modbus TCP device listening on port %u, unit_id %u", (unsigned) port_, (unsigned) unit_id_);
 }
 
-}  // namespace modbus_tcp_slave  // NOLINT
+}  // namespace modbus_tcp_slave
 }  // namespace esphome
 // NOLINTEND

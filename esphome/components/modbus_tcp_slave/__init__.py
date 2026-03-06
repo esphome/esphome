@@ -118,7 +118,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_UNIT_ID, default=DEFAULT_MODBUS_UNIT_ID): cv.int_range(
                 0, 247
             ),
-            cv.Optional("slave_id"): cv.int_range(0, 247),  # deprecated, migrated to unit_id  # NOLINT
+            cv.Optional("slave_id"): cv.int_range(
+                0, 247
+            ),  # deprecated, migrated to unit_id  # NOLINT
             cv.Optional(
                 CONF_NUM_OBJECTS, default=DEFAULT_MODBUS_NUM_OBJECTS
             ): cv.int_range(1, 128),

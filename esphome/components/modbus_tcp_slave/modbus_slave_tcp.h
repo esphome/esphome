@@ -87,6 +87,6 @@ class ModbusSlaveTCP : public esphome::Component {  // NOLINT
   bool modbus_attempted_ = false;
   bool modbus_started_ = false;
 };
-}  // namespace modbus_tcp_slave  // NOLINT
+}  // namespace modbus_tcp_slave
 }  // namespace esphome
 // NOLINTEND

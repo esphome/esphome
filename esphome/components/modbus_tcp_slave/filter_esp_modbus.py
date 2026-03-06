@@ -13,7 +13,9 @@ env = None
 # Linters execute this as plain Python, so SCons is not installed (E0401).
 with contextlib.suppress(Exception):
     try:
-        from SCons.Script import Import as SConsImport  # type: ignore[import-untyped]  # pylint: disable=import-error
+        from SCons.Script import (
+            Import as SConsImport,  # type: ignore[import-untyped]  # pylint: disable=import-error
+        )
     except (ImportError, ModuleNotFoundError):
         SConsImport = None
     if SConsImport is not None:
@@ -146,7 +148,9 @@ if env is not None:
                 MB_PRT_BUF(inst->descr.parent_name, ":MB_SEND", (void *)mbs_obj->frame,"""
 
         # Library file name is fixed by esp-modbus (mb_objects)
-        mb_device_c = os.path.join(lib_dir, "modbus", "mb_objects", "mb_slave.c")  # NOLINT
+        mb_device_c = os.path.join(
+            lib_dir, "modbus", "mb_objects", "mb_slave.c"
+        )  # NOLINT
         if os.path.isfile(mb_device_c):
             with open(mb_device_c, encoding="utf-8") as f:
                 content = f.read()
@@ -181,7 +185,11 @@ if env is not None:
 
         # Shorten long TCP device error lines so they are not truncated by the logger (comm fail / connection lost)
         port_tcp_device_c = os.path.join(
-            lib_dir, "modbus", "mb_ports", "tcp", "port_tcp_slave.c"  # NOLINT
+            lib_dir,
+            "modbus",
+            "mb_ports",
+            "tcp",
+            "port_tcp_slave.c",  # NOLINT
         )
         if os.path.isfile(port_tcp_device_c):
             with open(port_tcp_device_c, encoding="utf-8") as f:
