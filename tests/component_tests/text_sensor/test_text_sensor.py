@@ -40,8 +40,9 @@ def test_text_sensor_config_value_internal_set(generate_main):
     main_cpp = generate_main("tests/component_tests/text_sensor/test_text_sensor.yaml")
 
     # Then
-    assert "ts_2->set_internal(true);" in main_cpp
-    assert "ts_3->set_internal(false);" in main_cpp
+    # internal flag is now packed into configure_entity_() third argument (bit 24)
+    assert "ts_2->configure_entity_(" in main_cpp
+    assert "ts_3->configure_entity_(" in main_cpp
 
 
 def test_text_sensor_device_class_set(generate_main):
