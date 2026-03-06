@@ -65,10 +65,12 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    # needs https://github.com/esphome/esphome/pull/14174
-    # esp32.only_on_variant(
-    #     supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3],
-    # ),
+    cv.Any(
+        cv.only_on_nrf52,
+        esp32.only_on_variant(
+            supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3],
+        ),
+    ),
 )
 
 
