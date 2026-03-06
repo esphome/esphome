@@ -17,19 +17,12 @@ void DeviceFirmwareUpdate::setup() {
 #if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT)
   zephyr::global_cdc_acm->add_on_rate_callback([this](const device *, uint32_t rate) {
     if (rate == 1200) {
-      this->goto_dfu_ = true;
+      volatile uint32_t *dbl_reset_mem = (volatile uint32_t *) 0x20007F7C;
+      (*dbl_reset_mem) = DFU_DBL_RESET_MAGIC;
+      this->reset_pin_->digital_write(true);
     }
   });
 #endif
-}
-
-void DeviceFirmwareUpdate::loop() {
-  if (this->goto_dfu_) {
-    this->goto_dfu_ = false;
-    volatile uint32_t *dbl_reset_mem = (volatile uint32_t *) 0x20007F7C;
-    (*dbl_reset_mem) = DFU_DBL_RESET_MAGIC;
-    this->reset_pin_->digital_write(true);
-  }
 }
 
 void DeviceFirmwareUpdate::dump_config() {
