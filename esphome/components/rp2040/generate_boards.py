@@ -120,7 +120,7 @@ def _get_variant(json_file: Path) -> str | None:
     """Get variant name from a board JSON file."""
     if not json_file.exists():
         return None
-    with open(json_file) as f:
+    with open(json_file, encoding="utf-8") as f:
         data = json.load(f)
     return data.get("build", {}).get("variant")
 
