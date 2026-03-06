@@ -102,11 +102,6 @@ void HDMICEC::loop() {
   }
 }
 
-/**
- * 'get_state' is solely for debug purposes, in case the hdmi-cec bus does not behave as expected.
- */
-std::string HDMICEC::get_state() const { return recv_.get_state() + "; " + xmit_.get_state(); }
-
 void HDMICEC::handle_received_message_(const Frame *frame) {
   const uint8_t src_addr = frame->initiator_addr();
   const uint8_t dest_addr = frame->destination_addr();
@@ -294,15 +289,6 @@ bool CECTransmit::queue_for_send(uint8_t source, uint8_t destination, const std:
   new (frame) Frame(source, destination, data_bytes);
   send_queue_.push_back();  // commit the frame obtained from the last 'back()'
   return true;
-}
-
-std::string CECTransmit::get_state() const {
-  char line[64];
-  const static std::array<const char *, 3> NAMES = {"IDLE", "BUSY", "EOM_CONFIRMED"};
-  snprintf(line, sizeof(line), "Tx State=%s, bytes sent = %d of %d", NAMES[static_cast<int>(transmit_state_)],
-           ((transmit_state_ == TransmitState::IDLE) ? 0 : n_bytes_received_),
-           (send_queue_.front() ? (send_queue_.front())->size() : 0));
-  return std::string(line);
 }
 
 void CECTransmit::transmit_message() {
@@ -603,15 +589,6 @@ void CECReceive::setup(InternalGPIOPin *pin, uint8_t address) {
 void CECReceive::dump_config() {
   ESP_LOGCONFIG(TAG, "  monitor mode: %s", (monitor_mode_ ? "yes" : "no"));
   ESP_LOGCONFIG(TAG, "  promiscuous mode: %s", (promiscuous_mode_ ? "yes" : "no"));
-}
-
-std::string CECReceive::get_state() const {
-  char line[128];
-  const static std::array<const char *, 5> NAMES = {"IDLE", "RECEIVING_BYTE", "WAITING_FOR_EOM", "WAITING_FOR_ACK",
-                                                    "WAITING_FOR_EOM_ACK"};
-  const int rcv_state = static_cast<int>(receiver_state_);
-  snprintf(line, sizeof(line), "Rx State=%s, bytecnt=%d", NAMES[rcv_state], recv_frame_buffer_->size());
-  return std::string(line);
 }
 
 void IRAM_ATTR CECReceive::gpio_isr_s(CECReceive *self) { self->gpio_isr_(); }
