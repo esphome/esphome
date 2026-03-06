@@ -106,7 +106,6 @@ class EntityBase {
 
   // Get this entity's device class into a stack buffer.
   // On non-ESP8266: returns pointer to PROGMEM string directly (buffer unused).
-
   // On ESP8266: copies from PROGMEM to buffer, returns buffer pointer.
   const char *get_device_class_to(std::span<char, MAX_DEVICE_CLASS_LENGTH> buffer) const;
 
