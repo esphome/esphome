@@ -272,8 +272,8 @@ bool SPA06Component::read_coefficients_() {
            "  c0: %i, c1: %i,\n"
            "  c00: %i, c10: %i, c20: %i, c30: %i, c40: %i,\n"
            "  c01: %i, c11: %i, c21: %i, c31: %i",
-           this->c0_, this->c1_, this->c00_, this->c10_, this->c20_, this->c30_, this->c01_, this->c11_, this->c21_,
-           this->c31_);
+           this->c0_, this->c1_, this->c00_, this->c10_, this->c20_, this->c30_, this->c40_, this->c01_, this->c11_,
+           this->c21_, this->c31_);
   return true;
 }
 
