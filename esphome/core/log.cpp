@@ -26,10 +26,12 @@ void HOT esp_log_printf_(int level, const char *tag, int line, const char *forma
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 void HOT esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...) {
+#ifdef USE_LOGGER
   va_list arg;
   va_start(arg, format);
   logger::global_logger->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, arg);
   va_end(arg);
+#endif
 }
 #endif
 
