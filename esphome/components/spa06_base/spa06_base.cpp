@@ -280,7 +280,7 @@ bool SPA06Component::read_coefficients_() {
 bool SPA06Component::soft_reset_() {
   // Setup steps for SPA06:
   // 1. Perform a protocol reset (required to write command for SPI code, noop for I2C)
-  this->protocol_reset_();
+  this->protocol_reset();
 
   // 2. Perform the actual reset
   this->reset_.bit.fifo_flush = true;
@@ -292,7 +292,7 @@ bool SPA06Component::soft_reset_() {
   // 3. Wait for chip to become ready. Datasheet specifies 2 seconds; wait 3
   delay(3);
   // 4. Perform another protocol reset (required for SPI code, noop for I2C)
-  this->protocol_reset_();
+  this->protocol_reset();
   return true;
 }
 
