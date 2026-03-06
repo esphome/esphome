@@ -1,7 +1,6 @@
 #ifdef USE_ESP32
 #include "modem_nmea.h"
-#include "esphome/components/modem/modem_component.h"
-#include "esphome/components/modem/helpers.h"
+#include "../modem_component.h"
 #include "esphome/core/log.h"
 #include <cmath>
 #include <cstring>
