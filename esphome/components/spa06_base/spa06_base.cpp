@@ -4,15 +4,14 @@ namespace esphome::spa06_base {
 
 static const char *const TAG = "spa06";
 
-// Twos Complement decoding function, 16-bit
-inline int16_t twoscd16(uint16_t val, uint8_t bits) {
-  uint16_t mask = ((uint32_t) 1 << (bits - 1));
-  return ((val ^ mask) - mask);
+// Sign extension function for <=16 bit types
+inline int16_t decode16(uint8_t msb, uint8_t lsb, size_t bits, size_t head = 0) {
+  return static_cast<int16_t>(encode_uint16(msb, lsb) << head) >> (16 - bits);
 }
-// Twos Complement decoding function, 32-bit
-inline int32_t twoscd32(uint32_t val, uint8_t bits) {
-  uint32_t mask = ((uint32_t) 1 << (bits - 1));
-  return ((val ^ mask) - mask);
+
+// Sign extension function for <=32 bit types
+inline int32_t decode32(uint8_t xmsb, uint8_t msb, uint8_t lsb, uint8_t xlsb, size_t bits, size_t head = 0) {
+  return static_cast<int32_t>(encode_uint32(xmsb, msb, lsb, xlsb) << head) >> (32 - bits);
 }
 
 void SPA06Component::dump_config() {
@@ -167,19 +166,12 @@ bool SPA06Component::write_sensor_settings_(Oversampling oversampling, SampleRat
   this->pt_meas_cfg_.bit.rate = rate;
   this->pt_meas_cfg_.bit.prc = oversampling;
   ESP_LOGD(TAG, "Config write: %02x", this->pt_meas_cfg_.reg);
-  if (!spa_write_byte(reg, this->pt_meas_cfg_.reg)) {
-    return false;
-  }
-  return true;
+  return spa_write_byte(reg, this->pt_meas_cfg_.reg);
 }
 
 bool SPA06Component::write_measurement_settings_(MeasCrtl crtl) {
   this->meas_.bit.meas_crtl = crtl;
-  if (!spa_write_byte(SPA06_MEAS_CFG, this->meas_.reg)) {
-    ESP_LOGE(TAG, "Failed to write measurement config");
-    return false;
-  }
-  return true;
+  return spa_write_byte(SPA06_MEAS_CFG, this->meas_.reg)
 }
 
 bool SPA06Component::write_communication_settings_(bool pressure_shift, bool temperature_shift, bool interrupt_hl,
@@ -193,10 +185,7 @@ bool SPA06Component::write_communication_settings_(bool pressure_shift, bool tem
   this->cfg_.bit.int_prs = interrupt_prs;
   this->cfg_.bit.fifo_en = enable_fifo;
   this->cfg_.bit.spi_3wire = spi_3wire;
-  if (!spa_write_byte(SPA06_CFG_REG, this->cfg_.reg)) {
-    return false;
-  }
-  return true;
+  return spa_write_byte(SPA06_CFG_REG, this->cfg_.reg);
 }
 
 bool SPA06Component::read_coefficients_() {
@@ -204,17 +193,17 @@ bool SPA06Component::read_coefficients_() {
   if (!spa_read_bytes(SPA06_COEF, coef, SPA06_COEF_LEN)) {
     return false;
   }
-  this->c0_ = twoscd16((coef[0] << 4) | (coef[1] >> 4), 12);
-  this->c1_ = twoscd16(((coef[1] & 0x0F) << 8) | coef[2], 12);
-  this->c00_ = twoscd32((coef[3] << 12) | (coef[4] << 4) | (coef[5] >> 4), 20);
-  this->c10_ = twoscd32(((coef[5] & 0x0F) << 16) | (coef[6] << 8) | coef[7], 20);
-  this->c01_ = twoscd16((coef[8] << 8) | coef[9], 16);
-  this->c11_ = twoscd16((coef[10] << 8) | coef[11], 16);
-  this->c20_ = twoscd16((coef[12] << 8) | coef[13], 16);
-  this->c21_ = twoscd16((coef[14] << 8) | coef[15], 16);
-  this->c30_ = twoscd16((coef[16] << 8) | coef[17], 16);
-  this->c31_ = twoscd16((coef[18] << 4) | (coef[19] >> 4), 12);
-  this->c40_ = twoscd16(((coef[19] & 0x0F) << 8) | coef[20], 12);
+  this->c0_ = decode16(coef[0], coef[1], 12);
+  this->c1_ = decode16(coef[1], coef[2], 12, 4);
+  this->c00_ = decode32(coef[3], coef[4], coef[5], 0, 20);
+  this->c10_ = decode32(coef[5], coef[6], coef[7], 0, 20, 4);
+  this->c01_ = decode16(coef[8], coef[9], 16);
+  this->c11_ = decode16(coef[10], coef[11], 16);
+  this->c20_ = decode16(coef[12], coef[13], 16);
+  this->c21_ = decode16(coef[14], coef[15], 16);
+  this->c30_ = decode16(coef[16], coef[17], 16);
+  this->c31_ = decode16(coef[18], coef[19], 12);
+  this->c40_ = decode16(coef[19], coef[20], 12, 4);
 
   ESP_LOGV(TAG,
            "Coefficients:\n"
@@ -311,34 +300,23 @@ bool SPA06Component::read_temperature_and_pressure_(float &temperature, float &p
     return false;
   }
   // Read raw pressure from device
-  if (!this->spa_read_bytes(SPA06_PSR, this->psr_tmp_read_.reg, 3)) {
+  if (!this->spa_read_bytes(SPA06_PSR, this->psr_tmp_read_, 3)) {
     return false;
   }
   // Calculate raw scaled pressure value
-  float p_raw_sc = (float) twoscd32(esphome::convert_big_endian(psr_tmp_read_.val.data << 8), 24) / (float) this->kp_;
+  float p_raw_sc = (float) decode32(psr_tmp_read_[0], psr_tmp_read_[1], psr_tmp_read_[2], 0, 24) / (float) this->kp_;
 
-  ESP_LOGVV(TAG,
-            "PRS read: %02x %02x %02x\n"
-            "     raw: %d\n"
-            "  raw_sc: %f",
-            psr_tmp_read_.reg[0], psr_tmp_read_.reg[1], psr_tmp_read_.reg[2],
-            esphome::convert_big_endian(psr_tmp_read_.val.data << 8), p_raw_sc);
   // Calculate full pressure values
   pressure = this->convert_pressure_(p_raw_sc, t_raw_sc);
   return true;
 }
 
 bool SPA06Component::read_temperature_(float &temperature, float &t_raw_sc) {
-  if (!this->spa_read_bytes(SPA06_TMP, this->psr_tmp_read_.reg, 3)) {
+  if (!this->spa_read_bytes(SPA06_TMP, this->psr_tmp_read_, 3)) {
     return false;
   }
-  t_raw_sc = (float) esphome::convert_big_endian(psr_tmp_read_.val.data << 8) / (float) this->kt_;
-  ESP_LOGVV(TAG,
-            "TMP read: %02x %02x %02x\n"
-            "     raw: %d\n"
-            "  raw_sc: %f",
-            psr_tmp_read_.reg[0], psr_tmp_read_.reg[1], psr_tmp_read_.reg[2],
-            esphome::convert_big_endian(psr_tmp_read_.val.data << 8), t_raw_sc);
+
+  t_raw_sc = (float) decode32(psr_tmp_read_[0], psr_tmp_read_[1], psr_tmp_read_[2], 0, 24) / (float) this->kt_;
   temperature = this->convert_temperature_(t_raw_sc);
   return true;
 }
