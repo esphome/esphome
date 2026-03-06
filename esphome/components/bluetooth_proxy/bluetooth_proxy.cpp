@@ -420,6 +420,8 @@ void BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, esp_err_
 }
 
 void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, esp_err_t error) {
+  if (this->api_connection_ == nullptr)
+    return;
   api::BluetoothDevicePairingResponse call;
   call.address = address;
   call.paired = paired;
@@ -429,6 +431,8 @@ void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, esp_err_
 }
 
 void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, esp_err_t error) {
+  if (this->api_connection_ == nullptr)
+    return;
   api::BluetoothDeviceUnpairingResponse call;
   call.address = address;
   call.success = success;

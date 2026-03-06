@@ -28,8 +28,13 @@ esphome:
     # Test C++ API: set_template() with stateless lambda (no captures)
     # NOTE: set_template() is not intended to be a public API, but we test it to ensure it doesn't break.
     - lambda: |-
-        id(template_sens).set_template([]() -> esphome::optional<float> {
+        id(template_sens).set_template([]() -> std::optional<float> {
           return 123.0f;
+        });
+    # Test that esphome::optional alias still works for backward compatibility
+    - lambda: |-
+        id(template_sens).set_template([]() -> esphome::optional<float> {
+          return 42.0f;
         });
 
     - datetime.date.set:

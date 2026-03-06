@@ -466,7 +466,7 @@ void HOT ST7735::write_display_data_() {
 }
 
 void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {
-  static uint8_t byte[4];
+  uint8_t byte[4];
   byte[0] = (addr1 >> 8) & 0xFF;
   byte[1] = addr1 & 0xFF;
   byte[2] = (addr2 >> 8) & 0xFF;
@@ -474,18 +474,6 @@ void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {
 
   this->dc_pin_->digital_write(true);
   this->write_array(byte, 4);
-}
-
-void ST7735::spi_master_write_color_(uint16_t color, uint16_t size) {
-  static uint8_t byte[1024];
-  int index = 0;
-  for (int i = 0; i < size; i++) {
-    byte[index++] = (color >> 8) & 0xFF;
-    byte[index++] = color & 0xFF;
-  }
-
-  this->dc_pin_->digital_write(true);
-  write_array(byte, size * 2);
 }
 
 }  // namespace st7735
