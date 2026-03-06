@@ -8,9 +8,13 @@
 
 namespace esphome {
 
-// No null check on global_logger — Logger::pre_setup() sets global_logger
-// before any other component is created in the generated setup() function,
-// so it is guaranteed to be valid by the time any log function is invoked.
+// IMPORTANT: Do not add null checks on global_logger here.
+// These functions are the hot path for ALL logging across the entire firmware,
+// so every instruction matters. Logger::pre_setup() sets global_logger before
+// any other component is created in the generated setup() function, so it is
+// guaranteed to be valid by the time any log function is invoked. This invariant
+// is enforced by codegen ordering and tested in
+// tests/component_tests/logger/test_logger.py.
 void HOT esp_log_printf_(int level, const char *tag, int line, const char *format, ...) {  // NOLINT
 #ifdef USE_LOGGER
   va_list arg;
