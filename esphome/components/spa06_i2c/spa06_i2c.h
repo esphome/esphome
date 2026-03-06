@@ -17,9 +17,6 @@ class SPA06I2CComponent : public esphome::spa06_base::SPA06Component, public i2c
     return write_bytes(a_register, data, len);
   }
   void dump_config() override;
-
- protected:
-  void protocol_reset_() override{};
 };
 
 }  // namespace esphome::spa06_i2c
