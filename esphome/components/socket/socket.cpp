@@ -16,37 +16,43 @@ bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || Ap
 
 // Platform-specific inet_ntop wrappers
 #if defined(USE_SOCKET_IMPL_LWIP_TCP)
+#if USE_NETWORK_IPV4
 // LWIP raw TCP (ESP8266) uses inet_ntoa_r which takes struct by value
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   inet_ntoa_r(*reinterpret_cast<const struct in_addr *>(addr), buf, size);
   return buf;
 }
+#endif /* USE_NETWORK_IPV4 */
 #if USE_NETWORK_IPV6
 static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
   inet6_ntoa_r(*reinterpret_cast<const ip6_addr_t *>(addr), buf, size);
   return buf;
 }
-#endif
+#endif /* USE_NETWORK_IPV6 */
 #elif defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+#if USE_NETWORK_IPV4
 // LWIP sockets (LibreTiny, ESP32 Arduino)
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   return lwip_inet_ntop(AF_INET, addr, buf, size);
 }
+#endif /* USE_NETWORK_IPV4 */
 #if USE_NETWORK_IPV6
 static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
   return lwip_inet_ntop(AF_INET6, addr, buf, size);
 }
-#endif
+#endif /* USE_NETWORK_IPV6 */
 #else
 // BSD sockets (host, ESP32-IDF)
+#if USE_NETWORK_IPV4
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   return inet_ntop(AF_INET, addr, buf, size);
 }
+#endif /* USE_NETWORK_IPV4 */
 #if USE_NETWORK_IPV6
 static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
   return inet_ntop(AF_INET6, addr, buf, size);
 }
-#endif
+#endif /* USE_NETWORK_IPV6 */
 #endif
 
 // Format sockaddr into caller-provided buffer, returns length written (excluding null)
@@ -57,27 +63,31 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
     if (esphome_inet_ntop4(&addr->sin_addr, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
   }
-#endif
+#endif /* USE_NETWORK_IPV4 */
 #if USE_NETWORK_IPV6
 #if USE_NETWORK_IPV4
   else if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
 #else
   if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
-#endif /* USE_NETWORK_IPV4 */
+#endif
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(addr_ptr);
 #ifdef USE_HOST
+#if USE_NETWORK_IPV4
     // Format IPv4-mapped IPv6 addresses as regular IPv4 (POSIX layout, no LWIP union)
     if (IN6_IS_ADDR_V4MAPPED(&addr->sin6_addr) &&
         esphome_inet_ntop4(&addr->sin6_addr.s6_addr[12], buf.data(), buf.size()) != nullptr) {
       return strlen(buf.data());
     }
+#endif /* USE_NETWORK_IPV4 */
 #elif !defined(USE_SOCKET_IMPL_LWIP_TCP)
+#if USE_NETWORK_IPV4
     // Format IPv4-mapped IPv6 addresses as regular IPv4 (LWIP layout)
     if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
         addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
         esphome_inet_ntop4(&addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
       return strlen(buf.data());
     }
+#endif /* USE_NETWORK_IPV4 */
 #endif
     if (esphome_inet_ntop6(&addr->sin6_addr, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
