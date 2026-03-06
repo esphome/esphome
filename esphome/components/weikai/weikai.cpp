@@ -401,7 +401,7 @@ bool WeikaiChannel::peek_byte(uint8_t *buffer) {
   return this->receive_buffer_.peek(*buffer);
 }
 
-int WeikaiChannel::available() {
+size_t WeikaiChannel::available() {
   size_t available = this->receive_buffer_.count();
   if (!available)
     available = xfer_fifo_to_buffer_();
@@ -445,6 +445,7 @@ void WeikaiChannel::flush() {
 }
 
 size_t WeikaiChannel::xfer_fifo_to_buffer_() {
+  size_t total = 0;
   size_t to_transfer;
   size_t free;
   while ((to_transfer = this->rx_in_fifo_()) && (free = this->receive_buffer_.free())) {
@@ -458,9 +459,10 @@ size_t WeikaiChannel::xfer_fifo_to_buffer_() {
       this->reg(0).read_fifo(data, to_transfer);
       for (size_t i = 0; i < to_transfer; i++)
         this->receive_buffer_.push(data[i]);
+      total += to_transfer;
     }
   }  // while work to do
-  return to_transfer;
+  return total;
 }
 
 ///

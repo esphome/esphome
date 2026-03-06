@@ -718,14 +718,6 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_POWER,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional("fw_core_version"): sensor.sensor_schema(
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("fw_module_version"): sensor.sensor_schema(
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

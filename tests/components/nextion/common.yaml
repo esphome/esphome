@@ -273,12 +273,9 @@ text_sensor:
 display:
   - platform: nextion
     id: main_lcd
-    update_interval: 5s
-    command_spacing: 5ms
     max_commands_per_loop: 20
     max_queue_size: 50
-    startup_override_ms: 10000ms  # Wait 10s for display ready
-    max_queue_age: 5000ms         # Remove queue items after 5s
+    update_interval: 5s
     on_sleep:
       then:
         lambda: 'ESP_LOGD("display","Display went to sleep");'
@@ -294,3 +291,8 @@ display:
     on_buffer_overflow:
       then:
         logger.log: "Nextion reported a buffer overflow!"
+
+    command_spacing: 5ms
+    dump_device_info: true
+    max_queue_age: 5000ms         # Remove queue items after 5s
+    startup_override_ms: 10000ms  # Wait 10s for display ready

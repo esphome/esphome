@@ -70,6 +70,7 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PLATFORM_RP2040,
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
@@ -399,14 +400,21 @@ def string_strict(value):
 
 def icon(value):
     """Validate that a given config value is a valid icon."""
+    from esphome.core.config import ICON_MAX_LENGTH
+
     value = string_strict(value)
     if not value:
         return value
-    if re.match("^[\\w\\-]+:[\\w\\-]+$", value):
-        return value
-    raise Invalid(
-        'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
-    )
+    if not re.match("^[\\w\\-]+:[\\w\\-]+$", value):
+        raise Invalid(
+            'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
+        )
+    if len(value) > ICON_MAX_LENGTH:
+        raise Invalid(
+            f"Icon string is too long ({len(value)} chars, max {ICON_MAX_LENGTH}). "
+            "Icons are stored in PROGMEM with a 64-byte buffer limit."
+        )
+    return value
 
 
 def sub_device_id(value: str | None) -> core.ID | None:
@@ -682,7 +690,7 @@ def only_with_framework(
     def validator_(obj):
         if CORE.target_framework not in frameworks:
             err_str = f"This feature is only available with framework(s) {', '.join([framework.value for framework in frameworks])}"
-            if suggestion := suggestions.get(CORE.target_framework, None):
+            if suggestion := suggestions.get(CORE.target_framework):
                 (component, docs_path) = suggestion
                 err_str += f"\nPlease use '{component}'"
                 if docs_path:
@@ -695,6 +703,7 @@ def only_with_framework(
 
 only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
+only_on_nrf52 = only_on(PLATFORM_NRF52)
 only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework(Framework.ARDUINO)
 
@@ -1403,6 +1412,17 @@ def requires_component(comp):
     return validator
 
 
+def conflicts_with_component(comp):
+    """Validate that this option cannot be specified when the component `comp` is loaded."""
+
+    def validator(value):
+        if comp in CORE.loaded_integrations:
+            raise Invalid(f"This option is not compatible with component {comp}")
+        return value
+
+    return validator
+
+
 uint8_t = int_range(min=0, max=255)
 uint16_t = int_range(min=0, max=65535)
 uint32_t = int_range(min=0, max=4294967295)
@@ -1627,7 +1647,10 @@ def dimensions(value):
         if width <= 0 or height <= 0:
             raise Invalid("Width and height must at least be 1")
         return [width, height]
-    value = string(value)
+    if not isinstance(value, str):
+        raise Invalid(
+            "Dimensions must be a string (WIDTHxHEIGHT). Got a number instead, try quoting the value."
+        )
     match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
         raise Invalid(

@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.image import DOMAIN as IMAGE_DOMAIN
+from esphome.components.image import get_image_metadata
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR,
@@ -17,7 +17,6 @@ from esphome.const import (
     CONF_WIDTH,
     CONF_X,
 )
-from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import nullptr
 
@@ -43,6 +42,7 @@ from ..defines import (
     LV_PART,
     LV_SCALE_MODE,
     get_remapped_uses,
+    get_warnings,
 )
 from ..helpers import add_lv_use, lvgl_components_required
 from ..lv_validation import (
@@ -84,13 +84,13 @@ from .line import CONF_LINE
 CONF_ANGLE_RANGE = "angle_range"
 CONF_COLOR_END = "color_end"
 CONF_COLOR_START = "color_start"
+CONF_DRAW_TICKS_ON_TOP = "draw_ticks_on_top"
 CONF_IMAGE_ID = "image_id"
 CONF_INDICATORS = "indicators"
 CONF_LINE_ID = "line_id"
 CONF_LABEL_GAP = "label_gap"
 CONF_MAJOR = "major"
 CONF_METER = "meter"
-CONF_PADDING = "padding"
 CONF_PIVOT = "pivot"
 CONF_R_MOD = "r_mod"
 CONF_RADIAL_OFFSET = "radial_offset"
@@ -111,9 +111,10 @@ CONF_TICK_STYLE = "tick_style"
 
 
 # For compatibility, keep meter types but map to scale
-lv_scale_t = LvType("lv_scale_t")
-lv_meter_t = lv_obj_t
-lv_meter_indicator_t = lv_obj_t
+lv_scale_t = LvType("lv_obj_t")
+lv_meter_t = LvType("lv_meter_t")
+lv_scale_section_t = LvType("lv_scale_section_t")
+lv_meter_indicator_t = LvType("lv_meter_indicator_t")
 lv_meter_indicator_ticks_t = LvType(
     "lv_scale_section_t", parents=(lv_meter_indicator_t,)
 )
@@ -168,22 +169,17 @@ INDICATOR_IMG_SCHEMA = cv.Schema(
         cv.Optional(CONF_OPA, default=1.0): opacity,
     }
 )
-INDICATOR_ARC_SCHEMA = (
-    cv.Schema(
-        {
-            cv.Optional(CONF_WIDTH, default=4): cv.int_,
-            cv.Optional(CONF_COLOR, default=0): lv_color,
-            cv.Optional(CONF_R_MOD): padding,
-            cv.Optional(CONF_PADDING): padding,
-            cv.Optional(CONF_VALUE): lv_float,
-            cv.Optional(CONF_START_VALUE): lv_float,
-            cv.Optional(CONF_END_VALUE): lv_float,
-            cv.Optional(CONF_OPA): opacity,
-        }
-    )
-    .add_extra(cv.has_at_most_one_key(CONF_R_MOD, CONF_PADDING))
-    .add_extra(cv.has_at_most_one_key(CONF_VALUE, CONF_START_VALUE))
-)
+INDICATOR_ARC_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_WIDTH, default=4): cv.int_,
+        cv.Optional(CONF_COLOR, default=0): lv_color,
+        cv.Optional(CONF_R_MOD): padding,
+        cv.Optional(CONF_VALUE): lv_float,
+        cv.Optional(CONF_START_VALUE): lv_float,
+        cv.Optional(CONF_END_VALUE): lv_float,
+        cv.Optional(CONF_OPA): opacity,
+    }
+).add_extra(cv.has_at_most_one_key(CONF_VALUE, CONF_START_VALUE))
 
 INDICATOR_TICKS_SCHEMA = cv.Schema(
     {
@@ -228,7 +224,7 @@ INDICATOR_SCHEMA = cv.Schema(
 
 SCALE_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(lv_obj_t),
+        cv.GenerateID(): cv.declare_id(lv_scale_t),
         cv.Optional(CONF_TICKS): cv.Schema(
             {
                 cv.Optional(CONF_COUNT, default=12): cv.positive_int,
@@ -253,6 +249,7 @@ SCALE_SCHEMA = cv.Schema(
         cv.Optional(CONF_ANGLE_RANGE, default=270): lv_angle_degrees,
         cv.Optional(CONF_ROTATION, default=0): lv_angle_degrees,
         cv.Optional(CONF_INDICATORS): cv.ensure_list(INDICATOR_SCHEMA),
+        cv.Optional(CONF_DRAW_TICKS_ON_TOP, default=True): bool,
     }
 )
 
@@ -296,13 +293,19 @@ line_indicator_type = WidgetType(
     is_mock=True,
 )
 
-arc_indicator_type = WidgetType(
-    CONF_INDICATOR,
-    lv_meter_indicator_arc_t,
-    (CONF_MAIN,),
-    lv_name=CONF_ARC,
-    is_mock=True,
-)
+
+class SectionType(WidgetType):
+    def __init__(self):
+        super().__init__(
+            "scale_section",
+            lv_meter_indicator_arc_t,
+            (CONF_MAIN,),
+            is_mock=True,
+            lv_name="scale_section",
+        )
+
+
+arc_indicator_type = SectionType()
 
 image_indicator_type = WidgetType(
     CONF_INDICATOR,
@@ -317,7 +320,7 @@ class MeterType(WidgetType):
     def __init__(self):
         super().__init__(
             CONF_METER,
-            lv_obj_t,  # Use scale widget instead of meter
+            lv_meter_t,
             # Note that mapping from 8.x to 9.x, indicator styling is applied to needles, and tick styling
             # is migrated to indicator
             (CONF_MAIN, CONF_INDICATOR, CONF_TICKS, CONF_ITEMS),
@@ -371,9 +374,112 @@ class MeterType(WidgetType):
             if rotation:
                 lv.scale_set_rotation(scale_var, rotation)
 
+            # Handle indicators as sections
+            for indicator in scale_conf.get(CONF_INDICATORS, ()):
+                (t, v) = next(iter(indicator.items()))
+                iid = v[CONF_ID]
+
+                # Enable getting the meter to which this belongs.
+
+                # Set section range based on indicator values
+                start_value = await get_start_value(v) or scale_conf[CONF_RANGE_FROM]
+                end_value = await get_end_value(v) or scale_conf[CONF_RANGE_TO]
+
+                # Create and apply styles based on indicator type
+                if t == CONF_ARC:
+                    props = {
+                        "arc_width": v[CONF_WIDTH],
+                        "arc_color": v[CONF_COLOR],
+                        "arc_opa": v[CONF_OPA],
+                        "arc_rounded": v.get("arc_rounded", False),
+                    }
+                    if CONF_R_MOD in v:
+                        get_warnings().add(
+                            "The 'r_mod' indicator property is not supported in LVGL 9.x and will be ignored."
+                        )
+                    arc_style = LVStyle(f"meter_arc_{iid.id}", props)
+                    tvar = cg.Pvariable(iid, lv_expr.scale_add_section(scale_var))
+                    lv.scale_section_set_style(
+                        tvar, LV_PART.MAIN, await arc_style.get_var()
+                    )
+                    lw = Widget(tvar, arc_indicator_type)
+                    await set_indicator_values(lw, v)
+
+                if t == CONF_TICK_STYLE:
+                    # No object created for this
+                    color_start = await lv_color.process(v[CONF_COLOR_START])
+                    color_end = await lv_color.process(v[CONF_COLOR_END])
+                    local = v[CONF_LOCAL]
+                    if color_start and color_end:
+                        async with LambdaContext(
+                            [(lv_event_t.operator("ptr"), "e")]
+                        ) as lambda_:
+                            lv.scale_draw_event_cb(
+                                lambda_.get_parameter(0),
+                                start_value,
+                                end_value,
+                                color_start,
+                                color_end,
+                                local,
+                            )
+                        lv_obj.add_event_cb(
+                            scale_var,
+                            await lambda_.get_lambda(),
+                            LV_EVENT.DRAW_TASK_ADDED,
+                            nullptr,
+                        )
+                        lv.obj_add_flag(scale_var, LV_OBJ_FLAG.SEND_DRAW_TASK_EVENTS)
+
+                if t == CONF_LINE:
+                    add_lv_use(CONF_LINE)
+                    # Needle represented by a line
+                    if CONF_LENGTH in v:
+                        length = v[CONF_LENGTH]
+                    elif r_mod := v.get(CONF_R_MOD):
+                        get_remapped_uses().add(CONF_R_MOD)
+                        length = -abs(r_mod)
+                    else:
+                        length = 1.0
+                    props = {
+                        CONF_ID: v[CONF_ID],
+                        CONF_OPA: v[CONF_OPA],
+                        CONF_LINE_WIDTH: v[CONF_WIDTH],
+                        "line_color": v[CONF_COLOR],
+                        "line_rounded": True,
+                        CONF_ALIGN: CHILD_ALIGNMENTS.TOP_LEFT,
+                        CONF_LENGTH: length,
+                        CONF_RADIAL_OFFSET: v[CONF_RADIAL_OFFSET],
+                    }
+                    lw = await widget_to_code(props, line_indicator_type, scale_var)
+                    await set_indicator_values(lw, v)
+
+                if t == CONF_IMAGE:
+                    add_lv_use(CONF_IMAGE)
+                    src = v[CONF_SRC]
+                    src_data = get_image_metadata(src.id)
+                    pivot_x = await pixels.process(v[CONF_PIVOT_X])
+                    pivot_y = await pixels.process(
+                        v.get(CONF_PIVOT_Y, src_data.height // 2)
+                    )
+                    props = {
+                        CONF_X: src_data.width // 2 - pivot_x,
+                        "transform_pivot_x": pivot_x,
+                        "transform_pivot_y": pivot_y,
+                        CONF_SRC: src,
+                        CONF_OPA: v[CONF_OPA],
+                        CONF_ID: v[CONF_ID],
+                        CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
+                    }
+                    iw = await widget_to_code(props, image_indicator_type, scale_var)
+                    await iw.set_property(CONF_SRC, await lv_image.process(src))
+                    await set_indicator_values(iw, v)
+
             if ticks := scale_conf.get(CONF_TICKS):
                 # Set total tick count
                 lv.scale_set_total_tick_count(scale_var, ticks[CONF_COUNT])
+                lv.scale_set_draw_ticks_on_top(
+                    scale_var, scale_conf[CONF_DRAW_TICKS_ON_TOP]
+                )
 
                 # Set tick styling
                 lv_obj.set_style_length(
@@ -439,102 +545,6 @@ class MeterType(WidgetType):
             else:
                 lv.scale_set_total_tick_count(scale_var, 0)
 
-            # Handle indicators as sections
-            for indicator in scale_conf.get(CONF_INDICATORS, ()):
-                (t, v) = next(iter(indicator.items()))
-                iid = v[CONF_ID]
-
-                # Enable getting the meter to which this belongs.
-
-                # Set section range based on indicator values
-                start_value = await get_start_value(v) or scale_conf[CONF_RANGE_FROM]
-                end_value = await get_end_value(v) or scale_conf[CONF_RANGE_TO]
-
-                # Create and apply styles based on indicator type
-                if t == CONF_TICK_STYLE:
-                    # No object created for this
-                    color_start = await lv_color.process(v[CONF_COLOR_START])
-                    color_end = await lv_color.process(v[CONF_COLOR_END])
-                    local = v[CONF_LOCAL]
-                    if color_start and color_end:
-                        async with LambdaContext(
-                            [(lv_event_t.operator("ptr"), "e")]
-                        ) as lambda_:
-                            lv.scale_draw_event_cb(
-                                lambda_.get_parameter(0),
-                                start_value,
-                                end_value,
-                                color_start,
-                                color_end,
-                                local,
-                            )
-                        lv_obj.add_event_cb(
-                            scale_var,
-                            await lambda_.get_lambda(),
-                            LV_EVENT.DRAW_TASK_ADDED,
-                            nullptr,
-                        )
-                        lv.obj_add_flag(scale_var, LV_OBJ_FLAG.SEND_DRAW_TASK_EVENTS)
-
-                if t == CONF_ARC:
-                    add_lv_use(CONF_ARC)
-                    props = {
-                        "arc_width": v[CONF_WIDTH],
-                        "arc_color": v[CONF_COLOR],
-                        "arc_opa": v[CONF_OPA],
-                        "id": iid,
-                        CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
-                    }
-                    if pad_all := v.get(CONF_PADDING, v.get(CONF_R_MOD, 0)):
-                        props["pad_all"] = pad_all
-                    lw = await widget_to_code(props, arc_indicator_type, scale_var)
-                    await set_indicator_values(lw, v)
-
-                if t == CONF_LINE:
-                    add_lv_use(CONF_LINE)
-                    # Needle represented by a line
-                    if CONF_LENGTH in v:
-                        length = v[CONF_LENGTH]
-                    elif r_mod := v.get(CONF_R_MOD):
-                        get_remapped_uses().add(CONF_R_MOD)
-                        length = -abs(r_mod)
-                    else:
-                        length = 1.0
-                    props = {
-                        CONF_ID: v[CONF_ID],
-                        CONF_OPA: v[CONF_OPA],
-                        CONF_LINE_WIDTH: v[CONF_WIDTH],
-                        "line_color": v[CONF_COLOR],
-                        "line_rounded": True,
-                        CONF_ALIGN: CHILD_ALIGNMENTS.TOP_LEFT,
-                        CONF_LENGTH: length,
-                        CONF_RADIAL_OFFSET: v[CONF_RADIAL_OFFSET],
-                    }
-                    lw = await widget_to_code(props, line_indicator_type, scale_var)
-                    await set_indicator_values(lw, v)
-
-                # Note: Image indicators (needles) are not directly supported by scale widget
-                # They would need to be implemented as separate image objects positioned over the scale
-                if t == CONF_IMAGE:
-                    add_lv_use(CONF_IMAGE)
-                    src = v[CONF_SRC]
-                    src_data = CORE.data[IMAGE_DOMAIN][str(src)]
-                    pivot_x = await pixels.process(v[CONF_PIVOT_X])
-                    pivot_y = await pixels.process(
-                        v.get(CONF_PIVOT_Y, src_data[CONF_HEIGHT] // 2)
-                    )
-                    props = {
-                        CONF_X: src_data[CONF_WIDTH] // 2 - pivot_x,
-                        "transform_pivot_x": pivot_x,
-                        "transform_pivot_y": pivot_y,
-                        CONF_SRC: src,
-                        CONF_OPA: v[CONF_OPA],
-                        CONF_ID: v[CONF_ID],
-                        CONF_ALIGN: CHILD_ALIGNMENTS.CENTER,
-                    }
-                    iw = await widget_to_code(props, image_indicator_type, scale_var)
-                    await set_indicator_values(iw, v)
-
         # Add a pivot
         # Get the default style
         pivot_style = PIVOT_STYLE.copy()
@@ -575,7 +585,7 @@ async def set_indicator_values(indicator: Widget, config):
     """Update scale section values (replaces meter indicator values)"""
     start_value = await get_start_value(config)
     end_value = await get_end_value(config)
-    if indicator.type is scale_spec:
+    if indicator.type is arc_indicator_type:
         # For scale sections, we update the range
         if start_value is not None and end_value is not None:
             lv.scale_section_set_range(indicator.obj, start_value, end_value)
@@ -587,16 +597,6 @@ async def set_indicator_values(indicator: Widget, config):
             lv.scale_section_set_range(indicator.obj, 0, end_value)
         return
 
-    if indicator.type is arc_indicator_type:
-        if start_value is not None:
-            lv.arc_set_start_angle(
-                indicator.obj, lv.get_needle_angle_for_value(indicator.obj, start_value)
-            )
-        if end_value is not None:
-            lv.arc_set_end_angle(
-                indicator.obj, lv.get_needle_angle_for_value(indicator.obj, start_value)
-            )
-
     if start_value is None:
         return
     if indicator.type is line_indicator_type:
@@ -605,7 +605,6 @@ async def set_indicator_values(indicator: Widget, config):
         return
     if indicator.type is image_indicator_type:
         # Needle represented by an image
-        lv.image_set_needle_value(indicator.obj, start_value)
         lv_obj.set_style_transform_rotation(
             indicator.obj,
             lv.get_needle_angle_for_value(indicator.obj, start_value) * 10,

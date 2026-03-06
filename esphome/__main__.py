@@ -23,6 +23,7 @@ import esphome.codegen as cg
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
+    ARGUMENT_HELP_DEVICE,
     CONF_API,
     CONF_BAUD_RATE,
     CONF_BROKER,
@@ -294,8 +295,13 @@ def has_api() -> bool:
 
 
 def has_ota() -> bool:
-    """Check if OTA is available."""
-    return CONF_OTA in CORE.config
+    """Check if OTA upload is available (requires platform: esphome)."""
+    if CONF_OTA not in CORE.config:
+        return False
+    return any(
+        ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
+        for ota_item in CORE.config[CONF_OTA]
+    )
 
 
 def has_mqtt_ip_lookup() -> bool:
@@ -426,6 +432,14 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
+    process_stacktrace = None
+
+    try:
+        module = importlib.import_module("esphome.components." + CORE.target_platform)
+        process_stacktrace = getattr(module, "process_stacktrace")
+    except AttributeError:
+        pass
+
     backtrace_state = False
     ser = serial.Serial()
     ser.baudrate = baud_rate
@@ -467,9 +481,14 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                             )
                             safe_print(parser.parse_line(line, time_str))
 
-                            backtrace_state = platformio_api.process_stacktrace(
-                                config, line, backtrace_state=backtrace_state
-                            )
+                            if process_stacktrace:
+                                backtrace_state = process_stacktrace(
+                                    config, line, backtrace_state
+                                )
+                            else:
+                                backtrace_state = platformio_api.process_stacktrace(
+                                    config, line, backtrace_state=backtrace_state
+                                )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
@@ -939,12 +958,6 @@ def command_clean_all(args: ArgsProtocol) -> int | None:
     return 0
 
 
-def command_mqtt_fingerprint(args: ArgsProtocol, config: ConfigType) -> int | None:
-    from esphome import mqtt
-
-    return mqtt.get_fingerprint(config)
-
-
 def command_version(args: ArgsProtocol) -> int | None:
     safe_print(f"Version: {const.__version__}")
     return 0
@@ -1232,7 +1245,6 @@ POST_CONFIG_ACTIONS = {
     "run": command_run,
     "clean": command_clean,
     "clean-mqtt": command_clean_mqtt,
-    "mqtt-fingerprint": command_mqtt_fingerprint,
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
@@ -1356,7 +1368,7 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help=ARGUMENT_HELP_DEVICE,
     )
     parser_upload.add_argument(
         "--upload_speed",
@@ -1379,7 +1391,7 @@ def parse_args(argv):
     parser_logs.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help=ARGUMENT_HELP_DEVICE,
     )
     parser_logs.add_argument(
         "--reset",
@@ -1409,7 +1421,7 @@ def parse_args(argv):
     parser_run.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help=ARGUMENT_HELP_DEVICE,
     )
     parser_run.add_argument(
         "--upload_speed",
@@ -1445,13 +1457,6 @@ def parse_args(argv):
         help="A helpful setup wizard that will guide you through setting up ESPHome.",
     )
     parser_wizard.add_argument("configuration", help="Your YAML configuration file.")
-
-    parser_fingerprint = subparsers.add_parser(
-        "mqtt-fingerprint", help="Get the SSL fingerprint from a MQTT broker."
-    )
-    parser_fingerprint.add_argument(
-        "configuration", help="Your YAML configuration file(s).", nargs="+"
-    )
 
     subparsers.add_parser("version", help="Print the ESPHome version and exit.")
 

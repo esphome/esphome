@@ -1,5 +1,6 @@
 #include "mqtt_lock.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -16,11 +17,11 @@ MQTTLockComponent::MQTTLockComponent(lock::Lock *a_lock) : lock_(a_lock) {}
 
 void MQTTLockComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
-    if (strcasecmp(payload.c_str(), "LOCK") == 0) {
+    if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("LOCK")) == 0) {
       this->lock_->lock();
-    } else if (strcasecmp(payload.c_str(), "UNLOCK") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("UNLOCK")) == 0) {
       this->lock_->unlock();
-    } else if (strcasecmp(payload.c_str(), "OPEN") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("OPEN")) == 0) {
       this->lock_->open();
     } else {
       ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
@@ -47,13 +48,14 @@ void MQTTLockComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfi
 bool MQTTLockComponent::send_initial_state() { return this->publish_state(); }
 
 bool MQTTLockComponent::publish_state() {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   char buf[LOCK_STATE_STR_SIZE];
   strncpy_P(buf, (PGM_P) lock_state_to_string(this->lock_->state), sizeof(buf) - 1);
   buf[sizeof(buf) - 1] = '\0';
-  return this->publish(this->get_state_topic_(), buf);
+  return this->publish(this->get_state_topic_to_(topic_buf), buf);
 #else
-  return this->publish(this->get_state_topic_(), LOG_STR_ARG(lock_state_to_string(this->lock_->state)));
+  return this->publish(this->get_state_topic_to_(topic_buf), LOG_STR_ARG(lock_state_to_string(this->lock_->state)));
 #endif
 }
 

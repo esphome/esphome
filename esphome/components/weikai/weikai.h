@@ -374,7 +374,7 @@ class WeikaiChannel : public uart::UARTComponent {
 
   /// @brief Returns the number of bytes in the receive buffer
   /// @return the number of bytes available in the receiver fifo
-  int available() override;
+  size_t available() override;
 
   /// @brief Flush the output fifo.
   /// @details If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission of outgoing serial data

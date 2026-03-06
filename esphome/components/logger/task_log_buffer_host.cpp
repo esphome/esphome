@@ -10,16 +10,16 @@
 
 namespace esphome::logger {
 
-TaskLogBufferHost::TaskLogBufferHost(size_t slot_count) : slot_count_(slot_count) {
+TaskLogBuffer::TaskLogBuffer(size_t slot_count) : slot_count_(slot_count) {
   // Allocate message slots
   this->slots_ = std::make_unique<LogMessage[]>(slot_count);
 }
 
-TaskLogBufferHost::~TaskLogBufferHost() {
+TaskLogBuffer::~TaskLogBuffer() {
   // unique_ptr handles cleanup automatically
 }
 
-int TaskLogBufferHost::acquire_write_slot_() {
+int TaskLogBuffer::acquire_write_slot_() {
   // Try to reserve a slot using compare-and-swap
   size_t current_reserve = this->reserve_index_.load(std::memory_order_relaxed);
 
@@ -43,7 +43,7 @@ int TaskLogBufferHost::acquire_write_slot_() {
   }
 }
 
-void TaskLogBufferHost::commit_write_slot_(int slot_index) {
+void TaskLogBuffer::commit_write_slot_(int slot_index) {
   // Mark the slot as ready for reading
   this->slots_[slot_index].ready.store(true, std::memory_order_release);
 
@@ -70,8 +70,8 @@ void TaskLogBufferHost::commit_write_slot_(int slot_index) {
   }
 }
 
-bool TaskLogBufferHost::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *format,
-                                                 va_list args) {
+bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
+                                             const char *format, va_list args) {
   // Acquire a slot
   int slot_index = this->acquire_write_slot_();
   if (slot_index < 0) {
@@ -85,11 +85,9 @@ bool TaskLogBufferHost::send_message_thread_safe(uint8_t level, const char *tag,
   msg.tag = tag;
   msg.line = line;
 
-  // Get thread name using pthread
-  char thread_name_buf[LogMessage::MAX_THREAD_NAME_SIZE];
-  // pthread_getname_np works the same on Linux and macOS
-  if (pthread_getname_np(pthread_self(), thread_name_buf, sizeof(thread_name_buf)) == 0) {
-    strncpy(msg.thread_name, thread_name_buf, sizeof(msg.thread_name) - 1);
+  // Store the thread name now to avoid crashes if thread exits before processing
+  if (thread_name != nullptr) {
+    strncpy(msg.thread_name, thread_name, sizeof(msg.thread_name) - 1);
     msg.thread_name[sizeof(msg.thread_name) - 1] = '\0';
   } else {
     msg.thread_name[0] = '\0';
@@ -117,11 +115,7 @@ bool TaskLogBufferHost::send_message_thread_safe(uint8_t level, const char *tag,
   return true;
 }
 
-bool TaskLogBufferHost::get_message_main_loop(LogMessage **message) {
-  if (message == nullptr) {
-    return false;
-  }
-
+bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &text_length) {
   size_t current_read = this->read_index_.load(std::memory_order_relaxed);
   size_t current_write = this->write_index_.load(std::memory_order_acquire);
 
@@ -136,11 +130,12 @@ bool TaskLogBufferHost::get_message_main_loop(LogMessage **message) {
     return false;
   }
 
-  *message = &msg;
+  message = &msg;
+  text_length = msg.text_length;
   return true;
 }
 
-void TaskLogBufferHost::release_message_main_loop() {
+void TaskLogBuffer::release_message_main_loop() {
   size_t current_read = this->read_index_.load(std::memory_order_relaxed);
 
   // Clear the ready flag

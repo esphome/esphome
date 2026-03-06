@@ -338,9 +338,9 @@ def size_validator(value):
 size = LValidator(
     size_validator,
     uint32,
-    retmapper=lambda x: literal(x)
-    if isinstance(x, str)
-    else pixels_or_percent.retmapper(x),
+    retmapper=lambda x: (
+        literal(x) if isinstance(x, str) else pixels_or_percent.retmapper(x)
+    ),
 )
 
 

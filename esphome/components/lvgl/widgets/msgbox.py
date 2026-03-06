@@ -20,7 +20,7 @@ from ..defines import (
     literal,
 )
 from ..helpers import add_lv_use
-from ..lv_validation import lv_bool, lv_color, lv_image, lv_text, pixels_or_percent
+from ..lv_validation import lv_bool, lv_image, lv_text, pixels_or_percent
 from ..lvcode import EVENT_ARG, LambdaContext, LocalVariable, lv, lv_expr, lv_obj
 from ..schemas import (
     STYLE_SCHEMA,
@@ -78,7 +78,9 @@ class HeaderButtonType(WidgetType):
         )
 
     async def obj_creator(self, parent: MockObjClass, config: dict):
-        return lv_expr.msgbox_add_header_button(parent, config[CONF_SRC])
+        return lv_expr.msgbox_add_header_button(
+            parent, await lv_image.process(config[CONF_SRC])
+        )
 
 
 header_button_spec = HeaderButtonType()
@@ -146,12 +148,10 @@ async def msgbox_to_code(top_layer, conf):
     for button in conf.get(CONF_BUTTONS, ()):
         await widget_to_code(button, footer_button_spec, msgbox)
     for button in conf.get(CONF_HEADER_BUTTONS, ()):
-        button[CONF_SRC] = await lv_image.process(button[CONF_SRC])
         await widget_to_code(button, header_button_spec, msgbox)
 
     async with LambdaContext(EVENT_ARG, where=messagebox_id) as close_action:
         outer_widget.add_flag(LV_OBJ_FLAG.HIDDEN)
-        outer_widget.set_style("bg_color", await lv_color.process("red"))
     if close_button:
         with LocalVariable(
             "close_btn_", lv_obj_t, lv_expr.msgbox_add_close_button(msgbox)

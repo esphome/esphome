@@ -241,6 +241,7 @@ STYLE_PROPS = {
 
 STYLE_REMAP = {
     "transform_angle": "transform_rotation",
+    "transform_zoom": "transform_scale",
     "zoom": "scale",
     "angle": "rotation",
     "shadow_ofs_x": "shadow_offset_x",
@@ -467,6 +468,7 @@ def container_schema(widget_type: WidgetType, extras=None):
     schema = schema.extend(widget_type.schema)
 
     def validator(value):
+        value = value or {}
         return append_layout_schema(schema, value)(value)
 
     return validator

@@ -8,6 +8,7 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import stat
 import tempfile
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -354,6 +355,23 @@ def is_ha_addon():
     return get_bool_env("ESPHOME_IS_HA_ADDON")
 
 
+def rmtree(path: Path | str) -> None:
+    """Remove a directory tree, handling read-only files on Windows.
+
+    On Windows, git pack files and other files may be marked read-only,
+    causing shutil.rmtree to fail. This handles that by removing the
+    read-only flag and retrying.
+    """
+
+    def _onerror(func, path, exc_info):
+        if os.access(path, os.W_OK):
+            raise exc_info[1].with_traceback(exc_info[2])
+        os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
+        func(path)
+
+    shutil.rmtree(path, onerror=_onerror)
+
+
 def walk_files(path: Path):
     for root, _, files in os.walk(path):
         for name in files:
@@ -481,8 +499,6 @@ def list_starts_with(list_, sub):
 
 def file_compare(path1: Path, path2: Path) -> bool:
     """Return True if the files path1 and path2 have the same contents."""
-    import stat
-
     try:
         stat1, stat2 = path1.stat(), path2.stat()
     except OSError:
