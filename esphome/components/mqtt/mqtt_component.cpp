@@ -214,6 +214,11 @@ bool MQTTComponent::send_discovery_() {
         if (icon[0] != '\0') {
           root[MQTT_ICON] = icon;
         }
+        char dc_buf[MAX_DEVICE_CLASS_LENGTH];
+        const char *dc = this->get_entity()->get_device_class_to(dc_buf);
+        if (dc[0] != '\0') {
+          root[MQTT_DEVICE_CLASS] = dc;
+        }
 
         const auto entity_category = this->get_entity()->get_entity_category();
         if (entity_category != ENTITY_CATEGORY_NONE) {

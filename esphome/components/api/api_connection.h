@@ -334,36 +334,12 @@ class APIConnection final : public APIServerConnectionBase {
 
   // Helper to fill entity info base and encode message
   static uint16_t fill_and_encode_entity_info(EntityBase *entity, InfoResponseProtoMessage &msg, uint8_t message_type,
-                                              APIConnection *conn, uint32_t remaining_size) {
-    // Set common fields that are shared by all entity types
-    msg.key = entity->get_object_id_hash();
+                                              APIConnection *conn, uint32_t remaining_size);
 
-    // API 1.14+ clients compute object_id client-side from the entity name
-    // For older clients, we must send object_id for backward compatibility
-    // See: https://github.com/esphome/backlog/issues/76
-    // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
-    // Buffer must remain in scope until encode_message_to_buffer is called
-    char object_id_buf[OBJECT_ID_MAX_LEN];
-    if (!conn->client_supports_api_version(1, 14)) {
-      msg.object_id = entity->get_object_id_to(object_id_buf);
-    }
-
-    if (entity->has_own_name()) {
-      msg.name = entity->get_name();
-    }
-
-    // Set common EntityBase properties
-#ifdef USE_ENTITY_ICON
-    char icon_buf[MAX_ICON_LENGTH];
-    msg.icon = StringRef(entity->get_icon_to(icon_buf));
-#endif
-    msg.disabled_by_default = entity->is_disabled_by_default();
-    msg.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
-#ifdef USE_DEVICES
-    msg.device_id = entity->get_device_id();
-#endif
-    return encode_message_to_buffer(msg, message_type, conn, remaining_size);
-  }
+  // Wrapper for entity types that have a device_class field
+  static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                                                StringRef &device_class_field, uint8_t message_type,
+                                                                APIConnection *conn, uint32_t remaining_size);
 
 #ifdef USE_VOICE_ASSISTANT
   // Helper to check voice assistant validity and connection ownership

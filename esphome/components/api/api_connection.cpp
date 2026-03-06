@@ -396,6 +396,48 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
   return static_cast<uint16_t>(header_padding + calculated_size + footer_size);
 }
 
+uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                                    uint8_t message_type, APIConnection *conn,
+                                                    uint32_t remaining_size) {
+  // Set common fields that are shared by all entity types
+  msg.key = entity->get_object_id_hash();
+
+  // API 1.14+ clients compute object_id client-side from the entity name
+  // For older clients, we must send object_id for backward compatibility
+  // See: https://github.com/esphome/backlog/issues/76
+  // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
+  // Buffer must remain in scope until encode_message_to_buffer is called
+  char object_id_buf[OBJECT_ID_MAX_LEN];
+  if (!conn->client_supports_api_version(1, 14)) {
+    msg.object_id = entity->get_object_id_to(object_id_buf);
+  }
+
+  if (entity->has_own_name()) {
+    msg.name = entity->get_name();
+  }
+
+  // Set common EntityBase properties
+#ifdef USE_ENTITY_ICON
+  char icon_buf[MAX_ICON_LENGTH];
+  msg.icon = StringRef(entity->get_icon_to(icon_buf));
+#endif
+  msg.disabled_by_default = entity->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
+#ifdef USE_DEVICES
+  msg.device_id = entity->get_device_id();
+#endif
+  return encode_message_to_buffer(msg, message_type, conn, remaining_size);
+}
+
+uint16_t APIConnection::fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                                                      StringRef &device_class_field,
+                                                                      uint8_t message_type, APIConnection *conn,
+                                                                      uint32_t remaining_size) {
+  char dc_buf[MAX_DEVICE_CLASS_LENGTH];
+  device_class_field = StringRef(entity->get_device_class_to(dc_buf));
+  return fill_and_encode_entity_info(entity, msg, message_type, conn, remaining_size);
+}
+
 #ifdef USE_BINARY_SENSOR
 bool APIConnection::send_binary_sensor_state(binary_sensor::BinarySensor *binary_sensor) {
   return this->send_message_smart_(binary_sensor, BinarySensorStateResponse::MESSAGE_TYPE,
@@ -414,10 +456,9 @@ uint16_t APIConnection::try_send_binary_sensor_state(EntityBase *entity, APIConn
 uint16_t APIConnection::try_send_binary_sensor_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *binary_sensor = static_cast<binary_sensor::BinarySensor *>(entity);
   ListEntitiesBinarySensorResponse msg;
-  msg.device_class = binary_sensor->get_device_class_ref();
   msg.is_status_binary_sensor = binary_sensor->is_status_binary_sensor();
-  return fill_and_encode_entity_info(binary_sensor, msg, ListEntitiesBinarySensorResponse::MESSAGE_TYPE, conn,
-                                     remaining_size);
+  return fill_and_encode_entity_info_with_device_class(
+      binary_sensor, msg, msg.device_class, ListEntitiesBinarySensorResponse::MESSAGE_TYPE, conn, remaining_size);
 }
 #endif
 
@@ -443,8 +484,8 @@ uint16_t APIConnection::try_send_cover_info(EntityBase *entity, APIConnection *c
   msg.supports_position = traits.get_supports_position();
   msg.supports_tilt = traits.get_supports_tilt();
   msg.supports_stop = traits.get_supports_stop();
-  msg.device_class = cover->get_device_class_ref();
-  return fill_and_encode_entity_info(cover, msg, ListEntitiesCoverResponse::MESSAGE_TYPE, conn, remaining_size);
+  return fill_and_encode_entity_info_with_device_class(cover, msg, msg.device_class,
+                                                       ListEntitiesCoverResponse::MESSAGE_TYPE, conn, remaining_size);
 }
 void APIConnection::on_cover_command_request(const CoverCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(cover::Cover, cover, cover)
@@ -609,9 +650,9 @@ uint16_t APIConnection::try_send_sensor_info(EntityBase *entity, APIConnection *
   msg.unit_of_measurement = sensor->get_unit_of_measurement_ref();
   msg.accuracy_decimals = sensor->get_accuracy_decimals();
   msg.force_update = sensor->get_force_update();
-  msg.device_class = sensor->get_device_class_ref();
   msg.state_class = static_cast<enums::SensorStateClass>(sensor->get_state_class());
-  return fill_and_encode_entity_info(sensor, msg, ListEntitiesSensorResponse::MESSAGE_TYPE, conn, remaining_size);
+  return fill_and_encode_entity_info_with_device_class(sensor, msg, msg.device_class,
+                                                       ListEntitiesSensorResponse::MESSAGE_TYPE, conn, remaining_size);
 }
 #endif
 
@@ -631,8 +672,8 @@ uint16_t APIConnection::try_send_switch_info(EntityBase *entity, APIConnection *
   auto *a_switch = static_cast<switch_::Switch *>(entity);
   ListEntitiesSwitchResponse msg;
   msg.assumed_state = a_switch->assumed_state();
-  msg.device_class = a_switch->get_device_class_ref();
-  return fill_and_encode_entity_info(a_switch, msg, ListEntitiesSwitchResponse::MESSAGE_TYPE, conn, remaining_size);
+  return fill_and_encode_entity_info_with_device_class(a_switch, msg, msg.device_class,
+                                                       ListEntitiesSwitchResponse::MESSAGE_TYPE, conn, remaining_size);
 }
 void APIConnection::on_switch_command_request(const SwitchCommandRequest &msg) {
   ENTITY_COMMAND_GET(switch_::Switch, a_switch, switch)
@@ -661,9 +702,8 @@ uint16_t APIConnection::try_send_text_sensor_state(EntityBase *entity, APIConnec
 uint16_t APIConnection::try_send_text_sensor_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *text_sensor = static_cast<text_sensor::TextSensor *>(entity);
   ListEntitiesTextSensorResponse msg;
-  msg.device_class = text_sensor->get_device_class_ref();
-  return fill_and_encode_entity_info(text_sensor, msg, ListEntitiesTextSensorResponse::MESSAGE_TYPE, conn,
-                                     remaining_size);
+  return fill_and_encode_entity_info_with_device_class(
+      text_sensor, msg, msg.device_class, ListEntitiesTextSensorResponse::MESSAGE_TYPE, conn, remaining_size);
 }
 #endif
 
@@ -776,11 +816,11 @@ uint16_t APIConnection::try_send_number_info(EntityBase *entity, APIConnection *
   ListEntitiesNumberResponse msg;
   msg.unit_of_measurement = number->get_unit_of_measurement_ref();
   msg.mode = static_cast<enums::NumberMode>(number->traits.get_mode());
-  msg.device_class = number->get_device_class_ref();
   msg.min_value = number->traits.get_min_value();
   msg.max_value = number->traits.get_max_value();
   msg.step = number->traits.get_step();
-  return fill_and_encode_entity_info(number, msg, ListEntitiesNumberResponse::MESSAGE_TYPE, conn, remaining_size);
+  return fill_and_encode_entity_info_with_device_class(number, msg, msg.device_class,
+                                                       ListEntitiesNumberResponse::MESSAGE_TYPE, conn, remaining_size);
 }
 void APIConnection::on_number_command_request(const NumberCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(number::Number, number, number)
@@ -925,8 +965,8 @@ void APIConnection::on_select_command_request(const SelectCommandRequest &msg) {
 uint16_t APIConnection::try_send_button_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *button = static_cast<button::Button *>(entity);
   ListEntitiesButtonResponse msg;
-  msg.device_class = button->get_device_class_ref();
-  return fill_and_encode_entity_info(button, msg, ListEntitiesButtonResponse::MESSAGE_TYPE, conn, remaining_size);
+  return fill_and_encode_entity_info_with_device_class(button, msg, msg.device_class,
+                                                       ListEntitiesButtonResponse::MESSAGE_TYPE, conn, remaining_size);
 }
 void esphome::api::APIConnection::on_button_command_request(const ButtonCommandRequest &msg) {
   ENTITY_COMMAND_GET(button::Button, button, button)
@@ -986,11 +1026,11 @@ uint16_t APIConnection::try_send_valve_info(EntityBase *entity, APIConnection *c
   auto *valve = static_cast<valve::Valve *>(entity);
   ListEntitiesValveResponse msg;
   auto traits = valve->get_traits();
-  msg.device_class = valve->get_device_class_ref();
   msg.assumed_state = traits.get_is_assumed_state();
   msg.supports_position = traits.get_supports_position();
   msg.supports_stop = traits.get_supports_stop();
-  return fill_and_encode_entity_info(valve, msg, ListEntitiesValveResponse::MESSAGE_TYPE, conn, remaining_size);
+  return fill_and_encode_entity_info_with_device_class(valve, msg, msg.device_class,
+                                                       ListEntitiesValveResponse::MESSAGE_TYPE, conn, remaining_size);
 }
 void APIConnection::on_valve_command_request(const ValveCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(valve::Valve, valve, valve)
@@ -1434,9 +1474,9 @@ uint16_t APIConnection::try_send_event_response(event::Event *event, StringRef e
 uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *event = static_cast<event::Event *>(entity);
   ListEntitiesEventResponse msg;
-  msg.device_class = event->get_device_class_ref();
   msg.event_types = &event->get_event_types();
-  return fill_and_encode_entity_info(event, msg, ListEntitiesEventResponse::MESSAGE_TYPE, conn, remaining_size);
+  return fill_and_encode_entity_info_with_device_class(event, msg, msg.device_class,
+                                                       ListEntitiesEventResponse::MESSAGE_TYPE, conn, remaining_size);
 }
 #endif
 
@@ -1492,8 +1532,8 @@ uint16_t APIConnection::try_send_update_state(EntityBase *entity, APIConnection 
 uint16_t APIConnection::try_send_update_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *update = static_cast<update::UpdateEntity *>(entity);
   ListEntitiesUpdateResponse msg;
-  msg.device_class = update->get_device_class_ref();
-  return fill_and_encode_entity_info(update, msg, ListEntitiesUpdateResponse::MESSAGE_TYPE, conn, remaining_size);
+  return fill_and_encode_entity_info_with_device_class(update, msg, msg.device_class,
+                                                       ListEntitiesUpdateResponse::MESSAGE_TYPE, conn, remaining_size);
 }
 void APIConnection::on_update_command_request(const UpdateCommandRequest &msg) {
   ENTITY_COMMAND_GET(update::UpdateEntity, update, update)

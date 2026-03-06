@@ -17,7 +17,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-from esphome.core.config import ICON_MAX_LENGTH
+from esphome.core.config import DEVICE_CLASS_MAX_LENGTH, ICON_MAX_LENGTH
 from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
 import esphome.final_validate as fv
 from esphome.helpers import cpp_string_escape, fnv1_hash_object_id, sanitize, snake_case
@@ -134,7 +134,7 @@ def _generate_category_code(
 
 
 _CATEGORY_CONFIGS = (
-    ("ENTITY_DC_TABLE", "entity_device_class_lookup", "device_classes", False),
+    ("ENTITY_DC_TABLE", "entity_device_class_lookup", "device_classes", True),
     ("ENTITY_UOM_TABLE", "entity_uom_lookup", "units", False),
     ("ENTITY_ICON_TABLE", "entity_icon_lookup", "icons", True),
 )
@@ -181,6 +181,10 @@ def _register_string(
 
 def register_device_class(value: str) -> int:
     """Register a device_class string and return its 1-based index."""
+    if value and len(value) > DEVICE_CLASS_MAX_LENGTH:
+        raise ValueError(
+            f"Device class string too long ({len(value)} chars, max {DEVICE_CLASS_MAX_LENGTH}): '{value}'"
+        )
     return _register_string(
         value, _get_pool().device_classes, _MAX_DEVICE_CLASSES, "device_class"
     )
