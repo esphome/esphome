@@ -993,6 +993,12 @@ async def test_setup_entity_decorator_mode(setup_test_environment: list[str]) ->
 
 
 # Tests for finalize_entity_strings packing
+#
+# These tests verify that flags and string indices produce non-zero packed values
+# and correct inline comments. The actual bit layout correctness (Python _*_SHIFT
+# matching C++ ENTITY_FIELD_*_SHIFT) is verified end-to-end by the integration
+# test test_host_mode_entity_fields, which compiles firmware and checks values
+# via the native API.
 
 
 def _extract_packed_value(expressions: list[str]) -> int:
