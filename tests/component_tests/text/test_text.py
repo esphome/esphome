@@ -1,4 +1,16 @@
-"""Tests for the binary sensor component."""
+"""Tests for the text component."""
+
+import re
+
+_INTERNAL_BIT = 1 << 24
+
+
+def _extract_packed_value(main_cpp, var_name):
+    """Extract the third (packed) argument from a configure_entity_ call."""
+    pattern = rf"{re.escape(var_name)}->configure_entity_\([^,]+,\s*\w+,\s*(\d+)\)"
+    match = re.search(pattern, main_cpp)
+    assert match, f"configure_entity_ call not found for {var_name}"
+    return int(match.group(1))
 
 
 def test_text_is_setup(generate_main):
@@ -37,10 +49,9 @@ def test_text_config_value_internal_set(generate_main):
     # When
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
 
-    # Then
-    # internal flag is now packed into configure_entity_() third argument (bit 24)
-    assert "it_2->configure_entity_(" in main_cpp
-    assert "it_3->configure_entity_(" in main_cpp
+    # Then: it_2 has internal: false, it_3 has internal: true
+    assert _extract_packed_value(main_cpp, "it_2") & _INTERNAL_BIT == 0
+    assert _extract_packed_value(main_cpp, "it_3") & _INTERNAL_BIT != 0
 
 
 def test_text_config_value_mode_set(generate_main):

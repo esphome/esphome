@@ -1,5 +1,17 @@
 """Tests for the binary sensor component."""
 
+import re
+
+_INTERNAL_BIT = 1 << 24
+
+
+def _extract_packed_value(main_cpp, var_name):
+    """Extract the third (packed) argument from a configure_entity_ call."""
+    pattern = rf"{re.escape(var_name)}->configure_entity_\([^,]+,\s*\w+,\s*(\d+)\)"
+    match = re.search(pattern, main_cpp)
+    assert match, f"configure_entity_ call not found for {var_name}"
+    return int(match.group(1))
+
 
 def test_binary_sensor_is_setup(generate_main):
     """
@@ -44,10 +56,9 @@ def test_binary_sensor_config_value_internal_set(generate_main):
         "tests/component_tests/binary_sensor/test_binary_sensor.yaml"
     )
 
-    # Then
-    # internal flag is now packed into configure_entity_() third argument (bit 24)
-    assert "bs_1->configure_entity_(" in main_cpp
-    assert "bs_2->configure_entity_(" in main_cpp
+    # Then: bs_1 has internal: true, bs_2 has internal: false
+    assert _extract_packed_value(main_cpp, "bs_1") & _INTERNAL_BIT != 0
+    assert _extract_packed_value(main_cpp, "bs_2") & _INTERNAL_BIT == 0
 
 
 def test_binary_sensor_config_value_use_raw_set(generate_main):

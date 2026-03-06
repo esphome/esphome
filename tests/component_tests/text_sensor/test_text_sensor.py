@@ -2,6 +2,8 @@
 
 import re
 
+_INTERNAL_BIT = 1 << 24
+
 
 def _extract_packed_value(main_cpp, var_name):
     """Extract the third (packed) argument from a configure_entity_ call."""
@@ -49,10 +51,9 @@ def test_text_sensor_config_value_internal_set(generate_main):
     # When
     main_cpp = generate_main("tests/component_tests/text_sensor/test_text_sensor.yaml")
 
-    # Then
-    # internal flag is now packed into configure_entity_() third argument (bit 24)
-    assert "ts_2->configure_entity_(" in main_cpp
-    assert "ts_3->configure_entity_(" in main_cpp
+    # Then: ts_2 has internal: true, ts_3 has internal: false
+    assert _extract_packed_value(main_cpp, "ts_2") & _INTERNAL_BIT != 0
+    assert _extract_packed_value(main_cpp, "ts_3") & _INTERNAL_BIT == 0
 
 
 def test_text_sensor_device_class_set(generate_main):
