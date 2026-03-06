@@ -500,14 +500,20 @@ class Application {
 
   Scheduler scheduler;
 
-  /// Register/unregister a socket file descriptor to be monitored for read events.
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  /// These functions update the fd_set used by select() in the main loop.
+  /// Register/unregister a socket to be monitored for read events.
   /// WARNING: These functions are NOT thread-safe. They must only be called from the main loop.
+#ifdef USE_LWIP_FAST_SELECT
+  /// Fast select path: hooks netconn callback and registers for monitoring.
+  /// @return true if registration was successful, false if sock is null
+  bool register_socket(struct lwip_sock *sock);
+  void unregister_socket(struct lwip_sock *sock);
+#elif defined(USE_SOCKET_SELECT_SUPPORT)
+  /// Fallback select() path: monitors file descriptors.
   /// NOTE: File descriptors >= FD_SETSIZE (typically 10 on ESP) will be rejected with an error.
   /// @return true if registration was successful, false if fd exceeds limits
   bool register_socket_fd(int fd);
   void unregister_socket_fd(int fd);
+#endif
 
 #ifdef USE_WAKE_LOOP_THREADSAFE
   /// Wake the main event loop from another FreeRTOS task.
@@ -532,7 +538,6 @@ class Application {
   static void IRAM_ATTR wake_loop_any_context() { esphome_lwip_wake_main_loop_any_context(); }
 #endif
 #endif
-#endif
 
 #if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
   /// Wake the main event loop from any context (ISR, thread, or main loop).
@@ -542,23 +547,14 @@ class Application {
 
  protected:
   friend Component;
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   friend bool socket::socket_ready_fd(int fd, bool loop_monitored);
 #endif
   friend void ::setup();
   friend void ::original_setup();
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  /// Fast path for Socket::ready() via friendship - skips negative fd check.
-  /// Main loop only — with USE_LWIP_FAST_SELECT, reads rcvevent via
-  /// lwip_socket_dbg_get_socket(), which has no refcount; safe only because
-  /// the main loop owns socket lifetime (creates, reads, and closes sockets
-  /// on the same thread).
-#ifdef USE_LWIP_FAST_SELECT
-  bool is_socket_ready_(int fd) const { return esphome_lwip_socket_has_data(fd); }
-#else
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
-#endif
 #endif
 
   /// Register a component, detecting loop() override at compile time.
@@ -620,8 +616,12 @@ class Application {
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
   FixedVector<Component *> looping_components_{};
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_LWIP_FAST_SELECT
+  std::vector<struct lwip_sock *> monitored_sockets_;  // Cached lwip_sock pointers for direct rcvevent read
+#elif defined(USE_SOCKET_SELECT_SUPPORT)
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
+#endif
+#ifdef USE_SOCKET_SELECT_SUPPORT
 #if defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
   int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
 #endif
