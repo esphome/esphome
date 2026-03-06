@@ -69,8 +69,8 @@ void esp_log_printf_(int level, const char *tag, int line, const __FlashStringHe
 #endif
 void esp_log_vprintf_(int level, const char *tag, int line, const char *format, va_list args);  // NOLINT
 #ifdef USE_STORE_LOG_STR_IN_FLASH
-// Remove before 2027.3.0
-__attribute__((deprecated("Use esp_log_printf_() instead. Removed in 2027.3.0."))) void esp_log_vprintf_(
+// Remove before 2026.9.0
+__attribute__((deprecated("Use esp_log_printf_() instead. Removed in 2026.9.0."))) void esp_log_vprintf_(
     int level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
 #if defined(USE_ESP32)

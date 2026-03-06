@@ -45,7 +45,7 @@ void HOT esp_log_vprintf_(int level, const char *tag, int line, const char *form
 }
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
-// Remove before 2027.3.0
+// Remove before 2026.9.0
 void HOT esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args) {
 #ifdef USE_LOGGER
   ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
