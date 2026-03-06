@@ -10,7 +10,9 @@ static const char *const TAG = "bl0906";
 
 constexpr uint32_t to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }
 
-constexpr int32_t to_int32_t(sbe24_t input) { return input.h << 16 | input.m << 8 | input.l; }
+constexpr int32_t to_int32_t(sbe24_t input) {
+  return static_cast<int32_t>(encode_uint32((uint8_t) input.h, input.m, input.l, 0)) >> 8;
+}
 
 // The SUM byte is (Addr+Data_L+Data_M+Data_H)&0xFF negated;
 constexpr uint8_t bl0906_checksum(const uint8_t address, const DataPacket *data) {

@@ -132,7 +132,7 @@ void OpenThreadSrpComponent::setup() {
   // set the host name
   uint16_t size;
   char *existing_host_name = otSrpClientBuffersGetHostNameString(instance, &size);
-  const std::string &host_name = App.get_name();
+  const auto &host_name = App.get_name();
   uint16_t host_name_len = host_name.size();
   if (host_name_len > size) {
     ESP_LOGW(TAG, "Hostname is too long, choose a shorter project name");

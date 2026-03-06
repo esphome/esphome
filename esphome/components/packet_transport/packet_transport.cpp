@@ -137,6 +137,8 @@ class PacketDecoder {
       return DECODE_EMPTY;
     if (this->buffer_[this->position_] != key)
       return DECODE_UNMATCHED;
+    if (this->position_ + 1 + sizeof(T) > this->len_)
+      return DECODE_ERROR;
     this->position_++;
     T value = 0;
     for (size_t i = 0; i != sizeof(T); ++i) {
