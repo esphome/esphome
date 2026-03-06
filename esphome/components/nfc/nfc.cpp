@@ -58,12 +58,13 @@ bool decode_mifare_classic_tlv(std::vector<uint8_t> &data, uint32_t &message_len
     ESP_LOGE(TAG, "Error, Can't decode message length.");
     return false;
   }
-  if (i + 4 <= data.size() && data[i + 1] == 0xFF) {
-    message_length = ((0xFF & data[i + 2]) << 8) | (0xFF & data[i + 3]);
-    message_start_index = i + MIFARE_CLASSIC_LONG_TLV_SIZE;
-  } else if (i + 2 <= data.size()) {
-    message_length = data[i + 1];
-    message_start_index = i + MIFARE_CLASSIC_SHORT_TLV_SIZE;
+  uint8_t idx = static_cast<uint8_t>(i);
+  if (idx + 4 <= data.size() && data[idx + 1] == 0xFF) {
+    message_length = ((0xFF & data[idx + 2]) << 8) | (0xFF & data[idx + 3]);
+    message_start_index = idx + MIFARE_CLASSIC_LONG_TLV_SIZE;
+  } else if (idx + 2 <= data.size()) {
+    message_length = data[idx + 1];
+    message_start_index = idx + MIFARE_CLASSIC_SHORT_TLV_SIZE;
   } else {
     ESP_LOGE(TAG, "Error, TLV data too short.");
     return false;
