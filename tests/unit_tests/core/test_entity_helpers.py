@@ -942,7 +942,6 @@ async def test_setup_entity_with_entity_category(
     setup_test_environment: list[str],
 ) -> None:
     """Test setup_entity sets entity_category correctly."""
-    setup_test_environment  # noqa: F841 - fixture initializes CORE state
     var = MockObj("sensor1")
     config = {
         CONF_NAME: "Temperature",
@@ -1008,8 +1007,6 @@ async def test_setup_entity_decorator_mode(setup_test_environment: list[str]) ->
 
 def _extract_packed_value(expressions: list[str]) -> int:
     """Extract the third argument (packed value) from a configure_entity_() call."""
-    import re
-
     for expr in expressions:
         if "configure_entity_" in expr:
             # Match the last integer argument before the closing ");"

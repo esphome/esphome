@@ -228,9 +228,6 @@ def setup_unit_of_measurement(config: ConfigType) -> None:
     config[_KEY_UOM_IDX] = idx
 
 
-_ENTITY_CATEGORY_NAMES = {0: "", 1: "config", 2: "diagnostic"}
-
-
 def _sanitize_comment(text: str) -> str:
     r"""Sanitize a string for safe inclusion in a C++ // line comment.
 
@@ -248,7 +245,10 @@ def _describe_packed_flags(config: ConfigType, entity_category: int) -> str:
         parts.append("internal")
     if config.get(_KEY_DISABLED_BY_DEFAULT):
         parts.append("disabled_by_default")
-    if cat_name := _ENTITY_CATEGORY_NAMES.get(entity_category, ""):
+    entity_cat_keys = list(cv.ENTITY_CATEGORIES)
+    if entity_category < len(entity_cat_keys) and (
+        cat_name := entity_cat_keys[entity_category]
+    ):
         parts.append(f"category:{cat_name}")
     if dc := config.get(CONF_DEVICE_CLASS):
         parts.append(f"dc:{_sanitize_comment(dc)}")
