@@ -10,7 +10,7 @@ static const char *const TAG = "iaqcore";
 
 enum IAQCoreErrorCode : uint8_t { ERROR_OK = 0, ERROR_RUNIN = 0x10, ERROR_BUSY = 0x01, ERROR_ERROR = 0x80 };
 
-static const size_t SENSOR_DATA_LENGTH = 9;
+static constexpr size_t SENSOR_DATA_LENGTH = 9;
 
 struct SensorData {
   int32_t resistance;
