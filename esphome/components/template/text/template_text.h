@@ -53,8 +53,9 @@ template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
 
     if (hasdata) {
       size_t len = static_cast<uint8_t>(temp[0]);
-      if (len > SZ)
+      if (len > SZ) {
         len = SZ;
+      }
       value.assign(temp + 1, len);
     }
 
