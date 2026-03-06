@@ -1,9 +1,19 @@
+esphome:
+  on_boot:
+    then:
+      - sensor.integration.reset:
+          id: integration_sensor
+      - sensor.integration.set_value:
+          id: integration_sensor
+          value: 100.0
+
 sensor:
   - platform: adc
     id: my_sensor
     pin: ${pin}
     attenuation: 12db
   - platform: integration
+    id: integration_sensor
     sensor: my_sensor
     name: Integration Sensor
     time_unit: s

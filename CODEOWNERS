@@ -54,6 +54,8 @@ esphome/components/atm90e32/* @circuitsetup @descipher
 esphome/components/audio/* @kahrendt
 esphome/components/audio_adc/* @kbx81
 esphome/components/audio_dac/* @kbx81
+esphome/components/audio_file/* @kahrendt
+esphome/components/audio_file/media_source/* @kahrendt
 esphome/components/axs15231/* @clydebarrow
 esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
@@ -412,7 +414,7 @@ esphome/components/rp2040_pio_led_strip/* @Papa-DMan
 esphome/components/rp2040_pwm/* @jesserockz
 esphome/components/rpi_dpi_rgb/* @clydebarrow
 esphome/components/rtl87xx/* @kuba2k2
-esphome/components/rtttl/* @glmnet
+esphome/components/rtttl/* @glmnet @ximex
 esphome/components/runtime_image/* @clydebarrow @guillempages @kahrendt
 esphome/components/runtime_stats/* @bdraco
 esphome/components/rx8130/* @beormund

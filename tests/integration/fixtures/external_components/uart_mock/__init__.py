@@ -43,6 +43,7 @@ CONF_INJECT_RX = "inject_rx"
 CONF_EXPECT_TX = "expect_tx"
 CONF_PERIODIC_RX = "periodic_rx"
 CONF_ON_TX = "on_tx"
+CONF_AUTO_START = "auto_start"
 
 UART_PARITY_OPTIONS = {
     "NONE": uart.UARTParityOptions.UART_CONFIG_PARITY_NONE,
@@ -70,6 +71,7 @@ RESPONSE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_EXPECT_TX): [cv.hex_uint8_t],
         cv.Required(CONF_INJECT_RX): [cv.hex_uint8_t],
+        cv.Optional(CONF_DELAY, default="0ms"): cv.positive_time_period_milliseconds,
     }
 )
 
@@ -95,6 +97,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_INJECTIONS, default=[]): cv.ensure_list(INJECTION_SCHEMA),
         cv.Optional(CONF_RESPONSES, default=[]): cv.ensure_list(RESPONSE_SCHEMA),
         cv.Optional(CONF_PERIODIC_RX, default=[]): cv.ensure_list(PERIODIC_RX_SCHEMA),
+        cv.Optional(CONF_AUTO_START, default=True): cv.boolean,
         cv.Optional(CONF_ON_TX): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MockUartTXTrigger),
@@ -138,6 +141,9 @@ async def to_code(config):
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))
 
+    if not config[CONF_AUTO_START]:
+        cg.add(var.set_auto_start(False))
+
     for injection in config[CONF_INJECTIONS]:
         rx_data = injection[CONF_INJECT_RX]
         delay_ms = injection[CONF_DELAY]
@@ -146,7 +152,8 @@ async def to_code(config):
     for response in config[CONF_RESPONSES]:
         tx_data = response[CONF_EXPECT_TX]
         rx_data = response[CONF_INJECT_RX]
-        cg.add(var.add_response(tx_data, rx_data))
+        delay_ms = response[CONF_DELAY]
+        cg.add(var.add_response(tx_data, rx_data, delay_ms))
 
     for periodic in config[CONF_PERIODIC_RX]:
         data = periodic[CONF_DATA]
