@@ -234,3 +234,40 @@ def test_unknown_mcu_gets_default_max_pin(arduino_pico: Path) -> None:
     _add_board(arduino_pico, "future", mcu="rp2450", pins_header=PICO_PINS_HEADER)
     _, boards = load_boards(arduino_pico)
     assert boards["future"]["max_pin"] == 29
+
+
+def test_placeholder_pins_filtered_out(arduino_pico: Path) -> None:
+    """Pins with placeholder values like 99 should be filtered out."""
+    header = textwrap.dedent("""\
+        #pragma once
+        #define PIN_LED        (25u)
+        #define PIN_WIRE0_SDA  (4u)
+        #define PIN_WIRE0_SCL  (5u)
+        #define PIN_WIRE1_SDA  (99u)
+        #define PIN_WIRE1_SCL  (99u)
+    """)
+    _add_board(arduino_pico, "placeholder", pins_header=header)
+
+    board_pins, boards = load_boards(arduino_pico)
+
+    assert "SDA1" not in board_pins["placeholder"]
+    assert "SCL1" not in board_pins["placeholder"]
+    assert board_pins["placeholder"]["LED"] == 25
+    assert "max_virtual_pin" not in boards["placeholder"]
+
+
+def test_placeholder_pins_not_treated_as_virtual(arduino_pico: Path) -> None:
+    """Pin 99 should not cause max_virtual_pin to be set."""
+    header = textwrap.dedent("""\
+        #pragma once
+        #define PIN_LED        (64u)
+        #define PIN_WIRE0_SDA  (4u)
+        #define PIN_WIRE0_SCL  (5u)
+        #define PIN_SPI0_MISO  (99u)
+    """)
+    _add_board(arduino_pico, "badpin", pins_header=header)
+
+    board_pins, boards = load_boards(arduino_pico)
+
+    assert "MISO" not in board_pins["badpin"]
+    assert boards["badpin"]["max_virtual_pin"] == 64

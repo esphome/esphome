@@ -90,7 +90,16 @@ def load_boards(arduino_pico_path: Path) -> tuple[dict, dict]:
 
         pins = variant_pins_cache[variant]
         if pins:
-            board_pins[board_name] = dict(pins)
+            max_pin = boards[board_name]["max_pin"]
+            cyw43_max = CYW43_GPIO_OFFSET + CYW43_GPIO_COUNT - 1
+            # Filter out placeholder values (e.g. 99 = "not connected")
+            filtered = {
+                name: value
+                for name, value in pins.items()
+                if value <= max_pin or CYW43_GPIO_OFFSET <= value <= cyw43_max
+            }
+            if filtered:
+                board_pins[board_name] = filtered
 
     # Compute max_virtual_pin per board from pin maps
     for board_name, pins in board_pins.items():
