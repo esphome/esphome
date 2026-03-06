@@ -153,6 +153,14 @@ void Application::setup() {
   this->setup_wake_loop_threadsafe_();
 #endif
 
+  // Ensure all active looping components are in LOOP state.
+  // Components after the last blocking component only got one call() during setup
+  // (CONSTRUCTION→SETUP) and never received the second call() (SETUP→LOOP).
+  // The main loop calls loop() directly, bypassing call()'s state machine.
+  for (uint16_t i = 0; i < this->looping_components_active_end_; i++) {
+    this->looping_components_[i]->set_component_state_(COMPONENT_STATE_LOOP);
+  }
+
   this->schedule_dump_config();
 }
 void Application::loop() {
@@ -173,7 +181,7 @@ void Application::loop() {
     {
       this->set_current_component(component);
       WarnIfComponentBlockingGuard guard{component, last_op_end_time};
-      component->call();
+      component->loop();
       // Use the finish method to get the current time as the end time
       last_op_end_time = guard.finish();
     }

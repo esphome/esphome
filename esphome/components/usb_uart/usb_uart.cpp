@@ -171,8 +171,8 @@ void USBUartChannel::flush() {
   // Safe to call from the main loop only.
   // The 100 ms timeout guards against a device that stops responding mid-flush;
   // in that case the main loop is blocked for the full duration.
-  uint32_t deadline = millis() + 100;  // 100 ms safety timeout
-  while ((!this->output_queue_.empty() || this->output_started_.load()) && millis() < deadline) {
+  uint32_t start = millis();  // 100 ms safety timeout
+  while ((!this->output_queue_.empty() || this->output_started_.load()) && millis() - start < 100) {
     // Kick start_output() in case data arrived but no transfer is in flight yet.
     this->parent_->start_output(this);
     yield();
