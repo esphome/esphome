@@ -248,13 +248,8 @@ class SPA06Component : public PollingComponent {
   SampleRate pressure_rate_{SampleRate::SAMPLE_RATE_4};
   uint8_t conversion_time_{10};
 
-  // Protocol-related union-structs
-  union {
-    struct {
-      uint32_t data : 24;
-    } val;
-    uint8_t reg[3];
-  } psr_tmp_read_ = {.reg = 0};  // PSR and TMP read
+  // Protocol-related union-structs and read variables
+  uint8_t psr_tmp_read_[3] = {0, 0, 0};
 
   union {
     struct {
