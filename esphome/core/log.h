@@ -4,6 +4,14 @@
 
 #include <cassert>
 #include <cstdarg>
+
+// Debug assert that only fires when ESPHOME_DEBUG is defined (e.g. in CI/test builds).
+// Zero cost in production firmware.
+#ifdef ESPHOME_DEBUG
+#define ESPHOME_DEBUG_ASSERT(expr) assert(expr)  // NOLINT
+#else
+#define ESPHOME_DEBUG_ASSERT(expr) ((void) 0)
+#endif
 // for PRIu32 and friends
 #include <cinttypes>
 #include <string>

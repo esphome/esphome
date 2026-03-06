@@ -17,6 +17,7 @@ namespace esphome {
 // tests/component_tests/logger/test_logger.py.
 void HOT esp_log_printf_(int level, const char *tag, int line, const char *format, ...) {  // NOLINT
 #ifdef USE_LOGGER
+  ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
   va_list arg;
   va_start(arg, format);
   logger::global_logger->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, arg);
@@ -27,6 +28,7 @@ void HOT esp_log_printf_(int level, const char *tag, int line, const char *forma
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 void HOT esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...) {
 #ifdef USE_LOGGER
+  ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
   va_list arg;
   va_start(arg, format);
   logger::global_logger->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, arg);
@@ -37,6 +39,7 @@ void HOT esp_log_printf_(int level, const char *tag, int line, const __FlashStri
 
 void HOT esp_log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
 #ifdef USE_LOGGER
+  ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
   logger::global_logger->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, args);
 #endif
 }
@@ -44,6 +47,7 @@ void HOT esp_log_vprintf_(int level, const char *tag, int line, const char *form
 #ifdef USE_ESP32
 int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 #ifdef USE_LOGGER
+  ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
   logger::global_logger->log_vprintf_(ESPHOME_LOG_LEVEL, "esp-idf", 0, format, args);
 #endif
   return 0;
