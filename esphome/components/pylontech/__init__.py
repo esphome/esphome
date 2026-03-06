@@ -1,7 +1,9 @@
 import logging
 
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_ENABLED
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
@@ -19,6 +21,7 @@ PylontechComponent = pylontech_ns.class_(
     "PylontechComponent", cg.PollingComponent, uart.UARTDevice
 )
 PylontechBattery = pylontech_ns.class_("PylontechBattery")
+SetCellPollingAction = pylontech_ns.class_("SetCellPollingAction", automation.Action)
 
 CV_NUM_BATTERIES = cv.int_range(1, 16)
 
@@ -39,6 +42,26 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("60s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
+
+
+@automation.register_action(
+    "pylontech.set_cell_polling",
+    SetCellPollingAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(PylontechComponent),
+            cv.Required(CONF_ENABLED): cv.templatable(cv.boolean),
+        }
+    ),
+    synchronous=True,
+)
+async def set_cell_polling_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+
+    template_ = await cg.templatable(config[CONF_ENABLED], args, cg.bool_)
+    cg.add(var.set_enable(template_))
+    return var
 
 
 async def to_code(config):

@@ -27,4 +27,19 @@ class PylontechSensor : public PylontechListener {
   int8_t bat_num_;
 };
 
+class PylontechCellSensor : public PylontechListener {
+ public:
+  PylontechCellSensor(int8_t bat_num, int8_t cell_num);
+  void dump_config() override;
+
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(temperature)
+
+  void on_cell_line_read(CellLineContents *line) override;
+
+ protected:
+  int8_t bat_num_;
+  int8_t cell_num_;
+};
+
 }  // namespace esphome::pylontech

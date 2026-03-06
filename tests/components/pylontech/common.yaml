@@ -14,6 +14,18 @@ sensor:
       id: pyl01_soc
     mos_temperature:
       id: pyl01_mos_temperature
+    # Cell-level sensors from "bat N" command
+    cells:
+      - cell: 0
+        voltage:
+          id: pyl01_cell_0_voltage
+        temperature:
+          id: pyl01_cell_0_temperature
+      - cell: 14
+        voltage:
+          id: pyl01_cell_14_voltage
+        temperature:
+          id: pyl01_cell_14_temperature
   - platform: pylontech
     pylontech_id: pylontech1
     battery: 1
@@ -40,3 +52,11 @@ text_sensor:
       id: pyl0_current_state
     temperature_state:
       id: pyl0_temperature_state
+
+button:
+  - platform: template
+    name: "Test Pylontech Action"
+    on_press:
+      - pylontech.set_cell_polling:
+          id: pylontech1
+          enabled: true
