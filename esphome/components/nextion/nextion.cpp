@@ -337,7 +337,7 @@ void Nextion::loop() {
       this->started_ms_ = App.get_loop_component_start_time();
 
     if (this->startup_override_ms_ > 0 &&
-        this->started_ms_ + this->startup_override_ms_ < App.get_loop_component_start_time()) {
+        App.get_loop_component_start_time() - this->started_ms_ > this->startup_override_ms_) {
       ESP_LOGV(TAG, "Manual ready set");
       this->connection_state_.nextion_reports_is_setup_ = true;
     }
@@ -853,10 +853,10 @@ void Nextion::process_nextion_commands_() {
   const uint32_t ms = App.get_loop_component_start_time();
 
   if (this->max_q_age_ms_ > 0 && !this->nextion_queue_.empty() &&
-      this->nextion_queue_.front()->queue_time + this->max_q_age_ms_ < ms) {
+      ms - this->nextion_queue_.front()->queue_time > this->max_q_age_ms_) {
     for (size_t i = 0; i < this->nextion_queue_.size(); i++) {
       NextionComponentBase *component = this->nextion_queue_[i]->component;
-      if (this->nextion_queue_[i]->queue_time + this->max_q_age_ms_ < ms) {
+      if (ms - this->nextion_queue_[i]->queue_time > this->max_q_age_ms_) {
         if (this->nextion_queue_[i]->queue_time == 0) {
           ESP_LOGD(TAG, "Remove old queue '%s':'%s' (t=0)", component->get_queue_type_string().c_str(),
                    component->get_variable_name().c_str());

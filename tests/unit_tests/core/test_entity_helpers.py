@@ -11,6 +11,7 @@ from esphome.config_validation import Invalid
 from esphome.const import (
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
+    CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
@@ -18,6 +19,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
+    _register_string,
+    _setup_entity_impl,
     entity_duplicate_validator,
     get_base_entity_object_id,
     setup_entity,
@@ -305,7 +308,7 @@ async def test_setup_entity_no_duplicates(setup_test_environment: list[str]) -> 
         CONF_NAME: "Temperature",
         CONF_DISABLED_BY_DEFAULT: False,
     }
-    await setup_entity(var1, config1, "sensor")
+    await _setup_entity_impl(var1, config1, "sensor")
 
     # Get object ID from first entity
     object_id1 = extract_object_id_from_expressions(added_expressions)
@@ -319,7 +322,7 @@ async def test_setup_entity_no_duplicates(setup_test_environment: list[str]) -> 
         CONF_NAME: "Humidity",
         CONF_DISABLED_BY_DEFAULT: False,
     }
-    await setup_entity(var2, config2, "sensor")
+    await _setup_entity_impl(var2, config2, "sensor")
 
     # Get object ID from second entity
     object_id2 = extract_object_id_from_expressions(added_expressions)
@@ -354,7 +357,7 @@ async def test_setup_entity_different_platforms(
     object_ids: list[str] = []
     for var, platform in platforms:
         added_expressions.clear()
-        await setup_entity(var, config, platform)
+        await _setup_entity_impl(var, config, platform)
         object_id = extract_object_id_from_expressions(added_expressions)
         object_ids.append(object_id)
 
@@ -416,7 +419,7 @@ async def test_setup_entity_with_devices(
     object_ids: list[str] = []
     for var, config in [(sensor1, config1), (sensor2, config2)]:
         added_expressions.clear()
-        await setup_entity(var, config, "sensor")
+        await _setup_entity_impl(var, config, "sensor")
         object_id = extract_object_id_from_expressions(added_expressions)
         object_ids.append(object_id)
 
@@ -438,7 +441,7 @@ async def test_setup_entity_empty_name(setup_test_environment: list[str]) -> Non
         CONF_DISABLED_BY_DEFAULT: False,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
     object_id = extract_object_id_from_expressions(added_expressions)
     # Should use friendly name
@@ -460,7 +463,7 @@ async def test_setup_entity_special_characters(
         CONF_DISABLED_BY_DEFAULT: False,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
     object_id = extract_object_id_from_expressions(added_expressions)
 
     # Special characters should be sanitized
@@ -471,7 +474,7 @@ async def test_setup_entity_special_characters(
 async def test_setup_entity_with_icon(setup_test_environment: list[str]) -> None:
     """Test setup_entity sets icon correctly."""
 
-    added_expressions = setup_test_environment
+    setup_test_environment  # noqa: F841 - fixture initializes CORE state
 
     var = MockObj("sensor1")
 
@@ -481,12 +484,10 @@ async def test_setup_entity_with_icon(setup_test_environment: list[str]) -> None
         CONF_ICON: "mdi:thermometer",
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
-    # Check icon was set
-    assert any(
-        'sensor1.set_icon("mdi:thermometer")' in expr for expr in added_expressions
-    )
+    # Check icon index was stored in config for finalize_entity_strings
+    assert config.get("_entity_icon_idx", 0) > 0
 
 
 @pytest.mark.asyncio
@@ -504,7 +505,7 @@ async def test_setup_entity_disabled_by_default(
         CONF_DISABLED_BY_DEFAULT: True,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
     # Check disabled_by_default was set
     assert any(
@@ -790,7 +791,7 @@ async def test_setup_entity_empty_name_with_device(
         CONF_DEVICE_ID: device_id,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
     entity_helpers.get_variable = original_get_variable
 
@@ -826,7 +827,7 @@ async def test_setup_entity_empty_name_with_mac_suffix(
         CONF_DISABLED_BY_DEFAULT: False,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
     # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
     assert any('set_name("", 0)' in expr for expr in added_expressions), (
@@ -858,7 +859,7 @@ async def test_setup_entity_empty_name_with_mac_suffix_no_friendly_name(
         CONF_DISABLED_BY_DEFAULT: False,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
     # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
     assert any('set_name("", 0)' in expr for expr in added_expressions), (
@@ -891,9 +892,84 @@ async def test_setup_entity_empty_name_no_mac_suffix_no_friendly_name(
         CONF_DISABLED_BY_DEFAULT: False,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
     # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
     assert any('set_name("", 0)' in expr for expr in added_expressions), (
         f"Expected set_name with hash 0, got {added_expressions}"
     )
+
+
+def test_register_string_overflow() -> None:
+    """Test _register_string raises ValueError when max count is exceeded."""
+    category: dict[str, int] = {}
+    for i in range(3):
+        _register_string(f"val_{i}", category, 3, "test")
+    with pytest.raises(ValueError, match="Too many unique test values"):
+        _register_string("overflow", category, 3, "test")
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_with_entity_category(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity sets entity_category correctly."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Temperature",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_ENTITY_CATEGORY: "diagnostic",
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    assert any(
+        'set_entity_category("diagnostic")' in expr for expr in added_expressions
+    )
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_direct_call(setup_test_environment: list[str]) -> None:
+    """Test setup_entity in direct call mode (legacy / backward compat)."""
+    added_expressions = setup_test_environment
+
+    var = MockObj("camera1")
+    config = {
+        CONF_NAME: "My Camera",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_ICON: "mdi:camera",
+    }
+
+    # Direct call mode: await setup_entity(var, config, "camera")
+    await setup_entity(var, config, "camera")
+
+    # Should have called set_name
+    object_id = extract_object_id_from_expressions(added_expressions)
+    assert object_id == "my_camera"
+
+    # Icon index should have been stored and finalized
+    assert config.get("_entity_icon_idx", 0) > 0
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_decorator_mode(setup_test_environment: list[str]) -> None:
+    """Test setup_entity in decorator mode."""
+    added_expressions = setup_test_environment
+
+    body_called = False
+
+    @setup_entity("sensor")
+    async def my_setup(var, config):
+        nonlocal body_called
+        body_called = True
+
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Temperature",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await my_setup(var, config)
+
+    assert body_called
+    object_id = extract_object_id_from_expressions(added_expressions)
+    assert object_id == "temperature"
