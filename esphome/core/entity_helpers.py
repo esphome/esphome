@@ -250,11 +250,11 @@ def _describe_packed_flags(config: ConfigType, entity_category: int) -> str:
         cat_name := entity_cat_keys[entity_category]
     ):
         parts.append(f"category:{cat_name}")
-    if dc := config.get(CONF_DEVICE_CLASS):
+    if config.get(_KEY_DC_IDX, 0) and (dc := config.get(CONF_DEVICE_CLASS)):
         parts.append(f"dc:{_sanitize_comment(dc)}")
-    if uom := config.get(CONF_UNIT_OF_MEASUREMENT):
+    if config.get(_KEY_UOM_IDX, 0) and (uom := config.get(CONF_UNIT_OF_MEASUREMENT)):
         parts.append(f"uom:{_sanitize_comment(uom)}")
-    if icon := config.get(CONF_ICON):
+    if config.get(_KEY_ICON_IDX, 0) and (icon := config.get(CONF_ICON)):
         parts.append(f"icon:{_sanitize_comment(icon)}")
     return ", ".join(parts)
 
