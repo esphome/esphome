@@ -1,39 +1,41 @@
+#pragma once
+
 #include <stdint.h>
 
 /*=====================================================================================
- * Parameter structures for Modbus slave (coils, discrete inputs, input/holding registers).
+ * Parameter structures for Modbus (coils, discrete inputs, input/holding registers).
  * Sizes are driven by MODBUS_NUM_OBJECTS (set in YAML as num_objects, default 5).
  *====================================================================================*/
 #ifndef _DEVICE_PARAMS
 #define _DEVICE_PARAMS
 
 #ifndef MODBUS_NUM_OBJECTS
-#define MODBUS_NUM_OBJECTS 5
+#define MODBUS_NUM_OBJECTS 5  // NOLINT(cppcoreguidelines-macro-usage) - needed for C array sizes
 #endif
 
 #define MODBUS_COIL_BYTES ((MODBUS_NUM_OBJECTS + 7) / 8)
 
 #pragma pack(push, 1)
 typedef struct {
-  uint8_t discrete_data[MODBUS_COIL_BYTES];
+    uint8_t discrete_data[MODBUS_COIL_BYTES];
 } discrete_reg_params_t;
 #pragma pack(pop)
 
 #pragma pack(push, 1)
 typedef struct {
-  uint8_t coil_data[MODBUS_COIL_BYTES];
+    uint8_t coil_data[MODBUS_COIL_BYTES];
 } coil_reg_params_t;
 #pragma pack(pop)
 
 #pragma pack(push, 1)
 typedef struct {
-  uint16_t input_regs[MODBUS_NUM_OBJECTS];
+    uint16_t input_regs[MODBUS_NUM_OBJECTS];
 } input_reg_params_t;
 #pragma pack(pop)
 
 #pragma pack(push, 1)
 typedef struct {
-  uint16_t holding_regs[MODBUS_NUM_OBJECTS];
+    uint16_t holding_regs[MODBUS_NUM_OBJECTS];
 } holding_reg_params_t;
 #pragma pack(pop)
 
@@ -45,9 +47,7 @@ typedef struct {
 
 #ifdef __cplusplus
 extern "C" {
-#define _MODBUS_PARAM(type, name) \
-  extern type name; \
-  inline type name = {};
+#define _MODBUS_PARAM(type, name) extern type name; inline type name = {};
 #else
 #define _MODBUS_PARAM(type, name) extern type name;
 #endif

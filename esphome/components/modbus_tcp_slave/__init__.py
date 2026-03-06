@@ -1,14 +1,15 @@
+"""Modbus TCP slave component (esp-modbus). Protocol uses master/slave terminology."""
 import os
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_PORT
 from esphome.core import CORE
 
 CODEOWNERS = ["@pintomax"]
 DEPENDENCIES = ["wifi"]
 
-CONF_PORT = "port"
+# Protocol-specific config keys (slave_id is standard Modbus term)
 CONF_SLAVE_ID = "slave_id"
 CONF_NUM_OBJECTS = "num_objects"
 
@@ -27,9 +28,9 @@ DEFAULT_MODBUS_SLAVE_ID = 1
 # Default number of objects (coils, discrete inputs, input/holding registers; single source for C++ and schema).
 DEFAULT_MODBUS_NUM_OBJECTS = 5
 
-# Define the namespace
-modbus_slave_tcp_ns = cg.esphome_ns.namespace("modbus_slave_tcp")
-ModbusSlaveTCP = modbus_slave_tcp_ns.class_("ModbusSlaveTCP", cg.Component)
+# Define the namespace (matches integration name modbus_tcp_slave)
+modbus_tcp_slave_ns = cg.esphome_ns.namespace("modbus_tcp_slave")
+ModbusSlaveTCP = modbus_tcp_slave_ns.class_("ModbusSlaveTCP", cg.Component)
 
 # -D flags for esp-modbus (ESP-IDF config).
 # Note: We do not use CONF_SLAVE_ID here. CONFIG_FMB_CONTROLLER_SLAVE_ID is a fixed library
@@ -81,18 +82,28 @@ _MODBUS_INCLUDE_SUFFIXES = [
     "modbus/include",
 ]
 
-CONFIG_SCHEMA = cv.Schema(
-    {
+def _validate_esp32_esp_idf(config):
+    """This component only supports ESP32 with ESP-IDF (esp-modbus requirement)."""
+    if not CORE.is_esp32:
+        raise cv.Invalid(
+            "modbus_tcp_slave only supports ESP32. Use an ESP32 board (not ESP8266 or other)."
+        )
+    if not CORE.using_esp_idf:
+        raise cv.Invalid(
+            "modbus_tcp_slave requires ESP-IDF. Set 'esp32: framework: type: esp-idf' in your YAML."
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema({
         cv.GenerateID(): cv.declare_id(ModbusSlaveTCP),
         cv.Optional(CONF_PORT, default=DEFAULT_MODBUS_PORT): cv.port,
-        cv.Optional(CONF_SLAVE_ID, default=DEFAULT_MODBUS_SLAVE_ID): cv.int_range(
-            0, 247
-        ),
-        cv.Optional(CONF_NUM_OBJECTS, default=DEFAULT_MODBUS_NUM_OBJECTS): cv.int_range(
-            1, 128
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+        cv.Optional(CONF_SLAVE_ID, default=DEFAULT_MODBUS_SLAVE_ID): cv.int_range(0, 247),
+        cv.Optional(CONF_NUM_OBJECTS, default=DEFAULT_MODBUS_NUM_OBJECTS): cv.int_range(1, 128),
+    }).extend(cv.COMPONENT_SCHEMA),
+    _validate_esp32_esp_idf,
+)
 
 
 async def to_code(config):

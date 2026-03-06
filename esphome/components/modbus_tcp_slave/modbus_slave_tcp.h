@@ -1,4 +1,5 @@
 #pragma once
+// NOLINTBEGIN - Modbus protocol uses master/slave terminology (IEC 61158)
 #ifdef __cplusplus
 #define _Atomic(T) T
 extern "C" {
@@ -15,18 +16,12 @@ extern "C" {
 
 #include "esphome/components/wifi/wifi_component.h"
 
-namespace modbus_slave_tcp {
+namespace modbus_tcp_slave {
 
-static const char *const TAG = "modbus_slave_tcp";
-#ifndef MODBUS_DEFAULT_PORT
-#define MODBUS_DEFAULT_PORT 1502  // fallback when not built via ESPHome (define from __init__.py)
-#endif
-#ifndef MODBUS_DEFAULT_SLAVE_ID
-#define MODBUS_DEFAULT_SLAVE_ID 1  // fallback when not built via ESPHome (define from __init__.py)
-#endif
-#ifndef MODBUS_DEFAULT_NUM_OBJECTS
-#define MODBUS_DEFAULT_NUM_OBJECTS 5  // fallback when not built via ESPHome (define from __init__.py)
-#endif
+static const char *const TAG = "modbus_tcp_slave";
+static constexpr uint16_t MODBUS_DEFAULT_PORT = 1502;
+static constexpr uint8_t MODBUS_DEFAULT_SLAVE_ID = 1;
+static constexpr uint16_t MODBUS_DEFAULT_NUM_OBJECTS = 5;
 constexpr uint32_t MB_RESPONSE_TIMEOUT_MS = 200;
 
 class ModbusSlaveTCP : public esphome::Component {
@@ -40,11 +35,11 @@ class ModbusSlaveTCP : public esphome::Component {
     if (index >= this->num_objects_)
       return;
     uint16_t byte_idx = index / 8u;
-    uint8_t bit_mask = (uint8_t) (1u << (index % 8u));
+    uint8_t bit_mask = (uint8_t)(1u << (index % 8u));
     if (value)
       coil_reg_params.coil_data[byte_idx] |= bit_mask;
     else
-      coil_reg_params.coil_data[byte_idx] &= (uint8_t) ~bit_mask;
+      coil_reg_params.coil_data[byte_idx] &= (uint8_t)~bit_mask;
   }
 
   /// Set holding register at index (0..num_objects-1). Call from interval/automation/lambda.
@@ -66,11 +61,11 @@ class ModbusSlaveTCP : public esphome::Component {
     if (index >= this->num_objects_)
       return;
     uint16_t byte_idx = index / 8u;
-    uint8_t bit_mask = (uint8_t) (1u << (index % 8u));
+    uint8_t bit_mask = (uint8_t)(1u << (index % 8u));
     if (value)
       discrete_reg_params.discrete_data[byte_idx] |= bit_mask;
     else
-      discrete_reg_params.discrete_data[byte_idx] &= (uint8_t) ~bit_mask;
+      discrete_reg_params.discrete_data[byte_idx] &= (uint8_t)~bit_mask;
   }
 
   void setup() override {
@@ -91,4 +86,5 @@ class ModbusSlaveTCP : public esphome::Component {
   bool modbus_attempted_ = false;
   bool modbus_started_ = false;
 };
-}  // namespace modbus_slave_tcp
+}  // namespace modbus_tcp_slave
+// NOLINTEND
