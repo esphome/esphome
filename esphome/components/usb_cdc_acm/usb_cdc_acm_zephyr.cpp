@@ -123,7 +123,7 @@ void USBCDCACMInstance::check_logger_conflict() {
 }
 
 size_t USBCDCACMInstance::available() {
-  uint32_t size = ring_buf_size_get(&this->rx_ringbuf_);
+  uint32_t size = ring_buf_size_get(&this->rx_ringbuf_) + (this->has_peek_ ? 1 : 0);
   ESP_LOGVV(TAG, "UART Bus %s: available %u", this->uart_dev_->name, size);
   return size;
 }
@@ -132,7 +132,7 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   if (len == 0) {
     return true;
   }
-  if ((available() + (this->has_peek_ ? 1 : 0)) < len) {
+  if (available() < len) {
     return false;
   }
 
