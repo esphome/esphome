@@ -704,7 +704,7 @@ void Inkplate::vscan_start_() {
 }
 
 void Inkplate::hscan_start_(uint32_t d) {
-  uint8_t clock = (1 << this->cl_pin_->get_pin());
+  uint32_t clock = (1 << this->cl_pin_->get_pin());
   this->sph_pin_->digital_write(false);
   GPIO.out_w1ts = d | clock;
   GPIO.out_w1tc = this->get_data_pin_mask_() | clock;
