@@ -272,15 +272,15 @@ bool SPA06Component::read_coefficients_() {
            "  c0: %i, c1: %i,\n"
            "  c00: %i, c10: %i, c20: %i, c30: %i, c40: %i,\n"
            "  c01: %i, c11: %i, c21: %i, c31: %i",
-           this->c0_, this->c1_, this->c00_, this->c10_, this->c20_, this->c30_, this->c01_, this->c11_, this->c21_,
-           this->c31_);
+           this->c0_, this->c1_, this->c00_, this->c10_, this->c20_, this->c30_, this->c40_, this->c01_, this->c11_,
+           this->c21_, this->c31_);
   return true;
 }
 
 bool SPA06Component::soft_reset_() {
   // Setup steps for SPA06:
   // 1. Perform a protocol reset (required to write command for SPI code, noop for I2C)
-  this->protocol_reset_();
+  this->protocol_reset();
 
   // 2. Perform the actual reset
   this->reset_.bit.fifo_flush = true;
@@ -292,7 +292,7 @@ bool SPA06Component::soft_reset_() {
   // 3. Wait for chip to become ready. Datasheet specifies 2 seconds; wait 3
   delay(3);
   // 4. Perform another protocol reset (required for SPI code, noop for I2C)
-  this->protocol_reset_();
+  this->protocol_reset();
   return true;
 }
 
