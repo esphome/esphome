@@ -13,6 +13,12 @@ uart:
     rx_buffer_size: 512
     parity: EVEN
     stop_bits: 2
+  - id: uart_debug
+    tx_pin: 14
+    rx_pin: 12
+    baud_rate: 115200
+    debug:
+      debug_prefix: "[UART1] "
 
 switch:
   - platform: uart
