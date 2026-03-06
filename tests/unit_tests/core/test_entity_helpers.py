@@ -309,8 +309,6 @@ def extract_object_id_from_expressions(expressions: list[str]) -> str | None:
 async def test_setup_entity_no_duplicates(setup_test_environment: list[str]) -> None:
     """Test setup_entity with unique names."""
 
-    setup_test_environment  # noqa: F841 - fixture initializes CORE state
-
     # Create mock entities
     var1 = MockObj("sensor1")
     var2 = MockObj("sensor2")
@@ -343,8 +341,6 @@ async def test_setup_entity_different_platforms(
     setup_test_environment: list[str],
 ) -> None:
     """Test that same name on different platforms doesn't conflict."""
-
-    setup_test_environment  # noqa: F841 - fixture initializes CORE state
 
     # Create mock entities
     sensor = MockObj("sensor1")
@@ -392,7 +388,6 @@ async def test_setup_entity_with_devices(
     setup_test_environment: list[str], mock_get_variable: dict[ID, MockObj]
 ) -> None:
     """Test that same name on different devices doesn't conflict."""
-    setup_test_environment  # noqa: F841 - fixture initializes CORE state
 
     # Create mock devices
     device1_id = ID("device1", type="Device")
@@ -433,8 +428,6 @@ async def test_setup_entity_with_devices(
 async def test_setup_entity_empty_name(setup_test_environment: list[str]) -> None:
     """Test setup_entity with empty entity name."""
 
-    setup_test_environment  # noqa: F841 - fixture initializes CORE state
-
     var = MockObj("sensor1")
 
     config = {
@@ -455,8 +448,6 @@ async def test_setup_entity_special_characters(
 ) -> None:
     """Test setup_entity with names containing special characters."""
 
-    setup_test_environment  # noqa: F841 - fixture initializes CORE state
-
     var = MockObj("sensor1")
 
     config = {
@@ -474,8 +465,6 @@ async def test_setup_entity_special_characters(
 @pytest.mark.asyncio
 async def test_setup_entity_with_icon(setup_test_environment: list[str]) -> None:
     """Test setup_entity sets icon correctly."""
-
-    setup_test_environment  # noqa: F841 - fixture initializes CORE state
 
     var = MockObj("sensor1")
 
@@ -813,7 +802,6 @@ async def test_setup_entity_empty_name_with_mac_suffix(
     For empty-name entities, Python passes 0 and C++ calculates the hash
     at runtime from friendly_name (bug-for-bug compatibility).
     """
-    setup_test_environment  # noqa: F841 - fixture initializes CORE state
 
     # Set up CORE.config with name_add_mac_suffix enabled
     CORE.config = {"name_add_mac_suffix": True}
@@ -844,7 +832,6 @@ async def test_setup_entity_empty_name_with_mac_suffix_no_friendly_name(
     at runtime. In this case C++ will hash the empty friendly_name
     (bug-for-bug compatibility).
     """
-    setup_test_environment  # noqa: F841 - fixture initializes CORE state
 
     # Set up CORE.config with name_add_mac_suffix enabled
     CORE.config = {"name_add_mac_suffix": True}
@@ -874,7 +861,6 @@ async def test_setup_entity_empty_name_no_mac_suffix_no_friendly_name(
     For empty-name entities, Python passes 0 and C++ calculates the hash
     at runtime from the device name.
     """
-    setup_test_environment  # noqa: F841 - fixture initializes CORE state
 
     # No MAC suffix (either not set or False)
     CORE.config = {}
