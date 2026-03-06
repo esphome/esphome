@@ -47,7 +47,7 @@ def parse_variant_pins(variant_dir: Path) -> dict[str, int]:
         return {}
 
     pins = {}
-    for match in PIN_DEFINE_RE.finditer(header.read_text()):
+    for match in PIN_DEFINE_RE.finditer(header.read_text(encoding="utf-8")):
         raw_name = match.group(1)
         value = int(match.group(2))
         if raw_name in PIN_NAME_MAP:
@@ -178,7 +178,7 @@ def main():
 
     output = generate(arduino_pico_path)
     output_file = Path(__file__).parent / "boards.py"
-    output_file.write_text(output)
+    output_file.write_text(output, encoding="utf-8")
     print(f"Generated {output_file}")
 
 
