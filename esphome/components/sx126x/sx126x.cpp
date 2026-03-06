@@ -155,7 +155,7 @@ void SX126x::configure() {
   }
 
   // check silicon version to make sure hw is ok
-  this->read_register_(REG_VERSION_STRING, (uint8_t *) this->version_, 15);
+  this->read_register_(REG_VERSION_STRING, (uint8_t *) this->version_, 16);
   this->version_[15] = '\0';
   if (strncmp(this->version_, "SX126", 5) != 0 && strncmp(this->version_, "LLCC68", 6) != 0) {
     this->mark_failed();
