@@ -72,6 +72,7 @@ ignore_types = (
     ".gif",
     ".webp",
     ".bin",
+    ".wav",
 )
 
 LINT_FILE_CHECKS = []
