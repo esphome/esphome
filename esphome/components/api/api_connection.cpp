@@ -1481,7 +1481,7 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
   SerialProxyGetModemPinsResponse resp{};
   resp.instance = msg.instance;
   resp.line_states = proxies[msg.instance]->get_modem_pins();
-  this->send_message(resp, SerialProxyGetModemPinsResponse::MESSAGE_TYPE);
+  this->send_message(resp);
 }
 
 void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
@@ -1505,7 +1505,7 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
 }
 
 void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) {
-  this->send_message(msg, SerialProxyDataReceived::MESSAGE_TYPE);
+  this->send_message(msg);
 }
 #endif
 
