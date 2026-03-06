@@ -111,6 +111,8 @@ VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
 
 def validate_hostname(config):
     # Keep in sync with ESPHOME_DEVICE_NAME_MAX_LEN in esphome/core/entity_base.h
+    if not config[CONF_NAME]:
+        raise cv.Invalid("Hostname must not be empty", path=[CONF_NAME])
     max_length = 31
     if config[CONF_NAME_ADD_MAC_SUFFIX]:
         max_length -= 7  # "-AABBCC" is appended when add mac suffix option is used
