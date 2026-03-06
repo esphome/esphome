@@ -1,5 +1,17 @@
 """Tests for the button component"""
 
+import re
+
+_INTERNAL_BIT = 1 << 24
+
+
+def _extract_packed_value(main_cpp, var_name):
+    """Extract the third (packed) argument from a configure_entity_ call."""
+    pattern = rf"{re.escape(var_name)}->configure_entity_\([^,]+,\s*\w+,\s*(\d+)\)"
+    match = re.search(pattern, main_cpp)
+    assert match, f"configure_entity_ call not found for {var_name}"
+    return int(match.group(1))
+
 
 def test_button_is_setup(generate_main):
     """
@@ -39,8 +51,6 @@ def test_button_config_value_internal_set(generate_main):
     # When
     main_cpp = generate_main("tests/component_tests/button/test_button.yaml")
 
-    # Then
-    # internal flag is packed into configure_entity_() third argument (bit 24)
-    # wol_1 has internal: true → bit 24 set → packed value 16777216
-    assert "wol_1->configure_entity_(" in main_cpp
-    assert "wol_2->configure_entity_(" in main_cpp
+    # Then: wol_1 has internal: true, wol_2 has internal: false
+    assert _extract_packed_value(main_cpp, "wol_1") & _INTERNAL_BIT != 0
+    assert _extract_packed_value(main_cpp, "wol_2") & _INTERNAL_BIT == 0
