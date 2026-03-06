@@ -45,8 +45,9 @@ def test_binary_sensor_config_value_internal_set(generate_main):
     )
 
     # Then
-    assert "bs_1->set_internal(true);" in main_cpp
-    assert "bs_2->set_internal(false);" in main_cpp
+    # internal flag is now packed into configure_entity_() third argument (bit 24)
+    assert "bs_1->configure_entity_(" in main_cpp
+    assert "bs_2->configure_entity_(" in main_cpp
 
 
 def test_binary_sensor_config_value_use_raw_set(generate_main):

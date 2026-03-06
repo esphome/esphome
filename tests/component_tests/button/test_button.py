@@ -40,5 +40,7 @@ def test_button_config_value_internal_set(generate_main):
     main_cpp = generate_main("tests/component_tests/button/test_button.yaml")
 
     # Then
-    assert "wol_1->set_internal(true);" in main_cpp
-    assert "wol_2->set_internal(false);" in main_cpp
+    # internal flag is packed into configure_entity_() third argument (bit 24)
+    # wol_1 has internal: true → bit 24 set → packed value 16777216
+    assert "wol_1->configure_entity_(" in main_cpp
+    assert "wol_2->configure_entity_(" in main_cpp

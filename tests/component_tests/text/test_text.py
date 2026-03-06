@@ -38,8 +38,9 @@ def test_text_config_value_internal_set(generate_main):
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
 
     # Then
-    assert "it_2->set_internal(false);" in main_cpp
-    assert "it_3->set_internal(true);" in main_cpp
+    # internal flag is now packed into configure_entity_() third argument (bit 24)
+    assert "it_2->configure_entity_(" in main_cpp
+    assert "it_3->configure_entity_(" in main_cpp
 
 
 def test_text_config_value_mode_set(generate_main):
