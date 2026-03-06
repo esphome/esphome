@@ -568,7 +568,8 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
     }
 #endif
 #ifdef USE_ENTITY_ICON
-    root[ESPHOME_F("icon")] = obj->get_icon_ref().c_str();
+    char icon_buf[MAX_ICON_LENGTH];
+    root[ESPHOME_F("icon")] = obj->get_icon_to(icon_buf);
 #endif
     root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();

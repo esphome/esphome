@@ -115,6 +115,7 @@ class EthernetComponent : public Component {
   const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
   eth_duplex_t get_duplex_mode();
   eth_speed_t get_link_speed();
+  esp_eth_handle_t get_eth_handle() const { return this->eth_handle_; }
   bool powerdown();
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
