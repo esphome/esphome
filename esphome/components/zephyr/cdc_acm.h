@@ -6,9 +6,9 @@
 
 namespace esphome::zephyr {
 
-class CdcAcm {
+class CdcAcm : public Component {
  public:
-  CdcAcm();
+  void setup() override;
   void add_on_rate_callback(std::function<void(const device *, uint32_t)> &&callback) {
     this->rate_callbacks_.add(std::move(callback));
   }
@@ -18,7 +18,7 @@ class CdcAcm {
   CallbackManager<void(const device *, uint32_t)> rate_callbacks_;
 };
 
-extern CdcAcm global_cdc_acm;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+extern CdcAcm *global_cdc_acm;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::zephyr
 

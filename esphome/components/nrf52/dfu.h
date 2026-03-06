@@ -4,7 +4,6 @@
 #ifdef USE_NRF52_DFU
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
-#include <atomic>
 
 namespace esphome {
 namespace nrf52 {
@@ -17,7 +16,7 @@ class DeviceFirmwareUpdate : public Component {
 
  protected:
   GPIOPin *reset_pin_;
-  std::atomic<bool> goto_dfu_{false};
+  bool goto_dfu_{false};
 };
 
 }  // namespace nrf52

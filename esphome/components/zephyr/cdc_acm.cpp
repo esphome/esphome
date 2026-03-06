@@ -7,7 +7,8 @@
 
 namespace esphome::zephyr {
 
-CdcAcm::CdcAcm() {
+void CdcAcm::setup() {
+  global_cdc_acm = this;
 #if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
   const struct device *cdc_dev[] = {DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, DEVICE_AND_COMMA)};
   for (auto &idx : cdc_dev) {
@@ -18,10 +19,10 @@ CdcAcm::CdcAcm() {
 }
 
 void CdcAcm::cdc_dte_rate_callback_(const struct device *device, uint32_t rate) {
-  global_cdc_acm.rate_callbacks_.call(device, rate);
+  global_cdc_acm->defer([device, rate]() { global_cdc_acm->rate_callbacks_.call(device, rate); });
 }
 
-CdcAcm global_cdc_acm;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+CdcAcm *global_cdc_acm;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::zephyr
 
