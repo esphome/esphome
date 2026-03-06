@@ -34,7 +34,7 @@ _KEY_ICON_IDX = "_entity_icon_idx"
 _KEY_ENTITY_NAME = "_entity_name"
 _KEY_OBJECT_ID_HASH = "_entity_object_id_hash"
 
-# Bit layout for entity_strings_packed in configure_entity() — must match C++ in entity_base.h:
+# Bit layout for entity_strings_packed in configure_entity_() — must match C++ in entity_base.h:
 #   [23..16] icon (8 bits) | [15..8] UoM (8 bits) | [7..0] device_class (8 bits)
 _DC_SHIFT = 0
 _UOM_SHIFT = 8
@@ -221,7 +221,7 @@ def setup_unit_of_measurement(config: ConfigType) -> None:
 
 
 def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
-    """Emit a single configure_entity() call with name, hash, and packed string indices.
+    """Emit a single configure_entity_() call with name, hash, and packed string indices.
 
     Call this at the end of each component's setup function, after
     setup_entity() and any register_device_class/register_unit_of_measurement calls.
@@ -232,7 +232,7 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     uom_idx = config.get(_KEY_UOM_IDX, 0)
     icon_idx = config.get(_KEY_ICON_IDX, 0)
     packed = (dc_idx << _DC_SHIFT) | (uom_idx << _UOM_SHIFT) | (icon_idx << _ICON_SHIFT)
-    add(var.configure_entity(entity_name, object_id_hash, packed))
+    add(var.configure_entity_(entity_name, object_id_hash, packed))
 
 
 def get_base_entity_object_id(
@@ -334,7 +334,7 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
         device: MockObj = await get_variable(device_id_obj)
         add(var.set_device(device))
 
-    # Pre-compute entity name and object_id hash for configure_entity()
+    # Pre-compute entity name and object_id hash for configure_entity_()
     # which is emitted later by finalize_entity_strings().
     # For named entities: pre-compute hash from entity name
     # For empty-name entities: pass 0, C++ calculates hash at runtime from
