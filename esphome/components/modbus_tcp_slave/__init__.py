@@ -1,4 +1,5 @@
 """Modbus TCP slave component (esp-modbus). Protocol uses master/slave terminology."""
+
 import os
 
 import esphome.codegen as cg
@@ -82,6 +83,7 @@ _MODBUS_INCLUDE_SUFFIXES = [
     "modbus/include",
 ]
 
+
 def _validate_esp32_esp_idf(config):
     """This component only supports ESP32 with ESP-IDF (esp-modbus requirement)."""
     if not CORE.is_esp32:
@@ -96,12 +98,18 @@ def _validate_esp32_esp_idf(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema({
-        cv.GenerateID(): cv.declare_id(ModbusSlaveTCP),
-        cv.Optional(CONF_PORT, default=DEFAULT_MODBUS_PORT): cv.port,
-        cv.Optional(CONF_SLAVE_ID, default=DEFAULT_MODBUS_SLAVE_ID): cv.int_range(0, 247),
-        cv.Optional(CONF_NUM_OBJECTS, default=DEFAULT_MODBUS_NUM_OBJECTS): cv.int_range(1, 128),
-    }).extend(cv.COMPONENT_SCHEMA),
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(ModbusSlaveTCP),
+            cv.Optional(CONF_PORT, default=DEFAULT_MODBUS_PORT): cv.port,
+            cv.Optional(CONF_SLAVE_ID, default=DEFAULT_MODBUS_SLAVE_ID): cv.int_range(
+                0, 247
+            ),
+            cv.Optional(
+                CONF_NUM_OBJECTS, default=DEFAULT_MODBUS_NUM_OBJECTS
+            ): cv.int_range(1, 128),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
     _validate_esp32_esp_idf,
 )
 
