@@ -5,7 +5,7 @@
 
 namespace esphome::spa06_spi {
 
-class SPA06SPIComponent : public esphome::spa06_base::SPA06Component,
+class SPA06SPIComponent : public spa06_base::SPA06Component,
                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                 spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_200KHZ> {
   void setup() override;
