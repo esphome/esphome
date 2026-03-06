@@ -306,7 +306,6 @@ async def debug_to_code(config, parent):
     if config[CONF_DUMMY_RECEIVER]:
         dummy = cg.new_Pvariable(config[CONF_DUMMY_RECEIVER_ID], parent)
         await cg.register_component(dummy, {})
-    if config[CONF_DEBUG_PREFIX]:
     if debug_prefix := config[CONF_DEBUG_PREFIX]:
         cg.add(trigger.set_debug_prefix(debug_prefix))
     cg.add_define("USE_UART_DEBUGGER")
