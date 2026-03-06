@@ -563,10 +563,21 @@ class PollingComponent : public Component {
   uint32_t update_interval_;
 };
 
+#ifdef USE_RUNTIME_STATS
+uint32_t micros();  // Forward declare for inline constructor
+#endif
+
 class WarnIfComponentBlockingGuard {
  public:
   WarnIfComponentBlockingGuard(Component *component, uint32_t start_time)
-      : started_(start_time), component_(component) {}
+      : started_(start_time),
+        component_(component)
+#ifdef USE_RUNTIME_STATS
+        ,
+        started_us_(micros())
+#endif
+  {
+  }
 
   // Finish the timing operation and return the current time
   uint32_t finish();
@@ -576,6 +587,9 @@ class WarnIfComponentBlockingGuard {
  protected:
   uint32_t started_;
   Component *component_;
+#ifdef USE_RUNTIME_STATS
+  uint32_t started_us_;
+#endif
 };
 
 // Function to clear setup priority overrides after all components are set up
