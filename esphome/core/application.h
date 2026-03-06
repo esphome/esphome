@@ -150,6 +150,7 @@ class Application {
     char mac_addr[mac_address_len];
     get_mac_address_into_buffer(mac_addr);
     // Overwrite the placeholder suffix in the mutable static buffers with actual MAC
+    // name is always non-empty (validated by validate_hostname in Python config)
     memcpy(name + name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len, mac_address_suffix_len);
     if (friendly_name_len > 0) {
       memcpy(friendly_name + friendly_name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len,
