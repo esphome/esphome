@@ -69,8 +69,10 @@ class SPDIFEncoder {
   /// @param size Size of source data in bytes
   /// @param ticks_to_wait Timeout for blocking writes
   /// @param blocks_sent Optional pointer to receive the number of complete SPDIF blocks sent
+  /// @param bytes_consumed Optional pointer to receive the number of PCM bytes consumed from src
   /// @return esp_err_t as returned from the callback
-  esp_err_t write(const uint8_t *src, size_t size, TickType_t ticks_to_wait, uint32_t *blocks_sent = nullptr);
+  esp_err_t write(const uint8_t *src, size_t size, TickType_t ticks_to_wait, uint32_t *blocks_sent = nullptr,
+                  size_t *bytes_consumed = nullptr);
 
   /// @brief Get the number of PCM bytes currently pending in the partial block buffer
   /// @return Number of pending PCM bytes (0 to SPDIF_PCM_BYTES_PER_BLOCK - 1)

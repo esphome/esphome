@@ -200,6 +200,7 @@ class MixerSpeaker : public Component {
   optional<audio::AudioStreamInfo> audio_stream_info_;
 
   std::atomic<uint32_t> frames_in_pipeline_{0};  // Frames written to output but not yet played
+  uint32_t all_stopped_since_ms_{0};             // Debounce transient all-stopped windows before stopping task
 };
 
 }  // namespace mixer_speaker

@@ -86,8 +86,9 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   /// @brief Function for the FreeRTOS task handling audio output.
   /// Allocates space for the buffers, reads audio from the ring buffer and writes audio to the I2S port. Stops
   /// immmiately after receiving the COMMAND_STOP signal and stops only after the ring buffer is empty after receiving
-  /// the COMMAND_STOP_GRACEFULLY signal. Stops if the ring buffer hasn't read data for more than timeout_ milliseconds.
-  /// When stopping, it deallocates the buffers. It communicates its state and any errors via ``event_group_``.
+  /// the COMMAND_STOP_GRACEFULLY signal. In non-SPDIF mode, it can stop if no data is received for timeout_
+  /// milliseconds. When stopping, it deallocates the buffers. It communicates its state and any errors via
+  /// ``event_group_``.
   /// @param params I2SAudioSpeaker component
   static void speaker_task(void *params);
 
@@ -153,8 +154,7 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   uint32_t spdif_silence_start_{0};  // Timestamp when silence mode started (0 = not in silence)
   uint32_t spdif_preload_ended_{0};  // Timestamp when preload ended (for grace period)
   bool spdif_mode_{false};
-  bool spdif_fake_stopped_{false};  // True when we faked STOPPED state but task is still running
-  bool spdif_needs_preload_{true};  // True when preload is needed (startup or after fake-stop)
+  bool spdif_needs_preload_{true};  // True when preload is needed (startup or after explicit stop)
 #endif
 };
 

@@ -306,7 +306,8 @@ size_t SPDIFEncoder::get_pending_pcm_bytes() const {
   return pending_samples * 2;  // 2 bytes per sample
 }
 
-HOT esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ticks_to_wait, uint32_t *blocks_sent) {
+HOT esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ticks_to_wait, uint32_t *blocks_sent,
+                                  size_t *bytes_consumed) {
   const uint8_t *pcm_data = src;
   const uint8_t *pcm_end = src + size;
   uint32_t block_count = 0;
@@ -318,6 +319,9 @@ HOT esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ti
       if (err != ESP_OK) {
         if (blocks_sent != nullptr) {
           *blocks_sent = block_count;
+        }
+        if (bytes_consumed != nullptr) {
+          *bytes_consumed = pcm_data - src;
         }
         return err;
       }
@@ -336,6 +340,9 @@ HOT esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ti
       if (blocks_sent != nullptr) {
         *blocks_sent = block_count;
       }
+      if (bytes_consumed != nullptr) {
+        *bytes_consumed = pcm_data - src;
+      }
       return err;
     }
     ++block_count;
@@ -343,6 +350,9 @@ HOT esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ti
 
   if (blocks_sent != nullptr) {
     *blocks_sent = block_count;
+  }
+  if (bytes_consumed != nullptr) {
+    *bytes_consumed = size;
   }
   return ESP_OK;
 }
