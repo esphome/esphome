@@ -298,8 +298,8 @@ class MQTTComponent : public Component {
   /// Get the friendly name of this MQTT component.
   const StringRef &friendly_name_() const;
 
-  /// Get the icon field of this component as StringRef
-  StringRef get_icon_ref_() const;
+  /// Get the icon field of this component into a stack buffer
+  const char *get_icon_to_(std::span<char, MAX_ICON_LENGTH> buf) const { return this->get_entity()->get_icon_to(buf); }
 
   /// Get whether the underlying Entity is disabled by default
   bool is_disabled_by_default_() const;

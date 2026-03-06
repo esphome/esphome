@@ -1,6 +1,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome {
@@ -72,7 +73,27 @@ std::string EntityBase::get_unit_of_measurement() const {
   return std::string(this->get_unit_of_measurement_ref().c_str());
 }
 
-// Entity icon (from index)
+// Entity icon — buffer-based API for PROGMEM safety on ESP8266
+const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LENGTH> buffer) const {
+#ifdef USE_ENTITY_ICON
+  const uint8_t idx = this->icon_idx_;
+#else
+  const uint8_t idx = 0;
+#endif
+#ifdef USE_ESP8266
+  if (idx == 0)
+    return "";
+  const char *icon = entity_icon_lookup(idx);
+  ESPHOME_strncpy_P(buffer.data(), icon, buffer.size() - 1);
+  buffer[buffer.size() - 1] = '\0';
+  return buffer.data();
+#else
+  return entity_icon_lookup(idx);
+#endif
+}
+
+#ifndef USE_ESP8266
+// Deprecated icon accessors — not available on ESP8266 (rodata is RAM)
 StringRef EntityBase::get_icon_ref() const {
 #ifdef USE_ENTITY_ICON
   return StringRef(entity_icon_lookup(this->icon_idx_));
@@ -80,7 +101,14 @@ StringRef EntityBase::get_icon_ref() const {
   return StringRef(entity_icon_lookup(0));
 #endif
 }
-std::string EntityBase::get_icon() const { return std::string(this->get_icon_ref().c_str()); }
+std::string EntityBase::get_icon() const {
+#ifdef USE_ENTITY_ICON
+  return std::string(entity_icon_lookup(this->icon_idx_));
+#else
+  return std::string(entity_icon_lookup(0));
+#endif
+}
+#endif  // !USE_ESP8266
 
 // Entity Object ID - computed on-demand from name
 std::string EntityBase::get_object_id() const {
@@ -154,8 +182,10 @@ ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t ve
 
 #ifdef USE_ENTITY_ICON
 void log_entity_icon(const char *tag, const char *prefix, const EntityBase &obj) {
-  if (!obj.get_icon_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj.get_icon_ref().c_str());
+  char icon_buf[MAX_ICON_LENGTH];
+  const char *icon = obj.get_icon_to(icon_buf);
+  if (icon[0] != '\0') {
+    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, icon);
   }
 }
 #endif
