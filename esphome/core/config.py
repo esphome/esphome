@@ -64,6 +64,32 @@ _APP_NAME_BUF_VAR = "esphome_app_name_buf"
 _APP_NAME_MAC_SEP = "-"
 _APP_FRIENDLY_NAME_BUF_VAR = "esphome_app_friendly_name_buf"
 _APP_FRIENDLY_NAME_MAC_SEP = " "
+# Placeholder suffix for MAC address (last 6 hex chars)
+_MAC_SUFFIX_PLACEHOLDER = "XXXXXX"
+
+
+def make_app_name_cpp(
+    value: str, var_name: str, sep: str, *, add_mac_suffix: bool
+) -> tuple[str, str | None, int]:
+    """Compute C++ expression and optional global declaration for an app name.
+
+    Returns (cpp_expr, global_decl_or_none, byte_length).
+    - cpp_expr: The C++ expression to pass to pre_setup (var name or string literal).
+    - global_decl: A static char[] declaration string, or None if not needed.
+    - byte_length: The UTF-8 byte length of the string value.
+    """
+    if add_mac_suffix:
+        buf_value = "" if not value else f"{value}{sep}{_MAC_SUFFIX_PLACEHOLDER}"
+        escaped = cpp_string_escape(buf_value)
+        return (
+            var_name,
+            f"static char {var_name}[] = {escaped};",
+            len(buf_value.encode("utf-8")),
+        )
+    if not value:
+        return '""', None, 0
+    return cpp_string_escape(value), None, len(value.encode("utf-8"))
+
 
 StartupTrigger = cg.esphome_ns.class_(
     "StartupTrigger", cg.Component, automation.Trigger.template()
@@ -562,37 +588,19 @@ async def to_code(config: ConfigType) -> None:
     friendly_name = config[CONF_FRIENDLY_NAME]
     name_add_mac_suffix = config[CONF_NAME_ADD_MAC_SUFFIX]
 
-    def _make_app_name_expr(
+    def _emit_app_name(
         value: str, var_name: str, sep: str
     ) -> tuple[cg.Expression, int]:
-        """Create a name expression for pre_setup.
-
-        With MAC suffix: emits a static mutable buffer with placeholder suffix.
-        Without: passes the string literal directly as const char*.
-        Returns (expression, byte_length).
-        """
-        if name_add_mac_suffix:
-            value_with_placeholder = "" if not value else f"{value}{sep}XXXXXX"
-            cg.add_global(
-                cg.RawStatement(
-                    f"static char {var_name}[] = {cpp_string_escape(value_with_placeholder)};"
-                )
-            )
-            return (
-                cg.RawExpression(var_name),
-                len(value_with_placeholder.encode("utf-8")),
-            )
-        if not value:
-            return cg.RawExpression('""'), 0
-        return (
-            cg.RawExpression(cpp_string_escape(value)),
-            len(value.encode("utf-8")),
+        """Emit codegen for an app name and return (expression, byte_length)."""
+        cpp_expr, global_decl, byte_len = make_app_name_cpp(
+            value, var_name, sep, add_mac_suffix=name_add_mac_suffix
         )
+        if global_decl is not None:
+            cg.add_global(cg.RawStatement(global_decl))
+        return cg.RawExpression(cpp_expr), byte_len
 
-    name_expr, name_len = _make_app_name_expr(
-        name, _APP_NAME_BUF_VAR, _APP_NAME_MAC_SEP
-    )
-    friendly_expr, friendly_len = _make_app_name_expr(
+    name_expr, name_len = _emit_app_name(name, _APP_NAME_BUF_VAR, _APP_NAME_MAC_SEP)
+    friendly_expr, friendly_len = _emit_app_name(
         friendly_name, _APP_FRIENDLY_NAME_BUF_VAR, _APP_FRIENDLY_NAME_MAC_SEP
     )
     if name_add_mac_suffix:
