@@ -41,11 +41,11 @@ class ModbusSlaveTCP : public esphome::Component {
     if (index >= this->num_objects_)
       return;
     uint16_t byte_idx = index / 8u;
-    uint8_t bit_mask = (uint8_t)(1u << (index % 8u));
+    uint8_t bit_mask = (uint8_t) (1u << (index % 8u));
     if (value)
       coil_reg_params.coil_data[byte_idx] |= bit_mask;
     else
-      coil_reg_params.coil_data[byte_idx] &= (uint8_t)~bit_mask;
+      coil_reg_params.coil_data[byte_idx] &= (uint8_t) ~bit_mask;
   }
 
   /// Set holding register at index (0..num_objects-1). Call from interval/automation/lambda.
@@ -67,11 +67,11 @@ class ModbusSlaveTCP : public esphome::Component {
     if (index >= this->num_objects_)
       return;
     uint16_t byte_idx = index / 8u;
-    uint8_t bit_mask = (uint8_t)(1u << (index % 8u));
+    uint8_t bit_mask = (uint8_t) (1u << (index % 8u));
     if (value)
       discrete_reg_params.discrete_data[byte_idx] |= bit_mask;
     else
-      discrete_reg_params.discrete_data[byte_idx] &= (uint8_t)~bit_mask;
+      discrete_reg_params.discrete_data[byte_idx] &= (uint8_t) ~bit_mask;
   }
 
   void setup() override {
@@ -80,8 +80,8 @@ class ModbusSlaveTCP : public esphome::Component {
   }
 
   void dump_config() override {
-    ESP_LOGCONFIG(TAG, "Modbus TCP Slave: port %u, slave_id %u, num_objects %u",
-                  (unsigned) this->port_, (unsigned) this->slave_id_, (unsigned) this->num_objects_);
+    ESP_LOGCONFIG(TAG, "Modbus TCP Slave: port %u, slave_id %u, num_objects %u", (unsigned) this->port_,
+                  (unsigned) this->slave_id_, (unsigned) this->num_objects_);
   }
 
   void loop() override {
@@ -96,8 +96,8 @@ class ModbusSlaveTCP : public esphome::Component {
   void start_modbus_() {
     this->modbus_attempted_ = true;  // only try once; avoid retries that leak contexts and hit EADDRINUSE
 
-    ESP_LOGI(TAG, "Starting Modbus TCP Slave, port %u, slave_id %u",
-             (unsigned) this->port_, (unsigned) this->slave_id_);
+    ESP_LOGI(TAG, "Starting Modbus TCP Slave, port %u, slave_id %u", (unsigned) this->port_,
+             (unsigned) this->slave_id_);
 
     mb_communication_info_t config = {};
     config.tcp_opts.mode = MB_TCP;
@@ -124,41 +124,41 @@ class ModbusSlaveTCP : public esphome::Component {
     reg_area.type = MB_PARAM_HOLDING;
     reg_area.start_offset = 0;
     reg_area.access = MB_ACCESS_RW;
-    reg_area.address = (void *)&holding_reg_params;
+    reg_area.address = (void *) &holding_reg_params;
     reg_area.size = reg_bytes;
     mbc_slave_set_descriptor(this->slave_handler_, reg_area);
 
     reg_area.type = MB_PARAM_INPUT;
     reg_area.start_offset = 0;
     reg_area.access = MB_ACCESS_RO;
-    reg_area.address = (void *)&input_reg_params;
+    reg_area.address = (void *) &input_reg_params;
     reg_area.size = reg_bytes;
     mbc_slave_set_descriptor(this->slave_handler_, reg_area);
 
     reg_area.type = MB_PARAM_COIL;
     reg_area.start_offset = 0;
     reg_area.access = MB_ACCESS_RW;
-    reg_area.address = (void *)&coil_reg_params;
+    reg_area.address = (void *) &coil_reg_params;
     reg_area.size = coil_bytes;
     mbc_slave_set_descriptor(this->slave_handler_, reg_area);
 
     reg_area.type = MB_PARAM_DISCRETE;
     reg_area.start_offset = 0;
     reg_area.access = MB_ACCESS_RO;
-    reg_area.address = (void *)&discrete_reg_params;
+    reg_area.address = (void *) &discrete_reg_params;
     reg_area.size = coil_bytes;
     mbc_slave_set_descriptor(this->slave_handler_, reg_area);
 
     err = mbc_slave_start(this->slave_handler_);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "mbc_slave_start failed: %s", esp_err_to_name(err));
-      (void)mbc_slave_delete(this->slave_handler_);
+      (void) mbc_slave_delete(this->slave_handler_);
       this->slave_handler_ = nullptr;
       return;
     }
     this->modbus_started_ = true;
-    ESP_LOGI(TAG, "Modbus TCP Slave listening on port %u, slave_id %u",
-             (unsigned) this->port_, (unsigned) this->slave_id_);
+    ESP_LOGI(TAG, "Modbus TCP Slave listening on port %u, slave_id %u", (unsigned) this->port_,
+             (unsigned) this->slave_id_);
   }
 
   void *slave_handler_ = nullptr;
