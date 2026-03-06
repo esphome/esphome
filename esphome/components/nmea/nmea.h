@@ -37,7 +37,7 @@ class NMEAComponent : public uart::UARTComponent, public PollingComponent {
 
  protected:
   // Helper for platforms to populate buffer from GnssInfo
-  void populate_nmea_from_gnss_info(const GnssInfo &gi);
+  void populate_nmea_from_gnss_info_(const GnssInfo &gi);
 
   uint8_t nmea_buffer_[168] = {0};  // max nmea length is 82, we use 168 to accommodate both GPGGA and GPRMC
   size_t nmea_buffer_size_{0};

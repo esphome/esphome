@@ -34,7 +34,7 @@ bool NMEAComponent::read_array(uint8_t *data, size_t len) {
   return true;
 }
 
-void NMEAComponent::populate_nmea_from_gnss_info(const GnssInfo &gi) {
+void NMEAComponent::populate_nmea_from_gnss_info_(const GnssInfo &gi) {
   if (!gi.fix_valid || !std::isfinite(gi.hdop) || gi.sat_used <= 0) {
     ESP_LOGW(TAG, "GNSS not fixed, skipping NMEA generation");
     return;
