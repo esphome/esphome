@@ -28,8 +28,8 @@ DEFAULT_MODBUS_SLAVE_ID = 1
 DEFAULT_MODBUS_NUM_OBJECTS = 5
 
 # Define the namespace
-modbus_slave_tcp_ns = cg.esphome_ns.namespace('modbus_slave_tcp')
-ModbusSlaveTCP = modbus_slave_tcp_ns.class_('ModbusSlaveTCP', cg.Component)
+modbus_slave_tcp_ns = cg.esphome_ns.namespace("modbus_slave_tcp")
+ModbusSlaveTCP = modbus_slave_tcp_ns.class_("ModbusSlaveTCP", cg.Component)
 
 # -D flags for esp-modbus (ESP-IDF config).
 # Note: We do not use CONF_SLAVE_ID here. CONFIG_FMB_CONTROLLER_SLAVE_ID is a fixed library
@@ -81,12 +81,18 @@ _MODBUS_INCLUDE_SUFFIXES = [
     "modbus/include",
 ]
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(ModbusSlaveTCP),
-    cv.Optional(CONF_PORT, default=DEFAULT_MODBUS_PORT): cv.port,
-    cv.Optional(CONF_SLAVE_ID, default=DEFAULT_MODBUS_SLAVE_ID): cv.int_range(0, 247),
-    cv.Optional(CONF_NUM_OBJECTS, default=DEFAULT_MODBUS_NUM_OBJECTS): cv.int_range(1, 128),
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(ModbusSlaveTCP),
+        cv.Optional(CONF_PORT, default=DEFAULT_MODBUS_PORT): cv.port,
+        cv.Optional(CONF_SLAVE_ID, default=DEFAULT_MODBUS_SLAVE_ID): cv.int_range(
+            0, 247
+        ),
+        cv.Optional(CONF_NUM_OBJECTS, default=DEFAULT_MODBUS_NUM_OBJECTS): cv.int_range(
+            1, 128
+        ),
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config):

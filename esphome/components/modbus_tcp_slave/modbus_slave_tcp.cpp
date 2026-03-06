@@ -5,8 +5,8 @@
 namespace modbus_slave_tcp {
 
 void ModbusSlaveTCP::dump_config() {
-  ESP_LOGCONFIG(TAG, "Modbus TCP Slave: port %u, slave_id %u, num_objects %u",
-                (unsigned) port_, (unsigned) slave_id_, (unsigned) num_objects_);
+  ESP_LOGCONFIG(TAG, "Modbus TCP Slave: port %u, slave_id %u, num_objects %u", (unsigned) port_, (unsigned) slave_id_,
+                (unsigned) num_objects_);
 }
 
 void ModbusSlaveTCP::loop() {
@@ -20,8 +20,7 @@ void ModbusSlaveTCP::loop() {
 void ModbusSlaveTCP::start_modbus_() {
   modbus_attempted_ = true;  // only try once; avoid retries that leak contexts and hit EADDRINUSE
 
-  ESP_LOGI(TAG, "Starting Modbus TCP Slave, port %u, slave_id %u",
-           (unsigned) port_, (unsigned) slave_id_);
+  ESP_LOGI(TAG, "Starting Modbus TCP Slave, port %u, slave_id %u", (unsigned) port_, (unsigned) slave_id_);
 
   mb_communication_info_t config = {};
   config.tcp_opts.mode = MB_TCP;
@@ -48,41 +47,40 @@ void ModbusSlaveTCP::start_modbus_() {
   reg_area.type = MB_PARAM_HOLDING;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RW;
-  reg_area.address = (void *)&holding_reg_params;
+  reg_area.address = (void *) &holding_reg_params;
   reg_area.size = reg_bytes;
   mbc_slave_set_descriptor(slave_handler_, reg_area);
 
   reg_area.type = MB_PARAM_INPUT;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RO;
-  reg_area.address = (void *)&input_reg_params;
+  reg_area.address = (void *) &input_reg_params;
   reg_area.size = reg_bytes;
   mbc_slave_set_descriptor(slave_handler_, reg_area);
 
   reg_area.type = MB_PARAM_COIL;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RW;
-  reg_area.address = (void *)&coil_reg_params;
+  reg_area.address = (void *) &coil_reg_params;
   reg_area.size = coil_bytes;
   mbc_slave_set_descriptor(slave_handler_, reg_area);
 
   reg_area.type = MB_PARAM_DISCRETE;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RO;
-  reg_area.address = (void *)&discrete_reg_params;
+  reg_area.address = (void *) &discrete_reg_params;
   reg_area.size = coil_bytes;
   mbc_slave_set_descriptor(slave_handler_, reg_area);
 
   err = mbc_slave_start(slave_handler_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "mbc_slave_start failed: %s", esp_err_to_name(err));
-    (void)mbc_slave_delete(slave_handler_);
+    (void) mbc_slave_delete(slave_handler_);
     slave_handler_ = nullptr;
     return;
   }
   modbus_started_ = true;
-  ESP_LOGI(TAG, "Modbus TCP Slave listening on port %u, slave_id %u",
-           (unsigned) port_, (unsigned) slave_id_);
+  ESP_LOGI(TAG, "Modbus TCP Slave listening on port %u, slave_id %u", (unsigned) port_, (unsigned) slave_id_);
 }
 
 }  // namespace modbus_slave_tcp
