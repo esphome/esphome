@@ -7,8 +7,9 @@
 
 namespace esphome::zephyr {
 
+CdcAcm::CdcAcm() { global_cdc_acm = this; }
+
 void CdcAcm::setup() {
-  global_cdc_acm = this;
 #if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
   const struct device *cdc_dev[] = {DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, DEVICE_AND_COMMA)};
   for (auto &idx : cdc_dev) {

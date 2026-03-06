@@ -9,8 +9,8 @@ namespace esphome::zephyr {
 
 class CdcAcm : public Component {
  public:
+  CdcAcm();
   void setup() override;
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void add_on_rate_callback(std::function<void(const device *, uint32_t)> &&callback) {
     this->rate_callbacks_.add(std::move(callback));
   }
