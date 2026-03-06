@@ -171,7 +171,7 @@ bool SPA06Component::write_sensor_settings_(Oversampling oversampling, SampleRat
 
 bool SPA06Component::write_measurement_settings_(MeasCrtl crtl) {
   this->meas_.bit.meas_crtl = crtl;
-  return spa_write_byte(SPA06_MEAS_CFG, this->meas_.reg)
+  return spa_write_byte(SPA06_MEAS_CFG, this->meas_.reg);
 }
 
 bool SPA06Component::write_communication_settings_(bool pressure_shift, bool temperature_shift, bool interrupt_hl,
