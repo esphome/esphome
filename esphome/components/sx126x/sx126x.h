@@ -119,7 +119,7 @@ class SX126x : public Component,
   GPIOPin *dio1_pin_{nullptr};
   GPIOPin *rst_pin_{nullptr};
   std::string hw_version_;
-  char version_[16];
+  char version_[17]{};
   SX126xBw bandwidth_{SX126X_BW_125000};
   uint32_t bitrate_{0};
   bool crc_enable_{false};
