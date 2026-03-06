@@ -11,7 +11,7 @@ static const char *const TAG = "entity_base";
 // Entity Name
 const StringRef &EntityBase::get_name() const { return this->name_; }
 
-void EntityBase::configure_entity(const char *name, uint32_t object_id_hash, uint32_t entity_strings_packed) {
+void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_strings_packed) {
   this->name_ = StringRef(name);
   if (this->name_.empty()) {
 #ifdef USE_DEVICES

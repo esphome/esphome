@@ -12,6 +12,10 @@
 #include "device.h"
 #endif
 
+// Forward declarations for friend access from codegen-generated setup()
+void setup();           // NOLINT(readability-redundant-declaration) - may be declared in Arduino.h
+void original_setup();  // NOLINT(readability-redundant-declaration) - used by cpp unit tests
+
 namespace esphome {
 
 // Extern lookup functions for entity string tables.
@@ -51,9 +55,6 @@ class EntityBase {
  public:
   // Get the name of this Entity
   const StringRef &get_name() const;
-
-  /// Combined entity setup from codegen: set name, object_id hash, and entity string indices.
-  void configure_entity(const char *name, uint32_t object_id_hash, uint32_t entity_strings_packed);
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
@@ -201,6 +202,12 @@ class EntityBase {
   }
 
  protected:
+  friend void ::setup();
+  friend void ::original_setup();
+
+  /// Combined entity setup from codegen: set name, object_id hash, and entity string indices.
+  void configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_strings_packed);
+
   /// Non-template helper for make_entity_preference() to avoid code bloat.
   /// When preference hash algorithm changes, migration logic goes here.
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);

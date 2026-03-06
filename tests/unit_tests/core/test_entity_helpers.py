@@ -31,10 +31,10 @@ from esphome.helpers import sanitize, snake_case
 
 from .common import load_config_from_fixture
 
-# Pre-compiled regex pattern for extracting names from configure_entity/set_name calls
-# Matches: .configure_entity("name", ...) or .set_name("name", ...)
+# Pre-compiled regex pattern for extracting names from configure_entity_/set_name calls
+# Matches: .configure_entity_("name", ...) or .set_name("name", ...)
 ENTITY_NAME_PATTERN = re.compile(
-    r'\.(?:configure_entity|set_name)\(["\']([^"\']*)["\']'
+    r'\.(?:configure_entity_|set_name)\(["\']([^"\']*)["\']'
 )
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "entity_helpers"
@@ -291,7 +291,7 @@ def extract_object_id_from_config(config: dict[str, Any]) -> str | None:
 
 
 def extract_object_id_from_expressions(expressions: list[str]) -> str | None:
-    """Extract the object ID from configure_entity() calls in generated expressions."""
+    """Extract the object ID from configure_entity_() calls in generated expressions."""
     for expr in expressions:
         if match := ENTITY_NAME_PATTERN.search(expr):
             name = match.group(1)
@@ -954,7 +954,7 @@ async def test_setup_entity_direct_call(setup_test_environment: list[str]) -> No
     # Direct call mode: await setup_entity(var, config, "camera")
     await setup_entity(var, config, "camera")
 
-    # Should have emitted configure_entity
+    # Should have emitted configure_entity_
     object_id = extract_object_id_from_expressions(added_expressions)
     assert object_id == "my_camera"
 
