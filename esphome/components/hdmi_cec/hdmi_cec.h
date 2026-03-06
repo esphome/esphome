@@ -18,6 +18,15 @@ namespace hdmi_cec {
 
 class MessageTrigger;
 
+// For atomics, the '++' operator is explicitly avoided here, because that requires an atomic 'read-modify-write'
+// which is not supported by all targets. (In particular not by the esp8266)
+// The fall-back here to a non-atomic read-modify-write is OK for this application, as no other thread (or isr)
+// will modify the same variable.
+// The 'atomic' semantics is required here for its memory-barrier.
+#define ATOMIC_SET(atom, value) (atom).store((value), std::memory_order_release)
+#define ATOMIC_INCR(atom) ATOMIC_SET(atom, (atom) + 1)
+#define ATOMIC_GET(atom) (atom).load(std::memory_order_acquire)
+
 /**
  * A Frame stores an HDMI-CEC bus message as sequence of bytes with variable length.
  * Such bus message is either received or to be transmitted.
@@ -76,10 +85,13 @@ template<unsigned int SIZE> class FrameRingBuffer {
   // 'front' is used to access a Frame, and use its content until it is no longer needed
   Frame *front() const { return is_empty() ? nullptr : store_[front_inx_]; }
   // 'pop_front' recycles the storage area of the last 'front()' call.
+  // This invalidates further use of that ptr by the caller
   void pop_front() { cyclic_incr_(front_inx_); }
   // 'back' is used to fetch a free Frame, fill with data, and queue for later pick-up
+  // Note that its returned Frame likely contains 'dirty' data.
   Frame *back() const { return is_full() ? nullptr : store_[back_inx_]; }
   // 'push_back' commits the frame that was earlier obtained by 'back()', presumably it got filled with content
+  // This invalidates further use of this frame by the caller.
   void push_back() { cyclic_incr_(back_inx_); }
   bool is_empty() const { return count_() == 0; }
   bool is_full() const { return count_() == SIZE; }  // using safe wrap-around of unsignd int
@@ -93,12 +105,12 @@ template<unsigned int SIZE> class FrameRingBuffer {
   // this simple increment scheme is sufficiently 'atomic' if the front and back are each used by
   // one thread only. (So, at most one reader thread and one writer thread in the application.)
   int count_() const {
-    int n = (int) (back_inx_ - front_inx_);
+    int n = (int) (ATOMIC_GET(back_inx_) - ATOMIC_GET(front_inx_));
     if (n < 0)
       n += SIZE + 1;
     return n;
   }
-  void cyclic_incr_(Index &inx) { inx = (inx == SIZE) ? 0 : (inx + 1); }
+  void cyclic_incr_(Index &inx) { ATOMIC_SET(inx, (inx == SIZE) ? 0 : (inx + 1)); }
   Index front_inx_;  // ranging 0 .. SIZE
   Index back_inx_;   // ranging 0 .. SIZE
   // if front_inx_ == back_inx_ the store is considered empty, so it can hold at most SIZE elements
@@ -175,22 +187,16 @@ class CECTransmit {
 
   FrameRingBuffer<5> send_queue_;  // queue at most a handful of messages to send
   uint8_t transmit_attempts_{0};
+  uint8_t n_bytes_received_{0};
+  uint8_t n_acks_received_{0};
+  TransmitState transmit_state_{TransmitState::IDLE};
+  std::atomic<bool> eom_received_{false};
   std::atomic<bool> receiver_is_busy_{false};
-  std::atomic<TransmitState> transmit_state_{TransmitState::IDLE};
-  std::atomic<uint8_t> n_bytes_received_{0};
-  std::atomic<uint8_t> n_acks_received_{0};
-  std::atomic<uint32_t> confirm_received_us_{0};
-  uint32_t allow_xmit_message_us_;
+  uint32_t confirm_received_us_{0};
+  uint32_t allow_xmit_message_us_{0};
   uart::UARTComponent *uart_{nullptr};
   InternalGPIOPin *pin_{nullptr};
 };
-
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
-#define ATOMIC_INCR(atom) ((atom)++)
-#else
-// This fallback is probably only for the older esp8266, which does not provide the atomic ++ operation
-#define ATOMIC_INCR(atom) ((atom) = (atom) + 1)
-#endif
 
 class CECReceive {
   enum class ReceiverState : uint8_t { IDLE, RECEIVING_BYTE, WAITING_FOR_EOM, WAITING_FOR_ACK, WAITING_FOR_EOM_ACK };
@@ -217,8 +223,8 @@ class CECReceive {
   bool monitor_mode_{false};
   bool recv_ack_queued_{false};
   bool prev_pin_level_{true};
-  std::atomic<uint8_t> recv_bit_counter_{0};
-  std::atomic<uint8_t> recv_byte_buffer_{0};
+  uint8_t recv_bit_counter_{0};
+  uint8_t recv_byte_buffer_{0};
   uint8_t num_acks_{0};  // numer of 'low' acknowledge bits received in the current message
   uint8_t address_{0};
   uint32_t last_falling_edge_us_{0};

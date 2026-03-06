@@ -102,6 +102,9 @@ void HDMICEC::loop() {
   }
 }
 
+/**
+ * 'get_state' is solely for debug purposes, in case the hdmi-cec bus does not behave as expected.
+ */
 std::string HDMICEC::get_state() const { return recv_.get_state() + "; " + xmit_.get_state(); }
 
 void HDMICEC::handle_received_message_(const Frame *frame) {
@@ -296,8 +299,9 @@ bool CECTransmit::queue_for_send(uint8_t source, uint8_t destination, const std:
 std::string CECTransmit::get_state() const {
   char line[64];
   const static std::array<const char *, 3> NAMES = {"IDLE", "BUSY", "EOM_CONFIRMED"};
-  const TransmitState s = transmit_state_;  // take atomic value
-  snprintf(line, sizeof(line), "Tx State=%s", NAMES[static_cast<int>(s)]);
+  snprintf(line, sizeof(line), "Tx State=%s, bytes sent = %d of %d", NAMES[static_cast<int>(transmit_state_)],
+           ((transmit_state_ == TransmitState::IDLE) ? 0 : n_bytes_received_),
+           (send_queue_.front() ? (send_queue_.front())->size() : 0));
   return std::string(line);
 }
 
@@ -310,13 +314,13 @@ void CECTransmit::transmit_message() {
     return;
   }
 
-  if (receiver_is_busy_ && (confirm_received_us_ + 15 * TOTAL_BIT_US < micros())) {
+  if (ATOMIC_GET(receiver_is_busy_) && (confirm_received_us_ + 15 * TOTAL_BIT_US < micros())) {
     // protocol error on the bus between receiver and transmitter, this should never occur!
     // The Receiver has stopped giving byte_eom_ack confirmations, which should occur after
     // every received byte, which is 10x bit-period. So, >=15 bit periods is an error.
     // (Normally, the sequence of bits ends with an 'eom' confirmation, which changes the state out of BUSY.)
     // Force now leaving the BUSY state to avoid a deadlock by waiting indefinitely.
-    receiver_is_busy_ = false;
+    ATOMIC_SET(receiver_is_busy_, false);
     if (transmit_state_ == TransmitState::BUSY) {
       transmit_state_ = TransmitState::EOM_CONFIRMED;
     }
@@ -325,7 +329,11 @@ void CECTransmit::transmit_message() {
   if (transmit_state_ == TransmitState::BUSY) {
     // Transmit is busy, probably on the uart.
     // Need to wait until this message transmit ends, from confirmation by receiver.
-    return;
+    if (ATOMIC_GET(eom_received_)) {
+      transmit_state_ = TransmitState::EOM_CONFIRMED;
+    } else {
+      return;
+    }
   }
 
   if (transmit_state_ == TransmitState::EOM_CONFIRMED) {
@@ -338,7 +346,7 @@ void CECTransmit::transmit_message() {
       // last transmit had a byte count error, or ended without appropriate Acknowledge from recipient
       if (n_bytes_received_ != frame->size()) {
         ESP_LOGD(TAG, "Send frame incorrect on attempt %d, saw %d bytes but expected %d bytes", transmit_attempts_,
-                 static_cast<int>(n_bytes_received_), frame->size());
+                 n_bytes_received_, frame->size());
       } else {
         ESP_LOGD(TAG, "Send frame NOT acknowledged on attempt %d", transmit_attempts_);
       }
@@ -355,9 +363,6 @@ void CECTransmit::transmit_message() {
     } else {
       allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
     }
-    // reset confirmation from receiver
-    n_bytes_received_ = 0;
-    n_acks_received_ = 0;
   }
 
   transmit_state_ = TransmitState::IDLE;
@@ -369,7 +374,7 @@ void CECTransmit::transmit_message() {
   }
 
   const Frame *frame = send_queue_.front();  // check for presence of next frame to send (null if queue is empty)
-  if (!frame || receiver_is_busy_ || (micros() < allow_xmit_message_us_)) {
+  if (!frame || ATOMIC_GET(receiver_is_busy_) || (micros() < allow_xmit_message_us_)) {
     // If the receiver is busy, the bus is occupied, and a transmit must wait until the bus is idle
     // Maybe it is too early for a transmit, to satisfy the CEC standard bus idle time
     return;
@@ -381,6 +386,12 @@ void CECTransmit::transmit_message() {
   if (transmit_attempts_ <= 1) {
     ESP_LOGD(TAG, "Sending: %s", (frame->to_string()).c_str());
   }
+  // Reset info from receiver on progress of this transmit
+  // (The receiver will see this transmit and keep track of acknowledge bits.)
+  n_bytes_received_ = 0;
+  n_acks_received_ = 0;
+  ATOMIC_SET(eom_received_, false);
+
   // the 'start_bit' and the first 4 bits of the 'header block' are always sent by software on the GPIO
   // pin to detect a bus collision and allow early termination of the frame transmit
   if (!send_start_bit_() || !transmit_my_address_(frame->initiator_addr())) {
@@ -390,7 +401,6 @@ void CECTransmit::transmit_message() {
     transmit_state_ = TransmitState::IDLE;
     return;
   }
-  confirm_received_us_ = micros();  // initialize timing guard
   if (uart_) {
     transmit_message_on_uart_(frame);
   } else {
@@ -558,28 +568,27 @@ void IRAM_ATTR CECTransmit::send_ack() {
 
 void IRAM_ATTR CECTransmit::got_start_of_activity() {
   // bus is occupied, inhibit send
-  receiver_is_busy_ = true;
+  confirm_received_us_ = micros();  // initialize timing guard
+  ATOMIC_SET(receiver_is_busy_, true);
 }
 
 void IRAM_ATTR CECTransmit::got_byte_eom_ack(bool eom, bool ack) {
   confirm_received_us_ = micros();
-  if (eom) {
-    // some bus transfer ended. When the bus is free for a little while, we are allowed to transmit.
-    allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_RECEIVE;
-    receiver_is_busy_ = false;
-  }
   if (transmit_state_ == TransmitState::BUSY) {
     // this received message was sent by myself, handle this confirmation to check acknowledgement
-    ATOMIC_INCR(n_bytes_received_);
+    n_bytes_received_++;
     // 'ack value == 0' means that the addressed device on the bus confirms receipt by pulling 'ack' low.
     // (But for broadcast messages, 'ack == 0' indicates that some receiver denies the message.)
     if (!ack) {
       // 0 bit value means 'acknowledge' for an addressed message
-      ATOMIC_INCR(n_acks_received_);
+      n_acks_received_++;
     }
-    if (eom) {
-      transmit_state_ = TransmitState::EOM_CONFIRMED;
-    }
+  }
+  if (eom) {
+    // some bus transfer ended. When the bus is free for a little while, we are allowed to transmit.
+    allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_RECEIVE;
+    ATOMIC_SET(receiver_is_busy_, false);
+    ATOMIC_SET(eom_received_, true);  // atomic write to synchronize/commit above increments to the transmitter thread
   }
 }
 
@@ -601,9 +610,7 @@ std::string CECReceive::get_state() const {
   const static std::array<const char *, 5> NAMES = {"IDLE", "RECEIVING_BYTE", "WAITING_FOR_EOM", "WAITING_FOR_ACK",
                                                     "WAITING_FOR_EOM_ACK"};
   const int rcv_state = static_cast<int>(receiver_state_);
-  const int rcv_cnt = static_cast<int>(recv_bit_counter_);
-  snprintf(line, sizeof(line), "Rx State=%s, bytecnt=%d + bitcnt=%d", NAMES[rcv_state], recv_frame_buffer_->size(),
-           rcv_cnt);
+  snprintf(line, sizeof(line), "Rx State=%s, bytecnt=%d", NAMES[rcv_state], recv_frame_buffer_->size());
   return std::string(line);
 }
 
@@ -663,11 +670,11 @@ void IRAM_ATTR CECReceive::gpio_isr_() {
     case ReceiverState::RECEIVING_BYTE: {
       // write bit to the current byte
       recv_byte_buffer_ = (recv_byte_buffer_ << 1) | (value & 0x1);
-      ATOMIC_INCR(recv_bit_counter_);
+      recv_bit_counter_++;
       if (recv_bit_counter_ >= 8) {
         // if we reached eight bits, push the current byte to the frame buffer
         if (recv_frame_buffer_) {
-          recv_frame_buffer_->push_back((uint8_t) (recv_byte_buffer_));
+          recv_frame_buffer_->push_back(recv_byte_buffer_);
         }
         recv_bit_counter_ = 0;
         recv_byte_buffer_ = 0;
