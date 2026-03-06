@@ -8,7 +8,7 @@ namespace midea {
 namespace ac {
 
 const char *const Constants::TAG = "midea";
-const char *const Constants::FREEZE_PROTECTION = "freeze protection";
+const char *const Constants::FREEZE_PROTECTION = "FP";
 const char *const Constants::SILENT = "silent";
 const char *const Constants::TURBO = "turbo";
 
