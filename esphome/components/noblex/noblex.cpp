@@ -118,15 +118,15 @@ void NoblexClimate::transmit_state() {
   data->mark(NOBLEX_HEADER_MARK);
   data->space(NOBLEX_HEADER_SPACE);
   // Data (sent remote_state from the MSB to the LSB)
-  for (uint8_t i : remote_state) {
-    for (int8_t j = 7; j >= 0; j--) {
-      if ((i == 4) && (j == 4)) {
+  for (int byte_idx = 0; byte_idx < 8; byte_idx++) {
+    for (int8_t bit_idx = 7; bit_idx >= 0; bit_idx--) {
+      if ((byte_idx == 4) && (bit_idx == 4)) {
         // Header intermediate
         data->mark(NOBLEX_BIT_MARK);
         data->space(NOBLEX_GAP);  // gap en bit 36
       } else {
         data->mark(NOBLEX_BIT_MARK);
-        bool bit = i & (1 << j);
+        bool bit = remote_state[byte_idx] & (1 << bit_idx);
         data->space(bit ? NOBLEX_ONE_SPACE : NOBLEX_ZERO_SPACE);
       }
     }
@@ -149,12 +149,14 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
     // First part: header + first 36 bits, followed by 20ms gap
     data.expect_item(NOBLEX_HEADER_MARK, NOBLEX_HEADER_SPACE);
     ESP_LOGV(TAG, "Header");
+    this->receiving_ = false;
     memset(this->remote_state_, 0, sizeof(this->remote_state_));
     for (int i = 0; i < 5; i++) {
       for (int j = 7; j >= 0; j--) {
         if ((i == 4) && (j == 4)) {
           this->remote_state_[i] |= 1 << j;
           ESP_LOGVV(TAG, "GAP");
+          this->receiving_ = true;
           return false;
         } else if (data.expect_item(NOBLEX_BIT_MARK, NOBLEX_ONE_SPACE)) {
           this->remote_state_[i] |= 1 << j;
@@ -169,6 +171,10 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Second part: remaining 28 bits + 4-bit CRC + footer
+  if (!this->receiving_) {
+    return false;
+  }
+  this->receiving_ = false;
   for (int i = 4; i < 8; i++) {
     for (int j = 7; j >= 0; j--) {
       if ((i == 4) && (j >= 4)) {
