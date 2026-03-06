@@ -118,11 +118,11 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_not_null_time_period,
                 cv.positive_time_period_milliseconds,
             ),
-            cv.SplitDefault(CONF_BUFFER_SIZE_RX, esp32=512): cv.All(
-                cv.uint16_t, cv.only_on_esp32
+            cv.SplitDefault(CONF_BUFFER_SIZE_RX, esp32=512, esp8266=512): cv.All(
+                cv.uint16_t, cv.Any(cv.only_on_esp32, cv.only_on_esp8266)
             ),
-            cv.SplitDefault(CONF_BUFFER_SIZE_TX, esp32=512): cv.All(
-                cv.uint16_t, cv.only_on_esp32
+            cv.SplitDefault(CONF_BUFFER_SIZE_TX, esp32=512, esp8266=512): cv.All(
+                cv.uint16_t, cv.Any(cv.only_on_esp32, cv.only_on_esp8266)
             ),
             cv.Optional(CONF_CA_CERTIFICATE_PATH): cv.All(
                 cv.file_,
@@ -150,6 +150,10 @@ async def to_code(config):
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
+
+    if CORE.is_esp8266:
+        cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
+        cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))
 
     if timeout_ms := config.get(CONF_WATCHDOG_TIMEOUT):
         cg.add(var.set_watchdog_timeout(timeout_ms))
