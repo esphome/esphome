@@ -121,6 +121,7 @@ enum ClientState {
   USB_CLIENT_GET_DESC,
   USB_CLIENT_GET_INFO,
   USB_CLIENT_CONNECTED,
+  USB_CLIENT_DRAINING,  // Waiting for in-flight transfer callbacks to complete before freeing buffers
 };
 class USBClient : public Component {
   friend class USBHost;
@@ -154,11 +155,12 @@ class USBClient : public Component {
   void handle_open_state_();
   TransferRequest *get_trq_();  // Lock-free allocation using atomic bitmask (multi-consumer safe)
   virtual void disconnect();
-  virtual void on_connected() {}
-  virtual void on_disconnected() {
-    // Reset all requests to available (all bits to 0)
-    this->trq_in_use_.store(0);
+  virtual void on_connected() {
+    for (auto &request : this->requests_) {
+      usb_host_transfer_alloc(USB_MAX_PACKET_SIZE, 0, &request.transfer);
+    }
   }
+  virtual void on_disconnected() {}
 
   // USB task management
   static void usb_task_fn(void *arg);

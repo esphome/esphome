@@ -395,6 +395,7 @@ static void fix_mps(const usb_ep_desc_t *ep) {
   }
 }
 void USBUartTypeCdcAcm::on_connected() {
+  USBClient::on_connected();
   auto cdc_devs = this->parse_descriptors(this->device_handle_);
   if (cdc_devs.empty()) {
     this->status_set_error(LOG_STR("No CDC-ACM device found"));

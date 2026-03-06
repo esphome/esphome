@@ -215,10 +215,7 @@ void USBClient::setup() {
     this->mark_failed();
     return;
   }
-  // Pre-allocate USB transfer buffers for all slots at startup
-  // This avoids any dynamic allocation during runtime
   for (auto &request : this->requests_) {
-    usb_host_transfer_alloc(64, 0, &request.transfer);
     request.client = this;  // Set once, never changes
   }
 
@@ -273,6 +270,15 @@ bool USBClient::process_usb_events_() {
   if (this->state_ == USB_CLIENT_OPEN) {
     had_work = true;
     this->handle_open_state_();
+  }
+
+  if (this->state_ == USB_CLIENT_DRAINING && this->trq_in_use_.load(std::memory_order_acquire) == 0) {
+    for (auto &request : this->requests_) {
+      usb_host_transfer_free(request.transfer);
+      request.transfer = nullptr;
+    }
+    this->state_ = USB_CLIENT_INIT;
+    had_work = true;
   }
 
   return had_work;
@@ -377,6 +383,8 @@ static void control_callback(const usb_transfer_t *xfer) {
 // This multi-threaded access is intentional for performance - USB task can
 // immediately restart transfers without waiting for main loop scheduling.
 TransferRequest *USBClient::get_trq_() {
+  if (this->state_ != USB_CLIENT_CONNECTED)
+    return nullptr;
   trq_bitmask_t mask = this->trq_in_use_.load(std::memory_order_acquire);
 
   // Find first available slot (bit = 0) and try to claim it atomically
@@ -411,7 +419,7 @@ void USBClient::disconnect() {
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Device close failed: %s", esp_err_to_name(err));
   }
-  this->state_ = USB_CLIENT_INIT;
+  this->state_ = USB_CLIENT_DRAINING;
   this->device_handle_ = nullptr;
   this->device_addr_ = -1;
 }
