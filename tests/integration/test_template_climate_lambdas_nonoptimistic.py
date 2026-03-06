@@ -1,9 +1,8 @@
-"""Integration tests for template climate: pull mode with optimistic=true.
+"""Integration tests for template climate: state-readback lambdas, optimistic=false.
 
-In pull mode the device owns its state and lambdas are the source of truth.
-With optimistic=true, commands are also reflected in HA immediately as a
-preview — the device then confirms (or corrects) the state via the lambda on
-the next loop iteration.
+State lambdas are the source of truth.  ESPHome does NOT speculatively apply
+commands; HA only reflects the new state once the device confirms it through
+the lambda on the next loop iteration.
 """
 
 from __future__ import annotations
@@ -26,20 +25,16 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
 @pytest.mark.asyncio
-async def test_template_climate_pull_optimistic(
+async def test_template_climate_lambdas_nonoptimistic(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Pull mode + optimistic: initial state from lambdas, commands shown immediately.
+    """State-readback lambdas + non-optimistic: HA state is driven entirely by device lambdas.
 
-    The device owns its state (pull), but HA also reflects commands at once
-    (optimistic).  Because the set_*_action lambdas write back to the same
-    globals the state lambdas read from, the device always confirms the command,
-    so the final state matches what was commanded.
-
-    This verifies that pull mode is active (initial state from lambdas) while
-    optimistic mode is also active (commands are reflected in HA immediately).
+    Each set_*_action writes to a global; the corresponding state lambda reads
+    it back.  This simulates an external device (e.g. a heatpump) that is the
+    single source of truth.  HA updates only after the lambda re-evaluates.
     """
     loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
@@ -77,8 +72,7 @@ async def test_template_climate_pull_optimistic(
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
 
-        # Initial state must come from the lambdas — pull mode is active even
-        # though optimistic=true.
+        # Initial state must come from the lambdas, not from ESPHome defaults
         initial = initial_state_helper.initial_states.get(test_climate.key)
         assert initial is not None, "No initial climate state received"
         assert isinstance(initial, aioesphomeapi.ClimateState)
@@ -89,8 +83,8 @@ async def test_template_climate_pull_optimistic(
         assert initial.swing_mode == ClimateSwingMode.OFF  # ext_swing_mode = 0
         assert initial.preset == ClimatePreset.ECO  # ext_preset = 5
 
-        # Commands are reflected immediately (optimistic) and then confirmed by
-        # the device (lambda reads back the global that the action wrote).
+        # Commands write to globals via set_*_action; the lambdas read them back.
+        # State only updates once the loop re-evaluates the lambda.
         client.climate_command(test_climate.key, mode=ClimateMode.HEAT)
         state = await wait_for_climate_state()
         assert state.mode == ClimateMode.HEAT
@@ -111,6 +105,5 @@ async def test_template_climate_pull_optimistic(
         state = await wait_for_climate_state()
         assert state.preset == ClimatePreset.AWAY
 
-        # current_temperature is read from the lambda (fixed 22.5°C) and never
-        # overridden by commands, since there is no set_current_temperature_action.
+        # current_temperature is always read from the lambda (fixed 22.5°C)
         assert state.current_temperature == pytest.approx(22.5, abs=0.1)

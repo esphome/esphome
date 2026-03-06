@@ -1,8 +1,7 @@
-"""Integration tests for template climate: pull mode with optimistic=false.
+"""Integration tests for template climate: no state-readback lambdas, optimistic=true.
 
-In pull mode the device owns its state.  ESPHome reads it back via lambdas and
-does NOT speculatively apply commands; HA only reflects the new state once the
-device confirms it through the lambda on the next loop iteration.
+When no state-readback lambdas are present ESPHome owns the internal state.
+Commands apply immediately — no external confirmation is needed.
 """
 
 from __future__ import annotations
@@ -25,16 +24,14 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
 @pytest.mark.asyncio
-async def test_template_climate_pull_nonoptimistic(
+async def test_template_climate_no_lambdas_optimistic(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Pull mode + non-optimistic: HA state is driven entirely by device lambdas.
+    """No state-readback lambdas + optimistic: every command is reflected in HA immediately.
 
-    Each set_*_action writes to a global; the corresponding state lambda reads
-    it back.  This simulates an external device (e.g. a heatpump) that is the
-    single source of truth.  HA updates only after the lambda re-evaluates.
+    ESPHome owns the state — no lambdas are needed to confirm commands.
     """
     loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
@@ -63,7 +60,23 @@ async def test_template_climate_pull_nonoptimistic(
         assert len(climate_infos) == 1, "Expected exactly 1 climate entity"
 
         test_climate = climate_infos[0]
-        assert test_climate.name == "Test External Heatpump"
+
+        # Verify advertised capabilities
+        assert ClimateMode.OFF in test_climate.supported_modes
+        assert ClimateMode.HEAT in test_climate.supported_modes
+        assert ClimateMode.COOL in test_climate.supported_modes
+        assert ClimateMode.FAN_ONLY in test_climate.supported_modes
+
+        assert ClimateFanMode.AUTO in test_climate.supported_fan_modes
+        assert ClimateFanMode.LOW in test_climate.supported_fan_modes
+        assert ClimateFanMode.HIGH in test_climate.supported_fan_modes
+
+        assert ClimateSwingMode.OFF in test_climate.supported_swing_modes
+        assert ClimateSwingMode.VERTICAL in test_climate.supported_swing_modes
+
+        assert ClimatePreset.NONE in test_climate.supported_presets
+        assert ClimatePreset.ECO in test_climate.supported_presets
+        assert ClimatePreset.AWAY in test_climate.supported_presets
 
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
@@ -72,26 +85,19 @@ async def test_template_climate_pull_nonoptimistic(
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
 
-        # Initial state must come from the lambdas, not from ESPHome defaults
         initial = initial_state_helper.initial_states.get(test_climate.key)
         assert initial is not None, "No initial climate state received"
         assert isinstance(initial, aioesphomeapi.ClimateState)
-        assert initial.mode == ClimateMode.OFF  # ext_mode = 0
-        assert initial.current_temperature == pytest.approx(22.5, abs=0.1)
-        assert initial.target_temperature == pytest.approx(21.0, abs=0.1)
-        assert initial.fan_mode == ClimateFanMode.AUTO  # ext_fan_mode = 2
-        assert initial.swing_mode == ClimateSwingMode.OFF  # ext_swing_mode = 0
-        assert initial.preset == ClimatePreset.ECO  # ext_preset = 5
+        assert initial.mode == ClimateMode.OFF
 
-        # Commands write to globals via set_*_action; the lambdas read them back.
-        # State only updates once the loop re-evaluates the lambda.
+        # Each command updates ESPHome's internal state immediately.
         client.climate_command(test_climate.key, mode=ClimateMode.HEAT)
         state = await wait_for_climate_state()
         assert state.mode == ClimateMode.HEAT
 
-        client.climate_command(test_climate.key, target_temperature=23.0)
+        client.climate_command(test_climate.key, target_temperature=22.5)
         state = await wait_for_climate_state()
-        assert state.target_temperature == pytest.approx(23.0, abs=0.1)
+        assert state.target_temperature == pytest.approx(22.5, abs=0.1)
 
         client.climate_command(test_climate.key, fan_mode=ClimateFanMode.HIGH)
         state = await wait_for_climate_state()
@@ -104,6 +110,3 @@ async def test_template_climate_pull_nonoptimistic(
         client.climate_command(test_climate.key, preset=ClimatePreset.AWAY)
         state = await wait_for_climate_state()
         assert state.preset == ClimatePreset.AWAY
-
-        # current_temperature is always read from the lambda (fixed 22.5°C)
-        assert state.current_temperature == pytest.approx(22.5, abs=0.1)

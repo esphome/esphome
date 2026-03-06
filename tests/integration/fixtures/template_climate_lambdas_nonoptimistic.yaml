@@ -1,5 +1,5 @@
 esphome:
-  name: tmpl-clim-pull-nopt
+  name: tmpl-clim-lam-nopt
 host:
 api:
 logger:

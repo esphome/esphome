@@ -1,13 +1,25 @@
-"""Integration tests for template climate: pull+optimistic device-correction flow.
+"""Integration tests for template climate: state-readback lambdas, optimistic correction flow.
 
 The device's lambdas always return fixed values regardless of commands.  This
-lets us verify the two-phase update behaviour of pull+optimistic:
+verifies that with optimistic=true the device's correction (via lambdas) still
+takes effect even though commands are temporarily applied as a preview.
 
-  1. Optimistic preview  — control() applies the command and publishes it
-                           immediately so HA sees the change at once.
-  2. Device correction   — on the next loop iteration the lambda re-evaluates
-                           to the fixed value, detects a mismatch, and
-                           publishes the corrected state back.
+Key observable behaviour
+------------------------
+With optimistic=true:
+  1. control() applies the command to the internal state (mode=HEAT).
+  2. loop() detects the mismatch (HEAT ≠ lambda's OFF) and publishes the
+     corrected state.
+
+The optimistic preview (HEAT) and the correction (OFF) may be coalesced into a
+single API message by the batch-deduplication layer — only the final corrected
+state is guaranteed to reach external observers.  The test therefore accepts
+either one or two updates and verifies the final settled value.
+
+Contrast with optimistic=false: if the action is a no-op, control() does NOT
+modify the internal state, so loop() sees no mismatch and publishes nothing.
+The observable guarantee of optimistic=true is that *a* state update arrives
+and settles at the lambda's value.
 """
 
 from __future__ import annotations
@@ -23,22 +35,17 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
 @pytest.mark.asyncio
-async def test_template_climate_pull_optimistic_correction(
+async def test_template_climate_lambdas_correction(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Pull+optimistic: optimistic preview is published, then device corrects it.
+    """State-readback lambdas + optimistic with no-op actions: device rejects every command.
 
     The fixture's lambdas always return fixed values (mode=OFF, target=22.0°C)
-    and the set_*_actions do nothing.  After each command we therefore expect
-    two consecutive state updates:
-
-      command HEAT        → first update:  mode == HEAT  (optimistic preview)
-                          → second update: mode == OFF   (lambda correction)
-
-      command target=25°C → first update:  target == 25  (optimistic preview)
-                          → second update: target == 22  (lambda correction)
+    and the set_*_actions are no-ops.  The test verifies that after each
+    command the state settles at the lambda's value, regardless of whether the
+    optimistic preview and the correction arrive as one or two API messages.
     """
     loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
@@ -83,33 +90,24 @@ async def test_template_climate_pull_optimistic_correction(
         assert initial.target_temperature == pytest.approx(22.0, abs=0.1)
 
         # --- Mode correction ---
-        # The action does nothing, so the lambda stays at OFF.
+        # control() applies HEAT (optimistic preview); loop() detects the
+        # mismatch and corrects to OFF.  The two updates may be coalesced by
+        # the API batch layer, so we accept either one or two messages.
         client.climate_command(test_climate.key, mode=ClimateMode.HEAT)
-
-        # First update: optimistic preview from control()
-        preview = await wait_for_climate_state()
-        assert preview.mode == ClimateMode.HEAT, (
-            "Expected immediate optimistic HEAT preview before device correction"
-        )
-
-        # Second update: lambda re-evaluates to OFF and corrects the state
-        corrected = await wait_for_climate_state()
-        assert corrected.mode == ClimateMode.OFF, (
+        state = await wait_for_climate_state()
+        if state.mode == ClimateMode.HEAT:
+            # Preview arrived as a separate message; wait for the correction.
+            state = await wait_for_climate_state()
+        assert state.mode == ClimateMode.OFF, (
             "Expected device to correct mode back to OFF via lambda"
         )
 
         # --- Target temperature correction ---
-        # The action does nothing, so the lambda stays at 22.0°C.
         client.climate_command(test_climate.key, target_temperature=25.0)
-
-        # First update: optimistic preview from control()
-        preview = await wait_for_climate_state()
-        assert preview.target_temperature == pytest.approx(25.0, abs=0.1), (
-            "Expected immediate optimistic 25°C preview before device correction"
-        )
-
-        # Second update: lambda re-evaluates to 22.0°C and corrects the state
-        corrected = await wait_for_climate_state()
-        assert corrected.target_temperature == pytest.approx(22.0, abs=0.1), (
+        state = await wait_for_climate_state()
+        if state.target_temperature == pytest.approx(25.0, abs=0.1):
+            # Preview arrived as a separate message; wait for the correction.
+            state = await wait_for_climate_state()
+        assert state.target_temperature == pytest.approx(22.0, abs=0.1), (
             "Expected device to correct target temperature back to 22.0°C via lambda"
         )

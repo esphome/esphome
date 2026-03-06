@@ -1,5 +1,5 @@
 esphome:
-  name: tmpl-clim-push-opt
+  name: tmpl-clim-no-lam-opt
 host:
 api:
 logger:
