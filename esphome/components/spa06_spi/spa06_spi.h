@@ -15,7 +15,7 @@ class SPA06SPIComponent : public spa06_base::SPA06Component,
   bool spa_write_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
 
  protected:
-  void protocol_reset_() override;
+  void protocol_reset() override;
 };
 
 }  // namespace esphome::spa06_spi

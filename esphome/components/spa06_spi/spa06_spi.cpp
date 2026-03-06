@@ -23,7 +23,7 @@ void SPA06SPIComponent::setup() {
   SPA06Component::setup();
 }
 
-void SPA06SPIComponent::protocol_reset_() {
+void SPA06SPIComponent::protocol_reset() {
   // Forces the device into SPI mode using a dummy read
   uint8_t dummy_read = 0;
   this->spa_read_byte(spa06_base::SPA06_ID, &dummy_read);
