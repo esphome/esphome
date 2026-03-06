@@ -11,6 +11,8 @@ IS_PLATFORM_COMPONENT = True
 
 CONF_NMEA_ID = "nmea_id"
 
+CODEOWNERS = ["@oarcher"]
+
 nmea_ns = cg.esphome_ns.namespace("nmea")
 NMEAComponent = nmea_ns.class_("NMEAComponent", uart.UARTComponent, cg.PollingComponent)
 NMEAOnUpdateTrigger = nmea_ns.class_(
