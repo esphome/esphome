@@ -183,6 +183,9 @@ void Tormatic::recompute_position_() {
     duration = this->close_duration_;
   }
 
+  if (duration == 0)
+    return;
+
   auto delta = direction * diff / duration;
 
   this->position = clamp(this->position + delta, COVER_CLOSED, COVER_OPEN);

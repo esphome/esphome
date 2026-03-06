@@ -36,8 +36,8 @@ void MockUartComponent::loop() {
   // component (e.g., LD2410) a chance to process each batch independently.
   if (this->injection_index_ < this->injections_.size()) {
     auto &injection = this->injections_[this->injection_index_];
-    uint32_t target_time = this->scenario_start_ms_ + this->cumulative_delay_ms_ + injection.delay_ms;
-    if (now >= target_time) {
+    uint32_t total_delay = this->cumulative_delay_ms_ + injection.delay_ms;
+    if (now - this->scenario_start_ms_ >= total_delay) {
       ESP_LOGD(TAG, "Injecting %zu RX bytes (injection %u)", injection.rx_data.size(), this->injection_index_);
       this->inject_to_rx_buffer(injection.rx_data);
       this->cumulative_delay_ms_ += injection.delay_ms;
@@ -50,6 +50,15 @@ void MockUartComponent::loop() {
     if (now - periodic.last_inject_ms >= periodic.interval_ms) {
       this->inject_to_rx_buffer(periodic.data);
       periodic.last_inject_ms = now;
+    }
+  }
+
+  // Process delayed responses
+  for (auto &response : this->responses_) {
+    if (response.delay_ms > 0 && response.last_match_ms > 0 && now - response.last_match_ms >= response.delay_ms) {
+      ESP_LOGD(TAG, "Injecting %zu RX bytes for delayed response", response.inject_rx.size());
+      this->inject_to_rx_buffer(response.inject_rx);
+      response.last_match_ms = 0;  // Reset to prevent repeated injection
     }
   }
 }
@@ -149,8 +158,9 @@ void MockUartComponent::add_injection(const std::vector<uint8_t> &rx_data, uint3
   this->injections_.push_back({rx_data, delay_ms});
 }
 
-void MockUartComponent::add_response(const std::vector<uint8_t> &expect_tx, const std::vector<uint8_t> &inject_rx) {
-  this->responses_.push_back({expect_tx, inject_rx});
+void MockUartComponent::add_response(const std::vector<uint8_t> &expect_tx, const std::vector<uint8_t> &inject_rx,
+                                     uint32_t delay_ms) {
+  this->responses_.push_back({expect_tx, inject_rx, delay_ms, 0});
 }
 
 void MockUartComponent::add_periodic_rx(const std::vector<uint8_t> &data, uint32_t interval_ms) {
@@ -166,7 +176,13 @@ void MockUartComponent::try_match_response_() {
     size_t offset = this->tx_buffer_.size() - response.expect_tx.size();
     if (std::equal(response.expect_tx.begin(), response.expect_tx.end(), this->tx_buffer_.begin() + offset)) {
       ESP_LOGD(TAG, "TX match found, injecting %zu RX bytes", response.inject_rx.size());
-      this->inject_to_rx_buffer(response.inject_rx);
+      if (response.delay_ms > 0) {
+        ESP_LOGD(TAG, "Delaying response by %u ms", response.delay_ms);
+        // Schedule the response injection as a future injection
+        response.last_match_ms = App.get_loop_component_start_time();
+      } else {
+        this->inject_to_rx_buffer(response.inject_rx);
+      }
       this->tx_buffer_.clear();
       return;
     }

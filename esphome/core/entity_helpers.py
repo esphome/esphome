@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core.config import ICON_MAX_LENGTH
 from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
 import esphome.final_validate as fv
 from esphome.helpers import cpp_string_escape, fnv1_hash_object_id, sanitize, snake_case
@@ -78,6 +79,8 @@ def _generate_category_code(
     table_var: str,
     lookup_fn: str,
     strings: dict[str, int],
+    *,
+    progmem_strings: bool = False,
 ) -> str:
     """Generate C++ code for one string category (PROGMEM pointer table + lookup).
 
@@ -85,13 +88,39 @@ def _generate_category_code(
     in flash (via PROGMEM) and read with progmem_read_ptr(). String literals
     themselves remain in RAM but benefit from linker string deduplication.
     Index 0 means "not set" and returns empty string.
+
+    When progmem_strings=True, each string is declared as a separate PROGMEM
+    char array. This ensures the string data itself is in flash on ESP8266
+    (where .rodata is RAM). On other platforms PROGMEM is a no-op.
     """
     if not strings:
         return ""
 
     sorted_strings = sorted(strings.items(), key=lambda x: x[1])
-    entries = ", ".join(cpp_string_escape(s) for s, _ in sorted_strings)
     count = len(sorted_strings)
+
+    if progmem_strings:
+        # Emit individual PROGMEM char arrays so string data lives in flash
+        lines: list[str] = []
+        var_names: list[str] = []
+        for i, (s, _) in enumerate(sorted_strings):
+            var_name = f"{table_var}_STR_{i}"
+            var_names.append(var_name)
+            lines.append(
+                f"static const char {var_name}[] PROGMEM = {cpp_string_escape(s)};"
+            )
+        entries = ", ".join(var_names)
+        # Empty string must also be PROGMEM — on ESP8266, callers use strncpy_P
+        empty_var = f"{table_var}_EMPTY"
+        lines.append(f'static const char {empty_var}[] PROGMEM = "";')
+        lines.append(f"static const char *const {table_var}[] PROGMEM = {{{entries}}};")
+        lines.append(f"const char *{lookup_fn}(uint8_t index) {{")
+        lines.append(f"  if (index == 0 || index > {count}) return {empty_var};")
+        lines.append(f"  return progmem_read_ptr(&{table_var}[index - 1]);")
+        lines.append("}")
+        return "\n".join(lines) + "\n"
+
+    entries = ", ".join(cpp_string_escape(s) for s, _ in sorted_strings)
 
     return (
         f"static const char *const {table_var}[] PROGMEM = {{{entries}}};\n"
@@ -103,9 +132,9 @@ def _generate_category_code(
 
 
 _CATEGORY_CONFIGS = (
-    ("ENTITY_DC_TABLE", "entity_device_class_lookup", "device_classes"),
-    ("ENTITY_UOM_TABLE", "entity_uom_lookup", "units"),
-    ("ENTITY_ICON_TABLE", "entity_icon_lookup", "icons"),
+    ("ENTITY_DC_TABLE", "entity_device_class_lookup", "device_classes", False),
+    ("ENTITY_UOM_TABLE", "entity_uom_lookup", "units", False),
+    ("ENTITY_ICON_TABLE", "entity_icon_lookup", "icons", True),
 )
 
 
@@ -117,8 +146,10 @@ async def _generate_tables_job() -> None:
     """
     pool = _get_pool()
     parts = ["namespace esphome {"]
-    for table_var, lookup_fn, attr in _CATEGORY_CONFIGS:
-        code = _generate_category_code(table_var, lookup_fn, getattr(pool, attr))
+    for table_var, lookup_fn, attr, progmem_strs in _CATEGORY_CONFIGS:
+        code = _generate_category_code(
+            table_var, lookup_fn, getattr(pool, attr), progmem_strings=progmem_strs
+        )
         if code:
             parts.append(code)
     parts.append("}  // namespace esphome")
@@ -160,6 +191,10 @@ def register_unit_of_measurement(value: str) -> int:
 
 def register_icon(value: str) -> int:
     """Register an icon string and return its 1-based index."""
+    if value and len(value) > ICON_MAX_LENGTH:
+        raise ValueError(
+            f"Icon string too long ({len(value)} chars, max {ICON_MAX_LENGTH}): '{value}'"
+        )
     return _register_string(value, _get_pool().icons, _MAX_ICONS, "icon")
 
 

@@ -15,10 +15,69 @@ void Modbus::setup() {
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->setup();
   }
-}
-void Modbus::loop() {
-  const uint32_t now = App.get_loop_component_start_time();
 
+  this->frame_delay_ms_ =
+      std::max(2,  // 1750us minimum per spec - rounded up to 2ms.
+                   // 3.5 characters * 11 bits per character * 1000ms/sec / (bits/sec) (Standard modbus frame delay)
+               (uint16_t) (3.5 * 11 * 1000 / this->parent_->get_baud_rate()) + 1);
+
+  this->long_rx_buffer_delay_ms_ =
+      (this->parent_->get_rx_full_threshold() * 11 * 1000 / this->parent_->get_baud_rate()) + 1;
+}
+
+void Modbus::loop() {
+  // First process all available incoming data.
+  this->receive_and_parse_modbus_bytes_();
+
+  // If the response frame is finished (including interframe delay) - we timeout.
+  // The long_rx_buffer_delay accounts for long responses (larger than the UART rx_full_threshold) to avoid timeouts
+  // when the buffer is filling the back half of the response
+  const uint16_t timeout = std::max(
+      (uint16_t) this->frame_delay_ms_,
+      (uint16_t) (this->rx_buffer_.size() >= this->parent_->get_rx_full_threshold() ? this->long_rx_buffer_delay_ms_
+                                                                                    : 0));
+  // We use millis() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
+  // It's critical in all timestamp comparisons that the left timestamp comes before the right one in time
+  // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
+  // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
+  // So in this component we don't use any cached timestamp values to avoid these annoying bugs
+  if (millis() - this->last_modbus_byte_ > timeout) {
+    this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
+  }
+
+  // If we're past the send_wait_time timeout and response buffer doesn't have the start of the expected response
+  if (this->waiting_for_response_ != 0 &&
+      millis() - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_ &&
+      (this->rx_buffer_.empty() || this->rx_buffer_[0] != this->waiting_for_response_)) {
+    ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send",
+             this->waiting_for_response_, millis() - this->last_send_);
+    this->waiting_for_response_ = 0;
+  }
+
+  // If there's no response pending and there's commands in the buffer
+  this->send_next_frame_();
+}
+
+bool Modbus::tx_blocked() {
+  const uint32_t now = millis();
+
+  // We block transmission in any of these case:
+  // 1. There are bytes in the UART Rx buffer
+  // 2. There are bytes in our Rx buffer
+  // 3. We're waiting for a response
+  // 4. The last sent byte isn't more than frame_delay ms ago (i.e. wait to tell receivers that our previous Tx is done)
+  // 5. The last received byte isn't more than frame_delay ms ago (i.e. wait to be sure there isn't more Rx coming)
+  // 6. If we're a client - also wait for the turnaround delay, to give the servers time to process the previous message
+  return this->available() || !this->rx_buffer_.empty() || (this->waiting_for_response_ != 0) ||
+         (now - this->last_send_ < this->last_send_tx_offset_ + this->frame_delay_ms_ +
+                                       (this->role == ModbusRole::CLIENT ? this->turnaround_delay_ms_ : 0)) ||
+         (now - this->last_modbus_byte_ <
+          this->frame_delay_ms_ + (this->role == ModbusRole::CLIENT ? this->turnaround_delay_ms_ : 0));
+}
+
+bool Modbus::tx_buffer_empty() { return this->tx_buffer_.empty(); }
+
+void Modbus::receive_and_parse_modbus_bytes_() {
   // Read all available bytes in batches to reduce UART call overhead.
   size_t avail = this->available();
   uint8_t buf[64];
@@ -28,33 +87,20 @@ void Modbus::loop() {
       break;
     }
     avail -= to_read;
-
     for (size_t i = 0; i < to_read; i++) {
-      if (this->parse_modbus_byte_(buf[i])) {
-        this->last_modbus_byte_ = now;
+      if (this->rx_buffer_.empty()) {
+        ESP_LOGV(TAG, "Received first byte %" PRIu8 " (0X%x) %" PRIu32 "ms after last send", buf[i], buf[i],
+                 millis() - this->last_send_);
       } else {
-        size_t at = this->rx_buffer_.size();
-        if (at > 0) {
-          ESP_LOGV(TAG, "Clearing buffer of %d bytes - parse failed", at);
-          this->rx_buffer_.clear();
-        }
+        ESP_LOGVV(TAG, "Received byte %" PRIu8 " (0X%x) %" PRIu32 "ms after last send", buf[i], buf[i],
+                  millis() - this->last_send_);
       }
-    }
-  }
 
-  if (now - this->last_modbus_byte_ > 50) {
-    size_t at = this->rx_buffer_.size();
-    if (at > 0) {
-      ESP_LOGV(TAG, "Clearing buffer of %d bytes - timeout", at);
-      this->rx_buffer_.clear();
-    }
-
-    // stop blocking new send commands after sent_wait_time_ ms after response received
-    if (now - this->last_send_ > send_wait_time_) {
-      if (waiting_for_response > 0) {
-        ESP_LOGV(TAG, "Stop waiting for response from %d", waiting_for_response);
+      // If the bytes in the rx buffer do not parse, clear out the buffer
+      if (!this->parse_modbus_byte_(buf[i])) {
+        this->clear_rx_buffer_(LOG_STR("parse failed"), true);
       }
-      waiting_for_response = 0;
+      this->last_modbus_byte_ = millis();
     }
   }
 }
@@ -63,7 +109,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
   this->rx_buffer_.push_back(byte);
   const uint8_t *raw = &this->rx_buffer_[0];
-  ESP_LOGVV(TAG, "Modbus received Byte  %d (0X%x)", byte, byte);
+
   // Byte 0: modbus address (match all)
   if (at == 0)
     return true;
@@ -101,7 +147,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     if (computed_crc != remote_crc)
       return true;
 
-    ESP_LOGD(TAG, "Modbus user-defined function %02X found", function_code);
+    ESP_LOGD(TAG, "User-defined function %02X found", function_code);
 
   } else {
     // data starts at 2 and length is 4 for read registers commands
@@ -152,9 +198,19 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
     if (computed_crc != remote_crc) {
       if (this->disable_crc_) {
-        ESP_LOGD(TAG, "Modbus CRC Check failed, but ignored! %02X!=%02X", computed_crc, remote_crc);
+        ESP_LOGD(TAG, "CRC check failed %" PRIu32 "ms after last send; ignoring", millis() - this->last_send_);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+        char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+#endif
+        ESP_LOGVV(TAG, "  (%02X != %02X)  %s", computed_crc, remote_crc,
+                  format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), this->rx_buffer_.size()));
       } else {
-        ESP_LOGW(TAG, "Modbus CRC Check failed! %02X!=%02X", computed_crc, remote_crc);
+        ESP_LOGW(TAG, "CRC check failed %" PRIu32 "ms after last send", millis() - this->last_send_);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+        char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+#endif
+        ESP_LOGVV(TAG, "  (%02X != %02X) %s", computed_crc, remote_crc,
+                  format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), this->rx_buffer_.size()));
         return false;
       }
     }
@@ -164,52 +220,101 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   for (auto *device : this->devices_) {
     if (device->address_ == address) {
       found = true;
-      // Is it an error response?
-      if ((function_code & FUNCTION_CODE_EXCEPTION_MASK) == FUNCTION_CODE_EXCEPTION_MASK) {
-        ESP_LOGD(TAG, "Modbus error function code: 0x%X exception: %d", function_code, raw[2]);
-        if (waiting_for_response != 0) {
-          device->on_modbus_error(function_code & FUNCTION_CODE_MASK, raw[2]);
-        } else {
-          // Ignore modbus exception not related to a pending command
-          ESP_LOGD(TAG, "Ignoring Modbus error - not expecting a response");
-        }
-        continue;
-      }
       if (this->role == ModbusRole::SERVER) {
         if (function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
             function_code == ModbusFunctionCode::READ_INPUT_REGISTERS) {
           device->on_modbus_read_registers(function_code, uint16_t(data[1]) | (uint16_t(data[0]) << 8),
                                            uint16_t(data[3]) | (uint16_t(data[2]) << 8));
-          continue;
-        }
-        if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
-            function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+        } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
+                   function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
           device->on_modbus_write_registers(function_code, data);
-          continue;
+        }
+      } else {  // We're a client
+        // Is it an error response?
+        if ((function_code & FUNCTION_CODE_EXCEPTION_MASK) == FUNCTION_CODE_EXCEPTION_MASK) {
+          uint8_t exception = raw[2];
+          ESP_LOGW(TAG,
+                   "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32
+                   "ms after last send",
+                   function_code, exception, address, millis() - this->last_send_);
+          if (this->waiting_for_response_ == address) {
+            device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
+          } else {
+            // Ignore modbus exception not related to a pending command
+            ESP_LOGD(TAG, "Ignoring error - not expecting a response from %" PRIu8 "", address);
+          }
+        } else {  // Not an error response
+          if (this->waiting_for_response_ == address) {
+            device->on_modbus_data(data);
+          } else {
+            // Ignore modbus response not related to a pending command
+            ESP_LOGW(TAG, "Ignoring response - not expecting a response from %" PRIu8 ", %" PRIu32 "ms after last send",
+                     address, millis() - this->last_send_);
+          }
         }
       }
-      // fallthrough for other function codes
-      device->on_modbus_data(data);
     }
   }
-  waiting_for_response = 0;
 
-  if (!found) {
-    ESP_LOGW(TAG, "Got Modbus frame from unknown address 0x%02X! ", address);
+  if (!found && this->role == ModbusRole::CLIENT) {
+    ESP_LOGW(TAG, "Got frame from unknown address %" PRIu8 ", %" PRIu32 "ms after last send", address,
+             millis() - this->last_send_);
   }
 
-  // reset buffer
-  ESP_LOGV(TAG, "Clearing buffer of %d bytes - parse succeeded", at);
-  this->rx_buffer_.clear();
+  this->clear_rx_buffer_(LOG_STR("parse succeeded"));
+
+  if (this->waiting_for_response_ == address)
+    this->waiting_for_response_ = 0;
+
   return true;
+}
+
+void Modbus::send_next_frame_() {
+  if (this->tx_buffer_.empty())
+    return;
+
+  if (this->tx_blocked())
+    return;
+
+  const ModbusDeviceCommand &frame = this->tx_buffer_.front();
+
+  if (this->role == ModbusRole::CLIENT) {
+    this->waiting_for_response_ = frame.data.get()[0];
+  }
+
+  if (this->flow_control_pin_ != nullptr) {
+    this->flow_control_pin_->digital_write(true);
+    this->write_array(frame.data.get(), frame.size);
+    this->flush();
+    this->flow_control_pin_->digital_write(false);
+    this->last_send_tx_offset_ = 0;
+  } else {
+    this->write_array(frame.data.get(), frame.size);
+    this->last_send_tx_offset_ = frame.size * 11 * 1000 / this->parent_->get_baud_rate() + 1;
+  }
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGV(TAG, "Write: %s %" PRIu32 "ms after last send", format_hex_pretty_to(hex_buf, frame.data.get(), frame.size),
+           millis() - this->last_send_);
+  this->last_send_ = millis();
+  this->tx_buffer_.pop_front();
+  if (!this->tx_buffer_.empty()) {
+    ESP_LOGV(TAG, "Write queue contains %" PRIu32 " items.", this->tx_buffer_.size());
+  }
 }
 
 void Modbus::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Modbus:\n"
                 "  Send Wait Time: %d ms\n"
+                "  Turnaround Time: %d ms\n"
+                "  Frame Delay: %d ms\n"
+                "  Long Rx Buffer Delay: %d ms\n"
                 "  CRC Disabled: %s",
-                this->send_wait_time_, YESNO(this->disable_crc_));
+                this->send_wait_time_, this->turnaround_delay_ms_, this->frame_delay_ms_,
+                this->long_rx_buffer_delay_ms_, YESNO(this->disable_crc_));
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
 }
 float Modbus::get_setup_priority() const {
@@ -228,15 +333,6 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
     return;
   }
 
-  static constexpr size_t ADDR_SIZE = 1;
-  static constexpr size_t FC_SIZE = 1;
-  static constexpr size_t START_ADDR_SIZE = 2;
-  static constexpr size_t NUM_ENTITIES_SIZE = 2;
-  static constexpr size_t BYTE_COUNT_SIZE = 1;
-  static constexpr size_t MAX_PAYLOAD_SIZE = std::numeric_limits<uint8_t>::max();
-  static constexpr size_t CRC_SIZE = 2;
-  static constexpr size_t MAX_FRAME_SIZE =
-      ADDR_SIZE + FC_SIZE + START_ADDR_SIZE + NUM_ENTITIES_SIZE + BYTE_COUNT_SIZE + MAX_PAYLOAD_SIZE + CRC_SIZE;
   uint8_t data[MAX_FRAME_SIZE];
   size_t pos = 0;
 
@@ -259,29 +355,16 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
     } else {
       payload_len = 2;  // Write single register or coil
     }
+    if (payload_len + pos + 2 > MAX_FRAME_SIZE) {  // Check if payload fits (accounting for CRC)
+      ESP_LOGE(TAG, "Payload too large to send: %d bytes", payload_len);
+      return;
+    }
     for (int i = 0; i < payload_len; i++) {
       data[pos++] = payload[i];
     }
   }
 
-  auto crc = crc16(data, pos);
-  data[pos++] = crc >> 0;
-  data[pos++] = crc >> 8;
-
-  if (this->flow_control_pin_ != nullptr)
-    this->flow_control_pin_->digital_write(true);
-
-  this->write_array(data, pos);
-  this->flush();
-
-  if (this->flow_control_pin_ != nullptr)
-    this->flow_control_pin_->digital_write(false);
-  waiting_for_response = address;
-  last_send_ = millis();
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
-#endif
-  ESP_LOGV(TAG, "Modbus write: %s", format_hex_pretty_to(hex_buf, data, pos));
+  this->queue_raw_(data, pos);
 }
 
 // Helper function for lambdas
@@ -290,23 +373,44 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   if (payload.empty()) {
     return;
   }
+  // Frame size: payload + CRC(2)
+  if (payload.size() + 2 > MAX_FRAME_SIZE) {
+    ESP_LOGE(TAG, "Attempted to send frame larger than max frame size of %d bytes", MAX_FRAME_SIZE);
+    return;
+  }
+  // Use stack buffer - Modbus frames are small and bounded
+  uint8_t data[MAX_FRAME_SIZE];
 
-  if (this->flow_control_pin_ != nullptr)
-    this->flow_control_pin_->digital_write(true);
+  std::memcpy(data, payload.data(), payload.size());
 
-  auto crc = crc16(payload.data(), payload.size());
-  this->write_array(payload);
-  this->write_byte(crc & 0xFF);
-  this->write_byte((crc >> 8) & 0xFF);
-  this->flush();
-  if (this->flow_control_pin_ != nullptr)
-    this->flow_control_pin_->digital_write(false);
-  waiting_for_response = payload[0];
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+  this->queue_raw_(data, payload.size());
+}
+
+// Assume data and length is valid and append CRC, then queue for sending. Used internally to avoid unnecessary copying
+// of data into vectors
+void Modbus::queue_raw_(const uint8_t *data, uint16_t len) {
+  if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
+    this->tx_buffer_.emplace_back(data, len);
+  } else {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
+    char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-  ESP_LOGV(TAG, "Modbus write raw: %s", format_hex_pretty_to(hex_buf, payload.data(), payload.size()));
-  last_send_ = millis();
+    ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty_to(hex_buf, data, len));
+  }
+}
+
+void Modbus::clear_rx_buffer_(const LogString *reason, bool warn) {
+  size_t at = this->rx_buffer_.size();
+  if (at > 0) {
+    if (warn) {
+      ESP_LOGW(TAG, "Clearing buffer of %" PRIu32 " bytes - %s %" PRIu32 "ms after last send", at, LOG_STR_ARG(reason),
+               millis() - this->last_send_);
+    } else {
+      ESP_LOGV(TAG, "Clearing buffer of %" PRIu32 " bytes - %s %" PRIu32 "ms after last send", at, LOG_STR_ARG(reason),
+               millis() - this->last_send_);
+    }
+    this->rx_buffer_.clear();
+  }
 }
 
 }  // namespace modbus
