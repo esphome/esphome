@@ -259,13 +259,12 @@ inline std::unique_ptr<uint8_t[]> make_buffer(size_t n) {
 class ProtoByteBuffer {
  public:
   void clear() { this->size_ = 0; }
-  void reserve(size_t n) {
+  inline void reserve(size_t n) ESPHOME_ALWAYS_INLINE {
     if (n > this->capacity_)
       this->grow_(n);
   }
-  void resize(size_t n) {
-    if (n > this->capacity_)
-      this->grow_(n);
+  inline void resize(size_t n) ESPHOME_ALWAYS_INLINE {
+    this->reserve(n);
     this->size_ = n;  // no zero-fill
   }
   uint8_t *data() { return this->data_.get(); }
