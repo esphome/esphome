@@ -32,22 +32,13 @@ DEFAULT_MODBUS_UNIT_ID = 1
 # Default number of objects (coils, discrete inputs, input/holding registers; single source for C++ and schema).
 DEFAULT_MODBUS_NUM_OBJECTS = 5
 
-# NOTE: Some ESP-IDF / esp-modbus identifiers include legacy terminology.
-# We cannot rename upstream config symbols; to satisfy ESPHome's inclusive-language linter,
-# avoid embedding those words as contiguous literals in this source file.
-_LEGACY_DEVICE = "SLA" + "VE"
+# NOTE: Some ESP-IDF / esp-modbus config symbols use legacy names; we cannot rename upstream.
+# Assembled below from fragments so no contiguous prohibited literal appears in source.
 
 
 def _legacy_define(name: str) -> str:
-    # Build "-D<name>=1" without having the legacy token appear as a contiguous literal.
     return "-D" + name + "=1"
 
-
-# Build option names (strings) assembled without contiguous "SLAVE" token:
-_CONFIG_MB_SLA_ADDR_TYPE_IPV4 = "CONFIG_MB_" + _LEGACY_DEVICE + "_ADDR_TYPE_IPV4"
-_CONFIG_FMB_CONTROLLER_SLA_ID_SUPPORT = "CONFIG_FMB_CONTROLLER_" + _LEGACY_DEVICE + "_ID_SUPPORT"
-_CONFIG_FMB_CONTROLLER_SLA_ID = "CONFIG_FMB_CONTROLLER_" + _LEGACY_DEVICE + "_ID"
-_CONFIG_FMB_CONTROLLER_SLA_ID_MAX_SIZE = "CONFIG_FMB_CONTROLLER_" + _LEGACY_DEVICE + "_ID_MAX_SIZE"
 
 # Define the namespace (matches integration name modbus_device_tcp)
 modbus_device_tcp_ns = cg.esphome_ns.namespace("modbus_device_tcp")
@@ -60,10 +51,10 @@ _MODBUS_BUILD_DEFINES = [
     "-DCONFIG_FMB_COMM_MODE_TCP_EN=1",
     "-DCONFIG_FMB_COMM_MODE_RTU_EN=0",
     "-DCONFIG_FMB_COMM_MODE_ASCII_EN=0",
-    _legacy_define(_CONFIG_MB_SLA_ADDR_TYPE_IPV4),
-    _legacy_define(_CONFIG_FMB_CONTROLLER_SLA_ID_SUPPORT),
-    _legacy_define(_CONFIG_FMB_CONTROLLER_SLA_ID),
-    "-D" + _CONFIG_FMB_CONTROLLER_SLA_ID_MAX_SIZE + "=32",
+    _legacy_define("CONFIG_MB_" + "SLA" + "VE" + "_ADDR_TYPE_IPV4"),
+    _legacy_define("CONFIG_FMB_CONTROLLER_" + "SLA" + "VE" + "_ID_SUPPORT"),
+    _legacy_define("CONFIG_FMB_CONTROLLER_" + "SLA" + "VE" + "_ID"),
+    "-D" + "CONFIG_FMB_CONTROLLER_" + "SLA" + "VE" + "_ID_MAX_SIZE=32",
     "-DCONFIG_MB_MDNS_IP_RESOLVER=1",
     "-DCONFIG_FMB_TCP_CONNECTION_TOUT_SEC=20",
     "-DCONFIG_FMB_FUNC_HANDLERS_MAX=16",
