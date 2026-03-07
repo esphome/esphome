@@ -19,14 +19,6 @@ class APIServerConnectionBase : public ProtoService {
  public:
 #endif
 
-  bool send_message(const ProtoMessage &msg, uint8_t message_type) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-    DumpBuffer dump_buf;
-    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));
-#endif
-    return this->send_message_impl(msg, message_type);
-  }
-
   virtual void on_hello_request(const HelloRequest &value){};
 
   virtual void on_disconnect_request(){};

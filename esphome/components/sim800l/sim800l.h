@@ -107,11 +107,11 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   std::string recipient_;
   std::string outgoing_message_;
   std::string ussd_;
-  bool send_pending_;
-  bool dial_pending_;
-  bool connect_pending_;
-  bool disconnect_pending_;
-  bool send_ussd_pending_;
+  bool send_pending_{false};
+  bool dial_pending_{false};
+  bool connect_pending_{false};
+  bool disconnect_pending_{false};
+  bool send_ussd_pending_{false};
   uint8_t call_state_{6};
 
   CallbackManager<void(std::string, std::string)> sms_received_callback_;

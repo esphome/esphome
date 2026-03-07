@@ -93,7 +93,7 @@ class InstanceLock {
   otInstance *get_instance();
 
  private:
-  // Use a private constructor in order to force thehandling
+  // Use a private constructor in order to force the handling
   // of acquisition failure
   InstanceLock() {}
 };

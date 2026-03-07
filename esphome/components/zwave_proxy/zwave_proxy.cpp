@@ -119,7 +119,7 @@ void ZWaveProxy::process_uart_() {
           // If this is a data frame, use frame length indicator + 2 (for SoF + checksum), else assume 1 for ACK/NAK/CAN
           this->outgoing_proto_msg_.data_len = this->buffer_[0] == ZWAVE_FRAME_TYPE_START ? this->buffer_[1] + 2 : 1;
         }
-        this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrame::MESSAGE_TYPE);
+        this->api_connection_->send_message(this->outgoing_proto_msg_);
       }
     }
   }
@@ -209,7 +209,7 @@ void ZWaveProxy::send_homeid_changed_msg_(api::APIConnection *conn) {
   msg.data_len = this->home_id_.size();
   if (conn != nullptr) {
     // Send to specific connection
-    conn->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
+    conn->send_message(msg);
   } else if (api::global_api_server != nullptr) {
     // We could add code to manage a second subscription type, but, since this message is
     //  very infrequent and small, we simply send it to all clients
@@ -346,7 +346,7 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
     this->buffer_[0] = byte;
     this->outgoing_proto_msg_.data = this->buffer_.data();
     this->outgoing_proto_msg_.data_len = 1;
-    this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrame::MESSAGE_TYPE);
+    this->api_connection_->send_message(this->outgoing_proto_msg_);
   }
 }
 
