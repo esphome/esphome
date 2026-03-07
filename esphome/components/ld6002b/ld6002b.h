@@ -391,6 +391,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   bool last_work_mode_low_power_{false};
 
   std::array<bool, MAX_TARGETS> last_target_presence_{};
+  std::array<bool, MAX_TARGETS> target_presence_initialized_{};
   uint32_t last_target_count_{0xFFFFFFFF};
   uint32_t last_point_count_{0xFFFFFFFF};
   std::array<float, MAX_TARGETS> last_target_x_{{NAN, NAN, NAN}};

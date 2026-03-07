@@ -758,8 +758,9 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
     }
 #ifdef USE_BINARY_SENSOR
     if (this->target_presence_[i] != nullptr) {
-      if (has_target != this->last_target_presence_[i]) {
+      if (!this->target_presence_initialized_[i] || has_target != this->last_target_presence_[i]) {
         this->target_presence_[i]->publish_state(has_target);
+        this->target_presence_initialized_[i] = true;
       }
     }
 #endif
