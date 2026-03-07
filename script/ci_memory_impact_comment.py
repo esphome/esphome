@@ -163,9 +163,12 @@ def format_change(before: int, after: int, threshold: float | None = None) -> st
 def _sig_base(sym: str) -> str:
     """Strip argument types from a symbol name for fuzzy matching.
 
-    Removes content between the outermost "(" and ")" so that
-    "foo(int)::nested" and "foo(float)::nested" share key "foo()::nested"
-    but "foo(int)" and "foo(int)::nested" do NOT collide.
+    Removes the entire outermost parenthesized argument list (including
+    the parentheses) from the symbol string.
+
+    This makes, for example, "foo(int)::nested" and "foo(float)::nested"
+    share the same key "foo::nested", while "foo(int)" maps to "foo" and
+    therefore does NOT collide with "foo(int)::nested".
     """
     start = sym.find("(")
     if start == -1:
