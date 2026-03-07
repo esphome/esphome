@@ -530,22 +530,21 @@ def test_normalize_function_asm_or_move_normalized() -> None:
 # --- Tests for _is_safe_path ---
 
 
-def test_is_safe_path_under_root(tmp_path: str) -> None:
+def test_is_safe_path_under_root(tmp_path) -> None:
     """Paths under source_root are allowed."""
-    import os
+    root = tmp_path.as_posix()
+    child = (tmp_path / "src" / "file.cpp").as_posix()
+    assert _is_safe_path(child, root)
 
-    root = str(tmp_path)
-    assert _is_safe_path(os.path.join(root, "src", "file.cpp"), root)
 
-
-def test_is_safe_path_outside_root(tmp_path: str) -> None:
+def test_is_safe_path_outside_root(tmp_path) -> None:
     """Paths outside source_root are rejected."""
-    assert not _is_safe_path("/etc/passwd", str(tmp_path))
+    assert not _is_safe_path("/etc/passwd", tmp_path.as_posix())
 
 
-def test_is_safe_path_proc(tmp_path: str) -> None:
+def test_is_safe_path_proc(tmp_path) -> None:
     """Proc filesystem paths are rejected."""
-    assert not _is_safe_path("/proc/self/environ", str(tmp_path))
+    assert not _is_safe_path("/proc/self/environ", tmp_path.as_posix())
 
 
 def test_normalize_function_asm_source_root_restricts_reads(tmp_path) -> None:
