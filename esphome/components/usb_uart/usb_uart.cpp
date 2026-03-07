@@ -152,9 +152,9 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
       ESP_LOGE(TAG, "Output pool full - lost %zu bytes", len);
       break;
     }
-    size_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
+    uint16_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
     memcpy(chunk->data, data, chunk_len);
-    chunk->length = static_cast<decltype(chunk->length)>(chunk_len);
+    chunk->length = chunk_len;
     if (!this->output_queue_.push(chunk)) {
       this->output_pool_.release(chunk);
       ESP_LOGE(TAG, "Output queue full - lost %zu bytes", len);
@@ -306,7 +306,7 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
 
       // Copy data to chunk (this is fast, happens in USB task)
       memcpy(chunk->data, status.data, status.data_len);
-      chunk->length = static_cast<decltype(chunk->length)>(status.data_len);
+      chunk->length = status.data_len;
       chunk->channel = channel;
 
       // Push to lock-free queue for main loop processing
