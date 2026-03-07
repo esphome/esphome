@@ -3714,5 +3714,39 @@ uint32_t InfraredRFReceiveEvent::calculate_size() const {
   return size;
 }
 #endif
+#ifdef USE_BLUETOOTH_PROXY
+bool BluetoothSetConnectionParamsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->address = value.as_uint64();
+      break;
+    case 2:
+      this->min_interval = value.as_uint32();
+      break;
+    case 3:
+      this->max_interval = value.as_uint32();
+      break;
+    case 4:
+      this->latency = value.as_uint32();
+      break;
+    case 5:
+      this->timeout = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+void BluetoothSetConnectionParamsResponse::encode(ProtoWriteBuffer &buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_int32(2, this->error);
+}
+uint32_t BluetoothSetConnectionParamsResponse::calculate_size() const {
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint64(1, this->address);
+  size += ProtoSize::calc_int32(1, this->error);
+  return size;
+}
+#endif
 
 }  // namespace esphome::api

@@ -216,6 +216,10 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &value){};
 #endif
 
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &value){};
+#endif
+
  protected:
   void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
 };

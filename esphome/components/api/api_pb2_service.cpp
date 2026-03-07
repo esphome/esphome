@@ -635,6 +635,17 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
+#ifdef USE_BLUETOOTH_PROXY
+    case BluetoothSetConnectionParamsRequest::MESSAGE_TYPE: {
+      BluetoothSetConnectionParamsRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_bluetooth_set_connection_params_request"), msg);
+#endif
+      this->on_bluetooth_set_connection_params_request(msg);
+      break;
+    }
+#endif
     default:
       break;
   }
