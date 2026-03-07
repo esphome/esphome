@@ -1,4 +1,4 @@
-"""Tests for script/ci_memory_impact_comment.py block-level diffing."""
+"""Tests for script/ci_memory_impact_comment.py disassembly diffing."""
 
 from pathlib import Path
 import sys
@@ -8,35 +8,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "script"))
 
 from ci_memory_impact_comment import (  # noqa: E402
     _count_instructions,
-    _parse_source_blocks,
     _source_block_diff,
     prepare_disassembly_diffs,
 )
-
-
-def test_parse_source_blocks_simple() -> None:
-    """Instructions without annotations form a single block."""
-    asm = "mov    a2, a3\nret"
-    blocks = _parse_source_blocks(asm)
-    assert blocks == [("", "mov    a2, a3\nret")]
-
-
-def test_parse_source_blocks_with_annotations() -> None:
-    """Instructions are grouped by their source annotations."""
-    asm = (
-        "# file.cpp:10  foo()\nmov    a2, a3\ncall8 <bar>\n# file.cpp:11  return;\nret"
-    )
-    blocks = _parse_source_blocks(asm)
-    assert len(blocks) == 2
-    assert blocks[0] == ("# file.cpp:10  foo()", "mov    a2, a3\ncall8 <bar>")
-    assert blocks[1] == ("# file.cpp:11  return;", "ret")
-
-
-def test_parse_source_blocks_annotation_at_start() -> None:
-    """First annotation with no preceding instructions."""
-    asm = "# file.cpp:1  void f() {\nmov    a2, a3"
-    blocks = _parse_source_blocks(asm)
-    assert blocks == [("# file.cpp:1  void f() {", "mov    a2, a3")]
 
 
 def test_source_block_diff_identical() -> None:
@@ -46,18 +20,15 @@ def test_source_block_diff_identical() -> None:
 
 
 def test_source_block_diff_changed_block() -> None:
-    """Same-header block with changed instructions shows line-level diff."""
+    """Changed instructions show line-level diff."""
     target = "# file.cpp:10  foo()\nmov    a2, a3\ncall8 <baz>\n# file.cpp:11  bar()\ncall8 <bar>"
     pr = "# file.cpp:10  foo()\nmov    a2, a3\ncall8 <qux>\n# file.cpp:11  bar()\ncall8 <bar>"
     diff = _source_block_diff(target, pr)
     assert diff is not None
-    # Source annotation shown as context (space prefix)
-    assert " # file.cpp:10  foo()" in diff
-    # Instruction-level diff within the block
     assert "-call8 <baz>" in diff
     assert "+call8 <qux>" in diff
-    # Unchanged block should NOT appear
-    assert any("bar" in line for line in diff) is False
+    # Unchanged lines should NOT appear as changes
+    assert any("bar" in line for line in diff if line.startswith(("+", "-"))) is False
 
 
 def test_source_block_diff_register_only_skipped() -> None:
@@ -90,15 +61,22 @@ def test_source_block_diff_removed_block() -> None:
 
 def test_source_block_diff_separator_between_hunks() -> None:
     """Non-adjacent changes are separated by '...'."""
+    # Need enough unchanged lines between changes to exceed unified_diff context (n=2)
     target = (
         "# a.cpp:1  a()\ncall8 <foo>\n"
         "# b.cpp:2  b()\nmov a4, a5\n"
-        "# c.cpp:3  c()\ncall8 <bar>"
+        "# b.cpp:3  b2()\nmov a6, a7\n"
+        "# b.cpp:4  b3()\nmov a8, a9\n"
+        "# b.cpp:5  b4()\nmov a10, a11\n"
+        "# c.cpp:6  c()\ncall8 <bar>"
     )
     pr = (
         "# a.cpp:1  a()\ncall8 <baz>\n"  # changed
         "# b.cpp:2  b()\nmov a4, a5\n"  # unchanged
-        "# c.cpp:3  c()\ncall8 <qux>"  # changed
+        "# b.cpp:3  b2()\nmov a6, a7\n"  # unchanged
+        "# b.cpp:4  b3()\nmov a8, a9\n"  # unchanged
+        "# b.cpp:5  b4()\nmov a10, a11\n"  # unchanged
+        "# c.cpp:6  c()\ncall8 <qux>"  # changed
     )
     diff = _source_block_diff(target, pr)
     assert diff is not None
@@ -111,7 +89,6 @@ def test_source_block_diff_different_headers_full_replacement() -> None:
     pr = "# new.cpp:1  new_code()\nmov a4, a5\ncall8 <new>"
     diff = _source_block_diff(target, pr)
     assert diff is not None
-    # Full blocks shown with +/-
     assert "-# old.cpp:1  old_code()" in diff
     assert "-call8 <old>" in diff
     assert "+# new.cpp:1  new_code()" in diff
@@ -146,8 +123,16 @@ def test_source_block_diff_line_number_shift_with_change() -> None:
     assert diff is not None
     assert "-call8 <check>" in diff
     assert "+call8 <verify>" in diff
-    # Unchanged block should not appear
-    assert "entry" not in " ".join(diff)
+    # Unchanged lines should not appear as changes
+    assert "entry" not in " ".join(line for line in diff if line.startswith(("+", "-")))
+
+
+def test_source_block_diff_source_text_mismatch() -> None:
+    """Annotations with/without source text still match by filename."""
+    target = "# file.cpp:123\nmov a2, a3\ncall8 <foo>"
+    pr = "# file.cpp:125  some_func()\nmov a2, a3\ncall8 <foo>"
+    diff = _source_block_diff(target, pr)
+    assert diff is None
 
 
 def test_count_instructions_skips_comments() -> None:
@@ -196,9 +181,11 @@ def test_prepare_disassembly_diffs_uses_block_diff() -> None:
     # Changed block should be in diff
     assert "-call8 <bar>" in diff_text
     assert "+call8 <baz>" in diff_text
-    # Unchanged blocks should NOT be in diff
-    assert "mov    a2, a3" not in diff_text
-    assert "ret" not in diff_text
+    # Unchanged lines should not appear as changes (may appear as context)
+    changed_lines = [
+        line for line in diff_text.splitlines() if line.startswith(("+", "-"))
+    ]
+    assert all("mov    a2, a3" not in line for line in changed_lines)
 
 
 def test_prepare_disassembly_diffs_identical_asm_skipped() -> None:
