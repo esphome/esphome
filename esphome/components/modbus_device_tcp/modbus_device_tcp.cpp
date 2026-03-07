@@ -1,6 +1,6 @@
 #include "modbus_device_tcp.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && !defined(ARDUINO)
 
 #include "esp_err.h"
 #include "esphome/core/log.h"
@@ -90,4 +90,4 @@ void ModbusDeviceTCP::start_modbus_() {
 }  // namespace modbus_device_tcp
 }  // namespace esphome
 
-#endif  // USE_ESP32
+#endif  // defined(USE_ESP32) && !defined(ARDUINO)

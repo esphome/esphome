@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && !defined(ARDUINO)
 
 #ifdef __cplusplus
 #define Atomic(T) T
@@ -95,4 +95,4 @@ class ModbusDeviceTCP : public esphome::Component {
 }  // namespace modbus_device_tcp
 }  // namespace esphome
 
-#endif  // USE_ESP32
+#endif  // defined(USE_ESP32) && !defined(ARDUINO)
