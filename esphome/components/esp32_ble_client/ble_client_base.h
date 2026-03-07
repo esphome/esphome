@@ -120,7 +120,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint16_t conn_id_{UNSET_CONN_ID};
   uint16_t mtu_{23};
 
-  // Group 6: 1-byte types and small enums
+  // Group 7: 1-byte types and small enums
   esp_ble_addr_type_t remote_addr_type_{BLE_ADDR_TYPE_PUBLIC};
   espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
   uint8_t connection_index_;
@@ -132,8 +132,8 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void log_event_(const char *name);
   void log_gattc_lifecycle_event_(const char *name);
   void log_gattc_data_event_(const char *name);
-  void update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
-                           const char *param_type);
+  esp_err_t update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
+                                const char *param_type);
   void set_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
                         const char *param_type);
   void log_gattc_warning_(const char *operation, esp_gatt_status_t status);

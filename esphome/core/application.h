@@ -37,7 +37,7 @@
 #include "esphome/components/socket/socket.h"
 #endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 namespace esphome::socket {
 void socket_wake();  // NOLINT(readability-redundant-declaration)
 }  // namespace esphome::socket
@@ -144,29 +144,44 @@ static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for qu
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, bool name_add_mac_suffix) {
+#ifdef ESPHOME_NAME_ADD_MAC_SUFFIX
+  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
+  /// Pre-setup with MAC suffix: overwrites placeholder in mutable static buffers with actual MAC.
+  void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
-    this->name_add_mac_suffix_ = name_add_mac_suffix;
-    if (name_add_mac_suffix) {
-      // MAC address length: 12 hex chars + null terminator
-      constexpr size_t mac_address_len = 13;
-      // MAC address suffix length (last 6 characters of 12-char MAC address string)
-      constexpr size_t mac_address_suffix_len = 6;
-      char mac_addr[mac_address_len];
-      get_mac_address_into_buffer(mac_addr);
-      const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
-      this->name_ = make_name_with_suffix(name, '-', mac_suffix_ptr, mac_address_suffix_len);
-      if (!friendly_name.empty()) {
-        this->friendly_name_ = make_name_with_suffix(friendly_name, ' ', mac_suffix_ptr, mac_address_suffix_len);
-      }
-    } else {
-      this->name_ = name;
-      this->friendly_name_ = friendly_name;
+    this->name_add_mac_suffix_ = true;
+    // MAC address length: 12 hex chars + null terminator
+    constexpr size_t mac_address_len = 13;
+    // MAC address suffix length (last 6 characters of 12-char MAC address string)
+    constexpr size_t mac_address_suffix_len = 6;
+    char mac_addr[mac_address_len];
+    get_mac_address_into_buffer(mac_addr);
+    // Overwrite the placeholder suffix in the mutable static buffers with actual MAC
+    // name is always non-empty (validated by validate_hostname in Python config)
+    memcpy(name + name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len, mac_address_suffix_len);
+    if (friendly_name_len > 0) {
+      memcpy(friendly_name + friendly_name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len,
+             mac_address_suffix_len);
     }
+    this->name_ = StringRef(name, name_len);
+    this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
 #ifdef USE_SETUP_HEAP_STATS
     this->init_setup_heap_stats_baseline_();
 #endif
   }
+#else
+  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
+  /// Pre-setup without MAC suffix: StringRef points directly at const string literals in flash.
+  void pre_setup(const char *name, size_t name_len, const char *friendly_name, size_t friendly_name_len) {
+    arch_init();
+    this->name_add_mac_suffix_ = false;
+    this->name_ = StringRef(name, name_len);
+    this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
+#ifdef USE_SETUP_HEAP_STATS
+    this->init_setup_heap_stats_baseline_();
+#endif
+  }
+#endif
 
 #ifdef USE_DEVICES
   void register_device(Device *device) { this->devices_.push_back(device); }
@@ -394,10 +409,10 @@ class Application {
   void loop();
 
   /// Get the name of this Application set by pre_setup().
-  const std::string &get_name() const { return this->name_; }
+  const StringRef &get_name() const { return this->name_; }
 
   /// Get the friendly name of this Application set by pre_setup().
-  const std::string &get_friendly_name() const { return this->friendly_name_; }
+  const StringRef &get_friendly_name() const { return this->friendly_name_; }
 
   /// Get the area of this Application set by pre_setup().
   const char *get_area() const {
@@ -661,8 +676,12 @@ class Application {
 
 #if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
   /// Wake the main event loop from any context (ISR, thread, or main loop).
-  /// On ESP8266: sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
+  /// Sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
   static void IRAM_ATTR wake_loop_any_context() { socket::socket_wake(); }
+#elif defined(USE_RP2040) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  /// Wake the main event loop from any context.
+  /// Sets the socket wake flag and calls __sev() to exit __wfe() early.
+  static void wake_loop_any_context() { socket::socket_wake(); }
 #endif
 
  protected:
@@ -756,9 +775,9 @@ class Application {
 #endif
 #endif
 
-  // std::string members (typically 24-32 bytes each)
-  std::string name_;
-  std::string friendly_name_;
+  // StringRef members (8 bytes each: pointer + size)
+  StringRef name_;
+  StringRef friendly_name_;
 
   // 4-byte members
   uint32_t last_loop_{0};

@@ -8,52 +8,47 @@
 
 namespace esphome {
 
+// IMPORTANT: Do not add null checks on global_logger here.
+// These functions are the hot path for ALL logging across the entire firmware,
+// so every instruction matters. Logger::pre_setup() sets global_logger before
+// any other component is created in the generated setup() function, so it is
+// guaranteed to be valid by the time any log function is invoked. This invariant
+// is enforced by codegen ordering and tested in
+// tests/component_tests/logger/test_logger.py.
 void HOT esp_log_printf_(int level, const char *tag, int line, const char *format, ...) {  // NOLINT
+#ifdef USE_LOGGER
+  ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
   va_list arg;
   va_start(arg, format);
-  esp_log_vprintf_(level, tag, line, format, arg);
+  logger::global_logger->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, arg);
   va_end(arg);
+#endif
 }
+
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 void HOT esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...) {
+#ifdef USE_LOGGER
+  ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
   va_list arg;
   va_start(arg, format);
-  esp_log_vprintf_(level, tag, line, format, arg);
+  logger::global_logger->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, arg);
   va_end(arg);
+#endif
 }
 #endif
 
 void HOT esp_log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
 #ifdef USE_LOGGER
-  auto *log = logger::global_logger;
-  if (log == nullptr)
-    return;
-
-  log->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, args);
+  ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
+  logger::global_logger->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, args);
 #endif
 }
-
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-void HOT esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format,
-                          va_list args) {  // NOLINT
-#ifdef USE_LOGGER
-  auto *log = logger::global_logger;
-  if (log == nullptr)
-    return;
-
-  log->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, args);
-#endif
-}
-#endif
 
 #ifdef USE_ESP32
 int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 #ifdef USE_LOGGER
-  auto *log = logger::global_logger;
-  if (log == nullptr)
-    return 0;
-
-  log->log_vprintf_(ESPHOME_LOG_LEVEL, "esp-idf", 0, format, args);
+  ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
+  logger::global_logger->log_vprintf_(ESPHOME_LOG_LEVEL, "esp-idf", 0, format, args);
 #endif
   return 0;
 }

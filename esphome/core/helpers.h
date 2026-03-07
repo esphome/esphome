@@ -215,7 +215,7 @@ template<typename T, size_t N> class StaticVector {
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
  private:
-  std::array<T, N> data_{};
+  std::array<T, N> data_;  // intentionally not value-initialized to avoid memset
   size_t count_{0};
 
  public:
@@ -515,8 +515,8 @@ template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallb
 ///@{
 
 /// Compute 10^exp using iterative multiplication/division.
-/// Avoids pulling in powf/__ieee754_powf (~2.3KB flash) for small integer exponents.
-/// Matches powf(10, exp) for the int8_t exponent range used by sensor accuracy_decimals.
+/// Avoids pulling in powf/__ieee754_powf (~2.3KB flash) for small integer exponents.  // NOLINT
+/// Matches powf(10, exp) for the int8_t exponent range used by sensor accuracy_decimals.  // NOLINT
 inline float pow10_int(int8_t exp) {
   float result = 1.0f;
   if (exp >= 0) {
@@ -1739,7 +1739,7 @@ class HighFrequencyLoopRequester {
   void stop();
 
   /// Check whether the loop is running continuously.
-  static bool is_high_frequency();
+  static bool is_high_frequency() { return num_requests > 0; }
 
  protected:
   bool started_{false};

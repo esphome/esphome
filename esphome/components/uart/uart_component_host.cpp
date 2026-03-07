@@ -124,17 +124,10 @@ void HostUartComponent::setup() {
   fcntl(this->file_descriptor_, F_SETFL, 0);
   struct termios options;
   tcgetattr(this->file_descriptor_, &options);
+  cfmakeraw(&options);
   options.c_cflag &= ~CRTSCTS;
   options.c_cflag |= CREAD | CLOCAL;
-  options.c_lflag &= ~ICANON;
-  options.c_lflag &= ~ECHO;
-  options.c_lflag &= ~ECHOE;
-  options.c_lflag &= ~ECHONL;
-  options.c_lflag &= ~ISIG;
-  options.c_iflag &= ~(IXON | IXOFF | IXANY);
-  options.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL);
-  options.c_oflag &= ~OPOST;
-  options.c_oflag &= ~ONLCR;
+  options.c_iflag &= ~(IXOFF | IXANY);
   // Set data bits
   options.c_cflag &= ~CSIZE;  // Mask the character size bits
   switch (this->data_bits_) {

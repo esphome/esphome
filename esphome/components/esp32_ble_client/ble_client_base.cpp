@@ -67,6 +67,10 @@ void BLEClientBase::loop() {
              (millis() - this->disconnecting_started_) > DISCONNECTING_TIMEOUT) {
     ESP_LOGE(TAG, "[%d] [%s] Timeout waiting for CLOSE_EVT after disconnect, forcing IDLE", this->connection_index_,
              this->address_str_);
+    // release_services() must be called before set_idle_() — if we entered DISCONNECTING
+    // via unconditional_disconnect() (which doesn't call release_services()), and ESP-IDF
+    // never delivered CLOSE_EVT/DISCONNECT_EVT, services would leak without this call.
+    this->release_services();
     this->set_idle_();
   }
 }
@@ -230,6 +234,7 @@ void BLEClientBase::log_connection_params_(const char *param_type) {
 void BLEClientBase::handle_connection_result_(esp_err_t ret) {
   if (ret) {
     this->log_gattc_warning_("esp_ble_gattc_open", ret);
+    // Don't use set_idle_() here — CONNECT_EVT never fired so conn_id_ is still UNSET_CONN_ID.
     this->set_state(espbt::ClientState::IDLE);
   }
 }
@@ -246,8 +251,8 @@ void BLEClientBase::log_warning_(const char *message) {
   ESP_LOGW(TAG, "[%d] [%s] %s", this->connection_index_, this->address_str_, message);
 }
 
-void BLEClientBase::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
-                                        uint16_t timeout, const char *param_type) {
+esp_err_t BLEClientBase::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
+                                             uint16_t timeout, const char *param_type) {
   esp_ble_conn_update_params_t conn_params = {{0}};
   memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
   conn_params.min_int = min_interval;
@@ -259,6 +264,7 @@ void BLEClientBase::update_conn_params_(uint16_t min_interval, uint16_t max_inte
   if (err != ESP_OK) {
     this->log_gattc_warning_("esp_ble_gap_update_conn_params", err);
   }
+  return err;
 }
 
 void BLEClientBase::set_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,

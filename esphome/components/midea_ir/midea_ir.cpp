@@ -114,15 +114,20 @@ void MideaIR::control(const climate::ClimateCall &call) {
   if (call.get_mode() == climate::CLIMATE_MODE_OFF) {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
     this->preset = climate::CLIMATE_PRESET_NONE;
-  } else if (call.get_swing_mode().has_value() && ((*call.get_swing_mode() == climate::CLIMATE_SWING_OFF &&
-                                                    this->swing_mode == climate::CLIMATE_SWING_VERTICAL) ||
-                                                   (*call.get_swing_mode() == climate::CLIMATE_SWING_VERTICAL &&
-                                                    this->swing_mode == climate::CLIMATE_SWING_OFF))) {
-    this->swing_ = true;
-  } else if (call.get_preset().has_value() &&
-             ((*call.get_preset() == climate::CLIMATE_PRESET_NONE && this->preset == climate::CLIMATE_PRESET_BOOST) ||
-              (*call.get_preset() == climate::CLIMATE_PRESET_BOOST && this->preset == climate::CLIMATE_PRESET_NONE))) {
-    this->boost_ = true;
+  } else {
+    auto swing = call.get_swing_mode();
+    if (swing.has_value() &&
+        ((*swing == climate::CLIMATE_SWING_OFF && this->swing_mode == climate::CLIMATE_SWING_VERTICAL) ||
+         (*swing == climate::CLIMATE_SWING_VERTICAL && this->swing_mode == climate::CLIMATE_SWING_OFF))) {
+      this->swing_ = true;
+    } else {
+      auto preset = call.get_preset();
+      if (preset.has_value() &&
+          ((*preset == climate::CLIMATE_PRESET_NONE && this->preset == climate::CLIMATE_PRESET_BOOST) ||
+           (*preset == climate::CLIMATE_PRESET_BOOST && this->preset == climate::CLIMATE_PRESET_NONE))) {
+        this->boost_ = true;
+      }
+    }
   }
   climate_ir::ClimateIR::control(call);
 }
@@ -151,7 +156,7 @@ void MideaIR::transmit_state() {
   data.set_fahrenheit(this->fahrenheit_);
   data.set_temp(this->target_temperature);
   data.set_mode(this->mode);
-  data.set_fan_mode(this->fan_mode.value_or(ClimateFanMode::CLIMATE_FAN_AUTO));
+  data.set_fan_mode(this->fan_mode.value_or(ClimateFanMode::CLIMATE_FAN_ON));
   data.set_sleep_preset(this->preset == climate::CLIMATE_PRESET_SLEEP);
   data.fix();
   this->transmit_(data);

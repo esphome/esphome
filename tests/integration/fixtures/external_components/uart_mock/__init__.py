@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.uart import (
     CONF_RX_FULL_THRESHOLD,
     CONF_RX_TIMEOUT,
@@ -12,14 +13,11 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_DATA,
-    CONF_DATA_BITS,
     CONF_DEBUG,
     CONF_DELAY,
     CONF_ID,
     CONF_INTERVAL,
-    CONF_PARITY,
     CONF_RX_BUFFER_SIZE,
-    CONF_STOP_BITS,
     CONF_TRIGGER_ID,
 )
 from esphome.core import ID
@@ -45,6 +43,7 @@ CONF_INJECT_RX = "inject_rx"
 CONF_EXPECT_TX = "expect_tx"
 CONF_PERIODIC_RX = "periodic_rx"
 CONF_ON_TX = "on_tx"
+CONF_AUTO_START = "auto_start"
 
 UART_PARITY_OPTIONS = {
     "NONE": uart.UARTParityOptions.UART_CONFIG_PARITY_NONE,
@@ -72,6 +71,7 @@ RESPONSE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_EXPECT_TX): [cv.hex_uint8_t],
         cv.Required(CONF_INJECT_RX): [cv.hex_uint8_t],
+        cv.Optional(CONF_DELAY, default="0ms"): cv.positive_time_period_milliseconds,
     }
 )
 
@@ -97,6 +97,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_INJECTIONS, default=[]): cv.ensure_list(INJECTION_SCHEMA),
         cv.Optional(CONF_RESPONSES, default=[]): cv.ensure_list(RESPONSE_SCHEMA),
         cv.Optional(CONF_PERIODIC_RX, default=[]): cv.ensure_list(PERIODIC_RX_SCHEMA),
+        cv.Optional(CONF_AUTO_START, default=True): cv.boolean,
         cv.Optional(CONF_ON_TX): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MockUartTXTrigger),
@@ -140,6 +141,9 @@ async def to_code(config):
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))
 
+    if not config[CONF_AUTO_START]:
+        cg.add(var.set_auto_start(False))
+
     for injection in config[CONF_INJECTIONS]:
         rx_data = injection[CONF_INJECT_RX]
         delay_ms = injection[CONF_DELAY]
@@ -148,7 +152,8 @@ async def to_code(config):
     for response in config[CONF_RESPONSES]:
         tx_data = response[CONF_EXPECT_TX]
         rx_data = response[CONF_INJECT_RX]
-        cg.add(var.add_response(tx_data, rx_data))
+        delay_ms = response[CONF_DELAY]
+        cg.add(var.add_response(tx_data, rx_data, delay_ms))
 
     for periodic in config[CONF_PERIODIC_RX]:
         data = periodic[CONF_DATA]
