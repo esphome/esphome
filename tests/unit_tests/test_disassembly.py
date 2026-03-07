@@ -5,6 +5,7 @@ import pytest
 from esphome.analyze_memory.disassembly import (
     _find_balanced_ref,
     _normalize_all_refs,
+    _normalize_encoding,
     _normalize_function_asm,
 )
 
@@ -155,7 +156,7 @@ def test_normalize_function_asm_instructions() -> None:
         "  40001002:\tret.n",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
-    assert result == "mov.n    a2, a3\nret.n"
+    assert result == "mov    a2, a3\nret"
 
 
 def test_normalize_function_asm_skips_non_instruction_lines() -> None:
@@ -166,7 +167,7 @@ def test_normalize_function_asm_skips_non_instruction_lines() -> None:
         "  40001002:\tret.n",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
-    assert result == "mov.n    a2, a3\nret.n"
+    assert result == "mov    a2, a3\nret"
 
 
 def test_normalize_function_asm_strips_absolute_addr_before_ref() -> None:
@@ -245,7 +246,7 @@ def test_normalize_function_asm_source_annotations() -> None:
         "  40001002:\tret.n",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
-    assert result == "# file.cpp:42\nmov.n    a2, a3\n# file.cpp:43\nret.n"
+    assert result == "# file.cpp:42\nmov    a2, a3\n# file.cpp:43\nret"
 
 
 def test_normalize_function_asm_source_annotations_deduplicated() -> None:
@@ -257,7 +258,7 @@ def test_normalize_function_asm_source_annotations_deduplicated() -> None:
         "  40001002:\tret.n",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
-    assert result == "# file.cpp:42\nmov.n    a2, a3\nret.n"
+    assert result == "# file.cpp:42\nmov    a2, a3\nret"
 
 
 def test_normalize_function_asm_source_annotations_with_discriminator() -> None:
@@ -267,7 +268,7 @@ def test_normalize_function_asm_source_annotations_with_discriminator() -> None:
         "  40001000:\tmov.n    a2, a3",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
-    assert result == "# file.cpp:42\nmov.n    a2, a3"
+    assert result == "# file.cpp:42\nmov    a2, a3"
 
 
 def test_normalize_function_asm_max_insns() -> None:
@@ -281,9 +282,9 @@ def test_normalize_function_asm_max_insns() -> None:
         "  40001004:\tret.n",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func", max_insns=2)
-    assert "mov.n    a2, a3" in result
-    assert "mov.n    a4, a5" in result
-    assert "ret.n" not in result
+    assert "mov    a2, a3" in result
+    assert "mov    a4, a5" in result
+    assert "ret" not in result
 
 
 def test_normalize_function_asm_func_size_excludes_padding() -> None:
@@ -301,7 +302,7 @@ def test_normalize_function_asm_func_size_excludes_padding() -> None:
     ]
     # Function is 4 bytes (0x000-0x003), so instructions at +0x0004 onward are padding
     result = _normalize_function_asm(lines, 0x40001000, "test_func", func_size=4)
-    assert result == "mov.n    a2, a3\nret.n"
+    assert result == "mov    a2, a3\nret"
 
 
 def test_normalize_function_asm_func_size_zero_includes_all() -> None:
@@ -339,11 +340,11 @@ def test_normalize_function_asm_skips_dead_code_after_unconditional_jump() -> No
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
     assert "WiFi" not in result
-    assert "s32i.n" not in result
-    assert "mov.n    a2, a3" in result
+    assert "s32i" not in result
+    assert "mov    a2, a3" in result
     assert "jx    a9" in result
     # +0x0e is not a branch target, so it's also skipped
-    assert "movi.n    a14, 5" not in result
+    assert "movi" not in result
 
 
 def test_normalize_function_asm_dead_code_resumes_at_branch_target() -> None:
@@ -360,8 +361,8 @@ def test_normalize_function_asm_dead_code_resumes_at_branch_target() -> None:
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
     assert "WiFi" not in result
-    assert "movi.n    a5, 1" in result
-    assert "retw.n" in result
+    assert "movi    a5, 1" in result
+    assert "retw" in result
 
 
 def test_normalize_function_asm_dead_code_after_ret() -> None:
@@ -375,7 +376,7 @@ def test_normalize_function_asm_dead_code_after_ret() -> None:
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
     assert "MDNSResponder" not in result
-    assert result == "mov.n    a2, a3\nret.n"
+    assert result == "mov    a2, a3\nret"
 
 
 def test_normalize_function_asm_dead_code_arm_thumb() -> None:
@@ -452,5 +453,74 @@ def test_normalize_function_asm_skips_data_as_code(insn: str) -> None:
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
     assert insn not in result
-    assert "mov.n" in result
-    assert "ret.n" in result
+    assert "mov" in result
+    assert result.endswith("ret")
+
+
+# --- Tests for _normalize_encoding ---
+
+
+@pytest.mark.parametrize(
+    ("insn", "expected"),
+    [
+        ("mov.n    a2, a3", "mov    a2, a3"),
+        ("s32i.n    a10, a1, 0", "s32i    a10, a1, 0"),
+        ("ret.n", "ret"),
+        ("retw.n", "retw"),
+        ("movi.n    a5, 1", "movi    a5, 1"),
+        ("add.n    a2, a3, a4", "add    a2, a3, a4"),
+        ("l32i.n    a2, a1, 0", "l32i    a2, a1, 0"),
+        ("beqz.n    a2, 40001010 <foo>", "beqz    a2, 40001010 <foo>"),
+        # ARM Thumb wide/narrow
+        ("b.w    00001000 <foo>", "b    00001000 <foo>"),
+        ("b.n    00001000 <foo>", "b    00001000 <foo>"),
+        # No suffix — unchanged
+        ("call0     40002000 <foo>", "call0     40002000 <foo>"),
+        ("mov    a2, a3", "mov    a2, a3"),
+    ],
+    ids=[
+        "mov.n",
+        "s32i.n",
+        "ret.n",
+        "retw.n",
+        "movi.n",
+        "add.n",
+        "l32i.n",
+        "beqz.n",
+        "b.w",
+        "b.n",
+        "no_suffix_call",
+        "no_suffix_mov",
+    ],
+)
+def test_normalize_encoding_suffixes(insn: str, expected: str) -> None:
+    """Narrow/wide encoding suffixes are stripped."""
+    assert _normalize_encoding(insn) == expected
+
+
+@pytest.mark.parametrize(
+    ("insn", "expected"),
+    [
+        ("or    a10, a2, a2", "mov    a10, a2"),
+        ("or    a3, a15, a15", "mov    a3, a15"),
+        # Different registers — genuine OR, not a move
+        ("or    a8, a8, a9", "or    a8, a8, a9"),
+        # Three different registers
+        ("or    a2, a3, a4", "or    a2, a3, a4"),
+    ],
+    ids=["or_move_a2", "or_move_a15", "genuine_or", "three_diff_regs"],
+)
+def test_normalize_encoding_or_move_idiom(insn: str, expected: str) -> None:
+    """Xtensa 'or rX, rY, rY' move idiom is normalized to 'mov rX, rY'."""
+    assert _normalize_encoding(insn) == expected
+
+
+def test_normalize_function_asm_or_move_normalized() -> None:
+    """Xtensa or aX, aY, aY in function output is normalized to mov."""
+    lines = [
+        "  40001000:\tor    a10, a2, a2",
+        "  40001003:\tcall8     40002000 <other_func>",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func")
+    assert "mov    a10, a2" in result
+    assert "or " not in result
