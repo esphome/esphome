@@ -140,7 +140,7 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 }
 
 // not thread safe, only use in read-only use cases
-otInstance *OpenThreadComponent::get_openthread_instance() { return esp_openthread_get_instance(); }
+otInstance *OpenThreadComponent::get_openthread_instance_() { return esp_openthread_get_instance(); }
 
 std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
   if (esp_openthread_lock_acquire(delay)) {
