@@ -78,6 +78,9 @@ async def to_code(config: ConfigType) -> None:
     max_requests = config[CONF_MAX_TRANSFER_REQUESTS]
     cg.add_define("USB_HOST_MAX_REQUESTS", max_requests)
     cg.add_define("USB_HOST_MAX_PACKET_SIZE", config[CONF_MAX_PACKET_SIZE])
+    # USB uses the socket wake_loop_threadsafe() mechanism to wake the main loop from USB task
+    # This enables low-latency (~12μs) USB event processing instead of waiting for
+    # select() timeout (0-16ms). The wake socket is shared across all components.
     socket.require_wake_loop_threadsafe()
 
     var = cg.new_Pvariable(config[CONF_ID])
