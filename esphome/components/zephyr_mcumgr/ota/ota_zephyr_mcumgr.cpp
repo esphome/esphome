@@ -29,13 +29,13 @@ static enum mgmt_cb_return mcumgr_img_mgmt_cb(uint32_t event, enum mgmt_cb_retur
                                               uint16_t *group, bool *abort_more, void *data, size_t data_size) {
   if (MGMT_EVT_OP_IMG_MGMT_DFU_CHUNK == event) {
     const img_mgmt_upload_check &upload = *static_cast<img_mgmt_upload_check *>(data);
-    static_cast<OTAComponent *>(global_ota_component)->update_chunk(upload);
+    global_ota_component->update_chunk(upload);
   } else if (MGMT_EVT_OP_IMG_MGMT_DFU_STARTED == event) {
-    static_cast<OTAComponent *>(global_ota_component)->update_started();
+    global_ota_component->update_started();
   } else if (MGMT_EVT_OP_IMG_MGMT_DFU_CHUNK_WRITE_COMPLETE == event) {
-    static_cast<OTAComponent *>(global_ota_component)->update_chunk_wrote();
+    global_ota_component->update_chunk_wrote();
   } else if (MGMT_EVT_OP_IMG_MGMT_DFU_PENDING == event) {
-    static_cast<OTAComponent *>(global_ota_component)->update_pending();
+    global_ota_component->update_pending();
   } else {
     ESP_LOGD(TAG, "MCUmgr Image Management Event with the %d ID", u32_count_trailing_zeros(MGMT_EVT_GET_ID(event)));
   }
