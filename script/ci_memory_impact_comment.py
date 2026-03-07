@@ -160,6 +160,70 @@ def format_change(before: int, after: int, threshold: float | None = None) -> st
     return f"{emoji} {delta_str} ({pct_str})"
 
 
+def _sig_base(sym: str) -> str:
+    """Strip argument types from a symbol name for fuzzy matching.
+
+    Removes content between the outermost "(" and ")" so that
+    "foo(int)::nested" and "foo(float)::nested" share key "foo()::nested"
+    but "foo(int)" and "foo(int)::nested" do NOT collide.
+    """
+    start = sym.find("(")
+    if start == -1:
+        return sym
+    end = sym.rfind(")")
+    if end == -1:
+        return sym
+    return sym[:start] + sym[end + 1 :]
+
+
+def _match_signature_changes(
+    changed_symbols: list[tuple[str, int, int, int]],
+    new_symbols: list[tuple[str, int]],
+    removed_symbols: list[tuple[str, int]],
+) -> tuple[
+    list[tuple[str, int, int, int]],
+    list[tuple[str, int]],
+    list[tuple[str, int]],
+]:
+    """Match new/removed symbol pairs that only differ in argument types.
+
+    When a function's argument types change (e.g. foo(vector<>&) -> foo(Buffer&)),
+    it appears as a new + removed symbol. This matches them by base name and moves
+    them to changed_symbols. Only matches unambiguous 1:1 pairs.
+    """
+    if not new_symbols or not removed_symbols:
+        return changed_symbols, new_symbols, removed_symbols
+
+    new_by_base: dict[str, list[int]] = {}
+    for i, (sym, _size) in enumerate(new_symbols):
+        new_by_base.setdefault(_sig_base(sym), []).append(i)
+    removed_by_base: dict[str, list[int]] = {}
+    for i, (sym, _size) in enumerate(removed_symbols):
+        removed_by_base.setdefault(_sig_base(sym), []).append(i)
+
+    matched_new: set[int] = set()
+    matched_removed: set[int] = set()
+    for base, new_indices in new_by_base.items():
+        rem_indices = removed_by_base.get(base)
+        if rem_indices and len(new_indices) == 1 and len(rem_indices) == 1:
+            ni, ri = new_indices[0], rem_indices[0]
+            pr_sym, pr_size = new_symbols[ni]
+            _rm_sym, target_size = removed_symbols[ri]
+            delta = pr_size - target_size
+            if delta != 0:
+                changed_symbols.append((pr_sym, target_size, pr_size, delta))
+            matched_new.add(ni)
+            matched_removed.add(ri)
+
+    if matched_new:
+        new_symbols = [s for i, s in enumerate(new_symbols) if i not in matched_new]
+    if matched_removed:
+        removed_symbols = [
+            s for i, s in enumerate(removed_symbols) if i not in matched_removed
+        ]
+    return changed_symbols, new_symbols, removed_symbols
+
+
 def prepare_symbol_changes_data(
     target_symbols: dict | None, pr_symbols: dict | None
 ) -> dict | None:
@@ -200,49 +264,10 @@ def prepare_symbol_changes_data(
             delta = pr_size - target_size
             changed_symbols.append((symbol, target_size, pr_size, delta))
 
-    # Fuzzy-match new/removed symbols whose function name is the same but
-    # argument types differ — these are signature changes.
-    # The base key strips what's between the outermost "(" and ")" so that
-    # "foo(int)::nested" and "foo(float)::nested" share key "foo()::nested"
-    # but "foo(int)" and "foo(int)::nested" do NOT collide.
-    if new_symbols and removed_symbols:
-
-        def _sig_base(sym: str) -> str:
-            start = sym.find("(")
-            if start == -1:
-                return sym
-            end = sym.rfind(")")
-            if end == -1:
-                return sym
-            return sym[:start] + sym[end + 1 :]
-
-        new_by_base: dict[str, list[int]] = {}
-        for i, (sym, _size) in enumerate(new_symbols):
-            new_by_base.setdefault(_sig_base(sym), []).append(i)
-        removed_by_base: dict[str, list[int]] = {}
-        for i, (sym, _size) in enumerate(removed_symbols):
-            removed_by_base.setdefault(_sig_base(sym), []).append(i)
-
-        matched_new: set[int] = set()
-        matched_removed: set[int] = set()
-        for base, new_indices in new_by_base.items():
-            rem_indices = removed_by_base.get(base)
-            if rem_indices and len(new_indices) == 1 and len(rem_indices) == 1:
-                ni, ri = new_indices[0], rem_indices[0]
-                pr_sym, pr_size = new_symbols[ni]
-                _rm_sym, target_size = removed_symbols[ri]
-                delta = pr_size - target_size
-                if delta != 0:
-                    changed_symbols.append((pr_sym, target_size, pr_size, delta))
-                matched_new.add(ni)
-                matched_removed.add(ri)
-
-        if matched_new:
-            new_symbols = [s for i, s in enumerate(new_symbols) if i not in matched_new]
-        if matched_removed:
-            removed_symbols = [
-                s for i, s in enumerate(removed_symbols) if i not in matched_removed
-            ]
+    # Match new/removed symbols that only differ in argument types
+    changed_symbols, new_symbols, removed_symbols = _match_signature_changes(
+        changed_symbols, new_symbols, removed_symbols
+    )
 
     if not changed_symbols and not new_symbols and not removed_symbols:
         return None
