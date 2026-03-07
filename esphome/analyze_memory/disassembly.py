@@ -162,6 +162,12 @@ def _normalize_function_asm(
         # Normalize symbolic references using balanced bracket matching
         # (regex can't handle nested <> in C++ template symbols)
         insn = _normalize_all_refs(insn, func_name, is_literal)
+        # l32r lines have a second parenthesized ref: "l32r a5, <addr> (<data>)"
+        # After normalization this becomes "<.literal> (<.literal>)" — trim it
+        if is_literal:
+            idx = insn.find("<.literal>")
+            if idx != -1:
+                insn = insn[: idx + len("<.literal>")]
         result.append(f"+{offset:#06x}: {insn}")
     return "\n".join(result)
 

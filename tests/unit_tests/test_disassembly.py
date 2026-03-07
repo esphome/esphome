@@ -193,6 +193,16 @@ def test_normalize_function_asm_l32r_literal() -> None:
     assert result == "+0x0000: l32r    a5,  <.literal>"
 
 
+def test_normalize_function_asm_l32r_with_data_ref() -> None:
+    """l32r with parenthesized data reference should be trimmed."""
+    lines = [
+        "  40001000:\tl32r    a11, 400d0080 <_stext+0x60>"
+        " (3f400194 <_flash_rodata_start+0x74>)",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func")
+    assert result == "+0x0000: l32r    a11,  <.literal>"
+
+
 def test_normalize_function_asm_template_in_call() -> None:
     lines = [
         "  40001000:\tcall0     40002000"
