@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components.ota import BASE_OTA_SCHEMA, ota_to_code
+from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.components.zephyr import (
     zephyr_add_cdc_acm,
     zephyr_add_overlay,
@@ -11,19 +11,20 @@ import esphome.config_validation as cv
 from esphome.const import CONF_HARDWARE_UART, CONF_ID, Framework
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@tomaszduda23"]
 DEPENDENCIES = ["zephyr"]
 
 ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
-    "OTAComponent", ota.OTAComponent
+    "OTAComponent", OTAComponent
 )
 
 CONF_BLE = "ble"
 CONF_TRANSPORT = "transport"
 
 
-def _validate_transport(conf):
+def _validate_transport(conf: ConfigType) -> ConfigType:
     transport = conf[CONF_TRANSPORT]
     if transport[CONF_BLE] or CONF_HARDWARE_UART in transport:
         return conf
@@ -90,7 +91,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await ota_to_code(var, config)
-    cg.add_define("USE_OTA")
 
     await cg.register_component(var, config)
 
@@ -127,7 +127,7 @@ async def to_code(config):
         cdc_id = uart[1]
         if cdc_id >= 0:
             zephyr_add_cdc_acm(config, cdc_id)
-            cg.add(var.set_cdc_uart())
+            cg.add(var.set_cdc_uart(True))
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UART", True)
         zephyr_add_prj_conf("BASE64", True)
         zephyr_add_prj_conf("CONSOLE", True)
