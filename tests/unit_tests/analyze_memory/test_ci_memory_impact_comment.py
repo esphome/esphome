@@ -10,6 +10,7 @@ from ci_memory_impact_comment import (  # noqa: E402
     _count_instructions,
     _source_block_diff,
     prepare_disassembly_diffs,
+    prepare_symbol_changes_data,
 )
 
 
@@ -194,6 +195,75 @@ def test_prepare_disassembly_diffs_uses_block_diff() -> None:
         line for line in diff_text.splitlines() if line.startswith(("+", "-"))
     ]
     assert all("mov    a2, a3" not in line for line in changed_lines)
+
+
+def test_prepare_symbol_changes_signature_match() -> None:
+    """Symbols with same base name but different args are matched as changed."""
+    target = {
+        "Foo::bar(std::vector<unsigned char>&, int)": 300,
+        "unchanged()": 50,
+    }
+    pr = {
+        "Foo::bar(ProtoByteBuffer&, int)": 320,
+        "unchanged()": 50,
+    }
+    result = prepare_symbol_changes_data(target, pr)
+    assert result is not None
+    assert len(result["changed_symbols"]) == 1
+    assert len(result["new_symbols"]) == 0
+    assert len(result["removed_symbols"]) == 0
+    sym, t_size, p_size, delta = result["changed_symbols"][0]
+    assert sym == "Foo::bar(ProtoByteBuffer&, int)"
+    assert t_size == 300
+    assert p_size == 320
+    assert delta == 20
+    assert (
+        result["sig_renames"]["Foo::bar(ProtoByteBuffer&, int)"]
+        == "Foo::bar(std::vector<unsigned char>&, int)"
+    )
+
+
+def test_prepare_symbol_changes_ambiguous_overloads_not_matched() -> None:
+    """Multiple overloads with same base name stay as new/removed."""
+    target = {
+        "Foo::bar(int)": 100,
+        "Foo::bar(float)": 200,
+    }
+    pr = {
+        "Foo::bar(double)": 150,
+        "Foo::bar(long)": 250,
+    }
+    result = prepare_symbol_changes_data(target, pr)
+    assert result is not None
+    assert len(result["changed_symbols"]) == 0
+    assert len(result["new_symbols"]) == 2
+    assert len(result["removed_symbols"]) == 2
+
+
+def test_prepare_disassembly_diffs_signature_change() -> None:
+    """Signature-changed symbols show diff using target's old name for lookup."""
+    target_disasm = {
+        "Foo::bar(std::vector<unsigned char>&)": "# f.cpp:1  bar()\nmov a2, a3\ncall8 <old>",
+    }
+    pr_disasm = {
+        "Foo::bar(ProtoByteBuffer&)": "# f.cpp:1  bar()\nmov a2, a3\ncall8 <new>",
+    }
+    symbol_changes = {
+        "changed_symbols": [("Foo::bar(ProtoByteBuffer&)", 100, 110, 10)],
+        "new_symbols": [],
+        "removed_symbols": [],
+        "sig_renames": {
+            "Foo::bar(ProtoByteBuffer&)": "Foo::bar(std::vector<unsigned char>&)"
+        },
+    }
+    result = prepare_disassembly_diffs(target_disasm, pr_disasm, symbol_changes)
+    assert result is not None
+    assert len(result) == 1
+    sym, change_type, diff_text, _, _ = result[0]
+    assert sym == "Foo::bar(ProtoByteBuffer&)"
+    assert change_type == "changed"
+    assert "-call8 <old>" in diff_text
+    assert "+call8 <new>" in diff_text
 
 
 def test_prepare_disassembly_diffs_identical_asm_skipped() -> None:
