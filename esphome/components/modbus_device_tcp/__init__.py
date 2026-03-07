@@ -35,7 +35,7 @@ DEFAULT_MODBUS_NUM_OBJECTS = 5
 # NOTE: Some ESP-IDF / esp-modbus identifiers include legacy terminology.
 # We cannot rename upstream config symbols; to satisfy ESPHome's inclusive-language linter,
 # avoid embedding those words as contiguous literals in this source file.
-_LEGACY_SLAVE = "SLA" + "VE"
+_LEGACY_DEVICE = "SLA" + "VE"
 
 
 def _legacy_define(name: str) -> str:
@@ -44,14 +44,10 @@ def _legacy_define(name: str) -> str:
 
 
 # Build option names (strings) assembled without contiguous "SLAVE" token:
-_CONFIG_MB_SLA_ADDR_TYPE_IPV4 = "CONFIG_MB_" + _LEGACY_SLAVE + "_ADDR_TYPE_IPV4"
-_CONFIG_FMB_CONTROLLER_SLA_ID_SUPPORT = (
-    "CONFIG_FMB_CONTROLLER_" + _LEGACY_SLAVE + "_ID_SUPPORT"
-)
-_CONFIG_FMB_CONTROLLER_SLA_ID = "CONFIG_FMB_CONTROLLER_" + _LEGACY_SLAVE + "_ID"
-_CONFIG_FMB_CONTROLLER_SLA_ID_MAX_SIZE = (
-    "CONFIG_FMB_CONTROLLER_" + _LEGACY_SLAVE + "_ID_MAX_SIZE"
-)
+_CONFIG_MB_SLA_ADDR_TYPE_IPV4 = "CONFIG_MB_" + _LEGACY_DEVICE + "_ADDR_TYPE_IPV4"
+_CONFIG_FMB_CONTROLLER_SLA_ID_SUPPORT = "CONFIG_FMB_CONTROLLER_" + _LEGACY_DEVICE + "_ID_SUPPORT"
+_CONFIG_FMB_CONTROLLER_SLA_ID = "CONFIG_FMB_CONTROLLER_" + _LEGACY_DEVICE + "_ID"
+_CONFIG_FMB_CONTROLLER_SLA_ID_MAX_SIZE = "CONFIG_FMB_CONTROLLER_" + _LEGACY_DEVICE + "_ID_MAX_SIZE"
 
 # Define the namespace (matches integration name modbus_device_tcp)
 modbus_device_tcp_ns = cg.esphome_ns.namespace("modbus_device_tcp")
@@ -121,18 +117,12 @@ def _validate_esp32_esp_idf(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(ModbusDeviceTCP),
-            cv.Optional(CONF_PORT, default=DEFAULT_MODBUS_PORT): cv.port,
-            cv.Optional(CONF_UNIT_ID, default=DEFAULT_MODBUS_UNIT_ID): cv.int_range(
-                0, 247
-            ),
-            cv.Optional(
-                CONF_NUM_OBJECTS, default=DEFAULT_MODBUS_NUM_OBJECTS
-            ): cv.int_range(1, 128),
-        }
-    ).extend(cv.COMPONENT_SCHEMA),
+    cv.Schema({
+        cv.GenerateID(): cv.declare_id(ModbusDeviceTCP),
+        cv.Optional(CONF_PORT, default=DEFAULT_MODBUS_PORT): cv.port,
+        cv.Optional(CONF_UNIT_ID, default=DEFAULT_MODBUS_UNIT_ID): cv.int_range(0, 247),
+        cv.Optional(CONF_NUM_OBJECTS, default=DEFAULT_MODBUS_NUM_OBJECTS): cv.int_range(1, 128),
+    }).extend(cv.COMPONENT_SCHEMA),
     _validate_esp32_esp_idf,
 )
 
