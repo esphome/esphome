@@ -1,6 +1,7 @@
 #include "ld6002b.h"
 #include "esphome/core/log.h"
 #include <algorithm>
+#include <cinttypes>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -69,6 +70,147 @@ static constexpr uint16_t AREA_CONFIG_LEN = 28;  // int32 + 6 floats
 static constexpr uint8_t AREA_ID_DEFAULT = 4;  // detection_0 for initial display
 
 static constexpr uint8_t VERSION_QUERY_DATA[] = {0x01, 0x01, 0x00, 0x00};
+
+static uint32_t read_control_command_value(const uint8_t *data, uint8_t len) {
+  if (data == nullptr || len < 4) {
+    return 0;
+  }
+
+  return static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) |
+         (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
+}
+
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+static const char *control_command_name(uint32_t command) {
+  switch (command) {
+    case CMD_AUTO_INTERFERENCE:
+      return "auto_interference";
+    case CMD_GET_AREAS:
+      return "get_areas";
+    case CMD_CLEAR_INTERFERENCE:
+      return "clear_interference";
+    case CMD_RESET_DETECTION_AREA:
+      return "reset_detection_area";
+    case CMD_GET_DELAY:
+      return "get_delay";
+    case CMD_POINT_CLOUD_ON:
+      return "point_cloud_on";
+    case CMD_POINT_CLOUD_OFF:
+      return "point_cloud_off";
+    case CMD_TARGET_DISPLAY_ON:
+      return "target_display_on";
+    case CMD_TARGET_DISPLAY_OFF:
+      return "target_display_off";
+    case CMD_SENSITIVITY_LOW:
+      return "sensitivity_low";
+    case CMD_SENSITIVITY_MEDIUM:
+      return "sensitivity_medium";
+    case CMD_SENSITIVITY_HIGH:
+      return "sensitivity_high";
+    case CMD_GET_SENSITIVITY:
+      return "get_sensitivity";
+    case CMD_TRIGGER_SLOW:
+      return "trigger_slow";
+    case CMD_TRIGGER_MEDIUM:
+      return "trigger_medium";
+    case CMD_TRIGGER_FAST:
+      return "trigger_fast";
+    case CMD_GET_TRIGGER:
+      return "get_trigger";
+    case CMD_GET_Z_RANGE:
+      return "get_z_range";
+    case CMD_INSTALL_TOP:
+      return "install_top";
+    case CMD_INSTALL_SIDE:
+      return "install_side";
+    case CMD_GET_INSTALLATION:
+      return "get_installation";
+    case CMD_LOW_POWER_ON:
+      return "low_power_on";
+    case CMD_LOW_POWER_OFF:
+      return "low_power_off";
+    case CMD_GET_LOW_POWER:
+      return "get_low_power";
+    case CMD_GET_LOW_POWER_SLEEP:
+      return "get_low_power_sleep";
+    case CMD_RESET_UNATTENDED:
+      return "reset_unattended";
+    default:
+      return "unknown";
+  }
+}
+
+static const char *frame_type_name(uint16_t type) {
+  switch (type) {
+    case TYPE_CONTROL:
+      return "control";
+    case TYPE_SET_AREA:
+      return "set_area";
+    case TYPE_SET_HOLD_DELAY:
+      return "set_hold_delay";
+    case TYPE_SET_Z_RANGE:
+      return "set_z_range";
+    case TYPE_SET_LOW_POWER_SLEEP:
+      return "set_low_power_sleep";
+    case TYPE_REPORT_TARGET:
+      return "report_target";
+    case TYPE_REPORT_POINT_CLOUD:
+      return "report_point_cloud";
+    case TYPE_REPORT_AREA_PRESENCE:
+      return "report_area_presence";
+    case TYPE_REPORT_INTERFERENCE_AREAS:
+      return "report_interference_areas";
+    case TYPE_REPORT_DETECTION_AREAS:
+      return "report_detection_areas";
+    case TYPE_REPORT_DELAY:
+      return "report_delay";
+    case TYPE_REPORT_SENSITIVITY:
+      return "report_sensitivity";
+    case TYPE_REPORT_TRIGGER:
+      return "report_trigger";
+    case TYPE_REPORT_Z_RANGE:
+      return "report_z_range";
+    case TYPE_REPORT_INSTALLATION:
+      return "report_installation";
+    case TYPE_REPORT_LOW_POWER:
+      return "report_low_power";
+    case TYPE_REPORT_LOW_POWER_SLEEP:
+      return "report_low_power_sleep";
+    case TYPE_REPORT_WORK_MODE:
+      return "report_work_mode";
+    case TYPE_QUERY_VERSION:
+      return "query_version";
+    default:
+      return "unknown";
+  }
+}
+
+static bool is_expected_control_report(uint32_t command, uint16_t type) {
+  switch (command) {
+    case CMD_GET_AREAS:
+      return type == TYPE_REPORT_INTERFERENCE_AREAS || type == TYPE_REPORT_DETECTION_AREAS;
+    case CMD_GET_DELAY:
+      return type == TYPE_REPORT_DELAY;
+    case CMD_GET_SENSITIVITY:
+      return type == TYPE_REPORT_SENSITIVITY;
+    case CMD_GET_TRIGGER:
+      return type == TYPE_REPORT_TRIGGER;
+    case CMD_GET_Z_RANGE:
+      return type == TYPE_REPORT_Z_RANGE;
+    case CMD_GET_INSTALLATION:
+      return type == TYPE_REPORT_INSTALLATION;
+    case CMD_GET_LOW_POWER:
+    case CMD_LOW_POWER_ON:
+    case CMD_LOW_POWER_OFF:
+      return type == TYPE_REPORT_LOW_POWER;
+    case CMD_GET_LOW_POWER_SLEEP:
+      return type == TYPE_REPORT_LOW_POWER_SLEEP;
+    default:
+      return false;
+  }
+}
+#endif
+
 uint16_t LD6002BComponent::read_u16_be(const uint8_t *data) { return (static_cast<uint16_t>(data[0]) << 8) | data[1]; }
 
 uint32_t LD6002BComponent::read_u32_le(const uint8_t *data) {
@@ -195,6 +337,9 @@ void LD6002BComponent::setup() {
     if (this->trigger_speed_select_ != nullptr) {
       this->send_control_command_(CMD_GET_TRIGGER);
     }
+    if (this->installation_select_ != nullptr) {
+      this->send_control_command_(CMD_GET_INSTALLATION);
+    }
 #endif
 #ifdef USE_NUMBER
     if (this->z_min_number_ != nullptr || this->z_max_number_ != nullptr) {
@@ -309,14 +454,12 @@ void LD6002BComponent::init_installation_pref_() {
   if (this->installation_select_ == nullptr) {
     return;
   }
-  this->installation_pref_ =
-      global_preferences->make_preference<uint8_t>(this->installation_select_->get_preference_hash());
+  this->installation_pref_ = this->installation_select_->make_entity_preference<uint8_t>();
   this->installation_pref_initialized_ = true;
 
   uint8_t value = 0;
   if (this->installation_pref_.load(&value) && value <= 1) {
     this->installation_select_->publish_state(value);
-    this->set_select_value(SelectType::INSTALLATION_MODE, value);
   }
 #endif
 }
@@ -418,9 +561,25 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
 }
 
 void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t len) {
-  const bool matching_ack = len == 0 && this->command_active_ && type == this->active_command_.type &&
-                            ((this->frame_id_ & 0x7FFF) == (this->active_frame_id_ & 0x7FFF));
+  const bool matching_ack_type = len == 0 && this->command_active_ && type == this->active_command_.type;
+  const bool matching_ack_frame_id =
+      ((this->frame_id_ & 0x7FFF) == (this->active_frame_id_ & 0x7FFF)) || this->active_command_.type == TYPE_CONTROL;
+  const bool matching_ack = matching_ack_type && matching_ack_frame_id;
   if (matching_ack) {
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+    const uint32_t active_control_command =
+        this->active_command_.type == TYPE_CONTROL
+            ? read_control_command_value(this->active_command_.data.data(), this->active_command_.len)
+            : 0;
+    if (active_control_command != 0 && ((this->frame_id_ & 0x7FFF) != (this->active_frame_id_ & 0x7FFF))) {
+      ESP_LOGV(TAG, "Accepting %s (0x%02" PRIX32 ") ACK with device frame 0x%04X while active frame is 0x%04X",
+               control_command_name(active_control_command), active_control_command, this->frame_id_, this->active_frame_id_);
+    }
+    if (active_control_command != 0) {
+      ESP_LOGV(TAG, "ACK for %s (0x%02" PRIX32 ") matched frame 0x%04X", control_command_name(active_control_command),
+               active_control_command, this->frame_id_);
+    }
+#endif
     const bool refresh_areas = (type == TYPE_SET_AREA) && this->area_write_pending_;
     this->command_active_ = false;
     this->command_sent_ = false;
@@ -433,6 +592,23 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
     }
     return;
   }
+
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  const uint32_t active_control_command =
+      this->command_active_ && this->active_command_.type == TYPE_CONTROL
+          ? read_control_command_value(this->active_command_.data.data(), this->active_command_.len)
+          : 0;
+  if (len == 0 && this->command_active_ && type == this->active_command_.type && this->frame_id_ != this->active_frame_id_ &&
+      this->active_command_.type != TYPE_CONTROL) {
+    ESP_LOGV(TAG, "Ignoring ACK for %s (0x%02" PRIX32 "): frame 0x%04X did not match active 0x%04X",
+             control_command_name(active_control_command), active_control_command, this->frame_id_, this->active_frame_id_);
+  }
+
+  if (active_control_command != 0 && is_expected_control_report(active_control_command, type)) {
+    ESP_LOGV(TAG, "Received %s (0x%04X) while waiting for %s (0x%02" PRIX32 ") ACK",
+             frame_type_name(type), type, control_command_name(active_control_command), active_control_command);
+  }
+#endif
 
   switch (type) {
     case TYPE_REPORT_TARGET:
@@ -864,13 +1040,28 @@ void LD6002BComponent::process_command_queue_() {
   uint32_t now = millis();
   if (this->command_active_) {
     if (this->command_sent_ && now - this->last_send_ms_ >= CMD_ACK_TIMEOUT_MS) {
+      const uint32_t active_control_command =
+          this->active_command_.type == TYPE_CONTROL
+              ? read_control_command_value(this->active_command_.data.data(), this->active_command_.len)
+              : 0;
       if (this->retries_left_ > 0) {
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+        if (active_control_command != 0) {
+          ESP_LOGV(TAG, "Retrying %s (0x%02" PRIX32 "), %u attempt(s) remaining", control_command_name(active_control_command),
+                   active_control_command, this->retries_left_);
+        }
+#endif
         this->command_sent_ = false;
         this->last_send_ms_ = 0;
         this->send_command_(this->active_command_.type, this->active_command_.data.data(), this->active_command_.len);
         this->retries_left_--;
       } else {
-        ESP_LOGW(TAG, "Command 0x%04X timed out", this->active_command_.type);
+        if (active_control_command != 0) {
+          ESP_LOGW(TAG, "Command 0x%04X subcommand 0x%02" PRIX32 " timed out", this->active_command_.type,
+                   active_control_command);
+        } else {
+          ESP_LOGW(TAG, "Command 0x%04X timed out", this->active_command_.type);
+        }
         if (this->active_command_.type == TYPE_SET_AREA) {
           this->area_write_pending_ = false;
         }
@@ -1214,7 +1405,7 @@ void LD6002BComponent::init_area_id_pref_() {
   if (this->area_id_select_ == nullptr) {
     return;
   }
-  this->area_id_pref_ = global_preferences->make_preference<uint8_t>(this->area_id_select_->get_preference_hash());
+  this->area_id_pref_ = this->area_id_select_->make_entity_preference<uint8_t>();
   this->area_id_pref_initialized_ = true;
 
   uint8_t value = 0;
@@ -1241,8 +1432,7 @@ void LD6002BComponent::init_version_pref_() {
   if (this->ota_version_text_sensor_ == nullptr) {
     return;
   }
-  this->version_pref_ =
-      global_preferences->make_preference<VersionPref>(this->ota_version_text_sensor_->get_preference_hash());
+  this->version_pref_ = this->ota_version_text_sensor_->make_entity_preference<VersionPref>();
   this->version_pref_initialized_ = true;
 
   VersionPref pref{};
