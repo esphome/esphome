@@ -176,6 +176,9 @@ def _sig_base(sym: str) -> str:
     return sym[:start] + sym[end + 1 :]
 
 
+_AMBIGUOUS = object()
+
+
 def _match_signature_changes(
     changed_symbols: list[tuple[str, int, int, int]],
     new_symbols: list[tuple[str, int]],
@@ -194,33 +197,33 @@ def _match_signature_changes(
     if not new_symbols or not removed_symbols:
         return changed_symbols, new_symbols, removed_symbols
 
-    new_by_base: dict[str, list[int]] = {}
-    for i, (sym, _size) in enumerate(new_symbols):
-        new_by_base.setdefault(_sig_base(sym), []).append(i)
-    removed_by_base: dict[str, list[int]] = {}
-    for i, (sym, _size) in enumerate(removed_symbols):
-        removed_by_base.setdefault(_sig_base(sym), []).append(i)
+    # Build base -> entry maps; mark ambiguous bases with sentinel
+    new_by_base: dict[str, tuple[str, int] | object] = {}
+    for entry in new_symbols:
+        base = _sig_base(entry[0])
+        new_by_base[base] = _AMBIGUOUS if base in new_by_base else entry
+    removed_by_base: dict[str, tuple[str, int] | object] = {}
+    for entry in removed_symbols:
+        base = _sig_base(entry[0])
+        removed_by_base[base] = _AMBIGUOUS if base in removed_by_base else entry
 
-    matched_new: set[int] = set()
-    matched_removed: set[int] = set()
-    for base, new_indices in new_by_base.items():
-        rem_indices = removed_by_base.get(base)
-        if rem_indices and len(new_indices) == 1 and len(rem_indices) == 1:
-            ni, ri = new_indices[0], rem_indices[0]
-            pr_sym, pr_size = new_symbols[ni]
-            _rm_sym, target_size = removed_symbols[ri]
-            delta = pr_size - target_size
-            if delta != 0:
-                changed_symbols.append((pr_sym, target_size, pr_size, delta))
-            matched_new.add(ni)
-            matched_removed.add(ri)
+    matched: set[str] = set()  # matched base keys
+    for base, new_entry in new_by_base.items():
+        if new_entry is _AMBIGUOUS:
+            continue
+        rem_entry = removed_by_base.get(base)
+        if rem_entry is None or rem_entry is _AMBIGUOUS:
+            continue
+        pr_sym, pr_size = new_entry
+        _rm_sym, target_size = rem_entry
+        delta = pr_size - target_size
+        if delta != 0:
+            changed_symbols.append((pr_sym, target_size, pr_size, delta))
+        matched.add(base)
 
-    if matched_new:
-        new_symbols = [s for i, s in enumerate(new_symbols) if i not in matched_new]
-    if matched_removed:
-        removed_symbols = [
-            s for i, s in enumerate(removed_symbols) if i not in matched_removed
-        ]
+    if matched:
+        new_symbols = [e for e in new_symbols if _sig_base(e[0]) not in matched]
+        removed_symbols = [e for e in removed_symbols if _sig_base(e[0]) not in matched]
     return changed_symbols, new_symbols, removed_symbols
 
 
