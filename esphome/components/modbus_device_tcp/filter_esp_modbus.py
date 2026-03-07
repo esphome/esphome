@@ -13,6 +13,7 @@ env = None
 # Linters execute this as plain Python, so SCons is not installed (E0401).
 with contextlib.suppress(ImportError, ModuleNotFoundError):
     from SCons.Script import Import as SConsImport  # pylint: disable=import-error
+
     SConsImport("env")
 
 if env is not None:
@@ -77,7 +78,7 @@ if env is not None:
     lib_dir = None
     if os.path.isdir(piolibdeps):
         # .piolibdeps/<pioenv>/<lib_name>/ or .piolibdeps/<lib_name>/; look for modbus/mb_controller + library.json
-        for env_name in ([pioenv] if pioenv else [""]):
+        for env_name in [pioenv] if pioenv else [""]:
             base = os.path.join(piolibdeps, env_name) if env_name else piolibdeps
             if not os.path.isdir(base):
                 continue
