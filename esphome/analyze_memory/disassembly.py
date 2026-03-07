@@ -19,8 +19,8 @@ _INSN_LINE_RE = re.compile(r"^\s*([0-9a-fA-F]+):\s+(.*)")
 # Matches "40001234 <symbol>" and replaces the address portion
 _ABS_ADDR_IN_INSN_RE = re.compile(r"\b[0-9a-fA-F]{5,}\b(?=\s+<)")
 
-# Pattern for symbolic references: <symbol_name> or <symbol_name+0xNN>
-_SYMBOLIC_REF_RE = re.compile(r"<([^>]+?)(?:\+0x[0-9a-fA-F]+)?>")
+# Pattern to strip "+0xNN" offset suffix from a symbol reference
+_OFFSET_SUFFIX_RE = re.compile(r"\+0x[0-9a-fA-F]+$")
 
 # Linker/section symbols that indicate literal pool addresses (not real function refs)
 _LITERAL_POOL_SYMBOLS = frozenset(
@@ -37,20 +37,43 @@ DEFAULT_MIN_SYMBOL_SIZE = 16
 DEFAULT_MAX_SYMBOLS = 500
 
 
-def _normalize_symbolic_ref(
-    match: re.Match, func_name: str, is_literal_load: bool
-) -> str:
-    """Normalize a single symbolic reference for stable diffs.
+def _find_balanced_ref(text: str, start: int) -> tuple[str, int] | None:
+    """Find a balanced <...> symbolic reference starting at position start.
+
+    Handles nested angle brackets from C++ template symbols like
+    <std::vector<unsigned char, std::allocator<unsigned char> >::resize(...)>.
+
+    Returns (content_between_brackets, end_position) or None if not balanced.
+    """
+    if start >= len(text) or text[start] != "<":
+        return None
+    depth = 1
+    pos = start + 1
+    while pos < len(text) and depth > 0:
+        if text[pos] == "<":
+            depth += 1
+        elif text[pos] == ">":
+            depth -= 1
+        pos += 1
+    if depth != 0:
+        return None
+    # content is between the outermost < and >
+    return text[start + 1 : pos - 1], pos
+
+
+def _normalize_ref(content: str, func_name: str, is_literal_load: bool) -> str:
+    """Normalize a symbolic reference for stable diffs.
 
     Args:
-        match: Regex match for <symbol+offset> or <symbol>
+        content: Text between outermost < and > (e.g. "symbol+0x20")
         func_name: Current function name (for detecting self-references)
         is_literal_load: True if this is a literal pool load (l32r)
 
     Returns:
-        Normalized reference string
+        Normalized reference string including angle brackets
     """
-    symbol = match.group(1)
+    # Strip offset suffix (e.g. "symbol+0x20" -> "symbol")
+    symbol = _OFFSET_SUFFIX_RE.sub("", content)
 
     # Literal pool loads (l32r) always reference data, not code
     if is_literal_load:
@@ -66,9 +89,34 @@ def _normalize_symbolic_ref(
         return "<self>"
 
     # Cross-function references - keep the symbol name but strip the offset
-    # The offset is just an artifact of where the literal/branch lands
-    # relative to the nearest symbol, and shifts with any code change
     return f"<{symbol}>"
+
+
+def _normalize_all_refs(insn: str, func_name: str, is_literal_load: bool) -> str:
+    """Replace all <symbol> references in an instruction with normalized forms.
+
+    Scans left-to-right for balanced <...> pairs to correctly handle
+    C++ template symbols with nested angle brackets.
+    """
+    result: list[str] = []
+    pos = 0
+    while pos < len(insn):
+        idx = insn.find("<", pos)
+        if idx == -1:
+            result.append(insn[pos:])
+            break
+        # Copy text before the <
+        result.append(insn[pos:idx])
+        ref = _find_balanced_ref(insn, idx)
+        if ref is None:
+            # Unbalanced - copy the < literally and move on
+            result.append("<")
+            pos = idx + 1
+            continue
+        content, end_pos = ref
+        result.append(_normalize_ref(content, func_name, is_literal_load))
+        pos = end_pos
+    return "".join(result)
 
 
 def _normalize_function_asm(lines: list[str], base_addr: int, func_name: str) -> str:
@@ -102,12 +150,9 @@ def _normalize_function_asm(lines: list[str], base_addr: int, func_name: str) ->
         insn = _ABS_ADDR_IN_INSN_RE.sub("", insn)
         # Detect literal pool loads (Xtensa l32r instruction)
         is_literal = bool(_L32R_RE.match(insn))
-        # Normalize symbolic references
-        # Use default arg to bind is_literal for this iteration
-        insn = _SYMBOLIC_REF_RE.sub(
-            lambda m, _lit=is_literal: _normalize_symbolic_ref(m, func_name, _lit),
-            insn,
-        )
+        # Normalize symbolic references using balanced bracket matching
+        # (regex can't handle nested <> in C++ template symbols)
+        insn = _normalize_all_refs(insn, func_name, is_literal)
         result.append(f"+{offset:#06x}: {insn}")
     return "\n".join(result)
 
