@@ -22,6 +22,11 @@ struct img_mgmt_upload_req {
 
 namespace esphome::zephyr_mcumgr {
 
+static_assert(sizeof(struct img_mgmt_upload_action) == 8, "ABI mismatch");
+static_assert(sizeof(struct img_mgmt_upload_req) == 8, "ABI mismatch");
+static_assert(offsetof(struct img_mgmt_upload_req, image) == 0, "ABI mismatch");
+static_assert(offsetof(struct img_mgmt_upload_req, off) == 4, "ABI mismatch");
+
 static const char *const TAG = "zephyr_mcumgr";
 static OTAComponent *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -36,6 +41,8 @@ static enum mgmt_cb_return mcumgr_img_mgmt_cb(uint32_t event, enum mgmt_cb_retur
     global_ota_component->update_chunk_wrote();
   } else if (MGMT_EVT_OP_IMG_MGMT_DFU_PENDING == event) {
     global_ota_component->update_pending();
+  } else if (MGMT_EVT_OP_IMG_MGMT_DFU_STOPPED == event) {
+    global_ota_component->update_stopped();
   } else {
     ESP_LOGD(TAG, "MCUmgr Image Management Event with the %d ID", u32_count_trailing_zeros(MGMT_EVT_GET_ID(event)));
   }
@@ -45,11 +52,11 @@ static enum mgmt_cb_return mcumgr_img_mgmt_cb(uint32_t event, enum mgmt_cb_retur
 OTAComponent::OTAComponent() { global_ota_component = this; }
 
 void OTAComponent::setup() {
-  img_mgmt_callback_.callback = mcumgr_img_mgmt_cb;
-  img_mgmt_callback_.event_id = MGMT_EVT_OP_IMG_MGMT_ALL;
-  mgmt_callback_register(&img_mgmt_callback_);
+  this->img_mgmt_callback_.callback = mcumgr_img_mgmt_cb;
+  this->img_mgmt_callback_.event_id = MGMT_EVT_OP_IMG_MGMT_ALL;
+  mgmt_callback_register(&this->img_mgmt_callback_);
 #ifdef CONFIG_USB_DEVICE_STACK
-  if (cdc_uart_) {
+  if (this->cdc_uart_) {
     usb_enable(nullptr);
   }
 #endif
@@ -90,7 +97,8 @@ void OTAComponent::dump_config() {
 }
 
 void OTAComponent::update_chunk(const img_mgmt_upload_check &upload) {
-  this->defer([this, upload]() { this->percentage_ = (upload.req->off * 100.0f) / upload.action->size; });
+  float percentage = (upload.req->off * 100.0f) / upload.action->size;
+  this->defer([this, percentage]() { this->percentage_ = percentage; });
 }
 
 void OTAComponent::update_started() {
@@ -120,6 +128,15 @@ void OTAComponent::update_pending() {
     ESP_LOGD(TAG, "OTA pending");
 #ifdef USE_OTA_STATE_LISTENER
     this->notify_state_(ota::OTA_COMPLETED, 100.0f, 0);
+#endif
+  });
+}
+
+void OTAComponent::update_stopped() {
+  this->defer([this]() {
+    ESP_LOGD(TAG, "OTA stopped");
+#ifdef USE_OTA_STATE_LISTENER
+    this->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(ota::OTA_RESPONSE_ERROR_UNKNOWN));
 #endif
   });
 }

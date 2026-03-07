@@ -17,8 +17,9 @@ class OTAComponent : public ota::OTAComponent {
   void update_started();
   void update_chunk_wrote();
   void update_pending();
+  void update_stopped();
 #ifdef CONFIG_USB_DEVICE_STACK
-  void set_cdc_uart() { cdc_uart_ = true; };
+  void set_cdc_uart(bool cdc_uart) { this->cdc_uart_ = cdc_uart; };
 #endif
 
  protected:
