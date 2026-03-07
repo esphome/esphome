@@ -20,7 +20,7 @@ OTA_STATE_LISTENER_KEY = "ota_state_listener"
 CODEOWNERS = ["@esphome/core"]
 
 
-def AUTO_LOAD():
+def AUTO_LOAD() -> list[str]:
     components = ["safe_mode"]
     if not CORE.using_zephyr:
         components.extend(["md5"])
