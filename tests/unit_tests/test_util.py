@@ -557,10 +557,8 @@ def test_run_external_process_line_callbacks() -> None:
             return "PROCESS CALLBACK\n"
         return None
 
-    with patch("subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(returncode=0)
+    with patch("esphome.util.subprocess.run") as mock_run:
 
-        # Capture the RedirectText objects passed to subprocess.run
         def run_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
             # Simulate subprocess writing to the stdout RedirectText
             stdout = kwargs.get("stdout")
