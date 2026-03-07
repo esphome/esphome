@@ -14,6 +14,17 @@ from .const import CONF_ENABLE_IPV4
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
 
+# Lists will be updated in future PRs as IPV4 requirement removed from blacklisted components
+_DISABLE_IPV4_BLACK_LIST = [
+    "esp32_improv",
+    "ethernet",
+    "modem",
+    "mqtt",
+    "udp",
+    "wifi",
+    "wireguard",
+]
+
 _LOGGER = logging.getLogger(__name__)
 
 # High performance networking tracking infrastructure
@@ -143,8 +154,12 @@ def _final_validate(config):
     enable_ipv4 = config.get(CONF_ENABLE_IPV4, None)
     if enable_ipv4 is None:
         enable_ipv4 = True
-    if not enable_ipv4 and (full_config.get("openthread", None)) is None:
-        raise cv.Invalid("OpenThread is required to disable IPV4")
+    if not enable_ipv4:
+        for comp in _DISABLE_IPV4_BLACK_LIST:
+            if full_config.get(comp, None) is not None:
+                raise cv.Invalid(
+                    f"Disabling IPV4 is not currently compatible with component {comp}"
+                )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
