@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -543,3 +545,36 @@ def test_run_external_command_line_callbacks(capsys: pytest.CaptureFixture) -> N
     assert "hello world" in results[0]
     captured = capsys.readouterr()
     assert "CALLBACK FIRED" in captured.out
+
+
+def test_run_external_process_line_callbacks() -> None:
+    """Test that run_external_process passes line_callbacks to RedirectText."""
+    results: list[str] = []
+
+    def callback(line: str) -> str | None:
+        results.append(line)
+        if "from subprocess" in line:
+            return "PROCESS CALLBACK\n"
+        return None
+
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+
+        # Capture the RedirectText objects passed to subprocess.run
+        def run_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
+            # Simulate subprocess writing to the stdout RedirectText
+            stdout = kwargs.get("stdout")
+            if stdout is not None and isinstance(stdout, util.RedirectText):
+                stdout.write("from subprocess\n")
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = run_side_effect
+
+        rc = util.run_external_process(
+            "echo",
+            "test",
+            line_callbacks=[callback],
+        )
+
+    assert rc == 0
+    assert any("from subprocess" in r for r in results)
