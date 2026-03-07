@@ -87,10 +87,10 @@ class ModbusDeviceTCP : public esphome::Component {
   bool modbus_attempted_ = false;
   bool modbus_started_ = false;
 
-  discrete_reg_params_t discrete_reg_params_{};
-  coil_reg_params_t coil_reg_params_{};
-  input_reg_params_t input_reg_params_{};
-  holding_reg_params_t holding_reg_params_{};
+  DiscreteRegParamsT discrete_reg_params_{};
+  CoilRegParamsT coil_reg_params_{};
+  InputRegParamsT input_reg_params_{};
+  HoldingRegParamsT holding_reg_params_{};
 };
 }  // namespace modbus_device_tcp
 }  // namespace esphome

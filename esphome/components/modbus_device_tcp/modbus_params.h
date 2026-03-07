@@ -21,25 +21,25 @@ namespace modbus_device_tcp {
 #define MODBUS_COIL_BYTES ((MODBUS_NUM_OBJECTS + 7) / 8)
 
 #pragma pack(push, 1)
-struct discrete_reg_params_t {
+struct DiscreteRegParamsT {
   uint8_t discrete_data[MODBUS_COIL_BYTES];
 };
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-struct coil_reg_params_t {
+struct CoilRegParamsT {
   uint8_t coil_data[MODBUS_COIL_BYTES];
 };
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-struct input_reg_params_t {
+struct InputRegParamsT {
   uint16_t input_regs[MODBUS_NUM_OBJECTS];
 };
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-struct holding_reg_params_t {
+struct HoldingRegParamsT {
   uint16_t holding_regs[MODBUS_NUM_OBJECTS];
 };
 #pragma pack(pop)
