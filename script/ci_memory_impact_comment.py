@@ -211,6 +211,41 @@ def prepare_symbol_changes_data(
             delta = pr_size - target_size
             changed_symbols.append((symbol, target_size, pr_size, delta))
 
+    # Fuzzy-match new/removed symbols whose function name (before the "(")
+    # is the same — these are signature changes (e.g. argument type changed).
+    # Maps PR symbol name → target symbol name for disassembly lookup.
+    sig_renames: dict[str, str] = {}
+    if new_symbols and removed_symbols:
+        new_by_base: dict[str, list[int]] = {}
+        for i, (sym, _size) in enumerate(new_symbols):
+            base = sym.split("(", 1)[0]
+            new_by_base.setdefault(base, []).append(i)
+        removed_by_base: dict[str, list[int]] = {}
+        for i, (sym, _size) in enumerate(removed_symbols):
+            base = sym.split("(", 1)[0]
+            removed_by_base.setdefault(base, []).append(i)
+
+        matched_new: set[int] = set()
+        matched_removed: set[int] = set()
+        for base, new_indices in new_by_base.items():
+            rem_indices = removed_by_base.get(base)
+            if rem_indices and len(new_indices) == 1 and len(rem_indices) == 1:
+                ni, ri = new_indices[0], rem_indices[0]
+                pr_sym, pr_size = new_symbols[ni]
+                _rm_sym, target_size = removed_symbols[ri]
+                delta = pr_size - target_size
+                changed_symbols.append((pr_sym, target_size, pr_size, delta))
+                sig_renames[pr_sym] = _rm_sym
+                matched_new.add(ni)
+                matched_removed.add(ri)
+
+        if matched_new:
+            new_symbols = [s for i, s in enumerate(new_symbols) if i not in matched_new]
+        if matched_removed:
+            removed_symbols = [
+                s for i, s in enumerate(removed_symbols) if i not in matched_removed
+            ]
+
     if not changed_symbols and not new_symbols and not removed_symbols:
         return None
 
@@ -223,6 +258,7 @@ def prepare_symbol_changes_data(
         "changed_symbols": changed_symbols,
         "new_symbols": new_symbols,
         "removed_symbols": removed_symbols,
+        "sig_renames": sig_renames,
     }
 
 
@@ -390,6 +426,9 @@ def prepare_disassembly_diffs(
             or len(diffs) >= MAX_DISASM_DIFF_SYMBOLS
         )
 
+    # For signature-changed symbols, the target disassembly is under the old name
+    sig_renames = symbol_changes.get("sig_renames", {})
+
     # Changed symbols - show block-level diff
     for symbol, _target_size, _pr_size, _delta in symbol_changes.get(
         "changed_symbols", []
@@ -397,7 +436,8 @@ def prepare_disassembly_diffs(
         if _budget_exceeded():
             break
 
-        target_asm = target_disasm.get(symbol)
+        target_sym = sig_renames.get(symbol, symbol)
+        target_asm = target_disasm.get(target_sym)
         pr_asm = pr_disasm.get(symbol)
         if target_asm is None or pr_asm is None:
             continue
