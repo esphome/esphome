@@ -193,6 +193,16 @@ def test_normalize_function_asm_l32r_literal() -> None:
     assert result == "+0x0000: l32r    a5,  <.literal>"
 
 
+def test_normalize_function_asm_l32r_with_data_ref() -> None:
+    """l32r with parenthesized data reference should be trimmed."""
+    lines = [
+        "  40001000:\tl32r    a11, 400d0080 <_stext+0x60>"
+        " (3f400194 <_flash_rodata_start+0x74>)",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func")
+    assert result == "+0x0000: l32r    a11,  <.literal>"
+
+
 def test_normalize_function_asm_template_in_call() -> None:
     lines = [
         "  40001000:\tcall0     40002000"
@@ -250,3 +260,39 @@ def test_normalize_function_asm_func_size_zero_includes_all() -> None:
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func", func_size=0)
     assert "+0x0004:" in result
+
+
+@pytest.mark.parametrize(
+    "insn",
+    [
+        "excw",
+        "ill",
+        ".byte\t0x4f",
+        ".short\t0x1234",
+        ".word\t0x12345678",
+        "{ excw; excw }",
+        "orb\tb0, b0, b0",
+        "orbc\tb0, b0, b10",
+    ],
+    ids=[
+        "excw",
+        "ill",
+        "byte",
+        "short",
+        "word",
+        "flix_excw",
+        "orb_b0",
+        "orbc_b0",
+    ],
+)
+def test_normalize_function_asm_skips_data_as_code(insn: str) -> None:
+    """Data misinterpreted as code is filtered out."""
+    lines = [
+        "  40001000:\tmov.n    a2, a3",
+        f"  40001002:\t{insn}",
+        "  40001005:\tret.n",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func")
+    assert "+0x0002:" not in result
+    assert "+0x0000:" in result
+    assert "+0x0005:" in result
