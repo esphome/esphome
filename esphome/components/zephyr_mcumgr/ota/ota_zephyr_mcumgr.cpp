@@ -25,7 +25,6 @@ namespace esphome::zephyr_mcumgr {
 static const char *const TAG = "zephyr_mcumgr";
 static OTAComponent *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-
 static enum mgmt_cb_return mcumgr_img_mgmt_cb(uint32_t event, enum mgmt_cb_return prev_status, int32_t *rc,
                                               uint16_t *group, bool *abort_more, void *data, size_t data_size) {
   if (MGMT_EVT_OP_IMG_MGMT_DFU_CHUNK == event) {
@@ -83,9 +82,11 @@ static const char *swap_type_str(uint8_t type) {
 #endif
 
 void OTAComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Over-The-Air Updates:");
-  ESP_LOGCONFIG(TAG, "  swap type after reboot: %s", swap_type_str(mcuboot_swap_type()));
-  ESP_LOGCONFIG(TAG, "  image confirmed: %s", YESNO(boot_is_img_confirmed()));
+  ESP_LOGCONFIG(TAG,
+                "Over-The-Air Updates:\n"
+                "  swap type after reboot: %s\n"
+                "  image confirmed: %s",
+                swap_type_str(mcuboot_swap_type()), YESNO(boot_is_img_confirmed()));
 }
 
 void OTAComponent::update_chunk(const img_mgmt_upload_check &upload) {
@@ -94,7 +95,7 @@ void OTAComponent::update_chunk(const img_mgmt_upload_check &upload) {
 
 void OTAComponent::update_started() {
   this->defer([this]() {
-    ESP_LOGD(TAG, "Starting OTA Update from %s...", "ble");
+    ESP_LOGD(TAG, "Starting update");
 #ifdef USE_OTA_STATE_LISTENER
     this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
 #endif
