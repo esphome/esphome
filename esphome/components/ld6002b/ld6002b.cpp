@@ -573,7 +573,8 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
             : 0;
     if (active_control_command != 0 && ((this->frame_id_ & 0x7FFF) != (this->active_frame_id_ & 0x7FFF))) {
       ESP_LOGV(TAG, "Accepting %s (0x%02" PRIX32 ") ACK with device frame 0x%04X while active frame is 0x%04X",
-               control_command_name(active_control_command), active_control_command, this->frame_id_, this->active_frame_id_);
+               control_command_name(active_control_command), active_control_command, this->frame_id_,
+               this->active_frame_id_);
     }
     if (active_control_command != 0) {
       ESP_LOGV(TAG, "ACK for %s (0x%02" PRIX32 ") matched frame 0x%04X", control_command_name(active_control_command),
@@ -598,15 +599,16 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
       this->command_active_ && this->active_command_.type == TYPE_CONTROL
           ? read_control_command_value(this->active_command_.data.data(), this->active_command_.len)
           : 0;
-  if (len == 0 && this->command_active_ && type == this->active_command_.type && this->frame_id_ != this->active_frame_id_ &&
-      this->active_command_.type != TYPE_CONTROL) {
+  if (len == 0 && this->command_active_ && type == this->active_command_.type &&
+      this->frame_id_ != this->active_frame_id_ && this->active_command_.type != TYPE_CONTROL) {
     ESP_LOGV(TAG, "Ignoring ACK for %s (0x%02" PRIX32 "): frame 0x%04X did not match active 0x%04X",
-             control_command_name(active_control_command), active_control_command, this->frame_id_, this->active_frame_id_);
+             control_command_name(active_control_command), active_control_command, this->frame_id_,
+             this->active_frame_id_);
   }
 
   if (active_control_command != 0 && is_expected_control_report(active_control_command, type)) {
-    ESP_LOGV(TAG, "Received %s (0x%04X) while waiting for %s (0x%02" PRIX32 ") ACK",
-             frame_type_name(type), type, control_command_name(active_control_command), active_control_command);
+    ESP_LOGV(TAG, "Received %s (0x%04X) while waiting for %s (0x%02" PRIX32 ") ACK", frame_type_name(type), type,
+             control_command_name(active_control_command), active_control_command);
   }
 #endif
 
@@ -1047,8 +1049,8 @@ void LD6002BComponent::process_command_queue_() {
       if (this->retries_left_ > 0) {
 #ifdef ESPHOME_LOG_HAS_VERBOSE
         if (active_control_command != 0) {
-          ESP_LOGV(TAG, "Retrying %s (0x%02" PRIX32 "), %u attempt(s) remaining", control_command_name(active_control_command),
-                   active_control_command, this->retries_left_);
+          ESP_LOGV(TAG, "Retrying %s (0x%02" PRIX32 "), %u attempt(s) remaining",
+                   control_command_name(active_control_command), active_control_command, this->retries_left_);
         }
 #endif
         this->command_sent_ = false;
