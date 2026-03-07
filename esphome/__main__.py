@@ -730,8 +730,10 @@ def upload_using_esptool(
             import esptool
 
             return run_external_command(
-                esptool.main, *cmd, line_callbacks=line_callbacks
-            )  # pylint: disable=no-member
+                esptool.main,  # pylint: disable=no-member
+                *cmd,
+                line_callbacks=line_callbacks,
+            )
 
         return run_external_process(*cmd, line_callbacks=line_callbacks)
 
