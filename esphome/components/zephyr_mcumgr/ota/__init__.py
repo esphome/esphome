@@ -14,7 +14,6 @@ from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@tomaszduda23"]
 
-esphome = cg.esphome_ns.namespace("esphome")
 ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
     "OTAComponent", ota.OTAComponent
 )
