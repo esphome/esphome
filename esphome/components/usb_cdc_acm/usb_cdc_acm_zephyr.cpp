@@ -156,8 +156,14 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
 }
 
 void USBCDCACMInstance::flush() {
+  constexpr uint32_t timeout_5sec = 5000;
   uart_irq_tx_enable(this->uart_dev_);
+  uint32_t start = millis();
   while (!ring_buf_is_empty(&this->tx_ringbuf_)) {
+    if (millis() - start > timeout_5sec) {
+      ESP_LOGW(TAG, "Flush timeout");
+      return;
+    }
     delay(1);
   }
 }
