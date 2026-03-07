@@ -118,6 +118,38 @@ def test_source_block_diff_different_headers_full_replacement() -> None:
     assert "+call8 <new>" in diff
 
 
+def test_source_block_diff_line_number_shift_skipped() -> None:
+    """Line number changes with identical instructions produce no diff."""
+    target = (
+        "# mipi_rgb.cpp:305  void fill(Color c) {\nentry a1, 48\n"
+        "# mipi_rgb.cpp:306  if (!check())\nmov a10, a2\ncall8 <check>"
+    )
+    pr = (
+        "# mipi_rgb.cpp:307  void fill(Color c) {\nentry a1, 48\n"
+        "# mipi_rgb.cpp:308  if (!check())\nmov a10, a2\ncall8 <check>"
+    )
+    diff = _source_block_diff(target, pr)
+    assert diff is None
+
+
+def test_source_block_diff_line_number_shift_with_change() -> None:
+    """Line number shift + real instruction change shows only the change."""
+    target = (
+        "# mipi_rgb.cpp:305  void fill(Color c) {\nentry a1, 48\n"
+        "# mipi_rgb.cpp:306  if (!check())\nmov a10, a2\ncall8 <check>"
+    )
+    pr = (
+        "# mipi_rgb.cpp:307  void fill(Color c) {\nentry a1, 48\n"
+        "# mipi_rgb.cpp:308  if (!check())\nmov a10, a2\ncall8 <verify>"
+    )
+    diff = _source_block_diff(target, pr)
+    assert diff is not None
+    assert "-call8 <check>" in diff
+    assert "+call8 <verify>" in diff
+    # Unchanged block should not appear
+    assert "entry" not in " ".join(diff)
+
+
 def test_count_instructions_skips_comments() -> None:
     """Comment lines (source annotations) are not counted as instructions."""
     asm = (
