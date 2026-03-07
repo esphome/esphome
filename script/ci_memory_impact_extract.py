@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import sys
@@ -167,10 +168,16 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
                 result["symbols"][demangled] = size
 
     # Extract disassembly for symbols (normalized for diffing)
+    # Restrict source file reads to the workspace to prevent exfiltration
+    # of arbitrary files via crafted #line directives in malicious PRs
+    source_root = os.environ.get("GITHUB_WORKSPACE") or str(
+        Path(build_dir).resolve().parent.parent.parent
+    )
     disasm = extract_disassembly(
         objdump_path=analyzer.objdump_path,
         elf_path=elf_path,
         symbol_sizes=result["symbols"],
+        source_root=source_root,
     )
     if disasm:
         result["disassembly"] = disasm

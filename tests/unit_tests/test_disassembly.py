@@ -4,6 +4,7 @@ import pytest
 
 from esphome.analyze_memory.disassembly import (
     _find_balanced_ref,
+    _is_safe_path,
     _normalize_all_refs,
     _normalize_encoding,
     _normalize_function_asm,
@@ -524,3 +525,51 @@ def test_normalize_function_asm_or_move_normalized() -> None:
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
     assert "mov    a10, a2" in result
     assert "or " not in result
+
+
+# --- Tests for _is_safe_path ---
+
+
+def test_is_safe_path_under_root(tmp_path: str) -> None:
+    """Paths under source_root are allowed."""
+    import os
+
+    root = str(tmp_path)
+    assert _is_safe_path(os.path.join(root, "src", "file.cpp"), root)
+
+
+def test_is_safe_path_outside_root(tmp_path: str) -> None:
+    """Paths outside source_root are rejected."""
+    assert not _is_safe_path("/etc/passwd", str(tmp_path))
+
+
+def test_is_safe_path_proc(tmp_path: str) -> None:
+    """Proc filesystem paths are rejected."""
+    assert not _is_safe_path("/proc/self/environ", str(tmp_path))
+
+
+def test_normalize_function_asm_source_root_restricts_reads(tmp_path: str) -> None:
+    """Source annotations only inline code from files under source_root."""
+    import os
+
+    # Create a source file inside the allowed root
+    src_dir = os.path.join(str(tmp_path), "src")
+    os.makedirs(src_dir)
+    src_file = os.path.join(src_dir, "allowed.cpp")
+    with open(src_file, "w") as f:
+        f.write("line1\nallowed_code_here\nline3\n")
+
+    lines = [
+        f"{src_file}:2",
+        "  40001000:\tmov.n    a2, a3",
+        "/etc/passwd:1",
+        "  40001002:\tret.n",
+    ]
+    result = _normalize_function_asm(
+        lines, 0x40001000, "test_func", source_root=str(tmp_path)
+    )
+    # Allowed file content is inlined
+    assert "allowed_code_here" in result
+    # Disallowed path shows only basename:line, no content
+    assert "# passwd:1" in result
+    assert "root:" not in result

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 import logging
+from pathlib import Path
 import re
 
 from .toolchain import run_tool
@@ -165,6 +167,17 @@ def _normalize_all_refs(insn: str, func_name: str, is_literal_load: bool) -> str
     return "".join(result)
 
 
+@lru_cache(maxsize=512)
+def _is_safe_path(filepath: str, source_root: str) -> bool:
+    """Check if filepath is under source_root (resolves symlinks)."""
+    try:
+        real_path = Path(filepath).resolve()
+        real_root = Path(source_root).resolve()
+        return real_path == real_root or real_root in real_path.parents
+    except (OSError, ValueError):
+        return False
+
+
 def _normalize_encoding(insn: str) -> str:
     """Normalize instruction encoding variants for stable diffs.
 
@@ -183,6 +196,7 @@ def _normalize_function_asm(
     func_name: str,
     func_size: int = 0,
     max_insns: int = 0,
+    source_root: str | None = None,
 ) -> str:
     """Normalize instruction lines for stable cross-build diffs.
 
@@ -199,6 +213,8 @@ def _normalize_function_asm(
         func_name: Demangled name of the current function
         func_size: Known size of the function in bytes (0 = no limit)
         max_insns: Maximum instruction lines to include (0 = no limit)
+        source_root: If set, only read source files under this directory.
+            Prevents exfiltration of arbitrary files via crafted #line directives.
 
     Returns:
         Normalized disassembly text (one instruction per line, no addresses)
@@ -221,15 +237,16 @@ def _normalize_function_asm(
             filepath = src_match.group(1)
             lineno = int(src_match.group(2))
             filename = filepath.rsplit("/", 1)[-1]
-            # Try to read the actual source line
+            # Try to read the actual source line (only from allowed paths)
             source_line = None
-            if filepath not in source_cache:
+            can_read = source_root is None or _is_safe_path(filepath, source_root)
+            if can_read and filepath not in source_cache:
                 try:
                     with open(filepath, encoding="utf-8", errors="replace") as f:
                         source_cache[filepath] = f.readlines()
                 except OSError:
                     source_cache[filepath] = []
-            file_lines = source_cache[filepath]
+            file_lines = source_cache.get(filepath, [])
             if 0 < lineno <= len(file_lines):
                 source_line = file_lines[lineno - 1].strip()
             if source_line:
@@ -304,11 +321,12 @@ def extract_disassembly(
     max_lines_per_symbol: int = DEFAULT_MAX_LINES_PER_SYMBOL,
     min_symbol_size: int = DEFAULT_MIN_SYMBOL_SIZE,
     max_symbols: int = DEFAULT_MAX_SYMBOLS,
+    source_root: str | None = None,
 ) -> dict[str, str]:
     """Extract normalized disassembly from an ELF file.
 
     Runs objdump -d -C --no-show-raw-insn on the ELF, parses the output
-    into per-function disassembly, normalizes addresses to relative offsets,
+    into per-function disassembly, normalizes addresses and encoding,
     and returns a dict mapping demangled symbol names to their disassembly.
 
     Args:
@@ -320,6 +338,8 @@ def extract_disassembly(
         max_lines_per_symbol: Maximum instruction lines per symbol
         min_symbol_size: Minimum symbol size in bytes to include
         max_symbols: Maximum number of symbols to include (largest first)
+        source_root: If set, only read source files under this directory.
+            Prevents exfiltration of arbitrary files via crafted #line directives.
 
     Returns:
         Dict mapping demangled symbol name to normalized disassembly text
@@ -349,6 +369,7 @@ def extract_disassembly(
                 current_func,
                 func_size,
                 max_insns=max_lines_per_symbol,
+                source_root=source_root,
             )
             if asm:
                 functions[current_func] = asm
