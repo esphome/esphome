@@ -361,6 +361,22 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
   }
 }
 
+void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg) {
+  auto *connection = this->get_connection_(msg.address, false);
+  api::BluetoothSetConnectionParamsResponse resp;
+  resp.address = msg.address;
+
+  if (connection == nullptr || !connection->connected()) {
+    ESP_LOGW(TAG, "Cannot set connection params, not connected");
+    resp.error = ESP_GATT_NOT_CONNECTED;
+    this->api_connection_->send_message(resp);
+    return;
+  }
+
+  resp.error = connection->update_connection_params(msg.min_interval, msg.max_interval, msg.latency, msg.timeout);
+  this->api_connection_->send_message(resp);
+}
+
 void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
   if (this->api_connection_ != nullptr) {
     ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
