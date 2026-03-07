@@ -82,7 +82,7 @@ void WhirlpoolClimate::transmit_state() {
   remote_state[3] |= (uint8_t) (temp - this->temperature_min_()) << 4;
 
   // Fan speed
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_HIGH:
       remote_state[2] |= WHIRLPOOL_FAN_HIGH;
       break;

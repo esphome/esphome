@@ -56,11 +56,11 @@ void SX1509Component::loop() {
       return;
     }
     int row, col;
-    for (row = 0; row < 7; row++) {
+    for (row = 0; row < 8; row++) {
       if (key_data & (1 << row))
         break;
     }
-    for (col = 8; col < 15; col++) {
+    for (col = 8; col < 16; col++) {
       if (key_data & (1 << col))
         break;
     }
@@ -229,7 +229,7 @@ void SX1509Component::setup_keypad_() {
   this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
   for (int i = 0; i < this->rows_; i++)
     this->ddr_mask_ &= ~(1 << i);
-  for (int i = 8; i < (this->cols_ * 2); i++)
+  for (int i = 8; i < (8 + this->cols_); i++)
     this->ddr_mask_ |= (1 << i);
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 

@@ -134,9 +134,8 @@ def datetime_schema(class_: MockObjClass) -> cv.Schema:
     return _DATETIME_SCHEMA.extend(schema)
 
 
+@setup_entity("datetime")
 async def setup_datetime_core_(var, config):
-    await setup_entity(var, config, "datetime")
-
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
