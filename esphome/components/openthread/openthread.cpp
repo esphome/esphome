@@ -267,10 +267,10 @@ void OpenThreadComponent::set_link_mode(otInstance *instance, bool keep_radio_on
   this->link_mode_config_.mNetworkData = true;
 #elif CONFIG_OPENTHREAD_MTD
 #ifdef USE_OPENTHREAD_POLL_PERIOD
-  if (set_poll_period && otLinkSetPollPeriod(this->get_openthread_instance(), this->poll_period_) != OT_ERROR_NONE) {
+  if (set_poll_period && otLinkSetPollPeriod(this->get_openthread_instance_(), this->poll_period_) != OT_ERROR_NONE) {
     ESP_LOGE(TAG, "Failed to set OpenThread pollperiod.");
   }
-  uint32_t link_polling_period = otLinkGetPollPeriod(this->get_openthread_instance());
+  uint32_t link_polling_period = otLinkGetPollPeriod(this->get_openthread_instance_());
   ESP_LOGD(TAG, "Link Polling Period: %d", link_polling_period);
 #endif
   this->link_mode_config_.mRxOnWhenIdle = (this->poll_period_ == 0 || keep_radio_on);
@@ -287,7 +287,7 @@ void OpenThreadComponent::set_link_mode(otInstance *instance, bool keep_radio_on
            this->link_mode_config_.mNetworkData ? "true" : "false",
            this->link_mode_config_.mRxOnWhenIdle ? "true" : "false");
 
-  if (otThreadSetLinkMode(this->get_openthread_instance(), this->link_mode_config_) != OT_ERROR_NONE) {
+  if (otThreadSetLinkMode(this->get_openthread_instance_(), this->link_mode_config_) != OT_ERROR_NONE) {
     ESP_LOGE(TAG, "Failed to set OpenThread linkmode.");
   }
 }
