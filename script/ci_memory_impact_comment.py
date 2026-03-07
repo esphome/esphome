@@ -200,17 +200,28 @@ def prepare_symbol_changes_data(
             delta = pr_size - target_size
             changed_symbols.append((symbol, target_size, pr_size, delta))
 
-    # Fuzzy-match new/removed symbols whose function name (before the "(")
-    # is the same — these are signature changes (e.g. argument type changed).
+    # Fuzzy-match new/removed symbols whose function name is the same but
+    # argument types differ — these are signature changes.
+    # The base key strips what's between the outermost "(" and ")" so that
+    # "foo(int)::nested" and "foo(float)::nested" share key "foo()::nested"
+    # but "foo(int)" and "foo(int)::nested" do NOT collide.
     if new_symbols and removed_symbols:
+
+        def _sig_base(sym: str) -> str:
+            start = sym.find("(")
+            if start == -1:
+                return sym
+            end = sym.rfind(")")
+            if end == -1:
+                return sym
+            return sym[:start] + sym[end + 1 :]
+
         new_by_base: dict[str, list[int]] = {}
         for i, (sym, _size) in enumerate(new_symbols):
-            base = sym.split("(", 1)[0]
-            new_by_base.setdefault(base, []).append(i)
+            new_by_base.setdefault(_sig_base(sym), []).append(i)
         removed_by_base: dict[str, list[int]] = {}
         for i, (sym, _size) in enumerate(removed_symbols):
-            base = sym.split("(", 1)[0]
-            removed_by_base.setdefault(base, []).append(i)
+            removed_by_base.setdefault(_sig_base(sym), []).append(i)
 
         matched_new: set[int] = set()
         matched_removed: set[int] = set()
@@ -221,7 +232,8 @@ def prepare_symbol_changes_data(
                 pr_sym, pr_size = new_symbols[ni]
                 _rm_sym, target_size = removed_symbols[ri]
                 delta = pr_size - target_size
-                changed_symbols.append((pr_sym, target_size, pr_size, delta))
+                if delta != 0:
+                    changed_symbols.append((pr_sym, target_size, pr_size, delta))
                 matched_new.add(ni)
                 matched_removed.add(ri)
 
