@@ -245,11 +245,11 @@ def _truncate_lines(lines: list[str], max_lines: int) -> str:
 def _count_instructions(asm: str | None) -> int:
     """Count instructions in normalized disassembly text.
 
-    Each line in normalized output is one instruction.
+    Skips comment lines (source annotations starting with #).
     """
     if not asm:
         return 0
-    return len(asm.splitlines())
+    return sum(1 for line in asm.splitlines() if not line.startswith("# "))
 
 
 def prepare_disassembly_diffs(
