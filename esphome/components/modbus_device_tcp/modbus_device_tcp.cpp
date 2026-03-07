@@ -76,7 +76,7 @@ void ModbusDeviceTCP::start_modbus_() {
   err = mbc_slave_start(device_handler_);  // NOLINT(readability-terms)
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "mbc_slave_start failed: %s", esp_err_to_name(err));  // NOLINT(readability-terms)
-    (void) mbc_slave_delete(device_handler_);  // NOLINT(readability-terms)
+    (void) mbc_slave_delete(device_handler_);                           // NOLINT(readability-terms)
     device_handler_ = nullptr;
     return;
   }
