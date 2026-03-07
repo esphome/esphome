@@ -1,0 +1,60 @@
+uart:
+  id: bus_1
+  rx_pin:
+    number: ${rx_pin}
+    mode:
+      input: true
+      pullup: true
+  tx_pin: ${tx_pin}
+  baud_rate: 9600
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+dlms_push:
+  id: my_dlms_meter
+  uart_id: bus_1
+  show_log: true
+  receive_timeout: 50ms
+  custom_pattern: "0E010605" # Example pattern for testing compilation
+
+sensor:
+  - platform: dlms_push
+    id: active_energy_consumed
+    name: "Energy"
+    obis_code: 1.0.1.8.0.255
+    unit_of_measurement: kWh
+    accuracy_decimals: 3
+    device_class: energy
+    state_class: total_increasing
+    filters:
+      - lambda: "return x/1000.0;"
+
+  - platform: dlms_push
+    id: active_power
+    name: "Active power consumption"
+    obis_code: 1.0.1.7.0.255
+    unit_of_measurement: W
+    accuracy_decimals: 0
+    device_class: power
+    state_class: measurement
+
+binary_sensor:
+  - platform: dlms_push
+    name: "Disconnector state"
+    obis_code: 0.0.96.3.10.255
+
+  - platform: dlms_push
+    name: "Relay 1"
+    obis_code: 0.1.96.3.10.255
+
+text_sensor:
+  - platform: dlms_push
+    name: "Serial number"
+    obis_code: 0.0.96.1.1.255
+    entity_category: diagnostic
+
+  - platform: dlms_push
+    name: "Current tariff"
+    obis_code: 0.0.96.14.0.255
+    entity_category: diagnostic
