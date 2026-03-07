@@ -237,9 +237,9 @@ class Proto32Bit {
 // NOTE: Proto64Bit class removed - wire type 1 (64-bit fixed) not supported
 
 /// Helper to use make_unique_for_overwrite where available (skips zero-fill),
-/// falling back to make_unique on ESP8266's older GCC.
+/// falling back to make_unique on older GCC (ESP8266, BK72xx).
 inline std::unique_ptr<uint8_t[]> make_buffer(size_t n) {
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_BK72XX)
   return std::make_unique<uint8_t[]>(n);
 #else
   return std::make_unique_for_overwrite<uint8_t[]>(n);
