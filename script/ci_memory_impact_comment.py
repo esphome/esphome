@@ -252,12 +252,100 @@ def _count_instructions(asm: str | None) -> int:
     return sum(1 for line in asm.splitlines() if not line.startswith("# "))
 
 
+def _parse_source_blocks(asm: str) -> list[tuple[str, str]]:
+    """Parse normalized asm into source-annotated blocks.
+
+    Each block is (source_annotation, instructions_text) where
+    instructions_text contains one or more instruction lines joined by newlines.
+    The first block may have an empty annotation if instructions precede
+    any source line.
+
+    Returns:
+        List of (annotation, instructions) tuples
+    """
+    blocks: list[tuple[str, str]] = []
+    current_annotation = ""
+    current_insns: list[str] = []
+
+    for line in asm.splitlines():
+        if line.startswith("# "):
+            if current_insns:
+                blocks.append((current_annotation, "\n".join(current_insns)))
+                current_insns = []
+            current_annotation = line
+        else:
+            current_insns.append(line)
+
+    if current_insns:
+        blocks.append((current_annotation, "\n".join(current_insns)))
+
+    return blocks
+
+
+def _source_block_diff(target_asm: str, pr_asm: str) -> list[str] | None:
+    """Compute diff at source-block granularity, showing only changed blocks.
+
+    Groups instructions by their source annotation and uses SequenceMatcher
+    to align blocks. Unchanged blocks are skipped entirely, which eliminates
+    noise from instruction reordering within unchanged code and focuses the
+    diff on blocks where the generated code actually changed.
+
+    Returns:
+        List of diff lines (prefixed with +/-) or None if no changes.
+    """
+    target_blocks = _parse_source_blocks(target_asm)
+    pr_blocks = _parse_source_blocks(pr_asm)
+
+    # Convert each block to a single comparable string
+    def _block_str(annotation: str, body: str) -> str:
+        return f"{annotation}\n{body}" if annotation else body
+
+    target_strs = [_block_str(a, b) for a, b in target_blocks]
+    pr_strs = [_block_str(a, b) for a, b in pr_blocks]
+
+    if target_strs == pr_strs:
+        return None
+
+    sm = difflib.SequenceMatcher(None, target_strs, pr_strs)
+    result: list[str] = []
+    has_output = False
+
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            continue
+
+        # Add separator between non-adjacent change hunks
+        if has_output:
+            result.append("...")
+        has_output = True
+
+        if tag in ("replace", "delete"):
+            result.extend(
+                f"-{line}"
+                for block_str in target_strs[i1:i2]
+                for line in block_str.splitlines()
+            )
+
+        if tag in ("replace", "insert"):
+            result.extend(
+                f"+{line}"
+                for block_str in pr_strs[j1:j2]
+                for line in block_str.splitlines()
+            )
+
+    return result or None
+
+
 def prepare_disassembly_diffs(
     target_disasm: dict | None,
     pr_disasm: dict | None,
     symbol_changes: dict | None,
 ) -> list[tuple[str, str, str, int, int]] | None:
     """Prepare disassembly diffs for changed symbols.
+
+    Uses source-block-level diffing to show only the blocks where generated
+    code actually changed, reducing noise from instruction reordering and
+    encoding differences in unchanged sections.
 
     Args:
         target_disasm: Symbol name to disassembly mapping for target branch
@@ -286,7 +374,7 @@ def prepare_disassembly_diffs(
             or len(diffs) >= MAX_DISASM_DIFF_SYMBOLS
         )
 
-    # Changed symbols - show unified diff
+    # Changed symbols - show block-level diff
     for symbol, _target_size, _pr_size, _delta in symbol_changes.get(
         "changed_symbols", []
     ):
@@ -300,15 +388,7 @@ def prepare_disassembly_diffs(
         if target_asm == pr_asm:
             continue
 
-        diff_lines = list(
-            difflib.unified_diff(
-                target_asm.splitlines(),
-                pr_asm.splitlines(),
-                fromfile="target",
-                tofile="pr",
-                lineterm="",
-            )
-        )
+        diff_lines = _source_block_diff(target_asm, pr_asm)
         if not diff_lines:
             continue
 

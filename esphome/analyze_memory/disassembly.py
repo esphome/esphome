@@ -52,15 +52,28 @@ _DATA_AS_CODE_RE = re.compile(
     r")"
 )
 
+# Narrow/wide encoding suffixes (.n/.w) are just size variants of the same
+# instruction. Stripping them eliminates diff noise from the compiler choosing
+# a different encoding without changing semantics.
+# Matches the mnemonic at the start: "mov.n " → "mov ", "ret.n" → "ret"
+_ENCODING_SUFFIX_RE = re.compile(r"^(\w+)\.[nw](?=\s|$)")
+
+# Xtensa "or aX, aY, aY" is the standard idiom for "mov aX, aY" when the
+# assembler can't use the narrow mov.n encoding. Normalize to mov so that
+# register allocator choices don't cause false diffs.
+_OR_MOVE_RE = re.compile(r"^or(\s+)(a\d+),\s*(a\d+),\s*\3$")
+
 # Unconditional control flow instructions — code after these is unreachable
 # unless it's a branch target. Used to skip switch tables, literal pools,
 # and padding that objdump's linear sweep misinterprets as instructions.
+# Note: .n/.w suffixes are already stripped by _normalize_encoding() before
+# this regex is applied, so we only need the base mnemonics.
 _UNCONDITIONAL_FLOW_RE = re.compile(
     r"^(?:"
     # Xtensa unconditional jumps and returns
-    r"j\s|jx\s|ret\b|retw\b|ret\.n\b|retw\.n\b"
+    r"j\s|jx\s|ret\b|retw\b"
     # ARM Thumb unconditional branches and returns
-    r"|b\s|b\.w\s|b\.n\s|bx\s+lr|pop\s+\{[^}]*pc\}"
+    r"|b\s|bx\s+lr|pop\s+\{[^}]*pc\}"
     r")"
 )
 
@@ -150,6 +163,18 @@ def _normalize_all_refs(insn: str, func_name: str, is_literal_load: bool) -> str
         result.append(_normalize_ref(content, func_name, is_literal_load))
         pos = end_pos
     return "".join(result)
+
+
+def _normalize_encoding(insn: str) -> str:
+    """Normalize instruction encoding variants for stable diffs.
+
+    Strips narrow/wide encoding suffixes (.n/.w) since they're just
+    size variants of the same instruction. Also normalizes
+    architecture-specific move idioms.
+    """
+    # Strip .n/.w encoding suffixes: mov.n → mov, s32i.n → s32i, b.w → b
+    # Xtensa: "or aX, aY, aY" is an idiom for "mov aX, aY"
+    return _OR_MOVE_RE.sub(r"mov\1\2, \3", _ENCODING_SUFFIX_RE.sub(r"\1", insn))
 
 
 def _normalize_function_asm(
@@ -254,6 +279,7 @@ def _normalize_function_asm(
 
         # Normalize the instruction
         insn = _ABS_ADDR_IN_INSN_RE.sub("", insn)
+        insn = _normalize_encoding(insn)
         is_literal = bool(_L32R_RE.match(insn))
         insn = _normalize_all_refs(insn, func_name, is_literal)
         if is_literal:
