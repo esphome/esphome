@@ -15,6 +15,11 @@ _FUNC_HEADER_RE = re.compile(r"^([0-9a-fA-F]+)\s+<(.+)>:\s*$")
 # Pattern for instruction lines: "  40001234:\tinstruction"
 _INSN_LINE_RE = re.compile(r"^\s*([0-9a-fA-F]+):\s+(.*)")
 
+# Pattern for source line annotations from objdump -l:
+#   /path/to/file.cpp:123
+#   /path/to/file.cpp:123 (discriminator 3)
+_SOURCE_LINE_RE = re.compile(r"^(/\S+):(\d+)\b")
+
 # Pattern for absolute addresses before symbolic references in instructions
 # Matches "40001234 <symbol>" and replaces the address portion
 _ABS_ADDR_IN_INSN_RE = re.compile(r"\b[0-9a-fA-F]{5,}\b(?=\s+<)")
@@ -60,7 +65,7 @@ _UNCONDITIONAL_FLOW_RE = re.compile(
 )
 
 # Default limits
-DEFAULT_MAX_LINES_PER_SYMBOL = 150
+DEFAULT_MAX_LINES_PER_SYMBOL = 300
 DEFAULT_MIN_SYMBOL_SIZE = 16
 DEFAULT_MAX_SYMBOLS = 500
 
@@ -148,7 +153,11 @@ def _normalize_all_refs(insn: str, func_name: str, is_literal_load: bool) -> str
 
 
 def _normalize_function_asm(
-    lines: list[str], base_addr: int, func_name: str, func_size: int = 0
+    lines: list[str],
+    base_addr: int,
+    func_name: str,
+    func_size: int = 0,
+    max_insns: int = 0,
 ) -> str:
     """Normalize instruction lines for stable cross-build diffs.
 
@@ -160,23 +169,50 @@ def _normalize_function_asm(
     cascade through the entire diff.
 
     Args:
-        lines: Raw instruction lines from objdump
+        lines: Raw instruction lines from objdump (may include source annotations)
         base_addr: Base address of the function
         func_name: Demangled name of the current function
         func_size: Known size of the function in bytes (0 = no limit)
+        max_insns: Maximum instruction lines to include (0 = no limit)
 
     Returns:
         Normalized disassembly text (one instruction per line, no addresses)
     """
     # Pass 1: parse instructions and collect branch target offsets
-    parsed: list[tuple[int, str]] = []
+    # Each entry is (offset, instruction_text, source_annotation_or_None)
+    parsed: list[tuple[int, str, str | None]] = []
     branch_targets: set[int] = {0}  # Function entry is always reachable
     escaped_name = re.escape(func_name)
     self_ref_re = re.compile(
         rf"<{escaped_name}(?:\+0x([0-9a-fA-F]+))?>",
     )
+    pending_source: str | None = None
+    source_cache: dict[str, list[str]] = {}
 
     for line in lines:
+        # Check for source line annotations (from objdump -l)
+        src_match = _SOURCE_LINE_RE.match(line)
+        if src_match:
+            filepath = src_match.group(1)
+            lineno = int(src_match.group(2))
+            filename = filepath.rsplit("/", 1)[-1]
+            # Try to read the actual source line
+            source_line = None
+            if filepath not in source_cache:
+                try:
+                    with open(filepath, encoding="utf-8", errors="replace") as f:
+                        source_cache[filepath] = f.readlines()
+                except OSError:
+                    source_cache[filepath] = []
+            file_lines = source_cache[filepath]
+            if 0 < lineno <= len(file_lines):
+                source_line = file_lines[lineno - 1].strip()
+            if source_line:
+                pending_source = f"{filename}:{lineno}  {source_line}"
+            else:
+                pending_source = f"{filename}:{lineno}"
+            continue
+
         m = _INSN_LINE_RE.match(line)
         if not m:
             continue
@@ -187,7 +223,8 @@ def _normalize_function_asm(
         insn = m.group(2)
         if _DATA_AS_CODE_RE.match(insn):
             continue
-        parsed.append((offset, insn))
+        parsed.append((offset, insn, pending_source))
+        pending_source = None
 
         # Collect self-reference targets as branch targets
         for ref_match in self_ref_re.finditer(insn):
@@ -199,12 +236,21 @@ def _normalize_function_asm(
     # Pass 2: normalize and skip unreachable code after unconditional jumps
     result: list[str] = []
     dead = False
+    last_source: str | None = None
+    insn_count = 0
 
-    for offset, insn in parsed:
+    for offset, insn, source in parsed:
+        if max_insns and insn_count >= max_insns:
+            break
         if dead:
             if offset not in branch_targets:
                 continue  # Skip unreachable instruction (likely data)
             dead = False
+
+        # Add source annotation if it changed (deduplicate consecutive refs)
+        if source is not None and source != last_source:
+            result.append(f"# {source}")
+            last_source = source
 
         # Normalize the instruction
         insn = _ABS_ADDR_IN_INSN_RE.sub("", insn)
@@ -215,6 +261,7 @@ def _normalize_function_asm(
             if idx != -1:
                 insn = insn[: idx + len("<.literal>")]
         result.append(insn)
+        insn_count += 1
 
         # After unconditional control flow, subsequent code is unreachable
         # unless it's a branch target from elsewhere in the function
@@ -252,7 +299,7 @@ def extract_disassembly(
         Dict mapping demangled symbol name to normalized disassembly text
     """
     result = run_tool(
-        [objdump_path, "-d", "-C", "--no-show-raw-insn", elf_path],
+        [objdump_path, "-d", "-l", "-C", "--no-show-raw-insn", elf_path],
         timeout=120,
     )
     if not result or result.returncode != 0:
@@ -271,10 +318,11 @@ def extract_disassembly(
         if current_func is not None and current_lines:
             func_size = sizes.get(current_func, 0)
             asm = _normalize_function_asm(
-                current_lines[:max_lines_per_symbol],
+                current_lines,
                 base_addr,
                 current_func,
                 func_size,
+                max_insns=max_lines_per_symbol,
             )
             if asm:
                 functions[current_func] = asm

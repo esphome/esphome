@@ -233,6 +233,59 @@ def test_normalize_function_asm_empty_input() -> None:
     assert _normalize_function_asm([], 0x40001000, "test_func") == ""
 
 
+def test_normalize_function_asm_source_annotations() -> None:
+    """Source line annotations from objdump -l are included as comments.
+
+    When source files aren't readable, just filename:line is shown.
+    """
+    lines = [
+        "/nonexistent/path/file.cpp:42",
+        "  40001000:\tmov.n    a2, a3",
+        "/nonexistent/path/file.cpp:43",
+        "  40001002:\tret.n",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func")
+    assert result == "# file.cpp:42\nmov.n    a2, a3\n# file.cpp:43\nret.n"
+
+
+def test_normalize_function_asm_source_annotations_deduplicated() -> None:
+    """Consecutive references to the same source line are deduplicated."""
+    lines = [
+        "/nonexistent/path/file.cpp:42",
+        "  40001000:\tmov.n    a2, a3",
+        "/nonexistent/path/file.cpp:42",
+        "  40001002:\tret.n",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func")
+    assert result == "# file.cpp:42\nmov.n    a2, a3\nret.n"
+
+
+def test_normalize_function_asm_source_annotations_with_discriminator() -> None:
+    """Source annotations with discriminator suffix are parsed correctly."""
+    lines = [
+        "/nonexistent/path/file.cpp:42 (discriminator 3)",
+        "  40001000:\tmov.n    a2, a3",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func")
+    assert result == "# file.cpp:42\nmov.n    a2, a3"
+
+
+def test_normalize_function_asm_max_insns() -> None:
+    """max_insns limits instruction count but not source annotations."""
+    lines = [
+        "/path/to/file.cpp:1",
+        "  40001000:\tmov.n    a2, a3",
+        "/path/to/file.cpp:2",
+        "  40001002:\tmov.n    a4, a5",
+        "/path/to/file.cpp:3",
+        "  40001004:\tret.n",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func", max_insns=2)
+    assert "mov.n    a2, a3" in result
+    assert "mov.n    a4, a5" in result
+    assert "ret.n" not in result
+
+
 def test_normalize_function_asm_func_size_excludes_padding() -> None:
     """Instructions past the known function size are excluded.
 
