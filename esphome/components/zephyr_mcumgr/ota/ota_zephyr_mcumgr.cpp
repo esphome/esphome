@@ -52,7 +52,7 @@ void OTAComponent::setup() {
   mgmt_callback_register(&img_mgmt_callback_);
 #ifdef CONFIG_USB_DEVICE_STACK
   if (cdc_uart_) {
-    usb_enable(NULL);
+    usb_enable(nullptr);
   }
 #endif
 // Handle OTA rollback: mark partition valid immediately unless USE_OTA_ROLLBACK is enabled,
