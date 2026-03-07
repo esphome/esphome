@@ -77,7 +77,7 @@ class RingBuffer {
 struct UsbDataChunk {
   static constexpr size_t MAX_CHUNK_SIZE = usb_host::USB_MAX_PACKET_SIZE;
   uint8_t data[MAX_CHUNK_SIZE];
-  std::conditional<(usb_host::USB_MAX_PACKET_SIZE > 255), uint16_t, uint8_t>::type length;
+  uint16_t length;
   USBUartChannel *channel;
 
   // Required for EventPool - no cleanup needed for POD types
@@ -88,8 +88,7 @@ struct UsbDataChunk {
 struct UsbOutputChunk {
   static constexpr size_t MAX_CHUNK_SIZE = usb_host::USB_MAX_PACKET_SIZE;
   uint8_t data[MAX_CHUNK_SIZE];
-  // uint16_t when MPS > 255 (ESP32-P4 HS), uint8_t otherwise
-  std::conditional<(usb_host::USB_MAX_PACKET_SIZE > 255), uint16_t, uint8_t>::type length;
+  uint16_t length;
 
   // Required for EventPool - no cleanup needed for POD types
   void release() {}

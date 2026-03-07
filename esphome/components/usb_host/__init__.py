@@ -30,19 +30,10 @@ USB_HS_MPS = 512
 
 
 def validate_max_packet_size(value):
-    """max_packet_size > 64 is only meaningful on ESP32-P4 (USB HS capable)."""
-    value = cv.int_range(min=64, max=512)(value)
-    if value != USB_FS_MPS:
-        from esphome.components.esp32 import get_esp32_variant
-
-        if get_esp32_variant() != VARIANT_ESP32P4:
-            raise cv.Invalid(
-                f"max_packet_size > {USB_FS_MPS} is only supported on ESP32-P4"
-            )
-    return value
+    return cv.one_of(64, 128, 256, 512, int=True)(value)
 
 
-def usb_device_schema(cls=USBClient, vid: int = None, pid: [int] = None) -> cv.Schema:
+def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Schema:
     schema = cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(cls),
@@ -91,10 +82,6 @@ async def to_code(config: ConfigType) -> None:
     max_requests = config[CONF_MAX_TRANSFER_REQUESTS]
     cg.add_define("USB_HOST_MAX_REQUESTS", max_requests)
     cg.add_define("USB_HOST_MAX_PACKET_SIZE", config[CONF_MAX_PACKET_SIZE])
-
-    # USB uses the socket wake_loop_threadsafe() mechanism to wake the main loop from USB task
-    # This enables low-latency (~12μs) USB event processing instead of waiting for
-    # select() timeout (0-16ms). The wake socket is shared across all components.
     socket.require_wake_loop_threadsafe()
 
     var = cg.new_Pvariable(config[CONF_ID])
