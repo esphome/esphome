@@ -135,6 +135,14 @@ def test_source_block_diff_source_text_mismatch() -> None:
     assert diff is None
 
 
+def test_source_block_diff_block_reorder_skipped() -> None:
+    """Compiler block reordering (same instructions, different order) is skipped."""
+    target = "# a.cpp:1  a()\nmov a2, a3\ncall8 <foo>\n# b.cpp:2  b()\ncall8 <bar>\nret"
+    pr = "# b.cpp:2  b()\ncall8 <bar>\nret\n# a.cpp:1  a()\nmov a2, a3\ncall8 <foo>"
+    diff = _source_block_diff(target, pr)
+    assert diff is None
+
+
 def test_count_instructions_skips_comments() -> None:
     """Comment lines (source annotations) are not counted as instructions."""
     asm = (
