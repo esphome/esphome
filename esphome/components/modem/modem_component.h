@@ -7,7 +7,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/preferences.h"
 #include "esphome/components/network/ip_address.h"
-
+#ifdef USE_MODEM_URC
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 #include <unordered_map>
 #include <memory>
 
@@ -63,6 +65,10 @@ class ModemComponent : public Component {
   void enable_cmux() { this->modem_handler->cmux = true; }
   void enable_debug() { this->modem_handler->enable_debug(); }
   void add_init_at_command(const std::string &cmd) { this->modem_handler->init_at_commands.push_back(cmd); }
+#ifdef USE_MODEM_URC
+  void set_urc_text_sensor(text_sensor::TextSensor *urc_text_sensor) { this->urc_text_sensor = urc_text_sensor; }
+  text_sensor::TextSensor *urc_text_sensor{nullptr};
+#endif
   bool is_connected() { return this->component_state_ == ModemComponentState::CONNECTED; }
   bool is_disabled() { return this->component_state_ == ModemComponentState::DISABLED && this->disable_wanted_; }
   bool is_enabled() { return !is_disabled(); }

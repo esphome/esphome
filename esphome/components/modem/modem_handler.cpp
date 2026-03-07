@@ -18,7 +18,6 @@ static const char *const TAG = "modem_handler";
     ESP_LOGE(TAG, message ": %s", command_result_to_string(err).c_str()); \
   }
 
-// Define a static free function for URC handling
 void ModemHandler::modem_create_dte_dce(int baud_rate) {
   this->current_baud_rate = baud_rate;
 
@@ -68,15 +67,6 @@ void ModemHandler::modem_create_dte_dce(int baud_rate) {
     ESP_LOGE(TAG, "Invalid model %s. DCE not created.", this->model.c_str());
     return;
   }
-
-  auto urc_handler = [](const esp_modem::DTE::UrcBufferInfo &buffer_info) {
-    if (!buffer_info.is_command_active) {
-      std::string line(reinterpret_cast<const char *>(buffer_info.new_data_start), buffer_info.new_data_size);
-      ESP_LOGI(TAG, "Modem URC: %s", line.c_str());
-    }
-    return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_NONE, 0};
-  };
-  this->dce->set_enhanced_urc(urc_handler);
 
   ESP_LOGV(TAG, "DTE/DCE created.");
 }

@@ -2,6 +2,7 @@ import logging
 
 from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components import text_sensor
 
 # from esphome.components.wifi import wifi_has_sta  # uncomment after PR #4091 is merged
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
@@ -26,6 +27,7 @@ from esphome.const import (
     CONF_TX_PIN,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
+    DEVICE_CLASS_EMPTY,
 )
 from esphome.core import coroutine_with_priority
 import esphome.final_validate as fv
@@ -57,6 +59,7 @@ CONF_ON_ENABLE = "on_enable"
 CONF_ON_DISABLE = "on_disable"
 CONF_ENABLE_CMUX = "enable_cmux"
 CONF_DTE_BUFFER_SIZE = "dte_buffer_size"
+CONF_URC = "urc"
 
 MODEM_MODELS = [
     "BG96",
@@ -215,6 +218,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_DISABLE): automation.validate_automation(
                 {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnDisableTrigger)}
+            ),
+            cv.Optional(CONF_URC): text_sensor.text_sensor_schema(
+                device_class=DEVICE_CLASS_EMPTY,
             ),
         }
     )
@@ -455,5 +461,10 @@ async def to_code(config):
         for conf in config.get(conf_key, []):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
             await automation.build_automation(trigger, [], conf)
+
+    if urc_config := config.get(CONF_URC, None):
+        cg.add_define("USE_MODEM_URC")
+        urc_text_sensor = await text_sensor.new_text_sensor(urc_config)
+        cg.add(var.set_urc_text_sensor(urc_text_sensor))
 
     await cg.register_component(var, config)

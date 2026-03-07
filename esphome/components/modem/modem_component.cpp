@@ -377,6 +377,22 @@ ModemComponentState ModemComponent::handle_state_syncing_() {
 
   if (this->modem_handler->dce->sync() == esp_modem::command_result::OK) {
     ESP_LOGD(TAG, "Modem synced");
+    // Add URC handler
+    auto urc_handler = [this](const esp_modem::DTE::UrcBufferInfo &buffer_info) {
+      if (!buffer_info.is_command_active) {
+        std::string line(reinterpret_cast<const char *>(buffer_info.new_data_start), buffer_info.new_data_size);
+#ifdef USE_MODEM_URC
+        // Publish to text sensor if configured
+        if (this->urc_text_sensor != nullptr) {
+          this->urc_text_sensor->publish_state(line);
+        }
+#endif
+      } else {
+        ESP_LOGI(TAG, "URC: commande active");
+      }
+      return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_NONE, 0};
+    };
+    this->modem_handler->dce->set_enhanced_urc(urc_handler);
     this->modem_handler->send_init_at();
     return ModemComponentState::INIT_NETWORK;
   }
