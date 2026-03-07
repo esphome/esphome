@@ -1,6 +1,7 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import datetime
 import functools
 import getpass
@@ -633,13 +634,11 @@ def _get_configured_xtal_freq() -> int | None:
     sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
     if not sdkconfig_path.is_file():
         return None
-    try:
+    with suppress(OSError, ValueError):
         content = sdkconfig_path.read_text()
         for line in content.splitlines():
             if line.startswith("CONFIG_XTAL_FREQ="):
                 return int(line.split("=", 1)[1])
-    except (OSError, ValueError):
-        pass
     return None
 
 
