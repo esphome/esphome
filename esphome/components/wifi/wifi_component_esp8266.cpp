@@ -212,7 +212,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   return addresses;
 }
 bool WiFiComponent::wifi_apply_hostname_() {
-  const std::string &hostname = App.get_name();
+  const auto &hostname = App.get_name();
   bool ret = wifi_station_set_hostname(const_cast<char *>(hostname.c_str()));
   if (!ret) {
     ESP_LOGV(TAG, "Set hostname failed");

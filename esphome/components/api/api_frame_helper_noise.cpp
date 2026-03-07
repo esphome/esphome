@@ -269,7 +269,7 @@ APIError APINoiseFrameHelper::state_action_() {
   }
   if (state_ == State::SERVER_HELLO) {
     // send server hello
-    const std::string &name = App.get_name();
+    const auto &name = App.get_name();
     char mac[MAC_ADDRESS_BUFFER_SIZE];
     get_mac_address_into_buffer(mac);
 

@@ -913,7 +913,7 @@ void WiFiComponent::setup_ap_config_() {
     static constexpr size_t AP_SSID_PREFIX_LEN = 25;
     static constexpr size_t AP_SSID_SUFFIX_LEN = 7;
 
-    const std::string &app_name = App.get_name();
+    const auto &app_name = App.get_name();
     const char *name_ptr = app_name.c_str();
     size_t name_len = app_name.length();
 
