@@ -14,8 +14,8 @@ from .const import CONF_ENABLE_IPV4
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
 
-# Lists will be updated in future PRs as IPV4 requirement removed from blacklisted components
-_DISABLE_IPV4_BLACK_LIST = [
+# Lists will be updated in future PRs as IPV4 requirement removed from denied components
+_DISABLE_IPV4_DENY_LIST = [
     "esp32_improv",
     "ethernet",
     "modem",
@@ -155,7 +155,7 @@ def _final_validate(config):
     if enable_ipv4 is None:
         enable_ipv4 = True
     if not enable_ipv4:
-        for comp in _DISABLE_IPV4_BLACK_LIST:
+        for comp in _DISABLE_IPV4_DENY_LIST:
             if full_config.get(comp, None) is not None:
                 raise cv.Invalid(
                     f"Disabling IPV4 is not currently compatible with component {comp}"
