@@ -185,7 +185,7 @@ class ProtoVarInt {
 #endif
 };
 
-// Forward declarations for decode_to_message, encode_sub_message and encode_packed_sint32
+// Forward declarations for decode_to_message and related encoding helpers
 class ProtoDecodableMessage;
 class ProtoMessage;
 class ProtoSize;
