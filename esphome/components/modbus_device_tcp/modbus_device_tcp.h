@@ -3,8 +3,7 @@
 #if defined(USE_ESP32) && !defined(ARDUINO)
 
 #ifdef __cplusplus
-#define Atomic(T) T
-#define _Atomic(T) Atomic(T)  // esp-modbus uses _Atomic(int); expand to T for C++
+#define _Atomic(T) T  // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp) esp-modbus uses _Atomic(int)
 extern "C" {
 #endif
 
@@ -14,6 +13,7 @@ extern "C" {
 #include "esp_modbus_common.h"
 
 #ifdef __cplusplus
+#undef _Atomic
 }
 #endif
 
