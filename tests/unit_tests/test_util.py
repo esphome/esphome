@@ -523,3 +523,28 @@ def test_redirect_text_incomplete_line_buffered() -> None:
     redirect.write(" line\n")
     assert len(results) == 1
     assert results[0] == "partial line"
+
+
+def test_run_external_command_line_callbacks(capsys: pytest.CaptureFixture) -> None:
+    """Test that run_external_command passes line_callbacks to RedirectText."""
+    results: list[str] = []
+
+    def callback(line: str) -> str | None:
+        results.append(line)
+        if "hello" in line:
+            return "CALLBACK FIRED\n"
+        return None
+
+    def fake_main() -> int:
+        print("hello world")
+        return 0
+
+    with patch("esphome.core.CORE") as mock_core:
+        mock_core.dashboard = False
+        rc = util.run_external_command(fake_main, "fake", line_callbacks=[callback])
+
+    assert rc == 0
+    assert len(results) == 1
+    assert "hello world" in results[0]
+    captured = capsys.readouterr()
+    assert "CALLBACK FIRED" in captured.out
