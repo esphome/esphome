@@ -239,7 +239,7 @@ class Proto32Bit {
 /// Helper to use make_unique_for_overwrite where available (skips zero-fill),
 /// falling back to make_unique on older GCC (ESP8266, BK72xx).
 inline std::unique_ptr<uint8_t[]> make_buffer(size_t n) {
-#if defined(USE_ESP8266) || defined(USE_BK72XX)
+#if defined(USE_ESP8266) || defined(USE_BK72XX) || defined(USE_LN882X)
   return std::make_unique<uint8_t[]>(n);
 #else
   return std::make_unique_for_overwrite<uint8_t[]>(n);
