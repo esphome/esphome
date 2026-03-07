@@ -16,7 +16,7 @@ CODEOWNERS = ["@tomaszduda23"]
 
 esphome = cg.esphome_ns.namespace("esphome")
 ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
-    "OTAComponent", cg.Component
+    "OTAComponent", ota.OTAComponent
 )
 
 CONF_BLE = "ble"
