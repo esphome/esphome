@@ -3,7 +3,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/macros.h"
 #include "esphome/core/application.h"
+#include <algorithm>
 #include <cstring>
+#include <limits>
 
 #ifdef USE_ESP32
 
@@ -362,18 +364,27 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
 }
 
 void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg) {
+  if (this->api_connection_ == nullptr)
+    return;
+
   auto *connection = this->get_connection_(msg.address, false);
   api::BluetoothSetConnectionParamsResponse resp;
   resp.address = msg.address;
 
   if (connection == nullptr || !connection->connected()) {
-    ESP_LOGW(TAG, "Cannot set connection params, not connected");
+    ESP_LOGW(TAG, "[%d] [%s] Cannot set connection params, not connected",
+             connection ? connection->connection_index_ : -1, connection ? connection->address_str() : "unknown");
     resp.error = ESP_GATT_NOT_CONNECTED;
     this->api_connection_->send_message(resp);
     return;
   }
 
-  resp.error = connection->update_connection_params(msg.min_interval, msg.max_interval, msg.latency, msg.timeout);
+  // Protobuf fields are uint32_t to future-proof the API if BLE ever supports wider values;
+  // clamp to uint16_t since the current BLE spec defines these as 16-bit.
+  constexpr uint32_t max_val = std::numeric_limits<uint16_t>::max();
+  resp.error =
+      connection->update_connection_params(std::min(msg.min_interval, max_val), std::min(msg.max_interval, max_val),
+                                           std::min(msg.latency, max_val), std::min(msg.timeout, max_val));
   this->api_connection_->send_message(resp);
 }
 
