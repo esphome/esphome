@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from typing import Any
+
 from esphome import core
 import esphome.codegen as cg
 from esphome.components import (
@@ -79,13 +82,27 @@ BTHomeLocalBinarySensor = server_ns.class_("BTHomeLocalBinarySensor")
 BTHomeLocalTextSensor = server_ns.class_("BTHomeLocalTextSensor")
 
 
-class DeferredExpression(cg.Expression):
-    def __init__(self, func, *args, **kwargs):
-        self.func = func
-        self.args = args
-        self.kwargs = kwargs
+class BoundExpression(cg.Expression):
+    """A code-generation expression whose value is computed lazily.
 
-    def __str__(self):
+    Wraps a callable so that the expression string is not evaluated until
+    ``__str__`` is called during code emission.  This is useful when the
+    result of ``func`` depends on state that is not yet available at the
+    point where the expression object is constructed (e.g. a symbol whose
+    address is only known after all components have registered).
+    """
+
+    def __init__(
+        self,
+        func: Callable[..., cg.Expression],
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        self.func: Callable[..., cg.Expression] = func
+        self.args: tuple[Any, ...] = args
+        self.kwargs: dict[str, Any] = kwargs
+
+    def __str__(self) -> str:
         return str(self.func(*self.args, **self.kwargs))
 
 
@@ -244,7 +261,7 @@ def _get_handler_index(
 ) -> int:
     """Return the position of handler_var in the sorted handlers list.
 
-    Called lazily at code-generation time (via DeferredExpression), after all
+    Called lazily at code-generation time (via BoundExpression), after all
     handlers have been registered and the list is in its final sorted order.
     """
     for i, (_, hv) in enumerate(handlers):
@@ -263,7 +280,7 @@ async def add_handler(
     packets use — so that parse_data can scan both the packet objects and the
     handlers array in a single forward pass.
 
-    The handler's array index is emitted as a DeferredExpression so it is
+    The handler's array index is emitted as a BoundExpression so it is
     resolved at code-generation time, after every handler across all sensor
     declarations has been added and the final sort order is known.
     """
@@ -274,10 +291,14 @@ async def add_handler(
     handlers.sort(key=lambda h: h[0])
     cg.add(
         device_var.set_handler(
-            DeferredExpression(_get_handler_index, handlers, handler_var),
+            BoundExpression(_get_handler_index, handlers, handler_var),
             handler_var,
         )
     )
+
+
+def _parse_key_bytes(key: str) -> list[int]:
+    return [int(key[j : j + 2], 16) for j in range(0, 32, 2)]
 
 
 async def _client_to_code(config):
@@ -289,12 +310,11 @@ async def _client_to_code(config):
         TemplateArguments(len(config[CONF_REMOTE_DEVICES])),
     )
 
-    has_encryption = False
     for i, device_config in enumerate(config[CONF_REMOTE_DEVICES]):
         device_id = device_config[CONF_ID]
         device_var = cg.Pvariable(
             core.ID(str(device_id), False, RemoteDeviceBase),
-            DeferredExpression(
+            BoundExpression(
                 lambda device_id: device_id.type.template(
                     TemplateArguments(_get_handler_count(device_id))
                 ).new(),
@@ -305,14 +325,9 @@ async def _client_to_code(config):
         cg.add(listener.set_device(i, device_var))
         cg.add(device_var.set_address(device_config[CONF_MAC_ADDRESS].as_hex))
 
-        if CONF_KEY in device_config:
-            bindkey_str = device_config[CONF_KEY]
-            bindkey_bytes = [int(bindkey_str[j : j + 2], 16) for j in range(0, 32, 2)]
-            cg.add(device_var.set_encryption_key(bindkey_bytes))
-            has_encryption = True
-
-    if has_encryption:
-        cg.add_define("USE_BTHOME_DECRYPTION")
+        if key := device_config.get(CONF_KEY):
+            cg.add(device_var.set_encryption_key(_parse_key_bytes(key)))
+            cg.add_define("USE_BTHOME_DECRYPTION")
 
     ble_listener_id = core.ID("bthome_ble_listener", False, ESP32BLEListener)
     ble_listener = cg.new_Pvariable(ble_listener_id)
@@ -361,10 +376,8 @@ async def _server_to_code(config):
     esp32_ble.register_gap_event_handler(ble_var, esp32_ble_adapter)
 
     # Encryption
-    if CONF_KEY in config:
-        bindkey_str = config[CONF_KEY]
-        bindkey_bytes = [int(bindkey_str[j : j + 2], 16) for j in range(0, 32, 2)]
-        cg.add(server_var.set_encryption_key(bindkey_bytes))
+    if key := config.get(CONF_KEY):
+        cg.add(server_var.set_encryption_key(_parse_key_bytes(key)))
         cg.add_define("USE_BTHOME_ENCRYPTION")
 
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
