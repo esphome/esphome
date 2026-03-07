@@ -35,9 +35,9 @@ void ModbusDeviceTCP::start_modbus_() {
   config.tcp_opts.dns_name = nullptr;
   config.tcp_opts.start_disconnected = false;
 
-  esp_err_t err = mbc_slave_create_tcp(&config, &device_handler_);
+  esp_err_t err = mbc_slave_create_tcp(&config, &device_handler_);  // NOLINT(readability-terms)
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "mbc_slave_create_tcp failed: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "mbc_slave_create_tcp failed: %s", esp_err_to_name(err));  // NOLINT(readability-terms)
     return;
   }
 
@@ -50,33 +50,33 @@ void ModbusDeviceTCP::start_modbus_() {
   reg_area.access = MB_ACCESS_RW;
   reg_area.address = (void *) &holding_reg_params;
   reg_area.size = reg_bytes;
-  mbc_slave_set_descriptor(device_handler_, reg_area);
+  mbc_slave_set_descriptor(device_handler_, reg_area);  // NOLINT(readability-terms)
 
   reg_area.type = MB_PARAM_INPUT;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RO;
   reg_area.address = (void *) &input_reg_params;
   reg_area.size = reg_bytes;
-  mbc_slave_set_descriptor(device_handler_, reg_area);
+  mbc_slave_set_descriptor(device_handler_, reg_area);  // NOLINT(readability-terms)
 
   reg_area.type = MB_PARAM_COIL;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RW;
   reg_area.address = (void *) &coil_reg_params;
   reg_area.size = coil_bytes;
-  mbc_slave_set_descriptor(device_handler_, reg_area);
+  mbc_slave_set_descriptor(device_handler_, reg_area);  // NOLINT(readability-terms)
 
   reg_area.type = MB_PARAM_DISCRETE;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RO;
   reg_area.address = (void *) &discrete_reg_params;
   reg_area.size = coil_bytes;
-  mbc_slave_set_descriptor(device_handler_, reg_area);
+  mbc_slave_set_descriptor(device_handler_, reg_area);  // NOLINT(readability-terms)
 
-  err = mbc_slave_start(device_handler_);
+  err = mbc_slave_start(device_handler_);  // NOLINT(readability-terms)
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "mbc_slave_start failed: %s", esp_err_to_name(err));
-    (void) mbc_slave_delete(device_handler_);
+    ESP_LOGE(TAG, "mbc_slave_start failed: %s", esp_err_to_name(err));  // NOLINT(readability-terms)
+    (void) mbc_slave_delete(device_handler_);  // NOLINT(readability-terms)
     device_handler_ = nullptr;
     return;
   }

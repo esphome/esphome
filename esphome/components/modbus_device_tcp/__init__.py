@@ -1,4 +1,5 @@
 """Modbus TCP device/responder component (esp-modbus). Protocol: controller/device."""
+# pylint: disable=replacing-legacy-terms  # esp-modbus API uses CONFIG_FMB_*_SLAVE_* macro names
 
 import logging
 import os
@@ -37,8 +38,7 @@ modbus_device_tcp_ns = cg.esphome_ns.namespace("modbus_device_tcp")
 ModbusDeviceTCP = modbus_device_tcp_ns.class_("ModbusDeviceTCP", cg.Component)
 
 # -D flags for esp-modbus (ESP-IDF config). Names are from the library API.
-# Note: CONFIG_FMB_CONTROLLER_SLAVE_ID is a fixed library build option; the actual unit ID
-# is set at runtime via set_unit_id() from config[CONF_UNIT_ID].
+# Unit ID is set at runtime via set_unit_id(); CONFIG_FMB_CONTROLLER_* are library build options.
 _MODBUS_BUILD_DEFINES = [
     "-DMB_PORT_TCP_IPV4=1",
     "-DCONFIG_FMB_COMM_MODE_TCP_EN=1",

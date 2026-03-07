@@ -1,4 +1,5 @@
 # Pre-build script: exclude esp-modbus test_apps, examples, and tools from the library build.
+# pylint: disable=replacing-legacy-terms  # esp-modbus library file names (mb_slave.c, port_tcp_slave.c)
 # - test_apps: Unity tests (need unity_fixture.h)
 # - examples: sample apps
 # - tools: mb_example_common has its own modbus_params.c; we use this component's modbus_params.h

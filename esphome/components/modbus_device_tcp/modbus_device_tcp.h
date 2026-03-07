@@ -1,12 +1,13 @@
 #pragma once
 #ifdef __cplusplus
-#define _Atomic(T) T
+#define Atomic(T) T
+#define _Atomic(T) Atomic(T)  // esp-modbus uses _Atomic(int); expand to T for C++
 extern "C" {
 #endif
 
 #include "mbcontroller.h"
 #include "modbus_params.h"
-#include "esp_modbus_slave.h"
+#include "esp_modbus_slave.h"  // NOLINT(readability-terms)
 #include "esp_modbus_common.h"
 
 #ifdef __cplusplus
