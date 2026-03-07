@@ -63,10 +63,29 @@ void RP2040BLE::loop() {
   }
 }
 
+static const char *state_to_str(BLEComponentState state) {
+  switch (state) {
+    case BLEComponentState::OFF:
+      return "OFF";
+    case BLEComponentState::ENABLING:
+      return "ENABLING";
+    case BLEComponentState::ACTIVE:
+      return "ACTIVE";
+    case BLEComponentState::DISABLING:
+      return "DISABLING";
+    case BLEComponentState::DISABLED:
+      return "DISABLED";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void RP2040BLE::dump_config() {
-  ESP_LOGCONFIG(TAG, "RP2040 BLE:");
-  ESP_LOGCONFIG(TAG, "  Enable on boot: %s", YESNO(this->enable_on_boot_));
-  ESP_LOGCONFIG(TAG, "  State: %d", static_cast<int>(this->state_));
+  ESP_LOGCONFIG(TAG,
+                "RP2040 BLE:\n"
+                "  Enable on boot: %s\n"
+                "  State: %s",
+                YESNO(this->enable_on_boot_), state_to_str(this->state_));
 }
 
 float RP2040BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
