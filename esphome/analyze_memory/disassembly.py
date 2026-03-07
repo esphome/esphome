@@ -140,8 +140,11 @@ def _normalize_function_asm(
 ) -> str:
     """Normalize instruction lines for stable cross-build diffs.
 
+    Offsets are stripped so that inserting/removing instructions doesn't
+    cascade through the entire diff.
+
     Normalizations applied:
-    1. Absolute instruction addresses → relative offsets (+0x0000)
+    1. Instruction addresses → stripped (order preserved via line sequence)
     2. Absolute addresses before symbolic refs → stripped
     3. Self-branch targets (<func+0xNN>) → <self>
     4. Literal pool loads (l32r) → <.literal>
@@ -158,7 +161,7 @@ def _normalize_function_asm(
         func_size: Known size of the function in bytes (0 = no limit)
 
     Returns:
-        Normalized disassembly text with relative offsets
+        Normalized disassembly text (one instruction per line, no addresses)
     """
     result: list[str] = []
     for line in lines:
@@ -187,7 +190,7 @@ def _normalize_function_asm(
             idx = insn.find("<.literal>")
             if idx != -1:
                 insn = insn[: idx + len("<.literal>")]
-        result.append(f"+{offset:#06x}: {insn}")
+        result.append(insn)
     return "\n".join(result)
 
 
