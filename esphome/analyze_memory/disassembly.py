@@ -119,7 +119,9 @@ def _normalize_all_refs(insn: str, func_name: str, is_literal_load: bool) -> str
     return "".join(result)
 
 
-def _normalize_function_asm(lines: list[str], base_addr: int, func_name: str) -> str:
+def _normalize_function_asm(
+    lines: list[str], base_addr: int, func_name: str, func_size: int = 0
+) -> str:
     """Normalize instruction lines for stable cross-build diffs.
 
     Normalizations applied:
@@ -129,11 +131,15 @@ def _normalize_function_asm(lines: list[str], base_addr: int, func_name: str) ->
     4. Literal pool loads (l32r) → <.literal>
     5. Linker section symbols → <.literal>
     6. Cross-function ref offsets → stripped (keep symbol name only)
+    7. Instructions past the known function size → excluded
+       (objdump disassembles padding/data between functions as code,
+       producing spurious references to unrelated symbols)
 
     Args:
         lines: Raw instruction lines from objdump
         base_addr: Base address of the function
         func_name: Demangled name of the current function
+        func_size: Known size of the function in bytes (0 = no limit)
 
     Returns:
         Normalized disassembly text with relative offsets
@@ -145,6 +151,9 @@ def _normalize_function_asm(lines: list[str], base_addr: int, func_name: str) ->
             continue
         addr = int(m.group(1), 16)
         offset = addr - base_addr
+        # Stop at function boundary to avoid disassembling padding/data
+        if func_size and offset >= func_size:
+            break
         insn = m.group(2)
         # Strip absolute addresses before symbolic refs
         insn = _ABS_ADDR_IN_INSN_RE.sub("", insn)
@@ -197,18 +206,26 @@ def extract_disassembly(
     current_func: str | None = None
     current_lines: list[str] = []
     base_addr: int = 0
+    sizes = symbol_sizes or {}
+
+    def _save_function() -> None:
+        """Normalize and save the current function's disassembly."""
+        if current_func is not None and current_lines:
+            func_size = sizes.get(current_func, 0)
+            asm = _normalize_function_asm(
+                current_lines[:max_lines_per_symbol],
+                base_addr,
+                current_func,
+                func_size,
+            )
+            if asm:
+                functions[current_func] = asm
 
     for line in result.stdout.splitlines():
         # Check for function header
         m = _FUNC_HEADER_RE.match(line)
         if m:
-            # Save previous function
-            if current_func is not None and current_lines:
-                asm = _normalize_function_asm(
-                    current_lines[:max_lines_per_symbol], base_addr, current_func
-                )
-                if asm:
-                    functions[current_func] = asm
+            _save_function()
             current_func = m.group(2)  # demangled name from objdump -C
             current_lines = []
             base_addr = int(m.group(1), 16)
@@ -218,13 +235,7 @@ def extract_disassembly(
         if current_func is not None:
             current_lines.append(line)
 
-    # Save last function
-    if current_func is not None and current_lines:
-        asm = _normalize_function_asm(
-            current_lines[:max_lines_per_symbol], base_addr, current_func
-        )
-        if asm:
-            functions[current_func] = asm
+    _save_function()
 
     # Filter by symbol sizes if provided
     if symbol_sizes:

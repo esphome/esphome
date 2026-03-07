@@ -221,3 +221,32 @@ def test_normalize_function_asm_template_in_l32r() -> None:
 
 def test_normalize_function_asm_empty_input() -> None:
     assert _normalize_function_asm([], 0x40001000, "test_func") == ""
+
+
+def test_normalize_function_asm_func_size_excludes_padding() -> None:
+    """Instructions past the known function size are excluded.
+
+    objdump disassembles padding/data between functions as code,
+    producing spurious references to unrelated symbols.
+    """
+    lines = [
+        "  40001000:\tmov.n    a2, a3",
+        "  40001002:\tret.n",
+        # Padding bytes past function end, misinterpreted as instructions
+        "  40001004:\tj     40003000 <esphome::wifi::WiFiComponent::loop()>",
+        "  40001007:\tcall8     40004000 <chip_v6_set_chan>",
+    ]
+    # Function is 4 bytes (0x000-0x003), so instructions at +0x0004 onward are padding
+    result = _normalize_function_asm(lines, 0x40001000, "test_func", func_size=4)
+    assert result == "+0x0000: mov.n    a2, a3\n+0x0002: ret.n"
+
+
+def test_normalize_function_asm_func_size_zero_includes_all() -> None:
+    """When func_size is 0, all instructions are included (no limit)."""
+    lines = [
+        "  40001000:\tmov.n    a2, a3",
+        "  40001002:\tret.n",
+        "  40001004:\tj     40003000 <other_func>",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func", func_size=0)
+    assert "+0x0004:" in result
