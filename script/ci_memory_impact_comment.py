@@ -79,6 +79,8 @@ MAX_DISASM_DIFF_LINES = 80  # Maximum lines per disassembly diff
 MAX_DISASM_NEW_LINES = 40  # Maximum lines for new/removed symbol disassembly
 # Budget: keep total disassembly under ~40KB to stay within GitHub's 65536 char limit
 MAX_DISASM_TOTAL_CHARS = 40000
+# Skip disassembly analysis entirely if too many symbols changed
+MAX_DISASM_TOTAL_CHANGED_SYMBOLS = 50
 
 # Template directory
 TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -240,11 +242,21 @@ def _truncate_lines(lines: list[str], max_lines: int) -> str:
     return "\n".join(lines)
 
 
+def _count_instructions(asm: str | None) -> int:
+    """Count instructions in normalized disassembly text.
+
+    Each line in normalized output is one instruction.
+    """
+    if not asm:
+        return 0
+    return len(asm.splitlines())
+
+
 def prepare_disassembly_diffs(
     target_disasm: dict | None,
     pr_disasm: dict | None,
     symbol_changes: dict | None,
-) -> list[tuple[str, str, str]] | None:
+) -> list[tuple[str, str, str, int, int]] | None:
     """Prepare disassembly diffs for changed symbols.
 
     Args:
@@ -253,7 +265,8 @@ def prepare_disassembly_diffs(
         symbol_changes: Output from prepare_symbol_changes_data()
 
     Returns:
-        List of (symbol_name, change_type, diff_text) tuples, or None if no diffs.
+        List of (symbol_name, change_type, diff_text, target_insns, pr_insns) tuples,
+        or None if no diffs.
         change_type is one of: "changed", "new", "removed"
     """
     if not symbol_changes:
@@ -264,7 +277,7 @@ def prepare_disassembly_diffs(
     target_disasm = target_disasm or {}
     pr_disasm = pr_disasm or {}
 
-    diffs: list[tuple[str, str, str]] = []
+    diffs: list[tuple[str, str, str, int, int]] = []
     total_chars = 0
 
     def _budget_exceeded() -> bool:
@@ -301,7 +314,15 @@ def prepare_disassembly_diffs(
 
         diff_text = _truncate_lines(diff_lines, MAX_DISASM_DIFF_LINES)
         total_chars += len(diff_text)
-        diffs.append((symbol, "changed", diff_text))
+        diffs.append(
+            (
+                symbol,
+                "changed",
+                diff_text,
+                _count_instructions(target_asm),
+                _count_instructions(pr_asm),
+            )
+        )
 
     # New/removed symbols - show full disassembly
     for change_type, symbol_list, disasm_source in [
@@ -314,9 +335,13 @@ def prepare_disassembly_diffs(
             asm = disasm_source.get(symbol)
             if asm is None:
                 continue
+            insn_count = _count_instructions(asm)
             asm_text = _truncate_lines(asm.splitlines(), MAX_DISASM_NEW_LINES)
             total_chars += len(asm_text)
-            diffs.append((symbol, change_type, asm_text))
+            if change_type == "new":
+                diffs.append((symbol, change_type, asm_text, 0, insn_count))
+            else:
+                diffs.append((symbol, change_type, asm_text, insn_count, 0))
 
     return diffs or None
 
@@ -484,16 +509,28 @@ def create_comment_body(
 
             # Prepare disassembly diffs for changed symbols
             if target_disasm or pr_disasm:
-                disasm_diffs = prepare_disassembly_diffs(
-                    target_disasm, pr_disasm, symbol_data
+                total_changed = (
+                    len(symbol_data.get("changed_symbols", []))
+                    + len(symbol_data.get("new_symbols", []))
+                    + len(symbol_data.get("removed_symbols", []))
                 )
-                if disasm_diffs:
-                    template = env.get_template("ci_memory_impact_disassembly.j2")
-                    disasm_section = template.render(
-                        disasm_diffs=disasm_diffs,
-                        symbol_max_length=SYMBOL_DISPLAY_MAX_LENGTH,
-                        symbol_truncate_length=SYMBOL_DISPLAY_TRUNCATE_LENGTH,
+                if total_changed > MAX_DISASM_TOTAL_CHANGED_SYMBOLS:
+                    disasm_section = (
+                        f"\n> Assembly analysis skipped:"
+                        f" {total_changed} symbols changed"
+                        f" (threshold: {MAX_DISASM_TOTAL_CHANGED_SYMBOLS}).\n"
                     )
+                else:
+                    disasm_diffs = prepare_disassembly_diffs(
+                        target_disasm, pr_disasm, symbol_data
+                    )
+                    if disasm_diffs:
+                        template = env.get_template("ci_memory_impact_disassembly.j2")
+                        disasm_section = template.render(
+                            disasm_diffs=disasm_diffs,
+                            symbol_max_length=SYMBOL_DISPLAY_MAX_LENGTH,
+                            symbol_truncate_length=SYMBOL_DISPLAY_TRUNCATE_LENGTH,
+                        )
 
     if not target_analysis or not pr_analysis:
         print("No ELF files provided, skipping detailed analysis", file=sys.stderr)

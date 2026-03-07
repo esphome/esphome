@@ -1,9 +1,9 @@
 <details>
 <summary>Assembly Changes (click to expand)</summary>
 
-{% for symbol, change_type, diff_text in disasm_diffs %}
+{% for symbol, change_type, diff_text, target_insns, pr_insns in disasm_diffs %}
 <details>
-<summary>{% if change_type == "changed" %}Changed{% elif change_type == "new" %}New{% else %}Removed{% endif %}: <code>{% if symbol|length > symbol_truncate_length %}{{ symbol[:symbol_truncate_length] }}...{% else %}{{ symbol }}{% endif %}</code></summary>
+<summary>{% if change_type == "changed" %}Changed ({{ target_insns }} → {{ pr_insns }} insns){% elif change_type == "new" %}New ({{ pr_insns }} insns){% else %}Removed ({{ target_insns }} insns){% endif %}: <code>{% if symbol|length > symbol_truncate_length %}{{ symbol[:symbol_truncate_length] }}...{% else %}{{ symbol }}{% endif %}</code></summary>
 
 {% if symbol|length > symbol_truncate_length %}
 `{{ symbol }}`

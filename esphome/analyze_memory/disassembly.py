@@ -101,10 +101,11 @@ def _normalize_function_asm(lines: list[str], base_addr: int, func_name: str) ->
         # Strip absolute addresses before symbolic refs
         insn = _ABS_ADDR_IN_INSN_RE.sub("", insn)
         # Detect literal pool loads (Xtensa l32r instruction)
-        is_literal_load = bool(_L32R_RE.match(insn))
+        is_literal = bool(_L32R_RE.match(insn))
         # Normalize symbolic references
+        # Use default arg to bind is_literal for this iteration
         insn = _SYMBOLIC_REF_RE.sub(
-            lambda m: _normalize_symbolic_ref(m, func_name, is_literal_load),
+            lambda m, _lit=is_literal: _normalize_symbolic_ref(m, func_name, _lit),
             insn,
         )
         result.append(f"+{offset:#06x}: {insn}")
