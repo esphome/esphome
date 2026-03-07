@@ -56,9 +56,7 @@ void OTAComponent::setup() {
   this->img_mgmt_callback_.event_id = MGMT_EVT_OP_IMG_MGMT_ALL;
   mgmt_callback_register(&this->img_mgmt_callback_);
 #ifdef CONFIG_USB_DEVICE_STACK
-  if (this->cdc_uart_) {
-    usb_enable(nullptr);
-  }
+  usb_enable(nullptr);
 #endif
 // Handle OTA rollback: mark partition valid immediately unless USE_OTA_ROLLBACK is enabled,
 // in which case safe_mode will mark it valid after confirming successful boot.

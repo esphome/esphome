@@ -18,17 +18,11 @@ class OTAComponent : public ota::OTAComponent {
   void update_chunk_wrote();
   void update_pending();
   void update_stopped();
-#ifdef CONFIG_USB_DEVICE_STACK
-  void set_cdc_uart(bool cdc_uart) { this->cdc_uart_ = cdc_uart; };
-#endif
 
  protected:
   uint32_t last_progress_ = 0;
   float percentage_ = 0;
   mgmt_callback img_mgmt_callback_{};
-#ifdef CONFIG_USB_DEVICE_STACK
-  bool cdc_uart_ = false;
-#endif
 };
 
 }  // namespace esphome::zephyr_mcumgr
