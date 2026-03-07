@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -411,11 +410,9 @@ def _make_redirect(
 ) -> tuple[util.RedirectText, io.StringIO]:
     """Create a RedirectText that writes to a StringIO buffer."""
     buf = io.StringIO()
-    with patch("esphome.core.CORE") as mock_core:
-        mock_core.dashboard = False
-        redirect = util.RedirectText(
-            buf, filter_lines=filter_lines, line_callbacks=line_callbacks
-        )
+    redirect = util.RedirectText(
+        buf, filter_lines=filter_lines, line_callbacks=line_callbacks
+    )
     return redirect, buf
 
 
@@ -539,9 +536,7 @@ def test_run_external_command_line_callbacks(capsys: pytest.CaptureFixture) -> N
         print("hello world")
         return 0
 
-    with patch("esphome.core.CORE") as mock_core:
-        mock_core.dashboard = False
-        rc = util.run_external_command(fake_main, "fake", line_callbacks=[callback])
+    rc = util.run_external_command(fake_main, "fake", line_callbacks=[callback])
 
     assert rc == 0
     assert len(results) == 1
