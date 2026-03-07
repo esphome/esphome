@@ -47,17 +47,25 @@ def test_source_block_diff_identical() -> None:
 
 def test_source_block_diff_changed_block() -> None:
     """Same-header block with changed instructions shows line-level diff."""
-    target = "# file.cpp:10  foo()\nmov    a2, a3\n# file.cpp:11  bar()\ncall8 <bar>"
-    pr = "# file.cpp:10  foo()\nmov    a4, a5\n# file.cpp:11  bar()\ncall8 <bar>"
+    target = "# file.cpp:10  foo()\nmov    a2, a3\ncall8 <baz>\n# file.cpp:11  bar()\ncall8 <bar>"
+    pr = "# file.cpp:10  foo()\nmov    a2, a3\ncall8 <qux>\n# file.cpp:11  bar()\ncall8 <bar>"
     diff = _source_block_diff(target, pr)
     assert diff is not None
     # Source annotation shown as context (space prefix)
     assert " # file.cpp:10  foo()" in diff
     # Instruction-level diff within the block
-    assert "-mov    a2, a3" in diff
-    assert "+mov    a4, a5" in diff
+    assert "-call8 <baz>" in diff
+    assert "+call8 <qux>" in diff
     # Unchanged block should NOT appear
     assert any("bar" in line for line in diff) is False
+
+
+def test_source_block_diff_register_only_skipped() -> None:
+    """Register-only changes are skipped as noise."""
+    target = "# file.cpp:10  foo()\nmov    a2, a3\n# file.cpp:11  bar()\ncall8 <bar>"
+    pr = "# file.cpp:10  foo()\nmov    a4, a5\n# file.cpp:11  bar()\ncall8 <bar>"
+    diff = _source_block_diff(target, pr)
+    assert diff is None
 
 
 def test_source_block_diff_new_block() -> None:
@@ -83,14 +91,14 @@ def test_source_block_diff_removed_block() -> None:
 def test_source_block_diff_separator_between_hunks() -> None:
     """Non-adjacent changes are separated by '...'."""
     target = (
-        "# a.cpp:1  a()\nmov a2, a3\n"
+        "# a.cpp:1  a()\ncall8 <foo>\n"
         "# b.cpp:2  b()\nmov a4, a5\n"
-        "# c.cpp:3  c()\nmov a6, a7"
+        "# c.cpp:3  c()\ncall8 <bar>"
     )
     pr = (
-        "# a.cpp:1  a()\nmov a2, a10\n"  # changed
+        "# a.cpp:1  a()\ncall8 <baz>\n"  # changed
         "# b.cpp:2  b()\nmov a4, a5\n"  # unchanged
-        "# c.cpp:3  c()\nmov a6, a10"  # changed
+        "# c.cpp:3  c()\ncall8 <qux>"  # changed
     )
     diff = _source_block_diff(target, pr)
     assert diff is not None

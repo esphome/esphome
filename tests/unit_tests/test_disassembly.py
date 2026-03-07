@@ -548,25 +548,26 @@ def test_is_safe_path_proc(tmp_path: str) -> None:
     assert not _is_safe_path("/proc/self/environ", str(tmp_path))
 
 
-def test_normalize_function_asm_source_root_restricts_reads(tmp_path: str) -> None:
+def test_normalize_function_asm_source_root_restricts_reads(tmp_path) -> None:
     """Source annotations only inline code from files under source_root."""
-    import os
-
     # Create a source file inside the allowed root
-    src_dir = os.path.join(str(tmp_path), "src")
-    os.makedirs(src_dir)
-    src_file = os.path.join(src_dir, "allowed.cpp")
-    with open(src_file, "w") as f:
-        f.write("line1\nallowed_code_here\nline3\n")
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    src_file = src_dir / "allowed.cpp"
+    src_file.write_text("line1\nallowed_code_here\nline3\n")
+
+    # Use POSIX-style paths in annotations (as objdump outputs)
+    src_file_posix = src_file.as_posix()
+    source_root_posix = tmp_path.as_posix()
 
     lines = [
-        f"{src_file}:2",
+        f"{src_file_posix}:2",
         "  40001000:\tmov.n    a2, a3",
         "/etc/passwd:1",
         "  40001002:\tret.n",
     ]
     result = _normalize_function_asm(
-        lines, 0x40001000, "test_func", source_root=str(tmp_path)
+        lines, 0x40001000, "test_func", source_root=source_root_posix
     )
     # Allowed file content is inlined
     assert "allowed_code_here" in result

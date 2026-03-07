@@ -12,6 +12,7 @@ import argparse
 import difflib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -252,6 +253,19 @@ def _count_instructions(asm: str | None) -> int:
     return sum(1 for line in asm.splitlines() if not line.startswith("# "))
 
 
+# Pattern to normalize register names for comparison purposes.
+# Replaces register operands (a0-a15, r0-r15, sp, lr, pc) with a placeholder
+# so that register allocation differences don't cause false diffs.
+_REG_NORMALIZE_RE = re.compile(
+    r"\ba(?:1[0-5]|[0-9])\b|r(?:1[0-5]|[0-9])\b|\bsp\b|\blr\b|\bpc\b"
+)
+
+
+def _strip_registers(insn: str) -> str:
+    """Replace register names with placeholders for comparison."""
+    return _REG_NORMALIZE_RE.sub("REG", insn)
+
+
 def _parse_source_blocks(asm: str) -> list[tuple[str, str]]:
     """Parse normalized asm into source-annotated blocks.
 
@@ -326,17 +340,24 @@ def _source_block_diff(target_asm: str, pr_asm: str) -> list[str] | None:
                 if t_body == p_body:
                     continue  # Identical block — skip entirely
 
-                # Same source annotation, different instructions — line-level diff
+                t_lines = t_body.splitlines()
+                p_lines = p_body.splitlines()
+
+                # Compare with registers stripped to ignore allocation noise.
+                # If the only differences are register names, skip the block.
+                t_stripped = [_strip_registers(line) for line in t_lines]
+                p_stripped = [_strip_registers(line) for line in p_lines]
+                if t_stripped == p_stripped:
+                    continue  # Only register allocation changed — skip
+
+                # Same source annotation, structural differences — line-level diff
                 _add_separator()
                 if t_header:
                     result.append(f" {t_header}")
-                t_lines = t_body.splitlines()
-                p_lines = p_body.splitlines()
                 for dl in difflib.unified_diff(t_lines, p_lines, lineterm="", n=2):
                     if dl.startswith("---") or dl.startswith("+++"):
                         continue
                     if dl.startswith("@@"):
-                        # Replace hunk markers with separator
                         if result and result[-1] != "...":
                             result.append("...")
                         continue
@@ -346,19 +367,18 @@ def _source_block_diff(target_asm: str, pr_asm: str) -> list[str] | None:
         # Different headers — full block replacement (logic actually changed)
         _add_separator()
 
-        if tag in ("replace", "delete"):
-            for idx in range(i1, i2):
-                header, body = target_blocks[idx]
+        def _emit_blocks(blocks, start, end, prefix):
+            for idx in range(start, end):
+                header, body = blocks[idx]
                 if header:
-                    result.append(f"-{header}")
-                result.extend(f"-{line}" for line in body.splitlines())
+                    result.append(f"{prefix}{header}")
+                result.extend(f"{prefix}{line}" for line in body.splitlines())
+
+        if tag in ("replace", "delete"):
+            _emit_blocks(target_blocks, i1, i2, "-")
 
         if tag in ("replace", "insert"):
-            for idx in range(j1, j2):
-                header, body = pr_blocks[idx]
-                if header:
-                    result.append(f"+{header}")
-                result.extend(f"+{line}" for line in body.splitlines())
+            _emit_blocks(pr_blocks, j1, j2, "+")
 
     return result or None
 

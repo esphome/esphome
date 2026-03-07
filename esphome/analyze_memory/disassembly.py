@@ -20,7 +20,8 @@ _INSN_LINE_RE = re.compile(r"^\s*([0-9a-fA-F]+):\s+(.*)")
 # Pattern for source line annotations from objdump -l:
 #   /path/to/file.cpp:123
 #   /path/to/file.cpp:123 (discriminator 3)
-_SOURCE_LINE_RE = re.compile(r"^(/\S+):(\d+)\b")
+#   C:/path/to/file.cpp:123 (Windows cross-compilation)
+_SOURCE_LINE_RE = re.compile(r"^([A-Za-z]:/\S+|/\S+):(\d+)\b")
 
 # Pattern for absolute addresses before symbolic references in instructions
 # Matches "40001234 <symbol>" and replaces the address portion
