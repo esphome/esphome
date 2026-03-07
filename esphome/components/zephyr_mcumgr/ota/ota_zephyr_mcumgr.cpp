@@ -25,7 +25,6 @@ namespace esphome::zephyr_mcumgr {
 static const char *const TAG = "zephyr_mcumgr";
 static OTAComponent *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-
 static enum mgmt_cb_return mcumgr_img_mgmt_cb(uint32_t event, enum mgmt_cb_return prev_status, int32_t *rc,
                                               uint16_t *group, bool *abort_more, void *data, size_t data_size) {
   if (MGMT_EVT_OP_IMG_MGMT_DFU_CHUNK == event) {
