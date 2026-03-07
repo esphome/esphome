@@ -22,6 +22,7 @@
 #endif
 #include "lwip/ip_addr.h"
 
+#include <array>
 #include <vector>
 
 namespace esphome::mqtt {
@@ -142,6 +143,9 @@ class MQTTClientComponent : public Component {
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
   void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
+#endif
+#if defined(USE_ESP8266) && ASYNC_TCP_SSL_ENABLED
+  void add_ssl_fingerprint(const std::array<uint8_t, 20> &fingerprint);
 #endif
   const Availability &get_availability();
 
