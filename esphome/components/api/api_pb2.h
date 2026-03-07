@@ -3221,5 +3221,43 @@ class SerialProxyRequest final : public ProtoDecodableMessage {
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
+#ifdef USE_BLUETOOTH_PROXY
+class BluetoothSetConnectionParamsRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 145;
+  static constexpr uint8_t ESTIMATED_SIZE = 20;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "bluetooth_set_connection_params_request"; }
+#endif
+  uint64_t address{0};
+  uint32_t min_interval{0};
+  uint32_t max_interval{0};
+  uint32_t latency{0};
+  uint32_t timeout{0};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothSetConnectionParamsResponse final : public ProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 146;
+  static constexpr uint8_t ESTIMATED_SIZE = 8;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "bluetooth_set_connection_params_response"; }
+#endif
+  uint64_t address{0};
+  int32_t error{0};
+  void encode(ProtoWriteBuffer &buffer) const;
+  uint32_t calculate_size() const;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
 
 }  // namespace esphome::api

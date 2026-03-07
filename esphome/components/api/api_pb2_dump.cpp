@@ -2610,6 +2610,23 @@ const char *SerialProxyRequest::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
+#ifdef USE_BLUETOOTH_PROXY
+const char *BluetoothSetConnectionParamsRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "BluetoothSetConnectionParamsRequest");
+  dump_field(out, "address", this->address);
+  dump_field(out, "min_interval", this->min_interval);
+  dump_field(out, "max_interval", this->max_interval);
+  dump_field(out, "latency", this->latency);
+  dump_field(out, "timeout", this->timeout);
+  return out.c_str();
+}
+const char *BluetoothSetConnectionParamsResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "BluetoothSetConnectionParamsResponse");
+  dump_field(out, "address", this->address);
+  dump_field(out, "error", this->error);
+  return out.c_str();
+}
+#endif
 
 }  // namespace esphome::api
 

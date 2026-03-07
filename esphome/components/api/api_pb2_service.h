@@ -233,6 +233,10 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_SERIAL_PROXY
   virtual void on_serial_proxy_request(const SerialProxyRequest &value){};
 #endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &value){};
+#endif
+
  protected:
   void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
 };
