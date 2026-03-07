@@ -124,7 +124,12 @@ ANSI_ESCAPE = re.compile(r"\033[@-_][0-?]*[ -/]*[@-~]")
 
 
 class RedirectText:
-    def __init__(self, out, filter_lines=None):
+    def __init__(
+        self,
+        out,
+        filter_lines: str | None = None,
+        line_callbacks: list[Callable[[str], str | None]] | None = None,
+    ) -> None:
         self._out = out
         if filter_lines is None:
             self._filter_pattern = None
@@ -132,6 +137,7 @@ class RedirectText:
             pattern = r"|".join(r"(?:" + pattern + r")" for pattern in filter_lines)
             self._filter_pattern = re.compile(pattern)
         self._line_buffer = ""
+        self._line_callbacks = line_callbacks or []
 
     def __getattr__(self, item):
         return getattr(self._out, item)
@@ -180,6 +186,9 @@ class RedirectText:
                     and (help_msg := get_esp32_arduino_flash_error_help())
                 ):
                     self._write_color_replace(help_msg)
+                for callback in self._line_callbacks:
+                    if msg := callback(line_without_end):
+                        self._write_color_replace(msg)
         else:
             self._write_color_replace(s)
 
@@ -193,7 +202,11 @@ class RedirectText:
 
 
 def run_external_command(
-    func, *cmd, capture_stdout: bool = False, filter_lines: str = None
+    func,
+    *cmd,
+    capture_stdout: bool = False,
+    filter_lines: str = None,
+    line_callbacks: list | None = None,
 ) -> int | str:
     """
     Run a function from an external package that acts like a main method.
@@ -217,9 +230,13 @@ def run_external_command(
     _LOGGER.debug("Running:  %s", full_cmd)
 
     orig_stdout = sys.stdout
-    sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
+    sys.stdout = RedirectText(
+        sys.stdout, filter_lines=filter_lines, line_callbacks=line_callbacks
+    )
     orig_stderr = sys.stderr
-    sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
+    sys.stderr = RedirectText(
+        sys.stderr, filter_lines=filter_lines, line_callbacks=line_callbacks
+    )
 
     if capture_stdout:
         cap_stdout = sys.stdout = io.StringIO()
