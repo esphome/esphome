@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <cstring>
+#include <memory>
 #include <vector>
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
@@ -235,11 +236,50 @@ class Proto32Bit {
 
 // NOTE: Proto64Bit class removed - wire type 1 (64-bit fixed) not supported
 
+/// Helper to use make_unique_for_overwrite where available (skips zero-fill),
+/// falling back to make_unique on ESP8266's older GCC.
+inline std::unique_ptr<uint8_t[]> make_buffer(size_t n) {
+#ifdef USE_ESP8266
+  return std::make_unique<uint8_t[]>(n);
+#else
+  return std::make_unique_for_overwrite<uint8_t[]>(n);
+#endif
+}
+
+/// Byte buffer that skips zero-initialization on resize().
+/// Used as the shared protobuf write buffer to avoid wasted memset
+/// on bytes that will be overwritten by the encoder.
+class ProtoByteBuffer {
+ public:
+  void clear() { this->size_ = 0; }
+  void reserve(size_t n) {
+    if (n > this->capacity_) {
+      auto new_data = make_buffer(n);
+      if (this->size_)
+        std::memcpy(new_data.get(), this->data_.get(), this->size_);
+      this->data_ = std::move(new_data);
+      this->capacity_ = n;
+    }
+  }
+  void resize(size_t n) {
+    if (n > this->capacity_)
+      this->reserve(n);
+    this->size_ = n;  // no zero-fill
+  }
+  uint8_t *data() { return this->data_.get(); }
+  const uint8_t *data() const { return this->data_.get(); }
+  size_t size() const { return this->size_; }
+
+ protected:
+  std::unique_ptr<uint8_t[]> data_;
+  size_t size_{0};
+  size_t capacity_{0};
+};
+
 class ProtoWriteBuffer {
  public:
-  ProtoWriteBuffer(std::vector<uint8_t> *buffer) : buffer_(buffer), pos_(buffer->data() + buffer->size()) {}
-  ProtoWriteBuffer(std::vector<uint8_t> *buffer, size_t write_pos)
-      : buffer_(buffer), pos_(buffer->data() + write_pos) {}
+  ProtoWriteBuffer(ProtoByteBuffer *buffer) : buffer_(buffer), pos_(buffer->data() + buffer->size()) {}
+  ProtoWriteBuffer(ProtoByteBuffer *buffer, size_t write_pos) : buffer_(buffer), pos_(buffer->data() + write_pos) {}
   void encode_varint_raw(uint32_t value) {
     while (value > 0x7F) {
       this->debug_check_bounds_(1);
@@ -375,7 +415,7 @@ class ProtoWriteBuffer {
   // Non-template core for encode_optional_sub_message.
   void encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
                                    void (*encode_fn)(const void *, ProtoWriteBuffer &));
-  std::vector<uint8_t> *get_buffer() const { return buffer_; }
+  ProtoByteBuffer *get_buffer() const { return buffer_; }
 
  protected:
 #ifdef ESPHOME_DEBUG_API
@@ -385,7 +425,7 @@ class ProtoWriteBuffer {
   void debug_check_bounds_([[maybe_unused]] size_t bytes) {}
 #endif
 
-  std::vector<uint8_t> *buffer_;
+  ProtoByteBuffer *buffer_;
   uint8_t *pos_;
 };
 
