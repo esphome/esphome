@@ -1,5 +1,6 @@
 #include "proto.h"
 #include <cinttypes>
+#include <cstring>
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -85,6 +86,76 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
   }
 
   return count;
+}
+
+// Single-pass encode for repeated submessage elements (non-template core).
+// Writes field tag, reserves 1 byte for length varint, encodes the submessage body,
+// then backpatches the actual length. For the common case (body < 128 bytes), this is
+// just a single byte write with no memmove — all current repeated submessage types
+// (BLE advertisements at ~47B, GATT descriptors at ~24B, service args, etc.) take
+// this fast path.
+//
+// The memmove fallback for body >= 128 bytes exists only for correctness (e.g., a GATT
+// characteristic with many descriptors). It is safe because calculate_size() already
+// reserved space for the full multi-byte varint — the shift fills that reserved space:
+//
+//   calculate_size() allocates per element: tag + varint_size(body) + body_size
+//
+//   After encode, before memmove (1 byte reserved, body written):
+//   [tag][__][body ..... body][??]
+//         ^                   ^-- unused byte (v2 space from calculate_size)
+//         len_pos
+//
+//   After memmove(body_start+1, body_start, body_size):
+//   [tag][__][__][body ..... body]
+//         ^       ^-- body shifted forward, fills v2 space exactly
+//         len_pos
+//
+//   After writing 2-byte varint at len_pos:
+//   [tag][v1][v2][body ..... body]
+//                                ^-- pos_ = element end, within buffer
+void ProtoWriteBuffer::encode_sub_message(uint32_t field_id, const void *value,
+                                          void (*encode_fn)(const void *, ProtoWriteBuffer &)) {
+  this->encode_field_raw(field_id, 2);
+  // Reserve 1 byte for length varint (optimistic: submessage < 128 bytes)
+  uint8_t *len_pos = this->pos_;
+  this->debug_check_bounds_(1);
+  this->pos_++;
+  uint8_t *body_start = this->pos_;
+  encode_fn(value, *this);
+  uint32_t body_size = static_cast<uint32_t>(this->pos_ - body_start);
+  if (body_size < 128) [[likely]] {
+    // Common case: 1-byte varint, just backpatch
+    *len_pos = static_cast<uint8_t>(body_size);
+    return;
+  }
+  // Compute extra bytes needed for varint beyond the 1 already reserved
+  uint8_t extra = ProtoSize::varint(body_size) - 1;
+  // Shift body forward to make room for the extra varint bytes
+  this->debug_check_bounds_(extra);
+  std::memmove(body_start + extra, body_start, body_size);
+  uint8_t *end = this->pos_ + extra;
+  // Write the full varint at len_pos
+  this->pos_ = len_pos;
+  this->encode_varint_raw(body_size);
+  this->pos_ = end;
+}
+
+// Non-template core for encode_optional_sub_message.
+void ProtoWriteBuffer::encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
+                                                   void (*encode_fn)(const void *, ProtoWriteBuffer &)) {
+  if (nested_size == 0)
+    return;
+  this->encode_field_raw(field_id, 2);
+  this->encode_varint_raw(nested_size);
+#ifdef ESPHOME_DEBUG_API
+  uint8_t *start = this->pos_;
+  encode_fn(value, *this);
+  if (static_cast<uint32_t>(this->pos_ - start) != nested_size)
+    this->debug_check_encode_size_(field_id, nested_size, this->pos_ - start);
+#else
+  encode_fn(value, *this);
+#endif
 }
 
 #ifdef ESPHOME_DEBUG_API

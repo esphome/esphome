@@ -71,6 +71,18 @@ uint32_t DeviceInfo::calculate_size() const {
   return size;
 }
 #endif
+#ifdef USE_SERIAL_PROXY
+void SerialProxyInfo::encode(ProtoWriteBuffer &buffer) const {
+  buffer.encode_string(1, this->name);
+  buffer.encode_uint32(2, static_cast<uint32_t>(this->port_type));
+}
+uint32_t SerialProxyInfo::calculate_size() const {
+  uint32_t size = 0;
+  size += ProtoSize::calc_length(1, this->name.size());
+  size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->port_type));
+  return size;
+}
+#endif
 void DeviceInfoResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(2, this->name);
   buffer.encode_string(3, this->mac_address);
@@ -108,22 +120,27 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer &buffer) const {
 #endif
 #ifdef USE_DEVICES
   for (const auto &it : this->devices) {
-    buffer.encode_message(20, it);
+    buffer.encode_sub_message(20, it);
   }
 #endif
 #ifdef USE_AREAS
   for (const auto &it : this->areas) {
-    buffer.encode_message(21, it);
+    buffer.encode_sub_message(21, it);
   }
 #endif
 #ifdef USE_AREAS
-  buffer.encode_message(22, this->area, false);
+  buffer.encode_optional_sub_message(22, this->area);
 #endif
 #ifdef USE_ZWAVE_PROXY
   buffer.encode_uint32(23, this->zwave_proxy_feature_flags);
 #endif
 #ifdef USE_ZWAVE_PROXY
   buffer.encode_uint32(24, this->zwave_home_id);
+#endif
+#ifdef USE_SERIAL_PROXY
+  for (const auto &it : this->serial_proxies) {
+    buffer.encode_message(25, it);
+  }
 #endif
 }
 uint32_t DeviceInfoResponse::calculate_size() const {
@@ -180,6 +197,11 @@ uint32_t DeviceInfoResponse::calculate_size() const {
 #endif
 #ifdef USE_ZWAVE_PROXY
   size += ProtoSize::calc_uint32(2, this->zwave_home_id);
+#endif
+#ifdef USE_SERIAL_PROXY
+  for (const auto &it : this->serial_proxies) {
+    size += ProtoSize::calc_message_force(2, it.calculate_size());
+  }
 #endif
   return size;
 }
@@ -898,13 +920,13 @@ uint32_t HomeassistantServiceMap::calculate_size() const {
 void HomeassistantActionRequest::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(1, this->service);
   for (auto &it : this->data) {
-    buffer.encode_message(2, it);
+    buffer.encode_sub_message(2, it);
   }
   for (auto &it : this->data_template) {
-    buffer.encode_message(3, it);
+    buffer.encode_sub_message(3, it);
   }
   for (auto &it : this->variables) {
-    buffer.encode_message(4, it);
+    buffer.encode_sub_message(4, it);
   }
   buffer.encode_bool(5, this->is_event);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -1104,7 +1126,7 @@ void ListEntitiesServicesResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(1, this->name);
   buffer.encode_fixed32(2, this->key);
   for (auto &it : this->args) {
-    buffer.encode_message(3, it);
+    buffer.encode_sub_message(3, it);
   }
   buffer.encode_uint32(4, static_cast<uint32_t>(this->supports_response));
 }
@@ -2111,7 +2133,7 @@ void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
   buffer.encode_bool(8, this->supports_pause);
   for (auto &it : this->supported_formats) {
-    buffer.encode_message(9, it);
+    buffer.encode_sub_message(9, it);
   }
 #ifdef USE_DEVICES
   buffer.encode_uint32(10, this->device_id);
@@ -2242,7 +2264,7 @@ uint32_t BluetoothLERawAdvertisement::calculate_size() const {
 }
 void BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer &buffer) const {
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
-    buffer.encode_message(1, this->advertisements[i]);
+    buffer.encode_sub_message(1, this->advertisements[i]);
   }
 }
 uint32_t BluetoothLERawAdvertisementsResponse::calculate_size() const {
@@ -2321,7 +2343,7 @@ void BluetoothGATTCharacteristic::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(2, this->handle);
   buffer.encode_uint32(3, this->properties);
   for (auto &it : this->descriptors) {
-    buffer.encode_message(4, it);
+    buffer.encode_sub_message(4, it);
   }
   buffer.encode_uint32(5, this->short_uuid);
 }
@@ -2348,7 +2370,7 @@ void BluetoothGATTService::encode(ProtoWriteBuffer &buffer) const {
   }
   buffer.encode_uint32(2, this->handle);
   for (auto &it : this->characteristics) {
-    buffer.encode_message(3, it);
+    buffer.encode_sub_message(3, it);
   }
   buffer.encode_uint32(4, this->short_uuid);
 }
@@ -2370,7 +2392,7 @@ uint32_t BluetoothGATTService::calculate_size() const {
 void BluetoothGATTGetServicesResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint64(1, this->address);
   for (auto &it : this->services) {
-    buffer.encode_message(2, it);
+    buffer.encode_sub_message(2, it);
   }
 }
 uint32_t BluetoothGATTGetServicesResponse::calculate_size() const {
@@ -2651,7 +2673,7 @@ void VoiceAssistantRequest::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_bool(1, this->start);
   buffer.encode_string(2, this->conversation_id);
   buffer.encode_uint32(3, this->flags);
-  buffer.encode_message(4, this->audio_settings, false);
+  buffer.encode_optional_sub_message(4, this->audio_settings);
   buffer.encode_string(5, this->wake_word_phrase);
 }
 uint32_t VoiceAssistantRequest::calculate_size() const {
@@ -2884,7 +2906,7 @@ bool VoiceAssistantConfigurationRequest::decode_length(uint32_t field_id, ProtoL
 }
 void VoiceAssistantConfigurationResponse::encode(ProtoWriteBuffer &buffer) const {
   for (auto &it : this->available_wake_words) {
-    buffer.encode_message(1, it);
+    buffer.encode_sub_message(1, it);
   }
   for (const auto &it : *this->active_wake_words) {
     buffer.encode_string(2, it, true);
@@ -3711,6 +3733,145 @@ uint32_t InfraredRFReceiveEvent::calculate_size() const {
       size += ProtoSize::calc_sint32_force(1, it);
     }
   }
+  return size;
+}
+#endif
+#ifdef USE_SERIAL_PROXY
+bool SerialProxyConfigureRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->instance = value.as_uint32();
+      break;
+    case 2:
+      this->baudrate = value.as_uint32();
+      break;
+    case 3:
+      this->flow_control = value.as_bool();
+      break;
+    case 4:
+      this->parity = static_cast<enums::SerialProxyParity>(value.as_uint32());
+      break;
+    case 5:
+      this->stop_bits = value.as_uint32();
+      break;
+    case 6:
+      this->data_size = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+void SerialProxyDataReceived::encode(ProtoWriteBuffer &buffer) const {
+  buffer.encode_uint32(1, this->instance);
+  buffer.encode_bytes(2, this->data_ptr_, this->data_len_);
+}
+uint32_t SerialProxyDataReceived::calculate_size() const {
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, this->instance);
+  size += ProtoSize::calc_length(1, this->data_len_);
+  return size;
+}
+bool SerialProxyWriteRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->instance = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool SerialProxyWriteRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->data = value.data();
+      this->data_len = value.size();
+      break;
+    }
+    default:
+      return false;
+  }
+  return true;
+}
+bool SerialProxySetModemPinsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->instance = value.as_uint32();
+      break;
+    case 2:
+      this->line_states = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool SerialProxyGetModemPinsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->instance = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+void SerialProxyGetModemPinsResponse::encode(ProtoWriteBuffer &buffer) const {
+  buffer.encode_uint32(1, this->instance);
+  buffer.encode_uint32(2, this->line_states);
+}
+uint32_t SerialProxyGetModemPinsResponse::calculate_size() const {
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, this->instance);
+  size += ProtoSize::calc_uint32(1, this->line_states);
+  return size;
+}
+bool SerialProxyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->instance = value.as_uint32();
+      break;
+    case 2:
+      this->type = static_cast<enums::SerialProxyRequestType>(value.as_uint32());
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+bool BluetoothSetConnectionParamsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->address = value.as_uint64();
+      break;
+    case 2:
+      this->min_interval = value.as_uint32();
+      break;
+    case 3:
+      this->max_interval = value.as_uint32();
+      break;
+    case 4:
+      this->latency = value.as_uint32();
+      break;
+    case 5:
+      this->timeout = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+void BluetoothSetConnectionParamsResponse::encode(ProtoWriteBuffer &buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_int32(2, this->error);
+}
+uint32_t BluetoothSetConnectionParamsResponse::calculate_size() const {
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint64(1, this->address);
+  size += ProtoSize::calc_int32(1, this->error);
   return size;
 }
 #endif
