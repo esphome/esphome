@@ -65,7 +65,7 @@ void USBCDCACMInstance::setup() {
   ring_buf_init(&this->rx_ringbuf_, ESPHOME_CDC_RX_RING_BUFFER_SIZE, this->rx_ringbuf_data_);
   ring_buf_init(&this->tx_ringbuf_, ESPHOME_CDC_TX_RING_BUFFER_SIZE, this->tx_ringbuf_data_);
 #if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT)
-  zephyr::global_cdc_acm.add_on_rate_callback([this](const device *dev, uint32_t bit_rate) {
+  zephyr::global_cdc_acm->add_on_rate_callback([this](const device *dev, uint32_t bit_rate) {
     if (dev == this->uart_dev_) {
       // Queue event for processing in main loop
       this->queue_line_coding_event(bit_rate, this->stop_bits_, this->parity_, this->data_bits_);
