@@ -50,7 +50,7 @@ void OpenThreadComponent::on_state_changed_(otChangedFlags flags, void *context)
     auto *self = static_cast<OpenThreadComponent *>(context);
     // This runs on the OpenThread task thread with the OT lock held,
     // so we can safely call otThreadGetDeviceRole directly.
-    otInstance *instance = self->get_openthread_instance();
+    otInstance *instance = self->get_openthread_instance_();
     otDeviceRole role = otThreadGetDeviceRole(instance);
     self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
   }
