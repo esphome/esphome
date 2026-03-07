@@ -200,6 +200,38 @@ def prepare_symbol_changes_data(
             delta = pr_size - target_size
             changed_symbols.append((symbol, target_size, pr_size, delta))
 
+    # Fuzzy-match new/removed symbols whose function name (before the "(")
+    # is the same — these are signature changes (e.g. argument type changed).
+    if new_symbols and removed_symbols:
+        new_by_base: dict[str, list[int]] = {}
+        for i, (sym, _size) in enumerate(new_symbols):
+            base = sym.split("(", 1)[0]
+            new_by_base.setdefault(base, []).append(i)
+        removed_by_base: dict[str, list[int]] = {}
+        for i, (sym, _size) in enumerate(removed_symbols):
+            base = sym.split("(", 1)[0]
+            removed_by_base.setdefault(base, []).append(i)
+
+        matched_new: set[int] = set()
+        matched_removed: set[int] = set()
+        for base, new_indices in new_by_base.items():
+            rem_indices = removed_by_base.get(base)
+            if rem_indices and len(new_indices) == 1 and len(rem_indices) == 1:
+                ni, ri = new_indices[0], rem_indices[0]
+                pr_sym, pr_size = new_symbols[ni]
+                _rm_sym, target_size = removed_symbols[ri]
+                delta = pr_size - target_size
+                changed_symbols.append((pr_sym, target_size, pr_size, delta))
+                matched_new.add(ni)
+                matched_removed.add(ri)
+
+        if matched_new:
+            new_symbols = [s for i, s in enumerate(new_symbols) if i not in matched_new]
+        if matched_removed:
+            removed_symbols = [
+                s for i, s in enumerate(removed_symbols) if i not in matched_removed
+            ]
+
     if not changed_symbols and not new_symbols and not removed_symbols:
         return None
 
