@@ -415,12 +415,14 @@ ModemComponentState ModemComponent::handle_state_syncing_() {
 #ifdef USE_MODEM_URC
         // Publish to text sensor if configured
         if (this->urc_text_sensor != nullptr) {
-          this->urc_text_sensor->publish_state(line);
+          // defer so we won't be in the callback context
+          this->defer([this, line]() { this->urc_text_sensor->publish_state(line); });
         }
 #endif
       }
       return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_NONE, 0};
     };
+
     this->modem_handler->dce->set_enhanced_urc(urc_handler);
     this->modem_handler->send_init_at();
     return ModemComponentState::INIT_NETWORK;
