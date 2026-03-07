@@ -8,13 +8,83 @@
 namespace esphome::usb_uart {
 
 using namespace bytebuffer;
-/**
- * CH34x
- */
+
+// clang-format off
+struct CH34xEntry {
+  uint16_t     pid;
+  uint8_t      byte_idx;  // which status.data[] byte to inspect
+  uint8_t      mask;      // bitmask applied before comparison
+  uint8_t      match;     // 0xFF = wildcard (default/fallthrough for this PID)
+  CH34xChipType chiptype;
+  const char  *name;
+  uint8_t      num_ports;
+};
+
+static const CH34xEntry CH34X_TABLE[] = {
+  {0x55D2, 1, 0xFF, 0x41, CHIP_CH342K,          "CH342K",          2},
+  {0x55D2, 1, 0xFF, 0xFF, CHIP_CH342F,           "CH342F",          2},
+  {0x55D3, 1, 0xFF, 0x02, CHIP_CH343J,           "CH343J",          1},
+  {0x55D3, 1, 0xFF, 0x01, CHIP_CH343K,           "CH343K",          1},
+  {0x55D3, 1, 0xFF, 0x18, CHIP_CH343G_AUTOBAUD,  "CH343G_AUTOBAUD", 1},
+  {0x55D3, 1, 0xFF, 0xFF, CHIP_CH343GP,          "CH343GP",         1},
+  {0x55D4, 1, 0xFF, 0x09, CHIP_CH9102X,          "CH9102X",         1},
+  {0x55D4, 1, 0xFF, 0xFF, CHIP_CH9102F,          "CH9102F",         1},
+  {0x55D5, 1, 0xFF, 0xC0, CHIP_CH344L,           "CH344L",          4},  // CH344L vs CH344L_V2 resolved below
+  {0x55D5, 1, 0xFF, 0xFF, CHIP_CH344Q,           "CH344Q",          4},
+  {0x55D7, 1, 0xFF, 0xFF, CHIP_CH9103M,          "CH9103M",         2},
+  {0x55D8, 1, 0xFF, 0x0A, CHIP_CH9101RY,         "CH9101RY",        1},
+  {0x55D8, 1, 0xFF, 0xFF, CHIP_CH9101UH,         "CH9101UH",        1},
+  {0x55DB, 1, 0xFF, 0xFF, CHIP_CH347TF,          "CH347TF",         1},
+  {0x55DD, 1, 0xFF, 0xFF, CHIP_CH347TF,          "CH347TF",         1},
+  {0x55DA, 1, 0xFF, 0xFF, CHIP_CH347TF,          "CH347TF",         2},
+  {0x55DE, 1, 0xFF, 0xFF, CHIP_CH347TF,          "CH347TF",         2},
+  {0x55E7, 1, 0xFF, 0xFF, CHIP_CH339W,           "CH339W",          1},
+  {0x55DF, 1, 0xFF, 0xFF, CHIP_CH9104L,          "CH9104L",         4},
+  {0x55E9, 1, 0xFF, 0xFF, CHIP_CH9111L_M0,       "CH9111L_M0",      1},
+  {0x55EA, 1, 0xFF, 0xFF, CHIP_CH9111L_M1,       "CH9111L_M1",      1},
+  {0x55E8, 2, 0xFF, 0x48, CHIP_CH9114L,          "CH9114L",         4},
+  {0x55E8, 2, 0xFF, 0x49, CHIP_CH9114W,          "CH9114W",         4},
+  {0x55E8, 2, 0xFF, 0x4A, CHIP_CH9114F,          "CH9114F",         4},
+  {0x55EB, 4, 0x01, 0x01, CHIP_CH346C_M1,        "CH346C_M1",       1},
+  {0x55EB, 4, 0x01, 0xFF, CHIP_CH346C_M0,        "CH346C_M0",       1},
+  {0x55EC, 1, 0xFF, 0xFF, CHIP_CH346C_M2,        "CH346C_M2",       2},
+};
+// clang-format on
 
 void USBUartTypeCH34X::enable_channels() {
-  // enable the channels
-  for (auto channel : this->channels_) {
+  usb_host::transfer_cb_t cb = [this](const usb_host::TransferStatus &status) {
+    if (!status.success) {
+      ESP_LOGE(TAG, "CH34x chip detection failed: %s", esp_err_to_name(status.error_code));
+      this->apply_line_settings_();
+      return;
+    }
+    for (const auto &e : CH34X_TABLE) {
+      if (e.pid != this->pid_)
+        continue;
+      if (e.match != 0xFF && (status.data[e.byte_idx] & e.mask) != e.match)
+        continue;
+      this->chiptype_ = e.chiptype;
+      this->num_ports_ = e.num_ports;
+      break;
+    }
+    // CH344L vs CH344L_V2 requires chipver (data[0]) in addition to chiptype (data[1])
+    if (this->chiptype_ == CHIP_CH344L && (status.data[0] & 0xF0) != 0x40)
+      this->chiptype_ = CHIP_CH344L_V2;
+    const char *name = "unknown";
+    for (const auto &e : CH34X_TABLE) {
+      if (e.chiptype == this->chiptype_) {
+        name = e.name;
+        break;
+      }
+    }
+    ESP_LOGD(TAG, "CH34x chip: %s, ports: %u", name, this->num_ports_);
+    this->apply_line_settings_();
+  };
+  this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_IN, 0x5F, 0, 0, cb, {0, 0, 0, 0, 0, 0, 0, 0});
+}
+
+void USBUartTypeCH34X::apply_line_settings_() {
+  for (auto *channel : this->channels_) {
     if (!channel->initialised_.load())
       continue;
     usb_host::transfer_cb_t callback = [=](const usb_host::TransferStatus &status) {
