@@ -139,10 +139,11 @@ uart:
   debug:
     direction: BOTH
     dummy_receiver: false
+    debug_prefix: "[MODBUS] "
     after:
       delimiter: "\n"
     sequence:
-      - lambda: UARTDebug::log_string(direction, bytes);
+      - lambda: UARTDebug::log_string(direction, bytes, debug_prefix);
 
 # Minimal configuration example, logs hex strings by default
 uart:
@@ -154,6 +155,9 @@ uart:
 
 - **direction** (*Optional*, enum): The direction of communication to debug, one of: "RX" (receive, incoming),
   "TX" (send, outgoing) or "BOTH". Defaults to "BOTH".
+
+- **debug_prefix** (*Optional*, string): A string prepended to every debug log line for this UART bus.
+  Useful when multiple UART buses have debugging enabled, to distinguish their output in the log. Defaults to "".
 
 - **dummy_receiver** (*Optional*, boolean): Whether or not to enable the dummy receiver feature. The debugger
   will only accumulate bytes that are actually read or sent by a UART device component. This feature is
@@ -176,20 +180,24 @@ uart:
 
   - **direction**: `uart::UART_DIRECTION_RX` or `uart::UART_DIRECTION_TX`
   - **bytes**: `std::vector<uint8_t>` containing the accumulated bytes
+  - **debug_prefix**: `StringRef` containing the configured prefix (empty string if not set)
 
   **Helper functions for logging**
 
   Helper functions are provided to make logging of debug data in various formats easy:
 
-  - **UARTDebug::log_hex(direction, bytes, char separator)** Log the bytes as hex values, separated by the provided
+  - **UARTDebug::log_hex(direction, bytes, char separator, debug_prefix)** Log the bytes as hex values, separated by the provided
     separator character.
 
-  - **UARTDebug::log_string(direction, bytes)** Log the bytes as string values, escaping unprintable characters.
-  - **UARTDebug::log_int(direction, bytes, char separator)** Log the bytes as integer values, separated by the provided
+  - **UARTDebug::log_string(direction, bytes, debug_prefix)** Log the bytes as string values, escaping unprintable characters.
+  - **UARTDebug::log_int(direction, bytes, char separator, debug_prefix)** Log the bytes as integer values, separated by the provided
     separator character.
 
-  - **UARTDebug::log_binary(direction, bytes, char separator)** Log the bytes as `<binary> (<hex>)` values,
+  - **UARTDebug::log_binary(direction, bytes, char separator, debug_prefix)** Log the bytes as `<binary> (<hex>)` values,
     separated by the provided separator character.
+
+  The `debug_prefix` parameter is optional in all helpers (defaults to empty). When using the default `sequence`,
+  `debug_prefix` is passed automatically.
 
   **Logger buffer size**
 
