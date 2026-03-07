@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
+#include <array>
 
 namespace esphome::usb_uart {
 
@@ -53,33 +54,44 @@ static const CH34xEntry CH34X_TABLE[] = {
 
 void USBUartTypeCH34X::enable_channels() {
   usb_host::transfer_cb_t cb = [this](const usb_host::TransferStatus &status) {
-    if (!status.success) {
-      ESP_LOGE(TAG, "CH34x chip detection failed: %s", esp_err_to_name(status.error_code));
-      this->apply_line_settings_();
-      return;
-    }
-    for (const auto &e : CH34X_TABLE) {
-      if (e.pid != this->pid_)
-        continue;
-      if (e.match != 0xFF && (status.data[e.byte_idx] & e.mask) != e.match)
-        continue;
-      this->chiptype_ = e.chiptype;
-      this->num_ports_ = e.num_ports;
-      break;
-    }
-    // CH344L vs CH344L_V2 requires chipver (data[0]) in addition to chiptype (data[1])
-    if (this->chiptype_ == CHIP_CH344L && (status.data[0] & 0xF0) != 0x40)
-      this->chiptype_ = CHIP_CH344L_V2;
-    const char *name = "unknown";
-    for (const auto &e : CH34X_TABLE) {
-      if (e.chiptype == this->chiptype_) {
-        name = e.name;
+    // This callback runs in the USB host task context; defer all work to the main loop.
+    // Copy the response bytes before deferring since the transfer buffer may be reused.
+    bool success = status.success;
+    uint16_t error_code = status.error_code;
+    std::array<uint8_t, 8> data_copy{};
+    if (success && status.data_len <= data_copy.size())
+      std::copy(status.data, status.data + status.data_len, data_copy.begin());
+    this->defer([this, success, error_code, data_copy]() {
+      if (!success) {
+        ESP_LOGE(TAG, "CH34x chip detection failed: %s", esp_err_to_name(error_code));
+        this->apply_line_settings_();
+        return;
+      }
+      for (const auto &e : CH34X_TABLE) {
+        if (e.pid != this->pid_)
+          continue;
+        if (e.match != 0xFF && (data_copy[e.byte_idx] & e.mask) != e.match)
+          continue;
+        this->chiptype_ = e.chiptype;
+        this->num_ports_ = e.num_ports;
         break;
       }
-    }
-    ESP_LOGD(TAG, "CH34x chip: %s, ports: %u", name, this->num_ports_);
-    this->apply_line_settings_();
+      // CH344L vs CH344L_V2 requires chipver (data[0]) in addition to chiptype (data[1])
+      if (this->chiptype_ == CHIP_CH344L && (data_copy[0] & 0xF0) != 0x40)
+        this->chiptype_ = CHIP_CH344L_V2;
+      const char *name = "unknown";
+      for (const auto &e : CH34X_TABLE) {
+        if (e.chiptype == this->chiptype_) {
+          name = e.name;
+          break;
+        }
+      }
+      ESP_LOGD(TAG, "CH34x chip: %s, ports: %u", name, this->num_ports_);
+      this->apply_line_settings_();
+    });
   };
+  // Vendor-specific GET_CHIP_VERSION request (bRequest=0x5F): returns chip ID bytes
+  // used to distinguish CH34x variants sharing the same PID.
   this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_IN, 0x5F, 0, 0, cb, {0, 0, 0, 0, 0, 0, 0, 0});
 }
 
