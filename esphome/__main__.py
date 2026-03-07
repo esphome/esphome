@@ -702,11 +702,9 @@ def upload_using_esptool(
 
         mcu = get_esp32_variant().lower()
 
-    line_callbacks = []
-    if CORE.is_esp32:
-        configured_freq = _get_configured_xtal_freq()
-        if configured_freq is not None:
-            line_callbacks.append(_make_crystal_freq_callback(configured_freq))
+    line_callbacks: list[Callable[[str], str | None]] = []
+    if CORE.is_esp32 and (configured_freq := _get_configured_xtal_freq()) is not None:
+        line_callbacks.append(_make_crystal_freq_callback(configured_freq))
 
     def run_esptool(baud_rate):
         cmd = [

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -402,3 +404,122 @@ def test_shlex_quote_edge_cases() -> None:
     assert util.shlex_quote("\t") == "'\t'"
     assert util.shlex_quote("\n") == "'\n'"
     assert util.shlex_quote("   ") == "'   '"
+
+
+def _make_redirect(
+    line_callbacks: list | None = None, filter_lines: list[str] | None = None
+) -> tuple[util.RedirectText, io.StringIO]:
+    """Create a RedirectText that writes to a StringIO buffer."""
+    buf = io.StringIO()
+    with patch("esphome.core.CORE") as mock_core:
+        mock_core.dashboard = False
+        redirect = util.RedirectText(
+            buf, filter_lines=filter_lines, line_callbacks=line_callbacks
+        )
+    return redirect, buf
+
+
+def test_redirect_text_callback_called_on_matching_line() -> None:
+    """Test that a line callback is called and its output is written."""
+    results: list[str] = []
+
+    def callback(line: str) -> str | None:
+        results.append(line)
+        if "target" in line:
+            return "CALLBACK OUTPUT\n"
+        return None
+
+    redirect, buf = _make_redirect(line_callbacks=[callback])
+    redirect.write("some target line\n")
+
+    assert "some target line" in buf.getvalue()
+    assert "CALLBACK OUTPUT" in buf.getvalue()
+    assert len(results) == 1
+
+
+def test_redirect_text_callback_not_triggered_on_non_matching_line() -> None:
+    """Test that callback returns None for non-matching lines."""
+
+    def callback(line: str) -> str | None:
+        if "target" in line:
+            return "FOUND\n"
+        return None
+
+    redirect, buf = _make_redirect(line_callbacks=[callback])
+    redirect.write("no match here\n")
+
+    assert "no match here" in buf.getvalue()
+    assert "FOUND" not in buf.getvalue()
+
+
+def test_redirect_text_callback_works_without_filter_pattern() -> None:
+    """Test that callbacks fire even when no filter_lines is set."""
+
+    def callback(line: str) -> str | None:
+        if "Crystal" in line:
+            return "WARNING: mismatch\n"
+        return None
+
+    redirect, buf = _make_redirect(line_callbacks=[callback])
+    redirect.write("Crystal frequency:  26MHz\n")
+
+    assert "Crystal frequency:  26MHz" in buf.getvalue()
+    assert "WARNING: mismatch" in buf.getvalue()
+
+
+def test_redirect_text_callback_works_with_filter_pattern() -> None:
+    """Test that callbacks fire alongside filter patterns."""
+
+    def callback(line: str) -> str | None:
+        if "important" in line:
+            return "NOTED\n"
+        return None
+
+    redirect, buf = _make_redirect(
+        line_callbacks=[callback],
+        filter_lines=[r"^skip this.*"],
+    )
+    redirect.write("skip this line\n")
+    redirect.write("important line\n")
+
+    assert "skip this" not in buf.getvalue()
+    assert "important line" in buf.getvalue()
+    assert "NOTED" in buf.getvalue()
+
+
+def test_redirect_text_multiple_callbacks() -> None:
+    """Test that multiple callbacks are all invoked."""
+
+    def callback_a(line: str) -> str | None:
+        if "test" in line:
+            return "FROM A\n"
+        return None
+
+    def callback_b(line: str) -> str | None:
+        if "test" in line:
+            return "FROM B\n"
+        return None
+
+    redirect, buf = _make_redirect(line_callbacks=[callback_a, callback_b])
+    redirect.write("test line\n")
+
+    output = buf.getvalue()
+    assert "FROM A" in output
+    assert "FROM B" in output
+
+
+def test_redirect_text_incomplete_line_buffered() -> None:
+    """Test that incomplete lines are buffered until newline."""
+    results: list[str] = []
+
+    def callback(line: str) -> str | None:
+        results.append(line)
+        return None
+
+    redirect, buf = _make_redirect(line_callbacks=[callback])
+    redirect.write("partial")
+    assert len(results) == 0
+
+    redirect.write(" line\n")
+    assert len(results) == 1
+    assert results[0] == "partial line"
