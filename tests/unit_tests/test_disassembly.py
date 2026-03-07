@@ -260,3 +260,39 @@ def test_normalize_function_asm_func_size_zero_includes_all() -> None:
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func", func_size=0)
     assert "+0x0004:" in result
+
+
+@pytest.mark.parametrize(
+    "insn",
+    [
+        "excw",
+        "ill",
+        ".byte\t0x4f",
+        ".short\t0x1234",
+        ".word\t0x12345678",
+        "{ excw; excw }",
+        "orb\tb0, b0, b0",
+        "orbc\tb0, b0, b10",
+    ],
+    ids=[
+        "excw",
+        "ill",
+        "byte",
+        "short",
+        "word",
+        "flix_excw",
+        "orb_b0",
+        "orbc_b0",
+    ],
+)
+def test_normalize_function_asm_skips_data_as_code(insn: str) -> None:
+    """Data misinterpreted as code is filtered out."""
+    lines = [
+        "  40001000:\tmov.n    a2, a3",
+        f"  40001002:\t{insn}",
+        "  40001005:\tret.n",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func")
+    assert "+0x0002:" not in result
+    assert "+0x0000:" in result
+    assert "+0x0005:" in result
