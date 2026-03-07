@@ -6,8 +6,6 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["rp2040"]
 CODEOWNERS = ["@bdraco"]
 
-CONF_BLE_ID = "ble_id"
-
 rp2040_ble_ns = cg.esphome_ns.namespace("rp2040_ble")
 RP2040BLE = rp2040_ble_ns.class_("RP2040BLE", cg.Component)
 
