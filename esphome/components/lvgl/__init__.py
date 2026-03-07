@@ -10,6 +10,12 @@ from esphome.components.const import (
     CONF_DRAW_ROUNDING,
 )
 from esphome.components.display import Display
+from esphome.components.esp32 import (
+    VARIANT_ESP32P4,
+    add_idf_component,
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
+)
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
@@ -32,7 +38,6 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 from esphome.yaml_util import load_yaml
 
-from ..esp32 import add_idf_component
 from . import defines as df, helpers, lv_validation as lvalid, widgets
 from .automation import focused_widgets, layers_to_code, lvgl_update, refreshed_widgets
 from .encoders import (
@@ -105,6 +110,7 @@ def as_macro(macro, value):
     return f"#define {macro} {value}"
 
 
+LVGL_VERSION = "9.5.0"
 LV_CONF_FILENAME = "lv_conf.h"
 LV_CONF_H_FORMAT = """\
 #pragma once
@@ -209,15 +215,21 @@ async def to_code(configs):
     config_0 = configs[0]
     # Global configuration
     if CORE.is_esp32:
-        add_idf_component(name="lvgl/lvgl", ref="9.4.0")
+        if get_esp32_variant() == VARIANT_ESP32P4:
+            add_idf_sdkconfig_option("CONFIG_LV_DRAW_BUF_ALIGN", 64)
+            df.add_define("LV_USE_PPA", "1")
+            df.add_define("LV_DRAW_BUF_ALIGN", "64")
+        else:
+            df.add_define("LV_DRAW_BUF_ALIGN", "32")
+        add_idf_component(name="lvgl/lvgl", ref=LVGL_VERSION)
     else:
-        cg.add_library("lvgl/lvgl", "9.4.0")
+        df.add_define("LV_DRAW_BUF_ALIGN", "1")
+        cg.add_library("lvgl/lvgl", LVGL_VERSION)
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     df.add_define("_LV_KCONFIG_PRESENT")
     # Always enable - lots of things use it.
     df.add_define("LV_DRAW_COMPLEX", "1")
-    df.add_define("LV_DRAW_BUF_ALIGN", "1")
     df.add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
 
     df.add_define(

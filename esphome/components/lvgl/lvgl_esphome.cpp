@@ -8,6 +8,8 @@
 
 #include <numeric>
 
+static void *lv_alloc_draw_buf(size_t size, bool internal);
+
 namespace esphome::lvgl {
 static const char *const TAG = "lvgl";
 
@@ -121,7 +123,7 @@ void LvglComponent::set_paused(bool paused, bool show_snow) {
   this->paused_ = paused;
   this->show_snow_ = show_snow;
   if (!paused && lv_screen_active() != nullptr) {
-    lv_disp_trig_activity(this->disp_);  // resets the inactivity time
+    lv_display_trigger_activity(this->disp_);  // resets the inactivity time
     lv_obj_invalidate(lv_screen_active());
   }
   if (paused && this->pause_callback_ != nullptr)
@@ -157,7 +159,7 @@ void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_ev
 void LvglComponent::add_page(LvPageType *page) {
   this->pages_.push_back(page);
   page->set_parent(this);
-  lv_disp_set_default(this->disp_);
+  lv_display_set_default(this->disp_);
   page->setup(this->pages_.size() - 1);
 }
 
@@ -248,7 +250,7 @@ void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uin
     ESP_LOGV(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", area->x1, area->y1, lv_area_get_width(area),
              lv_area_get_height(area), (int) (millis() - now));
   }
-  lv_disp_flush_ready(disp_drv);
+  lv_display_flush_ready(disp_drv);
 }
 
 IdleTrigger::IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeout) : timeout_(std::move(timeout)) {
@@ -477,7 +479,7 @@ bool LvglComponent::is_paused() const {
 }
 
 void LvglComponent::write_random_() {
-  int iterations = 6 - lv_disp_get_inactive_time(this->disp_) / 60000;
+  int iterations = 6 - lv_display_get_inactive_time(this->disp_) / 60000;
   if (iterations <= 0)
     iterations = 1;
   while (iterations-- != 0) {
@@ -549,14 +551,14 @@ void LvglComponent::setup() {
   void *buffer = nullptr;
   // for small buffers, try to allocate in internal memory first to improve performance
   if (this->buffer_frac_ >= MIN_BUFFER_FRAC / 2)
-    buffer = malloc(buf_bytes);  // NOLINT
+    buffer = lv_alloc_draw_buf(buf_bytes, true);  // NOLINT
   if (buffer == nullptr)
-    buffer = lv_malloc_core(buf_bytes);  // NOLINT
+    buffer = lv_alloc_draw_buf(buf_bytes, false);  // NOLINT
   // if specific buffer size not set and can't get 100%, try for a smaller one
   if (buffer == nullptr && this->buffer_frac_ == 0) {
     frac = MIN_BUFFER_FRAC;
     buf_bytes /= MIN_BUFFER_FRAC;
-    buffer = lv_malloc_core(buf_bytes);  // NOLINT
+    buffer = lv_alloc_draw_buf(buf_bytes, false);  // NOLINT
   }
   this->buffer_frac_ = frac;
   if (buffer == nullptr) {
@@ -603,7 +605,7 @@ void LvglComponent::setup() {
   for (auto *disp : this->displays_)
     disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
   this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
-  lv_disp_trig_activity(this->disp_);
+  lv_display_trigger_activity(this->disp_);
 }
 
 void LvglComponent::update() {
@@ -611,7 +613,7 @@ void LvglComponent::update() {
   if (this->is_paused()) {
     return;
   }
-  this->idle_callbacks_.call(lv_disp_get_inactive_time(this->disp_));
+  this->idle_callbacks_.call(lv_display_get_inactive_time(this->disp_));
 }
 
 void LvglComponent::loop() {
@@ -701,10 +703,20 @@ void lv_free_core(void *ptr) { return free(ptr); }                            //
 void *lv_realloc_core(void *ptr, size_t size) { return realloc(ptr, size); }  // NOLINT
 
 void lv_mem_monitor_core(lv_mem_monitor_t *mon_p) { memset(mon_p, 0, sizeof(lv_mem_monitor_t)); }
+static void *lv_alloc_draw_buf(size_t size, bool internal) {
+  return malloc(size);  // NOLINT
+}
 
-#endif
-#ifdef USE_ESP32
+#elif defined(USE_ESP32)
 static unsigned cap_bits = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;  // NOLINT
+
+static void *lv_alloc_draw_buf(size_t size, bool internal) {
+  void *buffer;
+  buffer = heap_caps_aligned_alloc(LV_DRAW_BUF_ALIGN, size, internal ? MALLOC_CAP_8BIT : cap_bits);  // NOLINT
+  if (buffer == nullptr)
+    ESP_LOGW(esphome::lvgl::TAG, "Failed to allocate %zu bytes for %sdraw buffer", size, internal ? "internal " : "");
+  return buffer;
+}
 
 void lv_mem_monitor_core(lv_mem_monitor_t *mon_p) {
   multi_heap_info_t heap_info;
