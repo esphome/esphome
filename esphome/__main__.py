@@ -649,8 +649,7 @@ def _make_crystal_freq_callback(
     crystal_re = re.compile(r"Crystal frequency:\s+(\d+(?:\.\d+)?)\s*MHz")
 
     def check_crystal_line(line: str) -> str | None:
-        match = crystal_re.search(line)
-        if not match:
+        if not (match := crystal_re.search(line)):
             return None
         detected = int(float(match.group(1)))
         if detected == configured_freq:
