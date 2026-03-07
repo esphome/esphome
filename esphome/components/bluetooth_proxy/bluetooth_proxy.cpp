@@ -373,7 +373,8 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 
   if (connection == nullptr || !connection->connected()) {
     ESP_LOGW(TAG, "[%d] [%s] Cannot set connection params, not connected",
-             connection ? connection->connection_index_ : -1, connection ? connection->address_str() : "unknown");
+             connection ? static_cast<int>(connection->connection_index_) : -1,
+             connection ? connection->address_str() : "unknown");
     resp.error = ESP_GATT_NOT_CONNECTED;
     this->api_connection_->send_message(resp);
     return;
@@ -382,9 +383,10 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
   // Protobuf fields are uint32_t to future-proof the API if BLE ever supports wider values;
   // clamp to uint16_t since the current BLE spec defines these as 16-bit.
   constexpr uint32_t max_val = std::numeric_limits<uint16_t>::max();
-  resp.error =
-      connection->update_connection_params(std::min(msg.min_interval, max_val), std::min(msg.max_interval, max_val),
-                                           std::min(msg.latency, max_val), std::min(msg.timeout, max_val));
+  resp.error = connection->update_connection_params(static_cast<uint16_t>(std::min(msg.min_interval, max_val)),
+                                                    static_cast<uint16_t>(std::min(msg.max_interval, max_val)),
+                                                    static_cast<uint16_t>(std::min(msg.latency, max_val)),
+                                                    static_cast<uint16_t>(std::min(msg.timeout, max_val)));
   this->api_connection_->send_message(resp);
 }
 
