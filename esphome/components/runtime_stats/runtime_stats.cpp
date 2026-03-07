@@ -9,21 +9,16 @@ namespace esphome {
 
 namespace runtime_stats {
 
-RuntimeStatsCollector::RuntimeStatsCollector() : log_interval_(60000), next_log_time_(0) {
+RuntimeStatsCollector::RuntimeStatsCollector() : log_interval_(60000), next_log_time_(60000) {
   global_runtime_stats = this;
 }
 
-void RuntimeStatsCollector::record_component_time(Component *component, uint32_t duration_ms, uint32_t current_time) {
+void RuntimeStatsCollector::record_component_time(Component *component, uint32_t duration_us) {
   if (component == nullptr)
     return;
 
   // Record stats using component pointer as key
-  this->component_stats_[component].record_time(duration_ms);
-
-  if (this->next_log_time_ == 0) {
-    this->next_log_time_ = current_time + this->log_interval_;
-    return;
-  }
+  this->component_stats_[component].record_time(duration_us);
 }
 
 void RuntimeStatsCollector::log_stats_() {
@@ -58,15 +53,16 @@ void RuntimeStatsCollector::log_stats_() {
 
   // Sort by period runtime (descending)
   std::sort(sorted, sorted + count, [this](Component *a, Component *b) {
-    return this->component_stats_[a].get_period_time_ms() > this->component_stats_[b].get_period_time_ms();
+    return this->component_stats_[a].get_period_time_us() > this->component_stats_[b].get_period_time_us();
   });
 
   // Log top components by period runtime
   for (size_t i = 0; i < count; i++) {
     const auto &stats = this->component_stats_[sorted[i]];
-    ESP_LOGI(TAG, "  %s: count=%" PRIu32 ", avg=%.2fms, max=%" PRIu32 "ms, total=%" PRIu32 "ms",
-             LOG_STR_ARG(sorted[i]->get_component_log_str()), stats.get_period_count(), stats.get_period_avg_time_ms(),
-             stats.get_period_max_time_ms(), stats.get_period_time_ms());
+    ESP_LOGI(TAG, "  %s: count=%" PRIu32 ", avg=%.3fms, max=%.2fms, total=%.1fms",
+             LOG_STR_ARG(sorted[i]->get_component_log_str()), stats.get_period_count(),
+             stats.get_period_avg_time_us() / 1000.0f, stats.get_period_max_time_us() / 1000.0f,
+             stats.get_period_time_us() / 1000.0f);
   }
 
   // Log total stats since boot (only for active components - idle ones haven't changed)
@@ -74,22 +70,20 @@ void RuntimeStatsCollector::log_stats_() {
 
   // Re-sort by total runtime for all-time stats
   std::sort(sorted, sorted + count, [this](Component *a, Component *b) {
-    return this->component_stats_[a].get_total_time_ms() > this->component_stats_[b].get_total_time_ms();
+    return this->component_stats_[a].get_total_time_us() > this->component_stats_[b].get_total_time_us();
   });
 
   for (size_t i = 0; i < count; i++) {
     const auto &stats = this->component_stats_[sorted[i]];
-    ESP_LOGI(TAG, "  %s: count=%" PRIu32 ", avg=%.2fms, max=%" PRIu32 "ms, total=%" PRIu32 "ms",
-             LOG_STR_ARG(sorted[i]->get_component_log_str()), stats.get_total_count(), stats.get_total_avg_time_ms(),
-             stats.get_total_max_time_ms(), stats.get_total_time_ms());
+    ESP_LOGI(TAG, "  %s: count=%" PRIu32 ", avg=%.3fms, max=%.2fms, total=%.1fms",
+             LOG_STR_ARG(sorted[i]->get_component_log_str()), stats.get_total_count(),
+             stats.get_total_avg_time_us() / 1000.0f, stats.get_total_max_time_us() / 1000.0f,
+             stats.get_total_time_us() / 1000.0);
   }
 }
 
 void RuntimeStatsCollector::process_pending_stats(uint32_t current_time) {
-  if (this->next_log_time_ == 0)
-    return;
-
-  if (current_time >= this->next_log_time_) {
+  if ((int32_t) (current_time - this->next_log_time_) >= 0) {
     this->log_stats_();
     this->reset_stats_();
     this->next_log_time_ = current_time + this->log_interval_;

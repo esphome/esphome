@@ -17,7 +17,7 @@ import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
 
-CODEOWNERS = ["@glmnet"]
+CODEOWNERS = ["@glmnet", "@ximex"]
 CONF_RTTTL = "rtttl"
 CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
 

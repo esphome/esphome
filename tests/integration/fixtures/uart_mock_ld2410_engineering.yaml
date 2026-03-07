@@ -1,0 +1,164 @@
+esphome:
+  name: uart-mock-ld2410-eng-test
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2410's DEPENDENCIES = ["uart"]
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  auto_start: false
+  injections:
+    # Phase 1 (t=100ms): Valid LD2410 engineering mode data frame
+    # Captured from a real Screek Human Presence Sensor 1U with LD2410 firmware 2.4.x
+    #
+    # Engineering mode frame layout (45 bytes):
+    #   [0-3]   F4 F3 F2 F1 = data frame header
+    #   [4-5]   23 00       = length 35
+    #   [6]     01          = data type (engineering mode)
+    #   [7]     AA          = data header marker
+    #   [8]     03          = target states (moving+still)
+    #   [9-10]  1E 00       = moving distance 30 (0x001E)
+    #   [11]    64          = moving energy 100
+    #   [12-13] 1E 00       = still distance 30 (0x001E)
+    #   [14]    64          = still energy 100
+    #   [15-16] 00 00       = detection distance 0
+    #   [17]    08          = max moving distance gate
+    #   [18]    08          = max still distance gate
+    #   [19-27] gate moving energies (gates 0-8)
+    #   [28-36] gate still energies (gates 0-8)
+    #   [37]    57          = light sensor value 87
+    #   [38]    01          = out pin presence (HIGH)
+    #   [39]    55          = data footer marker
+    #   [40]    00          = check
+    #   [41-44] F8 F7 F6 F5 = data frame footer
+    - delay: 100ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x23, 0x00,
+          0x01, 0xAA,
+          0x03,
+          0x1E, 0x00,
+          0x64,
+          0x1E, 0x00,
+          0x64,
+          0x00, 0x00,
+          0x08, 0x08,
+          0x64, 0x41, 0x06, 0x0E, 0x2B, 0x16, 0x03, 0x03, 0x07,
+          0x00, 0x00, 0x64, 0x64, 0x64, 0x64, 0x64, 0x64, 0x64,
+          0x57, 0x01,
+          0x55, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+    # Phase 2 (t=200ms): Second engineering mode frame with different values
+    # Real capture: moving at 73cm, still at 30cm, detection at 33cm
+    - delay: 100ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x23, 0x00,
+          0x01, 0xAA,
+          0x03,
+          0x49, 0x00,
+          0x64,
+          0x1E, 0x00,
+          0x64,
+          0x21, 0x00,
+          0x08, 0x08,
+          0x11, 0x64, 0x05, 0x29, 0x39, 0x10, 0x03, 0x11, 0x0E,
+          0x00, 0x00, 0x64, 0x64, 0x64, 0x64, 0x64, 0x64, 0x64,
+          0x57, 0x01,
+          0x55, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+    # Phase 3 (t=300ms): Frame with still target at 291cm (multi-byte distance)
+    # This tests the two_byte_to_int function with high byte > 0
+    # Note: low byte 0x2F < 0x80 so it avoids the signed char bug
+    - delay: 100ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x23, 0x00,
+          0x01, 0xAA,
+          0x03,
+          0x2F, 0x00,
+          0x36,
+          0x23, 0x01,
+          0x64,
+          0x21, 0x00,
+          0x08, 0x08,
+          0x2F, 0x36, 0x09, 0x0D, 0x15, 0x0B, 0x06, 0x06, 0x08,
+          0x00, 0x00, 0x64, 0x64, 0x64, 0x64, 0x64, 0x5A, 0x3D,
+          0x57, 0x01,
+          0x55, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+ld2410:
+  id: ld2410_dev
+  uart_id: mock_uart
+
+sensor:
+  - platform: ld2410
+    ld2410_id: ld2410_dev
+    moving_distance:
+      name: "Moving Distance"
+    still_distance:
+      name: "Still Distance"
+    moving_energy:
+      name: "Moving Energy"
+    still_energy:
+      name: "Still Energy"
+    detection_distance:
+      name: "Detection Distance"
+    light:
+      name: "Light"
+    g0:
+      move_energy:
+        name: "Gate 0 Move Energy"
+      still_energy:
+        name: "Gate 0 Still Energy"
+    g1:
+      move_energy:
+        name: "Gate 1 Move Energy"
+      still_energy:
+        name: "Gate 1 Still Energy"
+    g2:
+      move_energy:
+        name: "Gate 2 Move Energy"
+      still_energy:
+        name: "Gate 2 Still Energy"
+
+binary_sensor:
+  - platform: ld2410
+    ld2410_id: ld2410_dev
+    has_target:
+      name: "Has Target"
+    has_moving_target:
+      name: "Has Moving Target"
+    has_still_target:
+      name: "Has Still Target"
+    out_pin_presence_status:
+      name: "Out Pin Presence"
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'

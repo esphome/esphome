@@ -14,8 +14,8 @@
 #include <sys/time.h>
 #endif
 #include <cerrno>
-
 #include <cinttypes>
+#include <cstdlib>
 
 namespace esphome::time {
 
@@ -23,9 +23,33 @@ static const char *const TAG = "time";
 
 RealTimeClock::RealTimeClock() = default;
 
+ESPTime __attribute__((noinline)) RealTimeClock::now() {
+#ifdef USE_TIME_TIMEZONE
+  time_t epoch = this->timestamp_now();
+  struct tm local_tm;
+  if (epoch_to_local_tm(epoch, get_global_tz(), &local_tm)) {
+    return ESPTime::from_c_tm(&local_tm, epoch);
+  }
+  // Fallback to UTC if parsing failed
+  return ESPTime::from_epoch_utc(epoch);
+#else
+  return ESPTime::from_epoch_local(this->timestamp_now());
+#endif
+}
+
 void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
-  ESP_LOGCONFIG(TAG, "Timezone: '%s'", this->timezone_.c_str());
+  const auto &tz = get_global_tz();
+  // POSIX offset is positive west, negate for conventional UTC+X display
+  int std_h = -tz.std_offset_seconds / 3600;
+  int std_m = (std::abs(tz.std_offset_seconds) % 3600) / 60;
+  if (tz.has_dst()) {
+    int dst_h = -tz.dst_offset_seconds / 3600;
+    int dst_m = (std::abs(tz.dst_offset_seconds) % 3600) / 60;
+    ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d (DST UTC%+d:%02d)", std_h, std_m, dst_h, dst_m);
+  } else {
+    ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d", std_h, std_m);
+  }
 #endif
   auto time = this->now();
   ESP_LOGCONFIG(TAG, "Current time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month, time.hour,
@@ -66,16 +90,11 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   };
   struct timezone tz = {0, 0};
   int ret = settimeofday(&timev, &tz);
-  if (ret == EINVAL) {
+  if (ret != 0 && errno == EINVAL) {
     // Some ESP8266 frameworks abort when timezone parameter is not NULL
     // while ESP32 expects it not to be NULL
     ret = settimeofday(&timev, nullptr);
   }
-
-#ifdef USE_TIME_TIMEZONE
-  // Move timezone back to local timezone.
-  this->apply_timezone_();
-#endif
 
   if (ret != 0) {
     ESP_LOGW(TAG, "setimeofday() failed with code %d", ret);
@@ -89,9 +108,33 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
 }
 
 #ifdef USE_TIME_TIMEZONE
-void RealTimeClock::apply_timezone_() {
-  setenv("TZ", this->timezone_.c_str(), 1);
+void RealTimeClock::apply_timezone_(const char *tz) {
+  ParsedTimezone parsed{};
+
+  // Handle null or empty input - use UTC
+  if (tz == nullptr || *tz == '\0') {
+    // Skip if already UTC
+    if (!get_global_tz().has_dst() && get_global_tz().std_offset_seconds == 0) {
+      return;
+    }
+    set_global_tz(parsed);
+    return;
+  }
+
+#ifdef USE_HOST
+  // On host platform, also set TZ environment variable for libc compatibility
+  setenv("TZ", tz, 1);
   tzset();
+#endif
+
+  // Parse the POSIX TZ string using our custom parser
+  if (!parse_posix_tz(tz, parsed)) {
+    ESP_LOGW(TAG, "Failed to parse timezone: %s", tz);
+    return;
+  }
+
+  // Set global timezone for all time conversions
+  set_global_tz(parsed);
 }
 #endif
 
