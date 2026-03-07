@@ -1,5 +1,4 @@
 """Modbus TCP device/responder component (esp-modbus). Protocol: controller/device."""
-# pylint: disable=replacing-legacy-terms  # esp-modbus API uses CONFIG_FMB_*_SLAVE_* macro names
 
 import logging
 import os
@@ -101,18 +100,12 @@ def _validate_esp32_esp_idf(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(ModbusDeviceTCP),
-            cv.Optional(CONF_PORT, default=DEFAULT_MODBUS_PORT): cv.port,
-            cv.Optional(CONF_UNIT_ID, default=DEFAULT_MODBUS_UNIT_ID): cv.int_range(
-                0, 247
-            ),
-            cv.Optional(
-                CONF_NUM_OBJECTS, default=DEFAULT_MODBUS_NUM_OBJECTS
-            ): cv.int_range(1, 128),
-        }
-    ).extend(cv.COMPONENT_SCHEMA),
+    cv.Schema({
+        cv.GenerateID(): cv.declare_id(ModbusDeviceTCP),
+        cv.Optional(CONF_PORT, default=DEFAULT_MODBUS_PORT): cv.port,
+        cv.Optional(CONF_UNIT_ID, default=DEFAULT_MODBUS_UNIT_ID): cv.int_range(0, 247),
+        cv.Optional(CONF_NUM_OBJECTS, default=DEFAULT_MODBUS_NUM_OBJECTS): cv.int_range(1, 128),
+    }).extend(cv.COMPONENT_SCHEMA),
     _validate_esp32_esp_idf,
 )
 
