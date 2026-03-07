@@ -1188,6 +1188,9 @@ void APIConnection::on_bluetooth_scanner_set_mode_request(const BluetoothScanner
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_scanner_set_mode(
       msg.mode == enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE);
 }
+void APIConnection::on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_set_connection_params(msg);
+}
 #endif
 
 #ifdef USE_VOICE_ASSISTANT

@@ -209,7 +209,7 @@ void EthernetComponent::setup() {
       break;
     }
 #endif
-#ifdef USE_ETHERNET_JL1101
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
     case ETHERNET_TYPE_JL1101: {
       this->phy_ = esp_eth_phy_new_jl1101(&phy_config);
       break;
@@ -374,7 +374,7 @@ void EthernetComponent::dump_config() {
       eth_type = "IP101";
       break;
 #endif
-#ifdef USE_ETHERNET_JL1101
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
     case ETHERNET_TYPE_JL1101:
       eth_type = "JL1101";
       break;

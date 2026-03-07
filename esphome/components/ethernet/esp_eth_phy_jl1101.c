@@ -27,7 +27,7 @@
 #include "esp_rom_sys.h"
 #include "esp_idf_version.h"
 
-#if defined(USE_ARDUINO) || ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
 
 static const char *TAG = "jl1101";
 #define PHY_CHECK(a, str, goto_tag, ...) \

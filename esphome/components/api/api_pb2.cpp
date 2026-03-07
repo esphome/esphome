@@ -120,16 +120,16 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer &buffer) const {
 #endif
 #ifdef USE_DEVICES
   for (const auto &it : this->devices) {
-    buffer.encode_message(20, it);
+    buffer.encode_sub_message(20, it);
   }
 #endif
 #ifdef USE_AREAS
   for (const auto &it : this->areas) {
-    buffer.encode_message(21, it);
+    buffer.encode_sub_message(21, it);
   }
 #endif
 #ifdef USE_AREAS
-  buffer.encode_message(22, this->area, false);
+  buffer.encode_optional_sub_message(22, this->area);
 #endif
 #ifdef USE_ZWAVE_PROXY
   buffer.encode_uint32(23, this->zwave_proxy_feature_flags);
@@ -920,13 +920,13 @@ uint32_t HomeassistantServiceMap::calculate_size() const {
 void HomeassistantActionRequest::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(1, this->service);
   for (auto &it : this->data) {
-    buffer.encode_message(2, it);
+    buffer.encode_sub_message(2, it);
   }
   for (auto &it : this->data_template) {
-    buffer.encode_message(3, it);
+    buffer.encode_sub_message(3, it);
   }
   for (auto &it : this->variables) {
-    buffer.encode_message(4, it);
+    buffer.encode_sub_message(4, it);
   }
   buffer.encode_bool(5, this->is_event);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -1126,7 +1126,7 @@ void ListEntitiesServicesResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(1, this->name);
   buffer.encode_fixed32(2, this->key);
   for (auto &it : this->args) {
-    buffer.encode_message(3, it);
+    buffer.encode_sub_message(3, it);
   }
   buffer.encode_uint32(4, static_cast<uint32_t>(this->supports_response));
 }
@@ -2133,7 +2133,7 @@ void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
   buffer.encode_bool(8, this->supports_pause);
   for (auto &it : this->supported_formats) {
-    buffer.encode_message(9, it);
+    buffer.encode_sub_message(9, it);
   }
 #ifdef USE_DEVICES
   buffer.encode_uint32(10, this->device_id);
@@ -2264,7 +2264,7 @@ uint32_t BluetoothLERawAdvertisement::calculate_size() const {
 }
 void BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer &buffer) const {
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
-    buffer.encode_message(1, this->advertisements[i]);
+    buffer.encode_sub_message(1, this->advertisements[i]);
   }
 }
 uint32_t BluetoothLERawAdvertisementsResponse::calculate_size() const {
@@ -2343,7 +2343,7 @@ void BluetoothGATTCharacteristic::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(2, this->handle);
   buffer.encode_uint32(3, this->properties);
   for (auto &it : this->descriptors) {
-    buffer.encode_message(4, it);
+    buffer.encode_sub_message(4, it);
   }
   buffer.encode_uint32(5, this->short_uuid);
 }
@@ -2370,7 +2370,7 @@ void BluetoothGATTService::encode(ProtoWriteBuffer &buffer) const {
   }
   buffer.encode_uint32(2, this->handle);
   for (auto &it : this->characteristics) {
-    buffer.encode_message(3, it);
+    buffer.encode_sub_message(3, it);
   }
   buffer.encode_uint32(4, this->short_uuid);
 }
@@ -2392,7 +2392,7 @@ uint32_t BluetoothGATTService::calculate_size() const {
 void BluetoothGATTGetServicesResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint64(1, this->address);
   for (auto &it : this->services) {
-    buffer.encode_message(2, it);
+    buffer.encode_sub_message(2, it);
   }
 }
 uint32_t BluetoothGATTGetServicesResponse::calculate_size() const {
@@ -2673,7 +2673,7 @@ void VoiceAssistantRequest::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_bool(1, this->start);
   buffer.encode_string(2, this->conversation_id);
   buffer.encode_uint32(3, this->flags);
-  buffer.encode_message(4, this->audio_settings, false);
+  buffer.encode_optional_sub_message(4, this->audio_settings);
   buffer.encode_string(5, this->wake_word_phrase);
 }
 uint32_t VoiceAssistantRequest::calculate_size() const {
@@ -2906,7 +2906,7 @@ bool VoiceAssistantConfigurationRequest::decode_length(uint32_t field_id, ProtoL
 }
 void VoiceAssistantConfigurationResponse::encode(ProtoWriteBuffer &buffer) const {
   for (auto &it : this->available_wake_words) {
-    buffer.encode_message(1, it);
+    buffer.encode_sub_message(1, it);
   }
   for (const auto &it : *this->active_wake_words) {
     buffer.encode_string(2, it, true);
