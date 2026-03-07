@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 
 # Add script directory to path so we can import the module
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "script"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "script"))
 
 from ci_memory_impact_comment import (  # noqa: E402
     _count_instructions,
