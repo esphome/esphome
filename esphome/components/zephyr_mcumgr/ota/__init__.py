@@ -62,7 +62,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _validate_mcumgr_bootloader(config):
+def _validate_mcumgr_bootloader(config: ConfigType) -> None:
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader != BOOTLOADER_MCUBOOT:
         raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
@@ -71,7 +71,7 @@ def _validate_mcumgr_bootloader(config):
 KEY_ZEPHYR_BLE_SERVER = "zephyr_ble_server"
 
 
-def _validate_ble_server(config):
+def _validate_ble_server(config: ConfigType) -> None:
     if (
         config[CONF_TRANSPORT][CONF_BLE]
         and KEY_ZEPHYR_BLE_SERVER not in CORE.loaded_integrations
@@ -79,7 +79,7 @@ def _validate_ble_server(config):
         raise cv.Invalid(f"'{KEY_ZEPHYR_BLE_SERVER}' component is required for BLE OTA")
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     _validate_mcumgr_bootloader(config)
     _validate_ble_server(config)
 
@@ -88,7 +88,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await ota_to_code(var, config)
 
