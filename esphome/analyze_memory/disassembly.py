@@ -31,6 +31,22 @@ _LITERAL_POOL_SYMBOLS = frozenset(
 # The <symbol+offset> in l32r refers to where the literal is stored, not a call target
 _L32R_RE = re.compile(r"^l32r\s+")
 
+# Instructions that indicate data misinterpreted as code by objdump's linear sweep.
+# These appear when switch tables, constants, or padding are embedded in code sections.
+# We skip these lines entirely to avoid noisy diffs with spurious symbol references.
+_DATA_AS_CODE_RE = re.compile(
+    r"^(?:"
+    r"excw"  # exception wait — never used in normal code
+    r"|ill"  # illegal instruction — padding/alignment
+    r"|\.byte\s"  # raw data bytes objdump couldn't decode
+    r"|\.short\s"  # raw data shorts
+    r"|\.word\s"  # raw data words
+    r"|\{[^}]*excw"  # FLIX bundles containing excw
+    r"|orb\s+b"  # coprocessor bool ops — data artifact on non-FPU chips
+    r"|orbc\s+b"  # coprocessor bool ops — data artifact
+    r")"
+)
+
 # Default limits
 DEFAULT_MAX_LINES_PER_SYMBOL = 150
 DEFAULT_MIN_SYMBOL_SIZE = 16
@@ -155,6 +171,9 @@ def _normalize_function_asm(
         if func_size and offset >= func_size:
             break
         insn = m.group(2)
+        # Skip data misinterpreted as code (switch tables, padding, etc.)
+        if _DATA_AS_CODE_RE.match(insn):
+            continue
         # Strip absolute addresses before symbolic refs
         insn = _ABS_ADDR_IN_INSN_RE.sub("", insn)
         # Detect literal pool loads (Xtensa l32r instruction)
@@ -162,6 +181,12 @@ def _normalize_function_asm(
         # Normalize symbolic references using balanced bracket matching
         # (regex can't handle nested <> in C++ template symbols)
         insn = _normalize_all_refs(insn, func_name, is_literal)
+        # l32r lines have a second parenthesized ref: "l32r a5, <addr> (<data>)"
+        # After normalization this becomes "<.literal> (<.literal>)" — trim it
+        if is_literal:
+            idx = insn.find("<.literal>")
+            if idx != -1:
+                insn = insn[: idx + len("<.literal>")]
         result.append(f"+{offset:#06x}: {insn}")
     return "\n".join(result)
 
