@@ -252,14 +252,119 @@ def test_normalize_function_asm_func_size_excludes_padding() -> None:
 
 
 def test_normalize_function_asm_func_size_zero_includes_all() -> None:
-    """When func_size is 0, all instructions are included (no limit)."""
+    """When func_size is 0, all instructions are included (no limit).
+
+    Note: dead-code detection still applies — code after ret.n is skipped
+    unless it's a branch target.
+    """
     lines = [
         "  40001000:\tmov.n    a2, a3",
-        "  40001002:\tret.n",
-        "  40001004:\tj     40003000 <other_func>",
+        "  40001002:\tbeqz    a2, 40001006 <test_func+0x6>",
+        "  40001004:\tret.n",
+        # Branch target at +0x6 — reachable despite being after ret.n
+        "  40001006:\tj     40003000 <other_func>",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func", func_size=0)
     assert "j      <other_func>" in result
+
+
+def test_normalize_function_asm_skips_dead_code_after_unconditional_jump() -> None:
+    """Data after unconditional jumps (switch tables, padding) is skipped.
+
+    objdump's linear sweep decodes these data words as instructions,
+    producing spurious references to unrelated symbols.
+    """
+    lines = [
+        "  40001000:\tmov.n    a2, a3",
+        "  40001003:\tjx    a9",
+        # Switch table data decoded as instructions — unreachable
+        "  40001006:\ts32i.n    a15, a2, 52",
+        "  40001008:\tl16ui    a2, a4, 80",
+        "  4000100b:\tj     40003000 <esphome::wifi::WiFiComponent::loop()>",
+        # Real code at a branch target
+        "  4000100e:\tmovi.n    a14, 5",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func")
+    assert "WiFi" not in result
+    assert "s32i.n" not in result
+    assert "mov.n    a2, a3" in result
+    assert "jx    a9" in result
+    # +0x0e is not a branch target, so it's also skipped
+    assert "movi.n    a14, 5" not in result
+
+
+def test_normalize_function_asm_dead_code_resumes_at_branch_target() -> None:
+    """Code resumes after dead region when a branch target is reached."""
+    lines = [
+        "  40001000:\tbeqz    a2, 40001010 <test_func+0x10>",
+        "  40001003:\tmov.n    a2, a3",
+        "  40001005:\tretw.n",
+        # Dead code (not a branch target)
+        "  40001007:\tj     40003000 <esphome::wifi::WiFiComponent::loop()>",
+        # Branch target from beqz at +0x00 — code is live again
+        "  40001010:\tmovi.n    a5, 1",
+        "  40001012:\tretw.n",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func")
+    assert "WiFi" not in result
+    assert "movi.n    a5, 1" in result
+    assert "retw.n" in result
+
+
+def test_normalize_function_asm_dead_code_after_ret() -> None:
+    """Data after ret.n is skipped unless it's a branch target."""
+    lines = [
+        "  40001000:\tmov.n    a2, a3",
+        "  40001002:\tret.n",
+        # Padding/data after return
+        "  40001004:\tcall4     40005000 <esp8266::MDNSResponder::foo()>",
+        "  40001007:\tl32i    a13, a0, 136",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func")
+    assert "MDNSResponder" not in result
+    assert result == "mov.n    a2, a3\nret.n"
+
+
+def test_normalize_function_asm_dead_code_arm_thumb() -> None:
+    """Dead code detection works for ARM Thumb (bx lr, pop {pc})."""
+    lines = [
+        "  00001000:\tmov    r0, r1",
+        "  00001002:\tbx    lr",
+        # Dead code after return
+        "  00001004:\tbl    00002000 <unrelated_func>",
+        # Branch target from elsewhere
+        "  00001008:\tmov    r2, r3",
+    ]
+    # Add a branch to +0x08 so it's a known target
+    lines.insert(0, "  00000ffe:\tbeq.n    00001008 <test_func+0x0a>")
+    result = _normalize_function_asm(lines, 0x00000FFE, "test_func")
+    assert "unrelated_func" not in result
+    assert "mov    r2, r3" in result
+
+
+@pytest.mark.parametrize(
+    "jump_insn",
+    [
+        "j     40001020 <test_func+0x20>",
+        "jx    a9",
+        "ret.n",
+        "retw.n",
+        "ret",
+        "retw",
+    ],
+    ids=["j", "jx", "ret.n", "retw.n", "ret", "retw"],
+)
+def test_normalize_function_asm_unconditional_starts_dead_region(
+    jump_insn: str,
+) -> None:
+    """Various unconditional flow instructions start dead-code regions."""
+    lines = [
+        "  40001000:\tmov.n    a2, a3",
+        f"  40001003:\t{jump_insn}",
+        "  40001006:\tj     40003000 <esphome::wifi::WiFiComponent::loop()>",
+    ]
+    result = _normalize_function_asm(lines, 0x40001000, "test_func")
+    assert "WiFi" not in result
 
 
 @pytest.mark.parametrize(

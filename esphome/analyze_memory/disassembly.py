@@ -47,6 +47,18 @@ _DATA_AS_CODE_RE = re.compile(
     r")"
 )
 
+# Unconditional control flow instructions — code after these is unreachable
+# unless it's a branch target. Used to skip switch tables, literal pools,
+# and padding that objdump's linear sweep misinterprets as instructions.
+_UNCONDITIONAL_FLOW_RE = re.compile(
+    r"^(?:"
+    # Xtensa unconditional jumps and returns
+    r"j\s|jx\s|ret\b|retw\b|ret\.n\b|retw\.n\b"
+    # ARM Thumb unconditional branches and returns
+    r"|b\s|b\.w\s|b\.n\s|bx\s+lr|pop\s+\{[^}]*pc\}"
+    r")"
+)
+
 # Default limits
 DEFAULT_MAX_LINES_PER_SYMBOL = 150
 DEFAULT_MIN_SYMBOL_SIZE = 16
@@ -140,19 +152,12 @@ def _normalize_function_asm(
 ) -> str:
     """Normalize instruction lines for stable cross-build diffs.
 
+    Uses two passes:
+    1. Parse instructions and collect intra-function branch targets
+    2. Normalize and skip unreachable code (data after unconditional jumps)
+
     Offsets are stripped so that inserting/removing instructions doesn't
     cascade through the entire diff.
-
-    Normalizations applied:
-    1. Instruction addresses → stripped (order preserved via line sequence)
-    2. Absolute addresses before symbolic refs → stripped
-    3. Self-branch targets (<func+0xNN>) → <self>
-    4. Literal pool loads (l32r) → <.literal>
-    5. Linker section symbols → <.literal>
-    6. Cross-function ref offsets → stripped (keep symbol name only)
-    7. Instructions past the known function size → excluded
-       (objdump disassembles padding/data between functions as code,
-       producing spurious references to unrelated symbols)
 
     Args:
         lines: Raw instruction lines from objdump
@@ -163,34 +168,59 @@ def _normalize_function_asm(
     Returns:
         Normalized disassembly text (one instruction per line, no addresses)
     """
-    result: list[str] = []
+    # Pass 1: parse instructions and collect branch target offsets
+    parsed: list[tuple[int, str]] = []
+    branch_targets: set[int] = {0}  # Function entry is always reachable
+    escaped_name = re.escape(func_name)
+    self_ref_re = re.compile(
+        rf"<{escaped_name}(?:\+0x([0-9a-fA-F]+))?>",
+    )
+
     for line in lines:
         m = _INSN_LINE_RE.match(line)
         if not m:
             continue
         addr = int(m.group(1), 16)
         offset = addr - base_addr
-        # Stop at function boundary to avoid disassembling padding/data
         if func_size and offset >= func_size:
             break
         insn = m.group(2)
-        # Skip data misinterpreted as code (switch tables, padding, etc.)
         if _DATA_AS_CODE_RE.match(insn):
             continue
-        # Strip absolute addresses before symbolic refs
+        parsed.append((offset, insn))
+
+        # Collect self-reference targets as branch targets
+        for ref_match in self_ref_re.finditer(insn):
+            if ref_match.group(1):
+                branch_targets.add(int(ref_match.group(1), 16))
+            else:
+                branch_targets.add(0)
+
+    # Pass 2: normalize and skip unreachable code after unconditional jumps
+    result: list[str] = []
+    dead = False
+
+    for offset, insn in parsed:
+        if dead:
+            if offset not in branch_targets:
+                continue  # Skip unreachable instruction (likely data)
+            dead = False
+
+        # Normalize the instruction
         insn = _ABS_ADDR_IN_INSN_RE.sub("", insn)
-        # Detect literal pool loads (Xtensa l32r instruction)
         is_literal = bool(_L32R_RE.match(insn))
-        # Normalize symbolic references using balanced bracket matching
-        # (regex can't handle nested <> in C++ template symbols)
         insn = _normalize_all_refs(insn, func_name, is_literal)
-        # l32r lines have a second parenthesized ref: "l32r a5, <addr> (<data>)"
-        # After normalization this becomes "<.literal> (<.literal>)" — trim it
         if is_literal:
             idx = insn.find("<.literal>")
             if idx != -1:
                 insn = insn[: idx + len("<.literal>")]
         result.append(insn)
+
+        # After unconditional control flow, subsequent code is unreachable
+        # unless it's a branch target from elsewhere in the function
+        if _UNCONDITIONAL_FLOW_RE.match(insn):
+            dead = True
+
     return "\n".join(result)
 
 
