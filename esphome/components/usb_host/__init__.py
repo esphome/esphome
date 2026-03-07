@@ -29,10 +29,6 @@ USB_FS_MPS = 64
 USB_HS_MPS = 512
 
 
-def validate_max_packet_size(value):
-    return cv.one_of(64, 128, 256, 512, int=True)(value)
-
-
 def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Schema:
     schema = cv.COMPONENT_SCHEMA.extend(
         {
@@ -58,9 +54,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_TRANSFER_REQUESTS, default=16): cv.int_range(
                 min=1, max=32
             ),
-            cv.Optional(
-                CONF_MAX_PACKET_SIZE, default=USB_FS_MPS
-            ): validate_max_packet_size,
+            cv.Optional(CONF_MAX_PACKET_SIZE, default=USB_FS_MPS): cv.one_of(
+                64, 128, 256, 512, int=True
+            ),
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
         }
     ),
