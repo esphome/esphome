@@ -268,8 +268,10 @@ def _strip_registers(insn: str) -> str:
 
 # Pattern to strip line numbers from source annotations for matching.
 # "# file.cpp:123  code()" → "# file.cpp  code()"
-# This allows blocks to match even when line numbers shift due to code changes.
-_ANNOTATION_LINENO_RE = re.compile(r"^(# \S+?):\d+")
+# Only strips when source text is present (the two spaces + text after line number).
+# When source text is absent, the line number is the only distinguishing feature
+# between blocks from the same file, so it must be kept.
+_ANNOTATION_LINENO_RE = re.compile(r"^(# \S+?):\d+(  .+)")
 
 
 def _normalize_annotation(annotation: str) -> str:
@@ -277,8 +279,11 @@ def _normalize_annotation(annotation: str) -> str:
 
     Source annotations include line numbers that shift when code is added/removed
     above. For matching purposes, we compare by filename + source text only.
+
+    When source text is absent (e.g. "# stl_algobase.h:951"), the line number
+    is kept because it's the only way to distinguish blocks from the same file.
     """
-    return _ANNOTATION_LINENO_RE.sub(r"\1", annotation)
+    return _ANNOTATION_LINENO_RE.sub(r"\1\2", annotation)
 
 
 def _parse_source_blocks(asm: str) -> list[tuple[str, str]]:
@@ -381,12 +386,15 @@ def _source_block_diff(target_asm: str, pr_asm: str) -> list[str] | None:
                     result.append(f" {t_header}")
                 t_lines = t_body.splitlines()
                 p_lines = p_body.splitlines()
+                first_hunk = True
                 for dl in difflib.unified_diff(t_lines, p_lines, lineterm="", n=2):
                     if dl.startswith("---") or dl.startswith("+++"):
                         continue
                     if dl.startswith("@@"):
-                        if result and result[-1] != "...":
+                        # First @@ just starts the diff — don't add separator
+                        if not first_hunk and result and result[-1] != "...":
                             result.append("...")
+                        first_hunk = False
                         continue
                     result.append(dl)
             continue
