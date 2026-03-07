@@ -247,8 +247,15 @@ inline std::unique_ptr<uint8_t[]> make_buffer(size_t n) {
 }
 
 /// Byte buffer that skips zero-initialization on resize().
-/// Used as the shared protobuf write buffer to avoid wasted memset
-/// on bytes that will be overwritten by the encoder.
+///
+/// std::vector<uint8_t>::resize() zero-fills new bytes via memset. The shared
+/// protobuf write buffer is clear()'d before every message, so resize() always
+/// grows from size 0 — memsetting the entire requested region. Every byte is
+/// then overwritten by the encoder, making the zero-fill pure waste.
+///
+/// Safe because: the encoder writes exactly calculate_size() bytes, the frame
+/// helper sends exactly those bytes, and debug_check_bounds_ validates writes
+/// in debug builds. No byte is ever read before being written.
 class ProtoByteBuffer {
  public:
   void clear() { this->size_ = 0; }
