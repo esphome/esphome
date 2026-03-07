@@ -19,18 +19,73 @@ _INSN_LINE_RE = re.compile(r"^\s*([0-9a-fA-F]+):\s+(.*)")
 # Matches "40001234 <symbol>" and replaces the address portion
 _ABS_ADDR_IN_INSN_RE = re.compile(r"\b[0-9a-fA-F]{5,}\b(?=\s+<)")
 
+# Pattern for symbolic references: <symbol_name> or <symbol_name+0xNN>
+_SYMBOLIC_REF_RE = re.compile(r"<([^>]+?)(?:\+0x[0-9a-fA-F]+)?>")
+
+# Linker/section symbols that indicate literal pool addresses (not real function refs)
+_LITERAL_POOL_SYMBOLS = frozenset(
+    ["_lit4_end", "_iram_end", "_data_end", "_bss_end", "_heap_end"]
+)
+
+# Xtensa literal pool load instruction (loads 32-bit value from nearby memory)
+# The <symbol+offset> in l32r refers to where the literal is stored, not a call target
+_L32R_RE = re.compile(r"^l32r\s+")
+
 # Default limits
 DEFAULT_MAX_LINES_PER_SYMBOL = 150
 DEFAULT_MIN_SYMBOL_SIZE = 16
 DEFAULT_MAX_SYMBOLS = 500
 
 
-def _normalize_function_asm(lines: list[str], base_addr: int) -> str:
-    """Normalize instruction lines by replacing absolute addresses with offsets.
+def _normalize_symbolic_ref(
+    match: re.Match, func_name: str, is_literal_load: bool
+) -> str:
+    """Normalize a single symbolic reference for stable diffs.
+
+    Args:
+        match: Regex match for <symbol+offset> or <symbol>
+        func_name: Current function name (for detecting self-references)
+        is_literal_load: True if this is a literal pool load (l32r)
+
+    Returns:
+        Normalized reference string
+    """
+    symbol = match.group(1)
+
+    # Literal pool loads (l32r) always reference data, not code
+    if is_literal_load:
+        return "<.literal>"
+
+    # Linker section symbols are literal pool addresses
+    if symbol in _LITERAL_POOL_SYMBOLS:
+        return "<.literal>"
+
+    # Self-references (branches within the same function) - strip offset
+    # since it shifts whenever code is added/removed in the function
+    if symbol == func_name:
+        return "<self>"
+
+    # Cross-function references - keep the symbol name but strip the offset
+    # The offset is just an artifact of where the literal/branch lands
+    # relative to the nearest symbol, and shifts with any code change
+    return f"<{symbol}>"
+
+
+def _normalize_function_asm(lines: list[str], base_addr: int, func_name: str) -> str:
+    """Normalize instruction lines for stable cross-build diffs.
+
+    Normalizations applied:
+    1. Absolute instruction addresses → relative offsets (+0x0000)
+    2. Absolute addresses before symbolic refs → stripped
+    3. Self-branch targets (<func+0xNN>) → <self>
+    4. Literal pool loads (l32r) → <.literal>
+    5. Linker section symbols → <.literal>
+    6. Cross-function ref offsets → stripped (keep symbol name only)
 
     Args:
         lines: Raw instruction lines from objdump
         base_addr: Base address of the function
+        func_name: Demangled name of the current function
 
     Returns:
         Normalized disassembly text with relative offsets
@@ -43,9 +98,15 @@ def _normalize_function_asm(lines: list[str], base_addr: int) -> str:
         addr = int(m.group(1), 16)
         offset = addr - base_addr
         insn = m.group(2)
-        # Strip absolute addresses before symbolic refs (e.g., "40001234 <func>")
-        # Keep only the symbolic part since it's more meaningful for diffs
+        # Strip absolute addresses before symbolic refs
         insn = _ABS_ADDR_IN_INSN_RE.sub("", insn)
+        # Detect literal pool loads (Xtensa l32r instruction)
+        is_literal_load = bool(_L32R_RE.match(insn))
+        # Normalize symbolic references
+        insn = _SYMBOLIC_REF_RE.sub(
+            lambda m: _normalize_symbolic_ref(m, func_name, is_literal_load),
+            insn,
+        )
         result.append(f"+{offset:#06x}: {insn}")
     return "\n".join(result)
 
@@ -98,7 +159,7 @@ def extract_disassembly(
             # Save previous function
             if current_func is not None and current_lines:
                 asm = _normalize_function_asm(
-                    current_lines[:max_lines_per_symbol], base_addr
+                    current_lines[:max_lines_per_symbol], base_addr, current_func
                 )
                 if asm:
                     functions[current_func] = asm
@@ -113,7 +174,9 @@ def extract_disassembly(
 
     # Save last function
     if current_func is not None and current_lines:
-        asm = _normalize_function_asm(current_lines[:max_lines_per_symbol], base_addr)
+        asm = _normalize_function_asm(
+            current_lines[:max_lines_per_symbol], base_addr, current_func
+        )
         if asm:
             functions[current_func] = asm
 
