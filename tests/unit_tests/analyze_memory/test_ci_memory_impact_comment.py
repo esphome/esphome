@@ -59,6 +59,28 @@ def test_prepare_symbol_changes_no_parens_not_matched() -> None:
     assert len(result["removed_symbols"]) == 1
 
 
+def test_prepare_symbol_changes_nested_symbols_matched_separately() -> None:
+    """Nested symbols like ::__pstr__ don't collide with parent function."""
+    target = {
+        "Foo::bar(std::vector<unsigned char>&, int)": 300,
+        "Foo::bar(std::vector<unsigned char>&, int)::__pstr__": 19,
+    }
+    pr = {
+        "Foo::bar(ProtoByteBuffer&, int)": 320,
+        "Foo::bar(ProtoByteBuffer&, int)::__pstr__": 19,
+    }
+    result = prepare_symbol_changes_data(target, pr)
+    assert result is not None
+    # Both the function and its nested __pstr__ should be matched (not new/removed)
+    assert len(result["new_symbols"]) == 0
+    assert len(result["removed_symbols"]) == 0
+    # __pstr__ has delta=0 so it's silently dropped, only the function shows
+    assert len(result["changed_symbols"]) == 1
+    sym, t_size, p_size, delta = result["changed_symbols"][0]
+    assert sym == "Foo::bar(ProtoByteBuffer&, int)"
+    assert delta == 20
+
+
 def test_prepare_symbol_changes_exact_match_preferred() -> None:
     """Exact name matches are found before fuzzy matching runs."""
     target = {
