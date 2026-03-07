@@ -1,9 +1,10 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/defines.h"
+#include "esphome/core/defines.h"  // Must be included before conditional includes
 
 #ifdef USE_RP2040_BLE
+
+#include "esphome/core/component.h"
 
 #include <btstack.h>
 

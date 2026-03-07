@@ -28,6 +28,7 @@ void RP2040BLE::enable() {
 
   ESP_LOGD(TAG, "Enabling BLE...");
   this->state_ = BLEComponentState::ENABLING;
+  this->active_logged_ = false;
 
   l2cap_init();
   sm_init();
