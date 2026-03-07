@@ -33,7 +33,11 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
     climate_ir::ClimateIR::control(call);
   }
 
-  void set_model(Model model) { this->model_ = model; }
+  void set_model(Model model) {
+    this->model_ = model;
+    this->minimum_temperature_ = temperature_min_();
+    this->maximum_temperature_ = temperature_max_();
+  }
 
   // used to track when to send the power toggle command
   bool powered_on_assumed;
