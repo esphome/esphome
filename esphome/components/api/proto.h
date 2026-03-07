@@ -262,7 +262,8 @@ class ProtoByteBuffer {
     }
   }
   void resize(size_t n) {
-    this->reserve(n);
+    if (n > this->capacity_)
+      this->reserve(n);
     this->size_ = n;  // no zero-fill
   }
   uint8_t *data() { return this->data_.get(); }
