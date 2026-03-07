@@ -11,7 +11,8 @@
 namespace esphome::lvgl {
 static const char *const TAG = "lvgl";
 
-static const size_t MIN_BUFFER_FRAC = 8;
+static const size_t MIN_BUFFER_FRAC = 8;     // buffer must be at least 1/8 of the display size
+static const size_t MIN_BUFFER_SIZE = 2048;  // Sensible minimum buffer size
 
 static const char *const EVENT_NAMES[] = {
     "NONE",
@@ -480,24 +481,20 @@ void LvglComponent::write_random_() {
   if (iterations <= 0)
     iterations = 1;
   while (iterations-- != 0) {
-    auto col = random_uint32() % this->width_;
+    int32_t col = random_uint32() % this->width_;
     col = col / this->draw_rounding * this->draw_rounding;
-    auto row = random_uint32() % this->height_;
+    int32_t row = random_uint32() % this->height_;
     row = row / this->draw_rounding * this->draw_rounding;
-    auto size = ((random_uint32() % 32) / this->draw_rounding + 2) * this->draw_rounding - 1;
-    // clamp size so the square fits within the draw buffer
-    if ((size + 1) * (size + 1) > this->draw_buf_.size)
-      size = static_cast<decltype(size)>(sqrtf(this->draw_buf_.size)) - 1;
-    lv_area_t area;
-    area.x1 = col;
-    area.y1 = row;
-    area.x2 = col + size;
-    area.y2 = row + size;
+    // size will be between 8 and 32, and a multiple of draw_rounding
+    int32_t size = (random_uint32() % 25 + 8) / this->draw_rounding * this->draw_rounding;
+    lv_area_t area{col, row, col + size - 1, row + size - 1};
+    // clip to display bounds just in case
     if (area.x2 >= this->width_)
       area.x2 = this->width_ - 1;
     if (area.y2 >= this->height_)
       area.y2 = this->height_ - 1;
 
+    // line_len can't exceed 1024, and minimum buffer size is 2048, so this won't overflow the buffer
     size_t line_len = lv_area_get_width(&area) * lv_area_get_height(&area) / 2;
     for (size_t i = 0; i != line_len; i++) {
       ((uint32_t *) (this->draw_buf_))[i] = random_uint32();
@@ -548,8 +545,9 @@ void LvglComponent::setup() {
   auto frac = this->buffer_frac_;
   if (frac == 0)
     frac = 1;
-  auto buf_bytes = width * height / frac * LV_COLOR_DEPTH / 8;
+  auto buf_bytes = clamp_at_least(width * height / frac * LV_COLOR_DEPTH / 8, MIN_BUFFER_SIZE);
   void *buffer = nullptr;
+  // for small buffers, try to allocate in internal memory first to improve performance
   if (this->buffer_frac_ >= MIN_BUFFER_FRAC / 2)
     buffer = malloc(buf_bytes);  // NOLINT
   if (buffer == nullptr)
