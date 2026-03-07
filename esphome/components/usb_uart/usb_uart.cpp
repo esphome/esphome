@@ -154,7 +154,7 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
     }
     size_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
     memcpy(chunk->data, data, chunk_len);
-    chunk->length = static_cast<uint8_t>(chunk_len);
+    chunk->length = static_cast<decltype(chunk->length)>(chunk_len);
     if (!this->output_queue_.push(chunk)) {
       this->output_pool_.release(chunk);
       ESP_LOGE(TAG, "Output queue full - lost %zu bytes", len);
@@ -306,7 +306,7 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
 
       // Copy data to chunk (this is fast, happens in USB task)
       memcpy(chunk->data, status.data, status.data_len);
-      chunk->length = status.data_len;
+      chunk->length = static_cast<decltype(chunk->length)>(status.data_len);
       chunk->channel = channel;
 
       // Push to lock-free queue for main loop processing
@@ -370,7 +370,7 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
     this->start_output(channel);
   };
 
-  const uint8_t len = chunk->length;
+  const auto len = chunk->length;
   if (!this->transfer_out(ep->bEndpointAddress, callback, chunk->data, len)) {
     // Transfer submission failed — return chunk and release flag so callers can retry.
     channel->output_pool_.release(chunk);
@@ -387,10 +387,10 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
 static void fix_mps(const usb_ep_desc_t *ep) {
   if (ep != nullptr) {
     auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
-    if (ep->wMaxPacketSize > 64) {
-      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to 64", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
-               ep->wMaxPacketSize);
-      ep_mutable->wMaxPacketSize = 64;
+    if (ep->wMaxPacketSize > usb_host::USB_MAX_PACKET_SIZE) {
+      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to %u", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
+               ep->wMaxPacketSize, usb_host::USB_MAX_PACKET_SIZE);
+      ep_mutable->wMaxPacketSize = usb_host::USB_MAX_PACKET_SIZE;
     }
   }
 }

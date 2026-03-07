@@ -23,6 +23,23 @@ CONF_VID = "vid"
 CONF_PID = "pid"
 CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
+CONF_MAX_PACKET_SIZE = "max_packet_size"
+
+USB_FS_MPS = 64
+USB_HS_MPS = 512
+
+
+def validate_max_packet_size(value):
+    """max_packet_size > 64 is only meaningful on ESP32-P4 (USB HS capable)."""
+    value = cv.int_range(min=64, max=512)(value)
+    if value != USB_FS_MPS:
+        from esphome.components.esp32 import get_esp32_variant
+
+        if get_esp32_variant() != VARIANT_ESP32P4:
+            raise cv.Invalid(
+                f"max_packet_size > {USB_FS_MPS} is only supported on ESP32-P4"
+            )
+    return value
 
 
 def usb_device_schema(cls=USBClient, vid: int = None, pid: [int] = None) -> cv.Schema:
@@ -50,6 +67,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_TRANSFER_REQUESTS, default=16): cv.int_range(
                 min=1, max=32
             ),
+            cv.Optional(
+                CONF_MAX_PACKET_SIZE, default=USB_FS_MPS
+            ): validate_max_packet_size,
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
         }
     ),
@@ -70,6 +90,7 @@ async def to_code(config: ConfigType) -> None:
 
     max_requests = config[CONF_MAX_TRANSFER_REQUESTS]
     cg.add_define("USB_HOST_MAX_REQUESTS", max_requests)
+    cg.add_define("USB_HOST_MAX_PACKET_SIZE", config[CONF_MAX_PACKET_SIZE])
 
     # USB uses the socket wake_loop_threadsafe() mechanism to wake the main loop from USB task
     # This enables low-latency (~12μs) USB event processing instead of waiting for
