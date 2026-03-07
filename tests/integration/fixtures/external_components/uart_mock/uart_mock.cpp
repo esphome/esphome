@@ -104,12 +104,12 @@ void MockUartComponent::write_array(const uint8_t *data, size_t len) {
   }
 #endif
 
-  if (this->scenario_active_) {
-    this->try_match_response_();
-  }
+  // Responses are always active - they are request-response pairs triggered by
+  // component TX, not timed injections. No race condition with test subscription.
+  this->try_match_response_();
 
   // This directly calls a tx_hook (lambda) as an alternative to the simpler match_response mechanism.
-  if (this->tx_hook_ && this->scenario_active_) {
+  if (this->tx_hook_) {
     std::vector<uint8_t> buf(data, data + len);
     this->tx_hook_(buf);
   }
