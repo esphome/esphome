@@ -215,7 +215,7 @@ template<typename T, size_t N> class StaticVector {
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
  private:
-  std::array<T, N> data_{};
+  std::array<T, N> data_;  // intentionally not value-initialized to avoid memset
   size_t count_{0};
 
  public:
