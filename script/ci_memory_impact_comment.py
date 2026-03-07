@@ -315,6 +315,12 @@ def _source_block_diff(target_asm: str, pr_asm: str) -> list[str] | None:
     if t_norm == p_norm:
         return None
 
+    # Skip compiler block reordering noise: if the same instructions exist
+    # in both versions (just in different order), the compiler just chose a
+    # different basic block layout. Not a real code change.
+    if sorted(t_norm) == sorted(p_norm):
+        return None
+
     result: list[str] = []
     first_hunk = True
     t_pos = 0
