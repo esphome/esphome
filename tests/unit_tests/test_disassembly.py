@@ -149,13 +149,13 @@ def test_normalize_all_refs_linker_symbols(symbol: str) -> None:
     assert _normalize_all_refs(insn, "my_func", False) == "j     <.literal>"
 
 
-def test_normalize_function_asm_relative_offsets() -> None:
+def test_normalize_function_asm_instructions() -> None:
     lines = [
         "  40001000:\tmov.n    a2, a3",
         "  40001002:\tret.n",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
-    assert result == "+0x0000: mov.n    a2, a3\n+0x0002: ret.n"
+    assert result == "mov.n    a2, a3\nret.n"
 
 
 def test_normalize_function_asm_skips_non_instruction_lines() -> None:
@@ -166,7 +166,7 @@ def test_normalize_function_asm_skips_non_instruction_lines() -> None:
         "  40001002:\tret.n",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
-    assert result == "+0x0000: mov.n    a2, a3\n+0x0002: ret.n"
+    assert result == "mov.n    a2, a3\nret.n"
 
 
 def test_normalize_function_asm_strips_absolute_addr_before_ref() -> None:
@@ -174,7 +174,7 @@ def test_normalize_function_asm_strips_absolute_addr_before_ref() -> None:
         "  40001000:\tcall0     40002000 <other_func>",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
-    assert result == "+0x0000: call0      <other_func>"
+    assert result == "call0      <other_func>"
 
 
 def test_normalize_function_asm_self_branch() -> None:
@@ -182,7 +182,7 @@ def test_normalize_function_asm_self_branch() -> None:
         "  40001000:\tj     40001010 <test_func+0x10>",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
-    assert result == "+0x0000: j      <self>"
+    assert result == "j      <self>"
 
 
 def test_normalize_function_asm_l32r_literal() -> None:
@@ -190,7 +190,7 @@ def test_normalize_function_asm_l32r_literal() -> None:
         "  40001000:\tl32r    a5, 40000ffc <_lit4_end+0x1234>",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
-    assert result == "+0x0000: l32r    a5,  <.literal>"
+    assert result == "l32r    a5,  <.literal>"
 
 
 def test_normalize_function_asm_l32r_with_data_ref() -> None:
@@ -200,7 +200,7 @@ def test_normalize_function_asm_l32r_with_data_ref() -> None:
         " (3f400194 <_flash_rodata_start+0x74>)",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
-    assert result == "+0x0000: l32r    a11,  <.literal>"
+    assert result == "l32r    a11,  <.literal>"
 
 
 def test_normalize_function_asm_template_in_call() -> None:
@@ -211,7 +211,7 @@ def test_normalize_function_asm_template_in_call() -> None:
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
     expected = (
-        "+0x0000: call0      "
+        "call0      "
         "<std::vector<unsigned char, std::allocator<unsigned char> >"
         "::reserve(unsigned int)>"
     )
@@ -226,7 +226,7 @@ def test_normalize_function_asm_template_in_l32r() -> None:
         "::resize(unsigned int)+0x20>",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
-    assert result == "+0x0000: l32r    a5,  <.literal>"
+    assert result == "l32r    a5,  <.literal>"
 
 
 def test_normalize_function_asm_empty_input() -> None:
@@ -248,7 +248,7 @@ def test_normalize_function_asm_func_size_excludes_padding() -> None:
     ]
     # Function is 4 bytes (0x000-0x003), so instructions at +0x0004 onward are padding
     result = _normalize_function_asm(lines, 0x40001000, "test_func", func_size=4)
-    assert result == "+0x0000: mov.n    a2, a3\n+0x0002: ret.n"
+    assert result == "mov.n    a2, a3\nret.n"
 
 
 def test_normalize_function_asm_func_size_zero_includes_all() -> None:
@@ -259,7 +259,7 @@ def test_normalize_function_asm_func_size_zero_includes_all() -> None:
         "  40001004:\tj     40003000 <other_func>",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func", func_size=0)
-    assert "+0x0004:" in result
+    assert "j      <other_func>" in result
 
 
 @pytest.mark.parametrize(
@@ -293,6 +293,6 @@ def test_normalize_function_asm_skips_data_as_code(insn: str) -> None:
         "  40001005:\tret.n",
     ]
     result = _normalize_function_asm(lines, 0x40001000, "test_func")
-    assert "+0x0002:" not in result
-    assert "+0x0000:" in result
-    assert "+0x0005:" in result
+    assert insn not in result
+    assert "mov.n" in result
+    assert "ret.n" in result
