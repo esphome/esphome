@@ -7,6 +7,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/preferences.h"
 #include "esphome/components/network/ip_address.h"
+#include "esphome/components/uart/uart_component.h"
 #ifdef USE_MODEM_URC
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
@@ -36,8 +37,16 @@ struct ModemRestoreState {
   int baud_rate{0};
 } __attribute__((packed));
 
-class ModemComponent : public Component {
+class ModemComponent : public Component, public uart::UARTComponent {
  public:
+  // UART read/write methods
+  void write_array(const uint8_t *data, size_t len) override;
+  bool peek_byte(uint8_t *data) override { return false; }
+  bool read_array(uint8_t *data, size_t len) override;
+  size_t available() override { return this->uart_buffer_size_; }
+  void flush() override {}
+  void check_logger_conflict() override {}
+
   void set_reboot_timeout(uint32_t timeout) { this->timeout_ = timeout; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
   // Setters now modify the handler's attributes
@@ -97,6 +106,13 @@ class ModemComponent : public Component {
   std::unique_ptr<ModemHandler> modem_handler{nullptr};
 
  protected:
+  // ===== UART circular buffer =====
+  static constexpr size_t UART_BUFFER_SIZE = 168;
+  uint8_t uart_buffer_[UART_BUFFER_SIZE] = {0};
+  size_t uart_buffer_size_{0};  // Current number of bytes in buffer
+  size_t read_ptr_{0};
+  size_t write_ptr_{0};
+
   // ===== State handler methods =====
   ModemComponentState handle_state_enabling_();
   ModemComponentState handle_state_powering_on_();

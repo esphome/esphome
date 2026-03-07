@@ -91,6 +91,37 @@ network::IPAddresses ModemComponent::get_ip_addresses() {
   return addresses;
 }
 
+// UART Interface Implementation
+void ModemComponent::write_array(const uint8_t *data, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    if (this->uart_buffer_size_ < UART_BUFFER_SIZE) {
+      // Buffer has space, write normally
+      this->uart_buffer_[this->write_ptr_] = data[i];
+      this->write_ptr_ = (this->write_ptr_ + 1) % UART_BUFFER_SIZE;
+      this->uart_buffer_size_++;
+    } else {
+      // Buffer full, overwrite oldest data (true circular buffer behavior)
+      this->uart_buffer_[this->write_ptr_] = data[i];
+      this->write_ptr_ = (this->write_ptr_ + 1) % UART_BUFFER_SIZE;
+      // Move read pointer forward since we're overwriting
+      this->read_ptr_ = (this->read_ptr_ + 1) % UART_BUFFER_SIZE;
+      // Size stays at max
+    }
+  }
+}
+
+bool ModemComponent::read_array(uint8_t *data, size_t len) {
+  if (this->available() < len)
+    return false;
+
+  for (size_t i = 0; i < len; i++) {
+    data[i] = this->uart_buffer_[this->read_ptr_];
+    this->read_ptr_ = (this->read_ptr_ + 1) % UART_BUFFER_SIZE;
+    this->uart_buffer_size_--;
+  }
+  return true;
+}
+
 void ModemComponent::setup() {
   char buffer[GPIO_SUMMARY_MAX_LEN];
   ESP_LOGI(TAG, "Modem setup...State: %s", state_to_string(this->component_state_).c_str());
@@ -387,8 +418,6 @@ ModemComponentState ModemComponent::handle_state_syncing_() {
           this->urc_text_sensor->publish_state(line);
         }
 #endif
-      } else {
-        ESP_LOGI(TAG, "URC: commande active");
       }
       return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_NONE, 0};
     };

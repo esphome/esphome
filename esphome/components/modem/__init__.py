@@ -2,10 +2,11 @@ import logging
 
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import text_sensor
+from esphome.components import uart
 
 # from esphome.components.wifi import wifi_has_sta  # uncomment after PR #4091 is merged
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
+from esphome.components.text_sensor import new_text_sensor, text_sensor_schema
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -113,7 +114,7 @@ MODEM_MODELS_POWER["SIM7070"] = MODEM_MODELS_POWER["SIM7080"]
 MODEM_MODELS_POWER["SIM7670"] = MODEM_MODELS_POWER["SIM7600"]
 
 modem_ns = cg.esphome_ns.namespace("modem")
-ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
+ModemComponent = modem_ns.class_("ModemComponent", cg.Component, uart.UARTComponent)
 
 # Triggers
 ModemComponentState = modem_ns.enum("ModemComponentState")
@@ -219,7 +220,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_DISABLE): automation.validate_automation(
                 {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnDisableTrigger)}
             ),
-            cv.Optional(CONF_URC): text_sensor.text_sensor_schema(
+            cv.Optional(CONF_URC): text_sensor_schema(
                 device_class=DEVICE_CLASS_EMPTY,
             ),
         }
@@ -464,7 +465,7 @@ async def to_code(config):
 
     if urc_config := config.get(CONF_URC, None):
         cg.add_define("USE_MODEM_URC")
-        urc_text_sensor = await text_sensor.new_text_sensor(urc_config)
+        urc_text_sensor = await new_text_sensor(urc_config)
         cg.add(var.set_urc_text_sensor(urc_text_sensor))
 
     await cg.register_component(var, config)
