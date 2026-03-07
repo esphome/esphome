@@ -13,6 +13,7 @@ from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@tomaszduda23"]
+DEPENDENCIES = ["zephyr"]
 
 ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
     "OTAComponent", ota.OTAComponent
