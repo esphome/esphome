@@ -650,24 +650,26 @@ def _make_crystal_freq_callback(
     crystal_re = re.compile(r"Crystal frequency:\s+(\d+(?:\.\d+)?)\s*MHz")
 
     def check_crystal_line(line: str) -> str | None:
-        if match := crystal_re.search(line):
-            detected = int(float(match.group(1)))
-            if detected != configured_freq:
-                return (
-                    f"\n\033[33mWARNING: Crystal frequency mismatch! "
-                    f"Device reports {detected}MHz but firmware is configured "
-                    f"for {configured_freq}MHz.\n"
-                    f"UART logging and other clock-dependent features will not "
-                    f"work correctly.\n"
-                    f"Set the correct crystal frequency with sdkconfig_options:\n"
-                    f"  esp32:\n"
-                    f"    framework:\n"
-                    f"      sdkconfig_options:\n"
-                    f"        CONFIG_XTAL_FREQ_{detected}: 'y'\n"
-                    f"        CONFIG_XTAL_FREQ_{configured_freq}: 'n'\n"
-                    f'        CONFIG_XTAL_FREQ: "{detected}"\033[0m\n\n'
-                )
-        return None
+        match = crystal_re.search(line)
+        if not match:
+            return None
+        detected = int(float(match.group(1)))
+        if detected == configured_freq:
+            return None
+        return (
+            f"\n\033[33mWARNING: Crystal frequency mismatch! "
+            f"Device reports {detected}MHz but firmware is configured "
+            f"for {configured_freq}MHz.\n"
+            f"UART logging and other clock-dependent features will not "
+            f"work correctly.\n"
+            f"Set the correct crystal frequency with sdkconfig_options:\n"
+            f"  esp32:\n"
+            f"    framework:\n"
+            f"      sdkconfig_options:\n"
+            f"        CONFIG_XTAL_FREQ_{detected}: 'y'\n"
+            f"        CONFIG_XTAL_FREQ_{configured_freq}: 'n'\n"
+            f'        CONFIG_XTAL_FREQ: "{detected}"\033[0m\n\n'
+        )
 
     return check_crystal_line
 
