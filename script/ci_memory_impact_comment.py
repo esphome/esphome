@@ -79,6 +79,8 @@ MAX_DISASM_DIFF_LINES = 80  # Maximum lines per disassembly diff
 MAX_DISASM_NEW_LINES = 40  # Maximum lines for new/removed symbol disassembly
 # Budget: keep total disassembly under ~40KB to stay within GitHub's 65536 char limit
 MAX_DISASM_TOTAL_CHARS = 40000
+# Skip disassembly analysis entirely if too many symbols changed
+MAX_DISASM_TOTAL_CHANGED_SYMBOLS = 50
 
 # Template directory
 TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -507,16 +509,28 @@ def create_comment_body(
 
             # Prepare disassembly diffs for changed symbols
             if target_disasm or pr_disasm:
-                disasm_diffs = prepare_disassembly_diffs(
-                    target_disasm, pr_disasm, symbol_data
+                total_changed = (
+                    len(symbol_data.get("changed_symbols", []))
+                    + len(symbol_data.get("new_symbols", []))
+                    + len(symbol_data.get("removed_symbols", []))
                 )
-                if disasm_diffs:
-                    template = env.get_template("ci_memory_impact_disassembly.j2")
-                    disasm_section = template.render(
-                        disasm_diffs=disasm_diffs,
-                        symbol_max_length=SYMBOL_DISPLAY_MAX_LENGTH,
-                        symbol_truncate_length=SYMBOL_DISPLAY_TRUNCATE_LENGTH,
+                if total_changed > MAX_DISASM_TOTAL_CHANGED_SYMBOLS:
+                    disasm_section = (
+                        f"\n> Assembly analysis skipped:"
+                        f" {total_changed} symbols changed"
+                        f" (threshold: {MAX_DISASM_TOTAL_CHANGED_SYMBOLS}).\n"
                     )
+                else:
+                    disasm_diffs = prepare_disassembly_diffs(
+                        target_disasm, pr_disasm, symbol_data
+                    )
+                    if disasm_diffs:
+                        template = env.get_template("ci_memory_impact_disassembly.j2")
+                        disasm_section = template.render(
+                            disasm_diffs=disasm_diffs,
+                            symbol_max_length=SYMBOL_DISPLAY_MAX_LENGTH,
+                            symbol_truncate_length=SYMBOL_DISPLAY_TRUNCATE_LENGTH,
+                        )
 
     if not target_analysis or not pr_analysis:
         print("No ELF files provided, skipping detailed analysis", file=sys.stderr)
