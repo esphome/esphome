@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
 from esphome.analyze_memory import MemoryAnalyzer
+from esphome.analyze_memory.disassembly import extract_disassembly
 from esphome.platformio_api import IDEData
 from script.ci_helpers import write_github_output
 
@@ -164,6 +165,19 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
             if size > 0:
                 demangled = analyzer._demangle_symbol(symbol_name)
                 result["symbols"][demangled] = size
+
+    # Extract disassembly for symbols (normalized for diffing)
+    disasm = extract_disassembly(
+        objdump_path=analyzer.objdump_path,
+        elf_path=elf_path,
+        symbol_sizes=result["symbols"],
+    )
+    if disasm:
+        result["disassembly"] = disasm
+        print(
+            f"Extracted disassembly for {len(disasm)} symbols",
+            file=sys.stderr,
+        )
 
     return result
 

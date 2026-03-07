@@ -9,6 +9,7 @@ that gets updated on subsequent runs.
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 from pathlib import Path
 import subprocess
@@ -71,6 +72,13 @@ SYMBOL_DISPLAY_TRUNCATE_LENGTH = 97  # Length to truncate in summary
 
 # Component change noise threshold
 COMPONENT_CHANGE_NOISE_THRESHOLD = 2  # Ignore component changes ≤ this many bytes
+
+# Disassembly diff limits
+MAX_DISASM_DIFF_SYMBOLS = 15  # Maximum symbols to show disassembly diffs for
+MAX_DISASM_DIFF_LINES = 80  # Maximum lines per disassembly diff
+MAX_DISASM_NEW_LINES = 40  # Maximum lines for new/removed symbol disassembly
+# Budget: keep total disassembly under ~40KB to stay within GitHub's 65536 char limit
+MAX_DISASM_TOTAL_CHARS = 40000
 
 # Template directory
 TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -215,6 +223,104 @@ def prepare_symbol_changes_data(
     }
 
 
+def _truncate_lines(lines: list[str], max_lines: int) -> str:
+    """Truncate a list of lines and join into a string.
+
+    Args:
+        lines: Lines to truncate
+        max_lines: Maximum number of lines to keep
+
+    Returns:
+        Joined string with truncation indicator if needed
+    """
+    if len(lines) > max_lines:
+        remaining = len(lines) - max_lines
+        lines = lines[:max_lines]
+        lines.append(f"... ({remaining} more lines)")
+    return "\n".join(lines)
+
+
+def prepare_disassembly_diffs(
+    target_disasm: dict | None,
+    pr_disasm: dict | None,
+    symbol_changes: dict | None,
+) -> list[tuple[str, str, str]] | None:
+    """Prepare disassembly diffs for changed symbols.
+
+    Args:
+        target_disasm: Symbol name to disassembly mapping for target branch
+        pr_disasm: Symbol name to disassembly mapping for PR branch
+        symbol_changes: Output from prepare_symbol_changes_data()
+
+    Returns:
+        List of (symbol_name, change_type, diff_text) tuples, or None if no diffs.
+        change_type is one of: "changed", "new", "removed"
+    """
+    if not symbol_changes:
+        return None
+    if not target_disasm and not pr_disasm:
+        return None
+
+    target_disasm = target_disasm or {}
+    pr_disasm = pr_disasm or {}
+
+    diffs: list[tuple[str, str, str]] = []
+    total_chars = 0
+
+    def _budget_exceeded() -> bool:
+        return (
+            total_chars >= MAX_DISASM_TOTAL_CHARS
+            or len(diffs) >= MAX_DISASM_DIFF_SYMBOLS
+        )
+
+    # Changed symbols - show unified diff
+    for symbol, _target_size, _pr_size, _delta in symbol_changes.get(
+        "changed_symbols", []
+    ):
+        if _budget_exceeded():
+            break
+
+        target_asm = target_disasm.get(symbol)
+        pr_asm = pr_disasm.get(symbol)
+        if target_asm is None or pr_asm is None:
+            continue
+        if target_asm == pr_asm:
+            continue
+
+        diff_lines = list(
+            difflib.unified_diff(
+                target_asm.splitlines(),
+                pr_asm.splitlines(),
+                fromfile="target",
+                tofile="pr",
+                lineterm="",
+            )
+        )
+        if not diff_lines:
+            continue
+
+        diff_text = _truncate_lines(diff_lines, MAX_DISASM_DIFF_LINES)
+        total_chars += len(diff_text)
+        diffs.append((symbol, "changed", diff_text))
+
+    # New/removed symbols - show full disassembly
+    for change_type, symbol_list, disasm_source in [
+        ("new", symbol_changes.get("new_symbols", []), pr_disasm),
+        ("removed", symbol_changes.get("removed_symbols", []), target_disasm),
+    ]:
+        for symbol, _size in symbol_list:
+            if _budget_exceeded():
+                break
+            asm = disasm_source.get(symbol)
+            if asm is None:
+                continue
+            asm_text = _truncate_lines(asm.splitlines(), MAX_DISASM_NEW_LINES)
+            total_chars += len(asm_text)
+            diffs.append((symbol, change_type, asm_text))
+
+    return diffs or None
+
+
 def format_components_str(components: list[str]) -> str:
     """Format a list of components for display.
 
@@ -283,6 +389,8 @@ def create_comment_body(
     pr_analysis: dict | None = None,
     target_symbols: dict | None = None,
     pr_symbols: dict | None = None,
+    target_disasm: dict | None = None,
+    pr_disasm: dict | None = None,
 ) -> str:
     """Create the comment body with memory impact analysis using Jinja2 templates.
 
@@ -297,6 +405,8 @@ def create_comment_body(
         pr_analysis: Optional component breakdown for PR branch
         target_symbols: Optional symbol map for target branch
         pr_symbols: Optional symbol map for PR branch
+        target_disasm: Optional disassembly map for target branch
+        pr_disasm: Optional disassembly map for PR branch
 
     Returns:
         Formatted comment body
@@ -356,6 +466,7 @@ def create_comment_body(
 
     # Prepare symbol changes if available
     symbol_changes = ""
+    disasm_section = ""
     if target_symbols and pr_symbols:
         symbol_data = prepare_symbol_changes_data(target_symbols, pr_symbols)
         if symbol_data:
@@ -371,11 +482,25 @@ def create_comment_body(
                 symbol_truncate_length=SYMBOL_DISPLAY_TRUNCATE_LENGTH,
             )
 
+            # Prepare disassembly diffs for changed symbols
+            if target_disasm or pr_disasm:
+                disasm_diffs = prepare_disassembly_diffs(
+                    target_disasm, pr_disasm, symbol_data
+                )
+                if disasm_diffs:
+                    template = env.get_template("ci_memory_impact_disassembly.j2")
+                    disasm_section = template.render(
+                        disasm_diffs=disasm_diffs,
+                        symbol_max_length=SYMBOL_DISPLAY_MAX_LENGTH,
+                        symbol_truncate_length=SYMBOL_DISPLAY_TRUNCATE_LENGTH,
+                    )
+
     if not target_analysis or not pr_analysis:
         print("No ELF files provided, skipping detailed analysis", file=sys.stderr)
 
     context["component_breakdown"] = component_breakdown
     context["symbol_changes"] = symbol_changes
+    context["disasm_section"] = disasm_section
 
     # Render main template
     template = env.get_template("ci_memory_impact_comment_template.j2")
@@ -597,14 +722,18 @@ def main() -> int:
     pr_analysis: dict | None = None
     target_symbols: dict | None = None
     pr_symbols: dict | None = None
+    target_disasm: dict | None = None
+    pr_disasm: dict | None = None
 
     if target_data.get("detailed_analysis"):
         target_analysis = target_data["detailed_analysis"].get("components")
         target_symbols = target_data["detailed_analysis"].get("symbols")
+        target_disasm = target_data["detailed_analysis"].get("disassembly")
 
     if pr_data.get("detailed_analysis"):
         pr_analysis = pr_data["detailed_analysis"].get("components")
         pr_symbols = pr_data["detailed_analysis"].get("symbols")
+        pr_disasm = pr_data["detailed_analysis"].get("disassembly")
 
     # Extract all values from JSON files (prevents shell injection from PR code)
     components = target_data.get("components")
@@ -691,6 +820,8 @@ def main() -> int:
         pr_analysis=pr_analysis,
         target_symbols=target_symbols,
         pr_symbols=pr_symbols,
+        target_disasm=target_disasm,
+        pr_disasm=pr_disasm,
     )
 
     # Post or update comment

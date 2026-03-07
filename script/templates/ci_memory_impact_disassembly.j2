@@ -1,0 +1,27 @@
+{%- from 'ci_memory_impact_macros.j2' import format_symbol -%}
+
+<details>
+<summary>Assembly Changes (click to expand)</summary>
+
+{% for symbol, change_type, diff_text in disasm_diffs %}
+<details>
+<summary>{% if change_type == "changed" %}Changed{% elif change_type == "new" %}New{% else %}Removed{% endif %}: {{ format_symbol(symbol, symbol_max_length, symbol_truncate_length) }}</summary>
+
+{% if change_type == "changed" %}
+```diff
+{{ diff_text }}
+```
+{% elif change_type == "new" %}
+```asm
+{{ diff_text }}
+```
+{% else %}
+```asm
+{{ diff_text }}
+```
+{% endif %}
+
+</details>
+{% endfor %}
+
+</details>
