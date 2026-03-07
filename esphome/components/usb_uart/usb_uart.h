@@ -99,6 +99,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCdcAcm;
   friend class USBUartTypeCP210X;
   friend class USBUartTypeCH34X;
+  friend class USBUartTypeFT23XX;
 
  public:
   // Number of output chunk slots per channel (8 × 64 bytes = 512 bytes peak, lazily allocated)
@@ -192,6 +193,24 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  protected:
   void enable_channels() override;
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
+};
+
+class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
+ public:
+  USBUartTypeFT23XX(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
+
+  void start_input(USBUartChannel *channel);
+
+ protected:
+  std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
+  void enable_channels() override;
+
+  int reset(USBUartChannel *channel);
+  int set_baudrate(USBUartChannel *channel, uint32_t baudrate = 0);
+  int set_line_properties(USBUartChannel *channel);
+  int set_dtr_rts(USBUartChannel *channel);
+
+  uint8_t chip_type_{255};
 };
 
 }  // namespace esphome::usb_uart

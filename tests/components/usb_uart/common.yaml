@@ -34,3 +34,13 @@ usb_uart:
       - id: channel_4_1
         debug: true
         dummy_receiver: true
+  - id: uart_5
+    type: ft23xx
+    channels:
+      - id: channel_5_1
+        baud_rate: 115200
+      - id: channel_5_2
+        baud_rate: 9600
+        stop_bits: 2
+        data_bits: 7
+        parity: odd

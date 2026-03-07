@@ -52,6 +52,7 @@ class Type:
 
 
 uart_types = (
+    Type("FT23XX", 0x0403, 0x6010, "FT23XX", 4),
     Type("CH34X", 0x1A86, 0x55D5, "CH34X", 3),
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
