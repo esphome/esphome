@@ -260,17 +260,12 @@ class ProtoByteBuffer {
  public:
   void clear() { this->size_ = 0; }
   void reserve(size_t n) {
-    if (n > this->capacity_) {
-      auto new_data = make_buffer(n);
-      if (this->size_)
-        std::memcpy(new_data.get(), this->data_.get(), this->size_);
-      this->data_ = std::move(new_data);
-      this->capacity_ = n;
-    }
+    if (n > this->capacity_)
+      this->grow_(n);
   }
   void resize(size_t n) {
     if (n > this->capacity_)
-      this->reserve(n);
+      this->grow_(n);
     this->size_ = n;  // no zero-fill
   }
   uint8_t *data() { return this->data_.get(); }
@@ -278,6 +273,7 @@ class ProtoByteBuffer {
   size_t size() const { return this->size_; }
 
  protected:
+  void grow_(size_t n);
   std::unique_ptr<uint8_t[]> data_;
   size_t size_{0};
   size_t capacity_{0};
