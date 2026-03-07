@@ -18,9 +18,12 @@
 #include "esp_openthread_cli.h"
 #include "esp_openthread_netif_glue.h"
 #include "esp_vfs_eventfd.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "nvs_flash.h"
+
+// need to add espressif/esp_ot_cli_extension component registry
+#if CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
+#include "esp_ot_cli_extension.h"
+#endif
 
 static const char *const TAG = "openthread";
 
@@ -39,76 +42,47 @@ void OpenThreadComponent::setup() {
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
 
-  xTaskCreate(
-      [](void *arg) {
-        static_cast<OpenThreadComponent *>(arg)->ot_main();
-        vTaskDelete(nullptr);
-      },
-      "ot_main", 10240, this, 5, nullptr);
-}
+#if CONFIG_OPENTHREAD_CLI
+  ot_console_start();
+  ot_register_external_commands();
+#endif
 
-static esp_netif_t *init_openthread_netif(const esp_openthread_platform_config_t *config) {
-  esp_netif_config_t cfg = ESP_NETIF_DEFAULT_OPENTHREAD();
-  esp_netif_t *netif = esp_netif_new(&cfg);
-  assert(netif != nullptr);
-  ESP_ERROR_CHECK(esp_netif_attach(netif, esp_openthread_netif_glue_init(config)));
+  esp_openthread_config_t config = {.netif_config = ESP_NETIF_DEFAULT_OPENTHREAD(),
+                                    .platform_config = {
+                                        .radio_config =
+                                            {
+                                                .radio_mode = RADIO_MODE_NATIVE,
+                                                .radio_uart_config = {},
+                                            },
+                                        .host_config =
+                                            {
+                                                // There is a conflict between esphome's logger which also
+                                                // claims the usb serial jtag device.
+                                                // .host_connection_mode = HOST_CONNECTION_MODE_CLI_USB,
+                                                // .host_usb_config = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT(),
+                                            },
+                                        .port_config =
+                                            {
+                                                .storage_partition_name = "nvs",
+                                                .netif_queue_size = 10,
+                                                .task_queue_size = 10,
+                                            },
+                                    }};
 
-  return netif;
-}
+  ESP_ERROR_CHECK(esp_openthread_start(&config));
 
-void OpenThreadComponent::ot_main() {
-  esp_openthread_platform_config_t config = {
-      .radio_config =
-          {
-              .radio_mode = RADIO_MODE_NATIVE,
-              .radio_uart_config = {},
-          },
-      .host_config =
-          {
-              // There is a conflict between esphome's logger which also
-              // claims the usb serial jtag device.
-              // .host_connection_mode = HOST_CONNECTION_MODE_CLI_USB,
-              // .host_usb_config = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT(),
-          },
-      .port_config =
-          {
-              .storage_partition_name = "nvs",
-              .netif_queue_size = 10,
-              .task_queue_size = 10,
-          },
-  };
-
-  // Initialize the OpenThread stack
-  // otLoggingSetLevel(OT_LOG_LEVEL_DEBG);
-  ESP_ERROR_CHECK(esp_openthread_init(&config));
-  // Fetch OT instance once to avoid repeated call into OT stack
   otInstance *instance = esp_openthread_get_instance();
 
+#if CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
+  esp_cli_custom_command_init();
+#endif
 #if CONFIG_OPENTHREAD_STATE_INDICATOR_ENABLE
   ESP_ERROR_CHECK(esp_openthread_state_indicator_init(instance));
 #endif
 
-#if CONFIG_OPENTHREAD_LOG_LEVEL_DYNAMIC
-  // The OpenThread log level directly matches ESP log level
-  (void) otLoggingSetLevel(CONFIG_LOG_DEFAULT_LEVEL);
-#endif
-  // Initialize the OpenThread cli
-#if CONFIG_OPENTHREAD_CLI
-  esp_openthread_cli_init();
-#endif
-
-  esp_netif_t *openthread_netif;
-  // Initialize the esp_netif bindings
-  openthread_netif = init_openthread_netif(&config);
-  esp_netif_set_default_netif(openthread_netif);
-
-#if CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
-  esp_cli_custom_command_init();
-#endif  // CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
-
-  ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
-
-  this->set_link_mode(esp_openthread_get_instance(), false, true);
+  // lock
+  esp_openthread_lock_acquire(portMAX_DELAY);
+  this->set_link_mode(instance, false, true);
 
   if (this->output_power_.has_value()) {
     if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
@@ -116,13 +90,11 @@ void OpenThreadComponent::ot_main() {
     }
   }
 
-  // Run the main loop
-#if CONFIG_OPENTHREAD_CLI
-  esp_openthread_cli_create_task();
-#endif
-  ESP_LOGI(TAG, "Activating dataset...");
-  otOperationalDatasetTlvs dataset = {};
+  // Register state change callback to update connected_ reactively instead of polling
+  otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed_, this);
 
+  ESP_LOGI(TAG, "Activating dataset...");
+  otOperationalDatasetTlvs dataset;
 #ifndef USE_OPENTHREAD_FORCE_DATASET
   // Check if openthread has a valid dataset from a previous execution
   otError error = otDatasetGetActiveTlvs(instance, &dataset);
@@ -133,7 +105,6 @@ void OpenThreadComponent::ot_main() {
     ESP_LOGI(TAG, "Found existing dataset, ignoring config (force_dataset: true to override)");
   }
 #endif
-
 #ifdef USE_OPENTHREAD_TLVS
   if (dataset.mLength == 0) {
     // If we didn't have an active dataset, and we have tlvs, parse it and pass it to esp_openthread_auto_start
@@ -146,26 +117,13 @@ void OpenThreadComponent::ot_main() {
     dataset.mLength = len;
   }
 #endif
+  ESP_ERROR_CHECK(esp_openthread_auto_start((error == OT_ERROR_NONE) ? &dataset : NULL));
+  esp_openthread_lock_release();
 
-  // Pass the existing dataset, or NULL which will use the preprocessor definitions
-  ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
-
-  // Register state change callback to update connected_ reactively instead of polling
-  otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed_, this);
-
-  esp_openthread_launch_mainloop();
-
-  // Clean up
-  esp_openthread_deinit();
-  esp_openthread_netif_glue_deinit();
-  esp_netif_destroy(openthread_netif);
-
-  esp_vfs_eventfd_unregister();
-  this->teardown_complete_ = true;
-  vTaskDelete(NULL);
+  ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
 }
 
-int OpenThreadComponent::openthread_stop_() { return esp_openthread_mainloop_exit(); }
+int OpenThreadComponent::openthread_stop_() { return esp_openthread_stop(); }
 
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
@@ -199,8 +157,18 @@ InstanceLock InstanceLock::acquire() {
 }
 
 otInstance *InstanceLock::get_instance() { return esp_openthread_get_instance(); }
+void InstanceLock::release() {
+  if (this->locked_) {
+    esp_openthread_lock_release();
+    this->locked_ = false;
+  }
+}
 
-InstanceLock::~InstanceLock() { esp_openthread_lock_release(); }
+InstanceLock::~InstanceLock() {
+  if (this->locked_) {
+    esp_openthread_lock_release();
+  }
+}
 
 }  // namespace esphome::openthread
 #endif
