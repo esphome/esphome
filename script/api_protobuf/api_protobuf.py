@@ -690,15 +690,12 @@ class MessageType(TypeInfo):
 
     @property
     def encode_func(self) -> str:
-        return "encode_message"
+        return "encode_optional_sub_message"
 
     @property
     def encode_content(self) -> str:
-        # Singular message fields pass force=false (skip empty messages)
-        # The default for encode_nested_message is force=true (for repeated fields)
-        return (
-            f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, false);"
-        )
+        # Singular message fields skip encoding when empty
+        return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
 
     @property
     def decode_length(self) -> str:
@@ -1322,9 +1319,9 @@ class FixedArrayRepeatedType(TypeInfo):
         """Helper to generate encode statement for a single element."""
         if isinstance(self._ti, EnumType):
             return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
-        # MessageType.encode_message doesn't have a force parameter
+        # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
-            return f"buffer.{self._ti.encode_func}({self.number}, {element});"
+            return f"buffer.encode_sub_message({self.number}, {element});"
         return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
 
     @property
@@ -1650,9 +1647,9 @@ class RepeatedTypeInfo(TypeInfo):
         """Helper to generate encode call for a single element."""
         if isinstance(self._ti, EnumType):
             return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
-        # MessageType.encode_message doesn't have a force parameter
+        # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
-            return f"buffer.{self._ti.encode_func}({self.number}, {element});"
+            return f"buffer.encode_sub_message({self.number}, {element});"
         return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
 
     @property

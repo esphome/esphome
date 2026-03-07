@@ -31,8 +31,10 @@ DOMAIN = "entity_string_pool"
 _KEY_DC_IDX = "_entity_dc_idx"
 _KEY_UOM_IDX = "_entity_uom_idx"
 _KEY_ICON_IDX = "_entity_icon_idx"
+_KEY_ENTITY_NAME = "_entity_name"
+_KEY_OBJECT_ID_HASH = "_entity_object_id_hash"
 
-# Bit layout for set_entity_strings(packed) — must match C++ setter in entity_base.h:
+# Bit layout for entity_strings_packed in configure_entity_() — must match C++ in entity_base.h:
 #   [23..16] icon (8 bits) | [15..8] UoM (8 bits) | [7..0] device_class (8 bits)
 _DC_SHIFT = 0
 _UOM_SHIFT = 8
@@ -219,17 +221,18 @@ def setup_unit_of_measurement(config: ConfigType) -> None:
 
 
 def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
-    """Emit a single set_entity_strings() call with all packed indices.
+    """Emit a single configure_entity_() call with name, hash, and packed string indices.
 
     Call this at the end of each component's setup function, after
     setup_entity() and any register_device_class/register_unit_of_measurement calls.
     """
+    entity_name = config[_KEY_ENTITY_NAME]
+    object_id_hash = config[_KEY_OBJECT_ID_HASH]
     dc_idx = config.get(_KEY_DC_IDX, 0)
     uom_idx = config.get(_KEY_UOM_IDX, 0)
     icon_idx = config.get(_KEY_ICON_IDX, 0)
     packed = (dc_idx << _DC_SHIFT) | (uom_idx << _UOM_SHIFT) | (icon_idx << _ICON_SHIFT)
-    if packed != 0:
-        add(var.set_entity_strings(packed))
+    add(var.configure_entity_(entity_name, object_id_hash, packed))
 
 
 def get_base_entity_object_id(
@@ -331,13 +334,15 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
         device: MockObj = await get_variable(device_id_obj)
         add(var.set_device(device))
 
-    # Set the entity name with pre-computed object_id hash
+    # Pre-compute entity name and object_id hash for configure_entity_()
+    # which is emitted later by finalize_entity_strings().
     # For named entities: pre-compute hash from entity name
     # For empty-name entities: pass 0, C++ calculates hash at runtime from
     # device name, friendly_name, or app name (bug-for-bug compatibility)
     entity_name = config[CONF_NAME]
     object_id_hash = fnv1_hash_object_id(entity_name) if entity_name else 0
-    add(var.set_name(entity_name, object_id_hash))
+    config[_KEY_ENTITY_NAME] = entity_name
+    config[_KEY_OBJECT_ID_HASH] = object_id_hash
     # Only set disabled_by_default if True (default is False)
     if config[CONF_DISABLED_BY_DEFAULT]:
         add(var.set_disabled_by_default(True))
