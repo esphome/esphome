@@ -46,15 +46,15 @@ def test_source_block_diff_identical() -> None:
 
 
 def test_source_block_diff_changed_block() -> None:
-    """Changed block shows with +/- prefixes."""
+    """Same-header block with changed instructions shows line-level diff."""
     target = "# file.cpp:10  foo()\nmov    a2, a3\n# file.cpp:11  bar()\ncall8 <bar>"
     pr = "# file.cpp:10  foo()\nmov    a4, a5\n# file.cpp:11  bar()\ncall8 <bar>"
     diff = _source_block_diff(target, pr)
     assert diff is not None
-    # Only the changed block should appear
-    assert "-# file.cpp:10  foo()" in diff
+    # Source annotation shown as context (space prefix)
+    assert " # file.cpp:10  foo()" in diff
+    # Instruction-level diff within the block
     assert "-mov    a2, a3" in diff
-    assert "+# file.cpp:10  foo()" in diff
     assert "+mov    a4, a5" in diff
     # Unchanged block should NOT appear
     assert any("bar" in line for line in diff) is False
@@ -97,13 +97,17 @@ def test_source_block_diff_separator_between_hunks() -> None:
     assert "..." in diff
 
 
-def test_source_block_diff_no_separator_for_adjacent() -> None:
-    """Adjacent changes don't get a separator."""
-    target = "# a.cpp:1  a()\nmov a2, a3\n# b.cpp:2  b()\nmov a4, a5"
-    pr = "# a.cpp:1  a()\nmov a2, a10\n# b.cpp:2  b()\nmov a4, a10"
+def test_source_block_diff_different_headers_full_replacement() -> None:
+    """Blocks with different source annotations show as full replacement."""
+    target = "# old.cpp:1  old_code()\nmov a2, a3\ncall8 <old>"
+    pr = "# new.cpp:1  new_code()\nmov a4, a5\ncall8 <new>"
     diff = _source_block_diff(target, pr)
     assert diff is not None
-    assert "..." not in diff
+    # Full blocks shown with +/-
+    assert "-# old.cpp:1  old_code()" in diff
+    assert "-call8 <old>" in diff
+    assert "+# new.cpp:1  new_code()" in diff
+    assert "+call8 <new>" in diff
 
 
 def test_count_instructions_skips_comments() -> None:

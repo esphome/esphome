@@ -283,55 +283,82 @@ def _parse_source_blocks(asm: str) -> list[tuple[str, str]]:
 
 
 def _source_block_diff(target_asm: str, pr_asm: str) -> list[str] | None:
-    """Compute diff at source-block granularity, showing only changed blocks.
+    """Compute a hybrid source-block / instruction-level diff.
 
-    Groups instructions by their source annotation and uses SequenceMatcher
-    to align blocks. Unchanged blocks are skipped entirely, which eliminates
-    noise from instruction reordering within unchanged code and focuses the
-    diff on blocks where the generated code actually changed.
+    Uses a two-level approach:
+    1. Align source blocks by their annotation header using SequenceMatcher
+    2. For blocks with the same header: do instruction-level diff (compact)
+    3. For blocks with different headers: show full replacement (new logic)
+
+    This avoids showing entire blocks as replaced when only one instruction
+    changed within them, while still clearly showing blocks where the
+    source-level logic is completely different.
 
     Returns:
-        List of diff lines (prefixed with +/-) or None if no changes.
+        List of diff lines (prefixed with +/-/space) or None if no changes.
     """
     target_blocks = _parse_source_blocks(target_asm)
     pr_blocks = _parse_source_blocks(pr_asm)
 
-    # Convert each block to a single comparable string
-    def _block_str(annotation: str, body: str) -> str:
-        return f"{annotation}\n{body}" if annotation else body
+    # Align blocks by source annotation headers
+    target_headers = [h for h, _ in target_blocks]
+    pr_headers = [h for h, _ in pr_blocks]
 
-    target_strs = [_block_str(a, b) for a, b in target_blocks]
-    pr_strs = [_block_str(a, b) for a, b in pr_blocks]
-
-    if target_strs == pr_strs:
+    if target_blocks == pr_blocks:
         return None
 
-    sm = difflib.SequenceMatcher(None, target_strs, pr_strs)
+    sm = difflib.SequenceMatcher(None, target_headers, pr_headers)
     result: list[str] = []
     has_output = False
 
-    for tag, i1, i2, j1, j2 in sm.get_opcodes():
-        if tag == "equal":
-            continue
-
-        # Add separator between non-adjacent change hunks
-        if has_output:
+    def _add_separator() -> None:
+        nonlocal has_output
+        if has_output and result and result[-1] != "...":
             result.append("...")
         has_output = True
 
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            # Same headers — check if instructions differ within each block
+            for ti, pi in zip(range(i1, i2), range(j1, j2)):
+                t_header, t_body = target_blocks[ti]
+                _, p_body = pr_blocks[pi]
+                if t_body == p_body:
+                    continue  # Identical block — skip entirely
+
+                # Same source annotation, different instructions — line-level diff
+                _add_separator()
+                if t_header:
+                    result.append(f" {t_header}")
+                t_lines = t_body.splitlines()
+                p_lines = p_body.splitlines()
+                for dl in difflib.unified_diff(t_lines, p_lines, lineterm="", n=2):
+                    if dl.startswith("---") or dl.startswith("+++"):
+                        continue
+                    if dl.startswith("@@"):
+                        # Replace hunk markers with separator
+                        if result and result[-1] != "...":
+                            result.append("...")
+                        continue
+                    result.append(dl)
+            continue
+
+        # Different headers — full block replacement (logic actually changed)
+        _add_separator()
+
         if tag in ("replace", "delete"):
-            result.extend(
-                f"-{line}"
-                for block_str in target_strs[i1:i2]
-                for line in block_str.splitlines()
-            )
+            for idx in range(i1, i2):
+                header, body = target_blocks[idx]
+                if header:
+                    result.append(f"-{header}")
+                result.extend(f"-{line}" for line in body.splitlines())
 
         if tag in ("replace", "insert"):
-            result.extend(
-                f"+{line}"
-                for block_str in pr_strs[j1:j2]
-                for line in block_str.splitlines()
-            )
+            for idx in range(j1, j2):
+                header, body = pr_blocks[idx]
+                if header:
+                    result.append(f"+{header}")
+                result.extend(f"+{line}" for line in body.splitlines())
 
     return result or None
 
