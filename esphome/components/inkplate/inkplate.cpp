@@ -407,7 +407,7 @@ void Inkplate::display1b_() {
       break;
   }
 
-  uint32_t clock = (1 << this->cl_pin_->get_pin());
+  uint32_t clock = (1UL << this->cl_pin_->get_pin());
   uint32_t data_mask = this->get_data_pin_mask_();
   ESP_LOGV(TAG, "Display1b start loops (%ums)", millis() - start_time);
 
@@ -575,7 +575,7 @@ void Inkplate::display3b_() {
       break;
   }
 
-  uint32_t clock = (1 << this->cl_pin_->get_pin());
+  uint32_t clock = (1UL << this->cl_pin_->get_pin());
   uint32_t data_mask = this->get_data_pin_mask_();
   uint32_t pos;
   uint32_t data;
@@ -646,7 +646,7 @@ bool Inkplate::partial_update_() {
   int rep = (this->model_ == INKPLATE_6_V2) ? 6 : 5;
 
   eink_on_();
-  uint32_t clock = (1 << this->cl_pin_->get_pin());
+  uint32_t clock = (1UL << this->cl_pin_->get_pin());
   uint32_t data_mask = this->get_data_pin_mask_();
   for (int k = 0; k < rep; k++) {
     vscan_start_();
@@ -704,7 +704,7 @@ void Inkplate::vscan_start_() {
 }
 
 void Inkplate::hscan_start_(uint32_t d) {
-  uint8_t clock = (1 << this->cl_pin_->get_pin());
+  uint32_t clock = (1UL << this->cl_pin_->get_pin());
   this->sph_pin_->digital_write(false);
   GPIO.out_w1ts = d | clock;
   GPIO.out_w1tc = this->get_data_pin_mask_() | clock;
@@ -751,7 +751,7 @@ void Inkplate::clean_fast_(uint8_t c, uint8_t rep) {
 
   uint32_t send = ((data & 0b00000011) << 4) | (((data & 0b00001100) >> 2) << 18) | (((data & 0b00010000) >> 4) << 23) |
                   (((data & 0b11100000) >> 5) << 25);
-  uint32_t clock = (1 << this->cl_pin_->get_pin());
+  uint32_t clock = (1UL << this->cl_pin_->get_pin());
 
   for (int k = 0; k < rep; k++) {
     vscan_start_();
