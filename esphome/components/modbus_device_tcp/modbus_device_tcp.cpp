@@ -51,28 +51,28 @@ void ModbusDeviceTCP::start_modbus_() {
   reg_area.type = MB_PARAM_HOLDING;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RW;
-  reg_area.address = (void *) &holding_reg_params;
+  reg_area.address = (void *) &holding_reg_params_;
   reg_area.size = reg_bytes;
   mbc_slave_set_descriptor(device_handler_, reg_area);  // NOLINT(readability-terms)
 
   reg_area.type = MB_PARAM_INPUT;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RO;
-  reg_area.address = (void *) &input_reg_params;
+  reg_area.address = (void *) &input_reg_params_;
   reg_area.size = reg_bytes;
   mbc_slave_set_descriptor(device_handler_, reg_area);  // NOLINT(readability-terms)
 
   reg_area.type = MB_PARAM_COIL;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RW;
-  reg_area.address = (void *) &coil_reg_params;
+  reg_area.address = (void *) &coil_reg_params_;
   reg_area.size = coil_bytes;
   mbc_slave_set_descriptor(device_handler_, reg_area);  // NOLINT(readability-terms)
 
   reg_area.type = MB_PARAM_DISCRETE;
   reg_area.start_offset = 0;
   reg_area.access = MB_ACCESS_RO;
-  reg_area.address = (void *) &discrete_reg_params;
+  reg_area.address = (void *) &discrete_reg_params_;
   reg_area.size = coil_bytes;
   mbc_slave_set_descriptor(device_handler_, reg_area);  // NOLINT(readability-terms)
 

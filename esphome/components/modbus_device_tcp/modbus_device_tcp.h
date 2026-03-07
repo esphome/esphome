@@ -38,23 +38,23 @@ class ModbusDeviceTCP : public esphome::Component {
     uint16_t byte_idx = index / 8u;
     uint8_t bit_mask = (uint8_t) (1u << (index % 8u));
     if (value)
-      coil_reg_params.coil_data[byte_idx] |= bit_mask;
+      coil_reg_params_.coil_data[byte_idx] |= bit_mask;
     else
-      coil_reg_params.coil_data[byte_idx] &= (uint8_t) ~bit_mask;
+      coil_reg_params_.coil_data[byte_idx] &= (uint8_t) ~bit_mask;
   }
 
   /// Set holding register at index (0..num_objects-1). Call from interval/automation/lambda.
   void set_holding_register(uint16_t index, uint16_t value) {
     if (index >= this->num_objects_)
       return;
-    holding_reg_params.holding_regs[index] = value;
+    holding_reg_params_.holding_regs[index] = value;
   }
 
   /// Set input register at index (0..num_objects-1). Call from interval/automation/lambda.
   void set_input_register(uint16_t index, uint16_t value) {
     if (index >= this->num_objects_)
       return;
-    input_reg_params.input_regs[index] = value;
+    input_reg_params_.input_regs[index] = value;
   }
 
   /// Set discrete input at index (0..num_objects-1). Call from interval/automation/lambda.
@@ -64,9 +64,9 @@ class ModbusDeviceTCP : public esphome::Component {
     uint16_t byte_idx = index / 8u;
     uint8_t bit_mask = (uint8_t) (1u << (index % 8u));
     if (value)
-      discrete_reg_params.discrete_data[byte_idx] |= bit_mask;
+      discrete_reg_params_.discrete_data[byte_idx] |= bit_mask;
     else
-      discrete_reg_params.discrete_data[byte_idx] &= (uint8_t) ~bit_mask;
+      discrete_reg_params_.discrete_data[byte_idx] &= (uint8_t) ~bit_mask;
   }
 
   void setup() override {
@@ -86,6 +86,11 @@ class ModbusDeviceTCP : public esphome::Component {
   uint16_t num_objects_ = 5;
   bool modbus_attempted_ = false;
   bool modbus_started_ = false;
+
+  discrete_reg_params_t discrete_reg_params_{};
+  coil_reg_params_t coil_reg_params_{};
+  input_reg_params_t input_reg_params_{};
+  holding_reg_params_t holding_reg_params_{};
 };
 }  // namespace modbus_device_tcp
 }  // namespace esphome
