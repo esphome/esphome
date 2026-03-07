@@ -127,7 +127,7 @@ class RedirectText:
     def __init__(
         self,
         out,
-        filter_lines: str | None = None,
+        filter_lines: list[str] | None = None,
         line_callbacks: list[Callable[[str], str | None]] | None = None,
     ) -> None:
         self._out = out
@@ -273,14 +273,19 @@ def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
     full_cmd = " ".join(shlex_quote(x) for x in cmd)
     _LOGGER.debug("Running:  %s", full_cmd)
     filter_lines = kwargs.get("filter_lines")
+    line_callbacks = kwargs.get("line_callbacks")
 
     capture_stdout = kwargs.get("capture_stdout", False)
     if capture_stdout:
         sub_stdout = subprocess.PIPE
     else:
-        sub_stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
+        sub_stdout = RedirectText(
+            sys.stdout, filter_lines=filter_lines, line_callbacks=line_callbacks
+        )
 
-    sub_stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
+    sub_stderr = RedirectText(
+        sys.stderr, filter_lines=filter_lines, line_callbacks=line_callbacks
+    )
 
     try:
         proc = subprocess.run(

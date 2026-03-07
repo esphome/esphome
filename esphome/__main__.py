@@ -733,7 +733,7 @@ def upload_using_esptool(
                 esptool.main, *cmd, line_callbacks=line_callbacks
             )  # pylint: disable=no-member
 
-        return run_external_process(*cmd)
+        return run_external_process(*cmd, line_callbacks=line_callbacks)
 
     rc = run_esptool(first_baudrate)
     if rc == 0 or first_baudrate == 115200:
