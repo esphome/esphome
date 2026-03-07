@@ -40,10 +40,12 @@ class OpenThreadComponent : public Component {
   void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
 #endif
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
+  otInstance *get_openthread_instance();
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   static void on_state_changed_(otChangedFlags flags, void *context);
+  int openthread_stop_();
   std::function<void()> factory_reset_external_callback_;
 #if CONFIG_OPENTHREAD_MTD
   uint32_t poll_period_{0};
