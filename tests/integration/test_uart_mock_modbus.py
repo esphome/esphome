@@ -39,9 +39,17 @@ async def test_uart_mock_modbus(
     # Track sensor state updates (after initial state is swallowed)
     sensor_states: dict[str, list[float]] = {
         "basic_register": [],
+        "delayed_response": [],
+        "late_response": [],
+        "no_response": [],
+        "exception_response": [],
     }
 
     basic_register_changed = loop.create_future()
+    delayed_response_changed = loop.create_future()
+    late_response_changed = loop.create_future()
+    no_response_changed = loop.create_future()
+    exception_response_changed = loop.create_future()
 
     def on_state(state: EntityState) -> None:
         if isinstance(state, SensorState) and not state.missing_state:
@@ -54,6 +62,23 @@ async def test_uart_mock_modbus(
                     and not basic_register_changed.done()
                 ):
                     basic_register_changed.set_result(True)
+                elif (
+                    sensor_name == "delayed_response"
+                    and state.state == 255.0
+                    and not delayed_response_changed.done()
+                ):
+                    delayed_response_changed.set_result(True)
+                elif (
+                    sensor_name == "late_response" and not late_response_changed.done()
+                ):
+                    late_response_changed.set_result(True)
+                elif sensor_name == "no_response" and not no_response_changed.done():
+                    no_response_changed.set_result(True)
+                elif (
+                    sensor_name == "exception_response"
+                    and not exception_response_changed.done()
+                ):
+                    exception_response_changed.set_result(True)
 
     async with (
         run_compiled(yaml_config),
@@ -79,20 +104,52 @@ async def test_uart_mock_modbus(
         assert start_btn is not None, "Start Scenario button not found"
         client.button_command(start_btn.key)
 
+        try:
+            await asyncio.wait_for(delayed_response_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for delayed_response change. Received sensor states:\n"
+                f"  delayed_response: {sensor_states['delayed_response']}\n"
+            )
+
+        try:
+            await asyncio.wait_for(late_response_changed, timeout=2.0)
+            pytest.fail(
+                f"late_response change should not have been triggered, but was. Received sensor states:\n"
+                f"  late_response: {sensor_states['late_response']}\n"
+            )
+        except TimeoutError:
+            pass  # Expected timeout since we never inject a response for late_response
+
+        try:
+            await asyncio.wait_for(no_response_changed, timeout=2.0)
+            pytest.fail(
+                f"no_response change should not have been triggered, but was. Received sensor states:\n"
+                f"  no_response: {sensor_states['no_response']}\n"
+            )
+        except TimeoutError:
+            pass  # Expected timeout since we never inject a response for no_response
+
         # Wait for basic register to be updated with successful parse
         try:
-            await asyncio.wait_for(basic_register_changed, timeout=15.0)
+            await asyncio.wait_for(basic_register_changed, timeout=2.0)
         except TimeoutError:
             pytest.fail(
                 f"Timeout waiting for Basic Register change. Received sensor states:\n"
                 f"  basic_register: {sensor_states['basic_register']}\n"
             )
 
+        try:
+            await asyncio.wait_for(exception_response_changed, timeout=2.0)
+            pytest.fail(
+                f"exception_response change should not have been triggered, but was. Received sensor states:\n"
+                f"  exception_response: {sensor_states['exception_response']}\n"
+            )
+        except TimeoutError:
+            pass
+
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="There is a bug in UART which will timeout for long responses."
-)
 async def test_uart_mock_modbus_timing(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -155,7 +212,7 @@ async def test_uart_mock_modbus_timing(
 
         # Wait for voltage to be updated with successful parse
         try:
-            await asyncio.wait_for(voltage_changed, timeout=15.0)
+            await asyncio.wait_for(voltage_changed, timeout=2.0)
         except TimeoutError:
             pytest.fail(
                 f"Timeout waiting for SDM voltage change. Received sensor states:\n"

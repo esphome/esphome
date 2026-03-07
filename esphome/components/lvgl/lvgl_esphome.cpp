@@ -422,6 +422,9 @@ void LvglComponent::write_random_() {
     auto row = random_uint32() % this->disp_drv_.ver_res;
     row = row / this->draw_rounding * this->draw_rounding;
     auto size = ((random_uint32() % 32) / this->draw_rounding + 2) * this->draw_rounding - 1;
+    // clamp size so the square fits within the draw buffer
+    if ((size + 1) * (size + 1) > this->draw_buf_.size)
+      size = static_cast<decltype(size)>(sqrtf(this->draw_buf_.size)) - 1;
     lv_area_t area;
     area.x1 = col;
     area.y1 = row;

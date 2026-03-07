@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core.config import DEVICE_CLASS_MAX_LENGTH, ICON_MAX_LENGTH
 from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
 import esphome.final_validate as fv
 from esphome.helpers import cpp_string_escape, fnv1_hash_object_id, sanitize, snake_case
@@ -30,8 +31,10 @@ DOMAIN = "entity_string_pool"
 _KEY_DC_IDX = "_entity_dc_idx"
 _KEY_UOM_IDX = "_entity_uom_idx"
 _KEY_ICON_IDX = "_entity_icon_idx"
+_KEY_ENTITY_NAME = "_entity_name"
+_KEY_OBJECT_ID_HASH = "_entity_object_id_hash"
 
-# Bit layout for set_entity_strings(packed) — must match C++ setter in entity_base.h:
+# Bit layout for entity_strings_packed in configure_entity_() — must match C++ in entity_base.h:
 #   [23..16] icon (8 bits) | [15..8] UoM (8 bits) | [7..0] device_class (8 bits)
 _DC_SHIFT = 0
 _UOM_SHIFT = 8
@@ -78,6 +81,8 @@ def _generate_category_code(
     table_var: str,
     lookup_fn: str,
     strings: dict[str, int],
+    *,
+    progmem_strings: bool = False,
 ) -> str:
     """Generate C++ code for one string category (PROGMEM pointer table + lookup).
 
@@ -85,13 +90,39 @@ def _generate_category_code(
     in flash (via PROGMEM) and read with progmem_read_ptr(). String literals
     themselves remain in RAM but benefit from linker string deduplication.
     Index 0 means "not set" and returns empty string.
+
+    When progmem_strings=True, each string is declared as a separate PROGMEM
+    char array. This ensures the string data itself is in flash on ESP8266
+    (where .rodata is RAM). On other platforms PROGMEM is a no-op.
     """
     if not strings:
         return ""
 
     sorted_strings = sorted(strings.items(), key=lambda x: x[1])
-    entries = ", ".join(cpp_string_escape(s) for s, _ in sorted_strings)
     count = len(sorted_strings)
+
+    if progmem_strings:
+        # Emit individual PROGMEM char arrays so string data lives in flash
+        lines: list[str] = []
+        var_names: list[str] = []
+        for i, (s, _) in enumerate(sorted_strings):
+            var_name = f"{table_var}_STR_{i}"
+            var_names.append(var_name)
+            lines.append(
+                f"static const char {var_name}[] PROGMEM = {cpp_string_escape(s)};"
+            )
+        entries = ", ".join(var_names)
+        # Empty string must also be PROGMEM — on ESP8266, callers use strncpy_P
+        empty_var = f"{table_var}_EMPTY"
+        lines.append(f'static const char {empty_var}[] PROGMEM = "";')
+        lines.append(f"static const char *const {table_var}[] PROGMEM = {{{entries}}};")
+        lines.append(f"const char *{lookup_fn}(uint8_t index) {{")
+        lines.append(f"  if (index == 0 || index > {count}) return {empty_var};")
+        lines.append(f"  return progmem_read_ptr(&{table_var}[index - 1]);")
+        lines.append("}")
+        return "\n".join(lines) + "\n"
+
+    entries = ", ".join(cpp_string_escape(s) for s, _ in sorted_strings)
 
     return (
         f"static const char *const {table_var}[] PROGMEM = {{{entries}}};\n"
@@ -103,9 +134,9 @@ def _generate_category_code(
 
 
 _CATEGORY_CONFIGS = (
-    ("ENTITY_DC_TABLE", "entity_device_class_lookup", "device_classes"),
-    ("ENTITY_UOM_TABLE", "entity_uom_lookup", "units"),
-    ("ENTITY_ICON_TABLE", "entity_icon_lookup", "icons"),
+    ("ENTITY_DC_TABLE", "entity_device_class_lookup", "device_classes", True),
+    ("ENTITY_UOM_TABLE", "entity_uom_lookup", "units", False),
+    ("ENTITY_ICON_TABLE", "entity_icon_lookup", "icons", True),
 )
 
 
@@ -117,8 +148,10 @@ async def _generate_tables_job() -> None:
     """
     pool = _get_pool()
     parts = ["namespace esphome {"]
-    for table_var, lookup_fn, attr in _CATEGORY_CONFIGS:
-        code = _generate_category_code(table_var, lookup_fn, getattr(pool, attr))
+    for table_var, lookup_fn, attr, progmem_strs in _CATEGORY_CONFIGS:
+        code = _generate_category_code(
+            table_var, lookup_fn, getattr(pool, attr), progmem_strings=progmem_strs
+        )
         if code:
             parts.append(code)
     parts.append("}  // namespace esphome")
@@ -148,6 +181,10 @@ def _register_string(
 
 def register_device_class(value: str) -> int:
     """Register a device_class string and return its 1-based index."""
+    if value and len(value) > DEVICE_CLASS_MAX_LENGTH:
+        raise ValueError(
+            f"Device class string too long ({len(value)} chars, max {DEVICE_CLASS_MAX_LENGTH}): '{value}'"
+        )
     return _register_string(
         value, _get_pool().device_classes, _MAX_DEVICE_CLASSES, "device_class"
     )
@@ -160,6 +197,10 @@ def register_unit_of_measurement(value: str) -> int:
 
 def register_icon(value: str) -> int:
     """Register an icon string and return its 1-based index."""
+    if value and len(value) > ICON_MAX_LENGTH:
+        raise ValueError(
+            f"Icon string too long ({len(value)} chars, max {ICON_MAX_LENGTH}): '{value}'"
+        )
     return _register_string(value, _get_pool().icons, _MAX_ICONS, "icon")
 
 
@@ -180,17 +221,18 @@ def setup_unit_of_measurement(config: ConfigType) -> None:
 
 
 def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
-    """Emit a single set_entity_strings() call with all packed indices.
+    """Emit a single configure_entity_() call with name, hash, and packed string indices.
 
     Call this at the end of each component's setup function, after
     setup_entity() and any register_device_class/register_unit_of_measurement calls.
     """
+    entity_name = config[_KEY_ENTITY_NAME]
+    object_id_hash = config[_KEY_OBJECT_ID_HASH]
     dc_idx = config.get(_KEY_DC_IDX, 0)
     uom_idx = config.get(_KEY_UOM_IDX, 0)
     icon_idx = config.get(_KEY_ICON_IDX, 0)
     packed = (dc_idx << _DC_SHIFT) | (uom_idx << _UOM_SHIFT) | (icon_idx << _ICON_SHIFT)
-    if packed != 0:
-        add(var.set_entity_strings(packed))
+    add(var.configure_entity_(entity_name, object_id_hash, packed))
 
 
 def get_base_entity_object_id(
@@ -292,13 +334,15 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
         device: MockObj = await get_variable(device_id_obj)
         add(var.set_device(device))
 
-    # Set the entity name with pre-computed object_id hash
+    # Pre-compute entity name and object_id hash for configure_entity_()
+    # which is emitted later by finalize_entity_strings().
     # For named entities: pre-compute hash from entity name
     # For empty-name entities: pass 0, C++ calculates hash at runtime from
     # device name, friendly_name, or app name (bug-for-bug compatibility)
     entity_name = config[CONF_NAME]
     object_id_hash = fnv1_hash_object_id(entity_name) if entity_name else 0
-    add(var.set_name(entity_name, object_id_hash))
+    config[_KEY_ENTITY_NAME] = entity_name
+    config[_KEY_OBJECT_ID_HASH] = object_id_hash
     # Only set disabled_by_default if True (default is False)
     if config[CONF_DISABLED_BY_DEFAULT]:
         add(var.set_disabled_by_default(True))

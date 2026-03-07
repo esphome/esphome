@@ -422,15 +422,11 @@ void Component::status_set_error(const LogString *message) {
     store_component_error_message(this, LOG_STR_ARG(message), true);
   }
 }
-void Component::status_clear_warning() {
-  if ((this->component_state_ & STATUS_LED_WARNING) == 0)
-    return;
+void Component::status_clear_warning_slow_path_() {
   this->component_state_ &= ~STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s cleared Warning flag", LOG_STR_ARG(this->get_component_log_str()));
 }
-void Component::status_clear_error() {
-  if ((this->component_state_ & STATUS_LED_ERROR) == 0)
-    return;
+void Component::status_clear_error_slow_path_() {
   this->component_state_ &= ~STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s cleared Error flag", LOG_STR_ARG(this->get_component_log_str()));
 }
@@ -534,7 +530,7 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
   // 1ms granularity, so results were essentially random noise.
   if (global_runtime_stats != nullptr) {
     uint32_t duration_us = micros() - this->started_us_;
-    global_runtime_stats->record_component_time(this->component_, duration_us, curr_time);
+    global_runtime_stats->record_component_time(this->component_, duration_us);
   }
 #endif
   if (blocking_time > WARN_IF_BLOCKING_OVER_MS) {

@@ -34,7 +34,8 @@ class MockUartComponent : public uart::UARTComponent, public Component {
 
   // Scenario configuration - called from generated code
   void add_injection(const std::vector<uint8_t> &rx_data, uint32_t delay_ms);
-  void add_response(const std::vector<uint8_t> &expect_tx, const std::vector<uint8_t> &inject_rx);
+  void add_response(const std::vector<uint8_t> &expect_tx, const std::vector<uint8_t> &inject_rx,
+                    uint32_t delay_ms = 0);
   void add_periodic_rx(const std::vector<uint8_t> &data, uint32_t interval_ms);
 
   void start_scenario();
@@ -64,6 +65,8 @@ class MockUartComponent : public uart::UARTComponent, public Component {
   struct Response {
     std::vector<uint8_t> expect_tx;
     std::vector<uint8_t> inject_rx;
+    uint32_t delay_ms;
+    uint32_t last_match_ms{0};
   };
   std::vector<Response> responses_;
   std::vector<uint8_t> tx_buffer_;
