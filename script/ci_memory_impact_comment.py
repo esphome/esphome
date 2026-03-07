@@ -266,24 +266,22 @@ def _strip_registers(insn: str) -> str:
     return _REG_NORMALIZE_RE.sub("REG", insn)
 
 
-# Pattern to strip line numbers from source annotations for matching.
-# "# file.cpp:123  code()" → "# file.cpp  code()"
-# Only strips when source text is present (the two spaces + text after line number).
-# When source text is absent, the line number is the only distinguishing feature
-# between blocks from the same file, so it must be kept.
-_ANNOTATION_LINENO_RE = re.compile(r"^(# \S+?):\d+(  .+)")
+# Pattern to strip line numbers and source text from annotations for matching.
+# "# file.cpp:123  code()" → "# file.cpp"
+# "# file.cpp:123" → "# file.cpp"
+# This allows blocks to match across branches even when line numbers shift
+# or source text availability differs (e.g. worktree deleted).
+_ANNOTATION_LINENO_RE = re.compile(r"^(# \S+?):\d+.*")
 
 
 def _normalize_annotation(annotation: str) -> str:
-    """Strip line number from annotation for block matching.
+    """Strip line number and source text from annotation for block matching.
 
     Source annotations include line numbers that shift when code is added/removed
-    above. For matching purposes, we compare by filename + source text only.
-
-    When source text is absent (e.g. "# stl_algobase.h:951"), the line number
-    is kept because it's the only way to distinguish blocks from the same file.
+    above. For matching purposes, we compare by filename only. Multiple blocks
+    from the same file are matched in order by SequenceMatcher.
     """
-    return _ANNOTATION_LINENO_RE.sub(r"\1\2", annotation)
+    return _ANNOTATION_LINENO_RE.sub(r"\1", annotation)
 
 
 def _parse_source_blocks(asm: str) -> list[tuple[str, str]]:
@@ -371,6 +369,49 @@ def _source_block_diff(target_asm: str, pr_asm: str) -> list[str] | None:
                 result.append(f"{prefix}{header}")
             result.extend(f"{prefix}{line}" for line in body.splitlines())
 
+    def _diff_block_instructions(t_header, t_body, p_body):
+        """Diff instructions within a matched block, filtering register noise.
+
+        Diffs register-stripped lines to find real structural changes,
+        then emits the actual (non-stripped) lines for those changes.
+        """
+        t_lines = t_body.splitlines()
+        p_lines = p_body.splitlines()
+
+        # Diff register-stripped versions to find real changes
+        t_stripped = [_strip_registers(line) for line in t_lines]
+        p_stripped = [_strip_registers(line) for line in p_lines]
+
+        if t_stripped == p_stripped:
+            return  # Only register differences — skip entirely
+
+        _add_separator()
+        if t_header:
+            result.append(f" {t_header}")
+
+        # Use stripped lines for diffing, but emit actual lines
+        # Build a mapping from stripped diff output back to real lines
+        first_hunk = True
+        for dl in difflib.unified_diff(t_stripped, p_stripped, lineterm="", n=2):
+            if dl.startswith("---") or dl.startswith("+++"):
+                continue
+            if dl.startswith("@@"):
+                if not first_hunk and result and result[-1] != "...":
+                    result.append("...")
+                first_hunk = False
+                continue
+            prefix_char = dl[0] if dl else " "
+            stripped_content = dl[1:]
+            # Find actual line matching this stripped content
+            source = t_lines if prefix_char != "+" else p_lines
+            for i, line in enumerate(source):
+                if line is not None and _strip_registers(line) == stripped_content:
+                    result.append(f"{prefix_char}{line}")
+                    source[i] = None  # Mark as used
+                    break
+            else:
+                result.append(dl)
+
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == "equal":
             # Same normalized headers — check if instructions differ
@@ -379,38 +420,44 @@ def _source_block_diff(target_asm: str, pr_asm: str) -> list[str] | None:
                 _, p_body = pr_blocks[pi]
                 if _blocks_equal(t_body, p_body):
                     continue  # Identical or register-only change — skip
-
-                # Same source annotation, structural differences — line-level diff
-                _add_separator()
-                if t_header:
-                    result.append(f" {t_header}")
-                t_lines = t_body.splitlines()
-                p_lines = p_body.splitlines()
-                first_hunk = True
-                for dl in difflib.unified_diff(t_lines, p_lines, lineterm="", n=2):
-                    if dl.startswith("---") or dl.startswith("+++"):
-                        continue
-                    if dl.startswith("@@"):
-                        # First @@ just starts the diff — don't add separator
-                        if not first_hunk and result and result[-1] != "...":
-                            result.append("...")
-                        first_hunk = False
-                        continue
-                    result.append(dl)
+                _diff_block_instructions(t_header, t_body, p_body)
             continue
 
         if tag == "replace" and i2 - i1 == j2 - j1:
-            # Check if it's just a line number change with same instructions
-            # (common when code is added/removed above unchanged functions)
-            all_equal = True
+            # Same block count — try pairwise comparison
+            # Only do instruction-level diff for pairs with matching headers
+            all_handled = True
             for ti, pi in zip(range(i1, i2), range(j1, j2)):
-                if not _blocks_equal(target_blocks[ti][1], pr_blocks[pi][1]):
-                    all_equal = False
+                t_header, t_body = target_blocks[ti]
+                p_header, p_body = pr_blocks[pi]
+                t_norm = _normalize_annotation(t_header)
+                p_norm = _normalize_annotation(p_header)
+                if t_norm != p_norm:
+                    all_handled = False
                     break
-            if all_equal:
-                continue  # Only line numbers changed — skip
+                if not _blocks_equal(t_body, p_body):
+                    all_handled = False
+                    break
+            if all_handled:
+                continue  # Only line numbers / registers changed — skip
 
-        # Different headers — full block replacement
+            # Check if all pairs have matching normalized headers
+            # If so, do pairwise instruction-level diff with register filtering
+            all_headers_match = all(
+                _normalize_annotation(target_blocks[ti][0])
+                == _normalize_annotation(pr_blocks[pi][0])
+                for ti, pi in zip(range(i1, i2), range(j1, j2))
+            )
+            if all_headers_match:
+                for ti, pi in zip(range(i1, i2), range(j1, j2)):
+                    t_header, t_body = target_blocks[ti]
+                    _, p_body = pr_blocks[pi]
+                    if _blocks_equal(t_body, p_body):
+                        continue
+                    _diff_block_instructions(t_header, t_body, p_body)
+                continue
+
+        # Different headers or block counts — full block replacement
         _add_separator()
 
         if tag in ("replace", "delete"):
