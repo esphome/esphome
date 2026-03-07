@@ -373,8 +373,7 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
     return;
   }
 
-  connection->update_connection_params(msg.min_interval, msg.max_interval, msg.latency, msg.timeout);
-  resp.error = ESP_OK;
+  resp.error = connection->update_connection_params(msg.min_interval, msg.max_interval, msg.latency, msg.timeout);
   this->api_connection_->send_message(resp);
 }
 
