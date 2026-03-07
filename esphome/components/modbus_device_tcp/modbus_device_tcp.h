@@ -1,4 +1,7 @@
 #pragma once
+
+#ifdef USE_ESP32
+
 #ifdef __cplusplus
 #define Atomic(T) T
 #define _Atomic(T) Atomic(T)  // esp-modbus uses _Atomic(int); expand to T for C++
@@ -86,3 +89,5 @@ class ModbusDeviceTCP : public esphome::Component {
 };
 }  // namespace modbus_device_tcp
 }  // namespace esphome
+
+#endif  // USE_ESP32

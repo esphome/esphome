@@ -1,4 +1,7 @@
 #include "modbus_device_tcp.h"
+
+#ifdef USE_ESP32
+
 #include "esp_err.h"
 #include "esphome/core/log.h"
 
@@ -86,3 +89,5 @@ void ModbusDeviceTCP::start_modbus_() {
 
 }  // namespace modbus_device_tcp
 }  // namespace esphome
+
+#endif  // USE_ESP32
