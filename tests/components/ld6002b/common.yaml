@@ -1,5 +1,6 @@
 ld6002b:
   id: ld6002b_radar
+  wakeup_pin: GPIO4
 
 sensor:
   - platform: ld6002b

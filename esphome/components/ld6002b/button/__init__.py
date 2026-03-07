@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, ENTITY_CATEGORY_CONFIG, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.const import (
+    CONF_ID,
+    CONF_WAKEUP_PIN,
+    ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+)
+import esphome.final_validate as fv
 
 from .. import LD6002BComponent, ld6002b_ns
 from ..const import (
@@ -75,6 +81,36 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 )
+
+
+def final_validate(config):
+    full_config = fv.full_config.get()
+    hub_id = config[CONF_LD6002B_ID]
+
+    if config.get(CONF_APPLY_AREA):
+        has_area_id_select = any(
+            entry.get(CONF_LD6002B_ID) == hub_id and entry.get("area_id") is not None
+            for entry in full_config.get("select", [])
+        )
+        if not has_area_id_select:
+            raise cv.Invalid(
+                f"{CONF_APPLY_AREA} requires select.area_id for the same ld6002b instance",
+                path=[CONF_APPLY_AREA],
+            )
+
+    if config.get(CONF_WAKE):
+        hub_path = full_config.get_path_for_id(hub_id)
+        hub_config = full_config.get_config_for_path(hub_path[:-1])
+        if hub_config.get(CONF_WAKEUP_PIN) is None:
+            raise cv.Invalid(
+                f"{CONF_WAKE} requires {CONF_WAKEUP_PIN} on the parent ld6002b component",
+                path=[CONF_WAKE],
+            )
+
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
 
 BUTTON_MAP = {
     CONF_APPLY_AREA: ButtonType.APPLY_AREA,

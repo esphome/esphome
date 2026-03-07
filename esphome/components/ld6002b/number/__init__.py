@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BUTTON,
     CONF_ID,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_DURATION,
@@ -10,6 +11,7 @@ from esphome.const import (
     UNIT_MILLISECOND,
     UNIT_SECOND,
 )
+import esphome.final_validate as fv
 
 from .. import LD6002BComponent, ld6002b_ns
 from ..const import (
@@ -99,6 +101,39 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 )
+
+
+def final_validate(config):
+    if config.get(CONF_AREA_CONFIG) is None:
+        return config
+
+    full_config = fv.full_config.get()
+    hub_id = config[CONF_LD6002B_ID]
+
+    has_apply_area = any(
+        entry.get(CONF_LD6002B_ID) == hub_id and entry.get("apply_area") is not None
+        for entry in full_config.get(CONF_BUTTON, [])
+    )
+    if not has_apply_area:
+        raise cv.Invalid(
+            f"{CONF_AREA_CONFIG} requires button.apply_area for the same ld6002b instance",
+            path=[CONF_AREA_CONFIG],
+        )
+
+    has_area_id_select = any(
+        entry.get(CONF_LD6002B_ID) == hub_id and entry.get("area_id") is not None
+        for entry in full_config.get("select", [])
+    )
+    if not has_area_id_select:
+        raise cv.Invalid(
+            f"{CONF_AREA_CONFIG} requires select.area_id for the same ld6002b instance",
+            path=[CONF_AREA_CONFIG],
+        )
+
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config):

@@ -360,6 +360,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   bool command_active_{false};
   bool command_sent_{false};
   PendingCommand active_command_{};
+  uint16_t active_frame_id_{0};
   uint8_t retries_left_{0};
   uint32_t last_send_ms_{0};
 

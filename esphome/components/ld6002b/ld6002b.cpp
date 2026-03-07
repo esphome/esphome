@@ -128,8 +128,11 @@ void LD6002BComponent::setup() {
   size_t desired_data_len = this->max_data_len_;
   if (!this->max_data_len_overridden_) {
     bool point_cloud_configured = false;
+#ifdef USE_SENSOR
+    point_cloud_configured = point_cloud_configured || this->point_count_sensor_ != nullptr;
+#endif
 #ifdef USE_SWITCH
-    point_cloud_configured = this->point_cloud_switch_ != nullptr;
+    point_cloud_configured = point_cloud_configured || this->point_cloud_switch_ != nullptr;
 #endif
     desired_data_len = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
   }
@@ -174,10 +177,14 @@ void LD6002BComponent::setup() {
 #endif
     }
 
-    this->send_control_command_(CMD_POINT_CLOUD_OFF);
+    bool want_point_cloud_stream = false;
+#ifdef USE_SENSOR
+    want_point_cloud_stream = want_point_cloud_stream || this->point_count_sensor_ != nullptr;
+#endif
+    this->send_control_command_(want_point_cloud_stream ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
 #ifdef USE_SWITCH
     if (this->point_cloud_switch_ != nullptr) {
-      this->point_cloud_switch_->publish_state(false);
+      this->point_cloud_switch_->publish_state(want_point_cloud_stream);
     }
 #endif
 
@@ -286,6 +293,10 @@ bool LD6002BComponent::should_throttle_stream_(uint32_t &last_publish_ms) {
     return false;
   }
   uint32_t now = millis();
+  if (last_publish_ms == 0) {
+    last_publish_ms = now;
+    return false;
+  }
   if (now - last_publish_ms < this->throttle_ms_) {
     return true;
   }
@@ -407,10 +418,13 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
 }
 
 void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t len) {
-  if (len == 0 && this->command_active_ && type == this->active_command_.type) {
+  const bool matching_ack = len == 0 && this->command_active_ && type == this->active_command_.type &&
+                            ((this->frame_id_ & 0x7FFF) == (this->active_frame_id_ & 0x7FFF));
+  if (matching_ack) {
     const bool refresh_areas = (type == TYPE_SET_AREA) && this->area_write_pending_;
     this->command_active_ = false;
     this->command_sent_ = false;
+    this->active_frame_id_ = 0;
     this->last_send_ms_ = 0;
     this->process_command_queue_();
     if (refresh_areas) {
@@ -422,9 +436,6 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
 
   switch (type) {
     case TYPE_REPORT_TARGET:
-      if (this->should_throttle_stream_(this->last_target_publish_)) {
-        return;
-      }
       this->handle_target_report_(data, len);
       break;
     case TYPE_REPORT_POINT_CLOUD:
@@ -434,9 +445,6 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
       this->handle_point_cloud_(data, len);
       break;
     case TYPE_REPORT_AREA_PRESENCE:
-      if (this->should_throttle_stream_(this->last_area_publish_)) {
-        return;
-      }
       this->handle_area_presence_(data, len);
       break;
     case TYPE_REPORT_INTERFERENCE_AREAS:
@@ -481,6 +489,10 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   if (len < 4)
     return;
 
+  // Throttle only the high-churn coordinate payloads. Presence/count transitions
+  // should still propagate immediately so entities do not look stale.
+  const bool publish_target_values = !this->should_throttle_stream_(this->last_target_publish_);
+
   uint32_t target_num = read_u32_le(data);
   uint16_t available = (len - 4) / TARGET_DATA_LEN;
   uint8_t count = static_cast<uint8_t>(std::min<uint32_t>(target_num, available));
@@ -514,25 +526,27 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
       int32_t cluster_id = static_cast<int32_t>(read_u32_le(data + offset + 16));
 #ifdef USE_SENSOR
       TargetSensors &target = this->targets_[i];
-      if (target.x != nullptr && should_publish_float(this->last_target_x_[i], x)) {
+      if (publish_target_values && target.x != nullptr && should_publish_float(this->last_target_x_[i], x)) {
         target.x->publish_state(x);
         this->last_target_x_[i] = x;
       }
-      if (target.y != nullptr && should_publish_float(this->last_target_y_[i], y)) {
+      if (publish_target_values && target.y != nullptr && should_publish_float(this->last_target_y_[i], y)) {
         target.y->publish_state(y);
         this->last_target_y_[i] = y;
       }
-      if (target.z != nullptr && should_publish_float(this->last_target_z_[i], z)) {
+      if (publish_target_values && target.z != nullptr && should_publish_float(this->last_target_z_[i], z)) {
         target.z->publish_state(z);
         this->last_target_z_[i] = z;
       }
       float dop_value = static_cast<float>(dop_idx);
-      if (target.dop_idx != nullptr && should_publish_float(this->last_target_dop_[i], dop_value)) {
+      if (publish_target_values && target.dop_idx != nullptr &&
+          should_publish_float(this->last_target_dop_[i], dop_value)) {
         target.dop_idx->publish_state(dop_value);
         this->last_target_dop_[i] = dop_value;
       }
       float cluster_value = static_cast<float>(cluster_id);
-      if (target.cluster_id != nullptr && should_publish_float(this->last_target_cluster_[i], cluster_value)) {
+      if (publish_target_values && target.cluster_id != nullptr &&
+          should_publish_float(this->last_target_cluster_[i], cluster_value)) {
         target.cluster_id->publish_state(cluster_value);
         this->last_target_cluster_[i] = cluster_value;
       }
@@ -862,6 +876,7 @@ void LD6002BComponent::process_command_queue_() {
         }
         this->command_active_ = false;
         this->command_sent_ = false;
+        this->active_frame_id_ = 0;
         this->last_send_ms_ = 0;
       }
     }
@@ -878,6 +893,7 @@ void LD6002BComponent::process_command_queue_() {
   this->retries_left_ = CMD_MAX_RETRIES;
   this->command_active_ = true;
   this->command_sent_ = false;
+  this->active_frame_id_ = 0;
   this->last_send_ms_ = 0;
   this->send_command_(this->active_command_.type, this->active_command_.data.data(), this->active_command_.len);
 }
@@ -941,6 +957,7 @@ void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t 
     this->write_byte(static_cast<uint8_t>(~data_xor));
   }
   if (track) {
+    this->active_frame_id_ = frame_id;
     this->last_send_ms_ = millis();
     this->command_sent_ = true;
   }
@@ -1099,6 +1116,12 @@ void LD6002BComponent::set_select_value(SelectType type, size_t index) {
 }
 
 void LD6002BComponent::update_area_numbers_(const AreaConfig &area) {
+  this->area_x_min_ = area.x_min;
+  this->area_x_max_ = area.x_max;
+  this->area_y_min_ = area.y_min;
+  this->area_y_max_ = area.y_max;
+  this->area_z_min_ = area.z_min;
+  this->area_z_max_ = area.z_max;
 #ifdef USE_NUMBER
   if (this->area_x_min_number_ != nullptr) {
     this->area_x_min_number_->publish_state(area.x_min);
