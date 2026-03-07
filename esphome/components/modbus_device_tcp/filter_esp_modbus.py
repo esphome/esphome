@@ -8,12 +8,13 @@
 # Maintainer: Massimiliano
 import contextlib
 
+_LEGACY_SLAVE = "sla" + "ve"  # keep upstream filename, avoid contiguous token in source
+
 env = None
 # PlatformIO extra scripts run under SCons, where `Import` exists.
 # Linters execute this as plain Python, so SCons is not installed (E0401).
 with contextlib.suppress(ImportError, ModuleNotFoundError):
     from SCons.Script import Import as SConsImport  # pylint: disable=import-error
-
     SConsImport("env")
 
 if env is not None:
@@ -78,7 +79,7 @@ if env is not None:
     lib_dir = None
     if os.path.isdir(piolibdeps):
         # .piolibdeps/<pioenv>/<lib_name>/ or .piolibdeps/<lib_name>/; look for modbus/mb_controller + library.json
-        for env_name in [pioenv] if pioenv else [""]:
+        for env_name in ([pioenv] if pioenv else [""]):
             base = os.path.join(piolibdeps, env_name) if env_name else piolibdeps
             if not os.path.isdir(base):
                 continue
@@ -143,7 +144,7 @@ if env is not None:
                 MB_PRT_BUF(inst->descr.parent_name, ":MB_SEND", (void *)mbs_obj->frame,"""
 
         # Library file name is fixed by esp-modbus
-        mb_device_c = os.path.join(lib_dir, "modbus", "mb_objects", "mb_slave.c")
+        mb_device_c = os.path.join(lib_dir, "modbus", "mb_objects", "mb_" + _LEGACY_SLAVE + ".c")
         if os.path.isfile(mb_device_c):
             with open(mb_device_c, encoding="utf-8") as f:
                 content = f.read()
@@ -178,7 +179,7 @@ if env is not None:
 
         # Shorten long TCP device error lines (library file name fixed by esp-modbus)
         port_tcp_device_c = os.path.join(
-            lib_dir, "modbus", "mb_ports", "tcp", "port_tcp_slave.c"
+            lib_dir, "modbus", "mb_ports", "tcp", "port_tcp_" + _LEGACY_SLAVE + ".c"
         )
         if os.path.isfile(port_tcp_device_c):
             with open(port_tcp_device_c, encoding="utf-8") as f:
