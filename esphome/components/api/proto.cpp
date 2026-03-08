@@ -8,6 +8,14 @@ namespace esphome::api {
 
 static const char *const TAG = "api.proto";
 
+void ProtoByteBuffer::grow_(size_t n) {
+  auto new_data = make_buffer(n);
+  if (this->size_)
+    std::memcpy(new_data.get(), this->data_.get(), this->size_);
+  this->data_ = std::move(new_data);
+  this->capacity_ = n;
+}
+
 #ifdef USE_API_VARINT64
 optional<ProtoVarInt> ProtoVarInt::parse_wide(const uint8_t *buffer, uint32_t len, uint32_t *consumed,
                                               uint32_t result32) {
