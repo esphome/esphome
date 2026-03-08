@@ -420,6 +420,8 @@ class DoubleType(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
         return f"size += ProtoSize::calc_fixed64({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
@@ -444,6 +446,8 @@ class FloatType(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
         return f"size += ProtoSize::calc_float({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
@@ -528,6 +532,8 @@ class Fixed64Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
         return f"size += ProtoSize::calc_fixed64({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
@@ -552,6 +558,8 @@ class Fixed32Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
         return f"size += ProtoSize::calc_fixed32({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
@@ -1201,6 +1209,8 @@ class SFixed32Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
         return f"size += ProtoSize::calc_sfixed32({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
@@ -1225,6 +1235,8 @@ class SFixed64Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
         return f"size += ProtoSize::calc_sfixed64({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
