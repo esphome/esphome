@@ -189,7 +189,7 @@ class UARTComponent {
   InternalGPIOPin *rx_pin_{};
   InternalGPIOPin *flow_control_pin_{};
   size_t rx_buffer_size_{};
-  // ESP-IDF always sets this at codegen time via set_rx_full_threshold().
+  // ESP32 (both Arduino and ESP-IDF) always sets this at codegen time via set_rx_full_threshold().
   // Other platforms (USB UART, Arduino, etc.) leave it unset.
   size_t rx_full_threshold_{RX_FULL_THRESHOLD_UNSET};
   size_t rx_timeout_{0};

@@ -54,7 +54,8 @@ void MockUartComponent::loop() {
   }
 
   // Process staged RX - deliver bytes whose delay has elapsed
-  while (!this->staged_rx_.empty() && millis() >= this->staged_rx_.front().available_at_ms) {
+  uint32_t now_ms = millis();
+  while (!this->staged_rx_.empty() && (static_cast<int32_t>(now_ms - this->staged_rx_.front().available_at_ms) >= 0)) {
     auto &staged = this->staged_rx_.front();
     ESP_LOGD(TAG, "Delivering %zu staged RX bytes", staged.data.size());
     this->inject_to_rx_buffer(staged.data);

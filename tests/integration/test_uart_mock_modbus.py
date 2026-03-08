@@ -232,7 +232,7 @@ async def test_uart_mock_modbus_no_threshold(
 ) -> None:
     """Test modbus with no rx_full_threshold (simulating USB UART).
 
-    Without the 50ms fallback timeout, the chunked response with a 20ms gap
+    Without the 50ms fallback timeout, the chunked response with a 40ms gap
     between USB packets would cause a false timeout and CRC failure cascade.
     """
     # Replace external component path placeholder

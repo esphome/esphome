@@ -11,7 +11,7 @@ static const char *const TAG = "modbus";
 // Maximum bytes to log for Modbus frames (truncated if larger)
 static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
 
-// Bits per character on the wire: 1 start + 8 data + 1 parity + 1 stop
+// Approximate bits per character on the wire (depends on parity/stop bit config)
 static constexpr uint32_t MODBUS_BITS_PER_CHAR = 11;
 // Milliseconds per second
 static constexpr uint32_t MS_PER_SEC = 1000;

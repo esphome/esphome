@@ -27,8 +27,8 @@ template<typename... Ts> class MockUartInjectRXAction : public Action<Ts...>, pu
   void play(const Ts &...x) override {
     if (this->len_ >= 0) {
       // Static mode: use pointer and length
-      std::vector<uint8_t> data(this->code_.data, this->code_.data + this->len_);
       if (this->delay_ms_ > 0) {
+        std::vector<uint8_t> data(this->code_.data, this->code_.data + this->len_);
         this->parent_->inject_to_rx_buffer_delayed(data, this->delay_ms_);
       } else {
         this->parent_->inject_to_rx_buffer(this->code_.data, static_cast<size_t>(this->len_));
