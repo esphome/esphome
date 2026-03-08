@@ -194,7 +194,7 @@ void Nextion::dump_config() {
 #ifdef USE_NEXTION_TFT_UPLOAD
   ESP_LOGCONFIG(TAG,
                 "  TFT URL: %s\n"
-                "  TFT upload HTTP timeout: %" PRIu32 "ms\n"
+                "  TFT upload HTTP timeout: %" PRIu16 "ms\n"
                 "  TFT upload HTTP retries: %u",
                 this->tft_url_.c_str(), this->tft_upload_http_timeout_, this->tft_upload_http_retries_);
 #ifdef USE_ESP32
