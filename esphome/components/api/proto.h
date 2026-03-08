@@ -1,6 +1,7 @@
 #pragma once
 
 #include "api_pb2_defines.h"
+#include "api_buffer.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -237,9 +238,8 @@ class Proto32Bit {
 
 class ProtoWriteBuffer {
  public:
-  ProtoWriteBuffer(std::vector<uint8_t> *buffer) : buffer_(buffer), pos_(buffer->data() + buffer->size()) {}
-  ProtoWriteBuffer(std::vector<uint8_t> *buffer, size_t write_pos)
-      : buffer_(buffer), pos_(buffer->data() + write_pos) {}
+  ProtoWriteBuffer(APIBuffer *buffer) : buffer_(buffer), pos_(buffer->data() + buffer->size()) {}
+  ProtoWriteBuffer(APIBuffer *buffer, size_t write_pos) : buffer_(buffer), pos_(buffer->data() + write_pos) {}
   void encode_varint_raw(uint32_t value) {
     while (value > 0x7F) {
       this->debug_check_bounds_(1);
@@ -375,7 +375,7 @@ class ProtoWriteBuffer {
   // Non-template core for encode_optional_sub_message.
   void encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
                                    void (*encode_fn)(const void *, ProtoWriteBuffer &));
-  std::vector<uint8_t> *get_buffer() const { return buffer_; }
+  APIBuffer *get_buffer() const { return buffer_; }
 
  protected:
 #ifdef ESPHOME_DEBUG_API
@@ -385,7 +385,7 @@ class ProtoWriteBuffer {
   void debug_check_bounds_([[maybe_unused]] size_t bytes) {}
 #endif
 
-  std::vector<uint8_t> *buffer_;
+  APIBuffer *buffer_;
   uint8_t *pos_;
 };
 
