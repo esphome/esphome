@@ -114,8 +114,8 @@ static int ftdi_convert_baudrate(int baudrate, uint8_t chip_type, uint8_t channe
     return -1;
   }
 
-#define H_CLK 120000000
-#define C_CLK 48000000
+  static constexpr uint32_t H_CLK = 120000000;
+  static constexpr uint32_t C_CLK = 48000000;
   if ((chip_type == TYPE_2232H) || (chip_type == TYPE_4232H) || (chip_type == TYPE_232H)) {
     if (baudrate * 10 > H_CLK / 0x3fff) {
       best_baud = ftdi_to_clkbits(baudrate, H_CLK, 10, &encoded_divisor);
