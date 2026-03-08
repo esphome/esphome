@@ -21,8 +21,14 @@ void Modbus::setup() {
                    // 3.5 characters * 11 bits per character * 1000ms/sec / (bits/sec) (Standard modbus frame delay)
                (uint16_t) (3.5 * 11 * 1000 / this->parent_->get_baud_rate()) + 1);
 
-  this->long_rx_buffer_delay_ms_ =
-      (this->parent_->get_rx_full_threshold() * 11 * 1000 / this->parent_->get_baud_rate()) + 1;
+  // When rx_full_threshold is configured (non-zero), the UART has a hardware FIFO with a
+  // meaningful threshold (e.g., ESP32 native UART), so we can calculate a precise delay.
+  // Otherwise (e.g., USB UART), use 50ms to handle data arriving in chunks.
+  static constexpr uint16_t DEFAULT_LONG_RX_BUFFER_DELAY_MS = 50;
+  size_t rx_threshold = this->parent_->get_rx_full_threshold();
+  this->long_rx_buffer_delay_ms_ = rx_threshold != uart::UARTComponent::RX_FULL_THRESHOLD_UNSET
+                                       ? (rx_threshold * 11 * 1000 / this->parent_->get_baud_rate()) + 1
+                                       : DEFAULT_LONG_RX_BUFFER_DELAY_MS;
 }
 
 void Modbus::loop() {
