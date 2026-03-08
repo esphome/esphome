@@ -24,8 +24,29 @@ namespace http_request {
 static const char *const TAG = "http_request.update";
 
 static const size_t MAX_READ_SIZE = 256;
+static constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
+static constexpr uint32_t INITIAL_CHECK_INTERVAL_MS = 10000;
+static constexpr uint8_t INITIAL_CHECK_MAX_ATTEMPTS = 6;
 
-void HttpRequestUpdate::setup() { this->ota_parent_->add_state_listener(this); }
+void HttpRequestUpdate::setup() {
+  this->ota_parent_->add_state_listener(this);
+
+  // Check periodically until network is ready
+  // Only if update interval is > total retry window to avoid redundant checks
+  if (this->get_update_interval() != SCHEDULER_DONT_RUN &&
+      this->get_update_interval() > INITIAL_CHECK_INTERVAL_MS * INITIAL_CHECK_MAX_ATTEMPTS) {
+    this->initial_check_remaining_ = INITIAL_CHECK_MAX_ATTEMPTS;
+    this->set_interval(INITIAL_CHECK_INTERVAL_ID, INITIAL_CHECK_INTERVAL_MS, [this]() {
+      bool connected = network::is_connected();
+      if (--this->initial_check_remaining_ == 0 || connected) {
+        this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
+        if (connected) {
+          this->update();
+        }
+      }
+    });
+  }
+}
 
 void HttpRequestUpdate::on_ota_state(ota::OTAState state, float progress, uint8_t error) {
   if (state == ota::OTAState::OTA_IN_PROGRESS) {
@@ -45,6 +66,7 @@ void HttpRequestUpdate::update() {
     ESP_LOGD(TAG, "Network not connected, skipping update check");
     return;
   }
+  this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
 #ifdef USE_ESP32
   xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
 #else
@@ -106,7 +128,8 @@ void HttpRequestUpdate::update_task(void *params) {
       this_update->update_info_.title = root[ESPHOME_F("name")].as<std::string>();
       this_update->update_info_.latest_version = root[ESPHOME_F("version")].as<std::string>();
 
-      for (auto build : root[ESPHOME_F("builds")].as<JsonArray>()) {
+      auto builds_array = root[ESPHOME_F("builds")].as<JsonArray>();
+      for (auto build : builds_array) {
         if (!build[ESPHOME_F("chipFamily")].is<const char *>()) {
           ESP_LOGE(TAG, "Manifest does not contain required fields");
           return false;

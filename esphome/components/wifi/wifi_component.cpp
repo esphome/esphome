@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cinttypes>
 #include <cmath>
+#include <type_traits>
 
 #ifdef USE_ESP32
 #if (ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 1)
@@ -724,6 +725,7 @@ void WiFiComponent::restart_adapter() {
 void WiFiComponent::loop() {
   this->wifi_loop_();
   const uint32_t now = App.get_loop_component_start_time();
+  this->update_connected_state_();
 
   if (this->has_sta()) {
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
@@ -775,7 +777,7 @@ void WiFiComponent::loop() {
       }
 
       case WIFI_COMPONENT_STATE_STA_CONNECTED: {
-        if (!this->is_connected()) {
+        if (!this->is_connected_()) {
           ESP_LOGW(TAG, "Connection lost; reconnecting");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
@@ -911,7 +913,7 @@ void WiFiComponent::setup_ap_config_() {
     static constexpr size_t AP_SSID_PREFIX_LEN = 25;
     static constexpr size_t AP_SSID_SUFFIX_LEN = 7;
 
-    const std::string &app_name = App.get_name();
+    const auto &app_name = App.get_name();
     const char *name_ptr = app_name.c_str();
     size_t name_len = app_name.length();
 
@@ -968,9 +970,11 @@ void WiFiComponent::set_ap(const WiFiAP &ap) {
 }
 #endif  // USE_WIFI_AP
 
+#ifdef USE_LOOP_PRIORITY
 float WiFiComponent::get_loop_priority() const {
   return 10.0f;  // before other loop components
 }
+#endif
 
 void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
@@ -1091,8 +1095,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   }
 
 #ifdef USE_WIFI_WPA2_EAP
-  if (ap.get_eap().has_value()) {
-    EAPAuth eap_config = ap.get_eap().value();
+  auto eap_opt = ap.get_eap();
+  if (eap_opt.has_value()) {
+    EAPAuth eap_config = *eap_opt;
     // clang-format off
     ESP_LOGV(
         TAG,
@@ -1126,8 +1131,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
     ESP_LOGV(TAG, "  Channel not set");
   }
 #ifdef USE_WIFI_MANUAL_IP
-  if (ap.get_manual_ip().has_value()) {
-    ManualIP m = *ap.get_manual_ip();
+  auto manual_ip = ap.get_manual_ip();
+  if (manual_ip.has_value()) {
+    ManualIP m = *manual_ip;
     char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
@@ -1332,20 +1338,61 @@ void WiFiComponent::start_scanning() {
 // Using insertion sort instead of std::stable_sort saves flash memory
 // by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)
 // IMPORTANT: This sort is stable (preserves relative order of equal elements)
+//
+// Uses raw memcpy instead of copy assignment to avoid CompactString's
+// destructor/constructor overhead (heap delete[]/new[] for long SSIDs).
+// Copy assignment calls ~CompactString() then placement-new for every shift,
+// which means delete[]/new[] per shift for heap-allocated SSIDs. With 70+
+// networks (e.g., captive portal showing full scan results), this caused
+// event loop blocking from hundreds of heap operations in a tight loop.
+//
+// This is safe because we're permuting elements within the same array —
+// each slot is overwritten exactly once, so no ownership duplication occurs.
+// All members of WiFiScanResult are either trivially copyable (bssid, channel,
+// rssi, priority, flags) or CompactString, which stores either inline data or
+// a heap pointer — never a self-referential pointer (unlike std::string's SSO
+// on some implementations). This was not possible before PR#13472 replaced
+// std::string with CompactString, since std::string's internal layout is
+// implementation-defined and may use self-referential pointers.
+//
+// TODO: If C++ standardizes std::trivially_relocatable, add the assertion for
+// WiFiScanResult/CompactString here to formally express the memcpy safety guarantee.
 template<typename VectorType> static void insertion_sort_scan_results(VectorType &results) {
+  // memcpy-based sort requires no self-referential pointers or virtual dispatch.
+  // These static_asserts guard the assumptions. If any fire, the memcpy sort
+  // must be reviewed for safety before updating the expected values.
+  //
+  // No vtable pointers (memcpy would corrupt vptr)
+  static_assert(!std::is_polymorphic<WiFiScanResult>::value, "WiFiScanResult must not have vtable");
+  static_assert(!std::is_polymorphic<CompactString>::value, "CompactString must not have vtable");
+  // Standard layout ensures predictable memory layout with no virtual bases
+  // and no mixed-access-specifier reordering
+  static_assert(std::is_standard_layout<WiFiScanResult>::value, "WiFiScanResult must be standard layout");
+  static_assert(std::is_standard_layout<CompactString>::value, "CompactString must be standard layout");
+  // Size checks catch added/removed fields that may need safety review
+  static_assert(sizeof(WiFiScanResult) == 32, "WiFiScanResult size changed - verify memcpy sort is still safe");
+  static_assert(sizeof(CompactString) == 20, "CompactString size changed - verify memcpy sort is still safe");
+  // Alignment must match for reinterpret_cast of key_buf to be valid
+  static_assert(alignof(WiFiScanResult) <= alignof(std::max_align_t), "WiFiScanResult alignment exceeds max_align_t");
   const size_t size = results.size();
+  constexpr size_t elem_size = sizeof(WiFiScanResult);
+  // Suppress warnings for intentional memcpy on non-trivially-copyable type.
+  // Safety is guaranteed by the static_asserts above and the permutation invariant.
+  // NOLINTNEXTLINE(bugprone-undefined-memory-manipulation)
+  auto *memcpy_fn = &memcpy;
   for (size_t i = 1; i < size; i++) {
-    // Make a copy to avoid issues with move semantics during comparison
-    WiFiScanResult key = results[i];
+    alignas(WiFiScanResult) uint8_t key_buf[elem_size];
+    memcpy_fn(key_buf, &results[i], elem_size);
+    const auto &key = *reinterpret_cast<const WiFiScanResult *>(key_buf);
     int32_t j = i - 1;
 
     // Move elements that are worse than key to the right
     // For stability, we only move if key is strictly better than results[j]
     while (j >= 0 && wifi_scan_result_is_better(key, results[j])) {
-      results[j + 1] = results[j];
+      memcpy_fn(&results[j + 1], &results[j], elem_size);
       j--;
     }
-    results[j + 1] = key;
+    memcpy_fn(&results[j + 1], key_buf, elem_size);
   }
 }
 
@@ -1469,6 +1516,22 @@ void WiFiComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Disabled");
     return;
   }
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+  const char *band_mode_s;
+  switch (this->band_mode_) {
+    case WIFI_BAND_MODE_2G_ONLY:
+      band_mode_s = "2.4GHz";
+      break;
+    case WIFI_BAND_MODE_5G_ONLY:
+      band_mode_s = "5GHz";
+      break;
+    case WIFI_BAND_MODE_AUTO:
+    default:
+      band_mode_s = "Auto";
+      break;
+  }
+  ESP_LOGCONFIG(TAG, "  Band Mode: %s", band_mode_s);
+#endif
   if (this->is_connected()) {
     this->print_connect_params_();
   }
@@ -2056,15 +2119,16 @@ bool WiFiComponent::can_proceed() {
   if (!this->has_sta() || this->state_ == WIFI_COMPONENT_STATE_DISABLED || this->ap_setup_) {
     return true;
   }
-  return this->is_connected();
+  return this->is_connected_();
 }
 #endif
 
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
-bool WiFiComponent::is_connected() {
+bool WiFiComponent::is_connected_() const {
   return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
          this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
 }
+void WiFiComponent::update_connected_state_() { this->connected_ = this->is_connected_(); }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
   this->power_save_ = power_save;
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)

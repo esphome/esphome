@@ -1,0 +1,37 @@
+sensor:
+  # Test with explicit type parameter
+  - platform: sen6x
+    id: sen6x_sensor
+    type: SEN69C
+    i2c_id: i2c_bus
+    temperature:
+      name: Temperature
+      accuracy_decimals: 1
+    humidity:
+      name: Humidity
+      accuracy_decimals: 0
+    pm_1_0:
+      name: PM <1µm Weight concentration
+      id: sen6x_pm_1_0
+      accuracy_decimals: 1
+    pm_2_5:
+      name: PM <2.5µm Weight concentration
+      id: sen6x_pm_2_5
+      accuracy_decimals: 1
+    pm_4_0:
+      name: PM <4µm Weight concentration
+      id: sen6x_pm_4_0
+      accuracy_decimals: 1
+    pm_10_0:
+      name: PM <10µm Weight concentration
+      id: sen6x_pm_10_0
+      accuracy_decimals: 1
+    nox:
+      name: NOx
+    voc:
+      name: VOC
+    co2:
+      name: Carbon Dioxide
+    formaldehyde:
+      name: Formaldehyde
+    address: 0x6B

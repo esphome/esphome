@@ -16,7 +16,7 @@ class APIConnection;
     return this->client_->send_##entity_type##_state(entity); \
   }
 
-class InitialStateIterator : public ComponentIterator {
+class InitialStateIterator final : public ComponentIterator {
  public:
   InitialStateIterator(APIConnection *client);
 #ifdef USE_BINARY_SENSOR
