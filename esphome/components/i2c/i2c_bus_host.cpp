@@ -2,16 +2,16 @@
 #if defined(__linux__)
 
 #include "i2c_bus_host.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
-#include <sys/ioctl.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <errno.h>
-#include <cstring>
-#include <linux/i2c.h>
+#include <fcntl.h>
 #include <linux/i2c-dev.h>
+#include <linux/i2c.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <cstring>
 
 namespace esphome {
 namespace i2c {
@@ -105,8 +105,7 @@ ErrorCode HostI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, 
       // If I2C_RDWR not supported, try SMBus Quick command (what i2cdetect uses)
       if (err == EOPNOTSUPP || err == ENOSYS) {
         ESP_LOGVV(TAG, "I2C_RDWR probe failed, trying SMBus Quick for addr=0x%02X", address);
-        // Set slave address
-        if (ioctl(this->file_descriptor_, I2C_SLAVE, address) < 0) {
+        if (ioctl(this->file_descriptor_, I2C_SLAVE, address) < 0) {  // NOLINT
           return this->map_errno_to_error_code_(errno);
         }
         // Use I2C_SMBUS ioctl with Quick command
@@ -157,12 +156,10 @@ ErrorCode HostI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, 
   int ret = ioctl(this->file_descriptor_, I2C_RDWR, &rdwr_data);
   if (ret < 0) {
     int err = errno;
-    // If I2C_RDWR not supported, try legacy I2C_SLAVE method for actual communication
     if (err == EOPNOTSUPP || err == ENOSYS) {
-      ESP_LOGV(TAG, "I2C_RDWR not supported, using I2C_SLAVE fallback for addr=0x%02X", address);
-      // Set slave address
-      if (ioctl(this->file_descriptor_, I2C_SLAVE, address) < 0) {
-        ESP_LOGV(TAG, "I2C_SLAVE ioctl failed: %s", strerror(errno));
+      ESP_LOGV(TAG, "I2C_RDWR not supported, using I2C_SLAVE fallback for addr=0x%02X", address);  // NOLINT
+      if (ioctl(this->file_descriptor_, I2C_SLAVE, address) < 0) {                                 // NOLINT
+        ESP_LOGV(TAG, "I2C_SLAVE ioctl failed: %s", strerror(errno));                              // NOLINT
         return this->map_errno_to_error_code_(errno);
       }
       // Perform write if needed
@@ -172,7 +169,7 @@ ErrorCode HostI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, 
           int write_err = errno;
           // If write() also fails with EOPNOTSUPP, try I2C_SMBUS as last resort
           if (write_err == EOPNOTSUPP || write_err == ENOSYS) {
-            ESP_LOGV(TAG, "I2C_SLAVE write not supported, trying I2C_SMBUS for addr=0x%02X", address);
+            ESP_LOGV(TAG, "I2C_SLAVE write not supported, trying I2C_SMBUS for addr=0x%02X", address);  // NOLINT
             // Use I2C_SMBUS_I2C_BLOCK_DATA for writes up to 32 bytes
             // Standard SMBus mapping: first byte is command, remaining bytes are data
             if (write_count < 1) {
@@ -216,7 +213,7 @@ ErrorCode HostI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, 
           int read_err = errno;
           // If read() also fails with EOPNOTSUPP, try I2C_SMBUS as last resort
           if (read_err == EOPNOTSUPP || read_err == ENOSYS) {
-            ESP_LOGV(TAG, "I2C_SLAVE read not supported, trying I2C_SMBUS for addr=0x%02X", address);
+            ESP_LOGV(TAG, "I2C_SLAVE read not supported, trying I2C_SMBUS for addr=0x%02X", address);  // NOLINT
             // Use I2C_SMBUS_I2C_BLOCK_DATA for reads up to 32 bytes
             if (read_count > I2C_SMBUS_BLOCK_MAX) {
               ESP_LOGE(TAG, "Read size %zu exceeds I2C_SMBUS_BLOCK_MAX (%d)", read_count, I2C_SMBUS_BLOCK_MAX);
@@ -244,7 +241,7 @@ ErrorCode HostI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, 
           }
         }
       }
-      ESP_LOGVV(TAG, "I2C transaction successful (I2C_SLAVE method)");
+      ESP_LOGVV(TAG, "I2C transaction successful (I2C_SLAVE method)");  // NOLINT
       return ERROR_OK;
     }
     ESP_LOGV(TAG, "I2C transaction failed: %s", strerror(err));
