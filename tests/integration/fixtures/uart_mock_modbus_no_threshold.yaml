@@ -1,5 +1,5 @@
 esphome:
-  name: uart-mock-modbus-no-threshold-test
+  name: uart-mock-modbus-no-thresh
 
 host:
 api:
