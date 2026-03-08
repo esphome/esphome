@@ -62,6 +62,7 @@ CONFIG_INJECT_RX_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(MockUartComponent),
         cv.Required("data"): cv.templatable(validate_raw_data),
+        cv.Optional(CONF_DELAY): cv.positive_time_period_milliseconds,
     },
     key=CONF_DATA,
 )
@@ -126,6 +127,8 @@ async def inject_rx_to_code(config, action_id, template_arg, args):
         arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
         cg.add(var.set_data_static(arr, len(data)))
+    if CONF_DELAY in config:
+        cg.add(var.set_delay(config[CONF_DELAY]))
     return var
 
 

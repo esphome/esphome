@@ -43,6 +43,8 @@ class MockUartComponent : public uart::UARTComponent, public Component {
   void set_tx_hook(std::function<void(const std::vector<uint8_t> &)> &&cb) { this->tx_hook_ = std::move(cb); }
   void inject_to_rx_buffer(const std::vector<uint8_t> &data);
   void inject_to_rx_buffer(const uint8_t *data, size_t len);
+  // Stage bytes for delayed delivery - simulates transport-level latency (e.g., USB packets)
+  void inject_to_rx_buffer_delayed(const std::vector<uint8_t> &data, uint32_t delay_ms);
 
  protected:
   void check_logger_conflict() override {}
@@ -81,6 +83,14 @@ class MockUartComponent : public uart::UARTComponent, public Component {
     uint32_t last_inject_ms{0};
   };
   std::vector<PeriodicRx> periodic_rx_;
+
+  // Staged RX - bytes that are pending delivery after a delay
+  // Simulates transport-level latency (e.g., USB packet delivery)
+  struct StagedRx {
+    std::vector<uint8_t> data;
+    uint32_t available_at_ms;  // millis() time when bytes become available
+  };
+  std::deque<StagedRx> staged_rx_;
 
   // Observability
   uint32_t tx_count_{0};
