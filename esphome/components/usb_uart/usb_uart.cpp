@@ -142,7 +142,7 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
       size_t n = std::min(len - off, BATCH);
       memcpy(buf, ">>> ", 4);
       format_hex_pretty_to(buf + 4, sizeof(buf) - 4, data + off, n, ',');
-      ESP_LOGD(TAG, "%s", buf);
+      ESP_LOGD(TAG, "%s%s", this->debug_prefix_.c_str(), buf);
     }
   }
 #endif
@@ -171,8 +171,8 @@ void USBUartChannel::flush() {
   // Safe to call from the main loop only.
   // The 100 ms timeout guards against a device that stops responding mid-flush;
   // in that case the main loop is blocked for the full duration.
-  uint32_t deadline = millis() + 100;  // 100 ms safety timeout
-  while ((!this->output_queue_.empty() || this->output_started_.load()) && millis() < deadline) {
+  uint32_t start = millis();  // 100 ms safety timeout
+  while ((!this->output_queue_.empty() || this->output_started_.load()) && millis() - start < 100) {
     // Kick start_output() in case data arrived but no transfer is in flight yet.
     this->parent_->start_output(this);
     yield();
@@ -219,7 +219,7 @@ void USBUartComponent::loop() {
       char buf[4 + format_hex_pretty_size(UsbDataChunk::MAX_CHUNK_SIZE)];  // "<<< " + hex
       memcpy(buf, "<<< ", 4);
       format_hex_pretty_to(buf + 4, sizeof(buf) - 4, chunk->data, chunk->length, ',');
-      ESP_LOGD(TAG, "%s", buf);
+      ESP_LOGD(TAG, "%s%s", channel->debug_prefix_.c_str(), buf);
     }
 #endif
 

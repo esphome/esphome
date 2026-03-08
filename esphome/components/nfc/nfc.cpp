@@ -35,7 +35,7 @@ uint8_t guess_tag_type(uint8_t uid_length) {
   }
 }
 
-uint8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data) {
+int8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data) {
   for (uint8_t i = 0; i < MIFARE_CLASSIC_BLOCK_SIZE; i++) {
     if (data[i] == 0x00) {
       // Do nothing, skip
@@ -49,17 +49,25 @@ uint8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data) {
 }
 
 bool decode_mifare_classic_tlv(std::vector<uint8_t> &data, uint32_t &message_length, uint8_t &message_start_index) {
+  if (data.size() < MIFARE_CLASSIC_BLOCK_SIZE) {
+    ESP_LOGE(TAG, "Error, data too short for NDEF detection.");
+    return false;
+  }
   auto i = get_mifare_classic_ndef_start_index(data);
-  if (data[i] != 0x03) {
+  if (i < 0 || data[i] != 0x03) {
     ESP_LOGE(TAG, "Error, Can't decode message length.");
     return false;
   }
-  if (data[i + 1] == 0xFF) {
-    message_length = ((0xFF & data[i + 2]) << 8) | (0xFF & data[i + 3]);
-    message_start_index = i + MIFARE_CLASSIC_LONG_TLV_SIZE;
+  uint8_t idx = static_cast<uint8_t>(i);
+  if (idx + 4 <= data.size() && data[idx + 1] == 0xFF) {
+    message_length = ((0xFF & data[idx + 2]) << 8) | (0xFF & data[idx + 3]);
+    message_start_index = idx + MIFARE_CLASSIC_LONG_TLV_SIZE;
+  } else if (idx + 2 <= data.size()) {
+    message_length = data[idx + 1];
+    message_start_index = idx + MIFARE_CLASSIC_SHORT_TLV_SIZE;
   } else {
-    message_length = data[i + 1];
-    message_start_index = i + MIFARE_CLASSIC_SHORT_TLV_SIZE;
+    ESP_LOGE(TAG, "Error, TLV data too short.");
+    return false;
   }
   return true;
 }

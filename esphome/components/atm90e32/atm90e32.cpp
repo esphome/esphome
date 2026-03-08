@@ -619,7 +619,7 @@ void ATM90E32Component::run_gain_calibrations() {
       ESP_LOGW(TAG, "[CALIBRATION][%s] Phase %s - Skipping voltage calibration: measured voltage is 0.", cs,
                phase_labels[phase]);
     } else {
-      uint32_t new_voltage_gain = static_cast<uint16_t>((ref_voltage / measured_voltage) * current_voltage_gain);
+      uint32_t new_voltage_gain = static_cast<uint32_t>((ref_voltage / measured_voltage) * current_voltage_gain);
       if (new_voltage_gain == 0) {
         ESP_LOGW(TAG, "[CALIBRATION][%s] Phase %s - Voltage gain would be 0. Check reference and measured voltage.", cs,
                  phase_labels[phase]);
@@ -644,7 +644,7 @@ void ATM90E32Component::run_gain_calibrations() {
       ESP_LOGW(TAG, "[CALIBRATION][%s] Phase %s - Skipping current calibration: measured current is 0.", cs,
                phase_labels[phase]);
     } else {
-      uint32_t new_current_gain = static_cast<uint16_t>((ref_current / measured_current) * current_current_gain);
+      uint32_t new_current_gain = static_cast<uint32_t>((ref_current / measured_current) * current_current_gain);
       if (new_current_gain == 0) {
         ESP_LOGW(TAG, "[CALIBRATION][%s] Phase %s - Current gain would be 0. Check reference and measured current.", cs,
                  phase_labels[phase]);
