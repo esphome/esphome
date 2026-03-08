@@ -190,6 +190,11 @@ async def to_code(config):
         ],
     )
 
+    # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
+    # (~8.9 KB). See printf_stubs.cpp for implementation.
+    for symbol in ("vprintf", "printf", "fprintf"):
+        cg.add_build_flag(f"-Wl,--wrap={symbol}")
+
     cg.add_platformio_option("board_build.core", "earlephilhower")
     cg.add_platformio_option("board_build.filesystem_size", "1m")
 
