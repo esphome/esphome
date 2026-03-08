@@ -116,6 +116,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
   void set_debug_prefix(const char *prefix) { this->debug_prefix_ = StringRef(prefix); }
+  void set_flush_timeout(uint32_t flush_timeout_ms) override { this->flush_timeout_ms_ = flush_timeout_ms; }
 
   /// Register a callback invoked immediately after data is pushed to the input ring buffer.
   /// Called from USBUartComponent::loop() in the main loop context.
@@ -137,6 +138,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   std::atomic<bool> output_started_{true};
   std::atomic<bool> initialised_{false};
   // Group regular bytes together to minimize padding
+  uint32_t flush_timeout_ms_{100};
   const uint8_t index_;
   bool debug_{};
   bool dummy_receiver_{};

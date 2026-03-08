@@ -169,10 +169,10 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
 uart::FlushResult USBUartChannel::flush() {
   // Spin until the output queue is drained and the last USB transfer completes.
   // Safe to call from the main loop only.
-  // The 100 ms timeout guards against a device that stops responding mid-flush;
+  // The flush_timeout_ms_ timeout guards against a device that stops responding mid-flush;
   // in that case the main loop is blocked for the full duration.
-  uint32_t start = millis();  // 100 ms safety timeout
-  while ((!this->output_queue_.empty() || this->output_started_.load()) && millis() - start < 100) {
+  uint32_t start = millis();
+  while ((!this->output_queue_.empty() || this->output_started_.load()) && millis() - start < this->flush_timeout_ms_) {
     // Kick start_output() in case data arrived but no transfer is in flight yet.
     this->parent_->start_output(this);
     yield();
