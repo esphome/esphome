@@ -106,7 +106,7 @@ uart::FlushResult BLENUS::flush() {
   while (atomic_get(&this->tx_status_) != TX_DISABLED && !ring_buf_is_empty(&global_ble_tx_ring_buf)) {
     if (millis() - start > timeout_5sec) {
       ESP_LOGW(TAG, "Flush timeout");
-      return uart::FlushResult::ASSUMED_SUCCESS;
+      return uart::FlushResult::TIMEOUT;
     }
     delay(1);
   }

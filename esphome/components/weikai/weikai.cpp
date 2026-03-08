@@ -438,7 +438,7 @@ uart::FlushResult WeikaiChannel::flush() {
   while (this->tx_fifo_is_not_empty_()) {  // wait until buffer empty
     if (millis() - start_time > 200) {
       ESP_LOGW(TAG, "WARNING flush timeout - still %d bytes not sent after 200 ms", this->tx_in_fifo_());
-      return uart::FlushResult::ASSUMED_SUCCESS;
+      return uart::FlushResult::TIMEOUT;
     }
     yield();  // reschedule our thread to avoid blocking
   }

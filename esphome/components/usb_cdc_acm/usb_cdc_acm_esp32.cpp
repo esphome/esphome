@@ -341,8 +341,12 @@ uart::FlushResult USBCDCACMInstance::flush() {
   }
 
   // Also wait for USB to finish transmitting
-  tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(100));
-  return uart::FlushResult::ASSUMED_SUCCESS;
+  esp_err_t err = tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(100));
+  if (err == ESP_OK)
+    return uart::FlushResult::SUCCESS;
+  if (err == ESP_ERR_TIMEOUT)
+    return uart::FlushResult::TIMEOUT;
+  return uart::FlushResult::FAILED;
 }
 
 void USBCDCACMInstance::check_logger_conflict() {}

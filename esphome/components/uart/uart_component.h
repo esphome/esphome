@@ -32,7 +32,7 @@ const LogString *parity_to_str(UARTParityOptions parity);
 /// Result of a flush() call.
 enum class FlushResult {
   SUCCESS,          ///< Confirmed: all bytes left the TX FIFO.
-  TIMEOUT,          ///< Confirmed: timed out before TX completed (IDF only).
+  TIMEOUT,          ///< Confirmed: timed out before TX completed.
   FAILED,           ///< Confirmed: driver or hardware error.
   ASSUMED_SUCCESS,  ///< Platform cannot report result; success is assumed.
 };
