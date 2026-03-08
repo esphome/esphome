@@ -30,16 +30,19 @@ void RP2040BLE::enable() {
   this->state_ = BLEComponentState::ENABLING;
   this->active_logged_ = false;
 
-  l2cap_init();
-  sm_init();
+  if (!this->btstack_initialized_) {
+    // BTstack init functions are not idempotent — only call once
+    l2cap_init();
+    sm_init();
 
-  // Register HCI event handler
-  this->hci_event_callback_registration_.callback = &RP2040BLE::packet_handler_;
-  hci_add_event_handler(&this->hci_event_callback_registration_);
+    this->hci_event_callback_registration_.callback = &RP2040BLE::packet_handler_;
+    hci_add_event_handler(&this->hci_event_callback_registration_);
 
-  // Register SM event handler
-  this->sm_event_callback_registration_.callback = &RP2040BLE::packet_handler_;
-  sm_add_event_handler(&this->sm_event_callback_registration_);
+    this->sm_event_callback_registration_.callback = &RP2040BLE::packet_handler_;
+    sm_add_event_handler(&this->sm_event_callback_registration_);
+
+    this->btstack_initialized_ = true;
+  }
 
   hci_power_control(HCI_POWER_ON);
 }

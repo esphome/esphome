@@ -39,6 +39,7 @@ class RP2040BLE : public Component {
 
   BLEComponentState state_{BLEComponentState::OFF};
   bool enable_on_boot_{true};
+  bool btstack_initialized_{false};
   bool active_logged_{false};
 };
 
