@@ -5,7 +5,6 @@
 
 #include <cinttypes>
 #include "esphome/components/network/util.h"
-#include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
