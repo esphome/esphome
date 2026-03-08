@@ -21,10 +21,6 @@ void RFBridgeComponent::ack_() {
 bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
   this->rx_buffer_.push_back(byte);
-  if (this->rx_buffer_.size() > MAX_RX_BUFFER_SIZE) {
-    ESP_LOGW(TAG, "RX buffer overflow, discarding");
-    return false;
-  }
   const uint8_t *raw = &this->rx_buffer_[0];
 
   ESP_LOGVV(TAG, "Processing byte: 0x%02X", byte);
