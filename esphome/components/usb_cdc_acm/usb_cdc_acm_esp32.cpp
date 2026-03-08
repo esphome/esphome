@@ -248,11 +248,15 @@ void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {
     ESP_LOGW(TAG, "USB TX itf=%d: buffer full, %u bytes dropped", this->itf_, len);
     return;
   }
-
   // Notify TX task that data is available
   if (this->usb_tx_task_handle_ != nullptr) {
     xTaskNotifyGive(this->usb_tx_task_handle_);
   }
+#ifdef USE_UART_DEBUGGER
+  for (size_t i = 0; i < len; i++) {
+    this->debug_callback_.call(uart::UART_DIRECTION_TX, data[i]);
+  }
+#endif
 }
 
 bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
@@ -270,7 +274,10 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
     bytes_read = 1;
     data++;
     if (--len == 0) {  // Decrement len first, then check it...
-      return true;     // No more to read
+#ifdef USE_UART_DEBUGGER
+      this->debug_callback_.call(uart::UART_DIRECTION_RX, data[0]);
+#endif
+      return true;  // No more to read
     }
   }
 
@@ -287,6 +294,11 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   data += rx_size;
   len -= rx_size;
   if (len == 0) {
+#ifdef USE_UART_DEBUGGER
+    for (size_t i = 0; i < len; i++) {
+      this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
+    }
+#endif
     return true;  // No more to read
   }
 
@@ -300,7 +312,16 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   vRingbufferReturnItem(this->usb_rx_ringbuf_, (void *) buf);
   bytes_read += rx_size;
 
-  return bytes_read == original_len;
+  if (bytes_read == original_len) {
+#ifdef USE_UART_DEBUGGER
+    for (size_t i = 0; i < len; i++) {
+      this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
+    }
+#endif
+    return true;
+  }
+
+  return false;
 }
 
 size_t USBCDCACMInstance::available() {

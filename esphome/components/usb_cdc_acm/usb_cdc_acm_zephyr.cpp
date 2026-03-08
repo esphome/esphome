@@ -142,7 +142,10 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
     this->has_peek_ = false;
     data++;
     if (--len == 0) {  // Decrement len first, then check it...
-      return true;     // No more to read
+#ifdef USE_UART_DEBUGGER
+      this->debug_callback_.call(uart::UART_DIRECTION_RX, data[0]);
+#endif
+      return true;  // No more to read
     }
   }
 
