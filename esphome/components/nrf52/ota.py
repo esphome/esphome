@@ -62,7 +62,7 @@ async def smpmgr_upload(device: str, firmware: Path) -> None:
         raise EsphomeError(f"{device} was not found.") from exc
 
 
-def _get_image_tlv_sha256(file: Path) -> str:
+def _get_image_tlv_sha256(file: Path) -> bytes:
     _LOGGER.info("Checking image: %s", str(file))
     try:
         image_info = ImageInfo.load_file(str(file))
@@ -109,7 +109,7 @@ async def _smpmgr_upload(device: str, firmware: Path) -> None:
 
 
 async def _smpmgr_upload_connected(
-    smp_client: SMPClient, device: str, firmware: Path, image_tlv_sha256: str
+    smp_client: SMPClient, device: str, firmware: Path, image_tlv_sha256: bytes
 ) -> None:
     try:
         image_state = await smp_client.request(ImageStatesRead(), 2.5)
@@ -119,7 +119,7 @@ async def _smpmgr_upload_connected(
     already_uploaded = False
 
     if error(image_state):
-        raise EsphomeError(image_state)
+        raise EsphomeError(f"Failed to read image state from {device}: {image_state}")
     if success(image_state):
         if len(image_state.images) == 0:
             _LOGGER.warning("No images on device!")
@@ -154,11 +154,11 @@ async def _smpmgr_upload_connected(
     r = await smp_client.request(ImageStatesWrite(hash=image_tlv_sha256), 1.0)
 
     if error(r):
-        raise EsphomeError(r)
+        raise EsphomeError(f"Failed to mark image for testing on {device}: {r}")
 
     await asyncio.sleep(RESET_DELAY)
     _LOGGER.info("Reset")
     r = await smp_client.request(ResetWrite(), 1.0)
 
     if error(r):
-        raise EsphomeError(r)
+        raise EsphomeError(f"Failed to reset {device}: {r}")
