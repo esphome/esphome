@@ -386,10 +386,9 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
         }
 #ifdef USE_UART_DEBUGGER
         if (channel->debug_) {
-          std::string debug_prefix = channel->get_debug_prefix();
           uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX,
                                    std::vector<uint8_t>(status.data + 2, status.data + status.data_len), ',',
-                                   debug_prefix);
+                                   channel->debug_prefix_);
         }
 #endif
       }
