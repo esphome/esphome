@@ -273,7 +273,7 @@ bool ESP32BLE::ble_setup_() {
       device_name = this->name_;
     }
   } else {
-    const std::string &app_name = App.get_name();
+    const auto &app_name = App.get_name();
     size_t name_len = app_name.length();
     if (name_len > 20) {
       if (App.is_name_add_mac_suffix_enabled()) {
@@ -451,7 +451,7 @@ void ESP32BLE::loop() {
             ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
 #ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
             {
-              esp_ble_gap_cb_param_t *param;
+              esp_ble_gap_cb_param_t *param = NULL;
               // clang-format off
               switch (gap_event) {
                 // All three scan complete events have the same structure with just status

@@ -144,16 +144,16 @@ def test_has_remote_file_changed_no_local_file(setup_core: Path) -> None:
 def test_has_remote_file_changed_network_error(
     mock_head: MagicMock, setup_core: Path
 ) -> None:
-    """Test has_remote_file_changed handles network errors gracefully."""
+    """Test has_remote_file_changed returns False on network error when file is cached."""
     test_file = setup_core / "cached.txt"
     test_file.write_text("cached content")
 
     mock_head.side_effect = requests.exceptions.RequestException("Network error")
 
     url = "https://example.com/file.txt"
+    result = external_files.has_remote_file_changed(url, test_file)
 
-    with pytest.raises(Invalid, match="Could not check if.*Network error"):
-        external_files.has_remote_file_changed(url, test_file)
+    assert result is False
 
 
 @patch("esphome.external_files.requests.head")
@@ -198,3 +198,41 @@ def test_is_file_recent_handles_float_seconds(setup_core: Path) -> None:
     result = external_files.is_file_recent(test_file, refresh)
 
     assert result is True
+
+
+@patch("esphome.external_files.requests.get")
+@patch("esphome.external_files.has_remote_file_changed")
+def test_download_content_with_network_error_uses_cache(
+    mock_has_changed: MagicMock, mock_get: MagicMock, setup_core: Path
+) -> None:
+    """Test download_content uses cached file when network fails."""
+    test_file = setup_core / "cached.txt"
+    cached_content = b"cached content"
+    test_file.write_bytes(cached_content)
+
+    # Simulate file has changed, so it tries to download
+    mock_has_changed.return_value = True
+    mock_get.side_effect = requests.exceptions.RequestException("Network error")
+
+    url = "https://example.com/file.txt"
+    result = external_files.download_content(url, test_file)
+
+    assert result == cached_content
+
+
+@patch("esphome.external_files.requests.get")
+@patch("esphome.external_files.has_remote_file_changed")
+def test_download_content_with_network_error_no_cache_fails(
+    mock_has_changed: MagicMock, mock_get: MagicMock, setup_core: Path
+) -> None:
+    """Test download_content raises error when network fails and no cache exists."""
+    test_file = setup_core / "nonexistent.txt"
+
+    # Simulate file has changed (doesn't exist), so it tries to download
+    mock_has_changed.return_value = True
+    mock_get.side_effect = requests.exceptions.RequestException("Network error")
+
+    url = "https://example.com/file.txt"
+
+    with pytest.raises(Invalid, match="Could not download from.*Network error"):
+        external_files.download_content(url, test_file)

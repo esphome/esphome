@@ -3,6 +3,7 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/usb_host/usb_host.h"
 #include "esphome/core/lock_free_queue.h"
@@ -32,7 +33,6 @@ struct CdcEps {
   const usb_ep_desc_t *out_ep;
   uint8_t bulk_interface_number;
   uint8_t interrupt_interface_number;
-  bool comm_interface_claimed{false};
 };
 
 enum UARTParityOptions {
@@ -110,11 +110,12 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override { return this->input_buffer_.get_available(); }
-  void flush() override;
+  uart::FlushResult flush() override;
   void check_logger_conflict() override {}
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
+  void set_debug_prefix(const char *prefix) { this->debug_prefix_ = StringRef(prefix); }
 
   /// Register a callback invoked immediately after data is pushed to the input ring buffer.
   /// Called from USBUartComponent::loop() in the main loop context.
@@ -139,6 +140,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   const uint8_t index_;
   bool debug_{};
   bool dummy_receiver_{};
+  StringRef debug_prefix_{};
 };
 
 class USBUartComponent : public usb_host::USBClient {
@@ -192,6 +194,7 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
 
  protected:
   void enable_channels() override;
+  std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
 };
 
 }  // namespace esphome::usb_uart
