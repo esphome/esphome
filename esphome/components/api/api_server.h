@@ -179,13 +179,14 @@ class APIServer : public Component,
   void on_update(update::UpdateEntity *obj) override;
 #endif
 #ifdef USE_ZWAVE_PROXY
-  void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
+  void on_zwave_proxy_request(const ZWaveProxyRequest &msg);
 #endif
 #ifdef USE_IR_RF
   void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
 #endif
 
-  bool is_connected(bool state_subscription_only = false) const;
+  bool is_connected() const { return !this->clients_.empty(); }
+  bool is_connected_with_state_subscription() const;
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
@@ -257,7 +258,7 @@ class APIServer : public Component,
   }
   void socket_failed_(const LogString *msg);
   // Pointers and pointer-like types first (4 bytes each)
-  socket::Socket *socket_{nullptr};
+  socket::ListenSocket *socket_{nullptr};
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   Trigger<std::string, std::string> client_connected_trigger_;
 #endif
@@ -323,7 +324,10 @@ template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
   TEMPLATABLE_VALUE(bool, state_subscription_only)
  public:
   bool check(const Ts &...x) override {
-    return global_api_server->is_connected(this->state_subscription_only_.value(x...));
+    if (this->state_subscription_only_.value(x...)) {
+      return global_api_server->is_connected_with_state_subscription();
+    }
+    return global_api_server->is_connected();
   }
 };
 

@@ -20,8 +20,10 @@ from esphome.components.zephyr import (
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
+    CONF_CDC_ACM,
     KEY_BOOTLOADER,
     KEY_ZEPHYR,
+    CdcAcm,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -159,6 +161,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_VERSION): cv.string_strict,
                 }
             ),
+            cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
         }
     ),
     set_framework,

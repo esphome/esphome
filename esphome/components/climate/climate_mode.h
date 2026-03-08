@@ -41,6 +41,8 @@ enum ClimateAction : uint8_t {
   CLIMATE_ACTION_DRYING = 5,
   /// The climate device is in fan only mode
   CLIMATE_ACTION_FAN = 6,
+  /// The climate device is defrosting
+  CLIMATE_ACTION_DEFROSTING = 7,
 };
 
 /// NOTE: If adding values, update ClimateFanModeMask in climate_traits.h to use the new last value
