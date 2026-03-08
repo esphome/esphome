@@ -185,7 +185,7 @@ class ProtoVarInt {
 #endif
 };
 
-// Forward declarations for decode_to_message, encode_message and encode_packed_sint32
+// Forward declarations for decode_to_message and related encoding helpers
 class ProtoDecodableMessage;
 class ProtoMessage;
 class ProtoSize;
@@ -363,12 +363,18 @@ class ProtoWriteBuffer {
   }
   /// Encode a packed repeated sint32 field (zero-copy from vector)
   void encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values);
-  /// Encode a nested message field (force=true for repeated, false for singular)
-  /// Templated so concrete message type is preserved for direct encode/calculate_size calls.
-  template<typename T> void encode_message(uint32_t field_id, const T &value, bool force = true);
-  // Non-template core for encode_message — all buffer work happens here
-  void encode_message(uint32_t field_id, uint32_t msg_length_bytes, const void *value,
-                      void (*encode_fn)(const void *, ProtoWriteBuffer &), bool force);
+  /// Single-pass encode for repeated submessage elements.
+  /// Thin template wrapper; all buffer work is in the non-template core.
+  template<typename T> void encode_sub_message(uint32_t field_id, const T &value);
+  /// Encode an optional singular submessage field — skips if empty.
+  /// Thin template wrapper; all buffer work is in the non-template core.
+  template<typename T> void encode_optional_sub_message(uint32_t field_id, const T &value);
+
+  // Non-template core for encode_sub_message — backpatch approach.
+  void encode_sub_message(uint32_t field_id, const void *value, void (*encode_fn)(const void *, ProtoWriteBuffer &));
+  // Non-template core for encode_optional_sub_message.
+  void encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
+                                   void (*encode_fn)(const void *, ProtoWriteBuffer &));
   std::vector<uint8_t> *get_buffer() const { return buffer_; }
 
  protected:
@@ -690,26 +696,14 @@ template<typename T> void proto_encode_msg(const void *msg, ProtoWriteBuffer &bu
   static_cast<const T *>(msg)->encode(buf);
 }
 
-// Implementation of encode_message - must be after ProtoMessage is defined
-template<typename T> inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const T &value, bool force) {
-  this->encode_message(field_id, value.calculate_size(), &value, &proto_encode_msg<T>, force);
+// Thin template wrapper; delegates to non-template core in proto.cpp.
+template<typename T> inline void ProtoWriteBuffer::encode_sub_message(uint32_t field_id, const T &value) {
+  this->encode_sub_message(field_id, &value, &proto_encode_msg<T>);
 }
 
-// Non-template core for encode_message
-inline void ProtoWriteBuffer::encode_message(uint32_t field_id, uint32_t msg_length_bytes, const void *value,
-                                             void (*encode_fn)(const void *, ProtoWriteBuffer &), bool force) {
-  if (msg_length_bytes == 0 && !force)
-    return;
-  this->encode_field_raw(field_id, 2);
-  this->encode_varint_raw(msg_length_bytes);
-#ifdef ESPHOME_DEBUG_API
-  uint8_t *start = this->pos_;
-  encode_fn(value, *this);
-  if (static_cast<uint32_t>(this->pos_ - start) != msg_length_bytes)
-    this->debug_check_encode_size_(field_id, msg_length_bytes, this->pos_ - start);
-#else
-  encode_fn(value, *this);
-#endif
+// Thin template wrapper; delegates to non-template core.
+template<typename T> inline void ProtoWriteBuffer::encode_optional_sub_message(uint32_t field_id, const T &value) {
+  this->encode_optional_sub_message(field_id, value.calculate_size(), &value, &proto_encode_msg<T>);
 }
 
 // Implementation of decode_to_message - must be after ProtoDecodableMessage is defined

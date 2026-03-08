@@ -582,11 +582,7 @@ void APIServer::request_time() {
 }
 #endif
 
-bool APIServer::is_connected(bool state_subscription_only) const {
-  if (!state_subscription_only) {
-    return !this->clients_.empty();
-  }
-
+bool APIServer::is_connected_with_state_subscription() const {
   for (const auto &client : this->clients_) {
     if (client->flags_.state_subscription) {
       return true;

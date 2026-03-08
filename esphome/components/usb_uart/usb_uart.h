@@ -3,6 +3,7 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/usb_host/usb_host.h"
 #include "esphome/core/lock_free_queue.h"
@@ -109,11 +110,13 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override { return this->input_buffer_.get_available(); }
-  void flush() override;
+  uart::FlushResult flush() override;
   void check_logger_conflict() override {}
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
+  void set_debug_prefix(const char *prefix) { this->debug_prefix_ = StringRef(prefix); }
+  void set_flush_timeout(uint32_t flush_timeout_ms) override { this->flush_timeout_ms_ = flush_timeout_ms; }
 
   /// Register a callback invoked immediately after data is pushed to the input ring buffer.
   /// Called from USBUartComponent::loop() in the main loop context.
@@ -122,19 +125,20 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   void set_rx_callback(std::function<void()> cb) { this->rx_callback_ = std::move(cb); }
 
  protected:
-  // Larger structures first for better alignment
+  // Larger structures first (8+ bytes)
   RingBuffer input_buffer_;
   LockFreeQueue<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_queue_;
   EventPool<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_pool_;
   std::function<void()> rx_callback_{};
   CdcEps cdc_dev_{};
-  // Enum (likely 4 bytes)
+  StringRef debug_prefix_{};
+  // 4-byte fields
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
-  // Group atomics together (each 1 byte)
+  uint32_t flush_timeout_ms_{100};
+  // 1-byte fields (no padding between groups)
   std::atomic<bool> input_started_{true};
   std::atomic<bool> output_started_{true};
   std::atomic<bool> initialised_{false};
-  // Group regular bytes together to minimize padding
   const uint8_t index_;
   bool debug_{};
   bool dummy_receiver_{};
