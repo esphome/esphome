@@ -185,10 +185,19 @@ void SEN6XComponent::update() {
   uint8_t read_words;
   set_read_command_and_words(this->sen6x_type_, read_cmd, read_words);
 
-  auto retries_left = std::make_shared<uint8_t>(24);
+  // 24 attempts × 50 ms = 1200 ms covers one full measurement cycle.
+  constexpr uint8_t poll_retries = 24;
+  auto retries_left = std::make_shared<uint8_t>(poll_retries);
   this->set_interval("sen6x_poll", 50, [this, retries_left, read_cmd, read_words]() {
-    const uint8_t attempt = static_cast<uint8_t>(24 - *retries_left + 1);
+    if (*retries_left == 0) {
+      this->status_set_warning();
+      ESP_LOGD(TAG, "Data not ready");
+      this->cancel_interval("sen6x_poll");
+      return;
+    }
+    const uint8_t attempt = static_cast<uint8_t>(poll_retries - *retries_left + 1);
     ESP_LOGV(TAG, "Data ready polling attempt %u", attempt);
+    (*retries_left)--;
 
     if (!this->write_command(SEN6X_CMD_GET_DATA_READY_STATUS)) {
       this->status_set_warning();
@@ -207,13 +216,7 @@ void SEN6XComponent::update() {
       }
 
       if ((raw_read_status & 0x0001) == 0) {
-        if (*retries_left == 0) {
-          this->status_set_warning();
-          ESP_LOGD(TAG, "Data not ready");
-          this->cancel_interval("sen6x_poll");
-          return;
-        }
-        (*retries_left)--;
+        // Not ready yet; next interval tick will retry or exhaust the counter.
         return;
       }
 
