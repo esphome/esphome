@@ -27,6 +27,7 @@ from .ble_logger import is_mac_address
 
 SMP_SERVICE_UUID = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
 BLE_SCAN_TIMEOUT = 10.0  # seconds
+RESET_DELAY = 2.0  # seconds to wait before reset, allows on_end action to execute
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,7 +102,15 @@ async def _smpmgr_upload(device: str, firmware: Path) -> None:
         raise EsphomeError(f"Connection error with {device}") from exc
 
     _LOGGER.info("Connected %s...", device)
+    try:
+        await _smpmgr_upload_connected(smp_client, device, firmware, image_tlv_sha256)
+    finally:
+        await smp_client.disconnect()
 
+
+async def _smpmgr_upload_connected(
+    smp_client: SMPClient, device: str, firmware: Path, image_tlv_sha256: str
+) -> None:
     try:
         image_state = await smp_client.request(ImageStatesRead(), 2.5)
     except (SMPBadStartDelimiter, TimeoutError) as exc:
@@ -147,8 +156,7 @@ async def _smpmgr_upload(device: str, firmware: Path) -> None:
     if error(r):
         raise EsphomeError(r)
 
-    # wait before calling ResetWrite to let chance to execute `on_end` action
-    await asyncio.sleep(2)
+    await asyncio.sleep(RESET_DELAY)
     _LOGGER.info("Reset")
     r = await smp_client.request(ResetWrite(), 1.0)
 
