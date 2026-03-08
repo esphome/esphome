@@ -1092,7 +1092,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   /**
    * @brief Set the number of HTTP retries for TFT upload requests.
-   * @param retries Number of retries. Defaults to 5. Range: 0-20.
+   * @param retries Number of retries. Defaults to 5. Range: 1-255.
    */
   void set_tft_upload_http_retries(uint8_t retries) { this->tft_upload_http_retries_ = retries; }
 
