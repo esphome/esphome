@@ -1,0 +1,90 @@
+---
+description: "Instructions for setting up the Serial Proxy component in ESPHome."
+title: "Serial Proxy"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+> [!IMPORTANT]
+> This component is EXPERIMENTAL. The API (both Python configuration and C++ interfaces)
+> may change at any time without following the normal breaking changes policy. Use at your own risk.
+> Once the API is considered stable, this warning will be removed.
+
+The `serial_proxy` component exposes a physical UART serial port on your ESPHome device to API clients
+(such as Home Assistant) via the [Native API](/components/api/). This allows an API client to send and
+receive data directly to and from a serial device connected to the ESP, effectively creating a
+network-attached serial port.
+
+The component requires the [Native API](/components/api/) and [UART](/components/uart/) components.
+
+Multiple `serial_proxy` instances may be configured on a single device, each attached to a different UART.
+
+```yaml
+# Example configuration entry
+serial_proxy:
+  - id: serial_proxy_1
+    uart_id: serial_1
+    name: My Serial Device
+    port_type: TTL
+```
+
+## Configuration variables
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID to use for code generation.
+- **name** (**Required**, string): A human-readable name for this serial port, used to identify it to API clients.
+- **uart_id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the [UART](/components/uart/) component
+  this proxy is attached to.
+- **port_type** (**Required**, string): The electrical type of the serial port. One of:
+  - `TTL`: Standard TTL logic-level UART (3.3V or 5V). Typically used for direct connections to most microcontrollers.
+  - `RS232`: RS-232 standard serial port (typically ±12V levels via an appropriate line-driver IC). Typically used for PC-style serial connections, often with a DB9-type connector.
+  - `RS485`: RS-485 differential serial bus. Typically used for industrial/multi-drop serial networks.
+- **rts_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): GPIO pin to use as the RTS (Request to Send)
+  modem control output. The state of this pin may be controlled by the API client at runtime.
+- **dtr_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): GPIO pin to use as the DTR (Data Terminal Ready)
+  modem control output. The state of this pin may be controlled by the API client at runtime.
+
+## How It Works
+
+When an API client connects, it can:
+
+- **Send data** to the serial device by writing bytes through the API.
+- **Receive data** from the serial device — data arriving on the UART is forwarded to connected API clients automatically each loop iteration (up to 256 bytes at a time).
+- **Reconfigure the UART** at runtime — the API client may change the baud rate, data bits, stop bits, and parity without reflashing firmware.
+- **Control modem pins** — if `rts_pin` or `dtr_pin` are configured, the API client can set their states at runtime.
+
+## Full Example
+
+```yaml
+# Two serial proxies on separate UARTs
+uart:
+  - id: device_uart
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+
+  - id: rs485_uart
+    tx_pin: GPIO16
+    rx_pin: GPIO17
+    baud_rate: 19200
+
+api:
+
+serial_proxy:
+  - id: device_serial
+    uart_id: device_uart
+    name: TTL Device
+    port_type: TTL
+
+  - id: rs485_serial
+    uart_id: rs485_uart
+    name: RS-485 Bus
+    port_type: RS485
+    rts_pin: GPIO18
+```
+
+## See Also
+
+- [UART Bus](/components/uart/)
+- [Native API Component](/components/api/)
+- [aioesphomeapi](https://github.com/esphome/aioesphomeapi) — Python library implementing the ESPHome native API
+- <APIRef text="serial_proxy.h" path="serial_proxy/serial_proxy.h" />
