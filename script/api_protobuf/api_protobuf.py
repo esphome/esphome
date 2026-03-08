@@ -152,6 +152,11 @@ class TypeInfo(ABC):
         return self._field.label == FieldDescriptorProto.LABEL_REPEATED
 
     @property
+    def force(self) -> bool:
+        """Check if this field should always be encoded (skip zero/empty check)."""
+        return get_field_opt(self._field, pb.force, False)
+
+    @property
     def wire_type(self) -> WireType:
         """Get the wire type for the field."""
         raise NotImplementedError
@@ -218,6 +223,8 @@ class TypeInfo(ABC):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, true);"
         return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
 
     encode_func = None
@@ -413,6 +420,8 @@ class DoubleType(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
         return f"size += ProtoSize::calc_fixed64({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
@@ -437,6 +446,8 @@ class FloatType(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
         return f"size += ProtoSize::calc_float({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
@@ -521,6 +532,8 @@ class Fixed64Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
         return f"size += ProtoSize::calc_fixed64({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
@@ -545,6 +558,8 @@ class Fixed32Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
         return f"size += ProtoSize::calc_fixed32({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
@@ -607,6 +622,8 @@ class StringType(TypeInfo):
     @property
     def encode_content(self) -> str:
         # Use the StringRef
+        if self.force:
+            return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_, true);"
         return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
 
     def dump(self, name):
@@ -694,7 +711,7 @@ class MessageType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        # Singular message fields skip encoding when empty
+        # encode_sub_message always encodes (uses backpatch), no force needed
         return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
 
     @property
@@ -771,6 +788,8 @@ class BytesType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.encode_bytes({self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_, true);"
         return f"buffer.encode_bytes({self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
 
     def dump(self, name: str) -> str:
@@ -876,6 +895,8 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
         return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
 
     @property
@@ -923,6 +944,10 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return (
+                f"buffer.encode_string({self.number}, this->{self.field_name}, true);"
+            )
         return f"buffer.encode_string({self.number}, this->{self.field_name});"
 
     @property
@@ -1086,6 +1111,8 @@ class FixedArrayBytesType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
         return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
 
     def dump(self, name: str) -> str:
@@ -1159,6 +1186,8 @@ class EnumType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}), true);"
         return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}));"
 
     def dump(self, name: str) -> str:
@@ -1192,6 +1221,8 @@ class SFixed32Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
         return f"size += ProtoSize::calc_sfixed32({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
@@ -1216,6 +1247,8 @@ class SFixed64Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
         return f"size += ProtoSize::calc_sfixed64({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
@@ -2134,7 +2167,8 @@ def build_message_type(
             encode.extend(wrap_with_ifdef(ti.encode_content, field_ifdef))
             size_calc.extend(
                 wrap_with_ifdef(
-                    ti.get_size_calculation(f"this->{ti.field_name}"), field_ifdef
+                    ti.get_size_calculation(f"this->{ti.field_name}", ti.force),
+                    field_ifdef,
                 )
             )
 
