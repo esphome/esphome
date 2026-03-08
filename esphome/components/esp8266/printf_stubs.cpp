@@ -3,14 +3,14 @@
  *
  * The ESP8266 Arduino framework and libraries may reference printf(),
  * vprintf(), and fprintf() which pull in newlib's _vfprintf_r (~900 bytes).
- * ESPHome never uses these — all logging goes through ets_printf/ets_vsnprintf
- * directly, so the libc FILE*-based printf path is dead code.
+ * ESPHome never uses these — all logging writes directly to the UART via
+ * Arduino's Serial, so the libc FILE*-based printf path is dead code.
  *
  * These stubs redirect through vsnprintf() (which is already in the binary
  * for ESPHome's logging) and fwrite(), allowing the linker to dead-code
  * eliminate _vfprintf_r.
  *
- * Saves ~900 bytes of flash.
+ * Saves ~1.6 KB of flash.
  */
 
 #if defined(USE_ESP8266) && !defined(USE_FULL_PRINTF)
@@ -20,10 +20,10 @@
 
 namespace esphome::esp8266 {}
 
-static constexpr size_t PRINTF_BUFFER_SIZE = 256;
+static constexpr size_t PRINTF_BUFFER_SIZE = 512;
 
-// These stubs are essentially dead code at runtime — ESPHome uses ets_printf
-// for logging, and the Arduino core's Serial.printf() has its own implementation.
+// These stubs are essentially dead code at runtime — ESPHome writes directly
+// to the UART via Arduino's Serial, and Serial.printf() has its own implementation.
 // The buffer overflow check is purely defensive and should never trigger.
 static int write_printf_buffer(FILE *stream, char *buf, int len) {
   if (len < 0) {
