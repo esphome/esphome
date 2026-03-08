@@ -240,14 +240,13 @@ class ProtoWriteBuffer {
  public:
   ProtoWriteBuffer(APIBuffer *buffer) : buffer_(buffer), pos_(buffer->data() + buffer->size()) {}
   ProtoWriteBuffer(APIBuffer *buffer, size_t write_pos) : buffer_(buffer), pos_(buffer->data() + write_pos) {}
-  void encode_varint_raw(uint32_t value) {
-    while (value > 0x7F) {
+  inline void ESPHOME_ALWAYS_INLINE encode_varint_raw(uint32_t value) {
+    if (value < 128) [[likely]] {
       this->debug_check_bounds_(1);
-      *this->pos_++ = static_cast<uint8_t>(value | 0x80);
-      value >>= 7;
+      *this->pos_++ = static_cast<uint8_t>(value);
+      return;
     }
-    this->debug_check_bounds_(1);
-    *this->pos_++ = static_cast<uint8_t>(value);
+    this->encode_varint_raw_slow_(value);
   }
   void encode_varint_raw_64(uint64_t value) {
     while (value > 0x7F) {
@@ -378,6 +377,9 @@ class ProtoWriteBuffer {
   APIBuffer *get_buffer() const { return buffer_; }
 
  protected:
+  // Slow path for encode_varint_raw values >= 128, outlined to keep fast path small
+  void encode_varint_raw_slow_(uint32_t value) __attribute__((noinline));
+
 #ifdef ESPHOME_DEBUG_API
   void debug_check_bounds_(size_t bytes, const char *caller = __builtin_FUNCTION());
   void debug_check_encode_size_(uint32_t field_id, uint32_t expected, ptrdiff_t actual);
@@ -512,7 +514,7 @@ class ProtoSize {
    * @return The number of bytes needed to encode the value
    */
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE varint(uint32_t value) {
-    if (value < 128)
+    if (value < 128) [[likely]]
       return 1;  // Fast path: 7 bits, most common case
     if (__builtin_is_constant_evaluated())
       return varint_wide(value);
