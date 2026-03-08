@@ -1498,9 +1498,27 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
     case enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
       proxies[msg.instance]->serial_proxy_request(this, msg.type);
       break;
-    case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH:
-      proxies[msg.instance]->flush_port();
+    case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH: {
+      SerialProxyRequestResponse resp{};
+      resp.instance = msg.instance;
+      resp.type = enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH;
+      switch (proxies[msg.instance]->flush_port()) {
+        case uart::FlushResult::SUCCESS:
+          resp.status = enums::SERIAL_PROXY_STATUS_OK;
+          break;
+        case uart::FlushResult::ASSUMED_SUCCESS:
+          resp.status = enums::SERIAL_PROXY_STATUS_ASSUMED_SUCCESS;
+          break;
+        case uart::FlushResult::TIMEOUT:
+          resp.status = enums::SERIAL_PROXY_STATUS_TIMEOUT;
+          break;
+        case uart::FlushResult::FAILED:
+          resp.status = enums::SERIAL_PROXY_STATUS_ERROR;
+          break;
+      }
+      this->send_message(resp);
       break;
+    }
     default:
       ESP_LOGW(TAG, "Unknown serial proxy request type: %u", static_cast<uint32_t>(msg.type));
       break;

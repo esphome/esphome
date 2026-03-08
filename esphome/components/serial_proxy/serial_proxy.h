@@ -89,7 +89,7 @@ class SerialProxy : public uart::UARTDevice, public Component {
   uint32_t get_modem_pins() const;
 
   /// Flush the serial port (block until all TX data is sent)
-  void flush_port();
+  uart::FlushResult flush_port();
 
   /// Set the RTS GPIO pin (from YAML configuration)
   void set_rts_pin(GPIOPin *pin) { this->rts_pin_ = pin; }

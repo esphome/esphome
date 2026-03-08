@@ -152,9 +152,9 @@ uint32_t SerialProxy::get_modem_pins() const {
          (this->dtr_state_ ? SERIAL_PROXY_LINE_STATE_FLAG_DTR : 0u);
 }
 
-void SerialProxy::flush_port() {
+uart::FlushResult SerialProxy::flush_port() {
   ESP_LOGV(TAG, "Flushing serial proxy [%u]", this->instance_index_);
-  this->flush();
+  return this->flush();
 }
 
 #ifdef USE_API
