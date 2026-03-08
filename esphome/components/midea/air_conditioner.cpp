@@ -56,20 +56,25 @@ void AirConditioner::on_status_change() {
 
 void AirConditioner::control(const ClimateCall &call) {
   dudanov::midea::ac::Control ctrl{};
-  if (call.get_target_temperature().has_value())
-    ctrl.targetTemp = call.get_target_temperature().value();
-  if (call.get_swing_mode().has_value())
-    ctrl.swingMode = Converters::to_midea_swing_mode(call.get_swing_mode().value());
-  if (call.get_mode().has_value())
-    ctrl.mode = Converters::to_midea_mode(call.get_mode().value());
-  if (call.get_preset().has_value()) {
-    ctrl.preset = Converters::to_midea_preset(call.get_preset().value());
+  auto target_temp_val = call.get_target_temperature();
+  if (target_temp_val.has_value())
+    ctrl.targetTemp = *target_temp_val;
+  auto swing_mode_val = call.get_swing_mode();
+  if (swing_mode_val.has_value())
+    ctrl.swingMode = Converters::to_midea_swing_mode(*swing_mode_val);
+  auto mode_val = call.get_mode();
+  if (mode_val.has_value())
+    ctrl.mode = Converters::to_midea_mode(*mode_val);
+  auto preset_val = call.get_preset();
+  if (preset_val.has_value()) {
+    ctrl.preset = Converters::to_midea_preset(*preset_val);
   } else if (call.has_custom_preset()) {
     // get_custom_preset() returns StringRef pointing to null-terminated string literals from codegen
     ctrl.preset = Converters::to_midea_preset(call.get_custom_preset().c_str());
   }
-  if (call.get_fan_mode().has_value()) {
-    ctrl.fanMode = Converters::to_midea_fan_mode(call.get_fan_mode().value());
+  auto fan_mode_val = call.get_fan_mode();
+  if (fan_mode_val.has_value()) {
+    ctrl.fanMode = Converters::to_midea_fan_mode(*fan_mode_val);
   } else if (call.has_custom_fan_mode()) {
     // get_custom_fan_mode() returns StringRef pointing to null-terminated string literals from codegen
     ctrl.fanMode = Converters::to_midea_fan_mode(call.get_custom_fan_mode().c_str());

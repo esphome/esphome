@@ -243,9 +243,8 @@ def validate_color_temperature_channels(value):
     return value
 
 
-async def setup_light_core_(light_var, output_var, config):
-    await setup_entity(light_var, config, "light")
-
+@setup_entity("light")
+async def setup_light_core_(light_var, config, output_var):
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
     if (initial_state_config := config.get(CONF_INITIAL_STATE)) is not None:
@@ -312,7 +311,7 @@ async def register_light(output_var, config):
     cg.add(cg.App.register_light(light_var))
     CORE.register_platform_component("light", light_var)
     await cg.register_component(light_var, config)
-    await setup_light_core_(light_var, output_var, config)
+    await setup_light_core_(light_var, config, output_var)
 
 
 async def new_light(config, *args):

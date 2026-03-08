@@ -84,6 +84,7 @@ def text_schema(
     return _TEXT_SCHEMA.extend(schema)
 
 
+@setup_entity("text")
 async def setup_text_core_(
     var,
     config,
@@ -92,8 +93,6 @@ async def setup_text_core_(
     max_length: int | None,
     pattern: str | None,
 ):
-    await setup_entity(var, config, "text")
-
     cg.add(var.traits.set_min_length(min_length))
     cg.add(var.traits.set_max_length(max_length))
     if pattern is not None:

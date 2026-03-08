@@ -67,11 +67,13 @@ class MediaSource {
   /// @brief Start playing the given URI
   /// Sources should validate the URI and state, returning false if the source is busy.
   /// The orchestrator is responsible for stopping active sources before starting a new one.
+  /// @note Must only be called from the main loop.
   /// @param uri URI to play; e.g., "http://stream_url"
   /// @return true if playback started successfully, false otherwise
   virtual bool play_uri(const std::string &uri) = 0;
 
-  /// @brief Handle playback commands (pause, stop, next, etc.)
+  /// @brief Handle playback commands; e.g., pause, stop, next, etc.
+  /// @note Must only be called from the main loop.
   /// @param command Command to execute
   virtual void handle_command(MediaSourceCommand command) = 0;
 
@@ -81,7 +83,8 @@ class MediaSource {
 
   // === State Access ===
 
-  /// @brief Get current playback state (must only be called from the main loop)
+  /// @brief Get current playback state
+  /// @note Must only be called from the main loop.
   /// @return Current state of this source
   MediaSourceState get_state() const { return this->state_; }
 
@@ -136,9 +139,10 @@ class MediaSource {
   virtual void notify_audio_played(uint32_t frames, int64_t timestamp) {}
 
  protected:
-  /// @brief Update state and notify listener (must only be called from the main loop)
+  /// @brief Update state and notify listener
   /// This is the only way to change state_, ensuring listener notifications always fire.
   /// Sources running FreeRTOS tasks should signal via event groups and call this from loop().
+  /// @note Must only be called from the main loop.
   /// @param state New state to set
   void set_state_(MediaSourceState state) {
     if (this->state_ != state) {

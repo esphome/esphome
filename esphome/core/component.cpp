@@ -233,7 +233,6 @@ void Component::call_dump_config_() {
   }
 }
 
-uint8_t Component::get_component_state() const { return this->component_state_; }
 void Component::call() {
   uint8_t state = this->component_state_ & COMPONENT_STATE_MASK;
   switch (state) {
@@ -339,9 +338,6 @@ void Component::reset_to_construction_state() {
     this->status_clear_error();
   }
 }
-bool Component::is_in_loop_state() const {
-  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP;
-}
 void Component::defer(std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, static_cast<const char *>(nullptr), 0, std::move(f));
 }
@@ -380,16 +376,12 @@ void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std:
   App.scheduler.set_retry(this, "", initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
 #pragma GCC diagnostic pop
 }
-bool Component::is_failed() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 bool Component::is_ready() const {
   return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP ||
          (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE ||
          (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
 }
-bool Component::is_idle() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE; }
 bool Component::can_proceed() { return true; }
-bool Component::status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
-bool Component::status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
 bool Component::set_status_flag_(uint8_t flag) {
   if ((this->component_state_ & flag) != 0)
     return false;
@@ -430,15 +422,11 @@ void Component::status_set_error(const LogString *message) {
     store_component_error_message(this, LOG_STR_ARG(message), true);
   }
 }
-void Component::status_clear_warning() {
-  if ((this->component_state_ & STATUS_LED_WARNING) == 0)
-    return;
+void Component::status_clear_warning_slow_path_() {
   this->component_state_ &= ~STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s cleared Warning flag", LOG_STR_ARG(this->get_component_log_str()));
 }
-void Component::status_clear_error() {
-  if ((this->component_state_ & STATUS_LED_ERROR) == 0)
-    return;
+void Component::status_clear_error_slow_path_() {
   this->component_state_ &= ~STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s cleared Error flag", LOG_STR_ARG(this->get_component_log_str()));
 }
@@ -537,9 +525,12 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
   uint32_t curr_time = millis();
   uint32_t blocking_time = curr_time - this->started_;
 #ifdef USE_RUNTIME_STATS
-  // Record component runtime stats
+  // Use micros() for accurate sub-millisecond timing. millis() has insufficient
+  // resolution — most components complete in microseconds but millis() only has
+  // 1ms granularity, so results were essentially random noise.
   if (global_runtime_stats != nullptr) {
-    global_runtime_stats->record_component_time(this->component_, blocking_time, curr_time);
+    uint32_t duration_us = micros() - this->started_us_;
+    global_runtime_stats->record_component_time(this->component_, duration_us);
   }
 #endif
   if (blocking_time > WARN_IF_BLOCKING_OVER_MS) {
