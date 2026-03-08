@@ -178,7 +178,7 @@ uart::FlushResult USBUartChannel::flush() {
     yield();
   }
   if (!this->output_queue_.empty() || this->output_started_.load())
-     return uart::FlushResult::TIMEOUT;
+    return uart::FlushResult::TIMEOUT;
   return uart::FlushResult::SUCCESS;
 }
 
