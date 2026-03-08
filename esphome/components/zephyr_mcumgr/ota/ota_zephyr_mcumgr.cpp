@@ -134,7 +134,7 @@ void OTAComponent::update_stopped() {
   this->defer([this]() {
     ESP_LOGD(TAG, "OTA stopped");
 #ifdef USE_OTA_STATE_LISTENER
-    this->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(ota::OTA_RESPONSE_ERROR_UNKNOWN));
+    this->notify_state_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(ota::OTA_RESPONSE_ERROR_UNKNOWN));
 #endif
   });
 }
