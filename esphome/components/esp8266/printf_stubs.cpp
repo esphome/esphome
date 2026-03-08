@@ -20,7 +20,7 @@
 
 namespace esphome::esp8266 {}
 
-static constexpr size_t PRINTF_BUFFER_SIZE = 128;
+static constexpr size_t PRINTF_BUFFER_SIZE = 256;
 
 // These stubs are essentially dead code at runtime — ESPHome uses ets_printf
 // for logging, and the Arduino core's Serial.printf() has its own implementation.
