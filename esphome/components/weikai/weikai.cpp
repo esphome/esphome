@@ -442,7 +442,7 @@ uart::FlushResult WeikaiChannel::flush() {
     }
     yield();  // reschedule our thread to avoid blocking
   }
-  return uart::FlushResult::ASSUMED_SUCCESS;
+  return uart::FlushResult::SUCCESS;
 }
 
 size_t WeikaiChannel::xfer_fifo_to_buffer_() {

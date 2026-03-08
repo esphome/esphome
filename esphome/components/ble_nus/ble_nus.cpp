@@ -110,7 +110,7 @@ uart::FlushResult BLENUS::flush() {
     }
     delay(1);
   }
-  return uart::FlushResult::ASSUMED_SUCCESS;
+  return uart::FlushResult::SUCCESS;
 }
 
 void BLENUS::connected(bt_conn *conn, uint8_t err) {

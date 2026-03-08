@@ -177,7 +177,9 @@ uart::FlushResult USBUartChannel::flush() {
     this->parent_->start_output(this);
     yield();
   }
-  return uart::FlushResult::ASSUMED_SUCCESS;
+  if (!this->output_queue_.empty() || this->output_started_.load())
+     return uart::FlushResult::TIMEOUT;
+  return uart::FlushResult::SUCCESS;
 }
 
 bool USBUartChannel::peek_byte(uint8_t *data) {
