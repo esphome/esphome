@@ -93,12 +93,17 @@ uart_mock:
     - delay: 100ms
       inject_rx: [0xAA, 0xFF, 0x03, 0x00, 0x01, 0x02, 0x03, 0x04]
 
-    # Phase 4 (t=600ms): Overflow - inject 50 bytes of 0xFF (MAX_LINE_LENGTH=45)
+    # Phase 4 (t=600ms): Overflow - inject 75 bytes of 0xFF (MAX_LINE_LENGTH=45)
     # Buffer has 15 bytes from phases 2+3.
-    # Overflow math: need 29 bytes to fill positions 15-43 (buffer_pos_=44),
-    # then byte 30 at position 44 = MAX_LINE_LENGTH-1 triggers overflow.
-    # After overflow, buffer_pos_ = 0. Remaining 0xFF bytes accumulate
-    # until another overflow or until valid data arrives.
+    # readline_() stores bytes while buffer_pos_ < 44. When buffer_pos_ == 44,
+    # the next byte triggers overflow: logs warning, resets buffer_pos_ to 0,
+    # and discards that byte.
+    #
+    # First overflow: 29 bytes fill positions 15-43 (buffer_pos_=44), byte 30
+    #   triggers overflow (discarded). Total consumed: 30 bytes.
+    # Second overflow: 44 bytes fill positions 0-43 (buffer_pos_=44), byte 45
+    #   triggers overflow (discarded). Total consumed: 30+45 = 75 bytes.
+    # After both overflows, buffer_pos_ = 0 (clean state for recovery frame).
     - delay: 200ms
       inject_rx:
         [
@@ -107,6 +112,9 @@ uart_mock:
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         ]
 
     # Phase 5 (t=700ms): Valid frame after overflow - recovery test
