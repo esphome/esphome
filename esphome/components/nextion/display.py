@@ -68,11 +68,10 @@ def _validate_tft_upload(config):
     ):
         if conf_key in config and not has_tft_url:
             raise cv.Invalid(f"{conf_key} requires {CONF_TFT_URL} to be set")
-    if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config:
-        if not CORE.is_esp32:
-            raise cv.Invalid(
-                f"{CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT} is only available on ESP32"
-            )
+    if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config and not CORE.is_esp32:
+        raise cv.Invalid(
+            f"{CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT} is only available on ESP32"
+        )
     return config
 
 
