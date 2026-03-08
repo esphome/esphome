@@ -734,7 +734,7 @@ void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
 #ifdef ESPHOME_DEBUG_SCHEDULER
     ESP_LOGD(TAG, "Pool full (size: %zu), deleting item", this->scheduler_item_pool_.size());
 #endif
-    delete_item_(item);
+    delete item;
 #ifdef ESPHOME_DEBUG_SCHEDULER
     this->debug_live_items_--;
 #endif

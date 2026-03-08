@@ -353,9 +353,6 @@ class Scheduler {
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
   void recycle_item_main_loop_(SchedulerItem *item);
 
-  // Helper to delete a SchedulerItem
-  static void delete_item_(SchedulerItem *item) { delete item; }
-
   // Helper to perform full cleanup when too many items are cancelled
   void full_cleanup_removed_items_();
 
