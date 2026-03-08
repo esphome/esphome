@@ -186,35 +186,39 @@ void SEN6XComponent::update() {
   uint8_t read_words;
   set_read_command_and_words(this->sen6x_type_, read_cmd, read_words);
 
-  const uint8_t poll_retries = 24;
-  auto poll_ready = std::make_shared<std::function<void(uint8_t)>>();
-  *poll_ready = [this, poll_ready, read_cmd, read_words](uint8_t retries_left) {
-    const uint8_t attempt = static_cast<uint8_t>(poll_retries - retries_left + 1);
+  auto retries_left = std::make_shared<uint8_t>(24);
+  this->set_interval("sen6x_poll", 50, [this, retries_left, read_cmd, read_words]() {
+    const uint8_t attempt = static_cast<uint8_t>(24 - *retries_left + 1);
     ESP_LOGV(TAG, "Data ready polling attempt %u", attempt);
 
     if (!this->write_command(SEN6X_CMD_GET_DATA_READY_STATUS)) {
       this->status_set_warning();
       ESP_LOGD(TAG, "write data ready status error (%d)", this->last_error_);
+      this->cancel_interval("sen6x_poll");
       return;
     }
 
-    this->set_timeout(20, [this, poll_ready, retries_left, read_cmd, read_words]() {
+    this->set_timeout(20, [this, retries_left, read_cmd, read_words]() {
       uint16_t raw_read_status;
       if (!this->read_data(&raw_read_status, 1)) {
         this->status_set_warning();
         ESP_LOGD(TAG, "read data ready status error (%d)", this->last_error_);
+        this->cancel_interval("sen6x_poll");
         return;
       }
 
       if ((raw_read_status & 0x0001) == 0) {
-        if (retries_left == 0) {
+        if (*retries_left == 0) {
           this->status_set_warning();
           ESP_LOGD(TAG, "Data not ready");
+          this->cancel_interval("sen6x_poll");
           return;
         }
-        this->set_timeout(50, [poll_ready, retries_left]() { (*poll_ready)(retries_left - 1); });
+        (*retries_left)--;
         return;
       }
+
+      this->cancel_interval("sen6x_poll");
 
       if (!this->write_command(read_cmd)) {
         this->status_set_warning();
@@ -352,9 +356,7 @@ void SEN6XComponent::update() {
         this->status_clear_warning();
       });
     });
-  };
-
-  (*poll_ready)(poll_retries);
+  });
 }
 
 SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const std::string &product_name) {
