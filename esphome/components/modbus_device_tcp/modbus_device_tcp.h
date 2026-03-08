@@ -2,24 +2,8 @@
 
 #if defined(USE_ESP32) && !defined(ARDUINO)
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define _Atomic(T) T  // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp) esp-modbus uses _Atomic(int)
-
-#include "mbcontroller.h"
+#include "esphome/core/component.h"
 #include "modbus_params.h"
-#include "esp_modbus_slave.h"  // NOLINT(readability-terms)
-#include "esp_modbus_common.h"
-
-#undef _Atomic
-
-#ifdef __cplusplus
-}  // extern "C"
-#endif
-
-#include "esphome/components/wifi/wifi_component.h"
 
 namespace esphome {
 namespace modbus_device_tcp {
