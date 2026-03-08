@@ -142,7 +142,7 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
       size_t n = std::min(len - off, BATCH);
       memcpy(buf, ">>> ", 4);
       format_hex_pretty_to(buf + 4, sizeof(buf) - 4, data + off, n, ',');
-      ESP_LOGD(TAG, "%s", buf);
+      ESP_LOGD(TAG, "%s%s", this->debug_prefix_.c_str(), buf);
     }
   }
 #endif
@@ -219,7 +219,7 @@ void USBUartComponent::loop() {
       char buf[4 + format_hex_pretty_size(UsbDataChunk::MAX_CHUNK_SIZE)];  // "<<< " + hex
       memcpy(buf, "<<< ", 4);
       format_hex_pretty_to(buf + 4, sizeof(buf) - 4, chunk->data, chunk->length, ',');
-      ESP_LOGD(TAG, "%s", buf);
+      ESP_LOGD(TAG, "%s%s", channel->debug_prefix_.c_str(), buf);
     }
 #endif
 

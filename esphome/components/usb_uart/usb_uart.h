@@ -3,6 +3,7 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/usb_host/usb_host.h"
 #include "esphome/core/lock_free_queue.h"
@@ -114,6 +115,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
+  void set_debug_prefix(const char *prefix) { this->debug_prefix_ = StringRef(prefix); }
 
   /// Register a callback invoked immediately after data is pushed to the input ring buffer.
   /// Called from USBUartComponent::loop() in the main loop context.
@@ -138,6 +140,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   const uint8_t index_;
   bool debug_{};
   bool dummy_receiver_{};
+  StringRef debug_prefix_{};
 };
 
 class USBUartComponent : public usb_host::USBClient {

@@ -148,6 +148,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &msg) override;
   void on_subscribe_bluetooth_connections_free_request() override;
   void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) override;
+  void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg) override;
 
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
