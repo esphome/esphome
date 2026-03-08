@@ -137,9 +137,6 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
 bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGD(TAG, "TFT upload requested, exit reparse: %s, URL: %s", YESNO(exit_reparse), this->tft_url_.c_str());
 
-  // Temporarily adjust watchdog timeout for the duration of the TFT upload
-  watchdog::WatchdogManager wdm(this->tft_upload_watchdog_timeout_);
-
   if (this->connection_state_.is_updating_) {
     ESP_LOGW(TAG, "Upload in progress");
     return false;
@@ -149,6 +146,9 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
     ESP_LOGE(TAG, "No network");
     return false;
   }
+
+  // Temporarily adjust watchdog timeout for the duration of the TFT upload
+  watchdog::WatchdogManager wdm(this->tft_upload_watchdog_timeout_);
 
   this->connection_state_.is_updating_ = true;
 
