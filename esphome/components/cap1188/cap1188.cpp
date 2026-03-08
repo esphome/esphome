@@ -92,7 +92,7 @@ void CAP1188Component::loop() {
     this->read_register(CAP1188_MAIN, &data, 1);
     data = data & ~CAP1188_MAIN_INT;
 
-    this->write_register(CAP1188_MAIN, &data, 2);
+    this->write_register(CAP1188_MAIN, &data, 1);
   }
 
   for (auto *channel : this->channels_) {

@@ -1,10 +1,10 @@
-from dataclasses import dataclass
 from logging import getLogger
 import math
 import re
 
 from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -114,38 +114,6 @@ MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
 
 
-@dataclass
-class UARTData:
-    """State data for UART component configuration generation."""
-
-    wake_loop_on_rx: bool = False
-
-
-def _get_data() -> UARTData:
-    """Get UART component data from CORE.data."""
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = UARTData()
-    return CORE.data[DOMAIN]
-
-
-def request_wake_loop_on_rx() -> None:
-    """Request that the UART wake the main loop when data is received.
-
-    Components that need low-latency notification of incoming UART data
-    should call this function during their code generation.
-    This enables the RX event task which wakes the main loop when data arrives.
-    """
-    data = _get_data()
-    if not data.wake_loop_on_rx:
-        data.wake_loop_on_rx = True
-
-        # UART RX event task uses wake_loop_threadsafe() to notify the main loop
-        # Automatically enable the socket wake infrastructure when RX wake is requested
-        from esphome.components import socket
-
-        socket.require_wake_loop_threadsafe()
-
-
 def validate_raw_data(value):
     if isinstance(value, str):
         return value.encode("utf-8")
@@ -215,9 +183,6 @@ UART_PARITY_OPTIONS = {
     "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
 }
 
-CONF_STOP_BITS = "stop_bits"
-CONF_DATA_BITS = "data_bits"
-CONF_PARITY = "parity"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
 CONF_RX_TIMEOUT = "rx_timeout"
 
@@ -238,8 +203,10 @@ UART_DIRECTIONS = {
 # round numbers.
 AFTER_DEFAULTS = {CONF_BYTES: 150, CONF_TIMEOUT: "100ms"}
 
+CONF_DEBUG_PREFIX = "debug_prefix"
+
 # By default, log in hex format when no specific sequence is provided.
-DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':');"
+DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':', debug_prefix);"
 DEFAULT_SEQUENCE = [{CONF_LAMBDA: make_data_base(DEFAULT_DEBUG_OUTPUT)}]
 
 
@@ -277,6 +244,7 @@ DEBUG_SCHEMA = cv.Schema(
         ): automation.validate_automation(),
         cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
         cv.GenerateID(CONF_DUMMY_RECEIVER_ID): cv.declare_id(UARTDummyReceiver),
+        cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
     }
 )
 
@@ -318,7 +286,11 @@ async def debug_to_code(config, parent):
     for action in config[CONF_SEQUENCE]:
         await automation.build_automation(
             trigger,
-            [(UARTDirection, "direction"), (cg.std_vector.template(cg.uint8), "bytes")],
+            [
+                (UARTDirection, "direction"),
+                (cg.std_vector.template(cg.uint8), "bytes"),
+                (cg.StringRef, "debug_prefix"),
+            ],
             action,
         )
     cg.add(trigger.set_direction(config[CONF_DIRECTION]))
@@ -334,6 +306,8 @@ async def debug_to_code(config, parent):
     if config[CONF_DUMMY_RECEIVER]:
         dummy = cg.new_Pvariable(config[CONF_DUMMY_RECEIVER_ID], parent)
         await cg.register_component(dummy, {})
+    if debug_prefix := config[CONF_DEBUG_PREFIX]:
+        cg.add(trigger.set_debug_prefix(debug_prefix))
     cg.add_define("USE_UART_DEBUGGER")
 
 
@@ -542,7 +516,14 @@ async def uart_write_to_code(config, action_id, template_arg, args):
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
-    if _get_data().wake_loop_on_rx:
+    if CORE.is_esp32 and CORE.has_networking:
+        # Wake-on-RX is essentially free on ESP32 (just an ISR function pointer
+        # registration) — enable by default to reduce RX buffer overflow risk
+        # by waking the main loop immediately when data arrives.
+        # Requires networking for the wake_loop_isrsafe() infrastructure.
+        from esphome.components import socket
+
+        socket.require_wake_loop_threadsafe()
         cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 

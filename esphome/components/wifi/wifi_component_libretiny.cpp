@@ -13,6 +13,19 @@
 #include <FreeRTOS.h>
 #include <queue.h>
 
+#ifdef USE_BK72XX
+extern "C" {
+#include <wlan_ui_pub.h>
+}
+#endif
+
+#ifdef USE_RTL87XX
+extern "C" {
+#include <wifi_conf.h>
+#include <wifi_structures.h>
+}
+#endif
+
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -193,7 +206,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
 
   String ssid = WiFi.SSID();
-  if (ssid && strcmp(ssid.c_str(), ap.get_ssid().c_str()) != 0) {
+  if (ssid && strcmp(ssid.c_str(), ap.ssid_.c_str()) != 0) {
     WiFi.disconnect();
   }
 
@@ -213,7 +226,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   s_sta_state = LTWiFiSTAState::CONNECTING;
   s_ignored_disconnect_count = 0;
 
-  WiFiStatus status = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
+  WiFiStatus status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
                                  ap.get_channel(),  // 0 = auto
                                  ap.has_bssid() ? ap.get_bssid().data() : NULL);
   if (status != WL_CONNECTED) {
@@ -621,7 +634,7 @@ void WiFiComponent::wifi_pre_setup_() {
   // Make sure WiFi is in clean state before anything starts
   this->wifi_mode_(false, false);
 }
-WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
+WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   // Use state machine instead of querying WiFi.status() directly
   // State is updated in main loop from queued events, ensuring thread safety
   switch (s_sta_state) {
@@ -688,7 +701,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
       auto &ap = scan->ap[i];
       this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
                                               ap.bssid.addr[4], ap.bssid.addr[5]},
-                                      std::string(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
+                                      ssid_cstr, strlen(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
                                       ssid_cstr[0] == '\0');
     } else {
       auto &ap = scan->ap[i];
@@ -735,7 +748,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   yield();
 
-  return WiFi.softAP(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
+  return WiFi.softAP(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
                      ap.has_channel() ? ap.get_channel() : 1, ap.get_hidden());
 }
 
@@ -760,10 +773,22 @@ bssid_t WiFiComponent::wifi_bssid() {
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
-  // TODO: Find direct LibreTiny API to avoid Arduino String allocation
+#ifdef USE_BK72XX
+  LinkStatusTypeDef link_status{};
+  bk_wlan_get_link_status(&link_status);
+  size_t len = strnlen(reinterpret_cast<const char *>(link_status.ssid), SSID_BUFFER_SIZE - 1);
+  memcpy(buffer.data(), link_status.ssid, len);
+#elif defined(USE_RTL87XX)
+  rtw_wifi_setting_t setting{};
+  wifi_get_setting("wlan0", &setting);
+  size_t len = strnlen(reinterpret_cast<const char *>(setting.ssid), SSID_BUFFER_SIZE - 1);
+  memcpy(buffer.data(), setting.ssid, len);
+#else
+  // LN882X: wifi_get_sta_conn_info() provides direct pointer access
   String ssid = WiFi.SSID();
   size_t len = std::min(static_cast<size_t>(ssid.length()), SSID_BUFFER_SIZE - 1);
   memcpy(buffer.data(), ssid.c_str(), len);
+#endif
   buffer[len] = '\0';
   return buffer.data();
 }

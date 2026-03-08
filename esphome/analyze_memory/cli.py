@@ -14,6 +14,7 @@ from . import (
     _COMPONENT_CORE,
     _COMPONENT_PREFIX_ESPHOME,
     _COMPONENT_PREFIX_EXTERNAL,
+    _COMPONENT_PREFIX_LIB,
     RAM_SECTIONS,
     MemoryAnalyzer,
 )
@@ -407,6 +408,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             for name, mem in components
             if name.startswith(_COMPONENT_PREFIX_EXTERNAL)
         ]
+        library_components = [
+            (name, mem)
+            for name, mem in components
+            if name.startswith(_COMPONENT_PREFIX_LIB)
+        ]
 
         top_esphome_components = sorted(
             esphome_components, key=lambda x: x[1].flash_total, reverse=True
@@ -415,6 +421,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         # Include all external components (they're usually important)
         top_external_components = sorted(
             external_components, key=lambda x: x[1].flash_total, reverse=True
+        )
+
+        # Include all library components
+        top_library_components = sorted(
+            library_components, key=lambda x: x[1].flash_total, reverse=True
         )
 
         # Check if API component exists and ensure it's included
@@ -435,10 +446,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             if name in system_components_to_include
         ]
 
-        # Combine all components to analyze: top ESPHome + all external + API if not already included + system components
+        # Combine all components to analyze: top ESPHome + all external + libraries + API if not already included + system components
         components_to_analyze = (
             list(top_esphome_components)
             + list(top_external_components)
+            + list(top_library_components)
             + system_components
         )
         if api_component and api_component not in components_to_analyze:

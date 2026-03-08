@@ -5,9 +5,17 @@
 #include <driver/uart.h>
 #include "esphome/core/component.h"
 #include "uart_component.h"
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+#include <driver/uart_select.h>
+#endif
 
 namespace esphome::uart {
 
+/// ESP-IDF UART driver wrapper.
+///
+/// Thread safety: All public methods must only be called from the main loop.
+/// The ESP-IDF UART driver API does not guarantee thread safety, and ESPHome's
+/// peek byte state (has_peek_/peek_byte_) is not synchronized.
 class IDFUARTComponent : public UARTComponent, public Component {
  public:
   void setup() override;
@@ -22,11 +30,10 @@ class IDFUARTComponent : public UARTComponent, public Component {
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
 
-  int available() override;
+  size_t available() override;
   void flush() override;
 
   uint8_t get_hw_serial_number() { return this->uart_num_; }
-  QueueHandle_t *get_uart_event_queue() { return &this->uart_event_queue_; }
 
   /**
    * Load the UART with the current settings.
@@ -46,19 +53,14 @@ class IDFUARTComponent : public UARTComponent, public Component {
  protected:
   void check_logger_conflict() override;
   uart_port_t uart_num_;
-  QueueHandle_t uart_event_queue_;
   uart_config_t get_config_();
-  SemaphoreHandle_t lock_;
 
   bool has_peek_{false};
   uint8_t peek_byte_;
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
-  // RX notification support
-  void start_rx_event_task_();
-  static void rx_event_task_func(void *param);
-
-  TaskHandle_t rx_event_task_handle_{nullptr};
+  // ISR callback for UART RX data notification — wakes the main loop directly.
+  static void uart_rx_isr_callback(uart_port_t uart_num, uart_select_notif_t uart_select_notif, BaseType_t *task_woken);
 #endif  // USE_UART_WAKE_LOOP_ON_RX
 };
 

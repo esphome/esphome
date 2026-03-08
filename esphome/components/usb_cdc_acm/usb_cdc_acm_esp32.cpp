@@ -161,7 +161,7 @@ void USBCDCACMInstance::setup() {
 
   // Create a simple, unique task name per interface
   char task_name[] = "usb_tx_0";
-  task_name[sizeof(task_name) - 1] = format_hex_char(static_cast<char>(this->itf_));
+  task_name[sizeof(task_name) - 2] = format_hex_char(static_cast<char>(this->itf_));
   xTaskCreate(usb_tx_task_fn, task_name, stack_size, this, 4, &this->usb_tx_task_handle_);
 
   if (this->usb_tx_task_handle_ == nullptr) {
@@ -318,12 +318,12 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   return bytes_read == original_len;
 }
 
-int USBCDCACMInstance::available() {
+size_t USBCDCACMInstance::available() {
   UBaseType_t waiting = 0;
   if (this->usb_rx_ringbuf_ != nullptr) {
     vRingbufferGetInfo(this->usb_rx_ringbuf_, nullptr, nullptr, nullptr, nullptr, &waiting);
   }
-  return static_cast<int>(waiting) + (this->has_peek_ ? 1 : 0);
+  return waiting + (this->has_peek_ ? 1 : 0);
 }
 
 void USBCDCACMInstance::flush() {

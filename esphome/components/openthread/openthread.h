@@ -8,6 +8,7 @@
 
 #include <openthread/srp_client.h>
 #include <openthread/srp_client_buffers.h>
+#include <openthread/instance.h>
 #include <openthread/thread.h>
 
 #include <optional>
@@ -26,7 +27,7 @@ class OpenThreadComponent : public Component {
   bool teardown() override;
   float get_setup_priority() const override { return setup_priority::WIFI; }
 
-  bool is_connected();
+  bool is_connected() const { return this->connected_; }
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
   void ot_main();
@@ -36,22 +37,28 @@ class OpenThreadComponent : public Component {
   const char *get_use_address() const;
   void set_use_address(const char *use_address);
 #if CONFIG_OPENTHREAD_MTD
-  void set_poll_period(uint32_t poll_period) { this->poll_period = poll_period; }
+  void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
 #endif
+  void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
+  static void on_state_changed_(otChangedFlags flags, void *context);
+  otInstance *get_openthread_instance_();
+  int openthread_stop_();
+  std::function<void()> factory_reset_external_callback_;
+#if CONFIG_OPENTHREAD_MTD
+  uint32_t poll_period_{0};
+#endif
+  std::optional<int8_t> output_power_{};
   bool teardown_started_{false};
   bool teardown_complete_{false};
-  std::function<void()> factory_reset_external_callback_;
+  bool connected_{false};
 
  private:
   // Stores a pointer to a string literal (static storage duration).
   // ONLY set from Python-generated code with string literals - never dynamic strings.
   const char *use_address_{""};
-#if CONFIG_OPENTHREAD_MTD
-  uint32_t poll_period{0};
-#endif
 };
 
 extern OpenThreadComponent *global_openthread_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -85,7 +92,7 @@ class InstanceLock {
   otInstance *get_instance();
 
  private:
-  // Use a private constructor in order to force thehandling
+  // Use a private constructor in order to force the handling
   // of acquisition failure
   InstanceLock() {}
 };

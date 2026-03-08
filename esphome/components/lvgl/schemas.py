@@ -436,6 +436,7 @@ def container_schema(widget_type: WidgetType, extras=None):
     schema = schema.extend(widget_type.schema)
 
     def validator(value):
+        value = value or {}
         return append_layout_schema(schema, value)(value)
 
     return validator

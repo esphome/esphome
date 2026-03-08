@@ -99,12 +99,7 @@ enum MQTTClientState {
 
 class MQTTComponent;
 
-class MQTTClientComponent : public Component
-#ifdef USE_LOGGER
-    ,
-                            public logger::LogListener
-#endif
-{
+class MQTTClientComponent : public Component {
  public:
   MQTTClientComponent();
 
@@ -142,21 +137,6 @@ class MQTTClientComponent : public Component
   bool is_discovery_enabled() const;
   bool is_discovery_ip_enabled() const;
 
-#if ASYNC_TCP_SSL_ENABLED
-  /** Add a SSL fingerprint to use for TCP SSL connections to the MQTT broker.
-   *
-   * To use this feature you first have to globally enable the `ASYNC_TCP_SSL_ENABLED` define flag.
-   * This function can be called multiple times and any certificate that matches any of the provided fingerprints
-   * will match. Calling this method will also automatically disable all non-ssl connections.
-   *
-   * @warning This is *not* secure and *not* how SSL is usually done. You'll have to add
-   *          a separate fingerprint for every certificate you use. Additionally, the hashing
-   *          algorithm used here due to the constraints of the MCU, SHA1, is known to be insecure.
-   *
-   * @param fingerprint The SSL fingerprint as a 20 value long std::array.
-   */
-  void add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint);
-#endif
 #ifdef USE_ESP32
   void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
@@ -252,7 +232,7 @@ class MQTTClientComponent : public Component
   float get_setup_priority() const override;
 
 #ifdef USE_LOGGER
-  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len);
 #endif
 
   void on_message(const std::string &topic, const std::string &payload);

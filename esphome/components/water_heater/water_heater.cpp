@@ -5,6 +5,7 @@
 #include "esphome/core/progmem.h"
 
 #include <cmath>
+#include <cstring>
 
 namespace esphome::water_heater {
 
@@ -23,23 +24,25 @@ WaterHeaterCall &WaterHeaterCall::set_mode(WaterHeaterMode mode) {
   return *this;
 }
 
-WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode) {
-  if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("OFF")) == 0) {
+WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode) { return this->set_mode(mode, strlen(mode)); }
+
+WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode, size_t len) {
+  if (len == 3 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("OFF"), 3) == 0) {
     this->set_mode(WATER_HEATER_MODE_OFF);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("ECO")) == 0) {
+  } else if (len == 3 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("ECO"), 3) == 0) {
     this->set_mode(WATER_HEATER_MODE_ECO);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("ELECTRIC")) == 0) {
+  } else if (len == 8 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("ELECTRIC"), 8) == 0) {
     this->set_mode(WATER_HEATER_MODE_ELECTRIC);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("PERFORMANCE")) == 0) {
+  } else if (len == 11 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("PERFORMANCE"), 11) == 0) {
     this->set_mode(WATER_HEATER_MODE_PERFORMANCE);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("HIGH_DEMAND")) == 0) {
+  } else if (len == 11 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("HIGH_DEMAND"), 11) == 0) {
     this->set_mode(WATER_HEATER_MODE_HIGH_DEMAND);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("HEAT_PUMP")) == 0) {
+  } else if (len == 9 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("HEAT_PUMP"), 9) == 0) {
     this->set_mode(WATER_HEATER_MODE_HEAT_PUMP);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("GAS")) == 0) {
+  } else if (len == 3 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("GAS"), 3) == 0) {
     this->set_mode(WATER_HEATER_MODE_GAS);
   } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized mode %s", this->parent_->get_name().c_str(), mode);
+    ESP_LOGW(TAG, "'%s' - Unrecognized mode %.*s", this->parent_->get_name().c_str(), (int) len, mode);
   }
   return *this;
 }
@@ -65,6 +68,7 @@ WaterHeaterCall &WaterHeaterCall::set_away(bool away) {
   } else {
     this->state_ &= ~WATER_HEATER_STATE_AWAY;
   }
+  this->state_mask_ |= WATER_HEATER_STATE_AWAY;
   return *this;
 }
 
@@ -74,6 +78,7 @@ WaterHeaterCall &WaterHeaterCall::set_on(bool on) {
   } else {
     this->state_ &= ~WATER_HEATER_STATE_ON;
   }
+  this->state_mask_ |= WATER_HEATER_STATE_ON;
   return *this;
 }
 
@@ -92,11 +97,11 @@ void WaterHeaterCall::perform() {
   if (!std::isnan(this->target_temperature_high_)) {
     ESP_LOGD(TAG, "  Target Temperature High: %.2f", this->target_temperature_high_);
   }
-  if (this->state_ & WATER_HEATER_STATE_AWAY) {
-    ESP_LOGD(TAG, "  Away: YES");
+  if (this->state_mask_ & WATER_HEATER_STATE_AWAY) {
+    ESP_LOGD(TAG, "  Away: %s", (this->state_ & WATER_HEATER_STATE_AWAY) ? "YES" : "NO");
   }
-  if (this->state_ & WATER_HEATER_STATE_ON) {
-    ESP_LOGD(TAG, "  On: YES");
+  if (this->state_mask_ & WATER_HEATER_STATE_ON) {
+    ESP_LOGD(TAG, "  On: %s", (this->state_ & WATER_HEATER_STATE_ON) ? "YES" : "NO");
   }
   this->parent_->control(*this);
 }
@@ -137,13 +142,17 @@ void WaterHeaterCall::validate_() {
       this->target_temperature_high_ = NAN;
     }
   }
-  if ((this->state_ & WATER_HEATER_STATE_AWAY) && !traits.get_supports_away_mode()) {
-    ESP_LOGW(TAG, "'%s' - Away mode not supported", this->parent_->get_name().c_str());
+  if (!traits.get_supports_away_mode()) {
+    if (this->state_ & WATER_HEATER_STATE_AWAY) {
+      ESP_LOGW(TAG, "'%s' - Away mode not supported", this->parent_->get_name().c_str());
+    }
     this->state_ &= ~WATER_HEATER_STATE_AWAY;
+    this->state_mask_ &= ~WATER_HEATER_STATE_AWAY;
   }
   // If ON/OFF not supported, device is always on - clear the flag silently
   if (!traits.has_feature_flags(WATER_HEATER_SUPPORTS_ON_OFF)) {
     this->state_ &= ~WATER_HEATER_STATE_ON;
+    this->state_mask_ &= ~WATER_HEATER_STATE_ON;
   }
 }
 

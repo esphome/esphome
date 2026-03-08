@@ -110,7 +110,7 @@ void LibreTinyUARTComponent::setup() {
 #if LT_HW_UART2
     ESP_LOGE(TAG, "    TX=%u, RX=%u", PIN_SERIAL2_TX, PIN_SERIAL2_RX);
 #endif
-    this->mark_failed();
+    this->mark_failed(LOG_STR("SoftwareSerial is not implemented for this chip."));
     return;
 #endif
   }
@@ -169,7 +169,7 @@ bool LibreTinyUARTComponent::read_array(uint8_t *data, size_t len) {
   return true;
 }
 
-int LibreTinyUARTComponent::available() { return this->serial_->available(); }
+size_t LibreTinyUARTComponent::available() { return this->serial_->available(); }
 void LibreTinyUARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
   this->serial_->flush();

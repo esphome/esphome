@@ -2,97 +2,34 @@ import logging
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.const import CONF_BYTE_ORDER, CONF_REQUEST_HEADERS
+from esphome.components import runtime_image
+from esphome.components.const import CONF_REQUEST_HEADERS
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
-from esphome.components.image import (
-    CONF_INVERT_ALPHA,
-    CONF_TRANSPARENCY,
-    IMAGE_SCHEMA,
-    Image_,
-    get_image_type_enum,
-    get_transparency_enum,
-    validate_settings,
-)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
-    CONF_DITHER,
-    CONF_FILE,
-    CONF_FORMAT,
     CONF_ID,
     CONF_ON_ERROR,
-    CONF_RESIZE,
     CONF_TRIGGER_ID,
-    CONF_TYPE,
     CONF_URL,
 )
 from esphome.core import Lambda
 
-AUTO_LOAD = ["image"]
+AUTO_LOAD = ["image", "runtime_image"]
 DEPENDENCIES = ["display", "http_request"]
 CODEOWNERS = ["@guillempages", "@clydebarrow"]
 MULTI_CONF = True
 
 CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
-CONF_PLACEHOLDER = "placeholder"
 CONF_UPDATE = "update"
 
 _LOGGER = logging.getLogger(__name__)
 
 online_image_ns = cg.esphome_ns.namespace("online_image")
 
-ImageFormat = online_image_ns.enum("ImageFormat")
-
-
-class Format:
-    def __init__(self, image_type):
-        self.image_type = image_type
-
-    @property
-    def enum(self):
-        return getattr(ImageFormat, self.image_type)
-
-    def actions(self):
-        pass
-
-
-class BMPFormat(Format):
-    def __init__(self):
-        super().__init__("BMP")
-
-    def actions(self):
-        cg.add_define("USE_ONLINE_IMAGE_BMP_SUPPORT")
-
-
-class JPEGFormat(Format):
-    def __init__(self):
-        super().__init__("JPEG")
-
-    def actions(self):
-        cg.add_define("USE_ONLINE_IMAGE_JPEG_SUPPORT")
-        cg.add_library("JPEGDEC", None, "https://github.com/bitbank2/JPEGDEC#ca1e0f2")
-
-
-class PNGFormat(Format):
-    def __init__(self):
-        super().__init__("PNG")
-
-    def actions(self):
-        cg.add_define("USE_ONLINE_IMAGE_PNG_SUPPORT")
-        cg.add_library("pngle", "1.1.0")
-
-
-IMAGE_FORMATS = {
-    x.image_type: x
-    for x in (
-        BMPFormat(),
-        JPEGFormat(),
-        PNGFormat(),
-    )
-}
-IMAGE_FORMATS.update({"JPG": IMAGE_FORMATS["JPEG"]})
-
-OnlineImage = online_image_ns.class_("OnlineImage", cg.PollingComponent, Image_)
+OnlineImage = online_image_ns.class_(
+    "OnlineImage", cg.PollingComponent, runtime_image.RuntimeImage
+)
 
 # Actions
 SetUrlAction = online_image_ns.class_(
@@ -111,29 +48,17 @@ DownloadErrorTrigger = online_image_ns.class_(
 )
 
 
-def remove_options(*options):
-    return {
-        cv.Optional(option): cv.invalid(
-            f"{option} is an invalid option for online_image"
-        )
-        for option in options
-    }
-
-
 ONLINE_IMAGE_SCHEMA = (
-    IMAGE_SCHEMA.extend(remove_options(CONF_FILE, CONF_INVERT_ALPHA, CONF_DITHER))
+    runtime_image.runtime_image_schema(OnlineImage)
     .extend(
         {
-            cv.Required(CONF_ID): cv.declare_id(OnlineImage),
-            cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             # Online Image specific options
+            cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             cv.Required(CONF_URL): cv.url,
+            cv.Optional(CONF_BUFFER_SIZE, default=65536): cv.int_range(256, 65536),
             cv.Optional(CONF_REQUEST_HEADERS): cv.All(
                 cv.Schema({cv.string: cv.templatable(cv.string)})
             ),
-            cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
-            cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
-            cv.Optional(CONF_BUFFER_SIZE, default=65536): cv.int_range(256, 65536),
             cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -162,7 +87,7 @@ CONFIG_SCHEMA = cv.Schema(
             rp2040_arduino=cv.Version(0, 0, 0),
             host=cv.Version(0, 0, 0),
         ),
-        validate_settings,
+        runtime_image.validate_runtime_image_settings,
     )
 )
 
@@ -199,23 +124,21 @@ async def online_image_action_to_code(config, action_id, template_arg, args):
 
 
 async def to_code(config):
-    image_format = IMAGE_FORMATS[config[CONF_FORMAT]]
-    image_format.actions()
+    # Use the enhanced helper function to get all runtime image parameters
+    settings = await runtime_image.process_runtime_image_config(config)
 
     url = config[CONF_URL]
-    width, height = config.get(CONF_RESIZE, (0, 0))
-    transparent = get_transparency_enum(config[CONF_TRANSPARENCY])
-
     var = cg.new_Pvariable(
         config[CONF_ID],
         url,
-        width,
-        height,
-        image_format.enum,
-        get_image_type_enum(config[CONF_TYPE]),
-        transparent,
+        settings.width,
+        settings.height,
+        settings.format_enum,
+        settings.image_type_enum,
+        settings.transparent,
+        settings.placeholder or cg.nullptr,
         config[CONF_BUFFER_SIZE],
-        config.get(CONF_BYTE_ORDER) != "LITTLE_ENDIAN",
+        settings.byte_order_big_endian,
     )
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
@@ -226,10 +149,6 @@ async def to_code(config):
             cg.add(var.add_request_header(key, template_))
         else:
             cg.add(var.add_request_header(key, value))
-
-    if placeholder_id := config.get(CONF_PLACEHOLDER):
-        placeholder = await cg.get_variable(placeholder_id)
-        cg.add(var.set_placeholder(placeholder))
 
     for conf in config.get(CONF_ON_DOWNLOAD_FINISHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

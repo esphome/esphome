@@ -27,6 +27,11 @@ static const char *const TAG = "esp32_hosted.update";
 // Older coprocessor firmware versions have a 1500-byte limit per RPC call
 constexpr size_t CHUNK_SIZE = 1500;
 
+#ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+// Interval/timeout IDs (uint32_t to avoid string comparison)
+constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
+#endif
+
 // Compile-time version string from esp_hosted_host_fw_ver.h macros
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
@@ -101,11 +106,12 @@ void Esp32HostedUpdate::setup() {
     esp_app_desc_t *app_desc = (esp_app_desc_t *) (this->firmware_data_ + app_desc_offset);
     if (app_desc->magic_word == ESP_APP_DESC_MAGIC_WORD) {
       ESP_LOGD(TAG,
-               "Firmware version: %s\n"
-               "Project name: %s\n"
-               "Build date: %s\n"
-               "Build time: %s\n"
-               "IDF version: %s",
+               "ESP32 Hosted firmware:\n"
+               "  Firmware version: %s\n"
+               "  Project name: %s\n"
+               "  Build date: %s\n"
+               "  Build time: %s\n"
+               "  IDF version: %s",
                app_desc->version, app_desc->project_name, app_desc->date, app_desc->time, app_desc->idf_ver);
       this->update_info_.latest_version = app_desc->version;
       if (this->update_info_.latest_version != this->update_info_.current_version) {
@@ -127,15 +133,18 @@ void Esp32HostedUpdate::setup() {
   this->status_clear_error();
   this->publish_state();
 #else
-  // HTTP mode: retry initial check every 10s until network is ready (max 6 attempts)
+  // HTTP mode: check every 10s until network is ready (max 6 attempts)
   // Only if update interval is > 1 minute to avoid redundant checks
   if (this->get_update_interval() > 60000) {
-    this->set_retry("initial_check", 10000, 6, [this](uint8_t) {
-      if (!network::is_connected()) {
-        return RetryResult::RETRY;
+    this->initial_check_remaining_ = 6;
+    this->set_interval(INITIAL_CHECK_INTERVAL_ID, 10000, [this]() {
+      bool connected = network::is_connected();
+      if (--this->initial_check_remaining_ == 0 || connected) {
+        this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
+        if (connected) {
+          this->check();
+        }
       }
-      this->check();
-      return RetryResult::DONE;
     });
   }
 #endif

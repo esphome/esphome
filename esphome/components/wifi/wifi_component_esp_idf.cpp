@@ -302,6 +302,10 @@ bool WiFiComponent::wifi_apply_power_save_() {
   return success;
 }
 
+#ifdef SOC_WIFI_SUPPORT_5G
+bool WiFiComponent::wifi_apply_band_mode_() { return esp_wifi_set_band_mode(this->band_mode_) == ESP_OK; }
+#endif
+
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
@@ -310,19 +314,19 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_wifi.html#_CPPv417wifi_sta_config_t
   wifi_config_t conf;
   memset(&conf, 0, sizeof(conf));
-  if (ap.get_ssid().size() > sizeof(conf.sta.ssid)) {
+  if (ap.ssid_.size() > sizeof(conf.sta.ssid)) {
     ESP_LOGE(TAG, "SSID too long");
     return false;
   }
-  if (ap.get_password().size() > sizeof(conf.sta.password)) {
+  if (ap.password_.size() > sizeof(conf.sta.password)) {
     ESP_LOGE(TAG, "Password too long");
     return false;
   }
-  memcpy(reinterpret_cast<char *>(conf.sta.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
-  memcpy(reinterpret_cast<char *>(conf.sta.password), ap.get_password().c_str(), ap.get_password().size());
+  memcpy(reinterpret_cast<char *>(conf.sta.ssid), ap.ssid_.c_str(), ap.ssid_.size());
+  memcpy(reinterpret_cast<char *>(conf.sta.password), ap.password_.c_str(), ap.password_.size());
 
   // The weakest authmode to accept in the fast scan mode
-  if (ap.get_password().empty()) {
+  if (ap.password_.empty()) {
     conf.sta.threshold.authmode = WIFI_AUTH_OPEN;
   } else {
     // Set threshold based on configured minimum auth mode
@@ -409,9 +413,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   // setup enterprise authentication if required
 #ifdef USE_WIFI_WPA2_EAP
-  if (ap.get_eap().has_value()) {
+  auto eap_opt = ap.get_eap();
+  if (eap_opt.has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
-    EAPAuth eap = ap.get_eap().value();
+    EAPAuth eap = *eap_opt;
 #if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
     err = esp_eap_client_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
 #else
@@ -590,6 +595,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   uint8_t count = 0;
   count = esp_netif_get_all_ip6(s_sta_netif, if_ip6s);
   assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
+  assert(count < addresses.size());
   for (int i = 0; i < count; i++) {
     addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
   }
@@ -736,6 +742,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_started = true;
     // re-apply power save mode
     wifi_apply_power_save_();
+#ifdef SOC_WIFI_SUPPORT_5G
+    wifi_apply_band_mode_();
+#endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_STOP) {
     ESP_LOGV(TAG, "STA stop");
@@ -874,8 +883,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       if (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) {
         bssid_t bssid;
         std::copy(record.bssid, record.bssid + 6, bssid.begin());
-        std::string ssid(ssid_cstr);
-        this->scan_result_.emplace_back(bssid, std::move(ssid), record.primary, record.rssi,
+        this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
                                         record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
       } else {
         this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
@@ -925,7 +933,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   }
 }
 
-WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
+WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   if (s_sta_connected && this->got_ipv4_address_) {
 #if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
     if (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT) {
@@ -1065,26 +1073,26 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   wifi_config_t conf;
   memset(&conf, 0, sizeof(conf));
-  if (ap.get_ssid().size() > sizeof(conf.ap.ssid)) {
+  if (ap.ssid_.size() > sizeof(conf.ap.ssid)) {
     ESP_LOGE(TAG, "AP SSID too long");
     return false;
   }
-  memcpy(reinterpret_cast<char *>(conf.ap.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
+  memcpy(reinterpret_cast<char *>(conf.ap.ssid), ap.ssid_.c_str(), ap.ssid_.size());
   conf.ap.channel = ap.has_channel() ? ap.get_channel() : 1;
-  conf.ap.ssid_hidden = ap.get_ssid().size();
+  conf.ap.ssid_hidden = ap.get_hidden();
   conf.ap.max_connection = 5;
   conf.ap.beacon_interval = 100;
 
-  if (ap.get_password().empty()) {
+  if (ap.password_.empty()) {
     conf.ap.authmode = WIFI_AUTH_OPEN;
     *conf.ap.password = 0;
   } else {
     conf.ap.authmode = WIFI_AUTH_WPA2_PSK;
-    if (ap.get_password().size() > sizeof(conf.ap.password)) {
+    if (ap.password_.size() > sizeof(conf.ap.password)) {
       ESP_LOGE(TAG, "AP password too long");
       return false;
     }
-    memcpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), ap.get_password().size());
+    memcpy(reinterpret_cast<char *>(conf.ap.password), ap.password_.c_str(), ap.password_.size());
   }
 
   // pairwise cipher of SoftAP, group cipher will be derived using this.

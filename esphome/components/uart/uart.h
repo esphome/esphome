@@ -43,7 +43,7 @@ class UARTDevice {
     return res;
   }
 
-  int available() { return this->parent_->available(); }
+  size_t available() { return this->parent_->available(); }
 
   void flush() { this->parent_->flush(); }
 

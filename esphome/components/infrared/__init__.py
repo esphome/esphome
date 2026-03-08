@@ -45,9 +45,9 @@ def infrared_schema(class_: type[cg.MockObjClass]) -> cv.Schema:
     )
 
 
+@setup_entity("infrared")
 async def setup_infrared_core_(var: cg.Pvariable, config: ConfigType) -> None:
     """Set up core infrared configuration."""
-    await setup_entity(var, config, "infrared")
 
 
 async def register_infrared(var: cg.Pvariable, config: ConfigType) -> None:

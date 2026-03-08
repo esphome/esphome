@@ -37,8 +37,7 @@ using ip4_addr_t = in_addr;
 #include <esp_netif.h>
 #endif
 
-namespace esphome {
-namespace network {
+namespace esphome::network {
 
 /// Buffer size for IP address string (IPv6 max: 39 chars + null)
 static constexpr size_t IP_ADDRESS_BUFFER_SIZE = 40;
@@ -61,7 +60,9 @@ struct IPAddress {
   IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
   // Remove before 2026.8.0
-  ESPDEPRECATED("Use str_to() instead. Removed in 2026.8.0", "2026.2.0")
+  ESPDEPRECATED(
+      "str() is deprecated: use 'char buf[IP_ADDRESS_BUFFER_SIZE]; ip.str_to(buf);' instead. Removed in 2026.8.0",
+      "2026.2.0")
   std::string str() const {
     char buf[IP_ADDRESS_BUFFER_SIZE];
     this->str_to(buf);
@@ -150,7 +151,9 @@ struct IPAddress {
   bool is_ip6() const { return IP_IS_V6(&ip_addr_); }
   bool is_multicast() const { return ip_addr_ismulticast(&ip_addr_); }
   // Remove before 2026.8.0
-  ESPDEPRECATED("Use str_to() instead. Removed in 2026.8.0", "2026.2.0")
+  ESPDEPRECATED(
+      "str() is deprecated: use 'char buf[IP_ADDRESS_BUFFER_SIZE]; ip.str_to(buf);' instead. Removed in 2026.8.0",
+      "2026.2.0")
   std::string str() const {
     char buf[IP_ADDRESS_BUFFER_SIZE];
     this->str_to(buf);
@@ -183,6 +186,5 @@ struct IPAddress {
 
 using IPAddresses = std::array<IPAddress, 5>;
 
-}  // namespace network
-}  // namespace esphome
+}  // namespace esphome::network
 #endif

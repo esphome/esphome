@@ -221,11 +221,16 @@ void Fan::publish_state() {
 }
 
 // Random 32-bit value, change this every time the layout of the FanRestoreState struct changes.
-constexpr uint32_t RESTORE_STATE_VERSION = 0x71700ABA;
+constexpr uint32_t RESTORE_STATE_VERSION = 0x71700ABB;
 optional<FanRestoreState> Fan::restore_state_() {
   FanRestoreState recovered{};
   this->rtc_ = this->make_entity_preference<FanRestoreState>(RESTORE_STATE_VERSION);
   bool restored = this->rtc_.load(&recovered);
+
+  if (!restored) {
+    // No valid saved data; ensure preset_mode sentinel is set
+    recovered.preset_mode = FanRestoreState::NO_PRESET;
+  }
 
   switch (this->restore_mode_) {
     case FanRestoreMode::NO_RESTORE:
@@ -264,6 +269,7 @@ void Fan::save_state_() {
   state.oscillating = this->oscillating;
   state.speed = this->speed;
   state.direction = this->direction;
+  state.preset_mode = FanRestoreState::NO_PRESET;
 
   if (this->has_preset_mode()) {
     const auto &preset_modes = traits.supported_preset_modes();

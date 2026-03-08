@@ -15,8 +15,7 @@
 #include "esp_mac.h"
 #include "esp_idf_version.h"
 
-namespace esphome {
-namespace ethernet {
+namespace esphome::ethernet {
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
 /** Listener interface for Ethernet IP state changes.
@@ -77,7 +76,7 @@ class EthernetComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override;
   void on_powerdown() override { powerdown(); }
-  bool is_connected();
+  bool is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
 #ifdef USE_ETHERNET_SPI
   void set_clk_pin(uint8_t clk_pin);
@@ -110,10 +109,13 @@ class EthernetComponent : public Component {
   const char *get_use_address() const;
   void set_use_address(const char *use_address);
   void get_eth_mac_address_raw(uint8_t *mac);
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use get_eth_mac_address_pretty_into_buffer() instead. Removed in 2026.9.0", "2026.3.0")
   std::string get_eth_mac_address_pretty();
   const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
   eth_duplex_t get_duplex_mode();
   eth_speed_t get_link_speed();
+  esp_eth_handle_t get_eth_handle() const { return this->eth_handle_; }
   bool powerdown();
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
@@ -216,7 +218,6 @@ extern EthernetComponent *global_eth_component;
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 #endif
 
-}  // namespace ethernet
-}  // namespace esphome
+}  // namespace esphome::ethernet
 
 #endif  // USE_ESP32
