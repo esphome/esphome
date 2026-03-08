@@ -37,7 +37,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@oarcher"]
 DEPENDENCIES = ["esp32"]
-AUTO_LOAD = ["network", "uart"]
+AUTO_LOAD = ["network", "uart", "text_sensor"]
 CONFLICTS_WITH = ["captive_portal", "ethernet"]
 
 CONF_MODEM = "modem"
