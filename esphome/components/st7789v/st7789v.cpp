@@ -1,11 +1,16 @@
 #include "st7789v.h"
 #include "esphome/core/log.h"
+#include <algorithm>
 
 namespace esphome {
 namespace st7789v {
 
 static const char *const TAG = "st7789v";
-static const size_t TEMP_BUFFER_SIZE = 128;
+#ifdef USE_ESP32
+static constexpr size_t TEMP_BUFFER_SIZE = 1024;
+#else
+static constexpr size_t TEMP_BUFFER_SIZE = 512;
+#endif
 
 void ST7789V::setup() {
 #ifdef USE_POWER_SUPPLY
@@ -236,7 +241,7 @@ void ST7789V::write_data_(uint8_t value) {
 }
 
 void ST7789V::write_addr_(uint16_t addr1, uint16_t addr2) {
-  static uint8_t byte[4];
+  uint8_t byte[4];
   byte[0] = (addr1 >> 8) & 0xFF;
   byte[1] = addr1 & 0xFF;
   byte[2] = (addr2 >> 8) & 0xFF;
@@ -247,15 +252,19 @@ void ST7789V::write_addr_(uint16_t addr1, uint16_t addr2) {
 }
 
 void ST7789V::write_color_(uint16_t color, uint16_t size) {
-  static uint8_t byte[1024];
-  int index = 0;
-  for (int i = 0; i < size; i++) {
-    byte[index++] = (color >> 8) & 0xFF;
-    byte[index++] = color & 0xFF;
-  }
-
+  uint8_t byte[TEMP_BUFFER_SIZE];
+  uint16_t remaining = size;
   this->dc_pin_->digital_write(true);
-  write_array(byte, size * 2);
+  while (remaining > 0) {
+    uint16_t batch = std::min(remaining, static_cast<uint16_t>(sizeof(byte) / 2));
+    int index = 0;
+    for (int i = 0; i < batch; i++) {
+      byte[index++] = (color >> 8) & 0xFF;
+      byte[index++] = color & 0xFF;
+    }
+    this->write_array(byte, batch * 2);
+    remaining -= batch;
+  }
 }
 
 size_t ST7789V::get_buffer_length_() {

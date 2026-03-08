@@ -128,7 +128,8 @@ void HttpRequestUpdate::update_task(void *params) {
       this_update->update_info_.title = root[ESPHOME_F("name")].as<std::string>();
       this_update->update_info_.latest_version = root[ESPHOME_F("version")].as<std::string>();
 
-      for (auto build : root[ESPHOME_F("builds")].as<JsonArray>()) {
+      auto builds_array = root[ESPHOME_F("builds")].as<JsonArray>();
+      for (auto build : builds_array) {
         if (!build[ESPHOME_F("chipFamily")].is<const char *>()) {
           ESP_LOGE(TAG, "Manifest does not contain required fields");
           return false;

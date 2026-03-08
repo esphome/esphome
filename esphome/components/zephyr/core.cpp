@@ -4,7 +4,6 @@
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
 #include <zephyr/random/random.h>
-#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
@@ -17,8 +16,8 @@ static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 #endif
 
 void yield() { ::k_yield(); }
-uint32_t millis() { return k_ticks_to_ms_floor32(k_uptime_ticks()); }
-uint64_t millis_64() { return App.scheduler.millis_64_impl_(millis()); }
+uint32_t millis() { return static_cast<uint32_t>(millis_64()); }
+uint64_t millis_64() { return static_cast<uint64_t>(k_uptime_get()); }
 uint32_t micros() { return k_ticks_to_us_floor32(k_uptime_ticks()); }
 void delayMicroseconds(uint32_t us) { ::k_usleep(us); }
 void delay(uint32_t ms) { ::k_msleep(ms); }
@@ -61,6 +60,8 @@ void arch_restart() { sys_reboot(SYS_REBOOT_COLD); }
 uint32_t arch_get_cpu_cycle_count() { return k_cycle_get_32(); }
 uint32_t arch_get_cpu_freq_hz() { return sys_clock_hw_cycles_per_sec(); }
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
+const char *progmem_read_ptr(const char *const *addr) { return *addr; }
+uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
 
 Mutex::Mutex() {
   auto *mutex = new k_mutex();
