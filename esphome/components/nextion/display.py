@@ -44,7 +44,10 @@ from .base_component import (
 CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
 
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["binary_sensor", "switch", "sensor", "text_sensor", "watchdog"]
+AUTO_LOAD = ["binary_sensor", "switch", "sensor", "text_sensor"]
+
+if CORE.is_esp32:
+    AUTO_LOAD.append("watchdog")
 
 NextionSetBrightnessAction = nextion_ns.class_(
     "NextionSetBrightnessAction", automation.Action
