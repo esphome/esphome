@@ -456,7 +456,10 @@ async def to_code(config: ConfigType) -> None:
         # libsodium uses NATIVE_LITTLE_ENDIAN to enable optimized 32-bit
         # load/store via memcpy instead of byte-at-a-time operations in
         # poly1305 and chacha20. All ESPHome targets are little-endian.
-        cg.add_build_flag("-DNATIVE_LITTLE_ENDIAN")
+        # ESP8266 excluded: its older GCC doesn't optimize memcpy into
+        # a single load, making the memcpy path 16 bytes larger.
+        if not CORE.is_esp8266:
+            cg.add_build_flag("-DNATIVE_LITTLE_ENDIAN")
         cg.add_library("esphome/noise-c", "0.1.10")
     else:
         cg.add_define("USE_API_PLAINTEXT")
