@@ -1945,11 +1945,7 @@ void APIConnection::on_noise_encryption_set_key_request(const NoiseEncryptionSet
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_subscribe_home_assistant_states_request() { state_subs_at_ = 0; }
 #endif
-bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
-  if (this->flags_.remove)
-    return false;
-  if (this->helper_->can_write_without_blocking())
-    return true;
+bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
   delay(0);
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {

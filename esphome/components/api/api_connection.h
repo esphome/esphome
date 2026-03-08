@@ -305,7 +305,13 @@ class APIConnection final : public APIServerConnectionBase {
     this->prepare_first_message_buffer(shared_buf, header_padding, payload_size + header_padding + footer_size);
   }
 
-  bool try_to_clear_buffer(bool log_out_of_space);
+  bool try_to_clear_buffer(bool log_out_of_space) {
+    if (this->flags_.remove)
+      return false;
+    if (this->helper_->can_write_without_blocking())
+      return true;
+    return this->try_to_clear_buffer_slow_(log_out_of_space);
+  }
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
   const char *get_name() const { return this->helper_->get_client_name(); }
@@ -315,6 +321,8 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
  protected:
+  bool try_to_clear_buffer_slow_(bool log_out_of_space);
+
   // Helper function to handle authentication completion
   void complete_authentication_();
 
