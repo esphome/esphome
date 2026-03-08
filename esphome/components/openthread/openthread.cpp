@@ -1,7 +1,6 @@
 #include "esphome/core/defines.h"
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
-#include "esp_openthread.h"
 
 #include <freertos/portmacro.h>
 
@@ -51,7 +50,7 @@ void OpenThreadComponent::on_state_changed_(otChangedFlags flags, void *context)
     auto *self = static_cast<OpenThreadComponent *>(context);
     // This runs on the OpenThread task thread with the OT lock held,
     // so we can safely call otThreadGetDeviceRole directly.
-    otInstance *instance = esp_openthread_get_instance();
+    otInstance *instance = self->get_openthread_instance_();
     otDeviceRole role = otThreadGetDeviceRole(instance);
     self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
   }
@@ -132,7 +131,7 @@ void OpenThreadSrpComponent::setup() {
   // set the host name
   uint16_t size;
   char *existing_host_name = otSrpClientBuffersGetHostNameString(instance, &size);
-  const std::string &host_name = App.get_name();
+  const auto &host_name = App.get_name();
   uint16_t host_name_len = host_name.size();
   if (host_name_len > size) {
     ESP_LOGW(TAG, "Hostname is too long, choose a shorter project name");
@@ -233,16 +232,12 @@ bool OpenThreadComponent::teardown() {
     otSrpClientClearHostAndServices(instance);
     otSrpClientBuffersFreeAllServices(instance);
     global_openthread_component = nullptr;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
     ESP_LOGD(TAG, "Exit main loop ");
-    int error = esp_openthread_mainloop_exit();
+    int error = this->openthread_stop_();
     if (error != ESP_OK) {
       ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
       this->teardown_complete_ = true;
     }
-#else
-    this->teardown_complete_ = true;
-#endif
   }
   return this->teardown_complete_;
 }

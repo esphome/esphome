@@ -190,6 +190,8 @@ void OpenThreadComponent::ot_main() {
   vTaskDelete(NULL);
 }
 
+int OpenThreadComponent::openthread_stop_() { return esp_openthread_mainloop_exit(); }
+
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
@@ -203,6 +205,9 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   }
   return addresses;
 }
+
+// not thread safe, only use in read-only use cases
+otInstance *OpenThreadComponent::get_openthread_instance_() { return esp_openthread_get_instance(); }
 
 std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
   if (esp_openthread_lock_acquire(delay)) {

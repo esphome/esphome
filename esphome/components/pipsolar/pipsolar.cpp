@@ -647,6 +647,7 @@ void Pipsolar::handle_qpiws_(const char *message) {
       case 34:
         this->publish_binary_sensor_(enabled, this->warning_high_ac_input_during_bus_soft_start_);
         value_warnings_present |= enabled.value_or(false);
+        break;
       case 35:
         this->publish_binary_sensor_(enabled, this->warning_battery_equalization_);
         value_warnings_present |= enabled.value_or(false);
