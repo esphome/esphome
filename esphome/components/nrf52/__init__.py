@@ -392,9 +392,6 @@ def _upload_using_platformio(
 def upload_program(config: ConfigType, args, host: str) -> bool:
     from esphome.__main__ import check_permissions, get_port_type
 
-    from .ble_logger import is_mac_address
-    from .ota import smpmgr_scan, smpmgr_upload
-
     mcumgr_device: str | None = None
 
     if get_port_type(host) == "SERIAL":
@@ -412,6 +409,10 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         if result != 0:
             raise EsphomeError(f"Upload failed with result: {result}")
         return True  # Handled: platformio PYOCD upload
+
+    # Deferred imports: bleak/smpclient are heavy, only load for BLE/mcumgr paths
+    from .ble_logger import is_mac_address
+    from .ota import smpmgr_scan, smpmgr_upload
 
     if host == "BLE":
         mcumgr_device = asyncio.run(smpmgr_scan(CORE.name))
