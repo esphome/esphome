@@ -4,68 +4,6 @@ namespace esphome::spa06_base {
 
 static const char *const TAG = "spa06";
 
-static const LogString *oversampling_to_str(const Oversampling oversampling) {
-  switch (oversampling) {
-    case Oversampling::OVERSAMPLING_NONE:
-      return LOG_STR("X1");
-    case Oversampling::OVERSAMPLING_X2:
-      return LOG_STR("X2");
-    case Oversampling::OVERSAMPLING_X4:
-      return LOG_STR("X4");
-    case Oversampling::OVERSAMPLING_X8:
-      return LOG_STR("X8");
-    case Oversampling::OVERSAMPLING_X16:
-      return LOG_STR("X16");
-    case Oversampling::OVERSAMPLING_X32:
-      return LOG_STR("X32");
-    case Oversampling::OVERSAMPLING_X64:
-      return LOG_STR("X64");
-    case Oversampling::OVERSAMPLING_X128:
-      return LOG_STR("X128");
-    default:
-      return LOG_STR("");
-  }
-};
-
-static const LogString *meas_rate_to_str(SampleRate rate) {
-  switch (rate) {
-    case SampleRate::SAMPLE_RATE_1:
-      return LOG_STR("1Hz");
-    case SampleRate::SAMPLE_RATE_2:
-      return LOG_STR("2Hz");
-    case SampleRate::SAMPLE_RATE_4:
-      return LOG_STR("4Hz");
-    case SampleRate::SAMPLE_RATE_8:
-      return LOG_STR("8Hz");
-    case SampleRate::SAMPLE_RATE_16:
-      return LOG_STR("16Hz");
-    case SampleRate::SAMPLE_RATE_32:
-      return LOG_STR("32Hz");
-    case SampleRate::SAMPLE_RATE_64:
-      return LOG_STR("64Hz");
-    case SampleRate::SAMPLE_RATE_128:
-      return LOG_STR("128Hz");
-    case SampleRate::SAMPLE_RATE_25P16:
-      return LOG_STR("1.5625Hz");
-    case SampleRate::SAMPLE_RATE_25P8:
-      return LOG_STR("3.125Hz");
-    case SampleRate::SAMPLE_RATE_25P4:
-      return LOG_STR("6.25Hz");
-    case SampleRate::SAMPLE_RATE_25P2:
-      return LOG_STR("12.5Hz");
-    case SampleRate::SAMPLE_RATE_25:
-      return LOG_STR("25Hz");
-    case SampleRate::SAMPLE_RATE_50:
-      return LOG_STR("50Hz");
-    case SampleRate::SAMPLE_RATE_100:
-      return LOG_STR("100Hz");
-    case SampleRate::SAMPLE_RATE_200:
-      return LOG_STR("200Hz");
-    default:
-      return LOG_STR("");
-  }
-}
-
 // Sign extension function for <=16 bit types
 inline int16_t decode16(uint8_t msb, uint8_t lsb, size_t bits, size_t head = 0) {
   return static_cast<int16_t>(encode_uint16(msb, lsb) << head) >> (16 - bits);
@@ -123,7 +61,7 @@ void SPA06Component::setup() {
   // least 1 more millisecond before coefficients are
   // ready (datasheet pg. 7). This code spreads those two
   // milliseconds out before and after reading the chip ID.
-  delay(1);
+  // delay(1);
 
   // 2. Read chip ID
   // TODO: check ID for consistency?
@@ -139,7 +77,7 @@ void SPA06Component::setup() {
            "  Rev ID: %u",
            this->prod_id_.bit.prod_id, this->prod_id_.bit.rev_id);
   // One more delay before coefficients should be ready
-  delay(2);
+  // delay(2);
 
   // 3. Read chip readiness from CFG_REG
   //    Only fail here if the sensor coefficients are not ready
@@ -170,6 +108,7 @@ void SPA06Component::setup() {
   if (!this->temperature_sensor_) {
     this->temperature_rate_ = SAMPLE_RATE_1;
     this->temperature_oversampling_ = OVERSAMPLING_NONE;
+    this->kt_ = oversampling_to_scale_factor(OVERSAMPLING_NONE);
   }
 
   // If pressure is not configured in config
@@ -178,6 +117,7 @@ void SPA06Component::setup() {
   if (!this->pressure_sensor_) {
     this->pressure_rate_ = SAMPLE_RATE_1;
     this->pressure_oversampling_ = OVERSAMPLING_NONE;
+    this->kp_ = oversampling_to_scale_factor(OVERSAMPLING_NONE);
   }
 
   // Write temperature settings
@@ -222,7 +162,7 @@ bool SPA06Component::write_pressure_settings_(Oversampling oversampling, SampleR
 }
 
 bool SPA06Component::write_sensor_settings_(Oversampling oversampling, SampleRate rate, uint8_t reg) {
-  if (reg != SPA06_PSR_CFG and reg != SPA06_TMP_CFG) {
+  if (reg != SPA06_PSR_CFG && reg != SPA06_TMP_CFG) {
     return false;
   }
   this->pt_meas_cfg_.bit.rate = rate;
@@ -289,7 +229,7 @@ bool SPA06Component::soft_reset_() {
     return false;
   }
 
-  // 3. Wait for chip to become ready. Datasheet specifies 2 seconds; wait 3
+  // 3. Wait for chip to become ready. Datasheet specifies 2 ms; wait 3
   delay(3);
   // 4. Perform another protocol reset (required for SPI code, noop for I2C)
   this->protocol_reset();
@@ -354,7 +294,7 @@ bool SPA06Component::read_temperature_and_pressure_(float &temperature, float &p
     return false;
   }
   // Exit if temp and pressure readiness aren't ready
-  if (!this->meas_.bit.prs_ready or !this->meas_.bit.tmp_ready) {
+  if (!this->meas_.bit.prs_ready || !this->meas_.bit.tmp_ready) {
     return false;
   }
   // Temperature read and decode

@@ -6,6 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::spa06_base {
 
@@ -82,27 +83,23 @@ enum MeasCrtl {
 };
 
 // Oversampling scale factors. See datasheet page 15.
+constexpr uint32_t OVERSAMPLING_K_LUT[8] PROGMEM = {524288, 1572864, 3670017, 7864320,
+                                                    253952, 516096,  1040384, 2088960};
+PROGMEM_STRING_TABLE(MeasRateStrings, "1Hz", "2Hz",
+                     "4Hz"
+                     "8Hz",
+                     "16Hz", "32Hz", "64Hz", "128Hz", "1.5625Hz", "3.125Hz", "6.25Hz", "12.5Hz", "25Hz", "50Hz",
+                     "100Hz", "200Hz");
+PROGMEM_STRING_TABLE(OversamplingStrings, "X1", "X2", "X4", "X8", "X16", "X32", "X64", "X128");
+
+static const LogString *oversampling_to_str(const Oversampling oversampling) {
+  return OversamplingStrings::get_log_str(static_cast<uint8_t>(oversampling), OversamplingStrings::LAST_INDEX);
+}
+static const LogString *meas_rate_to_str(SampleRate rate) {
+  return MeasRateStrings::get_log_str(static_cast<uint8_t>(rate), MeasRateStrings::LAST_INDEX);
+}
 inline uint32_t oversampling_to_scale_factor(const Oversampling oversampling) {
-  switch (oversampling) {
-    case Oversampling::OVERSAMPLING_NONE:
-      return 524288;
-    case Oversampling::OVERSAMPLING_X2:
-      return 1572864;
-    case Oversampling::OVERSAMPLING_X4:
-      return 3670016;
-    case Oversampling::OVERSAMPLING_X8:
-      return 7864320;
-    case Oversampling::OVERSAMPLING_X16:
-      return 253952;
-    case Oversampling::OVERSAMPLING_X32:
-      return 516096;
-    case Oversampling::OVERSAMPLING_X64:
-      return 1040384;
-    case Oversampling::OVERSAMPLING_X128:
-      return 2088960;
-    default:
-      return 524288;
-  }
+  return OVERSAMPLING_K_LUT[static_cast<uint8_t>(oversampling)];
 };
 
 class SPA06Component : public PollingComponent {
