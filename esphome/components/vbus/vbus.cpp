@@ -87,6 +87,9 @@ void VBus::loop() {
           this->state_ = 0;
           ESP_LOGD(TAG, "P1 empty message");
         }
+      } else if (this->buffer_.size() > 15) {
+        ESP_LOGW(TAG, "Unknown protocol 0x%02x, discarding", this->protocol_);
+        this->state_ = 0;
       }
       continue;
     }

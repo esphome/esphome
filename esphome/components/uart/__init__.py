@@ -183,6 +183,7 @@ UART_PARITY_OPTIONS = {
     "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
 }
 
+CONF_FLUSH_TIMEOUT = "flush_timeout"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
 CONF_RX_TIMEOUT = "rx_timeout"
 
@@ -266,6 +267,9 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_RX_TIMEOUT, esp32=2): cv.All(
                 cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=0, max=92)
             ),
+            cv.Optional(CONF_FLUSH_TIMEOUT): cv.All(
+                cv.only_on_esp32, cv.positive_time_period_milliseconds
+            ),
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
             cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
@@ -345,6 +349,8 @@ async def to_code(config):
             )
         cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
         cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
+        if CONF_FLUSH_TIMEOUT in config:
+            cg.add(var.set_flush_timeout(config[CONF_FLUSH_TIMEOUT]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))

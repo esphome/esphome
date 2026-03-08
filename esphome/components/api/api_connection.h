@@ -189,6 +189,15 @@ class APIConnection final : public APIServerConnectionBase {
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
 #endif
 
+#ifdef USE_SERIAL_PROXY
+  void on_serial_proxy_configure_request(const SerialProxyConfigureRequest &msg) override;
+  void on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) override;
+  void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) override;
+  void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) override;
+  void on_serial_proxy_request(const SerialProxyRequest &msg) override;
+  void send_serial_proxy_data(const SerialProxyDataReceived &msg);
+#endif
+
 #ifdef USE_EVENT
   void send_event(event::Event *event);
 #endif
@@ -254,6 +263,7 @@ class APIConnection final : public APIServerConnectionBase {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
            this->is_authenticated();
   }
+  bool is_marked_for_removal() const { return this->flags_.remove; }
   uint8_t get_log_subscription_level() const { return this->flags_.log_subscription; }
 
   // Get client API version for feature detection
