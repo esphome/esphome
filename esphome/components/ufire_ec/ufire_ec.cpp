@@ -61,7 +61,12 @@ float UFireECComponent::measure_temperature_() { return this->read_data_(REGISTE
 float UFireECComponent::measure_ms_() { return this->read_data_(REGISTER_MS); }
 
 void UFireECComponent::set_solution_(float solution, float temperature) {
-  solution /= (1 - (this->temperature_coefficient_ * (temperature - 25)));
+  float denom = 1 - (this->temperature_coefficient_ * (temperature - 25));
+  if (denom == 0) {
+    ESP_LOGE(TAG, "Temperature compensation denominator is zero");
+    return;
+  }
+  solution /= denom;
   this->write_data_(REGISTER_SOLUTION, solution);
 }
 
