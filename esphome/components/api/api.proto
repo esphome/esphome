@@ -2618,6 +2618,14 @@ enum SerialProxyRequestType {
   SERIAL_PROXY_REQUEST_TYPE_FLUSH = 2;       // Flush the serial port (block until all TX data is sent)
 }
 
+enum SerialProxyStatus {
+  SERIAL_PROXY_STATUS_OK = 0;              // Completed successfully; TX drain confirmed
+  SERIAL_PROXY_STATUS_ASSUMED_SUCCESS = 1; // Platform cannot confirm TX drain; success assumed
+  SERIAL_PROXY_STATUS_ERROR = 2;           // Driver or hardware error
+  SERIAL_PROXY_STATUS_TIMEOUT = 3;         // Timed out before TX completed
+  SERIAL_PROXY_STATUS_NOT_SUPPORTED = 4;   // Request type not supported by this instance
+}
+
 // Generic request message for simple serial proxy operations
 message SerialProxyRequest {
   option (id) = 144;
@@ -2626,6 +2634,18 @@ message SerialProxyRequest {
 
   uint32 instance = 1;                  // Instance index (0-based)
   SerialProxyRequestType type = 2;      // Request type
+}
+
+// Response to a SerialProxyRequest (e.g. flush completion or failure)
+message SerialProxyRequestResponse {
+  option (id) = 147;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;                  // Instance index (0-based)
+  SerialProxyRequestType type = 2;      // Which request type this responds to
+  SerialProxyStatus status = 3;         // Result status
+  string error_message = 4;            // Additional detail on failure (optional)
 }
 
 // ==================== BLUETOOTH CONNECTION PARAMS ====================
