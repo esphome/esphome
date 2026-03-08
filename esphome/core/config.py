@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import logging
 import os
 from pathlib import Path
@@ -49,6 +50,7 @@ from esphome.core import (
 )
 from esphome.helpers import (
     copy_file_if_changed,
+    cpp_string_escape,
     fnv1a_32bit_hash,
     get_str_env,
     walk_files,
@@ -56,6 +58,38 @@ from esphome.helpers import (
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
+
+# C++ variable names and separators for app name buffers (used with MAC suffix)
+_APP_NAME_BUF_VAR = "esphome_app_name_buf"
+_APP_NAME_MAC_SEP = "-"
+_APP_FRIENDLY_NAME_BUF_VAR = "esphome_app_friendly_name_buf"
+_APP_FRIENDLY_NAME_MAC_SEP = " "
+# Placeholder suffix for MAC address (last 6 hex chars)
+_MAC_SUFFIX_PLACEHOLDER = "XXXXXX"
+
+
+def make_app_name_cpp(
+    value: str, var_name: str, sep: str, *, add_mac_suffix: bool
+) -> tuple[str, str | None, int]:
+    """Compute C++ expression and optional global declaration for an app name.
+
+    Returns (cpp_expr, global_decl_or_none, byte_length).
+    - cpp_expr: The C++ expression to pass to pre_setup (var name or string literal).
+    - global_decl: A static char[] declaration string, or None if not needed.
+    - byte_length: The UTF-8 byte length of the string value.
+    """
+    if add_mac_suffix:
+        buf_value = "" if not value else f"{value}{sep}{_MAC_SUFFIX_PLACEHOLDER}"
+        escaped = cpp_string_escape(buf_value)
+        return (
+            var_name,
+            f"static char {var_name}[] = {escaped};",
+            len(buf_value.encode("utf-8")),
+        )
+    if not value:
+        return '""', None, 0
+    return cpp_string_escape(value), None, len(value.encode("utf-8"))
+
 
 StartupTrigger = cg.esphome_ns.class_(
     "StartupTrigger", cg.Component, automation.Trigger.template()
@@ -77,6 +111,8 @@ VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
 
 def validate_hostname(config):
     # Keep in sync with ESPHOME_DEVICE_NAME_MAX_LEN in esphome/core/entity_base.h
+    if not config[CONF_NAME]:
+        raise cv.Invalid("Hostname must not be empty", path=[CONF_NAME])
     max_length = 31
     if config[CONF_NAME_ADD_MAC_SUFFIX]:
         max_length -= 7  # "-AABBCC" is appended when add mac suffix option is used
@@ -186,6 +222,16 @@ else:
 
 # Keep in sync with ESPHOME_FRIENDLY_NAME_MAX_LEN in esphome/core/entity_base.h
 FRIENDLY_NAME_MAX_LEN = 120
+
+# Max device class string length (47 chars + null = 48-byte PROGMEM buffer)
+# Keep in sync with MAX_DEVICE_CLASS_LENGTH in esphome/core/entity_base.h:
+# DEVICE_CLASS_MAX_LENGTH == MAX_DEVICE_CLASS_LENGTH - 1 (C++ includes the null)
+DEVICE_CLASS_MAX_LENGTH = 47
+
+
+# Max icon string length (63 chars + null = 64-byte PROGMEM buffer)
+# Keep in sync with MAX_ICON_LENGTH in esphome/core/entity_base.h
+ICON_MAX_LENGTH = 63
 
 AREA_SCHEMA = cv.Schema(
     {
@@ -504,6 +550,41 @@ async def _add_controller_registry_define() -> None:
         cg.add_define("CONTROLLER_REGISTRY_MAX", controller_count)
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_looping_components() -> None:
+    # Emit a constexpr that computes the looping component count at C++ compile time
+    # and pre-init the FixedVector with the exact capacity. Uses std::is_same_v to
+    # detect loop() overrides. The constexpr goes in main.cpp's global section where
+    # all component types are in scope. calculate_looping_components_() then skips
+    # the counting pass and only does the two population passes.
+    entries = CORE.data.get("looping_component_entries", [])
+    if not entries:
+        return
+
+    # Build constexpr sum for the exact count, deduplicating by type
+    # Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance
+    type_counts = Counter(entries)
+    terms = [
+        f"({count} * HasLoopOverride<{cpp_type}>::value)"
+        for cpp_type, count in type_counts.items()
+    ]
+    constexpr_expr = " + \\\n  ".join(terms)
+    cg.add_global(
+        cg.RawStatement(
+            f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
+            f"  {constexpr_expr};"
+        )
+    )
+
+    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
+    # can skip the counting pass
+    cg.add(
+        cg.RawExpression(
+            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+        )
+    )
+
+
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.global_ns.namespace("esphome").using)
@@ -512,18 +593,37 @@ async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.RawExpression("using std::min"))
     cg.add_global(cg.RawExpression("using std::max"))
 
-    cg.add(
-        cg.App.pre_setup(
-            config[CONF_NAME],
-            config[CONF_FRIENDLY_NAME],
-            config[CONF_NAME_ADD_MAC_SUFFIX],
+    # Construct App via placement new — see application.cpp for storage details
+    cg.add_global(cg.RawStatement("#include <new>"))
+    cg.add(cg.RawExpression("new (&App) Application()"))
+    name = config[CONF_NAME]
+    friendly_name = config[CONF_FRIENDLY_NAME]
+    name_add_mac_suffix = config[CONF_NAME_ADD_MAC_SUFFIX]
+
+    def _emit_app_name(
+        value: str, var_name: str, sep: str
+    ) -> tuple[cg.Expression, int]:
+        """Emit codegen for an app name and return (expression, byte_length)."""
+        cpp_expr, global_decl, byte_len = make_app_name_cpp(
+            value, var_name, sep, add_mac_suffix=name_add_mac_suffix
         )
+        if global_decl is not None:
+            cg.add_global(cg.RawStatement(global_decl))
+        return cg.RawExpression(cpp_expr), byte_len
+
+    name_expr, name_len = _emit_app_name(name, _APP_NAME_BUF_VAR, _APP_NAME_MAC_SEP)
+    friendly_expr, friendly_len = _emit_app_name(
+        friendly_name, _APP_FRIENDLY_NAME_BUF_VAR, _APP_FRIENDLY_NAME_MAC_SEP
     )
+    if name_add_mac_suffix:
+        cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")
+    cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
     # Define component count for static allocation
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
 
     CORE.add_job(_add_platform_defines)
     CORE.add_job(_add_controller_registry_define)
+    CORE.add_job(_add_looping_components)
 
     CORE.add_job(_add_automations, config)
 
@@ -646,6 +746,16 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "ring_buffer.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
+        },
+        "static_task.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+        "time_64.cpp": {
+            PlatformFramework.ESP8266_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
         },
         # Note: lock_free_queue.h and event_pool.h are header files and don't need to be filtered
         # as they are only included when needed by the preprocessor

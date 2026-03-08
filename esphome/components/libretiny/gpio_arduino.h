@@ -3,8 +3,7 @@
 #ifdef USE_LIBRETINY
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace libretiny {
+namespace esphome::libretiny {
 
 class ArduinoInternalGPIOPin : public InternalGPIOPin {
  public:
@@ -31,7 +30,6 @@ class ArduinoInternalGPIOPin : public InternalGPIOPin {
   gpio::Flags flags_{};
 };
 
-}  // namespace libretiny
-}  // namespace esphome
+}  // namespace esphome::libretiny
 
 #endif  // USE_LIBRETINY
