@@ -1,0 +1,125 @@
+esphome:
+  name: object-id-test
+  friendly_name: Test Device
+  # Enable MAC suffix - host MAC is 98:35:69:ab:f6:79, suffix is "abf679"
+  # friendly_name becomes "Test Device abf679"
+  name_add_mac_suffix: true
+  # Sub-devices for testing empty-name entities on devices
+  devices:
+    - id: sub_device_1
+      name: Sub Device One
+    - id: sub_device_2
+      name: Sub Device Two
+
+host:
+
+api:
+
+logger:
+
+sensor:
+  # Test 1: Basic name -> object_id = "temperature_sensor"
+  - platform: template
+    name: "Temperature Sensor"
+    id: sensor_basic
+    lambda: return 42.0;
+    update_interval: 60s
+
+  # Test 2: Uppercase name -> object_id = "uppercase_name"
+  - platform: template
+    name: "UPPERCASE NAME"
+    id: sensor_uppercase
+    lambda: return 43.0;
+    update_interval: 60s
+
+  # Test 3: Special characters -> object_id = "special__chars_"
+  - platform: template
+    name: "Special!@Chars#"
+    id: sensor_special
+    lambda: return 44.0;
+    update_interval: 60s
+
+  # Test 4: Hyphen preserved -> object_id = "temp-sensor"
+  - platform: template
+    name: "Temp-Sensor"
+    id: sensor_hyphen
+    lambda: return 45.0;
+    update_interval: 60s
+
+  # Test 5: Underscore preserved -> object_id = "temp_sensor"
+  - platform: template
+    name: "Temp_Sensor"
+    id: sensor_underscore
+    lambda: return 46.0;
+    update_interval: 60s
+
+  # Test 6: Mixed case with spaces -> object_id = "living_room_temperature"
+  - platform: template
+    name: "Living Room Temperature"
+    id: sensor_mixed
+    lambda: return 47.0;
+    update_interval: 60s
+
+  # Test 7: Empty name - uses friendly_name with MAC suffix
+  # friendly_name = "Test Device abf679" -> object_id = "test_device_abf679"
+  - platform: template
+    name: ""
+    id: sensor_empty_name
+    lambda: return 48.0;
+    update_interval: 60s
+
+binary_sensor:
+  # Test 8: Different platform same conversion rules
+  - platform: template
+    name: "Door Open"
+    id: binary_door
+    lambda: return true;
+
+  # Test 9: Numbers in name -> object_id = "sensor_123"
+  - platform: template
+    name: "Sensor 123"
+    id: binary_numbers
+    lambda: return false;
+
+switch:
+  # Test 10: Long name with multiple spaces
+  - platform: template
+    name: "My Very Long Switch Name Here"
+    id: switch_long
+    lambda: return false;
+    turn_on_action:
+      - logger.log: "on"
+    turn_off_action:
+      - logger.log: "off"
+
+text_sensor:
+  # Test 11: Name starting with number (should work fine)
+  - platform: template
+    name: "123 Start"
+    id: text_num_start
+    lambda: return {"test"};
+    update_interval: 60s
+
+button:
+  # Test 12: Named entity on sub-device -> object_id from entity name
+  - platform: template
+    name: "Device Button"
+    id: button_on_device
+    device_id: sub_device_1
+    on_press: []
+
+  # Test 13: Empty name on sub-device -> object_id from device name
+  # Device name "Sub Device One" -> object_id = "sub_device_one"
+  - platform: template
+    name: ""
+    id: button_empty_on_device1
+    device_id: sub_device_1
+    on_press: []
+
+  # Test 14: Empty name on different sub-device
+  # Device name "Sub Device Two" -> object_id = "sub_device_two"
+  - platform: template
+    name: ""
+    id: button_empty_on_device2
+    device_id: sub_device_2
+    on_press: []

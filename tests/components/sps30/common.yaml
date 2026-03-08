@@ -30,3 +30,4 @@ sensor:
       id: workshop_PMC_10_0
     address: 0x69
     update_interval: 10s
+    idle_interval: 5min

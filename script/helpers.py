@@ -156,22 +156,25 @@ def print_error_for_file(file: str | Path, body: str | None) -> None:
         print()
 
 
-def build_all_include() -> None:
-    # Build a cpp file that includes all header files in this repo.
-    # Otherwise header-only integrations would not be tested by clang-tidy
+def build_all_include(header_files: list[str] | None = None) -> None:
+    # Build a cpp file that includes header files for clang-tidy to check.
+    # If header_files is provided, only include those headers.
+    # Otherwise, include all header files in the esphome directory.
 
-    # Use git ls-files to find all .h files in the esphome directory
-    # This is much faster than walking the filesystem
-    cmd = ["git", "ls-files", "esphome/**/*.h"]
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    if header_files is None:
+        # Use git ls-files to find all .h files in the esphome directory
+        # This is much faster than walking the filesystem
+        cmd = ["git", "ls-files", "esphome/**/*.h"]
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
-    # Process git output - git already returns paths relative to repo root
-    headers = [
-        f'#include "{include_p}"'
-        for line in proc.stdout.strip().split("\n")
-        if (include_p := line.replace(os.path.sep, "/"))
-    ]
+        # Process git output - git already returns paths relative to repo root
+        header_files = [
+            line.replace(os.path.sep, "/")
+            for line in proc.stdout.strip().split("\n")
+            if line
+        ]
 
+    headers = [f'#include "{h}"' for h in header_files]
     headers.sort()
     headers.append("")
     content = "\n".join(headers)

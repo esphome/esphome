@@ -44,14 +44,14 @@ void DallasTemperatureSensor::update() {
 
   this->send_command_(DALLAS_COMMAND_START_CONVERSION);
 
-  this->set_timeout(this->get_address_name(), this->millis_to_wait_for_conversion_(), [this] {
+  this->set_timeout(this->get_address_name().c_str(), this->millis_to_wait_for_conversion_(), [this] {
     if (!this->read_scratch_pad_() || !this->check_scratch_pad_()) {
       this->publish_state(NAN);
       return;
     }
 
     float tempc = this->get_temp_c_();
-    ESP_LOGD(TAG, "'%s': Got Temperature=%.1f°C", this->get_name().c_str(), tempc);
+    ESP_LOGD(TAG, "'%s': Got Temperature=%f°C", this->get_name().c_str(), tempc);
     this->publish_state(tempc);
   });
 }

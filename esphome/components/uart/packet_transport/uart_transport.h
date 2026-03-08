@@ -23,7 +23,6 @@ static const uint8_t CONTROL_BYTE = 0x7D;
 class UARTTransport : public packet_transport::PacketTransport, public UARTDevice {
  public:
   void loop() override;
-  void update() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
  protected:

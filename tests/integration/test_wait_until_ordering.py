@@ -71,7 +71,7 @@ async def test_wait_until_fifo_ordering(
         assert test_service is not None, "test_wait_until_fifo service not found"
 
         # Execute the test
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
 
         # Wait for test to complete
         try:

@@ -68,7 +68,7 @@ static const uint8_t ST7735_GMCTRP1 = 0xE0;
 static const uint8_t ST7735_GMCTRN1 = 0xE1;
 
 // clang-format off
-static const uint8_t PROGMEM
+static constexpr uint8_t PROGMEM
   BCMD[] = {                        // Init commands for 7735B screens
     18,                             // 18 commands in list:
     ST77XX_SWRESET,   ST_CMD_DELAY, //  1: Software reset, no args, w/delay
@@ -373,15 +373,18 @@ void ST7735::display_init_(const uint8_t *addr) {
 
 void ST7735::dump_config() {
   LOG_DISPLAY("", "ST7735", this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGD(TAG, "  Buffer Size: %zu", this->get_buffer_length());
-  ESP_LOGD(TAG, "  Height: %d", this->height_);
-  ESP_LOGD(TAG, "  Width: %d", this->width_);
-  ESP_LOGD(TAG, "  ColStart: %d", this->colstart_);
-  ESP_LOGD(TAG, "  RowStart: %d", this->rowstart_);
+  ESP_LOGCONFIG(TAG,
+                "  Model: %s\n"
+                "  Buffer Size: %zu\n"
+                "  Height: %d\n"
+                "  Width: %d\n"
+                "  ColStart: %d\n"
+                "  RowStart: %d",
+                this->model_str_(), this->get_buffer_length(), this->height_, this->width_, this->colstart_,
+                this->rowstart_);
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -463,7 +466,7 @@ void HOT ST7735::write_display_data_() {
 }
 
 void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {
-  static uint8_t byte[4];
+  uint8_t byte[4];
   byte[0] = (addr1 >> 8) & 0xFF;
   byte[1] = addr1 & 0xFF;
   byte[2] = (addr2 >> 8) & 0xFF;
@@ -471,18 +474,6 @@ void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {
 
   this->dc_pin_->digital_write(true);
   this->write_array(byte, 4);
-}
-
-void ST7735::spi_master_write_color_(uint16_t color, uint16_t size) {
-  static uint8_t byte[1024];
-  int index = 0;
-  for (int i = 0; i < size; i++) {
-    byte[index++] = (color >> 8) & 0xFF;
-    byte[index++] = color & 0xFF;
-  }
-
-  this->dc_pin_->digital_write(true);
-  write_array(byte, size * 2);
 }
 
 }  // namespace st7735

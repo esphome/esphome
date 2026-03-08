@@ -1,13 +1,22 @@
 #pragma once
+#include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <string>
+
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 
-#define LOG_PIN(prefix, pin) \
-  if ((pin) != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix "%s", (pin)->dump_summary().c_str()); \
-  }
+/// Maximum buffer size for dump_summary output
+inline constexpr size_t GPIO_SUMMARY_MAX_LEN = 48;
+
+#ifdef USE_ESP8266
+#define LOG_PIN(prefix, pin) log_pin(TAG, F(prefix), pin)
+#else
+#define LOG_PIN(prefix, pin) log_pin(TAG, prefix, pin)
+#endif
 
 // put GPIO flags in a namespace to not pollute esphome namespace
 namespace gpio {
@@ -64,7 +73,17 @@ class GPIOPin {
 
   virtual void digital_write(bool value) = 0;
 
-  virtual std::string dump_summary() const = 0;
+  /// Write a summary of this pin to the provided buffer.
+  /// @param buffer The buffer to write to
+  /// @param len The size of the buffer (must be > 0)
+  /// @return The number of characters that would be written (excluding null terminator),
+  ///         which may exceed len-1 if truncation occurred (snprintf semantics)
+  virtual size_t dump_summary(char *buffer, size_t len) const;
+
+  /// Get a summary of this pin as a string.
+  /// @deprecated Use dump_summary(char*, size_t) instead. Will be removed in 2026.7.0.
+  ESPDEPRECATED("Override dump_summary(char*, size_t) instead. Will be removed in 2026.7.0.", "2026.1.0")
+  virtual std::string dump_summary() const;
 
   virtual bool is_internal() { return false; }
 };
@@ -102,5 +121,42 @@ class InternalGPIOPin : public GPIOPin {
  protected:
   virtual void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const = 0;
 };
+
+// Inline default implementations for GPIOPin virtual methods.
+// These provide bridge functionality for backwards compatibility with external components.
+
+// Default implementation bridges to old std::string method for backwards compatibility.
+inline size_t GPIOPin::dump_summary(char *buffer, size_t len) const {
+  if (len == 0)
+    return 0;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  std::string s = this->dump_summary();
+#pragma GCC diagnostic pop
+  size_t copy_len = std::min(s.size(), len - 1);
+  memcpy(buffer, s.c_str(), copy_len);
+  buffer[copy_len] = '\0';
+  return s.size();  // Return would-be length (snprintf semantics)
+}
+
+// Default implementation returns empty string.
+// External components should override this if they haven't migrated to buffer-based version.
+// Remove before 2026.7.0
+inline std::string GPIOPin::dump_summary() const { return {}; }
+
+// Inline helper for log_pin - allows compiler to inline into log_pin in gpio.cpp
+inline void log_pin_with_prefix(const char *tag, const char *prefix, GPIOPin *pin) {
+  char buffer[GPIO_SUMMARY_MAX_LEN];
+  size_t len = pin->dump_summary(buffer, sizeof(buffer));
+  len = std::min(len, sizeof(buffer) - 1);
+  esp_log_printf_(ESPHOME_LOG_LEVEL_CONFIG, tag, __LINE__, "%s%.*s", prefix, (int) len, buffer);
+}
+
+// log_pin function declarations - implementation in gpio.cpp
+#ifdef USE_ESP8266
+void log_pin(const char *tag, const __FlashStringHelper *prefix, GPIOPin *pin);
+#else
+void log_pin(const char *tag, const char *prefix, GPIOPin *pin);
+#endif
 
 }  // namespace esphome

@@ -6,9 +6,7 @@ namespace esphome::select {
 
 static const char *const TAG = "select";
 
-SelectCall &SelectCall::set_option(const std::string &option) { return this->with_option(option); }
-
-SelectCall &SelectCall::set_option(const char *option) { return this->with_option(option); }
+SelectCall &SelectCall::set_option(const char *option, size_t len) { return this->with_option(option, len); }
 
 SelectCall &SelectCall::set_index(size_t index) { return this->with_index(index); }
 
@@ -32,12 +30,10 @@ SelectCall &SelectCall::with_cycle(bool cycle) {
   return *this;
 }
 
-SelectCall &SelectCall::with_option(const std::string &option) { return this->with_option(option.c_str()); }
-
-SelectCall &SelectCall::with_option(const char *option) {
+SelectCall &SelectCall::with_option(const char *option, size_t len) {
   this->operation_ = SELECT_OP_SET;
   // Find the option index - this validates the option exists
-  this->index_ = this->parent_->index_of(option);
+  this->index_ = this->parent_->index_of(option, len);
   return *this;
 }
 
@@ -73,7 +69,7 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
       ESP_LOGW(TAG, "'%s' - No option set", name);
       return {};
     }
-    return this->index_.value();
+    return this->index_;
   }
 
   // SELECT_OP_NEXT or SELECT_OP_PREVIOUS

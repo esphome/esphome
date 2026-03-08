@@ -2,6 +2,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/macros.h"
+#include <strings.h>
 
 namespace esphome::climate {
 
@@ -172,14 +173,17 @@ ClimateCall &ClimateCall::set_mode(ClimateMode mode) {
   return *this;
 }
 
-ClimateCall &ClimateCall::set_mode(const std::string &mode) {
+ClimateCall &ClimateCall::set_mode(const std::string &mode) { return this->set_mode(mode.c_str(), mode.size()); }
+
+ClimateCall &ClimateCall::set_mode(const char *mode, size_t len) {
+  StringRef mode_ref(mode, len);
   for (const auto &mode_entry : CLIMATE_MODES_BY_STR) {
-    if (str_equals_case_insensitive(mode, mode_entry.str)) {
+    if (str_equals_case_insensitive(mode_ref, mode_entry.str)) {
       this->set_mode(static_cast<ClimateMode>(mode_entry.value));
       return *this;
     }
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized mode %s", this->parent_->get_name().c_str(), mode.c_str());
+  ESP_LOGW(TAG, "'%s' - Unrecognized mode %.*s", this->parent_->get_name().c_str(), (int) len, mode);
   return *this;
 }
 
@@ -190,23 +194,29 @@ ClimateCall &ClimateCall::set_fan_mode(ClimateFanMode fan_mode) {
 }
 
 ClimateCall &ClimateCall::set_fan_mode(const char *custom_fan_mode) {
+  return this->set_fan_mode(custom_fan_mode, strlen(custom_fan_mode));
+}
+
+ClimateCall &ClimateCall::set_fan_mode(const std::string &fan_mode) {
+  return this->set_fan_mode(fan_mode.data(), fan_mode.size());
+}
+
+ClimateCall &ClimateCall::set_fan_mode(const char *custom_fan_mode, size_t len) {
   // Check if it's a standard enum mode first
   for (const auto &mode_entry : CLIMATE_FAN_MODES_BY_STR) {
-    if (str_equals_case_insensitive(custom_fan_mode, mode_entry.str)) {
+    if (strncasecmp(custom_fan_mode, mode_entry.str, len) == 0 && mode_entry.str[len] == '\0') {
       return this->set_fan_mode(static_cast<ClimateFanMode>(mode_entry.value));
     }
   }
   // Find the matching pointer from parent climate device
-  if (const char *mode_ptr = this->parent_->find_custom_fan_mode_(custom_fan_mode)) {
+  if (const char *mode_ptr = this->parent_->find_custom_fan_mode_(custom_fan_mode, len)) {
     this->custom_fan_mode_ = mode_ptr;
     this->fan_mode_.reset();
     return *this;
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized fan mode %s", this->parent_->get_name().c_str(), custom_fan_mode);
+  ESP_LOGW(TAG, "'%s' - Unrecognized fan mode %.*s", this->parent_->get_name().c_str(), (int) len, custom_fan_mode);
   return *this;
 }
-
-ClimateCall &ClimateCall::set_fan_mode(const std::string &fan_mode) { return this->set_fan_mode(fan_mode.c_str()); }
 
 ClimateCall &ClimateCall::set_fan_mode(optional<std::string> fan_mode) {
   if (fan_mode.has_value()) {
@@ -222,23 +232,29 @@ ClimateCall &ClimateCall::set_preset(ClimatePreset preset) {
 }
 
 ClimateCall &ClimateCall::set_preset(const char *custom_preset) {
+  return this->set_preset(custom_preset, strlen(custom_preset));
+}
+
+ClimateCall &ClimateCall::set_preset(const std::string &preset) {
+  return this->set_preset(preset.data(), preset.size());
+}
+
+ClimateCall &ClimateCall::set_preset(const char *custom_preset, size_t len) {
   // Check if it's a standard enum preset first
   for (const auto &preset_entry : CLIMATE_PRESETS_BY_STR) {
-    if (str_equals_case_insensitive(custom_preset, preset_entry.str)) {
+    if (strncasecmp(custom_preset, preset_entry.str, len) == 0 && preset_entry.str[len] == '\0') {
       return this->set_preset(static_cast<ClimatePreset>(preset_entry.value));
     }
   }
   // Find the matching pointer from parent climate device
-  if (const char *preset_ptr = this->parent_->find_custom_preset_(custom_preset)) {
+  if (const char *preset_ptr = this->parent_->find_custom_preset_(custom_preset, len)) {
     this->custom_preset_ = preset_ptr;
     this->preset_.reset();
     return *this;
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized preset %s", this->parent_->get_name().c_str(), custom_preset);
+  ESP_LOGW(TAG, "'%s' - Unrecognized preset %.*s", this->parent_->get_name().c_str(), (int) len, custom_preset);
   return *this;
 }
-
-ClimateCall &ClimateCall::set_preset(const std::string &preset) { return this->set_preset(preset.c_str()); }
 
 ClimateCall &ClimateCall::set_preset(optional<std::string> preset) {
   if (preset.has_value()) {
@@ -253,13 +269,18 @@ ClimateCall &ClimateCall::set_swing_mode(ClimateSwingMode swing_mode) {
 }
 
 ClimateCall &ClimateCall::set_swing_mode(const std::string &swing_mode) {
+  return this->set_swing_mode(swing_mode.c_str(), swing_mode.size());
+}
+
+ClimateCall &ClimateCall::set_swing_mode(const char *swing_mode, size_t len) {
+  StringRef mode_ref(swing_mode, len);
   for (const auto &mode_entry : CLIMATE_SWING_MODES_BY_STR) {
-    if (str_equals_case_insensitive(swing_mode, mode_entry.str)) {
+    if (str_equals_case_insensitive(mode_ref, mode_entry.str)) {
       this->set_swing_mode(static_cast<ClimateSwingMode>(mode_entry.value));
       return *this;
     }
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized swing mode %s", this->parent_->get_name().c_str(), swing_mode.c_str());
+  ESP_LOGW(TAG, "'%s' - Unrecognized swing mode %.*s", this->parent_->get_name().c_str(), (int) len, swing_mode);
   return *this;
 }
 
@@ -347,8 +368,7 @@ void Climate::add_on_control_callback(std::function<void(ClimateCall &)> &&callb
 static const uint32_t RESTORE_STATE_VERSION = 0x848EA6ADUL;
 
 optional<ClimateDeviceRestoreState> Climate::restore_state_() {
-  this->rtc_ = global_preferences->make_preference<ClimateDeviceRestoreState>(this->get_preference_hash() ^
-                                                                              RESTORE_STATE_VERSION);
+  this->rtc_ = this->make_entity_preference<ClimateDeviceRestoreState>(RESTORE_STATE_VERSION);
   ClimateDeviceRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};
@@ -356,7 +376,7 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
 }
 
 void Climate::save_state_() {
-#if (defined(USE_ESP_IDF) || (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0))) && \
+#if (defined(USE_ESP32) || (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0))) && \
     !defined(CLANG_TIDY)
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #define TEMP_IGNORE_MEMACCESS
@@ -423,7 +443,7 @@ void Climate::save_state_() {
 }
 
 void Climate::publish_state() {
-  ESP_LOGD(TAG, "'%s' - Sending state:", this->name_.c_str());
+  ESP_LOGD(TAG, "'%s' >>", this->name_.c_str());
   auto traits = this->get_traits();
 
   ESP_LOGD(TAG, "  Mode: %s", LOG_STR_ARG(climate_mode_to_string(this->mode)));
@@ -473,26 +493,28 @@ void Climate::publish_state() {
 
 ClimateTraits Climate::get_traits() {
   auto traits = this->traits();
-  if (this->visual_min_temperature_override_.has_value()) {
-    traits.set_visual_min_temperature(*this->visual_min_temperature_override_);
+#ifdef USE_CLIMATE_VISUAL_OVERRIDES
+  if (!std::isnan(this->visual_min_temperature_override_)) {
+    traits.set_visual_min_temperature(this->visual_min_temperature_override_);
   }
-  if (this->visual_max_temperature_override_.has_value()) {
-    traits.set_visual_max_temperature(*this->visual_max_temperature_override_);
+  if (!std::isnan(this->visual_max_temperature_override_)) {
+    traits.set_visual_max_temperature(this->visual_max_temperature_override_);
   }
-  if (this->visual_target_temperature_step_override_.has_value()) {
-    traits.set_visual_target_temperature_step(*this->visual_target_temperature_step_override_);
-    traits.set_visual_current_temperature_step(*this->visual_current_temperature_step_override_);
+  if (!std::isnan(this->visual_target_temperature_step_override_)) {
+    traits.set_visual_target_temperature_step(this->visual_target_temperature_step_override_);
+    traits.set_visual_current_temperature_step(this->visual_current_temperature_step_override_);
   }
-  if (this->visual_min_humidity_override_.has_value()) {
-    traits.set_visual_min_humidity(*this->visual_min_humidity_override_);
+  if (!std::isnan(this->visual_min_humidity_override_)) {
+    traits.set_visual_min_humidity(this->visual_min_humidity_override_);
   }
-  if (this->visual_max_humidity_override_.has_value()) {
-    traits.set_visual_max_humidity(*this->visual_max_humidity_override_);
+  if (!std::isnan(this->visual_max_humidity_override_)) {
+    traits.set_visual_max_humidity(this->visual_max_humidity_override_);
   }
-
+#endif
   return traits;
 }
 
+#ifdef USE_CLIMATE_VISUAL_OVERRIDES
 void Climate::set_visual_min_temperature_override(float visual_min_temperature_override) {
   this->visual_min_temperature_override_ = visual_min_temperature_override;
 }
@@ -513,6 +535,7 @@ void Climate::set_visual_min_humidity_override(float visual_min_humidity_overrid
 void Climate::set_visual_max_humidity_override(float visual_max_humidity_override) {
   this->visual_max_humidity_override_ = visual_max_humidity_override;
 }
+#endif
 
 ClimateCall Climate::make_call() { return ClimateCall(this); }
 
@@ -666,30 +689,38 @@ bool Climate::set_fan_mode_(ClimateFanMode mode) {
   return set_primary_mode(this->fan_mode, this->custom_fan_mode_, mode);
 }
 
-bool Climate::set_custom_fan_mode_(const char *mode) {
+bool Climate::set_custom_fan_mode_(const char *mode, size_t len) {
   auto traits = this->get_traits();
-  return set_custom_mode<ClimateFanMode>(this->custom_fan_mode_, this->fan_mode, traits.find_custom_fan_mode_(mode),
-                                         this->has_custom_fan_mode());
+  return set_custom_mode<ClimateFanMode>(this->custom_fan_mode_, this->fan_mode,
+                                         traits.find_custom_fan_mode_(mode, len), this->has_custom_fan_mode());
 }
 
 void Climate::clear_custom_fan_mode_() { this->custom_fan_mode_ = nullptr; }
 
 bool Climate::set_preset_(ClimatePreset preset) { return set_primary_mode(this->preset, this->custom_preset_, preset); }
 
-bool Climate::set_custom_preset_(const char *preset) {
+bool Climate::set_custom_preset_(const char *preset, size_t len) {
   auto traits = this->get_traits();
-  return set_custom_mode<ClimatePreset>(this->custom_preset_, this->preset, traits.find_custom_preset_(preset),
+  return set_custom_mode<ClimatePreset>(this->custom_preset_, this->preset, traits.find_custom_preset_(preset, len),
                                         this->has_custom_preset());
 }
 
 void Climate::clear_custom_preset_() { this->custom_preset_ = nullptr; }
 
 const char *Climate::find_custom_fan_mode_(const char *custom_fan_mode) {
-  return this->get_traits().find_custom_fan_mode_(custom_fan_mode);
+  return this->find_custom_fan_mode_(custom_fan_mode, strlen(custom_fan_mode));
+}
+
+const char *Climate::find_custom_fan_mode_(const char *custom_fan_mode, size_t len) {
+  return this->get_traits().find_custom_fan_mode_(custom_fan_mode, len);
 }
 
 const char *Climate::find_custom_preset_(const char *custom_preset) {
-  return this->get_traits().find_custom_preset_(custom_preset);
+  return this->find_custom_preset_(custom_preset, strlen(custom_preset));
+}
+
+const char *Climate::find_custom_preset_(const char *custom_preset, size_t len) {
+  return this->get_traits().find_custom_preset_(custom_preset, len);
 }
 
 void Climate::dump_traits_(const char *tag) {

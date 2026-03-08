@@ -62,7 +62,6 @@ class NAU7802Sensor : public sensor::Sensor, public PollingComponent, public i2c
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
  protected:

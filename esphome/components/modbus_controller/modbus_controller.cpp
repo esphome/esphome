@@ -18,7 +18,7 @@ void ModbusController::setup() { this->create_register_ranges_(); }
 bool ModbusController::send_next_command_() {
   uint32_t last_send = millis() - this->last_command_timestamp_;
 
-  if ((last_send > this->command_throttle_) && !waiting_for_response() && !this->command_queue_.empty()) {
+  if ((last_send > this->command_throttle_) && this->ready_for_immediate_send() && !this->command_queue_.empty()) {
     auto &command = this->command_queue_.front();
 
     // remove from queue if command was sent too often

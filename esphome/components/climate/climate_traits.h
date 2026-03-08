@@ -20,18 +20,22 @@ using ClimatePresetMask = FiniteSetMask<ClimatePreset, DefaultBitPolicy<ClimateP
 
 // Lightweight linear search for small vectors (1-20 items) of const char* pointers
 // Avoids std::find template overhead
-inline bool vector_contains(const std::vector<const char *> &vec, const char *value) {
+inline bool vector_contains(const std::vector<const char *> &vec, const char *value, size_t len) {
   for (const char *item : vec) {
-    if (strcmp(item, value) == 0)
+    if (strncmp(item, value, len) == 0 && item[len] == '\0')
       return true;
   }
   return false;
 }
 
+inline bool vector_contains(const std::vector<const char *> &vec, const char *value) {
+  return vector_contains(vec, value, strlen(value));
+}
+
 // Find and return matching pointer from vector, or nullptr if not found
-inline const char *vector_find(const std::vector<const char *> &vec, const char *value) {
+inline const char *vector_find(const std::vector<const char *> &vec, const char *value, size_t len) {
   for (const char *item : vec) {
-    if (strcmp(item, value) == 0)
+    if (strncmp(item, value, len) == 0 && item[len] == '\0')
       return item;
   }
   return nullptr;
@@ -257,13 +261,19 @@ class ClimateTraits {
   /// Find and return the matching custom fan mode pointer from supported modes, or nullptr if not found
   /// This is protected as it's an implementation detail - use Climate::find_custom_fan_mode_() instead
   const char *find_custom_fan_mode_(const char *custom_fan_mode) const {
-    return vector_find(this->supported_custom_fan_modes_, custom_fan_mode);
+    return this->find_custom_fan_mode_(custom_fan_mode, strlen(custom_fan_mode));
+  }
+  const char *find_custom_fan_mode_(const char *custom_fan_mode, size_t len) const {
+    return vector_find(this->supported_custom_fan_modes_, custom_fan_mode, len);
   }
 
   /// Find and return the matching custom preset pointer from supported presets, or nullptr if not found
   /// This is protected as it's an implementation detail - use Climate::find_custom_preset_() instead
   const char *find_custom_preset_(const char *custom_preset) const {
-    return vector_find(this->supported_custom_presets_, custom_preset);
+    return this->find_custom_preset_(custom_preset, strlen(custom_preset));
+  }
+  const char *find_custom_preset_(const char *custom_preset, size_t len) const {
+    return vector_find(this->supported_custom_presets_, custom_preset, len);
   }
 
   uint32_t feature_flags_{0};

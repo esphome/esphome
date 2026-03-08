@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import audio, audio_dac
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_ID, CONF_VOLUME
+from esphome.const import CONF_AUDIO_DAC, CONF_DATA, CONF_ID, CONF_VOLUME
 from esphome.core import CORE, ID
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 
@@ -10,8 +10,6 @@ AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
 
 IS_PLATFORM_COMPONENT = True
-
-CONF_AUDIO_DAC = "audio_dac"
 
 speaker_ns = cg.esphome_ns.namespace("speaker")
 

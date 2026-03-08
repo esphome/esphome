@@ -6,6 +6,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
@@ -100,6 +101,13 @@ ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
         5: adc_channel_t.ADC_CHANNEL_5,
         6: adc_channel_t.ADC_CHANNEL_6,
     },
+    # https://docs.espressif.com/projects/esp-idf/en/latest/esp32c61/api-reference/peripherals/gpio.html
+    VARIANT_ESP32C61: {
+        1: adc_channel_t.ADC_CHANNEL_0,
+        3: adc_channel_t.ADC_CHANNEL_1,
+        4: adc_channel_t.ADC_CHANNEL_2,
+        5: adc_channel_t.ADC_CHANNEL_3,
+    },
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32h2/include/soc/adc_channel.h
     VARIANT_ESP32H2: {
         1: adc_channel_t.ADC_CHANNEL_0,
@@ -175,6 +183,8 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
     VARIANT_ESP32C5: {},  # no ADC2
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32c6/include/soc/adc_channel.h
     VARIANT_ESP32C6: {},  # no ADC2
+    # ESP32-C61 has no ADC2
+    VARIANT_ESP32C61: {},  # no ADC2
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32h2/include/soc/adc_channel.h
     VARIANT_ESP32H2: {},  # no ADC2
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32p4/include/soc/adc_channel.h

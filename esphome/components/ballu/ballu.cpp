@@ -47,7 +47,7 @@ void BalluClimate::transmit_state() {
   remote_state[11] = 0x1e;
 
   // Fan speed
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_HIGH:
       remote_state[4] |= BALLU_FAN_HIGH;
       break;
