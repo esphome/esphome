@@ -264,7 +264,9 @@ async def to_code(config):
 
     # Wrap FILE*-based printf functions to eliminate newlib's _vfiprintf_r
     # (~1.6 KB). See printf_stubs.cpp for implementation.
-    if not config.get(CONF_ENABLE_FULL_PRINTF):
+    if config.get(CONF_ENABLE_FULL_PRINTF):
+        cg.add_define("USE_FULL_PRINTF")
+    else:
         for symbol in ("vprintf", "printf", "fprintf"):
             cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
