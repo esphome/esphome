@@ -64,10 +64,11 @@ class Type:
 
 
 uart_types = (
-    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 3),
-    Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
+    Type("CH934X", 0x1A86, 0x55D9, "CH934X", lambda: _ch934x_max_channels(8)),
     Type("CH9344", 0x1A86, 0xE018, "CH934X", lambda: _ch934x_max_channels(4)),
     Type("CH348", 0x1A86, 0x55D9, "CH934X", lambda: _ch934x_max_channels(8)),
+    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 3),
+    Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
     Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
