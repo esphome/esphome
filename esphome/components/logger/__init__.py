@@ -545,6 +545,7 @@ async def logger_log_action_to_code(config, action_id, template_arg, args):
         },
         key=CONF_LEVEL,
     ),
+    synchronous=True,
 )
 async def logger_set_level_to_code(config, action_id, template_arg, args):
     level = LOG_LEVELS[config[CONF_LEVEL]]

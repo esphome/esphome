@@ -712,6 +712,7 @@ API_RESPOND_ACTION_SCHEMA = cv.All(
     "api.respond",
     APIRespondAction,
     API_RESPOND_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def api_respond_to_code(
     config: ConfigType,

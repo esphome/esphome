@@ -120,7 +120,10 @@ DIGITAL_WRITE_ACTION_SCHEMA = cv.maybe_simple_value(
 
 
 @automation.register_action(
-    "remote_transmitter.digital_write", DigitalWriteAction, DIGITAL_WRITE_ACTION_SCHEMA
+    "remote_transmitter.digital_write",
+    DigitalWriteAction,
+    DIGITAL_WRITE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def digital_write_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
