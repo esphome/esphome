@@ -1,0 +1,82 @@
+esphome:
+  name: test-wait-until-ordering
+
+host:
+
+api:
+  actions:
+    - action: test_wait_until_fifo
+      then:
+        - logger.log: "=== TEST: wait_until should execute in FIFO order ==="
+        - globals.set:
+            id: gate_open
+            value: 'false'
+        - delay: 100ms
+        # Start multiple parallel executions of coordinator script
+        # Each will call the shared waiter script, queueing in same wait_until
+        - script.execute: coordinator_0
+        - script.execute: coordinator_1
+        - script.execute: coordinator_2
+        - script.execute: coordinator_3
+        - script.execute: coordinator_4
+        # Give scripts time to reach wait_until and queue
+        - delay: 200ms
+        - logger.log: "Opening gate - all wait_until should complete now"
+        - globals.set:
+            id: gate_open
+            value: 'true'
+        - delay: 500ms
+        - logger.log: "Test complete"
+
+globals:
+  - id: gate_open
+    type: bool
+    initial_value: 'false'
+
+script:
+  # Shared waiter with single wait_until action (all coordinators call this)
+  - id: waiter
+    mode: parallel
+    parameters:
+      iter: int
+    then:
+      - lambda: 'ESP_LOGD("main", "Queueing iteration %d", iter);'
+      - wait_until:
+          condition:
+            lambda: 'return id(gate_open);'
+          timeout: 5s
+      - lambda: 'ESP_LOGD("main", "Completed iteration %d", iter);'
+
+  # Coordinator scripts - each calls shared waiter with different iteration number
+  - id: coordinator_0
+    then:
+      - script.execute:
+          id: waiter
+          iter: 0
+
+  - id: coordinator_1
+    then:
+      - script.execute:
+          id: waiter
+          iter: 1
+
+  - id: coordinator_2
+    then:
+      - script.execute:
+          id: waiter
+          iter: 2
+
+  - id: coordinator_3
+    then:
+      - script.execute:
+          id: waiter
+          iter: 3
+
+  - id: coordinator_4
+    then:
+      - script.execute:
+          id: waiter
+          iter: 4
+
+logger:
+  level: DEBUG

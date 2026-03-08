@@ -66,8 +66,9 @@ void Tormatic::control(const cover::CoverCall &call) {
     return;
   }
 
-  if (call.get_position().has_value()) {
-    auto pos = call.get_position().value();
+  auto pos_val = call.get_position();
+  if (pos_val.has_value()) {
+    auto pos = *pos_val;
     this->control_position_(pos);
     return;
   }
@@ -182,6 +183,9 @@ void Tormatic::recompute_position_() {
     duration = this->close_duration_;
   }
 
+  if (duration == 0)
+    return;
+
   auto delta = direction * diff / duration;
 
   this->position = clamp(this->position + delta, COVER_CLOSED, COVER_OPEN);
@@ -251,7 +255,7 @@ void Tormatic::stop_at_target_() {
 // Read a GateStatus from the unit. The unit only sends messages in response to
 // status requests or commands, so a message needs to be sent first.
 optional<GateStatus> Tormatic::read_gate_status_() {
-  if (this->available() < static_cast<int>(sizeof(MessageHeader))) {
+  if (this->available() < sizeof(MessageHeader)) {
     return {};
   }
 

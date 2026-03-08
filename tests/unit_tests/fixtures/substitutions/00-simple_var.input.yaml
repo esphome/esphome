@@ -11,6 +11,13 @@ substitutions:
   position:
     x: 79
     y: 82
+  a: 10
+  b: 20
+
+# The following key is only used by the test framework
+# to simulate command line substitutions
+command_line_substitutions:
+  a: 15
 
 test_list:
   - "$var1"
@@ -35,3 +42,5 @@ test_list:
   - ${ '{{{"AA"}}}' }
   - ${ '"HELLO"' }
   - '{ ${position.x}, ${position.y} }'
+  - a: ${a} should be 15, overridden from command line
+    b: ${b} should stay as 20, not overridden

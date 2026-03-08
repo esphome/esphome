@@ -50,6 +50,14 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_332;
 #endif  // LV_COLOR_DEPTH
 
+#ifdef USE_LVGL_FONT
+inline void lv_obj_set_style_text_font(lv_obj_t *obj, const font::Font *font, lv_style_selector_t part) {
+  lv_obj_set_style_text_font(obj, font->get_lv_font(), part);
+}
+inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
+  lv_style_set_text_font(style, font->get_lv_font());
+}
+#endif
 #ifdef USE_LVGL_IMAGE
 // Shortcut / overload, so that the source of an image can easily be updated
 // from within a lambda.
@@ -134,24 +142,6 @@ template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
  protected:
   std::function<void(Ts...)> lamb_;
 };
-#ifdef USE_LVGL_FONT
-class FontEngine {
- public:
-  FontEngine(font::Font *esp_font);
-  const lv_font_t *get_lv_font();
-
-  const font::GlyphData *get_glyph_data(uint32_t unicode_letter);
-  uint16_t baseline{};
-  uint16_t height{};
-  uint8_t bpp{};
-
- protected:
-  font::Font *font_{};
-  uint32_t last_letter_{};
-  const font::GlyphData *last_data_{};
-  lv_font_t lv_font_{};
-};
-#endif  // USE_LVGL_FONT
 #ifdef USE_LVGL_ANIMIMG
 void lv_animimg_stop(lv_obj_t *obj);
 #endif  // USE_LVGL_ANIMIMG
@@ -161,7 +151,7 @@ class LvglComponent : public PollingComponent {
 
  public:
   LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
-                bool resume_on_input);
+                bool resume_on_input, bool update_when_display_idle);
   static void static_flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
@@ -181,7 +171,9 @@ class LvglComponent : public PollingComponent {
   // @param paused If true, pause the display. If false, resume the display.
   // @param show_snow If true, show the snow effect when paused.
   void set_paused(bool paused, bool show_snow);
-  bool is_paused() const { return this->paused_; }
+
+  // Returns true if the display is explicitly paused, or a blocking display update is in progress.
+  bool is_paused() const;
   // If the display is paused and we have resume_on_input_ set to true, resume the display.
   void maybe_wakeup() {
     if (this->paused_ && this->resume_on_input_) {
@@ -220,10 +212,10 @@ class LvglComponent : public PollingComponent {
   void set_draw_end_trigger(Trigger<> *trigger) { this->draw_end_callback_ = trigger; }
 
  protected:
-  // these functions are never called unless the callbacks are non-null since the
-  // LVGL callbacks that call them are not set unless the start/end callbacks are non-null
+  void draw_end_();
+  // Not checking for non-null callback since the
+  // LVGL callback that calls it is not set in that case
   void draw_start_() const { this->draw_start_callback_->trigger(); }
-  void draw_end_() const { this->draw_end_callback_->trigger(); }
 
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_t *ptr);
@@ -232,6 +224,7 @@ class LvglComponent : public PollingComponent {
   size_t buffer_frac_{1};
   bool full_refresh_{};
   bool resume_on_input_{};
+  bool update_when_display_idle_{};
 
   lv_disp_draw_buf_t draw_buf_{};
   lv_disp_drv_t disp_drv_{};

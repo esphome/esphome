@@ -29,8 +29,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace ld2412 {
+namespace esphome::ld2412 {
 
 using namespace ld24xx;
 
@@ -137,5 +136,4 @@ class LD2412Component : public Component, public uart::UARTDevice {
 #endif
 };
 
-}  // namespace ld2412
-}  // namespace esphome
+}  // namespace esphome::ld2412

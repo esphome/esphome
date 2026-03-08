@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/automation.h"
 #include "esphome/components/network/ip_address.h"
 
 #ifdef USE_ESP32
@@ -13,8 +15,23 @@
 #include "esp_mac.h"
 #include "esp_idf_version.h"
 
-namespace esphome {
-namespace ethernet {
+namespace esphome::ethernet {
+
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+/** Listener interface for Ethernet IP state changes.
+ *
+ * Components can implement this interface to receive IP address updates
+ * without the overhead of std::function callbacks or polling.
+ *
+ * @note Components must call ethernet.request_ethernet_ip_state_listener() in their
+ *       Python to_code() to register for this listener type.
+ */
+class EthernetIPStateListener {
+ public:
+  virtual void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
+                           const network::IPAddress &dns2) = 0;
+};
+#endif  // USE_ETHERNET_IP_STATE_LISTENERS
 
 enum EthernetType : uint8_t {
   ETHERNET_TYPE_UNKNOWN = 0,
@@ -58,9 +75,8 @@ class EthernetComponent : public Component {
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  bool can_proceed() override;
   void on_powerdown() override { powerdown(); }
-  bool is_connected();
+  bool is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
 #ifdef USE_ETHERNET_SPI
   void set_clk_pin(uint8_t clk_pin);
@@ -83,7 +99,9 @@ class EthernetComponent : public Component {
   void add_phy_register(PHYRegister register_value);
 #endif
   void set_type(EthernetType type);
+#ifdef USE_ETHERNET_MANUAL_IP
   void set_manual_ip(const ManualIP &manual_ip);
+#endif
   void set_fixed_mac(const std::array<uint8_t, 6> &mac) { this->fixed_mac_ = mac; }
 
   network::IPAddresses get_ip_addresses();
@@ -91,17 +109,34 @@ class EthernetComponent : public Component {
   const char *get_use_address() const;
   void set_use_address(const char *use_address);
   void get_eth_mac_address_raw(uint8_t *mac);
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use get_eth_mac_address_pretty_into_buffer() instead. Removed in 2026.9.0", "2026.3.0")
   std::string get_eth_mac_address_pretty();
+  const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
   eth_duplex_t get_duplex_mode();
   eth_speed_t get_link_speed();
+  esp_eth_handle_t get_eth_handle() const { return this->eth_handle_; }
   bool powerdown();
 
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  void add_ip_state_listener(EthernetIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
+#endif
+
+#ifdef USE_ETHERNET_CONNECT_TRIGGER
+  Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
+#endif
+#ifdef USE_ETHERNET_DISCONNECT_TRIGGER
+  Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
+#endif
  protected:
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #if LWIP_IPV6
   static void got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif /* LWIP_IPV6 */
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  void notify_ip_state_listeners_();
+#endif
 
   void start_connect_();
   void finish_connect_();
@@ -138,7 +173,9 @@ class EthernetComponent : public Component {
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
 #endif
+#ifdef USE_ETHERNET_MANUAL_IP
   optional<ManualIP> manual_ip_{};
+#endif
   uint32_t connect_begin_;
 
   // Group all uint8_t types together (enums and bools)
@@ -158,6 +195,16 @@ class EthernetComponent : public Component {
   esp_eth_phy_t *phy_{nullptr};
   optional<std::array<uint8_t, 6>> fixed_mac_;
 
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  StaticVector<EthernetIPStateListener *, ESPHOME_ETHERNET_IP_STATE_LISTENERS> ip_state_listeners_;
+#endif
+
+#ifdef USE_ETHERNET_CONNECT_TRIGGER
+  Trigger<> connect_trigger_;
+#endif
+#ifdef USE_ETHERNET_DISCONNECT_TRIGGER
+  Trigger<> disconnect_trigger_;
+#endif
  private:
   // Stores a pointer to a string literal (static storage duration).
   // ONLY set from Python-generated code with string literals - never dynamic strings.
@@ -167,11 +214,10 @@ class EthernetComponent : public Component {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
 
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 #endif
 
-}  // namespace ethernet
-}  // namespace esphome
+}  // namespace esphome::ethernet
 
 #endif  // USE_ESP32

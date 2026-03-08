@@ -12,7 +12,6 @@ class MMC5983Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
   void set_x_sensor(sensor::Sensor *x_sensor) { x_sensor_ = x_sensor; }
   void set_y_sensor(sensor::Sensor *y_sensor) { y_sensor_ = y_sensor; }

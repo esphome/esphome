@@ -11,7 +11,6 @@ class MAX17043Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
   void sleep_mode();
 

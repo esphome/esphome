@@ -11,7 +11,7 @@
 namespace esphome {
 namespace ltr501 {
 
-enum DataAvail : uint8_t { NO_DATA, BAD_DATA, DATA_OK };
+enum LtrDataAvail : uint8_t { LTR_NO_DATA, LTR_BAD_DATA, LTR_DATA_OK };
 
 enum LtrType : uint8_t {
   LTR_TYPE_UNKNOWN = 0,
@@ -74,6 +74,7 @@ class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
     READY_TO_PUBLISH,
     KEEP_PUBLISHING
   } state_{State::NOT_INITIALIZED};
+  uint8_t tries_{0};
 
   LtrType ltr_type_{LtrType::LTR_TYPE_ALS_ONLY};
 
@@ -106,7 +107,7 @@ class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
   void configure_als_();
   void configure_integration_time_(IntegrationTime501 time);
   void configure_gain_(AlsGain501 gain);
-  DataAvail is_als_data_ready_(AlsReadings &data);
+  LtrDataAvail is_als_data_ready_(AlsReadings &data);
   void read_sensor_data_(AlsReadings &data);
   bool are_adjustments_required_(AlsReadings &data);
   void apply_lux_calculation_(AlsReadings &data);
@@ -130,6 +131,8 @@ class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
   PsGain501 ps_gain_{PsGain501::PS_GAIN_1};
   uint16_t ps_threshold_high_{0xffff};
   uint16_t ps_threshold_low_{0x0000};
+  uint32_t last_ps_high_trigger_time_{0};
+  uint32_t last_ps_low_trigger_time_{0};
 
   //
   //   Sensors for publishing data

@@ -43,16 +43,26 @@ def get_boards():
                 name = board_info["name"]
                 board = fname.stem
                 variant = mcu.upper()
-                boards[board] = {
+                chip_variant = board_info["build"].get("chip_variant", "")
+                entry = {
                     "name": name,
                     "variant": f"VARIANT_{variant}",
                 }
+                if chip_variant.endswith("_es"):
+                    entry["engineering_sample"] = True
+                boards[board] = entry
         return boards
 
 
 TEMPLATE = """    "%s": {
         "name": "%s",
         "variant": %s,
+    },"""
+
+TEMPLATE_ES = """    "%s": {
+        "name": "%s",
+        "variant": %s,
+        "engineering_sample": True,
     },"""
 
 
@@ -66,7 +76,8 @@ def main(check: bool):
         if line == "BOARDS = {":
             parts.append(line)
             parts.extend(
-                TEMPLATE % (board, info["name"], info["variant"])
+                (TEMPLATE_ES if info.get("engineering_sample") else TEMPLATE)
+                % (board, info["name"], info["variant"])
                 for board, info in sorted(boards.items())
             )
             parts.append("}")

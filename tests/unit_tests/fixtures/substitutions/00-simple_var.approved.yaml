@@ -8,6 +8,8 @@ substitutions:
   position:
     x: 79
     y: 82
+  a: 15
+  b: 20
 
 esphome:
   name: test
@@ -34,3 +36,5 @@ test_list:
   - '{{{"AA"}}}'
   - '"HELLO"'
   - '{ 79, 82 }'
+  - a: 15 should be 15, overridden from command line
+    b: 20 should stay as 20, not overridden

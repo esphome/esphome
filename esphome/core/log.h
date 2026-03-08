@@ -14,12 +14,9 @@
 #endif
 
 // Include ESP-IDF/Arduino based logging methods here so they don't undefine ours later
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
+#if defined(USE_ESP32)
 #include <esp_err.h>
 #include <esp_log.h>
-#endif
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#include <esp32-hal-log.h>
 #endif
 #ifdef USE_LIBRETINY
 #include <lt_logger.h>
@@ -66,7 +63,7 @@ void esp_log_vprintf_(int level, const char *tag, int line, const char *format, 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 void esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
+#if defined(USE_ESP32)
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 

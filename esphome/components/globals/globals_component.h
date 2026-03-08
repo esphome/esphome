@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include <cstring>
 
-namespace esphome {
-namespace globals {
+namespace esphome::globals {
 
 template<typename T> class GlobalsComponent : public Component {
  public:
@@ -24,13 +23,14 @@ template<typename T> class GlobalsComponent : public Component {
   T value_{};
 };
 
-template<typename T> class RestoringGlobalsComponent : public Component {
+template<typename T> class RestoringGlobalsComponent : public PollingComponent {
  public:
   using value_type = T;
-  explicit RestoringGlobalsComponent() = default;
-  explicit RestoringGlobalsComponent(T initial_value) : value_(initial_value) {}
+  explicit RestoringGlobalsComponent() : PollingComponent(1000) {}
+  explicit RestoringGlobalsComponent(T initial_value) : PollingComponent(1000), value_(initial_value) {}
   explicit RestoringGlobalsComponent(
-      std::array<typename std::remove_extent<T>::type, std::extent<T>::value> initial_value) {
+      std::array<typename std::remove_extent<T>::type, std::extent<T>::value> initial_value)
+      : PollingComponent(1000) {
     memcpy(this->value_, initial_value.data(), sizeof(T));
   }
 
@@ -44,7 +44,7 @@ template<typename T> class RestoringGlobalsComponent : public Component {
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  void loop() override { store_value_(); }
+  void update() override { store_value_(); }
 
   void on_shutdown() override { store_value_(); }
 
@@ -66,13 +66,14 @@ template<typename T> class RestoringGlobalsComponent : public Component {
 };
 
 // Use with string or subclasses of strings
-template<typename T, uint8_t SZ> class RestoringGlobalStringComponent : public Component {
+template<typename T, uint8_t SZ> class RestoringGlobalStringComponent : public PollingComponent {
  public:
   using value_type = T;
-  explicit RestoringGlobalStringComponent() = default;
-  explicit RestoringGlobalStringComponent(T initial_value) { this->value_ = initial_value; }
+  explicit RestoringGlobalStringComponent() : PollingComponent(1000) {}
+  explicit RestoringGlobalStringComponent(T initial_value) : PollingComponent(1000) { this->value_ = initial_value; }
   explicit RestoringGlobalStringComponent(
-      std::array<typename std::remove_extent<T>::type, std::extent<T>::value> initial_value) {
+      std::array<typename std::remove_extent<T>::type, std::extent<T>::value> initial_value)
+      : PollingComponent(1000) {
     memcpy(this->value_, initial_value.data(), sizeof(T));
   }
 
@@ -90,7 +91,7 @@ template<typename T, uint8_t SZ> class RestoringGlobalStringComponent : public C
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  void loop() override { store_value_(); }
+  void update() override { store_value_(); }
 
   void on_shutdown() override { store_value_(); }
 
@@ -144,5 +145,4 @@ template<typename T> T &id(GlobalsComponent<T> *value) { return value->value(); 
 template<typename T> T &id(RestoringGlobalsComponent<T> *value) { return value->value(); }
 template<typename T, uint8_t SZ> T &id(RestoringGlobalStringComponent<T, SZ> *value) { return value->value(); }
 
-}  // namespace globals
-}  // namespace esphome
+}  // namespace esphome::globals

@@ -385,7 +385,7 @@ haier_protocol::HaierMessage Smartair2Climate::get_control_message() {
 }
 
 haier_protocol::HandlerError Smartair2Climate::process_status_message_(const uint8_t *packet_buffer, uint8_t size) {
-  if (size < sizeof(smartair2_protocol::HaierStatus))
+  if (size != sizeof(smartair2_protocol::HaierStatus))
     return haier_protocol::HandlerError::WRONG_MESSAGE_STRUCTURE;
   smartair2_protocol::HaierStatus packet;
   memcpy(&packet, packet_buffer, size);
@@ -402,7 +402,8 @@ haier_protocol::HandlerError Smartair2Climate::process_status_message_(const uin
     } else {
       this->preset = CLIMATE_PRESET_NONE;
     }
-    should_publish = should_publish || (!old_preset.has_value()) || (old_preset.value() != this->preset.value());
+    should_publish = should_publish || (!old_preset.has_value()) ||
+                     (old_preset.value_or(CLIMATE_PRESET_NONE) != this->preset.value_or(CLIMATE_PRESET_NONE));
   }
   {
     // Target temperature
@@ -446,7 +447,8 @@ haier_protocol::HandlerError Smartair2Climate::process_status_message_(const uin
         this->fan_mode = CLIMATE_FAN_HIGH;
         break;
     }
-    should_publish = should_publish || (!old_fan_mode.has_value()) || (old_fan_mode.value() != fan_mode.value());
+    should_publish = should_publish || (!old_fan_mode.has_value()) ||
+                     (old_fan_mode.value_or(CLIMATE_FAN_ON) != this->fan_mode.value_or(CLIMATE_FAN_ON));
   }
   // Display status
   // should be before "Climate mode" because it is changing this->mode

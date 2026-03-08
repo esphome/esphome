@@ -2,6 +2,9 @@ esphome:
   debug_scheduler: true
   platformio_options:
     board_build.flash_mode: dio
+  environment_variables:
+    TEST_ENV_VAR: "test_value"
+    BUILD_NUMBER: "12345"
   area:
     id: testing_area
     name: Testing Area

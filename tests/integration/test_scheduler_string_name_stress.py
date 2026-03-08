@@ -92,7 +92,7 @@ async def test_scheduler_string_name_stress(
         )
 
         # Call the service to start the test
-        client.execute_service(run_stress_test_service, {})
+        await client.execute_service(run_stress_test_service, {})
 
         # Wait for test to complete or crash
         try:
