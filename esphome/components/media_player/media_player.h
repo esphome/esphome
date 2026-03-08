@@ -58,6 +58,12 @@ enum MediaPlayerCommand : uint8_t {
   MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST = 11,
   MEDIA_PLAYER_COMMAND_TURN_ON = 12,
   MEDIA_PLAYER_COMMAND_TURN_OFF = 13,
+  MEDIA_PLAYER_COMMAND_NEXT = 14,
+  MEDIA_PLAYER_COMMAND_PREVIOUS = 15,
+  MEDIA_PLAYER_COMMAND_REPEAT_ALL = 16,
+  MEDIA_PLAYER_COMMAND_SHUFFLE = 17,
+  MEDIA_PLAYER_COMMAND_UNSHUFFLE = 18,
+  MEDIA_PLAYER_COMMAND_GROUP_JOIN = 19,
 };
 const char *media_player_command_to_string(MediaPlayerCommand command);
 
@@ -74,38 +80,40 @@ struct MediaPlayerSupportedFormat {
   uint32_t sample_bytes;
 };
 
+// Base features always reported for all media players
+static constexpr uint32_t BASE_MEDIA_PLAYER_FEATURES =
+    MediaPlayerEntityFeature::PLAY_MEDIA | MediaPlayerEntityFeature::BROWSE_MEDIA | MediaPlayerEntityFeature::STOP |
+    MediaPlayerEntityFeature::VOLUME_SET | MediaPlayerEntityFeature::VOLUME_MUTE |
+    MediaPlayerEntityFeature::MEDIA_ANNOUNCE;
+
 class MediaPlayer;
 
 class MediaPlayerTraits {
  public:
   MediaPlayerTraits() = default;
 
-  void set_supports_pause(bool supports_pause) { this->supports_pause_ = supports_pause; }
-  bool get_supports_pause() const { return this->supports_pause_; }
-
-  void set_supports_turn_off_on(bool supports_turn_off_on) { this->supports_turn_off_on_ = supports_turn_off_on; }
-  bool get_supports_turn_off_on() const { return this->supports_turn_off_on_; }
+  uint32_t get_feature_flags() const { return this->feature_flags_; }
+  void add_feature_flags(uint32_t feature_flags) { this->feature_flags_ |= feature_flags; }
+  void clear_feature_flags(uint32_t feature_flags) { this->feature_flags_ &= ~feature_flags; }
+  // Returns true only if all specified flags are set
+  bool has_feature_flags(uint32_t feature_flags) const {
+    return (this->feature_flags_ & feature_flags) == feature_flags;
+  }
 
   std::vector<MediaPlayerSupportedFormat> &get_supported_formats() { return this->supported_formats_; }
 
-  uint32_t get_feature_flags() const {
-    uint32_t flags = 0;
-    flags |= MediaPlayerEntityFeature::PLAY_MEDIA | MediaPlayerEntityFeature::BROWSE_MEDIA |
-             MediaPlayerEntityFeature::STOP | MediaPlayerEntityFeature::VOLUME_SET |
-             MediaPlayerEntityFeature::VOLUME_MUTE | MediaPlayerEntityFeature::MEDIA_ANNOUNCE;
-    if (this->get_supports_pause()) {
-      flags |= MediaPlayerEntityFeature::PAUSE | MediaPlayerEntityFeature::PLAY;
-    }
-    if (this->get_supports_turn_off_on()) {
-      flags |= MediaPlayerEntityFeature::TURN_OFF | MediaPlayerEntityFeature::TURN_ON;
-    }
-    return flags;
+  // Legacy setters/getters are kept for backward compatibility
+  void set_supports_pause(bool supports_pause);
+  bool get_supports_pause() const { return this->has_feature_flags(MediaPlayerEntityFeature::PAUSE); }
+
+  void set_supports_turn_off_on(bool supports_turn_off_on);
+  bool get_supports_turn_off_on() const {
+    return this->has_feature_flags(MediaPlayerEntityFeature::TURN_ON | MediaPlayerEntityFeature::TURN_OFF);
   }
 
  protected:
   std::vector<MediaPlayerSupportedFormat> supported_formats_{};
-  bool supports_pause_{false};
-  bool supports_turn_off_on_{false};
+  uint32_t feature_flags_{BASE_MEDIA_PLAYER_FEATURES};
 };
 
 class MediaPlayerCall {

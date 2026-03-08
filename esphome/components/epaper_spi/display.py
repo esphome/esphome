@@ -49,10 +49,6 @@ EPaperBase = epaper_spi_ns.class_(
 )
 Transform = epaper_spi_ns.enum("Transform")
 
-EPaperSpectraE6 = epaper_spi_ns.class_("EPaperSpectraE6", EPaperBase)
-EPaper7p3InSpectraE6 = epaper_spi_ns.class_("EPaper7p3InSpectraE6", EPaperSpectraE6)
-
-
 # Import all models dynamically from the models package
 for module_info in pkgutil.iter_modules(models.__path__):
     importlib.import_module(f".models.{module_info.name}", package=__package__)

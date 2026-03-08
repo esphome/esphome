@@ -2,6 +2,7 @@
 #include "image_decoder.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include <algorithm>
 #include <cstring>
 
 #ifdef USE_RUNTIME_IMAGE_BMP
@@ -42,6 +43,14 @@ int RuntimeImage::resize(int width, int height) {
   // Use fixed dimensions if specified (0 means auto-resize)
   int target_width = this->fixed_width_ ? this->fixed_width_ : width;
   int target_height = this->fixed_height_ ? this->fixed_height_ : height;
+
+  // When both fixed dimensions are set, scale uniformly to preserve aspect ratio
+  if (this->fixed_width_ && this->fixed_height_ && width > 0 && height > 0) {
+    float scale =
+        std::min(static_cast<float>(this->fixed_width_) / width, static_cast<float>(this->fixed_height_) / height);
+    target_width = static_cast<int>(width * scale);
+    target_height = static_cast<int>(height * scale);
+  }
 
   size_t result = this->resize_buffer_(target_width, target_height);
   if (result > 0 && this->progressive_display_) {
@@ -230,7 +239,8 @@ void RuntimeImage::release() {
 void RuntimeImage::release_buffer_() {
   if (this->buffer_) {
     ESP_LOGV(TAG, "Releasing buffer of size %zu", this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
-    this->allocator_.deallocate(this->buffer_, this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
+    RAMAllocator<uint8_t> allocator;
+    allocator.deallocate(this->buffer_, this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
     this->buffer_ = nullptr;
     this->data_start_ = nullptr;
     this->width_ = 0;
@@ -254,11 +264,12 @@ size_t RuntimeImage::resize_buffer_(int width, int height) {
   }
 
   ESP_LOGD(TAG, "Allocating buffer: %dx%d, %zu bytes", width, height, new_size);
-  this->buffer_ = this->allocator_.allocate(new_size);
+  RAMAllocator<uint8_t> allocator;
+  this->buffer_ = allocator.allocate(new_size);
 
   if (!this->buffer_) {
     ESP_LOGE(TAG, "Failed to allocate %zu bytes. Largest free block: %zu", new_size,
-             this->allocator_.get_max_free_block_size());
+             allocator.get_max_free_block_size());
     return 0;
   }
 

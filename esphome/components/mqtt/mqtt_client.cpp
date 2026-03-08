@@ -64,7 +64,10 @@ void MQTTClientComponent::setup() {
   });
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
-    logger::global_logger->add_log_listener(this);
+    logger::global_logger->add_log_callback(
+        this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
+          static_cast<MQTTClientComponent *>(self)->on_log(level, tag, message, message_len);
+        });
   }
 #endif
 
@@ -540,8 +543,8 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
 }
 
 bool MQTTClientComponent::publish_json(const char *topic, const json::json_build_t &f, uint8_t qos, bool retain) {
-  std::string message = json::build_json(f);
-  return this->publish(topic, message.c_str(), message.length(), qos, retain);
+  auto message = json::build_json(f);
+  return this->publish(topic, message.c_str(), message.size(), qos, retain);
 }
 
 void MQTTClientComponent::enable() {
@@ -745,13 +748,6 @@ void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&call
   this->mqtt_backend_.set_on_disconnect(std::forward<mqtt_on_disconnect_callback_t>(callback));
   this->on_disconnect_.add(std::move(callback_copy));
 }
-
-#if ASYNC_TCP_SSL_ENABLED
-void MQTTClientComponent::add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint) {
-  this->mqtt_backend_.setSecure(true);
-  this->mqtt_backend_.addServerFingerprint(fingerprint.data());
-}
-#endif
 
 MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
