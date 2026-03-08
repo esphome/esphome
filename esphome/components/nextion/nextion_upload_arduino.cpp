@@ -147,9 +147,6 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
     return false;
   }
 
-  // Temporarily adjust watchdog timeout for the duration of the TFT upload
-  watchdog::WatchdogManager wdm(this->tft_upload_watchdog_timeout_);
-
   this->connection_state_.is_updating_ = true;
 
   if (exit_reparse) {

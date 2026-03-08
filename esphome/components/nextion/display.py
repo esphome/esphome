@@ -58,6 +58,25 @@ BufferOverflowTrigger = nextion_ns.class_(
     "BufferOverflowTrigger", automation.Trigger.template()
 )
 
+def _validate_tft_upload(config):
+    has_tft_url = CONF_TFT_URL in config
+    for conf_key in (
+        CONF_TFT_UPLOAD_HTTP_TIMEOUT,
+        CONF_TFT_UPLOAD_HTTP_RETRIES,
+        CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
+    ):
+        if conf_key in config and not has_tft_url:
+            raise cv.Invalid(
+                f"{conf_key} requires {CONF_TFT_URL} to be set"
+            )
+    if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config:
+        if not CORE.is_esp32:
+            raise cv.Invalid(
+                f"{CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT} is only available on ESP32"
+            )
+    return config
+
+
 CONFIG_SCHEMA = (
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
@@ -138,7 +157,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("5s"))
-    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA),
+    _validate_tft_upload,
 )
 
 
