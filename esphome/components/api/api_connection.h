@@ -148,6 +148,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &msg) override;
   void on_subscribe_bluetooth_connections_free_request() override;
   void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) override;
+  void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg) override;
 
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
@@ -186,6 +187,15 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_IR_RF
   void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) override;
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
+#endif
+
+#ifdef USE_SERIAL_PROXY
+  void on_serial_proxy_configure_request(const SerialProxyConfigureRequest &msg) override;
+  void on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) override;
+  void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) override;
+  void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) override;
+  void on_serial_proxy_request(const SerialProxyRequest &msg) override;
+  void send_serial_proxy_data(const SerialProxyDataReceived &msg);
 #endif
 
 #ifdef USE_EVENT
@@ -253,6 +263,7 @@ class APIConnection final : public APIServerConnectionBase {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
            this->is_authenticated();
   }
+  bool is_marked_for_removal() const { return this->flags_.remove; }
   uint8_t get_log_subscription_level() const { return this->flags_.log_subscription; }
 
   // Get client API version for feature detection
