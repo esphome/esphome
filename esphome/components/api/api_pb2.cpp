@@ -139,7 +139,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer &buffer) const {
 #endif
 #ifdef USE_SERIAL_PROXY
   for (const auto &it : this->serial_proxies) {
-    buffer.encode_message(25, it);
+    buffer.encode_sub_message(25, it);
   }
 #endif
 }
@@ -2249,17 +2249,17 @@ bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id,
   return true;
 }
 void BluetoothLERawAdvertisement::encode(ProtoWriteBuffer &buffer) const {
-  buffer.encode_uint64(1, this->address);
-  buffer.encode_sint32(2, this->rssi);
+  buffer.encode_uint64(1, this->address, true);
+  buffer.encode_sint32(2, this->rssi, true);
   buffer.encode_uint32(3, this->address_type);
-  buffer.encode_bytes(4, this->data, this->data_len);
+  buffer.encode_bytes(4, this->data, this->data_len, true);
 }
 uint32_t BluetoothLERawAdvertisement::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_uint64(1, this->address);
-  size += ProtoSize::calc_sint32(1, this->rssi);
+  size += ProtoSize::calc_uint64_force(1, this->address);
+  size += ProtoSize::calc_sint32_force(1, this->rssi);
   size += ProtoSize::calc_uint32(1, this->address_type);
-  size += ProtoSize::calc_length(1, this->data_len);
+  size += ProtoSize::calc_length_force(1, this->data_len);
   return size;
 }
 void BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer &buffer) const {

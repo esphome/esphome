@@ -1571,7 +1571,7 @@ bool APIConnection::send_ping_response_() {
 }
 
 bool APIConnection::send_device_info_response_() {
-  DeviceInfoResponse resp{};
+  DeviceInfoResponse resp;
   resp.name = StringRef(App.get_name());
   resp.friendly_name = StringRef(App.get_friendly_name());
 #ifdef USE_AREAS
