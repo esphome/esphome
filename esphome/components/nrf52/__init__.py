@@ -395,7 +395,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
     result = 0
     handled = False
 
-    mcumgr_device = None
+    mcumgr_device: str | None = None
 
     if get_port_type(host) == "SERIAL":
         check_permissions(host)
