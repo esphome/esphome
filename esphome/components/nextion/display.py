@@ -75,7 +75,7 @@ def _validate_tft_upload(config):
     return config
 
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(Nextion),
