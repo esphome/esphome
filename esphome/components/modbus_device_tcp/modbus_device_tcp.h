@@ -23,10 +23,11 @@ class ModbusDeviceTCP : public esphome::Component {
       return;
     uint16_t byte_idx = index / 8u;
     uint8_t bit_mask = (uint8_t) (1u << (index % 8u));
-    if (value)
+    if (value) {
       coil_reg_params_.coil_data[byte_idx] |= bit_mask;
-    else
+    } else {
       coil_reg_params_.coil_data[byte_idx] &= (uint8_t) ~bit_mask;
+    }
   }
 
   /// Set holding register at index (0..num_objects-1). Call from interval/automation/lambda.
@@ -49,10 +50,11 @@ class ModbusDeviceTCP : public esphome::Component {
       return;
     uint16_t byte_idx = index / 8u;
     uint8_t bit_mask = (uint8_t) (1u << (index % 8u));
-    if (value)
+    if (value) {
       discrete_reg_params_.discrete_data[byte_idx] |= bit_mask;
-    else
+    } else {
       discrete_reg_params_.discrete_data[byte_idx] &= (uint8_t) ~bit_mask;
+    }
   }
 
   void setup() override {
