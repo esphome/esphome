@@ -260,6 +260,11 @@ async def to_code(config):
     if CORE.testing_mode:
         cg.add_build_flag("-DESPHOME_TESTING_MODE")
 
+    # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
+    # (~900 bytes). See printf_stubs.cpp for implementation.
+    for symbol in ("vprintf", "printf", "fprintf"):
+        cg.add_build_flag(f"-Wl,--wrap={symbol}")
+
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
