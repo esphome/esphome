@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import io
 from pathlib import Path
 from typing import Any
@@ -408,7 +409,8 @@ def test_shlex_quote_edge_cases() -> None:
 
 
 def _make_redirect(
-    line_callbacks: list | None = None, filter_lines: list[str] | None = None
+    line_callbacks: list[Callable[[str], str | None]] | None = None,
+    filter_lines: list[str] | None = None,
 ) -> tuple[util.RedirectText, io.StringIO]:
     """Create a RedirectText that writes to a StringIO buffer."""
     buf = io.StringIO()

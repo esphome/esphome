@@ -646,12 +646,12 @@ def _make_crystal_freq_callback(
     configured_freq: int,
 ) -> Callable[[str], str | None]:
     """Create a callback that checks esptool crystal frequency output."""
-    crystal_re = re.compile(r"Crystal frequency:\s+(\d+(?:\.\d+)?)\s*MHz")
+    crystal_re = re.compile(r"Crystal frequency:\s+(\d+)\s*MHz")
 
     def check_crystal_line(line: str) -> str | None:
         if not (match := crystal_re.search(line)):
             return None
-        detected = int(float(match.group(1)))
+        detected = int(match.group(1))
         if detected == configured_freq:
             return None
         return (
@@ -701,7 +701,11 @@ def upload_using_esptool(
         mcu = get_esp32_variant().lower()
 
     line_callbacks: list[Callable[[str], str | None]] = []
-    if CORE.is_esp32 and (configured_freq := _get_configured_xtal_freq()) is not None:
+    if (
+        CORE.is_esp32
+        and file is None
+        and (configured_freq := _get_configured_xtal_freq()) is not None
+    ):
         line_callbacks.append(_make_crystal_freq_callback(configured_freq))
 
     def run_esptool(baud_rate):
