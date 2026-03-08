@@ -11,7 +11,8 @@ This component only works on ESP32 based chips.
 
 The `audio_file` component allows you to embed audio files directly into your device's firmware.
 Audio files can be sourced from local files or downloaded from a URL at compile time.
-The raw audio data is stored in flash memory and can be provided via a media source to compatible media players for playback.
+The raw audio data is stored in flash memory and can be played back using the
+[Audio File media source](/components/media_source/audio_file/) platform.
 
 Supported audio formats are automatically detected and include:
 
@@ -57,4 +58,5 @@ audio_file:
 ## See Also
 
 - [Media Source Components](/components/media_source/)
+- [Audio File Media Source](/components/media_source/audio_file/)
 - <APIRef text="audio_file.h" path="esphome/components/audio_file/audio_file.h" />

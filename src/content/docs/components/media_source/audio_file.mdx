@@ -1,0 +1,45 @@
+---
+description: "Instructions for setting up the Audio File media source in ESPHome."
+title: "Audio File Media Source"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+The `audio_file` media source platform plays audio files that have been embedded into the firmware
+using the [Audio File](/components/audio_file/) component.
+
+Files are played using the `audio-file://` URI scheme; the part after `audio-file://` is used as the
+`id` of the audio file to play.
+
+This component only works on ESP32 based chips.
+
+```yaml
+# Example configuration entry
+audio_file:
+  - id: alert_sound
+    file: "sounds/alert.wav"
+  - id: timer_sound
+    file: "https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/timer_finished.flac"
+
+media_source:
+  - platform: audio_file
+    id: file_source
+```
+
+To play a file, send the media URL `audio-file://alert_sound` to a media player that uses this
+media source.
+
+<span id="config-audio_file_media_source"></span>
+
+## Configuration variables
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for this media source.
+- **task_stack_in_psram** (*Optional*, boolean): If `true`, the FreeRTOS decode task stack is
+  allocated in PSRAM instead of internal RAM. Requires the [psram](/components/psram/) component. Defaults to `false`.
+- All other options from [Media Source](/components/media_source/).
+
+## See Also
+
+- [Audio File Component](/components/audio_file/)
+- [Media Source Components](/components/media_source/)
+- <APIRef text="audio_file_media_source.h" path="esphome/components/audio_file/media_source/audio_file_media_source.h" />
