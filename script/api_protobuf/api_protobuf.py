@@ -152,6 +152,11 @@ class TypeInfo(ABC):
         return self._field.label == FieldDescriptorProto.LABEL_REPEATED
 
     @property
+    def force(self) -> bool:
+        """Check if this field should always be encoded (skip zero/empty check)."""
+        return get_field_opt(self._field, pb.force, False)
+
+    @property
     def wire_type(self) -> WireType:
         """Get the wire type for the field."""
         raise NotImplementedError
@@ -218,6 +223,8 @@ class TypeInfo(ABC):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, true);"
         return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
 
     encode_func = None
@@ -1086,6 +1093,8 @@ class FixedArrayBytesType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
         return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
 
     def dump(self, name: str) -> str:
@@ -2134,7 +2143,8 @@ def build_message_type(
             encode.extend(wrap_with_ifdef(ti.encode_content, field_ifdef))
             size_calc.extend(
                 wrap_with_ifdef(
-                    ti.get_size_calculation(f"this->{ti.field_name}"), field_ifdef
+                    ti.get_size_calculation(f"this->{ti.field_name}", ti.force),
+                    field_ifdef,
                 )
             )
 
